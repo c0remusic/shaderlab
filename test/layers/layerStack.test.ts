@@ -38,6 +38,16 @@ describe("LayerStack", () => {
     expect(stack.layers[0].params.intensity).toBe(0.5);
   });
 
+  it("updateMask replaces a layer's maskData with a copy", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    const mask = new Uint8Array([1, 2, 3]);
+    stack.updateMask(id, mask);
+    expect(stack.layers[0].maskData).toEqual(mask);
+    mask[0] = 99;
+    expect(stack.layers[0].maskData![0]).not.toBe(99); // stored a copy, not the same reference
+  });
+
   it("clone() produces a deep copy independent of the original", () => {
     const stack = new LayerStack();
     const id = stack.addLayer("glow");

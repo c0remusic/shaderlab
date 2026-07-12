@@ -36,6 +36,11 @@ export class LayerStack {
     if (layer) layer.params = { ...layer.params, ...params };
   }
 
+  updateMask(id: string, maskData: Uint8Array): void {
+    const layer = this.layers.find((l) => l.id === id);
+    if (layer) layer.maskData = new Uint8Array(maskData);
+  }
+
   clone(): LayerStack {
     const copy = new LayerStack();
     copy.layers = this.layers.map((l) => ({

@@ -10,6 +10,7 @@ import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
 import { exportImage, resolveExportTarget } from "./export/exportImage";
 import { getLaunchPath } from "./launch";
+import { MaskPainter } from "./mask/maskPainter";
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -26,6 +27,11 @@ export default function App() {
   // handleExport, per the project's copy-only safety rule.
   const [isLaunchFile, setIsLaunchFile] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const maskPaintersRef = useRef<Map<string, MaskPainter>>(new Map());
+  const [maskPaintMode, setMaskPaintMode] = useState(false);
+  const [brushSize, setBrushSize] = useState(30);
+  const [brushHardness, setBrushHardness] = useState(0.5);
+  const [erase, setErase] = useState(false);
 
   const commit = useCallback((stack: LayerStack) => {
     historyRef.current.push(stack);
@@ -104,6 +110,28 @@ export default function App() {
     commit(stack);
   }
 
+  function handleMaskStroke(x: number, y: number) {
+    if (!selectedId || imageSize.width === 0) return;
+    let painter = maskPaintersRef.current.get(selectedId);
+    if (!painter) {
+      painter = new MaskPainter(imageSize.width, imageSize.height);
+      maskPaintersRef.current.set(selectedId, painter);
+    }
+    painter.paintStroke(x, y, brushSize, brushHardness, erase);
+    const stack = currentStack();
+    stack.updateMask(selectedId, painter.getMaskData());
+    setLayers(stack.layers);
+    rendererRef.current?.render(stack.layers);
+    // Intentionally NOT calling `commit()`/history.push() per pointer-move sample —
+    // that would flood undo history with every mouse-move frame. Mask strokes are
+    // committed to history once, on pointer-up (see handleMaskStrokeEnd below).
+  }
+
+  function handleMaskStrokeEnd() {
+    if (!selectedId) return;
+    commit(currentStack());
+  }
+
   function handleUndo() {
     const previous = historyRef.current.undo();
     if (previous) {
@@ -155,8 +183,25 @@ export default function App() {
           onAdd={handleAdd}
           onRemove={handleRemove}
         />
-        <Canvas ref={canvasRef} onFileDropped={(file) => openFile(file, null, false)} />
-        <ParamPanel layer={selectedLayer} onParamChange={handleParamChange} />
+        <Canvas
+          ref={canvasRef}
+          onFileDropped={(file) => openFile(file, null, false)}
+          maskPaintMode={maskPaintMode}
+          onMaskStroke={handleMaskStroke}
+          onStrokeEnd={handleMaskStrokeEnd}
+        />
+        <ParamPanel
+          layer={selectedLayer}
+          onParamChange={handleParamChange}
+          maskPaintMode={maskPaintMode}
+          onToggleMaskPaint={() => setMaskPaintMode((v) => !v)}
+          brushSize={brushSize}
+          onBrushSizeChange={setBrushSize}
+          brushHardness={brushHardness}
+          onBrushHardnessChange={setBrushHardness}
+          erase={erase}
+          onEraseChange={setErase}
+        />
       </div>
     </div>
   );

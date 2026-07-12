@@ -2,8 +2,9 @@ import type { EffectModule } from "./types";
 import { glow } from "./glow";
 import { chromaticBleed } from "./chromaticBleed";
 import { warp } from "./warp";
+import { grain } from "./grain";
 
-export const effectRegistry: EffectModule[] = [glow, chromaticBleed, warp];
+export const effectRegistry: EffectModule[] = [glow, chromaticBleed, warp, grain];
 
 export function getEffect(id: string): EffectModule {
   const effect = effectRegistry.find((e) => e.id === id);

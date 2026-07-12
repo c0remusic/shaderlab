@@ -176,7 +176,15 @@ export class Renderer {
       const isLast = i === enabledLayers.length - 1;
       const targetView = isLast ? finalTargetView : this.pingPong[writeIndex].createView();
 
-      this.runEffectPass(encoder, effect, layer, readTexture.createView(), targetView);
+      let prevPassView: GPUTextureView | null = null;
+      if (effect.passes && effect.passes.length > 0) {
+        prevPassView = this.runInternalPasses(encoder, effect, layer, readTexture.createView());
+      }
+
+      this.runEffectPass(encoder, effect, layer, readTexture.createView(), targetView, {
+        applyMask: true,
+        prevPassView,
+      });
 
       if (!isLast) {
         readTexture = this.pingPong[writeIndex];
@@ -187,13 +195,56 @@ export class Renderer {
     device.queue.submit([encoder.finish()]);
   }
 
+  /**
+   * Runs an effect's internal pass chain (bright-pass extract, downsample,
+   * upsample, etc. — see Glow's dual-filter bloom, Task 13) in sequence,
+   * each into its own intermediate texture sized `width*scale × height*scale`
+   * and formatted `ctx.srgbFormat` (color data, same as the ping-pong pair).
+   * Masking is deliberately NOT applied to internal passes — they're pure
+   * signal-processing steps feeding the final composite, which is the only
+   * pass the user's painted mask should gate. Returns the view of the last
+   * pass's output, to be bound as `prevPass` on the final composite pass.
+   */
+  private runInternalPasses(
+    encoder: GPUCommandEncoder,
+    effect: EffectModule,
+    layer: LayerState,
+    sourceView: GPUTextureView
+  ): GPUTextureView {
+    const { device, srgbFormat } = this.ctx;
+    let passInputView = sourceView;
+    for (const pass of effect.passes!) {
+      const passTarget = device.createTexture({
+        size: [
+          Math.max(1, Math.round(this.width * pass.scale)),
+          Math.max(1, Math.round(this.height * pass.scale)),
+        ],
+        format: srgbFormat,
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+      });
+      const passTargetView = passTarget.createView();
+      this.runEffectPass(
+        encoder,
+        { ...effect, wgsl: pass.wgsl },
+        layer,
+        passInputView,
+        passTargetView,
+        { applyMask: false }
+      );
+      passInputView = passTargetView;
+    }
+    return passInputView;
+  }
+
   private runEffectPass(
     encoder: GPUCommandEncoder,
     effect: EffectModule,
     layer: LayerState,
     sourceView: GPUTextureView,
-    targetView: GPUTextureView
+    targetView: GPUTextureView,
+    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null } = {}
   ): void {
+    const { applyMask = true, prevPassView = null } = options;
     const { device, srgbFormat } = this.ctx;
     const paramValues = new Float32Array(8);
     effect.params.forEach((p, idx) => {
@@ -205,13 +256,25 @@ export class Renderer {
     });
     device.queue.writeBuffer(paramBuffer, 0, paramValues);
 
+    const maskBinding = applyMask
+      ? "@group(0) @binding(3) var maskTexture: texture_2d<f32>;"
+      : "";
+    const prevPassBinding = prevPassView
+      ? "@group(0) @binding(4) var prevPass: texture_2d<f32>;"
+      : "";
+    const fsBody = applyMask
+      ? `let maskValue = textureSample(maskTexture, srcSampler, in.uv).r;
+  return mix(color, effected, maskValue);`
+      : "return effected;";
+
     const shaderCode = `
 ${FULLSCREEN_VERTEX_WGSL}
 
 @group(0) @binding(0) var srcTexture: texture_2d<f32>;
 @group(0) @binding(1) var srcSampler: sampler;
 @group(0) @binding(2) var<uniform> params: array<f32, 8>;
-@group(0) @binding(3) var maskTexture: texture_2d<f32>;
+${maskBinding}
+${prevPassBinding}
 
 ${effect.wgsl}
 
@@ -219,8 +282,7 @@ ${effect.wgsl}
 fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
   let color = textureSample(srcTexture, srcSampler, in.uv);
   let effected = fs_main(in.uv, color);
-  let maskValue = textureSample(maskTexture, srcSampler, in.uv).r;
-  return mix(color, effected, maskValue);
+  ${fsBody}
 }
 `;
     const module = device.createShaderModule({ code: shaderCode });
@@ -229,15 +291,21 @@ fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
       vertex: { module, entryPoint: "vs_main" },
       fragment: { module, entryPoint: "fs_wrapper", targets: [{ format: srgbFormat }] },
     });
-    const maskTexture = this.uploadMask(layer.maskData);
+    const entries: GPUBindGroupEntry[] = [
+      { binding: 0, resource: sourceView },
+      { binding: 1, resource: this.sampler },
+      { binding: 2, resource: { buffer: paramBuffer } },
+    ];
+    if (applyMask) {
+      const maskTexture = this.uploadMask(layer.maskData);
+      entries.push({ binding: 3, resource: maskTexture.createView() });
+    }
+    if (prevPassView) {
+      entries.push({ binding: 4, resource: prevPassView });
+    }
     const bindGroup = device.createBindGroup({
       layout: pipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: sourceView },
-        { binding: 1, resource: this.sampler },
-        { binding: 2, resource: { buffer: paramBuffer } },
-        { binding: 3, resource: maskTexture.createView() },
-      ],
+      entries,
     });
 
     const pass = encoder.beginRenderPass({

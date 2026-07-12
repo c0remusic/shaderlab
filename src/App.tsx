@@ -144,7 +144,20 @@ export default function App() {
 
   function handleMaskStrokeEnd() {
     if (!selectedId) return;
-    commit(currentStack());
+    const stack = currentStack();
+    commit(stack);
+    // `commit` -> `currentStack` clones the stack, producing a brand-new
+    // `maskData` reference for every layer even though the bytes are
+    // unchanged. Re-sync the tracked reference to that new clone so the
+    // next stroke's divergence check in `handleMaskStroke` doesn't mistake
+    // this stroke-end's own clone for an external change (undo/redo). A
+    // genuine undo/redo does NOT go through this function, so its clone's
+    // reference legitimately won't match any tracked `syncedFrom` and will
+    // still correctly trigger a re-seed.
+    const entry = maskPaintersRef.current.get(selectedId);
+    if (entry) {
+      entry.syncedFrom = stack.layers.find((l) => l.id === selectedId)?.maskData ?? null;
+    }
   }
 
   function handleUndo() {

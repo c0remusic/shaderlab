@@ -156,13 +156,15 @@ export class Renderer {
     const enabledLayers = layers.filter((l) => l.enabled);
 
     const encoder = device.createCommandEncoder();
-    // Intermediate multi-pass textures (from runInternalPasses) live only for
-    // this frame. They must not be destroyed until AFTER this frame's command
-    // buffer has been submitted — recording a command against a texture does
-    // NOT pin its lifetime through to a later submit (WebGPU validates at
-    // submit() time), so destroying mid-encoder throws. Collected here and
-    // drained once, post-submit, below.
-    const pendingDestroy: GPUTexture[] = [];
+    // Per-frame GPU resources — intermediate multi-pass textures (from
+    // runInternalPasses), each pass's paramBuffer, and each pass's mask
+    // texture (from uploadMask) — all live only for this frame. They must
+    // not be destroyed until AFTER this frame's command buffer has been
+    // submitted — recording a command against a resource does NOT pin its
+    // lifetime through to a later submit (WebGPU validates at submit()
+    // time), so destroying mid-encoder throws. Collected here and drained
+    // once, post-submit, below.
+    const pendingDestroy: (GPUTexture | GPUBuffer)[] = [];
 
     if (enabledLayers.length === 0) {
       // Nothing to composite — blit the source straight to the target.
@@ -171,9 +173,12 @@ export class Renderer {
         PASSTHROUGH_EFFECT,
         { id: "", effectId: "", params: {}, enabled: true, maskData: null },
         readTexture.createView(),
-        finalTargetView
+        finalTargetView,
+        {},
+        pendingDestroy
       );
       device.queue.submit([encoder.finish()]);
+      for (const resource of pendingDestroy) resource.destroy();
       return;
     }
 
@@ -191,10 +196,15 @@ export class Renderer {
         prevPassTexture = lastPass.texture;
       }
 
-      this.runEffectPass(encoder, effect, layer, readTexture.createView(), targetView, {
-        applyMask: true,
-        prevPassView,
-      });
+      this.runEffectPass(
+        encoder,
+        effect,
+        layer,
+        readTexture.createView(),
+        targetView,
+        { applyMask: true, prevPassView },
+        pendingDestroy
+      );
 
       // The final internal pass's texture was only needed as `prevPass` on
       // the composite pass above. Its usage there has just been recorded
@@ -209,7 +219,7 @@ export class Renderer {
     }
 
     device.queue.submit([encoder.finish()]);
-    for (const texture of pendingDestroy) texture.destroy();
+    for (const resource of pendingDestroy) resource.destroy();
   }
 
   /**
@@ -242,7 +252,7 @@ export class Renderer {
     effect: EffectModule,
     layer: LayerState,
     sourceView: GPUTextureView,
-    pendingDestroy: GPUTexture[]
+    pendingDestroy: (GPUTexture | GPUBuffer)[]
   ): { view: GPUTextureView; texture: GPUTexture } {
     const { device, srgbFormat } = this.ctx;
     let passInputView = sourceView;
@@ -264,7 +274,8 @@ export class Renderer {
         layer,
         passInputView,
         passTargetView,
-        { applyMask: false }
+        { applyMask: false },
+        pendingDestroy
       );
       // `prevTexture`'s only usage (as this pass's source) has just been
       // recorded above. It must not be destroyed until after this frame's
@@ -283,7 +294,8 @@ export class Renderer {
     layer: LayerState,
     sourceView: GPUTextureView,
     targetView: GPUTextureView,
-    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null } = {}
+    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null } = {},
+    pendingDestroy: (GPUTexture | GPUBuffer)[] = []
   ): void {
     const { applyMask = true, prevPassView = null } = options;
     const { device, srgbFormat } = this.ctx;
@@ -296,6 +308,10 @@ export class Renderer {
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
     device.queue.writeBuffer(paramBuffer, 0, paramValues);
+    // paramBuffer is only used by the pipeline recorded below; like the
+    // intermediate pass textures, it must not be destroyed until after this
+    // frame's submit() has run, so it's queued rather than destroyed here.
+    pendingDestroy.push(paramBuffer);
 
     const maskBinding = applyMask
       ? "@group(0) @binding(3) var maskTexture: texture_2d<f32>;"
@@ -340,6 +356,8 @@ fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
     if (applyMask) {
       const maskTexture = this.uploadMask(layer.maskData);
       entries.push({ binding: 3, resource: maskTexture.createView() });
+      // Same post-submit-destroy reasoning as paramBuffer above.
+      pendingDestroy.push(maskTexture);
     }
     if (prevPassView) {
       entries.push({ binding: 4, resource: prevPassView });
@@ -398,6 +416,25 @@ fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
    * `maskData === null` (no mask painted) uploads a fully-opaque mask so
    * the effect applies everywhere, matching pre-Task-9 behavior.
    */
+  /**
+   * Destroys all persistent GPU textures owned by this renderer (source,
+   * ping-pong pair, export target). Callers that replace a `Renderer`
+   * instance (e.g. `App.tsx`'s `openFile` on a new image) must call this on
+   * the outgoing instance first — otherwise its textures are orphaned on the
+   * GPU with no JS reference left to ever destroy them.
+   */
+  dispose(): void {
+    this.sourceTexture?.destroy();
+    this.sourceTexture = null;
+    if (this.pingPong) {
+      this.pingPong[0].destroy();
+      this.pingPong[1].destroy();
+      this.pingPong = null;
+    }
+    this.exportTexture?.destroy();
+    this.exportTexture = null;
+  }
+
   private uploadMask(maskData: Uint8Array | null): GPUTexture {
     const { device } = this.ctx;
     const texture = device.createTexture({

@@ -10,7 +10,7 @@ import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { exportImage, resolveExportTarget } from "./export/exportImage";
-import { getLaunchPath } from "./launch";
+import { getLaunchPath, readImageFile } from "./launch";
 import { MaskPainter } from "./mask/maskPainter";
 
 export default function App() {
@@ -61,6 +61,7 @@ export default function App() {
       canvasRef.current.width = bitmap.width;
       canvasRef.current.height = bitmap.height;
 
+      rendererRef.current?.dispose();
       rendererRef.current = new Renderer(gpuRef.current);
       await rendererRef.current.loadImage(bitmap);
 
@@ -84,9 +85,13 @@ export default function App() {
   useEffect(() => {
     getLaunchPath().then(async (path) => {
       if (!path) return;
-      const response = await fetch(`file://${path}`);
-      const blob = await response.blob();
-      await openFile(new File([blob], path), path, true);
+      try {
+        const bytes = await readImageFile(path);
+        const blob = new Blob([bytes.buffer as ArrayBuffer]);
+        await openFile(new File([blob], path), path, true);
+      } catch (e) {
+        setError((e as Error).message);
+      }
     });
   }, [openFile]);
 
@@ -108,6 +113,12 @@ export default function App() {
     stack.removeLayer(id);
     if (selectedId === id) setSelectedId(null);
     maskPaintersRef.current.delete(id);
+    commit(stack);
+  }
+
+  function handleReorder(id: string, newIndex: number) {
+    const stack = currentStack();
+    stack.reorderLayer(id, newIndex);
     commit(stack);
   }
 
@@ -183,7 +194,13 @@ export default function App() {
   }
 
   async function handleExport() {
-    if (!rendererRef.current || !sourcePath) return;
+    if (!rendererRef.current) return;
+    if (!sourcePath) {
+      setError(
+        "Impossible d'exporter : ouvre le fichier via un vrai chemin (lancement depuis Lightroom, ou une future boîte de dialogue \"Ouvrir\") plutôt que par glisser-déposer."
+      );
+      return;
+    }
     // Manual export ALWAYS copies (buildCopyPath) unless this file was
     // opened via the Lightroom launch-path CLI arg, in which case we
     // overwrite that exact path (Lightroom's own temp copy) — see
@@ -216,6 +233,7 @@ export default function App() {
           onToggle={handleToggle}
           onAdd={handleAdd}
           onRemove={handleRemove}
+          onReorder={handleReorder}
         />
         <Canvas
           ref={canvasRef}

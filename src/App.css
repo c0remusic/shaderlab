@@ -49,12 +49,6 @@
   background-color: #1a1a1a;
 }
 
-@media (prefers-color-scheme: light) {
-  .card button {
-    background-color: #f9f9f9;
-  }
-}
-
 .read-the-docs {
   color: #888;
 }

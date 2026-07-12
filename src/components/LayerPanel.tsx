@@ -13,7 +13,7 @@ interface Props {
 
 export function LayerPanel({ layers, selectedId, onSelect, onToggle, onAdd, onRemove, onReorder }: Props) {
   return (
-    <div style={{ width: 220, borderRight: "1px solid #333", padding: 8 }}>
+    <div style={{ width: 220, borderRight: "1px solid #333", padding: 8, color: "#e8e8e8" }}>
       <select onChange={(e) => e.target.value && onAdd(e.target.value)} value="">
         <option value="" disabled>
           + Ajouter un effet
@@ -43,6 +43,7 @@ export function LayerPanel({ layers, selectedId, onSelect, onToggle, onAdd, onRe
             style={{
               padding: 6,
               background: layer.id === selectedId ? "#2a2a2a" : "transparent",
+              color: "#e8e8e8",
               cursor: "grab",
               display: "flex",
               justifyContent: "space-between",

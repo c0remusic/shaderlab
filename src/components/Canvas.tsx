@@ -31,7 +31,7 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
 
   return (
     <div
-      style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", background: "#111" }}
+      style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", background: "#111", color: "#e8e8e8" }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();

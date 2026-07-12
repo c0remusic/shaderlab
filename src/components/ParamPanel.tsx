@@ -26,11 +26,11 @@ export function ParamPanel({
   erase,
   onEraseChange,
 }: Props) {
-  if (!layer) return <div style={{ width: 260, padding: 8 }}>Sélectionne un calque.</div>;
+  if (!layer) return <div style={{ width: 260, padding: 8, color: "#e8e8e8" }}>Sélectionne un calque.</div>;
   const effect = getEffect(layer.effectId);
 
   return (
-    <div style={{ width: 260, borderLeft: "1px solid #333", padding: 8 }}>
+    <div style={{ width: 260, borderLeft: "1px solid #333", padding: 8, color: "#e8e8e8" }}>
       <h3>{effect.name}</h3>
       {effect.params.map((p) => (
         <div key={p.name} style={{ marginBottom: 8 }}>

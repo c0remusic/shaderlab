@@ -177,14 +177,25 @@ export class Renderer {
       const targetView = isLast ? finalTargetView : this.pingPong[writeIndex].createView();
 
       let prevPassView: GPUTextureView | null = null;
+      let prevPassTexture: GPUTexture | null = null;
       if (effect.passes && effect.passes.length > 0) {
-        prevPassView = this.runInternalPasses(encoder, effect, layer, readTexture.createView());
+        const lastPass = this.runInternalPasses(encoder, effect, layer, readTexture.createView());
+        prevPassView = lastPass.view;
+        prevPassTexture = lastPass.texture;
       }
 
       this.runEffectPass(encoder, effect, layer, readTexture.createView(), targetView, {
         applyMask: true,
         prevPassView,
       });
+
+      // The final internal pass's texture is only needed as `prevPass` on the
+      // composite pass above — its usage there has just been recorded onto
+      // `encoder`, so it's now safe to destroy (WebGPU allows `destroy()` once
+      // the last usage is recorded, the GPU takes its own reference at
+      // `submit()`; see runInternalPasses' doc comment for the same reasoning
+      // applied to the earlier intermediate passes).
+      prevPassTexture?.destroy();
 
       if (!isLast) {
         readTexture = this.pingPong[writeIndex];
@@ -202,17 +213,33 @@ export class Renderer {
    * and formatted `ctx.srgbFormat` (color data, same as the ping-pong pair).
    * Masking is deliberately NOT applied to internal passes — they're pure
    * signal-processing steps feeding the final composite, which is the only
-   * pass the user's painted mask should gate. Returns the view of the last
-   * pass's output, to be bound as `prevPass` on the final composite pass.
+   * pass the user's painted mask should gate. Returns the view (and owning
+   * texture) of the last pass's output, to be bound as `prevPass` on the
+   * final composite pass.
+   *
+   * Each pass's texture is destroyed as soon as the NEXT pass's `runEffectPass`
+   * call has recorded it as its source (or, for the final pass, left for the
+   * caller to destroy once the composite pass has recorded reading it) —
+   * except it's never the source texture passed in (`sourceView`), which this
+   * method doesn't own. WebGPU's `destroy()` only requires the last *usage*
+   * to have been *recorded* onto the encoder, not submitted — submission
+   * itself captures the GPU's own reference — so destroying mid-encoder,
+   * before `device.queue.submit()`, is safe. This matches how `pingPong`/
+   * `sourceTexture` are handled elsewhere in this class: they're never
+   * destroyed mid-frame because they're reused across frames, but nothing
+   * here contradicts that; these intermediate textures are new every
+   * `render()` call and have no reason to outlive it.
    */
   private runInternalPasses(
     encoder: GPUCommandEncoder,
     effect: EffectModule,
     layer: LayerState,
     sourceView: GPUTextureView
-  ): GPUTextureView {
+  ): { view: GPUTextureView; texture: GPUTexture } {
     const { device, srgbFormat } = this.ctx;
     let passInputView = sourceView;
+    let prevTexture: GPUTexture | null = null;
+    let lastTexture: GPUTexture | null = null;
     for (const pass of effect.passes!) {
       const passTarget = device.createTexture({
         size: [
@@ -231,9 +258,14 @@ export class Renderer {
         passTargetView,
         { applyMask: false }
       );
+      // `prevTexture`'s only usage (as this pass's source) has just been
+      // recorded above, so it can be destroyed now.
+      prevTexture?.destroy();
       passInputView = passTargetView;
+      prevTexture = passTarget;
+      lastTexture = passTarget;
     }
-    return passInputView;
+    return { view: passInputView, texture: lastTexture! };
   }
 
   private runEffectPass(

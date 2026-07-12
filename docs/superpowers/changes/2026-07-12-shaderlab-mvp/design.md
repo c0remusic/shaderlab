@@ -44,9 +44,14 @@ l'option "plugin", sans SDK Adobe propriétaire.
 - **Pas de distinction preview/export** — un seul pipeline de rendu, à la
   résolution native du JPEG source, en toutes circonstances (décision
   explicite de l'utilisateur : pas de downscale pour la preview). Le
-  risque VRAM identifié en recherche (textures ~96 Mo pour un JPEG 24MP)
-  est accepté sans mitigation préventive — à mesurer empiriquement une
-  fois l'app codée, pas d'optimisation prématurée.
+  risque VRAM identifié en recherche est accepté sans mitigation
+  préventive — à mesurer empiriquement une fois l'app codée, pas
+  d'optimisation prématurée. Chiffre de référence : ~96 Mo est le coût
+  d'**une seule** texture RGBA8 pour un JPEG 24MP (calcul brut, pas une
+  mesure) ; le pipeline réel en consomme plusieurs multiples simultanément
+  (ping-pong 2 render targets + une texture de masque par calque actif),
+  donc l'usage VRAM réel est un multiple de ce chiffre, pas ce chiffre
+  lui-même — d'où la mesure empirique plutôt qu'un budget théorique figé.
 - **Historique** : undo/redo en mémoire pendant la session uniquement,
   pas de persistance disque, pas d'historique par photo consultable après
   fermeture.
@@ -92,6 +97,25 @@ le scope est Windows-only (WebView2/Edge, qui supporte WebGPU
 nativement), ce n'est pas un blocage, mais c'est le **premier spike
 technique à valider avant tout le reste** (voir Testing). Source :
 [tauri-apps/tauri#6381](https://github.com/tauri-apps/tauri/issues/6381).
+
+### Espace colorimétrique (trouvé en audit — non négociable)
+
+Le glow/bloom, le grain et l'aberration chromatique sont mathématiquement
+faux s'ils sont calculés directement sur les valeurs sRGB (gamma) du
+JPEG décodé — hautes lumières cramées, dégradés de flou ternes. Pipeline
+obligatoire : décodage JPEG → upload en texture flottante (f16) →
+conversion sRGB→linéaire à l'entrée → tous les calculs de shader en
+espace linéaire → conversion linéaire→sRGB uniquement à l'encodage final
+avant écriture JPEG. Ce n'est pas une optimisation future, c'est un
+prérequis correct dès le premier effet implémenté (le spike technique
+doit inclure cette conversion, pas juste "afficher une image").
+
+**Hypothèse assumée sur les profils couleur** : JPEG d'entrée traité
+comme sRGB, sans lecture ni conversion de profil ICC embarqué (pas de
+gestion Adobe RGB / ProPhoto RGB en v1). Si Lightroom exporte dans un
+profil plus large via ses réglages d'éditeur externe, un décalage de
+couleur est possible — accepté comme limitation connue du v1, pas
+traité silencieusement.
 
 ## Architecture
 
@@ -145,7 +169,34 @@ chromatic aberration GLSL](https://www.geeks3d.com/20101008/shader-library-chrom
   + masques, perdue à la fermeture.
 - **Export** : écrit toujours une copie ; si lancé depuis Lightroom
   (éditeur externe), écrit au chemin attendu par Lightroom pour le
-  round-trip automatique.
+  round-trip automatique — voir contrat précis ci-dessous (trouvé flou en
+  audit, maintenant explicite).
+
+### Contrat de round-trip avec Lightroom (précisé en audit)
+
+Mécanisme réel de l'"External Editing" de Lightroom (celui que Dehancer
+utilise, voir Contexte/origine) : Lightroom rend une copie de la photo
+(ici un JPEG, vu que l'utilisateur travaille en JPEG) vers un chemin
+temporaire ou choisi, puis lance l'app externe en lui passant **ce chemin
+exact en argument de ligne de commande**. Pour que Lightroom détecte le
+retour et réimporte automatiquement l'image modifiée dans le catalogue,
+l'app doit **écraser ce même fichier, au même chemin, dans un format
+compatible** (JPEG) — pas créer un fichier à côté avec un autre nom.
+
+Ceci contredit en apparence la règle "Export = toujours une copie, jamais
+d'écrasement" (section Décisions) : la résolution est que la copie se
+fait **en amont**, par Lightroom lui-même au moment de lancer l'éditeur
+externe (le fichier source original dans la bibliothèque Lightroom n'est
+jamais touché) — shaderlab, lui, écrase bien le fichier temporaire qu'on
+lui a passé, ce qui est le comportement attendu du round-trip, pas une
+exception à la règle.
+
+Ce contrat est une hypothèse basée sur le fonctionnement documenté de
+Dehancer, **pas vérifié empiriquement sur shaderlab** — à confirmer dans
+le spike technique (voir Testing) avant d'écrire le code d'export
+définitif : lancer shaderlab avec un chemin de fichier en argument
+(simulant Lightroom), vérifier qu'un simple écrasement au même chemin
+suffit à ce que Lightroom réimporte correctement.
 
 ### Flux de données
 
@@ -195,6 +246,11 @@ Export
   minimal Tauri + WebGPU affichant une image avec un seul shader, sur
   Windows réel — valide l'hypothèse technique risquée (support WebGPU
   dans Tauri/WebView2) avant d'investir dans le reste de l'architecture.
+  Ce spike doit aussi couvrir, pour ne pas devoir réécrire le pipeline
+  ensuite : (1) la conversion sRGB↔linéaire décrite ci-dessus, dès le
+  premier shader, et (2) une validation basique du contrat de round-trip
+  Lightroom (lancement avec un chemin de fichier en argument, écrasement
+  au même chemin, vérification que Lightroom réimporte bien le résultat).
 
 ## UI (v1)
 

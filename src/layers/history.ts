@@ -11,7 +11,7 @@ export class History {
 
   push(state: LayerStack): void {
     this.past.push(this.current);
-    this.current = state;
+    this.current = state.clone();
     this.future = [];
   }
 
@@ -20,7 +20,7 @@ export class History {
     if (!previous) return null;
     this.future.push(this.current);
     this.current = previous;
-    return this.current;
+    return this.current.clone();
   }
 
   redo(): LayerStack | null {
@@ -28,7 +28,7 @@ export class History {
     if (!next) return null;
     this.past.push(this.current);
     this.current = next;
-    return this.current;
+    return this.current.clone();
   }
 
   canUndo(): boolean {

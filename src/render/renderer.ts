@@ -150,13 +150,16 @@ ${FULLSCREEN_VERTEX_WGSL}
 @group(0) @binding(0) var srcTexture: texture_2d<f32>;
 @group(0) @binding(1) var srcSampler: sampler;
 @group(0) @binding(2) var<uniform> params: array<f32, 8>;
+@group(0) @binding(3) var maskTexture: texture_2d<f32>;
 
 ${effect.wgsl}
 
 @fragment
 fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
   let color = textureSample(srcTexture, srcSampler, in.uv);
-  return fs_main(in.uv, color);
+  let effected = fs_main(in.uv, color);
+  let maskValue = textureSample(maskTexture, srcSampler, in.uv).r;
+  return mix(color, effected, maskValue);
 }
 `;
     const module = device.createShaderModule({ code: shaderCode });
@@ -165,12 +168,14 @@ fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
       vertex: { module, entryPoint: "vs_main" },
       fragment: { module, entryPoint: "fs_wrapper", targets: [{ format: srgbFormat }] },
     });
+    const maskTexture = this.uploadMask(layer.maskData);
     const bindGroup = device.createBindGroup({
       layout: pipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: sourceView },
         { binding: 1, resource: this.sampler },
         { binding: 2, resource: { buffer: paramBuffer } },
+        { binding: 3, resource: maskTexture.createView() },
       ],
     });
 
@@ -209,5 +214,29 @@ fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
     const data = new Uint8Array(buffer.getMappedRange().slice(0));
     buffer.unmap();
     return data;
+  }
+
+  /**
+   * Uploads a layer's mask into an r8unorm texture. A mask is a linear
+   * 0..1 opacity weight, not color data, so it deliberately does NOT use
+   * `ctx.srgbFormat` — treating it as sRGB would bias the falloff curve.
+   * `maskData === null` (no mask painted) uploads a fully-opaque mask so
+   * the effect applies everywhere, matching pre-Task-9 behavior.
+   */
+  private uploadMask(maskData: Uint8Array | null): GPUTexture {
+    const { device } = this.ctx;
+    const texture = device.createTexture({
+      size: [this.width, this.height],
+      format: "r8unorm",
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+    });
+    const fullMask = maskData ?? new Uint8Array(this.width * this.height).fill(255);
+    device.queue.writeTexture(
+      { texture },
+      fullMask as BufferSource,
+      { bytesPerRow: this.width },
+      [this.width, this.height]
+    );
+    return texture;
   }
 }

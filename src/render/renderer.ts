@@ -45,6 +45,7 @@ export class Renderer {
   private width = 0;
   private height = 0;
   private pingPong: [GPUTexture, GPUTexture] | null = null;
+  private exportTexture: GPUTexture | null = null;
   private sampler: GPUSampler;
 
   constructor(ctx: GpuContext) {
@@ -85,6 +86,60 @@ export class Renderer {
   }
 
   render(layers: LayerState[]): void {
+    this.runPipeline(layers, getSrgbCanvasView(this.ctx));
+  }
+
+  /**
+   * Renders the full layer stack into an off-screen texture instead of the
+   * canvas, then reads it back — used by the export pipeline (Task 10).
+   *
+   * `render()` always writes its last pass straight to the canvas's current
+   * texture, never into `pingPong`, so `readPixels()` reading `pingPong[0]`
+   * would return stale data (whatever pass happened to land there last, not
+   * the actual final composited frame). This method sidesteps that by
+   * reusing the same multi-pass loop (`runPipeline`) but targeting a
+   * dedicated off-screen `exportTexture` for every pass, including the
+   * last one, so the readback always reflects the true final frame.
+   */
+  async exportFrame(layers: LayerState[]): Promise<Uint8Array> {
+    if (!this.sourceTexture) throw new Error("Aucune image chargée.");
+    const { device, srgbFormat } = this.ctx;
+
+    if (!this.exportTexture) {
+      this.exportTexture = device.createTexture({
+        size: [this.width, this.height],
+        format: srgbFormat,
+        usage:
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.RENDER_ATTACHMENT |
+          GPUTextureUsage.COPY_SRC,
+      });
+    }
+
+    this.runPipeline(layers, this.exportTexture.createView());
+    const padded = await this.readTextureBytes(this.exportTexture);
+    return this.stripRowPadding(padded);
+  }
+
+  /**
+   * `copyTextureToBuffer` requires each row to start at a 256-byte-aligned
+   * offset, so `readTextureBytes` returns rows padded to that stride when
+   * `width * 4` isn't already a multiple of 256. Callers that need a
+   * tightly packed RGBA buffer (e.g. handing pixels to `ImageData`) must
+   * strip that padding first — this does so.
+   */
+  private stripRowPadding(padded: Uint8Array): Uint8Array {
+    const bytesPerRow = Math.ceil((this.width * 4) / 256) * 256;
+    const tightRowBytes = this.width * 4;
+    if (bytesPerRow === tightRowBytes) return padded;
+    const out = new Uint8Array(tightRowBytes * this.height);
+    for (let row = 0; row < this.height; row++) {
+      out.set(padded.subarray(row * bytesPerRow, row * bytesPerRow + tightRowBytes), row * tightRowBytes);
+    }
+    return out;
+  }
+
+  private runPipeline(layers: LayerState[], finalTargetView: GPUTextureView): void {
     if (!this.sourceTexture || !this.pingPong) throw new Error("Aucune image chargée.");
     const { device } = this.ctx;
 
@@ -95,13 +150,13 @@ export class Renderer {
     const encoder = device.createCommandEncoder();
 
     if (enabledLayers.length === 0) {
-      // Nothing to composite — blit the source straight to the canvas.
+      // Nothing to composite — blit the source straight to the target.
       this.runEffectPass(
         encoder,
         PASSTHROUGH_EFFECT,
         { id: "", effectId: "", params: {}, enabled: true, maskData: null },
         readTexture.createView(),
-        getSrgbCanvasView(this.ctx)
+        finalTargetView
       );
       device.queue.submit([encoder.finish()]);
       return;
@@ -111,9 +166,7 @@ export class Renderer {
       const layer = enabledLayers[i];
       const effect = getEffect(layer.effectId);
       const isLast = i === enabledLayers.length - 1;
-      const targetView = isLast
-        ? getSrgbCanvasView(this.ctx)
-        : this.pingPong[writeIndex].createView();
+      const targetView = isLast ? finalTargetView : this.pingPong[writeIndex].createView();
 
       this.runEffectPass(encoder, effect, layer, readTexture.createView(), targetView);
 
@@ -190,25 +243,30 @@ fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
     pass.end();
   }
 
+  /**
+   * Reads back `pingPong[0]`. NOTE: `render()` always writes its last pass
+   * straight to the canvas, never into `pingPong`, so this does NOT hold
+   * the final composited frame after a call to `render()` — it's stale
+   * data from whichever intermediate pass happened to land there. Do not
+   * use this for export; use `exportFrame()` instead, which renders into a
+   * dedicated off-screen texture and reads that back correctly. This
+   * method is kept for any caller that genuinely wants a ping-pong buffer's
+   * raw contents (e.g. debugging an intermediate pass).
+   */
   async readPixels(): Promise<Uint8Array> {
-    const { device } = this.ctx;
     if (!this.pingPong) throw new Error("Aucune image chargée.");
+    return this.readTextureBytes(this.pingPong[0]);
+  }
+
+  private async readTextureBytes(texture: GPUTexture): Promise<Uint8Array> {
+    const { device } = this.ctx;
     const bytesPerRow = Math.ceil((this.width * 4) / 256) * 256;
     const buffer = device.createBuffer({
       size: bytesPerRow * this.height,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
     });
     const encoder = device.createCommandEncoder();
-    // Read back whichever ping-pong target last held the final off-screen
-    // pass output. render() always writes the true final frame straight to
-    // the canvas (not an off-screen texture), so for export (Task 10)
-    // callers must re-render into an off-screen texture of the same format
-    // before calling readPixels — documented here for that task.
-    encoder.copyTextureToBuffer(
-      { texture: this.pingPong[0] },
-      { buffer, bytesPerRow },
-      [this.width, this.height]
-    );
+    encoder.copyTextureToBuffer({ texture }, { buffer, bytesPerRow }, [this.width, this.height]);
     device.queue.submit([encoder.finish()]);
     await buffer.mapAsync(GPUMapMode.READ);
     const data = new Uint8Array(buffer.getMappedRange().slice(0));

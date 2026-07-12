@@ -30,6 +30,14 @@ const PASSTHROUGH_EFFECT: EffectModule = {
 };
 
 /**
+ * WebGPU's `copyTextureToBuffer` requires each row to start at a 256-byte-aligned offset.
+ * Computes the padded stride for a row of RGBA pixels.
+ */
+function paddedBytesPerRow(width: number): number {
+  return Math.ceil((width * 4) / 256) * 256;
+}
+
+/**
  * Multi-pass renderer: ping-pongs between two off-screen render targets, one
  * pass per enabled layer. All off-screen intermediate textures (source,
  * ping-pong pair) are created with `ctx.srgbFormat`, matching Task 2's
@@ -129,7 +137,7 @@ export class Renderer {
    * strip that padding first — this does so.
    */
   private stripRowPadding(padded: Uint8Array): Uint8Array {
-    const bytesPerRow = Math.ceil((this.width * 4) / 256) * 256;
+    const bytesPerRow = paddedBytesPerRow(this.width);
     const tightRowBytes = this.width * 4;
     if (bytesPerRow === tightRowBytes) return padded;
     const out = new Uint8Array(tightRowBytes * this.height);
@@ -260,7 +268,7 @@ fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
 
   private async readTextureBytes(texture: GPUTexture): Promise<Uint8Array> {
     const { device } = this.ctx;
-    const bytesPerRow = Math.ceil((this.width * 4) / 256) * 256;
+    const bytesPerRow = paddedBytesPerRow(this.width);
     const buffer = device.createBuffer({
       size: bytesPerRow * this.height,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,

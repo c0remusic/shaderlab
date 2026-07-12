@@ -1770,6 +1770,217 @@ git commit -m "feat: assemble 3-panel UI (layers, canvas, params, toolbar)"
 
 ---
 
+### Task 11b: Wire brush mask painting into the UI
+
+> Added after Task 11's review: masking (Task 9's `MaskPainter`) is core v1
+> scope per the design doc but no task in the original plan actually wired
+> it into the UI — Task 11's brief never listed `MaskPainter` as a
+> dependency. This task closes that gap.
+
+**Files:**
+- Modify: `src/layers/layerStack.ts` (add `updateMask` method)
+- Modify: `src/components/ParamPanel.tsx` (add brush controls)
+- Modify: `src/components/Canvas.tsx` (add pointer-to-mask painting)
+- Modify: `src/App.tsx` (wire mask state + per-layer `MaskPainter` instances)
+- Test: `test/layers/layerStack.test.ts` (new test for `updateMask`)
+
+**Interfaces:**
+- Consumes: `MaskPainter` (`src/mask/maskPainter.ts`, Task 9: `constructor(width, height)`, `paintStroke(x, y, radius, hardness, erase)`, `getMaskData()`, `clear(fill)`), `LayerState.maskData` (`src/layers/types.ts`), the `LayerStack`/`ParamPanel`/`Canvas`/`App.tsx` shapes from Tasks 4 and 11 (read the current files — do not assume prior descriptions still match).
+- Produces: `LayerStack.updateMask(id: string, maskData: Uint8Array): void`; `ParamPanel` gains props `maskPaintMode: boolean`, `onToggleMaskPaint(): void`, `brushSize/brushHardness/erase` state + setters (component-local or lifted, implementer's call, document the choice); `Canvas` gains props `maskPaintMode: boolean`, `onMaskStroke(x: number, y: number): void` (image-space pixel coordinates, already converted from screen coordinates).
+
+- [ ] **Step 1: Add `updateMask` to `LayerStack`, with a test**
+
+```typescript
+// test/layers/layerStack.test.ts — add this test
+it("updateMask replaces a layer's maskData with a copy", () => {
+  const stack = new LayerStack();
+  const id = stack.addLayer("glow");
+  const mask = new Uint8Array([1, 2, 3]);
+  stack.updateMask(id, mask);
+  expect(stack.layers[0].maskData).toEqual(mask);
+  mask[0] = 99;
+  expect(stack.layers[0].maskData![0]).not.toBe(99); // stored a copy, not the same reference
+});
+```
+
+Run: `npm run test` — expect this new test to FAIL (`updateMask is not a function`).
+
+Add to `src/layers/layerStack.ts`, following the exact pattern of `updateParams`:
+```typescript
+  updateMask(id: string, maskData: Uint8Array): void {
+    const layer = this.layers.find((l) => l.id === id);
+    if (layer) layer.maskData = new Uint8Array(maskData);
+  }
+```
+
+Run: `npm run test` — expect PASS, full suite green.
+
+- [ ] **Step 2: Add brush controls to `ParamPanel`**
+
+Read the current `src/components/ParamPanel.tsx` first (it takes `layer`/`onParamChange` props today). Add a mask section below the effect params, only rendered when `layer` is non-null:
+
+```tsx
+interface Props {
+  layer: LayerState | null;
+  onParamChange: (id: string, params: Record<string, number>) => void;
+  maskPaintMode: boolean;
+  onToggleMaskPaint: () => void;
+  brushSize: number;
+  onBrushSizeChange: (v: number) => void;
+  brushHardness: number;
+  onBrushHardnessChange: (v: number) => void;
+  erase: boolean;
+  onEraseChange: (v: boolean) => void;
+}
+```
+
+Render below the existing `effect.params.map(...)` block:
+```tsx
+      <hr style={{ margin: "12px 0", borderColor: "#333" }} />
+      <h4>Masque</h4>
+      <button onClick={onToggleMaskPaint} style={{ marginBottom: 8 }}>
+        {maskPaintMode ? "Arrêter de peindre" : "Peindre le masque"}
+      </button>
+      <div style={{ marginBottom: 8 }}>
+        <label>Taille: {brushSize}</label>
+        <input type="range" min={2} max={200} value={brushSize}
+          onChange={(e) => onBrushSizeChange(parseFloat(e.target.value))} style={{ width: "100%" }} />
+      </div>
+      <div style={{ marginBottom: 8 }}>
+        <label>Dureté: {brushHardness.toFixed(2)}</label>
+        <input type="range" min={0} max={1} step={0.05} value={brushHardness}
+          onChange={(e) => onBrushHardnessChange(parseFloat(e.target.value))} style={{ width: "100%" }} />
+      </div>
+      <label>
+        <input type="checkbox" checked={erase} onChange={(e) => onEraseChange(e.target.checked)} /> Gomme
+      </label>
+```
+
+- [ ] **Step 3: Add pointer-to-mask-coordinate painting to `Canvas`**
+
+Read the current `src/components/Canvas.tsx` first (it's a `forwardRef<HTMLCanvasElement, Props>` today with only `onFileDropped`). Add:
+
+```tsx
+interface Props {
+  onFileDropped: (file: File) => void;
+  maskPaintMode: boolean;
+  onMaskStroke: (x: number, y: number) => void;
+}
+```
+
+Inside the component, add pointer handlers on the `<canvas>` element itself (not the wrapping div — the canvas is the thing with known pixel dimensions):
+```tsx
+  function toImageCoords(e: React.PointerEvent<HTMLCanvasElement>): { x: number; y: number } | null {
+    const canvas = (ref as React.RefObject<HTMLCanvasElement>).current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+  }
+
+  const isPainting = { current: false }; // replace with useRef in the real component body
+```
+
+(Implementer note: the snippet above uses a plain object for brevity — in the actual component body, use `useRef(false)` for `isPaintingRef`, imported from `"react"`, since this needs to persist across renders without triggering them.)
+
+```tsx
+  <canvas
+    ref={ref}
+    style={{ maxWidth: "100%", maxHeight: "100%", cursor: maskPaintMode ? "crosshair" : "default" }}
+    onPointerDown={(e) => {
+      if (!maskPaintMode) return;
+      isPaintingRef.current = true;
+      const pt = toImageCoords(e);
+      if (pt) onMaskStroke(pt.x, pt.y);
+    }}
+    onPointerMove={(e) => {
+      if (!maskPaintMode || !isPaintingRef.current) return;
+      const pt = toImageCoords(e);
+      if (pt) onMaskStroke(pt.x, pt.y);
+    }}
+    onPointerUp={() => { isPaintingRef.current = false; }}
+    onPointerLeave={() => { isPaintingRef.current = false; }}
+  />
+```
+
+- [ ] **Step 4: Wire mask state into `App.tsx`**
+
+Read the current `src/App.tsx` first (it has `layers`/`selectedId`/`commit`/`currentStack` already). Add:
+```typescript
+  const maskPaintersRef = useRef<Map<string, MaskPainter>>(new Map());
+  const [maskPaintMode, setMaskPaintMode] = useState(false);
+  const [brushSize, setBrushSize] = useState(30);
+  const [brushHardness, setBrushHardness] = useState(0.5);
+  const [erase, setErase] = useState(false);
+```
+(import `MaskPainter` from `"./mask/maskPainter"` and `useState`/`useRef` already imported.)
+
+Add a handler, called from `Canvas`'s `onMaskStroke`:
+```typescript
+  function handleMaskStroke(x: number, y: number) {
+    if (!selectedId || imageSize.width === 0) return;
+    let painter = maskPaintersRef.current.get(selectedId);
+    if (!painter) {
+      painter = new MaskPainter(imageSize.width, imageSize.height);
+      const existing = layers.find((l) => l.id === selectedId)?.maskData;
+      if (existing) painter.clear(0); // start from a fresh buffer; existing mask, if any, is preserved via the stack until the next stroke commits over it — simplest correct v1 behavior: painting always starts a fresh in-memory painter seeded at 0, so resuming a previous mask mid-session across a layer-reselect is a known follow-up, not required for this task
+      maskPaintersRef.current.set(selectedId, painter);
+    }
+    painter.paintStroke(x, y, brushSize, brushHardness, erase);
+    const stack = currentStack();
+    stack.updateMask(selectedId, painter.getMaskData());
+    setLayers(stack.layers);
+    rendererRef.current?.render(stack.layers);
+    // Intentionally NOT calling `commit()`/history.push() per pointer-move sample —
+    // that would flood undo history with every mouse-move frame. Mask strokes are
+    // committed to history once, on pointer-up (see onMaskStrokeEnd below).
+  }
+
+  function handleMaskStrokeEnd() {
+    if (!selectedId) return;
+    commit(currentStack());
+  }
+```
+
+Wire into the render tree:
+```tsx
+        <Canvas
+          ref={canvasRef}
+          onFileDropped={(file) => openFile(file, null, false)}
+          maskPaintMode={maskPaintMode}
+          onMaskStroke={handleMaskStroke}
+        />
+        <ParamPanel
+          layer={selectedLayer}
+          onParamChange={handleParamChange}
+          maskPaintMode={maskPaintMode}
+          onToggleMaskPaint={() => setMaskPaintMode((v) => !v)}
+          brushSize={brushSize}
+          onBrushSizeChange={setBrushSize}
+          brushHardness={brushHardness}
+          onBrushHardnessChange={setBrushHardness}
+          erase={erase}
+          onEraseChange={setErase}
+        />
+```
+
+Pass `onMaskStrokeEnd` into `Canvas`'s `onPointerUp`/`onPointerLeave` (extend `Canvas`'s props with `onStrokeEnd: () => void` and call it there instead of only clearing the local `isPaintingRef`) so `handleMaskStrokeEnd` actually fires — adjust Step 3's snippet accordingly when implementing (this is a real wiring requirement, not optional: without it, mask strokes never enter undo history).
+
+- [ ] **Step 5: Verify and commit**
+
+Run: `npx tsc --noEmit` — expect no errors.
+Run: `npm run test` — expect full suite green, including the new `updateMask` test.
+
+```bash
+git add -A
+git commit -m "feat: wire brush mask painting into the UI"
+```
+
+Manual verification (for the human, this task cannot verify GPU/pointer behavior headless): run `npm run tauri dev`, load an image, add a Glow layer, click "Peindre le masque", drag across the canvas — the glow should only appear where painted (rest of the image shows the unmodified original per Task 9's `mix(color, effected, mask)` blend). Toggle "Gomme" and paint over part of the stroke — glow should disappear there. Release the mouse and click Undo — the whole mask stroke should undo as one step, not one undo click per mouse-move sample.
+
+---
+
 ### Task 12: Error handling
 
 **Files:**

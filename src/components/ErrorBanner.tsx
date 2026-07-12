@@ -5,9 +5,25 @@ interface Props {
 
 export function ErrorBanner({ message, onDismiss }: Props) {
   return (
-    <div style={{ background: "#5a1a1a", color: "#e8e8e8", padding: 8, display: "flex", justifyContent: "space-between" }}>
+    <div
+      style={{
+        background: "var(--danger-bg)",
+        borderBottom: "1px solid var(--danger-border)",
+        color: "var(--text-primary)",
+        padding: "var(--space-2) var(--space-3)",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+      }}
+    >
       <span>{message}</span>
-      <button onClick={onDismiss}>✕</button>
+      <button
+        onClick={onDismiss}
+        aria-label="Fermer"
+        style={{ background: "transparent", border: "none", color: "var(--danger)" }}
+      >
+        ✕
+      </button>
     </div>
   );
 }

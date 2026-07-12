@@ -1,7 +1,17 @@
 export interface GpuContext {
   device: GPUDevice;
   context: GPUCanvasContext;
-  format: GPUTextureFormat;
+  /** Base format the canvas is configured with (non-sRGB — WebGPU forbids
+   *  configuring a canvas context directly in an "-srgb" format). Use this
+   *  only for the canvas's own configure() call. */
+  canvasFormat: GPUTextureFormat;
+  /** sRGB view format to request when creating a view of the canvas's
+   *  current texture, so the final composite pass still gets automatic
+   *  linear→sRGB encoding on write. All OFF-SCREEN intermediate render
+   *  targets (ping-pong buffers, mask textures) are created directly with
+   *  this format via createTexture() — that restriction only applies to
+   *  GPUCanvasContext.configure(), not to regular textures. */
+  srgbFormat: GPUTextureFormat;
 }
 
 export async function initGpu(canvas: HTMLCanvasElement): Promise<GpuContext> {
@@ -17,7 +27,23 @@ export async function initGpu(canvas: HTMLCanvasElement): Promise<GpuContext> {
   if (!context) {
     throw new Error("Impossible d'obtenir un contexte WebGPU sur le canvas.");
   }
-  const format: GPUTextureFormat = "rgba8unorm-srgb";
-  context.configure({ device, format, alphaMode: "opaque" });
-  return { device, context, format };
+  // navigator.gpu.getPreferredCanvasFormat() returns "bgra8unorm" or
+  // "rgba8unorm" — GPUCanvasContext.configure() only accepts these (plus
+  // rgba16float), never an "-srgb" variant (confirmed via MDN + Chromium
+  // issue tracker after a real runtime error on this exact line).
+  const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
+  const srgbFormat = `${canvasFormat}-srgb` as GPUTextureFormat;
+  context.configure({
+    device,
+    format: canvasFormat,
+    viewFormats: [srgbFormat],
+    alphaMode: "opaque",
+  });
+  return { device, context, canvasFormat, srgbFormat };
+}
+
+/** View of the canvas's current texture in the sRGB format, for the final
+ *  composite pass to write into (auto linear→sRGB encode on write). */
+export function getSrgbCanvasView(ctx: GpuContext): GPUTextureView {
+  return ctx.context.getCurrentTexture().createView({ format: ctx.srgbFormat });
 }

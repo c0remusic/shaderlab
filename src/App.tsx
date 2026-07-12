@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { initGpu } from "./render/gpuContext";
+import { initGpu, getSrgbCanvasView } from "./render/gpuContext";
 
 const SHADER_SRC = `
 @vertex
@@ -23,18 +23,22 @@ export default function App() {
   useEffect(() => {
     if (!canvasRef.current) return;
     initGpu(canvasRef.current)
-      .then(({ device, context, format }) => {
+      .then((ctx) => {
+        const { device } = ctx;
         const module = device.createShaderModule({ code: SHADER_SRC });
         const pipeline = device.createRenderPipeline({
           layout: "auto",
           vertex: { module, entryPoint: "vs_main" },
-          fragment: { module, entryPoint: "fs_main", targets: [{ format }] },
+          // Write into the sRGB view format: the shader outputs the linear
+          // color (0.8, 0.2, 0.4) and the GPU encodes it to sRGB on store —
+          // this is the same auto-encode every effect's final pass relies on.
+          fragment: { module, entryPoint: "fs_main", targets: [{ format: ctx.srgbFormat }] },
         });
         const encoder = device.createCommandEncoder();
         const pass = encoder.beginRenderPass({
           colorAttachments: [
             {
-              view: context.getCurrentTexture().createView(),
+              view: getSrgbCanvasView(ctx),
               clearValue: { r: 0, g: 0, b: 0, a: 1 },
               loadOp: "clear",
               storeOp: "store",

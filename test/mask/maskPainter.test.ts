@@ -31,4 +31,16 @@ describe("MaskPainter", () => {
     const data = painter.getMaskData();
     expect(data[10 * 20 + 10]).toBeLessThan(50);
   });
+
+  it("loadFrom replaces the internal buffer so subsequent strokes build on top of it, not a fresh zero buffer", () => {
+    const painter = new MaskPainter(20, 20);
+    const seeded = new Uint8Array(20 * 20).fill(100);
+    painter.loadFrom(seeded);
+    expect(painter.getMaskData()[10 * 20 + 10]).toBe(100);
+    painter.paintStroke(10, 10, 5, 1.0, false);
+    const data = painter.getMaskData();
+    expect(data[10 * 20 + 10]).toBeGreaterThan(100);
+    // unaffected area still reflects the loaded seed, not a zero-fill
+    expect(data[0]).toBe(100);
+  });
 });

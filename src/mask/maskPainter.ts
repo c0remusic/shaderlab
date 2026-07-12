@@ -41,4 +41,8 @@ export class MaskPainter {
   clear(fill: 0 | 255): void {
     this.data.fill(fill);
   }
+
+  loadFrom(data: Uint8Array): void {
+    this.data.set(data);
+  }
 }

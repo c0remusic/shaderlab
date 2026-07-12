@@ -27,7 +27,7 @@ export default function App() {
   // handleExport, per the project's copy-only safety rule.
   const [isLaunchFile, setIsLaunchFile] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const maskPaintersRef = useRef<Map<string, MaskPainter>>(new Map());
+  const maskPaintersRef = useRef<Map<string, { painter: MaskPainter; syncedFrom: Uint8Array | null }>>(new Map());
   const [maskPaintMode, setMaskPaintMode] = useState(false);
   const [brushSize, setBrushSize] = useState(30);
   const [brushHardness, setBrushHardness] = useState(0.5);
@@ -101,6 +101,7 @@ export default function App() {
     const stack = currentStack();
     stack.removeLayer(id);
     if (selectedId === id) setSelectedId(null);
+    maskPaintersRef.current.delete(id);
     commit(stack);
   }
 
@@ -112,14 +113,28 @@ export default function App() {
 
   function handleMaskStroke(x: number, y: number) {
     if (!selectedId || imageSize.width === 0) return;
-    let painter = maskPaintersRef.current.get(selectedId);
-    if (!painter) {
-      painter = new MaskPainter(imageSize.width, imageSize.height);
-      maskPaintersRef.current.set(selectedId, painter);
+    const currentMaskData = selectedLayer?.maskData ?? null;
+    let entry = maskPaintersRef.current.get(selectedId);
+    if (!entry) {
+      const painter = new MaskPainter(imageSize.width, imageSize.height);
+      if (currentMaskData) painter.loadFrom(currentMaskData);
+      entry = { painter, syncedFrom: currentMaskData };
+      maskPaintersRef.current.set(selectedId, entry);
+    } else if (entry.syncedFrom !== currentMaskData) {
+      // The layer's maskData reference changed since we last synced this
+      // painter (e.g. undo/redo restored a different mask snapshot for
+      // this layer id). Re-seed the cached painter's buffer from the
+      // current truth (layers/history) before painting on top of it,
+      // otherwise the stale cached buffer would silently overwrite what
+      // undo/redo just restored.
+      if (currentMaskData) entry.painter.loadFrom(currentMaskData);
+      else entry.painter.clear(0);
+      entry.syncedFrom = currentMaskData;
     }
-    painter.paintStroke(x, y, brushSize, brushHardness, erase);
+    entry.painter.paintStroke(x, y, brushSize, brushHardness, erase);
     const stack = currentStack();
-    stack.updateMask(selectedId, painter.getMaskData());
+    stack.updateMask(selectedId, entry.painter.getMaskData());
+    entry.syncedFrom = stack.layers.find((l) => l.id === selectedId)?.maskData ?? null;
     setLayers(stack.layers);
     rendererRef.current?.render(stack.layers);
     // Intentionally NOT calling `commit()`/history.push() per pointer-move sample —

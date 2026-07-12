@@ -156,6 +156,13 @@ export class Renderer {
     const enabledLayers = layers.filter((l) => l.enabled);
 
     const encoder = device.createCommandEncoder();
+    // Intermediate multi-pass textures (from runInternalPasses) live only for
+    // this frame. They must not be destroyed until AFTER this frame's command
+    // buffer has been submitted — recording a command against a texture does
+    // NOT pin its lifetime through to a later submit (WebGPU validates at
+    // submit() time), so destroying mid-encoder throws. Collected here and
+    // drained once, post-submit, below.
+    const pendingDestroy: GPUTexture[] = [];
 
     if (enabledLayers.length === 0) {
       // Nothing to composite — blit the source straight to the target.
@@ -179,7 +186,7 @@ export class Renderer {
       let prevPassView: GPUTextureView | null = null;
       let prevPassTexture: GPUTexture | null = null;
       if (effect.passes && effect.passes.length > 0) {
-        const lastPass = this.runInternalPasses(encoder, effect, layer, readTexture.createView());
+        const lastPass = this.runInternalPasses(encoder, effect, layer, readTexture.createView(), pendingDestroy);
         prevPassView = lastPass.view;
         prevPassTexture = lastPass.texture;
       }
@@ -189,13 +196,11 @@ export class Renderer {
         prevPassView,
       });
 
-      // The final internal pass's texture is only needed as `prevPass` on the
-      // composite pass above — its usage there has just been recorded onto
-      // `encoder`, so it's now safe to destroy (WebGPU allows `destroy()` once
-      // the last usage is recorded, the GPU takes its own reference at
-      // `submit()`; see runInternalPasses' doc comment for the same reasoning
-      // applied to the earlier intermediate passes).
-      prevPassTexture?.destroy();
+      // The final internal pass's texture was only needed as `prevPass` on
+      // the composite pass above. Its usage there has just been recorded
+      // onto `encoder`, but it must not be destroyed until this frame's
+      // submit() has actually run — queue it instead of destroying now.
+      if (prevPassTexture) pendingDestroy.push(prevPassTexture);
 
       if (!isLast) {
         readTexture = this.pingPong[writeIndex];
@@ -204,6 +209,7 @@ export class Renderer {
     }
 
     device.queue.submit([encoder.finish()]);
+    for (const texture of pendingDestroy) texture.destroy();
   }
 
   /**
@@ -217,24 +223,26 @@ export class Renderer {
    * texture) of the last pass's output, to be bound as `prevPass` on the
    * final composite pass.
    *
-   * Each pass's texture is destroyed as soon as the NEXT pass's `runEffectPass`
-   * call has recorded it as its source (or, for the final pass, left for the
-   * caller to destroy once the composite pass has recorded reading it) —
-   * except it's never the source texture passed in (`sourceView`), which this
-   * method doesn't own. WebGPU's `destroy()` only requires the last *usage*
-   * to have been *recorded* onto the encoder, not submitted — submission
-   * itself captures the GPU's own reference — so destroying mid-encoder,
-   * before `device.queue.submit()`, is safe. This matches how `pingPong`/
-   * `sourceTexture` are handled elsewhere in this class: they're never
-   * destroyed mid-frame because they're reused across frames, but nothing
-   * here contradicts that; these intermediate textures are new every
-   * `render()` call and have no reason to outlive it.
+   * None of these intermediate textures are destroyed here. WebGPU validates
+   * texture liveness at `submit()` time, not at record time — a command
+   * recorded against a texture does not pin that texture's lifetime through
+   * to a later submit, so destroying a texture before the command buffer
+   * referencing it is actually submitted throws a validation error at
+   * `device.queue.submit()`. Every pass texture created in this method
+   * (except the last, which the caller owns and queues itself) is instead
+   * appended to `pendingDestroy`, which the caller (`runPipeline`) drains
+   * with `.destroy()` only after `device.queue.submit([encoder.finish()])`
+   * has actually run for this frame. This is unrelated to `pingPong`/
+   * `sourceTexture`, which are never destroyed mid-frame because they're
+   * reused across frames — these intermediate textures are new every
+   * `render()` call and are torn down at the end of that same frame.
    */
   private runInternalPasses(
     encoder: GPUCommandEncoder,
     effect: EffectModule,
     layer: LayerState,
-    sourceView: GPUTextureView
+    sourceView: GPUTextureView,
+    pendingDestroy: GPUTexture[]
   ): { view: GPUTextureView; texture: GPUTexture } {
     const { device, srgbFormat } = this.ctx;
     let passInputView = sourceView;
@@ -259,8 +267,9 @@ export class Renderer {
         { applyMask: false }
       );
       // `prevTexture`'s only usage (as this pass's source) has just been
-      // recorded above, so it can be destroyed now.
-      prevTexture?.destroy();
+      // recorded above. It must not be destroyed until after this frame's
+      // submit() — queue it for the caller to drain post-submit instead.
+      if (prevTexture) pendingDestroy.push(prevTexture);
       passInputView = passTargetView;
       prevTexture = passTarget;
       lastTexture = passTarget;

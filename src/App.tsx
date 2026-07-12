@@ -88,8 +88,8 @@ export default function App() {
       if (!path) return;
       try {
         const bytes = await readImageFile(path);
-        const blob = new Blob([bytes.buffer as ArrayBuffer]);
-        await openFile(new File([blob], path), path, true);
+        const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
+        await openFile(new File([blob], path, { type: "image/jpeg" }), path, true);
       } catch (e) {
         setError((e as Error).message);
       }
@@ -108,8 +108,8 @@ export default function App() {
       // false so handleExport keeps exporting via buildCopyPath (copy),
       // never overwriting the manually-opened source file in place.
       const bytes = await readImageFile(path);
-      const blob = new Blob([bytes.buffer as ArrayBuffer]);
-      await openFile(new File([blob], path), path, false);
+      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
+      await openFile(new File([blob], path, { type: "image/jpeg" }), path, false);
     } catch (e) {
       setError((e as Error).message);
     }

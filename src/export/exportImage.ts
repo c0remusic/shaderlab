@@ -25,6 +25,34 @@ async function encodeJpeg(pixels: Uint8Array, width: number, height: number): Pr
 }
 
 /**
+ * Decides the write target for an export, enforcing the project's
+ * copy-vs-overwrite safety rule:
+ *
+ * - Normal manual export (image opened via drag&drop or a file picker,
+ *   `isLaunchFile: false`): ALWAYS returns a fresh non-colliding path via
+ *   `buildCopyPath`. The original file is never touched.
+ * - Lightroom round-trip (app launched with a CLI arg, `isLaunchFile: true`
+ *   because the open image's path came from `getLaunchPath()`): returns
+ *   `sourcePath` unchanged, overwriting it in place. This is intentional —
+ *   Lightroom already created its own temp copy upstream before invoking
+ *   this app, so overwriting that copy is the correct round-trip contract,
+ *   not a violation of the copy-only rule.
+ *
+ * Callers must derive `isLaunchFile` from whether the currently open image's
+ * path came from `getLaunchPath()`, not by comparing strings — a drag&dropped
+ * file could coincidentally share a path with a prior launch file across
+ * separate opens, so the flag must be tracked alongside the open, not
+ * recomputed from the path itself.
+ */
+export function resolveExportTarget(
+  sourcePath: string,
+  isLaunchFile: boolean,
+  existing: Set<string> = new Set()
+): string {
+  return isLaunchFile ? sourcePath : buildCopyPath(sourcePath, existing);
+}
+
+/**
  * Renders the current layer stack and writes the result to `targetPath`.
  * Caller decides `targetPath`: a fresh copy path (manual export, via
  * buildCopyPath) or the exact Lightroom launch path (round-trip export,

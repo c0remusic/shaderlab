@@ -12,6 +12,7 @@ import { ErrorBanner } from "./components/ErrorBanner";
 import { exportImage, resolveExportTarget } from "./export/exportImage";
 import { getLaunchPath, readImageFile } from "./launch";
 import { MaskPainter } from "./mask/maskPainter";
+import { open } from "@tauri-apps/plugin-dialog";
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -93,6 +94,25 @@ export default function App() {
         setError((e as Error).message);
       }
     });
+  }, [openFile]);
+
+  const handleOpenFile = useCallback(async () => {
+    try {
+      const path = await open({
+        multiple: false,
+        filters: [{ name: "Images", extensions: ["jpg", "jpeg"] }],
+      });
+      if (!path || Array.isArray(path)) return;
+      // Manual "Ouvrir" dialog path: a real absolute path is now known, but
+      // this is still NOT the Lightroom launch path — isLaunchFile stays
+      // false so handleExport keeps exporting via buildCopyPath (copy),
+      // never overwriting the manually-opened source file in place.
+      const bytes = await readImageFile(path);
+      const blob = new Blob([bytes.buffer as ArrayBuffer]);
+      await openFile(new File([blob], path), path, false);
+    } catch (e) {
+      setError((e as Error).message);
+    }
   }, [openFile]);
 
   function handleAdd(effectId: string) {
@@ -223,6 +243,7 @@ export default function App() {
         onUndo={handleUndo}
         onRedo={handleRedo}
         onExport={handleExport}
+        onOpenFile={handleOpenFile}
       />
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>

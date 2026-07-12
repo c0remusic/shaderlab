@@ -4,11 +4,13 @@ interface Props {
   onUndo: () => void;
   onRedo: () => void;
   onExport: () => void;
+  onOpenFile: () => void;
 }
 
-export function Toolbar({ canUndo, canRedo, onUndo, onRedo, onExport }: Props) {
+export function Toolbar({ canUndo, canRedo, onUndo, onRedo, onExport, onOpenFile }: Props) {
   return (
     <div style={{ padding: 8, borderBottom: "1px solid #333", display: "flex", gap: 8 }}>
+      <button onClick={onOpenFile}>Ouvrir</button>
       <button disabled={!canUndo} onClick={onUndo}>
         ↶ Annuler
       </button>

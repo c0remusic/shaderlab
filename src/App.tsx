@@ -1,41 +1,58 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import tauriLogo from "./assets/tauri.svg";
-import viteLogo from "/vite.svg";
-import "./App.css";
+import { useEffect, useRef, useState } from "react";
+import { initGpu } from "./render/gpuContext";
 
-function App() {
-  const [count, setCount] = useState(0);
-
-  return (
-    <>
-      <div>
-        <a href="https://vitejs.dev" target="_blank" rel="noreferrer">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank" rel="noreferrer">
-          <img src={tauriLogo} className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank" rel="noreferrer">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + Tauri + React</h1>
-
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-
-      <p className="read-the-docs">
-        Click on the Vite, Tauri, and React logos to learn more
-      </p>
-    </>
+const SHADER_SRC = `
+@vertex
+fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
+  var pos = array<vec2<f32>, 3>(
+    vec2<f32>(-1.0, -1.0), vec2<f32>(3.0, -1.0), vec2<f32>(-1.0, 3.0)
   );
+  return vec4<f32>(pos[i], 0.0, 1.0);
 }
 
-export default App;
+@fragment
+fn fs_main() -> @location(0) vec4<f32> {
+  return vec4<f32>(0.8, 0.2, 0.4, 1.0);
+}
+`;
+
+export default function App() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    initGpu(canvasRef.current)
+      .then(({ device, context, format }) => {
+        const module = device.createShaderModule({ code: SHADER_SRC });
+        const pipeline = device.createRenderPipeline({
+          layout: "auto",
+          vertex: { module, entryPoint: "vs_main" },
+          fragment: { module, entryPoint: "fs_main", targets: [{ format }] },
+        });
+        const encoder = device.createCommandEncoder();
+        const pass = encoder.beginRenderPass({
+          colorAttachments: [
+            {
+              view: context.getCurrentTexture().createView(),
+              clearValue: { r: 0, g: 0, b: 0, a: 1 },
+              loadOp: "clear",
+              storeOp: "store",
+            },
+          ],
+        });
+        pass.setPipeline(pipeline);
+        pass.draw(3);
+        pass.end();
+        device.queue.submit([encoder.finish()]);
+      })
+      .catch((e: Error) => setError(e.message));
+  }, []);
+
+  return (
+    <div>
+      {error && <p style={{ color: "red" }}>{error}</p>}
+      <canvas ref={canvasRef} width={800} height={600} />
+    </div>
+  );
+}

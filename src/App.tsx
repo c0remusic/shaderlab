@@ -48,12 +48,17 @@ export default function App() {
       const bitmap = await createImageBitmap(file);
       canvasRef.current.width = bitmap.width;
       canvasRef.current.height = bitmap.height;
-      setImageSize({ width: bitmap.width, height: bitmap.height });
-      setSourcePath(path);
-      setIsLaunchFile(fromLaunch);
 
       rendererRef.current = new Renderer(gpuRef.current);
       await rendererRef.current.loadImage(bitmap);
+
+      // Only commit sourcePath/isLaunchFile/imageSize state AFTER loadImage succeeds.
+      // If loadImage throws, these state updates never happen, leaving the previous
+      // values intact and preventing handleExport from attempting to export with an
+      // unloaded renderer.
+      setImageSize({ width: bitmap.width, height: bitmap.height });
+      setSourcePath(path);
+      setIsLaunchFile(fromLaunch);
 
       const stack = new LayerStack();
       historyRef.current = new History(stack);

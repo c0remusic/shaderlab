@@ -17,6 +17,15 @@
 - All GPU textures that hold color data (source image, every ping-pong render target, mask composite target) use the `rgba8unorm-srgb` format so sRGB↔linear conversion is automatic and consistent — never do manual gamma math in WGSL (per spec's color-space fix from audit).
 - Input JPEGs are treated as sRGB; no ICC profile parsing in v1 (documented limitation, not silent).
 - Effect modules must be addable without touching the renderer or layer-stack UI — one new file per effect (per spec's extensibility requirement).
+- **Visual quality is in scope, not a nice-to-have** (explicit user requirement: no "Photoshop 2005 filter" look). Tasks 5–8 build naive pipeline-validation versions of each effect; Tasks 13–16 upgrade each one to production quality (dual-filter bloom, radial aberration, simplex-noise warp, luminance-dependent grain). An effect is not "done" at the end of its naive task.
+
+## Open-Source Resources (verified 2026-07-12)
+
+- **LYGIA** (`npm install lygia`, [github.com/patriciogonzalezvivo/lygia](https://github.com/patriciogonzalezvivo/lygia)) — 500+ shader functions with WebGPU/WESL support and Vite plugins. Use for noise primitives (simplex, FBM) in Tasks 15–16. Attribution license.
+- **webgpu-image-filter** ([github.com/quarksb/webgpu-image-filter](https://github.com/quarksb/webgpu-image-filter)) — same architecture as ours; ⚠️ NO declared license — read for structure/math reference only, never copy code verbatim.
+- **TypeGPU** ([github.com/software-mansion/TypeGPU](https://github.com/software-mansion/TypeGPU)) — typed WebGPU toolkit; evaluate during Task 2 spike, adopt only if it simplifies without hiding pipeline control.
+- **BitMappery** ([github.com/igorski/bitmappery](https://github.com/igorski/bitmappery), MIT) — proven layers/masks data-model reference (Canvas2D rendering, so no GPU code to reuse).
+- **Dual-filter bloom technique**: ARM/Marius Bjørge SIGGRAPH presentation "Bandwidth-efficient rendering" — the reference for Task 13.
 
 ---
 
@@ -1860,9 +1869,404 @@ git commit -m "feat: surface GPU/decode/export errors as a dismissible banner"
 
 ---
 
+### Task 13: Quality upgrade — Glow → dual-filter bloom (multi-pass)
+
+**Files:**
+- Modify: `src/render/renderer.ts` (add multi-pass support: an effect may declare internal passes at fractional resolutions)
+- Modify: `src/render/effects/types.ts` (extend `EffectModule` with optional `passes` descriptor)
+- Modify: `src/render/effects/glow.ts` (replace the 5×5 naive kernel with the dual-filter chain)
+- Test: manual visual comparison against Figma's Bloom shader on the same photo
+
+**Interfaces:**
+- Consumes: `Renderer`, `EffectModule` from Task 5.
+- Produces: extended `EffectModule` shape: `passes?: { scale: number; wgsl: string }[]` — when present, the renderer runs each pass in sequence into intermediate textures sized `width*scale × height*scale`, feeding each pass the previous pass's output, before the final composite pass receives both the original source (`srcTexture`) and the last pass output (`prevPass: texture_2d<f32>`, binding 4). Tasks 14–16 may use the same mechanism.
+
+The dual-filter bloom (ARM/Marius Bjørge, "Bandwidth-Efficient Rendering", SIGGRAPH 2015) works as: bright-pass extract → downsample chain (½, ¼, ⅛ resolution) with the dual-filter kernel → upsample chain back with additive blending → composite over the source. This produces the wide, soft, natural halo of production bloom at a fraction of the cost of an equivalent-radius Gaussian.
+
+- [ ] **Step 1: Extend the EffectModule type**
+
+Modify `src/render/effects/types.ts`:
+```typescript
+export interface EffectPass {
+  /** Resolution scale of this pass's output target relative to the image (1 = full, 0.5 = half...). */
+  scale: number;
+  /** WGSL body defining fs_main(uv, color) — `color` samples this pass's INPUT texture. */
+  wgsl: string;
+}
+
+export interface EffectModule {
+  id: string;
+  name: string;
+  params: EffectParam[];
+  /** Single-pass body (used when `passes` is absent). For multi-pass effects,
+   *  this is the FINAL composite pass and additionally sees `prevPass` (binding 4). */
+  wgsl: string;
+  passes?: EffectPass[];
+}
+```
+
+- [ ] **Step 2: Add multi-pass execution to the renderer**
+
+In `src/render/renderer.ts`, inside the layer loop of `render()`, before the final `runEffectPass` for a layer whose effect has `passes`, run each pass in order:
+
+```typescript
+    for (let i = 0; i < enabledLayers.length; i++) {
+      const layer = enabledLayers[i];
+      const effect = getEffect(layer.effectId);
+      const isLast = i === enabledLayers.length - 1;
+      const target = isLast ? context.getCurrentTexture() : this.pingPong[writeIndex];
+
+      let prevPassTexture: GPUTexture | null = null;
+      if (effect.passes) {
+        let passInput = readTexture;
+        for (const pass of effect.passes) {
+          const passTarget = device.createTexture({
+            size: [
+              Math.max(1, Math.round(this.width * pass.scale)),
+              Math.max(1, Math.round(this.height * pass.scale)),
+            ],
+            format,
+            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+          });
+          this.runEffectPass(
+            encoder,
+            { ...effect, wgsl: pass.wgsl, passes: undefined },
+            layer,
+            passInput,
+            passTarget,
+            format
+          );
+          passInput = passTarget;
+        }
+        prevPassTexture = passInput;
+      }
+
+      this.runEffectPass(encoder, effect, layer, readTexture, target, format, prevPassTexture);
+
+      if (!isLast) {
+        readTexture = this.pingPong[writeIndex];
+        writeIndex = 1 - writeIndex;
+      }
+    }
+```
+
+Extend `runEffectPass`'s signature with `prevPass: GPUTexture | null = null`; when non-null, append to the shader header `@group(0) @binding(4) var prevPass: texture_2d<f32>;` and add `{ binding: 4, resource: prevPass.createView() }` to the bind group.
+
+- [ ] **Step 3: Rewrite the Glow effect as a dual-filter chain**
+
+Replace `src/render/effects/glow.ts`:
+```typescript
+import type { EffectModule } from "./types";
+
+const DOWNSAMPLE_WGSL = `
+fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
+  let texel = 1.0 / vec2<f32>(textureDimensions(srcTexture));
+  let o = texel * 1.0;
+  var sum = textureSample(srcTexture, srcSampler, uv).rgb * 4.0;
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x, -o.y)).rgb;
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( o.x, -o.y)).rgb;
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x,  o.y)).rgb;
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( o.x,  o.y)).rgb;
+  return vec4<f32>(sum / 8.0, 1.0);
+}
+`;
+
+const UPSAMPLE_WGSL = `
+fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
+  let texel = 1.0 / vec2<f32>(textureDimensions(srcTexture));
+  let o = texel * 1.0;
+  var sum = vec3<f32>(0.0);
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x * 2.0, 0.0)).rgb;
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x,  o.y)).rgb * 2.0;
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(0.0,  o.y * 2.0)).rgb;
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( o.x,  o.y)).rgb * 2.0;
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( o.x * 2.0, 0.0)).rgb;
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( o.x, -o.y)).rgb * 2.0;
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(0.0, -o.y * 2.0)).rgb;
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x, -o.y)).rgb * 2.0;
+  return vec4<f32>(sum / 12.0, 1.0);
+}
+`;
+
+export const glow: EffectModule = {
+  id: "glow",
+  name: "Glow",
+  params: [
+    { name: "threshold", min: 0, max: 1, default: 0.7, step: 0.01 },
+    { name: "intensity", min: 0, max: 3, default: 1.0, step: 0.05 },
+  ],
+  passes: [
+    {
+      // Bright-pass extract at half resolution.
+      scale: 0.5,
+      wgsl: `
+fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
+  let threshold = params[0];
+  let brightness = max(color.r, max(color.g, color.b));
+  let contribution = max(brightness - threshold, 0.0) / max(brightness, 0.0001);
+  return vec4<f32>(color.rgb * contribution, 1.0);
+}
+`,
+    },
+    { scale: 0.25, wgsl: DOWNSAMPLE_WGSL },
+    { scale: 0.125, wgsl: DOWNSAMPLE_WGSL },
+    { scale: 0.25, wgsl: UPSAMPLE_WGSL },
+    { scale: 0.5, wgsl: UPSAMPLE_WGSL },
+  ],
+  wgsl: `
+fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
+  let intensity = params[1];
+  let bloom = textureSample(prevPass, srcSampler, uv).rgb;
+  return vec4<f32>(color.rgb + bloom * intensity, color.a);
+}
+`,
+};
+```
+
+- [ ] **Step 4: Manual visual verification against the quality bar**
+
+Run: `npm run tauri dev`, load a photo with strong highlights (streetlight at night, sun through trees).
+Expected: a WIDE, soft, round halo bleeding naturally outward from bright areas — spanning tens of pixels, not a tight 5px fringe. Compare side by side with the same photo through Figma's Bloom shader (paste the photo in Figma, apply Bloom): the character of the halo should be comparable. If the halo is boxy or tight, the downsample chain isn't running — verify each pass executes (add a temporary `console.log` per pass, remove after).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add -A
+git commit -m "feat: upgrade Glow to multi-pass dual-filter bloom"
+```
+
+---
+
+### Task 14: Quality upgrade — Chromatic bleed → radial aberration
+
+**Files:**
+- Modify: `src/render/effects/chromaticBleed.ts`
+- Test: manual visual verification
+
+**Interfaces:**
+- Consumes: `EffectModule` from Task 5 (single-pass — no `passes` needed).
+- Produces: upgraded registry entry, same id `"chromaticBleed"` (params change: `amount`, `centerFalloff` replace `amount`/`angleDeg`).
+
+Real lens aberration grows from the image center outward — the linear uniform shift from Task 6 reads as a cheap datamosh, the radial version reads as optics.
+
+- [ ] **Step 1: Rewrite the effect**
+
+Replace `src/render/effects/chromaticBleed.ts`:
+```typescript
+import type { EffectModule } from "./types";
+
+export const chromaticBleed: EffectModule = {
+  id: "chromaticBleed",
+  name: "Chromatic bleed",
+  params: [
+    { name: "amount", min: 0, max: 0.05, default: 0.008, step: 0.001 },
+    { name: "centerFalloff", min: 0.5, max: 4, default: 2, step: 0.1 },
+  ],
+  wgsl: `
+fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
+  let amount = params[0];
+  let falloff = params[1];
+  let fromCenter = uv - vec2<f32>(0.5, 0.5);
+  let dist = length(fromCenter);
+  // Shift grows with distance from center, shaped by the falloff exponent.
+  let shift = fromCenter * amount * pow(dist * 2.0, falloff);
+  let r = textureSample(srcTexture, srcSampler, uv + shift).r;
+  let g = textureSample(srcTexture, srcSampler, uv).g;
+  let b = textureSample(srcTexture, srcSampler, uv - shift).b;
+  return vec4<f32>(r, g, b, color.a);
+}
+`,
+};
+```
+
+- [ ] **Step 2: Manual visual verification**
+
+Run: `npm run tauri dev`, load a photo with high-contrast edges near the corners.
+Expected: no fringing at the image center, progressively stronger red/blue separation toward corners and edges — like shooting through a cheap wide-angle lens. The center must stay clean; if fringing is uniform everywhere, the radial term isn't applied.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add -A
+git commit -m "feat: upgrade Chromatic bleed to radial lens-style aberration"
+```
+
+---
+
+### Task 15: Quality upgrade — Warp → simplex/FBM noise displacement
+
+**Files:**
+- Modify: `src/render/effects/warp.ts`
+- Test: manual visual verification
+
+**Interfaces:**
+- Consumes: `EffectModule` from Task 5 (single-pass).
+- Produces: upgraded registry entry, same id `"warp"` (params: `scale`, `amplitude`, `octaves`, `seed`).
+
+Crossed sines (Task 7) produce a mechanical, obviously-periodic wobble. Production liquid warp uses fractal noise (FBM over simplex/value noise) — organic, non-repeating. The WGSL below embeds a self-contained simplex implementation (adapted conceptually from LYGIA's `snoise` — reimplemented here rather than imported, since LYGIA's WESL tooling is optional; if the Task 2 spike adopted a WESL/Vite plugin, swap this embedded copy for `#include "lygia/generative/snoise.wgsl"` instead).
+
+- [ ] **Step 1: Rewrite the effect**
+
+Replace `src/render/effects/warp.ts`:
+```typescript
+import type { EffectModule } from "./types";
+
+export const warp: EffectModule = {
+  id: "warp",
+  name: "Warp",
+  params: [
+    { name: "scale", min: 0.5, max: 12, default: 3, step: 0.25 },
+    { name: "amplitude", min: 0, max: 0.08, default: 0.02, step: 0.002 },
+    { name: "octaves", min: 1, max: 4, default: 3, step: 1 },
+    { name: "seed", min: 0, max: 100, default: 0, step: 1 },
+  ],
+  wgsl: `
+// 2D simplex-style gradient noise (self-contained WGSL).
+fn hash2(p: vec2<f32>) -> vec2<f32> {
+  let k = vec2<f32>(0.3183099, 0.3678794);
+  let x = p * k + k.yx;
+  return -1.0 + 2.0 * fract(16.0 * k * fract(x.x * x.y * (x.x + x.y)));
+}
+
+fn gnoise(p: vec2<f32>) -> f32 {
+  let i = floor(p);
+  let f = fract(p);
+  let u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(dot(hash2(i + vec2<f32>(0.0, 0.0)), f - vec2<f32>(0.0, 0.0)),
+        dot(hash2(i + vec2<f32>(1.0, 0.0)), f - vec2<f32>(1.0, 0.0)), u.x),
+    mix(dot(hash2(i + vec2<f32>(0.0, 1.0)), f - vec2<f32>(0.0, 1.0)),
+        dot(hash2(i + vec2<f32>(1.0, 1.0)), f - vec2<f32>(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+fn fbm(p: vec2<f32>, octaves: i32) -> f32 {
+  var value = 0.0;
+  var amplitude = 0.5;
+  var freq = p;
+  for (var i = 0; i < 4; i = i + 1) {
+    if (i >= octaves) { break; }
+    value = value + amplitude * gnoise(freq);
+    amplitude = amplitude * 0.5;
+    freq = freq * 2.0;
+  }
+  return value;
+}
+
+fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
+  let scale = params[0];
+  let amplitude = params[1];
+  let octaves = i32(params[2]);
+  let seed = params[3];
+  let p = uv * scale + vec2<f32>(seed * 13.7, seed * 7.3);
+  let offset = vec2<f32>(
+    fbm(p, octaves),
+    fbm(p + vec2<f32>(5.2, 1.3), octaves)
+  ) * amplitude;
+  return textureSample(srcTexture, srcSampler, uv + offset);
+}
+`,
+};
+```
+
+- [ ] **Step 2: Manual visual verification**
+
+Run: `npm run tauri dev`, load a photo with straight architectural lines.
+Expected: organic, irregular liquid distortion — lines wander unpredictably like heat haze or water refraction. If the distortion repeats in a visible grid or wave pattern, the FBM octaves aren't accumulating (check `octaves` param reaches the shader).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add -A
+git commit -m "feat: upgrade Warp to simplex/FBM organic displacement"
+```
+
+---
+
+### Task 16: Quality upgrade — Grain → luminance-dependent film grain
+
+**Files:**
+- Modify: `src/render/effects/grain.ts`
+- Test: manual visual verification
+
+**Interfaces:**
+- Consumes: `EffectModule` from Task 5 (single-pass).
+- Produces: upgraded registry entry, same id `"grain"` (params: `intensity`, `size`, `seed`).
+
+Real film grain is strongest in midtones and nearly absent in crushed blacks and blown highlights; it also has spatial size (grain clumps), not per-pixel white noise. This matches the "Real Grain" quality bar from Dehancer/Nik rather than a 2005-style uniform noise overlay.
+
+- [ ] **Step 1: Rewrite the effect**
+
+Replace `src/render/effects/grain.ts`:
+```typescript
+import type { EffectModule } from "./types";
+
+export const grain: EffectModule = {
+  id: "grain",
+  name: "Grain",
+  params: [
+    { name: "intensity", min: 0, max: 0.4, default: 0.12, step: 0.01 },
+    { name: "size", min: 1, max: 8, default: 2, step: 0.5 },
+    { name: "seed", min: 0, max: 1000, default: 0, step: 1 },
+  ],
+  wgsl: `
+fn hash(p: vec2<f32>) -> f32 {
+  var p3 = fract(vec3<f32>(p.xyx) * 0.1031);
+  p3 = p3 + dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+fn valueNoise(p: vec2<f32>) -> f32 {
+  let i = floor(p);
+  let f = fract(p);
+  let u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i), hash(i + vec2<f32>(1.0, 0.0)), u.x),
+    mix(hash(i + vec2<f32>(0.0, 1.0)), hash(i + vec2<f32>(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
+  let intensity = params[0];
+  let size = params[1];
+  let seed = params[2];
+  let dims = vec2<f32>(textureDimensions(srcTexture));
+  // Grain coordinates in pixel space divided by grain size → visible clumps, not per-pixel snow.
+  let gp = (uv * dims) / size + vec2<f32>(seed * 17.0, seed * 9.0);
+  let noise = valueNoise(gp) - 0.5;
+  // Luminance response: peak in midtones, fades in deep shadows and highlights.
+  let luma = dot(color.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
+  let response = 4.0 * luma * (1.0 - luma);
+  return vec4<f32>(color.rgb + vec3<f32>(noise) * intensity * response, color.a);
+}
+`,
+};
+```
+
+- [ ] **Step 2: Manual visual verification**
+
+Run: `npm run tauri dev`, load a photo with deep shadows, midtone areas (skin, sky at dusk) and bright highlights.
+Expected: grain clearly visible in midtones, nearly invisible in the darkest shadows AND the brightest highlights; increasing `size` makes grain clumps visibly larger (film-like), not just noisier. If shadows are as noisy as midtones, the luminance response isn't applied.
+
+- [ ] **Step 3: Run the full test suite**
+
+Run: `npm run test`
+Expected: all tests still pass (quality upgrades touch only WGSL strings and param schemas — pure-logic tests are unaffected; if a param-name test breaks, update it to the new schema).
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add -A
+git commit -m "feat: upgrade Grain to luminance-dependent film grain with size control"
+```
+
+---
+
 ## Self-Review Notes
 
-- **Spec coverage:** every design-doc section maps to a task — spike/WebGPU risk (Task 2), Lightroom contract (Task 3), layer stack + undo/redo (Task 4), rendering engine + extensible effect registry (Task 5), the 4 v1 effects (Tasks 5–8), brush masking (Task 9), export with copy-vs-overwrite (Task 10), 3-panel UI with mask-overlay note deferred as a fast-follow (Task 11), error handling (Task 12). Color-space correctness (audit fix) is locked into Task 2's fixed `rgba8unorm-srgb` format, reused everywhere, not re-decided per task.
+- **Spec coverage:** every design-doc section maps to a task — spike/WebGPU risk (Task 2), Lightroom contract (Task 3), layer stack + undo/redo (Task 4), rendering engine + extensible effect registry (Task 5), the 4 v1 effects (Tasks 5–8), brush masking (Task 9), export with copy-vs-overwrite (Task 10), 3-panel UI with mask-overlay note deferred as a fast-follow (Task 11), error handling (Task 12), and the spec's explicit visual-quality bar (Tasks 13–16: dual-filter bloom, radial aberration, FBM warp, luminance-dependent grain). Color-space correctness (audit fix) is locked into Task 2's fixed `rgba8unorm-srgb` format, reused everywhere, not re-decided per task.
 - **Known v1 gap surfaced honestly, not hidden:** Task 11 Step 6 documents that drag&drop files have no real filesystem path in the browser sandbox, so Export only fully works for files opened via the Lightroom launch-arg path in this plan. This matches the project's actual motivating use case (Lightroom external editor) but is called out explicitly rather than silently left broken.
 - **Placeholder scan:** no TBD/TODO; every code step has complete, real code, not a description of intent.
 - **Type consistency:** `LayerState`, `EffectModule`, `EffectParam`, `Renderer`, `MaskPainter`, `History`, `LayerStack` signatures are defined once (Tasks 4, 5, 9) and reused verbatim in every later task — checked for drift, none found.

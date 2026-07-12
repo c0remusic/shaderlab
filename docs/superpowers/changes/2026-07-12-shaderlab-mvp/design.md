@@ -132,6 +132,55 @@ moteur de rendu ni de l'UI de pile de calques.
 **Effets v1** : Glow (bloom), Chromatic bleed (aberration chromatique),
 Warp (déplacement liquide), Grain (bruit film).
 
+### Barre de qualité visuelle (exigence explicite, pas un nice-to-have)
+
+Décision utilisateur : la qualité des effets fait partie du scope v1 — pas
+de rendu "filtre Photoshop 2005". Concrètement, chaque effet v1 a DEUX
+niveaux dans le plan : une version pipeline (naïve, juste pour valider le
+moteur de bout en bout) puis une **tâche d'upgrade qualité obligatoire**
+avant de considérer l'effet livré :
+
+- **Glow** : dual-filter bloom multi-passes (chaîne de downsampling
+  progressif + blur séparable + recomposition — technique ARM/Marius
+  Bjørge, SIGGRAPH, standard des moteurs de jeu), PAS un blur naïf à
+  petit noyau (halo carré de quelques pixels).
+- **Chromatic bleed** : version radiale (décalage croissant vers les
+  bords, comme une vraie lentille), PAS un simple décalage linéaire
+  uniforme.
+- **Warp** : déplacement par bruit simplex/FBM (LYGIA), PAS des sinus
+  croisés (motif trop régulier, mécanique).
+- **Grain** : luminance-dépendant (plus présent dans les tons moyens,
+  comme du vrai film argentique), avec taille de grain réglable, PAS un
+  bruit blanc uniforme par pixel.
+
+La vérification visuelle se fait sur les photos réelles de l'utilisateur,
+comparée mentalement aux références (shaders Figma, Dehancer) — un effet
+qui "marche" mais rend cheap n'est pas terminé.
+
+### Ressources open source vérifiées (2026-07-12)
+
+- **[LYGIA](https://github.com/patriciogonzalezvivo/lygia)** (npm
+  `lygia`) — 500+ fonctions shader, support WebGPU via WESL (sur-ensemble
+  de WGSL, plugins Vite existants). Source des primitives de qualité :
+  bruits (simplex, FBM, voronoise), fonctions couleur, distorsions.
+- **[webgpu-image-filter](https://github.com/quarksb/webgpu-image-filter)**
+  — même architecture que la nôtre (filtres WGSL post-processing : noise,
+  warp, blur, saturation...). ⚠️ AUCUNE licence déclarée (vérifié via
+  l'API GitHub) — inspiration structure/maths OK, copie verbatim interdite.
+- **[TypeGPU](https://github.com/software-mansion/TypeGPU)** (Software
+  Mansion) — toolkit WebGPU typé TS, réduit le boilerplate
+  device/buffer/bindgroup. À évaluer pendant le spike : adopter seulement
+  si ça simplifie sans masquer le contrôle du pipeline.
+- **[BitMappery](https://github.com/igorski/bitmappery)** (MIT) —
+  éditeur web calques+masques+brushes, Canvas2D (pas de code rendu à
+  reprendre) mais modèle de données calques/masques éprouvé, licence MIT.
+- **[OpenShaders](https://www.openshaders.com/)** — annuaire
+  communautaire d'effets WebGPU (composants React/TS), vivier pour le
+  backlog d'effets.
+- Les sources WGSL des shaders officiels Figma sont consultables dans
+  leur communauté — référence de qualité directe pour comparer nos
+  rendus.
+
 **Backlog d'effets futurs — priorité confirmée par l'utilisateur** (dans
 cet ordre) : Gooey merge, Channel mixer, Outlines, Pixel stretch, Slice
 shift, Gradient map. (Warp est déjà couvert par le v1.)

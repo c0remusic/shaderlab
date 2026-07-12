@@ -1,0 +1,19 @@
+{
+  "_regle_entretien": "À chaque ajout/déplacement/archivage d'un doc dans docs/, mettre à jour ce fichier dans le même geste, pas en rattrapage différé. Même principe que Sift.",
+  "specs": [
+    {
+      "path": "docs/superpowers/changes/2026-07-12-shaderlab-mvp/design.md",
+      "date": "2026-07-12",
+      "topic": "design MVP shaderlab",
+      "summary": "App desktop Windows Tauri v2 + React/TS + WebGPU/WGSL : effets shader empilables en calques (glow/chromatic bleed/warp/grain) sur JPEG, masque au pinceau, éditeur externe Lightroom (round-trip type Dehancer). Décisions actées : temps réel obligatoire, pas de preview basse résolution, undo/redo session seulement, export = copie. Audité par agent adverse le 2026-07-12 : 3 trous corrigés (espace colorimétrique sRGB/linéaire obligatoire via rgba8unorm-srgb, contrat round-trip Lightroom précisé écrasement-même-chemin, chiffre VRAM requalifié coût-par-texture). Barre de qualité visuelle ajoutée en exigence explicite (dual-filter bloom, aberration radiale, warp FBM, grain luminance-dépendant) + ressources open source vérifiées (LYGIA ok, webgpu-image-filter SANS licence = pas de copie, TypeGPU à évaluer, BitMappery MIT référence modèle de données)."
+    }
+  ],
+  "plans": [
+    {
+      "path": "docs/superpowers/plans/2026-07-12-shaderlab-mvp.md",
+      "date": "2026-07-12",
+      "topic": "plan d'implémentation MVP (16 tâches)",
+      "summary": "16 tâches séquencées risque-d'abord : T1 scaffold, T2 spike WebGPU/Tauri (go/no-go), T3 spike contrat Lightroom, T4 layer stack+undo/redo, T5 registre effets+renderer+Glow, T6-8 les 3 autres effets, T9 masque pinceau, T10 export, T11 UI 3 panneaux, T12 erreurs, T13-16 upgrades qualité (bloom multi-passes, aberration radiale, FBM, grain film). Code complet dans chaque étape. Exécution en cours via subagent-driven-development, ledger dans .superpowers/sdd/progress.md. État au 2026-07-12 : T1 complete (2 fix passes), T2 code approuvé + attente checkpoint visuel humain."
+    }
+  ]
+}

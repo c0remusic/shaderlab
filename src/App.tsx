@@ -8,6 +8,7 @@ import { LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
 import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
+import { ErrorBanner } from "./components/ErrorBanner";
 import { exportImage, resolveExportTarget } from "./export/exportImage";
 import { getLaunchPath } from "./launch";
 import { MaskPainter } from "./mask/maskPainter";
@@ -51,7 +52,12 @@ export default function App() {
       if (!gpuRef.current) {
         gpuRef.current = await initGpu(canvasRef.current);
       }
-      const bitmap = await createImageBitmap(file);
+      let bitmap: ImageBitmap;
+      try {
+        bitmap = await createImageBitmap(file);
+      } catch {
+        throw new Error("Image non supportée ou corrompue.");
+      }
       canvasRef.current.width = bitmap.width;
       canvasRef.current.height = bitmap.height;
 
@@ -201,7 +207,7 @@ export default function App() {
         onRedo={handleRedo}
         onExport={handleExport}
       />
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         <LayerPanel
           layers={layers}

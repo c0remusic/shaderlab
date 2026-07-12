@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { buildCopyPath, resolveExportTarget } from "../../src/export/exportImage";
+import { vi, describe, it, expect } from "vitest";
+import { buildCopyPath, resolveExportTarget, exportImage } from "../../src/export/exportImage";
+import * as launch from "../../src/launch";
 
 describe("buildCopyPath", () => {
   it("appends -edited before the extension, preserving the original file", () => {
@@ -13,6 +14,51 @@ describe("buildCopyPath", () => {
   it("avoids collisions by suffixing a counter when -edited already exists", () => {
     const existing = new Set(["C:\\photos\\sunset-edited.jpg"]);
     expect(buildCopyPath("C:\\photos\\sunset.jpg", existing)).toBe("C:\\photos\\sunset-edited-2.jpg");
+  });
+});
+
+describe("exportImage error propagation", () => {
+  it("rejects when writeImageFile fails, without throwing an unhandled error", async () => {
+    // exportImage's internal encodeJpeg() uses OffscreenCanvas/ImageData, which
+    // don't exist in vitest's "node" environment (see vitest.config.ts) — stub
+    // minimal versions so encodeJpeg succeeds and the only failure exercised is
+    // writeImageFile's rejection, per this test's actual intent.
+    vi.stubGlobal(
+      "OffscreenCanvas",
+      class {
+        constructor(_width: number, _height: number) {}
+        getContext() {
+          return { putImageData() {} };
+        }
+        convertToBlob() {
+          return Promise.resolve({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(4)) } as unknown as Blob);
+        }
+      }
+    );
+    vi.stubGlobal(
+      "ImageData",
+      class {
+        data: Uint8ClampedArray;
+        width: number;
+        height: number;
+        constructor(data: Uint8ClampedArray, width: number, height: number) {
+          this.data = data;
+          this.width = width;
+          this.height = height;
+        }
+      }
+    );
+
+    vi.spyOn(launch, "writeImageFile").mockRejectedValue(new Error("disque plein"));
+    const fakeRenderer = {
+      exportFrame: vi.fn().mockResolvedValue(new Uint8Array(4)),
+    } as any;
+
+    await expect(
+      exportImage(fakeRenderer, [], "C:\\fake\\path.jpg", 1, 1)
+    ).rejects.toThrow("disque plein");
+
+    vi.unstubAllGlobals();
   });
 });
 

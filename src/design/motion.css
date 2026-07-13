@@ -1,0 +1,7 @@
+/*
+ * Motion primitives (--duration-*, --ease-*) already live in primitives.css.
+ * This file is the dedicated layer for shared keyframes and motion-driven
+ * utility classes as they are introduced by later tasks (transitions,
+ * disclosure/dialog animations). Intentionally empty for now — no
+ * animation is wired into any component yet.
+ */

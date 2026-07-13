@@ -1,0 +1,46 @@
+:root {
+  --control-height-sm: 28px;
+  --control-height-md: 30px;
+  --control-height-lg: 32px;
+  --toolbar-height: 36px;
+  --layer-row-height: 30px;
+  --section-header-height: 28px;
+
+  --icon-size-sm: 14px;
+  --icon-size-md: 16px;
+  --icon-size-lg: 20px;
+  --icon-stroke: 1.5px;
+
+  --inspector-width-min: 240px;
+  --inspector-width-default: 288px;
+  --inspector-width-max: 400px;
+  --filmstrip-height-collapsed: 28px;
+  --filmstrip-height-default: 104px;
+  --filmstrip-height-max: 180px;
+  --filmstrip-thumb-width: 68px;
+  --filmstrip-thumb-height: 50px;
+
+  --dialog-width-sm: 360px;
+  --dialog-width-md: 480px;
+  --dialog-width-lg: 640px;
+  --window-min-width: 900px;
+  --window-min-height: 600px;
+  --canvas-min-width: 480px;
+  --canvas-min-height: 320px;
+
+  --button-height: var(--control-height-md);
+  --button-radius: var(--radius-control);
+  --button-padding-inline: var(--space-4);
+  --button-icon-gap: var(--space-3);
+
+  --slider-track-height: 3px;
+  --slider-thumb-size: 12px;
+  --slider-value-width: 7ch;
+
+  --panel-bg: var(--surface-panel);
+  --panel-border: var(--border-default);
+  --panel-radius: var(--radius-panel);
+
+  --tooltip-delay: 500ms;
+  --tooltip-max-width: 280px;
+}

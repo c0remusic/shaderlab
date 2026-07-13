@@ -1,0 +1,91 @@
+:root {
+  --primitive-neutral-0: #fffdf9;
+  --primitive-neutral-50: #f7f2ea;
+  --primitive-neutral-100: #f0e8dc;
+  --primitive-neutral-200: #d4cabc;
+  --primitive-neutral-300: #b3aa9e;
+  --primitive-neutral-400: #918980;
+  --primitive-neutral-500: #6e6861;
+  --primitive-neutral-600: #514c47;
+  --primitive-neutral-700: #383431;
+  --primitive-neutral-800: #292522;
+  --primitive-neutral-850: #25211e;
+  --primitive-neutral-900: #1d1b19;
+  --primitive-neutral-925: #181614;
+  --primitive-neutral-950: #151310;
+  --primitive-neutral-1000: #100f0e;
+
+  --primitive-alpha-0: 0;
+  --primitive-alpha-4: .04;
+  --primitive-alpha-7: .07;
+  --primitive-alpha-10: .10;
+  --primitive-alpha-11: .11;
+  --primitive-alpha-18: .18;
+  --primitive-alpha-28: .28;
+  --primitive-alpha-48: .48;
+  --primitive-alpha-68: .68;
+  --primitive-alpha-94: .94;
+
+  --space-0: 0;
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 20px;
+  --space-8: 24px;
+  --space-9: 32px;
+  --space-10: 40px;
+  --space-11: 48px;
+
+  --font-ui: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", "Consolas", monospace;
+
+  --font-size-2xs: 10px;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --font-size-lg: 14px;
+  --font-size-xl: 16px;
+  --font-size-2xl: 18px;
+  --font-size-3xl: 22px;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  --line-height-tight: 1.2;
+  --line-height-control: 1.3;
+  --line-height-body: 1.5;
+
+  --tracking-tight: -0.01em;
+  --tracking-normal: 0;
+  --tracking-label: 0.07em;
+
+  --radius-none: 0;
+  --radius-control: 5px;
+  --radius-group: 7px;
+  --radius-panel: 8px;
+  --radius-dialog: 10px;
+  --radius-round: 999px;
+
+  --duration-none: 0ms;
+  --duration-feedback: 80ms;
+  --duration-fast: 120ms;
+  --duration-disclosure: 180ms;
+  --duration-dialog: 200ms;
+  --duration-slow: 240ms;
+
+  --ease-direct: linear;
+  --ease-standard: cubic-bezier(.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0, 0, .2, 1);
+  --ease-exit: cubic-bezier(.4, 0, 1, 1);
+
+  --z-canvas-overlay: 10;
+  --z-sticky: 20;
+  --z-popover: 40;
+  --z-dialog-backdrop: 60;
+  --z-dialog: 70;
+  --z-tooltip: 90;
+}

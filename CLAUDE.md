@@ -89,6 +89,27 @@ docs/superpowers/
 - Même philosophie que Sift/track-finder : détective, fail-fast, pas de
   fallback silencieux ; TDD sur la logique pure ; le rendu GPU se vérifie
   visuellement, pas unitairement.
+- **Debug console/DOM sans computer-use** (technique reprise de Sift) :
+  lancer `tauri dev` avec `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`
+  en variable d'env (jamais dans `tauri.conf.json` — fuiterait en prod et
+  casserait les args par défaut de wry), puis se connecter en WebSocket brut
+  (Node a un `WebSocket` global, pas besoin du package `ws`) à
+  `ws://localhost:9222/devtools/page/<id>` (liste des cibles sur
+  `http://localhost:9222/json`). Permet `Runtime.evaluate` (état DOM, clic
+  de bouton réel via `document.querySelector`, invoke direct de
+  `window.__TAURI_INTERNALS__.invoke('cmd')`) et capture des
+  `Runtime.consoleAPICalled`/`Runtime.exceptionThrown`. A servi à diagnostiquer
+  précisément un invoke qui restait bloqué sans throw ni log (voir bug
+  `@tauri-apps/plugin-dialog` ci-dessous) — bien plus fiable que deviner
+  depuis des captures d'écran.
+- **`@tauri-apps/plugin-dialog` bug connu** : son `open()` peut rester
+  bloqué indéfiniment (jamais résolu ni rejeté, aucune fenêtre native ne
+  s'ouvre) — classe de bug IPC connue de l'écosystème Tauri
+  (tauri-apps/plugins-workspace#571). Contourné en appelant `rfd`
+  directement via notre propre commande Rust (`pick_image_file`), même
+  pattern que `get_launch_path`/`read_image_file` qui, eux, marchaient déjà.
+  Si un futur besoin de dialogue (dossier, sauvegarde...) refait surface,
+  ne PAS reprendre `tauri-plugin-dialog` sans revalider ce point d'abord.
 
 ## Risques ouverts / gates
 

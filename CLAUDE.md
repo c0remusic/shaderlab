@@ -89,6 +89,15 @@ docs/superpowers/
 - Même philosophie que Sift/track-finder : détective, fail-fast, pas de
   fallback silencieux ; TDD sur la logique pure ; le rendu GPU se vérifie
   visuellement, pas unitairement.
+- **Raccourci** : `npm run dev:debug` (= `scripts/dev.sh`) tue le process
+  `shaderlab.exe` restant (sinon `cargo build` échoue avec "Accès refusé"
+  sur le binaire verrouillé) puis relance `tauri dev` avec le port CDP
+  activé — évite de reproduire les deux commandes à la main à chaque fois.
+- **Logs de `npm run tauri dev` en tâche de fond vides tant que le process
+  tourne** (bug de buffering stdout sur ce Git Bash Windows, rencontré aussi
+  sur d'autres projets) : ne pas insister à relire le fichier de log avec
+  `tail`/`cat`, passer directement à une vérification par liste de process
+  (`Get-Process shaderlab`) ou par CDP (ci-dessous).
 - **Debug console/DOM sans computer-use** (technique reprise de Sift) :
   lancer `tauri dev` avec `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`
   en variable d'env (jamais dans `tauri.conf.json` — fuiterait en prod et

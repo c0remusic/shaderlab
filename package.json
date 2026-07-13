@@ -10,7 +10,9 @@
     "tauri": "tauri",
     "tauri dev": "tauri dev",
     "tauri build": "tauri build",
-    "dev:debug": "bash scripts/dev.sh",
+    "dev:debug": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1",
+    "dev:debug:follow": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1 -Follow",
+    "dev:monitor": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/monitor.ps1",
     "test": "vitest run"
   },
   "dependencies": {

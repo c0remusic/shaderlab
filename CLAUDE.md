@@ -89,10 +89,22 @@ docs/superpowers/
 - Même philosophie que Sift/track-finder : détective, fail-fast, pas de
   fallback silencieux ; TDD sur la logique pure ; le rendu GPU se vérifie
   visuellement, pas unitairement.
-- **Raccourci** : `npm run dev:debug` (= `scripts/dev.sh`) tue le process
-  `shaderlab.exe` restant (sinon `cargo build` échoue avec "Accès refusé"
-  sur le binaire verrouillé) puis relance `tauri dev` avec le port CDP
-  activé — évite de reproduire les deux commandes à la main à chaque fois.
+- **Raccourci** : `npm run dev:debug` (= `scripts/dev.ps1`) tue le process
+  `shaderlab.exe` restant (sinon `cargo build` échoue avec "Accès refusé"),
+  lance `tauri dev` en arrière-plan via PowerShell, active CDP et écrit les
+  sorties dans `.dev-logs/`. L'agent lance ensuite `npm run dev:monitor` pour
+  suivre Tauri, Vite, `console.*` et les exceptions WebView2. La variante
+  `npm run dev:debug:follow` combine lancement et suivi interactif.
+- **Autonomie terminal de Claude** : Claude est autorisé à lancer lui-même les
+  commandes PowerShell nécessaires au développement, aux tests, au diagnostic
+  et au monitoring dans ce repo. Ne pas demander à l'utilisateur de recopier
+  une commande ou de lire une console lorsque l'agent peut le faire localement.
+  Les opérations destructrices ou extérieures au repo gardent les règles de
+  confirmation normales.
+- **Boucle de monitoring obligatoire** : après lancement, vérifier le PID et
+  lire la sortie réelle avec `npm run dev:monitor`. Ne pas conclure au succès
+  sur la seule présence du processus. En cas d'erreur, citer le log pertinent,
+  corriger, relancer puis surveiller à nouveau.
 - **Logs de `npm run tauri dev` en tâche de fond vides tant que le process
   tourne** (bug de buffering stdout sur ce Git Bash Windows, rencontré aussi
   sur d'autres projets) : ne pas insister à relire le fichier de log avec

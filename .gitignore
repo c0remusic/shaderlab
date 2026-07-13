@@ -9,3 +9,4 @@ target/
 src-tauri/gen/
 .superpowers/
 .remember/
+.dev-logs/

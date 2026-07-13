@@ -1,0 +1,72 @@
+/*
+ * Dialog primitive.
+ * Every value below is a design token reference (src/design/*.css) — no
+ * hardcoded colors, sizes or durations. No shadow and no decorative blur:
+ * the dialog reads against the scrim through a strong border only.
+ */
+
+.ui-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  padding: 0;
+  width: var(--dialog-width-md);
+  max-width: min(var(--dialog-width-md), calc(100vw - var(--space-9) * 2));
+  max-height: calc(100vh - var(--space-9) * 2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-dialog);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+.ui-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.ui-dialog::backdrop {
+  background: var(--surface-scrim);
+}
+
+.ui-dialog__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex: none;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--space-6) 0;
+}
+
+.ui-dialog__title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--text-primary);
+}
+
+.ui-dialog__description {
+  flex: none;
+  margin: 0;
+  padding: var(--space-3) var(--space-6) 0;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-body);
+  color: var(--text-secondary);
+}
+
+.ui-dialog__body {
+  flex: 1;
+  padding: var(--space-6);
+  overflow-y: auto;
+}
+
+.ui-dialog__actions {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: 0 var(--space-6) var(--space-6);
+}

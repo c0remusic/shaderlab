@@ -10,9 +10,8 @@ import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { exportImage, resolveExportTarget } from "./export/exportImage";
-import { getLaunchPath, readImageFile } from "./launch";
+import { getLaunchPath, readImageFile, pickImageFile } from "./launch";
 import { MaskPainter } from "./mask/maskPainter";
-import { open } from "@tauri-apps/plugin-dialog";
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -98,11 +97,8 @@ export default function App() {
 
   const handleOpenFile = useCallback(async () => {
     try {
-      const path = await open({
-        multiple: false,
-        filters: [{ name: "Images", extensions: ["jpg", "jpeg"] }],
-      });
-      if (!path || Array.isArray(path)) return;
+      const path = await pickImageFile();
+      if (!path) return;
       // Manual "Ouvrir" dialog path: a real absolute path is now known, but
       // this is still NOT the Lightroom launch path — isLaunchFile stays
       // false so handleExport keeps exporting via buildCopyPath (copy),

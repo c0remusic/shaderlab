@@ -54,6 +54,12 @@
   ],
   "plans": [
     {
+      "path": "docs/superpowers/plans/2026-07-13-shaderlab-design-system.md",
+      "date": "2026-07-13",
+      "topic": "plan d'implémentation du design system",
+      "summary": "Plan TDD en 10 tâches pour transcrire les tokens darkroom-balanced, créer les primitives React accessibles, migrer l'UI actuelle vers un inspecteur droit unique sans changer la logique métier, ajouter une planche de spécimens Vite et automatiser les garde-fous visuels. Exclut explicitement pellicule, modes de fusion, refonte masque et nouvel export."
+    },
+    {
       "path": "docs/superpowers/plans/2026-07-12-shaderlab-mvp.md",
       "date": "2026-07-12",
       "topic": "plan d'implémentation MVP (16 tâches)",

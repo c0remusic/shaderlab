@@ -2,6 +2,11 @@
 
 > Nom de projet provisoire (placeholder, jamais tranché, même logique que
 > track-finder). Repo créé le 2026-07-12 sur `C:\Users\LEETJ\Desktop\shaderlab`.
+>
+> **Document historique.** Le scope produit courant est défini par
+> `docs/superpowers/specs/2026-07-13-shaderlab-standalone-v1-design.md` :
+> standalone d'abord, Lightroom en phase 2. Les recherches et décisions
+> d'architecture restent utiles, mais ce document n'est plus le gate v1.
 
 ## Quoi
 
@@ -98,17 +103,15 @@ nativement), ce n'est pas un blocage, mais c'est le **premier spike
 technique à valider avant tout le reste** (voir Testing). Source :
 [tauri-apps/tauri#6381](https://github.com/tauri-apps/tauri/issues/6381).
 
-### Espace colorimétrique (trouvé en audit — non négociable)
+### Espace colorimétrique (corrigé après validation WebGPU)
 
-Le glow/bloom, le grain et l'aberration chromatique sont mathématiquement
-faux s'ils sont calculés directement sur les valeurs sRGB (gamma) du
-JPEG décodé — hautes lumières cramées, dégradés de flou ternes. Pipeline
-obligatoire : décodage JPEG → upload en texture flottante (f16) →
-conversion sRGB→linéaire à l'entrée → tous les calculs de shader en
-espace linéaire → conversion linéaire→sRGB uniquement à l'encodage final
-avant écriture JPEG. Ce n'est pas une optimisation future, c'est un
-prérequis correct dès le premier effet implémenté (le spike technique
-doit inclure cette conversion, pas juste "afficher une image").
+Le glow/bloom, le grain et l'aberration chromatique doivent être calculés en
+espace linéaire. Le contrat validé et implémenté utilise des textures couleur
+`rgba8unorm-srgb` : WebGPU convertit automatiquement le stockage sRGB vers des
+valeurs linéaires à la lecture et reconvertit à l'écriture. Les shaders ne font
+donc JAMAIS de gamma manuel. L'ancienne proposition de textures f16 et de
+conversions explicites a été écartée après le spike ; elle décrivait une autre
+architecture et contredisait le plan exécuté.
 
 **Hypothèse assumée sur les profils couleur** : JPEG d'entrée traité
 comme sRGB, sans lecture ni conversion de profil ICC embarqué (pas de

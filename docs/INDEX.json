@@ -2,9 +2,15 @@
   "_regle_entretien": "À chaque ajout/déplacement/archivage d'un doc dans docs/, mettre à jour ce fichier dans le même geste, pas en rattrapage différé. Même principe que Sift.",
   "specs": [
     {
+      "path": "docs/superpowers/specs/2026-07-13-shaderlab-standalone-v1-design.md",
+      "date": "2026-07-13",
+      "topic": "scope standalone v1 shaderlab",
+      "summary": "Source de vérité produit : standalone Windows local avant Lightroom, workspace multi-photo avec pellicule de session, quatre effets aboutis, calques réordonnables avec opacité et six modes de fusion linéaires, masquage GPU persistant, historique borné à 512 Mo, Exporter sous avec progression et critères mesurables de performance/qualité. Refactor ciblé conservant renderer, shaders, pipeline sRGB et export. Lightroom passe en phase 2 avec gate empirique propre."
+    },
+    {
       "path": "docs/superpowers/changes/2026-07-12-shaderlab-mvp/design.md",
       "date": "2026-07-12",
-      "topic": "design MVP shaderlab",
+      "topic": "design MVP shaderlab (historique, remplacé le 2026-07-13)",
       "summary": "App desktop Windows Tauri v2 + React/TS + WebGPU/WGSL : effets shader empilables en calques (glow/chromatic bleed/warp/grain) sur JPEG, masque au pinceau, éditeur externe Lightroom (round-trip type Dehancer). Décisions actées : temps réel obligatoire, pas de preview basse résolution, undo/redo session seulement, export = copie. Audité par agent adverse le 2026-07-12 : 3 trous corrigés (espace colorimétrique sRGB/linéaire obligatoire via rgba8unorm-srgb, contrat round-trip Lightroom précisé écrasement-même-chemin, chiffre VRAM requalifié coût-par-texture). Barre de qualité visuelle ajoutée en exigence explicite (dual-filter bloom, aberration radiale, warp FBM, grain luminance-dépendant) + ressources open source vérifiées (LYGIA ok, webgpu-image-filter SANS licence = pas de copie, TypeGPU à évaluer, BitMappery MIT référence modèle de données)."
     }
   ],

@@ -15,8 +15,9 @@
 | Sous-agent `general-purpose` en reviewer adverse | **Défaut** pour audits de spec et revues de tâche | Audit design.md : 3 vrais trous trouvés (espace colorimétrique, contrat Lightroom, VRAM). Revue Task 1 : 2 Critical réels trouvés (feature v1 inexistante en v2, structure inversée) |
 | Modèles par rôle (sizing) | haiku = transcription de plan/fixes mécaniques ; sonnet = spike/intégration/review | Task 1 impl en haiku OK mais scaffold main écrit → 2 fix passes ; Task 2 (risque) en sonnet clean du premier coup |
 | Vérification visuelle par sous-agent | **INTERDIT** — sous-agents headless | Task 1 : implémenteur a pris "Waiting for frontend dev server" pour une preuve de compilation. Checkpoints humains à la place (décision utilisateur) |
-| `computer-use` pour vérif visuelle | **Écarté** (décision utilisateur) | Proposé après Task 1, utilisateur préfère vérifier lui-même aux checkpoints |
-| Skills design (`design-flow`, `ui-ux-pro-max`, `interface-design`...) | **Pas encore évalués** pour ce projet | UI v1 = 3 panneaux fonctionnels (Task 11) ; réévaluer si/quand une passe de polish UI est demandée |
+| `computer-use` pour vérif visuelle | **Ponctuel, sur demande explicite seulement** — pas par défaut | Écarté après Task 1 (utilisateur préfère vérifier lui-même), mais réactivé le 2026-07-13 sur "fais le toi-même" pour déboguer le bouton Ouvrir/canvas noir. Cesser dès que l'utilisateur dit stop (arrivé le même jour) |
+| Debug DevTools via CDP distant (`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`) | **Défaut** pour déboguer un bug JS/WebGPU silencieux (pas d'erreur visible mais comportement cassé) | Technique reprise de Sift (voir CLAUDE.md). A permis de diagnostiquer précisément 2 bugs le 2026-07-13 (invoke `plugin:dialog\|open` qui restait bloqué ; erreur de validation WebGPU sur le bind group, canvas noir) — bien plus rapide que deviner depuis des captures d'écran |
+| `interface-design` skill | **Utilisée en mode "direct et concret"**, pas l'exercice créatif complet | Invoquée le 2026-07-13 ; l'exploration de domaine/signature proposée a été jugée hors-sujet par l'utilisateur ("tu hallucines?") — reprise directement sur palette/typo/spacing calés sur les références Dehancer/Nik déjà validées. Tokens sauvegardés dans `.interface-design/system.md` |
 
 ## Packs de contexte (sizing)
 

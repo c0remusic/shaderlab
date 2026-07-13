@@ -14,6 +14,44 @@
       "summary": "App desktop Windows Tauri v2 + React/TS + WebGPU/WGSL : effets shader empilables en calques (glow/chromatic bleed/warp/grain) sur JPEG, masque au pinceau, éditeur externe Lightroom (round-trip type Dehancer). Décisions actées : temps réel obligatoire, pas de preview basse résolution, undo/redo session seulement, export = copie. Audité par agent adverse le 2026-07-12 : 3 trous corrigés (espace colorimétrique sRGB/linéaire obligatoire via rgba8unorm-srgb, contrat round-trip Lightroom précisé écrasement-même-chemin, chiffre VRAM requalifié coût-par-texture). Barre de qualité visuelle ajoutée en exigence explicite (dual-filter bloom, aberration radiale, warp FBM, grain luminance-dépendant) + ressources open source vérifiées (LYGIA ok, webgpu-image-filter SANS licence = pas de copie, TypeGPU à évaluer, BitMappery MIT référence modèle de données)."
     }
   ],
+  "design_system": [
+    {
+      "path": "docs/design-system/foundations.md",
+      "date": "2026-07-13",
+      "topic": "fondations du design system shaderlab",
+      "summary": "Intent produit, thème darkroom-balanced, principes HIG Apple adaptés à Windows, densité compacte, géométrie adoucie, typographie native, Lucide, profondeur sans ombres et baseline WCAG 2.2 AA."
+    },
+    {
+      "path": "docs/design-system/tokens.md",
+      "date": "2026-07-13",
+      "topic": "architecture et valeurs des tokens",
+      "summary": "Contrat complet primitives -> sémantiques -> composants : palette chambre noire chaude, espacements, typo, géométrie, motion, z-index, surfaces, statuts, masque, dimensions de layout et règles d'extension de thème."
+    },
+    {
+      "path": "docs/design-system/components.md",
+      "date": "2026-07-13",
+      "topic": "architecture des composants UI",
+      "summary": "Inventaire des primitives, composants composés et composants produit, matrice d'états, comportements clavier/accessibilité et contrats Button, Slider, Select, Menu, Tooltip, Dialog et icônes."
+    },
+    {
+      "path": "docs/design-system/patterns.md",
+      "date": "2026-07-13",
+      "topic": "patterns UX desktop shaderlab",
+      "summary": "Workspace, toolbar, inspecteur droit, pile de calques, paramètres calibrés, canvas, masquage, pellicule, export, états vides/erreurs, adaptation de fenêtre et raccourcis."
+    },
+    {
+      "path": "docs/design-system/content.md",
+      "date": "2026-07-13",
+      "topic": "règles de contenu UI",
+      "summary": "Terminologie française, labels, tooltips, progression, erreurs, confirmations, états vides et contenu accessible."
+    },
+    {
+      "path": "docs/design-system/governance.md",
+      "date": "2026-07-13",
+      "topic": "gouvernance et validation du design system",
+      "summary": "Structure cible, règles d'ajout et de versionnement, itération de thème, validation visuelle/accessibilité, garde-fous automatisés et dette de migration actuelle."
+    }
+  ],
   "plans": [
     {
       "path": "docs/superpowers/plans/2026-07-12-shaderlab-mvp.md",

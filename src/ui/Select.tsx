@@ -27,6 +27,7 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const typeaheadRef = useRef({ query: "", timeoutId: undefined as number | undefined });
 
   const selectedIndex = options.findIndex((option) => option.value === value);
   const selectedOption = selectedIndex >= 0 ? options[selectedIndex] : null;
@@ -68,6 +69,39 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
     closeList(true);
   }
 
+  const TYPEAHEAD_RESET_MS = 500;
+
+  /**
+   * Single-character typeahead: each keypress searches forward from just
+   * after `anchorIndex` for the next enabled option whose label starts with
+   * that character, wrapping at the end — so repeating the same letter
+   * cycles through every match (classic native <select> behavior). No
+   * multi-char accumulation: the reset timer only bounds how long a stale
+   * query buffer could linger, it is not read for matching.
+   */
+  function typeaheadMatch(char: string, anchorIndex: number): number {
+    const state = typeaheadRef.current;
+    window.clearTimeout(state.timeoutId);
+    state.query = char.toLowerCase();
+    state.timeoutId = window.setTimeout(() => {
+      typeaheadRef.current.query = "";
+    }, TYPEAHEAD_RESET_MS);
+
+    const count = options.length;
+    for (let step = 1; step <= count; step += 1) {
+      const index = (((anchorIndex + step) % count) + count) % count;
+      const option = options[index];
+      if (!option.disabled && option.label.toLowerCase().startsWith(state.query)) {
+        return index;
+      }
+    }
+    return -1;
+  }
+
+  function isPrintableKey(key: string): boolean {
+    return key.length === 1 && key !== " ";
+  }
+
   function handleTriggerKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     switch (event.key) {
       case "ArrowDown":
@@ -78,6 +112,10 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
         openList();
         break;
       default:
+        if (isPrintableKey(event.key)) {
+          const match = typeaheadMatch(event.key, selectedIndex);
+          if (match >= 0) onChange(options[match].value);
+        }
         break;
     }
   }
@@ -113,6 +151,11 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
         setOpen(false);
         break;
       default:
+        if (isPrintableKey(event.key)) {
+          event.preventDefault();
+          const match = typeaheadMatch(event.key, activeIndex);
+          if (match >= 0) setActiveIndex(match);
+        }
         break;
     }
   }

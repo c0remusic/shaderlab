@@ -14,18 +14,21 @@ export function Button({
   size = "default",
   loading = false,
   disabled,
+  type = "button",
   className = "",
   children,
   ...props
 }: ButtonProps) {
   return (
     <button
+      type={type}
       className={`ui-button ui-button--${variant} ui-button--${size} ${className}`.trim()}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       {...props}
     >
-      {children}
+      <span className="ui-button__content">{children}</span>
+      {loading && <span className="ui-button__spinner" aria-hidden="true" />}
     </button>
   );
 }

@@ -7,6 +7,7 @@
 /* ---------- Button ---------- */
 
 .ui-button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -33,6 +34,38 @@
 
 .ui-button[aria-busy="true"] {
   cursor: progress;
+}
+
+/* Loading: content is hidden (not unmounted) so the button's box never
+   reflows, and a spinner overlays in its place. */
+.ui-button__content {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--button-icon-gap);
+}
+
+.ui-button[aria-busy="true"] .ui-button__content {
+  visibility: hidden;
+}
+
+.ui-button__spinner {
+  position: absolute;
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  opacity: 0.7;
+  animation: ui-button-spin calc(var(--duration-slow) * 4) var(--ease-direct) infinite;
+}
+
+@keyframes ui-button-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .ui-button--compact {
@@ -144,6 +177,21 @@
   background: var(--surface-selected);
   color: var(--text-primary);
   border-color: var(--border-emphasis);
+}
+
+.ui-icon-button--danger {
+  color: var(--status-danger-text);
+}
+.ui-icon-button--danger:hover:not(:disabled) {
+  background: var(--status-danger-bg);
+  color: var(--status-danger);
+}
+.ui-icon-button--danger:active:not(:disabled) {
+  background: var(--status-danger-bg);
+  color: var(--status-danger);
+}
+.ui-icon-button--danger:disabled {
+  color: var(--text-disabled);
 }
 
 /* Hit area 28-32px even for a 14-16px glyph; 28px floor holds in compact density. */

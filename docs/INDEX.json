@@ -1,5 +1,13 @@
 {
   "_regle_entretien": "À chaque ajout/déplacement/archivage d'un doc dans docs/, mettre à jour ce fichier dans le même geste, pas en rattrapage différé. Même principe que Sift.",
+  "changes": [
+    {
+      "path": "docs/superpowers/changes/2026-07-13-archi-remediation/",
+      "date": "2026-07-13",
+      "topic": "remédiation architecture post-audit (design.md + plan.md)",
+      "summary": "Chantier issu de l'audit d'architecture du 2026-07-13 (3 agents lecture seule). Plan TDD en 11 tâches : cache de pipelines par code shader composé, masques GPU résidents + blanc 1x1 partagé, coalescing rAF, libération du buffer de readback + requiredLimits + garde dimension, validation fail-fast des effets (>8 params), écriture atomique tmp+rename + garde .jpg/.jpeg, launch path incassable + CSP + identifier, IPC binaire Tauri v2, clone() partageant les masques immuables, historique borné 512 Mo par refcount, une entrée d'historique par interaction de slider. Différés documentés dans design.md (extraction EditorDocument -> chantier multi-photo, peinture masque GPU, progression export). À exécuter APRÈS le plan design system, sur feature/archi-remediation."
+    }
+  ],
   "specs": [
     {
       "path": "docs/superpowers/specs/2026-07-13-shaderlab-standalone-v1-design.md",

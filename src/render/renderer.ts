@@ -343,8 +343,36 @@ fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
 }
 `;
     const module = device.createShaderModule({ code: shaderCode });
+
+    // Explicit bind group layout instead of `layout: "auto"`. With "auto",
+    // WebGPU derives the layout from which bindings the shader ACTUALLY
+    // reads — and some effects (e.g. Glow's internal downsample/upsample
+    // passes, Task 13) declare `params`/`binding(2)` in the shared header
+    // but never reference it in their fs_main body. naga/Dawn then prunes
+    // binding 2 from the auto layout, while the JS side below always
+    // provides it — a mismatch that fails `createBindGroup` validation
+    // ("binding index 2 not present in the bind group layout"), silently
+    // invalidating the whole command buffer and rendering solid black with
+    // no thrown JS exception (confirmed via CDP: only visible as a WebGPU
+    // validation warning in the browser console, not a catchable error).
+    // An explicit layout always matching the JS `entries` below sidesteps
+    // this entire class of bug, regardless of what any given effect's WGSL
+    // body happens to read.
+    const layoutEntries: GPUBindGroupLayoutEntry[] = [
+      { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } },
+      { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "filtering" } },
+      { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },
+    ];
+    if (applyMask) {
+      layoutEntries.push({ binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
+    }
+    if (prevPassView) {
+      layoutEntries.push({ binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
+    }
+    const bindGroupLayout = device.createBindGroupLayout({ entries: layoutEntries });
+    const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
     const pipeline = device.createRenderPipeline({
-      layout: "auto",
+      layout: pipelineLayout,
       vertex: { module, entryPoint: "vs_main" },
       fragment: { module, entryPoint: "fs_wrapper", targets: [{ format: srgbFormat }] },
     });
@@ -363,7 +391,7 @@ fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
       entries.push({ binding: 4, resource: prevPassView });
     }
     const bindGroup = device.createBindGroup({
-      layout: pipeline.getBindGroupLayout(0),
+      layout: bindGroupLayout,
       entries,
     });
 

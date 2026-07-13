@@ -1,0 +1,141 @@
+/*
+ * Inspector: right-hand panel composing LayerPanel and ParamPanel.
+ * Every value below is a design token reference (src/design/*.css) — no
+ * hardcoded colors, sizes or durations.
+ *
+ * overflow: visible on the scroll containers is required by Select (no
+ * portal — see src/ui/overlays.css) so its popup is never clipped.
+ */
+
+.inspector {
+  display: flex;
+  flex-direction: column;
+  width: var(--inspector-width-default);
+  min-width: var(--inspector-width-min);
+  max-width: var(--inspector-width-max);
+  background: var(--panel-bg);
+  border-left: 1px solid var(--panel-border);
+  color: var(--text-primary);
+  overflow-y: auto;
+  overflow-x: visible;
+}
+
+.inspector__layers,
+.inspector__parameters {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.inspector__parameters {
+  border-bottom: none;
+}
+
+.inspector__section-title {
+  display: flex;
+  align-items: center;
+  height: var(--section-header-height);
+  margin: 0 0 var(--space-3) 0;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+/* ---------- LayerPanel ---------- */
+
+.layer-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.layer-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.layer-panel__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  height: var(--layer-row-height);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-control);
+  border-left: 2px solid transparent;
+  color: var(--text-secondary);
+  cursor: grab;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.layer-panel__row:hover {
+  background: var(--surface-hover);
+}
+
+.layer-panel__row--selected {
+  background: var(--surface-selected);
+  border-left-color: var(--border-selection);
+  color: var(--text-primary);
+}
+
+.layer-panel__row-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.layer-panel__grip {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.layer-panel__row-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+}
+
+.layer-panel__row-name--selected {
+  color: var(--text-primary);
+}
+
+/* ---------- ParamPanel ---------- */
+
+.param-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.param-panel__empty {
+  margin: 0;
+  padding: var(--space-4);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-md);
+  color: var(--text-tertiary);
+}
+
+.param-panel__effect-name {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.param-panel__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-top: var(--space-2);
+}

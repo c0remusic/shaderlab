@@ -1,5 +1,8 @@
+import { Eye, EyeOff, GripVertical, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
-import { effectRegistry } from "../render/effects/registry";
+import { effectRegistry, getEffect } from "../render/effects/registry";
+import { Select } from "../ui/Select";
+import { IconButton } from "../ui/IconButton";
 
 interface Props {
   layers: LayerState[];
@@ -11,40 +14,19 @@ interface Props {
   onReorder: (id: string, newIndex: number) => void;
 }
 
+const addEffectOptions = effectRegistry.map((e) => ({ value: e.id, label: e.name }));
+
 export function LayerPanel({ layers, selectedId, onSelect, onToggle, onAdd, onRemove, onReorder }: Props) {
   return (
-    <div
-      style={{
-        width: 220,
-        background: "var(--bg-surface)",
-        borderRight: "1px solid var(--border-default)",
-        padding: "var(--space-2)",
-        color: "var(--text-primary)",
-      }}
-    >
-      <select
-        onChange={(e) => e.target.value && onAdd(e.target.value)}
-        value=""
-        style={{
-          width: "100%",
-          background: "var(--bg-input)",
-          color: "var(--text-primary)",
-          border: "1px solid var(--border-default)",
-          borderRadius: "var(--radius-sm)",
-          padding: "var(--space-1) var(--space-2)",
-          marginBottom: "var(--space-2)",
-        }}
-      >
-        <option value="" disabled>
-          + Ajouter un effet
-        </option>
-        {effectRegistry.map((e) => (
-          <option key={e.id} value={e.id}>
-            {e.name}
-          </option>
-        ))}
-      </select>
-      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+    <div className="layer-panel">
+      <Select
+        label="Ajouter un effet"
+        value={null}
+        placeholder="+ Ajouter un effet"
+        options={addEffectOptions}
+        onChange={onAdd}
+      />
+      <ul className="layer-panel__list">
         {layers.map((layer, index) => {
           const selected = layer.id === selectedId;
           return (
@@ -62,52 +44,41 @@ export function LayerPanel({ layers, selectedId, onSelect, onToggle, onAdd, onRe
                 const draggedId = e.dataTransfer.getData("text/plain");
                 if (draggedId && draggedId !== layer.id) onReorder(draggedId, index);
               }}
-              style={{
-                padding: "var(--space-2)",
-                marginBottom: "var(--space-1)",
-                background: selected ? "var(--accent-muted)" : "transparent",
-                borderLeft: selected ? "2px solid var(--accent)" : "2px solid transparent",
-                borderRadius: "var(--radius-sm)",
-                color: "var(--text-primary)",
-                cursor: "grab",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
+              className={`layer-panel__row ${selected ? "layer-panel__row--selected" : ""}`.trim()}
             >
-              <span style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                <button
+              <span className="layer-panel__row-main">
+                <GripVertical className="layer-panel__grip" size={14} strokeWidth={1.5} aria-hidden="true" />
+                <IconButton
+                  label={layer.enabled ? "Masquer le calque" : "Afficher le calque"}
+                  size="compact"
                   onClick={(e) => {
                     e.stopPropagation();
                     onToggle(layer.id);
                   }}
-                  style={{
-                    padding: "2px 6px",
-                    background: "transparent",
-                    border: "none",
-                    color: layer.enabled ? "var(--text-primary)" : "var(--text-muted)",
-                  }}
                 >
-                  {layer.enabled ? "👁" : "—"}
-                </button>
-                <span style={{ color: selected ? "var(--text-primary)" : "var(--text-secondary)" }}>
-                  {layer.effectId}
+                  {layer.enabled ? (
+                    <Eye size={14} strokeWidth={1.5} aria-hidden="true" />
+                  ) : (
+                    <EyeOff size={14} strokeWidth={1.5} aria-hidden="true" />
+                  )}
+                </IconButton>
+                <span
+                  className={`layer-panel__row-name ${selected ? "layer-panel__row-name--selected" : ""}`.trim()}
+                >
+                  {getEffect(layer.effectId).name}
                 </span>
               </span>
-              <button
+              <IconButton
+                label="Supprimer le calque"
+                size="compact"
+                variant="danger"
                 onClick={(e) => {
                   e.stopPropagation();
                   onRemove(layer.id);
                 }}
-                style={{
-                  padding: "2px 6px",
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--text-tertiary)",
-                }}
               >
-                ✕
-              </button>
+                <Trash2 size={14} strokeWidth={1.5} aria-hidden="true" />
+              </IconButton>
             </li>
           );
         })}

@@ -77,6 +77,14 @@ docs/superpowers/
   sous-agent frais par tâche du plan, revue spec+qualité après chaque tâche,
   fixes puis re-revue, ledger dans `.superpowers/sdd/progress.md`. **Vérifier
   le ledger avant de (re)dispatcher quoi que ce soit.**
+- **Avant tout dispatch `subagent-driven-development`, lancer `git worktree
+  list`** : plusieurs sessions concurrentes ont déjà collisionné sur ce repo
+  (2026-07-13, Task 7 du plan design system — un implémenteur bloqué en
+  pleine tâche par une mutation filesystem d'une autre session active sur la
+  même branche). Le fix a été d'isoler chaque ligne de travail dans son
+  propre worktree (`git worktree add`) — vérifier ceci en amont plutôt que
+  de le découvrir après coup. Voir la mémoire projet
+  `design-system-branch-reconciliation` pour l'état des lignes en cours.
 - **Les sous-agents sont headless** : ils ne peuvent PAS vérifier
   visuellement une fenêtre (leçon Task 1 : un implémenteur a pris la ligne
   "Waiting for frontend dev server" pour une preuve de compilation Rust).

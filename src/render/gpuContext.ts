@@ -22,7 +22,13 @@ export async function initGpu(canvas: HTMLCanvasElement): Promise<GpuContext> {
   if (!adapter) {
     throw new Error("Aucun adaptateur WebGPU trouvé.");
   }
-  const device = await adapter.requestDevice();
+  // Sans requiredLimits, le device retombe aux limites par défaut de la spec
+  // (maxTextureDimension2D = 8192) même si le matériel fait mieux — un JPEG
+  // panoramique > 8192 px échouerait à createTexture. On demande le maximum
+  // que l'adapter supporte réellement.
+  const device = await adapter.requestDevice({
+    requiredLimits: { maxTextureDimension2D: adapter.limits.maxTextureDimension2D },
+  });
   const context = canvas.getContext("webgpu") as GPUCanvasContext;
   if (!context) {
     throw new Error("Impossible d'obtenir un contexte WebGPU sur le canvas.");

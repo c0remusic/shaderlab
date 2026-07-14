@@ -6,6 +6,7 @@ import type { EffectModule } from "./effects/types";
 import { composeShader, MAX_EFFECT_PARAMS } from "./shaderCompose";
 import { staleMaskIds } from "./maskResidency";
 import { FrameScheduler } from "./frameScheduler";
+import { assertImageFitsGpu } from "./limits";
 
 const PASSTHROUGH_EFFECT: EffectModule = {
   id: "passthrough",
@@ -54,6 +55,7 @@ export class Renderer {
   }
 
   async loadImage(bitmap: ImageBitmap): Promise<void> {
+    assertImageFitsGpu(bitmap.width, bitmap.height, this.ctx.device.limits.maxTextureDimension2D);
     this.width = bitmap.width;
     this.height = bitmap.height;
     const { device, srgbFormat } = this.ctx;
@@ -409,6 +411,7 @@ export class Renderer {
     await buffer.mapAsync(GPUMapMode.READ);
     const data = new Uint8Array(buffer.getMappedRange().slice(0));
     buffer.unmap();
+    buffer.destroy();
     return data;
   }
 

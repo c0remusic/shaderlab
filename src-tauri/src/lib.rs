@@ -2,9 +2,13 @@ use std::fs;
 
 #[tauri::command]
 fn get_launch_path() -> Option<String> {
-  // args[0] is the executable path; a launch path (from Lightroom's
-  // External Editing, or Windows "Open with") is args[1] if present.
-  std::env::args().nth(1)
+  // args[0] est l'exécutable ; le chemin de lancement (External Editing de
+  // Lightroom, ou "Ouvrir avec" Windows) est args[1] s'il existe.
+  // args_os + to_string_lossy : std::env::args() PANIQUE sur un argument
+  // Windows non-UTF16 valide — args_os ne panique jamais.
+  std::env::args_os()
+    .nth(1)
+    .map(|arg| arg.to_string_lossy().into_owned())
 }
 
 fn is_jpeg_path(path: &str) -> bool {

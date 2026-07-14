@@ -7,6 +7,7 @@ import { composeShader, MAX_EFFECT_PARAMS } from "./shaderCompose";
 import { staleMaskIds } from "./maskResidency";
 import { FrameScheduler } from "./frameScheduler";
 import { assertImageFitsGpu } from "./limits";
+import { logDiagnostic } from "../launch";
 
 const PASSTHROUGH_EFFECT: EffectModule = {
   id: "passthrough",
@@ -48,6 +49,12 @@ export class Renderer {
   private maskTextures = new Map<string, { texture: GPUTexture; syncedFrom: Uint8Array }>();
   private whiteMask: GPUTexture | null = null;
   private renderScheduler = new FrameScheduler<LayerState[]>((layers) => this.render(layers));
+  /** Debugging-only (see log_diagnostic in lib.rs / gpuContext.ts's device.lost
+   *  handler): counts runPipeline() calls so diagnostics below can log every
+   *  Nth frame instead of flooding the IPC channel during a fast paint
+   *  stroke. Remove alongside the rest of this diagnostic pass once the GPU
+   *  OOM crash (3 confirmed renderer aborts, 2026-07-14/15) is root-caused. */
+  private diagFrameCount = 0;
 
   constructor(ctx: GpuContext) {
     this.ctx = ctx;
@@ -151,6 +158,7 @@ export class Renderer {
   private runPipeline(layers: LayerState[], finalTargetView: GPUTextureView): void {
     if (!this.sourceTexture || !this.pingPong) throw new Error("Aucune image chargée.");
     const { device } = this.ctx;
+    const diagStart = performance.now();
 
     for (const id of staleMaskIds(this.maskTextures.keys(), layers)) {
       this.maskTextures.get(id)!.texture.destroy();
@@ -225,6 +233,26 @@ export class Renderer {
 
     device.queue.submit([encoder.finish()]);
     for (const resource of pendingDestroy) resource.destroy();
+    this.logFrameDiagnostics(diagStart, enabledLayers.length, pendingDestroy.length);
+  }
+
+  /** Debugging-only, see the field comment on `diagFrameCount`. Logs every
+   *  15th frame: JS-side encode+submit time (does NOT include actual GPU
+   *  execution time, which WebGPU doesn't expose to JS), how many
+   *  intermediate textures/buffers this single frame churned through
+   *  (pendingDestroy.length — a proxy for GPU allocator pressure from
+   *  per-frame effect passes like Glow's 5-pass bloom), and the resident
+   *  mask/pipeline cache sizes (should stay bounded by layer/effect count,
+   *  not grow unboundedly). */
+  private logFrameDiagnostics(diagStart: number, enabledLayerCount: number, churnedResources: number): void {
+    this.diagFrameCount++;
+    if (this.diagFrameCount % 15 !== 0) return;
+    const elapsedMs = Math.round((performance.now() - diagStart) * 100) / 100;
+    logDiagnostic(
+      `frame#${this.diagFrameCount} jsEncodeMs=${elapsedMs} enabledLayers=${enabledLayerCount} ` +
+        `churnedThisFrame=${churnedResources} residentMaskTextures=${this.maskTextures.size} ` +
+        `pipelineCacheSize=${this.pipelineCache.size} imageSize=${this.width}x${this.height}`
+    );
   }
 
   /**

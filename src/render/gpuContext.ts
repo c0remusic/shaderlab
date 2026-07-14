@@ -1,3 +1,5 @@
+import { logDiagnostic } from "../launch";
+
 export interface GpuContext {
   device: GPUDevice;
   context: GPUCanvasContext;
@@ -29,6 +31,16 @@ export async function initGpu(canvas: HTMLCanvasElement): Promise<GpuContext> {
   const device = await adapter.requestDevice({
     requiredLimits: { maxTextureDimension2D: adapter.limits.maxTextureDimension2D },
   });
+  // Debugging-only (see log_diagnostic in lib.rs): this app currently has NO
+  // handler for device loss at all — a GPU-side reset/OOM goes completely
+  // unobserved. Real crash dumps (2026-07-14/15) show 3 renderer OOM aborts
+  // (exception 0xE0000008) during mask painting on a large photo; this
+  // handler is here to catch whether device.lost ever actually fires with a
+  // reason before that hard abort, or whether the abort preempts it entirely.
+  device.lost.then((info) => {
+    logDiagnostic(`GPU device lost: reason=${info.reason} message=${info.message}`);
+  });
+  logDiagnostic(`GPU limits: maxTextureDimension2D=${adapter.limits.maxTextureDimension2D} maxBufferSize=${adapter.limits.maxBufferSize}`);
   const context = canvas.getContext("webgpu") as GPUCanvasContext;
   if (!context) {
     throw new Error("Impossible d'obtenir un contexte WebGPU sur le canvas.");

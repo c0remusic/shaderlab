@@ -85,6 +85,34 @@ fn pick_image_file() -> Option<String> {
     .map(|p| p.to_string_lossy().into_owned())
 }
 
+/// Debugging-only: appends a timestamped line to `.dev-logs/gpu-diag.log` in
+/// the project root. Writing through Rust (not console.log) means the line
+/// is durably on disk before this IPC call even returns to the renderer —
+/// unlike browser-console output, it survives a renderer crash that happens
+/// immediately after, which is exactly the failure mode being diagnosed
+/// (the renderer's own devtools/console pipe can die mid-flush on a hard
+/// OOM abort). Temporary: remove once the GPU OOM crash is root-caused.
+#[tauri::command]
+fn log_diagnostic(message: String) {
+  let log_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+    .parent()
+    .unwrap()
+    .join(".dev-logs")
+    .join("gpu-diag.log");
+  let line = format!(
+    "[{}] {}\n",
+    std::time::SystemTime::now()
+      .duration_since(std::time::UNIX_EPOCH)
+      .map(|d| d.as_millis())
+      .unwrap_or(0),
+    message
+  );
+  use std::io::Write;
+  if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+    let _ = f.write_all(line.as_bytes());
+  }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
@@ -92,7 +120,8 @@ pub fn run() {
       get_launch_path,
       write_image_file,
       read_image_file,
-      pick_image_file
+      pick_image_file,
+      log_diagnostic
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

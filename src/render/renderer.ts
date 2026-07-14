@@ -163,13 +163,12 @@ export class Renderer {
 
     const encoder = device.createCommandEncoder();
     // Per-frame GPU resources — intermediate multi-pass textures (from
-    // runInternalPasses), each pass's paramBuffer, and each pass's mask
-    // texture (from uploadMask) — all live only for this frame. They must
-    // not be destroyed until AFTER this frame's command buffer has been
-    // submitted — recording a command against a resource does NOT pin its
-    // lifetime through to a later submit (WebGPU validates at submit()
-    // time), so destroying mid-encoder throws. Collected here and drained
-    // once, post-submit, below.
+    // runInternalPasses) and each pass's paramBuffer — both live only for
+    // this frame. They must not be destroyed until AFTER this frame's
+    // command buffer has been submitted — recording a command against a
+    // resource does NOT pin its lifetime through to a later submit (WebGPU
+    // validates at submit() time), so destroying mid-encoder throws.
+    // Collected here and drained once, post-submit, below.
     const pendingDestroy: (GPUTexture | GPUBuffer)[] = [];
 
     if (enabledLayers.length === 0) {

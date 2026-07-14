@@ -182,14 +182,12 @@ export default function App() {
     if (!selectedId) return;
     const stack = currentStack();
     commit(stack);
-    // `commit` -> `currentStack` clones the stack, producing a brand-new
-    // `maskData` reference for every layer even though the bytes are
-    // unchanged. Re-sync the tracked reference to that new clone so the
-    // next stroke's divergence check in `handleMaskStroke` doesn't mistake
-    // this stroke-end's own clone for an external change (undo/redo). A
-    // genuine undo/redo does NOT go through this function, so its clone's
-    // reference legitimately won't match any tracked `syncedFrom` and will
-    // still correctly trigger a re-seed.
+    // Depuis le partage structurel des masques dans clone(), le commit ne
+    // change plus les références maskData — cette resynchronisation est un
+    // no-op sûr, conservée pour rester correcte si un futur clone()
+    // redevenait copiant. Un vrai undo/redo restaure une référence PLUS
+    // ANCIENNE, donc différente de syncedFrom, et déclenche bien le re-seed
+    // du painter dans handleMaskStroke.
     const entry = maskPaintersRef.current.get(selectedId);
     if (entry) {
       entry.syncedFrom = stack.layers.find((l) => l.id === selectedId)?.maskData ?? null;

@@ -131,3 +131,61 @@ describe("History", () => {
     expect(redone?.layers[1].effectId).toBe("grain");
   });
 });
+
+describe("History byte budget", () => {
+  function stackWithMask(bytes: number): LayerStack {
+    const s = new LayerStack();
+    const id = s.addLayer("glow");
+    s.updateMask(id, new Uint8Array(bytes));
+    return s;
+  }
+
+  it("counts unique mask buffers once even when shared across entries", () => {
+    const history = new History(new LayerStack(), 1000);
+    const a = stackWithMask(100);
+    history.push(a);
+    // clone() partage le buffer (Task 9) : pousser un clone modifié sur un
+    // AUTRE champ ne doit pas recompter les 100 octets du masque.
+    const b = a.clone();
+    b.updateParams(b.layers[0].id, { intensity: 0.5 });
+    history.push(b);
+    expect(history.bytesUsed()).toBe(100);
+  });
+
+  it("evicts oldest past entries first when over budget", () => {
+    const history = new History(new LayerStack(), 250);
+    history.push(stackWithMask(100)); // A
+    history.push(stackWithMask(100)); // B
+    history.push(stackWithMask(100)); // C -> 300 octets retenus > 250
+    // Éviction en partant du plus ancien : l'état initial (0 octet) puis A
+    // (100). Restent B (past) + C (courant) = 200 octets <= 250.
+    expect(history.bytesUsed()).toBeLessThanOrEqual(250);
+    // Un seul pas d'undo possible : B. L'initial et A sont partis.
+    expect(history.undo()?.layers[0].maskData?.byteLength).toBe(100); // -> B
+    expect(history.undo()).toBeNull();
+  });
+
+  it("never evicts the current state even if it alone exceeds the budget", () => {
+    const history = new History(new LayerStack(), 10);
+    history.push(stackWithMask(100));
+    expect(history.bytesUsed()).toBe(100);
+    expect(history.canUndo()).toBe(false); // le past a été vidé, pas le courant
+  });
+
+  it("releases bytes when the redo branch is discarded by a new push", () => {
+    const history = new History(new LayerStack(), 10_000);
+    history.push(stackWithMask(100));
+    history.undo(); // la branche redo retient les 100 octets
+    expect(history.bytesUsed()).toBe(100);
+    history.push(stackWithMask(30)); // redo jetée
+    expect(history.bytesUsed()).toBe(30);
+  });
+
+  it("undo/redo keep working normally under the default budget", () => {
+    const history = new History(new LayerStack());
+    history.push(stackWithMask(100));
+    history.undo();
+    const redone = history.redo();
+    expect(redone?.layers[0].maskData?.byteLength).toBe(100);
+  });
+});

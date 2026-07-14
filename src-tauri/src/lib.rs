@@ -7,9 +7,33 @@ fn get_launch_path() -> Option<String> {
   std::env::args().nth(1)
 }
 
+fn is_jpeg_path(path: &str) -> bool {
+  let lower = path.to_ascii_lowercase();
+  lower.ends_with(".jpg") || lower.ends_with(".jpeg")
+}
+
+/// Écriture atomique : tout dans un fichier temporaire À CÔTÉ de la cible
+/// (même volume garanti), puis rename — sous Windows, std::fs::rename
+/// remplace une cible existante (MoveFileExW + MOVEFILE_REPLACE_EXISTING).
+/// Sans ça, un crash mi-écriture sur le chemin round-trip Lightroom laissait
+/// un JPEG tronqué à la place de la seule copie du travail.
+fn write_atomic(path: &str, bytes: &[u8]) -> Result<(), String> {
+  let tmp = format!("{path}.tmp-write");
+  fs::write(&tmp, bytes).map_err(|e| format!("Écriture échouée sur {tmp}: {e}"))?;
+  fs::rename(&tmp, path).map_err(|e| {
+    let _ = fs::remove_file(&tmp);
+    format!("Renommage échoué de {tmp} vers {path}: {e}")
+  })
+}
+
 #[tauri::command]
 fn write_image_file(path: String, bytes: Vec<u8>) -> Result<(), String> {
-  fs::write(&path, &bytes).map_err(|e| format!("Écriture échouée sur {path}: {e}"))
+  if !is_jpeg_path(&path) {
+    return Err(format!(
+      "Refus d'écrire {path} : seuls les fichiers .jpg/.jpeg sont autorisés."
+    ));
+  }
+  write_atomic(&path, &bytes)
 }
 
 #[tauri::command]
@@ -43,4 +67,40 @@ pub fn run() {
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn jpeg_paths_are_accepted_case_insensitively() {
+    assert!(is_jpeg_path("C:\\photos\\IMG_0001.JPG"));
+    assert!(is_jpeg_path("C:\\photos\\été.jpeg"));
+  }
+
+  #[test]
+  fn non_jpeg_paths_are_rejected() {
+    assert!(!is_jpeg_path("C:\\photos\\image.png"));
+    assert!(!is_jpeg_path("C:\\photos\\piege.jpg.exe"));
+    assert!(!is_jpeg_path("C:\\Users\\x\\master.db"));
+    assert!(!is_jpeg_path("sans-extension"));
+  }
+
+  #[test]
+  fn write_atomic_creates_then_overwrites() {
+    let path = std::env::temp_dir().join("shaderlab-test-atomic.jpg");
+    let path_str = path.to_str().unwrap();
+    let _ = std::fs::remove_file(&path);
+
+    write_atomic(path_str, b"first").unwrap();
+    assert_eq!(std::fs::read(&path).unwrap(), b"first");
+
+    // Cas round-trip Lightroom : la cible EXISTE et doit être remplacée
+    // sans jamais être visible dans un état tronqué.
+    write_atomic(path_str, b"second").unwrap();
+    assert_eq!(std::fs::read(&path).unwrap(), b"second");
+
+    let _ = std::fs::remove_file(&path);
+  }
 }

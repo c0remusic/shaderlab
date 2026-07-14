@@ -2,7 +2,10 @@
 
 > Nom provisoire (placeholder, jamais tranché — même logique que track-finder).
 > Repo local `C:\Users\LEETJ\Desktop\shaderlab`, pas encore de remote GitHub.
-> Branche de dev active : `feature/mvp-implementation` (master = docs seulement).
+> Branche de dev active : `feature/design-system` (MVP mergé sur master).
+> Worktree parallèle `feature/design-system-mine` en cours de réconciliation
+> — voir la mémoire projet `design-system-branch-reconciliation` avant de
+> (re)dispatcher une tâche du plan design system.
 
 ## Quoi
 

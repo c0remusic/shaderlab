@@ -4,6 +4,7 @@ import type { LayerState } from "../layers/types";
 import { getEffect } from "./effects/registry";
 import type { EffectModule } from "./effects/types";
 import { composeShader, MAX_EFFECT_PARAMS } from "./shaderCompose";
+import { staleMaskIds } from "./maskResidency";
 
 const PASSTHROUGH_EFFECT: EffectModule = {
   id: "passthrough",
@@ -42,6 +43,8 @@ export class Renderer {
     string,
     { pipeline: GPURenderPipeline; bindGroupLayout: GPUBindGroupLayout }
   >();
+  private maskTextures = new Map<string, { texture: GPUTexture; syncedFrom: Uint8Array }>();
+  private whiteMask: GPUTexture | null = null;
 
   constructor(ctx: GpuContext) {
     this.ctx = ctx;
@@ -137,6 +140,11 @@ export class Renderer {
   private runPipeline(layers: LayerState[], finalTargetView: GPUTextureView): void {
     if (!this.sourceTexture || !this.pingPong) throw new Error("Aucune image chargée.");
     const { device } = this.ctx;
+
+    for (const id of staleMaskIds(this.maskTextures.keys(), layers)) {
+      this.maskTextures.get(id)!.texture.destroy();
+      this.maskTextures.delete(id);
+    }
 
     let readTexture = this.sourceTexture;
     let writeIndex = 0;
@@ -342,10 +350,8 @@ export class Renderer {
       { binding: 2, resource: { buffer: paramBuffer } },
     ];
     if (applyMask) {
-      const maskTexture = this.uploadMask(layer.maskData);
-      entries.push({ binding: 3, resource: maskTexture.createView() });
-      // Same post-submit-destroy reasoning as paramBuffer above.
-      pendingDestroy.push(maskTexture);
+      // Résidente — ne PAS la mettre dans pendingDestroy.
+      entries.push({ binding: 3, resource: this.getMaskTexture(layer).createView() });
     }
     if (prevPassView) {
       entries.push({ binding: 4, resource: prevPassView });
@@ -397,19 +403,54 @@ export class Renderer {
     return data;
   }
 
-  /**
-   * Uploads a layer's mask into an r8unorm texture. A mask is a linear
-   * 0..1 opacity weight, not color data, so it deliberately does NOT use
-   * `ctx.srgbFormat` — treating it as sRGB would bias the falloff curve.
-   * `maskData === null` (no mask painted) uploads a fully-opaque mask so
-   * the effect applies everywhere, matching pre-Task-9 behavior.
-   */
+  /** Masque absent : texture 1×1 opaque partagée. Le sampler linéaire
+   *  échantillonne 1.0 partout — comportement identique à l'ancien buffer
+   *  plein-résolution rempli à 255, sans l'allocation de 24 Mo par passe. */
+  private getWhiteMask(): GPUTexture {
+    if (!this.whiteMask) {
+      this.whiteMask = this.ctx.device.createTexture({
+        size: [1, 1],
+        format: "r8unorm",
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+      });
+      this.ctx.device.queue.writeTexture({ texture: this.whiteMask }, new Uint8Array([255]), {}, [1, 1]);
+    }
+    return this.whiteMask;
+  }
+
+  /** Texture de masque RÉSIDENTE par calque : créée une fois à la taille de
+   *  l'image, réuploadée uniquement quand la référence `maskData` du calque
+   *  change (les masques sont immuables par convention — updateMask remplace
+   *  la référence, jamais le contenu). Auparavant : création + upload 24MP à
+   *  CHAQUE frame pour chaque calque masqué. */
+  private getMaskTexture(layer: LayerState): GPUTexture {
+    if (!layer.maskData) return this.getWhiteMask();
+    const entry = this.maskTextures.get(layer.id);
+    if (entry && entry.syncedFrom === layer.maskData) return entry.texture;
+    const texture =
+      entry?.texture ??
+      this.ctx.device.createTexture({
+        size: [this.width, this.height],
+        format: "r8unorm",
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+      });
+    this.ctx.device.queue.writeTexture(
+      { texture },
+      layer.maskData as BufferSource,
+      { bytesPerRow: this.width },
+      [this.width, this.height]
+    );
+    this.maskTextures.set(layer.id, { texture, syncedFrom: layer.maskData });
+    return texture;
+  }
+
   /**
    * Destroys all persistent GPU textures owned by this renderer (source,
-   * ping-pong pair, export target). Callers that replace a `Renderer`
-   * instance (e.g. `App.tsx`'s `openFile` on a new image) must call this on
-   * the outgoing instance first — otherwise its textures are orphaned on the
-   * GPU with no JS reference left to ever destroy them.
+   * ping-pong pair, export target, resident mask textures, shared white
+   * mask). Callers that replace a `Renderer` instance (e.g. `App.tsx`'s
+   * `openFile` on a new image) must call this on the outgoing instance
+   * first — otherwise its textures are orphaned on the GPU with no JS
+   * reference left to ever destroy them.
    */
   dispose(): void {
     this.sourceTexture?.destroy();
@@ -422,22 +463,9 @@ export class Renderer {
     this.exportTexture?.destroy();
     this.exportTexture = null;
     this.pipelineCache.clear();
-  }
-
-  private uploadMask(maskData: Uint8Array | null): GPUTexture {
-    const { device } = this.ctx;
-    const texture = device.createTexture({
-      size: [this.width, this.height],
-      format: "r8unorm",
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
-    });
-    const fullMask = maskData ?? new Uint8Array(this.width * this.height).fill(255);
-    device.queue.writeTexture(
-      { texture },
-      fullMask as BufferSource,
-      { bytesPerRow: this.width },
-      [this.width, this.height]
-    );
-    return texture;
+    for (const { texture } of this.maskTextures.values()) texture.destroy();
+    this.maskTextures.clear();
+    this.whiteMask?.destroy();
+    this.whiteMask = null;
   }
 }

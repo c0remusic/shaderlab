@@ -8,6 +8,7 @@ import { Disclosure } from "../ui/Disclosure";
 interface Props {
   layer: LayerState | null;
   onParamChange: (id: string, params: Record<string, number>) => void;
+  onParamCommit: () => void;
   maskPaintMode: boolean;
   onToggleMaskPaint: () => void;
   brushSize: number;
@@ -21,6 +22,7 @@ interface Props {
 export function ParamPanel({
   layer,
   onParamChange,
+  onParamCommit,
   maskPaintMode,
   onToggleMaskPaint,
   brushSize,
@@ -49,6 +51,7 @@ export function ParamPanel({
               max={p.max}
               step={p.step}
               onChange={(v) => onParamChange(layer.id, { [p.name]: v })}
+              onCommit={onParamCommit}
             />
           ))}
         </div>

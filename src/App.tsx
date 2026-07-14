@@ -32,6 +32,10 @@ export default function App() {
   const [brushSize, setBrushSize] = useState(30);
   const [brushHardness, setBrushHardness] = useState(0.5);
   const [erase, setErase] = useState(false);
+  // Vrai pendant un drag de slider dont la valeur a bougé : le commit de fin
+  // d'interaction ne pousse une entrée d'historique que si quelque chose a
+  // réellement changé (un simple clic sans mouvement ne crée pas d'entrée).
+  const paramDirtyRef = useRef(false);
 
   const commit = useCallback((stack: LayerStack) => {
     historyRef.current.push(stack);
@@ -138,9 +142,20 @@ export default function App() {
   }
 
   function handleParamChange(id: string, params: Record<string, number>) {
+    // Mise à jour vivante pendant le drag : état + rendu coalescé, PAS
+    // d'entrée d'historique — la spec v1 exige UNE entrée par interaction,
+    // pas une par frame de drag.
+    paramDirtyRef.current = true;
     const stack = currentStack();
     stack.updateParams(id, params);
-    commit(stack);
+    setLayers(stack.layers);
+    rendererRef.current?.requestRender(stack.layers);
+  }
+
+  function handleParamCommit() {
+    if (!paramDirtyRef.current) return;
+    paramDirtyRef.current = false;
+    commit(currentStack());
   }
 
   function handleMaskStroke(x: number, y: number) {
@@ -261,6 +276,7 @@ export default function App() {
           onReorder={handleReorder}
           layer={selectedLayer}
           onParamChange={handleParamChange}
+          onParamCommit={handleParamCommit}
           maskPaintMode={maskPaintMode}
           onToggleMaskPaint={() => setMaskPaintMode((v) => !v)}
           brushSize={brushSize}

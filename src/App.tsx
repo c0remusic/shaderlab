@@ -168,6 +168,10 @@ export default function App() {
     stack.updateMask(selectedId, entry.painter.getMaskData());
     entry.syncedFrom = stack.layers.find((l) => l.id === selectedId)?.maskData ?? null;
     setLayers(stack.layers);
+    // Note: `requestRender` chains with Canvas.tsx's own rAF coalescing, adding ~1 frame
+    // of visual-feedback latency to mask strokes (Canvas's rAF → handleMaskStroke →
+    // requestRender's rAF). This is an accepted tradeoff, not a bug; final stroke position
+    // still renders correctly via handleMaskStrokeEnd's synchronous flush.
     rendererRef.current?.requestRender(stack.layers);
     // Intentionally NOT calling `commit()`/history.push() per pointer-move sample —
     // that would flood undo history with every mouse-move frame. Mask strokes are

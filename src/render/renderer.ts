@@ -3,24 +3,7 @@ import { getSrgbCanvasView } from "./gpuContext";
 import type { LayerState } from "../layers/types";
 import { getEffect } from "./effects/registry";
 import type { EffectModule } from "./effects/types";
-
-const FULLSCREEN_VERTEX_WGSL = `
-struct VertexOut {
-  @builtin(position) position: vec4<f32>,
-  @location(0) uv: vec2<f32>,
-};
-
-@vertex
-fn vs_main(@builtin(vertex_index) i: u32) -> VertexOut {
-  var pos = array<vec2<f32>, 3>(
-    vec2<f32>(-1.0, -1.0), vec2<f32>(3.0, -1.0), vec2<f32>(-1.0, 3.0)
-  );
-  var out: VertexOut;
-  out.position = vec4<f32>(pos[i], 0.0, 1.0);
-  out.uv = pos[i] * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5);
-  return out;
-}
-`;
+import { composeShader, MAX_EFFECT_PARAMS } from "./shaderCompose";
 
 const PASSTHROUGH_EFFECT: EffectModule = {
   id: "passthrough",
@@ -55,6 +38,10 @@ export class Renderer {
   private pingPong: [GPUTexture, GPUTexture] | null = null;
   private exportTexture: GPUTexture | null = null;
   private sampler: GPUSampler;
+  private pipelineCache = new Map<
+    string,
+    { pipeline: GPURenderPipeline; bindGroupLayout: GPUBindGroupLayout }
+  >();
 
   constructor(ctx: GpuContext) {
     this.ctx = ctx;
@@ -299,7 +286,7 @@ export class Renderer {
   ): void {
     const { applyMask = true, prevPassView = null } = options;
     const { device, srgbFormat } = this.ctx;
-    const paramValues = new Float32Array(8);
+    const paramValues = new Float32Array(MAX_EFFECT_PARAMS);
     effect.params.forEach((p, idx) => {
       paramValues[idx] = layer.params[p.name] ?? p.default;
     });
@@ -313,69 +300,42 @@ export class Renderer {
     // frame's submit() has run, so it's queued rather than destroyed here.
     pendingDestroy.push(paramBuffer);
 
-    const maskBinding = applyMask
-      ? "@group(0) @binding(3) var maskTexture: texture_2d<f32>;"
-      : "";
-    const prevPassBinding = prevPassView
-      ? "@group(0) @binding(4) var prevPass: texture_2d<f32>;"
-      : "";
-    const fsBody = applyMask
-      ? `let maskValue = textureSample(maskTexture, srcSampler, in.uv).r;
-  return mix(color, effected, maskValue);`
-      : "return effected;";
-
-    const shaderCode = `
-${FULLSCREEN_VERTEX_WGSL}
-
-@group(0) @binding(0) var srcTexture: texture_2d<f32>;
-@group(0) @binding(1) var srcSampler: sampler;
-@group(0) @binding(2) var<uniform> params: array<f32, 8>;
-${maskBinding}
-${prevPassBinding}
-
-${effect.wgsl}
-
-@fragment
-fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
-  let color = textureSample(srcTexture, srcSampler, in.uv);
-  let effected = fs_main(in.uv, color);
-  ${fsBody}
-}
-`;
-    const module = device.createShaderModule({ code: shaderCode });
-
-    // Explicit bind group layout instead of `layout: "auto"`. With "auto",
-    // WebGPU derives the layout from which bindings the shader ACTUALLY
-    // reads — and some effects (e.g. Glow's internal downsample/upsample
-    // passes, Task 13) declare `params`/`binding(2)` in the shared header
-    // but never reference it in their fs_main body. naga/Dawn then prunes
-    // binding 2 from the auto layout, while the JS side below always
-    // provides it — a mismatch that fails `createBindGroup` validation
-    // ("binding index 2 not present in the bind group layout"), silently
-    // invalidating the whole command buffer and rendering solid black with
-    // no thrown JS exception (confirmed via CDP: only visible as a WebGPU
-    // validation warning in the browser console, not a catchable error).
-    // An explicit layout always matching the JS `entries` below sidesteps
-    // this entire class of bug, regardless of what any given effect's WGSL
-    // body happens to read.
-    const layoutEntries: GPUBindGroupLayoutEntry[] = [
-      { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } },
-      { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "filtering" } },
-      { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },
-    ];
-    if (applyMask) {
-      layoutEntries.push({ binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
-    }
-    if (prevPassView) {
-      layoutEntries.push({ binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
-    }
-    const bindGroupLayout = device.createBindGroupLayout({ entries: layoutEntries });
-    const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
-    const pipeline = device.createRenderPipeline({
-      layout: pipelineLayout,
-      vertex: { module, entryPoint: "vs_main" },
-      fragment: { module, entryPoint: "fs_wrapper", targets: [{ format: srgbFormat }] },
+    const shaderCode = composeShader(effect.wgsl, {
+      applyMask,
+      hasPrevPass: prevPassView !== null,
     });
+
+    // Le pipeline (et son layout explicite) ne dépend que du code shader —
+    // même code, même variante de bindings. Compilé UNE fois par variante,
+    // réutilisé à chaque frame : c'était le poste n°1 du coût par frame
+    // (createShaderModule + createRenderPipeline par passe par frame).
+    let cached = this.pipelineCache.get(shaderCode);
+    if (!cached) {
+      const module = device.createShaderModule({ code: shaderCode });
+      // Layout explicite, jamais `layout: "auto"` — voir le commentaire
+      // historique du bug de pruning naga/Dawn (canvas noir silencieux).
+      const layoutEntries: GPUBindGroupLayoutEntry[] = [
+        { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } },
+        { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "filtering" } },
+        { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },
+      ];
+      if (applyMask) {
+        layoutEntries.push({ binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
+      }
+      if (prevPassView) {
+        layoutEntries.push({ binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
+      }
+      const bindGroupLayout = device.createBindGroupLayout({ entries: layoutEntries });
+      const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
+      const pipeline = device.createRenderPipeline({
+        layout: pipelineLayout,
+        vertex: { module, entryPoint: "vs_main" },
+        fragment: { module, entryPoint: "fs_wrapper", targets: [{ format: srgbFormat }] },
+      });
+      cached = { pipeline, bindGroupLayout };
+      this.pipelineCache.set(shaderCode, cached);
+    }
+
     const entries: GPUBindGroupEntry[] = [
       { binding: 0, resource: sourceView },
       { binding: 1, resource: this.sampler },
@@ -391,7 +351,7 @@ fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
       entries.push({ binding: 4, resource: prevPassView });
     }
     const bindGroup = device.createBindGroup({
-      layout: bindGroupLayout,
+      layout: cached.bindGroupLayout,
       entries,
     });
 
@@ -400,7 +360,7 @@ fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
         { view: targetView, loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } },
       ],
     });
-    pass.setPipeline(pipeline);
+    pass.setPipeline(cached.pipeline);
     pass.setBindGroup(0, bindGroup);
     pass.draw(3);
     pass.end();
@@ -461,6 +421,7 @@ fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
     }
     this.exportTexture?.destroy();
     this.exportTexture = null;
+    this.pipelineCache.clear();
   }
 
   private uploadMask(maskData: Uint8Array | null): GPUTexture {

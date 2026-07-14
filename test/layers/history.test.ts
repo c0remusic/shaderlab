@@ -181,6 +181,25 @@ describe("History byte budget", () => {
     expect(history.bytesUsed()).toBe(30);
   });
 
+  it("keeps a shared mask counted when only one of its referencing entries is discarded via future", () => {
+    const history = new History(new LayerStack(), 1000);
+    const a = stackWithMask(100); // M1 = 100 octets
+    history.push(a); // past=[initial], current=A(M1)
+
+    // B partage M1 (seul updateParams est appelé, le masque n'est pas touché).
+    const b = a.clone();
+    b.updateParams(b.layers[0].id, { intensity: 0.5 });
+    history.push(b); // past=[initial, A], current=B(M1) -> M1 refcount=2
+
+    history.undo(); // past=[initial], current=A(M1), future=[B(M1)]
+
+    // C introduit un NOUVEAU buffer M2, distinct de M1.
+    history.push(stackWithMask(50)); // future=[B] jetée (release M1: 2->1)
+    // past=[initial, A(M1)], current=C(M2)
+    // M1 reste retenu via A dans past ; M2 est le nouveau courant.
+    expect(history.bytesUsed()).toBe(150);
+  });
+
   it("undo/redo keep working normally under the default budget", () => {
     const history = new History(new LayerStack());
     history.push(stackWithMask(100));

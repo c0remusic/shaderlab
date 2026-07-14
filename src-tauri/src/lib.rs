@@ -1,4 +1,6 @@
+use percent_encoding::percent_decode_str;
 use std::fs;
+use tauri::ipc::{InvokeBody, Request, Response};
 
 #[tauri::command]
 fn get_launch_path() -> Option<String> {
@@ -30,19 +32,42 @@ fn write_atomic(path: &str, bytes: &[u8]) -> Result<(), String> {
   })
 }
 
+/// Les headers IPC sont ASCII-only : le chemin cible (chemins Windows
+/// accentués inclus) transite percent-encodé (encodeURIComponent côté TS).
+fn decode_target_path(encoded: &str) -> Result<String, String> {
+  percent_decode_str(encoded)
+    .decode_utf8()
+    .map(|s| s.into_owned())
+    .map_err(|_| "Chemin cible invalide (UTF-8 attendu après décodage).".to_string())
+}
+
 #[tauri::command]
-fn write_image_file(path: String, bytes: Vec<u8>) -> Result<(), String> {
+fn write_image_file(request: Request) -> Result<(), String> {
+  let InvokeBody::Raw(bytes) = request.body() else {
+    return Err("write_image_file attend un corps binaire brut.".into());
+  };
+  let Some(header) = request.headers().get("x-target-path") else {
+    return Err("Header x-target-path manquant.".into());
+  };
+  let encoded = header
+    .to_str()
+    .map_err(|_| "Header x-target-path illisible.".to_string())?;
+  let path = decode_target_path(encoded)?;
   if !is_jpeg_path(&path) {
     return Err(format!(
       "Refus d'écrire {path} : seuls les fichiers .jpg/.jpeg sont autorisés."
     ));
   }
-  write_atomic(&path, &bytes)
+  write_atomic(&path, bytes)
 }
 
 #[tauri::command]
-fn read_image_file(path: String) -> Result<Vec<u8>, String> {
-  fs::read(&path).map_err(|e| format!("Lecture échouée sur {path}: {e}"))
+fn read_image_file(path: String) -> Result<Response, String> {
+  // Response::new(bytes) = corps binaire brut côté WebView (ArrayBuffer),
+  // au lieu d'un Vec<u8> sérialisé en tableau JSON de millions de nombres.
+  fs::read(&path)
+    .map(Response::new)
+    .map_err(|e| format!("Lecture échouée sur {path}: {e}"))
 }
 
 // `tauri-plugin-dialog`'s `open()` IPC command hangs indefinitely on this
@@ -89,6 +114,18 @@ mod tests {
     assert!(!is_jpeg_path("C:\\photos\\piege.jpg.exe"));
     assert!(!is_jpeg_path("C:\\Users\\x\\master.db"));
     assert!(!is_jpeg_path("sans-extension"));
+  }
+
+  #[test]
+  fn decode_target_path_handles_percent_encoded_windows_paths() {
+    // encodeURIComponent("C:\\photos\\été.jpg") côté TS
+    let decoded = decode_target_path("C%3A%5Cphotos%5C%C3%A9t%C3%A9.jpg").unwrap();
+    assert_eq!(decoded, "C:\\photos\\été.jpg");
+  }
+
+  #[test]
+  fn decode_target_path_rejects_invalid_utf8() {
+    assert!(decode_target_path("%FF%FE").is_err());
   }
 
   #[test]

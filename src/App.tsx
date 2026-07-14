@@ -4,8 +4,7 @@ import { Renderer } from "./render/renderer";
 import { LayerStack } from "./layers/layerStack";
 import { History } from "./layers/history";
 import type { LayerState } from "./layers/types";
-import { LayerPanel } from "./components/LayerPanel";
-import { ParamPanel } from "./components/ParamPanel";
+import { Inspector } from "./components/Inspector";
 import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
 import { ErrorBanner } from "./components/ErrorBanner";
@@ -232,7 +231,7 @@ export default function App() {
   const selectedLayer = layers.find((l) => l.id === selectedId) ?? null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+    <div className="app-shell">
       <Toolbar
         canUndo={historyRef.current.canUndo()}
         canRedo={historyRef.current.canRedo()}
@@ -242,16 +241,7 @@ export default function App() {
         onOpenFile={handleOpenFile}
       />
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        <LayerPanel
-          layers={layers}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          onToggle={handleToggle}
-          onAdd={handleAdd}
-          onRemove={handleRemove}
-          onReorder={handleReorder}
-        />
+      <main className="workspace">
         <Canvas
           ref={canvasRef}
           onFileDropped={(file) => openFile(file, null, false)}
@@ -259,7 +249,14 @@ export default function App() {
           onMaskStroke={handleMaskStroke}
           onStrokeEnd={handleMaskStrokeEnd}
         />
-        <ParamPanel
+        <Inspector
+          layers={layers}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          onToggle={handleToggle}
+          onAdd={handleAdd}
+          onRemove={handleRemove}
+          onReorder={handleReorder}
           layer={selectedLayer}
           onParamChange={handleParamChange}
           maskPaintMode={maskPaintMode}
@@ -271,7 +268,7 @@ export default function App() {
           erase={erase}
           onEraseChange={setErase}
         />
-      </div>
+      </main>
     </div>
   );
 }

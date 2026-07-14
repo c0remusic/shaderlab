@@ -1,0 +1,14 @@
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-width: var(--window-min-width);
+  min-height: var(--window-min-height);
+  background: var(--surface-window);
+}
+
+.workspace {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}

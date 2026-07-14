@@ -8,3 +8,7 @@
 @import "../ui/overlays.css";
 @import "../ui/dialog.css";
 @import "../components/Inspector.css";
+@import "../components/Toolbar.css";
+@import "../components/Canvas.css";
+@import "../components/ErrorBanner.css";
+@import "../App.css";

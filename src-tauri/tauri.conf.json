@@ -12,10 +12,12 @@
     "windows": [
       {
         "fullscreen": false,
-        "height": 600,
+        "height": 720,
         "resizable": true,
         "title": "shaderlab",
-        "width": 800
+        "width": 1280,
+        "minWidth": 900,
+        "minHeight": 600
       }
     ],
     "security": {

@@ -5,6 +5,7 @@ import { getEffect } from "./effects/registry";
 import type { EffectModule } from "./effects/types";
 import { composeShader, MAX_EFFECT_PARAMS } from "./shaderCompose";
 import { staleMaskIds } from "./maskResidency";
+import { FrameScheduler } from "./frameScheduler";
 
 const PASSTHROUGH_EFFECT: EffectModule = {
   id: "passthrough",
@@ -45,6 +46,7 @@ export class Renderer {
   >();
   private maskTextures = new Map<string, { texture: GPUTexture; syncedFrom: Uint8Array }>();
   private whiteMask: GPUTexture | null = null;
+  private renderScheduler = new FrameScheduler<LayerState[]>((layers) => this.render(layers));
 
   constructor(ctx: GpuContext) {
     this.ctx = ctx;
@@ -85,6 +87,13 @@ export class Renderer {
 
   render(layers: LayerState[]): void {
     this.runPipeline(layers, getSrgbCanvasView(this.ctx));
+  }
+
+  /** Rendu coalescé : à privilégier pour tout ce qui peut tirer plus vite
+   *  que la frame (drag de slider, pinceau). `render()` reste disponible
+   *  pour un rendu immédiat déterministe (premier affichage). */
+  requestRender(layers: LayerState[]): void {
+    this.renderScheduler.request(layers);
   }
 
   /**
@@ -453,6 +462,7 @@ export class Renderer {
    * reference left to ever destroy them.
    */
   dispose(): void {
+    this.renderScheduler.cancel();
     this.sourceTexture?.destroy();
     this.sourceTexture = null;
     if (this.pingPong) {

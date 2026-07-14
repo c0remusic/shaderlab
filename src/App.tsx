@@ -36,7 +36,7 @@ export default function App() {
   const commit = useCallback((stack: LayerStack) => {
     historyRef.current.push(stack);
     setLayers(stack.layers);
-    rendererRef.current?.render(stack.layers);
+    rendererRef.current?.requestRender(stack.layers);
   }, []);
 
   const currentStack = useCallback((): LayerStack => {
@@ -168,7 +168,7 @@ export default function App() {
     stack.updateMask(selectedId, entry.painter.getMaskData());
     entry.syncedFrom = stack.layers.find((l) => l.id === selectedId)?.maskData ?? null;
     setLayers(stack.layers);
-    rendererRef.current?.render(stack.layers);
+    rendererRef.current?.requestRender(stack.layers);
     // Intentionally NOT calling `commit()`/history.push() per pointer-move sample —
     // that would flood undo history with every mouse-move frame. Mask strokes are
     // committed to history once, on pointer-up (see handleMaskStrokeEnd below).
@@ -196,7 +196,7 @@ export default function App() {
     const previous = historyRef.current.undo();
     if (previous) {
       setLayers(previous.layers);
-      rendererRef.current?.render(previous.layers);
+      rendererRef.current?.requestRender(previous.layers);
     }
   }
 
@@ -204,7 +204,7 @@ export default function App() {
     const next = historyRef.current.redo();
     if (next) {
       setLayers(next.layers);
-      rendererRef.current?.render(next.layers);
+      rendererRef.current?.requestRender(next.layers);
     }
   }
 

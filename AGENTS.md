@@ -1,4 +1,4 @@
-# shaderlab — CLAUDE.md
+# shaderlab — AGENTS.md
 
 > Nom provisoire (placeholder, jamais tranché — même logique que track-finder).
 > Repo local `C:\Users\LEETJ\Desktop\shaderlab`, pas encore de remote GitHub.
@@ -65,8 +65,9 @@ src/
 src-tauri/              — coquille Rust (main.rs shim → lib.rs run())
 test/                   — miroir de src/, fixtures réelles
 docs/superpowers/
-  changes/2026-07-12-shaderlab-mvp/design.md   — spec (source de vérité)
-  plans/2026-07-12-shaderlab-mvp.md            — plan 16 tâches
+  specs/2026-07-13-shaderlab-standalone-v1-design.md — spec (source de vérité)
+  plans/2026-07-13-shaderlab-design-system.md        — plan design system en cours
+  changes/2026-07-12-shaderlab-mvp/design.md         — historique, remplacé le 2026-07-13
 .superpowers/sdd/       — ledger subagent-driven-dev (progress.md, briefs,
                           reports, diffs de review) — scratch git-ignoré
 ```
@@ -182,7 +183,7 @@ docs/superpowers/
 
 ## Outillage / routage skills
 
-Même règle impérative que tous les projets (`~/.claude/CLAUDE.md`, section
+Même règle impérative que tous les projets (`~/.Codex/AGENTS.md`, section
 routage skills). Registre projet : `docs/skills-registre.md`. Décisions
 d'outillage prises jusqu'ici : cycle complet
 `superpowers:brainstorming` → `writing-plans` → `subagent-driven-development` ;

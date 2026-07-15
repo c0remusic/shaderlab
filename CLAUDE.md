@@ -2,10 +2,12 @@
 
 > Nom provisoire (placeholder, jamais tranché — même logique que track-finder).
 > Repo local `C:\Users\LEETJ\Desktop\shaderlab`, pas encore de remote GitHub.
-> Branche de dev active : `feature/design-system` (MVP mergé sur master).
-> Worktree parallèle `feature/design-system-mine` en cours de réconciliation
-> — voir la mémoire projet `design-system-branch-reconciliation` avant de
-> (re)dispatcher une tâche du plan design system.
+> Branche de dev active : `feature/design-system` (plan design system Tasks
+> 1-10, MVP mergé sur master). Worktree `feature/archi-remediation` (11-task
+> remédiation archi) : toutes tâches complètes+reviewées, crash OOM réel de
+> peinture au masque trouvé et corrigé (voir `src/render/maskUpload.ts`),
+> checkpoint humain final en cours. `design-system-mine` : réconcilié,
+> superseded — voir la mémoire projet `design-system-branch-reconciliation`.
 
 ## Quoi
 

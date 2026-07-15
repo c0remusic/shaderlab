@@ -38,7 +38,10 @@ export function LayerPanel({ layers, selectedId, onSelect, onToggle, onAdd, onRe
                 e.dataTransfer.setData("text/plain", layer.id);
                 e.dataTransfer.effectAllowed = "move";
               }}
-              onDragOver={(e) => e.preventDefault()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+              }}
               onDrop={(e) => {
                 e.preventDefault();
                 const draggedId = e.dataTransfer.getData("text/plain");

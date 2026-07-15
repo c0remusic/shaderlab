@@ -4,7 +4,7 @@
  *  header ensemble si le besoin apparaît. */
 export const MAX_EFFECT_PARAMS = 8;
 
-export const FULLSCREEN_VERTEX_WGSL = `
+const FULLSCREEN_VERTEX_WGSL = `
 struct VertexOut {
   @builtin(position) position: vec4<f32>,
   @location(0) uv: vec2<f32>,

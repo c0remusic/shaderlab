@@ -8,6 +8,43 @@ import { staleMaskIds } from "./maskResidency";
 import { FrameScheduler } from "./frameScheduler";
 import { assertImageFitsGpu } from "./limits";
 import { logDiagnostic } from "../launch";
+import type { DirtyRect } from "../mask/maskPainter";
+import { computeR8UploadRegion } from "./maskUpload";
+
+/** Which part of the live-preview mask texture a `MaskPreviewOverride` needs
+ *  uploaded this frame. `"full"` re-uploads the whole image — required the
+ *  first time a layer starts being live-previewed, since `liveMaskTexture`
+ *  may hold a DIFFERENT layer's stale content (or this same layer's content
+ *  from before an undo/redo that happened between strokes). `"partial"`
+ *  uploads only `rect` — safe for every sample after the first within one
+ *  stroke, once the texture is known to already reflect this layer.
+ *
+ *  A discriminated union rather than an optional `dirtyRect` field
+ *  (2026-07-15 cleanup): the previous shape used the field's ABSENCE to
+ *  mean "force full upload," an intent easy to lose on the next edit since
+ *  nothing in the type said "this optionality is load-bearing." */
+export type MaskUploadScope = { kind: "full" } | { kind: "partial"; rect: DirtyRect };
+
+/** Live mask-paint preview: renders `maskData` (the painter's own live
+ *  buffer, not yet committed to `LayerState.maskData`) for `layerId` on this
+ *  one frame only. Lets `handleMaskStroke` show visual feedback on every
+ *  coalesced pointer sample without paying `LayerStack.updateMask()`'s
+ *  per-sample immutable-copy cost (~26MB on a 24MP photo).
+ *
+ *  `scope` controls how much of the texture actually gets uploaded — see
+ *  `MaskUploadScope`. This matters independently of the copy above:
+ *  crash-dump analysis (2026-07-15) showed that moving the FULL mask
+ *  buffer at real drag sampling rates crashes the renderer with an OOM
+ *  abort whether that move is a JS-side copy OR a full-buffer GPU
+ *  `writeTexture` reupload — it's the size×frequency product that exceeds
+ *  a throughput ceiling, not which mechanism carries it. A brush stroke
+ *  only ever touches a small area, so there is no reason to move the whole
+ *  buffer every sample. */
+export interface MaskPreviewOverride {
+  layerId: string;
+  maskData: Uint8Array;
+  scope: MaskUploadScope;
+}
 
 const PASSTHROUGH_EFFECT: EffectModule = {
   id: "passthrough",
@@ -48,7 +85,24 @@ export class Renderer {
   >();
   private maskTextures = new Map<string, { texture: GPUTexture; syncedFrom: Uint8Array }>();
   private whiteMask: GPUTexture | null = null;
-  private renderScheduler = new FrameScheduler<LayerState[]>((layers) => this.render(layers));
+  /** GPU texture backing the live mask-paint preview (see `MaskPreviewOverride`)
+   *  — reuploaded every preview frame regardless of reference equality, since
+   *  the live buffer is typically the SAME object mutated in place stroke by
+   *  stroke, so residency's reference check would never detect a change. */
+  private liveMaskTexture: GPUTexture | null = null;
+  /** Which layer `liveMaskTexture`'s CONTENT currently reflects. When the
+   *  live-previewed layer changes (or preview starts fresh), the texture's
+   *  existing content is stale/wrong and a full upload is required before
+   *  any partial (`dirtyRect`) update can be trusted. */
+  private liveMaskLayerId: string | null = null;
+  private renderScheduler = new FrameScheduler<{ layers: LayerState[]; preview: MaskPreviewOverride | null }>(
+    (p) => this.render(p.layers, p.preview)
+  );
+  /** Set for the duration of one `runPipeline()` call by `render()`; read by
+   *  `getMaskTexture()` to substitute the live-painted buffer for the
+   *  layer currently being painted, bypassing `LayerState.maskData`
+   *  entirely for that frame. */
+  private livePreview: MaskPreviewOverride | null = null;
   /** Debugging-only (see log_diagnostic in lib.rs / gpuContext.ts's device.lost
    *  handler): counts runPipeline() calls so diagnostics below can log every
    *  Nth frame instead of flooding the IPC channel during a fast paint
@@ -94,15 +148,19 @@ export class Renderer {
     this.pingPong = [makeTarget(), makeTarget()];
   }
 
-  render(layers: LayerState[]): void {
+  render(layers: LayerState[], preview: MaskPreviewOverride | null = null): void {
+    this.livePreview = preview;
     this.runPipeline(layers, getSrgbCanvasView(this.ctx));
+    this.livePreview = null;
   }
 
   /** Rendu coalescé : à privilégier pour tout ce qui peut tirer plus vite
    *  que la frame (drag de slider, pinceau). `render()` reste disponible
-   *  pour un rendu immédiat déterministe (premier affichage). */
-  requestRender(layers: LayerState[]): void {
-    this.renderScheduler.request(layers);
+   *  pour un rendu immédiat déterministe (premier affichage).
+   *  `preview` : voir `MaskPreviewOverride` — utilisé par le pinceau pour un
+   *  retour visuel par échantillon sans passer par `updateMask()`. */
+  requestRender(layers: LayerState[], preview: MaskPreviewOverride | null = null): void {
+    this.renderScheduler.request({ layers, preview });
   }
 
   /**
@@ -452,9 +510,23 @@ export class Renderer {
         format: "r8unorm",
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
       });
-      this.ctx.device.queue.writeTexture({ texture: this.whiteMask }, new Uint8Array([255]), {}, [1, 1]);
+      this.uploadR8(this.whiteMask, new Uint8Array([255]), 1, 1);
     }
     return this.whiteMask;
+  }
+
+  /** Shared upload path for every r8unorm mask texture in this renderer
+   *  (white fallback, resident per-layer masks, live-paint preview) —
+   *  computes the WebGPU `writeTexture` arguments via the pure, tested
+   *  `computeR8UploadRegion` and issues the one GPU call. */
+  private uploadR8(texture: GPUTexture, data: Uint8Array, width: number, height: number, rect?: DirtyRect): void {
+    const region = computeR8UploadRegion(width, height, rect);
+    this.ctx.device.queue.writeTexture(
+      { texture, origin: region.origin },
+      data as BufferSource,
+      region.dataLayout,
+      [region.size.width, region.size.height]
+    );
   }
 
   /** Texture de masque RÉSIDENTE par calque : créée une fois à la taille de
@@ -463,6 +535,9 @@ export class Renderer {
    *  la référence, jamais le contenu). Auparavant : création + upload 24MP à
    *  CHAQUE frame pour chaque calque masqué. */
   private getMaskTexture(layer: LayerState): GPUTexture {
+    if (this.livePreview && this.livePreview.layerId === layer.id) {
+      return this.getLiveMaskTexture(this.livePreview.layerId, this.livePreview.maskData, this.livePreview.scope);
+    }
     if (!layer.maskData) return this.getWhiteMask();
     const entry = this.maskTextures.get(layer.id);
     if (entry && entry.syncedFrom === layer.maskData) return entry.texture;
@@ -473,14 +548,34 @@ export class Renderer {
         format: "r8unorm",
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
       });
-    this.ctx.device.queue.writeTexture(
-      { texture },
-      layer.maskData as BufferSource,
-      { bytesPerRow: this.width },
-      [this.width, this.height]
-    );
+    this.uploadR8(texture, layer.maskData, this.width, this.height);
     this.maskTextures.set(layer.id, { texture, syncedFrom: layer.maskData });
     return texture;
+  }
+
+  /** Backing texture for `MaskPreviewOverride` — a single texture reused
+   *  across preview frames, never entered into the residency cache since it
+   *  isn't associated with a stable `maskData` reference.
+   *
+   *  A `"partial"` scope is only trusted when the texture is ALREADY known
+   *  to reflect `layerId`'s content (`liveMaskLayerId` matches) — the
+   *  source data offset/stride trick in `computeR8UploadRegion` lets WebGPU
+   *  read just that sub-rectangle directly out of the full-resolution
+   *  `maskData` buffer, so this needs no extra JS-side copy either.
+   *  Otherwise (layer just changed, or the caller explicitly asked for
+   *  `"full"`) the whole image is uploaded and `liveMaskLayerId` updated. */
+  private getLiveMaskTexture(layerId: string, maskData: Uint8Array, scope: MaskUploadScope): GPUTexture {
+    if (!this.liveMaskTexture) {
+      this.liveMaskTexture = this.ctx.device.createTexture({
+        size: [this.width, this.height],
+        format: "r8unorm",
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+      });
+    }
+    const rect = scope.kind === "partial" && this.liveMaskLayerId === layerId ? scope.rect : undefined;
+    this.uploadR8(this.liveMaskTexture, maskData, this.width, this.height, rect);
+    if (!rect) this.liveMaskLayerId = layerId;
+    return this.liveMaskTexture;
   }
 
   /**
@@ -507,5 +602,7 @@ export class Renderer {
     this.maskTextures.clear();
     this.whiteMask?.destroy();
     this.whiteMask = null;
+    this.liveMaskTexture?.destroy();
+    this.liveMaskTexture = null;
   }
 }

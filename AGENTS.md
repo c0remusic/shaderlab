@@ -184,8 +184,9 @@ docs/superpowers/
 ## Outillage / routage skills
 
 Même règle impérative que tous les projets (`~/.Codex/AGENTS.md`, section
-routage skills). Registre projet : `docs/skills-registre.md`. Décisions
-d'outillage prises jusqu'ici : cycle complet
+routage skills). Inventaire = la vue générée `~/.claude/skills-view.md`
+(remplace l'ex-`docs/skills-registre.md`, supprimé). Packs de contexte (sizing) :
+`.claude/rules/context-packs.md`. Décisions d'outillage prises jusqu'ici : cycle complet
 `superpowers:brainstorming` → `writing-plans` → `subagent-driven-development` ;
 audits de spec via sous-agent `general-purpose` adverse ; recherches
 techniques via WebSearch avec vérification des licences (webgpu-image-filter

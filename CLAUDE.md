@@ -167,6 +167,13 @@ docs/superpowers/
   Si un futur besoin de dialogue (dossier, sauvegarde...) refait surface,
   ne PAS reprendre `tauri-plugin-dialog` sans revalider ce point d'abord.
 
+## Moyen de preuve (UI) — déclaré (règle CLAUDE.md global)
+**Playwright headless est INADAPTÉ ici** : le canvas WebGPU en WebView2 rend noir
+en headless (aucun rendu GPU) — un screenshot Playwright serait un œil aveugle qui
+dit « vu ». **Preuve UI = CDP sur la vraie fenêtre WebView2** (`--remote-debugging-port=9222`,
+voir Méthode ci-dessus) + checkpoint visuel humain. Le screenshot Playwright vaut
+seulement pour un futur écran web pur sans canvas GPU.
+
 ## Risques ouverts / gates
 
 - **Task 2 = go/no-go WebGPU dans WebView2** : code revu et approuvé, en

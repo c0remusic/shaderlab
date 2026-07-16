@@ -40,6 +40,14 @@ export async function initGpu(canvas: HTMLCanvasElement): Promise<GpuContext> {
   device.lost.then((info) => {
     logDiagnostic(`GPU device lost: reason=${info.reason} message=${info.message}`);
   });
+  // Debugging-only (see log_diagnostic in lib.rs): no uncaptured-error
+  // handler existed before this — any GPU validation/OOM error the browser
+  // itself surfaces (as opposed to a hard renderer-process abort) was going
+  // completely unlogged. Added 2026-07-15 to investigate the mask-paint
+  // freeze/crash alongside targeted pushErrorScope calls in renderer.ts.
+  device.onuncapturederror = (event) => {
+    logDiagnostic(`GPU uncaptured error: ${event.error.constructor.name}: ${event.error.message}`);
+  };
   logDiagnostic(`GPU limits: maxTextureDimension2D=${adapter.limits.maxTextureDimension2D} maxBufferSize=${adapter.limits.maxBufferSize}`);
   const context = canvas.getContext("webgpu") as GPUCanvasContext;
   if (!context) {

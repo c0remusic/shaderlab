@@ -447,7 +447,7 @@ export class Renderer {
     ];
     if (applyMask) {
       // Résidente — ne PAS la mettre dans pendingDestroy.
-      entries.push({ binding: 3, resource: this.getMaskTexture(layer).createView() });
+      entries.push({ binding: 3, resource: this.getMaskTexture(layer, encoder).createView() });
     }
     if (prevPassView) {
       entries.push({ binding: 4, resource: prevPassView });
@@ -534,7 +534,7 @@ export class Renderer {
    *  change (les masques sont immuables par convention — updateMask remplace
    *  la référence, jamais le contenu). Auparavant : création + upload 24MP à
    *  CHAQUE frame pour chaque calque masqué. */
-  private getMaskTexture(layer: LayerState): GPUTexture {
+  private getMaskTexture(layer: LayerState, encoder: GPUCommandEncoder): GPUTexture {
     if (this.livePreview && this.livePreview.layerId === layer.id) {
       return this.getLiveMaskTexture(this.livePreview.layerId, this.livePreview.maskData, this.livePreview.scope);
     }
@@ -548,7 +548,23 @@ export class Renderer {
         format: "r8unorm",
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
       });
-    this.uploadR8(texture, layer.maskData, this.width, this.height);
+    // The common case reaching this branch is "a mask stroke on this exact
+    // layer just ended" — `layer.maskData` is a fresh CPU copy of the same
+    // painter buffer `liveMaskTexture` was already uploading sample-by-
+    // sample during the stroke, so its GPU content is already byte-
+    // identical. Reuse it via a GPU-side copy instead of a second full
+    // CPU->GPU `writeTexture` of the whole image: that second upload,
+    // through this exact branch, was traced (CDP repro, 2026-07-15) to
+    // reliably hang the renderer at 24MP — the JS commit completes, but the
+    // already-scheduled requestAnimationFrame never fires again afterward.
+    // The equivalent upload via `getLiveMaskTexture` (same buffer, same
+    // size) never reproduces it, so avoiding the redundant second upload
+    // sidesteps the hang rather than explaining its exact driver mechanism.
+    if (this.liveMaskLayerId === layer.id && this.liveMaskTexture) {
+      encoder.copyTextureToTexture({ texture: this.liveMaskTexture }, { texture }, [this.width, this.height]);
+    } else {
+      this.uploadR8(texture, layer.maskData, this.width, this.height);
+    }
     this.maskTextures.set(layer.id, { texture, syncedFrom: layer.maskData });
     return texture;
   }
@@ -569,7 +585,10 @@ export class Renderer {
       this.liveMaskTexture = this.ctx.device.createTexture({
         size: [this.width, this.height],
         format: "r8unorm",
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+        // COPY_SRC: getMaskTexture()'s resident branch copies straight out
+        // of this texture (GPU-to-GPU) once a stroke ends, instead of a
+        // second CPU->GPU upload of the same bytes.
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC,
       });
     }
     const rect = scope.kind === "partial" && this.liveMaskLayerId === layerId ? scope.rect : undefined;

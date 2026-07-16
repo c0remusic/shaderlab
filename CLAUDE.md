@@ -3,11 +3,14 @@
 > Nom provisoire (placeholder, jamais tranché — même logique que track-finder).
 > Repo local `C:\Users\LEETJ\Desktop\shaderlab`, pas encore de remote GitHub.
 > Branche de dev active : `feature/design-system` (plan design system Tasks
-> 1-10, MVP mergé sur master). Worktree `feature/archi-remediation` (11-task
-> remédiation archi) : toutes tâches complètes+reviewées, crash OOM réel de
-> peinture au masque trouvé et corrigé (voir `src/render/maskUpload.ts`),
-> checkpoint humain final en cours. `design-system-mine` : réconcilié,
-> superseded — voir la mémoire projet `design-system-branch-reconciliation`.
+> 1-10, MVP mergé sur master). `feature/archi-remediation` (11-task
+> remédiation archi + fix OOM peinture au masque, voir `src/render/maskUpload.ts`)
+> a été MERGÉ dans `feature/design-system` le 2026-07-16 (divergence à `0a2e151`,
+> jamais reconvergée avant ce merge) — n'est plus un worktree de travail séparé ;
+> le worktree `shaderlab-archi-remediation` reste sur disque mais son contenu est
+> désormais dupliqué ici. Checkpoint humain visuel du fix dirty-rect toujours EN
+> ATTENTE de confirmation (voir `docs/INDEX.json`). `design-system-mine` :
+> réconcilié, superseded — voir la mémoire projet `design-system-branch-reconciliation`.
 
 ## Quoi
 

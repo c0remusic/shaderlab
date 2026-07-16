@@ -2,10 +2,11 @@
 
 > Nom provisoire (placeholder, jamais tranché — même logique que track-finder).
 > Repo local `C:\Users\LEETJ\Desktop\shaderlab`, pas encore de remote GitHub.
-> Branche de dev active : `feature/design-system` (MVP mergé sur master).
-> Worktree parallèle `feature/design-system-mine` en cours de réconciliation
-> — voir la mémoire projet `design-system-branch-reconciliation` avant de
-> (re)dispatcher une tâche du plan design system.
+> Branche de dev active : `feature/design-system` (MVP mergé sur master ;
+> `feature/archi-remediation` mergé le 2026-07-16). Le crash de peinture au
+> masque à 24MP reste NON résolu malgré deux tentatives de fix — voir
+> `.claude/learning-log.md` et la mémoire projet
+> `design-system-branch-reconciliation` avant de toucher au rendu masque/GPU.
 
 ## Quoi
 

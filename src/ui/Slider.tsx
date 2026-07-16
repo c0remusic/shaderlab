@@ -10,7 +10,25 @@ export interface SliderProps {
   displayValue?: string;
   disabled?: boolean;
   onChange: (value: number) => void;
+  /**
+   * Fin d'interaction discrète : pointer-up (fin de drag) ou relâchement
+   * d'une touche de navigation clavier (flèches/Home/End/PageUp/PageDown).
+   * Optionnel — un slider sans conséquence sur l'historique (ex. taille de
+   * pinceau) peut l'omettre.
+   */
+  onCommit?: () => void;
 }
+
+const COMMIT_KEYS = new Set([
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowUp",
+  "ArrowDown",
+  "Home",
+  "End",
+  "PageUp",
+  "PageDown",
+]);
 
 /**
  * Calibrated single-value slider. Uses a native <input type="range"> so
@@ -26,6 +44,7 @@ export function Slider({
   displayValue,
   disabled = false,
   onChange,
+  onCommit,
 }: SliderProps) {
   const id = useId();
   const shownValue = displayValue ?? formatControlValue(value, step);
@@ -48,6 +67,10 @@ export function Slider({
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.valueAsNumber)}
+        onPointerUp={onCommit}
+        onKeyUp={(event) => {
+          if (onCommit && COMMIT_KEYS.has(event.key)) onCommit();
+        }}
       />
     </div>
   );

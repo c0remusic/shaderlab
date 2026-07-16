@@ -29,6 +29,8 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
   // masks, no per-sample full clone) is already tracked as a separate,
   // larger remediation task in
   // docs/superpowers/changes/2026-07-13-archi-remediation/design.md.
+  // Note: App.tsx's requestRender() adds a second rAF hop on top of this one;
+  // see the note in handleMaskStroke for details.
   const pendingPointRef = useRef<{ x: number; y: number } | null>(null);
   const rafHandleRef = useRef<number | null>(null);
 

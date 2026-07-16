@@ -55,4 +55,24 @@ describe("LayerStack", () => {
     copy.updateParams(id, { intensity: 0.9 });
     expect(stack.layers[0].params.intensity).not.toBe(0.9);
   });
+
+  it("clone() shares maskData references (masks are immutable snapshots)", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    stack.updateMask(id, new Uint8Array([1, 2, 3]));
+    const copy = stack.clone();
+    // Partage volontaire : updateMask remplace toujours la référence par une
+    // copie fraîche, donc partager le buffer entre clones est sûr et rend
+    // clone() indépendant de la taille des masques.
+    expect(copy.layers[0].maskData).toBe(stack.layers[0].maskData);
+  });
+
+  it("updateMask on a clone does not affect the original (replace, never mutate)", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    stack.updateMask(id, new Uint8Array([1, 2, 3]));
+    const copy = stack.clone();
+    copy.updateMask(id, new Uint8Array([9, 9, 9]));
+    expect(stack.layers[0].maskData![0]).toBe(1);
+  });
 });

@@ -1,3 +1,5 @@
+import { logDiagnostic } from "../launch";
+
 export interface GpuContext {
   device: GPUDevice;
   context: GPUCanvasContext;
@@ -22,7 +24,31 @@ export async function initGpu(canvas: HTMLCanvasElement): Promise<GpuContext> {
   if (!adapter) {
     throw new Error("Aucun adaptateur WebGPU trouvé.");
   }
-  const device = await adapter.requestDevice();
+  // Sans requiredLimits, le device retombe aux limites par défaut de la spec
+  // (maxTextureDimension2D = 8192) même si le matériel fait mieux — un JPEG
+  // panoramique > 8192 px échouerait à createTexture. On demande le maximum
+  // que l'adapter supporte réellement.
+  const device = await adapter.requestDevice({
+    requiredLimits: { maxTextureDimension2D: adapter.limits.maxTextureDimension2D },
+  });
+  // Debugging-only (see log_diagnostic in lib.rs): this app currently has NO
+  // handler for device loss at all — a GPU-side reset/OOM goes completely
+  // unobserved. Real crash dumps (2026-07-14/15) show 3 renderer OOM aborts
+  // (exception 0xE0000008) during mask painting on a large photo; this
+  // handler is here to catch whether device.lost ever actually fires with a
+  // reason before that hard abort, or whether the abort preempts it entirely.
+  device.lost.then((info) => {
+    logDiagnostic(`GPU device lost: reason=${info.reason} message=${info.message}`);
+  });
+  // Debugging-only (see log_diagnostic in lib.rs): no uncaptured-error
+  // handler existed before this — any GPU validation/OOM error the browser
+  // itself surfaces (as opposed to a hard renderer-process abort) was going
+  // completely unlogged. Added 2026-07-15 to investigate the mask-paint
+  // freeze/crash alongside targeted pushErrorScope calls in renderer.ts.
+  device.onuncapturederror = (event) => {
+    logDiagnostic(`GPU uncaptured error: ${event.error.constructor.name}: ${event.error.message}`);
+  };
+  logDiagnostic(`GPU limits: maxTextureDimension2D=${adapter.limits.maxTextureDimension2D} maxBufferSize=${adapter.limits.maxBufferSize}`);
   const context = canvas.getContext("webgpu") as GPUCanvasContext;
   if (!context) {
     throw new Error("Impossible d'obtenir un contexte WebGPU sur le canvas.");

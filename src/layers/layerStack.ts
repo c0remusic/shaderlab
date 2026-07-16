@@ -46,7 +46,12 @@ export class LayerStack {
     copy.layers = this.layers.map((l) => ({
       ...l,
       params: { ...l.params },
-      maskData: l.maskData ? new Uint8Array(l.maskData) : null,
+      // maskData est immuable par convention (updateMask remplace toujours
+      // la référence par une copie fraîche, jamais de mutation in place) —
+      // le partager rend clone() O(métadonnées) au lieu de O(pixels). Le
+      // coût du pinceau (currentStack() par sample) et le comptage mémoire
+      // de l'historique (refcount de buffers partagés) en dépendent.
+      maskData: l.maskData,
     }));
     return copy;
   }

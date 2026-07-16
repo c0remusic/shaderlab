@@ -12,6 +12,7 @@ export interface InspectorProps {
   onReorder: (id: string, newIndex: number) => void;
   layer: LayerState | null;
   onParamChange: (id: string, params: Record<string, number>) => void;
+  onParamCommit: () => void;
   maskPaintMode: boolean;
   onToggleMaskPaint: () => void;
   brushSize: number;
@@ -32,6 +33,7 @@ export function Inspector({
   onReorder,
   layer,
   onParamChange,
+  onParamCommit,
   maskPaintMode,
   onToggleMaskPaint,
   brushSize,
@@ -64,6 +66,7 @@ export function Inspector({
         <ParamPanel
           layer={layer}
           onParamChange={onParamChange}
+          onParamCommit={onParamCommit}
           maskPaintMode={maskPaintMode}
           onToggleMaskPaint={onToggleMaskPaint}
           brushSize={brushSize}

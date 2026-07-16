@@ -28,15 +28,27 @@ export default function App() {
   const [isLaunchFile, setIsLaunchFile] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const maskPaintersRef = useRef<Map<string, { painter: MaskPainter; syncedFrom: Uint8Array | null }>>(new Map());
+  // True for the first sample of a stroke: forces a full live-preview
+  // texture upload (the renderer's `liveMaskTexture` may hold a different
+  // layer's content, or this same layer's content from BEFORE an undo/redo
+  // that happened between strokes — a partial update on top of that stale
+  // base would be silently wrong). Subsequent samples within the same
+  // stroke use partial (dirtyRect-scoped) updates. Reset in
+  // handleMaskStrokeEnd so the NEXT stroke also starts with a full upload.
+  const maskStrokeIsFreshRef = useRef(true);
   const [maskPaintMode, setMaskPaintMode] = useState(false);
   const [brushSize, setBrushSize] = useState(30);
   const [brushHardness, setBrushHardness] = useState(0.5);
   const [erase, setErase] = useState(false);
+  // Vrai pendant un drag de slider dont la valeur a bougé : le commit de fin
+  // d'interaction ne pousse une entrée d'historique que si quelque chose a
+  // réellement changé (un simple clic sans mouvement ne crée pas d'entrée).
+  const paramDirtyRef = useRef(false);
 
   const commit = useCallback((stack: LayerStack) => {
     historyRef.current.push(stack);
     setLayers(stack.layers);
-    rendererRef.current?.render(stack.layers);
+    rendererRef.current?.requestRender(stack.layers);
   }, []);
 
   const currentStack = useCallback((): LayerStack => {
@@ -138,9 +150,20 @@ export default function App() {
   }
 
   function handleParamChange(id: string, params: Record<string, number>) {
+    // Mise à jour vivante pendant le drag : état + rendu coalescé, PAS
+    // d'entrée d'historique — la spec v1 exige UNE entrée par interaction,
+    // pas une par frame de drag.
+    paramDirtyRef.current = true;
     const stack = currentStack();
     stack.updateParams(id, params);
-    commit(stack);
+    setLayers(stack.layers);
+    rendererRef.current?.requestRender(stack.layers);
+  }
+
+  function handleParamCommit() {
+    if (!paramDirtyRef.current) return;
+    paramDirtyRef.current = false;
+    commit(currentStack());
   }
 
   function handleMaskStroke(x: number, y: number) {
@@ -163,40 +186,49 @@ export default function App() {
       else entry.painter.clear(0);
       entry.syncedFrom = currentMaskData;
     }
-    entry.painter.paintStroke(x, y, brushSize, brushHardness, erase);
-    const stack = currentStack();
-    stack.updateMask(selectedId, entry.painter.getMaskData());
-    entry.syncedFrom = stack.layers.find((l) => l.id === selectedId)?.maskData ?? null;
-    setLayers(stack.layers);
-    rendererRef.current?.render(stack.layers);
-    // Intentionally NOT calling `commit()`/history.push() per pointer-move sample —
-    // that would flood undo history with every mouse-move frame. Mask strokes are
-    // committed to history once, on pointer-up (see handleMaskStrokeEnd below).
+    const dirtyRect = entry.painter.paintStroke(x, y, brushSize, brushHardness, erase);
+    // Live preview only: render straight from the painter's own buffer via
+    // a GPU texture upload, WITHOUT going through LayerStack.updateMask()'s
+    // immutable-copy semantics on every sample. That copy (~26MB per call on
+    // a 24MP photo) firing on every coalesced pointer sample during a real
+    // drag was traced via WebView2 crash-dump analysis (2026-07-15, exception
+    // 0xE0000008, reproduced 4 times) to a reproducible renderer OOM abort —
+    // confirmed by clean before/after tests, not assumed. A second round of
+    // testing showed the SAME crash from a full-buffer GPU reupload alone
+    // (no JS copy), so the real fix scopes each upload to the brush's
+    // touched region (`dirtyRect`) instead of the whole image — only the
+    // first sample of a stroke uploads the full buffer (`maskStrokeIsFreshRef`),
+    // seeding the renderer's live-preview texture correctly even if an
+    // undo/redo happened since the last stroke. `layers` state and history
+    // are intentionally untouched here; the real, history-visible mask
+    // update happens exactly once, in handleMaskStrokeEnd, matching the
+    // "one entry per interaction" pattern already established for sliders.
+    rendererRef.current?.requestRender(layers, {
+      layerId: selectedId,
+      maskData: entry.painter.getMaskData(),
+      scope: maskStrokeIsFreshRef.current ? { kind: "full" } : { kind: "partial", rect: dirtyRect },
+    });
+    maskStrokeIsFreshRef.current = false;
   }
 
   function handleMaskStrokeEnd() {
+    maskStrokeIsFreshRef.current = true;
     if (!selectedId) return;
-    const stack = currentStack();
-    commit(stack);
-    // `commit` -> `currentStack` clones the stack, producing a brand-new
-    // `maskData` reference for every layer even though the bytes are
-    // unchanged. Re-sync the tracked reference to that new clone so the
-    // next stroke's divergence check in `handleMaskStroke` doesn't mistake
-    // this stroke-end's own clone for an external change (undo/redo). A
-    // genuine undo/redo does NOT go through this function, so its clone's
-    // reference legitimately won't match any tracked `syncedFrom` and will
-    // still correctly trigger a re-seed.
     const entry = maskPaintersRef.current.get(selectedId);
-    if (entry) {
-      entry.syncedFrom = stack.layers.find((l) => l.id === selectedId)?.maskData ?? null;
-    }
+    if (!entry) return;
+    const stack = currentStack();
+    // The one and only immutable-copy update for this stroke — see the
+    // comment in handleMaskStroke for why this is deferred to stroke-end.
+    stack.updateMask(selectedId, entry.painter.getMaskData());
+    commit(stack);
+    entry.syncedFrom = stack.layers.find((l) => l.id === selectedId)?.maskData ?? null;
   }
 
   function handleUndo() {
     const previous = historyRef.current.undo();
     if (previous) {
       setLayers(previous.layers);
-      rendererRef.current?.render(previous.layers);
+      rendererRef.current?.requestRender(previous.layers);
     }
   }
 
@@ -204,7 +236,7 @@ export default function App() {
     const next = historyRef.current.redo();
     if (next) {
       setLayers(next.layers);
-      rendererRef.current?.render(next.layers);
+      rendererRef.current?.requestRender(next.layers);
     }
   }
 
@@ -259,6 +291,7 @@ export default function App() {
           onReorder={handleReorder}
           layer={selectedLayer}
           onParamChange={handleParamChange}
+          onParamCommit={handleParamCommit}
           maskPaintMode={maskPaintMode}
           onToggleMaskPaint={() => setMaskPaintMode((v) => !v)}
           brushSize={brushSize}

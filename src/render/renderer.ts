@@ -3,24 +3,48 @@ import { getSrgbCanvasView } from "./gpuContext";
 import type { LayerState } from "../layers/types";
 import { getEffect } from "./effects/registry";
 import type { EffectModule } from "./effects/types";
+import { composeShader, MAX_EFFECT_PARAMS } from "./shaderCompose";
+import { staleMaskIds } from "./maskResidency";
+import { FrameScheduler } from "./frameScheduler";
+import { assertImageFitsGpu } from "./limits";
+import { logDiagnostic } from "../launch";
+import type { DirtyRect } from "../mask/maskPainter";
+import { computeR8UploadRegion } from "./maskUpload";
 
-const FULLSCREEN_VERTEX_WGSL = `
-struct VertexOut {
-  @builtin(position) position: vec4<f32>,
-  @location(0) uv: vec2<f32>,
-};
+/** Which part of the live-preview mask texture a `MaskPreviewOverride` needs
+ *  uploaded this frame. `"full"` re-uploads the whole image — required the
+ *  first time a layer starts being live-previewed, since `liveMaskTexture`
+ *  may hold a DIFFERENT layer's stale content (or this same layer's content
+ *  from before an undo/redo that happened between strokes). `"partial"`
+ *  uploads only `rect` — safe for every sample after the first within one
+ *  stroke, once the texture is known to already reflect this layer.
+ *
+ *  A discriminated union rather than an optional `dirtyRect` field
+ *  (2026-07-15 cleanup): the previous shape used the field's ABSENCE to
+ *  mean "force full upload," an intent easy to lose on the next edit since
+ *  nothing in the type said "this optionality is load-bearing." */
+export type MaskUploadScope = { kind: "full" } | { kind: "partial"; rect: DirtyRect };
 
-@vertex
-fn vs_main(@builtin(vertex_index) i: u32) -> VertexOut {
-  var pos = array<vec2<f32>, 3>(
-    vec2<f32>(-1.0, -1.0), vec2<f32>(3.0, -1.0), vec2<f32>(-1.0, 3.0)
-  );
-  var out: VertexOut;
-  out.position = vec4<f32>(pos[i], 0.0, 1.0);
-  out.uv = pos[i] * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5);
-  return out;
+/** Live mask-paint preview: renders `maskData` (the painter's own live
+ *  buffer, not yet committed to `LayerState.maskData`) for `layerId` on this
+ *  one frame only. Lets `handleMaskStroke` show visual feedback on every
+ *  coalesced pointer sample without paying `LayerStack.updateMask()`'s
+ *  per-sample immutable-copy cost (~26MB on a 24MP photo).
+ *
+ *  `scope` controls how much of the texture actually gets uploaded — see
+ *  `MaskUploadScope`. This matters independently of the copy above:
+ *  crash-dump analysis (2026-07-15) showed that moving the FULL mask
+ *  buffer at real drag sampling rates crashes the renderer with an OOM
+ *  abort whether that move is a JS-side copy OR a full-buffer GPU
+ *  `writeTexture` reupload — it's the size×frequency product that exceeds
+ *  a throughput ceiling, not which mechanism carries it. A brush stroke
+ *  only ever touches a small area, so there is no reason to move the whole
+ *  buffer every sample. */
+export interface MaskPreviewOverride {
+  layerId: string;
+  maskData: Uint8Array;
+  scope: MaskUploadScope;
 }
-`;
 
 const PASSTHROUGH_EFFECT: EffectModule = {
   id: "passthrough",
@@ -55,6 +79,36 @@ export class Renderer {
   private pingPong: [GPUTexture, GPUTexture] | null = null;
   private exportTexture: GPUTexture | null = null;
   private sampler: GPUSampler;
+  private pipelineCache = new Map<
+    string,
+    { pipeline: GPURenderPipeline; bindGroupLayout: GPUBindGroupLayout }
+  >();
+  private maskTextures = new Map<string, { texture: GPUTexture; syncedFrom: Uint8Array }>();
+  private whiteMask: GPUTexture | null = null;
+  /** GPU texture backing the live mask-paint preview (see `MaskPreviewOverride`)
+   *  — reuploaded every preview frame regardless of reference equality, since
+   *  the live buffer is typically the SAME object mutated in place stroke by
+   *  stroke, so residency's reference check would never detect a change. */
+  private liveMaskTexture: GPUTexture | null = null;
+  /** Which layer `liveMaskTexture`'s CONTENT currently reflects. When the
+   *  live-previewed layer changes (or preview starts fresh), the texture's
+   *  existing content is stale/wrong and a full upload is required before
+   *  any partial (`dirtyRect`) update can be trusted. */
+  private liveMaskLayerId: string | null = null;
+  private renderScheduler = new FrameScheduler<{ layers: LayerState[]; preview: MaskPreviewOverride | null }>(
+    (p) => this.render(p.layers, p.preview)
+  );
+  /** Set for the duration of one `runPipeline()` call by `render()`; read by
+   *  `getMaskTexture()` to substitute the live-painted buffer for the
+   *  layer currently being painted, bypassing `LayerState.maskData`
+   *  entirely for that frame. */
+  private livePreview: MaskPreviewOverride | null = null;
+  /** Debugging-only (see log_diagnostic in lib.rs / gpuContext.ts's device.lost
+   *  handler): counts runPipeline() calls so diagnostics below can log every
+   *  Nth frame instead of flooding the IPC channel during a fast paint
+   *  stroke. Remove alongside the rest of this diagnostic pass once the GPU
+   *  OOM crash (3 confirmed renderer aborts, 2026-07-14/15) is root-caused. */
+  private diagFrameCount = 0;
 
   constructor(ctx: GpuContext) {
     this.ctx = ctx;
@@ -62,6 +116,7 @@ export class Renderer {
   }
 
   async loadImage(bitmap: ImageBitmap): Promise<void> {
+    assertImageFitsGpu(bitmap.width, bitmap.height, this.ctx.device.limits.maxTextureDimension2D);
     this.width = bitmap.width;
     this.height = bitmap.height;
     const { device, srgbFormat } = this.ctx;
@@ -93,8 +148,19 @@ export class Renderer {
     this.pingPong = [makeTarget(), makeTarget()];
   }
 
-  render(layers: LayerState[]): void {
+  render(layers: LayerState[], preview: MaskPreviewOverride | null = null): void {
+    this.livePreview = preview;
     this.runPipeline(layers, getSrgbCanvasView(this.ctx));
+    this.livePreview = null;
+  }
+
+  /** Rendu coalescé : à privilégier pour tout ce qui peut tirer plus vite
+   *  que la frame (drag de slider, pinceau). `render()` reste disponible
+   *  pour un rendu immédiat déterministe (premier affichage).
+   *  `preview` : voir `MaskPreviewOverride` — utilisé par le pinceau pour un
+   *  retour visuel par échantillon sans passer par `updateMask()`. */
+  requestRender(layers: LayerState[], preview: MaskPreviewOverride | null = null): void {
+    this.renderScheduler.request({ layers, preview });
   }
 
   /**
@@ -150,6 +216,12 @@ export class Renderer {
   private runPipeline(layers: LayerState[], finalTargetView: GPUTextureView): void {
     if (!this.sourceTexture || !this.pingPong) throw new Error("Aucune image chargée.");
     const { device } = this.ctx;
+    const diagStart = performance.now();
+
+    for (const id of staleMaskIds(this.maskTextures.keys(), layers)) {
+      this.maskTextures.get(id)!.texture.destroy();
+      this.maskTextures.delete(id);
+    }
 
     let readTexture = this.sourceTexture;
     let writeIndex = 0;
@@ -157,13 +229,12 @@ export class Renderer {
 
     const encoder = device.createCommandEncoder();
     // Per-frame GPU resources — intermediate multi-pass textures (from
-    // runInternalPasses), each pass's paramBuffer, and each pass's mask
-    // texture (from uploadMask) — all live only for this frame. They must
-    // not be destroyed until AFTER this frame's command buffer has been
-    // submitted — recording a command against a resource does NOT pin its
-    // lifetime through to a later submit (WebGPU validates at submit()
-    // time), so destroying mid-encoder throws. Collected here and drained
-    // once, post-submit, below.
+    // runInternalPasses) and each pass's paramBuffer — both live only for
+    // this frame. They must not be destroyed until AFTER this frame's
+    // command buffer has been submitted — recording a command against a
+    // resource does NOT pin its lifetime through to a later submit (WebGPU
+    // validates at submit() time), so destroying mid-encoder throws.
+    // Collected here and drained once, post-submit, below.
     const pendingDestroy: (GPUTexture | GPUBuffer)[] = [];
 
     if (enabledLayers.length === 0) {
@@ -220,6 +291,26 @@ export class Renderer {
 
     device.queue.submit([encoder.finish()]);
     for (const resource of pendingDestroy) resource.destroy();
+    this.logFrameDiagnostics(diagStart, enabledLayers.length, pendingDestroy.length);
+  }
+
+  /** Debugging-only, see the field comment on `diagFrameCount`. Logs every
+   *  15th frame: JS-side encode+submit time (does NOT include actual GPU
+   *  execution time, which WebGPU doesn't expose to JS), how many
+   *  intermediate textures/buffers this single frame churned through
+   *  (pendingDestroy.length — a proxy for GPU allocator pressure from
+   *  per-frame effect passes like Glow's 5-pass bloom), and the resident
+   *  mask/pipeline cache sizes (should stay bounded by layer/effect count,
+   *  not grow unboundedly). */
+  private logFrameDiagnostics(diagStart: number, enabledLayerCount: number, churnedResources: number): void {
+    this.diagFrameCount++;
+    if (this.diagFrameCount % 15 !== 0) return;
+    const elapsedMs = Math.round((performance.now() - diagStart) * 100) / 100;
+    logDiagnostic(
+      `frame#${this.diagFrameCount} jsEncodeMs=${elapsedMs} enabledLayers=${enabledLayerCount} ` +
+        `churnedThisFrame=${churnedResources} residentMaskTextures=${this.maskTextures.size} ` +
+        `pipelineCacheSize=${this.pipelineCache.size} imageSize=${this.width}x${this.height}`
+    );
   }
 
   /**
@@ -299,7 +390,7 @@ export class Renderer {
   ): void {
     const { applyMask = true, prevPassView = null } = options;
     const { device, srgbFormat } = this.ctx;
-    const paramValues = new Float32Array(8);
+    const paramValues = new Float32Array(MAX_EFFECT_PARAMS);
     effect.params.forEach((p, idx) => {
       paramValues[idx] = layer.params[p.name] ?? p.default;
     });
@@ -313,85 +404,56 @@ export class Renderer {
     // frame's submit() has run, so it's queued rather than destroyed here.
     pendingDestroy.push(paramBuffer);
 
-    const maskBinding = applyMask
-      ? "@group(0) @binding(3) var maskTexture: texture_2d<f32>;"
-      : "";
-    const prevPassBinding = prevPassView
-      ? "@group(0) @binding(4) var prevPass: texture_2d<f32>;"
-      : "";
-    const fsBody = applyMask
-      ? `let maskValue = textureSample(maskTexture, srcSampler, in.uv).r;
-  return mix(color, effected, maskValue);`
-      : "return effected;";
-
-    const shaderCode = `
-${FULLSCREEN_VERTEX_WGSL}
-
-@group(0) @binding(0) var srcTexture: texture_2d<f32>;
-@group(0) @binding(1) var srcSampler: sampler;
-@group(0) @binding(2) var<uniform> params: array<f32, 8>;
-${maskBinding}
-${prevPassBinding}
-
-${effect.wgsl}
-
-@fragment
-fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
-  let color = textureSample(srcTexture, srcSampler, in.uv);
-  let effected = fs_main(in.uv, color);
-  ${fsBody}
-}
-`;
-    const module = device.createShaderModule({ code: shaderCode });
-
-    // Explicit bind group layout instead of `layout: "auto"`. With "auto",
-    // WebGPU derives the layout from which bindings the shader ACTUALLY
-    // reads — and some effects (e.g. Glow's internal downsample/upsample
-    // passes, Task 13) declare `params`/`binding(2)` in the shared header
-    // but never reference it in their fs_main body. naga/Dawn then prunes
-    // binding 2 from the auto layout, while the JS side below always
-    // provides it — a mismatch that fails `createBindGroup` validation
-    // ("binding index 2 not present in the bind group layout"), silently
-    // invalidating the whole command buffer and rendering solid black with
-    // no thrown JS exception (confirmed via CDP: only visible as a WebGPU
-    // validation warning in the browser console, not a catchable error).
-    // An explicit layout always matching the JS `entries` below sidesteps
-    // this entire class of bug, regardless of what any given effect's WGSL
-    // body happens to read.
-    const layoutEntries: GPUBindGroupLayoutEntry[] = [
-      { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } },
-      { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "filtering" } },
-      { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },
-    ];
-    if (applyMask) {
-      layoutEntries.push({ binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
-    }
-    if (prevPassView) {
-      layoutEntries.push({ binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
-    }
-    const bindGroupLayout = device.createBindGroupLayout({ entries: layoutEntries });
-    const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
-    const pipeline = device.createRenderPipeline({
-      layout: pipelineLayout,
-      vertex: { module, entryPoint: "vs_main" },
-      fragment: { module, entryPoint: "fs_wrapper", targets: [{ format: srgbFormat }] },
+    const shaderCode = composeShader(effect.wgsl, {
+      applyMask,
+      hasPrevPass: prevPassView !== null,
     });
+
+    // Le pipeline (et son layout explicite) ne dépend que du code shader —
+    // même code, même variante de bindings. Compilé UNE fois par variante,
+    // réutilisé à chaque frame : c'était le poste n°1 du coût par frame
+    // (createShaderModule + createRenderPipeline par passe par frame).
+    let cached = this.pipelineCache.get(shaderCode);
+    if (!cached) {
+      const module = device.createShaderModule({ code: shaderCode });
+      // Layout explicite, jamais `layout: "auto"` — voir le commentaire
+      // historique du bug de pruning naga/Dawn (canvas noir silencieux).
+      const layoutEntries: GPUBindGroupLayoutEntry[] = [
+        { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } },
+        { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "filtering" } },
+        { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },
+      ];
+      if (applyMask) {
+        layoutEntries.push({ binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
+      }
+      if (prevPassView) {
+        layoutEntries.push({ binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
+      }
+      const bindGroupLayout = device.createBindGroupLayout({ entries: layoutEntries });
+      const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
+      const pipeline = device.createRenderPipeline({
+        layout: pipelineLayout,
+        vertex: { module, entryPoint: "vs_main" },
+        fragment: { module, entryPoint: "fs_wrapper", targets: [{ format: srgbFormat }] },
+      });
+      cached = { pipeline, bindGroupLayout };
+      this.pipelineCache.set(shaderCode, cached);
+    }
+
     const entries: GPUBindGroupEntry[] = [
       { binding: 0, resource: sourceView },
       { binding: 1, resource: this.sampler },
       { binding: 2, resource: { buffer: paramBuffer } },
     ];
     if (applyMask) {
-      const maskTexture = this.uploadMask(layer.maskData);
-      entries.push({ binding: 3, resource: maskTexture.createView() });
-      // Same post-submit-destroy reasoning as paramBuffer above.
-      pendingDestroy.push(maskTexture);
+      // Résidente — ne PAS la mettre dans pendingDestroy.
+      entries.push({ binding: 3, resource: this.getMaskTexture(layer, encoder).createView() });
     }
     if (prevPassView) {
       entries.push({ binding: 4, resource: prevPassView });
     }
     const bindGroup = device.createBindGroup({
-      layout: bindGroupLayout,
+      layout: cached.bindGroupLayout,
       entries,
     });
 
@@ -400,7 +462,7 @@ fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
         { view: targetView, loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } },
       ],
     });
-    pass.setPipeline(pipeline);
+    pass.setPipeline(cached.pipeline);
     pass.setBindGroup(0, bindGroup);
     pass.draw(3);
     pass.end();
@@ -434,24 +496,117 @@ fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
     await buffer.mapAsync(GPUMapMode.READ);
     const data = new Uint8Array(buffer.getMappedRange().slice(0));
     buffer.unmap();
+    buffer.destroy();
     return data;
   }
 
-  /**
-   * Uploads a layer's mask into an r8unorm texture. A mask is a linear
-   * 0..1 opacity weight, not color data, so it deliberately does NOT use
-   * `ctx.srgbFormat` — treating it as sRGB would bias the falloff curve.
-   * `maskData === null` (no mask painted) uploads a fully-opaque mask so
-   * the effect applies everywhere, matching pre-Task-9 behavior.
-   */
+  /** Masque absent : texture 1×1 opaque partagée. Le sampler linéaire
+   *  échantillonne 1.0 partout — comportement identique à l'ancien buffer
+   *  plein-résolution rempli à 255, sans l'allocation de 24 Mo par passe. */
+  private getWhiteMask(): GPUTexture {
+    if (!this.whiteMask) {
+      this.whiteMask = this.ctx.device.createTexture({
+        size: [1, 1],
+        format: "r8unorm",
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+      });
+      this.uploadR8(this.whiteMask, new Uint8Array([255]), 1, 1);
+    }
+    return this.whiteMask;
+  }
+
+  /** Shared upload path for every r8unorm mask texture in this renderer
+   *  (white fallback, resident per-layer masks, live-paint preview) —
+   *  computes the WebGPU `writeTexture` arguments via the pure, tested
+   *  `computeR8UploadRegion` and issues the one GPU call. */
+  private uploadR8(texture: GPUTexture, data: Uint8Array, width: number, height: number, rect?: DirtyRect): void {
+    const region = computeR8UploadRegion(width, height, rect);
+    this.ctx.device.queue.writeTexture(
+      { texture, origin: region.origin },
+      data as BufferSource,
+      region.dataLayout,
+      [region.size.width, region.size.height]
+    );
+  }
+
+  /** Texture de masque RÉSIDENTE par calque : créée une fois à la taille de
+   *  l'image, réuploadée uniquement quand la référence `maskData` du calque
+   *  change (les masques sont immuables par convention — updateMask remplace
+   *  la référence, jamais le contenu). Auparavant : création + upload 24MP à
+   *  CHAQUE frame pour chaque calque masqué. */
+  private getMaskTexture(layer: LayerState, encoder: GPUCommandEncoder): GPUTexture {
+    if (this.livePreview && this.livePreview.layerId === layer.id) {
+      return this.getLiveMaskTexture(this.livePreview.layerId, this.livePreview.maskData, this.livePreview.scope);
+    }
+    if (!layer.maskData) return this.getWhiteMask();
+    const entry = this.maskTextures.get(layer.id);
+    if (entry && entry.syncedFrom === layer.maskData) return entry.texture;
+    const texture =
+      entry?.texture ??
+      this.ctx.device.createTexture({
+        size: [this.width, this.height],
+        format: "r8unorm",
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+      });
+    // The common case reaching this branch is "a mask stroke on this exact
+    // layer just ended" — `layer.maskData` is a fresh CPU copy of the same
+    // painter buffer `liveMaskTexture` was already uploading sample-by-
+    // sample during the stroke, so its GPU content is already byte-
+    // identical. Reuse it via a GPU-side copy instead of a second full
+    // CPU->GPU `writeTexture` of the whole image: that second upload,
+    // through this exact branch, was traced (CDP repro, 2026-07-15) to
+    // reliably hang the renderer at 24MP — the JS commit completes, but the
+    // already-scheduled requestAnimationFrame never fires again afterward.
+    // The equivalent upload via `getLiveMaskTexture` (same buffer, same
+    // size) never reproduces it, so avoiding the redundant second upload
+    // sidesteps the hang rather than explaining its exact driver mechanism.
+    if (this.liveMaskLayerId === layer.id && this.liveMaskTexture) {
+      encoder.copyTextureToTexture({ texture: this.liveMaskTexture }, { texture }, [this.width, this.height]);
+    } else {
+      this.uploadR8(texture, layer.maskData, this.width, this.height);
+    }
+    this.maskTextures.set(layer.id, { texture, syncedFrom: layer.maskData });
+    return texture;
+  }
+
+  /** Backing texture for `MaskPreviewOverride` — a single texture reused
+   *  across preview frames, never entered into the residency cache since it
+   *  isn't associated with a stable `maskData` reference.
+   *
+   *  A `"partial"` scope is only trusted when the texture is ALREADY known
+   *  to reflect `layerId`'s content (`liveMaskLayerId` matches) — the
+   *  source data offset/stride trick in `computeR8UploadRegion` lets WebGPU
+   *  read just that sub-rectangle directly out of the full-resolution
+   *  `maskData` buffer, so this needs no extra JS-side copy either.
+   *  Otherwise (layer just changed, or the caller explicitly asked for
+   *  `"full"`) the whole image is uploaded and `liveMaskLayerId` updated. */
+  private getLiveMaskTexture(layerId: string, maskData: Uint8Array, scope: MaskUploadScope): GPUTexture {
+    if (!this.liveMaskTexture) {
+      this.liveMaskTexture = this.ctx.device.createTexture({
+        size: [this.width, this.height],
+        format: "r8unorm",
+        // COPY_SRC: getMaskTexture()'s resident branch copies straight out
+        // of this texture (GPU-to-GPU) once a stroke ends, instead of a
+        // second CPU->GPU upload of the same bytes.
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC,
+      });
+    }
+    const rect = scope.kind === "partial" && this.liveMaskLayerId === layerId ? scope.rect : undefined;
+    this.uploadR8(this.liveMaskTexture, maskData, this.width, this.height, rect);
+    if (!rect) this.liveMaskLayerId = layerId;
+    return this.liveMaskTexture;
+  }
+
   /**
    * Destroys all persistent GPU textures owned by this renderer (source,
-   * ping-pong pair, export target). Callers that replace a `Renderer`
-   * instance (e.g. `App.tsx`'s `openFile` on a new image) must call this on
-   * the outgoing instance first — otherwise its textures are orphaned on the
-   * GPU with no JS reference left to ever destroy them.
+   * ping-pong pair, export target, resident mask textures, shared white
+   * mask). Callers that replace a `Renderer` instance (e.g. `App.tsx`'s
+   * `openFile` on a new image) must call this on the outgoing instance
+   * first — otherwise its textures are orphaned on the GPU with no JS
+   * reference left to ever destroy them.
    */
   dispose(): void {
+    this.renderScheduler.cancel();
     this.sourceTexture?.destroy();
     this.sourceTexture = null;
     if (this.pingPong) {
@@ -461,22 +616,12 @@ fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
     }
     this.exportTexture?.destroy();
     this.exportTexture = null;
-  }
-
-  private uploadMask(maskData: Uint8Array | null): GPUTexture {
-    const { device } = this.ctx;
-    const texture = device.createTexture({
-      size: [this.width, this.height],
-      format: "r8unorm",
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
-    });
-    const fullMask = maskData ?? new Uint8Array(this.width * this.height).fill(255);
-    device.queue.writeTexture(
-      { texture },
-      fullMask as BufferSource,
-      { bytesPerRow: this.width },
-      [this.width, this.height]
-    );
-    return texture;
+    this.pipelineCache.clear();
+    for (const { texture } of this.maskTextures.values()) texture.destroy();
+    this.maskTextures.clear();
+    this.whiteMask?.destroy();
+    this.whiteMask = null;
+    this.liveMaskTexture?.destroy();
+    this.liveMaskTexture = null;
   }
 }

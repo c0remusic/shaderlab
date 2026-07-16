@@ -32,6 +32,21 @@ describe("MaskPainter", () => {
     expect(data[10 * 20 + 10]).toBeLessThan(50);
   });
 
+  it("paintStroke returns the touched region's bounding box, clamped to image bounds", () => {
+    const painter = new MaskPainter(20, 20);
+    const rect = painter.paintStroke(10, 10, 5, 1.0, false);
+    expect(rect).toEqual({ x: 5, y: 5, width: 11, height: 11 });
+  });
+
+  it("paintStroke clamps the returned rect when the brush extends past the image edge", () => {
+    const painter = new MaskPainter(20, 20);
+    const rect = painter.paintStroke(0, 0, 5, 1.0, false);
+    expect(rect.x).toBe(0);
+    expect(rect.y).toBe(0);
+    expect(rect.width).toBeLessThanOrEqual(6);
+    expect(rect.height).toBeLessThanOrEqual(6);
+  });
+
   it("loadFrom replaces the internal buffer so subsequent strokes build on top of it, not a fresh zero buffer", () => {
     const painter = new MaskPainter(20, 20);
     const seeded = new Uint8Array(20 * 20).fill(100);

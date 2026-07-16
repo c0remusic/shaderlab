@@ -10,6 +10,12 @@
   ],
   "specs": [
     {
+      "path": "docs/superpowers/specs/2026-07-16-shaderlab-interview-prd.md",
+      "date": "2026-07-16",
+      "topic": "PRD système de calques (skill interview)",
+      "summary": "Produit par le skill interview (mode FEATURE), nourrit un futur superpowers:brainstorming. Cadre l'évolution du système de calques : opacité + ~12 modes de fusion type Photoshop en espace linéaire strict, pinceau qualité Photoshop (diamètre/dureté/flow, 60fps plancher dur), masques dégradé et par luminosité, réordonner/dupliquer/grouper avec undo. Hors-scope : refonte des effets eux-mêmes, round-trip Lightroom, workspace multi-photo, choix final de la direction visuelle du chrome. Tension ouverte notée pour le brainstorming : modes de fusion Photoshop définis en gamma vs décision projet 'linéaire strict'."
+    },
+    {
       "path": "docs/superpowers/specs/2026-07-13-shaderlab-standalone-v1-design.md",
       "date": "2026-07-13",
       "topic": "scope standalone v1 shaderlab",

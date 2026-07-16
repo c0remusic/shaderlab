@@ -7,10 +7,12 @@
 > remédiation archi + fix OOM peinture au masque, voir `src/render/maskUpload.ts`)
 > a été MERGÉ dans `feature/design-system` le 2026-07-16 (divergence à `0a2e151`,
 > jamais reconvergée avant ce merge) — n'est plus un worktree de travail séparé ;
-> le worktree `shaderlab-archi-remediation` reste sur disque mais son contenu est
-> désormais dupliqué ici. Checkpoint humain visuel du fix dirty-rect toujours EN
-> ATTENTE de confirmation (voir `docs/INDEX.json`). `design-system-mine` :
-> réconcilié, superseded — voir la mémoire projet `design-system-branch-reconciliation`.
+> le worktree `shaderlab-archi-remediation` a été RETIRÉ le 2026-07-16
+> (`git worktree remove`, branche `feature/archi-remediation` conservée). Checkpoint
+> humain visuel du fix dirty-rect toujours EN ATTENTE de confirmation (voir
+> `docs/INDEX.json`). `design-system-mine` : commits superseded (worktree retiré
+> le 2026-07-16, branche conservée) — voir la mémoire projet
+> `design-system-branch-reconciliation`.
 
 ## Quoi
 

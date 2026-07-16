@@ -185,9 +185,19 @@ docs/superpowers/
 ## Outillage / routage skills
 
 Même règle impérative que tous les projets (`~/.claude/CLAUDE.md`, section
-routage skills). Registre projet : `docs/skills-registre.md`. Décisions
-d'outillage prises jusqu'ici : cycle complet
+routage skills). Inventaire = la vue générée `~/.claude/skills-view.md`
+(remplace l'ex-`docs/skills-registre.md`, supprimé). Packs de contexte (sizing) :
+`.claude/rules/context-packs.md`. Décisions d'outillage : cycle complet
 `superpowers:brainstorming` → `writing-plans` → `subagent-driven-development` ;
 audits de spec via sous-agent `general-purpose` adverse ; recherches
 techniques via WebSearch avec vérification des licences (webgpu-image-filter
 n'a PAS de licence — inspiration seulement, jamais de copie verbatim).
+
+Verdicts projet uniques (delta du registre supprimé, non déjà dans § Méthode) :
+- **Modèles par rôle (sizing)** : haiku = transcription de plan / fixes
+  mécaniques ; sonnet = spike / intégration / review (haiku a écrit le scaffold
+  main de travers en Task 1 → 2 passes de fix ; sonnet clean du premier coup).
+- **`interface-design`** : utilisée en mode « direct et concret », PAS l'exercice
+  créatif complet (l'exploration de domaine/signature a été jugée hors-sujet le
+  2026-07-13 ; reprise directe sur palette/typo calées sur références validées,
+  tokens dans `.interface-design/system.md`).

@@ -12,7 +12,13 @@
 > humain visuel du fix dirty-rect toujours EN ATTENTE de confirmation (voir
 > `docs/INDEX.json`). `design-system-mine` : commits superseded (worktree retiré
 > le 2026-07-16, branche conservée) — voir la mémoire projet
-> `design-system-branch-reconciliation`.
+> `design-system-branch-reconciliation`. ⚠️ Le crash de peinture au masque à
+> 24MP n'est PAS résolu malgré le commit `1d5e129` ("fix: avoid redundant full
+> mask upload...") sur `feature/archi-remediation` (fait après le merge du
+> 2026-07-16, non reporté sur `feature/design-system`) : reproduit et confirmé
+> TOUJOURS présent après ce commit via repro CDP réaliste (session
+> 2026-07-16/17). Détails et vraie cause (encore inconnue) dans
+> `.claude/learning-log.md`.
 
 ## Quoi
 

@@ -10,6 +10,12 @@
   ],
   "specs": [
     {
+      "path": "docs/superpowers/specs/2026-07-17-native-wgpu-decision.md",
+      "date": "2026-07-17",
+      "topic": "décision de scope : rendu natif wgpu/Rust vs browser-WebGPU face au crash de peinture au masque à 24MP — MISE À JOUR : cause réelle trouvée, catégorie (A) pas (C)",
+      "summary": "Analyse en trois passes le même jour. Passe 1 (détective, sans exécution) avait conclu catégorie (C) probable stall compositeur WebView2. Passe 2 (repro CDP live, 7 expériences dont un carré factoriel 2×2 complet push×setLayers) INFIRME cette conclusion : rendu hors-écran, création de texture résidente sautée, timing sync/décalé — rien de tout ça ne change l'issue ; SAUTER setLayers() seul fait disparaître le crash à tous les coups, PUSH seul (sans setLayers) survit aussi. Déclencheur prouvé : setLayers() dans commit(), nécessaire ET suffisant. Passe 3 (tentative de fix réel : attendre device.queue.onSubmittedWorkDone() avant setLayers) ÉCHOUE aussi — 3e tentative de fix indépendante à travers 3 sessions (dirty-rect 07-15, GPU-copy 1d5e129 07-16, wait-for-idle 07-17), seuil systematic-debugging (3+ échecs → stop, discuter avec Antoine plutôt qu'un 4e essai à l'aveugle). Découverte additionnelle : une fois déclenché, CDP Runtime.evaluate devient totalement inerte (même une lecture triviale timeout), donc le mécanisme exact (bug JS pur vs stall compositeur WebView2/Dawn/D3D12 exposé par le trigger applicatif) reste indéterminé — mais cette ambiguïté ne change pas la conclusion : port natif wgpu NON pertinent dans les deux cas (le même soin anti-pattern serait nécessaire côté Rust). Document s'arrête sur options structurelles non testées (ref au lieu de state pour layers pendant la peinture, React.memo des panneaux) plutôt que de proposer un 4e fix non-revu."
+    },
+    {
       "path": "docs/superpowers/specs/2026-07-16-shaderlab-interview-prd.md",
       "date": "2026-07-16",
       "topic": "PRD système de calques (skill interview)",

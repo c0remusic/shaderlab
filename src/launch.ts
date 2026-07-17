@@ -39,7 +39,13 @@ export async function pickImageFile(): Promise<string | null> {
  * mode currently being investigated (a hard WebGPU/allocator OOM abort).
  * Fire-and-forget: never let a diagnostic write itself throw into the
  * caller's hot path.
+ *
+ * No-op outside dev builds (audit 2026-07-17, finding 2) — `log_diagnostic`
+ * itself also no-ops in release on the Rust side, but skipping the IPC
+ * round-trip entirely here avoids paying its cost on every frame in a build
+ * shipped to a user.
  */
 export function logDiagnostic(message: string): void {
+  if (!import.meta.env.DEV) return;
   invoke("log_diagnostic", { message }).catch(() => {});
 }

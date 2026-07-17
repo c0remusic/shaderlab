@@ -16,7 +16,10 @@ export interface GpuContext {
   srgbFormat: GPUTextureFormat;
 }
 
-export async function initGpu(canvas: HTMLCanvasElement): Promise<GpuContext> {
+export async function initGpu(
+  canvas: HTMLCanvasElement,
+  onFatalError?: (message: string) => void
+): Promise<GpuContext> {
   if (!navigator.gpu) {
     throw new Error("WebGPU non disponible sur ce navigateur/GPU.");
   }
@@ -37,8 +40,13 @@ export async function initGpu(canvas: HTMLCanvasElement): Promise<GpuContext> {
   // (exception 0xE0000008) during mask painting on a large photo; this
   // handler is here to catch whether device.lost ever actually fires with a
   // reason before that hard abort, or whether the abort preempts it entirely.
+  // device.lost is always fatal (the device is gone) — unlike
+  // onuncapturederror below, which can fire for recoverable validation
+  // errors, this is the one GPU signal that must reach the user, not just
+  // the diagnostic log (audit 2026-07-17, finding 1).
   device.lost.then((info) => {
     logDiagnostic(`GPU device lost: reason=${info.reason} message=${info.message}`);
+    onFatalError?.("Le GPU a redémarré ou a manqué de mémoire — rouvre l'image.");
   });
   // Debugging-only (see log_diagnostic in lib.rs): no uncaptured-error
   // handler existed before this — any GPU validation/OOM error the browser

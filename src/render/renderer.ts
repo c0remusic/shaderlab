@@ -493,11 +493,17 @@ export class Renderer {
     const encoder = device.createCommandEncoder();
     encoder.copyTextureToBuffer({ texture }, { buffer, bytesPerRow }, [this.width, this.height]);
     device.queue.submit([encoder.finish()]);
-    await buffer.mapAsync(GPUMapMode.READ);
-    const data = new Uint8Array(buffer.getMappedRange().slice(0));
-    buffer.unmap();
-    buffer.destroy();
-    return data;
+    try {
+      await buffer.mapAsync(GPUMapMode.READ);
+      const data = new Uint8Array(buffer.getMappedRange().slice(0));
+      buffer.unmap();
+      return data;
+    } finally {
+      // Libère le buffer même si mapAsync rejette (device perdu pendant
+      // l'export, par ex.) — sans ce finally, ce chemin d'erreur fuyait le
+      // buffer GPU (audit 2026-07-17, finding 4).
+      buffer.destroy();
+    }
   }
 
   /** Masque absent : texture 1×1 opaque partagée. Le sampler linéaire

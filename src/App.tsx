@@ -10,7 +10,7 @@ import { Toolbar } from "./components/Toolbar";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { exportImage, resolveExportTarget } from "./export/exportImage";
 import { getLaunchPath, readImageFile, pickImageFile } from "./launch";
-import { MaskPainter } from "./mask/maskPainter";
+import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -27,7 +27,7 @@ export default function App() {
   // handleExport, per the project's copy-only safety rule.
   const [isLaunchFile, setIsLaunchFile] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const maskPaintersRef = useRef<Map<string, { painter: MaskPainter; syncedFrom: Uint8Array | null }>>(new Map());
+  const maskPaintersRef = useRef<Map<string, MaskPainterEntry>>(new Map());
   // True for the first sample of a stroke: forces a full live-preview
   // texture upload (the renderer's `liveMaskTexture` may hold a different
   // layer's content, or this same layer's content from BEFORE an undo/redo
@@ -61,7 +61,7 @@ export default function App() {
     if (!canvasRef.current) return;
     try {
       if (!gpuRef.current) {
-        gpuRef.current = await initGpu(canvasRef.current);
+        gpuRef.current = await initGpu(canvasRef.current, (message) => setError(message));
       }
       let bitmap: ImageBitmap;
       try {
@@ -169,23 +169,13 @@ export default function App() {
   function handleMaskStroke(x: number, y: number) {
     if (!selectedId || imageSize.width === 0) return;
     const currentMaskData = selectedLayer?.maskData ?? null;
-    let entry = maskPaintersRef.current.get(selectedId);
-    if (!entry) {
-      const painter = new MaskPainter(imageSize.width, imageSize.height);
-      if (currentMaskData) painter.loadFrom(currentMaskData);
-      entry = { painter, syncedFrom: currentMaskData };
-      maskPaintersRef.current.set(selectedId, entry);
-    } else if (entry.syncedFrom !== currentMaskData) {
-      // The layer's maskData reference changed since we last synced this
-      // painter (e.g. undo/redo restored a different mask snapshot for
-      // this layer id). Re-seed the cached painter's buffer from the
-      // current truth (layers/history) before painting on top of it,
-      // otherwise the stale cached buffer would silently overwrite what
-      // undo/redo just restored.
-      if (currentMaskData) entry.painter.loadFrom(currentMaskData);
-      else entry.painter.clear(0);
-      entry.syncedFrom = currentMaskData;
-    }
+    const entry = getSyncedMaskPainter(
+      maskPaintersRef.current,
+      selectedId,
+      currentMaskData,
+      imageSize.width,
+      imageSize.height
+    );
     const dirtyRect = entry.painter.paintStroke(x, y, brushSize, brushHardness, erase);
     // Live preview only: render straight from the painter's own buffer via
     // a GPU texture upload, WITHOUT going through LayerStack.updateMask()'s

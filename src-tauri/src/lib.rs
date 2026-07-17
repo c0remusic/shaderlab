@@ -92,8 +92,14 @@ fn pick_image_file() -> Option<String> {
 /// immediately after, which is exactly the failure mode being diagnosed
 /// (the renderer's own devtools/console pipe can die mid-flush on a hard
 /// OOM abort). Temporary: remove once the GPU OOM crash is root-caused.
+/// Gated to debug builds (audit 2026-07-17, finding 2): un build release
+/// livré à un utilisateur écrirait sinon indéfiniment dans ce fichier, sans
+/// rotation ni troncature.
 #[tauri::command]
 fn log_diagnostic(message: String) {
+    if !cfg!(debug_assertions) {
+        return;
+    }
     use std::io::Write;
     let log_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()

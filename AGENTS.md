@@ -4,8 +4,9 @@
 > Repo local `C:\Users\LEETJ\Desktop\shaderlab`, pas encore de remote GitHub.
 > Branche de dev active : `feature/design-system` (MVP mergé sur master ;
 > `feature/archi-remediation` mergé le 2026-07-16). Le crash de peinture au
-> masque à 24MP reste NON résolu malgré deux tentatives de fix — voir
-> `.claude/learning-log.md` et la mémoire projet
+> masque à 24MP reste NON résolu malgré TROIS tentatives de fix (seuil
+> systematic-debugging atteint, ne pas retenter sans en discuter avec
+> Antoine) — voir `.claude/learning-log.md` et la mémoire projet
 > `design-system-branch-reconciliation` avant de toucher au rendu masque/GPU.
 
 ## Quoi

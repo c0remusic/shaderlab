@@ -13,12 +13,14 @@
 > `docs/INDEX.json`). `design-system-mine` : commits superseded (worktree retiré
 > le 2026-07-16, branche conservée) — voir la mémoire projet
 > `design-system-branch-reconciliation`. ⚠️ Le crash de peinture au masque à
-> 24MP n'est PAS résolu malgré le commit `1d5e129` ("fix: avoid redundant full
-> mask upload...") sur `feature/archi-remediation` (fait après le merge du
-> 2026-07-16, non reporté sur `feature/design-system`) : reproduit et confirmé
-> TOUJOURS présent après ce commit via repro CDP réaliste (session
-> 2026-07-16/17). Détails et vraie cause (encore inconnue) dans
-> `.claude/learning-log.md`.
+> 24MP n'est PAS résolu malgré TROIS tentatives de fix indépendantes
+> (dirty-rect 2026-07-15, GPU-copy `1d5e129` 2026-07-16, wait-for-idle
+> 2026-07-17) — seuil `systematic-debugging` atteint (3+ échecs → STOP, pas de
+> 4e tentative sans en discuter avec Antoine). Vraie cause encore inconnue.
+> Mitigation partielle appliquée le 2026-07-17 : `device.lost` (fatal) est
+> maintenant remonté à l'UI (`ErrorBanner`) au lieu de rester silencieux dans
+> le log — voir `src/render/gpuContext.ts`. Détails complets dans
+> `.claude/learning-log.md` et `docs/superpowers/specs/2026-07-17-native-wgpu-decision.md`.
 
 ## Quoi
 

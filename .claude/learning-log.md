@@ -66,3 +66,32 @@ commit règle quoi que ce soit ; ne pas le merger vers `feature/design-system`
 sans nouvelle preuve. Voir aussi `[[minidump-forensics-technique]]` (mémoire
 auto) pour la technique d'analyse de crash dumps utilisée sur ce même sujet
 en 2026-07-15.
+
+## 2026-07-17 — 3e tentative de fix (wait-for-idle) échoue aussi ; seuil systematic-debugging atteint
+
+**Contexte** : troisième tentative indépendante de fix, à travers trois
+sessions distinctes (dirty-rect 2026-07-15, GPU-copy `1d5e129` 2026-07-16,
+wait-for-idle 2026-07-17) — attendre `device.queue.onSubmittedWorkDone()`
+avant `setLayers()` dans `commit()`. Détail complet dans
+`docs/superpowers/specs/2026-07-17-native-wgpu-decision.md`.
+
+**Résultat** : échec identique aux deux précédentes tentatives — même point
+de blocage (rAF planifié après `commit()`, jamais déclenché). Découverte
+additionnelle : une fois le crash déclenché, CDP `Runtime.evaluate` devient
+totalement inerte (même une lecture triviale timeout) — le mécanisme exact
+(bug JS pur vs stall compositeur WebView2/Dawn/D3D12) reste indéterminé.
+
+**Décision** : seuil de `superpowers:systematic-debugging` atteint (3+
+échecs indépendants) — STOP, ne pas tenter un 4e fix à l'aveugle. Sujet à
+rouvrir seulement avec Antoine et une nouvelle piste (voir les options
+structurelles non testées listées dans le doc de spec : ref au lieu de state
+pour `layers` pendant la peinture, `React.memo` des panneaux).
+
+**Mitigation appliquée le même jour (audit pré-release, agent `auditor`)** :
+le crash lui-même reste non résolu, mais `device.lost` (toujours fatal) est
+maintenant câblé à `setError`/`ErrorBanner` au lieu de rester uniquement dans
+le log de diagnostic — un utilisateur qui heurte ce crash voit désormais un
+message plutôt qu'un canvas figé sans aucune explication. Voir
+`src/render/gpuContext.ts` (`onFatalError`) et `src/App.tsx`. L'instrumentation
+debug (`log_diagnostic`) a aussi été gatée derrière `debug_assertions`/
+`import.meta.env.DEV` (n'écrivait plus jamais en build release).

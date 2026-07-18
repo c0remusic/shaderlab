@@ -76,8 +76,10 @@ dégrader la précision du geste de peinture ni la fidélité du rendu.
 - **Latence** : un paramètre peut mettre jusqu'à ~100 ms, mais **le geste direct
   (peindre, ici zoomer/déplacer) DOIT suivre à 60fps**. En-dessous = échec.
 - **Empilement / rendu** : aucune dérive couleur/lumière due au pipeline ;
-  compositing en **espace linéaire strict** ; toutes textures couleur en
-  `rgba8unorm-srgb`, pas de gamma manuel en WGSL.
+  compositing en **espace linéaire strict** ; textures couleur au **format sRGB
+  préféré de la plateforme** (`${getPreferredCanvasFormat()}-srgb` — donc
+  `bgra8unorm-srgb` sur Windows/D3D12, `rgba8unorm-srgb` ailleurs ; voir
+  `gpuContext.ts:68-69`), pas de gamma manuel en WGSL.
 - **Qualité** : pas de rendu « filtre Photoshop 2005 » (déjà acté, CLAUDE.md).
 - **Validation** : la correction visuelle se juge **à l'œil, par checkpoint
   humain** ; jamais affirmée sans avoir été vue.
@@ -121,6 +123,13 @@ Déduits de l'usage, validés avec Antoine en fin d'interview le 2026-07-18 :
 - **`toImageCoords` inverse la transform CSS** (translate + scale) en plus du ratio
   taille-affichée/taille-réelle actuel → réalise le plancher **pixel-exact** à tout
   zoom. C'est le point technique le plus sensible (le pinceau en dépend directement).
+  ⚠️ **Conflit de fichier avec la feature masquage** (`2026-07-18-shaderlab-layers-
+  masking-design.md`) : les deux chantiers modifient la MÊME fonction
+  `toImageCoords` (`src/components/Canvas.tsx:37-44`). Le masquage suppose le mapping
+  actuel ; le pan/zoom le change. Séquencement à acter : livrer l'un, puis le second
+  relit ce fichier et s'adapte à la nouvelle signature — ne pas supposer l'ancien
+  mapping. Si la transform CSS est posée sur un **wrapper** plutôt que sur le
+  `<canvas>`, `getBoundingClientRect()` du canvas change aussi → à vérifier.
 - **Zoom centré curseur** = recalcul du `translate` autour du point pointé
   avant/après changement de `scale` (molette), ou du centre du canvas (boutons) →
   comportement standard Photoshop/Lightroom.

@@ -149,7 +149,9 @@ rouvrir la décision :
   due à l'empilement lui-même (bords sombres, halos, banding) ; opacité, masque
   et désactivation **exacts** ; **résultat identique à un logiciel de référence**
   pour un même ordre de calques. → compositing en **espace linéaire strict**,
-  toutes textures couleur en `rgba8unorm-srgb`, pas de gamma manuel en WGSL.
+  textures couleur au **format sRGB préféré de la plateforme**
+  (`${getPreferredCanvasFormat()}-srgb` — `bgra8unorm-srgb` sur Windows/D3D12,
+  `rgba8unorm-srgb` ailleurs ; `gpuContext.ts:68-69`), pas de gamma manuel en WGSL.
 - **Qualité** : pas de rendu « filtre Photoshop 2005 » (déjà acté, CLAUDE.md).
 - **Validation** : la correction visuelle se juge **à l'œil, par checkpoint
   humain** ; jamais affirmée sans avoir été vue (constat récurrent d'interview).

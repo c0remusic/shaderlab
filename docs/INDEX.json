@@ -10,6 +10,12 @@
   ],
   "specs": [
     {
+      "path": "docs/superpowers/specs/2026-07-18-shaderlab-layers-masking-design.md",
+      "date": "2026-07-18",
+      "topic": "Design (COMMENT) système de calques & masquage — issu de brainstorming",
+      "summary": "Le COMMENT du PRD full-scope calques/masquage, produit par superpowers:brainstorming (cartographie code via Explore + recherche sur Lightroom/Photoshop/Capture One/Affinity/DaVinci/Krita). Décisions : (1) compositing par calque = généralisation de l'unique mix() existant en out=mix(input, blend(input,effected,blendMode), opacity*maskValue), rétro-compatible, sans passe de compositing en plus (le renderer actuel est une effect-chain séquentielle sans blend, renderer.ts:256-290) ; (2) blend modes = modules registry, espace colorimétrique tranché en conversion CIBLÉE par mode (séparables en linéaire, modes gamma encodent/décodent localement, pas de toggle exposé — le seul toggle des 6 réfs, Blend RGB Gamma 1.0 de Photoshop, est buggé) ; (3) masque non-destructif = maskData:Uint8Array → mask:MaskSource[] liste ordonnée ré-éditable (modèle Capture One Combine Masks), pinceau = source raster gardant le chemin dirty-rect/maskUpload existant à l'identique (ne touche pas le crash 24MP), paramétriques = params recalculés par passe shader ; (4) fold add/subtract/intersect = max/soustraction-clampée/min + refine edge live en passes shader ; (5) History étendu (refcount rasters dans la liste) ; (6) UI = panneau Masques FLOTTANT façon Lightroom (déplaçable+magnétisme+escamotable, choix confirmé après revue des 4 patterns), badge masque sur les lignes de calque, aperçu au survol composant-vs-composite ; (7) groupe = conteneur réutilisant le primitif de compositing (Pass Through écarté YAGNI). Découpage en 5 tranches verticales : blend+opacité par calque (1, sûr/premier), refonte masque non-destructif+pinceau porté (2), sources paramétriques+refine edge (3), panneau flottant (4), groupes (5). Sécurité crash : le chemin de peinture 24MP reste inchangé. Prochaine étape : writing-plans en commençant par la tranche 1."
+    },
+    {
       "path": "docs/superpowers/specs/2026-07-18-shaderlab-layers-masking-prd.md",
       "date": "2026-07-18",
       "topic": "PRD full-scope système de calques & masquage (skill interview) — consolide et remplace le 2026-07-16",

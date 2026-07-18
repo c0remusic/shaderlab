@@ -95,3 +95,53 @@ message plutôt qu'un canvas figé sans aucune explication. Voir
 `src/render/gpuContext.ts` (`onFatalError`) et `src/App.tsx`. L'instrumentation
 debug (`log_diagnostic`) a aussi été gatée derrière `debug_assertions`/
 `import.meta.env.DEV` (n'écrivait plus jamais en build release).
+
+## 2026-07-18 — Crash mask-paint 24MP RÉSOLU : c'était le buffer 26 Mo dans le state React, pas le GPU
+
+**Contexte** : reprise du gate crash (3 fix échoués, seuil systematic-debugging)
+avec l'accord d'Antoine pour tester LA piste structurelle jamais essayée listée
+dans le doc 2026-07-17 : ref-not-state + `React.memo`. Méthode : A/B live sur la
+vraie fenêtre WebView2 (CDP, image synthétique 24MP `OffscreenCanvas` droppée,
+hook dev `window.__repro` exposant les handlers, sonde de vivacité `Runtime.evaluate`
+avec timeout = détecteur de crash).
+
+**Root cause enfin trouvée (sur pièce)** : le crash vient du **buffer `maskData`
+r8 pleine résolution (~26 Mo à 24MP) transitant par le state React**, qui fait
+hanger WebView2 au re-render déclenché par `setLayers()` en fin de stroke.
+Discriminateur PROUVÉ en live : `setLayers()` SANS masque (ajout de calque) à
+24MP ne crashe pas ; `setLayers()` AVEC le buffer 26 Mo crashe ; ne pas appeler
+`setLayers()` ne crashe pas. Donc **ni le GPU** (`requestRender` avec le masque
+complet est OK dans les deux cas) **ni le re-render en soi**, mais le buffer 26 Mo
+dans l'état React. Ça explique l'échec des 3 fix précédents (dirty-rect, GPU-copy,
+wait-for-idle) : ils ciblaient tous le GPU/timing.
+
+**Fix livré** (`e3c7584`, mergé sur `feature/design-system`) : `layersRef` =
+source de vérité COMPLÈTE (avec `maskData`) pour rendu/historique/export ; le
+state React `layers` n'est qu'une projection d'affichage SANS `maskData`
+(`src/layers/displayProjection.ts`, `toDisplayLayers`). `setLayers()` reste appelé
+(UI correcte) mais ne porte plus le buffer. Sites corrigés dans `App.tsx` :
+`currentStack`/`handleMaskStroke`(maskData + requestRender base)/export lisent
+`layersRef.current` (complet, sinon les masques des autres calques seraient perdus) ;
+`syncLayers()` met à jour ref + state projeté. Vérifié en live à 24MP : peinture
+au masque sans crash, UI correcte (screenshot CDP). +6 tests `displayProjection`.
+
+**Leçon de méthode** : les 3 fix précédents ont échoué parce qu'ils supposaient
+« crash GPU » sans l'avoir prouvé. Le A/B factoriel live (isoler UN facteur —
+ici « maskData dans setLayers ou non ») a tranché en une session ce que 3
+sessions de fix à l'aveugle n'avaient pas résolu. Le garde-fou systematic-debugging
+(STOP à 3 échecs, discuter avec Antoine, tester une hypothèse structurelle plutôt
+qu'un 4e fix) a fonctionné.
+
+**Conséquence projet** : le port natif wgpu/Rust est définitivement écarté (cause
+= état React, pas rendu). Gate des tranches 2-5 du masquage LEVÉ, sous la règle de
+conception héritée : **garder les gros buffers/textures de masque HORS du state
+React**. Docs mis à jour : bandeau RÉSOLU sur `2026-07-17-native-wgpu-decision.md`,
+gate levé dans le design masquage, INDEX.json.
+
+**Piège environnement rencontré (découverte, TTL 6 mois)** : le repo a été déplacé
+de `C:\Users\LEETJ\Desktop\shaderlab` vers `C:\dev\shaderlab`. Le cache cargo
+(`src-tauri/target/`, ~6 Go) contenait des chemins absolus périmés vers Desktop →
+le build-script Tauri échouait (`failed to read plugin permissions ... Desktop\...`).
+Purger seulement `target/debug/build/` en gardant `deps/` laisse le target
+INCOHÉRENT (`could not compile potential_utf` sans diagnostic). Fix fiable après
+relocalisation d'un repo Tauri : `cargo clean` COMPLET, pas de purge partielle.

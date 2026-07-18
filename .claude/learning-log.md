@@ -3,6 +3,16 @@
 Store instinct-system, portée projet. Écrivain = wrap-up seul. Voir
 `~/.claude/CLAUDE.md` § Store instinct-system pour la convention globale.
 
+## 2026-07-18 — pas de composant Menu (actions groupées) avant cette session
+
+**Découverte (TTL 6 mois)** : `src/ui/` n'avait que `Select.tsx` (choix de
+VALEUR, `role="listbox"`), aucun composant pour grouper des ACTIONS
+(`role="menu"`/`menuitem`). Ajouté `src/ui/Menu.tsx` (bouton déclencheur +
+popover, même convention que Select : pas de portail, navigation clavier,
+fermeture au clic extérieur) suite au regroupement Ouvrir/Exporter de la
+toolbar dans un menu "Fichier" (`src/components/Toolbar.tsx`). Réutiliser ce
+composant pour tout futur regroupement d'actions plutôt que d'en récrire un.
+
 ## 2026-07-16/17 — le fix `1d5e129` ne résout PAS le crash de peinture au masque à 24MP
 
 **Contexte** : suite au chantier archi-remediation (mergé le 2026-07-16), le

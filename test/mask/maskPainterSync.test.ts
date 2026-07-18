@@ -58,4 +58,18 @@ describe("getSyncedMaskPainter", () => {
     expect(a).not.toBe(b);
     expect(entries.size).toBe(2);
   });
+
+  it("starts with lastPoint null (no interpolation context yet)", () => {
+    const entries = new Map<string, MaskPainterEntry>();
+    const entry = getSyncedMaskPainter(entries, "layer-1", null, 4, 4);
+    expect(entry.lastPoint).toBeNull();
+  });
+
+  it("re-seeding (undo/redo between strokes) resets lastPoint, discarding a stale interpolation anchor", () => {
+    const entries = new Map<string, MaskPainterEntry>();
+    const before = getSyncedMaskPainter(entries, "layer-1", new Uint8Array(4 * 4), 4, 4);
+    before.lastPoint = { x: 2, y: 2 };
+    const after = getSyncedMaskPainter(entries, "layer-1", new Uint8Array(4 * 4).fill(50), 4, 4);
+    expect(after.lastPoint).toBeNull();
+  });
 });

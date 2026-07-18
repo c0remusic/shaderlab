@@ -218,7 +218,15 @@ export default function App() {
       imageSize.width,
       imageSize.height
     );
-    const dirtyRect = entry.painter.paintStroke(x, y, brushSize, brushHardness, erase);
+    // Interpolate from the last painted point when one exists (a real drag
+    // fires far fewer coalesced samples than the raw pointer path — without
+    // this, fast strokes leave visible gaps between isolated brush dabs,
+    // reported live 2026-07-18). The stroke's very first point has no
+    // anchor yet, so it paints a single dab like before.
+    const dirtyRect = entry.lastPoint
+      ? entry.painter.paintLine(entry.lastPoint.x, entry.lastPoint.y, x, y, brushSize, brushHardness, erase)
+      : entry.painter.paintStroke(x, y, brushSize, brushHardness, erase);
+    entry.lastPoint = { x, y };
     // Live preview only: render straight from the painter's own buffer via
     // a GPU texture upload, WITHOUT going through LayerStack.updateMask()'s
     // immutable-copy semantics on every sample. That copy (~26MB per call on
@@ -248,6 +256,7 @@ export default function App() {
     if (!selectedId) return;
     const entry = maskPaintersRef.current.get(selectedId);
     if (!entry) return;
+    entry.lastPoint = null; // next stroke's first point has no interpolation anchor
     const stack = currentStack();
     // The one and only immutable-copy update for this stroke — see the
     // comment in handleMaskStroke for why this is deferred to stroke-end.

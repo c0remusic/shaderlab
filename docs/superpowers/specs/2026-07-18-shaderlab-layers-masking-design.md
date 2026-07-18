@@ -159,7 +159,9 @@ Modèle de textures (toutes r8, hors chaîne couleur) :
   4. **Refine edge** (feather / contracter-dilater / lisser) = passes shader sur le
      résultat foldé, **live** (`mask.refineEdge`, ré-appliqué à chaque changement).
      Forme du masque seulement, indépendant de l'image (décontamination écartée, PRD).
-  `mask.enabled === false` ⟹ pas de fold, l'effet est appliqué sans masque.
+  `mask.enabled === false` ⟹ pas de fold, l'effet est appliqué sans masque. **Idem si
+  AUCUNE source n'est `enabled`** (pas de seed possible) ⟹ masque plein, effet non
+  masqué (jamais de comportement indéfini / masque nul silencieux).
 
 **Impact honnête sur le crash 24MP** : le dirty-rect d'upload ne change pas, MAIS le
 **rendu gagne des passes de fold GPU** sur exactement le chemin qui a le crash 24MP

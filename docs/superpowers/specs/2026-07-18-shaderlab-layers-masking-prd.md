@@ -39,6 +39,10 @@ dégrader la fidélité de l'empilement ni la fluidité du geste.
 
 ## Comportements (quand X → Y)
 
+> **« Vague 1 »** = le périmètre livré par cette feature (ce PRD). Les sources
+> marquées « vague 1 » sont dans le scope ; la section **Différé** liste ce qui est
+> repoussé à une vague ultérieure, chacun avec son trigger de réouverture nommé.
+
 ### Calques
 
 - Quand j'ajuste l'opacité d'un calque → son effet s'atténue proportionnellement,
@@ -48,6 +52,10 @@ dégrader la fidélité de l'empilement ni la fluidité du geste.
   au logiciel de référence.
 - Quand je réordonne / duplique / nomme / groupe des calques → la pile reste
   lisible et chaque action est annulable.
+- Quand je groupe des calques → **le groupe est un conteneur à part entière** :
+  il a **sa propre opacité, son propre mode de fusion et son propre masque**, qui
+  s'appliquent au **résultat aplati de ses enfants** (modèle Photoshop, compositing
+  imbriqué). Plier/déplier un groupe ne change pas le rendu.
 
 ### Masques — modèle de composition
 
@@ -57,7 +65,9 @@ dégrader la fidélité de l'empilement ni la fluidité du geste.
 - Quand j'ajoute une source à un masque → je choisis son **mode de combinaison** :
   **Ajouter** (union), **Soustraire**, ou **Intersecter** avec ce qui est déjà là.
 - Quand je gère un masque → le voir (overlay), l'inverser, le désactiver, le
-  copier vers un autre calque.
+  copier vers un autre calque. **La copie est indépendante et figée** : le masque
+  est dupliqué tel quel à l'instant de la copie, puis chacun vit sa vie (modifier
+  l'un ne touche pas l'autre — pas de lien synchronisé).
 - Quand je réordonne un calque → son masque le suit (une seule action annulable).
 
 ### Masques — sources (vague 1)
@@ -66,16 +76,21 @@ dégrader la fidélité de l'empilement ni la fluidité du geste.
 - **Dégradé** linéaire/radial : angle, points de départ/fin, feather, inversion.
 - **Luminosité / plage tonale** : masquer selon les tons de la photo (ombres / tons
   moyens / hautes lumières), avec courbe de tolérance.
-- **Range mask couleur** : je pointe une (ou plusieurs) couleur(s) de référence, un
+- **Range mask couleur** : je pointe une couleur de référence dans la photo, un
   curseur de **tolérance / dureté** génère un **masque continu** (pas binaire) qui
-  suit cette couleur dans la photo. Distinct du masque luminosité.
+  suit cette couleur. Je peux **cumuler plusieurs prélèvements dans la MÊME source
+  couleur** (comme Lightroom : plusieurs échantillons fusionnés, une seule
+  tolérance/dureté globale gouverne l'ensemble) — utile pour une plage de tons
+  proches (ex. un ciel dégradé). Distinct du masque luminosité.
 
 ### Masques — affinage (vague 1)
 
 - **Refine edge (forme du masque seulement)** : appliquer à **n'importe quel
   masque**, quelle que soit sa source — **feather** (adoucir le bord),
   **contracter / dilater** le bord, **lisser**. Opère sur le masque lui-même,
-  indépendamment de l'image.
+  indépendamment de l'image. C'est un **ajustement live sur le masque combiné
+  final** (pas cuit dans une source) : si j'ajoute une source ensuite, le refine
+  edge se ré-applique au nouveau résultat combiné.
 
 ### Présentation UI
 
@@ -158,6 +173,9 @@ affirmé sans avoir été vu) :
 1. Démontrer opacité + les ~12 modes de fusion sur une **pile réelle**, comparés
    **visuellement** à un logiciel de référence (mêmes résultats).
 2. Démontrer réordonner / dupliquer / grouper + undo, le masque suivant le calque.
+   Pour un **groupe**, démontrer que son opacité / blend / masque s'appliquent bien
+   au résultat aplati de ses enfants (comparé visuellement à un logiciel de
+   référence).
 
 ### Masquage (delta 2026-07-18)
 
@@ -189,6 +207,13 @@ Déduits de l'usage, validés en fin d'interview (2026-07-16 puis 2026-07-18) :
   explicite (formule linéaire assumée, ou conversion ciblée par mode).
 - **Opacité + `blendMode`** : à ajouter au modèle `LayerState` (aujourd'hui
   absents) et à l'historique (une entrée par ajustement, borné).
+- **Groupe = conteneur avec compositing imbriqué** (opacité/blend/masque propres
+  sur le résultat aplati des enfants). ⚠️ **Pièce la plus lourde de la vague** :
+  introduit un vrai niveau de compositing imbriqué (aplatir un sous-arbre de
+  calques avant d'appliquer opacité/blend/masque du groupe) — le brainstorming
+  devra décider s'il constitue une **tranche d'implémentation séparée** (le reste
+  de la vague — blend par calque, masques combinables — ne dépend pas des groupes
+  et peut se livrer/valider avant).
 - **Pinceau Photoshop-grade** : enrichir `MaskPainter` (flow, courbe de dureté) en
   gardant le 60fps comme plancher dur.
 - **Organisation UI** : partir de l'inspecteur droit actuel (3 sections), itérer

@@ -12,9 +12,11 @@ import { Toolbar } from "./components/Toolbar";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { exportImage, resolveExportTarget } from "./export/exportImage";
 import { getLaunchPath, readImageFile, pickImageFile } from "./launch";
+import { useGlobalControlWheel } from "./ui/activeControl";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 
 export default function App() {
+  useGlobalControlWheel();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gpuRef = useRef<GpuContext | null>(null);
   const rendererRef = useRef<Renderer | null>(null);

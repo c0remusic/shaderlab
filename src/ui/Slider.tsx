@@ -1,5 +1,6 @@
-import { useId } from "react";
+import { useId, useEffect, useRef } from "react";
 import { formatControlValue } from "./formatValue";
+import { registerControl, unregisterControl, markControlActive, wheelTickValue } from "./activeControl";
 
 export interface SliderProps {
   label: string;
@@ -49,6 +50,27 @@ export function Slider({
   const id = useId();
   const shownValue = displayValue ?? formatControlValue(value, step);
 
+  // Registre du "dernier contrôle modifié" (Ctrl+molette global, voir
+  // activeControl.ts) — réécrit à chaque rendu, toujours frais.
+  registerControl(id, { value, min, max, step, onChange, onCommit });
+  useEffect(() => () => unregisterControl(id), [id]);
+
+  // Molette survolée = ajuste directement (1% de la plage par cran). Le
+  // commit (historique) est différé : une seule entrée après la dernière
+  // molette, pas une par cran (même logique "une entrée par interaction"
+  // que le drag).
+  const wheelCommitTimer = useRef<number | undefined>(undefined);
+  function handleWheel(event: React.WheelEvent<HTMLInputElement>) {
+    if (disabled) return;
+    event.preventDefault();
+    onChange(wheelTickValue({ value, min, max }, event.deltaY));
+    markControlActive(id);
+    if (onCommit) {
+      window.clearTimeout(wheelCommitTimer.current);
+      wheelCommitTimer.current = window.setTimeout(onCommit, 400);
+    }
+  }
+
   return (
     <div className={`ui-slider ${disabled ? "ui-slider--disabled" : ""}`.trim()}>
       <div className="ui-slider__row">
@@ -66,11 +88,15 @@ export function Slider({
         step={step}
         value={value}
         disabled={disabled}
-        onChange={(event) => onChange(event.target.valueAsNumber)}
+        onChange={(event) => {
+          onChange(event.target.valueAsNumber);
+          markControlActive(id);
+        }}
         onPointerUp={onCommit}
         onKeyUp={(event) => {
           if (onCommit && COMMIT_KEYS.has(event.key)) onCommit();
         }}
+        onWheel={handleWheel}
       />
     </div>
   );

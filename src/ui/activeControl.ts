@@ -47,11 +47,16 @@ function roundClean(n: number): number {
   return Math.round(n * 1e6) / 1e6;
 }
 
-/** Un cran de molette = 1% de la plage (max-min), indépendant du `step`
- *  déclaré (permet d'avancer vite sur les grandes plages comme Taille 2-200). */
+/** Un cran normal de molette (magnitude ~100, un clic de molette physique) =
+ *  1% de la plage (max-min), indépendant du `step` déclaré. Un scroll plus
+ *  FORT/RAPIDE (deltaY plus grand — molette qui s'emballe, ou trackpad)
+ *  avance proportionnellement plus vite, jusqu'à 5% par évènement — parcourir
+ *  toute la plage d'un slider à la molette ne demande plus des dizaines de
+ *  crans (retour direct : "trop long de scroller toute la barre"). */
 export function wheelTickValue(handle: Pick<ControlHandle, "value" | "min" | "max">, deltaY: number): number {
   const direction = deltaY < 0 ? 1 : -1; // molette vers le haut = augmente
-  const tick = (handle.max - handle.min) * 0.01;
+  const magnitude = Math.min(5, Math.max(1, Math.abs(deltaY) / 100));
+  const tick = (handle.max - handle.min) * 0.01 * magnitude;
   return roundClean(Math.min(handle.max, Math.max(handle.min, handle.value + direction * tick)));
 }
 

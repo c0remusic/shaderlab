@@ -37,4 +37,20 @@ describe("wheelTickValue", () => {
     // 1% de (1-0) = 0.01 -> 0.51 exact, pas 0.51000000000000001
     expect(next.toString().length).toBeLessThanOrEqual(4);
   });
+
+  it("un scroll plus fort (deltaY plus grand) avance proportionnellement plus vite", () => {
+    const notch = wheelTickValue({ value: 50, min: 0, max: 100 }, -100); // ~1 cran physique
+    const strong = wheelTickValue({ value: 50, min: 0, max: 100 }, -300); // scroll fort
+    expect(strong - 50).toBeGreaterThan(notch - 50);
+  });
+
+  it("plafonne à 5% de la plage par évènement, même pour un deltaY très grand", () => {
+    const next = wheelTickValue({ value: 50, min: 0, max: 100 }, -5000);
+    expect(next).toBeCloseTo(55, 6); // 5% de 100 = 5, jamais plus en un seul évènement
+  });
+
+  it("un tout petit deltaY (trackpad) reste au minimum 1% (pas de micro-pas inutiles)", () => {
+    const next = wheelTickValue({ value: 50, min: 0, max: 100 }, -5);
+    expect(next).toBeCloseTo(51, 6);
+  });
 });

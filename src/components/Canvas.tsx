@@ -1,4 +1,4 @@
-import { forwardRef, useRef } from "react";
+import { forwardRef, useRef, useEffect } from "react";
 
 interface Props {
   onFileDropped: (file: File) => void;
@@ -19,11 +19,18 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
   const isPaintingRef = useRef(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const cursorRef = useRef<HTMLDivElement>(null);
+  // Dernière position souris connue (coordonnées écran), pour pouvoir
+  // recalculer le curseur SANS bouger la souris — voir l'effet ci-dessous.
+  const lastPointerScreenRef = useRef<{ clientX: number; clientY: number } | null>(null);
 
   // Curseur pinceau custom (type Adobe) : un cercle dimensionné au rayon du
   // pinceau qui suit la souris en mode masque. Positionné par manipulation DOM
   // directe (pas de state React) pour rester fluide à la fréquence pointermove.
-  function updateCursor(e: React.PointerEvent<HTMLCanvasElement>) {
+  // Ne pilote QUE taille/position/dureté — la visibilité (opacity) est gérée
+  // séparément par les appelants (show au move/enter, hide au leave), pour que
+  // l'effet ci-dessous puisse rafraîchir taille/position sans forcer
+  // l'affichage d'un curseur actuellement caché.
+  function updateCursorGeometry(clientX: number, clientY: number) {
     const canvas = (ref as React.RefObject<HTMLCanvasElement>).current;
     const stage = stageRef.current;
     const cursor = cursorRef.current;
@@ -36,16 +43,30 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
     const diameter = screenRadius * 2;
     cursor.style.width = `${diameter}px`;
     cursor.style.height = `${diameter}px`;
-    cursor.style.left = `${e.clientX - stageRect.left}px`;
-    cursor.style.top = `${e.clientY - stageRect.top}px`;
+    cursor.style.left = `${clientX - stageRect.left}px`;
+    cursor.style.top = `${clientY - stageRect.top}px`;
     // Anneau interne = fraction à pleine force (dureté).
     cursor.style.setProperty("--brush-hardness", `${Math.round(brushHardness * 100)}%`);
-    cursor.style.opacity = "1";
+  }
+
+  function updateCursor(e: React.PointerEvent<HTMLCanvasElement>) {
+    lastPointerScreenRef.current = { clientX: e.clientX, clientY: e.clientY };
+    updateCursorGeometry(e.clientX, e.clientY);
+    if (cursorRef.current) cursorRef.current.style.opacity = "1";
   }
 
   function hideCursor() {
     if (cursorRef.current) cursorRef.current.style.opacity = "0";
   }
+
+  // Taille/dureté du pinceau réglées via les sliders (souris ailleurs, pas sur
+  // le canvas) doivent se refléter sur le curseur IMMÉDIATEMENT, pas seulement
+  // au prochain mouvement de souris — on rejoue la dernière position connue.
+  useEffect(() => {
+    const last = lastPointerScreenRef.current;
+    if (last) updateCursorGeometry(last.clientX, last.clientY);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brushSize, brushHardness]);
 
   // Coalesce mask painting to one paint+render per animation frame.
   //
@@ -122,6 +143,24 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
         onPointerDown={(e) => {
           if (!maskPaintMode) return;
           isPaintingRef.current = true;
+          // Capture le pointeur : pointermove/pointerup continuent de cibler
+          // le canvas même quand le curseur sort de ses bornes pendant qu'on
+          // peint (bouton maintenu) — sans ça, sortir du canvas en peignant
+          // interrompait le trait, obligeant à recliquer pour continuer.
+          // try/catch délibéré : setPointerCapture peut lever NotFoundError
+          // dans certaines circonstances (constaté avec des PointerEvent
+          // synthétiques en test CDP — le pointeur n'est pas reconnu comme
+          // "actif" par le moteur). La capture est un confort auxiliaire ; son
+          // échec ne doit PAS empêcher l'action réellement critique (peindre)
+          // qui suit — sans ce catch, l'exception non gérée avortait le
+          // handler avant le premier tampon du trait, le faisant sauter en
+          // silence.
+          try {
+            e.currentTarget.setPointerCapture(e.pointerId);
+          } catch {
+            // best-effort : le trait continuera à fonctionner normalement
+            // tant qu'on ne quitte pas les bornes du canvas pendant qu'on peint.
+          }
           const pt = toImageCoords(e);
           // The stroke's first point paints immediately (no coalescing) so
           // there's no visible input lag on press.
@@ -132,14 +171,24 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
           updateCursor(e);
           if (!isPaintingRef.current) return;
           const pt = toImageCoords(e);
+          // Pas de clamp ici : un point hors bornes reste valide, les dabs
+          // du pinceau se clampent déjà aux bords de l'image (MaskPainter).
           if (pt) schedulePaint(pt.x, pt.y);
         }}
         onPointerEnter={(e) => {
           if (maskPaintMode) updateCursor(e);
         }}
-        onPointerUp={endStroke}
-        onPointerLeave={() => {
+        onPointerUp={(e) => {
           endStroke();
+          if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+            e.currentTarget.releasePointerCapture(e.pointerId);
+          }
+        }}
+        onPointerLeave={() => {
+          // Ne termine PAS le trait : grâce au pointer capture, peindre
+          // continue hors du canvas tant que le bouton est maintenu (voir
+          // onPointerUp). Seul le curseur visuel custom se cache — le vrai
+          // curseur OS prend le relais hors de notre zone dessinée.
           hideCursor();
         }}
       />

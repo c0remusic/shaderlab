@@ -10,6 +10,12 @@
   ],
   "specs": [
     {
+      "path": "docs/superpowers/specs/2026-07-18-shaderlab-canvas-pan-zoom-prd.md",
+      "date": "2026-07-18",
+      "topic": "PRD pan/zoom du canvas (skill interview)",
+      "summary": "Produit par le skill interview (mode FEATURE), nourrit superpowers:brainstorming. Cadre le pan/zoom du canvas (aujourd'hui absent : Canvas.tsx 1:1 avec la taille CSS, aucune transform). Comportements : zoom molette centré curseur + boutons UI %, plafond 100% (pixel natif, pas au-delà), pan Espace+glisser borné (image jamais entièrement hors champ), fit-to-screen à l'ouverture + raccourci reset, minimap indicateur apparaissant seulement au-delà du fit. Planchers durs : 60fps pendant le geste (même chiffre que le pinceau), peinture pixel-exacte à tout niveau de zoom. Hors-scope : rotation/flip, zoom >100%, tactile/pincer, minimap cliquable. Choix technique déduit validé : transform CSS sur le <canvas> (rendu GPU reste natif, zéro impact qualité), toImageCoords inverse la transform pour garder le pinceau exact. Point ouvert pour le brainstorming : comportement au resize fenêtre (préserver l'état zoomé re-clampé vs retomber au fit)."
+    },
+    {
       "path": "docs/superpowers/specs/2026-07-17-native-wgpu-decision.md",
       "date": "2026-07-17",
       "topic": "décision de scope : rendu natif wgpu/Rust vs browser-WebGPU face au crash de peinture au masque à 24MP — MISE À JOUR : cause réelle trouvée, catégorie (A) pas (C)",

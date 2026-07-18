@@ -15,12 +15,6 @@ export interface InspectorProps {
   onParamCommit: () => void;
   maskPaintMode: boolean;
   onToggleMaskPaint: () => void;
-  brushSize: number;
-  onBrushSizeChange: (v: number) => void;
-  brushHardness: number;
-  onBrushHardnessChange: (v: number) => void;
-  erase: boolean;
-  onEraseChange: (v: boolean) => void;
 }
 
 export function Inspector({
@@ -36,12 +30,6 @@ export function Inspector({
   onParamCommit,
   maskPaintMode,
   onToggleMaskPaint,
-  brushSize,
-  onBrushSizeChange,
-  brushHardness,
-  onBrushHardnessChange,
-  erase,
-  onEraseChange,
 }: InspectorProps) {
   return (
     <aside className="inspector" aria-label="Inspecteur">
@@ -69,12 +57,6 @@ export function Inspector({
           onParamCommit={onParamCommit}
           maskPaintMode={maskPaintMode}
           onToggleMaskPaint={onToggleMaskPaint}
-          brushSize={brushSize}
-          onBrushSizeChange={onBrushSizeChange}
-          brushHardness={brushHardness}
-          onBrushHardnessChange={onBrushHardnessChange}
-          erase={erase}
-          onEraseChange={onEraseChange}
         />
       </section>
     </aside>

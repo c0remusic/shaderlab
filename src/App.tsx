@@ -6,6 +6,7 @@ import { History } from "./layers/history";
 import type { LayerState } from "./layers/types";
 import { toDisplayLayers } from "./layers/displayProjection";
 import { Inspector } from "./components/Inspector";
+import { BrushToolbar } from "./components/BrushToolbar";
 import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
 import { ErrorBanner } from "./components/ErrorBanner";
@@ -302,6 +303,17 @@ export default function App() {
         onOpenFile={handleOpenFile}
       />
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+      {maskPaintMode && (
+        <BrushToolbar
+          brushSize={brushSize}
+          onBrushSizeChange={setBrushSize}
+          brushHardness={brushHardness}
+          onBrushHardnessChange={setBrushHardness}
+          erase={erase}
+          onEraseChange={setErase}
+          onStop={() => setMaskPaintMode(false)}
+        />
+      )}
       <main className="workspace">
         <Canvas
           ref={canvasRef}
@@ -325,12 +337,6 @@ export default function App() {
           onParamCommit={handleParamCommit}
           maskPaintMode={maskPaintMode}
           onToggleMaskPaint={() => setMaskPaintMode((v) => !v)}
-          brushSize={brushSize}
-          onBrushSizeChange={setBrushSize}
-          brushHardness={brushHardness}
-          onBrushHardnessChange={setBrushHardness}
-          erase={erase}
-          onEraseChange={setErase}
         />
       </main>
     </div>

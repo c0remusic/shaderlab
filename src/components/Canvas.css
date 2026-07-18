@@ -50,3 +50,18 @@
   border-radius: var(--radius-round);
   border: 1px dashed rgba(236, 224, 207, 0.45);
 }
+
+/* Point central : vise précisément même quand l'anneau est petit à
+   fit-to-screen (un pinceau fin sur une grande image = anneau minuscule). */
+.canvas-stage__brush-cursor::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  transform: translate(-50%, -50%);
+  border-radius: var(--radius-round);
+  background: var(--mask-overlay-edge);
+  box-shadow: 0 0 0 1px rgba(8, 7, 6, 0.55);
+}

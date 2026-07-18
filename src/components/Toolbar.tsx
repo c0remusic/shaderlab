@@ -1,6 +1,6 @@
 import { Download, FolderOpen, Redo2, Undo2 } from "lucide-react";
-import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
+import { Menu } from "../ui/Menu";
 
 interface Props {
   canUndo: boolean;
@@ -14,10 +14,24 @@ interface Props {
 export function Toolbar({ canUndo, canRedo, onUndo, onRedo, onExport, onOpenFile }: Props) {
   return (
     <div className="toolbar" role="toolbar" aria-label="Barre d'outils">
-      <Button variant="secondary" onClick={onOpenFile}>
-        <FolderOpen size={16} strokeWidth={1.5} aria-hidden="true" />
-        Ouvrir
-      </Button>
+      <Menu
+        label="Fichier"
+        variant="secondary"
+        items={[
+          {
+            value: "open",
+            label: "Ouvrir",
+            icon: <FolderOpen size={16} strokeWidth={1.5} aria-hidden="true" />,
+            onSelect: onOpenFile,
+          },
+          {
+            value: "export",
+            label: "Exporter",
+            icon: <Download size={16} strokeWidth={1.5} aria-hidden="true" />,
+            onSelect: onExport,
+          },
+        ]}
+      />
       <IconButton
         label="Annuler"
         tooltip="Annuler (Ctrl+Z)"
@@ -35,10 +49,6 @@ export function Toolbar({ canUndo, canRedo, onUndo, onRedo, onExport, onOpenFile
         <Redo2 size={16} strokeWidth={1.5} aria-hidden="true" />
       </IconButton>
       <div className="toolbar__spacer" />
-      <Button variant="primary" onClick={onExport}>
-        <Download size={16} strokeWidth={1.5} aria-hidden="true" />
-        Exporter
-      </Button>
     </div>
   );
 }

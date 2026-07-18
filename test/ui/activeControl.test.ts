@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { wheelTickValue } from "../../src/ui/activeControl";
+import {
+  wheelTickValue,
+  registerControl,
+  unregisterControl,
+  markControlActive,
+  getActiveControl,
+} from "../../src/ui/activeControl";
 
 describe("wheelTickValue", () => {
   it("molette vers le haut (deltaY négatif) augmente la valeur", () => {
@@ -52,5 +58,37 @@ describe("wheelTickValue", () => {
   it("un tout petit deltaY (trackpad) reste au minimum 1% (pas de micro-pas inutiles)", () => {
     const next = wheelTickValue({ value: 50, min: 0, max: 100 }, -5);
     expect(next).toBeCloseTo(51, 6);
+  });
+});
+
+describe("registre du contrôle actif (register/mark/unregister)", () => {
+  const handle = { value: 10, min: 0, max: 100, step: 1, onChange: () => {} };
+
+  it("aucun contrôle actif au départ (id jamais marqué)", () => {
+    expect(getActiveControl()).toBeNull();
+  });
+
+  it("markControlActive rend le handle récupérable par getActiveControl", () => {
+    registerControl("ctrl-1", handle);
+    markControlActive("ctrl-1");
+    expect(getActiveControl()).toBe(handle);
+    unregisterControl("ctrl-1");
+  });
+
+  it("unregisterControl retire le handle : Ctrl+molette après démontage ne trouve plus rien", () => {
+    registerControl("ctrl-2", handle);
+    markControlActive("ctrl-2");
+    expect(getActiveControl()).toBe(handle);
+    unregisterControl("ctrl-2"); // simule le démontage du Slider (cleanup useEffect)
+    expect(getActiveControl()).toBeNull();
+  });
+
+  it("registerControl réécrit le handle d'un id déjà actif avec les valeurs fraîches (re-render)", () => {
+    registerControl("ctrl-3", handle);
+    markControlActive("ctrl-3");
+    const updated = { ...handle, value: 42 };
+    registerControl("ctrl-3", updated); // ré-enregistrement au rendu suivant
+    expect(getActiveControl()).toBe(updated);
+    unregisterControl("ctrl-3");
   });
 });

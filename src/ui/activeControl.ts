@@ -38,7 +38,10 @@ export function markControlActive(id: string): void {
   activeId = id;
 }
 
-function getActiveControl(): ControlHandle | null {
+/** Exportée pour les tests (logique pure, pas de rendu de hook React) —
+ *  reste un détail interne pour le reste de l'app, seul `useGlobalControlWheel`
+ *  la consomme en usage réel. */
+export function getActiveControl(): ControlHandle | null {
   return activeId ? (handles.get(activeId) ?? null) : null;
 }
 

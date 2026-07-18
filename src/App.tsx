@@ -206,6 +206,22 @@ export default function App() {
     commit(currentStack());
   }
 
+  function handleOpacityChange(id: string, opacity: number) {
+    paramDirtyRef.current = true;
+    const stack = currentStack();
+    const layer = stack.layers.find((l) => l.id === id);
+    if (layer) layer.opacity = opacity;
+    syncLayers(stack.layers);
+    rendererRef.current?.requestRender(stack.layers);
+  }
+
+  function handleBlendModeChange(id: string, blendMode: string) {
+    const stack = currentStack();
+    const layer = stack.layers.find((l) => l.id === id);
+    if (layer) layer.blendMode = blendMode;
+    commit(stack); // changement discret → une entrée d'historique directe
+  }
+
   function handleMaskStroke(x: number, y: number) {
     if (!selectedId || imageSize.width === 0) return;
     // maskData depuis layersRef (complet) — le state `layers` est la projection
@@ -346,6 +362,9 @@ export default function App() {
           layer={selectedLayer}
           onParamChange={handleParamChange}
           onParamCommit={handleParamCommit}
+          onOpacityChange={handleOpacityChange}
+          onOpacityCommit={handleParamCommit}
+          onBlendModeChange={handleBlendModeChange}
           maskPaintMode={maskPaintMode}
           onToggleMaskPaint={() => setMaskPaintMode((v) => !v)}
         />

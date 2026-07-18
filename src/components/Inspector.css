@@ -139,6 +139,13 @@
   color: var(--text-tertiary);
 }
 
+.param-panel__hint {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
 .param-panel__effect-name {
   margin: 0;
   font-family: var(--font-ui);

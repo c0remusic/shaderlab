@@ -45,9 +45,15 @@ export function ParamPanel({
       </Disclosure>
       <Disclosure title="Masque" defaultOpen>
         <div className="param-panel__group">
-          <Button variant={maskPaintMode ? "primary" : "secondary"} onClick={onToggleMaskPaint}>
-            {maskPaintMode ? "Arrêter de peindre" : "Peindre le masque"}
-          </Button>
+          {maskPaintMode ? (
+            <p className="param-panel__hint">
+              Mode peinture actif — utilise « Terminer » dans la barre d'outils du pinceau.
+            </p>
+          ) : (
+            <Button variant="secondary" onClick={onToggleMaskPaint}>
+              Peindre le masque
+            </Button>
+          )}
           {/* Les réglages du pinceau (taille/dureté/gomme) vivent dans la
               barre d'options du pinceau (BrushToolbar), affichée en mode
               masque — pas ici, pour éviter la duplication. */}

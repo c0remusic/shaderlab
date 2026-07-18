@@ -47,9 +47,13 @@ Vite · **WebGPU/WGSL brut** (pas de lib de rendu) · Vitest (Node env, aucun
 test ne rend de composant React — même convention que track-finder).
 
 Décisions techniques verrouillées (voir design.md pour les preuves) :
-- **Toutes les textures couleur en `rgba8unorm-srgb`** — conversion
-  sRGB↔linéaire automatique par le format, JAMAIS de gamma manuel en WGSL.
-  Sans ça, glow/grain/blur sont mathématiquement faux (constat d'audit).
+- **Toutes les textures couleur au format sRGB préféré de la plateforme**
+  (`${navigator.gpu.getPreferredCanvasFormat()}-srgb` — donc `bgra8unorm-srgb`
+  sur Windows/D3D12, `rgba8unorm-srgb` ailleurs ; voir `gpuContext.ts:68-69`) —
+  conversion sRGB↔linéaire automatique par le format, JAMAIS de gamma manuel en
+  WGSL. Sans ça, glow/grain/blur sont mathématiquement faux (constat d'audit).
+  (Le canal ordre bgra vs rgba est transparent en WGSL via `textureSample` ;
+  ne jamais coder `rgba8unorm-srgb` en dur — c'est faux sur Windows.)
 - **Pas de distinction preview/export** — un seul pipeline, résolution
   native, toujours (décision utilisateur explicite, pas de downscale).
 - JPEG traité comme sRGB, pas de lecture de profil ICC en v1 (limitation

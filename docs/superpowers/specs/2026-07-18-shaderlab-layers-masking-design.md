@@ -248,9 +248,10 @@ réouverture : si le besoin d'un groupe transparent au compositing apparaît.)
    Indépendant du masque. **Sûr, haute valeur, livrable/validable en premier.**
 2. **Masque non-destructif : refonte modèle + fold GPU** (§3-5) — `maskData → mask:
    LayerMask`, pipeline de fold GPU résident, extension History (refcount multi-raster).
-   Le **mécanisme d'upload dirty-rect est préservé**, MAIS le rendu **gagne une passe
-   de fold GPU** sur le chemin du crash 24MP ⟹ **tranche GATED** par le garde-fou
-   systematic-debugging (voir §Sécurité crash). Base pour les sources.
+   Le **mécanisme d'upload dirty-rect est préservé** ; le rendu gagne une passe de
+   fold GPU. ✅ Le gate crash est **levé** (crash 24MP résolu, `e3c7584`) — règle
+   de conception héritée : garder les gros buffers de masque hors du state React
+   (voir §Sécurité crash). Base pour les sources.
 3. **Sources paramétriques** (§3-4) — dégradé, luminosité, range couleur, comme
    `MaskSourceModule` + **refine edge**.
 4. **Panneau Masques flottant** (§6) — l'UX qui expose 2 + 3 (drag/magnétisme/repli,
@@ -260,11 +261,23 @@ réouverture : si le besoin d'un groupe transparent au compositing apparaît.)
 
 Chaque tranche traverse UI → logique → rendu et finit par un checkpoint visuel humain.
 
-## Sécurité crash (contrainte projet) — GATE sur la tranche 2
+## Sécurité crash (contrainte projet) — ✅ GATE LEVÉ le 2026-07-18
 
-Le crash de peinture au masque à 24MP est **non résolu** après 3 tentatives de fix
-(seuil systematic-debugging atteint — voir `2026-07-17-native-wgpu-decision.md`,
-déclencheur documenté : `setLayers()` / render de texture résidente en fin de stroke).
+> **Le crash 24MP est RÉSOLU** (`e3c7584`). Root cause trouvée par A/B live :
+> ce n'était pas le GPU mais le **buffer `maskData` 26 Mo transitant par le state
+> React** (voir `2026-07-17-native-wgpu-decision.md`, bandeau RÉSOLU). Fix :
+> `maskData` hors du state React (`layersRef` complet + projection d'affichage
+> `toDisplayLayers`). **Contrainte qui en découle pour les tranches 2-5** : garder
+> les gros buffers/textures de masque HORS du state React — ce que ce design vise
+> déjà (source de vérité en ref, textures GPU résidentes, fold sur GPU). Le fold
+> GPU (§4) ne ré-introduit pas de gros buffer dans React. **Le gate sur la
+> tranche 2 est levé** ; la contrainte ci-dessous devient une règle de conception,
+> pas un blocage.
+
+Le crash de peinture au masque à 24MP **était non résolu** au moment de la 1ère
+rédaction de ce design (3 tentatives de fix échouées, seuil systematic-debugging —
+voir `2026-07-17-native-wgpu-decision.md`, déclencheur : `setLayers()` en fin de
+stroke). Il est **désormais résolu** (bandeau ci-dessus).
 
 **Correction d'une affirmation fausse de la v1 de ce design** (revue adverse
 2026-07-18) : le fold GPU (§4) ajoute une passe de rendu masque **sur ce même chemin**.
@@ -326,8 +339,8 @@ Style existant (logique pure, aucun rendu React/WebGPU en test — cohérent ave
 
 ---
 
-**Prochaine étape** : **seule la tranche 1** (blend + opacité par calque) est prête
-pour `superpowers:writing-plans` — sûre, exacte, indépendante du masque, hors du gate
-crash. Les **tranches 2-5 sont bloquées** tant que le gate crash 24MP (§Sécurité crash)
-et le budget VRAM (§5) ne sont pas tranchés avec Antoine. Ne pas écrire leurs plans
-avant.
+**Prochaine étape** : la **tranche 1** (blend + opacité par calque) part en premier
+sur `superpowers:writing-plans` — sûre, exacte, indépendante du masque. Le **gate
+crash 24MP est levé** (`e3c7584`) : les tranches 2-5 ne sont plus bloquées, sous la
+règle de conception « gros buffers de masque hors du state React » (§Sécurité crash)
+et avec le budget VRAM du fold à mesurer à l'usage (§5). Séquencer 2→3→4→5 après la 1.

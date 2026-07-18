@@ -1,5 +1,30 @@
 # Scope decision: does the mask-paint GPU crash justify moving to native wgpu/Rust?
 
+> ## ✅ RÉSOLU le 2026-07-18 — ce n'était PAS un problème GPU
+>
+> Root cause trouvée par A/B live sur la vraie fenêtre WebView2 (CDP, image
+> synthétique 24MP) : **le crash vient du buffer `maskData` r8 pleine résolution
+> (~26 Mo à 24MP) transitant par le state React**, qui fait hanger WebView2 au
+> re-render déclenché par `setLayers()` en fin de stroke. Discriminateur prouvé :
+> `setLayers()` SANS masque (ajout de calque) à 24MP ne crashe pas ; AVEC le
+> buffer 26 Mo il crashe ; ne pas appeler `setLayers()` ne crashe pas. Ce n'est
+> donc **ni le GPU** (le `requestRender` avec le masque complet est OK dans les
+> deux cas) **ni le re-render en soi**, mais le buffer 26 Mo dans l'état React.
+> Ça explique pourquoi les 3 fix précédents (dirty-rect, GPU-copy, wait-for-idle)
+> échouaient : ils ciblaient le GPU/timing.
+>
+> **Fix livré** (`e3c7584`, `feature/design-system`) : `layersRef` = source de
+> vérité complète (avec `maskData`) pour rendu/historique/export ; le state React
+> n'est qu'une projection d'affichage SANS `maskData` (`src/layers/
+> displayProjection.ts`, `toDisplayLayers`). `setLayers()` reste appelé (UI
+> correcte) mais ne porte plus le buffer. Vérifié en live à 24MP : peinture au
+> masque sans crash, UI correcte (screenshot CDP). +6 tests de régression.
+>
+> **Conclusion de scope confirmée** : le port natif wgpu/Rust n'était PAS
+> pertinent — la cause était côté état React, pas côté rendu. Le reste de ce
+> document (analyse GPU/compositeur) est conservé comme trace de l'investigation
+> qui a mené à écarter la piste GPU.
+
 Date: 2026-07-17. Updated same day after live CDP experimentation (see §1.5) —
 the initial version of this document (compositor/driver hypothesis, category
 C) is **superseded** by the findings below. No code changes remain from this

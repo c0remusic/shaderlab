@@ -1,5 +1,12 @@
 # PRD — Système de calques de shaderlab
 
+> ⚠️ **SUPERSEDED le 2026-07-18** par
+> `2026-07-18-shaderlab-layers-masking-prd.md` (PRD full-scope consolidé qui
+> absorbe tout ce contenu et ajoute le delta masquage/sélection : modèle de
+> composition combinable, range mask couleur, refine edge, triage des différés).
+> Ce fichier est conservé comme trace de l'interview du 2026-07-16 ; ne plus le
+> nourrir — travailler sur le PRD consolidé.
+>
 > Produit par le skill `interview` (le QUOI, usage). Nourrit
 > `superpowers:brainstorming` (le COMMENT). Mode FEATURE + préambule planchers.
 > Interview réelle avec Antoine, 2026-07-16.

@@ -92,6 +92,12 @@
   ],
   "plans": [
     {
+      "path": "docs/superpowers/plans/2026-07-18-shaderlab-layers-blend-opacity.md",
+      "date": "2026-07-18",
+      "topic": "plan d'implémentation TRANCHE 1 calques : blend modes + opacité par calque",
+      "summary": "Plan TDD (4 tâches) de la 1ère tranche du design calques/masquage (2026-07-18-shaderlab-layers-masking-design.md §1-2), prête pour subagent-driven-development. Task 1 : opacity+blendMode sur LayerState + défauts (opacity=1, blendMode='normal', rétro-compat). Task 2 : registry de blend modes (modules autonomes calqués sur effects/registry.ts) — 6 séparables en linéaire (normal/multiply/screen/add/darken/lighten) + 5 définis-gamma (overlay/hard-light/soft-light/color-burn/color-dodge) qui décodent sRGB→formule→ré-encodent localement via helpers injectés. Task 3 : généralise l'unique mix() de shaderCompose.ts en mix(color, blend(color,effected), opacity*maskValue) sur le chemin applyMask uniquement (passes internes byte-identiques, cache stable), + uniform compositing binding(5) dans renderer.ts runEffectPass. Task 4 : slider opacité + Select de mode par ligne de LayerPanel, handlers App.tsx (pattern handleParamChange/Commit = une entrée d'historique par drag). Rendu GPU validé par checkpoint visuel humain (Tasks 3 et 4). Gate crash 24MP levé (e3c7584). Exclut tranches 2-5 (masque non-destructif, sources, panneau flottant, groupes) et les modes non-séparables HSL (différés YAGNI)."
+    },
+    {
       "path": "docs/superpowers/plans/2026-07-13-shaderlab-design-system.md",
       "date": "2026-07-13",
       "topic": "plan d'implémentation du design system",

@@ -75,4 +75,12 @@ describe("LayerStack", () => {
     copy.updateMask(id, new Uint8Array([9, 9, 9]));
     expect(stack.layers[0].maskData![0]).toBe(1);
   });
+
+  it("addLayer initialise opacity=1 et blendMode='normal'", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("grain");
+    const layer = stack.layers.find((l) => l.id === id)!;
+    expect(layer.opacity).toBe(1);
+    expect(layer.blendMode).toBe("normal");
+  });
 });

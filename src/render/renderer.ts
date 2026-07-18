@@ -283,7 +283,7 @@ export class Renderer {
       this.runEffectPass(
         encoder,
         PASSTHROUGH_EFFECT,
-        { id: "", effectId: "", params: {}, enabled: true, maskData: null },
+        { id: "", effectId: "", params: {}, enabled: true, opacity: 1, blendMode: "normal", maskData: null },
         readTexture.createView(),
         blitTarget ? blitTarget.createView() : finalTargetView,
         {},

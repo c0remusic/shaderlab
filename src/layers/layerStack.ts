@@ -11,7 +11,7 @@ export class LayerStack {
 
   addLayer(effectId: string): string {
     const id = freshId();
-    this.layers.push({ id, effectId, params: {}, enabled: true, maskData: null });
+    this.layers.push({ id, effectId, params: {}, enabled: true, opacity: 1, blendMode: "normal", maskData: null });
     return id;
   }
 

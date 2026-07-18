@@ -47,6 +47,28 @@ describe("MaskPainter", () => {
     expect(rect.height).toBeLessThanOrEqual(6);
   });
 
+  it("paintStroke returns an EMPTY (non-negative) rect when the brush is entirely outside the image — regression: flicker bug (2026-07-18)", () => {
+    // The pointer can now travel past the canvas edge while painting
+    // (pointer-capture fix) — a point far outside the image, with the
+    // brush's footprint not overlapping it at all, must never produce a
+    // NEGATIVE width/height: that malformed rect flows straight into a GPU
+    // partial-texture-upload copy size (computeR8UploadRegion → writeTexture),
+    // which WebGPU rejects — a validation error every such frame, causing
+    // the reported flicker.
+    const painter = new MaskPainter(100, 100);
+    const rect = painter.paintStroke(-500, 50, 10, 1.0, false); // way past the left edge
+    expect(rect.width).toBeGreaterThanOrEqual(0);
+    expect(rect.height).toBeGreaterThanOrEqual(0);
+  });
+
+  it("paintLine's union stays non-negative when interpolating through fully-out-of-bounds points", () => {
+    const painter = new MaskPainter(100, 100);
+    // A drag that starts inside, sweeps far outside the image, and comes back.
+    const rect = painter.paintLine(10, 10, -400, 10, 10, 1.0, false);
+    expect(rect.width).toBeGreaterThanOrEqual(0);
+    expect(rect.height).toBeGreaterThanOrEqual(0);
+  });
+
   it("loadFrom replaces the internal buffer so subsequent strokes build on top of it, not a fresh zero buffer", () => {
     const painter = new MaskPainter(20, 20);
     const seeded = new Uint8Array(20 * 20).fill(100);

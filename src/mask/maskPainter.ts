@@ -56,7 +56,21 @@ export class MaskPainter {
       }
     }
 
-    return { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
+    // When the brush's footprint doesn't overlap the image at all (its
+    // center is far enough outside on one axis — reachable since painting
+    // can now continue past the canvas edge, pointer-capture fix), maxX/maxY
+    // end up SMALLER than minX/minY. Clamp to an EMPTY (zero-area) rect
+    // instead of returning a NEGATIVE width/height: that malformed rect used
+    // to flow straight into a GPU partial-texture-upload copy size
+    // (computeR8UploadRegion → device.queue.writeTexture), which WebGPU
+    // rejects — a validation error on every such frame, causing a visible
+    // flicker (reported live, 2026-07-18). A [0,0] copy is a valid GPU no-op.
+    return {
+      x: minX,
+      y: minY,
+      width: Math.max(0, maxX - minX + 1),
+      height: Math.max(0, maxY - minY + 1),
+    };
   }
 
   /**

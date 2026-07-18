@@ -1,7 +1,10 @@
 # shaderlab — CLAUDE.md
 
 > Nom provisoire (placeholder, jamais tranché — même logique que track-finder).
-> Repo local `C:\Users\LEETJ\Desktop\shaderlab`, pas encore de remote GitHub.
+> Repo local `C:\dev\shaderlab`, pas encore de remote GitHub. (Déplacé depuis
+> `C:\Users\LEETJ\Desktop\shaderlab` — l'ancien chemin n'existe plus ; une
+> relocalisation d'un repo Tauri exige un `cargo clean` COMPLET : le cache
+> `target/` contient des chemins absolus périmés qui cassent le build-script.)
 > Branche de dev active : `feature/design-system` (plan design system Tasks
 > 1-10, MVP mergé sur master). `feature/archi-remediation` (11-task
 > remédiation archi + fix OOM peinture au masque, voir `src/render/maskUpload.ts`)
@@ -12,15 +15,19 @@
 > humain visuel du fix dirty-rect toujours EN ATTENTE de confirmation (voir
 > `docs/INDEX.json`). `design-system-mine` : commits superseded (worktree retiré
 > le 2026-07-16, branche conservée) — voir la mémoire projet
-> `design-system-branch-reconciliation`. ⚠️ Le crash de peinture au masque à
-> 24MP n'est PAS résolu malgré TROIS tentatives de fix indépendantes
-> (dirty-rect 2026-07-15, GPU-copy `1d5e129` 2026-07-16, wait-for-idle
-> 2026-07-17) — seuil `systematic-debugging` atteint (3+ échecs → STOP, pas de
-> 4e tentative sans en discuter avec Antoine). Vraie cause encore inconnue.
-> Mitigation partielle appliquée le 2026-07-17 : `device.lost` (fatal) est
-> maintenant remonté à l'UI (`ErrorBanner`) au lieu de rester silencieux dans
-> le log — voir `src/render/gpuContext.ts`. Détails complets dans
-> `.claude/learning-log.md` et `docs/superpowers/specs/2026-07-17-native-wgpu-decision.md`.
+> `design-system-branch-reconciliation`. ✅ Le crash de peinture au masque à
+> 24MP est RÉSOLU le 2026-07-18 (`e3c7584`) : la cause n'était NI le GPU NI le
+> driver mais le buffer `maskData` r8 de ~26 Mo transitant par le state React,
+> qui fait hanger WebView2 au re-render de `setLayers()` en fin de stroke (les 3
+> fix précédents — dirty-rect, GPU-copy, wait-for-idle — ciblaient tous le
+> GPU/timing, d'où leur échec). Fix : `maskData` hors du state React —
+> `layersRef` = source de vérité complète pour rendu/historique/export, le state
+> React n'est qu'une projection d'affichage sans `maskData`
+> (`src/layers/displayProjection.ts`, `toDisplayLayers`). Règle héritée : garder
+> les gros buffers/textures de masque HORS du state React. `device.lost` reste
+> remonté à l'UI (`ErrorBanner`, `src/render/gpuContext.ts`). Détails dans
+> `.claude/learning-log.md` (entrée 2026-07-18) et le bandeau RÉSOLU de
+> `docs/superpowers/specs/2026-07-17-native-wgpu-decision.md`.
 
 ## Quoi
 

@@ -3,7 +3,7 @@ import { getSrgbCanvasView } from "./gpuContext";
 import type { LayerState } from "../layers/types";
 import { getEffect } from "./effects/registry";
 import type { EffectModule } from "./effects/types";
-import { composeShader, MAX_EFFECT_PARAMS } from "./shaderCompose";
+import { composeShader, MAX_EFFECT_PARAMS, FULLSCREEN_VERTEX_WGSL } from "./shaderCompose";
 import { staleMaskIds } from "./maskResidency";
 import { FrameScheduler } from "./frameScheduler";
 import { assertImageFitsGpu } from "./limits";
@@ -52,6 +52,27 @@ const PASSTHROUGH_EFFECT: EffectModule = {
   params: [],
   wgsl: "fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> { return color; }",
 };
+
+/** Passe overlay du masque en mode peinture : teinte le composite en rouge
+ *  safelight là où le masque du calque sélectionné > 0 (zone où l'effet
+ *  s'applique — convention Lightroom), pour VOIR le masque qu'on peint.
+ *  Tint = `--mask-overlay-color` #e63c46 exprimé en LINÉAIRE, opacité
+ *  `--mask-overlay-opacity` 0.28. Le canvas sRGB ré-encode automatiquement. */
+const MASK_OVERLAY_WGSL = `
+${FULLSCREEN_VERTEX_WGSL}
+
+@group(0) @binding(0) var overlaySrc: texture_2d<f32>;
+@group(0) @binding(1) var overlaySampler: sampler;
+@group(0) @binding(2) var overlayMask: texture_2d<f32>;
+
+@fragment
+fn fs_overlay(in: VertexOut) -> @location(0) vec4<f32> {
+  let img = textureSample(overlaySrc, overlaySampler, in.uv);
+  let m = textureSample(overlayMask, overlaySampler, in.uv).r;
+  let tint = vec3<f32>(0.791, 0.045, 0.061);
+  return vec4<f32>(mix(img.rgb, tint, m * 0.28), img.a);
+}
+`;
 
 /**
  * WebGPU's `copyTextureToBuffer` requires each row to start at a 256-byte-aligned offset.
@@ -103,6 +124,11 @@ export class Renderer {
    *  layer currently being painted, bypassing `LayerState.maskData`
    *  entirely for that frame. */
   private livePreview: MaskPreviewOverride | null = null;
+  /** Id du calque dont le masque est affiché en overlay safelight (mode
+   *  peinture), ou null (pas d'overlay). Piloté par `setMaskOverlay()` depuis
+   *  l'UI — état plutôt que paramètre de chaque `requestRender`, pour ne pas
+   *  le faire transiter par tous les sites d'appel de rendu. */
+  private maskOverlayLayerId: string | null = null;
   /** Debugging-only (see log_diagnostic in lib.rs / gpuContext.ts's device.lost
    *  handler): counts runPipeline() calls so diagnostics below can log every
    *  Nth frame instead of flooding the IPC channel during a fast paint
@@ -113,6 +139,13 @@ export class Renderer {
   constructor(ctx: GpuContext) {
     this.ctx = ctx;
     this.sampler = ctx.device.createSampler({ magFilter: "linear", minFilter: "linear" });
+  }
+
+  /** Active/désactive l'overlay safelight du masque d'un calque (mode peinture).
+   *  Passer `null` pour l'éteindre. Ne déclenche pas de rendu — l'appelant fait
+   *  un `requestRender()` ensuite. */
+  setMaskOverlay(layerId: string | null): void {
+    this.maskOverlayLayerId = layerId;
   }
 
   async loadImage(bitmap: ImageBitmap): Promise<void> {
@@ -226,6 +259,12 @@ export class Renderer {
     let readTexture = this.sourceTexture;
     let writeIndex = 0;
     const enabledLayers = layers.filter((l) => l.enabled);
+    // Overlay masque (mode peinture) : le calque sélectionné dont on montre le
+    // masque en rouge. Quand actif, le composite final est rendu dans un slot
+    // ping-pong au lieu du canvas, puis une passe overlay teinte → canvas.
+    const overlayLayer = this.maskOverlayLayerId
+      ? layers.find((l) => l.id === this.maskOverlayLayerId) ?? null
+      : null;
 
     const encoder = device.createCommandEncoder();
     // Per-frame GPU resources — intermediate multi-pass textures (from
@@ -238,16 +277,21 @@ export class Renderer {
     const pendingDestroy: (GPUTexture | GPUBuffer)[] = [];
 
     if (enabledLayers.length === 0) {
-      // Nothing to composite — blit the source straight to the target.
+      // Nothing to composite — blit the source straight to the target (ou vers
+      // un slot ping-pong si overlay actif, pour teinter par-dessus ensuite).
+      const blitTarget = overlayLayer ? this.pingPong[0] : null;
       this.runEffectPass(
         encoder,
         PASSTHROUGH_EFFECT,
         { id: "", effectId: "", params: {}, enabled: true, maskData: null },
         readTexture.createView(),
-        finalTargetView,
+        blitTarget ? blitTarget.createView() : finalTargetView,
         {},
         pendingDestroy
       );
+      if (overlayLayer && blitTarget) {
+        this.runOverlayPass(encoder, blitTarget, this.getMaskTexture(overlayLayer, encoder), finalTargetView);
+      }
       device.queue.submit([encoder.finish()]);
       for (const resource of pendingDestroy) resource.destroy();
       return;
@@ -257,7 +301,11 @@ export class Renderer {
       const layer = enabledLayers[i];
       const effect = getEffect(layer.effectId);
       const isLast = i === enabledLayers.length - 1;
-      const targetView = isLast ? finalTargetView : this.pingPong[writeIndex].createView();
+      // Dernier calque : normalement le canvas ; mais si l'overlay est actif on
+      // rend dans le slot ping-pong courant (writeIndex n'avance pas au dernier
+      // tour, cf. `if (!isLast)` plus bas) pour teinter par-dessus ensuite.
+      const targetView =
+        isLast && !overlayLayer ? finalTargetView : this.pingPong[writeIndex].createView();
 
       let prevPassView: GPUTextureView | null = null;
       let prevPassTexture: GPUTexture | null = null;
@@ -287,6 +335,18 @@ export class Renderer {
         readTexture = this.pingPong[writeIndex];
         writeIndex = 1 - writeIndex;
       }
+    }
+
+    // Overlay masque : le composite final est dans this.pingPong[writeIndex]
+    // (le dernier calque y a écrit, writeIndex n'a pas avancé). Teinte rouge
+    // là où le masque du calque sélectionné > 0, vers le canvas.
+    if (overlayLayer) {
+      this.runOverlayPass(
+        encoder,
+        this.pingPong[writeIndex],
+        this.getMaskTexture(overlayLayer, encoder),
+        finalTargetView
+      );
     }
 
     device.queue.submit([encoder.finish()]);
@@ -377,6 +437,54 @@ export class Renderer {
       lastTexture = passTarget;
     }
     return { view: passInputView, texture: lastTexture! };
+  }
+
+  /** Passe overlay du masque : teinte `src` en rouge safelight là où `mask` > 0
+   *  et écrit vers `targetView`. Pipeline mis en cache (clé = MASK_OVERLAY_WGSL,
+   *  comme les pipelines d'effet). Bindings : 0 image, 1 sampler, 2 masque. */
+  private runOverlayPass(
+    encoder: GPUCommandEncoder,
+    src: GPUTexture,
+    mask: GPUTexture,
+    targetView: GPUTextureView
+  ): void {
+    const { device, srgbFormat } = this.ctx;
+    let cached = this.pipelineCache.get(MASK_OVERLAY_WGSL);
+    if (!cached) {
+      const module = device.createShaderModule({ code: MASK_OVERLAY_WGSL });
+      const bindGroupLayout = device.createBindGroupLayout({
+        entries: [
+          { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } },
+          { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "filtering" } },
+          { binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } },
+        ],
+      });
+      const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
+      const pipeline = device.createRenderPipeline({
+        layout: pipelineLayout,
+        vertex: { module, entryPoint: "vs_main" },
+        fragment: { module, entryPoint: "fs_overlay", targets: [{ format: srgbFormat }] },
+      });
+      cached = { pipeline, bindGroupLayout };
+      this.pipelineCache.set(MASK_OVERLAY_WGSL, cached);
+    }
+    const bindGroup = device.createBindGroup({
+      layout: cached.bindGroupLayout,
+      entries: [
+        { binding: 0, resource: src.createView() },
+        { binding: 1, resource: this.sampler },
+        { binding: 2, resource: mask.createView() },
+      ],
+    });
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [
+        { view: targetView, loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } },
+      ],
+    });
+    pass.setPipeline(cached.pipeline);
+    pass.setBindGroup(0, bindGroup);
+    pass.draw(3);
+    pass.end();
   }
 
   private runEffectPass(

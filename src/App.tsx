@@ -133,6 +133,16 @@ export default function App() {
     });
   }, [openFile]);
 
+  // Overlay du masque : montrer le masque du calque sélectionné en rouge
+  // safelight dès qu'on entre en mode peinture (pour VOIR ce qu'on masque),
+  // l'éteindre sinon. Piloté comme un état du renderer + un re-rendu.
+  useEffect(() => {
+    const r = rendererRef.current;
+    if (!r) return;
+    r.setMaskOverlay(maskPaintMode && selectedId ? selectedId : null);
+    r.requestRender(layersRef.current);
+  }, [maskPaintMode, selectedId]);
+
   const handleOpenFile = useCallback(async () => {
     try {
       const path = await pickImageFile();

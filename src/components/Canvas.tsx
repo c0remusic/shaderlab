@@ -5,13 +5,47 @@ interface Props {
   maskPaintMode: boolean;
   onMaskStroke: (x: number, y: number) => void;
   onStrokeEnd: () => void;
+  /** Rayon du pinceau en pixels IMAGE (= `radius` de paintStroke). Sert à
+   *  dimensionner le curseur cercle custom. */
+  brushSize: number;
+  /** Dureté 0..1 : fraction du rayon à pleine force (anneau interne du curseur). */
+  brushHardness: number;
 }
 
 export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
-  { onFileDropped, maskPaintMode, onMaskStroke, onStrokeEnd },
+  { onFileDropped, maskPaintMode, onMaskStroke, onStrokeEnd, brushSize, brushHardness },
   ref
 ) {
   const isPaintingRef = useRef(false);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const cursorRef = useRef<HTMLDivElement>(null);
+
+  // Curseur pinceau custom (type Adobe) : un cercle dimensionné au rayon du
+  // pinceau qui suit la souris en mode masque. Positionné par manipulation DOM
+  // directe (pas de state React) pour rester fluide à la fréquence pointermove.
+  function updateCursor(e: React.PointerEvent<HTMLCanvasElement>) {
+    const canvas = (ref as React.RefObject<HTMLCanvasElement>).current;
+    const stage = stageRef.current;
+    const cursor = cursorRef.current;
+    if (!canvas || !stage || !cursor) return;
+    const canvasRect = canvas.getBoundingClientRect();
+    const stageRect = stage.getBoundingClientRect();
+    // Échelle image→écran : le canvas est affiché réduit (max-width/height 100%).
+    const scale = canvasRect.width / canvas.width;
+    const screenRadius = brushSize * scale; // brushSize = rayon en px image
+    const diameter = screenRadius * 2;
+    cursor.style.width = `${diameter}px`;
+    cursor.style.height = `${diameter}px`;
+    cursor.style.left = `${e.clientX - stageRect.left}px`;
+    cursor.style.top = `${e.clientY - stageRect.top}px`;
+    // Anneau interne = fraction à pleine force (dureté).
+    cursor.style.setProperty("--brush-hardness", `${Math.round(brushHardness * 100)}%`);
+    cursor.style.opacity = "1";
+  }
+
+  function hideCursor() {
+    if (cursorRef.current) cursorRef.current.style.opacity = "0";
+  }
 
   // Coalesce mask painting to one paint+render per animation frame.
   //
@@ -72,6 +106,7 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
 
   return (
     <div
+      ref={stageRef}
       className="canvas-stage"
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
@@ -93,13 +128,22 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
           if (pt) onMaskStroke(pt.x, pt.y);
         }}
         onPointerMove={(e) => {
-          if (!maskPaintMode || !isPaintingRef.current) return;
+          if (!maskPaintMode) return;
+          updateCursor(e);
+          if (!isPaintingRef.current) return;
           const pt = toImageCoords(e);
           if (pt) schedulePaint(pt.x, pt.y);
         }}
+        onPointerEnter={(e) => {
+          if (maskPaintMode) updateCursor(e);
+        }}
         onPointerUp={endStroke}
-        onPointerLeave={endStroke}
+        onPointerLeave={() => {
+          endStroke();
+          hideCursor();
+        }}
       />
+      <div ref={cursorRef} className="canvas-stage__brush-cursor" aria-hidden="true" />
     </div>
   );
 });

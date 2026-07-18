@@ -299,6 +299,8 @@ export default function App() {
           maskPaintMode={maskPaintMode}
           onMaskStroke={handleMaskStroke}
           onStrokeEnd={handleMaskStrokeEnd}
+          brushSize={brushSize}
+          brushHardness={brushHardness}
         />
         <Inspector
           layers={layers}

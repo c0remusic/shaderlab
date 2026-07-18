@@ -228,6 +228,23 @@ plus de la chaîne couleur (ping-pong rgba ≈ 96 Mo/texture). Règles de budget
   une ligne de source ⟹ overlay de CETTE source seule sur le canvas ; survoler
   l'en-tête du masque ⟹ overlay du composite foldé. Overlay = `--mask-overlay-color`
   à `--mask-overlay-opacity`.
+- **Overlay de masque EN MODE PEINTURE (exigence confirmée 2026-07-18, checkpoint
+  Antoine)** : dès qu'on est en mode masque, le canvas montre le masque courant en
+  **overlay safelight rouge** (convention Lightroom : rouge = zone où l'effet
+  s'applique, c.-à-d. mask>0), sinon on ne VOIT pas qu'on peint un masque et ça
+  ressemble à « peindre l'effet directement ». ⚠️ **Gap actuel** : les tokens
+  `--mask-overlay-color/-opacity/-edge` (`src/design/semantic.css:47-49`) existent
+  mais ne sont **utilisés nulle part au rendu** — l'overlay n'est PAS implémenté (le
+  masque part de blanc=effet-partout, puis noir+traits au 1er stroke, sans rien
+  montrer du masque). À implémenter comme une **passe de rendu overlay** gated par le
+  mode masque (échantillonne le masque du calque sélectionné, teinte rouge).
+- **Curseur pinceau custom type Adobe (nouvelle exigence 2026-07-18, checkpoint
+  Antoine)** : en mode masque, remplacer le `cursor: crosshair`
+  (`src/components/Canvas.css`) par un **cercle qui suit la souris, dimensionné au
+  rayon du pinceau** (converti image→écran via l'échelle du canvas), avec la
+  **dureté** visualisée (anneau interne au rayon de dureté). Donne le contrôle
+  visuel de la taille/dureté avant de peindre, comme Photoshop. UI pure, sans lien
+  avec le modèle de masque — implémentable indépendamment des tranches.
 - Calé sur les tokens `darkroom-balanced` (`docs/design-system/tokens.md` :
   inspecteur 288px, safelight `#e63c46`, surfaces neutres chaudes).
 

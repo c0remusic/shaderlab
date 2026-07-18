@@ -1,4 +1,5 @@
 .canvas-stage {
+  position: relative;
   flex: 1;
   min-width: var(--canvas-min-width);
   min-height: var(--canvas-min-height);
@@ -15,6 +16,37 @@
   cursor: default;
 }
 
+/* En mode masque, le curseur système est masqué : le cercle custom
+   (.canvas-stage__brush-cursor) le remplace pour montrer rayon + dureté. */
 .canvas-stage__canvas--paint {
-  cursor: crosshair;
+  cursor: none;
+}
+
+/* Curseur pinceau type Adobe : anneau au rayon du pinceau qui suit la souris.
+   Position/taille pilotées en JS (Canvas.tsx updateCursor). Double contour
+   (rouge safelight + ombre sombre) pour rester visible sur zones claires ET
+   sombres de l'image. Anneau interne = fraction à pleine force (dureté). */
+.canvas-stage__brush-cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translate(-50%, -50%);
+  border-radius: var(--radius-round);
+  border: 1px solid var(--mask-overlay-edge);
+  box-shadow: 0 0 0 1px rgba(8, 7, 6, 0.55);
+  pointer-events: none;
+  opacity: 0;
+  z-index: var(--z-canvas-overlay);
+}
+
+.canvas-stage__brush-cursor::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--brush-hardness, 50%);
+  height: var(--brush-hardness, 50%);
+  transform: translate(-50%, -50%);
+  border-radius: var(--radius-round);
+  border: 1px dashed rgba(236, 224, 207, 0.45);
 }

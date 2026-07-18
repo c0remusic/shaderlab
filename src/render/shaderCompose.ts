@@ -64,6 +64,11 @@ export function composeShader(effectWgsl: string, opts: ComposeOptions): string 
   const fsBody = opts.applyMask
     ? `let maskValue = textureSample(maskTexture, srcSampler, in.uv).r;
   let blended = blend(color.rgb, effected.rgb);
+  // Passe color.a tel quel (ne le mélange plus avec effected.a) : hypothèse
+  // sûre tant que tout effet préserve l'alpha (source JPEG opaque, α≡1
+  // partout — vérifié pour glow/chromaticBleed/grain/warp). Si un futur
+  // effet produit un alpha ≠ color.a, ce court-circuit le perdrait
+  // silencieusement — revoir alors ce mix si un effet à alpha variable arrive.
   return vec4<f32>(mix(color.rgb, blended, compositing.x * maskValue), color.a);`
     : "return effected;";
 

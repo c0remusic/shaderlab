@@ -4,6 +4,7 @@ import { Renderer } from "./render/renderer";
 import { LayerStack } from "./layers/layerStack";
 import { History } from "./layers/history";
 import type { LayerState } from "./layers/types";
+import { toDisplayLayers } from "./layers/displayProjection";
 import { Inspector } from "./components/Inspector";
 import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
@@ -45,17 +46,43 @@ export default function App() {
   // réellement changé (un simple clic sans mouvement ne crée pas d'entrée).
   const paramDirtyRef = useRef(false);
 
-  const commit = useCallback((stack: LayerStack) => {
-    historyRef.current.push(stack);
-    setLayers(stack.layers);
-    rendererRef.current?.requestRender(stack.layers);
+  // `layersRef` = source de vérité COMPLÈTE des calques (avec maskData), pour le
+  // rendu GPU, l'historique et l'export. Le state React `layers` n'en est qu'une
+  // PROJECTION D'AFFICHAGE, maskData retiré.
+  //
+  // Pourquoi : un maskData r8 pleine résolution (~26 Mo à 24MP) placé dans le
+  // state React fait CRASHER (hang WebView2, CDP inerte) au re-render déclenché
+  // par setLayers() en fin de stroke. Root cause épinglée par A/B live sur la
+  // vraie fenêtre (2026-07-18, docs/superpowers/specs/2026-07-17-native-wgpu-
+  // decision.md) : setLayers() SANS maskData (ajout de calque) à 24MP ne crashe
+  // pas ; setLayers() AVEC le maskData 26MB crashe ; ne pas appeler setLayers
+  // ne crashe pas. Ce n'est donc ni le GPU (requestRender avec le masque
+  // complet est OK) ni le re-render en soi, mais le buffer 26 Mo transitant par
+  // l'état React. Le fix garde setLayers() (UI correcte) mais retire maskData de
+  // ce qui y entre ; les panneaux n'affichent jamais les pixels du masque.
+  const layersRef = useRef<LayerState[]>([]);
+  const syncLayers = useCallback((full: LayerState[]) => {
+    layersRef.current = full;
+    setLayers(toDisplayLayers(full));
   }, []);
 
+  const commit = useCallback(
+    (stack: LayerStack) => {
+      historyRef.current.push(stack);
+      syncLayers(stack.layers);
+      rendererRef.current?.requestRender(stack.layers);
+    },
+    [syncLayers]
+  );
+
   const currentStack = useCallback((): LayerStack => {
+    // Depuis layersRef (COMPLET, avec maskData), jamais depuis le state `layers`
+    // (projection d'affichage sans maskData) — sinon toute opération non-masque
+    // réécrirait des calques à maskData null et effacerait les masques.
     const stack = new LayerStack();
-    stack.layers = layers;
+    stack.layers = layersRef.current;
     return stack.clone();
-  }, [layers]);
+  }, []);
 
   const openFile = useCallback(async (file: File, path: string | null, fromLaunch: boolean) => {
     if (!canvasRef.current) return;
@@ -86,12 +113,12 @@ export default function App() {
 
       const stack = new LayerStack();
       historyRef.current = new History(stack);
-      setLayers(stack.layers);
+      syncLayers(stack.layers);
       rendererRef.current.render(stack.layers);
     } catch (e) {
       setError((e as Error).message);
     }
-  }, []);
+  }, [syncLayers]);
 
   useEffect(() => {
     getLaunchPath().then(async (path) => {
@@ -156,7 +183,7 @@ export default function App() {
     paramDirtyRef.current = true;
     const stack = currentStack();
     stack.updateParams(id, params);
-    setLayers(stack.layers);
+    syncLayers(stack.layers);
     rendererRef.current?.requestRender(stack.layers);
   }
 
@@ -168,7 +195,9 @@ export default function App() {
 
   function handleMaskStroke(x: number, y: number) {
     if (!selectedId || imageSize.width === 0) return;
-    const currentMaskData = selectedLayer?.maskData ?? null;
+    // maskData depuis layersRef (complet) — le state `layers` est la projection
+    // d'affichage sans maskData.
+    const currentMaskData = layersRef.current.find((l) => l.id === selectedId)?.maskData ?? null;
     const entry = getSyncedMaskPainter(
       maskPaintersRef.current,
       selectedId,
@@ -193,7 +222,7 @@ export default function App() {
     // are intentionally untouched here; the real, history-visible mask
     // update happens exactly once, in handleMaskStrokeEnd, matching the
     // "one entry per interaction" pattern already established for sliders.
-    rendererRef.current?.requestRender(layers, {
+    rendererRef.current?.requestRender(layersRef.current, {
       layerId: selectedId,
       maskData: entry.painter.getMaskData(),
       scope: maskStrokeIsFreshRef.current ? { kind: "full" } : { kind: "partial", rect: dirtyRect },
@@ -217,7 +246,7 @@ export default function App() {
   function handleUndo() {
     const previous = historyRef.current.undo();
     if (previous) {
-      setLayers(previous.layers);
+      syncLayers(previous.layers);
       rendererRef.current?.requestRender(previous.layers);
     }
   }
@@ -225,7 +254,7 @@ export default function App() {
   function handleRedo() {
     const next = historyRef.current.redo();
     if (next) {
-      setLayers(next.layers);
+      syncLayers(next.layers);
       rendererRef.current?.requestRender(next.layers);
     }
   }
@@ -244,7 +273,7 @@ export default function App() {
     // resolveExportTarget's doc comment for the full rationale.
     const target = resolveExportTarget(sourcePath, isLaunchFile);
     try {
-      await exportImage(rendererRef.current, layers, target, imageSize.width, imageSize.height);
+      await exportImage(rendererRef.current, layersRef.current, target, imageSize.width, imageSize.height);
     } catch (e) {
       setError((e as Error).message);
     }

@@ -25,7 +25,23 @@ fn vs_main(@builtin(vertex_index) i: u32) -> VertexOut {
 export interface ComposeOptions {
   applyMask: boolean;
   hasPrevPass: boolean;
+  /** Corps `fn blend(base, top)` du mode de fusion du calque. Requis quand
+   *  applyMask=true. Ignoré sinon (les passes internes ne compositent pas). */
+  blendWgsl?: string;
 }
+
+const SRGB_HELPERS_WGSL = `
+fn srgb2lin(c: vec3<f32>) -> vec3<f32> {
+  let lo = c / 12.92;
+  let hi = pow((c + vec3<f32>(0.055)) / vec3<f32>(1.055), vec3<f32>(2.4));
+  return select(hi, lo, c <= vec3<f32>(0.04045));
+}
+fn lin2srgb(c: vec3<f32>) -> vec3<f32> {
+  let lo = c * 12.92;
+  let hi = 1.055 * pow(c, vec3<f32>(1.0 / 2.4)) - vec3<f32>(0.055);
+  return select(hi, lo, c <= vec3<f32>(0.0031308));
+}
+`;
 
 /**
  * Composition pure du shader complet d'une passe. La chaîne retournée est
@@ -40,9 +56,15 @@ export function composeShader(effectWgsl: string, opts: ComposeOptions): string 
   const prevPassBinding = opts.hasPrevPass
     ? "@group(0) @binding(4) var prevPass: texture_2d<f32>;"
     : "";
+  // blend + opacité + helpers sRGB seulement sur le chemin de compositing.
+  const compositingBinding = opts.applyMask
+    ? "@group(0) @binding(5) var<uniform> compositing: vec4<f32>;"
+    : "";
+  const blendBlock = opts.applyMask ? SRGB_HELPERS_WGSL + "\n" + (opts.blendWgsl ?? "") : "";
   const fsBody = opts.applyMask
     ? `let maskValue = textureSample(maskTexture, srcSampler, in.uv).r;
-  return mix(color, effected, maskValue);`
+  let blended = blend(color.rgb, effected.rgb);
+  return vec4<f32>(mix(color.rgb, blended, compositing.x * maskValue), color.a);`
     : "return effected;";
 
   return `
@@ -53,7 +75,9 @@ ${FULLSCREEN_VERTEX_WGSL}
 @group(0) @binding(2) var<uniform> params: array<f32, ${MAX_EFFECT_PARAMS}>;
 ${maskBinding}
 ${prevPassBinding}
+${compositingBinding}
 
+${blendBlock}
 ${effectWgsl}
 
 @fragment

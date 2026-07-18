@@ -4,6 +4,7 @@ import type { LayerState } from "../layers/types";
 import { getEffect } from "./effects/registry";
 import type { EffectModule } from "./effects/types";
 import { composeShader, MAX_EFFECT_PARAMS, FULLSCREEN_VERTEX_WGSL } from "./shaderCompose";
+import { getBlendMode } from "./blend/registry";
 import { staleMaskIds } from "./maskResidency";
 import { FrameScheduler } from "./frameScheduler";
 import { assertImageFitsGpu } from "./limits";
@@ -512,10 +513,24 @@ export class Renderer {
     // frame's submit() has run, so it's queued rather than destroyed here.
     pendingDestroy.push(paramBuffer);
 
+    const blendMode = getBlendMode(layer.blendMode ?? "normal");
     const shaderCode = composeShader(effect.wgsl, {
       applyMask,
       hasPrevPass: prevPassView !== null,
+      blendWgsl: applyMask ? blendMode.wgsl : undefined,
     });
+
+    // Uniform de compositing (opacité en .x), seulement quand on composite.
+    let compositingBuffer: GPUBuffer | null = null;
+    if (applyMask) {
+      const compositing = new Float32Array([layer.opacity ?? 1, 0, 0, 0]);
+      compositingBuffer = device.createBuffer({
+        size: compositing.byteLength,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+      device.queue.writeBuffer(compositingBuffer, 0, compositing);
+      pendingDestroy.push(compositingBuffer);
+    }
 
     // Le pipeline (et son layout explicite) ne dépend que du code shader —
     // même code, même variante de bindings. Compilé UNE fois par variante,
@@ -536,6 +551,9 @@ export class Renderer {
       }
       if (prevPassView) {
         layoutEntries.push({ binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
+      }
+      if (applyMask) {
+        layoutEntries.push({ binding: 5, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } });
       }
       const bindGroupLayout = device.createBindGroupLayout({ entries: layoutEntries });
       const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
@@ -559,6 +577,9 @@ export class Renderer {
     }
     if (prevPassView) {
       entries.push({ binding: 4, resource: prevPassView });
+    }
+    if (applyMask && compositingBuffer) {
+      entries.push({ binding: 5, resource: { buffer: compositingBuffer } });
     }
     const bindGroup = device.createBindGroup({
       layout: cached.bindGroupLayout,

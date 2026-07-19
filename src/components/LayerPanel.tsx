@@ -224,7 +224,14 @@ export function LayerPanel({
         if (prev.overIndex !== null && prev.overPosition !== null) {
           const fromIndex = layers.findIndex((l) => l.id === prev.draggedId);
           if (fromIndex !== -1 && fromIndex !== prev.overIndex) {
-            onReorder(prev.draggedId, computeInsertIndex(fromIndex, prev.overIndex, prev.overPosition));
+            const newIndex = computeInsertIndex(fromIndex, prev.overIndex, prev.overPosition);
+            // Déposer "avant" son voisin immédiat suivant (ou "après" son
+            // voisin immédiat précédent) ne change RIEN à l'ordre final —
+            // computeInsertIndex peut renvoyer fromIndex dans ce cas
+            // (ex. déposer l'index 0 "avant" l'index 1). Sans cette garde,
+            // onReorder pousserait quand même une entrée d'historique pour
+            // un état identique (finding codex-crosscheck).
+            if (newIndex !== fromIndex) onReorder(prev.draggedId, newIndex);
           }
         }
         return null;

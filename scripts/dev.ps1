@@ -12,7 +12,15 @@ New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 Get-Process -Name "shaderlab" -ErrorAction SilentlyContinue | Stop-Process -Force
 if (Test-Path $stateFile) {
     $previous = Get-Content $stateFile -Raw | ConvertFrom-Json
-    if (Get-Process -Id $previous.pid -ErrorAction SilentlyContinue) {
+    # Ne tue QUE si le PID enregistré appartient encore à shaderlab.exe. Sans
+    # ce garde-fou, un PID périmé recyclé par Windows pour un autre process
+    # (svchost, etc.) fait planter tout le script au Stop-Process -Force
+    # (Accès refusé, $ErrorActionPreference="Stop" en tête de fichier) —
+    # AUCUN nouveau lancement ne démarre, silencieusement, sans jamais
+    # réécrire $stateFile. Vécu 2026-07-19.
+    $stalePid = Get-Process -Id $previous.pid -ErrorAction SilentlyContinue |
+        Where-Object { $_.ProcessName -eq "shaderlab" }
+    if ($stalePid) {
         Stop-Process -Id $previous.pid -Force
         Wait-Process -Id $previous.pid -ErrorAction SilentlyContinue
     }

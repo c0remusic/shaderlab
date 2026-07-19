@@ -769,6 +769,18 @@ export class Renderer {
     // upload CPU->GPU complet (évite le hang traqué le 2026-07-15).
     if (this.liveMaskLayerId === layerId && this.liveMaskTexture && source.type === "brush") {
       encoder.copyTextureToTexture({ texture: this.liveMaskTexture }, { texture }, [this.width, this.height]);
+      // Le raccourci n'est valide qu'UNE frame (celle qui suit immédiatement
+      // la fin d'un stroke, où liveMaskTexture == raster fraîchement commité).
+      // Sans ce reset, une résolution ULTÉRIEURE de cette source (undo,
+      // changement de calque puis retour, nouveau render) reprendrait ce
+      // même raccourci périmé au lieu d'uploader le raster réel (ex. plus
+      // ancien après un undo) — l'undo semblait alors ne pas annuler le
+      // dernier trait de pinceau. Voir getLiveMaskTexture : un nouveau
+      // stroke qui démarre juste après ce reset verra liveMaskLayerId !==
+      // layerId pour sa 1ère frame -> upload plein (comportement déjà
+      // documenté par cette méthode), puis liveMaskLayerId est re-posé et
+      // les frames suivantes redeviennent des uploads partiels normaux.
+      this.liveMaskLayerId = null;
     } else {
       this.uploadR8(texture, raster, this.width, this.height);
     }

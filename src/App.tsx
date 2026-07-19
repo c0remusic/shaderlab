@@ -171,58 +171,85 @@ export default function App() {
     commit(stack);
   }
 
-  function handleToggle(id: string) {
-    const stack = currentStack();
-    stack.toggleLayer(id);
-    commit(stack);
-  }
+  // Callbacks passés à LayerPanel/ParamPanel enveloppés dans useCallback :
+  // LayerPanel mémoïse chaque ligne (React.memo, voir LayerRow) pour qu'un
+  // drag d'opacité ne re-render QUE la ligne concernée, pas la liste entière
+  // des calques — sans références stables ici, cette mémoïsation ne servirait
+  // à rien (nouvelle fonction à chaque render du composant App = memo inutile).
+  const handleToggle = useCallback(
+    (id: string) => {
+      const stack = currentStack();
+      stack.toggleLayer(id);
+      commit(stack);
+    },
+    [currentStack, commit]
+  );
 
-  function handleRemove(id: string) {
-    const stack = currentStack();
-    stack.removeLayer(id);
-    if (selectedId === id) setSelectedId(null);
-    maskPaintersRef.current.delete(id);
-    commit(stack);
-  }
+  const handleRemove = useCallback(
+    (id: string) => {
+      const stack = currentStack();
+      stack.removeLayer(id);
+      if (selectedId === id) setSelectedId(null);
+      maskPaintersRef.current.delete(id);
+      commit(stack);
+    },
+    [currentStack, selectedId, commit]
+  );
 
-  function handleReorder(id: string, newIndex: number) {
-    const stack = currentStack();
-    stack.reorderLayer(id, newIndex);
-    commit(stack);
-  }
+  const handleReorder = useCallback(
+    (id: string, newIndex: number) => {
+      const stack = currentStack();
+      stack.reorderLayer(id, newIndex);
+      commit(stack);
+    },
+    [currentStack, commit]
+  );
 
   function handleParamChange(id: string, params: Record<string, number>) {
     // Mise à jour vivante pendant le drag : état + rendu coalescé, PAS
     // d'entrée d'historique — la spec v1 exige UNE entrée par interaction,
     // pas une par frame de drag.
+    //
+    // Volontairement PAS currentStack()/LayerStack.clone() ici : clone()
+    // crée un objet FRAIS pour CHAQUE calque, pas seulement celui qui bouge
+    // — avec LayerRow mémoïsé (LayerPanel.tsx, même pattern pour l'opacité),
+    // ça re-render la liste entière à chaque frame de drag. Ce .map() garde
+    // la référence des calques NON touchés, seul le calque `id` change.
     paramDirtyRef.current = true;
-    const stack = currentStack();
-    stack.updateParams(id, params);
-    syncLayers(stack.layers);
-    rendererRef.current?.requestRender(stack.layers);
+    const full = layersRef.current.map((l) => (l.id === id ? { ...l, params: { ...l.params, ...params } } : l));
+    syncLayers(full);
+    rendererRef.current?.requestRender(full);
   }
 
-  function handleParamCommit() {
+  const handleParamCommit = useCallback(() => {
     if (!paramDirtyRef.current) return;
     paramDirtyRef.current = false;
     commit(currentStack());
-  }
+  }, [commit, currentStack]);
 
-  function handleOpacityChange(id: string, opacity: number) {
-    paramDirtyRef.current = true;
-    const stack = currentStack();
-    const layer = stack.layers.find((l) => l.id === id);
-    if (layer) layer.opacity = opacity;
-    syncLayers(stack.layers);
-    rendererRef.current?.requestRender(stack.layers);
-  }
+  const handleOpacityChange = useCallback(
+    (id: string, opacity: number) => {
+      // Même raison que handleParamChange ci-dessus : pas de clone() complet
+      // du stack pendant le drag, seul le calque `id` reçoit un objet frais
+      // — condition nécessaire pour que LayerRow (React.memo) ne re-render
+      // QUE la ligne dont l'opacité bouge, pas la liste entière des calques.
+      paramDirtyRef.current = true;
+      const full = layersRef.current.map((l) => (l.id === id ? { ...l, opacity } : l));
+      syncLayers(full);
+      rendererRef.current?.requestRender(full);
+    },
+    [syncLayers]
+  );
 
-  function handleBlendModeChange(id: string, blendMode: string) {
-    const stack = currentStack();
-    const layer = stack.layers.find((l) => l.id === id);
-    if (layer) layer.blendMode = blendMode;
-    commit(stack); // changement discret → une entrée d'historique directe
-  }
+  const handleBlendModeChange = useCallback(
+    (id: string, blendMode: string) => {
+      const stack = currentStack();
+      const layer = stack.layers.find((l) => l.id === id);
+      if (layer) layer.blendMode = blendMode;
+      commit(stack); // changement discret → une entrée d'historique directe
+    },
+    [currentStack, commit]
+  );
 
   function handleMaskStroke(x: number, y: number) {
     if (!selectedId || imageSize.width === 0) return;

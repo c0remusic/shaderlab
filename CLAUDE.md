@@ -84,6 +84,7 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
 - Type-check : `npx tsc --noEmit`
 - Lint tokens design : `npm run lint:tokens` (détecte couleurs/z-index/spacing en dur qui contournent un token existant, `scripts/lint-tokens.mjs`)
 - Rust : `cd src-tauri && cargo check`
+- Storybook (composants React isolés, tokens réels via `src/design/index.css`) : `npm run storybook` (dev, port 6006) · `npm run build-storybook` (static)
 
 ## Structure (état réel)
 

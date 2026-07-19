@@ -162,7 +162,7 @@ interface DragState {
  * "après B" selon le sens du geste (finding revue adverse codex-crosscheck
  * sur une v1 sans notion avant/après).
  */
-function computeInsertIndex(fromIndex: number, hoverIndex: number, position: DropPosition): number {
+export function computeInsertIndex(fromIndex: number, hoverIndex: number, position: DropPosition): number {
   const hoverIndexAfterRemoval = hoverIndex - (fromIndex < hoverIndex ? 1 : 0);
   return position === "before" ? hoverIndexAfterRemoval : hoverIndexAfterRemoval + 1;
 }

@@ -300,8 +300,11 @@ edge-aware** qui est suspendu — le **fold brut `p` courant reste affiché en l
 chaque frame comme aujourd'hui). L'edge-aware se **réapplique au relâchement**
 (stroke-end), même granularité que le commit d'historique existant (un commit par
 stroke, Task 11b) : le trait reste visible et interactif pendant qu'on peint, seul
-le « collage aux contours » a un temps de latence d'une frame au relâchement — pas
-un gel du masque entier. **Nuance PRD assumée** (relevée en revue adverse, MOYENNE) :
+le « collage aux contours » a une latence au relâchement — pas un gel du masque
+entier. Latence exacte **non chiffrée ici** (dépend du temps réel de la chaîne de
+passes mesuré à l'implémentation, cf. budget ≤100 ms visé plus haut, PAS une frame
+à 60fps/16,7 ms comme une v1 de cette phrase le disait à tort) — même mesure que le
+reste du §4bis, pas une deuxième affirmation non vérifiée. **Nuance PRD assumée** (relevée en revue adverse, MOYENNE) :
 au sens strict, le PRD demande le résultat edge-aware lui-même en live pendant le
 geste, pas seulement le fold brut — cette mitigation ne le respecte pas à la lettre
 pendant le stroke actif, seulement au relâchement. **Décision produit assumée, pas un

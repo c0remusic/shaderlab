@@ -69,7 +69,10 @@
   border-radius: var(--radius-control);
   border-left: 2px solid transparent;
   color: var(--text-secondary);
-  cursor: grab;
+  /* pointer, pas grab : draggable n'est plus sur la ligne entière (scopé à
+     .layer-panel__grip-handle) — grab ici annoncerait un glisser qui ne peut
+     plus démarrer depuis n'importe quel point de la ligne. */
+  cursor: pointer;
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
 

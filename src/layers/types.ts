@@ -1,3 +1,5 @@
+import type { LayerMask } from "../mask/types";
+
 export interface LayerState {
   id: string;
   effectId: string;
@@ -7,9 +9,8 @@ export interface LayerState {
   opacity: number;
   /** Id du mode de fusion (registry blend). "normal" = remplacement (compat). */
   blendMode: string;
-  /** Masque du calque (r8, 1 octet/pixel, taille de l'image), ou null.
-   *  IMMUABLE par convention : toujours REMPLACÉ (updateMask stocke une
-   *  copie fraîche), jamais muté en place — clone() et l'historique
-   *  partagent ces références. */
-  maskData: Uint8Array | null;
+  /** Masque non-destructif du calque (design.md §3). Les rasters qu'il
+   *  contient sont IMMUABLES par convention (toujours REMPLACÉS, jamais
+   *  mutés en place) — clone() et l'historique partagent ces références. */
+  mask: LayerMask;
 }

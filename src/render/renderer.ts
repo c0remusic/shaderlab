@@ -11,6 +11,8 @@ import { assertImageFitsGpu } from "./limits";
 import { logDiagnostic } from "../launch";
 import type { DirtyRect } from "../mask/maskPainter";
 import { computeR8UploadRegion } from "./maskUpload";
+import { defaultLayerMask } from "../mask/types";
+import { getBrushRaster } from "../mask/brushSource";
 
 /** Which part of the live-preview mask texture a `MaskPreviewOverride` needs
  *  uploaded this frame. `"full"` re-uploads the whole image — required the
@@ -284,7 +286,7 @@ export class Renderer {
       this.runEffectPass(
         encoder,
         PASSTHROUGH_EFFECT,
-        { id: "", effectId: "", params: {}, enabled: true, opacity: 1, blendMode: "normal", maskData: null },
+        { id: "", effectId: "", params: {}, enabled: true, opacity: 1, blendMode: "normal", mask: defaultLayerMask() },
         readTexture.createView(),
         blitTarget ? blitTarget.createView() : finalTargetView,
         {},
@@ -673,9 +675,10 @@ export class Renderer {
     if (this.livePreview && this.livePreview.layerId === layer.id) {
       return this.getLiveMaskTexture(this.livePreview.layerId, this.livePreview.maskData, this.livePreview.scope);
     }
-    if (!layer.maskData) return this.getWhiteMask();
+    const maskData = getBrushRaster(layer);
+    if (!maskData) return this.getWhiteMask();
     const entry = this.maskTextures.get(layer.id);
-    if (entry && entry.syncedFrom === layer.maskData) return entry.texture;
+    if (entry && entry.syncedFrom === maskData) return entry.texture;
     const texture =
       entry?.texture ??
       this.ctx.device.createTexture({
@@ -698,9 +701,9 @@ export class Renderer {
     if (this.liveMaskLayerId === layer.id && this.liveMaskTexture) {
       encoder.copyTextureToTexture({ texture: this.liveMaskTexture }, { texture }, [this.width, this.height]);
     } else {
-      this.uploadR8(texture, layer.maskData, this.width, this.height);
+      this.uploadR8(texture, maskData, this.width, this.height);
     }
-    this.maskTextures.set(layer.id, { texture, syncedFrom: layer.maskData });
+    this.maskTextures.set(layer.id, { texture, syncedFrom: maskData });
     return texture;
   }
 

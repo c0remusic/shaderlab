@@ -14,6 +14,7 @@ import { exportImage, resolveExportTarget } from "./export/exportImage";
 import { getLaunchPath, readImageFile, pickImageFile } from "./launch";
 import { useGlobalControlWheel } from "./ui/activeControl";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
+import { getBrushRaster } from "./mask/brushSource";
 
 export default function App() {
   useGlobalControlWheel();
@@ -226,7 +227,8 @@ export default function App() {
     if (!selectedId || imageSize.width === 0) return;
     // maskData depuis layersRef (complet) — le state `layers` est la projection
     // d'affichage sans maskData.
-    const currentMaskData = layersRef.current.find((l) => l.id === selectedId)?.maskData ?? null;
+    const layer = layersRef.current.find((l) => l.id === selectedId);
+    const currentMaskData = layer ? getBrushRaster(layer) : null;
     const entry = getSyncedMaskPainter(
       maskPaintersRef.current,
       selectedId,
@@ -276,9 +278,10 @@ export default function App() {
     const stack = currentStack();
     // The one and only immutable-copy update for this stroke — see the
     // comment in handleMaskStroke for why this is deferred to stroke-end.
-    stack.updateMask(selectedId, entry.painter.getMaskData());
+    stack.updateBrushMask(selectedId, entry.painter.getMaskData());
     commit(stack);
-    entry.syncedFrom = stack.layers.find((l) => l.id === selectedId)?.maskData ?? null;
+    const committedLayer = stack.layers.find((l) => l.id === selectedId);
+    entry.syncedFrom = committedLayer ? getBrushRaster(committedLayer) : null;
   }
 
   function handleUndo() {

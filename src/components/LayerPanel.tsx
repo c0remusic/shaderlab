@@ -175,7 +175,10 @@ export function LayerPanel({
   // être exploité ici (raison ci-dessus).
   const handleGripPointerMove = useCallback((e: React.PointerEvent) => {
     setDragState((prev) => {
-      if (!prev) return prev;
+      // Ignore un pointeur qui n'est PAS celui qui a démarré ce drag (ex.
+      // un 2e doigt en tactile) — sans ce filtre, un pointeur étranger
+      // pourrait déplacer l'indicateur de cible d'un drag en cours ailleurs.
+      if (!prev || e.pointerId !== prev.pointerId) return prev;
       const el = document.elementFromPoint(e.clientX, e.clientY);
       const rowEl = el?.closest<HTMLElement>("[data-layer-row-index]");
       const overIndex = rowEl ? Number(rowEl.dataset.layerRowIndex) : null;
@@ -183,12 +186,23 @@ export function LayerPanel({
     });
   }, []);
 
-  const handleGripPointerUp = useCallback(() => {
-    setDragState((prev) => {
-      if (prev && prev.overIndex !== null) onReorder(prev.draggedId, prev.overIndex);
-      return null;
-    });
-  }, [onReorder]);
+  const handleGripPointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      setDragState((prev) => {
+        if (!prev || e.pointerId !== prev.pointerId) return prev;
+        if (prev.overIndex !== null) onReorder(prev.draggedId, prev.overIndex);
+        return null;
+      });
+    },
+    [onReorder]
+  );
+
+  // pointercancel (perte de capture, interruption tactile...) N'EST PAS un
+  // dépôt valide — annule le drag sans réordonner, contrairement à
+  // pointerup. Filtre aussi par pointerId pour la même raison que ci-dessus.
+  const handleGripPointerCancel = useCallback((e: React.PointerEvent) => {
+    setDragState((prev) => (prev && e.pointerId === prev.pointerId ? null : prev));
+  }, []);
 
   return (
     <div className="layer-panel">
@@ -203,7 +217,7 @@ export function LayerPanel({
         className="layer-panel__list"
         onPointerMove={dragState ? handleGripPointerMove : undefined}
         onPointerUp={dragState ? handleGripPointerUp : undefined}
-        onPointerCancel={dragState ? handleGripPointerUp : undefined}
+        onPointerCancel={dragState ? handleGripPointerCancel : undefined}
       >
         {layers.map((layer, index) => (
           <LayerRow

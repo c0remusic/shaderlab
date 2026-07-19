@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useCallback, useState } from "react";
 import { Eye, EyeOff, GripVertical, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
 import { effectRegistry, getEffect } from "../render/effects/registry";
@@ -24,10 +24,12 @@ interface LayerRowProps {
   layer: LayerState;
   index: number;
   selected: boolean;
+  isDragging: boolean;
+  isDropTarget: boolean;
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
   onRemove: (id: string) => void;
-  onReorder: (id: string, newIndex: number) => void;
+  onGripPointerDown: (id: string, pointerId: number, target: Element) => void;
   onOpacityChange: (id: string, opacity: number) => void;
   onOpacityCommit: () => void;
   onBlendModeChange: (id: string, blendMode: string) => void;
@@ -45,44 +47,37 @@ const LayerRow = memo(function LayerRow({
   layer,
   index,
   selected,
+  isDragging,
+  isDropTarget,
   onSelect,
   onToggle,
   onRemove,
-  onReorder,
+  onGripPointerDown,
   onOpacityChange,
   onOpacityCommit,
   onBlendModeChange,
 }: LayerRowProps) {
+  const rowClass = [
+    "layer-panel__row",
+    selected && "layer-panel__row--selected",
+    isDragging && "layer-panel__row--dragging",
+    isDropTarget && "layer-panel__row--drop-target",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return (
     <li
       onClick={() => onSelect(layer.id)}
-      // draggable retiré d'ICI (ancien comportement : posé sur TOUTE la
-      // ligne) — un ancêtre draggable="true" entre en conflit avec le drag
-      // natif de <input type="range"> à l'intérieur (le slider d'Opacité) :
-      // le navigateur arbitre à chaque mousedown/déplacement entre "c'est un
-      // dragstart HTML5" et "c'est une interaction du range input", d'où le
-      // slider saccadé. dragstart est maintenant scopé à la poignée
-      // GripVertical (déjà l'affordance visuelle prévue pour ça) ; drop
-      // reste accepté sur toute la ligne, seul le déclenchement change.
-      onDragOver={(e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        const draggedId = e.dataTransfer.getData("text/plain");
-        if (draggedId && draggedId !== layer.id) onReorder(draggedId, index);
-      }}
-      className={`layer-panel__row ${selected ? "layer-panel__row--selected" : ""}`.trim()}
+      data-layer-row-index={index}
+      className={rowClass}
     >
       <div className="layer-panel__row-top">
         <span className="layer-panel__row-main">
           <span
             className="layer-panel__grip-handle"
-            draggable
-            onDragStart={(e) => {
-              e.dataTransfer.setData("text/plain", layer.id);
-              e.dataTransfer.effectAllowed = "move";
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              onGripPointerDown(layer.id, e.pointerId, e.currentTarget);
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -139,6 +134,21 @@ const LayerRow = memo(function LayerRow({
   );
 });
 
+// Réordonnancement par pointer events, PAS le DnD HTML5 natif (draggable/
+// onDragStart/onDragOver/onDrop) — abandonné après preuve obtenue via une
+// sonde CDP sur un geste humain réel : dragstart se déclenche correctement,
+// mais WebView2 ne relaie ensuite JAMAIS dragover/drop au contenu web,
+// quelle que soit la distance parcourue par la souris. Bug d'intégration
+// WebView2/DnD natif, pas une erreur de câblage React — même famille que
+// d'autres quirks WebView2 déjà rencontrés sur ce projet (dialog plugin,
+// drag HTML5 non fiable depuis 2026-07-13). Les pointer events, eux,
+// fonctionnent déjà pour le pinceau et le pan/zoom.
+interface DragState {
+  draggedId: string;
+  pointerId: number;
+  overIndex: number | null;
+}
+
 export function LayerPanel({
   layers,
   selectedId,
@@ -151,6 +161,35 @@ export function LayerPanel({
   onOpacityCommit,
   onBlendModeChange,
 }: Props) {
+  const [dragState, setDragState] = useState<DragState | null>(null);
+
+  const handleGripPointerDown = useCallback((id: string, pointerId: number, target: Element) => {
+    target.setPointerCapture(pointerId);
+    setDragState({ draggedId: id, pointerId, overIndex: null });
+  }, []);
+
+  // Attachés sur la POIGNÉE (via setPointerCapture ci-dessus, ces deux
+  // handlers continuent de recevoir les événements même quand le pointeur
+  // sort de son rectangle) — elementFromPoint fait le hit-test manuel sur
+  // la ligne survolée, puisqu'aucun événement natif de survol/drop ne peut
+  // être exploité ici (raison ci-dessus).
+  const handleGripPointerMove = useCallback((e: React.PointerEvent) => {
+    setDragState((prev) => {
+      if (!prev) return prev;
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const rowEl = el?.closest<HTMLElement>("[data-layer-row-index]");
+      const overIndex = rowEl ? Number(rowEl.dataset.layerRowIndex) : null;
+      return overIndex === prev.overIndex ? prev : { ...prev, overIndex };
+    });
+  }, []);
+
+  const handleGripPointerUp = useCallback(() => {
+    setDragState((prev) => {
+      if (prev && prev.overIndex !== null) onReorder(prev.draggedId, prev.overIndex);
+      return null;
+    });
+  }, [onReorder]);
+
   return (
     <div className="layer-panel">
       <Select
@@ -160,17 +199,24 @@ export function LayerPanel({
         options={addEffectOptions}
         onChange={onAdd}
       />
-      <ul className="layer-panel__list">
+      <ul
+        className="layer-panel__list"
+        onPointerMove={dragState ? handleGripPointerMove : undefined}
+        onPointerUp={dragState ? handleGripPointerUp : undefined}
+        onPointerCancel={dragState ? handleGripPointerUp : undefined}
+      >
         {layers.map((layer, index) => (
           <LayerRow
             key={layer.id}
             layer={layer}
             index={index}
             selected={layer.id === selectedId}
+            isDragging={dragState?.draggedId === layer.id}
+            isDropTarget={dragState !== null && dragState.overIndex === index && dragState.draggedId !== layer.id}
             onSelect={onSelect}
             onToggle={onToggle}
             onRemove={onRemove}
-            onReorder={onReorder}
+            onGripPointerDown={handleGripPointerDown}
             onOpacityChange={onOpacityChange}
             onOpacityCommit={onOpacityCommit}
             onBlendModeChange={onBlendModeChange}

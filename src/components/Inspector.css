@@ -68,6 +68,7 @@
   padding-block: var(--space-2);
   border-radius: var(--radius-control);
   border-left: 2px solid transparent;
+  border-top: 2px solid transparent;
   color: var(--text-secondary);
   /* pointer, pas grab : draggable n'est plus sur la ligne entière (scopé à
      .layer-panel__grip-handle) — grab ici annoncerait un glisser qui ne peut
@@ -99,6 +100,17 @@
   background: var(--surface-selected);
   border-left-color: var(--border-selection);
   color: var(--text-primary);
+}
+
+.layer-panel__row--dragging {
+  /* 0.5 littéral et ponctuel : aucun token "élément en cours de glisser"
+     n'existe dans le système, et un seul usage ne justifie pas d'en créer un
+     pour l'instant. */
+  opacity: 0.5;
+}
+
+.layer-panel__row--drop-target {
+  border-top: 2px solid var(--border-selection);
 }
 
 .layer-panel__row-main {

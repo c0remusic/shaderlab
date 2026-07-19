@@ -1,0 +1,26 @@
+@theme inline {
+  --color-background: var(--surface-window);
+  --color-foreground: var(--text-primary);
+  --color-card: var(--surface-panel);
+  --color-card-foreground: var(--text-primary);
+  --color-popover: var(--surface-raised);
+  --color-popover-foreground: var(--text-primary);
+  --color-primary: var(--action-primary-bg);
+  --color-primary-foreground: var(--action-primary-text);
+  --color-secondary: var(--action-secondary-bg);
+  --color-secondary-foreground: var(--text-primary);
+  --color-muted: var(--surface-hover);
+  --color-muted-foreground: var(--text-secondary);
+  --color-accent: var(--action-secondary-hover);
+  --color-accent-foreground: var(--text-primary);
+  --color-destructive: var(--status-danger);
+  --color-destructive-foreground: var(--status-danger-text);
+  --color-border: var(--border-default);
+  --color-input: var(--border-default);
+  --color-ring: var(--focus-color);
+
+  --radius-sm: var(--radius-control);
+  --radius-md: var(--radius-group);
+  --radius-lg: var(--radius-panel);
+  --radius-xl: var(--radius-dialog);
+}

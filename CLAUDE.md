@@ -29,6 +29,11 @@
 > `.claude/learning-log.md` (entrée 2026-07-18) et le bandeau RÉSOLU de
 > `docs/superpowers/specs/2026-07-17-native-wgpu-decision.md`.
 
+## Langage partagé
+
+Glossaire de domaine du projet : `CONTEXT.md` (racine). Le lire avant tout travail
+qui manipule le vocabulaire métier ; le maintenir via le skill `interview`.
+
 ## Quoi
 
 App desktop **Windows** (Tauri v2) d'effets visuels "shader" temps réel sur
@@ -216,6 +221,14 @@ seulement pour un futur écran web pur sans canvas GPU.
 ## Index des documents docs/
 
 @docs/INDEX.json
+
+## Wireframe & tokens
+Source de tokens canonique (à viser pour tout wireframe `interface-design`) :
+`src/design/primitives.css` + `src/design/semantic.css` + `src/design/components.css`
+(vraies valeurs CSS dans `:root`). _Éviter_ comme source de valeurs :
+`docs/design-system/tokens.md` et `.interface-design/system.md` (contrat/résumé
+d'intention, peut retarder sur le CSS — ex. `--outline-contrast` existe dans
+semantic.css mais pas dans tokens.md). Wireframes de feature → `docs/wireframes/<feature>.html`.
 
 ## Outillage / routage skills
 

@@ -109,6 +109,15 @@ interface MaskSource {
   // pinceau :
   raster?: Uint8Array;   // r8 pleine résolution, accumulation des strokes
 }
+
+interface RefineEdgeParams {
+  feather: number;                // px, flou du bord
+  contract: number;               // px signé, contracter(-)/dilater(+)
+  smooth: number;                 // itérations de lissage
+  edgeAware: boolean;              // §4bis — guided filter, ajouté 2026-07-19
+  edgeRadius: number;              // px, rayon du box-filter guidé
+  edgeStrength: number;            // 0..1, interpolation masque brut ↔ masque affiné
+}
 ```
 
 - **Copie de masque vers un autre calque** (PRD:63-66, indépendante figée) = **deep
@@ -156,12 +165,73 @@ Modèle de textures (toutes r8, hors chaîne couleur) :
   2. Pour chaque source `enabled` suivante : `add` = `max(acc, src)`, `subtract` =
      `clamp(acc - src, 0, 1)`, `intersect` = `min(acc, src)`.
   3. `mask.invert` ⟹ `acc = 1 - acc`.
-  4. **Refine edge** (feather / contracter-dilater / lisser) = passes shader sur le
-     résultat foldé, **live** (`mask.refineEdge`, ré-appliqué à chaque changement).
-     Forme du masque seulement, indépendant de l'image (décontamination écartée, PRD).
+  4. **Edge-aware** (`mask.refineEdge.edgeAware`, §4bis) — le bord du masque foldé
+     épouse les contours de contraste de l'image du calque, **avant** l'étape 5.
+  5. **Refine edge forme-seule** (feather / contracter-dilater / lisser) = passes
+     shader sur le résultat de l'étape précédente, **live** (`mask.refineEdge`,
+     ré-appliqué à chaque changement). Indépendant de l'image (décontamination
+     écartée, PRD) — ordre volontaire : edge-aware d'abord (comme Photoshop Select
+     and Mask, qui applique la détection de contour avant feather/smooth), sinon le
+     feather effacerait ce que l'edge-aware vient de préciser.
   `mask.enabled === false` ⟹ pas de fold, l'effet est appliqué sans masque. **Idem si
   AUCUNE source n'est `enabled`** (pas de seed possible) ⟹ masque plein, effet non
   masqué (jamais de comportement indéfini / masque nul silencieux).
+
+### 4bis. Edge-aware refine — guided filter GPU séparable
+
+**Ajouté 2026-07-19** (scope de la Tranche 2, cadré avec Antoine — cf. référence
+Adobe Lightroom/Photoshop "Select and Mask"/edge detection, initialement listé
+**différé** dans `2026-07-18-shaderlab-layers-masking-prd.md:123-125`, réintégré
+avant la vague 1 sur demande explicite plutôt que d'attendre le trigger de
+réouverture).
+
+**Objectif** : le bord du masque foldé s'aligne sur les contours de contraste réels
+de la photo (silhouette contre fond, bords nets) — pas juste une forme géométrique
+abstraite. **Portée assumée** : approxime le comportement de Photoshop sur bords nets/
+silhouettes, ne vise PAS le matting fin cheveux/fourrure (alpha-matting global type
+Select and Mask complet — écarté pour le coût de calcul et le risque sur le budget
+temps réel, cf. question posée à Antoine pendant le brainstorming).
+
+**Algorithme retenu (guided filter séparable, He et al. 2010)** — même famille que
+le dual-filter bloom déjà dans le moteur (`docs/superpowers/changes/2026-07-12-
+shaderlab-mvp/design.md`, Task 13) : coût **O(N)** indépendant du rayon grâce à la
+séparabilité horizontale/verticale (contrairement à un bilatéral joint, dont le coût
+par pixel grandit avec le rayon). Guide `I` = luminance de l'image du calque (texture
+déjà nécessaire pour la source `luminosity` de la Tranche 3 — réutilisée, pas une
+nouvelle dépendance).
+
+Passes (chaînées via le même mécanisme `EffectModule.passes`-like que le bloom) :
+
+1. Box-filter séparable (H puis V) sur `I`, `p` (masque foldé courant), `I·I`, `I·p`
+   → `mean_I`, `mean_p`, `corr_I`, `corr_Ip`. Rayon = `edgeRadius`.
+2. Passe simple : `var_I = corr_I - mean_I²`, `cov_Ip = corr_Ip - mean_I·mean_p`,
+   `a = cov_Ip / (var_I + eps)`, `b = mean_p - a·mean_I` (`eps` = petite constante
+   fixe anti-division-par-zéro, pas un paramètre exposé).
+3. Box-filter séparable sur `a`, `b` → `mean_a`, `mean_b`.
+4. `q = mean_a·I + mean_b` — masque affiné.
+5. Résultat final = `lerp(p, q, edgeStrength)` (`edgeStrength` = curseur d'intensité
+   exposé à l'utilisateur, 0 = désactivé visuellement sans changer `edgeAware`,
+   1 = affiné à fond).
+
+**Textures** : ~4 intermédiaires (r8/r16f) par calque en cours d'édition, résidentes
+le temps de l'édition, réutilisant le **même pooling GPU** que le fold (§4) — pas un
+budget VRAM séparé.
+
+**Coût/déclenchement** : recalculé **seulement au changement de `mask.refineEdge`**
+(comme le refine edge forme-seule existant), jamais par frame de peinture pendant un
+stroke — le cache amont/aval du §4 s'applique identiquement (`edgeAware` fait partie
+de l'étape « refine edge » cachée en aval de la source active).
+
+**UI (Inspector, panneau Masques)** : toggle `edgeAware` + slider `edgeRadius` (px,
+défaut ~10, borné par la même règle que les autres rayons du projet) + slider
+`edgeStrength` (0..1, défaut 1) — 3 nouveaux contrôles dans le même bloc que
+feather/contract/smooth, pas un panneau séparé.
+
+**Hors scope (rappel, différé PRD)** : détection sémantique sujet/ciel/arrière-plan
+(segmentation ML — cf. Lightroom "Select Sky"/"Select Subject", Adobe Sensei) reste
+**différée**, même famille que le depth mask (`prd.md` §Différé) — modèle local ONNX/
+WebGPU, chantier à part avec son propre spike, pas dans cette tranche. Ajouté au PRD
+en note ci-dessous.
 
 **Impact honnête sur le crash 24MP** : le dirty-rect d'upload ne change pas, MAIS le
 **rendu gagne des passes de fold GPU** sur exactement le chemin qui a le crash 24MP

@@ -91,6 +91,13 @@ dégrader la fidélité de l'empilement ni la fluidité du geste.
   indépendamment de l'image. C'est un **ajustement live sur le masque combiné
   final** (pas cuit dans une source) : si j'ajoute une source ensuite, le refine
   edge se ré-applique au nouveau résultat combiné.
+- **Refine edge — edge-aware (accroche aux contours de l'image)** : réintégré à la
+  vague 1 le 2026-07-19 (initialement différé ci-dessous, réouvert sur demande
+  explicite plutôt que d'attendre le trigger). Le bord du masque colle aux contours
+  de contraste réels de la photo (approximation façon Photoshop Select and Mask, pas
+  un alpha-matting complet — pas de gestion fine cheveux/fourrure, cf.
+  `2026-07-18-shaderlab-layers-masking-design.md` §4bis pour le COMMENT). S'applique
+  avant feather/contracter-dilater/lisser, sur n'importe quel masque combiné.
 
 ### Présentation UI
 
@@ -120,12 +127,17 @@ rouvrir la décision :
   région arbitraire au tracé devient un besoin récurrent que le pinceau ne couvre
   pas confortablement. La variante **magnétique** (accroche aux contours) est un
   cran au-dessus, à traiter après le lasso simple.
-- **Refine edge — accroche aux contours de l'image** (edge-aware : le bord du
-  masque s'aligne sur les contours de contraste de la photo). **Trigger** : si le
-  refine edge « forme seule » livré ne suffit pas pour des bords complexes.
 - **Refine edge — décontamination couleur de bordure** : **écarté** (pas différé) —
   modifie les pixels de l'image, ce qui n'a pas de sens quand un masque ne fait que
   **doser un effet** dans le modèle shaderlab.
+- **Détection sémantique sujet/ciel/arrière-plan** (masque automatique par
+  segmentation, type Lightroom "Sélectionner un sujet"/"Sélectionner le ciel", Adobe
+  Sensei). Ajouté au différé le 2026-07-19 (référence Lightroom regardée avec
+  Antoine pendant le brainstorming edge-aware). Même famille technique que le depth
+  mask ci-dessus : nécessite un **modèle de segmentation local** (ONNX/WebGPU,
+  inférence à l'ouverture, pas un LLM), chantier ML packaging à part. **Trigger** :
+  même que depth mask — spike ML dédié une fois les masques de base + edge-aware
+  livrés et validés, à mutualiser avec le spike depth si les deux avancent ensemble.
 
 ## Hors-scope explicite (autres)
 

@@ -145,3 +145,84 @@ le build-script Tauri échouait (`failed to read plugin permissions ... Desktop\
 Purger seulement `target/debug/build/` en gardant `deps/` laisse le target
 INCOHÉRENT (`could not compile potential_utf` sans diagnostic). Fix fiable après
 relocalisation d'un repo Tauri : `cargo clean` COMPLET, pas de purge partielle.
+
+## 2026-07-19 — Pinceau : gestes qui s'enchaînent, chacun révèle le suivant
+
+**Contexte** : retours UX live sur le pinceau après le fix du crash 24MP.
+Quatre bugs distincts, chacun découvert en corrigeant/vérifiant le précédent.
+
+1. **Trous du trait** : `MaskPainter.paintStroke` ne peint qu'UN tampon par
+   appel, sans interpolation ; le coalescing rAF de `Canvas.tsx` ne garde que
+   le DERNIER point par frame (les intermédiaires sont perdus, pas groupés).
+   Un tracé rapide = tampons isolés dès que l'écart dépasse le diamètre du
+   pinceau. Fix : `MaskPainter.paintLine` interpole des tampons espacés à 25%
+   du rayon entre le dernier point peint et le point courant (`lastPoint`
+   traqué par `MaskPainterEntry`, reset en fin de trait + au re-seed
+   undo/redo). Vérifié en live via de VRAIS PointerEvent + coalescing réel
+   (pas un raccourci de test), pas juste des appels directs à `handleMaskStroke`.
+
+2. **Peindre hors du canvas** : `setPointerCapture` au `pointerdown` +
+   `pointerup` seul termine le trait (retire `endStroke()` de `onPointerLeave`).
+   **Piège découvert en le vérifiant** : `setPointerCapture` peut lever
+   `NotFoundError` sur des `PointerEvent` synthétiques dispatchés via CDP (le
+   moteur ne reconnaît pas toujours le pointeur comme "actif" pour un event
+   scripté) — et comme `isPaintingRef.current = true` était fixé AVANT cet
+   appel, l'exception non gérée avortait le handler et faisait sauter le
+   premier tampon du trait EN SILENCE. Fix : `try/catch` délibéré autour de
+   `setPointerCapture` seul — la capture est un confort auxiliaire, son échec
+   ne doit jamais bloquer l'action critique (peindre).
+
+3. **Flicker en peignant hors du canvas** : régression du point 2. Un point
+   dont le pinceau ne recouvre plus DU TOUT l'image (au-delà du rayon depuis
+   un bord) faisait retourner à `paintStroke` un `DirtyRect` à
+   largeur/hauteur NÉGATIVE. Ce rect partait tel quel dans
+   `computeR8UploadRegion` → `device.queue.writeTexture` comme taille de
+   copie GPU — `TypeError: ... Value is outside the unsigned long value
+   range`, une erreur de validation à chaque frame concernée = le flicker.
+   Fix : clamp `width`/`height` à 0 minimum (un rect vide est un no-op GPU
+   valide, jamais une erreur).
+
+4. **Contamination des tests par des worktrees parallèles** : deux chips
+   `spawn_task` actifs (worktrees sous `.claude/worktrees/`) faisaient scanner
+   leurs propres `test/` par `npm run test` du repo principal (19→57 fichiers,
+   122→366 tests). Pas une régression de vitest — confirmé en excluant, le
+   compte est revenu à 19/122 immédiatement. Fix : `vitest.config.ts` exclut
+   `.claude/worktrees/**`.
+
+**Leçon de méthode** : chaque fix a été vérifié en live (CDP, vraie fenêtre
+WebView2) avant d'être considéré résolu — et 2 des 4 bugs (le try/catch qui
+sautait le 1er tampon, le DirtyRect négatif) n'ont été trouvés QU'EN
+vérifiant honnêtement le fix précédent au lieu de le supposer correct après
+la seule revue de code / tsc / tests unitaires.
+
+**Faux positif à ne pas reproduire** : au milieu de cette investigation,
+`package.json`/`package-lock.json` ont semblé "driftés" (vitest ^2.0.0
+committé vs 4.1.10 réellement installé) puis sont redevenus identiques à HEAD
+entre deux vérifications. Ce n'était PAS une anomalie : c'était un commit
+légitime d'Antoine (`951f617`, `npm audit fix --force` pour une vraie vuln
+critical/high esbuild/vite/vitest) passé PENDANT l'investigation. Un fichier
+tracké qui bouge sans que cette conversation l'ait édité = vérifier
+`git log` pour un commit concurrent AVANT de traiter ça comme une anomalie à
+résoudre (cohérent avec la règle wrap-up sur les fichiers modifiés hors
+session — vaut aussi pour un repo de projet avec historique de sessions
+concurrentes, pas seulement `~/.claude`).
+
+## 2026-07-19 — Tranche 1 (blend + opacité par calque) livrée
+
+Plan `docs/superpowers/plans/2026-07-18-shaderlab-layers-blend-opacity.md`
+exécuté via `subagent-driven-development`, 4 tâches + revue finale, toutes
+clean (0 Critical/Important). Commits `4642ffd..421eece` + `631e6bf` (config)
++ `c070cfc` (doc). 2 checkpoints visuels humains confirmés par Antoine (retro-
+compat/wiring blend en Task 3, UI réelle slider+select en Task 4). 122/122
+tests, tsc clean.
+
+**Résultat** : chaque calque a maintenant `opacity`/`blendMode`, le
+compositing est un vrai `mix(input, blend(input,effected,mode), opacity*mask)`
+au lieu de l'ancienne "effect chain" qui écrasait tout (le défaut même que
+DASCA avait été critiqué pour avoir). Registry de 11 modes de fusion
+(`src/render/blend/`), extensible en ajoutant un fichier.
+
+**Reprise pour la suite** : Tranche 2 (masque non-destructif, design déjà
+écrit dans `docs/superpowers/specs/2026-07-18-shaderlab-layers-masking-
+design.md` §3-5) n'a pas encore son plan d'implémentation — commencer par
+`superpowers:writing-plans` dessus avant `subagent-driven-development`.

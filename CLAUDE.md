@@ -82,6 +82,7 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
 - Build frontend seul : `npm run build` (tsc + vite build)
 - Tests : `npm run test` (Vitest)
 - Type-check : `npx tsc --noEmit`
+- Lint tokens design : `npm run lint:tokens` (détecte couleurs/z-index/spacing en dur qui contournent un token existant, `scripts/lint-tokens.mjs`)
 - Rust : `cd src-tauri && cargo check`
 
 ## Structure (état réel)

@@ -5,7 +5,6 @@ import { getEffect } from "./effects/registry";
 import type { EffectModule } from "./effects/types";
 import { composeShader, MAX_EFFECT_PARAMS, FULLSCREEN_VERTEX_WGSL } from "./shaderCompose";
 import { getBlendMode } from "./blend/registry";
-import { staleMaskIds } from "./maskResidency";
 import { FrameScheduler } from "./frameScheduler";
 import { assertImageFitsGpu } from "./limits";
 import { logDiagnostic } from "../launch";
@@ -110,16 +109,13 @@ export class Renderer {
     string,
     { pipeline: GPURenderPipeline; bindGroupLayout: GPUBindGroupLayout }
   >();
-  private maskTextures = new Map<string, { texture: GPUTexture; syncedFrom: Uint8Array }>();
   /** Une texture GPU résidente par SOURCE de masque (clé "layerId:sourceId"),
    *  uploadée seulement quand la référence `raster` de cette source change
-   *  (même pattern `syncedFrom` que `maskTextures`). Alimente le fold ; la
-   *  source pinceau EN COURS DE PEINTURE continue de passer par
-   *  `liveMaskTexture` (chemin inchangé de Task 1/avant), pas par cette map. */
+   *  (pattern `syncedFrom`). Alimente le fold ; la source pinceau EN COURS
+   *  DE PEINTURE continue de passer par `liveMaskTexture` (chemin inchangé
+   *  de Task 1/avant), pas par cette map. */
   private sourceTextures = new Map<string, { texture: GPUTexture; syncedFrom: Uint8Array }>();
-  /** Texture masque FOLDÉE résidente par calque (remplace l'usage précédent
-   *  de `maskTextures` pour le cas multi-source ; `maskTextures` reste le
-   *  raccourci direct du cas 0/1-source, voir `getMaskTexture`). Deux
+  /** Texture masque FOLDÉE résidente par calque. Deux
    *  textures de travail en ping-pong pour la chaîne combine->combine->invert
    *  sans qu'une passe ne lise et n'écrive la même texture. */
   private foldedMaskTextures = new Map<string, { texture: GPUTexture; lastInputs: FoldSourceSnapshot[]; lastInvert: boolean }>();
@@ -278,10 +274,6 @@ export class Renderer {
     const { device } = this.ctx;
     const diagStart = performance.now();
 
-    for (const id of staleMaskIds(this.maskTextures.keys(), layers)) {
-      this.maskTextures.get(id)!.texture.destroy();
-      this.maskTextures.delete(id);
-    }
     {
       const aliveLayerIds = new Set(layers.map((l) => l.id));
       for (const key of [...this.sourceTextures.keys()]) {
@@ -418,7 +410,7 @@ export class Renderer {
     const elapsedMs = Math.round((performance.now() - diagStart) * 100) / 100;
     logDiagnostic(
       `frame#${this.diagFrameCount} jsEncodeMs=${elapsedMs} enabledLayers=${enabledLayerCount} ` +
-        `churnedThisFrame=${churnedResources} residentMaskTextures=${this.maskTextures.size} ` +
+        `churnedThisFrame=${churnedResources} residentMaskTextures=${this.sourceTextures.size + this.foldedMaskTextures.size} ` +
         `pipelineCacheSize=${this.pipelineCache.size} imageSize=${this.width}x${this.height}`
     );
   }
@@ -775,7 +767,7 @@ export class Renderer {
     // si CETTE source est celle en cours de peinture, son contenu GPU est
     // déjà à jour dans liveMaskTexture — copie GPU->GPU au lieu d'un 2e
     // upload CPU->GPU complet (évite le hang traqué le 2026-07-15).
-    if (this.liveMaskLayerId === layerId && this.liveMaskTexture) {
+    if (this.liveMaskLayerId === layerId && this.liveMaskTexture && source.type === "brush") {
       encoder.copyTextureToTexture({ texture: this.liveMaskTexture }, { texture }, [this.width, this.height]);
     } else {
       this.uploadR8(texture, raster, this.width, this.height);
@@ -932,8 +924,6 @@ export class Renderer {
     this.exportTexture?.destroy();
     this.exportTexture = null;
     this.pipelineCache.clear();
-    for (const { texture } of this.maskTextures.values()) texture.destroy();
-    this.maskTextures.clear();
     this.whiteMask?.destroy();
     this.whiteMask = null;
     this.liveMaskTexture?.destroy();

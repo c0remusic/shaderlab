@@ -178,10 +178,14 @@ Modèle de textures (toutes r8, hors chaîne couleur) :
   masqué (jamais de comportement indéfini / masque nul silencieux).
 
 **Impact honnête sur le crash 24MP** : le dirty-rect d'upload ne change pas, MAIS le
-**rendu gagne des passes de fold GPU** sur exactement le chemin qui a le crash 24MP
-non résolu (déclencheur documenté : `setLayers()` / render résident en fin de stroke,
+**rendu gagne des passes de fold GPU** sur exactement le chemin qui **avait** le
+crash 24MP (déclencheur documenté : `setLayers()` / render résident en fin de stroke,
 `2026-07-17-native-wgpu-decision.md`). C'est un **ajout de travail GPU sur ce chemin**
-→ voir §Sécurité crash (gate systematic-debugging sur la tranche 2).
+— corrigé après revue adverse Codex 2026-07-19, cette phrase disait encore « non
+résolu », stale par rapport au §Sécurité crash (crash **résolu** `e3c7584`, gate
+**levé**). La contrainte qui en découle n'est plus un blocage mais une règle de
+conception : garder les gros buffers/textures de masque hors du state React (déjà
+respecté par ce design, source de vérité en ref + textures GPU résidentes).
 
 **Optimisation 60fps** : pendant un stroke de pinceau, seule la texture de la source
 active change ; on met en **cache l'accumulateur foldé des sources en amont** de la
@@ -202,12 +206,22 @@ géométrique…) = un fichier.
 
 ### 4bis. Edge-aware refine — guided filter GPU séparable
 
-**Ajouté 2026-07-19** (scope de la Tranche 2, cadré avec Antoine — cf. référence
-Adobe Lightroom/Photoshop "Select and Mask"/edge detection, initialement listé
-**différé** dans `2026-07-18-shaderlab-layers-masking-prd.md:123-125`, réintégré
-avant la vague 1 sur demande explicite plutôt que d'attendre le trigger de
-réouverture). **Corrigé après revue adverse Codex 2026-07-19** : invalidation,
-budget VRAM, dépendance de tranche et tests — voir les 4 points marqués ci-dessous.
+**Ajouté 2026-07-19** (cadré avec Antoine — cf. référence Adobe Lightroom/Photoshop
+"Select and Mask"/edge detection, initialement listé **différé** dans
+`2026-07-18-shaderlab-layers-masking-prd.md:123-125`, réintégré à la vague 1 sur
+demande explicite plutôt que d'attendre le trigger de réouverture). **Corrigé après
+revue adverse Codex 2026-07-19** : invalidation, budget VRAM, format, placement de
+tranche, aperçu live pendant un stroke, et tests — voir les points marqués ci-dessous.
+
+**Placement de tranche — corrigé (finding Codex MOYENNE)** : la v1 plaçait l'edge-
+aware en **Tranche 2**, contredisant le découpage faisant autorité (§Découpage plus
+bas) qui range le refine edge dans la **Tranche 3** (« Sources paramétriques » —
+dégradé/luminosité/range couleur + refine edge, §3-4), aux côtés du refine edge
+forme-seule déjà prévu — la Tranche 2 ne fait que le modèle non-destructif + fold
+GPU, sans aucune source encore branchée à l'UI. **Edge-aware ships en Tranche 3**,
+pas 2 : il opère sur le résultat du fold (disponible dès la Tranche 2) mais son
+implémentation/UI arrive avec le reste du refine edge, cohérent avec l'ordre déjà
+acté §4 étape 5 (edge-aware avant feather/contract/smooth, même tranche).
 
 **Objectif** : le bord du masque foldé s'aligne sur les contours de contraste réels
 de la photo (silhouette contre fond, bords nets) — pas juste une forme géométrique
@@ -221,13 +235,9 @@ le dual-filter bloom déjà dans le moteur (`docs/superpowers/changes/2026-07-12
 shaderlab-mvp/design.md`, Task 13) : coût **O(N)** indépendant du rayon grâce à la
 séparabilité horizontale/verticale (contrairement à un bilatéral joint, dont le coût
 par pixel grandit avec le rayon). Guide `I` = luminance de l'image du calque.
-⚠️ **Correction dépendance de tranche** (finding Codex MOYENNE) : la version
-précédente affirmait que `I` était « déjà nécessaire pour la source `luminosity` de
-la Tranche 3 — réutilisée, pas une nouvelle dépendance ». C'est faux dans le sens où
-c'est écrit : edge-aware ships en **Tranche 2**, avant la source `luminosity` de la
-Tranche 3 — la texture de luminance n'existe pas encore à ce moment. Sens correct :
-edge-aware **introduit** la passe couleur→luminance en Tranche 2 ; c'est la
-Tranche 3 qui **réutilisera** cette passe pour sa source `luminosity`, pas l'inverse.
+Les deux sont livrés dans la **même Tranche 3** (voir placement corrigé ci-dessus),
+donc l'ordre d'implémentation à l'intérieur de la tranche décide qui introduit la
+passe couleur→luminance en premier — pas de dépendance inter-tranches à gérer.
 
 Passes (chaînées via le même mécanisme `EffectModule.passes`-like que le bloom) :
 
@@ -242,33 +252,47 @@ Passes (chaînées via le même mécanisme `EffectModule.passes`-like que le blo
    exposé à l'utilisateur, 0 = désactivé visuellement sans changer `edgeAware`,
    1 = affiné à fond).
 
-**Textures et budget VRAM** (finding Codex HAUTE — la v1 disait « même pooling, pas
-de budget séparé », affirmation non chiffrée, rejetée) : `I`, `p`, `I·I`, `I·p`,
-`a`, `b` sont 6 buffers logiques, mais `mean_*`/`corr_*` peuvent réutiliser en
-ping-pong les slots de `I·I`/`I·p`/`a`/`b` une fois consommés (même pattern
-pendingDestroy que Task 13) ⟹ **pic réel ≈ 4 textures simultanées**. À 24MP, une
-texture `r16f` mono-canal ≈ 48 Mo (`r8` ≈ 24 Mo — `r8` suffit pour `I`/`p`/`a`/`b`
-qui restent dans [0,1] après clamp, `r16f` réservé si `a` déborde cette plage en
-pratique — à valider à l'implémentation). **Pic ajouté au budget VRAM existant : ~96-192 Mo,
-transitoire** (alloué pour la durée du calcul, libéré via `pendingDestroy` après
-`submit()`, pas résident en continu) — **à mesurer réellement à 24MP dès la première
-implémentation**, pas juste affirmé ici (cf. §5, la VRAM 24MP est le risque ouvert du
-projet). Si la mesure dépasse le budget disponible pendant un stroke actif, voir la
-mitigation ci-dessous.
+**Textures et budget VRAM — corrigé (finding Codex HAUTE ×2)** : la v1 sous-comptait
+le pic (annonçait ~4 textures) et proposait `r8` pour `a`/`b`, un format invalide —
+corrigés tous les deux ici.
 
-**Coût/déclenchement — corrigé (finding Codex HAUTE)** : la v1 affirmait à tort
-« recalculé seulement au changement de `mask.refineEdge` ». C'est faux : `q` dépend
-de `p` (le masque foldé), qui change à **chaque frame pendant un stroke actif**
-(§4, Optimisation 60fps) — le guided filter suit donc la **même cadence que le
-refine edge forme-seule existant**, pas une cadence réduite. **Mitigation explicite
-retenue** (contrairement au feather/smooth, peu coûteux et donc laissés tels quels) :
-pendant un stroke de pinceau actif, l'edge-aware est **suspendu** — le masque affiché
-reste celui du dernier fold complet (avant le stroke, ou edge-aware appliqué au
-masque sans la source en cours de peinture) — et se **réapplique au relâchement**
+- **Format** : `a = cov_Ip / (var_I + eps)` et `b = mean_p - a·mean_I` ne sont **pas**
+  bornés dans `[0,1]` (peuvent être négatifs ou `> 1`) — les stocker en `r8unorm`
+  clamperait et fausserait l'algorithme (bords à faible contraste/inversés mal
+  suivis). `a`/`b`, et les accumulateurs `corr_I`/`corr_Ip` qui les nourrissent,
+  utilisent donc **`r16float`** (signé). `I`, `p` et la sortie finale `q` restent
+  `r8unorm` (bornés par construction/clamp explicite sur `q` seulement).
+- **Pic simultané réel** : à l'étape de calcul de `a`/`b`, `mean_I`/`mean_p`/
+  `corr_I`/`corr_Ip` doivent coexister (4), et `I`/`p` doivent rester vivants pour
+  `q` et le `lerp` final (2 de plus) ⟹ **pic ≈ 6 textures simultanées**, pas 4 —
+  `I·I`/`I·p` peuvent en revanche être libérées dès que `corr_I`/`corr_Ip` sont
+  calculées (réutilisation ping-pong possible sur CES deux-là uniquement, même
+  pattern `pendingDestroy` que Task 13). En comptant 2× `r8` (24 Mo, `I`/`p`) +
+  4× `r16f` (48 Mo, `mean_I`/`mean_p`/`corr_I`/`corr_Ip`) : **pic ≈ 240 Mo,
+  transitoire** (alloué pour la durée du calcul, libéré via `pendingDestroy` après
+  `submit()`, pas résident en continu) — chiffre revu à la hausse par rapport à la
+  v1 (~96-192 Mo), **à mesurer réellement à 24MP dès la première implémentation**,
+  pas juste affirmé ici (cf. §5, la VRAM 24MP est le risque ouvert du projet). Si la
+  mesure dépasse le budget disponible pendant un stroke actif, voir la mitigation
+  ci-dessous.
+
+**Coût/déclenchement — corrigé (finding Codex HAUTE + MOYENNE)** : la v1 affirmait à
+tort « recalculé seulement au changement de `mask.refineEdge` ». C'est faux : `q`
+dépend de `p` (le masque foldé), qui change à **chaque frame pendant un stroke
+actif** (§4, Optimisation 60fps) — le guided filter suit donc la **même cadence que
+le refine edge forme-seule existant**, pas une cadence réduite.
+
+**Mitigation — corrigée (finding Codex MOYENNE, la v1 gelait l'aperçu du trait, ce
+qui contredit le PRD « ajustement live sur le masque combiné final »,
+`prd.md:91-99`)** : pendant un stroke actif, c'est **seulement le guided filter
+edge-aware** qui est suspendu — le **fold brut `p` courant reste affiché en live**
+(feather/contract/smooth, peu coûteux, continuent de s'appliquer normalement à
+chaque frame comme aujourd'hui). L'edge-aware se **réapplique au relâchement**
 (stroke-end), même granularité que le commit d'historique existant (un commit par
-stroke, Task 11b). Ce n'est pas un oubli : c'est un choix de perf explicite pour ne
-pas ajouter un guided filter à chaque frame de peinture sur le chemin déjà sensible
-du crash 24MP (paragraphe précédent).
+stroke, Task 11b) : le trait reste visible et interactif pendant qu'on peint, seul
+le « collage aux contours » a un temps de latence d'une frame au relâchement — pas
+un gel du masque entier. Choix de perf explicite pour ne pas ajouter un guided
+filter à 6 textures à chaque frame de peinture sur le chemin GPU déjà sensible.
 
 **UI (Inspector, panneau Masques)** : toggle `edgeAware` + slider `edgeRadius` (px,
 défaut ~10, borné par la même règle que les autres rayons du projet) + slider
@@ -388,7 +412,9 @@ réouverture : si le besoin d'un groupe transparent au compositing apparaît.)
    de conception héritée : garder les gros buffers de masque hors du state React
    (voir §Sécurité crash). Base pour les sources.
 3. **Sources paramétriques** (§3-4) — dégradé, luminosité, range couleur, comme
-   `MaskSourceModule` + **refine edge**.
+   `MaskSourceModule` + **refine edge** (feather/contract/smooth **et** edge-aware
+   guided filter, §4bis — placement confirmé ici après revue adverse Codex
+   2026-07-19, la Tranche 2 ne fait que le modèle + fold GPU).
 4. **Panneau Masques flottant** (§6) — l'UX qui expose 2 + 3 (drag/magnétisme/repli,
    pile de sources, aperçu au survol).
 5. **Groupes** (§7) — le plus lourd, en dernier, construit sur l'infra blend de la

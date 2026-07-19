@@ -164,8 +164,14 @@ export function LayerPanel({
   const [dragState, setDragState] = useState<DragState | null>(null);
 
   const handleGripPointerDown = useCallback((id: string, pointerId: number, target: Element) => {
-    target.setPointerCapture(pointerId);
-    setDragState({ draggedId: id, pointerId, overIndex: null });
+    // Ignore un 2e pointeur (ex. un 2e doigt) tant qu'un drag est déjà en
+    // cours — sinon il écraserait dragState et le drag du 1er pointeur
+    // serait silencieusement perdu (finding codex-crosscheck).
+    setDragState((prev) => {
+      if (prev) return prev;
+      target.setPointerCapture(pointerId);
+      return { draggedId: id, pointerId, overIndex: null };
+    });
   }, []);
 
   // Attachés sur la POIGNÉE (via setPointerCapture ci-dessus, ces deux

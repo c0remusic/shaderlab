@@ -56,11 +56,14 @@ const LayerRow = memo(function LayerRow({
   return (
     <li
       onClick={() => onSelect(layer.id)}
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.setData("text/plain", layer.id);
-        e.dataTransfer.effectAllowed = "move";
-      }}
+      // draggable retiré d'ICI (ancien comportement : posé sur TOUTE la
+      // ligne) — un ancêtre draggable="true" entre en conflit avec le drag
+      // natif de <input type="range"> à l'intérieur (le slider d'Opacité) :
+      // le navigateur arbitre à chaque mousedown/déplacement entre "c'est un
+      // dragstart HTML5" et "c'est une interaction du range input", d'où le
+      // slider saccadé. dragstart est maintenant scopé à la poignée
+      // GripVertical (déjà l'affordance visuelle prévue pour ça) ; drop
+      // reste accepté sur toute la ligne, seul le déclenchement change.
       onDragOver={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
@@ -74,7 +77,17 @@ const LayerRow = memo(function LayerRow({
     >
       <div className="layer-panel__row-top">
         <span className="layer-panel__row-main">
-          <GripVertical className="layer-panel__grip" size={14} strokeWidth={1.5} aria-hidden="true" />
+          <span
+            className="layer-panel__grip-handle"
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData("text/plain", layer.id);
+              e.dataTransfer.effectAllowed = "move";
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GripVertical className="layer-panel__grip" size={14} strokeWidth={1.5} aria-hidden="true" />
+          </span>
           <IconButton
             label={layer.enabled ? "Masquer le calque" : "Afficher le calque"}
             size="compact"

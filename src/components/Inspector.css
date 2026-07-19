@@ -105,6 +105,12 @@
   min-width: 0;
 }
 
+.layer-panel__grip-handle {
+  display: inline-flex;
+  cursor: grab;
+  user-select: none;
+}
+
 .layer-panel__grip {
   color: var(--text-tertiary);
   flex-shrink: 0;

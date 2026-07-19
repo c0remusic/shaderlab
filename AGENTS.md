@@ -1,13 +1,22 @@
 # shaderlab — AGENTS.md
 
 > Nom provisoire (placeholder, jamais tranché — même logique que track-finder).
-> Repo local `C:\Users\LEETJ\Desktop\shaderlab`, pas encore de remote GitHub.
+> Repo local `C:\dev\shaderlab`, pas encore de remote GitHub. (Déplacé depuis
+> `C:\Users\LEETJ\Desktop\shaderlab` — l'ancien chemin n'existe plus ; une
+> relocalisation d'un repo Tauri exige un `cargo clean` COMPLET : le cache
+> `target/` contient des chemins absolus périmés qui cassent le build-script.)
 > Branche de dev active : `feature/design-system` (MVP mergé sur master ;
-> `feature/archi-remediation` mergé le 2026-07-16). Le crash de peinture au
-> masque à 24MP reste NON résolu malgré TROIS tentatives de fix (seuil
-> systematic-debugging atteint, ne pas retenter sans en discuter avec
-> Antoine) — voir `.claude/learning-log.md` et la mémoire projet
-> `design-system-branch-reconciliation` avant de toucher au rendu masque/GPU.
+> `feature/archi-remediation` mergé le 2026-07-16). ✅ Le crash de peinture au
+> masque à 24MP est RÉSOLU le 2026-07-18 (`e3c7584`) : la cause n'était NI le
+> GPU NI le driver mais le buffer `maskData` r8 de ~26 Mo transitant par le
+> state React, qui fait hanger WebView2 au re-render de `setLayers()` en fin
+> de stroke (les 3 fix précédents — dirty-rect, GPU-copy, wait-for-idle —
+> ciblaient tous le GPU/timing, d'où leur échec). Fix : `maskData` hors du
+> state React (`src/layers/displayProjection.ts`, `toDisplayLayers`). Règle
+> héritée : garder les gros buffers/textures de masque HORS du state React.
+> Tranche 1 (blend + opacité par calque, `src/render/blend/`) livrée le
+> 2026-07-19. Détails : `.claude/learning-log.md` et la mémoire projet
+> `design-system-branch-reconciliation`.
 
 ## Quoi
 
@@ -34,15 +43,21 @@ Vite · **WebGPU/WGSL brut** (pas de lib de rendu) · Vitest (Node env, aucun
 test ne rend de composant React — même convention que track-finder).
 
 Décisions techniques verrouillées (voir design.md pour les preuves) :
-- **Toutes les textures couleur en `rgba8unorm-srgb`** — conversion
-  sRGB↔linéaire automatique par le format, JAMAIS de gamma manuel en WGSL.
-  Sans ça, glow/grain/blur sont mathématiquement faux (constat d'audit).
+- **Toutes les textures couleur au format sRGB préféré de la plateforme**
+  (`${navigator.gpu.getPreferredCanvasFormat()}-srgb` — donc `bgra8unorm-srgb`
+  sur Windows/D3D12, `rgba8unorm-srgb` ailleurs ; voir `gpuContext.ts:68-69`) —
+  conversion sRGB↔linéaire automatique par le format, JAMAIS de gamma manuel en
+  WGSL. Sans ça, glow/grain/blur sont mathématiquement faux (constat d'audit).
+  Ne jamais coder `rgba8unorm-srgb` en dur — c'est faux sur Windows.
 - **Pas de distinction preview/export** — un seul pipeline, résolution
   native, toujours (décision utilisateur explicite, pas de downscale).
 - JPEG traité comme sRGB, pas de lecture de profil ICC en v1 (limitation
   documentée, pas silencieuse).
 - Effets = modules autonomes enregistrés dans `src/render/effects/registry.ts`
   — en ajouter un = un nouveau fichier, zéro modif moteur/UI.
+- Modes de fusion = modules autonomes dans `src/render/blend/registry.ts`
+  (même principe, Tranche 1 2026-07-19) — chaque calque a `opacity`/
+  `blendMode` sur `LayerState`.
 
 ## Commandes
 
@@ -59,6 +74,7 @@ src/
   render/
     gpuContext.ts       — init WebGPU (device/context/format srgb)
     effects/            — (Task 5+) registry + un fichier par effet
+    blend/              — (Tranche 1, 2026-07-19) registry de modes de fusion
   layers/               — (Task 4+) LayerStack, History (logique pure, testée)
   mask/                 — (Task 9+) MaskPainter (pinceau à falloff radial)
   export/               — (Task 10+) buildCopyPath, exportImage

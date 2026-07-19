@@ -67,6 +67,9 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   documentée, pas silencieuse).
 - Effets = modules autonomes enregistrés dans `src/render/effects/registry.ts`
   — en ajouter un = un nouveau fichier, zéro modif moteur/UI.
+- Modes de fusion = modules autonomes dans `src/render/blend/registry.ts`
+  (même principe, Tranche 1 2026-07-19) — chaque calque a `opacity`/
+  `blendMode` sur `LayerState`.
 
 ## Commandes
 
@@ -83,6 +86,7 @@ src/
   render/
     gpuContext.ts       — init WebGPU (device/context/format srgb)
     effects/            — (Task 5+) registry + un fichier par effet
+    blend/              — (Tranche 1, 2026-07-19) registry de modes de fusion
   layers/               — (Task 4+) LayerStack, History (logique pure, testée)
   mask/                 — (Task 9+) MaskPainter (pinceau à falloff radial)
   export/               — (Task 10+) buildCopyPath, exportImage

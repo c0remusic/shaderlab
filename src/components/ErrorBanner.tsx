@@ -1,5 +1,6 @@
 import { CircleAlert, X } from "lucide-react";
-import { IconButton } from "../ui/IconButton";
+import { Alert, AlertDescription } from "./ui/alert";
+import { Button } from "./ui/button";
 
 interface Props {
   message: string;
@@ -8,14 +9,20 @@ interface Props {
 
 export function ErrorBanner({ message, onDismiss }: Props) {
   return (
-    <div className="error-banner" role="alert">
-      <span className="error-banner__content">
-        <CircleAlert size={16} strokeWidth={1.5} aria-hidden="true" className="error-banner__icon" />
+    <Alert variant="destructive" role="alert" className="rounded-none border-x-0 border-t-0">
+      <CircleAlert size={16} strokeWidth={1.5} aria-hidden="true" />
+      <AlertDescription className="flex items-center justify-between gap-4 pr-0">
         <span>{message}</span>
-      </span>
-      <IconButton label="Fermer" variant="danger" size="compact" onClick={onDismiss}>
-        <X size={14} strokeWidth={1.5} aria-hidden="true" />
-      </IconButton>
-    </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Fermer"
+          onClick={onDismiss}
+          className="size-6 shrink-0"
+        >
+          <X size={14} strokeWidth={1.5} aria-hidden="true" />
+        </Button>
+      </AlertDescription>
+    </Alert>
   );
 }

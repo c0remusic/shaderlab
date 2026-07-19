@@ -68,6 +68,8 @@
   padding-block: var(--space-2);
   border-radius: var(--radius-control);
   border-left: 2px solid transparent;
+  border-top: 2px solid transparent;
+  border-bottom: 2px solid transparent;
   color: var(--text-secondary);
   /* pointer, pas grab : draggable n'est plus sur la ligne entière (scopé à
      .layer-panel__grip-handle) — grab ici annoncerait un glisser qui ne peut
@@ -108,14 +110,12 @@
   opacity: 0.5;
 }
 
-.layer-panel__row--drop-target {
-  /* Surlignage de fond, pas un trait de bord haut/bas : LayerStack.reorderLayer
-     insère le calque déplacé DANS la position de la ligne survolée (les
-     autres décalent), ce n'est ni strictement "avant" ni "après" selon le
-     sens du geste — un indicateur directionnel (border-top) induirait en
-     erreur sur la position finale réelle (revue adverse codex-crosscheck). */
-  outline: 2px solid var(--border-selection);
-  outline-offset: -2px;
+.layer-panel__row--drop-before {
+  border-top-color: var(--border-selection);
+}
+
+.layer-panel__row--drop-after {
+  border-bottom-color: var(--border-selection);
 }
 
 .layer-panel__row-main {

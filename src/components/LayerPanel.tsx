@@ -20,12 +20,14 @@ interface Props {
   onBlendModeChange: (id: string, blendMode: string) => void;
 }
 
+type DropPosition = "before" | "after";
+
 interface LayerRowProps {
   layer: LayerState;
   index: number;
   selected: boolean;
   isDragging: boolean;
-  isDropTarget: boolean;
+  dropPosition: DropPosition | null;
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
   onRemove: (id: string) => void;
@@ -48,7 +50,7 @@ const LayerRow = memo(function LayerRow({
   index,
   selected,
   isDragging,
-  isDropTarget,
+  dropPosition,
   onSelect,
   onToggle,
   onRemove,
@@ -61,7 +63,8 @@ const LayerRow = memo(function LayerRow({
     "layer-panel__row",
     selected && "layer-panel__row--selected",
     isDragging && "layer-panel__row--dragging",
-    isDropTarget && "layer-panel__row--drop-target",
+    dropPosition === "before" && "layer-panel__row--drop-before",
+    dropPosition === "after" && "layer-panel__row--drop-after",
   ]
     .filter(Boolean)
     .join(" ");
@@ -147,6 +150,21 @@ interface DragState {
   draggedId: string;
   pointerId: number;
   overIndex: number | null;
+  overPosition: DropPosition | null;
+}
+
+/**
+ * Traduit "poser AVANT/APRÈS la ligne `hoverIndex`" (ce que l'utilisateur
+ * voit et choisit) en `newIndex` pour LayerStack.reorderLayer, dont la
+ * sémantique est "retire `fromIndex`, puis insère à `newIndex` DANS LE
+ * TABLEAU DÉJÀ AMPUTÉ" — pas la même chose qu'un index dans le tableau
+ * d'origine. Sans cette traduction, "avant B" pouvait visuellement finir
+ * "après B" selon le sens du geste (finding revue adverse codex-crosscheck
+ * sur une v1 sans notion avant/après).
+ */
+function computeInsertIndex(fromIndex: number, hoverIndex: number, position: DropPosition): number {
+  const hoverIndexAfterRemoval = hoverIndex - (fromIndex < hoverIndex ? 1 : 0);
+  return position === "before" ? hoverIndexAfterRemoval : hoverIndexAfterRemoval + 1;
 }
 
 export function LayerPanel({
@@ -170,7 +188,7 @@ export function LayerPanel({
     setDragState((prev) => {
       if (prev) return prev;
       target.setPointerCapture(pointerId);
-      return { draggedId: id, pointerId, overIndex: null };
+      return { draggedId: id, pointerId, overIndex: null, overPosition: null };
     });
   }, []);
 
@@ -178,7 +196,9 @@ export function LayerPanel({
   // handlers continuent de recevoir les événements même quand le pointeur
   // sort de son rectangle) — elementFromPoint fait le hit-test manuel sur
   // la ligne survolée, puisqu'aucun événement natif de survol/drop ne peut
-  // être exploité ici (raison ci-dessus).
+  // être exploité ici (raison ci-dessus). La moitié haute/basse de la ligne
+  // survolée décide avant/après (Antoine : "remplace" au lieu de choisir
+  // au-dessus/en-dessous d'un autre calque — la v1 n'avait pas cette notion).
   const handleGripPointerMove = useCallback((e: React.PointerEvent) => {
     setDragState((prev) => {
       // Ignore un pointeur qui n'est PAS celui qui a démarré ce drag (ex.
@@ -187,8 +207,13 @@ export function LayerPanel({
       if (!prev || e.pointerId !== prev.pointerId) return prev;
       const el = document.elementFromPoint(e.clientX, e.clientY);
       const rowEl = el?.closest<HTMLElement>("[data-layer-row-index]");
-      const overIndex = rowEl ? Number(rowEl.dataset.layerRowIndex) : null;
-      return overIndex === prev.overIndex ? prev : { ...prev, overIndex };
+      if (!rowEl) return prev.overIndex === null ? prev : { ...prev, overIndex: null, overPosition: null };
+      const overIndex = Number(rowEl.dataset.layerRowIndex);
+      const rect = rowEl.getBoundingClientRect();
+      const overPosition: DropPosition = e.clientY - rect.top < rect.height / 2 ? "before" : "after";
+      return overIndex === prev.overIndex && overPosition === prev.overPosition
+        ? prev
+        : { ...prev, overIndex, overPosition };
     });
   }, []);
 
@@ -196,11 +221,16 @@ export function LayerPanel({
     (e: React.PointerEvent) => {
       setDragState((prev) => {
         if (!prev || e.pointerId !== prev.pointerId) return prev;
-        if (prev.overIndex !== null) onReorder(prev.draggedId, prev.overIndex);
+        if (prev.overIndex !== null && prev.overPosition !== null) {
+          const fromIndex = layers.findIndex((l) => l.id === prev.draggedId);
+          if (fromIndex !== -1 && fromIndex !== prev.overIndex) {
+            onReorder(prev.draggedId, computeInsertIndex(fromIndex, prev.overIndex, prev.overPosition));
+          }
+        }
         return null;
       });
     },
-    [onReorder]
+    [onReorder, layers]
   );
 
   // pointercancel (perte de capture, interruption tactile...) N'EST PAS un
@@ -232,7 +262,11 @@ export function LayerPanel({
             index={index}
             selected={layer.id === selectedId}
             isDragging={dragState?.draggedId === layer.id}
-            isDropTarget={dragState !== null && dragState.overIndex === index && dragState.draggedId !== layer.id}
+            dropPosition={
+              dragState !== null && dragState.overIndex === index && dragState.draggedId !== layer.id
+                ? dragState.overPosition
+                : null
+            }
             onSelect={onSelect}
             onToggle={onToggle}
             onRemove={onRemove}

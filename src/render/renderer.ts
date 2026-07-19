@@ -12,7 +12,9 @@ import { logDiagnostic } from "../launch";
 import type { DirtyRect } from "../mask/maskPainter";
 import { computeR8UploadRegion } from "./maskUpload";
 import { defaultLayerMask } from "../mask/types";
-import { getBrushRaster } from "../mask/brushSource";
+import type { MaskSource } from "../mask/types";
+import { planFold, snapshotFoldInputs, foldInputsEqual, type FoldSourceSnapshot } from "../mask/foldPlan";
+import { buildCombineWgsl, buildInvertWgsl } from "../mask/maskFoldWgsl";
 
 /** Which part of the live-preview mask texture a `MaskPreviewOverride` needs
  *  uploaded this frame. `"full"` re-uploads the whole image — required the
@@ -108,6 +110,20 @@ export class Renderer {
     { pipeline: GPURenderPipeline; bindGroupLayout: GPUBindGroupLayout }
   >();
   private maskTextures = new Map<string, { texture: GPUTexture; syncedFrom: Uint8Array }>();
+  /** Une texture GPU résidente par SOURCE de masque (clé "layerId:sourceId"),
+   *  uploadée seulement quand la référence `raster` de cette source change
+   *  (même pattern `syncedFrom` que `maskTextures`). Alimente le fold ; la
+   *  source pinceau EN COURS DE PEINTURE continue de passer par
+   *  `liveMaskTexture` (chemin inchangé de Task 1/avant), pas par cette map. */
+  private sourceTextures = new Map<string, { texture: GPUTexture; syncedFrom: Uint8Array }>();
+  /** Texture masque FOLDÉE résidente par calque (remplace l'usage précédent
+   *  de `maskTextures` pour le cas multi-source ; `maskTextures` reste le
+   *  raccourci direct du cas 0/1-source, voir `getMaskTexture`). Deux
+   *  textures de travail en ping-pong pour la chaîne combine->combine->invert
+   *  sans qu'une passe ne lise et n'écrive la même texture. */
+  private foldedMaskTextures = new Map<string, { texture: GPUTexture; lastInputs: FoldSourceSnapshot[]; lastInvert: boolean }>();
+  private foldPingPong: [GPUTexture, GPUTexture] | null = null;
+  private maskFoldPipelineCache = new Map<string, { pipeline: GPURenderPipeline; layout: GPUBindGroupLayout }>();
   private whiteMask: GPUTexture | null = null;
   /** GPU texture backing the live mask-paint preview (see `MaskPreviewOverride`)
    *  — reuploaded every preview frame regardless of reference equality, since
@@ -257,6 +273,21 @@ export class Renderer {
     for (const id of staleMaskIds(this.maskTextures.keys(), layers)) {
       this.maskTextures.get(id)!.texture.destroy();
       this.maskTextures.delete(id);
+    }
+    {
+      const aliveLayerIds = new Set(layers.map((l) => l.id));
+      for (const key of [...this.sourceTextures.keys()]) {
+        if (!aliveLayerIds.has(key.split(":")[0])) {
+          this.sourceTextures.get(key)!.texture.destroy();
+          this.sourceTextures.delete(key);
+        }
+      }
+      for (const id of [...this.foldedMaskTextures.keys()]) {
+        if (!aliveLayerIds.has(id)) {
+          this.foldedMaskTextures.get(id)!.texture.destroy();
+          this.foldedMaskTextures.delete(id);
+        }
+      }
     }
 
     let readTexture = this.sourceTexture;
@@ -672,13 +703,45 @@ export class Renderer {
    *  la référence, jamais le contenu). Auparavant : création + upload 24MP à
    *  CHAQUE frame pour chaque calque masqué. */
   private getMaskTexture(layer: LayerState, encoder: GPUCommandEncoder): GPUTexture {
+    // Chemin pinceau EN COURS de peinture : inchangé depuis avant cette
+    // tranche, zéro coût de fold (perf 60fps du geste de peinture non
+    // impactée — l'aperçu live d'un calque à source unique n'entre jamais
+    // dans le fold multi-passe ci-dessous).
     if (this.livePreview && this.livePreview.layerId === layer.id) {
       return this.getLiveMaskTexture(this.livePreview.layerId, this.livePreview.maskData, this.livePreview.scope);
     }
-    const maskData = getBrushRaster(layer);
-    if (!maskData) return this.getWhiteMask();
-    const entry = this.maskTextures.get(layer.id);
-    if (entry && entry.syncedFrom === maskData) return entry.texture;
+
+    const plan = planFold(layer.mask);
+    if (plan.length === 0) return this.getWhiteMask();
+
+    // Raccourci : 1 seule source active et pas d'inversion => c'est
+    // EXACTEMENT le comportement d'avant cette tâche (Task 1), zéro passe de
+    // fold. C'est le cas réel de la Tranche 2 (aucune UI pour ajouter une 2e
+    // source avant la Tranche 4) — éviter tout travail GPU supplémentaire
+    // sur ce chemin, historiquement sensible au crash 24MP (design.md §4,
+    // "Impact honnête sur le crash 24MP").
+    if (plan.length === 1 && !layer.mask.invert) {
+      return this.getResidentSourceTexture(layer.id, plan[0], encoder);
+    }
+
+    const snapshot = snapshotFoldInputs(layer.mask);
+    const cached = this.foldedMaskTextures.get(layer.id);
+    if (cached && foldInputsEqual(cached.lastInputs, snapshot) && cached.lastInvert === layer.mask.invert) {
+      return cached.texture;
+    }
+
+    const folded = this.runFoldPipeline(layer.id, plan, layer.mask.invert, encoder);
+    this.foldedMaskTextures.set(layer.id, { texture: folded, lastInputs: snapshot, lastInvert: layer.mask.invert });
+    return folded;
+  }
+
+  /** Texture résidente d'UNE source de masque (upload seulement quand sa
+   *  référence `raster` change — même pattern que l'ancien `maskTextures`). */
+  private getResidentSourceTexture(layerId: string, source: MaskSource, encoder: GPUCommandEncoder): GPUTexture {
+    const key = `${layerId}:${source.id}`;
+    const raster = source.raster!; // planFold ne retient que des sources avec raster non-null
+    const entry = this.sourceTextures.get(key);
+    if (entry && entry.syncedFrom === raster) return entry.texture;
     const texture =
       entry?.texture ??
       this.ctx.device.createTexture({
@@ -686,25 +749,115 @@ export class Renderer {
         format: "r8unorm",
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
       });
-    // The common case reaching this branch is "a mask stroke on this exact
-    // layer just ended" — `layer.maskData` is a fresh CPU copy of the same
-    // painter buffer `liveMaskTexture` was already uploading sample-by-
-    // sample during the stroke, so its GPU content is already byte-
-    // identical. Reuse it via a GPU-side copy instead of a second full
-    // CPU->GPU `writeTexture` of the whole image: that second upload,
-    // through this exact branch, was traced (CDP repro, 2026-07-15) to
-    // reliably hang the renderer at 24MP — the JS commit completes, but the
-    // already-scheduled requestAnimationFrame never fires again afterward.
-    // The equivalent upload via `getLiveMaskTexture` (same buffer, same
-    // size) never reproduces it, so avoiding the redundant second upload
-    // sidesteps the hang rather than explaining its exact driver mechanism.
-    if (this.liveMaskLayerId === layer.id && this.liveMaskTexture) {
+    // Même optimisation GPU-copy qu'avant (Task 1 / historique pré-tranche) :
+    // si CETTE source est celle en cours de peinture, son contenu GPU est
+    // déjà à jour dans liveMaskTexture — copie GPU->GPU au lieu d'un 2e
+    // upload CPU->GPU complet (évite le hang traqué le 2026-07-15).
+    if (this.liveMaskLayerId === layerId && this.liveMaskTexture) {
       encoder.copyTextureToTexture({ texture: this.liveMaskTexture }, { texture }, [this.width, this.height]);
     } else {
-      this.uploadR8(texture, maskData, this.width, this.height);
+      this.uploadR8(texture, raster, this.width, this.height);
     }
-    this.maskTextures.set(layer.id, { texture, syncedFrom: maskData });
+    this.sourceTextures.set(key, { texture, syncedFrom: raster });
     return texture;
+  }
+
+  private ensureFoldPingPong(): [GPUTexture, GPUTexture] {
+    if (!this.foldPingPong) {
+      const make = () =>
+        this.ctx.device.createTexture({
+          size: [this.width, this.height],
+          format: "r8unorm",
+          usage:
+            GPUTextureUsage.TEXTURE_BINDING |
+            GPUTextureUsage.RENDER_ATTACHMENT |
+            GPUTextureUsage.COPY_DST |
+            GPUTextureUsage.COPY_SRC,
+        });
+      this.foldPingPong = [make(), make()];
+    }
+    return this.foldPingPong;
+  }
+
+  private getMaskFoldPipeline(
+    wgsl: string,
+    twoTextures: boolean
+  ): { pipeline: GPURenderPipeline; layout: GPUBindGroupLayout } {
+    const cached = this.maskFoldPipelineCache.get(wgsl);
+    if (cached) return cached;
+    const { device } = this.ctx;
+    const entries: GPUBindGroupLayoutEntry[] = [
+      { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } },
+      { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "filtering" } },
+    ];
+    if (twoTextures) entries.push({ binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
+    const layout = device.createBindGroupLayout({ entries });
+    const pipeline = device.createRenderPipeline({
+      layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
+      vertex: { module: device.createShaderModule({ code: wgsl }), entryPoint: "vs_main" },
+      fragment: {
+        module: device.createShaderModule({ code: wgsl }),
+        entryPoint: twoTextures ? "fs_combine" : "fs_invert",
+        targets: [{ format: "r8unorm" }],
+      },
+      primitive: { topology: "triangle-list" },
+    });
+    const entry = { pipeline, layout };
+    this.maskFoldPipelineCache.set(wgsl, entry);
+    return entry;
+  }
+
+  private runMaskPass(
+    encoder: GPUCommandEncoder,
+    wgsl: string,
+    srcA: GPUTexture,
+    srcB: GPUTexture | null,
+    target: GPUTexture
+  ): void {
+    const { pipeline, layout } = this.getMaskFoldPipeline(wgsl, srcB !== null);
+    const bindEntries: GPUBindGroupEntry[] = [
+      { binding: 0, resource: srcA.createView() },
+      { binding: 1, resource: this.sampler },
+    ];
+    if (srcB) bindEntries.push({ binding: 2, resource: srcB.createView() });
+    const bindGroup = this.ctx.device.createBindGroup({ layout, entries: bindEntries });
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [
+        { view: target.createView(), loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } },
+      ],
+    });
+    pass.setPipeline(pipeline);
+    pass.setBindGroup(0, bindGroup);
+    pass.draw(3);
+    pass.end();
+  }
+
+  /** Fold GPU résident (design.md §4) : seed (copie directe, combineMode
+   *  ignoré) -> combine séquentiel des sources suivantes -> invert final.
+   *  Le refine-edge (§4bis, Tranche 3) n'a PAS de passe ici — c'est un
+   *  no-op tant que ses paramètres restent aux valeurs par défaut
+   *  (`defaultRefineEdge()`), voir `RefineEdgeParams` dans `mask/types.ts`. */
+  private runFoldPipeline(
+    layerId: string,
+    plan: MaskSource[],
+    invert: boolean,
+    encoder: GPUCommandEncoder
+  ): GPUTexture {
+    const [pingA, pingB] = this.ensureFoldPingPong();
+    const seedTexture = this.getResidentSourceTexture(layerId, plan[0], encoder);
+    let acc = pingA;
+    encoder.copyTextureToTexture({ texture: seedTexture }, { texture: acc }, [this.width, this.height]);
+    let next = pingB;
+    for (let i = 1; i < plan.length; i++) {
+      const srcTexture = this.getResidentSourceTexture(layerId, plan[i], encoder);
+      this.runMaskPass(encoder, buildCombineWgsl(plan[i].combineMode), acc, srcTexture, next);
+      [acc, next] = [next, acc];
+    }
+    if (invert) {
+      this.runMaskPass(encoder, buildInvertWgsl(), acc, null, next);
+      [acc, next] = [next, acc];
+    }
+    return acc;
   }
 
   /** Backing texture for `MaskPreviewOverride` — a single texture reused
@@ -761,5 +914,15 @@ export class Renderer {
     this.whiteMask = null;
     this.liveMaskTexture?.destroy();
     this.liveMaskTexture = null;
+    for (const { texture } of this.sourceTextures.values()) texture.destroy();
+    this.sourceTextures.clear();
+    for (const { texture } of this.foldedMaskTextures.values()) texture.destroy();
+    this.foldedMaskTextures.clear();
+    if (this.foldPingPong) {
+      this.foldPingPong[0].destroy();
+      this.foldPingPong[1].destroy();
+      this.foldPingPong = null;
+    }
+    this.maskFoldPipelineCache.clear();
   }
 }

@@ -236,3 +236,32 @@ DASCA avait été critiqué pour avoir). Registry de 11 modes de fusion
 écrit dans `docs/superpowers/specs/2026-07-18-shaderlab-layers-masking-
 design.md` §3-5) n'a pas encore son plan d'implémentation — commencer par
 `superpowers:writing-plans` dessus avant `subagent-driven-development`.
+
+## 2026-07-19 — Chips fusionnés + bug latent dev.ps1 trouvé et corrigé
+
+Les 2 `spawn_task` (fusion Ouvrir/Exporter en menu Fichier, fusion Terminer/
+Arrêter de peindre) ont livré sur des branches séparées (`claude/beautiful-
+wing-eca6ea`, `claude/nervous-leakey-2d5e24`) puis leurs sessions ont été
+supprimées — cherry-pick propre des 3 commits utiles sur `feature/design-
+system` (`9555d3a`, `f05908a`, `62df4be`). `codex-crosscheck` (hook post-
+commit) a relevé 3 MOYENNE sur le nouveau `Menu.tsx` : ArrowUp/ArrowDown
+ouvrent tous deux sur le premier élément (devrait diverger pour un menu-
+bouton standard), pas de gestion de focus ARIA (`aria-activedescendant`
+absent), et "Exporter" a disparu de la zone trailing de la toolbar alors
+que `docs/design-system/patterns.md` l'exige en action directe en plus du
+menu. Non corrigés cette session — à traiter si Antoine confirme le besoin.
+
+**Bug dev tooling trouvé et corrigé** (`8ea3eba`) : `scripts/dev.ps1` tuait
+le PID enregistré dans `dev-process.json` sans vérifier que ce PID
+appartenait encore à `shaderlab.exe`. Windows recycle les PID — un
+lancement précédent tué/crashé laisse un PID que Windows réattribue plus
+tard à un process système (`svchost` observé). Au relancement suivant,
+`Stop-Process -Force` sur ce PID → Access Denied → avec
+`$ErrorActionPreference="Stop"`, tout le script avorte AVANT de lancer
+shaderlab.exe, SANS jamais réécrire `dev-process.json` — aucune trace claire
+du pourquoi, juste un port CDP qui ne répond jamais après plusieurs tentatives
+de lancement apparemment "réussies" (exit code 0 du wrapper npm). Diagnostic :
+comparer le timestamp de `dev-process.json` à l'heure réelle du dernier
+lancement : périmé + `Get-Process -Id <pid>` renvoie un `ProcessName`
+différent de `shaderlab` = ce bug. Fix : vérifier le nom du process avant de
+le tuer.

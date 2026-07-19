@@ -232,9 +232,14 @@ temps réel, cf. question posée à Antoine pendant le brainstorming).
 
 **Algorithme retenu (guided filter séparable, He et al. 2010)** — même famille que
 le dual-filter bloom déjà dans le moteur (`docs/superpowers/changes/2026-07-12-
-shaderlab-mvp/design.md`, Task 13) : coût **O(N)** indépendant du rayon grâce à la
-séparabilité horizontale/verticale (contrairement à un bilatéral joint, dont le coût
-par pixel grandit avec le rayon). Guide `I` = luminance de l'image du calque.
+shaderlab-mvp/design.md`, Task 13). **Précision complexité (nuance ajoutée après
+revue adverse Codex 2026-07-19)** : la séparabilité réduit le coût par pixel d'un
+box-filter de `O(edgeRadius²)` (2D naïf) à `O(edgeRadius)` (deux passes 1D) — ce
+n'est **pas** indépendant du rayon comme la v1 le laissait entendre, juste
+linéaire au lieu de quadratique. Reste nettement moins cher qu'un bilatéral joint
+non séparable pour un `edgeRadius` significatif ; le budget ≤100 ms visé pour les
+sources paramétriques (§4) est **à vérifier à l'implémentation**, pas garanti par
+la seule séparabilité. Guide `I` = luminance de l'image du calque.
 Les deux sont livrés dans la **même Tranche 3** (voir placement corrigé ci-dessus),
 donc l'ordre d'implémentation à l'intérieur de la tranche décide qui introduit la
 passe couleur→luminance en premier — pas de dépendance inter-tranches à gérer.
@@ -268,13 +273,18 @@ corrigés tous les deux ici.
   `I·I`/`I·p` peuvent en revanche être libérées dès que `corr_I`/`corr_Ip` sont
   calculées (réutilisation ping-pong possible sur CES deux-là uniquement, même
   pattern `pendingDestroy` que Task 13). En comptant 2× `r8` (24 Mo, `I`/`p`) +
-  4× `r16f` (48 Mo, `mean_I`/`mean_p`/`corr_I`/`corr_Ip`) : **pic ≈ 240 Mo,
-  transitoire** (alloué pour la durée du calcul, libéré via `pendingDestroy` après
-  `submit()`, pas résident en continu) — chiffre revu à la hausse par rapport à la
-  v1 (~96-192 Mo), **à mesurer réellement à 24MP dès la première implémentation**,
-  pas juste affirmé ici (cf. §5, la VRAM 24MP est le risque ouvert du projet). Si la
-  mesure dépasse le budget disponible pendant un stroke actif, voir la mitigation
-  ci-dessous.
+  4× `r16f` (48 Mo, `mean_I`/`mean_p`/`corr_I`/`corr_Ip`) : **pic de l'ordre de
+  200-350 Mo, transitoire** (alloué pour la durée du calcul, libéré via
+  `pendingDestroy` après `submit()`, pas résident en continu — mais dans une même
+  passe WebGPU une sortie ne peut pas aliaser son entrée, donc les intermédiaires
+  H/V de `mean_a`/`mean_b` peuvent encore ajouter à ce pic). **Ce chiffre reste une
+  estimation d'ordre de grandeur, pas un budget figé** — corrigé deux fois de suite
+  en revue adverse (96-192 Mo → 240 Mo → cette fourchette élargie), signe que
+  l'arithmétique à la main atteint sa limite de fiabilité ici. **La seule mesure qui
+  compte est celle prise à l'implémentation** (§Tests requis ci-dessous, condition
+  de sortie de tâche non négociable) — cf. §5, la VRAM 24MP est le risque ouvert du
+  projet. Si la mesure dépasse le budget disponible pendant un stroke actif, voir la
+  mitigation ci-dessous.
 
 **Coût/déclenchement — corrigé (finding Codex HAUTE + MOYENNE)** : la v1 affirmait à
 tort « recalculé seulement au changement de `mask.refineEdge` ». C'est faux : `q`
@@ -291,7 +301,15 @@ chaque frame comme aujourd'hui). L'edge-aware se **réapplique au relâchement**
 (stroke-end), même granularité que le commit d'historique existant (un commit par
 stroke, Task 11b) : le trait reste visible et interactif pendant qu'on peint, seul
 le « collage aux contours » a un temps de latence d'une frame au relâchement — pas
-un gel du masque entier. Choix de perf explicite pour ne pas ajouter un guided
+un gel du masque entier. **Nuance PRD assumée** (relevée en revue adverse, MOYENNE) :
+au sens strict, le PRD demande le résultat edge-aware lui-même en live pendant le
+geste, pas seulement le fold brut — cette mitigation ne le respecte pas à la lettre
+pendant le stroke actif, seulement au relâchement. **Décision produit assumée, pas un
+oubli** : un guided filter à 6 textures par frame de peinture sur le chemin déjà
+sensible au crash 24MP (paragraphe précédent) n'est pas un compromis acceptable pour
+gagner cette dernière frame de fidélité — à rouvrir seulement si l'usage réel montre
+que le lag d'une frame au relâchement est gênant (ex. via un aperçu basse résolution
+pendant le stroke, non designé ici, YAGNI tant que non demandé). Choix de perf explicite pour ne pas ajouter un guided
 filter à 6 textures à chaque frame de peinture sur le chemin GPU déjà sensible.
 
 **UI (Inspector, panneau Masques)** : toggle `edgeAware` + slider `edgeRadius` (px,
@@ -329,7 +347,9 @@ refcount (déjà là), et **cap du nombre de sources pinceau par masque** si le 
 justifie (à mesurer). Une entrée d'historique par interaction.
 
 **VRAM (le vrai risque, non budgété dans la v1 de ce design)** — sur le matériel qui
-**OOM déjà à 24MP** (crash non résolu), le fold GPU (§4) ajoute des textures r8
+**avait OOM à 24MP** (crash **résolu** `e3c7584`, gate levé — corrigé après revue
+adverse Codex 2026-07-19, ce paragraphe disait encore « crash non résolu », stale
+par rapport au §Sécurité crash), le fold GPU (§4) ajoute des textures r8
 résidentes. Par calque **en cours d'édition** : N textures de sources + accumulateur +
 ping-pong refine-edge + texture masque finale (chacune ~24 Mo en r8 à 24MP). C'est en
 plus de la chaîne couleur (ping-pong rgba ≈ 96 Mo/texture). Règles de budget VRAM :

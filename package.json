@@ -13,7 +13,8 @@
     "dev:debug": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1",
     "dev:debug:follow": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1 -Follow",
     "dev:monitor": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/monitor.ps1",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint:tokens": "node scripts/lint-tokens.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

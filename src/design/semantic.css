@@ -10,6 +10,10 @@
   --surface-active: rgba(236, 224, 207, .11);
   --surface-selected: rgba(236, 224, 207, .075);
   --surface-scrim: rgba(8, 7, 6, .76);
+  /* Thin dark contour stroke for shapes drawn over arbitrary image content (brush cursor
+     ring/dot) — needs contrast on any background, lighter than --surface-scrim which is a
+     full opaque overlay, not an outline. */
+  --outline-contrast: rgba(8, 7, 6, .55);
 
   --text-primary: rgba(240, 232, 220, .94);
   --text-secondary: rgba(236, 224, 207, .68);
@@ -47,4 +51,7 @@
   --mask-overlay-color: #e63c46;
   --mask-overlay-opacity: .28;
   --mask-overlay-edge: rgba(255, 92, 101, .62);
+  /* Dashed guide ring (brush hardness indicator on canvas) — sits between --border-strong
+     (.28, too faint over image content) and --text-secondary (.68, too heavy for a guide). */
+  --outline-guide: rgba(236, 224, 207, .45);
 }

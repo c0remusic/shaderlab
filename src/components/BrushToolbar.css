@@ -23,7 +23,7 @@
 /* Largeur fixe pour chaque réglage : la barre reste stable quand la valeur
    change et les sliders ne s'étirent pas sur toute la largeur. */
 .brush-toolbar__control {
-  width: 168px;
+  width: var(--toolbar-control-width);
   flex: none;
 }
 

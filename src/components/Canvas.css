@@ -33,7 +33,7 @@
   transform: translate(-50%, -50%);
   border-radius: var(--radius-round);
   border: 1px solid var(--mask-overlay-edge);
-  box-shadow: 0 0 0 1px rgba(8, 7, 6, 0.55);
+  box-shadow: 0 0 0 1px var(--outline-contrast);
   pointer-events: none;
   opacity: 0;
   z-index: var(--z-canvas-overlay);
@@ -48,7 +48,7 @@
   height: var(--brush-hardness, 50%);
   transform: translate(-50%, -50%);
   border-radius: var(--radius-round);
-  border: 1px dashed rgba(236, 224, 207, 0.45);
+  border: 1px dashed var(--outline-guide);
 }
 
 /* Point central : vise précisément même quand l'anneau est petit à
@@ -58,10 +58,10 @@
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 3px;
-  height: 3px;
+  width: var(--space-2);
+  height: var(--space-2);
   transform: translate(-50%, -50%);
   border-radius: var(--radius-round);
   background: var(--mask-overlay-edge);
-  box-shadow: 0 0 0 1px rgba(8, 7, 6, 0.55);
+  box-shadow: 0 0 0 1px var(--outline-contrast);
 }

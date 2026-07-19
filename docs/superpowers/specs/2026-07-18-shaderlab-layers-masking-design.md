@@ -263,6 +263,10 @@ réouverture : si le besoin d'un groupe transparent au compositing apparaît.)
 1. **Blend + opacité par calque** (§1-2) — étend `LayerState`, généralise le `mix()`,
    registry de blend modes, UI (opacité + sélecteur de mode par ligne de calque).
    Indépendant du masque. **Sûr, haute valeur, livrable/validable en premier.**
+   ✅ **TERMINÉE le 2026-07-19** (plan `docs/superpowers/plans/2026-07-18-
+   shaderlab-layers-blend-opacity.md`, commits `4642ffd..421eece` + `631e6bf`
+   config + `c070cfc` doc, revue finale whole-branch clean, 2 checkpoints
+   visuels humains confirmés). Voir `.claude/learning-log.md` pour le détail.
 2. **Masque non-destructif : refonte modèle + fold GPU** (§3-5) — `maskData → mask:
    LayerMask`, pipeline de fold GPU résident, extension History (refcount multi-raster).
    Le **mécanisme d'upload dirty-rect est préservé** ; le rendu gagne une passe de
@@ -356,8 +360,9 @@ Style existant (logique pure, aucun rendu React/WebGPU en test — cohérent ave
 
 ---
 
-**Prochaine étape** : la **tranche 1** (blend + opacité par calque) part en premier
-sur `superpowers:writing-plans` — sûre, exacte, indépendante du masque. Le **gate
-crash 24MP est levé** (`e3c7584`) : les tranches 2-5 ne sont plus bloquées, sous la
-règle de conception « gros buffers de masque hors du state React » (§Sécurité crash)
-et avec le budget VRAM du fold à mesurer à l'usage (§5). Séquencer 2→3→4→5 après la 1.
+**Prochaine étape** : la **tranche 1 est terminée** (voir §Découpage ci-dessus). Le
+**gate crash 24MP est levé** (`e3c7584`) : les tranches 2-5 ne sont plus bloquées,
+sous la règle de conception « gros buffers de masque hors du state React »
+(§Sécurité crash) et avec le budget VRAM du fold à mesurer à l'usage (§5).
+Prochaine étape réelle : `superpowers:writing-plans` sur la **tranche 2** (masque
+non-destructif), puis exécution, puis séquencer 3→4→5.

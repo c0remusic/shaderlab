@@ -133,19 +133,17 @@ describe("History", () => {
 });
 
 describe("History byte budget", () => {
-  function stackWithMask(bytes: number): LayerStack {
+  function stackWithBrushMask(bytes: number): LayerStack {
     const s = new LayerStack();
     const id = s.addLayer("glow");
-    s.updateMask(id, new Uint8Array(bytes));
+    s.updateBrushMask(id, new Uint8Array(bytes));
     return s;
   }
 
-  it("counts unique mask buffers once even when shared across entries", () => {
+  it("counts unique mask rasters once even when shared across entries", () => {
     const history = new History(new LayerStack(), 1000);
-    const a = stackWithMask(100);
+    const a = stackWithBrushMask(100);
     history.push(a);
-    // clone() partage le buffer (Task 9) : pousser un clone modifié sur un
-    // AUTRE champ ne doit pas recompter les 100 octets du masque.
     const b = a.clone();
     b.updateParams(b.layers[0].id, { intensity: 0.5 });
     history.push(b);
@@ -154,57 +152,63 @@ describe("History byte budget", () => {
 
   it("evicts oldest past entries first when over budget", () => {
     const history = new History(new LayerStack(), 250);
-    history.push(stackWithMask(100)); // A
-    history.push(stackWithMask(100)); // B
-    history.push(stackWithMask(100)); // C -> 300 octets retenus > 250
-    // Éviction en partant du plus ancien : l'état initial (0 octet) puis A
-    // (100). Restent B (past) + C (courant) = 200 octets <= 250.
+    history.push(stackWithBrushMask(100)); // A
+    history.push(stackWithBrushMask(100)); // B
+    history.push(stackWithBrushMask(100)); // C -> 300 octets retenus > 250
     expect(history.bytesUsed()).toBeLessThanOrEqual(250);
-    // Un seul pas d'undo possible : B. L'initial et A sont partis.
-    expect(history.undo()?.layers[0].maskData?.byteLength).toBe(100); // -> B
+    const undone = history.undo();
+    expect(undone?.layers[0].mask.sources[0].raster?.byteLength).toBe(100); // -> B
     expect(history.undo()).toBeNull();
   });
 
   it("never evicts the current state even if it alone exceeds the budget", () => {
     const history = new History(new LayerStack(), 10);
-    history.push(stackWithMask(100));
+    history.push(stackWithBrushMask(100));
     expect(history.bytesUsed()).toBe(100);
-    expect(history.canUndo()).toBe(false); // le past a été vidé, pas le courant
+    expect(history.canUndo()).toBe(false);
   });
 
   it("releases bytes when the redo branch is discarded by a new push", () => {
     const history = new History(new LayerStack(), 10_000);
-    history.push(stackWithMask(100));
-    history.undo(); // la branche redo retient les 100 octets
+    history.push(stackWithBrushMask(100));
+    history.undo();
     expect(history.bytesUsed()).toBe(100);
-    history.push(stackWithMask(30)); // redo jetée
+    history.push(stackWithBrushMask(30));
     expect(history.bytesUsed()).toBe(30);
   });
 
-  it("keeps a shared mask counted when only one of its referencing entries is discarded via future", () => {
+  it("keeps a shared raster counted when only one of its referencing entries is discarded via future", () => {
     const history = new History(new LayerStack(), 1000);
-    const a = stackWithMask(100); // M1 = 100 octets
-    history.push(a); // past=[initial], current=A(M1)
-
-    // B partage M1 (seul updateParams est appelé, le masque n'est pas touché).
+    const a = stackWithBrushMask(100); // M1 = 100 octets
+    history.push(a);
     const b = a.clone();
     b.updateParams(b.layers[0].id, { intensity: 0.5 });
-    history.push(b); // past=[initial, A], current=B(M1) -> M1 refcount=2
-
-    history.undo(); // past=[initial], current=A(M1), future=[B(M1)]
-
-    // C introduit un NOUVEAU buffer M2, distinct de M1.
-    history.push(stackWithMask(50)); // future=[B] jetée (release M1: 2->1)
-    // past=[initial, A(M1)], current=C(M2)
-    // M1 reste retenu via A dans past ; M2 est le nouveau courant.
+    history.push(b); // B partage M1 -> refcount=2
+    history.undo(); // future=[B(M1)]
+    history.push(stackWithBrushMask(50)); // future jetée (release M1: 2->1), M2 nouveau courant
     expect(history.bytesUsed()).toBe(150);
   });
 
   it("undo/redo keep working normally under the default budget", () => {
     const history = new History(new LayerStack());
-    history.push(stackWithMask(100));
+    history.push(stackWithBrushMask(100));
     history.undo();
     const redone = history.redo();
-    expect(redone?.layers[0].maskData?.byteLength).toBe(100);
+    expect(redone?.layers[0].mask.sources[0].raster?.byteLength).toBe(100);
+  });
+
+  it("refcounts MULTIPLE raster sources on the same layer independently (new in Tranche 2)", () => {
+    const history = new History(new LayerStack(), 1000);
+    const s = new LayerStack();
+    const id = s.addLayer("glow");
+    s.updateBrushMask(id, new Uint8Array(100));
+    // Simulate a 2nd source appended directly (no UI yet, but the model allows it).
+    const layer = s.layers.find((l) => l.id === id)!;
+    layer.mask = {
+      ...layer.mask,
+      sources: [...layer.mask.sources, { id: "extra", type: "brush", combineMode: "add", enabled: true, params: null, raster: new Uint8Array(50) }],
+    };
+    history.push(s);
+    expect(history.bytesUsed()).toBe(150); // 100 + 50, both counted
   });
 });

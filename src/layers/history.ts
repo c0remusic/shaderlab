@@ -8,12 +8,14 @@ const DEFAULT_BUDGET_BYTES = 512 * 1024 * 1024;
  * état courant toujours conservé).
  *
  * Le coût mémoire est dominé par les buffers de masque (≈ 1 octet/pixel,
- * ~26 Mo à 26MP). Depuis que clone() PARTAGE les références maskData
- * (immuables par convention), plusieurs entrées d'historique pointent vers
- * les mêmes buffers : compter octets-par-entrée surestimerait massivement.
- * On refcount donc chaque buffer unique — un buffer n'est compté qu'une
- * fois tant qu'au moins une entrée (past, current ou future) le retient,
- * et n'est décompté que quand plus aucune ne le retient.
+ * ~26 Mo à 26MP). Depuis que clone() PARTAGE les références raster
+ * (immuables par convention, layer.mask.sources[].raster), plusieurs
+ * entrées d'historique pointent vers les mêmes buffers : compter
+ * octets-par-entrée surestimerait massivement. On refcount donc chaque
+ * buffer unique, tous rasters de source confondus (N sources par calque) —
+ * un buffer n'est compté qu'une fois tant qu'au moins une entrée (past,
+ * current ou future) le retient, et n'est décompté que quand plus aucune ne
+ * le retient.
  */
 export class History {
   private past: LayerStack[] = [];
@@ -31,23 +33,27 @@ export class History {
 
   private retain(stack: LayerStack): void {
     for (const layer of stack.layers) {
-      if (!layer.maskData) continue;
-      const count = this.refCounts.get(layer.maskData) ?? 0;
-      if (count === 0) this.totalBytes += layer.maskData.byteLength;
-      this.refCounts.set(layer.maskData, count + 1);
+      for (const source of layer.mask.sources) {
+        if (!source.raster) continue;
+        const count = this.refCounts.get(source.raster) ?? 0;
+        if (count === 0) this.totalBytes += source.raster.byteLength;
+        this.refCounts.set(source.raster, count + 1);
+      }
     }
   }
 
   private release(stack: LayerStack): void {
     for (const layer of stack.layers) {
-      if (!layer.maskData) continue;
-      const count = this.refCounts.get(layer.maskData);
-      if (count === undefined) continue;
-      if (count <= 1) {
-        this.refCounts.delete(layer.maskData);
-        this.totalBytes -= layer.maskData.byteLength;
-      } else {
-        this.refCounts.set(layer.maskData, count - 1);
+      for (const source of layer.mask.sources) {
+        if (!source.raster) continue;
+        const count = this.refCounts.get(source.raster);
+        if (count === undefined) continue;
+        if (count <= 1) {
+          this.refCounts.delete(source.raster);
+          this.totalBytes -= source.raster.byteLength;
+        } else {
+          this.refCounts.set(source.raster, count - 1);
+        }
       }
     }
   }

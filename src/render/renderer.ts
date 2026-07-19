@@ -122,7 +122,14 @@ export class Renderer {
    *  textures de travail en ping-pong pour la chaîne combine->combine->invert
    *  sans qu'une passe ne lise et n'écrive la même texture. */
   private foldedMaskTextures = new Map<string, { texture: GPUTexture; lastInputs: FoldSourceSnapshot[]; lastInvert: boolean }>();
-  private foldPingPong: [GPUTexture, GPUTexture] | null = null;
+  /** Paire de textures de travail PAR CALQUE (clé layerId) pour la chaîne
+   *  combine->combine->invert. Doit être par-calque et non partagée entre
+   *  calques : `foldedMaskTextures` retient une RÉFÉRENCE directe vers l'une
+   *  de ces deux textures comme résultat résident du fold — un pool partagé
+   *  entre calques ferait écraser silencieusement le résultat mis en cache
+   *  d'un calque par le fold d'un autre calque à la frame suivante (trouvé en
+   *  revue adverse codex-crosscheck). */
+  private foldPingPongByLayer = new Map<string, [GPUTexture, GPUTexture]>();
   private maskFoldPipelineCache = new Map<string, { pipeline: GPURenderPipeline; layout: GPUBindGroupLayout }>();
   private whiteMask: GPUTexture | null = null;
   /** GPU texture backing the live mask-paint preview (see `MaskPreviewOverride`)
@@ -286,6 +293,14 @@ export class Renderer {
         if (!aliveLayerIds.has(id)) {
           this.foldedMaskTextures.get(id)!.texture.destroy();
           this.foldedMaskTextures.delete(id);
+        }
+      }
+      for (const id of [...this.foldPingPongByLayer.keys()]) {
+        if (!aliveLayerIds.has(id)) {
+          const [a, b] = this.foldPingPongByLayer.get(id)!;
+          a.destroy();
+          b.destroy();
+          this.foldPingPongByLayer.delete(id);
         }
       }
     }
@@ -747,7 +762,13 @@ export class Renderer {
       this.ctx.device.createTexture({
         size: [this.width, this.height],
         format: "r8unorm",
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+        // COPY_SRC : runFoldPipeline() utilise la texture de la 1ère source
+        // (le "seed") comme SOURCE d'un copyTextureToTexture vers le
+        // ping-pong de fold — sans ce flag, WebGPU lève une erreur de
+        // validation dès qu'un fold réel est déclenché (trouvé en revue
+        // adverse codex-crosscheck, jamais exercé par le raccourci
+        // 1-source qui ne passe jamais par copyTextureToTexture en lecture).
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC,
       });
     // Même optimisation GPU-copy qu'avant (Task 1 / historique pré-tranche) :
     // si CETTE source est celle en cours de peinture, son contenu GPU est
@@ -762,8 +783,9 @@ export class Renderer {
     return texture;
   }
 
-  private ensureFoldPingPong(): [GPUTexture, GPUTexture] {
-    if (!this.foldPingPong) {
+  private ensureFoldPingPong(layerId: string): [GPUTexture, GPUTexture] {
+    let pair = this.foldPingPongByLayer.get(layerId);
+    if (!pair) {
       const make = () =>
         this.ctx.device.createTexture({
           size: [this.width, this.height],
@@ -774,9 +796,10 @@ export class Renderer {
             GPUTextureUsage.COPY_DST |
             GPUTextureUsage.COPY_SRC,
         });
-      this.foldPingPong = [make(), make()];
+      pair = [make(), make()];
+      this.foldPingPongByLayer.set(layerId, pair);
     }
-    return this.foldPingPong;
+    return pair;
   }
 
   private getMaskFoldPipeline(
@@ -843,7 +866,7 @@ export class Renderer {
     invert: boolean,
     encoder: GPUCommandEncoder
   ): GPUTexture {
-    const [pingA, pingB] = this.ensureFoldPingPong();
+    const [pingA, pingB] = this.ensureFoldPingPong(layerId);
     const seedTexture = this.getResidentSourceTexture(layerId, plan[0], encoder);
     let acc = pingA;
     encoder.copyTextureToTexture({ texture: seedTexture }, { texture: acc }, [this.width, this.height]);
@@ -918,11 +941,11 @@ export class Renderer {
     this.sourceTextures.clear();
     for (const { texture } of this.foldedMaskTextures.values()) texture.destroy();
     this.foldedMaskTextures.clear();
-    if (this.foldPingPong) {
-      this.foldPingPong[0].destroy();
-      this.foldPingPong[1].destroy();
-      this.foldPingPong = null;
+    for (const [a, b] of this.foldPingPongByLayer.values()) {
+      a.destroy();
+      b.destroy();
     }
+    this.foldPingPongByLayer.clear();
     this.maskFoldPipelineCache.clear();
   }
 }

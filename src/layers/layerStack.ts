@@ -83,7 +83,7 @@ export class LayerStack {
       // Chaque `raster` de source est IMMUABLE par convention (updateBrushMask
       // remplace toujours la référence, jamais de mutation in place) — le
       // partager rend clone() O(métadonnées) au lieu de O(pixels), comme
-      // l'ancien maskData. Les conteneurs (LayerMask, MaskSource, le tableau
+      // l'ancien champ unique de LayerState. Les conteneurs (LayerMask, MaskSource, le tableau
       // sources) sont eux toujours des objets FRAIS, pour que muter le clone
       // (ex. setMaskInvert) ne touche jamais l'original.
       mask: {

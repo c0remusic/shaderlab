@@ -39,7 +39,7 @@ export function createBrushSource(id: string, raster: Uint8Array): MaskSource {
 }
 
 /** Conteneur de masque non-destructif d'un calque (design.md §3). Remplace
- *  l'ancien `LayerState.maskData: Uint8Array | null`. */
+ *  l'ancien champ unique de `LayerState` (`Uint8Array | null`). */
 export interface LayerMask {
   sources: MaskSource[];
   invert: boolean;

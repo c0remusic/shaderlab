@@ -50,19 +50,19 @@ export default function App() {
   // réellement changé (un simple clic sans mouvement ne crée pas d'entrée).
   const paramDirtyRef = useRef(false);
 
-  // `layersRef` = source de vérité COMPLÈTE des calques (avec maskData), pour le
-  // rendu GPU, l'historique et l'export. Le state React `layers` n'en est qu'une
-  // PROJECTION D'AFFICHAGE, maskData retiré.
+  // `layersRef` = source de vérité COMPLÈTE des calques (avec les rasters de
+  // masque), pour le rendu GPU, l'historique et l'export. Le state React
+  // `layers` n'en est qu'une PROJECTION D'AFFICHAGE, rasters retirés.
   //
-  // Pourquoi : un maskData r8 pleine résolution (~26 Mo à 24MP) placé dans le
+  // Pourquoi : un raster r8 pleine résolution (~26 Mo à 24MP) placé dans le
   // state React fait CRASHER (hang WebView2, CDP inerte) au re-render déclenché
   // par setLayers() en fin de stroke. Root cause épinglée par A/B live sur la
   // vraie fenêtre (2026-07-18, docs/superpowers/specs/2026-07-17-native-wgpu-
-  // decision.md) : setLayers() SANS maskData (ajout de calque) à 24MP ne crashe
-  // pas ; setLayers() AVEC le maskData 26MB crashe ; ne pas appeler setLayers
+  // decision.md) : setLayers() SANS raster (ajout de calque) à 24MP ne crashe
+  // pas ; setLayers() AVEC le raster 26MB crashe ; ne pas appeler setLayers
   // ne crashe pas. Ce n'est donc ni le GPU (requestRender avec le masque
   // complet est OK) ni le re-render en soi, mais le buffer 26 Mo transitant par
-  // l'état React. Le fix garde setLayers() (UI correcte) mais retire maskData de
+  // l'état React. Le fix garde setLayers() (UI correcte) mais retire le raster de
   // ce qui y entre ; les panneaux n'affichent jamais les pixels du masque.
   const layersRef = useRef<LayerState[]>([]);
   const syncLayers = useCallback((full: LayerState[]) => {
@@ -80,9 +80,10 @@ export default function App() {
   );
 
   const currentStack = useCallback((): LayerStack => {
-    // Depuis layersRef (COMPLET, avec maskData), jamais depuis le state `layers`
-    // (projection d'affichage sans maskData) — sinon toute opération non-masque
-    // réécrirait des calques à maskData null et effacerait les masques.
+    // Depuis layersRef (COMPLET, avec les rasters de masque), jamais depuis le
+    // state `layers` (projection d'affichage sans raster) — sinon toute
+    // opération non-masque réécrirait des calques à raster null et effacerait
+    // les masques.
     const stack = new LayerStack();
     stack.layers = layersRef.current;
     return stack.clone();
@@ -225,8 +226,8 @@ export default function App() {
 
   function handleMaskStroke(x: number, y: number) {
     if (!selectedId || imageSize.width === 0) return;
-    // maskData depuis layersRef (complet) — le state `layers` est la projection
-    // d'affichage sans maskData.
+    // Raster depuis layersRef (complet) — le state `layers` est la projection
+    // d'affichage sans raster.
     const layer = layersRef.current.find((l) => l.id === selectedId);
     const currentMaskData = layer ? getBrushRaster(layer) : null;
     const entry = getSyncedMaskPainter(
@@ -246,7 +247,7 @@ export default function App() {
       : entry.painter.paintStroke(x, y, brushSize, brushHardness, erase);
     entry.lastPoint = { x, y };
     // Live preview only: render straight from the painter's own buffer via
-    // a GPU texture upload, WITHOUT going through LayerStack.updateMask()'s
+    // a GPU texture upload, WITHOUT going through LayerStack.updateBrushMask()'s
     // immutable-copy semantics on every sample. That copy (~26MB per call on
     // a 24MP photo) firing on every coalesced pointer sample during a real
     // drag was traced via WebView2 crash-dump analysis (2026-07-15, exception
@@ -263,7 +264,7 @@ export default function App() {
     // "one entry per interaction" pattern already established for sliders.
     rendererRef.current?.requestRender(layersRef.current, {
       layerId: selectedId,
-      maskData: entry.painter.getMaskData(),
+      raster: entry.painter.getMaskData(),
       scope: maskStrokeIsFreshRef.current ? { kind: "full" } : { kind: "partial", rect: dirtyRect },
     });
     maskStrokeIsFreshRef.current = false;

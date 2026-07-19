@@ -2,11 +2,12 @@ import { MaskPainter } from "./maskPainter";
 
 export interface MaskPainterEntry {
   painter: MaskPainter;
-  /** The `LayerState.maskData` reference this painter's buffer currently
-   *  reflects — `null` means "no mask yet" (a fully-cleared buffer), never
-   *  "unknown." Compared by reference, not content: masks are immutable by
-   *  convention (updateMask replaces the reference, never mutates in place),
-   *  so a reference change always means a real change (e.g. undo/redo). */
+  /** The layer's brush-source raster reference (from `getBrushRaster`) this
+   *  painter's buffer currently reflects — `null` means "no mask yet" (a
+   *  fully-cleared buffer), never "unknown." Compared by reference, not
+   *  content: masks are immutable by convention (`updateBrushMask` replaces
+   *  the reference, never mutates in place), so a reference change always
+   *  means a real change (e.g. undo/redo). */
   syncedFrom: Uint8Array | null;
   /** Last point painted during the CURRENT stroke (image coordinates), or
    *  `null` between strokes. Lets the caller interpolate via

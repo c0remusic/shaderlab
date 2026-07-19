@@ -25,7 +25,7 @@ export interface FoldSourceSnapshot {
  * Les rasters sont immuables par convention (toujours remplacés, jamais
  * mutés en place — `LayerStack.updateBrushMask`), donc une comparaison par
  * RÉFÉRENCE suffit à détecter un changement réel, même principe que
- * `syncedFrom === layer.maskData` dans le renderer aujourd'hui.
+ * `MaskPainterEntry.syncedFrom` dans `maskPainterSync.ts`.
  */
 export function snapshotFoldInputs(mask: LayerMask): FoldSourceSnapshot[] {
   return planFold(mask).map((s) => ({ id: s.id, raster: s.raster, combineMode: s.combineMode }));

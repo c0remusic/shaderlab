@@ -7,7 +7,8 @@ import type { LayerState } from "./types";
  * Généralisation du fix crash 24MP (root cause : un gros buffer masque dans
  * le state React fait CRASHER WebView2 au re-render de `setLayers()`, voir
  * `docs/superpowers/specs/2026-07-17-native-wgpu-decision.md`). Avant cette
- * tâche, un seul `maskData` par calque portait ce risque ; le modèle
+ * tâche, un seul buffer de masque par calque (l'ancien champ unique de
+ * `LayerState`) portait ce risque ; le modèle
  * `LayerMask` généralise à N sources, donc CHAQUE `raster` de CHAQUE source
  * doit être retiré, pas seulement un champ unique.
  *

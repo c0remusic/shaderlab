@@ -30,11 +30,12 @@ import { buildCombineWgsl, buildInvertWgsl } from "../mask/maskFoldWgsl";
  *  nothing in the type said "this optionality is load-bearing." */
 export type MaskUploadScope = { kind: "full" } | { kind: "partial"; rect: DirtyRect };
 
-/** Live mask-paint preview: renders `maskData` (the painter's own live
- *  buffer, not yet committed to `LayerState.maskData`) for `layerId` on this
- *  one frame only. Lets `handleMaskStroke` show visual feedback on every
- *  coalesced pointer sample without paying `LayerStack.updateMask()`'s
- *  per-sample immutable-copy cost (~26MB on a 24MP photo).
+/** Live mask-paint preview: renders `raster` (the painter's own live
+ *  buffer, not yet committed to the layer's brush mask source) for
+ *  `layerId` on this one frame only. Lets `handleMaskStroke` show visual
+ *  feedback on every coalesced pointer sample without paying
+ *  `LayerStack.updateBrushMask()`'s per-sample immutable-copy cost
+ *  (~26MB on a 24MP photo).
  *
  *  `scope` controls how much of the texture actually gets uploaded — see
  *  `MaskUploadScope`. This matters independently of the copy above:
@@ -47,7 +48,7 @@ export type MaskUploadScope = { kind: "full" } | { kind: "partial"; rect: DirtyR
  *  buffer every sample. */
 export interface MaskPreviewOverride {
   layerId: string;
-  maskData: Uint8Array;
+  raster: Uint8Array;
   scope: MaskUploadScope;
 }
 
@@ -147,8 +148,8 @@ export class Renderer {
   );
   /** Set for the duration of one `runPipeline()` call by `render()`; read by
    *  `getMaskTexture()` to substitute the live-painted buffer for the
-   *  layer currently being painted, bypassing `LayerState.maskData`
-   *  entirely for that frame. */
+   *  layer currently being painted, bypassing the committed brush mask
+   *  source entirely for that frame. */
   private livePreview: MaskPreviewOverride | null = null;
   /** Id du calque dont le masque est affiché en overlay safelight (mode
    *  peinture), ou null (pas d'overlay). Piloté par `setMaskOverlay()` depuis
@@ -217,7 +218,7 @@ export class Renderer {
    *  que la frame (drag de slider, pinceau). `render()` reste disponible
    *  pour un rendu immédiat déterministe (premier affichage).
    *  `preview` : voir `MaskPreviewOverride` — utilisé par le pinceau pour un
-   *  retour visuel par échantillon sans passer par `updateMask()`. */
+   *  retour visuel par échantillon sans passer par `updateBrushMask()`. */
   requestRender(layers: LayerState[], preview: MaskPreviewOverride | null = null): void {
     this.renderScheduler.request({ layers, preview });
   }
@@ -713,17 +714,17 @@ export class Renderer {
   }
 
   /** Texture de masque RÉSIDENTE par calque : créée une fois à la taille de
-   *  l'image, réuploadée uniquement quand la référence `maskData` du calque
-   *  change (les masques sont immuables par convention — updateMask remplace
-   *  la référence, jamais le contenu). Auparavant : création + upload 24MP à
-   *  CHAQUE frame pour chaque calque masqué. */
+   *  l'image, réuploadée uniquement quand la référence `raster` de la source
+   *  du calque change (les masques sont immuables par convention —
+   *  updateBrushMask remplace la référence, jamais le contenu). Auparavant :
+   *  création + upload 24MP à CHAQUE frame pour chaque calque masqué. */
   private getMaskTexture(layer: LayerState, encoder: GPUCommandEncoder): GPUTexture {
     // Chemin pinceau EN COURS de peinture : inchangé depuis avant cette
     // tranche, zéro coût de fold (perf 60fps du geste de peinture non
     // impactée — l'aperçu live d'un calque à source unique n'entre jamais
     // dans le fold multi-passe ci-dessous).
     if (this.livePreview && this.livePreview.layerId === layer.id) {
-      return this.getLiveMaskTexture(this.livePreview.layerId, this.livePreview.maskData, this.livePreview.scope);
+      return this.getLiveMaskTexture(this.livePreview.layerId, this.livePreview.raster, this.livePreview.scope);
     }
 
     const plan = planFold(layer.mask);
@@ -885,16 +886,16 @@ export class Renderer {
 
   /** Backing texture for `MaskPreviewOverride` — a single texture reused
    *  across preview frames, never entered into the residency cache since it
-   *  isn't associated with a stable `maskData` reference.
+   *  isn't associated with a stable `raster` reference.
    *
    *  A `"partial"` scope is only trusted when the texture is ALREADY known
    *  to reflect `layerId`'s content (`liveMaskLayerId` matches) — the
    *  source data offset/stride trick in `computeR8UploadRegion` lets WebGPU
    *  read just that sub-rectangle directly out of the full-resolution
-   *  `maskData` buffer, so this needs no extra JS-side copy either.
+   *  `raster` buffer, so this needs no extra JS-side copy either.
    *  Otherwise (layer just changed, or the caller explicitly asked for
    *  `"full"`) the whole image is uploaded and `liveMaskLayerId` updated. */
-  private getLiveMaskTexture(layerId: string, maskData: Uint8Array, scope: MaskUploadScope): GPUTexture {
+  private getLiveMaskTexture(layerId: string, raster: Uint8Array, scope: MaskUploadScope): GPUTexture {
     if (!this.liveMaskTexture) {
       this.liveMaskTexture = this.ctx.device.createTexture({
         size: [this.width, this.height],
@@ -906,7 +907,7 @@ export class Renderer {
       });
     }
     const rect = scope.kind === "partial" && this.liveMaskLayerId === layerId ? scope.rect : undefined;
-    this.uploadR8(this.liveMaskTexture, maskData, this.width, this.height, rect);
+    this.uploadR8(this.liveMaskTexture, raster, this.width, this.height, rect);
     if (!rect) this.liveMaskLayerId = layerId;
     return this.liveMaskTexture;
   }

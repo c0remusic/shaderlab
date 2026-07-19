@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "../../src/mask/maskPainterSync";
+import { getBrushRaster } from "../../src/mask/brushSource";
+import { defaultLayerMask, createBrushSource } from "../../src/mask/types";
+import type { LayerState } from "../../src/layers/types";
 
 describe("getSyncedMaskPainter", () => {
   it("creates a fresh painter seeded from currentMaskData on first stroke", () => {
@@ -18,7 +21,7 @@ describe("getSyncedMaskPainter", () => {
     expect(entry.syncedFrom).toBeNull();
   });
 
-  it("reuses the same painter across strokes when maskData reference is unchanged", () => {
+  it("reuses the same painter across strokes when the raster reference is unchanged", () => {
     const entries = new Map<string, MaskPainterEntry>();
     const seed = new Uint8Array(4 * 4);
     const first = getSyncedMaskPainter(entries, "layer-1", seed, 4, 4);
@@ -28,14 +31,14 @@ describe("getSyncedMaskPainter", () => {
     expect(second.painter.getMaskData()[2 * 4 + 2]).toBeGreaterThan(0);
   });
 
-  it("re-seeds the cached painter when maskData reference changes (undo/redo between strokes)", () => {
+  it("re-seeds the cached painter when the raster reference changes (undo/redo between strokes)", () => {
     const entries = new Map<string, MaskPainterEntry>();
     const before = getSyncedMaskPainter(entries, "layer-1", new Uint8Array(4 * 4), 4, 4);
     before.painter.paintStroke(2, 2, 1, 1.0, false);
     expect(before.painter.getMaskData()[2 * 4 + 2]).toBeGreaterThan(0);
 
     // Simulates an undo/redo restoring a different mask snapshot for the
-    // same layer id between two strokes: a NEW maskData reference arrives.
+    // same layer id between two strokes: a NEW raster reference arrives.
     const restored = new Uint8Array(4 * 4).fill(50);
     const after = getSyncedMaskPainter(entries, "layer-1", restored, 4, 4);
     expect(after).toBe(before); // same cached painter instance, re-seeded
@@ -43,7 +46,7 @@ describe("getSyncedMaskPainter", () => {
     expect(after.syncedFrom).toBe(restored);
   });
 
-  it("clears the cached painter when maskData reference changes to null (undo to no-mask state)", () => {
+  it("clears the cached painter when the raster reference changes to null (undo to no-mask state)", () => {
     const entries = new Map<string, MaskPainterEntry>();
     const before = getSyncedMaskPainter(entries, "layer-1", new Uint8Array(4 * 4).fill(200), 4, 4);
     const after = getSyncedMaskPainter(entries, "layer-1", null, 4, 4);
@@ -71,5 +74,25 @@ describe("getSyncedMaskPainter", () => {
     before.lastPoint = { x: 2, y: 2 };
     const after = getSyncedMaskPainter(entries, "layer-1", new Uint8Array(4 * 4).fill(50), 4, 4);
     expect(after.lastPoint).toBeNull();
+  });
+});
+
+describe("getSyncedMaskPainter fed from getBrushRaster (Tranche 2 wiring)", () => {
+  it("seeds the painter from the layer's brush raster when one exists", () => {
+    const raster = new Uint8Array(4).fill(200);
+    const mask = defaultLayerMask();
+    mask.sources.push(createBrushSource("l-brush", raster));
+    const layer: LayerState = { id: "l", effectId: "glow", params: {}, enabled: true, opacity: 1, blendMode: "normal", mask };
+
+    const entries = new Map<string, MaskPainterEntry>();
+    const entry = getSyncedMaskPainter(entries, "l", getBrushRaster(layer), 2, 2);
+    expect(entry.painter.getMaskData()).toEqual(raster);
+  });
+
+  it("seeds an empty painter when the layer has never been painted", () => {
+    const layer: LayerState = { id: "l", effectId: "glow", params: {}, enabled: true, opacity: 1, blendMode: "normal", mask: defaultLayerMask() };
+    const entries = new Map<string, MaskPainterEntry>();
+    const entry = getSyncedMaskPainter(entries, "l", getBrushRaster(layer), 2, 2);
+    expect(entry.painter.getMaskData()).toEqual(new Uint8Array(4));
   });
 });

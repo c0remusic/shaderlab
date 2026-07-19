@@ -88,6 +88,13 @@ export function Slider({
         step={step}
         value={value}
         disabled={disabled}
+        // draggable={false} : confirmé par sonde CDP (geste réel, pas
+        // synthétique) que ce <input type="range"> déclenche un dragstart/
+        // dragend HTML5 natif au click-drag, indépendamment de tout ancêtre
+        // draggable — comportement par défaut du moteur sur un input stylé,
+        // présent sur TOUS les sliders de l'app (opacité ET params d'effet),
+        // pas seulement celui qui semblait saccadé. Le désactive pour tous.
+        draggable={false}
         onChange={(event) => {
           onChange(event.target.valueAsNumber);
           markControlActive(id);

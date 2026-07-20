@@ -87,11 +87,14 @@ vente en tirage physique.
 ## Terminé = démontrable
 
 - Sur une fixture synthétique (dégradé linéaire construit, pas une photo),
-  aucun palier de quantification 8-bit n'est détectable directement dans les
-  valeurs du TIFF 16-bit exporté (les pas entre valeurs voisines restent à
-  l'échelle 16-bit, pas alignés sur des multiples de 256) — preuve que le
-  pipeline n'a pas quantifié en 8-bit à une étape intermédiaire, plus stricte
-  qu'un simple comptage de niveaux distincts après coup.
+  la sortie TIFF est comparée numériquement à une référence calculée
+  indépendamment en haute précision (même dégradé, même conversion de gamut,
+  jamais quantifiée en 8-bit) avec une tolérance définie — un comptage de
+  niveaux ou une détection de paliers seuls ne suffit pas : la conversion de
+  gamut peut redistribuer les valeurs hors des multiples de 256 même si le
+  pipeline a quantifié en 8-bit avant, donc seule une comparaison à une
+  référence float indépendante prouve l'absence de quantification
+  intermédiaire.
 - Une œuvre réelle avec un dégradé fort (bloom+halation empilés) exportée en
   « Exporter pour impression » ne montre aucun banding visible à un zoom
   100% sur le TIFF résultant.

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import { nextEnabledIndex, type SelectOption } from "./selectNavigation";
 
@@ -12,11 +13,20 @@ export interface SelectProps {
   onChange: (value: string) => void;
 }
 
+interface ListboxRect {
+  top: number;
+  left: number;
+  width: number;
+}
+
 /**
- * Custom button + listbox select (not a native <select>) so the popup can
- * be styled consistently with the rest of the inspector. No portal: the
- * inspector container is expected to have overflow: visible around this
- * control so the popup is never clipped.
+ * Custom button + listbox select (not a native <select>). La listbox est
+ * portalée dans document.body (position: fixed, ancrée sur le rect du
+ * trigger) — pas un enfant en position: absolute du conteneur. Un FloatingPanel
+ * a un contenu scrollable (overflow-y: auto, cf. FloatingPanel.css) : un
+ * enfant absolu y serait clippé au bord du scroll (finding auditor HAUTE,
+ * 2026-07-20 — le premier fix "overflow: visible sur l'ancêtre" ne
+ * fonctionne plus dès que cet ancêtre doit aussi scroller son contenu).
  */
 export function Select({ label, value, placeholder = "Sélectionner…", options, onChange }: SelectProps) {
   const id = useId();
@@ -24,6 +34,7 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
   const listboxId = `${id}-listbox`;
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [listboxRect, setListboxRect] = useState<ListboxRect | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -37,12 +48,36 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
     listRef.current?.focus();
 
     function handlePointerDown(event: PointerEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (!rootRef.current?.contains(target) && !listRef.current?.contains(target)) {
         setOpen(false);
       }
     }
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [open]);
+
+  // Position fixe recalculée à l'ouverture + à chaque scroll (capture: true
+  // pour intercepter le scroll d'un ancêtre imbriqué, ex. FloatingPanel__content)
+  // et resize — pas de suivi continu pendant le scroll, la liste se referme
+  // plutôt que de traîner derrière une position périmée (comportement standard
+  // des popups non ancrés en layout, ex. menus natifs).
+  useEffect(() => {
+    if (!open) return;
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    setListboxRect({ top: rect.bottom, left: rect.left, width: rect.width });
+
+    function closeOnScrollOrResize() {
+      setOpen(false);
+    }
+    window.addEventListener("scroll", closeOnScrollOrResize, { capture: true });
+    window.addEventListener("resize", closeOnScrollOrResize);
+    return () => {
+      window.removeEventListener("scroll", closeOnScrollOrResize, { capture: true });
+      window.removeEventListener("resize", closeOnScrollOrResize);
+    };
   }, [open]);
 
   useEffect(() => {
@@ -182,47 +217,51 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
         </span>
         <ChevronDown className="ui-select__chevron" size={14} strokeWidth={1.5} aria-hidden="true" />
       </button>
-      {open && (
-        <ul
-          ref={listRef}
-          id={listboxId}
-          role="listbox"
-          aria-labelledby={labelId}
-          aria-activedescendant={activeIndex >= 0 ? `${id}-option-${activeIndex}` : undefined}
-          className="ui-select__listbox"
-          tabIndex={-1}
-          onKeyDown={handleListKeyDown}
-        >
-          {options.map((option, index) => {
-            const selected = option.value === value;
-            const active = index === activeIndex;
-            return (
-              <li
-                key={option.value}
-                id={`${id}-option-${index}`}
-                data-index={index}
-                role="option"
-                aria-selected={selected}
-                aria-disabled={option.disabled || undefined}
-                className={[
-                  "ui-select__option",
-                  active && "ui-select__option--active",
-                  option.disabled && "ui-select__option--disabled",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                onMouseEnter={() => !option.disabled && setActiveIndex(index)}
-                onClick={() => commit(index)}
-              >
-                <span className="ui-select__option-label">{option.label}</span>
-                {selected && (
-                  <Check className="ui-select__option-check" size={14} strokeWidth={2} aria-hidden="true" />
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      {open &&
+        listboxRect &&
+        createPortal(
+          <ul
+            ref={listRef}
+            id={listboxId}
+            role="listbox"
+            aria-labelledby={labelId}
+            aria-activedescendant={activeIndex >= 0 ? `${id}-option-${activeIndex}` : undefined}
+            className="ui-select__listbox"
+            style={{ top: listboxRect.top, left: listboxRect.left, width: listboxRect.width }}
+            tabIndex={-1}
+            onKeyDown={handleListKeyDown}
+          >
+            {options.map((option, index) => {
+              const selected = option.value === value;
+              const active = index === activeIndex;
+              return (
+                <li
+                  key={option.value}
+                  id={`${id}-option-${index}`}
+                  data-index={index}
+                  role="option"
+                  aria-selected={selected}
+                  aria-disabled={option.disabled || undefined}
+                  className={[
+                    "ui-select__option",
+                    active && "ui-select__option--active",
+                    option.disabled && "ui-select__option--disabled",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  onMouseEnter={() => !option.disabled && setActiveIndex(index)}
+                  onClick={() => commit(index)}
+                >
+                  <span className="ui-select__option-label">{option.label}</span>
+                  {selected && (
+                    <Check className="ui-select__option-check" size={14} strokeWidth={2} aria-hidden="true" />
+                  )}
+                </li>
+              );
+            })}
+          </ul>,
+          document.body
+        )}
     </div>
   );
 }

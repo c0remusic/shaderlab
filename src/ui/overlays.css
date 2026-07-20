@@ -3,8 +3,8 @@
  * Every value below is a design token reference (src/design/*.css) — no
  * hardcoded colors, sizes or durations.
  *
- * Select has no portal: it relies on its containing inspector section
- * using `overflow: visible` so the popup is never clipped.
+ * Select est portalé (document.body, position: fixed) — voir Select.tsx.
+ * Ne dépend plus d'un ancêtre en overflow: visible.
  */
 
 /* ---------- Select ---------- */
@@ -66,10 +66,11 @@
 }
 
 .ui-select__listbox {
-  position: absolute;
-  top: calc(100% + var(--space-2));
-  left: 0;
-  right: 0;
+  /* position: fixed + top/left/width posés inline (Select.tsx, mesurés sur
+     le rect du trigger) — portalé dans document.body, ne dépend plus d'un
+     ancêtre en overflow: visible (finding auditor HAUTE, 2026-07-20). */
+  position: fixed;
+  margin-top: var(--space-2);
   z-index: var(--z-popover);
   max-height: 240px;
   margin: 0;

@@ -41,18 +41,20 @@ function snapAxisToNeighbors(
   // `others` ne décide jamais un cas d'égalité stricte entre deux voisins
   // (repro : deux voisins symétriques, distance identique via des familles
   // différentes -> seul l'ordre par-voisin fait gagner le premier trouvé).
+  // Le seuil SNAP_DISTANCE se mesure sur la distance bord-à-bord RÉELLE
+  // (dragged vs voisin), jamais sur la distance à la position finale
+  // incluant PANEL_GAP — sinon un bord à 20px snappe à tort tandis qu'un
+  // bord à 5px est refusé (finding codex-crosscheck).
   let best: AxisSnap | null = null;
   const size = draggedEnd - draggedStart;
   for (let i = 0; i < neighborEnds.length; i++) {
-    const endCandidate = neighborEnds[i] + PANEL_GAP;
-    const endDistance = Math.abs(draggedStart - endCandidate);
+    const endDistance = Math.abs(draggedStart - neighborEnds[i]);
     if (endDistance <= SNAP_DISTANCE && (best === null || endDistance < best.distance)) {
-      best = { value: endCandidate, distance: endDistance };
+      best = { value: neighborEnds[i] + PANEL_GAP, distance: endDistance };
     }
-    const startCandidate = neighborStarts[i] - PANEL_GAP - size;
-    const startDistance = Math.abs(draggedStart - startCandidate);
+    const startDistance = Math.abs(draggedEnd - neighborStarts[i]);
     if (startDistance <= SNAP_DISTANCE && (best === null || startDistance < best.distance)) {
-      best = { value: startCandidate, distance: startDistance };
+      best = { value: neighborStarts[i] - PANEL_GAP - size, distance: startDistance };
     }
   }
   return best;

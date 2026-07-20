@@ -60,17 +60,17 @@ describe("computeSnappedPosition", () => {
   });
 
   it("égalité exacte de distance -> résolue par l'ordre de rendu (premier trouvé)", () => {
-    // dragged.x=150 ; deux voisins dont le bord "fin" (+PANEL_GAP) tombe
-    // respectivement à 145 et 155 -> distance 5 de part et d'autre,
+    // dragged.x=150 ; deux voisins dont le bord "fin" est respectivement à
+    // 145 et 155 -> distance bord-à-bord réelle de 5 de part et d'autre,
     // strictement égale et sous SNAP_DISTANCE. y=500 hors de portée du
     // dragged (y=100) pour isoler l'axe x.
-    const first: SnapCandidate = { id: "first", rect: rect(0, 500, 137, 150) }; // end=137 -> candidat 145
-    const second: SnapCandidate = { id: "second", rect: rect(0, 500, 147, 150) }; // end=147 -> candidat 155
+    const first: SnapCandidate = { id: "first", rect: rect(0, 500, 145, 150) }; // end=145, distance 5
+    const second: SnapCandidate = { id: "second", rect: rect(0, 500, 155, 150) }; // end=155, distance 5
     const dragged = rect(150, 100, 200, 150);
     const result = computeSnappedPosition(dragged, [first, second], CANVAS);
     const resultReversed = computeSnappedPosition(dragged, [second, first], CANVAS);
-    expect(result.x).toBe(145);
-    expect(resultReversed.x).toBe(155);
+    expect(result.x).toBe(145 + PANEL_GAP);
+    expect(resultReversed.x).toBe(155 + PANEL_GAP);
     expect(result.x).not.toBe(resultReversed.x);
   });
 

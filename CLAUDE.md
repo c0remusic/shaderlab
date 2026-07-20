@@ -36,11 +36,16 @@
 > en premier. **Tranche 3 masquage** (Tasks 1-6 : edge-aware guided filter,
 > refine edge forme-seule, sources paramétriques dégradé/luminosité/range
 > couleur, câblage GPU + UI panneau Masque) **codée et review-clean** au
-> 2026-07-20 (`.superpowers/sdd/progress.md`), avec UN gap connu et
-> documenté (pas une omission silencieuse) : pas de checkbox `enabled` par
-> source de masque dans l'UI — `LayerStack` n'expose aucun setter pour ça,
-> seulement `setMaskEnabled` au niveau du masque entier ; ajout d'un
-> `setMaskSourceEnabled` hors scope du plan actuel. Le checkpoint visuel
+> 2026-07-20 (`.superpowers/sdd/progress.md`), avec UN gap spec RÉEL non
+> détecté par la review Steps 10-12 (verdict "spec ✅" trop optimiste,
+> basé sur la section Interfaces du brief Task 6 sans relire le corps du
+> Step 10) : le plan
+> (`docs/superpowers/plans/2026-07-20-shaderlab-masking-tranche3.md:1616`,
+> Step 10 point 2) exige une checkbox `enabled` par source de masque dans
+> l'UI — jamais livrée, `LayerStack` n'expose que `setMaskEnabled` au
+> niveau du masque entier, pas de setter par source. À trancher : ajouter
+> `setMaskSourceEnabled`, ou documenter formellement ce point comme différé
+> dans le plan lui-même (pas encore fait). Le checkpoint visuel
 > final (8 points, Task 6 Step 13) est BLOQUÉ : problèmes
 > pré-existants sur `FloatingPanel` (thème incohérent, canvas mal centré,
 > imbrication panneaux cassée) découverts en tentant ce checkpoint. 2 bugs

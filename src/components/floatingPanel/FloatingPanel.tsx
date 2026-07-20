@@ -145,8 +145,7 @@ export function FloatingPanel({
           ref={titlebarRef}
           className="floating-panel__titlebar"
           tabIndex={0}
-          role="button"
-          aria-label={`Déplacer le panneau ${title}`}
+          aria-label={`Déplacer le panneau ${title} (flèches pour nudger, Shift = pas large)`}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
@@ -157,7 +156,16 @@ export function FloatingPanel({
           <IconButton
             label={collapsed ? "Déplier le panneau" : "Replier le panneau"}
             size="compact"
-            onClick={() => onCollapsedChange(!collapsed)}
+            // stopPropagation : le bouton est imbriqué dans la poignée de
+            // titre porteuse des handlers pointer de drag (finding auditor
+            // 2026-07-20) — sans ça, un clic sur le chevron bubble jusqu'au
+            // titlebar et déclenche un cycle drag (fantôme + re-snap au
+            // relâchement) pour un simple repli/dépli.
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onCollapsedChange(!collapsed);
+            }}
           >
             {collapsed ? (
               <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />

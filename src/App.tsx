@@ -22,6 +22,26 @@ import { getEffect } from "./render/effects/registry";
 export default function App() {
   useGlobalControlWheel();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const workspaceRef = useRef<HTMLElement>(null);
+  // Taille RÉELLE du conteneur `.workspace` (pas window.innerWidth/innerHeight
+  // bruts, finding auditor 2026-07-20) : `.workspace` est plus petit que la
+  // fenêtre — Toolbar + éventuellement BrushToolbar retirent de la hauteur
+  // (App.css/App.tsx), et `overflow: hidden` coupe tout ce qui dépasse. Sans
+  // ça, le clamp/magnétisme de FloatingPanel autorisait un panneau à finir
+  // partiellement masqué sous le bord réellement visible.
+  const [workspaceSize, setWorkspaceSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+  useEffect(() => {
+    const el = workspaceRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
+      setWorkspaceSize({ width, height });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   const gpuRef = useRef<GpuContext | null>(null);
   const rendererRef = useRef<Renderer | null>(null);
   const historyRef = useRef<History>(new History(new LayerStack()));
@@ -57,6 +77,13 @@ export default function App() {
   // que l'ancien Inspector docké (design.md §2) — PAS une colonne contrainte
   // en dur, seulement un point de départ librement déplaçable ensuite.
   const PANEL_SIZE = { width: 288, height: 320 }; // largeur = DEFAULT_PANEL_COLUMN_WIDTH
+  // Hauteur DOM réelle d'un panneau replié = celle de la seule titlebar
+  // (contenu démonté, FloatingPanel.tsx) — reprend --section-header-height
+  // (28px, src/design/components.css). Un voisin replié annoncé au
+  // magnétisme avec sa hauteur PLEINE (320px) accrocherait contre un
+  // rectangle fantôme, décalé de la position réelle (finding auditor
+  // 2026-07-20).
+  const COLLAPSED_PANEL_HEIGHT = 28;
   const [layersPanel, setLayersPanel] = useState({
     position: { x: window.innerWidth - PANEL_SIZE.width - 16, y: 52 },
     collapsed: false,
@@ -65,6 +92,8 @@ export default function App() {
     position: { x: window.innerWidth - PANEL_SIZE.width - 16, y: 52 + PANEL_SIZE.height + 8 },
     collapsed: false,
   });
+  const layersPanelHeight = layersPanel.collapsed ? COLLAPSED_PANEL_HEIGHT : PANEL_SIZE.height;
+  const paramsPanelHeight = paramsPanel.collapsed ? COLLAPSED_PANEL_HEIGHT : PANEL_SIZE.height;
 
   // `layersRef` = source de vérité COMPLÈTE des calques (avec les rasters de
   // masque), pour le rendu GPU, l'historique et l'export. Le state React
@@ -389,7 +418,7 @@ export default function App() {
           onStop={() => setMaskPaintMode(false)}
         />
       )}
-      <main className="workspace">
+      <main className="workspace" ref={workspaceRef}>
         <Canvas
           ref={canvasRef}
           onFileDropped={(file) => openFile(file, null, false)}
@@ -406,8 +435,10 @@ export default function App() {
           collapsed={layersPanel.collapsed}
           onPositionChange={(position) => setLayersPanel((s) => ({ ...s, position }))}
           onCollapsedChange={(collapsed) => setLayersPanel((s) => ({ ...s, collapsed }))}
-          siblingRects={[{ id: "params", rect: { ...paramsPanel.position, ...PANEL_SIZE } }]}
-          canvasSize={{ width: window.innerWidth, height: window.innerHeight }}
+          siblingRects={[
+            { id: "params", rect: { ...paramsPanel.position, width: PANEL_SIZE.width, height: paramsPanelHeight } },
+          ]}
+          canvasSize={workspaceSize}
         >
           <LayerPanel
             layers={layers}
@@ -429,8 +460,10 @@ export default function App() {
           collapsed={paramsPanel.collapsed}
           onPositionChange={(position) => setParamsPanel((s) => ({ ...s, position }))}
           onCollapsedChange={(collapsed) => setParamsPanel((s) => ({ ...s, collapsed }))}
-          siblingRects={[{ id: "layers", rect: { ...layersPanel.position, ...PANEL_SIZE } }]}
-          canvasSize={{ width: window.innerWidth, height: window.innerHeight }}
+          siblingRects={[
+            { id: "layers", rect: { ...layersPanel.position, width: PANEL_SIZE.width, height: layersPanelHeight } },
+          ]}
+          canvasSize={workspaceSize}
         >
           <ParamPanel
             layer={selectedLayer}

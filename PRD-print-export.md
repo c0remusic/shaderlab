@@ -87,18 +87,21 @@ vente en tirage physique.
 ## Terminé = démontrable
 
 - Sur une fixture synthétique (dégradé linéaire construit, pas une photo),
-  le nombre de niveaux discrets réellement présents dans le TIFF 16-bit
-  exporté est mesuré (histogramme des valeurs) et dépasse largement les 256
-  paliers d'un 8-bit — preuve numérique que le pipeline n'a pas quantifié en
-  8-bit avant l'écriture, pas seulement un contrôle visuel à l'œil.
+  aucun palier de quantification 8-bit n'est détectable directement dans les
+  valeurs du TIFF 16-bit exporté (les pas entre valeurs voisines restent à
+  l'échelle 16-bit, pas alignés sur des multiples de 256) — preuve que le
+  pipeline n'a pas quantifié en 8-bit à une étape intermédiaire, plus stricte
+  qu'un simple comptage de niveaux distincts après coup.
 - Une œuvre réelle avec un dégradé fort (bloom+halation empilés) exportée en
   « Exporter pour impression » ne montre aucun banding visible à un zoom
   100% sur le TIFF résultant.
 - Le TIFF produit s'ouvre dans un visualiseur qui affiche son profil ICC
   (ex. Photoshop, ou `exiftool`) et rapporte bien Adobe RGB (1998), 16
-  bits/canal — et une valeur de référence connue (ex. rouge pur du pipeline
-  interne) retombe, une fois convertie par ce profil, sur la valeur Adobe RGB
-  attendue (pas la valeur sRGB brute mal étiquetée).
+  bits/canal — et un jeu de valeurs de référence connues (rouge pur, vert
+  pur, bleu pur, gris neutre, une couleur mixte) retombe, une fois converti
+  par ce profil, sur les valeurs Adobe RGB attendues pour chacune (pas
+  seulement le rouge, pour couvrir toute la matrice de conversion — pas la
+  valeur sRGB brute mal étiquetée).
 - Avant de lancer l'export, en saisissant une taille de tirage cible (ex.
   A3), le DPI résultant s'affiche immédiatement.
 - L'export JPEG existant (« Exporter sous », round-trip Lightroom) continue

@@ -12,7 +12,7 @@
   --icon-stroke: 1.5px;
 
   --inspector-width-min: 240px;
-  --inspector-width-default: 288px;
+  --inspector-width-default: 320px;
   --inspector-width-max: 400px;
   --filmstrip-height-collapsed: 28px;
   --filmstrip-height-default: 104px;
@@ -44,7 +44,6 @@
   --panel-bg: var(--surface-panel);
   --panel-border: var(--border-default);
   --panel-radius: var(--radius-panel);
-  --shadow-panel-resting: 0 2px 8px rgba(8, 7, 6, .32);
   --shadow-panel-dragging: 0 6px 20px rgba(8, 7, 6, .44);
 
   --tooltip-delay: 500ms;

@@ -115,11 +115,16 @@ export class Renderer {
   private pingPong: [GPUTexture, GPUTexture] | null = null;
   private exportTexture: GPUTexture | null = null;
   private sampler: GPUSampler;
-  /** Sampler NON filtrant (nearest) pour les passes edge-aware — un box
+  /** Sampler `nearest` (pas bilinéaire) pour les passes edge-aware — un box
    *  filter accumule des échantillons discrets, un filtrage bilinéaire
    *  parasiterait la moyenne. Suit le même pattern que `this.sampler`,
-   *  jamais réutilisé pour les passes couleur/masque existantes. */
-  private nonFilteringSampler: GPUSampler;
+   *  jamais réutilisé pour les passes couleur/masque existantes. Malgré le
+   *  filtre "nearest", son type de binding WebGPU reste "filtering" (pas
+   *  "non-filtering", un type distinct côté validation) — voir le
+   *  commentaire dans `runEdgeAwarePipeline`/`pass()`. Nommé `nearestSampler`
+   *  plutôt que `nonFilteringSampler` pour ne pas laisser croire au type de
+   *  binding WebGPU "non-filtering", qui aurait cassé `textureSample()`. */
+  private nearestSampler: GPUSampler;
   private pipelineCache = new Map<
     string,
     { pipeline: GPURenderPipeline; bindGroupLayout: GPUBindGroupLayout }
@@ -199,7 +204,7 @@ export class Renderer {
   constructor(ctx: GpuContext) {
     this.ctx = ctx;
     this.sampler = ctx.device.createSampler({ magFilter: "linear", minFilter: "linear" });
-    this.nonFilteringSampler = ctx.device.createSampler({ magFilter: "nearest", minFilter: "nearest" });
+    this.nearestSampler = ctx.device.createSampler({ magFilter: "nearest", minFilter: "nearest" });
   }
 
   /** Active/désactive l'overlay safelight du masque d'un calque (mode peinture).
@@ -1043,12 +1048,21 @@ export class Renderer {
       const cacheKey = `${entryPoint}:${wgsl.length}`;
       let cached = this.edgeAwarePipelineCache.get(cacheKey);
       if (!cached) {
+        // sampleType "float" + sampler "filtering" (pas "unfilterable-float"/
+        // "non-filtering") : tous les formats de travail edge-aware
+        // (r8unorm/rg8unorm/rg16float) sont filtrables par le spec WebGPU, et
+        // le WGSL de edgeAwareWgsl.ts appelle `textureSample()` partout — un
+        // sampler non filtrant combiné à `textureSample()` (plutôt que
+        // `textureLoad()`) est un rejet de validation au pipeline. Divergence
+        // documentée vs le pseudo-code du brief (Task 1 Step 11), qui utilisait
+        // "unfilterable-float"/"non-filtering" — jamais exercé avant ce fix
+        // car aucun test ne crée de vrai device WebGPU (voir rapport de tâche).
         const entries: GPUBindGroupLayoutEntry[] = [
-          { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "unfilterable-float" } },
-          { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "non-filtering" } },
+          { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } },
+          { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "filtering" } },
         ];
         for (let i = 1; i < views.length; i++) {
-          entries.push({ binding: 1 + i, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "unfilterable-float" } });
+          entries.push({ binding: 1 + i, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
         }
         if (uniformBuffer) {
           entries.push({ binding: 1 + views.length, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } });
@@ -1069,7 +1083,7 @@ export class Renderer {
       }
       const bindEntries: GPUBindGroupEntry[] = [
         { binding: 0, resource: views[0] },
-        { binding: 1, resource: this.nonFilteringSampler },
+        { binding: 1, resource: this.nearestSampler },
       ];
       for (let i = 1; i < views.length; i++) bindEntries.push({ binding: 1 + i, resource: views[i] });
       if (uniformBuffer) bindEntries.push({ binding: 1 + views.length, resource: { buffer: uniformBuffer } });

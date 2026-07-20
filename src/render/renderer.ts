@@ -27,6 +27,21 @@ import {
   buildCompositeWgsl,
 } from "../mask/edgeAwareWgsl";
 
+/** Nombre de slots f32 réservés par type de source paramétrique dans le
+ *  buffer uniform passé au shader de génération (voir `getParametricSourceTexture`).
+ *  `colorRange` a besoin de 32 slots (tolerance/hardness/invert/sampleCount +
+ *  jusqu'à 6 échantillons RGB) ; gradient/luminosity n'ont que quelques
+ *  scalaires (8 suffit). Point d'extension à surveiller : un futur 4e type de
+ *  source paramétrique (Tasks 3-5, hors scope ici) doit être ajouté ICI —
+ *  sans entrée explicite il retomberait silencieusement sur le défaut `8` et
+ *  verrait ses params tronqués sans erreur (flattenMaskSourceParams s'arrête
+ *  silencieusement à `count`). */
+const PARAM_COUNT_BY_TYPE: Record<string, number> = {
+  gradient: 8,
+  luminosity: 8,
+  colorRange: 32,
+};
+
 /** Which part of the live-preview mask texture a `MaskPreviewOverride` needs
  *  uploaded this frame. `"full"` re-uploads the whole image — required the
  *  first time a layer starts being live-previewed, since `liveMaskTexture`
@@ -847,7 +862,7 @@ export class Renderer {
     // même sur ce raccourci (Step 12) — le fold sans edge-aware n'est pas
     // le seul moyen d'obtenir un masque source unique.
     if (plan.length === 1 && !layer.mask.invert) {
-      const resident = this.getResidentSourceTexture(layer.id, plan[0], encoder);
+      const resident = this.getResidentSourceTexture(layer.id, plan[0], encoder, pendingDestroy);
       const edgeAware = this.maybeApplyEdgeAware(layer, resident, colorView, encoder, pendingDestroy);
       return this.runRefineEdgePipeline(layer.id, edgeAware, layer.mask.refineEdge, encoder, pendingDestroy);
     }
@@ -859,7 +874,7 @@ export class Renderer {
       return this.runRefineEdgePipeline(layer.id, edgeAware, layer.mask.refineEdge, encoder, pendingDestroy);
     }
 
-    const folded = this.runFoldPipeline(layer.id, plan, layer.mask.invert, encoder);
+    const folded = this.runFoldPipeline(layer.id, plan, layer.mask.invert, encoder, pendingDestroy);
     this.foldedMaskTextures.set(layer.id, { texture: folded, lastInputs: snapshot, lastInvert: layer.mask.invert });
     const edgeAware = this.maybeApplyEdgeAware(layer, folded, colorView, encoder, pendingDestroy);
     return this.runRefineEdgePipeline(layer.id, edgeAware, layer.mask.refineEdge, encoder, pendingDestroy);
@@ -867,8 +882,13 @@ export class Renderer {
 
   /** Texture résidente d'UNE source de masque (upload seulement quand sa
    *  référence `raster` change — même pattern que l'ancien `maskTextures`). */
-  private getResidentSourceTexture(layerId: string, source: MaskSource, encoder: GPUCommandEncoder): GPUTexture {
-    if (source.type !== "brush") return this.getParametricSourceTexture(layerId, source, encoder);
+  private getResidentSourceTexture(
+    layerId: string,
+    source: MaskSource,
+    encoder: GPUCommandEncoder,
+    pendingDestroy: (GPUTexture | GPUBuffer)[]
+  ): GPUTexture {
+    if (source.type !== "brush") return this.getParametricSourceTexture(layerId, source, encoder, pendingDestroy);
     const key = `${layerId}:${source.id}`;
     const raster = source.raster!; // planFold ne retient que des sources avec raster non-null (chemin brush)
     const entry = this.sourceTextures.get(key);
@@ -916,7 +936,12 @@ export class Renderer {
    *  `updateMaskSourceParams` remplace toujours l'objet, jamais ne le mute),
    *  PAS à la cadence du fold/pinceau (budget ≤100ms visé, pas 60fps —
    *  Global Constraints du plan Tranche 3). */
-  private getParametricSourceTexture(layerId: string, source: MaskSource, encoder: GPUCommandEncoder): GPUTexture {
+  private getParametricSourceTexture(
+    layerId: string,
+    source: MaskSource,
+    encoder: GPUCommandEncoder,
+    pendingDestroy: (GPUTexture | GPUBuffer)[]
+  ): GPUTexture {
     const key = `${layerId}:${source.id}`;
     const entry = this.parametricSourceTextures.get(key);
     if (entry && entry.syncedFrom === source.params) return entry.texture;
@@ -938,23 +963,13 @@ export class Renderer {
     // (Task 3-5) est déjà écrit et testé sur cette asymétrie — la changer ici
     // reviendrait à modifier des fichiers hors scope de cette tâche
     // (gradient.ts/luminosity.ts/colorRange.ts).
-    const paramCount = source.type === "colorRange" ? 32 : 8;
+    const paramCount = PARAM_COUNT_BY_TYPE[source.type] ?? 8;
     const flatParams = this.flattenMaskSourceParams(source.params, module.defaultParams, paramCount);
     const paramsBuffer = this.ctx.device.createBuffer({
       size: flatParams.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
     this.ctx.device.queue.writeBuffer(paramsBuffer, 0, flatParams as BufferSource);
-    // Budget ≤100ms, régénéré seulement au changement de params (pas par
-    // frame) : ce buffer n'est pas jetable par frame comme les uniforms du
-    // guided filter (ADR-0001) — il vit le temps d'UNE régénération de
-    // texture, détruit immédiatement après l'avoir écrite, jamais retenu.
-    // Contrairement aux buffers ADR-0001, aucun encoder de frame ne dépend
-    // de sa survie au-delà de ce writeBuffer synchrone, donc pas besoin de
-    // pendingDestroy ici — mais par prudence et cohérence avec le reste du
-    // fichier (jamais de `.destroy()` immédiat sur une ressource déjà
-    // utilisée par un encoder en cours), il est détruit juste après usage
-    // dans la passe ci-dessous plutôt que fuité.
     const wgsl = this.wrapMaskSourceGenerateWgsl(module.wgsl, paramCount);
     const cacheKey = `parametric:${source.type}:${paramCount}`;
     let cached = this.maskSourcePipelineCache.get(cacheKey);
@@ -998,19 +1013,12 @@ export class Renderer {
     pass.end();
 
     // WebGPU valide la vivacité d'une ressource à submit(), pas à
-    // l'enregistrement de la passe (même règle que pendingDestroy ailleurs
-    // dans ce fichier) — détruire paramsBuffer ICI, avant submit(), serait
-    // une erreur de validation puisque le bindGroup ci-dessus vient d'être
-    // enregistré sur cet encoder. Il n'existe pas de `pendingDestroy` de
-    // frame accessible depuis ce site d'appel (getResidentSourceTexture
-    // n'en reçoit pas — seul `getMaskTexture`/`runEffectPass` le threadent).
-    // Fuite écartée : ce buffer est petit (128-256 octets) et retenu par
-    // GC JS normal une fois hors de portée — WebGPU ne le détruit jamais
-    // explicitement mais son backing GPU est libéré par le driver au GC de
-    // l'objet JS (comportement standard non explicite du spec, accepté ici
-    // par cohérence avec le fait que cette méthode ne reçoit pas
-    // `pendingDestroy` dans la signature imposée par le brief). Documenté
-    // comme divergence dans le rapport de tâche.
+    // l'enregistrement de la passe — détruire paramsBuffer ICI, avant
+    // submit(), serait une erreur de validation puisque le bindGroup
+    // ci-dessus vient d'être enregistré sur cet encoder. Pattern standard
+    // ADR-0001 : pousser dans pendingDestroy, drainé après submit() par
+    // l'appelant de frame (runPipeline).
+    pendingDestroy.push(paramsBuffer);
     this.parametricSourceTextures.set(key, { texture, syncedFrom: source.params });
     return texture;
   }
@@ -1173,15 +1181,16 @@ fn fs_wrapped(in: VertexOut) -> @location(0) vec4<f32> {
     layerId: string,
     plan: MaskSource[],
     invert: boolean,
-    encoder: GPUCommandEncoder
+    encoder: GPUCommandEncoder,
+    pendingDestroy: (GPUTexture | GPUBuffer)[]
   ): GPUTexture {
     const [pingA, pingB] = this.ensureFoldPingPong(layerId);
-    const seedTexture = this.getResidentSourceTexture(layerId, plan[0], encoder);
+    const seedTexture = this.getResidentSourceTexture(layerId, plan[0], encoder, pendingDestroy);
     let acc = pingA;
     encoder.copyTextureToTexture({ texture: seedTexture }, { texture: acc }, [this.width, this.height]);
     let next = pingB;
     for (let i = 1; i < plan.length; i++) {
-      const srcTexture = this.getResidentSourceTexture(layerId, plan[i], encoder);
+      const srcTexture = this.getResidentSourceTexture(layerId, plan[i], encoder, pendingDestroy);
       this.runMaskPass(encoder, buildCombineWgsl(plan[i].combineMode), acc, srcTexture, next);
       [acc, next] = [next, acc];
     }

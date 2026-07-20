@@ -52,16 +52,33 @@
 > réels déjà corrigés (`3e4f41c` : compensation centrage canvas doublée par
 > erreur ; position Réglages suppose Calques toujours à hauteur max). Suite
 > à la demande d'Antoine de rapprocher l'UI de Photoshop en ligne, `FloatingPanel`
-> (drag libre + magnétisme + nudge clavier) est en cours de REMPLACEMENT par
-> un système de cartes empilées FIXES (dock à droite, splitter redimensionnable,
-> plus de drag) — direction confirmée par Antoine (wireframe + audit UX/UI),
-> design doc EN ATTENTE de sa relecture avant `writing-plans` :
-> `docs/superpowers/specs/2026-07-20-shaderlab-docked-panels-design.md`
-> (+ référence tokens réels `docs/design-system/photoshop-web-reference-tokens.md`,
-> wireframe `docs/wireframes/docked-panels.html`). Une fois ce remplacement
-> fait, le checkpoint Tranche 3 (et les checkpoints différés Task 1 Step 15 /
-> Task 2 Step 9) redeviendra possible. `ADR-0001` (buffers GPU jetables par
-> frame) reste valide et appliqué.
+> (drag libre + magnétisme + nudge clavier) a été **REMPLACÉ** le 2026-07-20/21
+> par `PanelColumn`/`DockedPanelCard` (dock fixe à droite, splitter vertical
+> `react-resizable-panels`) : plan `docs/superpowers/plans/2026-07-20-shaderlab-docked-panels.md`
+> (8 tâches, review-clean, `src/components/floatingPanel/` entièrement
+> supprimé). Le checkpoint visuel humain (Task 8) a été fait via CDP +
+> confirmation Antoine EN DIRECT dans la conversation — 3 demandes de suite
+> en sont sorties (pas des bugs, des manques identifiés à l'usage) :
+> réordonner les cartes par glisser-déposer, redimensionner la colonne en
+> largeur, thème visuel encore trop éloigné de Photoshop web. Design doc
+> `docs/superpowers/specs/2026-07-21-shaderlab-panel-drag-reorder-design.md`
+> + plan combiné `docs/superpowers/plans/2026-07-21-shaderlab-dock-reorder-and-theme-polish.md`
+> couvrent 2 des 3 : drag-to-reorder (Tasks 4-7 du plan) et thème réduit à
+> une échelle d'ombres nommée (`--shadow-dragging`/`--shadow-popover`, Tasks
+> 1-2) + ratio padding boutons (Task 3) — **en cours d'exécution par Codex au
+> 2026-07-21** (Tasks 1-5/8 committées au dernier point de contrôle : tokens
+> d'ombre, application popovers, padding boutons, extraction
+> `src/ui/dragReorder.ts`, migration `LayerPanel` — vérifier `git log` pour
+> l'avancement réel avant de repartir dessus). **Redimensionnement en
+> largeur de la colonne** (3e demande, 240-400px déjà bornés via
+> `--inspector-width-min/max`) : PAS DANS CE PLAN — oublié lors de la
+> combinaison des chantiers, décision Antoine 2026-07-21 : un plan séparé,
+> écrit APRÈS que celui en cours soit terminé, pas de brainstorming à
+> refaire (le scope est déjà connu : splitter horizontal symétrique au
+> splitter vertical existant). `ADR-0001` (buffers GPU jetables par frame)
+> reste valide et appliqué. Le checkpoint Tranche 3 masquage (gap spec
+> checkbox `enabled` par source, voir plus haut) reste à refaire une fois
+> CE remplacement de panneaux stabilisé — pas encore retenté depuis.
 
 ## Langage partagé
 

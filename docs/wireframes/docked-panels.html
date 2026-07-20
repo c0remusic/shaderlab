@@ -1,0 +1,240 @@
+<title>Wireframe — dock empilé (Calques/Réglages)</title>
+<style>
+  /* ---- Tokens réels shaderlab, inlinés (reset.css + primitives.css +
+     semantic.css + components.css, src/design/) — self-contained pour que
+     ce wireframe reste ouvrable/partageable sans dépendre du chemin relatif
+     du repo (règle CLAUDE.md wireframe : vrais tokens, jamais une maquette
+     générique). Fragment sans doctype/html/head/body (compatible artifact
+     ET ouverture directe navigateur — les deux tolèrent un fragment). ---- */
+  :root {
+    --primitive-neutral-100: #f2f2f2;
+    --primitive-neutral-200: #dbdbdb;
+    --primitive-neutral-700: #383431;
+    --primitive-neutral-850: #323232;
+    --primitive-neutral-900: #2c2c2c;
+    --primitive-neutral-950: #222222;
+    --primitive-neutral-1000: #1b1b1b;
+    --primitive-accent-blue: #4069fd;
+
+    --space-2: 4px;
+    --space-3: 6px;
+    --space-4: 8px;
+    --space-6: 16px;
+
+    --font-ui: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+    --font-size-sm: 12px;
+    --font-size-md: 13px;
+    --font-size-lg: 14px;
+    --font-size-xl: 16px;
+    --font-weight-semibold: 600;
+
+    --radius-control: 5px;
+    --radius-panel: 8px;
+    --radius-round: 999px;
+
+    --surface-window: var(--primitive-neutral-1000);
+    --surface-workspace: var(--primitive-neutral-950);
+    --surface-panel: var(--primitive-neutral-900);
+
+    --text-primary: rgba(242, 242, 242, .94);
+    --text-tertiary: rgba(242, 242, 242, .53);
+
+    --border-subtle: rgba(242, 242, 242, .07);
+    --border-default: rgba(242, 242, 242, .11);
+    --border-strong: rgba(242, 242, 242, .28);
+    --focus-color: var(--primitive-accent-blue);
+
+    --surface-selected: rgba(242, 242, 242, .10);
+
+    --panel-bg: var(--surface-panel);
+    --panel-border: var(--border-default);
+    --panel-dock-width: 320px;
+  }
+  .wireframe-root, .wireframe-root *, .wireframe-root *::before, .wireframe-root *::after { box-sizing: border-box; }
+  .wireframe-root { font-family: var(--font-ui); -webkit-font-smoothing: antialiased; }
+  .wireframe-root :focus-visible { outline: 2px solid var(--focus-color); outline-offset: 2px; }
+
+  .workspace-mock {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    min-width: 900px;
+    min-height: 600px;
+    background: var(--surface-workspace);
+    overflow: hidden;
+  }
+  .canvas-mock {
+    position: absolute;
+    inset: 0;
+    padding-right: var(--panel-dock-width);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-tertiary);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-md);
+    text-align: center;
+    padding-inline: var(--space-4);
+  }
+  /* CORRIGÉ après inspection plus large de la référence Photoshop web
+     (zoom région complète, pas juste l'en-tête) : ce ne sont PAS des
+     panneaux fusionnés dans une seule surface continue, mais des CARTES
+     INDIVIDUELLES empilées (Calques / Propriétés / Historique), chacune
+     avec son propre fond/radius/en-tête/bouton fermer, séparées par un
+     espace visible (~10px) — pas un dock unique sans séparation. Plus
+     proche du FloatingPanel actuel de shaderlab que la première lecture ne
+     le disait ; la vraie différence est l'empilement FIXE (pas de drag
+     libre/magnétisme) + un rail d'icônes pour montrer/masquer chaque
+     panneau (cf. PRD-floating-panel-rail.md, déjà cadré, pas implémenté). */
+  /* Le rail d'icônes (48px + marge) vit à l'extrémité DROITE de la fenêtre ;
+     la colonne de panneaux se positionne à GAUCHE du rail, jamais en
+     chevauchement — bug corrigé : le rail était positionné right:8px, à
+     l'intérieur de la zone occupée par panel-stack (right:16px, width
+     320px), ce qui le faisait chevaucher/clipper le bord des cartes. */
+  .panel-stack {
+    position: absolute;
+    top: var(--space-4);
+    right: calc(48px + var(--space-4) + var(--space-4));
+    bottom: var(--space-4);
+    width: var(--panel-dock-width);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+  .panel-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--panel-bg);
+    border-radius: var(--radius-panel);
+    /* Flat, pas d'ombre portée — référence observée (box-shadow: none). */
+  }
+  .panel-card__grip {
+    align-self: center;
+    width: 32px;
+    height: 3px;
+    margin-top: var(--space-2);
+    border-radius: var(--radius-round);
+    background: var(--border-strong);
+  }
+  .panel-card__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    flex-shrink: 0;
+  }
+  .panel-card__title {
+    font-family: var(--font-ui);
+    /* Référence : 16px/600, sentence case, PAS d'uppercase ni de
+       letter-spacing — écart avec .floating-panel__title actuel. */
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+  }
+  .panel-card__close { color: var(--text-tertiary); font-size: var(--font-size-lg); }
+  .panel-card__toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0 var(--space-4) var(--space-3);
+  }
+  .panel-card__toolbar-icon {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-md);
+    line-height: 1;
+    color: var(--text-tertiary);
+  }
+  .panel-card__meta-row {
+    display: flex;
+    gap: var(--space-6);
+    padding: 0 var(--space-4) var(--space-3);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-sm);
+    color: var(--text-tertiary);
+  }
+  .panel-card__body { padding: 0 var(--space-4) var(--space-4); overflow-y: auto; min-height: 0; }
+  .layer-row-mock {
+    display: flex; align-items: center; gap: var(--space-3);
+    height: 48px; padding: var(--space-2);
+    border-radius: var(--radius-control); color: var(--text-primary);
+    font-family: var(--font-ui); font-size: var(--font-size-lg);
+  }
+  .layer-row-mock--selected { background: var(--surface-selected); }
+  .layer-thumb-mock {
+    width: 32px; height: 32px; border-radius: var(--radius-control);
+    background: var(--primitive-neutral-700); flex-shrink: 0;
+  }
+  .layer-row-mock--selected .layer-thumb-mock { outline: 2px solid var(--focus-color); outline-offset: 1px; }
+  .empty-hint { color: var(--text-tertiary); font-family: var(--font-ui); font-size: var(--font-size-sm); }
+  /* Rail d'icônes fixe (bord droit) — reprend le rôle du
+     PRD-floating-panel-rail.md : montre/masque chaque panneau. Non
+     implémenté dans ce plan, juste dessiné ici pour fidélité visuelle. */
+  .icon-rail {
+    position: absolute; top: var(--space-4); right: var(--space-4);
+    display: flex; flex-direction: column; gap: var(--space-2);
+  }
+  .icon-rail__btn {
+    width: 32px; height: 32px; flex: 0 0 32px; border-radius: var(--radius-round);
+    background: var(--panel-bg); display: flex; align-items: center;
+    justify-content: center; color: var(--text-tertiary); font-size: var(--font-size-md);
+    overflow: hidden;
+  }
+</style>
+<div class="wireframe-root" style="background: var(--surface-window); padding: 1rem 0;">
+  <div class="workspace-mock">
+    <div class="canvas-mock">canvas (centré, compensation exacte = --panel-dock-width, plus d'approximation)</div>
+    <div class="panel-stack">
+      <div class="panel-card" style="max-height: 45vh;">
+        <div class="panel-card__grip"></div>
+        <div class="panel-card__header">
+          <span class="panel-card__title">Calques</span>
+          <span class="panel-card__close">×</span>
+        </div>
+        <div class="panel-card__toolbar">
+          <span class="panel-card__toolbar-icon">+</span>
+          <span class="panel-card__toolbar-icon">◐</span>
+          <span class="panel-card__toolbar-icon">▢</span>
+          <span class="panel-card__toolbar-icon">⧈</span>
+          <span class="panel-card__toolbar-icon">⛝</span>
+          <span class="panel-card__toolbar-icon">🗑</span>
+        </div>
+        <div class="panel-card__meta-row">
+          <span>Fusion : Normal</span>
+          <span>Opacité : 100 %</span>
+        </div>
+        <div class="panel-card__body">
+          <div class="layer-row-mock">
+            <div class="layer-thumb-mock"></div>
+            <span>Rectangle 1</span>
+          </div>
+          <div class="layer-row-mock layer-row-mock--selected">
+            <div class="layer-thumb-mock"></div>
+            <span>Calque 0</span>
+          </div>
+        </div>
+      </div>
+      <div class="panel-card">
+        <div class="panel-card__grip"></div>
+        <div class="panel-card__header">
+          <span class="panel-card__title">Réglages</span>
+          <span class="panel-card__close">×</span>
+        </div>
+        <div class="panel-card__body">
+          <span class="empty-hint">Sélectionne un calque pour voir ses réglages.</span>
+        </div>
+      </div>
+    </div>
+    <div class="icon-rail">
+      <div class="icon-rail__btn">▤</div>
+      <div class="icon-rail__btn">⚙</div>
+      <div class="icon-rail__btn">🕐</div>
+      <div class="icon-rail__btn">💬</div>
+    </div>
+  </div>
+</div>

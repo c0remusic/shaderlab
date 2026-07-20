@@ -1,5 +1,16 @@
 # Panneaux flottants (Calques/Réglages) — FloatingPanel générique — Implementation Plan
 
+> ⚠️ **PLAN DÉJÀ EXÉCUTÉ ET PARTIELLEMENT DÉPASSÉ (2026-07-20).** Toutes les
+> tâches ci-dessous ont été codées et committées (voir `.superpowers/sdd/progress.md`).
+> **Le magnétisme panneau↔bord canvas décrit dans Task 1 (snapAxisToCanvasEdges,
+> tests "flush", contrainte ligne 19) A ÉTÉ RETIRÉ après retour Antoine** —
+> le magnétisme ne fonctionne plus QU'entre panneaux (`src/components/floatingPanel/snapping.ts`
+> ne contient plus cette fonction). Ne pas ré-implémenter ce comportement à
+> partir de ce plan. Source de vérité vivante :
+> `docs/superpowers/specs/2026-07-20-shaderlab-floating-panels-design.md` §5.
+> Ce fichier reste conservé comme trace historique du découpage en tâches,
+> pas comme spec à jour pour ce point précis.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Transformer Calques et Réglages, aujourd'hui dockés dans `Inspector.tsx` (aside fixe), en instances d'un composant `FloatingPanel` générique déplaçable/magnétique/repliable, le canvas passant plein écran. `FloatingPanel` doit être directement réutilisable par la Tranche 4 du masquage (panneau Masques, déjà designé).

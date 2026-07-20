@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import { nextEnabledIndex, type SelectOption } from "./selectNavigation";
+import { computeListboxPlacement, type ListboxPlacement } from "./selectPlacement";
 
 export type { SelectOption };
 
@@ -11,18 +12,6 @@ export interface SelectProps {
   placeholder?: string;
   options: SelectOption[];
   onChange: (value: string) => void;
-}
-
-interface ListboxRect {
-  left: number;
-  width: number;
-  /** Un seul des deux est posé : `top` (ouverture vers le bas, cas par
-   *  défaut) ou `bottom` (retourné vers le haut si la place manque en bas
-   *  du viewport, cf. calcul dans l'effet de positionnement). */
-  top?: number;
-  bottom?: number;
-  /** Espace réellement disponible du côté choisi, borné à LISTBOX_MAX_HEIGHT. */
-  maxHeight: number;
 }
 
 /** max-height de .ui-select__listbox (src/ui/overlays.css) — dupliqué ici
@@ -45,7 +34,7 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
   const listboxId = `${id}-listbox`;
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const [listboxRect, setListboxRect] = useState<ListboxRect | null>(null);
+  const [listboxRect, setListboxRect] = useState<ListboxPlacement | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -91,19 +80,13 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
     // source unique avec le token CSS plutôt qu'une valeur dupliquée en dur.
     const gapPx =
       parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--space-2")) || 4;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const spaceAbove = rect.top;
-    const needsFlip = spaceBelow < LISTBOX_MAX_HEIGHT + gapPx && spaceAbove > spaceBelow;
-    // Borne la hauteur à l'espace RÉELLEMENT disponible du côté choisi — sans
-    // ça, un trigger sans 240px ni au-dessus ni en dessous (ex. petite
-    // fenêtre) produit une liste qui déborde quand même du viewport côté
-    // opposé (finding codex-crosscheck MOYENNE).
-    const availableSpace = (needsFlip ? spaceAbove : spaceBelow) - gapPx;
-    const maxHeight = Math.max(0, Math.min(LISTBOX_MAX_HEIGHT, availableSpace));
     setListboxRect(
-      needsFlip
-        ? { bottom: window.innerHeight - rect.top + gapPx, left: rect.left, width: rect.width, maxHeight }
-        : { top: rect.bottom + gapPx, left: rect.left, width: rect.width, maxHeight }
+      computeListboxPlacement(
+        { top: rect.top, bottom: rect.bottom, left: rect.left, width: rect.width },
+        window.innerHeight,
+        gapPx,
+        LISTBOX_MAX_HEIGHT
+      )
     );
 
     function closeOnScrollOrResize() {

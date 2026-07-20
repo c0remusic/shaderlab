@@ -14,6 +14,7 @@ import { defaultLayerMask } from "../mask/types";
 import type { MaskSource } from "../mask/types";
 import { planFold, snapshotFoldInputs, foldInputsEqual, type FoldSourceSnapshot } from "../mask/foldPlan";
 import { buildCombineWgsl, buildInvertWgsl } from "../mask/maskFoldWgsl";
+import { buildSmoothWgsl, buildMorphologyWgsl } from "../mask/refineEdgeWgsl";
 import type { RefineEdgeParams } from "../mask/types";
 import {
   buildLuminanceWgsl,
@@ -170,6 +171,12 @@ export class Renderer {
     }
   >();
   private edgeAwarePipelineCache = new Map<string, { pipeline: GPURenderPipeline; layout: GPUBindGroupLayout }>();
+  /** Paire de textures de travail PAR CALQUE pour le refine edge forme-seule
+   *  (design.md §4 étape 5 : feather -> contracter/dilater -> lisser).
+   *  Dédiée plutôt que de réutiliser `foldPingPongByLayer` : ces textures-là
+   *  sont déjà occupées PENDANT le fold (voir commentaire du brief Task 2
+   *  Step 6) — un pool partagé écraserait le résultat du fold en cours. */
+  private refineEdgePingPongByLayer = new Map<string, [GPUTexture, GPUTexture]>();
   private whiteMask: GPUTexture | null = null;
   /** GPU texture backing the live mask-paint preview (see `MaskPreviewOverride`)
    *  — reuploaded every preview frame regardless of reference equality, since
@@ -337,6 +344,16 @@ export class Renderer {
           a.destroy();
           b.destroy();
           this.foldPingPongByLayer.delete(id);
+        }
+      }
+      // Mêmes règles de résidence que foldedMaskTextures/foldPingPongByLayer
+      // (seul un calque vivant garde ses textures de travail refine-edge).
+      for (const id of [...this.refineEdgePingPongByLayer.keys()]) {
+        if (!aliveLayerIds.has(id)) {
+          const [a, b] = this.refineEdgePingPongByLayer.get(id)!;
+          a.destroy();
+          b.destroy();
+          this.refineEdgePingPongByLayer.delete(id);
         }
       }
       // Mêmes règles de résidence que foldedMaskTextures/foldPingPongByLayer
@@ -811,18 +828,21 @@ export class Renderer {
     // le seul moyen d'obtenir un masque source unique.
     if (plan.length === 1 && !layer.mask.invert) {
       const resident = this.getResidentSourceTexture(layer.id, plan[0], encoder);
-      return this.maybeApplyEdgeAware(layer, resident, colorView, encoder, pendingDestroy);
+      const edgeAware = this.maybeApplyEdgeAware(layer, resident, colorView, encoder, pendingDestroy);
+      return this.runRefineEdgePipeline(layer.id, edgeAware, layer.mask.refineEdge, encoder, pendingDestroy);
     }
 
     const snapshot = snapshotFoldInputs(layer.mask);
     const cached = this.foldedMaskTextures.get(layer.id);
     if (cached && foldInputsEqual(cached.lastInputs, snapshot) && cached.lastInvert === layer.mask.invert) {
-      return this.maybeApplyEdgeAware(layer, cached.texture, colorView, encoder, pendingDestroy);
+      const edgeAware = this.maybeApplyEdgeAware(layer, cached.texture, colorView, encoder, pendingDestroy);
+      return this.runRefineEdgePipeline(layer.id, edgeAware, layer.mask.refineEdge, encoder, pendingDestroy);
     }
 
     const folded = this.runFoldPipeline(layer.id, plan, layer.mask.invert, encoder);
     this.foldedMaskTextures.set(layer.id, { texture: folded, lastInputs: snapshot, lastInvert: layer.mask.invert });
-    return this.maybeApplyEdgeAware(layer, folded, colorView, encoder, pendingDestroy);
+    const edgeAware = this.maybeApplyEdgeAware(layer, folded, colorView, encoder, pendingDestroy);
+    return this.runRefineEdgePipeline(layer.id, edgeAware, layer.mask.refineEdge, encoder, pendingDestroy);
   }
 
   /** Texture résidente d'UNE source de masque (upload seulement quand sa
@@ -889,9 +909,17 @@ export class Renderer {
     return pair;
   }
 
+  /** `binding2`: ce que porte le binding 2 du layout, au plus UN des deux
+   *  (aucune passe de fold/refine-edge actuelle n'a besoin des deux à la
+   *  fois) — "texture" pour `fs_combine` (2e source), "uniform" pour les
+   *  passes Task 2 (`fs_smooth`/`fs_morphology`, radius), "none" pour
+   *  `fs_invert`. `entryPoint` est lu dans le WGSL lui-même plutôt que
+   *  deviné depuis `binding2` (Task 2 : extension rétro-compatible, ne
+   *  redérive plus fs_combine/fs_invert d'un booléen). */
   private getMaskFoldPipeline(
     wgsl: string,
-    twoTextures: boolean
+    binding2: "none" | "texture" | "uniform",
+    entryPoint: string
   ): { pipeline: GPURenderPipeline; layout: GPUBindGroupLayout } {
     const cached = this.maskFoldPipelineCache.get(wgsl);
     if (cached) return cached;
@@ -900,14 +928,18 @@ export class Renderer {
       { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } },
       { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "filtering" } },
     ];
-    if (twoTextures) entries.push({ binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
+    if (binding2 === "texture") {
+      entries.push({ binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
+    } else if (binding2 === "uniform") {
+      entries.push({ binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } });
+    }
     const layout = device.createBindGroupLayout({ entries });
     const pipeline = device.createRenderPipeline({
       layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
       vertex: { module: device.createShaderModule({ code: wgsl }), entryPoint: "vs_main" },
       fragment: {
         module: device.createShaderModule({ code: wgsl }),
-        entryPoint: twoTextures ? "fs_combine" : "fs_invert",
+        entryPoint,
         targets: [{ format: "r8unorm" }],
       },
       primitive: { topology: "triangle-list" },
@@ -917,19 +949,30 @@ export class Renderer {
     return entry;
   }
 
+  /** `uniformBuffer` (Task 2, extension rétro-compatible) : `undefined` =
+   *  comportement Tranche 2 inchangé (fold `fs_combine`/`fs_invert`, jamais
+   *  d'uniform). Fourni = passe refine-edge (`fs_smooth`/`fs_morphology`,
+   *  radius en binding 2) — mutuellement exclusif avec `srcB`, aucune passe
+   *  actuelle n'a besoin des deux. */
   private runMaskPass(
     encoder: GPUCommandEncoder,
     wgsl: string,
     srcA: GPUTexture,
     srcB: GPUTexture | null,
-    target: GPUTexture
+    target: GPUTexture,
+    uniformBuffer?: GPUBuffer
   ): void {
-    const { pipeline, layout } = this.getMaskFoldPipeline(wgsl, srcB !== null);
+    const entryPointMatch = wgsl.match(/\bfn (fs_\w+)\s*\(/);
+    if (!entryPointMatch) throw new Error("runMaskPass: aucun point d'entrée fs_* trouvé dans le WGSL fourni.");
+    const entryPoint = entryPointMatch[1];
+    const binding2 = srcB !== null ? "texture" : uniformBuffer !== undefined ? "uniform" : "none";
+    const { pipeline, layout } = this.getMaskFoldPipeline(wgsl, binding2, entryPoint);
     const bindEntries: GPUBindGroupEntry[] = [
       { binding: 0, resource: srcA.createView() },
       { binding: 1, resource: this.sampler },
     ];
     if (srcB) bindEntries.push({ binding: 2, resource: srcB.createView() });
+    else if (uniformBuffer) bindEntries.push({ binding: 2, resource: { buffer: uniformBuffer } });
     const bindGroup = this.ctx.device.createBindGroup({ layout, entries: bindEntries });
     const pass = encoder.beginRenderPass({
       colorAttachments: [
@@ -1161,6 +1204,74 @@ export class Renderer {
     return this.runEdgeAwarePipeline(layer.id, folded, colorView, params, encoder, pendingDestroy);
   }
 
+  /** Refine edge forme-seule (design.md §4 étape 5) : feather -> contracter/
+   *  dilater -> lisser, dans cet ordre (Photoshop Select and Mask : forme
+   *  d'abord, lissage en dernier pour ne pas re-rugueuser un bord tout juste
+   *  adouci). No-op si les 3 paramètres sont à leur défaut (0) — pas de
+   *  texture de travail créée ni de passe GPU sur ce chemin, cohérent avec
+   *  le court-circuit `maybeApplyEdgeAware`.
+   *
+   *  Indépendant de l'image (contrairement à Task 1 edge-aware) : appelé
+   *  APRÈS `maybeApplyEdgeAware` dans `getMaskTexture`, à chaque site
+   *  d'appel (y compris le raccourci 1-source) — même règle de branchement
+   *  que Task 1 Step 12. */
+  private runRefineEdgePipeline(
+    layerId: string,
+    input: GPUTexture,
+    params: RefineEdgeParams,
+    encoder: GPUCommandEncoder,
+    pendingDestroy: (GPUTexture | GPUBuffer)[]
+  ): GPUTexture {
+    if (params.feather <= 0 && params.contract === 0 && params.smooth <= 0) return input;
+    const { device } = this.ctx;
+    let pair = this.refineEdgePingPongByLayer.get(layerId);
+    if (!pair) {
+      const make = () =>
+        device.createTexture({
+          size: [this.width, this.height],
+          format: "r8unorm",
+          usage:
+            GPUTextureUsage.TEXTURE_BINDING |
+            GPUTextureUsage.RENDER_ATTACHMENT |
+            GPUTextureUsage.COPY_DST |
+            GPUTextureUsage.COPY_SRC,
+        });
+      pair = [make(), make()];
+      this.refineEdgePingPongByLayer.set(layerId, pair);
+    }
+    let [acc, next] = pair;
+    // Amorce `acc` avec `input` : les passes suivantes lisent/écrivent
+    // uniquement la paire ping-pong dédiée, jamais `input` directement (même
+    // raison que `runFoldPipeline`/`runEdgeAwarePipeline` : `input` peut être
+    // une texture résidente partagée, ex. `getResidentSourceTexture` ou
+    // `edgeAwareWorkTextures.result`, qu'on ne doit pas écraser en RENDER_ATTACHMENT).
+    encoder.copyTextureToTexture({ texture: input }, { texture: acc }, [this.width, this.height]);
+
+    // Buffers d'uniform jetables par frame — même pattern que
+    // `runEdgeAwarePipeline` (radiusBuffer/strengthBuffer, ADR-0001).
+    const radiusBuffer = (value: number): GPUBuffer => {
+      const buf = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      device.queue.writeBuffer(buf, 0, new Float32Array([value, 0, 0, 0]));
+      pendingDestroy.push(buf);
+      return buf;
+    };
+
+    if (params.contract !== 0) {
+      const mode = params.contract < 0 ? "erode" : "dilate";
+      this.runMaskPass(encoder, buildMorphologyWgsl(mode), acc, null, next, radiusBuffer(Math.abs(params.contract)));
+      [acc, next] = [next, acc];
+    }
+    if (params.feather > 0) {
+      this.runMaskPass(encoder, buildSmoothWgsl(), acc, null, next, radiusBuffer(params.feather));
+      [acc, next] = [next, acc];
+    }
+    for (let i = 0; i < params.smooth; i++) {
+      this.runMaskPass(encoder, buildSmoothWgsl(), acc, null, next, radiusBuffer(1));
+      [acc, next] = [next, acc];
+    }
+    return acc;
+  }
+
   /** Backing texture for `MaskPreviewOverride` — a single texture reused
    *  across preview frames, never entered into the residency cache since it
    *  isn't associated with a stable `raster` reference.
@@ -1222,6 +1333,11 @@ export class Renderer {
       b.destroy();
     }
     this.foldPingPongByLayer.clear();
+    for (const [a, b] of this.refineEdgePingPongByLayer.values()) {
+      a.destroy();
+      b.destroy();
+    }
+    this.refineEdgePingPongByLayer.clear();
     this.maskFoldPipelineCache.clear();
     for (const w of this.edgeAwareWorkTextures.values()) {
       w.luminance.destroy();

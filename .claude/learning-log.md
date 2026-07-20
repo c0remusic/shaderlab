@@ -265,3 +265,37 @@ comparer le timestamp de `dev-process.json` à l'heure réelle du dernier
 lancement : périmé + `Get-Process -Id <pid>` renvoie un `ProcessName`
 différent de `shaderlab` = ce bug. Fix : vérifier le nom du process avant de
 le tuer.
+
+## 2026-07-20 — shadcn/ui migration : stack réelle (base-ui, pas Tailwind pré-existant), bug onSelect/onClick
+
+**Découverte (TTL 6 mois)** : au moment de cadrer la migration vers
+`shadcn/ui`, l'hypothèse initiale ("déjà React+Tailwind") était fausse —
+aucun Tailwind n'était installé (vérifié sur disque avant d'écrire le PRD,
+pas supposé). shadcn a été ajouté avec Tailwind v4 + `@tailwindcss/vite`. Le
+style shadcn généré ici est **`base-ui`** (composants `@base-ui/react`), PAS
+Radix — malgré le vocabulaire "Radix" utilisé par défaut dans la doc/skills
+shadcn courante. Toute migration future de composant doit vérifier l'API
+réelle des fichiers déjà générés dans `src/components/ui/` avant de copier un
+exemple de code trouvé en ligne (souvent écrit pour Radix).
+
+**Découverte (TTL 6 mois)** : `npx shadcn@latest init` échoue en sandbox
+(`EALLOWSCRIPTS`, restriction npm côté environnement Claude Code, pas un bug
+du repo) avant de rapporter sa vraie liste de dépendances. Contournement
+fiable : laisser la commande écrire ce qu'elle peut (`components.json` est
+généré avant l'échec), puis prouver la config via un vrai
+`npx shadcn@latest add <composant>` (celui-ci fonctionne) plutôt que deviner
+les dépendances de tête.
+
+**Correction (projet)** : "le menu s'ouvre visuellement + la navigation
+clavier fonctionne" n'est PAS une preuve que le clic déclenche le bon
+callback métier. Bug réel trouvé par `codex-crosscheck` seulement :
+`Toolbar.tsx` utilisait `onSelect` (prop HTML générique de sélection de
+texte, acceptée par TypeScript sur tout élément DOM, donc invisible au
+typecheck) au lieu de `onClick` — base-ui ne lit que `onClick` sur
+`MenuItem`. Résultat : cliquer "Ouvrir"/"Exporter" ne faisait rien, malgré 2
+reviews de tâche + 1 review de branche entière qui avaient toutes vérifié
+l'état visuel du menu sans jamais instrumenter un vrai test du côté effet
+(callback réellement appelé). Pour toute future migration d'interaction
+(menu/dropdown/bouton d'action) : instrumenter le mock (`window.__xCalled =
+true` dans une story, ou équivalent) et cliquer pour de vrai — ne jamais se
+contenter de "le menu s'affiche correctement".

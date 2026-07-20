@@ -51,3 +51,28 @@
 .floating-panel__content {
   padding: var(--space-4);
 }
+
+/* Pendant le drag : le panneau d'origine reste visible mais estompé (design.md
+   §4) — 0.5 littéral et ponctuel, même justification que
+   .layer-panel__row--dragging dans components.css (LayerPanel) : aucun token
+   "élément en cours de glisser" n'existe, un seul usage ne justifie pas d'en
+   créer un pour l'instant. */
+.floating-panel--origin-dimmed {
+  opacity: 0.5;
+}
+
+/* Fantôme semi-transparent qui suit le curseur (design.md §4, observé sur
+   Photoshop réel). transform uniquement (jamais top/left) pour rester fluide
+   à la fréquence pointermove. pointer-events: none — le fantôme ne doit
+   jamais intercepter les événements destinés au panneau d'origine ou au
+   canvas en dessous. */
+.floating-panel--ghost {
+  opacity: 0.6;
+  box-shadow: var(--shadow-panel-dragging);
+  pointer-events: none;
+}
+
+.floating-panel__titlebar:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}

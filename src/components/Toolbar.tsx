@@ -26,11 +26,11 @@ export function Toolbar({ canUndo, canRedo, onUndo, onRedo, onExport, onOpenFile
       <DropdownMenu>
         <DropdownMenuTrigger render={<Button variant="secondary">Fichier</Button>} />
         <DropdownMenuContent align="start">
-          <DropdownMenuItem onSelect={onOpenFile}>
+          <DropdownMenuItem onClick={onOpenFile}>
             <FolderOpen size={16} strokeWidth={1.5} aria-hidden="true" />
             Ouvrir
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={onExport}>
+          <DropdownMenuItem onClick={onExport}>
             <Download size={16} strokeWidth={1.5} aria-hidden="true" />
             Exporter
           </DropdownMenuItem>

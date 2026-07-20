@@ -11,7 +11,7 @@ import { logDiagnostic } from "../launch";
 import type { DirtyRect } from "../mask/maskPainter";
 import { computeR8UploadRegion } from "./maskUpload";
 import { defaultLayerMask } from "../mask/types";
-import type { MaskSource } from "../mask/types";
+import type { MaskSource, MaskSourceType } from "../mask/types";
 import { planFold, snapshotFoldInputs, foldInputsEqual, type FoldSourceSnapshot } from "../mask/foldPlan";
 import { buildCombineWgsl, buildInvertWgsl } from "../mask/maskFoldWgsl";
 import { buildMorphologyWgsl } from "../mask/refineEdgeWgsl";
@@ -31,12 +31,12 @@ import {
  *  buffer uniform passé au shader de génération (voir `getParametricSourceTexture`).
  *  `colorRange` a besoin de 32 slots (tolerance/hardness/invert/sampleCount +
  *  jusqu'à 6 échantillons RGB) ; gradient/luminosity n'ont que quelques
- *  scalaires (8 suffit). Point d'extension à surveiller : un futur 4e type de
- *  source paramétrique (Tasks 3-5, hors scope ici) doit être ajouté ICI —
- *  sans entrée explicite il retomberait silencieusement sur le défaut `8` et
- *  verrait ses params tronqués sans erreur (flattenMaskSourceParams s'arrête
- *  silencieusement à `count`). */
-const PARAM_COUNT_BY_TYPE: Record<string, number> = {
+ *  scalaires (8 suffit). Type indexé sur `Exclude<MaskSourceType, "brush">`
+ *  (union fermée) plutôt que `Record<string, number>` avec fallback : un
+ *  futur 4e type de source paramétrique (Tasks 3-5, hors scope ici) fait
+ *  échouer la compilation ICI tant que son entrée n'est pas ajoutée — fail-fast,
+ *  pas de troncature silencieuse de `flattenMaskSourceParams`. */
+const PARAM_COUNT_BY_TYPE: Record<Exclude<MaskSourceType, "brush">, number> = {
   gradient: 8,
   luminosity: 8,
   colorRange: 32,
@@ -963,7 +963,7 @@ export class Renderer {
     // (Task 3-5) est déjà écrit et testé sur cette asymétrie — la changer ici
     // reviendrait à modifier des fichiers hors scope de cette tâche
     // (gradient.ts/luminosity.ts/colorRange.ts).
-    const paramCount = PARAM_COUNT_BY_TYPE[source.type] ?? 8;
+    const paramCount = PARAM_COUNT_BY_TYPE[source.type as Exclude<MaskSourceType, "brush">];
     const flatParams = this.flattenMaskSourceParams(source.params, module.defaultParams, paramCount);
     const paramsBuffer = this.ctx.device.createBuffer({
       size: flatParams.byteLength,

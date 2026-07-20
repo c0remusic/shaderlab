@@ -91,11 +91,15 @@ export default function App() {
   // --inspector-width-default/--section-header-height (finding auditor
   // MOYENNE, 2026-07-20).
   const PANEL_SIZE = { width: DEFAULT_PANEL_COLUMN_WIDTH, height: 320 };
-  // Position de départ dérivée du magnétisme lui-même (computeSnappedPosition),
-  // pas d'une marge en dur — les panneaux s'alignent à CANVAS_EDGE_MARGIN du
-  // bord droit du canvas et à PANEL_GAP l'un de l'autre dès le lancement,
-  // cohérent avec le comportement obtenu après un drag manuel (retour
-  // Antoine, 2026-07-20).
+  // Marge de départ contre le bord droit du canvas — le magnétisme ne
+  // fonctionne QU'entre panneaux, jamais contre le bord de la fenêtre
+  // (retour Antoine, 2026-07-20 : "le magnétisme devrait surtout fonctionner
+  // entre modules"), donc Calques (sans voisin) n'est jamais snappé et doit
+  // être placé directement à sa position finale — computeSnappedPosition([])
+  // ne fait plus que clamper, il ne rapproche plus du bord. Réglages, lui,
+  // continue d'accrocher contre Calques via PANEL_GAP (magnétisme réel entre
+  // panneaux) une fois cette position posée.
+  const PANEL_START_MARGIN = 16; // même famille que --space-6 (src/design/primitives.css)
   // `.workspace` réel (pas window.innerWidth/innerHeight bruts, même finding
   // auditor 2026-07-20 que pour canvasSize/workspaceSize plus bas) : au
   // premier rendu le ResizeObserver n'a pas encore mesuré, donc l'approximation
@@ -103,7 +107,7 @@ export default function App() {
   // réutilise `workspaceSize` (déjà initialisé à la même valeur par défaut)
   // comme SEULE source, pas une deuxième lecture indépendante de la fenêtre
   // (finding codex-crosscheck MOYENNE, 2026-07-20).
-  const layersRawPosition = { x: workspaceSize.width - PANEL_SIZE.width - 1, y: 52 };
+  const layersRawPosition = { x: workspaceSize.width - PANEL_SIZE.width - PANEL_START_MARGIN, y: 52 };
   const layersInitialPosition = computeSnappedPosition(
     { ...layersRawPosition, width: PANEL_SIZE.width, height: PANEL_SIZE.height },
     [],

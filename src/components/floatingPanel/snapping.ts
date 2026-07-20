@@ -3,12 +3,14 @@
  * du nudge clavier, jamais pendant (design.md §5 : pas de recalcul dynamique
  * si un panneau ancre bouge ensuite).
  *
- * Deux familles de candidats, résolues séparément par axe (x et y) :
- * - bords des autres panneaux visibles (écart PANEL_GAP)
- * - bords du canvas (écart CANVAS_EDGE_MARGIN)
- * Le candidat retenu par axe est celui de distance minimale sous SNAP_DISTANCE ;
- * égalité exacte -> le premier trouvé dans l'ordre de `others` (déterministe).
- * Enfin, le résultat est contraint aux limites du canvas (jamais hors-écran).
+ * Le magnétisme fonctionne UNIQUEMENT entre panneaux — jamais contre le bord
+ * du canvas/de la fenêtre (retour Antoine, 2026-07-20 : "le magnétisme
+ * devrait surtout fonctionner entre modules", corrigé après un premier essai
+ * avec accrochage aux bords qui a été jugé indésirable). Un panneau relâché
+ * près d'un voisin (dans SNAP_DISTANCE) accroche avec un écart PANEL_GAP ;
+ * sinon il reste à la position brute du relâchement — `clampToCanvas`
+ * n'est PAS du magnétisme, juste une garde pour ne jamais laisser un
+ * panneau partiellement hors-écran.
  */
 export interface Rect {
   x: number;
@@ -23,13 +25,6 @@ export interface SnapCandidate {
 }
 
 export const PANEL_GAP = 8;
-// Écart panneau↔bord canvas. Le design.md d'origine visait un flush 0px,
-// mais rendu en vrai (retour Antoine, 2026-07-20) ça lit comme cassé — un
-// panneau collé au bord de fenêtre sans respiration, contrairement à la
-// référence Photoshop qui garde toujours une marge visible. Même valeur que
-// PANEL_GAP*2 pour rester dans la même famille d'espacement que
-// panneau↔panneau (--space-6 = 16px, cf. src/design/primitives.css).
-export const CANVAS_EDGE_MARGIN = 16;
 export const SNAP_DISTANCE = 12;
 
 interface AxisSnap {
@@ -67,38 +62,15 @@ function snapAxisToNeighbors(
   return best;
 }
 
-function snapAxisToCanvasEdges(draggedStart: number, draggedEnd: number, canvasExtent: number): AxisSnap | null {
-  // Seuil mesuré sur la distance bord-à-bord réelle (dragged vs bord du
-  // canvas), pas sur la distance à la position finale incluant
-  // CANVAS_EDGE_MARGIN — même principe que snapAxisToNeighbors (finding
-  // codex-crosscheck déjà appliqué là, cohérence des deux familles).
-  let best: AxisSnap | null = null;
-  const distanceToStart = Math.abs(draggedStart - 0);
-  if (distanceToStart <= SNAP_DISTANCE) best = { value: CANVAS_EDGE_MARGIN, distance: distanceToStart };
-  const size = draggedEnd - draggedStart;
-  const distanceToEnd = Math.abs(draggedEnd - canvasExtent);
-  if (distanceToEnd <= SNAP_DISTANCE && (best === null || distanceToEnd < best.distance)) {
-    best = { value: canvasExtent - CANVAS_EDGE_MARGIN - size, distance: distanceToEnd };
-  }
-  return best;
-}
-
 function resolveAxis(
   draggedStart: number,
   draggedSize: number,
   neighborStarts: number[],
-  neighborEnds: number[],
-  canvasExtent: number
+  neighborEnds: number[]
 ): number {
   const draggedEnd = draggedStart + draggedSize;
   const neighborSnap = snapAxisToNeighbors(draggedStart, draggedEnd, neighborStarts, neighborEnds);
-  const edgeSnap = snapAxisToCanvasEdges(draggedStart, draggedEnd, canvasExtent);
-  if (neighborSnap && edgeSnap) {
-    return neighborSnap.distance <= edgeSnap.distance ? neighborSnap.value : edgeSnap.value;
-  }
-  if (neighborSnap) return neighborSnap.value;
-  if (edgeSnap) return edgeSnap.value;
-  return draggedStart;
+  return neighborSnap ? neighborSnap.value : draggedStart;
 }
 
 function clampToCanvas(value: number, size: number, canvasExtent: number): number {
@@ -116,8 +88,8 @@ export function computeSnappedPosition(
   const neighborStartsY = others.map((o) => o.rect.y);
   const neighborEndsY = others.map((o) => o.rect.y + o.rect.height);
 
-  const snappedX = resolveAxis(dragged.x, dragged.width, neighborStartsX, neighborEndsX, canvasSize.width);
-  const snappedY = resolveAxis(dragged.y, dragged.height, neighborStartsY, neighborEndsY, canvasSize.height);
+  const snappedX = resolveAxis(dragged.x, dragged.width, neighborStartsX, neighborEndsX);
+  const snappedY = resolveAxis(dragged.y, dragged.height, neighborStartsY, neighborEndsY);
 
   return {
     x: clampToCanvas(snappedX, dragged.width, canvasSize.width),

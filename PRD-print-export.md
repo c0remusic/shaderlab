@@ -29,16 +29,23 @@ vente en tirage physique.
   impression »** (distinct de l'« Exporter sous » JPEG existant).
 - Quand cet export s'exécute, le pipeline de rendu calcule en **16-bit float**
   (au lieu du 8-bit actuel) pour tous les effets et le compositing de calques,
-  afin d'éliminer le banding sur les dégradés.
-- Quand le fichier est écrit, il est produit en **TIFF 16-bit/canal, espace
-  Adobe RGB (1998), profil ICC embarqué** — jamais CMYK (conversion faite par
-  le RIP du labo, pas par shaderlab).
+  afin d'éliminer le banding sur les dégradés. Le calcul reste en **primaires
+  sRGB** (même espace de travail que l'écran, `CLAUDE.md` § Stack) — seule la
+  profondeur change, pas le gamut de calcul.
+- Quand le fichier est écrit, une **conversion de gamut explicite sRGB →
+  Adobe RGB (1998)** (primaires + fonction de transfert Adobe RGB) est
+  appliquée aux pixels avant écriture — étiqueter directement des valeurs en
+  primaires sRGB avec un profil Adobe RGB sans les reprojeter décalerait les
+  couleurs. Le fichier produit est un **TIFF 16-bit/canal, profil ICC Adobe
+  RGB (1998) embarqué** — jamais CMYK (conversion faite par le RIP du labo,
+  pas par shaderlab).
 - Quand l'export se fait, la **résolution native** de l'image source est
   conservée telle quelle — aucun upscale, aucun resampling.
-- Quand l'export termine, le **DPI résultant à une taille de tirage donnée**
-  est affiché (ou calculable), pour qu'Antoine sache à l'avance jusqu'à
+- Avant de confirmer l'export (pas après), Antoine saisit une **taille de
+  tirage cible** (ex. largeur en cm) ; le **DPI résultant** à cette taille
+  s'affiche immédiatement, pour qu'il sache AVANT de lancer l'export jusqu'à
   quelle taille le tirage restera net — sans que shaderlab décide une taille
-  à sa place.
+  à sa place, et sans bloquer l'export si le DPI est bas (juste informer).
 - Quand un fichier existant serait écrasé, la même règle d'écriture atomique
   (tmp+rename) que l'export JPEG s'applique.
 
@@ -79,15 +86,21 @@ vente en tirage physique.
 
 ## Terminé = démontrable
 
-- Une œuvre avec un dégradé fort (bloom+halation empilés) exportée en
+- Sur une fixture synthétique (dégradé linéaire construit, pas une photo),
+  le nombre de niveaux discrets réellement présents dans le TIFF 16-bit
+  exporté est mesuré (histogramme des valeurs) et dépasse largement les 256
+  paliers d'un 8-bit — preuve numérique que le pipeline n'a pas quantifié en
+  8-bit avant l'écriture, pas seulement un contrôle visuel à l'œil.
+- Une œuvre réelle avec un dégradé fort (bloom+halation empilés) exportée en
   « Exporter pour impression » ne montre aucun banding visible à un zoom
-  100% sur le TIFF résultant (comparé au même export réduit artificiellement
-  en 8-bit, qui doit bander, lui).
+  100% sur le TIFF résultant.
 - Le TIFF produit s'ouvre dans un visualiseur qui affiche son profil ICC
   (ex. Photoshop, ou `exiftool`) et rapporte bien Adobe RGB (1998), 16
-  bits/canal.
-- Le DPI à une taille de tirage donnée (ex. A3) est visible/calculable avant
-  l'export.
+  bits/canal — et une valeur de référence connue (ex. rouge pur du pipeline
+  interne) retombe, une fois convertie par ce profil, sur la valeur Adobe RGB
+  attendue (pas la valeur sRGB brute mal étiquetée).
+- Avant de lancer l'export, en saisissant une taille de tirage cible (ex.
+  A3), le DPI résultant s'affiche immédiatement.
 - L'export JPEG existant (« Exporter sous », round-trip Lightroom) continue
   de fonctionner sans changement de comportement observable.
 
@@ -103,6 +116,10 @@ vente en tirage physique.
   standard accepté universellement par les labos fine-art, gamut suffisant
   sans exiger la rigueur ProPhoto (qui, elle, imposerait 16-bit strict sous
   peine de banding sévère).
+- **Conversion de gamut explicite sRGB → Adobe RGB avant écriture** (matrice
+  de primaires + fonction de transfert Adobe RGB), pas un simple tag ICC sur
+  des valeurs restées en primaires sRGB — sinon le profil ment sur ce que
+  contiennent réellement les pixels et le labo restitue des couleurs fausses.
 - **Pas de resampling** — la résolution native reste la seule vérité ; le DPI
   est une donnée dérivée (résolution ÷ taille physique visée), jamais un
   paramètre d'export qui déclencherait un upscale.

@@ -24,6 +24,13 @@ describe("computeGuidedAB", () => {
     const { a } = computeGuidedAB(0.5, 0.5, 0.3, 0.1, 1e-4);
     expect(a).toBeLessThan(0);
   });
+
+  it("a peut dépasser 1 quand cov_Ip > var_I (pas de clamp)", () => {
+    // meanI=meanP=0, corrI=0.1 (varI=0.1), corrIp=0.2 (covIp=0.2) => a>1
+    const { a, b } = computeGuidedAB(0, 0, 0.1, 0.2, 1e-4);
+    expect(a).toBeGreaterThan(1);
+    expect(Number.isFinite(b)).toBe(true);
+  });
 });
 
 describe("composeEdgeAware", () => {

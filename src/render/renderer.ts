@@ -14,6 +14,16 @@ import { defaultLayerMask } from "../mask/types";
 import type { MaskSource } from "../mask/types";
 import { planFold, snapshotFoldInputs, foldInputsEqual, type FoldSourceSnapshot } from "../mask/foldPlan";
 import { buildCombineWgsl, buildInvertWgsl } from "../mask/maskFoldWgsl";
+import type { RefineEdgeParams } from "../mask/types";
+import {
+  buildLuminanceWgsl,
+  buildPackWgsl,
+  buildSquareCorrWgsl,
+  buildBoxFilterHWgsl,
+  buildBoxFilterVWgsl,
+  buildComputeABWgsl,
+  buildCompositeWgsl,
+} from "../mask/edgeAwareWgsl";
 
 /** Which part of the live-preview mask texture a `MaskPreviewOverride` needs
  *  uploaded this frame. `"full"` re-uploads the whole image — required the
@@ -105,6 +115,11 @@ export class Renderer {
   private pingPong: [GPUTexture, GPUTexture] | null = null;
   private exportTexture: GPUTexture | null = null;
   private sampler: GPUSampler;
+  /** Sampler NON filtrant (nearest) pour les passes edge-aware — un box
+   *  filter accumule des échantillons discrets, un filtrage bilinéaire
+   *  parasiterait la moyenne. Suit le même pattern que `this.sampler`,
+   *  jamais réutilisé pour les passes couleur/masque existantes. */
+  private nonFilteringSampler: GPUSampler;
   private pipelineCache = new Map<
     string,
     { pipeline: GPURenderPipeline; bindGroupLayout: GPUBindGroupLayout }
@@ -128,6 +143,28 @@ export class Renderer {
    *  revue adverse codex-crosscheck). */
   private foldPingPongByLayer = new Map<string, [GPUTexture, GPUTexture]>();
   private maskFoldPipelineCache = new Map<string, { pipeline: GPURenderPipeline; layout: GPUBindGroupLayout }>();
+  /** Textures de travail du guided filter edge-aware (design.md §4bis), une
+   *  entrée PAR CALQUE — mêmes règles de résidence que `foldedMaskTextures` :
+   *  créées à la demande, détruites quand le calque disparaît ou dans
+   *  `dispose()`. Jamais partagées entre calques (même raison que
+   *  `foldPingPongByLayer`). */
+  private edgeAwareWorkTextures = new Map<
+    string,
+    {
+      luminance: GPUTexture;
+      packedIp: GPUTexture;
+      squareCorr: GPUTexture;
+      meanIp: GPUTexture;
+      meanIpTmp: GPUTexture;
+      corr: GPUTexture;
+      corrTmp: GPUTexture;
+      ab: GPUTexture;
+      meanAB: GPUTexture;
+      meanABTmp: GPUTexture;
+      result: GPUTexture;
+    }
+  >();
+  private edgeAwarePipelineCache = new Map<string, { pipeline: GPURenderPipeline; layout: GPUBindGroupLayout }>();
   private whiteMask: GPUTexture | null = null;
   /** GPU texture backing the live mask-paint preview (see `MaskPreviewOverride`)
    *  — reuploaded every preview frame regardless of reference equality, since
@@ -162,6 +199,7 @@ export class Renderer {
   constructor(ctx: GpuContext) {
     this.ctx = ctx;
     this.sampler = ctx.device.createSampler({ magFilter: "linear", minFilter: "linear" });
+    this.nonFilteringSampler = ctx.device.createSampler({ magFilter: "nearest", minFilter: "nearest" });
   }
 
   /** Active/désactive l'overlay safelight du masque d'un calque (mode peinture).
@@ -296,6 +334,25 @@ export class Renderer {
           this.foldPingPongByLayer.delete(id);
         }
       }
+      // Mêmes règles de résidence que foldedMaskTextures/foldPingPongByLayer
+      // (seul un calque vivant garde ses textures de travail edge-aware).
+      for (const id of [...this.edgeAwareWorkTextures.keys()]) {
+        if (!aliveLayerIds.has(id)) {
+          const w = this.edgeAwareWorkTextures.get(id)!;
+          w.luminance.destroy();
+          w.packedIp.destroy();
+          w.squareCorr.destroy();
+          w.meanIp.destroy();
+          w.meanIpTmp.destroy();
+          w.corr.destroy();
+          w.corrTmp.destroy();
+          w.ab.destroy();
+          w.meanAB.destroy();
+          w.meanABTmp.destroy();
+          w.result.destroy();
+          this.edgeAwareWorkTextures.delete(id);
+        }
+      }
     }
 
     let readTexture = this.sourceTexture;
@@ -332,7 +389,12 @@ export class Renderer {
         pendingDestroy
       );
       if (overlayLayer && blitTarget) {
-        this.runOverlayPass(encoder, blitTarget, this.getMaskTexture(overlayLayer, encoder), finalTargetView);
+        this.runOverlayPass(
+          encoder,
+          blitTarget,
+          this.getMaskTexture(overlayLayer, encoder, readTexture.createView(), pendingDestroy),
+          finalTargetView
+        );
       }
       device.queue.submit([encoder.finish()]);
       for (const resource of pendingDestroy) resource.destroy();
@@ -386,7 +448,7 @@ export class Renderer {
       this.runOverlayPass(
         encoder,
         this.pingPong[writeIndex],
-        this.getMaskTexture(overlayLayer, encoder),
+        this.getMaskTexture(overlayLayer, encoder, this.pingPong[writeIndex].createView(), pendingDestroy),
         finalTargetView
       );
     }
@@ -613,8 +675,14 @@ export class Renderer {
       { binding: 2, resource: { buffer: paramBuffer } },
     ];
     if (applyMask) {
-      // Résidente — ne PAS la mettre dans pendingDestroy.
-      entries.push({ binding: 3, resource: this.getMaskTexture(layer, encoder).createView() });
+      // Résidente — ne PAS la mettre dans pendingDestroy. `sourceView` sert
+      // aussi de guide edge-aware : c'est la texture d'ENTRÉE de ce calque
+      // (le composite accumulé sous lui, avant son propre effet) — voir la
+      // décision documentée sur `maybeApplyEdgeAware`.
+      entries.push({
+        binding: 3,
+        resource: this.getMaskTexture(layer, encoder, sourceView, pendingDestroy).createView(),
+      });
     }
     if (prevPassView) {
       entries.push({ binding: 4, resource: prevPassView });
@@ -710,11 +778,17 @@ export class Renderer {
    *  du calque change (les masques sont immuables par convention —
    *  updateBrushMask remplace la référence, jamais le contenu). Auparavant :
    *  création + upload 24MP à CHAQUE frame pour chaque calque masqué. */
-  private getMaskTexture(layer: LayerState, encoder: GPUCommandEncoder): GPUTexture {
+  private getMaskTexture(
+    layer: LayerState,
+    encoder: GPUCommandEncoder,
+    colorView: GPUTextureView,
+    pendingDestroy: (GPUTexture | GPUBuffer)[]
+  ): GPUTexture {
     // Chemin pinceau EN COURS de peinture : inchangé depuis avant cette
     // tranche, zéro coût de fold (perf 60fps du geste de peinture non
     // impactée — l'aperçu live d'un calque à source unique n'entre jamais
-    // dans le fold multi-passe ci-dessous).
+    // dans le fold multi-passe ci-dessous, donc jamais dans l'edge-aware
+    // non plus : suspendu pendant un stroke actif par construction).
     if (this.livePreview && this.livePreview.layerId === layer.id) {
       return this.getLiveMaskTexture(this.livePreview.layerId, this.livePreview.raster, this.livePreview.scope);
     }
@@ -727,20 +801,23 @@ export class Renderer {
     // fold. C'est le cas réel de la Tranche 2 (aucune UI pour ajouter une 2e
     // source avant la Tranche 4) — éviter tout travail GPU supplémentaire
     // sur ce chemin, historiquement sensible au crash 24MP (design.md §4,
-    // "Impact honnête sur le crash 24MP").
+    // "Impact honnête sur le crash 24MP"). L'edge-aware doit s'appliquer
+    // même sur ce raccourci (Step 12) — le fold sans edge-aware n'est pas
+    // le seul moyen d'obtenir un masque source unique.
     if (plan.length === 1 && !layer.mask.invert) {
-      return this.getResidentSourceTexture(layer.id, plan[0], encoder);
+      const resident = this.getResidentSourceTexture(layer.id, plan[0], encoder);
+      return this.maybeApplyEdgeAware(layer, resident, colorView, encoder, pendingDestroy);
     }
 
     const snapshot = snapshotFoldInputs(layer.mask);
     const cached = this.foldedMaskTextures.get(layer.id);
     if (cached && foldInputsEqual(cached.lastInputs, snapshot) && cached.lastInvert === layer.mask.invert) {
-      return cached.texture;
+      return this.maybeApplyEdgeAware(layer, cached.texture, colorView, encoder, pendingDestroy);
     }
 
     const folded = this.runFoldPipeline(layer.id, plan, layer.mask.invert, encoder);
     this.foldedMaskTextures.set(layer.id, { texture: folded, lastInputs: snapshot, lastInvert: layer.mask.invert });
-    return folded;
+    return this.maybeApplyEdgeAware(layer, folded, colorView, encoder, pendingDestroy);
   }
 
   /** Texture résidente d'UNE source de masque (upload seulement quand sa
@@ -888,6 +965,188 @@ export class Renderer {
     return acc;
   }
 
+  /** Guided filter séparable (He, Sun, Tang 2010 — design.md §4bis) : le bord
+   *  du masque foldé épouse les contours de contraste du calque plutôt que
+   *  de rester géométrique. Suspendu pendant un stroke actif — le chemin
+   *  `livePreview` de `getMaskTexture` ne passe jamais par `runFoldPipeline`
+   *  ni par cette méthode, donc l'edge-aware ne s'applique qu'au relâchement
+   *  du trait, même granularité que le reste du fold.
+   *
+   *  `colorView` = guide `I` du filtre (luminance). Choix documenté sur
+   *  `maybeApplyEdgeAware` (jugement, pas une certitude — voir son
+   *  commentaire).
+   *
+   *  Buffers d'uniform (radius/edgeStrength) jetables par frame, poussés
+   *  dans `pendingDestroy` — voir `docs/adr/0001-guided-filter-uniform-buffers-per-frame.md` :
+   *  pattern volontairement identique à `compositingBuffer` (ligne ~565),
+   *  pas de cache persistant par calque. */
+  private runEdgeAwarePipeline(
+    layerId: string,
+    foldedMask: GPUTexture,
+    colorView: GPUTextureView,
+    params: RefineEdgeParams,
+    encoder: GPUCommandEncoder,
+    pendingDestroy: (GPUTexture | GPUBuffer)[]
+  ): GPUTexture {
+    const { device } = this.ctx;
+    const size: [number, number] = [this.width, this.height];
+
+    let w = this.edgeAwareWorkTextures.get(layerId);
+    if (!w) {
+      const r8 = () =>
+        device.createTexture({
+          size,
+          format: "r8unorm",
+          usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+        });
+      const rg8 = () =>
+        device.createTexture({
+          size,
+          format: "rg8unorm",
+          usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+        });
+      const rg16f = () =>
+        device.createTexture({
+          size,
+          format: "rg16float",
+          usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+        });
+      w = {
+        luminance: r8(),
+        packedIp: rg8(),
+        squareCorr: rg16f(),
+        meanIp: rg16f(),
+        meanIpTmp: rg16f(),
+        corr: rg16f(),
+        corrTmp: rg16f(),
+        ab: rg16f(),
+        meanAB: rg16f(),
+        meanABTmp: rg16f(),
+        result: r8(),
+      };
+      this.edgeAwareWorkTextures.set(layerId, w);
+    }
+    const work = w;
+
+    // Passe générique : compile/monte un pipeline (mis en cache par
+    // wgsl+entryPoint, comme le reste du fichier) et l'exécute avec les vues
+    // fournies. `views[0]` est TOUJOURS le binding 0 ; le sampler non
+    // filtrant est toujours binding 1 (voir tous les générateurs WGSL de
+    // edgeAwareWgsl.ts, qui suivent cette convention de binding fixe).
+    const pass = (
+      wgsl: string,
+      entryPoint: string,
+      target: GPUTexture,
+      views: GPUTextureView[],
+      uniformBuffer?: GPUBuffer
+    ): void => {
+      const cacheKey = `${entryPoint}:${wgsl.length}`;
+      let cached = this.edgeAwarePipelineCache.get(cacheKey);
+      if (!cached) {
+        const entries: GPUBindGroupLayoutEntry[] = [
+          { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "unfilterable-float" } },
+          { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "non-filtering" } },
+        ];
+        for (let i = 1; i < views.length; i++) {
+          entries.push({ binding: 1 + i, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "unfilterable-float" } });
+        }
+        if (uniformBuffer) {
+          entries.push({ binding: 1 + views.length, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } });
+        }
+        const layout = device.createBindGroupLayout({ entries });
+        const pipeline = device.createRenderPipeline({
+          layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
+          vertex: { module: device.createShaderModule({ code: wgsl }), entryPoint: "vs_main" },
+          fragment: {
+            module: device.createShaderModule({ code: wgsl }),
+            entryPoint,
+            targets: [{ format: target.format }],
+          },
+          primitive: { topology: "triangle-list" },
+        });
+        cached = { pipeline, layout };
+        this.edgeAwarePipelineCache.set(cacheKey, cached);
+      }
+      const bindEntries: GPUBindGroupEntry[] = [
+        { binding: 0, resource: views[0] },
+        { binding: 1, resource: this.nonFilteringSampler },
+      ];
+      for (let i = 1; i < views.length; i++) bindEntries.push({ binding: 1 + i, resource: views[i] });
+      if (uniformBuffer) bindEntries.push({ binding: 1 + views.length, resource: { buffer: uniformBuffer } });
+      const bindGroup = device.createBindGroup({ layout: cached.layout, entries: bindEntries });
+      const renderPass = encoder.beginRenderPass({
+        colorAttachments: [
+          { view: target.createView(), loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } },
+        ],
+      });
+      renderPass.setPipeline(cached.pipeline);
+      renderPass.setBindGroup(0, bindGroup);
+      renderPass.draw(3);
+      renderPass.end();
+    };
+
+    const radiusBuffer = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    device.queue.writeBuffer(radiusBuffer, 0, new Float32Array([params.edgeRadius, 0, 0, 0]));
+    pendingDestroy.push(radiusBuffer);
+    const strengthBuffer = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    device.queue.writeBuffer(strengthBuffer, 0, new Float32Array([params.edgeStrength, 0, 0, 0]));
+    pendingDestroy.push(strengthBuffer);
+
+    const foldedMaskView = foldedMask.createView();
+    pass(buildLuminanceWgsl(), "fs_luminance", work.luminance, [colorView]);
+    pass(buildPackWgsl(), "fs_pack", work.packedIp, [work.luminance.createView(), foldedMaskView]);
+    pass(buildSquareCorrWgsl(), "fs_squareCorr", work.squareCorr, [work.packedIp.createView()]);
+    pass(buildBoxFilterHWgsl(2), "fs_boxH", work.meanIpTmp, [work.packedIp.createView()], radiusBuffer);
+    pass(buildBoxFilterVWgsl(2), "fs_boxV", work.meanIp, [work.meanIpTmp.createView()], radiusBuffer);
+    pass(buildBoxFilterHWgsl(2), "fs_boxH", work.corrTmp, [work.squareCorr.createView()], radiusBuffer);
+    pass(buildBoxFilterVWgsl(2), "fs_boxV", work.corr, [work.corrTmp.createView()], radiusBuffer);
+    pass(buildComputeABWgsl(), "fs_computeAB", work.ab, [work.meanIp.createView(), work.corr.createView()]);
+    pass(buildBoxFilterHWgsl(2), "fs_boxH", work.meanABTmp, [work.ab.createView()], radiusBuffer);
+    pass(buildBoxFilterVWgsl(2), "fs_boxV", work.meanAB, [work.meanABTmp.createView()], radiusBuffer);
+    pass(
+      buildCompositeWgsl(),
+      "fs_composite",
+      work.result,
+      [work.meanAB.createView(), work.luminance.createView(), foldedMaskView],
+      strengthBuffer
+    );
+
+    return work.result;
+  }
+
+  /** Applique le guided filter edge-aware si activé et `edgeStrength > 0`,
+   *  sinon retourne `folded` tel quel — court-circuit explicite cohérent
+   *  avec `composeEdgeAware(p, q, 0) === p` (aucun travail GPU
+   *  supplémentaire quand l'utilisateur n'a pas activé l'edge-aware).
+   *
+   *  **Décision (jugement, pas une certitude — cf. rapport de tâche)** :
+   *  `colorView` = la texture d'ENTRÉE du calque (le composite accumulé
+   *  SOUS lui, avant l'application de son propre effet), pas sa sortie.
+   *  Le pipeline actuel (`runPipeline`/`runEffectPass`) ne matérialise
+   *  aucune texture nommée et stable représentant "la couleur du calque
+   *  après son propre effet mais avant compositing" — `runEffectPass`
+   *  applique effet ET compositing (mix mask/opacity/blend) en une seule
+   *  passe shader, il n'existe pas de texture intermédiaire séparée entre
+   *  les deux. La texture d'entrée (`sourceView`/`readTexture`), elle,
+   *  EST déjà résidente et disponible à chaque site d'appel de
+   *  `getMaskTexture`. design.md §4bis ne tranche pas explicitement entre
+   *  "guide = calque avant son effet" et "guide = calque après son effet" ;
+   *  les deux sont défendables (l'un suit la structure de l'image sous-
+   *  jacente, l'autre suivrait la structure post-effet, ex. un warp qui
+   *  déplace les contours). Choix retenu : avant effet, par simplicité et
+   *  parce que c'est la texture déjà en main sans passe supplémentaire. */
+  private maybeApplyEdgeAware(
+    layer: LayerState,
+    folded: GPUTexture,
+    colorView: GPUTextureView,
+    encoder: GPUCommandEncoder,
+    pendingDestroy: (GPUTexture | GPUBuffer)[]
+  ): GPUTexture {
+    const params = layer.mask.refineEdge;
+    if (!params.edgeAware || params.edgeStrength <= 0) return folded;
+    return this.runEdgeAwarePipeline(layer.id, folded, colorView, params, encoder, pendingDestroy);
+  }
+
   /** Backing texture for `MaskPreviewOverride` — a single texture reused
    *  across preview frames, never entered into the residency cache since it
    *  isn't associated with a stable `raster` reference.
@@ -950,5 +1209,20 @@ export class Renderer {
     }
     this.foldPingPongByLayer.clear();
     this.maskFoldPipelineCache.clear();
+    for (const w of this.edgeAwareWorkTextures.values()) {
+      w.luminance.destroy();
+      w.packedIp.destroy();
+      w.squareCorr.destroy();
+      w.meanIp.destroy();
+      w.meanIpTmp.destroy();
+      w.corr.destroy();
+      w.corrTmp.destroy();
+      w.ab.destroy();
+      w.meanAB.destroy();
+      w.meanABTmp.destroy();
+      w.result.destroy();
+    }
+    this.edgeAwareWorkTextures.clear();
+    this.edgeAwarePipelineCache.clear();
   }
 }

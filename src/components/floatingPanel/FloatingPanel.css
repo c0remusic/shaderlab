@@ -13,22 +13,28 @@
   position: absolute;
   top: 0;
   left: 0;
+  display: flex;
+  flex-direction: column;
   width: var(--inspector-width-default);
   min-width: var(--inspector-width-min);
   max-width: var(--inspector-width-max);
+  /* max-height posé inline via `size.height` (App.tsx PANEL_SIZE) — sans
+     borne, le contenu (ex. beaucoup de calques) débordait silencieusement,
+     clippé par .workspace{overflow:hidden} sans scrollbar ni indice visuel
+     (finding auditor HAUTE, 2026-07-20). */
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
   border-radius: var(--panel-radius);
   box-shadow: var(--shadow-panel-resting);
   color: var(--text-primary);
   z-index: var(--z-floating-panel);
-  overflow: visible; /* Select existant : pas de portail, popup jamais clippé */
 }
 
 .floating-panel__titlebar {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-shrink: 0;
   height: var(--section-header-height);
   padding-inline: var(--space-4);
   border-bottom: 1px solid var(--border-subtle);
@@ -50,6 +56,12 @@
 
 .floating-panel__content {
   padding: var(--space-4);
+  min-height: 0;
+  overflow-y: auto;
+  /* Limitation connue : un Select ouvert (LayerPanel, non portalé) peut être
+     clippé par ce scroll s'il est proche du bord — accepté, c'est strictement
+     préférable à la perte silencieuse d'accès aux calques que ce scroll
+     corrige. Portail de popup = hors scope de cette tranche. */
 }
 
 /* Pendant le drag : le panneau d'origine reste visible mais estompé (design.md

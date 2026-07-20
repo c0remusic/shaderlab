@@ -139,11 +139,12 @@ export function FloatingPanel({
     <>
       <div
         className={`floating-panel ${ghost ? "floating-panel--origin-dimmed" : ""}`.trim()}
-        style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
+        style={{ transform: `translate(${position.x}px, ${position.y}px)`, maxHeight: size.height }}
       >
         <div
           ref={titlebarRef}
           className="floating-panel__titlebar"
+          role="group"
           tabIndex={0}
           aria-label={`Déplacer le panneau ${title} (flèches pour nudger, Shift = pas large)`}
           onPointerDown={handlePointerDown}

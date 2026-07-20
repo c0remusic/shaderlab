@@ -15,6 +15,7 @@ import { useGlobalControlWheel } from "./ui/activeControl";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 import { getBrushRaster } from "./mask/brushSource";
 import { FloatingPanel } from "./components/floatingPanel/FloatingPanel";
+import { DEFAULT_PANEL_COLUMN_WIDTH, COLLAPSED_PANEL_HEIGHT } from "./components/floatingPanel/effectiveViewport";
 import { LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
 import { getEffect } from "./render/effects/registry";
@@ -76,14 +77,11 @@ export default function App() {
   // Position de départ des panneaux flottants : ancrés côté droit, même zone
   // que l'ancien Inspector docké (design.md §2) — PAS une colonne contrainte
   // en dur, seulement un point de départ librement déplaçable ensuite.
-  const PANEL_SIZE = { width: 288, height: 320 }; // largeur = DEFAULT_PANEL_COLUMN_WIDTH
-  // Hauteur DOM réelle d'un panneau replié = celle de la seule titlebar
-  // (contenu démonté, FloatingPanel.tsx) — reprend --section-header-height
-  // (28px, src/design/components.css). Un voisin replié annoncé au
-  // magnétisme avec sa hauteur PLEINE (320px) accrocherait contre un
-  // rectangle fantôme, décalé de la position réelle (finding auditor
-  // 2026-07-20).
-  const COLLAPSED_PANEL_HEIGHT = 28;
+  // Largeur/hauteur repliée = constantes partagées (effectiveViewport.ts),
+  // pas une deuxième valeur en dur qui pourrait diverger du token
+  // --inspector-width-default/--section-header-height (finding auditor
+  // MOYENNE, 2026-07-20).
+  const PANEL_SIZE = { width: DEFAULT_PANEL_COLUMN_WIDTH, height: 320 };
   const [layersPanel, setLayersPanel] = useState({
     position: { x: window.innerWidth - PANEL_SIZE.width - 16, y: 52 },
     collapsed: false,

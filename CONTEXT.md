@@ -85,7 +85,29 @@ préféré plateforme ; conversion sRGB↔linéaire automatique, JAMAIS de gamma
 en WGSL. Un seul pipeline, résolution native (pas de distinction preview/export).
 Source : `CLAUDE.md:56-67`.
 
+**Export pour impression** (design cible, pas encore livré) — second point
+d'export, distinct de l'« Exporter sous » JPEG existant : produit un fichier
+TIFF 16-bit/canal, Adobe RGB (1998), profil ICC embarqué, résolution native
+(jamais d'upscale). Destiné à un tirage physique réalisé par un labo externe
+— pas de soft-proofing dans l'app. Source : `PRD-print-export.md`. _Avoid_ :
+confondre avec "Export / Exporter sous" (JPEG, round-trip Lightroom) — les
+deux coexistent, aucun ne remplace l'autre.
+
+**Pipeline 16-bit (print)** — mode de calcul dédié à l'export print :
+textures internes en `rgba16float` au lieu du `bgra8unorm-srgb` du rendu
+écran temps réel, pour éliminer le banding sur les dégradés d'effets
+(bloom, halation, courbes). Reste sur le principe pipeline linéaire strict
+(pas de gamma manuel) — n'ajoute qu'une profondeur de calcul plus grande, ne
+change pas l'espace de calcul. Source : `PRD-print-export.md`.
+
 ## Concepts différés (nommés, pas encore construits)
+
+- **Motion blur** (effet créatif) — flou directionnel ou radial simulant un
+  mouvement de caméra/sujet ("low-shutter"), à cadrer par interview dédiée au
+  moment du chantier effets. Source : session 2026-07-20.
+- **Étage color grade** (effet créatif) — courbe de contraste + bleach bypass
+  + split-tone highlights, distinct des 4 effets actuels. Même trigger que
+  motion blur. Source : session 2026-07-20.
 
 - **Groupe** — conteneur de calques avec opacité/blend/masque propres sur le
   résultat aplati des enfants (compositing imbriqué). Tranche 5.

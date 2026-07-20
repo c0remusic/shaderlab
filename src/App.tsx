@@ -32,6 +32,13 @@ export default function App() {
   // ça, le clamp/magnétisme de FloatingPanel autorisait un panneau à finir
   // partiellement masqué sous le bord réellement visible.
   const [workspaceSize, setWorkspaceSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+  // Distingue l'approximation initiale (window.innerWidth/innerHeight, avant
+  // toute mesure) de la première VRAIE mesure .workspace — nécessaire pour
+  // que le fit-check du positionnement initial des panneaux (plus bas)
+  // n'attende pas juste "le premier passage de l'effet" (qui a lieu avant
+  // que le ResizeObserver ait mesuré quoi que ce soit), finding
+  // codex-crosscheck MOYENNE, 2026-07-20.
+  const hasMeasuredWorkspaceRef = useRef(false);
   useEffect(() => {
     const el = workspaceRef.current;
     if (!el) return;
@@ -39,6 +46,7 @@ export default function App() {
       const entry = entries[0];
       if (!entry) return;
       const { width, height } = entry.contentRect;
+      hasMeasuredWorkspaceRef.current = true;
       setWorkspaceSize({ width, height });
     });
     observer.observe(el);
@@ -135,7 +143,11 @@ export default function App() {
   // un recalcul continu à chaque resize.
   const initialFitCheckedRef = useRef(false);
   useEffect(() => {
-    if (initialFitCheckedRef.current) return;
+    // Attend la VRAIE mesure (pas juste "un premier passage d'effet" — qui a
+    // lieu avant que le ResizeObserver n'ait rien mesuré, ce qui consommait
+    // le verrou sur l'approximation window.innerHeight sans jamais corriger
+    // quoi que ce soit ; finding codex-crosscheck MOYENNE, 2026-07-20).
+    if (initialFitCheckedRef.current || !hasMeasuredWorkspaceRef.current) return;
     initialFitCheckedRef.current = true;
     const fitsExpanded =
       layersPanel.position.y + PANEL_SIZE.height + PANEL_GAP + PANEL_SIZE.height <= workspaceSize.height;

@@ -40,3 +40,5 @@
   min-height: 0;
   overflow-y: auto;
 }
+
+.docked-panel-card--dragging { opacity: 0.5; }

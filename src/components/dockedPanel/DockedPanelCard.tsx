@@ -8,35 +8,26 @@ export interface DockedPanelCardProps {
   onCollapsedChange: (collapsed: boolean) => void;
   children: React.ReactNode;
   className?: string;
+  reorderIndex: number;
+  dragging?: boolean;
+  titlebarProps?: React.HTMLAttributes<HTMLDivElement>;
 }
 
-/**
- * Carte de panneau dockée, fixe (pas de drag, pas de magnétisme) — remplace
- * `FloatingPanel`. Position/taille sont pilotées par le parent (`PanelColumn`,
- * via `react-resizable-panels`) : ce composant ne connaît que son titre, son
- * état replié/déplié, et son contenu.
- */
-export function DockedPanelCard({
-  title,
-  collapsed,
-  onCollapsedChange,
-  children,
-  className = "",
-}: DockedPanelCardProps) {
+export function DockedPanelCard({ title, collapsed, onCollapsedChange, children, className = "", reorderIndex, dragging = false, titlebarProps }: DockedPanelCardProps) {
   return (
-    <div className={`docked-panel-card ${className}`.trim()}>
-      <div className="docked-panel-card__titlebar">
+    <div className={`docked-panel-card ${dragging ? "docked-panel-card--dragging" : ""} ${className}`.trim()} data-reorder-index={reorderIndex}>
+      <div className="docked-panel-card__titlebar" {...titlebarProps}>
         <span className="docked-panel-card__title">{title}</span>
         <IconButton
           label={collapsed ? "Déplier le panneau" : "Replier le panneau"}
           size="compact"
-          onClick={() => onCollapsedChange(!collapsed)}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onCollapsedChange(!collapsed);
+          }}
         >
-          {collapsed ? (
-            <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
-          ) : (
-            <ChevronDown size={14} strokeWidth={1.5} aria-hidden="true" />
-          )}
+          {collapsed ? <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" /> : <ChevronDown size={14} strokeWidth={1.5} aria-hidden="true" />}
         </IconButton>
       </div>
       {!collapsed && <div className="docked-panel-card__content">{children}</div>}

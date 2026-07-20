@@ -1,74 +1,36 @@
+import { Fragment } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { DockedPanelCard } from "./DockedPanelCard";
+import { usePointerReorder } from "../../ui/dragReorder";
 import "./PanelColumn.css";
 
-export interface PanelColumnProps {
-  layersTitle: string;
-  layersCollapsed: boolean;
-  onLayersCollapsedChange: (collapsed: boolean) => void;
-  layersContent: React.ReactNode;
-  paramsTitle: string;
-  paramsCollapsed: boolean;
-  onParamsCollapsedChange: (collapsed: boolean) => void;
-  paramsContent: React.ReactNode;
-}
+export interface DockedPanelSpec { id: string; title: string; collapsed: boolean; onCollapsedChange: (collapsed: boolean) => void; content: React.ReactNode; }
+export interface PanelColumnProps { panels: DockedPanelSpec[]; onReorder: (id: string, newIndex: number) => void; }
+const SLOT_SIZES = [{ defaultSize: "45", minSize: "20", maxSize: "80" }, { defaultSize: "55", minSize: "20", maxSize: "80" }];
 
-/**
- * Colonne dockée fixe à droite (Calques + Réglages), position posée UNE fois
- * en CSS (PanelColumn.css) — remplace le calcul de position JS de l'ancien
- * FloatingPanel/App.tsx. `react-resizable-panels` répartit la hauteur totale
- * disponible entre les deux cartes ; défaut 45/55, bornes 20%/80% pour
- * qu'aucune carte ne puisse être réduite à rien par le splitter (le repli
- * chevron reste le seul moyen de masquer le CONTENU d'une carte).
- *
- * Accessibilité clavier : vérifié sur pièce (bundle installé
- * node_modules/react-resizable-panels/dist/react-resizable-panels.js,
- * v4.12.2, pas juste la doc) que `Separator` (poignée de redimensionnement)
- * gère nativement ArrowUp/ArrowDown/ArrowLeft/ArrowRight/Home/End/Enter et
- * pose `tabIndex: 0` sur l'élément — aucun `onKeyDown`/`tabIndex` custom requis.
- *
- * Note API : le brief de départ nommait `PanelGroup`/`PanelResizeHandle`
- * (ancienne API v2/v3 du package) et `defaultSize`/`minSize`/`maxSize` en
- * nombres (pourcentage). La version réellement installée (4.12.2,
- * package.json) exporte `Group`/`Panel`/`Separator` (`orientation` au lieu
- * de `direction`), et interprète un `defaultSize`/`minSize`/`maxSize`
- * NUMÉRIQUE comme des PIXELS — un pourcentage doit être une string
- * (`"45"`, `"20"`, `"80"`) selon `react-resizable-panels.d.ts`. Adapté en
- * conséquence après vérification du `.d.ts` installé (pas deviné).
- */
-export function PanelColumn({
-  layersTitle,
-  layersCollapsed,
-  onLayersCollapsedChange,
-  layersContent,
-  paramsTitle,
-  paramsCollapsed,
-  onParamsCollapsedChange,
-  paramsContent,
-}: PanelColumnProps) {
+export function PanelColumn({ panels, onReorder }: PanelColumnProps) {
+  const { dragState, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel } = usePointerReorder(panels, (panel) => panel.id, "data-reorder-index", onReorder);
+  const draggedPanel = dragState ? panels.find((p) => p.id === dragState.draggedId) : null;
+  let chipTop: number | null = null;
+  if (dragState && dragState.overIndex !== null && dragState.overPosition !== null) {
+    const overEl = document.querySelector<HTMLElement>(`[data-reorder-index="${dragState.overIndex}"]`);
+    const columnEl = document.querySelector<HTMLElement>(".panel-column");
+    if (overEl && columnEl) { const rect = overEl.getBoundingClientRect(); const columnRect = columnEl.getBoundingClientRect(); chipTop = (dragState.overPosition === "before" ? rect.top : rect.bottom) - columnRect.top; }
+  }
   return (
-    <div className="panel-column">
+    <div className="panel-column" onPointerMove={dragState ? handlePointerMove : undefined} onPointerUp={dragState ? handlePointerUp : undefined} onPointerCancel={dragState ? handlePointerCancel : undefined}>
       <Group orientation="vertical" className="panel-column__group">
-        <Panel defaultSize="45" minSize="20" maxSize="80" className="panel-column__pane">
-          <DockedPanelCard
-            title={layersTitle}
-            collapsed={layersCollapsed}
-            onCollapsedChange={onLayersCollapsedChange}
-          >
-            {layersContent}
-          </DockedPanelCard>
-        </Panel>
-        <Separator className="panel-column__handle" aria-label="Redimensionner Calques et Réglages" />
-        <Panel defaultSize="55" minSize="20" maxSize="80" className="panel-column__pane">
-          <DockedPanelCard
-            title={paramsTitle}
-            collapsed={paramsCollapsed}
-            onCollapsedChange={onParamsCollapsedChange}
-          >
-            {paramsContent}
-          </DockedPanelCard>
-        </Panel>
+        {panels.map((panel, index) => { const slot = SLOT_SIZES[index] ?? SLOT_SIZES[SLOT_SIZES.length - 1]; return (
+          <Fragment key={`${panel.id}-${index}`}>
+            {index > 0 && <Separator className="panel-column__handle" aria-label="Redimensionner les panneaux" />}
+            <Panel id={panel.id} defaultSize={slot.defaultSize} minSize={slot.minSize} maxSize={slot.maxSize} className="panel-column__pane">
+              <DockedPanelCard title={panel.title} collapsed={panel.collapsed} onCollapsedChange={panel.onCollapsedChange} reorderIndex={index} dragging={dragState?.draggedId === panel.id} titlebarProps={{ onPointerDown: (e) => { const cardEl = e.currentTarget.closest<HTMLElement>(".docked-panel-card"); if (cardEl) handlePointerDown(panel.id, e.pointerId, e.currentTarget, cardEl, e.clientX, e.clientY); } }}>{panel.content}</DockedPanelCard>
+            </Panel>
+          </Fragment>
+        ); })}
       </Group>
+      {dragState && chipTop !== null && <div className="panel-column__insert-chip panel-column__insert-chip--visible" style={{ top: chipTop }} aria-hidden="true" />}
+      {dragState && draggedPanel && <div className="panel-column__ghost" style={{ transform: `translate(${dragState.pointerPosition.x - dragState.grabOffset.x}px, ${dragState.pointerPosition.y - dragState.grabOffset.y}px)` }} aria-hidden="true"><div className="docked-panel-card"><div className="docked-panel-card__titlebar"><span className="docked-panel-card__title">{draggedPanel.title}</span></div>{!draggedPanel.collapsed && <div className="docked-panel-card__content">{draggedPanel.content}</div>}</div></div>}
     </div>
   );
 }

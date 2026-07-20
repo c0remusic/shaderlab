@@ -58,3 +58,7 @@
   outline: var(--focus-width) solid var(--focus-color);
   outline-offset: var(--focus-offset);
 }
+
+.panel-column__insert-chip { position: absolute; left: 50%; height: 8px; width: 20px; background: var(--border-selection); border-radius: 999px; opacity: 0; transform: translate(-50%, -50%) scale(0.85); transition: top 80ms var(--ease-standard), opacity 100ms var(--ease-standard), transform 100ms var(--ease-standard); pointer-events: none; box-shadow: 0 1px 3px rgba(8, 7, 6, .35); z-index: var(--z-popover); }
+.panel-column__insert-chip--visible { opacity: 0.9; transform: translate(-50%, -50%) scale(1); }
+.panel-column__ghost { position: fixed; top: 0; left: 0; width: var(--inspector-width-default); opacity: 0.85; pointer-events: none; box-shadow: var(--shadow-dragging); z-index: var(--z-popover); }

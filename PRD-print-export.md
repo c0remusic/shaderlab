@@ -86,10 +86,13 @@ vente en tirage physique.
 
 ## Terminé = démontrable
 
-- Sur une fixture synthétique (dégradé linéaire construit, pas une photo),
+- Sur une fixture synthétique dont les valeurs sont choisies **hors grille
+  8-bit** (aucun échantillon aligné sur un multiple de 256, pour qu'une
+  quantification intermédiaire soit forcée de produire un écart mesurable),
   la sortie TIFF est comparée numériquement à une référence calculée
   indépendamment en haute précision (même dégradé, même conversion de gamut,
-  jamais quantifiée en 8-bit) avec une tolérance définie — un comptage de
+  jamais quantifiée en 8-bit) avec une **tolérance strictement inférieure à
+  l'erreur minimale qu'une quantification 8-bit produirait** — un comptage de
   niveaux ou une détection de paliers seuls ne suffit pas : la conversion de
   gamut peut redistribuer les valeurs hors des multiples de 256 même si le
   pipeline a quantifié en 8-bit avant, donc seule une comparaison à une

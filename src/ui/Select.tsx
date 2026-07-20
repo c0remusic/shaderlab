@@ -14,10 +14,19 @@ export interface SelectProps {
 }
 
 interface ListboxRect {
-  top: number;
   left: number;
   width: number;
+  /** Un seul des deux est posé : `top` (ouverture vers le bas, cas par
+   *  défaut) ou `bottom` (retourné vers le haut si la place manque en bas
+   *  du viewport, cf. calcul dans l'effet de positionnement). */
+  top?: number;
+  bottom?: number;
 }
+
+/** max-height de .ui-select__listbox (src/ui/overlays.css) — dupliqué ici
+ *  pour le calcul de retournement viewport ; pas de lecture CSS->JS possible
+ *  avant montage (le portail n'existe pas encore au moment du calcul). */
+const LISTBOX_MAX_HEIGHT = 240;
 
 /**
  * Custom button + listbox select (not a native <select>). La listbox est
@@ -45,7 +54,6 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
 
   useEffect(() => {
     if (!open) return;
-    listRef.current?.focus();
 
     function handlePointerDown(event: PointerEvent) {
       const target = event.target as Node;
@@ -57,6 +65,16 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [open]);
 
+  // Le focus ne peut être posé qu'APRÈS que le portail a réellement monté la
+  // listbox dans le DOM — càd après que `listboxRect` (effet suivant) a été
+  // calculé et a déclenché le re-render qui la crée. Un seul effet sur
+  // `[open]` ciblait encore `listRef.current` = null à la première ouverture
+  // (finding codex-crosscheck HAUTE).
+  useEffect(() => {
+    if (!open || !listboxRect) return;
+    listRef.current?.focus();
+  }, [open, listboxRect]);
+
   // Position fixe recalculée à l'ouverture + à chaque scroll (capture: true
   // pour intercepter le scroll d'un ancêtre imbriqué, ex. FloatingPanel__content)
   // et resize — pas de suivi continu pendant le scroll, la liste se referme
@@ -67,7 +85,17 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
     const trigger = triggerRef.current;
     if (!trigger) return;
     const rect = trigger.getBoundingClientRect();
-    setListboxRect({ top: rect.bottom, left: rect.left, width: rect.width });
+    // --space-2 lu sur :root (existe indépendamment du montage du portail) —
+    // source unique avec le token CSS plutôt qu'une valeur dupliquée en dur.
+    const gapPx =
+      parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--space-2")) || 4;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const needsFlip = spaceBelow < LISTBOX_MAX_HEIGHT + gapPx && rect.top > spaceBelow;
+    setListboxRect(
+      needsFlip
+        ? { bottom: window.innerHeight - rect.top + gapPx, left: rect.left, width: rect.width }
+        : { top: rect.bottom + gapPx, left: rect.left, width: rect.width }
+    );
 
     function closeOnScrollOrResize() {
       setOpen(false);
@@ -227,7 +255,11 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
             aria-labelledby={labelId}
             aria-activedescendant={activeIndex >= 0 ? `${id}-option-${activeIndex}` : undefined}
             className="ui-select__listbox"
-            style={{ top: listboxRect.top, left: listboxRect.left, width: listboxRect.width }}
+            style={{
+              left: listboxRect.left,
+              width: listboxRect.width,
+              ...(listboxRect.top !== undefined ? { top: listboxRect.top } : { bottom: listboxRect.bottom }),
+            }}
             tabIndex={-1}
             onKeyDown={handleListKeyDown}
           >

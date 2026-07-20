@@ -70,7 +70,6 @@
      le rect du trigger) — portalé dans document.body, ne dépend plus d'un
      ancêtre en overflow: visible (finding auditor HAUTE, 2026-07-20). */
   position: fixed;
-  margin-top: var(--space-2);
   z-index: var(--z-popover);
   max-height: 240px;
   margin: 0;

@@ -33,8 +33,25 @@
 > retiré après test), thème neutre façon Photoshop appliqué (tokens Adobe
 > Spectrum réels). 2 checkpoints visuels humains en attente. `PRD-floating-panel-rail.md`
 > cadré (rail d'icônes dockable) mais PAS implémenté — brainstorming à faire
-> en premier. Tranche 3 masquage (edge-aware guided filter) démarrée, en
-> pause avant le câblage GPU (`ADR-0001` tranche la décision de buffers).
+> en premier. **Tranche 3 masquage** (Tasks 1-6 : edge-aware guided filter,
+> refine edge forme-seule, sources paramétriques dégradé/luminosité/range
+> couleur, câblage GPU + UI panneau Masque) **entièrement CODÉE et
+> review-clean** au 2026-07-20 (`.superpowers/sdd/progress.md`) — mais le
+> checkpoint visuel final (8 points, Task 6 Step 13) est BLOQUÉ : problèmes
+> pré-existants sur `FloatingPanel` (thème incohérent, canvas mal centré,
+> imbrication panneaux cassée) découverts en tentant ce checkpoint. 2 bugs
+> réels déjà corrigés (`3e4f41c` : compensation centrage canvas doublée par
+> erreur ; position Réglages suppose Calques toujours à hauteur max). Suite
+> à la demande d'Antoine de rapprocher l'UI de Photoshop en ligne, `FloatingPanel`
+> (drag libre + magnétisme + nudge clavier) est en cours de REMPLACEMENT par
+> un système de cartes empilées FIXES (dock à droite, splitter redimensionnable,
+> plus de drag) — design doc validé-en-cours de relecture Antoine :
+> `docs/superpowers/specs/2026-07-20-shaderlab-docked-panels-design.md`
+> (+ référence tokens réels `docs/design-system/photoshop-web-reference-tokens.md`,
+> wireframe `docs/wireframes/docked-panels.html`). Une fois ce remplacement
+> fait, le checkpoint Tranche 3 (et les checkpoints différés Task 1 Step 15 /
+> Task 2 Step 9) redeviendra possible. `ADR-0001` (buffers GPU jetables par
+> frame) reste valide et appliqué.
 
 ## Langage partagé
 

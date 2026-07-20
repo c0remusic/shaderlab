@@ -16,7 +16,7 @@ import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterS
 import { getBrushRaster } from "./mask/brushSource";
 import { FloatingPanel } from "./components/floatingPanel/FloatingPanel";
 import { DEFAULT_PANEL_COLUMN_WIDTH, COLLAPSED_PANEL_HEIGHT } from "./components/floatingPanel/effectiveViewport";
-import { computeSnappedPosition } from "./components/floatingPanel/snapping";
+import { computeSnappedPosition, PANEL_GAP } from "./components/floatingPanel/snapping";
 import { LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
 import { getEffect } from "./render/effects/registry";
@@ -87,18 +87,32 @@ export default function App() {
   // pas d'une marge en dur — les panneaux s'alignent flush au bord droit du
   // canvas et à PANEL_GAP l'un de l'autre dès le lancement, cohérent avec le
   // comportement obtenu après un drag manuel (retour Antoine, 2026-07-20).
-  const initialCanvasSize = { width: window.innerWidth, height: window.innerHeight };
-  const layersRawPosition = { x: initialCanvasSize.width - PANEL_SIZE.width - 1, y: 52 };
+  // `.workspace` réel (pas window.innerWidth/innerHeight bruts, même finding
+  // auditor 2026-07-20 que pour canvasSize/workspaceSize plus bas) : au
+  // premier rendu le ResizeObserver n'a pas encore mesuré, donc l'approximation
+  // fenêtre reste la meilleure info disponible à cet instant précis — mais on
+  // réutilise `workspaceSize` (déjà initialisé à la même valeur par défaut)
+  // comme SEULE source, pas une deuxième lecture indépendante de la fenêtre
+  // (finding codex-crosscheck MOYENNE, 2026-07-20).
+  const layersRawPosition = { x: workspaceSize.width - PANEL_SIZE.width - 1, y: 52 };
   const layersInitialPosition = computeSnappedPosition(
     { ...layersRawPosition, width: PANEL_SIZE.width, height: PANEL_SIZE.height },
     [],
-    initialCanvasSize
+    workspaceSize
   );
+  // Si les deux panneaux pleine hauteur ne tiennent pas sous le viewport
+  // minimal supporté (--window-min-height, cf. src/design/components.css),
+  // computeSnappedPosition CLAMPERAIT Réglages par-dessus Calques au lieu de
+  // respecter PANEL_GAP (finding codex-crosscheck MOYENNE, 2026-07-20) —
+  // repli : démarrer Réglages replié plutôt que superposé.
+  const paramsFitsExpanded =
+    layersInitialPosition.y + PANEL_SIZE.height + PANEL_GAP + PANEL_SIZE.height <= workspaceSize.height;
+  const paramsHeight = paramsFitsExpanded ? PANEL_SIZE.height : COLLAPSED_PANEL_HEIGHT;
   const paramsRawPosition = { x: layersInitialPosition.x, y: layersInitialPosition.y + PANEL_SIZE.height + 1 };
   const paramsInitialPosition = computeSnappedPosition(
-    { ...paramsRawPosition, width: PANEL_SIZE.width, height: PANEL_SIZE.height },
+    { ...paramsRawPosition, width: PANEL_SIZE.width, height: paramsHeight },
     [{ id: "layers", rect: { ...layersInitialPosition, width: PANEL_SIZE.width, height: PANEL_SIZE.height } }],
-    initialCanvasSize
+    workspaceSize
   );
   const [layersPanel, setLayersPanel] = useState({
     position: layersInitialPosition,
@@ -106,7 +120,7 @@ export default function App() {
   });
   const [paramsPanel, setParamsPanel] = useState({
     position: paramsInitialPosition,
-    collapsed: false,
+    collapsed: !paramsFitsExpanded,
   });
   const layersPanelHeight = layersPanel.collapsed ? COLLAPSED_PANEL_HEIGHT : PANEL_SIZE.height;
   const paramsPanelHeight = paramsPanel.collapsed ? COLLAPSED_PANEL_HEIGHT : PANEL_SIZE.height;

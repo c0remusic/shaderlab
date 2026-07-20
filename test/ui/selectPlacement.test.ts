@@ -33,16 +33,22 @@ describe("computeListboxPlacement", () => {
     expect(result.maxHeight).toBeLessThan(MAX_HEIGHT);
   });
 
-  it("espace égal des deux côtés -> pas de flip (côté par défaut : en dessous)", () => {
-    const result = computeListboxPlacement(trigger(100, 120), 240, GAP, MAX_HEIGHT);
-    // spaceAbove=100, spaceBelow=120 -> spaceAbove > spaceBelow est faux -> pas de flip
-    expect(result.top).toBeDefined();
+  it("espace strictement égal des deux côtés (sous le seuil) -> pas de flip (égalité stricte, > pas >=)", () => {
+    // viewport 400, trigger(200,200) (hauteur 0) : spaceAbove=200, spaceBelow=200, égalité exacte.
+    // Régression possible testée ici : si `>` devenait `>=`, ce cas basculerait à tort en flip.
+    const result = computeListboxPlacement(trigger(200, 200), 400, GAP, MAX_HEIGHT);
+    expect(result.top).toBe(200 + GAP);
     expect(result.bottom).toBeUndefined();
+    expect(result.maxHeight).toBe(200 - GAP);
   });
 
-  it("espace disponible négatif (trigger hors viewport) -> maxHeight jamais négatif", () => {
-    const result = computeListboxPlacement(trigger(-50, -10), 100, GAP, MAX_HEIGHT);
-    expect(result.maxHeight).toBeGreaterThanOrEqual(0);
+  it("espace disponible négatif des deux côtés (trigger plus grand que le viewport) -> maxHeight jamais négatif", () => {
+    // viewport 50, trigger(-50,200) couvre tout le viewport et déborde des deux côtés :
+    // spaceAbove=-50, spaceBelow=50-200=-150 -> côté le "moins négatif" choisi (au-dessus),
+    // mais availableSpace(-50-4=-54) reste négatif -> exerce réellement Math.max(0, ...).
+    const result = computeListboxPlacement(trigger(-50, 200), 50, GAP, MAX_HEIGHT);
+    expect(result.bottom).toBeDefined();
+    expect(result.maxHeight).toBe(0);
   });
 
   it("conserve toujours left/width du trigger", () => {

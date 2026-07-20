@@ -10,6 +10,12 @@
   ],
   "specs": [
     {
+      "path": "docs/superpowers/specs/2026-07-20-shaderlab-floating-panels-design.md",
+      "date": "2026-07-20",
+      "topic": "Design (COMMENT) système de panneaux flottants (Calques/Réglages/futur Masques) — issu de brainstorming",
+      "summary": "Parti d'une demande ponctuelle (bouton settings pour replier les params d'effet) qui a ouvert une refonte de layout : Calques et Réglages deviennent des instances d'un composant FloatingPanel générique (que la Tranche 4 réutilisera pour Masques, déjà designé dans layers-masking-design.md §6), au lieu de rester dockés dans l'Inspector fixe actuel. Canvas passe plein écran, panneaux positionnés par-dessus. Décisions clés : magnétisme bidirectionnel (vertical+horizontal, entre modules ET bords canvas) réagissant seulement au relâchement du drag (pas de recalcul dynamique si un panneau ancre bouge ensuite) ; fantôme semi-transparent qui suit le curseur pendant le drag (position d'origine estompée jusqu'au relâchement) ; repli/dépli INSTANTANÉ sans animation (tout le reste garde une transition) ; centrage du canvas compensé UNE FOIS pour la largeur par défaut du dock virtuel (statique, pas réactif) — interface à poser avec le PRD pan/zoom (2026-07-18-shaderlab-canvas-pan-zoom-prd.md, non implémenté) sur le viewport effectif. Portée tranchée à 2 panneaux (Calques, Réglages) pas un panneau par calque (YAGNI). Méthode notable : 2 corrections de session actées comme règles permanentes — ne jamais montrer un diagramme abstrait quand un mockup UI concret est demandé, et ne jamais halluciner un comportement d'animation à partir d'un screenshot statique (Antoine a dû aller observer Photoshop lui-même pour les vraies infos motion)."
+    },
+    {
       "path": "docs/superpowers/specs/2026-07-18-shaderlab-layers-masking-design.md",
       "date": "2026-07-18",
       "topic": "Design (COMMENT) système de calques & masquage — issu de brainstorming",

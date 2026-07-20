@@ -5,18 +5,80 @@
 > `C:\Users\LEETJ\Desktop\shaderlab` — l'ancien chemin n'existe plus ; une
 > relocalisation d'un repo Tauri exige un `cargo clean` COMPLET : le cache
 > `target/` contient des chemins absolus périmés qui cassent le build-script.)
-> Branche de dev active : `feature/design-system` (MVP mergé sur master ;
-> `feature/archi-remediation` mergé le 2026-07-16). ✅ Le crash de peinture au
-> masque à 24MP est RÉSOLU le 2026-07-18 (`e3c7584`) : la cause n'était NI le
-> GPU NI le driver mais le buffer `maskData` r8 de ~26 Mo transitant par le
-> state React, qui fait hanger WebView2 au re-render de `setLayers()` en fin
-> de stroke (les 3 fix précédents — dirty-rect, GPU-copy, wait-for-idle —
-> ciblaient tous le GPU/timing, d'où leur échec). Fix : `maskData` hors du
-> state React (`src/layers/displayProjection.ts`, `toDisplayLayers`). Règle
-> héritée : garder les gros buffers/textures de masque HORS du state React.
-> Tranche 1 (blend + opacité par calque, `src/render/blend/`) livrée le
-> 2026-07-19. Détails : `.claude/learning-log.md` et la mémoire projet
-> `design-system-branch-reconciliation`.
+> Branche de dev active : `feature/design-system` (plan design system Tasks
+> 1-10, MVP mergé sur master). `feature/archi-remediation` (11-task
+> remédiation archi + fix OOM peinture au masque, voir `src/render/maskUpload.ts`)
+> a été MERGÉ dans `feature/design-system` le 2026-07-16 (divergence à `0a2e151`,
+> jamais reconvergée avant ce merge) — n'est plus un worktree de travail séparé ;
+> le worktree `shaderlab-archi-remediation` a été RETIRÉ le 2026-07-16
+> (`git worktree remove`, branche `feature/archi-remediation` conservée). Checkpoint
+> humain visuel du fix dirty-rect toujours EN ATTENTE de confirmation (voir
+> `docs/INDEX.json`). `design-system-mine` : commits superseded (worktree retiré
+> le 2026-07-16, branche conservée) — voir la mémoire projet
+> `design-system-branch-reconciliation`. ✅ Le crash de peinture au masque à
+> 24MP est RÉSOLU le 2026-07-18 (`e3c7584`) : la cause n'était NI le GPU NI le
+> driver mais le buffer `maskData` r8 de ~26 Mo transitant par le state React,
+> qui fait hanger WebView2 au re-render de `setLayers()` en fin de stroke (les 3
+> fix précédents — dirty-rect, GPU-copy, wait-for-idle — ciblaient tous le
+> GPU/timing, d'où leur échec). Fix : `maskData` hors du state React —
+> `layersRef` = source de vérité complète pour rendu/historique/export, le state
+> React n'est qu'une projection d'affichage sans `maskData`
+> (`src/layers/displayProjection.ts`, `toDisplayLayers`). Règle héritée : garder
+> les gros buffers/textures de masque HORS du state React. `device.lost` reste
+> remonté à l'UI (`ErrorBanner`, `src/render/gpuContext.ts`). Détails dans
+> `.claude/learning-log.md` (entrée 2026-07-18) et le bandeau RÉSOLU de
+> `docs/superpowers/specs/2026-07-17-native-wgpu-decision.md`. Tranche
+> panneaux flottants (`FloatingPanel`) TERMINÉE le 2026-07-20 : `Inspector.tsx`
+> supprimé, magnétisme entre panneaux uniquement (jamais au bord canvas,
+> retiré après test), thème neutre façon Photoshop appliqué (tokens Adobe
+> Spectrum réels). 2 checkpoints visuels humains en attente. `PRD-floating-panel-rail.md`
+> cadré (rail d'icônes dockable) mais PAS implémenté — brainstorming à faire
+> en premier. **Tranche 3 masquage** (Tasks 1-6 : edge-aware guided filter,
+> refine edge forme-seule, sources paramétriques dégradé/luminosité/range
+> couleur, câblage GPU + UI panneau Masque) **codée et review-clean** au
+> 2026-07-20 (`.superpowers/sdd/progress.md`), avec UN gap spec RÉEL non
+> détecté par la review Steps 10-12 (verdict "spec ✅" trop optimiste,
+> basé sur la section Interfaces du brief Task 6 sans relire le corps du
+> Step 10) : le plan
+> (`docs/superpowers/plans/2026-07-20-shaderlab-masking-tranche3.md:1616`,
+> Step 10 point 2) exige une checkbox `enabled` par source de masque dans
+> l'UI — jamais livrée, `LayerStack` n'expose que `setMaskEnabled` au
+> niveau du masque entier, pas de setter par source. À trancher : ajouter
+> `setMaskSourceEnabled`, ou documenter formellement ce point comme différé
+> dans le plan lui-même (pas encore fait). Le checkpoint visuel
+> final (8 points, Task 6 Step 13) est BLOQUÉ : problèmes
+> pré-existants sur `FloatingPanel` (thème incohérent, canvas mal centré,
+> imbrication panneaux cassée) découverts en tentant ce checkpoint. 2 bugs
+> réels déjà corrigés (`3e4f41c` : compensation centrage canvas doublée par
+> erreur ; position Réglages suppose Calques toujours à hauteur max). Suite
+> à la demande d'Antoine de rapprocher l'UI de Photoshop en ligne, `FloatingPanel`
+> (drag libre + magnétisme + nudge clavier) a été **REMPLACÉ** le 2026-07-20/21
+> par `PanelColumn`/`DockedPanelCard` (dock fixe à droite, splitter vertical
+> `react-resizable-panels`) : plan `docs/superpowers/plans/2026-07-20-shaderlab-docked-panels.md`
+> (8 tâches, review-clean, `src/components/floatingPanel/` entièrement
+> supprimé). Le checkpoint visuel humain (Task 8) a été fait via CDP +
+> confirmation Antoine EN DIRECT dans la conversation — 3 demandes de suite
+> en sont sorties (pas des bugs, des manques identifiés à l'usage) :
+> réordonner les cartes par glisser-déposer, redimensionner la colonne en
+> largeur, thème visuel encore trop éloigné de Photoshop web. Design doc
+> `docs/superpowers/specs/2026-07-21-shaderlab-panel-drag-reorder-design.md`
+> + plan combiné `docs/superpowers/plans/2026-07-21-shaderlab-dock-reorder-and-theme-polish.md`
+> couvrent 2 des 3 : drag-to-reorder (Tasks 4-7 du plan) et thème réduit à
+> une échelle d'ombres nommée (`--shadow-dragging`/`--shadow-popover`, Tasks
+> 1-2) + ratio padding boutons (Task 3) — **en cours d'exécution par Codex au
+> 2026-07-21** (Tasks 1-5/8 committées au dernier point de contrôle : tokens
+> d'ombre, application popovers, padding boutons, extraction
+> `src/ui/dragReorder.ts`, migration `LayerPanel` — vérifier `git log` pour
+> l'avancement réel avant de repartir dessus). **Redimensionnement en
+> largeur de la colonne** (3e demande, 240-400px déjà bornés via
+> `--inspector-width-min/max`) : PAS DANS CE PLAN — oublié lors de la
+> combinaison des chantiers, décision Antoine 2026-07-21 : un plan séparé,
+> écrit APRÈS que celui en cours soit terminé, pas de brainstorming à
+> refaire (le scope est déjà connu : splitter horizontal symétrique au
+> splitter vertical existant). `ADR-0001` (buffers GPU jetables par frame)
+> reste valide et appliqué. Le checkpoint Tranche 3 masquage (gap spec
+> checkbox `enabled` par source, voir plus haut) reste à refaire une fois
+> CE remplacement de panneaux stabilisé — pas encore retenté depuis.
 
 ## Langage partagé
 
@@ -47,13 +109,29 @@ Tauri v2 (coquille Rust minimale, lib = `shaderlab_lib`) · React 19 + TS ·
 Vite · **WebGPU/WGSL brut** (pas de lib de rendu) · Vitest (Node env, aucun
 test ne rend de composant React — même convention que track-finder).
 
+**UI** : Tailwind v4 (`@tailwindcss/vite`) + `shadcn/ui` (style `base-ui`,
+PAS Radix — `components.json`). Tokens de marque = `src/design/{primitives,
+semantic,components}.css`, mappés dans `src/design/tailwind-theme.css`
+(jamais redéfinis). Migration en cours composant par composant : `ErrorBanner`/
+`Toolbar`/`BrushToolbar` migrés (2026-07-20) ; `LayerPanel`/`ParamPanel`/
+`Canvas` encore en CSS classique. `Inspector.tsx` (aside dockée fixe)
+supprimé le 2026-07-20, remplacé par `FloatingPanel`
+(panneaux déplaçables/repliables/dockables), lui-même **supprimé le
+2026-07-20/21** et remplacé par `PanelColumn`/`DockedPanelCard`
+(`src/components/dockedPanel/`, dock fixe + splitter `react-resizable-panels`
+— voir `docs/superpowers/specs/2026-07-20-shaderlab-docked-panels-design.md`)
+— ne plus citer `FloatingPanel`/`src/components/floatingPanel/` comme
+composant existant ou à migrer, le dossier n'existe plus. Voir aussi
+`docs/superpowers/specs/2026-07-20-shadcn-migration-design.md`.
+
 Décisions techniques verrouillées (voir design.md pour les preuves) :
 - **Toutes les textures couleur au format sRGB préféré de la plateforme**
   (`${navigator.gpu.getPreferredCanvasFormat()}-srgb` — donc `bgra8unorm-srgb`
   sur Windows/D3D12, `rgba8unorm-srgb` ailleurs ; voir `gpuContext.ts:68-69`) —
   conversion sRGB↔linéaire automatique par le format, JAMAIS de gamma manuel en
   WGSL. Sans ça, glow/grain/blur sont mathématiquement faux (constat d'audit).
-  Ne jamais coder `rgba8unorm-srgb` en dur — c'est faux sur Windows.
+  (Le canal ordre bgra vs rgba est transparent en WGSL via `textureSample` ;
+  ne jamais coder `rgba8unorm-srgb` en dur — c'est faux sur Windows.)
 - **Pas de distinction preview/export** — un seul pipeline, résolution
   native, toujours (décision utilisateur explicite, pas de downscale).
 - JPEG traité comme sRGB, pas de lecture de profil ICC en v1 (limitation
@@ -70,7 +148,9 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
 - Build frontend seul : `npm run build` (tsc + vite build)
 - Tests : `npm run test` (Vitest)
 - Type-check : `npx tsc --noEmit`
+- Lint tokens design : `npm run lint:tokens` (détecte couleurs/z-index/spacing en dur qui contournent un token existant, `scripts/lint-tokens.mjs`)
 - Rust : `cd src-tauri && cargo check`
+- Storybook (composants React isolés, tokens réels via `src/design/index.css`) : `npm run storybook` (dev, port 6006) · `npm run build-storybook` (static)
 
 ## Structure (état réel)
 
@@ -88,9 +168,8 @@ src/
 src-tauri/              — coquille Rust (main.rs shim → lib.rs run())
 test/                   — miroir de src/, fixtures réelles
 docs/superpowers/
-  specs/2026-07-13-shaderlab-standalone-v1-design.md — spec (source de vérité)
-  plans/2026-07-13-shaderlab-design-system.md        — plan design system en cours
-  changes/2026-07-12-shaderlab-mvp/design.md         — historique, remplacé le 2026-07-13
+  changes/2026-07-12-shaderlab-mvp/design.md   — spec (source de vérité)
+  plans/2026-07-12-shaderlab-mvp.md            — plan 16 tâches
 .superpowers/sdd/       — ledger subagent-driven-dev (progress.md, briefs,
                           reports, diffs de review) — scratch git-ignoré
 ```
@@ -143,7 +222,7 @@ docs/superpowers/
   `Get-Process -Name shaderlab` avant de lancer `dev:debug` si plusieurs
   lignes de travail sont actives en parallèle (voir la note worktree
   ci-dessus).
-- **Autonomie terminal de Claude** : Claude est autorisé à lancer lui-même les
+- **Autonomie terminal de l'agent** : l'agent est autorisé à lancer lui-même les
   commandes PowerShell nécessaires au développement, aux tests, au diagnostic
   et au monitoring dans ce repo. Ne pas demander à l'utilisateur de recopier
   une commande ou de lire une console lorsque l'agent peut le faire localement.
@@ -189,6 +268,13 @@ docs/superpowers/
   Si un futur besoin de dialogue (dossier, sauvegarde...) refait surface,
   ne PAS reprendre `tauri-plugin-dialog` sans revalider ce point d'abord.
 
+## Moyen de preuve (UI) — déclaré (règle CLAUDE.md/AGENTS.md global)
+**Playwright headless est INADAPTÉ ici** : le canvas WebGPU en WebView2 rend noir
+en headless (aucun rendu GPU) — un screenshot Playwright serait un œil aveugle qui
+dit « vu ». **Preuve UI = CDP sur la vraie fenêtre WebView2** (`--remote-debugging-port=9222`,
+voir Méthode ci-dessus) + checkpoint visuel humain. Le screenshot Playwright vaut
+seulement pour un futur écran web pur sans canvas GPU.
+
 ## Risques ouverts / gates
 
 - **Task 2 = go/no-go WebGPU dans WebView2** : code revu et approuvé, en
@@ -214,11 +300,20 @@ semantic.css mais pas dans tokens.md). Wireframes de feature → `docs/wireframe
 
 ## Outillage / routage skills
 
-Même règle impérative que tous les projets (`~/.Codex/AGENTS.md`, section
+Même règle impérative que tous les projets (`~/.claude/CLAUDE.md`, section
 routage skills). Inventaire = la vue générée `~/.claude/skills-view.md`
 (remplace l'ex-`docs/skills-registre.md`, supprimé). Packs de contexte (sizing) :
-`.claude/rules/context-packs.md`. Décisions d'outillage prises jusqu'ici : cycle complet
+`.claude/rules/context-packs.md`. Décisions d'outillage : cycle complet
 `superpowers:brainstorming` → `writing-plans` → `subagent-driven-development` ;
 audits de spec via sous-agent `general-purpose` adverse ; recherches
 techniques via WebSearch avec vérification des licences (webgpu-image-filter
 n'a PAS de licence — inspiration seulement, jamais de copie verbatim).
+
+Verdicts projet uniques (delta du registre supprimé, non déjà dans § Méthode) :
+- **Modèles par rôle (sizing)** : haiku = transcription de plan / fixes
+  mécaniques ; sonnet = spike / intégration / review (haiku a écrit le scaffold
+  main de travers en Task 1 → 2 passes de fix ; sonnet clean du premier coup).
+- **`interface-design`** : utilisée en mode « direct et concret », PAS l'exercice
+  créatif complet (l'exploration de domaine/signature a été jugée hors-sujet le
+  2026-07-13 ; reprise directe sur palette/typo calées sur références validées,
+  tokens dans `.interface-design/system.md`).

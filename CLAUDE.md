@@ -115,10 +115,13 @@ semantic,components}.css`, mappés dans `src/design/tailwind-theme.css`
 (jamais redéfinis). Migration en cours composant par composant : `ErrorBanner`/
 `Toolbar`/`BrushToolbar` migrés (2026-07-20) ; `LayerPanel`/`ParamPanel`/
 `Canvas` encore en CSS classique. `Inspector.tsx` (aside dockée fixe)
-**supprimé** le 2026-07-20, remplacé par `FloatingPanel`
-(`src/components/floatingPanel/`, panneaux déplaçables/repliables/dockables —
-voir `docs/superpowers/specs/2026-07-20-shaderlab-floating-panels-design.md`)
-— ne plus le citer comme composant à migrer. Voir aussi
+supprimé le 2026-07-20, remplacé par `FloatingPanel`
+(panneaux déplaçables/repliables/dockables), lui-même **supprimé le
+2026-07-20/21** et remplacé par `PanelColumn`/`DockedPanelCard`
+(`src/components/dockedPanel/`, dock fixe + splitter `react-resizable-panels`
+— voir `docs/superpowers/specs/2026-07-20-shaderlab-docked-panels-design.md`)
+— ne plus citer `FloatingPanel`/`src/components/floatingPanel/` comme
+composant existant ou à migrer, le dossier n'existe plus. Voir aussi
 `docs/superpowers/specs/2026-07-20-shadcn-migration-design.md`.
 
 Décisions techniques verrouillées (voir design.md pour les preuves) :

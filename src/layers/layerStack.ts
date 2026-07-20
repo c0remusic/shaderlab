@@ -1,5 +1,7 @@
 import type { LayerState } from "./types";
-import { defaultLayerMask, createBrushSource } from "../mask/types";
+import { defaultLayerMask, createBrushSource, createParametricSource } from "../mask/types";
+import type { MaskSourceType, CombineMode, RefineEdgeParams } from "../mask/types";
+import { getMaskSourceModule } from "../mask/sources/registry";
 
 let nextId = 0;
 function freshId(): string {
@@ -63,6 +65,46 @@ export class LayerStack {
     const nextSource = { ...existing, raster: fresh };
     const nextSources = layer.mask.sources.map((s, i) => (i === idx ? nextSource : s));
     layer.mask = { ...layer.mask, sources: nextSources };
+  }
+
+  addMaskSource(layerId: string, type: Exclude<MaskSourceType, "brush">): string {
+    const layer = this.layers.find((l) => l.id === layerId);
+    if (!layer) throw new Error(`Calque introuvable: ${layerId}`);
+    const module = getMaskSourceModule(type);
+    const id = freshId();
+    const source = createParametricSource(id, type, { ...module.defaultParams });
+    layer.mask = { ...layer.mask, sources: [...layer.mask.sources, source] };
+    return id;
+  }
+
+  removeMaskSource(layerId: string, sourceId: string): void {
+    const layer = this.layers.find((l) => l.id === layerId);
+    if (!layer) throw new Error(`Calque introuvable: ${layerId}`);
+    layer.mask = { ...layer.mask, sources: layer.mask.sources.filter((s) => s.id !== sourceId) };
+  }
+
+  updateMaskSourceParams(layerId: string, sourceId: string, params: Record<string, number | number[]>): void {
+    const layer = this.layers.find((l) => l.id === layerId);
+    if (!layer) throw new Error(`Calque introuvable: ${layerId}`);
+    layer.mask = {
+      ...layer.mask,
+      sources: layer.mask.sources.map((s) => (s.id === sourceId ? { ...s, params } : s)),
+    };
+  }
+
+  setMaskSourceCombineMode(layerId: string, sourceId: string, mode: CombineMode): void {
+    const layer = this.layers.find((l) => l.id === layerId);
+    if (!layer) throw new Error(`Calque introuvable: ${layerId}`);
+    layer.mask = {
+      ...layer.mask,
+      sources: layer.mask.sources.map((s) => (s.id === sourceId ? { ...s, combineMode: mode } : s)),
+    };
+  }
+
+  updateRefineEdge(layerId: string, refineEdge: Partial<RefineEdgeParams>): void {
+    const layer = this.layers.find((l) => l.id === layerId);
+    if (!layer) throw new Error(`Calque introuvable: ${layerId}`);
+    layer.mask = { ...layer.mask, refineEdge: { ...layer.mask.refineEdge, ...refineEdge } };
   }
 
   setMaskInvert(id: string, invert: boolean): void {

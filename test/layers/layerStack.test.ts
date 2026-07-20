@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { LayerStack } from "../../src/layers/layerStack";
+import { getMaskSourceModule } from "../../src/mask/sources/registry";
 
 describe("LayerStack", () => {
   it("adds a layer with default params and enabled=true", () => {
@@ -113,5 +114,70 @@ describe("LayerStack mask model", () => {
     expect(copied.mask.sources[0].raster).toBe(original.mask.sources[0].raster); // shared
     copy.setMaskInvert(id, true);
     expect(original.mask.invert).toBe(false); // container not shared
+  });
+});
+
+describe("LayerStack — sources de masque paramétriques", () => {
+  it("addMaskSource crée une source avec les defaultParams du module, combineMode=add, enabled=true", () => {
+    const stack = new LayerStack();
+    const layerId = stack.addLayer("grain");
+    const sourceId = stack.addMaskSource(layerId, "gradient");
+    const layer = stack.layers.find((l) => l.id === layerId)!;
+    const source = layer.mask.sources.find((s) => s.id === sourceId)!;
+    expect(source.type).toBe("gradient");
+    expect(source.combineMode).toBe("add");
+    expect(source.enabled).toBe(true);
+    expect(source.params).toEqual(getMaskSourceModule("gradient").defaultParams);
+  });
+
+  it("removeMaskSource retire uniquement la source visée", () => {
+    const stack = new LayerStack();
+    const layerId = stack.addLayer("grain");
+    const a = stack.addMaskSource(layerId, "gradient");
+    const b = stack.addMaskSource(layerId, "luminosity");
+    stack.removeMaskSource(layerId, a);
+    const layer = stack.layers.find((l) => l.id === layerId)!;
+    expect(layer.mask.sources.map((s) => s.id)).toEqual([b]);
+  });
+
+  it("updateMaskSourceParams remplace params sans muter l'ancienne référence (immutabilité)", () => {
+    const stack = new LayerStack();
+    const layerId = stack.addLayer("grain");
+    const sourceId = stack.addMaskSource(layerId, "gradient");
+    const layer = stack.layers.find((l) => l.id === layerId)!;
+    const before = layer.mask.sources.find((s) => s.id === sourceId)!.params;
+    stack.updateMaskSourceParams(layerId, sourceId, { ...before!, feather: 0.5 });
+    const after = layer.mask.sources.find((s) => s.id === sourceId)!.params;
+    expect(after).not.toBe(before);
+    expect(after!.feather).toBe(0.5);
+  });
+
+  it("setMaskSourceCombineMode change le mode d'UNE source", () => {
+    const stack = new LayerStack();
+    const layerId = stack.addLayer("grain");
+    const sourceId = stack.addMaskSource(layerId, "gradient");
+    stack.setMaskSourceCombineMode(layerId, sourceId, "subtract");
+    const layer = stack.layers.find((l) => l.id === layerId)!;
+    expect(layer.mask.sources.find((s) => s.id === sourceId)!.combineMode).toBe("subtract");
+  });
+
+  it("setMaskInvert / setMaskEnabled changent le conteneur mask, pas une source", () => {
+    const stack = new LayerStack();
+    const layerId = stack.addLayer("grain");
+    stack.setMaskInvert(layerId, true);
+    stack.setMaskEnabled(layerId, false);
+    const layer = stack.layers.find((l) => l.id === layerId)!;
+    expect(layer.mask.invert).toBe(true);
+    expect(layer.mask.enabled).toBe(false);
+  });
+
+  it("updateRefineEdge merge partiellement sans écraser les autres champs", () => {
+    const stack = new LayerStack();
+    const layerId = stack.addLayer("grain");
+    stack.updateRefineEdge(layerId, { feather: 3 });
+    stack.updateRefineEdge(layerId, { edgeAware: true });
+    const layer = stack.layers.find((l) => l.id === layerId)!;
+    expect(layer.mask.refineEdge.feather).toBe(3);
+    expect(layer.mask.refineEdge.edgeAware).toBe(true);
   });
 });

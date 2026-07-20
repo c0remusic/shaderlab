@@ -6,6 +6,7 @@ import { blendRegistry } from "../render/blend/registry";
 import { Select } from "../ui/Select";
 import { Slider } from "../ui/Slider";
 import { IconButton } from "../ui/IconButton";
+import "./LayerPanel.css";
 
 interface Props {
   layers: LayerState[];

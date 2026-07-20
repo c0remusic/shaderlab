@@ -5,7 +5,6 @@ import { LayerStack } from "./layers/layerStack";
 import { History } from "./layers/history";
 import type { LayerState } from "./layers/types";
 import { toDisplayLayers } from "./layers/displayProjection";
-import { Inspector } from "./components/Inspector";
 import { BrushToolbar } from "./components/BrushToolbar";
 import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
@@ -15,6 +14,10 @@ import { getLaunchPath, readImageFile, pickImageFile } from "./launch";
 import { useGlobalControlWheel } from "./ui/activeControl";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 import { getBrushRaster } from "./mask/brushSource";
+import { FloatingPanel } from "./components/floatingPanel/FloatingPanel";
+import { LayerPanel } from "./components/LayerPanel";
+import { ParamPanel } from "./components/ParamPanel";
+import { getEffect } from "./render/effects/registry";
 
 export default function App() {
   useGlobalControlWheel();
@@ -49,6 +52,19 @@ export default function App() {
   // d'interaction ne pousse une entrée d'historique que si quelque chose a
   // réellement changé (un simple clic sans mouvement ne crée pas d'entrée).
   const paramDirtyRef = useRef(false);
+
+  // Position de départ des panneaux flottants : ancrés côté droit, même zone
+  // que l'ancien Inspector docké (design.md §2) — PAS une colonne contrainte
+  // en dur, seulement un point de départ librement déplaçable ensuite.
+  const PANEL_SIZE = { width: 288, height: 320 }; // largeur = DEFAULT_PANEL_COLUMN_WIDTH
+  const [layersPanel, setLayersPanel] = useState({
+    position: { x: window.innerWidth - PANEL_SIZE.width - 16, y: 52 },
+    collapsed: false,
+  });
+  const [paramsPanel, setParamsPanel] = useState({
+    position: { x: window.innerWidth - PANEL_SIZE.width - 16, y: 52 + PANEL_SIZE.height + 8 },
+    collapsed: false,
+  });
 
   // `layersRef` = source de vérité COMPLÈTE des calques (avec les rasters de
   // masque), pour le rendu GPU, l'historique et l'export. Le state React
@@ -349,6 +365,7 @@ export default function App() {
   }
 
   const selectedLayer = layers.find((l) => l.id === selectedId) ?? null;
+  const paramsPanelTitle = selectedLayer ? `Réglages · ${getEffect(selectedLayer.effectId).name}` : "Réglages";
 
   return (
     <div className="app-shell">
@@ -382,23 +399,47 @@ export default function App() {
           brushSize={brushSize}
           brushHardness={brushHardness}
         />
-        <Inspector
-          layers={layers}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          onToggle={handleToggle}
-          onAdd={handleAdd}
-          onRemove={handleRemove}
-          onReorder={handleReorder}
-          layer={selectedLayer}
-          onParamChange={handleParamChange}
-          onParamCommit={handleParamCommit}
-          onOpacityChange={handleOpacityChange}
-          onOpacityCommit={handleParamCommit}
-          onBlendModeChange={handleBlendModeChange}
-          maskPaintMode={maskPaintMode}
-          onToggleMaskPaint={() => setMaskPaintMode((v) => !v)}
-        />
+        <FloatingPanel
+          title="Calques"
+          position={layersPanel.position}
+          size={PANEL_SIZE}
+          collapsed={layersPanel.collapsed}
+          onPositionChange={(position) => setLayersPanel((s) => ({ ...s, position }))}
+          onCollapsedChange={(collapsed) => setLayersPanel((s) => ({ ...s, collapsed }))}
+          siblingRects={[{ id: "params", rect: { ...paramsPanel.position, ...PANEL_SIZE } }]}
+          canvasSize={{ width: window.innerWidth, height: window.innerHeight }}
+        >
+          <LayerPanel
+            layers={layers}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onToggle={handleToggle}
+            onAdd={handleAdd}
+            onRemove={handleRemove}
+            onReorder={handleReorder}
+            onOpacityChange={handleOpacityChange}
+            onOpacityCommit={handleParamCommit}
+            onBlendModeChange={handleBlendModeChange}
+          />
+        </FloatingPanel>
+        <FloatingPanel
+          title={paramsPanelTitle}
+          position={paramsPanel.position}
+          size={PANEL_SIZE}
+          collapsed={paramsPanel.collapsed}
+          onPositionChange={(position) => setParamsPanel((s) => ({ ...s, position }))}
+          onCollapsedChange={(collapsed) => setParamsPanel((s) => ({ ...s, collapsed }))}
+          siblingRects={[{ id: "layers", rect: { ...layersPanel.position, ...PANEL_SIZE } }]}
+          canvasSize={{ width: window.innerWidth, height: window.innerHeight }}
+        >
+          <ParamPanel
+            layer={selectedLayer}
+            onParamChange={handleParamChange}
+            onParamCommit={handleParamCommit}
+            maskPaintMode={maskPaintMode}
+            onToggleMaskPaint={() => setMaskPaintMode((v) => !v)}
+          />
+        </FloatingPanel>
       </main>
     </div>
   );

@@ -18,7 +18,14 @@ export const TwoPanels: StoryObj = {
       const size = { width: 288, height: 180 };
       const canvasSize = { width: 1000, height: 700 };
       return (
-        <div style={{ position: "relative", width: canvasSize.width, height: canvasSize.height, background: "#151310" }}>
+        <div
+          style={{
+            position: "relative",
+            width: canvasSize.width,
+            height: canvasSize.height,
+            background: "var(--surface-workspace)",
+          }}
+        >
           <FloatingPanel
             title="Calques"
             position={posA}

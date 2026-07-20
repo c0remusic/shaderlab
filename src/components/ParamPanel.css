@@ -1,0 +1,42 @@
+/*
+ * ParamPanel : sliders de réglage de l'effet du calque sélectionné, réutilisé
+ * dans un FloatingPanel (src/components/floatingPanel/FloatingPanel.tsx)
+ * depuis la migration hors de l'ancien Inspector docké. Chaque valeur
+ * ci-dessous est une référence de token (src/design/*.css).
+ */
+
+.param-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.param-panel__empty {
+  margin: 0;
+  padding: var(--space-4);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-md);
+  color: var(--text-tertiary);
+}
+
+.param-panel__hint {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+.param-panel__effect-name {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.param-panel__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-top: var(--space-2);
+}

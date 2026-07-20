@@ -1,5 +1,6 @@
 import type { LayerState } from "../layers/types";
 import { getEffect } from "../render/effects/registry";
+import "./ParamPanel.css";
 import { Slider } from "../ui/Slider";
 import { Button } from "../ui/Button";
 import { Disclosure } from "../ui/Disclosure";

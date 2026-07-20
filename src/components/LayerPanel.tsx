@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import { usePointerReorder, type DropPosition } from "../ui/dragReorder";
 import { Eye, EyeOff, GripVertical, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
@@ -156,11 +156,14 @@ export function LayerPanel({
     onReorder
   );
 
-  const handleGripPointerDown = (id: string, pointerId: number, target: Element, clientX: number, clientY: number) => {
-    // measureElement = target : LayerPanel n'utilise pas grabOffset/pointerPosition
-    // (pas de fantôme), measurer la poignée elle-même suffit.
-    handlePointerDown(id, pointerId, target, target, clientX, clientY);
-  };
+  const handleGripPointerDown = useCallback(
+    (id: string, pointerId: number, target: Element, clientX: number, clientY: number) => {
+      // measureElement = target : LayerPanel n'utilise pas grabOffset/pointerPosition
+      // (pas de fantôme), measurer la poignée elle-même suffit.
+      handlePointerDown(id, pointerId, target, target, clientX, clientY);
+    },
+    [handlePointerDown]
+  );
 
   return (
     <div className="layer-panel">

@@ -178,15 +178,27 @@ export function FloatingPanel({
         {!collapsed && <div className="floating-panel__content">{children}</div>}
       </div>
       {ghost && (
+        // Miroir de la structure réelle (titlebar + contenu), pas une boîte
+        // vide à taille fixe : sans ça, le fantôme ne montre jamais le vrai
+        // contenu du panneau ET change de taille par rapport à l'original dès
+        // le début du drag — le panneau d'origine est en flex/maxHeight
+        // (s'adapte au contenu réel, cf. FloatingPanel.css), un fantôme en
+        // `height` fixe divergeait visuellement à chaque fois que le contenu
+        // était plus court que `size.height` (retour Antoine, 2026-07-20).
         <div
           className="floating-panel floating-panel--ghost"
           style={{
             transform: `translate(${ghost.ghostPosition.x}px, ${ghost.ghostPosition.y}px)`,
             width: size.width,
-            height: size.height,
+            maxHeight: size.height,
           }}
           aria-hidden="true"
-        />
+        >
+          <div className="floating-panel__titlebar">
+            <span className="floating-panel__title">{title}</span>
+          </div>
+          {!collapsed && <div className="floating-panel__content">{children}</div>}
+        </div>
       )}
     </>
   );

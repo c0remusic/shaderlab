@@ -299,3 +299,39 @@ l'état visuel du menu sans jamais instrumenter un vrai test du côté effet
 (menu/dropdown/bouton d'action) : instrumenter le mock (`window.__xCalled =
 true` dans une story, ou équivalent) et cliquer pour de vrai — ne jamais se
 contenter de "le menu s'affiche correctement".
+
+**Découverte (TTL 6 mois)** : le DnD HTML5 natif (`draggable`/`onDragStart`/
+`onDragOver`/`onDrop`) est structurellement cassé dans ce WebView2 — preuve
+obtenue via sonde CDP (`document.addEventListener(..., true)` sur
+`dragstart`/`dragover`/`drop`/`dragend`) pendant un geste humain RÉEL (pas
+une simulation) : `dragstart` se déclenche correctement, mais `dragover`/
+`drop` ne se déclenchent JAMAIS, quelle que soit la distance parcourue par
+la souris (observé sur 2,4s/459px). Toute interaction de glisser-déposer
+dans cette app doit passer par les pointer events (`pointerdown` +
+`setPointerCapture` + `pointermove`/`pointerup` filtrés par `pointerId`),
+jamais le DnD HTML5 — voir `LayerPanel.tsx` (réordonnancement de calques)
+pour le pattern de référence.
+
+**Découverte (TTL 6 mois)** : un `<input type="range">` stylé déclenche un
+`dragstart`/`dragend` HTML5 natif fantôme au click-drag, INDÉPENDAMMENT de
+tout ancêtre `draggable` — comportement par défaut du moteur, présent sur
+tous les sliders de l'app (confirmé par la même sonde CDP). Fix systématique :
+`draggable={false}` sur l'`<input>` dans le composant `Slider.tsx` partagé
+(un seul endroit, tous les sliders de l'app en bénéficient).
+
+**Instinct (0.6)** : après 3-4 passes de revue adverse `codex-crosscheck`
+consécutives sur la même feature/fichier, les findings résiduels deviennent
+des détails d'implémentation (précision de calcul, couverture de test
+marginale) plutôt que des bugs structurants — s'arrêter et noter le résidu
+plutôt que boucler indéfiniment. Confirmé 2 fois cette session (design doc
+panneaux flottants, réécriture drag-reorder) : dans les deux cas la boucle
+s'est arrêtée au bon moment sans qu'un vrai bug ne soit laissé de côté par
+la suite (vérifié par une revue finale whole-branch séparée).
+
+**Correction (projet)** : un screenshot statique ne contient AUCUNE
+information de mouvement/animation — halluciné des caractéristiques
+d'interaction (« accrochage sec », « pas de rebond ») à partir d'un
+screenshot Photoshop déjà discuté, corrigé par la remarque d'Antoine. Pour
+toute question sur le COMPORTEMENT (pas juste l'apparence) d'une référence
+externe : soit aller l'observer en direct (navigateur), soit dire
+explicitement qu'on ne sait pas plutôt que d'inférer depuis une image fixe.

@@ -131,3 +131,15 @@ change pas l'espace de calcul. Source : `PRD-print-export.md`.
   **fold** ; **refine edge** s'applique au masque combiné final.
 - **Historique** partage par référence les masques immuables des calques (copie au
   remplacement, jamais de mutation en place). (`src/layers/types.ts:10-14`)
+
+- **Panneau flottant** (`FloatingPanel`) — module UI déplaçable/repliable, pas dockée
+  dans une barre latérale fixe. Trois instances prévues : Calques, Réglages,
+  Masques (Tranche 4). _Avoid_: "panneau docké"/"sidebar" pour désigner le nouveau
+  modèle — ces termes décrivent l'ancien `Inspector.tsx` fixe, remplacé.
+  Source : `...-floating-panels-design.md`.
+- **Dock virtuel** — position par défaut où les panneaux flottants s'accrochent au
+  démarrage (ancré au premier panneau posé, pas une colonne dessinée/délimitée).
+  Source : session 2026-07-20.
+- **Magnétisme** — accrochage automatique d'un panneau à un autre panneau ou au bord
+  du canvas au RELÂCHEMENT d'un drag (pas de recalcul continu). Bidirectionnel
+  (horizontal ET vertical). Source : `...-floating-panels-design.md`.

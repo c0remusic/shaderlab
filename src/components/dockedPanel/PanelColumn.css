@@ -1,0 +1,60 @@
+/*
+ * PanelColumn : positionne la colonne Calques/Réglages UNE fois en CSS,
+ * jamais recalculée en JS (remplace le state drag/magnétisme de App.tsx).
+ * Ancrée dans .canvas-stage (position: relative, src/components/Canvas.css).
+ */
+
+.panel-column {
+  position: absolute;
+  top: var(--space-6);
+  right: var(--space-6);
+  bottom: var(--space-6);
+  width: var(--inspector-width-default);
+  min-width: var(--inspector-width-min);
+  max-width: var(--inspector-width-max);
+  z-index: var(--z-floating-panel);
+}
+
+.panel-column__group {
+  height: 100%;
+}
+
+.panel-column__pane {
+  min-height: 0;
+}
+
+/* Poignée de splitter : barre fine, pas de style au repos, feedback au
+   survol/drag via le token de bordure existant (pas de nouveau token
+   couleur pour un seul usage — même principe que le reste du projet). */
+.panel-column__handle {
+  height: var(--space-2);
+  margin-block: calc(var(--space-2) * -1);
+  cursor: row-resize;
+  position: relative;
+}
+
+.panel-column__handle::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  height: 1px;
+  background: var(--border-subtle);
+  transform: translateY(-50%);
+}
+
+/* `data-separator` porte l'état ("hover"/"active"/"focus"/"disabled"),
+   pas un simple booléen — vérifié sur pièce dans le bundle installé
+   (react-resizable-panels.js, v4.12.2) : pas de `data-resize-handle-active`
+   dans cette version du package (nom qui appartient à l'ancienne API du
+   brief de départ). */
+.panel-column__handle:hover::after,
+.panel-column__handle[data-separator="hover"]::after,
+.panel-column__handle[data-separator="active"]::after {
+  background: var(--border-selection);
+}
+
+.panel-column__handle:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}

@@ -4,8 +4,8 @@
  * si un panneau ancre bouge ensuite).
  *
  * Deux familles de candidats, résolues séparément par axe (x et y) :
- * - bords des autres panneaux visibles (écart PANEL_GAP, jamais 0)
- * - bords du canvas (flush, 0px)
+ * - bords des autres panneaux visibles (écart PANEL_GAP)
+ * - bords du canvas (écart CANVAS_EDGE_MARGIN)
  * Le candidat retenu par axe est celui de distance minimale sous SNAP_DISTANCE ;
  * égalité exacte -> le premier trouvé dans l'ordre de `others` (déterministe).
  * Enfin, le résultat est contraint aux limites du canvas (jamais hors-écran).
@@ -23,6 +23,13 @@ export interface SnapCandidate {
 }
 
 export const PANEL_GAP = 8;
+// Écart panneau↔bord canvas. Le design.md d'origine visait un flush 0px,
+// mais rendu en vrai (retour Antoine, 2026-07-20) ça lit comme cassé — un
+// panneau collé au bord de fenêtre sans respiration, contrairement à la
+// référence Photoshop qui garde toujours une marge visible. Même valeur que
+// PANEL_GAP*2 pour rester dans la même famille d'espacement que
+// panneau↔panneau (--space-6 = 16px, cf. src/design/primitives.css).
+export const CANVAS_EDGE_MARGIN = 16;
 export const SNAP_DISTANCE = 12;
 
 interface AxisSnap {
@@ -61,13 +68,17 @@ function snapAxisToNeighbors(
 }
 
 function snapAxisToCanvasEdges(draggedStart: number, draggedEnd: number, canvasExtent: number): AxisSnap | null {
+  // Seuil mesuré sur la distance bord-à-bord réelle (dragged vs bord du
+  // canvas), pas sur la distance à la position finale incluant
+  // CANVAS_EDGE_MARGIN — même principe que snapAxisToNeighbors (finding
+  // codex-crosscheck déjà appliqué là, cohérence des deux familles).
   let best: AxisSnap | null = null;
   const distanceToStart = Math.abs(draggedStart - 0);
-  if (distanceToStart <= SNAP_DISTANCE) best = { value: 0, distance: distanceToStart };
-  const flushEndValue = canvasExtent - (draggedEnd - draggedStart);
-  const distanceToEnd = Math.abs(draggedStart - flushEndValue);
+  if (distanceToStart <= SNAP_DISTANCE) best = { value: CANVAS_EDGE_MARGIN, distance: distanceToStart };
+  const size = draggedEnd - draggedStart;
+  const distanceToEnd = Math.abs(draggedEnd - canvasExtent);
   if (distanceToEnd <= SNAP_DISTANCE && (best === null || distanceToEnd < best.distance)) {
-    best = { value: flushEndValue, distance: distanceToEnd };
+    best = { value: canvasExtent - CANVAS_EDGE_MARGIN - size, distance: distanceToEnd };
   }
   return best;
 }

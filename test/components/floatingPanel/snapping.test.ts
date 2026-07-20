@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeSnappedPosition, PANEL_GAP, SNAP_DISTANCE } from "../../../src/components/floatingPanel/snapping";
+import { computeSnappedPosition, PANEL_GAP, CANVAS_EDGE_MARGIN, SNAP_DISTANCE } from "../../../src/components/floatingPanel/snapping";
 import type { Rect, SnapCandidate } from "../../../src/components/floatingPanel/snapping";
 
 const CANVAS = { width: 1000, height: 800 };
@@ -59,16 +59,16 @@ describe("computeSnappedPosition", () => {
     expect(result.y).toBe(100 + 150 + PANEL_GAP);
   });
 
-  it("accroche à un bord du canvas de façon flush (0px, pas de PANEL_GAP)", () => {
+  it("accroche à un bord du canvas avec un écart CANVAS_EDGE_MARGIN (pas flush 0px)", () => {
     const dragged = rect(SNAP_DISTANCE - 1, 400);
     const result = computeSnappedPosition(dragged, [], CANVAS);
-    expect(result.x).toBe(0);
+    expect(result.x).toBe(CANVAS_EDGE_MARGIN);
   });
 
-  it("accroche au bord droit du canvas de façon flush", () => {
+  it("accroche au bord droit du canvas avec le même écart CANVAS_EDGE_MARGIN", () => {
     const dragged = rect(CANVAS.width - 200 - (SNAP_DISTANCE - 1), 400);
     const result = computeSnappedPosition(dragged, [], CANVAS);
-    expect(result.x).toBe(CANVAS.width - 200);
+    expect(result.x).toBe(CANVAS.width - 200 - CANVAS_EDGE_MARGIN);
   });
 
   it("plusieurs candidats sous le seuil -> retient le plus proche (distance minimale)", () => {

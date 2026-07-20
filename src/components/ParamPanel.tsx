@@ -73,7 +73,12 @@ export function ParamPanel({
     return <p className="param-panel__empty">Sélectionne un calque.</p>;
   }
   const effect = getEffect(layer.effectId);
-  const sources = layer.mask.sources;
+  // Seules les sources PARAMÉTRIQUES sont éditées ici — une source "brush"
+  // (peinture, cf. LayerStack.updateBrushMask) n'a pas de module dans
+  // maskSourceRegistry (gradient/luminosity/colorRange seulement) : la
+  // laisser dans cette liste ferait planter getMaskSourceModule() au premier
+  // calque peint au pinceau qui ouvre son panneau Masque.
+  const sources = layer.mask.sources.filter((s) => s.type !== "brush");
   const activeSourceId = selectedSourceId && sources.some((s) => s.id === selectedSourceId)
     ? selectedSourceId
     : (sources[0]?.id ?? null);

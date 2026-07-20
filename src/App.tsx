@@ -16,6 +16,7 @@ import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterS
 import { getBrushRaster } from "./mask/brushSource";
 import { FloatingPanel } from "./components/floatingPanel/FloatingPanel";
 import { DEFAULT_PANEL_COLUMN_WIDTH, COLLAPSED_PANEL_HEIGHT } from "./components/floatingPanel/effectiveViewport";
+import { computeSnappedPosition } from "./components/floatingPanel/snapping";
 import { LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
 import { getEffect } from "./render/effects/registry";
@@ -82,12 +83,29 @@ export default function App() {
   // --inspector-width-default/--section-header-height (finding auditor
   // MOYENNE, 2026-07-20).
   const PANEL_SIZE = { width: DEFAULT_PANEL_COLUMN_WIDTH, height: 320 };
+  // Position de départ dérivée du magnétisme lui-même (computeSnappedPosition),
+  // pas d'une marge en dur — les panneaux s'alignent flush au bord droit du
+  // canvas et à PANEL_GAP l'un de l'autre dès le lancement, cohérent avec le
+  // comportement obtenu après un drag manuel (retour Antoine, 2026-07-20).
+  const initialCanvasSize = { width: window.innerWidth, height: window.innerHeight };
+  const layersRawPosition = { x: initialCanvasSize.width - PANEL_SIZE.width - 1, y: 52 };
+  const layersInitialPosition = computeSnappedPosition(
+    { ...layersRawPosition, width: PANEL_SIZE.width, height: PANEL_SIZE.height },
+    [],
+    initialCanvasSize
+  );
+  const paramsRawPosition = { x: layersInitialPosition.x, y: layersInitialPosition.y + PANEL_SIZE.height + 1 };
+  const paramsInitialPosition = computeSnappedPosition(
+    { ...paramsRawPosition, width: PANEL_SIZE.width, height: PANEL_SIZE.height },
+    [{ id: "layers", rect: { ...layersInitialPosition, width: PANEL_SIZE.width, height: PANEL_SIZE.height } }],
+    initialCanvasSize
+  );
   const [layersPanel, setLayersPanel] = useState({
-    position: { x: window.innerWidth - PANEL_SIZE.width - 16, y: 52 },
+    position: layersInitialPosition,
     collapsed: false,
   });
   const [paramsPanel, setParamsPanel] = useState({
-    position: { x: window.innerWidth - PANEL_SIZE.width - 16, y: 52 + PANEL_SIZE.height + 8 },
+    position: paramsInitialPosition,
     collapsed: false,
   });
   const layersPanelHeight = layersPanel.collapsed ? COLLAPSED_PANEL_HEIGHT : PANEL_SIZE.height;

@@ -16,7 +16,13 @@ export function computeGuidedAB(
   corrIp: number,
   eps = 1e-4
 ): { a: number; b: number } {
-  const varI = corrI - meanI * meanI;
+  // Math.max(..., 0): la variance est mathématiquement >= 0 ; la
+  // cancellation corrI - meanI*meanI peut la faire ressortir légèrement
+  // négative avec des intermédiaires en précision réduite (r16float côté
+  // GPU) — sans ce plancher, varI + eps peut retomber à 0/négatif et
+  // produire Infinity/NaN (finding codex-crosscheck HAUTE, commit 87ce5ad,
+  // sur le générateur WGSL jumeau edgeAwareWgsl.ts).
+  const varI = Math.max(corrI - meanI * meanI, 0);
   const covIp = corrIp - meanI * meanP;
   const a = covIp / (varI + eps);
   const b = meanP - a * meanI;

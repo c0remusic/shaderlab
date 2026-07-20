@@ -116,7 +116,12 @@ fn fs_computeAB(in: VertexOut) -> @location(0) vec4<f32> {
   let ci = textureSample(corr, maskSampler, in.uv).x;
   let cip = textureSample(corr, maskSampler, in.uv).y;
   let eps = 1e-4;
-  let varI = ci - mi * mi;
+  // max(varI, 0.0) : la variance est mathématiquement >= 0, mais la
+  // soustraction ci - mi*mi (cancellation) peut la faire ressortir
+  // légèrement négative avec des intermédiaires r16float — sans ce clamp,
+  // varI + eps peut retomber à 0/négatif et produire Inf/NaN (finding
+  // codex-crosscheck HAUTE, commit 87ce5ad).
+  let varI = max(ci - mi * mi, 0.0);
   let covIp = cip - mi * mp;
   let a = covIp / (varI + eps);
   let b = mp - a * mi;

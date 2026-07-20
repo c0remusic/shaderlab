@@ -7,8 +7,7 @@
 .docked-panel-card {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 0;
+  height: auto;
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
   border-radius: var(--panel-radius);
@@ -37,7 +36,7 @@
 
 .docked-panel-card__content {
   padding: var(--space-4);
-  min-height: 0;
+  max-height: 42vh;
   overflow-y: auto;
 }
 

@@ -14,13 +14,7 @@ import { getLaunchPath, readImageFile, pickImageFile } from "./launch";
 import { useGlobalControlWheel } from "./ui/activeControl";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 import { getBrushRaster } from "./mask/brushSource";
-import { FloatingPanel } from "./components/floatingPanel/FloatingPanel";
-import {
-  DEFAULT_PANEL_COLUMN_WIDTH,
-  COLLAPSED_PANEL_HEIGHT,
-  PANEL_START_MARGIN,
-} from "./components/floatingPanel/effectiveViewport";
-import { computeSnappedPosition, PANEL_GAP } from "./components/floatingPanel/snapping";
+import { PanelColumn } from "./components/dockedPanel/PanelColumn";
 import { LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
 import { getEffect } from "./render/effects/registry";
@@ -31,33 +25,6 @@ export default function App() {
   useGlobalControlWheel();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const workspaceRef = useRef<HTMLElement>(null);
-  // Taille RÉELLE du conteneur `.workspace` (pas window.innerWidth/innerHeight
-  // bruts, finding auditor 2026-07-20) : `.workspace` est plus petit que la
-  // fenêtre — Toolbar + éventuellement BrushToolbar retirent de la hauteur
-  // (App.css/App.tsx), et `overflow: hidden` coupe tout ce qui dépasse. Sans
-  // ça, le clamp/magnétisme de FloatingPanel autorisait un panneau à finir
-  // partiellement masqué sous le bord réellement visible.
-  const [workspaceSize, setWorkspaceSize] = useState({ width: window.innerWidth, height: window.innerHeight });
-  // Distingue l'approximation initiale (window.innerWidth/innerHeight, avant
-  // toute mesure) de la première VRAIE mesure .workspace — nécessaire pour
-  // que le fit-check du positionnement initial des panneaux (plus bas)
-  // n'attende pas juste "le premier passage de l'effet" (qui a lieu avant
-  // que le ResizeObserver ait mesuré quoi que ce soit), finding
-  // codex-crosscheck MOYENNE, 2026-07-20.
-  const hasMeasuredWorkspaceRef = useRef(false);
-  useEffect(() => {
-    const el = workspaceRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) return;
-      const { width, height } = entry.contentRect;
-      hasMeasuredWorkspaceRef.current = true;
-      setWorkspaceSize({ width, height });
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
   const gpuRef = useRef<GpuContext | null>(null);
   const rendererRef = useRef<Renderer | null>(null);
   const historyRef = useRef<History>(new History(new LayerStack()));
@@ -89,122 +56,8 @@ export default function App() {
   // réellement changé (un simple clic sans mouvement ne crée pas d'entrée).
   const paramDirtyRef = useRef(false);
 
-  // Position de départ des panneaux flottants : ancrés côté droit, même zone
-  // que l'ancien Inspector docké (design.md §2) — PAS une colonne contrainte
-  // en dur, seulement un point de départ librement déplaçable ensuite.
-  // Largeur/hauteur repliée = constantes partagées (effectiveViewport.ts),
-  // pas une deuxième valeur en dur qui pourrait diverger du token
-  // --inspector-width-default/--section-header-height (finding auditor
-  // MOYENNE, 2026-07-20).
-  const PANEL_SIZE = { width: DEFAULT_PANEL_COLUMN_WIDTH, height: 320 };
-  // Marge de départ contre le bord droit du canvas — le magnétisme ne
-  // fonctionne QU'entre panneaux, jamais contre le bord de la fenêtre
-  // (retour Antoine, 2026-07-20 : "le magnétisme devrait surtout fonctionner
-  // entre modules"), donc Calques (sans voisin) n'est jamais snappé et doit
-  // être placé directement à sa position finale — computeSnappedPosition([])
-  // ne fait plus que clamper, il ne rapproche plus du bord. Réglages, lui,
-  // continue d'accrocher contre Calques via PANEL_GAP (magnétisme réel entre
-  // panneaux) une fois cette position posée.
-  // `.workspace` réel (pas window.innerWidth/innerHeight bruts, même finding
-  // auditor 2026-07-20 que pour canvasSize/workspaceSize plus bas) : au
-  // premier rendu le ResizeObserver n'a pas encore mesuré, donc l'approximation
-  // fenêtre reste la meilleure info disponible à cet instant précis — mais on
-  // réutilise `workspaceSize` (déjà initialisé à la même valeur par défaut)
-  // comme SEULE source, pas une deuxième lecture indépendante de la fenêtre
-  // (finding codex-crosscheck MOYENNE, 2026-07-20).
-  const layersRawPosition = { x: workspaceSize.width - PANEL_SIZE.width - PANEL_START_MARGIN, y: 52 };
-  const layersInitialPosition = computeSnappedPosition(
-    { ...layersRawPosition, width: PANEL_SIZE.width, height: PANEL_SIZE.height },
-    [],
-    workspaceSize
-  );
-  // Si les deux panneaux pleine hauteur ne tiennent pas sous le viewport
-  // minimal supporté (--window-min-height, cf. src/design/components.css),
-  // computeSnappedPosition CLAMPERAIT Réglages par-dessus Calques au lieu de
-  // respecter PANEL_GAP (finding codex-crosscheck MOYENNE, 2026-07-20) —
-  // repli : démarrer Réglages replié plutôt que superposé.
-  const paramsFitsExpanded =
-    layersInitialPosition.y + PANEL_SIZE.height + PANEL_GAP + PANEL_SIZE.height <= workspaceSize.height;
-  const paramsHeight = paramsFitsExpanded ? PANEL_SIZE.height : COLLAPSED_PANEL_HEIGHT;
-  const paramsRawPosition = { x: layersInitialPosition.x, y: layersInitialPosition.y + PANEL_SIZE.height + 1 };
-  const paramsInitialPosition = computeSnappedPosition(
-    { ...paramsRawPosition, width: PANEL_SIZE.width, height: paramsHeight },
-    [{ id: "layers", rect: { ...layersInitialPosition, width: PANEL_SIZE.width, height: PANEL_SIZE.height } }],
-    workspaceSize
-  );
-  const [layersPanel, setLayersPanel] = useState({
-    position: layersInitialPosition,
-    collapsed: false,
-  });
-  const [paramsPanel, setParamsPanel] = useState({
-    position: paramsInitialPosition,
-    collapsed: !paramsFitsExpanded,
-  });
-  const layersPanelHeight = layersPanel.collapsed ? COLLAPSED_PANEL_HEIGHT : PANEL_SIZE.height;
-  const paramsPanelHeight = paramsPanel.collapsed ? COLLAPSED_PANEL_HEIGHT : PANEL_SIZE.height;
-
-  // `paramsFitsExpanded` ci-dessus est calculé au premier rendu contre
-  // window.innerHeight (approximation, avant toute mesure réelle du
-  // ResizeObserver — .workspace exclut la Toolbar). Une fois la VRAIE taille
-  // mesurée, on rejoue cette même vérification UNE SEULE fois pour corriger
-  // un faux "ça tient" initial (finding codex-crosscheck MOYENNE,
-  // 2026-07-20) — cohérent avec le principe "statique, pas réactif" du
-  // magnétisme (design.md §5) : une correction ponctuelle post-mesure, pas
-  // un recalcul continu à chaque resize.
-  const initialFitCheckedRef = useRef(false);
-  useEffect(() => {
-    // Attend la VRAIE mesure (pas juste "un premier passage d'effet" — qui a
-    // lieu avant que le ResizeObserver n'ait rien mesuré, ce qui consommait
-    // le verrou sur l'approximation window.innerHeight sans jamais corriger
-    // quoi que ce soit ; finding codex-crosscheck MOYENNE, 2026-07-20).
-    if (initialFitCheckedRef.current || !hasMeasuredWorkspaceRef.current) return;
-    initialFitCheckedRef.current = true;
-    const fitsExpanded =
-      layersPanel.position.y + PANEL_SIZE.height + PANEL_GAP + PANEL_SIZE.height <= workspaceSize.height;
-    if (!fitsExpanded) {
-      setParamsPanel((prev) => (prev.collapsed ? prev : { ...prev, collapsed: true }));
-    }
-  }, [workspaceSize.height, layersPanel.position.y]);
-
-  // Calques est en `maxHeight` (FloatingPanel.css), pas `height` fixe — il
-  // s'adapte au contenu réel (voir commentaire FloatingPanel.tsx sur le
-  // fantôme de drag). `paramsInitialPosition` ci-dessus suppose pourtant
-  // toujours `PANEL_SIZE.height` (320) pour placer Réglages juste sous
-  // Calques — faux dès que Calques rend plus court que ça (ex. 0-2 calques),
-  // laissant un grand vide visuel avant Réglages (bug rapporté par Antoine,
-  // 2026-07-20). Correction : mesurer la hauteur RÉELLE une fois rendue et
-  // recaler Réglages dessous — même schéma "correction ponctuelle post-
-  // mesure, pas réactive en continu" que `initialFitCheckedRef` ci-dessus,
-  // pour rester cohérent avec le magnétisme "statique" (design.md §5) et ne
-  // pas fighter un déplacement manuel ultérieur de l'utilisateur.
-  const layersPanelElRef = useRef<HTMLDivElement>(null);
-  const layersHeightCorrectedRef = useRef(false);
-  useEffect(() => {
-    const el = layersPanelElRef.current;
-    if (!el || layersHeightCorrectedRef.current) return;
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry || layersHeightCorrectedRef.current) return;
-      const measuredHeight = entry.contentRect.height;
-      layersHeightCorrectedRef.current = true;
-      observer.disconnect();
-      setParamsPanel((prev) => {
-        const corrected = computeSnappedPosition(
-          {
-            x: layersInitialPosition.x,
-            y: layersInitialPosition.y + measuredHeight + 1,
-            width: PANEL_SIZE.width,
-            height: prev.collapsed ? COLLAPSED_PANEL_HEIGHT : PANEL_SIZE.height,
-          },
-          [{ id: "layers", rect: { ...layersInitialPosition, width: PANEL_SIZE.width, height: measuredHeight } }],
-          workspaceSize
-        );
-        return { ...prev, position: corrected };
-      });
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+  const [layersCollapsed, setLayersCollapsed] = useState(false);
+  const [paramsCollapsed, setParamsCollapsed] = useState(false);
 
   // `layersRef` = source de vérité COMPLÈTE des calques (avec les rasters de
   // masque), pour le rendu GPU, l'historique et l'export. Le state React
@@ -620,62 +473,47 @@ export default function App() {
           brushSize={brushSize}
           brushHardness={brushHardness}
         />
-        <FloatingPanel
-          title="Calques"
-          position={layersPanel.position}
-          size={PANEL_SIZE}
-          collapsed={layersPanel.collapsed}
-          panelRef={layersPanelElRef}
-          onPositionChange={(position) => setLayersPanel((s) => ({ ...s, position }))}
-          onCollapsedChange={(collapsed) => setLayersPanel((s) => ({ ...s, collapsed }))}
-          siblingRects={[
-            { id: "params", rect: { ...paramsPanel.position, width: PANEL_SIZE.width, height: paramsPanelHeight } },
-          ]}
-          canvasSize={workspaceSize}
-        >
-          <LayerPanel
-            layers={layers}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-            onToggle={handleToggle}
-            onAdd={handleAdd}
-            onRemove={handleRemove}
-            onReorder={handleReorder}
-            onOpacityChange={handleOpacityChange}
-            onOpacityCommit={handleParamCommit}
-            onBlendModeChange={handleBlendModeChange}
-          />
-        </FloatingPanel>
-        <FloatingPanel
-          title={paramsPanelTitle}
-          position={paramsPanel.position}
-          size={PANEL_SIZE}
-          collapsed={paramsPanel.collapsed}
-          onPositionChange={(position) => setParamsPanel((s) => ({ ...s, position }))}
-          onCollapsedChange={(collapsed) => setParamsPanel((s) => ({ ...s, collapsed }))}
-          siblingRects={[
-            { id: "layers", rect: { ...layersPanel.position, width: PANEL_SIZE.width, height: layersPanelHeight } },
-          ]}
-          canvasSize={workspaceSize}
-        >
-          <ParamPanel
-            layer={selectedLayer}
-            onParamChange={handleParamChange}
-            onParamCommit={handleParamCommit}
-            maskPaintMode={maskPaintMode}
-            onToggleMaskPaint={() => setMaskPaintMode((v) => !v)}
-            onAddMaskSource={handleAddMaskSource}
-            onRemoveMaskSource={handleRemoveMaskSource}
-            onMaskSourceParamsChange={handleMaskSourceParamsChange}
-            onMaskSourceParamsCommit={handleParamCommit}
-            onMaskSourceCombineModeChange={handleMaskSourceCombineModeChange}
-            onMaskInvertChange={handleMaskInvertChange}
-            onMaskEnabledChange={handleMaskEnabledChange}
-            onRefineEdgeChange={handleRefineEdgeChange}
-            onRefineEdgeCommit={handleParamCommit}
-            onAddColorSample={handleAddColorSample}
-          />
-        </FloatingPanel>
+        <PanelColumn
+          layersTitle="Calques"
+          layersCollapsed={layersCollapsed}
+          onLayersCollapsedChange={setLayersCollapsed}
+          layersContent={
+            <LayerPanel
+              layers={layers}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onToggle={handleToggle}
+              onAdd={handleAdd}
+              onRemove={handleRemove}
+              onReorder={handleReorder}
+              onOpacityChange={handleOpacityChange}
+              onOpacityCommit={handleParamCommit}
+              onBlendModeChange={handleBlendModeChange}
+            />
+          }
+          paramsTitle={paramsPanelTitle}
+          paramsCollapsed={paramsCollapsed}
+          onParamsCollapsedChange={setParamsCollapsed}
+          paramsContent={
+            <ParamPanel
+              layer={selectedLayer}
+              onParamChange={handleParamChange}
+              onParamCommit={handleParamCommit}
+              maskPaintMode={maskPaintMode}
+              onToggleMaskPaint={() => setMaskPaintMode((v) => !v)}
+              onAddMaskSource={handleAddMaskSource}
+              onRemoveMaskSource={handleRemoveMaskSource}
+              onMaskSourceParamsChange={handleMaskSourceParamsChange}
+              onMaskSourceParamsCommit={handleParamCommit}
+              onMaskSourceCombineModeChange={handleMaskSourceCombineModeChange}
+              onMaskInvertChange={handleMaskInvertChange}
+              onMaskEnabledChange={handleMaskEnabledChange}
+              onRefineEdgeChange={handleRefineEdgeChange}
+              onRefineEdgeCommit={handleParamCommit}
+              onAddColorSample={handleAddColorSample}
+            />
+          }
+        />
       </main>
     </div>
   );

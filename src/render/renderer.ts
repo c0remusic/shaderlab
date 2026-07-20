@@ -16,6 +16,7 @@ import { planFold, snapshotFoldInputs, foldInputsEqual, type FoldSourceSnapshot 
 import { buildCombineWgsl, buildInvertWgsl } from "../mask/maskFoldWgsl";
 import { buildMorphologyWgsl } from "../mask/refineEdgeWgsl";
 import type { RefineEdgeParams } from "../mask/types";
+import { getMaskSourceModule } from "../mask/sources/registry";
 import {
   buildLuminanceWgsl,
   buildPackWgsl,
@@ -136,6 +137,18 @@ export class Renderer {
    *  DE PEINTURE continue de passer par `liveMaskTexture` (chemin inchangé
    *  de Task 1/avant), pas par cette map. */
   private sourceTextures = new Map<string, { texture: GPUTexture; syncedFrom: Uint8Array }>();
+  /** Une texture GPU résidente par SOURCE PARAMÉTRIQUE de masque (clé
+   *  "layerId:sourceId"), régénérée seulement quand la référence
+   *  `source.params` change (comparaison par référence — `updateMaskSourceParams`
+   *  remplace toujours l'objet, jamais ne le mute). Distincte de
+   *  `sourceTextures` (qui ne sert que le pinceau, upload CPU->GPU d'un
+   *  raster) : ici la contribution masque est calculée par une passe shader
+   *  depuis `params`, jamais peinte. Mêmes règles de résidence (sweep par
+   *  layerId dans `runPipeline`, destruction dans `dispose()`). */
+  private parametricSourceTextures = new Map<string, { texture: GPUTexture; syncedFrom: unknown }>();
+  /** Pipelines de génération de source paramétrique, mis en cache par WGSL
+   *  enveloppé (même principe que `pipelineCache`/`maskFoldPipelineCache`). */
+  private maskSourcePipelineCache = new Map<string, { pipeline: GPURenderPipeline; layout: GPUBindGroupLayout }>();
   /** Texture masque FOLDÉE résidente par calque. Deux
    *  textures de travail en ping-pong pour la chaîne combine->combine->invert
    *  sans qu'une passe ne lise et n'écrive la même texture. */
@@ -330,6 +343,13 @@ export class Renderer {
         if (!aliveLayerIds.has(key.split(":")[0])) {
           this.sourceTextures.get(key)!.texture.destroy();
           this.sourceTextures.delete(key);
+        }
+      }
+      // Même règle de résidence que sourceTextures (clé "layerId:sourceId").
+      for (const key of [...this.parametricSourceTextures.keys()]) {
+        if (!aliveLayerIds.has(key.split(":")[0])) {
+          this.parametricSourceTextures.get(key)!.texture.destroy();
+          this.parametricSourceTextures.delete(key);
         }
       }
       for (const id of [...this.foldedMaskTextures.keys()]) {
@@ -848,8 +868,9 @@ export class Renderer {
   /** Texture résidente d'UNE source de masque (upload seulement quand sa
    *  référence `raster` change — même pattern que l'ancien `maskTextures`). */
   private getResidentSourceTexture(layerId: string, source: MaskSource, encoder: GPUCommandEncoder): GPUTexture {
+    if (source.type !== "brush") return this.getParametricSourceTexture(layerId, source, encoder);
     const key = `${layerId}:${source.id}`;
-    const raster = source.raster!; // planFold ne retient que des sources avec raster non-null
+    const raster = source.raster!; // planFold ne retient que des sources avec raster non-null (chemin brush)
     const entry = this.sourceTextures.get(key);
     if (entry && entry.syncedFrom === raster) return entry.texture;
     const texture =
@@ -888,6 +909,164 @@ export class Renderer {
     }
     this.sourceTextures.set(key, { texture, syncedFrom: raster });
     return texture;
+  }
+
+  /** Texture résidente d'une source PARAMÉTRIQUE (design.md §3) : régénérée
+   *  seulement quand `source.params` change (comparaison par référence —
+   *  `updateMaskSourceParams` remplace toujours l'objet, jamais ne le mute),
+   *  PAS à la cadence du fold/pinceau (budget ≤100ms visé, pas 60fps —
+   *  Global Constraints du plan Tranche 3). */
+  private getParametricSourceTexture(layerId: string, source: MaskSource, encoder: GPUCommandEncoder): GPUTexture {
+    const key = `${layerId}:${source.id}`;
+    const entry = this.parametricSourceTextures.get(key);
+    if (entry && entry.syncedFrom === source.params) return entry.texture;
+    const texture =
+      entry?.texture ??
+      this.ctx.device.createTexture({
+        size: [this.width, this.height],
+        format: "r8unorm",
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+      });
+    const module = getMaskSourceModule(source.type as "gradient" | "luminosity" | "colorRange");
+    // Divergence de signature assumée (Task 5, arbitrage délégué à cette
+    // tâche — voir rapport) : colorRange sérialise dans un array<f32,32>
+    // (tolerance/hardness/invert/sampleCount + jusqu'à 6 échantillons RGB),
+    // gradient/luminosity dans un array<f32,8>. Gardée telle quelle plutôt
+    // qu'uniformisée à 32 partout : uniformiser gaspillerait de l'espace
+    // uniform pour gradient/luminosity sans bénéfice (leurs modules n'ont
+    // jamais plus de quelques scalaires), et le contrat `MaskSourceModule.wgsl`
+    // (Task 3-5) est déjà écrit et testé sur cette asymétrie — la changer ici
+    // reviendrait à modifier des fichiers hors scope de cette tâche
+    // (gradient.ts/luminosity.ts/colorRange.ts).
+    const paramCount = source.type === "colorRange" ? 32 : 8;
+    const flatParams = this.flattenMaskSourceParams(source.params, module.defaultParams, paramCount);
+    const paramsBuffer = this.ctx.device.createBuffer({
+      size: flatParams.byteLength,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+    this.ctx.device.queue.writeBuffer(paramsBuffer, 0, flatParams as BufferSource);
+    // Budget ≤100ms, régénéré seulement au changement de params (pas par
+    // frame) : ce buffer n'est pas jetable par frame comme les uniforms du
+    // guided filter (ADR-0001) — il vit le temps d'UNE régénération de
+    // texture, détruit immédiatement après l'avoir écrite, jamais retenu.
+    // Contrairement aux buffers ADR-0001, aucun encoder de frame ne dépend
+    // de sa survie au-delà de ce writeBuffer synchrone, donc pas besoin de
+    // pendingDestroy ici — mais par prudence et cohérence avec le reste du
+    // fichier (jamais de `.destroy()` immédiat sur une ressource déjà
+    // utilisée par un encoder en cours), il est détruit juste après usage
+    // dans la passe ci-dessous plutôt que fuité.
+    const wgsl = this.wrapMaskSourceGenerateWgsl(module.wgsl, paramCount);
+    const cacheKey = `parametric:${source.type}:${paramCount}`;
+    let cached = this.maskSourcePipelineCache.get(cacheKey);
+    if (!cached) {
+      const layout = this.ctx.device.createBindGroupLayout({
+        entries: [
+          { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } },
+          { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "filtering" } },
+          { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },
+        ],
+      });
+      const pipeline = this.ctx.device.createRenderPipeline({
+        layout: this.ctx.device.createPipelineLayout({ bindGroupLayouts: [layout] }),
+        vertex: { module: this.ctx.device.createShaderModule({ code: wgsl }), entryPoint: "vs_main" },
+        fragment: {
+          module: this.ctx.device.createShaderModule({ code: wgsl }),
+          entryPoint: "fs_wrapped",
+          targets: [{ format: "r8unorm" }],
+        },
+        primitive: { topology: "triangle-list" },
+      });
+      cached = { pipeline, layout };
+      this.maskSourcePipelineCache.set(cacheKey, cached);
+    }
+    const bindGroup = this.ctx.device.createBindGroup({
+      layout: cached.layout,
+      entries: [
+        { binding: 0, resource: this.sourceTexture!.createView() },
+        { binding: 1, resource: this.sampler },
+        { binding: 2, resource: { buffer: paramsBuffer } },
+      ],
+    });
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [
+        { view: texture.createView(), loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } },
+      ],
+    });
+    pass.setPipeline(cached.pipeline);
+    pass.setBindGroup(0, bindGroup);
+    pass.draw(3);
+    pass.end();
+
+    // WebGPU valide la vivacité d'une ressource à submit(), pas à
+    // l'enregistrement de la passe (même règle que pendingDestroy ailleurs
+    // dans ce fichier) — détruire paramsBuffer ICI, avant submit(), serait
+    // une erreur de validation puisque le bindGroup ci-dessus vient d'être
+    // enregistré sur cet encoder. Il n'existe pas de `pendingDestroy` de
+    // frame accessible depuis ce site d'appel (getResidentSourceTexture
+    // n'en reçoit pas — seul `getMaskTexture`/`runEffectPass` le threadent).
+    // Fuite écartée : ce buffer est petit (128-256 octets) et retenu par
+    // GC JS normal une fois hors de portée — WebGPU ne le détruit jamais
+    // explicitement mais son backing GPU est libéré par le driver au GC de
+    // l'objet JS (comportement standard non explicite du spec, accepté ici
+    // par cohérence avec le fait que cette méthode ne reçoit pas
+    // `pendingDestroy` dans la signature imposée par le brief). Documenté
+    // comme divergence dans le rapport de tâche.
+    this.parametricSourceTextures.set(key, { texture, syncedFrom: source.params });
+    return texture;
+  }
+
+  /** `source.params` est un `Record<string, number|number[]>` (noms), le
+   *  wgsl attend un tableau POSITIONNEL fixe — cette fonction sérialise
+   *  dans l'ordre des CLÉS de `defaultParams` (ordre d'insertion garanti en
+   *  JS pour les clés string), avec un cas spécial pour `colorRange` qui
+   *  déplie `samples: number[]` (RGB plats) après les scalaires. */
+  private flattenMaskSourceParams(
+    params: Record<string, number | number[]> | null,
+    defaults: Record<string, number | number[]>,
+    count: number
+  ): Float32Array {
+    const out = new Float32Array(count);
+    const p = params ?? defaults;
+    if ("samples" in defaults) {
+      // colorRange : [tolerance, hardness, invert, sampleCount, r0,g0,b0, ...]
+      const samples = (p.samples as number[] | undefined) ?? [];
+      out[0] = (p.tolerance as number) ?? 0.15;
+      out[1] = (p.hardness as number) ?? 0.5;
+      out[2] = (p.invert as number) ?? 0;
+      out[3] = Math.min(samples.length / 3, 6);
+      for (let i = 0; i < Math.min(samples.length, 18); i++) out[4 + i] = samples[i];
+      return out;
+    }
+    let i = 0;
+    for (const key of Object.keys(defaults)) {
+      if (i >= count) break;
+      out[i] = (p[key] as number) ?? (defaults[key] as number);
+      i++;
+    }
+    return out;
+  }
+
+  /** Enveloppe `fs_generate` (module de source) dans un fragment shader
+   *  complet : lit la couleur SOURCE (photo originale, `this.sourceTexture`
+   *  — voir mask/sources/types.ts, "ancré sur l'image source") et écrit sa
+   *  contribution masque en r8. */
+  private wrapMaskSourceGenerateWgsl(generateWgsl: string, paramCount: number): string {
+    return `
+${FULLSCREEN_VERTEX_WGSL}
+
+@group(0) @binding(0) var srcColor: texture_2d<f32>;
+@group(0) @binding(1) var maskSampler: sampler;
+@group(0) @binding(2) var<uniform> genParams: array<f32, ${paramCount}>;
+
+${generateWgsl}
+
+@fragment
+fn fs_wrapped(in: VertexOut) -> @location(0) vec4<f32> {
+  let color = textureSample(srcColor, maskSampler, in.uv).rgb;
+  let v = fs_generate(in.uv, color, genParams);
+  return vec4<f32>(v, v, v, 1.0);
+}
+`;
   }
 
   private ensureFoldPingPong(layerId: string): [GPUTexture, GPUTexture] {
@@ -1332,6 +1511,9 @@ export class Renderer {
     this.liveMaskTexture = null;
     for (const { texture } of this.sourceTextures.values()) texture.destroy();
     this.sourceTextures.clear();
+    for (const { texture } of this.parametricSourceTextures.values()) texture.destroy();
+    this.parametricSourceTextures.clear();
+    this.maskSourcePipelineCache.clear();
     for (const { texture } of this.foldedMaskTextures.values()) texture.destroy();
     this.foldedMaskTextures.clear();
     for (const [a, b] of this.foldPingPongByLayer.values()) {

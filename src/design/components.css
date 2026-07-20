@@ -31,7 +31,7 @@
 
   --button-height: var(--control-height-md);
   --button-radius: var(--radius-control);
-  --button-padding-inline: var(--space-4);
+  --button-padding-inline: var(--space-6);
   --button-icon-gap: var(--space-3);
 
   --slider-track-height: 3px;

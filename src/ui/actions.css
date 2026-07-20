@@ -70,7 +70,7 @@
 
 .ui-button--compact {
   height: var(--control-height-sm);
-  padding-inline: var(--space-3);
+  padding-inline: var(--space-5);
   font-size: var(--font-size-sm);
 }
 

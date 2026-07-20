@@ -14,7 +14,7 @@ import { defaultLayerMask } from "../mask/types";
 import type { MaskSource } from "../mask/types";
 import { planFold, snapshotFoldInputs, foldInputsEqual, type FoldSourceSnapshot } from "../mask/foldPlan";
 import { buildCombineWgsl, buildInvertWgsl } from "../mask/maskFoldWgsl";
-import { buildSmoothWgsl, buildMorphologyWgsl } from "../mask/refineEdgeWgsl";
+import { buildMorphologyWgsl } from "../mask/refineEdgeWgsl";
 import type { RefineEdgeParams } from "../mask/types";
 import {
   buildLuminanceWgsl,
@@ -172,7 +172,7 @@ export class Renderer {
   >();
   private edgeAwarePipelineCache = new Map<string, { pipeline: GPURenderPipeline; layout: GPUBindGroupLayout }>();
   /** Paire de textures de travail PAR CALQUE pour le refine edge forme-seule
-   *  (design.md §4 étape 5 : feather -> contracter/dilater -> lisser).
+   *  (design.md §4 étape 5 : contracter/dilater -> feather -> lisser).
    *  Dédiée plutôt que de réutiliser `foldPingPongByLayer` : ces textures-là
    *  sont déjà occupées PENDANT le fold (voir commentaire du brief Task 2
    *  Step 6) — un pool partagé écraserait le résultat du fold en cours. */
@@ -1204,8 +1204,8 @@ export class Renderer {
     return this.runEdgeAwarePipeline(layer.id, folded, colorView, params, encoder, pendingDestroy);
   }
 
-  /** Refine edge forme-seule (design.md §4 étape 5) : feather -> contracter/
-   *  dilater -> lisser, dans cet ordre (Photoshop Select and Mask : forme
+  /** Refine edge forme-seule (design.md §4 étape 5) : contracter/dilater ->
+   *  feather -> lisser, dans cet ordre (Photoshop Select and Mask : forme
    *  d'abord, lissage en dernier pour ne pas re-rugueuser un bord tout juste
    *  adouci). No-op si les 3 paramètres sont à leur défaut (0) — pas de
    *  texture de travail créée ni de passe GPU sur ce chemin, cohérent avec
@@ -1262,11 +1262,17 @@ export class Renderer {
       [acc, next] = [next, acc];
     }
     if (params.feather > 0) {
-      this.runMaskPass(encoder, buildSmoothWgsl(), acc, null, next, radiusBuffer(params.feather));
+      const r = radiusBuffer(params.feather);
+      this.runMaskPass(encoder, buildBoxFilterHWgsl(1), acc, null, next, r);
+      [acc, next] = [next, acc];
+      this.runMaskPass(encoder, buildBoxFilterVWgsl(1), acc, null, next, r);
       [acc, next] = [next, acc];
     }
     for (let i = 0; i < params.smooth; i++) {
-      this.runMaskPass(encoder, buildSmoothWgsl(), acc, null, next, radiusBuffer(1));
+      const r = radiusBuffer(1);
+      this.runMaskPass(encoder, buildBoxFilterHWgsl(1), acc, null, next, r);
+      [acc, next] = [next, acc];
+      this.runMaskPass(encoder, buildBoxFilterVWgsl(1), acc, null, next, r);
       [acc, next] = [next, acc];
     }
     return acc;

@@ -319,14 +319,26 @@ tous les sliders de l'app (confirmé par la même sonde CDP). Fix systématique 
 `draggable={false}` sur l'`<input>` dans le composant `Slider.tsx` partagé
 (un seul endroit, tous les sliders de l'app en bénéficient).
 
-**Instinct (0.6)** : après 3-4 passes de revue adverse `codex-crosscheck`
-consécutives sur la même feature/fichier, les findings résiduels deviennent
-des détails d'implémentation (précision de calcul, couverture de test
-marginale) plutôt que des bugs structurants — s'arrêter et noter le résidu
-plutôt que boucler indéfiniment. Confirmé 2 fois cette session (design doc
-panneaux flottants, réécriture drag-reorder) : dans les deux cas la boucle
-s'est arrêtée au bon moment sans qu'un vrai bug ne soit laissé de côté par
-la suite (vérifié par une revue finale whole-branch séparée).
+**Instinct (0.6, NUANCÉ 2026-07-20 — pas de bump de confiance)** : après 3-4
+passes de revue adverse `codex-crosscheck` consécutives sur la même feature/
+fichier, les findings résiduels deviennent des détails d'implémentation
+(précision de calcul, couverture de test marginale) plutôt que des bugs
+structurants — s'arrêter et noter le résidu plutôt que boucler indéfiniment.
+Confirmé 2 fois le 2026-07-19 (design doc panneaux flottants, réécriture
+drag-reorder). **Contre-exemple réel le 2026-07-20** : le portail `Select.tsx`
+(listbox déplacée hors overflow:hidden) a enchaîné 5 rounds de crosscheck, et
+les rounds 1 à 4 ont TOUS trouvé des bugs réels non-marginaux (focus manqué à
+la 1re ouverture, gap CSS écrasé, pas de bornage viewport, tests qui
+n'exerçaient pas la branche visée) — seul le 5e round était vraiment un détail
+(le calcul lui-même était déjà correct, restait à l'extraire en fonction
+testée). Sur `App.tsx` (fit-check panneaux), 3 rounds ont aussi trouvé des
+bugs réels d'affilée (source window vs workspace, clamp qui écrase le gap,
+verrou consommé avant la vraie mesure). **How to apply, affiné** : le seuil
+"3-4 rounds" ne s'applique qu'à du code qui RÉUTILISE un pattern déjà éprouvé
+dans le repo (ex. magnétisme = itération sur une fonction pure déjà testée) —
+sur du code qui introduit un NOUVEAU mécanisme (portail DOM, effet React à
+timing subtil), ne pas présumer la convergence avant d'avoir un round
+réellement clean, même après 4-5 rounds.
 
 **Correction (projet)** : un screenshot statique ne contient AUCUNE
 information de mouvement/animation — halluciné des caractéristiques
@@ -335,3 +347,49 @@ screenshot Photoshop déjà discuté, corrigé par la remarque d'Antoine. Pour
 toute question sur le COMPORTEMENT (pas juste l'apparence) d'une référence
 externe : soit aller l'observer en direct (navigateur), soit dire
 explicitement qu'on ne sait pas plutôt que d'inférer depuis une image fixe.
+
+**Découverte (TTL 6 mois)** : `scripts/dev.ps1` peut se retrouver bloqué
+("Set-Content : le processus ne peut pas accéder au fichier
+.dev-logs\tauri.stderr.log, en cours d'utilisation") même après avoir tué
+`shaderlab.exe` — la cause réelle est le process `powershell.exe` qui A LANCÉ
+`dev.ps1` (via `Start-Process -RedirectStandardError`), qui reste vivant même
+processus enfant terminé. Fix : `Get-Process -Name powershell | Where
+StartTime` pour repérer celui qui correspond au lancement précédent, le tuer
+spécifiquement (pas juste `shaderlab`), puis relancer. Vécu 2× cette session.
+
+**Correction (projet)** : `Browser.setWindowBounds` (CDP) sur la fenêtre
+Tauri/WebView2 désynchronise la taille de la fenêtre OS et la surface de
+rendu WebView2 — le DOM interne (mesuré via `Runtime.evaluate`) reste
+correctement positionné mais le RENDU visuel apparaît cassé (contenu
+recroquevillé dans un coin, zones blanches/noires). Un `Page.reload` après
+resize ne corrige PAS ce désync. Seul un kill+relaunch propre (`dev.ps1`,
+sans passer par CDP resize) restaure un état sain. **How to apply** : ne
+jamais utiliser `Browser.setWindowBounds` pour tester un comportement
+responsive sur cette app — c'est un canvas WebGPU/WebView2, pas un cas
+d'usage supporté par ce mécanisme CDP. Redimensionner la vraie fenêtre OS
+(ou accepter la taille de lancement) si un test à une autre taille est requis.
+
+**Découverte (TTL 6 mois)** : Photoshop web (`photoshop.adobe.com`) n'a PAS
+de système de panneaux flottants/fusionnables en onglets façon VS Code —
+c'est un rail d'icônes fixe (Calques/Réglages/Historique/Commentaires) qui
+bascule l'affichage de chaque panneau indépendamment, plusieurs peuvent être
+visibles empilés en même temps. Vérifié en direct sur le compte réel
+d'Antoine (`claude-in-chrome`, pas le navigateur sandboxé) — un premier essai
+de drag a accidentellement ajouté 2 calques de réglage au fichier réel,
+annulé immédiatement via Historique → état "Ouvert". **How to apply** :
+pour toute question future sur le comportement RÉEL d'un outil web tiers,
+préférer `claude-in-chrome` (session authentifiée) au navigateur sandboxé
+quand une vérification en direct est demandée — mais rester extrêmement
+prudent sur les gestes de test (drag/clic) qui peuvent modifier un document
+réel de l'utilisateur, toujours vérifier l'historique/annuler après coup.
+
+**Découverte (TTL 6 mois)** : source canonique des valeurs de tokens Adobe
+Spectrum (dark theme) = `github.com/adobe/spectrum-css`
+`tokens/dist/json/tokens.json` (JSON avec valeurs `light`/`dark` par token,
+format `rgb(r, g, b)`). Utilisé pour re-thémer shaderlab en gris neutre
+(remplace l'ancien thème chaud "darkroom-balanced") — cf.
+`src/design/primitives.css`/`semantic.css`. Valeurs clés retenues : gray-50
+`#1b1b1b`, gray-75 `#222222`, gray-100 `#2c2c2c`, gray-200 `#323232`, gray-800
+`#dbdbdb`, gray-900 `#f2f2f2`, blue-800 `#4069fd`. Sélection de ligne "non
+emphasized" = 10% opacité du gris texte, pas une couleur bleue (le bleu
+Spectrum n'apparaît qu'en état "emphasized"/focus clavier du conteneur).

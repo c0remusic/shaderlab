@@ -27,7 +27,14 @@
 > les gros buffers/textures de masque HORS du state React. `device.lost` reste
 > remonté à l'UI (`ErrorBanner`, `src/render/gpuContext.ts`). Détails dans
 > `.claude/learning-log.md` (entrée 2026-07-18) et le bandeau RÉSOLU de
-> `docs/superpowers/specs/2026-07-17-native-wgpu-decision.md`.
+> `docs/superpowers/specs/2026-07-17-native-wgpu-decision.md`. Tranche
+> panneaux flottants (`FloatingPanel`) TERMINÉE le 2026-07-20 : `Inspector.tsx`
+> supprimé, magnétisme entre panneaux uniquement (jamais au bord canvas,
+> retiré après test), thème neutre façon Photoshop appliqué (tokens Adobe
+> Spectrum réels). 2 checkpoints visuels humains en attente. `PRD-floating-panel-rail.md`
+> cadré (rail d'icônes dockable) mais PAS implémenté — brainstorming à faire
+> en premier. Tranche 3 masquage (edge-aware guided filter) démarrée, en
+> pause avant le câblage GPU (`ADR-0001` tranche la décision de buffers).
 
 ## Langage partagé
 
@@ -62,8 +69,12 @@ test ne rend de composant React — même convention que track-finder).
 PAS Radix — `components.json`). Tokens de marque = `src/design/{primitives,
 semantic,components}.css`, mappés dans `src/design/tailwind-theme.css`
 (jamais redéfinis). Migration en cours composant par composant : `ErrorBanner`/
-`Toolbar`/`BrushToolbar` migrés (2026-07-20) ; `Inspector`/`LayerPanel`/
-`ParamPanel`/`Canvas` encore en CSS classique. Voir
+`Toolbar`/`BrushToolbar` migrés (2026-07-20) ; `LayerPanel`/`ParamPanel`/
+`Canvas` encore en CSS classique. `Inspector.tsx` (aside dockée fixe)
+**supprimé** le 2026-07-20, remplacé par `FloatingPanel`
+(`src/components/floatingPanel/`, panneaux déplaçables/repliables/dockables —
+voir `docs/superpowers/specs/2026-07-20-shaderlab-floating-panels-design.md`)
+— ne plus le citer comme composant à migrer. Voir aussi
 `docs/superpowers/specs/2026-07-20-shadcn-migration-design.md`.
 
 Décisions techniques verrouillées (voir design.md pour les preuves) :

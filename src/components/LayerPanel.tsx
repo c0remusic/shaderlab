@@ -1,4 +1,5 @@
-import { memo, useCallback, useState } from "react";
+import { memo } from "react";
+import { usePointerReorder, type DropPosition } from "../ui/dragReorder";
 import { Eye, EyeOff, GripVertical, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
 import { effectRegistry, getEffect } from "../render/effects/registry";
@@ -21,8 +22,6 @@ interface Props {
   onBlendModeChange: (id: string, blendMode: string) => void;
 }
 
-type DropPosition = "before" | "after";
-
 interface LayerRowProps {
   layer: LayerState;
   index: number;
@@ -32,7 +31,7 @@ interface LayerRowProps {
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
   onRemove: (id: string) => void;
-  onGripPointerDown: (id: string, pointerId: number, target: Element) => void;
+  onGripPointerDown: (id: string, pointerId: number, target: Element, clientX: number, clientY: number) => void;
   onOpacityChange: (id: string, opacity: number) => void;
   onOpacityCommit: () => void;
   onBlendModeChange: (id: string, blendMode: string) => void;
@@ -81,7 +80,7 @@ const LayerRow = memo(function LayerRow({
             className="layer-panel__grip-handle"
             onPointerDown={(e) => {
               e.stopPropagation();
-              onGripPointerDown(layer.id, e.pointerId, e.currentTarget);
+              onGripPointerDown(layer.id, e.pointerId, e.currentTarget, e.clientX, e.clientY);
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -138,36 +137,6 @@ const LayerRow = memo(function LayerRow({
   );
 });
 
-// Réordonnancement par pointer events, PAS le DnD HTML5 natif (draggable/
-// onDragStart/onDragOver/onDrop) — abandonné après preuve obtenue via une
-// sonde CDP sur un geste humain réel : dragstart se déclenche correctement,
-// mais WebView2 ne relaie ensuite JAMAIS dragover/drop au contenu web,
-// quelle que soit la distance parcourue par la souris. Bug d'intégration
-// WebView2/DnD natif, pas une erreur de câblage React — même famille que
-// d'autres quirks WebView2 déjà rencontrés sur ce projet (dialog plugin,
-// drag HTML5 non fiable depuis 2026-07-13). Les pointer events, eux,
-// fonctionnent déjà pour le pinceau et le pan/zoom.
-interface DragState {
-  draggedId: string;
-  pointerId: number;
-  overIndex: number | null;
-  overPosition: DropPosition | null;
-}
-
-/**
- * Traduit "poser AVANT/APRÈS la ligne `hoverIndex`" (ce que l'utilisateur
- * voit et choisit) en `newIndex` pour LayerStack.reorderLayer, dont la
- * sémantique est "retire `fromIndex`, puis insère à `newIndex` DANS LE
- * TABLEAU DÉJÀ AMPUTÉ" — pas la même chose qu'un index dans le tableau
- * d'origine. Sans cette traduction, "avant B" pouvait visuellement finir
- * "après B" selon le sens du geste (finding revue adverse codex-crosscheck
- * sur une v1 sans notion avant/après).
- */
-export function computeInsertIndex(fromIndex: number, hoverIndex: number, position: DropPosition): number {
-  const hoverIndexAfterRemoval = hoverIndex - (fromIndex < hoverIndex ? 1 : 0);
-  return position === "before" ? hoverIndexAfterRemoval : hoverIndexAfterRemoval + 1;
-}
-
 export function LayerPanel({
   layers,
   selectedId,
@@ -180,73 +149,18 @@ export function LayerPanel({
   onOpacityCommit,
   onBlendModeChange,
 }: Props) {
-  const [dragState, setDragState] = useState<DragState | null>(null);
-
-  const handleGripPointerDown = useCallback((id: string, pointerId: number, target: Element) => {
-    // Ignore un 2e pointeur (ex. un 2e doigt) tant qu'un drag est déjà en
-    // cours — sinon il écraserait dragState et le drag du 1er pointeur
-    // serait silencieusement perdu (finding codex-crosscheck).
-    setDragState((prev) => {
-      if (prev) return prev;
-      target.setPointerCapture(pointerId);
-      return { draggedId: id, pointerId, overIndex: null, overPosition: null };
-    });
-  }, []);
-
-  // Attachés sur la POIGNÉE (via setPointerCapture ci-dessus, ces deux
-  // handlers continuent de recevoir les événements même quand le pointeur
-  // sort de son rectangle) — elementFromPoint fait le hit-test manuel sur
-  // la ligne survolée, puisqu'aucun événement natif de survol/drop ne peut
-  // être exploité ici (raison ci-dessus). La moitié haute/basse de la ligne
-  // survolée décide avant/après (Antoine : "remplace" au lieu de choisir
-  // au-dessus/en-dessous d'un autre calque — la v1 n'avait pas cette notion).
-  const handleGripPointerMove = useCallback((e: React.PointerEvent) => {
-    setDragState((prev) => {
-      // Ignore un pointeur qui n'est PAS celui qui a démarré ce drag (ex.
-      // un 2e doigt en tactile) — sans ce filtre, un pointeur étranger
-      // pourrait déplacer l'indicateur de cible d'un drag en cours ailleurs.
-      if (!prev || e.pointerId !== prev.pointerId) return prev;
-      const el = document.elementFromPoint(e.clientX, e.clientY);
-      const rowEl = el?.closest<HTMLElement>("[data-layer-row-index]");
-      if (!rowEl) return prev.overIndex === null ? prev : { ...prev, overIndex: null, overPosition: null };
-      const overIndex = Number(rowEl.dataset.layerRowIndex);
-      const rect = rowEl.getBoundingClientRect();
-      const overPosition: DropPosition = e.clientY - rect.top < rect.height / 2 ? "before" : "after";
-      return overIndex === prev.overIndex && overPosition === prev.overPosition
-        ? prev
-        : { ...prev, overIndex, overPosition };
-    });
-  }, []);
-
-  const handleGripPointerUp = useCallback(
-    (e: React.PointerEvent) => {
-      setDragState((prev) => {
-        if (!prev || e.pointerId !== prev.pointerId) return prev;
-        if (prev.overIndex !== null && prev.overPosition !== null) {
-          const fromIndex = layers.findIndex((l) => l.id === prev.draggedId);
-          if (fromIndex !== -1 && fromIndex !== prev.overIndex) {
-            const newIndex = computeInsertIndex(fromIndex, prev.overIndex, prev.overPosition);
-            // Déposer "avant" son voisin immédiat suivant (ou "après" son
-            // voisin immédiat précédent) ne change RIEN à l'ordre final —
-            // computeInsertIndex peut renvoyer fromIndex dans ce cas
-            // (ex. déposer l'index 0 "avant" l'index 1). Sans cette garde,
-            // onReorder pousserait quand même une entrée d'historique pour
-            // un état identique (finding codex-crosscheck).
-            if (newIndex !== fromIndex) onReorder(prev.draggedId, newIndex);
-          }
-        }
-        return null;
-      });
-    },
-    [onReorder, layers]
+  const { dragState, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel } = usePointerReorder(
+    layers,
+    (layer) => layer.id,
+    "data-layer-row-index",
+    onReorder
   );
 
-  // pointercancel (perte de capture, interruption tactile...) N'EST PAS un
-  // dépôt valide — annule le drag sans réordonner, contrairement à
-  // pointerup. Filtre aussi par pointerId pour la même raison que ci-dessus.
-  const handleGripPointerCancel = useCallback((e: React.PointerEvent) => {
-    setDragState((prev) => (prev && e.pointerId === prev.pointerId ? null : prev));
-  }, []);
+  const handleGripPointerDown = (id: string, pointerId: number, target: Element, clientX: number, clientY: number) => {
+    // measureElement = target : LayerPanel n'utilise pas grabOffset/pointerPosition
+    // (pas de fantôme), measurer la poignée elle-même suffit.
+    handlePointerDown(id, pointerId, target, target, clientX, clientY);
+  };
 
   return (
     <div className="layer-panel">
@@ -259,9 +173,9 @@ export function LayerPanel({
       />
       <ul
         className="layer-panel__list"
-        onPointerMove={dragState ? handleGripPointerMove : undefined}
-        onPointerUp={dragState ? handleGripPointerUp : undefined}
-        onPointerCancel={dragState ? handleGripPointerCancel : undefined}
+        onPointerMove={dragState ? handlePointerMove : undefined}
+        onPointerUp={dragState ? handlePointerUp : undefined}
+        onPointerCancel={dragState ? handlePointerCancel : undefined}
       >
         {layers.map((layer, index) => (
           <LayerRow

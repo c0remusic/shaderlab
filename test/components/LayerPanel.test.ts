@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeInsertIndex } from "../../src/components/LayerPanel";
+import { computeInsertIndex } from "../../src/ui/dragReorder";
 
 // computeInsertIndex traduit "poser AVANT/APRÈS la ligne hoverIndex" (ce que
 // l'utilisateur choisit visuellement) vers le newIndex attendu par

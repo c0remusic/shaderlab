@@ -1,6 +1,11 @@
 import { Download, FolderOpen, Redo2, Undo2 } from "lucide-react";
-import { IconButton } from "../ui/IconButton";
-import { Menu } from "../ui/Menu";
+import { Button } from "./ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 
 interface Props {
   canUndo: boolean;
@@ -13,42 +18,45 @@ interface Props {
 
 export function Toolbar({ canUndo, canRedo, onUndo, onRedo, onExport, onOpenFile }: Props) {
   return (
-    <div className="toolbar" role="toolbar" aria-label="Barre d'outils">
-      <Menu
-        label="Fichier"
-        variant="secondary"
-        items={[
-          {
-            value: "open",
-            label: "Ouvrir",
-            icon: <FolderOpen size={16} strokeWidth={1.5} aria-hidden="true" />,
-            onSelect: onOpenFile,
-          },
-          {
-            value: "export",
-            label: "Exporter",
-            icon: <Download size={16} strokeWidth={1.5} aria-hidden="true" />,
-            onSelect: onExport,
-          },
-        ]}
-      />
-      <IconButton
-        label="Annuler"
-        tooltip="Annuler (Ctrl+Z)"
+    <div
+      role="toolbar"
+      aria-label="Barre d'outils"
+      className="flex items-center gap-4 min-h-[var(--toolbar-height)] px-4 py-3 bg-card border-b border-border"
+    >
+      <DropdownMenu>
+        <DropdownMenuTrigger render={<Button variant="secondary">Fichier</Button>} />
+        <DropdownMenuContent align="start">
+          <DropdownMenuItem onClick={onOpenFile}>
+            <FolderOpen size={16} strokeWidth={1.5} aria-hidden="true" />
+            Ouvrir
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onExport}>
+            <Download size={16} strokeWidth={1.5} aria-hidden="true" />
+            Exporter
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Annuler"
+        title="Annuler (Ctrl+Z)"
         disabled={!canUndo}
         onClick={onUndo}
       >
         <Undo2 size={16} strokeWidth={1.5} aria-hidden="true" />
-      </IconButton>
-      <IconButton
-        label="Rétablir"
-        tooltip="Rétablir (Ctrl+Y)"
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Rétablir"
+        title="Rétablir (Ctrl+Y)"
         disabled={!canRedo}
         onClick={onRedo}
       >
         <Redo2 size={16} strokeWidth={1.5} aria-hidden="true" />
-      </IconButton>
-      <div className="toolbar__spacer" />
+      </Button>
+      <div className="flex-1" />
     </div>
   );
 }

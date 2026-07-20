@@ -40,9 +40,16 @@
   --focus-width: 2px;
   --focus-offset: 2px;
 
-  --action-primary-bg: var(--primitive-accent-blue);
-  --action-primary-text: var(--primitive-neutral-100);
-  --action-primary-hover: var(--primitive-accent-blue-hover);
+  /* Reste neutre — .ui-button--primary documente explicitement "neutral
+     paper fill, never a brand color" (src/ui/actions.css:82), une décision
+     de design délibérée que le thème Photoshop ne doit pas écraser sans
+     confirmation explicite (finding codex-crosscheck, 2026-07-20 : contredit
+     directement cette convention + contraste texte/fond insuffisant sur le
+     bleu, ~4.0:1 < seuil AA 4.5:1). --primitive-accent-blue reste disponible
+     pour le focus ring (pas de souci de contraste, c'est un contour). */
+  --action-primary-bg: var(--primitive-neutral-200);
+  --action-primary-text: var(--text-on-light);
+  --action-primary-hover: var(--primitive-neutral-100);
   --action-secondary-bg: rgba(242, 242, 242, .08);
   --action-secondary-hover: rgba(242, 242, 242, .12);
   --action-pressed: rgba(242, 242, 242, .16);

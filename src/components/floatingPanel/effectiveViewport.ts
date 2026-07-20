@@ -17,6 +17,16 @@ export const DEFAULT_PANEL_COLUMN_WIDTH = 288;
  */
 export const COLLAPSED_PANEL_HEIGHT = 28;
 
+/**
+ * Marge de départ entre Calques (sans voisin, jamais snappé — le magnétisme
+ * n'existe qu'entre panneaux, cf. snapping.ts) et le bord droit du canvas.
+ * Même famille que --space-6 (16px, src/design/primitives.css). Exportée
+ * ici (pas une constante locale App.tsx) pour la même raison que
+ * COLLAPSED_PANEL_HEIGHT ci-dessus — une seule source, pas une valeur en
+ * dur dupliquée (finding codex-crosscheck MOYENNE, 2026-07-20).
+ */
+export const PANEL_START_MARGIN = 16;
+
 // Plancher aligné sur --canvas-min-width (src/design/components.css) : la
 // compensation ne doit jamais réduire le viewport effectif sous ce minimum,
 // même sur la largeur de fenêtre plancher du projet (--window-min-width: 900px).

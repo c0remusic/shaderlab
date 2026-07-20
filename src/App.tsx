@@ -15,7 +15,11 @@ import { useGlobalControlWheel } from "./ui/activeControl";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 import { getBrushRaster } from "./mask/brushSource";
 import { FloatingPanel } from "./components/floatingPanel/FloatingPanel";
-import { DEFAULT_PANEL_COLUMN_WIDTH, COLLAPSED_PANEL_HEIGHT } from "./components/floatingPanel/effectiveViewport";
+import {
+  DEFAULT_PANEL_COLUMN_WIDTH,
+  COLLAPSED_PANEL_HEIGHT,
+  PANEL_START_MARGIN,
+} from "./components/floatingPanel/effectiveViewport";
 import { computeSnappedPosition, PANEL_GAP } from "./components/floatingPanel/snapping";
 import { LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
@@ -99,7 +103,6 @@ export default function App() {
   // ne fait plus que clamper, il ne rapproche plus du bord. Réglages, lui,
   // continue d'accrocher contre Calques via PANEL_GAP (magnétisme réel entre
   // panneaux) une fois cette position posée.
-  const PANEL_START_MARGIN = 16; // même famille que --space-6 (src/design/primitives.css)
   // `.workspace` réel (pas window.innerWidth/innerHeight bruts, même finding
   // auditor 2026-07-20 que pour canvasSize/workspaceSize plus bas) : au
   // premier rendu le ResizeObserver n'a pas encore mesuré, donc l'approximation

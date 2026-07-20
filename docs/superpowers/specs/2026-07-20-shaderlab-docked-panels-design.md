@@ -1,6 +1,9 @@
 # Panneaux dockés (Calques/Réglages) — refonte du conteneur `FloatingPanel`
 
-**Statut** : validé par Antoine (wireframe + audit UX/UI), prêt pour plan d'implémentation.
+**Statut** : wireframe + audit UX/UI faits, direction confirmée par Antoine —
+**relecture du présent design doc EN ATTENTE** avant passage à
+`writing-plans`. Ne pas traiter ce document comme validé tant qu'Antoine ne
+l'a pas explicitement confirmé.
 
 ## Contexte et origine
 

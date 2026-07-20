@@ -1,19 +1,34 @@
 :root {
+  /* Échelle neutre = valeurs réelles Adobe Spectrum (dark theme), pas une
+     approximation — source : github.com/adobe/spectrum-css
+     tokens/dist/json/tokens.json (2026-07-20, thème "chrome Photoshop"
+     demandé par Antoine). Seuls les crans réellement consommés par
+     semantic.css sont remappés (100/200/850/900/950/1000) ; le reste de
+     l'ancienne échelle chaude (darkroom-balanced) reste en place mais est
+     déjà mort code (aucune consommation trouvée par grep) — hors scope de
+     ce remap, pas retouché ici. */
   --primitive-neutral-0: #fffdf9;
   --primitive-neutral-50: #f7f2ea;
-  --primitive-neutral-100: #f0e8dc;
-  --primitive-neutral-200: #d4cabc;
+  --primitive-neutral-100: #f2f2f2; /* spectrum gray-900 */
+  --primitive-neutral-200: #dbdbdb; /* spectrum gray-800 */
   --primitive-neutral-300: #b3aa9e;
   --primitive-neutral-400: #918980;
   --primitive-neutral-500: #6e6861;
   --primitive-neutral-600: #514c47;
   --primitive-neutral-700: #383431;
   --primitive-neutral-800: #292522;
-  --primitive-neutral-850: #25211e;
-  --primitive-neutral-900: #1d1b19;
+  --primitive-neutral-850: #323232; /* spectrum gray-200 */
+  --primitive-neutral-900: #2c2c2c; /* spectrum gray-100 */
   --primitive-neutral-925: #181614;
-  --primitive-neutral-950: #151310;
-  --primitive-neutral-1000: #100f0e;
+  --primitive-neutral-950: #222222; /* spectrum gray-75 */
+  --primitive-neutral-1000: #1b1b1b; /* spectrum gray-50 */
+
+  /* Accent bleu Spectrum (blue-800/blue-900 dark theme) — CTA primaires,
+     focus ring. Remplace l'ancien style "bouton primaire = beige clair
+     inversé" par le bleu Adobe utilisé partout dans le chrome Photoshop
+     (boutons "Télécharger"/"Mise à niveau" sur la référence). */
+  --primitive-accent-blue: #4069fd;
+  --primitive-accent-blue-hover: #5681ff;
 
   --primitive-alpha-0: 0;
   --primitive-alpha-4: .04;

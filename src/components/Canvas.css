@@ -15,8 +15,14 @@
      à leur position de départ. Calculée une fois, pas réactive à un
      déplacement ultérieur des panneaux par l'utilisateur — voir
      computeEffectiveViewportWidth (src/components/floatingPanel/effectiveViewport.ts)
-     et son commentaire pour la valeur exacte et le futur usage pan/zoom. */
-  padding-right: calc(var(--inspector-width-default) * 2);
+     et son commentaire pour la valeur exacte et le futur usage pan/zoom.
+     En centrage flexbox, `padding-right: P` déplace le centre visuel de
+     P/2 (le contenu se centre dans l'espace restant W-P, dont le centre
+     est à (W-P)/2, soit un décalage de P/2 par rapport au centre naturel
+     W/2) — donc P doit être ÉGAL à la largeur du dock à compenser, pas le
+     double (bug corrigé 2026-07-20 : le canvas était décalé deux fois plus
+     loin que prévu avec `* 2`). */
+  padding-right: var(--inspector-width-default);
 }
 
 .canvas-stage__canvas {

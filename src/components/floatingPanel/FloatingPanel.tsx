@@ -16,6 +16,16 @@ export interface FloatingPanelProps {
   siblingRects: SnapCandidate[];
   canvasSize: { width: number; height: number };
   children: React.ReactNode;
+  /** Réf optionnelle vers le conteneur `.floating-panel` racine — permet à
+   *  l'appelant de MESURER la hauteur réellement rendue (le panneau est en
+   *  `maxHeight`, pas `height` fixe : il s'adapte au contenu réel, cf.
+   *  commentaire sur le fantôme de drag plus bas). App.tsx s'en sert pour
+   *  positionner un panneau voisin sous la hauteur RÉELLE de celui-ci plutôt
+   *  que la constante `size.height` supposée (bug corrigé 2026-07-20 : un
+   *  panneau court au contenu — ex. Calques vide — laissait un grand vide
+   *  avant le panneau suivant, positionné comme si le premier faisait
+   *  toujours sa hauteur max). */
+  panelRef?: React.Ref<HTMLDivElement>;
 }
 
 interface DragGhostState {
@@ -61,6 +71,7 @@ export function FloatingPanel({
   siblingRects,
   canvasSize,
   children,
+  panelRef,
 }: FloatingPanelProps) {
   const [ghost, setGhost] = useState<DragGhostState | null>(null);
   const titlebarRef = useRef<HTMLDivElement>(null);
@@ -138,6 +149,7 @@ export function FloatingPanel({
   return (
     <>
       <div
+        ref={panelRef}
         className={`floating-panel ${ghost ? "floating-panel--origin-dimmed" : ""}`.trim()}
         style={{ transform: `translate(${position.x}px, ${position.y}px)`, maxHeight: size.height }}
       >

@@ -166,6 +166,46 @@ export default function App() {
     }
   }, [workspaceSize.height, layersPanel.position.y]);
 
+  // Calques est en `maxHeight` (FloatingPanel.css), pas `height` fixe — il
+  // s'adapte au contenu réel (voir commentaire FloatingPanel.tsx sur le
+  // fantôme de drag). `paramsInitialPosition` ci-dessus suppose pourtant
+  // toujours `PANEL_SIZE.height` (320) pour placer Réglages juste sous
+  // Calques — faux dès que Calques rend plus court que ça (ex. 0-2 calques),
+  // laissant un grand vide visuel avant Réglages (bug rapporté par Antoine,
+  // 2026-07-20). Correction : mesurer la hauteur RÉELLE une fois rendue et
+  // recaler Réglages dessous — même schéma "correction ponctuelle post-
+  // mesure, pas réactive en continu" que `initialFitCheckedRef` ci-dessus,
+  // pour rester cohérent avec le magnétisme "statique" (design.md §5) et ne
+  // pas fighter un déplacement manuel ultérieur de l'utilisateur.
+  const layersPanelElRef = useRef<HTMLDivElement>(null);
+  const layersHeightCorrectedRef = useRef(false);
+  useEffect(() => {
+    const el = layersPanelElRef.current;
+    if (!el || layersHeightCorrectedRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry || layersHeightCorrectedRef.current) return;
+      const measuredHeight = entry.contentRect.height;
+      layersHeightCorrectedRef.current = true;
+      observer.disconnect();
+      setParamsPanel((prev) => {
+        const corrected = computeSnappedPosition(
+          {
+            x: layersInitialPosition.x,
+            y: layersInitialPosition.y + measuredHeight + 1,
+            width: PANEL_SIZE.width,
+            height: prev.collapsed ? COLLAPSED_PANEL_HEIGHT : PANEL_SIZE.height,
+          },
+          [{ id: "layers", rect: { ...layersInitialPosition, width: PANEL_SIZE.width, height: measuredHeight } }],
+          workspaceSize
+        );
+        return { ...prev, position: corrected };
+      });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   // `layersRef` = source de vérité COMPLÈTE des calques (avec les rasters de
   // masque), pour le rendu GPU, l'historique et l'export. Le state React
   // `layers` n'en est qu'une PROJECTION D'AFFICHAGE, rasters retirés.
@@ -585,6 +625,7 @@ export default function App() {
           position={layersPanel.position}
           size={PANEL_SIZE}
           collapsed={layersPanel.collapsed}
+          panelRef={layersPanelElRef}
           onPositionChange={(position) => setLayersPanel((s) => ({ ...s, position }))}
           onCollapsedChange={(collapsed) => setLayersPanel((s) => ({ ...s, collapsed }))}
           siblingRects={[

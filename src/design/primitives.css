@@ -83,6 +83,7 @@
   --ease-exit: cubic-bezier(.4, 0, 1, 1);
 
   --z-canvas-overlay: 10;
+  --z-floating-panel: 15;
   --z-sticky: 20;
   --z-popover: 40;
   --z-dialog-backdrop: 60;

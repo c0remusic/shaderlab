@@ -44,6 +44,8 @@
   --panel-bg: var(--surface-panel);
   --panel-border: var(--border-default);
   --panel-radius: var(--radius-panel);
+  --shadow-panel-resting: 0 2px 8px rgba(8, 7, 6, .32);
+  --shadow-panel-dragging: 0 6px 20px rgba(8, 7, 6, .44);
 
   --tooltip-delay: 500ms;
   --tooltip-max-width: 280px;

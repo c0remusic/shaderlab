@@ -23,6 +23,26 @@ describe("computeSnappedPosition", () => {
     expect(result.y).toBe(100);
   });
 
+  it("frontière du seuil : distance bord-à-bord exactement SNAP_DISTANCE -> snap ; SNAP_DISTANCE+1 -> pas de snap", () => {
+    const neighbor: SnapCandidate = { id: "layers", rect: rect(100, 100) }; // end=300
+    const atThreshold = computeSnappedPosition(rect(300 + SNAP_DISTANCE, 100), [neighbor], CANVAS);
+    expect(atThreshold.x).toBe(300 + PANEL_GAP);
+    const beyondThreshold = computeSnappedPosition(rect(300 + SNAP_DISTANCE + 1, 100), [neighbor], CANVAS);
+    expect(beyondThreshold.x).toBe(300 + SNAP_DISTANCE + 1); // inchangé, aucun snap
+  });
+
+  it("régression : le seuil se mesure bord-à-bord, pas sur la position finale post-PANEL_GAP", () => {
+    // Ancien bug : la distance était mesurée jusqu'à (end + PANEL_GAP), pas
+    // jusqu'à `end` lui-même. Ce cas est bord-à-bord à exactement
+    // SNAP_DISTANCE (12px) du voisin, donc DOIT snapper — mais l'ancien
+    // calcul mesurait |288 - 308| = 20px (> seuil) et aurait refusé le snap.
+    const neighbor: SnapCandidate = { id: "layers", rect: rect(100, 100) }; // end=300
+    const dragged = rect(300 - SNAP_DISTANCE, 100); // draggedStart=288
+    const result = computeSnappedPosition(dragged, [neighbor], CANVAS);
+    expect(result.x).toBe(300 + PANEL_GAP); // snap correct (nouveau calcul)
+    expect(result.x).not.toBe(288); // preuve que ce n'est PAS le comportement bugué (pas de snap)
+  });
+
   it("accroche verticalement à un panneau voisin avec un écart PANEL_GAP", () => {
     const neighbor: SnapCandidate = { id: "layers", rect: rect(100, 100) };
     const dragged = rect(100, 250 + SNAP_DISTANCE - 1);

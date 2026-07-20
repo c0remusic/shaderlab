@@ -92,9 +92,10 @@ export default function App() {
   // MOYENNE, 2026-07-20).
   const PANEL_SIZE = { width: DEFAULT_PANEL_COLUMN_WIDTH, height: 320 };
   // Position de départ dérivée du magnétisme lui-même (computeSnappedPosition),
-  // pas d'une marge en dur — les panneaux s'alignent flush au bord droit du
-  // canvas et à PANEL_GAP l'un de l'autre dès le lancement, cohérent avec le
-  // comportement obtenu après un drag manuel (retour Antoine, 2026-07-20).
+  // pas d'une marge en dur — les panneaux s'alignent à CANVAS_EDGE_MARGIN du
+  // bord droit du canvas et à PANEL_GAP l'un de l'autre dès le lancement,
+  // cohérent avec le comportement obtenu après un drag manuel (retour
+  // Antoine, 2026-07-20).
   // `.workspace` réel (pas window.innerWidth/innerHeight bruts, même finding
   // auditor 2026-07-20 que pour canvasSize/workspaceSize plus bas) : au
   // premier rendu le ResizeObserver n'a pas encore mesuré, donc l'approximation

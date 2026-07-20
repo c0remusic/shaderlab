@@ -143,9 +143,12 @@ avec un **écart de `PANEL_GAP` (8px, la même valeur que le § 3)**, jamais un
 contact bord-à-bord à 0px — sinon la contradiction « chaque panneau garde son
 propre cadre, 8px d'écart minimum » (§3) contre « aligner ce bord exactement »
 (ici) produirait un écart nul en pratique. Accrocher à un bord du **canvas**
-(cas b) aligne à distance 0 (flush avec le bord de la fenêtre) — pas de gap
-équivalent requis contre le bord de la fenêtre elle-même. Sinon (aucun
-candidat sous le seuil) le panneau reste à la position brute du relâchement.
+(cas b) aligne avec un écart de `CANVAS_EDGE_MARGIN` (16px) — **corrigé après
+test réel (retour Antoine, 2026-07-20)** : le flush 0px initialement spécifié
+ici lit comme cassé une fois rendu (panneau collé au bord de fenêtre sans
+respiration, contrairement à la référence Photoshop qui garde toujours une
+marge visible même en bord d'écran). Sinon (aucun candidat sous le seuil) le
+panneau reste à la position brute du relâchement.
 
 **Pas de recalcul dynamique après coup** — décision explicite d'Antoine :
 si un panneau ancre bouge plus tard, les panneaux qui s'étaient accrochés à
@@ -223,7 +226,8 @@ face au contrat réel du §5)** :
 - plusieurs candidats sous le seuil ⟹ le plus proche retenu, égalité exacte
   ⟹ résolue par l'ordre de rendu (déterministe, cf. §5) ;
 - accrochage panneau↔panneau respecte l'écart `PANEL_GAP` (8px, jamais 0) ;
-- accrochage panneau↔bord du canvas est flush (0px), pas de gap ;
+- accrochage panneau↔bord du canvas respecte l'écart `CANVAS_EDGE_MARGIN`
+  (16px — corrigé de « flush 0px » après test réel, cf. plus haut) ;
 - aucun candidat sous le seuil ⟹ position brute inchangée ;
 - un panneau qui sortirait des limites du canvas au relâchement reste
   contraint dans le viewport (pas de position hors-écran inatteignable).

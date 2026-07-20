@@ -1,6 +1,7 @@
 import { Brush, Eraser } from "lucide-react";
-import { Slider } from "../ui/Slider";
-import { Button } from "../ui/Button";
+import { Slider } from "./ui/slider";
+import { Toggle } from "./ui/toggle";
+import { Button } from "./ui/button";
 
 interface Props {
   brushSize: number;
@@ -35,22 +36,30 @@ export function BrushToolbar({
         Pinceau
       </span>
       <div className="brush-toolbar__control">
-        <Slider label="Taille" value={brushSize} min={2} max={200} onChange={onBrushSizeChange} />
+        <span className="text-xs text-muted-foreground">Taille</span>
+        <Slider
+          aria-label="Taille"
+          value={[brushSize]}
+          min={2}
+          max={200}
+          onValueChange={(v) => onBrushSizeChange(Array.isArray(v) ? v[0] : v)}
+        />
       </div>
       <div className="brush-toolbar__control">
+        <span className="text-xs text-muted-foreground">Dureté</span>
         <Slider
-          label="Dureté"
-          value={brushHardness}
+          aria-label="Dureté"
+          value={[brushHardness]}
           min={0}
           max={1}
           step={0.05}
-          onChange={onBrushHardnessChange}
+          onValueChange={(v) => onBrushHardnessChange(Array.isArray(v) ? v[0] : v)}
         />
       </div>
-      <Button variant={erase ? "primary" : "secondary"} onClick={() => onEraseChange(!erase)}>
+      <Toggle pressed={erase} onPressedChange={onEraseChange} aria-label="Gomme">
         <Eraser size={16} strokeWidth={1.5} aria-hidden="true" />
         Gomme
-      </Button>
+      </Toggle>
       <div className="brush-toolbar__spacer" />
       <Button variant="secondary" onClick={onStop}>
         Terminer

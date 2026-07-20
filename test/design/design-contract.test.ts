@@ -24,4 +24,17 @@ describe("design system contract", () => {
     ].join("\n");
     expect(css.toLowerCase()).not.toContain("#5aa9e6");
   });
+
+  it("keeps the primary button on a neutral paper fill, never a brand color", () => {
+    // docs/design-system/tokens.md §Actions and statuses ; src/ui/actions.css
+    // documents this explicitly ("Primary: neutral paper fill, never a
+    // brand color"). Régression réelle le 2026-07-20 : le thème Photoshop
+    // avait remappé action-primary-bg vers l'accent bleu (#4069fd) sans que
+    // ce test ne l'attrape (il ne vérifiait que l'absence de l'ancien hex
+    // #5aa9e6, pas le mapping réel).
+    const semantics = read("src/design/semantic.css");
+    expect(semantics).toContain("--action-primary-bg: var(--primitive-neutral-200);");
+    expect(semantics).toContain("--action-primary-text: var(--text-on-light);");
+    expect(semantics).toContain("--action-primary-hover: var(--primitive-neutral-100);");
+  });
 });

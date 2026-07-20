@@ -196,9 +196,9 @@ No bounce or spring token exists. Direct manipulation MUST use
 --action-primary-bg: var(--primitive-neutral-200);
 --action-primary-text: var(--text-on-light);
 --action-primary-hover: var(--primitive-neutral-100);
---action-secondary-bg: rgba(236, 224, 207, .08);
---action-secondary-hover: rgba(236, 224, 207, .12);
---action-pressed: rgba(236, 224, 207, .16);
+--action-secondary-bg: rgba(242, 242, 242, .08);
+--action-secondary-hover: rgba(242, 242, 242, .12);
+--action-pressed: rgba(242, 242, 242, .16);
 
 --status-danger: #e65454;
 --status-danger-text: #ef8d8d;

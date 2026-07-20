@@ -383,6 +383,18 @@ quand une vérification en direct est demandée — mais rester extrêmement
 prudent sur les gestes de test (drag/clic) qui peuvent modifier un document
 réel de l'utilisateur, toujours vérifier l'historique/annuler après coup.
 
+**Complément (session suivante, même jour)** : détail structurel confirmé
+par un zoom plus large (cf. NG23 global — un premier zoom serré avait fait
+conclure à tort à un dock fusionné sans séparation) — chaque panneau du
+rail (Calques/Propriétés/Historique) est en fait une CARTE INDIVIDUELLE
+(fond/radius propres, `box-shadow: none`, ~10px d'écart visible entre
+cartes), avec : poignée de drag (petite barre centrée en haut), titre +
+bouton fermer `×`, et pour Calques spécifiquement une barre d'icônes
+(ajouter/ajustement/cadre/dupliquer/poubelle) + une ligne Fusion/Opacité
+au-dessus de la liste. Vignettes de calque ~32-40px avec anneau bleu sur
+sélection (pas juste un fond teinté). Valeurs exactes dans
+`docs/design-system/photoshop-web-reference-tokens.md`.
+
 **Découverte (TTL 6 mois)** : source canonique des valeurs de tokens Adobe
 Spectrum (dark theme) = `github.com/adobe/spectrum-css`
 `tokens/dist/json/tokens.json` (JSON avec valeurs `light`/`dark` par token,

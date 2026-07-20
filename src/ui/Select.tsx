@@ -21,6 +21,8 @@ interface ListboxRect {
    *  du viewport, cf. calcul dans l'effet de positionnement). */
   top?: number;
   bottom?: number;
+  /** Espace réellement disponible du côté choisi, borné à LISTBOX_MAX_HEIGHT. */
+  maxHeight: number;
 }
 
 /** max-height de .ui-select__listbox (src/ui/overlays.css) — dupliqué ici
@@ -90,11 +92,18 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
     const gapPx =
       parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--space-2")) || 4;
     const spaceBelow = window.innerHeight - rect.bottom;
-    const needsFlip = spaceBelow < LISTBOX_MAX_HEIGHT + gapPx && rect.top > spaceBelow;
+    const spaceAbove = rect.top;
+    const needsFlip = spaceBelow < LISTBOX_MAX_HEIGHT + gapPx && spaceAbove > spaceBelow;
+    // Borne la hauteur à l'espace RÉELLEMENT disponible du côté choisi — sans
+    // ça, un trigger sans 240px ni au-dessus ni en dessous (ex. petite
+    // fenêtre) produit une liste qui déborde quand même du viewport côté
+    // opposé (finding codex-crosscheck MOYENNE).
+    const availableSpace = (needsFlip ? spaceAbove : spaceBelow) - gapPx;
+    const maxHeight = Math.max(0, Math.min(LISTBOX_MAX_HEIGHT, availableSpace));
     setListboxRect(
       needsFlip
-        ? { bottom: window.innerHeight - rect.top + gapPx, left: rect.left, width: rect.width }
-        : { top: rect.bottom + gapPx, left: rect.left, width: rect.width }
+        ? { bottom: window.innerHeight - rect.top + gapPx, left: rect.left, width: rect.width, maxHeight }
+        : { top: rect.bottom + gapPx, left: rect.left, width: rect.width, maxHeight }
     );
 
     function closeOnScrollOrResize() {
@@ -258,6 +267,7 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
             style={{
               left: listboxRect.left,
               width: listboxRect.width,
+              maxHeight: listboxRect.maxHeight,
               ...(listboxRect.top !== undefined ? { top: listboxRect.top } : { bottom: listboxRect.bottom }),
             }}
             tabIndex={-1}

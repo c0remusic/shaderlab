@@ -1,6 +1,7 @@
 .canvas-stage {
   position: relative;
-  flex: 1;
+  width: 100%;
+  height: 100%;
   min-width: var(--canvas-min-width);
   min-height: var(--canvas-min-height);
   display: flex;
@@ -8,6 +9,14 @@
   justify-content: center;
   background: var(--surface-workspace);
   color: var(--text-primary);
+  /* Compensation statique du centrage (design.md §8) : décale le point de
+     centrage vers la gauche de la largeur par défaut du dock virtuel, pour
+     que la photo ne semble pas centrée SOUS les panneaux Calques/Réglages
+     à leur position de départ. Calculée une fois, pas réactive à un
+     déplacement ultérieur des panneaux par l'utilisateur — voir
+     computeEffectiveViewportWidth (src/components/floatingPanel/effectiveViewport.ts)
+     et son commentaire pour la valeur exacte et le futur usage pan/zoom. */
+  padding-right: calc(var(--inspector-width-default) * 2);
 }
 
 .canvas-stage__canvas {

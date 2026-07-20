@@ -38,6 +38,17 @@ export function createBrushSource(id: string, raster: Uint8Array): MaskSource {
   return { id, type: "brush", combineMode: "add", enabled: true, params: null, raster };
 }
 
+/** Source paramétrique (dégradé/luminosité/range couleur, design.md §3) —
+ *  `raster: null` (contrairement au pinceau, sa contribution est calculée
+ *  par une passe shader depuis `params`, jamais peinte). */
+export function createParametricSource(
+  id: string,
+  type: Exclude<MaskSourceType, "brush">,
+  params: Record<string, number | number[]>
+): MaskSource {
+  return { id, type, combineMode: "add", enabled: true, params, raster: null };
+}
+
 /** Conteneur de masque non-destructif d'un calque (design.md §3). Remplace
  *  l'ancien champ unique de `LayerState` (`Uint8Array | null`). */
 export interface LayerMask {

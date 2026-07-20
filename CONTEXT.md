@@ -137,9 +137,12 @@ change pas l'espace de calcul. Source : `PRD-print-export.md`.
   Masques (Tranche 4). _Avoid_: "panneau docké"/"sidebar" pour désigner le nouveau
   modèle — ces termes décrivent l'ancien `Inspector.tsx` fixe, remplacé.
   Source : `...-floating-panels-design.md`.
-- **Dock virtuel** — position par défaut où les panneaux flottants s'accrochent au
-  démarrage (ancré au premier panneau posé, pas une colonne dessinée/délimitée).
-  Source : session 2026-07-20.
+- **Dock virtuel** — zone occupée par défaut par Calques + Réglages empilés au
+  démarrage, PAS une colonne dessinée/délimitée (§5 : l'ancrage lui-même suit le
+  premier panneau posé, pas une position fixe ; §8 : sa largeur par défaut sert de
+  constante statique `DEFAULT_PANEL_COLUMN_WIDTH` pour le centrage du canvas —
+  deux usages du même dock, à ne pas confondre). Source :
+  `...-floating-panels-design.md` §5+§8.
 - **Magnétisme** — accrochage automatique d'un panneau à un autre panneau ou au bord
   du canvas au RELÂCHEMENT d'un drag (pas de recalcul continu). Bidirectionnel
   (horizontal ET vertical). Source : `...-floating-panels-design.md`.

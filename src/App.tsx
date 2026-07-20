@@ -24,6 +24,8 @@ import { computeSnappedPosition, PANEL_GAP } from "./components/floatingPanel/sn
 import { LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
 import { getEffect } from "./render/effects/registry";
+import type { RefineEdgeParams } from "./mask/types";
+import { MAX_COLOR_RANGE_SAMPLES } from "./mask/sources/colorRange";
 
 export default function App() {
   useGlobalControlWheel();
@@ -365,6 +367,87 @@ export default function App() {
     [currentStack, commit]
   );
 
+  function handleAddMaskSource(layerId: string, type: "gradient" | "luminosity" | "colorRange") {
+    const stack = currentStack();
+    stack.addMaskSource(layerId, type);
+    commit(stack); // ajout d'une source = action discrète, une entrée directe
+  }
+
+  function handleRemoveMaskSource(layerId: string, sourceId: string) {
+    const stack = currentStack();
+    stack.removeMaskSource(layerId, sourceId);
+    commit(stack);
+  }
+
+  function handleMaskSourceParamsChange(layerId: string, sourceId: string, params: Record<string, number | number[]>) {
+    paramDirtyRef.current = true;
+    const stack = currentStack();
+    stack.updateMaskSourceParams(layerId, sourceId, params);
+    syncLayers(stack.layers);
+    rendererRef.current?.requestRender(stack.layers);
+  }
+
+  function handleMaskSourceCombineModeChange(layerId: string, sourceId: string, mode: "add" | "subtract" | "intersect") {
+    const stack = currentStack();
+    stack.setMaskSourceCombineMode(layerId, sourceId, mode);
+    commit(stack);
+  }
+
+  function handleMaskInvertChange(layerId: string, invert: boolean) {
+    const stack = currentStack();
+    stack.setMaskInvert(layerId, invert);
+    commit(stack);
+  }
+
+  function handleMaskEnabledChange(layerId: string, enabled: boolean) {
+    const stack = currentStack();
+    stack.setMaskEnabled(layerId, enabled);
+    commit(stack);
+  }
+
+  function handleRefineEdgeChange(layerId: string, refineEdge: Partial<RefineEdgeParams>) {
+    paramDirtyRef.current = true;
+    const stack = currentStack();
+    stack.updateRefineEdge(layerId, refineEdge);
+    syncLayers(stack.layers);
+    rendererRef.current?.requestRender(stack.layers);
+  }
+
+  // Limitation documentée Tranche 3 (brief Task 6 Step 10) : pas de picker
+  // interactif au clic sur le canvas (hors scope, Tranche 4/panneau
+  // flottant) — cette action prend la couleur du pixel au CENTRE du canvas
+  // comme valeur de test minimale. Le <canvas> est configuré WebGPU (pas de
+  // contexte 2D dessus) : on le redessine sur un canvas 2D hors-écran de
+  // 1x1 via drawImage pour lire un seul pixel, plutôt qu'un readback GPU
+  // dédié — suffisant pour un échantillon de test, pas pour un vrai picker.
+  function handleAddColorSample(layerId: string, sourceId: string) {
+    const source = layersRef.current.find((l) => l.id === layerId)?.mask.sources.find((s) => s.id === sourceId);
+    if (!source || !canvasRef.current || canvasRef.current.width === 0) return;
+    const existing = (source.params?.samples as number[] | undefined) ?? [];
+    if (existing.length / 3 >= MAX_COLOR_RANGE_SAMPLES) return;
+    const sampleCanvas = document.createElement("canvas");
+    sampleCanvas.width = 1;
+    sampleCanvas.height = 1;
+    const ctx2d = sampleCanvas.getContext("2d");
+    if (!ctx2d) return;
+    const cx = canvasRef.current.width / 2;
+    const cy = canvasRef.current.height / 2;
+    ctx2d.drawImage(canvasRef.current, cx, cy, 1, 1, 0, 0, 1, 1);
+    const pixel = ctx2d.getImageData(0, 0, 1, 1).data;
+    // sRGB -> linéaire (cohérent "linéaire strict", même conversion que le
+    // reste du pipeline couleur du projet) — le canvas affiché est déjà en
+    // sortie sRGB, la source colorRange compare en `colorLinear`.
+    const toLinear = (c: number) => {
+      const s = c / 255;
+      return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+    };
+    const rgbLinear = [toLinear(pixel[0]), toLinear(pixel[1]), toLinear(pixel[2])];
+    const params = { ...source.params, samples: [...existing, ...rgbLinear] };
+    const stack = currentStack();
+    stack.updateMaskSourceParams(layerId, sourceId, params);
+    commit(stack); // ajout d'un échantillon = action discrète, une entrée directe
+  }
+
   function handleMaskStroke(x: number, y: number) {
     if (!selectedId || imageSize.width === 0) return;
     // Raster depuis layersRef (complet) — le state `layers` est la projection
@@ -540,6 +623,16 @@ export default function App() {
             onParamCommit={handleParamCommit}
             maskPaintMode={maskPaintMode}
             onToggleMaskPaint={() => setMaskPaintMode((v) => !v)}
+            onAddMaskSource={handleAddMaskSource}
+            onRemoveMaskSource={handleRemoveMaskSource}
+            onMaskSourceParamsChange={handleMaskSourceParamsChange}
+            onMaskSourceParamsCommit={handleParamCommit}
+            onMaskSourceCombineModeChange={handleMaskSourceCombineModeChange}
+            onMaskInvertChange={handleMaskInvertChange}
+            onMaskEnabledChange={handleMaskEnabledChange}
+            onRefineEdgeChange={handleRefineEdgeChange}
+            onRefineEdgeCommit={handleParamCommit}
+            onAddColorSample={handleAddColorSample}
           />
         </FloatingPanel>
       </main>

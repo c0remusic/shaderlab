@@ -40,3 +40,61 @@
   gap: var(--space-5);
   padding-top: var(--space-2);
 }
+
+.param-panel__mask-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.param-panel__source-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.param-panel__source-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset);
+}
+
+.param-panel__source-row--active {
+  background: var(--surface-selected);
+}
+
+.param-panel__source-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.param-panel__source-params {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--outline-contrast);
+}
+
+.param-panel__samples {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}

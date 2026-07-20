@@ -133,16 +133,26 @@ change pas l'espace de calcul. Source : `PRD-print-export.md`.
   remplacement, jamais de mutation en place). (`src/layers/types.ts:10-14`)
 
 - **Panneau flottant** (`FloatingPanel`) — module UI déplaçable/repliable, pas dockée
-  dans une barre latérale fixe. Trois instances prévues : Calques, Réglages,
-  Masques (Tranche 4). _Avoid_: "panneau docké"/"sidebar" pour désigner le nouveau
-  modèle — ces termes décrivent l'ancien `Inspector.tsx` fixe, remplacé.
-  Source : `...-floating-panels-design.md`.
+  dans une barre latérale FIXE au sens de l'ancien `Inspector.tsx` (remplacé).
+  Trois instances prévues : Calques, Réglages, Masques (Tranche 4). Peut être
+  **docké** dans le **rail d'icônes** (voir ci-dessous, PRD cadré 2026-07-20,
+  pas encore implémenté) — "docké" ici désigne cet état spécifique, pas
+  l'ancien Inspector. Source : `...-floating-panels-design.md`.
+- **Rail d'icônes** (design cible, pas encore livré) — colonne fixe d'icônes
+  (une par panneau) qui bascule l'affichage/masquage de CHAQUE panneau
+  indépendamment (plusieurs dockés visibles empilés en même temps, pas des
+  onglets à un seul actif). Un panneau docké peut être sorti en flottant par
+  drag (et redocké pareil, ou en cliquant son icône qui reste visible même
+  flottant). État par défaut au lancement. Vérifié le 2026-07-20 : PAS un
+  système de fusion en onglets (piste explorée puis écartée par Antoine après
+  vérification en direct sur photoshop.adobe.com). Source : `PRD-floating-panel-rail.md`.
 - **Dock virtuel** — zone occupée par défaut par Calques + Réglages empilés au
   démarrage, PAS une colonne dessinée/délimitée (§5 : l'ancrage lui-même suit le
   premier panneau posé, pas une position fixe ; §8 : sa largeur par défaut sert de
   constante statique `DEFAULT_PANEL_COLUMN_WIDTH` pour le centrage du canvas —
   deux usages du même dock, à ne pas confondre). Source :
   `...-floating-panels-design.md` §5+§8.
-- **Magnétisme** — accrochage automatique d'un panneau à un autre panneau ou au bord
-  du canvas au RELÂCHEMENT d'un drag (pas de recalcul continu). Bidirectionnel
-  (horizontal ET vertical). Source : `...-floating-panels-design.md`.
+- **Magnétisme** — accrochage automatique d'un panneau à un AUTRE PANNEAU
+  uniquement (jamais au bord du canvas, retiré 2026-07-20 après retour Antoine)
+  au RELÂCHEMENT d'un drag (pas de recalcul continu). Bidirectionnel (horizontal
+  ET vertical). Source : `...-floating-panels-design.md` §5.

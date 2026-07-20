@@ -125,6 +125,25 @@ export default function App() {
   const layersPanelHeight = layersPanel.collapsed ? COLLAPSED_PANEL_HEIGHT : PANEL_SIZE.height;
   const paramsPanelHeight = paramsPanel.collapsed ? COLLAPSED_PANEL_HEIGHT : PANEL_SIZE.height;
 
+  // `paramsFitsExpanded` ci-dessus est calculé au premier rendu contre
+  // window.innerHeight (approximation, avant toute mesure réelle du
+  // ResizeObserver — .workspace exclut la Toolbar). Une fois la VRAIE taille
+  // mesurée, on rejoue cette même vérification UNE SEULE fois pour corriger
+  // un faux "ça tient" initial (finding codex-crosscheck MOYENNE,
+  // 2026-07-20) — cohérent avec le principe "statique, pas réactif" du
+  // magnétisme (design.md §5) : une correction ponctuelle post-mesure, pas
+  // un recalcul continu à chaque resize.
+  const initialFitCheckedRef = useRef(false);
+  useEffect(() => {
+    if (initialFitCheckedRef.current) return;
+    initialFitCheckedRef.current = true;
+    const fitsExpanded =
+      layersPanel.position.y + PANEL_SIZE.height + PANEL_GAP + PANEL_SIZE.height <= workspaceSize.height;
+    if (!fitsExpanded) {
+      setParamsPanel((prev) => (prev.collapsed ? prev : { ...prev, collapsed: true }));
+    }
+  }, [workspaceSize.height, layersPanel.position.y]);
+
   // `layersRef` = source de vérité COMPLÈTE des calques (avec les rasters de
   // masque), pour le rendu GPU, l'historique et l'export. Le state React
   // `layers` n'en est qu'une PROJECTION D'AFFICHAGE, rasters retirés.

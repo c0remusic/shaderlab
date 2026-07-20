@@ -8,11 +8,22 @@ import { Inspector } from "./components/Inspector";
 import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
 import { ErrorBanner } from "./components/ErrorBanner";
+import { DesignPreview } from "./components/DesignPreview";
 import { exportImage, resolveExportTarget } from "./export/exportImage";
 import { getLaunchPath, readImageFile, pickImageFile } from "./launch";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 
 export default function App() {
+  const showDesignPreview = new URLSearchParams(window.location.search).has("design-preview");
+
+  if (showDesignPreview) {
+    return <DesignPreview />;
+  }
+
+  return <ShaderLabApp />;
+}
+
+function ShaderLabApp() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gpuRef = useRef<GpuContext | null>(null);
   const rendererRef = useRef<Renderer | null>(null);

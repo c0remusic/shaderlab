@@ -106,6 +106,19 @@ que `LayerPanel`.
 - Au relâchement : le panneau prend sa position finale (libre, ou accrochée
   si dans la zone de magnétisme d'un autre panneau/bord).
 
+**Alternative clavier — requise (finding revue adverse codex-crosscheck : la
+v1 ne spécifiait que le pointeur, violant la convention d'accessibilité du
+projet, `docs/design-system/patterns.md`/`governance.md` — drag-and-drop DOIT
+avoir une alternative clavier)** : la poignée de titre est un élément
+focusable (`tabIndex=0`, rôle explicite). Une fois focusée, les flèches
+directionnelles déplacent le panneau par pas fixe (`KEYBOARD_NUDGE_STEP`,
+valeur à calibrer — commencer à 16px, `Shift`+flèche = pas large façon les
+autres contrôles calibrés du projet, cf. `rules/ui.md` § Espacement). Le
+magnétisme (§5) s'applique aussi à la position atteinte au clavier, pas
+seulement en fin de drag pointeur. Le bouton de repli (chevron) est un
+`<button>` natif — focusable/activable au clavier sans effort supplémentaire,
+aucune alternative à concevoir.
+
 ## 5. Magnétisme — deux axes, entre modules ET bords du canvas
 
 Observé par Antoine sur Photoshop réel : les modules s'accrochent **à la
@@ -119,8 +132,20 @@ frame) : pour chaque bord du panneau relâché (haut/bas/gauche/droite),
 chercher le bord le plus proche parmi (a) les bords des autres panneaux
 visibles, (b) les bords du canvas, dans un rayon de tolérance (`SNAP_DISTANCE`,
 valeur à calibrer à l'implémentation — commencer à ~12px, ajuster au
-checkpoint visuel). Si trouvé sous le seuil, aligner ce bord exactement ;
-sinon le panneau reste à la position brute du relâchement (pas de snap forcé).
+checkpoint visuel). Si plusieurs candidats sont sous le seuil, retenir le
+plus proche (distance minimale) ; égalité exacte → le premier trouvé dans
+l'ordre de rendu des panneaux (déterministe, pas un choix arbitraire à
+l'exécution).
+
+**Distance snappée — corrigé (contradiction relevée en revue adverse
+codex-crosscheck)** : accrocher un bord à un panneau voisin (cas a) aligne
+avec un **écart de `PANEL_GAP` (8px, la même valeur que le § 3)**, jamais un
+contact bord-à-bord à 0px — sinon la contradiction « chaque panneau garde son
+propre cadre, 8px d'écart minimum » (§3) contre « aligner ce bord exactement »
+(ici) produirait un écart nul en pratique. Accrocher à un bord du **canvas**
+(cas b) aligne à distance 0 (flush avec le bord de la fenêtre) — pas de gap
+équivalent requis contre le bord de la fenêtre elle-même. Sinon (aucun
+candidat sous le seuil) le panneau reste à la position brute du relâchement.
 
 **Pas de recalcul dynamique après coup** — décision explicite d'Antoine :
 si un panneau ancre bouge plus tard, les panneaux qui s'étaient accrochés à
@@ -185,10 +210,23 @@ même contrainte que le reste du pipeline pointer-events de `LayerPanel` cette
 session). **Moyen de preuve** : checkpoint visuel humain via CDP dans la
 vraie fenêtre (cf. CLAUDE.md § Méthode), pas Playwright headless (canvas
 WebGPU rend noir en headless). Ce qui reste unitairement testable et DOIT
-l'être : la fonction pure de calcul de magnétisme (bord le plus proche sous
-un seuil de tolérance) et la fonction de calcul du viewport effectif
-(fenêtre − largeur de dock) — même famille que `computeInsertIndex`
-(`LayerPanel.tsx`, testé cette session sans dépendance DOM/GPU).
+l'être : la fonction pure de calcul de magnétisme et la fonction de calcul
+du viewport effectif (fenêtre − largeur de dock) — même famille que
+`computeInsertIndex` (`LayerPanel.tsx`, testé cette session sans dépendance
+DOM/GPU).
+
+**Cas requis pour la fonction de magnétisme (finding revue adverse
+codex-crosscheck : la v1 ne listait qu'« un bord sous un seuil », insuffisant
+face au contrat réel du §5)** :
+- accrochage sur l'axe horizontal seul, vertical seul, et **les deux
+  simultanément** (un coin de panneau proche d'un coin d'un autre) ;
+- plusieurs candidats sous le seuil ⟹ le plus proche retenu, égalité exacte
+  ⟹ résolue par l'ordre de rendu (déterministe, cf. §5) ;
+- accrochage panneau↔panneau respecte l'écart `PANEL_GAP` (8px, jamais 0) ;
+- accrochage panneau↔bord du canvas est flush (0px), pas de gap ;
+- aucun candidat sous le seuil ⟹ position brute inchangée ;
+- un panneau qui sortirait des limites du canvas au relâchement reste
+  contraint dans le viewport (pas de position hors-écran inatteignable).
 
 ## Différé (hors scope de ce document)
 

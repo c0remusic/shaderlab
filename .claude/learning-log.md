@@ -405,3 +405,55 @@ format `rgb(r, g, b)`). Utilisé pour re-thémer shaderlab en gris neutre
 `#dbdbdb`, gray-900 `#f2f2f2`, blue-800 `#4069fd`. Sélection de ligne "non
 emphasized" = 10% opacité du gris texte, pas une couleur bleue (le bleu
 Spectrum n'apparaît qu'en état "emphasized"/focus clavier du conteneur).
+
+**Découverte (TTL 6 mois, 2026-07-21)** : re-vérifié via le package npm
+`@adobe/spectrum-tokens@14.15.0` (`dist/json/variables.json`, pas
+`spectrum-css/tokens/dist/json/tokens.json` cité ci-dessus — les deux
+existent, celui-ci est la source "tokens purs" officielle Adobe, licence
+Apache-2.0) : les tokens shaderlab actuels (`--primitive-neutral-950/900/200`,
+`--primitive-accent-blue`, `--radius-panel`) sont byte-identiques à
+`gray-75`/`gray-100`/`gray-800`/`blue-800`/`corner-radius-500` dark de ce
+package — confirme que le re-theming du 2026-07-13 (entrée ci-dessus) a bien
+pris la bonne source. `--border-subtle`/`--border-default` (technique
+différente : overlay blanc en opacité, pas un ton gris plein) rendent
+mathématiquement (mélange alpha sur fond) à ~1px près de `gray-300`/`gray-400`
+dark — donc déjà alignés eux aussi. **How to apply** : avant tout futur
+chantier "rapprocher du thème Photoshop/Spectrum", commencer par ce calcul de
+rendu réel plutôt que de supposer qu'il y a un écart — le seul écart trouvé
+en 2026-07-21 était l'ABSENCE d'échelle d'ombres nommée (une seule valeur
+plate `--shadow-panel-dragging`, aucune ombre sur Tooltip/Select/DropdownMenu)
+et le ratio padding horizontal/vertical des boutons (~1.2:1 mesuré, cible
+2-3:1 du socle `~/.claude/rules/ui.md` § Élévation/Espacement) — pas les
+couleurs/espacements/radius eux-mêmes.
+
+**Découverte (TTL 6 mois, 2026-07-21)** : `react-resizable-panels@4.12.2`
+(dernière version au moment de l'installation) a une API RÉELLEMENT
+différente de la doc/mémoire habituelle de cette librairie : exports
+`Group`/`Panel`/`Separator` (pas `PanelGroup`/`PanelResizeHandle`),
+`orientation` (pas `direction`), et une valeur numérique de taille
+(`defaultSize={45}`) est interprétée comme des PIXELS, pas un pourcentage —
+il faut une STRING (`defaultSize="45"`) pour du pourcentage. Vérifié sur le
+`.d.ts` et le bundle `.js` installés dans `node_modules/`, pas deviné depuis
+un README qui peut être en retard sur la version réellement publiée. **How
+to apply** : pour toute librairie de layout/redimensionnement, revérifier
+la forme exacte de l'API sur le `.d.ts` installé avant d'écrire du code qui
+suppose une API "connue" — une version majeure peut avoir renommé les
+exports sans que la doc publique en ligne suive.
+
+**Instinct (0.6, 2026-07-21)** : Antoine délègue parfois l'exécution d'un
+plan écrit par Claude à une session Codex séparée, lancée directement dans
+le MÊME worktree (pas de worktree dédié) pendant qu'une session Claude
+continue en parallèle (wrap-up, discussion). Preuve : le plan
+`2026-07-21-shaderlab-dock-reorder-and-theme-polish.md` a été exécuté par
+Codex (commits `e265f08`..`81fccbd`, messages de commit correspondant
+exactement aux Steps du plan) pendant que la session Claude qui avait écrit
+ce même plan faisait encore le wrap-up dans la même conversation. **How to
+apply** : si `git log`/`git status` montre des commits ou des fichiers
+modifiés non produits par CETTE conversation sur `feature/design-system`,
+ne PAS traiter comme suspect ni comme une erreur — vérifier d'abord si les
+messages de commit correspondent à un plan récemment écrit (signature
+probable d'une exécution Codex/agent en parallèle) avant de supposer une
+autre explication. Un hook post-commit `codex-crosscheck` peut aussi
+bloquer un appel `git commit` en apparence (timeout du hook, PAS un échec du
+commit lui-même) — vérifier `git log` après un timeout avant de conclure à
+un échec.

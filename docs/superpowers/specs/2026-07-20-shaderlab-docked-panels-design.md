@@ -93,20 +93,23 @@ trancher au plan) plus simple :
 
 ### Position et taille
 
-- Colonne fixe à droite : `right: var(--space-4)` (marge constante, pas de
+- Colonne fixe à droite : `right: var(--space-6)` (16px, marge constante — corrigé de `--space-4` qui vaut 8px dans `primitives.css`, pas 16px ; pas de
   point de départ "librement déplaçable ensuite" comme l'ancien design —
   cette phrase du design.md FloatingPanel du 2026-07-20 est explicitement
   remplacée).
 - Largeur : **320px** (valeur mesurée sur Photoshop web), au lieu de 288px
   actuels. Voir § Tokens pour la question de nommage.
-- Hauteur de chaque carte : `min-content` jusqu'à un plafond (`max-height`)
-  — jamais une hauteur fixe forcée qui laisserait un vide (bug corrigé en
-  session sur l'ancien système, à ne pas réintroduire). Le plafond de
-  Calques est ajustable par l'utilisateur via le splitter ; Réglages prend
-  le reste de la hauteur disponible SEULEMENT si son propre contenu le
-  justifie (pas de `flex:1` forcé quand le contenu est court — même
-  principe que Calques, confirmé par Antoine lors de la revue du
-  wireframe).
+- Hauteur de chaque carte : **révisé post-choix de librairie (2026-07-20)**
+  — `react-resizable-panels` répartit l'espace d'un `PanelGroup` à hauteur
+  fixe entre ses enfants (modèle IDE), incompatible avec un mode
+  min-content pur. Tranché avec Antoine : la colonne occupe TOUTE la
+  hauteur disponible du workspace (fidèle à photoshop.adobe.com observé en
+  vrai — les cartes s'étirent, un contenu court laisse un vide EN BAS de sa
+  propre carte, pas un vide ENTRE les cartes comme l'ancien bug). Calques et
+  Réglages se partagent cet espace via le splitter (`defaultSize` ~45/55%,
+  `minSize`/`maxSize` bornés par carte). Remplace la phrase précédente
+  ("pas de flex:1 forcé") qui décrivait un comportement pré-librairie,
+  devenu caduc.
 
 ### Canvas — compensation de centrage
 
@@ -119,6 +122,33 @@ fonction JS séparée qui pourrait diverger (`computeEffectiveViewportWidth`
 est supprimée, son seul rôle — approximer une largeur variable — n'a plus
 de raison d'être).
 
+## Librairies retenues (décision 2026-07-20, post-relecture)
+
+- **Splitter redimensionnable** (§ Architecture) : implémenté avec
+  `react-resizable-panels` plutôt qu'un drag maison — composant dédié
+  testé, léger, aucun style imposé (s'habille avec les tokens shaderlab).
+  Remplace la mention "drag vertical borné maison" plus haut.
+- **Adobe React Spectrum (composants complets) — écarté.** Vérifié sur
+  pièce (npm/doc officielle) avant décision : `@react-spectrum/s2` n'a pas
+  de composant resizable/splitview natif côté React (`react-resizable-panels`
+  resterait nécessaire de toute façon) ; son style macro exige un plugin
+  Vite tiers non officiel (`unplugin-parcel-macros`) ; cohabitation avec
+  Tailwind v4 non documentée par Adobe ; substitution des tokens Spectrum
+  par des tokens custom non officiellement supportée. Trois frictions
+  réelles pour un bénéfice marginal sur ce seul conteneur — pas retenu.
+- **React Aria** : vérifié strictement headless (aucun style fourni par
+  défaut) — rien à en tirer visuellement, non pertinent pour ce design.
+- **Tokens Spectrum (valeurs seules) — retenu comme source canonique.**
+  `@adobe/spectrum-tokens` (npm, JSON, licence Apache-2.0) remplace
+  l'inspection manuelle ad hoc de photoshop.adobe.com comme source de
+  vérité pour les valeurs de `docs/design-system/photoshop-web-reference-tokens.md` :
+  au moment du plan, re-dériver les valeurs utilisées (radius, spacing,
+  ombres, neutres) depuis ce package plutôt que les mesures visuelles
+  existantes, puis les reporter dans `src/design/{primitives,semantic,
+  components}.css` comme d'habitude. Aucune nouvelle dépendance de
+  composants ; shadcn/ui + Tailwind v4 restent le seul système de
+  composants du projet.
+
 ## Style visuel (tokens)
 
 | Aspect | Avant (`FloatingPanel`) | Après (`DockedPanelCard`) |
@@ -128,7 +158,7 @@ de raison d'être).
 | Titre — letter-spacing | `var(--tracking-label)` (0.07em) | normal (0) |
 | Titre — taille/poids | (à vérifier sur le composant actuel) | 16px / 600 (`--font-size-xl`/`--font-weight-semibold`, déjà existants) |
 | Largeur | `--inspector-width-default` (288px) | 320px |
-| Séparation entre panneaux | Magnétisme + `PANEL_GAP` (8px) | Gap fixe (`--space-4`, 16px) entre cartes empilées |
+| Séparation entre panneaux | Magnétisme + `PANEL_GAP` (8px) | Gap fixe (`--space-6`, 16px) entre cartes empilées |
 
 **Décision tokens** : `--inspector-width-default` passe de 288px à 320px
 (un seul token, pas de doublon `--panel-dock-width` séparé qui divergerait

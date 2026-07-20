@@ -43,10 +43,13 @@ describe("edge-aware WGSL passes", () => {
     }
   });
 
-  it("buildComputeABWgsl calcule a/b et sort en rg16float (pas de clamp)", () => {
+  it("buildComputeABWgsl calcule a/b et sort en rg16float (pas de clamp, mais varI planchée à 0)", () => {
     const wgsl = buildComputeABWgsl();
     expect(wgsl).toContain("fn fs_computeAB(");
     expect(wgsl).not.toContain("clamp(");
+    // finding codex-crosscheck HAUTE (commit 87ce5ad) : varI peut ressortir
+    // légèrement négative par cancellation en r16float sans ce plancher.
+    expect(wgsl).toContain("max(ci - mi * mi, 0.0)");
   });
 
   it("buildCompositeWgsl expose edgeStrength en uniform et clamp la sortie", () => {

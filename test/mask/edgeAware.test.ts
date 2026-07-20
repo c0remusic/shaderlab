@@ -8,6 +8,15 @@ describe("computeGuidedAB", () => {
     expect(Number.isFinite(b)).toBe(true);
   });
 
+  it("var_I légèrement négative par cancellation (corrI < meanI^2) est plancherée à 0, pas de NaN/Infinity (finding codex-crosscheck MOYENNE, commit 720b1ec)", () => {
+    // meanI=0.5 => meanI^2=0.25 ; corrI=0.2499 < 0.25 simule l'erreur
+    // d'arrondi r16float qui fait ressortir varI légèrement négative.
+    const { a, b } = computeGuidedAB(0.5, 0.5, 0.2499, 0.2499, 1e-4);
+    expect(Number.isFinite(a)).toBe(true);
+    expect(Number.isFinite(b)).toBe(true);
+    expect(Math.abs(a)).toBeLessThan(1000);
+  });
+
   it("guide parfaitement corrélé au masque (I === p partout) => a=1, b=0", () => {
     // meanI=meanP=0.5, corrI=corrIp=0.5 (varI=0.25, grande devant eps=1e-4).
     // L'exemple 0.3/0.3 du plan donne a=0.998 (varI=0.05, hors tolérance

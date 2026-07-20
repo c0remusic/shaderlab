@@ -1,0 +1,53 @@
+/*
+ * FloatingPanel : conteneur générique (Calques/Réglages aujourd'hui, Masques
+ * Tranche 4 demain). Positionné en absolute dans .canvas-stage (position:
+ * relative, voir Task 8) via transform: translate() — jamais top/left, pour
+ * rester fluide pendant le drag (Task 6/7).
+ *
+ * Chaque panneau garde son propre cadre + ombre, jamais fusionné visuellement
+ * avec un voisin même accroché juste à côté (design.md §3 — 8px d'écart
+ * minimum, cf. PANEL_GAP dans snapping.ts).
+ */
+
+.floating-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--inspector-width-default);
+  min-width: var(--inspector-width-min);
+  max-width: var(--inspector-width-max);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--panel-radius);
+  box-shadow: var(--shadow-panel-resting);
+  color: var(--text-primary);
+  z-index: var(--z-floating-panel);
+  overflow: visible; /* Select existant : pas de portail, popup jamais clippé */
+}
+
+.floating-panel__titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--section-header-height);
+  padding-inline: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: grab;
+  user-select: none;
+}
+
+.floating-panel__title {
+  font-family: var(--font-ui);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.floating-panel__content {
+  padding: var(--space-4);
+}

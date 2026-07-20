@@ -58,6 +58,14 @@ Tauri v2 (coquille Rust minimale, lib = `shaderlab_lib`) · React 19 + TS ·
 Vite · **WebGPU/WGSL brut** (pas de lib de rendu) · Vitest (Node env, aucun
 test ne rend de composant React — même convention que track-finder).
 
+**UI** : Tailwind v4 (`@tailwindcss/vite`) + `shadcn/ui` (style `base-ui`,
+PAS Radix — `components.json`). Tokens de marque = `src/design/{primitives,
+semantic,components}.css`, mappés dans `src/design/tailwind-theme.css`
+(jamais redéfinis). Migration en cours composant par composant : `ErrorBanner`/
+`Toolbar`/`BrushToolbar` migrés (2026-07-20) ; `Inspector`/`LayerPanel`/
+`ParamPanel`/`Canvas` encore en CSS classique. Voir
+`docs/superpowers/specs/2026-07-20-shadcn-migration-design.md`.
+
 Décisions techniques verrouillées (voir design.md pour les preuves) :
 - **Toutes les textures couleur au format sRGB préféré de la plateforme**
   (`${navigator.gpu.getPreferredCanvasFormat()}-srgb` — donc `bgra8unorm-srgb`

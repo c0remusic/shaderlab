@@ -18,6 +18,7 @@ export function DockedPanelCard({ title, collapsed, onCollapsedChange, children,
     <div className={`docked-panel-card ${dragging ? "docked-panel-card--dragging" : ""} ${className}`.trim()} data-reorder-index={reorderIndex}>
       <div className="docked-panel-card__titlebar" {...titlebarProps}>
         <span className="docked-panel-card__title">{title}</span>
+        <span className="docked-panel-card__drag-grip" aria-hidden="true" />
         <IconButton
           label={collapsed ? "Déplier le panneau" : "Replier le panneau"}
           size="compact"

@@ -21,6 +21,7 @@ function removePanel(layout: DockLayout, id: string): DockLayout {
 export function movePanelInDock(layout: DockLayout, id: string, target: DockDropTarget): DockLayout {
   const source = findPanel(layout, id);
   if (!source) return layout;
+  if (target.kind === "vertical" && source.columnIndex === target.columnIndex && source.rowIndex === target.rowIndex) return layout;
 
   const withoutPanel = removePanel(layout, id);
   const removedColumnBeforeTarget = source.columnIndex < target.columnIndex && layout[source.columnIndex].length === 1;

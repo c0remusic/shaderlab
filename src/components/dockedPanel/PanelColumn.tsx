@@ -24,6 +24,7 @@ interface DockDragState {
   grabOffset: { x: number; y: number };
   pointerPosition: { x: number; y: number };
   target: DockDropTarget | null;
+  targetBounds: { top: number; right: number; bottom: number; left: number } | null;
 }
 
 export function PanelColumn({ panels, layout, onMove }: PanelColumnProps) {
@@ -41,6 +42,7 @@ export function PanelColumn({ panels, layout, onMove }: PanelColumnProps) {
       grabOffset: { x: event.clientX - rect.left, y: event.clientY - rect.top },
       pointerPosition: { x: event.clientX, y: event.clientY },
       target: null,
+      targetBounds: null,
     });
   }, []);
 
@@ -49,7 +51,7 @@ export function PanelColumn({ panels, layout, onMove }: PanelColumnProps) {
       if (!current || event.pointerId !== current.pointerId) return current;
       const card = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-dock-column]");
       const pointerPosition = { x: event.clientX, y: event.clientY };
-      if (!card) return { ...current, pointerPosition, target: null };
+      if (!card) return { ...current, pointerPosition, target: null, targetBounds: null };
 
       const columnIndex = Number(card.dataset.dockColumn);
       const rowIndex = Number(card.dataset.dockRow);
@@ -65,7 +67,7 @@ export function PanelColumn({ panels, layout, onMove }: PanelColumnProps) {
               rowIndex,
               position: event.clientY - rect.top < rect.height / 2 ? "before" : "after",
             };
-      return { ...current, pointerPosition, target };
+      return { ...current, pointerPosition, target, targetBounds: rect };
     });
   }, []);
 
@@ -79,22 +81,19 @@ export function PanelColumn({ panels, layout, onMove }: PanelColumnProps) {
 
   let chipStyle: React.CSSProperties | null = null;
   let chipClassName = "drag-reorder__insert-chip";
-  if (dragState?.target) {
+  if (dragState?.target && dragState.targetBounds) {
     const dock = document.querySelector<HTMLElement>(".panel-column");
     if (dock) {
       if (dragState.target.kind === "vertical") {
-        const card = document.querySelector<HTMLElement>(`[data-dock-column="${dragState.target.columnIndex}"][data-dock-row="${dragState.target.rowIndex}"]`);
-        if (card) {
-          const cardRect = card.getBoundingClientRect();
-          chipStyle = {
-            top: (dragState.target.position === "before" ? cardRect.top : cardRect.bottom) - dock.getBoundingClientRect().top,
-          };
-        }
+        chipStyle = {
+          left: (dragState.targetBounds.left + dragState.targetBounds.right) / 2 - dock.getBoundingClientRect().left,
+          top: (dragState.target.position === "before" ? dragState.targetBounds.top : dragState.targetBounds.bottom) - dock.getBoundingClientRect().top,
+        };
       } else {
         chipClassName += " panel-column__insert-chip--horizontal";
         chipStyle = {
-          left: dragState.pointerPosition.x - dock.getBoundingClientRect().left,
-          top: dragState.pointerPosition.y - dock.getBoundingClientRect().top,
+          left: (dragState.target.position === "left" ? dragState.targetBounds.left : dragState.targetBounds.right) - dock.getBoundingClientRect().left,
+          top: (dragState.targetBounds.top + dragState.targetBounds.bottom) / 2 - dock.getBoundingClientRect().top,
         };
       }
     }

@@ -24,6 +24,12 @@ describe("movePanelInDock", () => {
       .toEqual([["params"], ["layers"]]);
   });
 
+  it("keeps a single-card column unchanged when dropped on itself", () => {
+    const singleCards: DockLayout = [["layers"], ["params"]];
+    expect(movePanelInDock(singleCards, "layers", { kind: "vertical", columnIndex: 0, rowIndex: 0, position: "before" }))
+      .toBe(singleCards);
+  });
+
   it("returns the original layout when the panel id is absent", () => {
     expect(movePanelInDock(layout, "missing", { kind: "horizontal", columnIndex: 0, position: "left" })).toBe(layout);
   });

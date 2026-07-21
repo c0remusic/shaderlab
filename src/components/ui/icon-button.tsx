@@ -14,7 +14,7 @@ export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>
   children: ReactNode;
 }
 
-export function IconButton({ label, tooltip, size = "default", variant = "quiet", type = "button", className, children, ...props }: IconButtonProps) {
+export function IconButton({ label, tooltip = label, size = "default", variant = "quiet", type = "button", className, children, ...props }: IconButtonProps) {
   const button = (
     <ButtonPrimitive
       type={type}
@@ -31,5 +31,5 @@ export function IconButton({ label, tooltip, size = "default", variant = "quiet"
     </ButtonPrimitive>
   );
 
-  return tooltip ? <Tooltip content={tooltip}>{button}</Tooltip> : button;
+  return <Tooltip content={tooltip}>{button}</Tooltip>;
 }

@@ -5,9 +5,9 @@ import { Eye, EyeOff, GripVertical, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
 import { effectRegistry, getEffect } from "../render/effects/registry";
 import { blendRegistry } from "../render/blend/registry";
-import { Select } from "../ui/Select";
-import { Slider } from "../ui/Slider";
-import { IconButton } from "../ui/IconButton";
+import { Select } from "./ui/select";
+import { LabeledSlider } from "./ui/labeled-slider";
+import { IconButton } from "./ui/icon-button";
 import "./LayerPanel.css";
 
 interface Props {
@@ -85,7 +85,7 @@ const LayerRow = memo(function LayerRow({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <GripVertical className="layer-panel__grip" size={14} strokeWidth={1.5} aria-hidden="true" />
+            <GripVertical className="layer-panel__grip icon-sm icon-stroke" aria-hidden="true" />
           </span>
           <IconButton
             label={layer.enabled ? "Masquer le calque" : "Afficher le calque"}
@@ -96,9 +96,9 @@ const LayerRow = memo(function LayerRow({
             }}
           >
             {layer.enabled ? (
-              <Eye size={14} strokeWidth={1.5} aria-hidden="true" />
+              <Eye className="icon-sm icon-stroke" aria-hidden="true" />
             ) : (
-              <EyeOff size={14} strokeWidth={1.5} aria-hidden="true" />
+              <EyeOff className="icon-sm icon-stroke" aria-hidden="true" />
             )}
           </IconButton>
           <span className={`layer-panel__row-name ${selected ? "layer-panel__row-name--selected" : ""}`.trim()}>
@@ -114,12 +114,12 @@ const LayerRow = memo(function LayerRow({
             onRemove(layer.id);
           }}
         >
-          <Trash2 size={14} strokeWidth={1.5} aria-hidden="true" />
+          <Trash2 className="icon-sm icon-stroke" aria-hidden="true" />
         </IconButton>
       </div>
       {dropPosition && <span className={`drag-reorder__insert-chip layer-panel__insert-chip--${dropPosition}`} aria-hidden="true" />}
       <div className="layer-panel__row-controls" onClick={(e) => e.stopPropagation()}>
-        <Slider
+        <LabeledSlider
           label="Opacité"
           value={layer.opacity}
           min={0}

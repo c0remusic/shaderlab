@@ -32,7 +32,7 @@ export function BrushToolbar({
   return (
     <div className="brush-toolbar" role="toolbar" aria-label="Options du pinceau">
       <span className="brush-toolbar__tool">
-        <Brush size={16} strokeWidth={1.5} aria-hidden="true" />
+        <Brush className="icon-md icon-stroke" aria-hidden="true" />
         Pinceau
       </span>
       <div className="brush-toolbar__control">
@@ -57,7 +57,7 @@ export function BrushToolbar({
         />
       </div>
       <Toggle pressed={erase} onPressedChange={onEraseChange} aria-label="Gomme">
-        <Eraser size={16} strokeWidth={1.5} aria-hidden="true" />
+        <Eraser className="icon-md icon-stroke" aria-hidden="true" />
         Gomme
       </Toggle>
       <div className="brush-toolbar__spacer" />

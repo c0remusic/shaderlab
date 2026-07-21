@@ -33,11 +33,11 @@ export function Toolbar({ canUndo, canRedo, onUndo, onRedo, onExport, onOpenFile
         />
         <DropdownMenuContent align="start">
           <DropdownMenuItem onClick={onOpenFile}>
-            <FolderOpen size={16} strokeWidth={1.5} aria-hidden="true" />
+            <FolderOpen className="icon-md icon-stroke" aria-hidden="true" />
             Ouvrir
           </DropdownMenuItem>
           <DropdownMenuItem onClick={onExport}>
-            <Download size={16} strokeWidth={1.5} aria-hidden="true" />
+            <Download className="icon-md icon-stroke" aria-hidden="true" />
             Exporter
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -50,7 +50,7 @@ export function Toolbar({ canUndo, canRedo, onUndo, onRedo, onExport, onOpenFile
         disabled={!canUndo}
         onClick={onUndo}
       >
-        <Undo2 size={16} strokeWidth={1.5} aria-hidden="true" />
+        <Undo2 className="icon-md icon-stroke" aria-hidden="true" />
       </Button>
       <Button
         variant="ghost"
@@ -60,7 +60,7 @@ export function Toolbar({ canUndo, canRedo, onUndo, onRedo, onExport, onOpenFile
         disabled={!canRedo}
         onClick={onRedo}
       >
-        <Redo2 size={16} strokeWidth={1.5} aria-hidden="true" />
+        <Redo2 className="icon-md icon-stroke" aria-hidden="true" />
       </Button>
       <div className="flex-1" />
     </div>

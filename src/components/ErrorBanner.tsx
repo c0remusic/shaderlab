@@ -10,7 +10,7 @@ interface Props {
 export function ErrorBanner({ message, onDismiss }: Props) {
   return (
     <Alert variant="destructive" role="alert" className="rounded-none border-x-0 border-t-0">
-      <CircleAlert size={16} strokeWidth={1.5} aria-hidden="true" />
+      <CircleAlert className="icon-md icon-stroke" aria-hidden="true" />
       <AlertDescription className="flex items-center justify-between gap-4 pr-0">
         <span>{message}</span>
         <Button
@@ -20,7 +20,7 @@ export function ErrorBanner({ message, onDismiss }: Props) {
           onClick={onDismiss}
           className="size-6 shrink-0"
         >
-          <X size={14} strokeWidth={1.5} aria-hidden="true" />
+          <X className="icon-sm icon-stroke" aria-hidden="true" />
         </Button>
       </AlertDescription>
     </Alert>

@@ -1,9 +1,9 @@
 import type { LayerState } from "../layers/types";
 import { getEffect } from "../render/effects/registry";
 import "./ParamPanel.css";
-import { Slider } from "../ui/Slider";
+import { LabeledSlider } from "./ui/labeled-slider";
+import { Disclosure } from "./ui/collapsible";
 import { formatControlValue } from "../ui/formatValue";
-import { Disclosure } from "../ui/Disclosure";
 
 interface Props {
   layer: LayerState | null;
@@ -40,18 +40,18 @@ export function ParamPanel({ layer, onParamChange, onParamCommit }: Props) {
       <Disclosure title="Effet" defaultOpen>
         <div className="param-panel__group">
           {effect.params.map((p) => (
-            <Slider
-              key={p.name}
-              label={p.label}
-              value={layer.params[p.name] ?? p.default}
-              min={p.min}
-              max={p.max}
-              step={p.step}
-              displayValue={formatEffectParamValue(layer.params[p.name] ?? p.default, p)}
-              title={p.hint}
-              onChange={(v) => onParamChange(layer.id, { [p.name]: v })}
-              onCommit={onParamCommit}
-            />
+            <div key={p.name} title={p.hint}>
+              <LabeledSlider
+                label={p.label}
+                value={layer.params[p.name] ?? p.default}
+                min={p.min}
+                max={p.max}
+                step={p.step}
+                displayValue={formatEffectParamValue(layer.params[p.name] ?? p.default, p)}
+                onChange={(v) => onParamChange(layer.id, { [p.name]: v })}
+                onCommit={onParamCommit}
+              />
+            </div>
           ))}
         </div>
       </Disclosure>

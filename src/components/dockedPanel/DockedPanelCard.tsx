@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { IconButton } from "../../ui/IconButton";
+import { IconButton } from "../ui/icon-button";
 import "./DockedPanelCard.css";
 
 export interface DockedPanelCardProps {
@@ -28,7 +28,11 @@ export function DockedPanelCard({ title, collapsed, onCollapsedChange, children,
             onCollapsedChange(!collapsed);
           }}
         >
-          {collapsed ? <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" /> : <ChevronDown size={14} strokeWidth={1.5} aria-hidden="true" />}
+          {collapsed ? (
+            <ChevronRight className="icon-sm icon-stroke" aria-hidden="true" />
+          ) : (
+            <ChevronDown className="icon-sm icon-stroke" aria-hidden="true" />
+          )}
         </IconButton>
       </div>
       {!collapsed && <div className="docked-panel-card__content">{children}</div>}

@@ -88,6 +88,7 @@ export function Menu({ label, icon, items, variant = "secondary" }: MenuProps) {
 
   function openMenu() {
     setActiveIndex(nextEnabledIndex(items, -1, 1));
+    setMenuRect(null);
     setOpen(true);
   }
 

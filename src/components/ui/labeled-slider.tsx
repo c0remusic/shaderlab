@@ -26,7 +26,7 @@ export interface LabeledSliderProps {
 
 /**
  * Labeled, calibrated single-value slider on top of the shared Base UI
- * primitive (`./slider`). Preserves the pre-migration `src/ui/Slider`
+ * primitive (`./slider`). Preserves the pre-migration legacy slider's
  * contract (single numeric value, `onChange`/`onCommit`, wheel-to-adjust,
  * global Ctrl+wheel via `activeControl`) so every existing caller keeps its
  * callback names and commit timing unchanged.
@@ -49,7 +49,10 @@ export function LabeledSlider({
   // Registre du "dernier contrôle modifié" (Ctrl+molette global, voir
   // activeControl.ts) — réécrit à chaque rendu, toujours frais.
   registerControl(id, { value, min, max, step, onChange, onCommit });
-  useEffect(() => () => unregisterControl(id), [id]);
+  useEffect(() => () => {
+    unregisterControl(id);
+    window.clearTimeout(wheelCommitTimer.current);
+  }, [id]);
 
   // Molette survolée = ajuste directement (1% de la plage par cran). Le
   // commit (historique) est différé : une seule entrée après la dernière

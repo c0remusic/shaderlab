@@ -46,8 +46,8 @@
   --focus-width: 2px;
   --focus-offset: 2px;
 
-  /* Reste neutre — .ui-button--primary documente explicitement "neutral
-     paper fill, never a brand color" (src/ui/actions.css:82), une décision
+  /* Reste neutre — le bouton primaire garde un fill neutre, jamais une
+     couleur de marque, une décision
      de design délibérée que le thème Photoshop ne doit pas écraser sans
      confirmation explicite (finding codex-crosscheck, 2026-07-20 : contredit
      directement cette convention + contraste texte/fond insuffisant sur le

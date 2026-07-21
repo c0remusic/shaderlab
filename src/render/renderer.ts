@@ -8,6 +8,7 @@ import { FrameScheduler } from "./frameScheduler";
 import { FrameReadback } from "./frameReadback";
 import { noopDiagnosticLogger, type DiagnosticLogger } from "./diagnostics";
 import { ImageFrameResources } from "./imageFrameResources";
+import { FrameDiagnostics } from "./frameDiagnostics";
 import type { DirtyRect } from "../mask/maskPainter";
 
 /** Which part of the live-preview mask texture a `MaskPreviewOverride` needs
@@ -58,7 +59,7 @@ export interface MaskPreviewOverride {
  * target is an off-screen texture view or the canvas's sRGB view.
  */
 export class Renderer {
-  private readonly diagnosticLogger: DiagnosticLogger;
+  private readonly frameDiagnostics: FrameDiagnostics;
   private ctx: GpuContext;
   private readonly imageResources: ImageFrameResources;
   private sampler: GPUSampler;
@@ -84,19 +85,12 @@ export class Renderer {
    *  l'UI — état plutôt que paramètre de chaque `requestRender`, pour ne pas
    *  le faire transiter par tous les sites d'appel de rendu. */
   private maskOverlayLayerId: string | null = null;
-  /** Debugging-only (see log_diagnostic in lib.rs / gpuContext.ts's device.lost
-   *  handler): counts runPipeline() calls so diagnostics below can log every
-   *  Nth frame instead of flooding the IPC channel during a fast paint
-   *  stroke. Remove alongside the rest of this diagnostic pass once the GPU
-   *  OOM crash (3 confirmed renderer aborts, 2026-07-14/15) is root-caused. */
-  private diagFrameCount = 0;
-
   constructor(
     ctx: GpuContext,
     diagnosticLogger: DiagnosticLogger = noopDiagnosticLogger,
   ) {
     this.ctx = ctx;
-    this.diagnosticLogger = diagnosticLogger;
+    this.frameDiagnostics = new FrameDiagnostics(diagnosticLogger);
     this.sampler = ctx.device.createSampler({
       magFilter: "linear",
       minFilter: "linear",
@@ -211,11 +205,11 @@ export class Renderer {
       finalTargetView,
       this.maskOverlayLayerId,
     );
-    this.logFrameDiagnostics(
-      diagStart,
-      result.enabledLayerCount,
-      result.churnedResourceCount,
-    );
+    this.frameDiagnostics.record(diagStart, result, {
+      pipelineCacheSize: this.effectPassRunner?.pipelineCount ?? 0,
+      imageWidth: this.imageResources.width,
+      imageHeight: this.imageResources.height,
+    });
   }
 
   /** Debugging-only, see the field comment on `diagFrameCount`. Logs every
@@ -226,21 +220,6 @@ export class Renderer {
    *  per-frame effect passes like Glow's 5-pass bloom), and the resident
    *  mask/pipeline cache sizes (should stay bounded by layer/effect count,
    *  not grow unboundedly). */
-  private logFrameDiagnostics(
-    diagStart: number,
-    enabledLayerCount: number,
-    churnedResources: number,
-  ): void {
-    this.diagFrameCount++;
-    if (this.diagFrameCount % 15 !== 0) return;
-    const elapsedMs = Math.round((performance.now() - diagStart) * 100) / 100;
-    this.diagnosticLogger(
-      `frame#${this.diagFrameCount} jsEncodeMs=${elapsedMs} enabledLayers=${enabledLayerCount} ` +
-        `churnedThisFrame=${churnedResources} residentMaskTextures=resolver-owned ` +
-        `pipelineCacheSize=${this.effectPassRunner?.pipelineCount ?? 0} imageSize=${this.imageResources.width}x${this.imageResources.height}`,
-    );
-  }
-
   /**
    * Reads back `pingPong[0]`. NOTE: `render()` always writes its last pass
    * straight to the canvas, never into `pingPong`, so this does NOT hold

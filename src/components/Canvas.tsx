@@ -150,10 +150,11 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
       }}
     >
       {!hasImage && <EmptyWorkspace onOpenFile={onOpenFile} />}
+      <div className={`canvas-stage__frame ${hasImage ? "canvas-stage__frame--loaded" : ""}`.trim()}>
       <canvas
         ref={ref}
         aria-label="Zone de travail image"
-        className={`canvas-stage__canvas ${hasImage ? "canvas-stage__canvas--loaded" : ""} ${maskPaintMode ? "canvas-stage__canvas--paint" : ""}`.trim()}
+        className={`canvas-stage__canvas ${maskPaintMode ? "canvas-stage__canvas--paint" : ""}`.trim()}
         onPointerDown={(e) => {
           if (!maskPaintMode) return;
           isPaintingRef.current = true;
@@ -207,6 +208,7 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
           hideCursor();
         }}
       />
+      </div>
       <div ref={cursorRef} className="canvas-stage__brush-cursor" aria-hidden="true" />
     </div>
   );

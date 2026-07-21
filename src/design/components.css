@@ -39,7 +39,7 @@
 
   --slider-track-height: var(--space-2);
   --slider-thumb-size: 12px;
-  --slider-value-width: 7ch;
+  --slider-value-width: 9ch;
 
   --checkbox-size: var(--icon-size-md);
   --progress-height: 4px;

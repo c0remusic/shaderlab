@@ -30,18 +30,18 @@ function Slider({
       <SliderPrimitive.Control className="relative flex w-full touch-none items-center select-none data-disabled:opacity-50 data-[orientation=vertical]:h-full data-[orientation=vertical]:min-h-40 data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col">
         <SliderPrimitive.Track
           data-slot="slider-track"
-          className="relative grow overflow-hidden rounded-full bg-muted select-none data-[orientation=horizontal]:h-1 data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-1"
+          className="relative grow overflow-hidden rounded-full bg-[var(--surface-raised)] select-none data-[orientation=horizontal]:h-[var(--slider-track-height)] data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-[var(--slider-track-height)]"
         >
           <SliderPrimitive.Indicator
             data-slot="slider-range"
-            className="bg-primary select-none data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full"
+            className="bg-[var(--border-strong)] select-none data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full"
           />
         </SliderPrimitive.Track>
         {Array.from({ length: _values.length }, (_, index) => (
           <SliderPrimitive.Thumb
             data-slot="slider-thumb"
             key={index}
-            className="relative block size-3 shrink-0 rounded-full border border-ring bg-[var(--text-value)] ring-ring/50 transition-[color,box-shadow] select-none after:absolute after:-inset-2 hover:ring-[var(--control-focus-ring-width)] focus-visible:ring-[var(--control-focus-ring-width)] focus-visible:outline-hidden active:ring-[var(--control-focus-ring-width)] disabled:pointer-events-none disabled:opacity-50"
+            className="relative block size-[var(--slider-thumb-size)] shrink-0 rounded-full border border-[var(--border-strong)] bg-[var(--text-value)] transition-[color,box-shadow] select-none after:absolute after:-inset-2 hover:border-[var(--border-selection)] focus-visible:ring-[var(--control-focus-ring-width)] focus-visible:ring-[var(--focus-color)]/50 focus-visible:outline-hidden active:ring-[var(--control-focus-ring-width)] active:ring-[var(--focus-color)]/50 disabled:pointer-events-none disabled:opacity-50"
           />
         ))}
       </SliderPrimitive.Control>

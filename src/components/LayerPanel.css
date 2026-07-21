@@ -109,7 +109,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-ui);
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 

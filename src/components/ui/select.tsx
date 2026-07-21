@@ -37,7 +37,7 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
         }}
       >
         <SelectPrimitive.Label className="text-sm text-muted-foreground">{label}</SelectPrimitive.Label>
-        <SelectPrimitive.Trigger className="flex h-[var(--control-height-md)] w-full items-center justify-between gap-1.5 rounded-[var(--radius-control)] bg-secondary px-2.5 text-base text-secondary-foreground transition-colors hover:bg-accent data-popup-open:bg-accent focus-visible:outline-[var(--focus-width)] focus-visible:outline-[var(--focus-color)] focus-visible:outline-offset-[var(--focus-offset)] data-disabled:cursor-not-allowed data-disabled:text-[var(--text-disabled)]">
+        <SelectPrimitive.Trigger className="flex h-[var(--control-height-md)] w-full items-center justify-between gap-1.5 rounded-[var(--radius-control)] bg-secondary px-2.5 text-sm text-secondary-foreground transition-colors hover:bg-accent data-popup-open:bg-accent focus-visible:outline-[var(--focus-width)] focus-visible:outline-[var(--focus-color)] focus-visible:outline-offset-[var(--focus-offset)] data-disabled:cursor-not-allowed data-disabled:text-[var(--text-disabled)]">
           <SelectPrimitive.Value className="truncate data-placeholder:text-[var(--text-tertiary)]" placeholder={placeholder} />
           <SelectPrimitive.Icon>
             <ChevronDown className="icon-sm icon-stroke shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -58,7 +58,7 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
                     key={option.value}
                     value={option.value}
                     disabled={option.disabled}
-                    className="flex h-[var(--control-height-sm)] cursor-pointer items-center justify-between gap-1.5 rounded-[var(--radius-control)] px-1.5 text-base text-foreground outline-none data-highlighted:bg-muted data-disabled:cursor-not-allowed data-disabled:text-[var(--text-disabled)]"
+                    className="flex h-[var(--control-height-sm)] cursor-pointer items-center justify-between gap-1.5 rounded-[var(--radius-control)] px-1.5 text-sm text-foreground outline-none data-highlighted:bg-muted data-disabled:cursor-not-allowed data-disabled:text-[var(--text-disabled)]"
                   >
                     <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
                     <SelectPrimitive.ItemIndicator>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { defaultLayerMask, defaultRefineEdge, createBrushSource } from "../../src/mask/types";
+import { defaultLayerMask, defaultRefineEdge, createBrushSource, createParametricSource } from "../../src/mask/types";
 
 describe("defaultRefineEdge", () => {
   it("is a no-op (identity) refine-edge configuration", () => {
@@ -44,5 +44,35 @@ describe("createBrushSource", () => {
       params: null,
       raster,
     });
+  });
+
+  it("is valid by construction: raster is always populated, params is always null", () => {
+    const s = createBrushSource("x", new Uint8Array([9]));
+    expect(s.raster).not.toBeNull();
+    expect(s.params).toBeNull();
+    expect(s.type).toBe("brush");
+  });
+});
+
+describe("createParametricSource", () => {
+  it("builds an enabled parametric source with the given type and params, no raster", () => {
+    const s = createParametricSource("y", "gradient", { angle: 0 });
+    expect(s).toEqual({
+      id: "y",
+      type: "gradient",
+      combineMode: "add",
+      enabled: true,
+      params: { angle: 0 },
+      raster: null,
+    });
+  });
+
+  it("is valid by construction: raster is always null, params is always populated, type is never brush", () => {
+    for (const type of ["gradient", "luminosity", "colorRange"] as const) {
+      const s = createParametricSource("z", type, { a: 1 });
+      expect(s.raster).toBeNull();
+      expect(s.params).not.toBeNull();
+      expect(s.type).not.toBe("brush");
+    }
   });
 });

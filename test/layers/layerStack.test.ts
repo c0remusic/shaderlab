@@ -181,3 +181,48 @@ describe("LayerStack — sources de masque paramétriques", () => {
     expect(layer.mask.refineEdge.edgeAware).toBe(true);
   });
 });
+
+describe("LayerStack — setMaskSourceEnabled", () => {
+  it("flips enabled on the matching source and returns true", () => {
+    const stack = new LayerStack();
+    const layerId = stack.addLayer("grain");
+    const sourceId = stack.addMaskSource(layerId, "gradient");
+    const result = stack.setMaskSourceEnabled(layerId, sourceId, false);
+    expect(result).toBe(true);
+    const layer = stack.layers.find((l) => l.id === layerId)!;
+    expect(layer.mask.sources.find((s) => s.id === sourceId)!.enabled).toBe(false);
+  });
+
+  it("touches only the matching source, others untouched", () => {
+    const stack = new LayerStack();
+    const layerId = stack.addLayer("grain");
+    const a = stack.addMaskSource(layerId, "gradient");
+    const b = stack.addMaskSource(layerId, "luminosity");
+    stack.setMaskSourceEnabled(layerId, a, false);
+    const layer = stack.layers.find((l) => l.id === layerId)!;
+    expect(layer.mask.sources.find((s) => s.id === a)!.enabled).toBe(false);
+    expect(layer.mask.sources.find((s) => s.id === b)!.enabled).toBe(true);
+  });
+
+  it("returns false and mutates nothing when the source does not exist", () => {
+    const stack = new LayerStack();
+    const layerId = stack.addLayer("grain");
+    const before = stack.layers.find((l) => l.id === layerId)!.mask.sources;
+    const result = stack.setMaskSourceEnabled(layerId, "missing", false);
+    expect(result).toBe(false);
+    expect(stack.layers.find((l) => l.id === layerId)!.mask.sources).toBe(before);
+  });
+
+  it("returns false when the value does not change (no-op)", () => {
+    const stack = new LayerStack();
+    const layerId = stack.addLayer("grain");
+    const sourceId = stack.addMaskSource(layerId, "gradient");
+    const result = stack.setMaskSourceEnabled(layerId, sourceId, true); // already true
+    expect(result).toBe(false);
+  });
+
+  it("returns false when the layer does not exist", () => {
+    const stack = new LayerStack();
+    expect(stack.setMaskSourceEnabled("missing-layer", "missing-source", false)).toBe(false);
+  });
+});

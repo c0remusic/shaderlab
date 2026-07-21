@@ -10,7 +10,7 @@ import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { exportImage, resolveExportTarget } from "./export/exportImage";
-import { getLaunchPath, readImageFile, pickImageFile, logDiagnostic } from "./launch";
+import { getLaunchPath, readImageFile, pickImageFile, logDiagnostic, writeImageFile } from "./launch";
 import { useGlobalControlWheel } from "./ui/activeControl";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 import { getBrushRaster } from "./mask/brushSource";
@@ -437,7 +437,14 @@ export default function App() {
     // resolveExportTarget's doc comment for the full rationale.
     const target = resolveExportTarget(sourcePath, isLaunchFile);
     try {
-      await exportImage(rendererRef.current, layersRef.current, target, imageSize.width, imageSize.height);
+      await exportImage(
+        rendererRef.current,
+        { write: writeImageFile },
+        layersRef.current,
+        target,
+        imageSize.width,
+        imageSize.height
+      );
     } catch (e) {
       setError((e as Error).message);
     }

@@ -1,6 +1,14 @@
-import type { Renderer } from "../render/renderer";
 import type { LayerState } from "../layers/types";
-import { writeImageFile } from "../launch";
+
+/** Input boundary for the application export use case. */
+export interface FrameRenderer {
+  exportFrame(layers: LayerState[]): Promise<Uint8Array>;
+}
+
+/** Output boundary for the application export use case. */
+export interface ImageWriter {
+  write(path: string, bytes: Uint8Array): Promise<void>;
+}
 
 export function buildCopyPath(sourcePath: string, existing: Set<string> = new Set()): string {
   const lastDot = sourcePath.lastIndexOf(".");
@@ -68,13 +76,14 @@ export function resolveExportTarget(
  * readback is always correct.
  */
 export async function exportImage(
-  renderer: Renderer,
+  frameRenderer: FrameRenderer,
+  imageWriter: ImageWriter,
   layers: LayerState[],
   targetPath: string,
   width: number,
   height: number
 ): Promise<void> {
-  const pixels = await renderer.exportFrame(layers);
+  const pixels = await frameRenderer.exportFrame(layers);
   const jpegBytes = await encodeJpeg(pixels, width, height);
-  await writeImageFile(targetPath, jpegBytes);
+  await imageWriter.write(targetPath, jpegBytes);
 }

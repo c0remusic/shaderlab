@@ -1,6 +1,5 @@
 import { vi, describe, it, expect } from "vitest";
 import { buildCopyPath, resolveExportTarget, exportImage } from "../../src/export/exportImage";
-import * as launch from "../../src/launch";
 
 describe("buildCopyPath", () => {
   it("appends -edited before the extension, preserving the original file", () => {
@@ -17,8 +16,8 @@ describe("buildCopyPath", () => {
   });
 });
 
-describe("exportImage error propagation", () => {
-  it("rejects when writeImageFile fails, without throwing an unhandled error", async () => {
+describe("exportImage", () => {
+  it("writes the encoded frame through its output port", async () => {
     // exportImage's internal encodeJpeg() uses OffscreenCanvas/ImageData, which
     // don't exist in vitest's "node" environment (see vitest.config.ts) — stub
     // minimal versions so encodeJpeg succeeds and the only failure exercised is
@@ -49,13 +48,32 @@ describe("exportImage error propagation", () => {
       }
     );
 
-    vi.spyOn(launch, "writeImageFile").mockRejectedValue(new Error("disque plein"));
     const fakeRenderer = {
       exportFrame: vi.fn().mockResolvedValue(new Uint8Array(4)),
-    } as any;
+    };
+    const writer = { write: vi.fn().mockResolvedValue(undefined) };
+
+    await exportImage(fakeRenderer, writer, [], "C:\\fake\\path.jpg", 1, 1);
+
+    expect(writer.write).toHaveBeenCalledWith("C:\\fake\\path.jpg", new Uint8Array(4));
+    vi.unstubAllGlobals();
+  });
+
+  it("propagates writer failures", async () => {
+    vi.stubGlobal(
+      "OffscreenCanvas",
+      class {
+        constructor(_width: number, _height: number) {}
+        getContext() { return { putImageData() {} }; }
+        convertToBlob() { return Promise.resolve({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(4)) } as unknown as Blob); }
+      }
+    );
+    vi.stubGlobal("ImageData", class { constructor(_data: Uint8ClampedArray, _width: number, _height: number) {} });
+    const fakeRenderer = { exportFrame: vi.fn().mockResolvedValue(new Uint8Array(4)) };
+    const writer = { write: vi.fn().mockRejectedValue(new Error("disque plein")) };
 
     await expect(
-      exportImage(fakeRenderer, [], "C:\\fake\\path.jpg", 1, 1)
+      exportImage(fakeRenderer, writer, [], "C:\\fake\\path.jpg", 1, 1)
     ).rejects.toThrow("disque plein");
 
     vi.unstubAllGlobals();

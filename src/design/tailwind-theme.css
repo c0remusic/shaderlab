@@ -2,10 +2,22 @@
   --spacing: var(--space-2);
   --font-sans: var(--font-ui);
   --text-xs: var(--font-size-xs);
+  --text-xs--line-height: var(--line-height-control);
   --text-sm: var(--font-size-sm);
+  --text-sm--line-height: var(--line-height-control);
   --text-base: var(--font-size-md);
+  --text-base--line-height: var(--line-height-control);
   --text-lg: var(--font-size-lg);
+  --text-lg--line-height: var(--line-height-control);
   --text-xl: var(--font-size-xl);
+  --text-xl--line-height: var(--line-height-tight);
+  --text-2xl: var(--font-size-2xl);
+  --text-2xl--line-height: var(--line-height-tight);
+  --text-3xl: var(--font-size-3xl);
+  --text-3xl--line-height: var(--line-height-tight);
+
+  --leading-tight: var(--line-height-tight);
+  --tracking-widest: var(--tracking-label);
 
   --color-background: var(--surface-window);
   --color-foreground: var(--text-primary);

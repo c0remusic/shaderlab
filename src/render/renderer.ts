@@ -5,6 +5,7 @@ import { getEffect } from "./effects/registry";
 import { EffectPassRunner, PASSTHROUGH_EFFECT } from "./effectPassRunner";
 import { MaskTextureResolver } from "./maskTextureResolver";
 import { FrameScheduler } from "./frameScheduler";
+import { FrameReadback } from "./frameReadback";
 import { assertImageFitsGpu } from "./limits";
 import { noopDiagnosticLogger, type DiagnosticLogger } from "./diagnostics";
 import type { DirtyRect } from "../mask/maskPainter";
@@ -45,14 +46,6 @@ export interface MaskPreviewOverride {
   layerId: string;
   raster: Uint8Array;
   scope: MaskUploadScope;
-}
-
-/**
- * WebGPU's `copyTextureToBuffer` requires each row to start at a 256-byte-aligned offset.
- * Computes the padded stride for a row of RGBA pixels.
- */
-function paddedBytesPerRow(width: number): number {
-  return Math.ceil((width * 4) / 256) * 256;
 }
 
 /**
@@ -235,29 +228,9 @@ export class Renderer {
     }
 
     this.runPipeline(layers, this.exportTexture.createView());
-    const padded = await this.readTextureBytes(this.exportTexture);
-    return this.stripRowPadding(padded);
-  }
-
-  /**
-   * `copyTextureToBuffer` requires each row to start at a 256-byte-aligned
-   * offset, so `readTextureBytes` returns rows padded to that stride when
-   * `width * 4` isn't already a multiple of 256. Callers that need a
-   * tightly packed RGBA buffer (e.g. handing pixels to `ImageData`) must
-   * strip that padding first — this does so.
-   */
-  private stripRowPadding(padded: Uint8Array): Uint8Array {
-    const bytesPerRow = paddedBytesPerRow(this.width);
-    const tightRowBytes = this.width * 4;
-    if (bytesPerRow === tightRowBytes) return padded;
-    const out = new Uint8Array(tightRowBytes * this.height);
-    for (let row = 0; row < this.height; row++) {
-      out.set(
-        padded.subarray(row * bytesPerRow, row * bytesPerRow + tightRowBytes),
-        row * tightRowBytes,
-      );
-    }
-    return out;
+    const readback = new FrameReadback(device, this.width, this.height);
+    const padded = await readback.readTextureBytes(this.exportTexture);
+    return readback.stripRowPadding(padded);
   }
 
   private runPipeline(
@@ -439,33 +412,8 @@ export class Renderer {
    */
   async readPixels(): Promise<Uint8Array> {
     if (!this.pingPong) throw new Error("Aucune image chargée.");
-    return this.readTextureBytes(this.pingPong[0]);
-  }
-
-  private async readTextureBytes(texture: GPUTexture): Promise<Uint8Array> {
-    const { device } = this.ctx;
-    const bytesPerRow = paddedBytesPerRow(this.width);
-    const buffer = device.createBuffer({
-      size: bytesPerRow * this.height,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-    });
-    const encoder = device.createCommandEncoder();
-    encoder.copyTextureToBuffer({ texture }, { buffer, bytesPerRow }, [
-      this.width,
-      this.height,
-    ]);
-    device.queue.submit([encoder.finish()]);
-    try {
-      await buffer.mapAsync(GPUMapMode.READ);
-      const data = new Uint8Array(buffer.getMappedRange().slice(0));
-      buffer.unmap();
-      return data;
-    } finally {
-      // Libère le buffer même si mapAsync rejette (device perdu pendant
-      // l'export, par ex.) — sans ce finally, ce chemin d'erreur fuyait le
-      // buffer GPU (audit 2026-07-17, finding 4).
-      buffer.destroy();
-    }
+    return new FrameReadback(this.ctx.device, this.width, this.height)
+      .readTextureBytes(this.pingPong[0]);
   }
 
   /**

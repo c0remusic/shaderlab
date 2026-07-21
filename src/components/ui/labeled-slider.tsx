@@ -76,7 +76,7 @@ export function LabeledSlider({
         <label htmlFor={id} className="text-sm text-muted-foreground">
           {label}
         </label>
-        <span className="text-sm text-foreground tabular-nums">{shownValue}</span>
+        <span className="font-mono text-sm text-foreground tabular-nums">{shownValue}</span>
       </div>
       <SliderPrimitive
         id={id}

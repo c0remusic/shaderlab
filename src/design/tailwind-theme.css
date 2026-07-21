@@ -1,6 +1,8 @@
 @theme inline {
   --spacing: var(--space-2);
   --font-sans: var(--font-ui);
+  --text-2xs: var(--font-size-2xs);
+  --text-2xs--line-height: var(--line-height-control);
   --text-xs: var(--font-size-xs);
   --text-xs--line-height: var(--line-height-control);
   --text-sm: var(--font-size-sm);

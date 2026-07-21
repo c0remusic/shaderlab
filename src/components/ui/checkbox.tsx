@@ -16,7 +16,7 @@ export function Checkbox({ label, checked, disabled = false, onChange, className
   const id = useId();
 
   return (
-    <label className={cn("inline-flex cursor-pointer items-center gap-1.5 text-sm text-foreground", disabled && "cursor-not-allowed text-[var(--text-disabled)]", className)} htmlFor={id}>
+    <label className={cn("inline-flex cursor-pointer items-center gap-1.5 text-base text-foreground", disabled && "cursor-not-allowed text-[var(--text-disabled)]", className)} htmlFor={id}>
       <CheckboxPrimitive.Root
         id={id}
         checked={checked}

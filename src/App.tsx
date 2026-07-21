@@ -2,9 +2,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { initGpu, type GpuContext } from "./render/gpuContext";
 import { Renderer } from "./render/renderer";
 import { LayerStack } from "./layers/layerStack";
-import { History } from "./layers/history";
 import type { LayerState } from "./layers/types";
-import { toDisplayLayers } from "./layers/displayProjection";
+import { DocumentSession } from "./application/documentSession";
 import { BrushToolbar } from "./components/BrushToolbar";
 import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
@@ -28,7 +27,7 @@ export default function App() {
   const workspaceRef = useRef<HTMLElement>(null);
   const gpuRef = useRef<GpuContext | null>(null);
   const rendererRef = useRef<Renderer | null>(null);
-  const historyRef = useRef<History>(new History(new LayerStack()));
+  const sessionRef = useRef(new DocumentSession());
   const [layers, setLayers] = useState<LayerState[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
@@ -64,9 +63,9 @@ export default function App() {
     setDockLayout((previous) => movePanelInDock(previous, id, target));
   }, []);
 
-  // `layersRef` = source de vérité COMPLÈTE des calques (avec les rasters de
-  // masque), pour le rendu GPU, l'historique et l'export. Le state React
-  // `layers` n'en est qu'une PROJECTION D'AFFICHAGE, rasters retirés.
+  // DocumentSession est la source de vérité COMPLÈTE des calques (avec les
+  // rasters de masque), pour le rendu GPU, l'historique et l'export. Le state
+  // React `layers` n'en est qu'une PROJECTION D'AFFICHAGE, rasters retirés.
   //
   // Pourquoi : un raster r8 pleine résolution (~26 Mo à 24MP) placé dans le
   // state React fait CRASHER (hang WebView2, CDP inerte) au re-render déclenché
@@ -78,29 +77,31 @@ export default function App() {
   // complet est OK) ni le re-render en soi, mais le buffer 26 Mo transitant par
   // l'état React. Le fix garde setLayers() (UI correcte) mais retire le raster de
   // ce qui y entre ; les panneaux n'affichent jamais les pixels du masque.
-  const layersRef = useRef<LayerState[]>([]);
-  const syncLayers = useCallback((full: LayerState[]) => {
-    layersRef.current = full;
-    setLayers(toDisplayLayers(full));
+  const syncSession = useCallback(() => {
+    setLayers(sessionRef.current.displayLayers());
+    setSelectedId(sessionRef.current.selectedId());
+  }, []);
+
+  const selectLayer = useCallback((id: string | null) => {
+    sessionRef.current.select(id);
+    setSelectedId(sessionRef.current.selectedId());
   }, []);
 
   const commit = useCallback(
     (stack: LayerStack) => {
-      historyRef.current.push(stack);
-      syncLayers(stack.layers);
-      rendererRef.current?.requestRender(stack.layers);
+      sessionRef.current.commit(stack);
+      syncSession();
+      rendererRef.current?.requestRender(sessionRef.current.layers());
     },
-    [syncLayers]
+    [syncSession]
   );
 
   const currentStack = useCallback((): LayerStack => {
-    // Depuis layersRef (COMPLET, avec les rasters de masque), jamais depuis le
+    // Depuis DocumentSession (COMPLET, avec les rasters de masque), jamais depuis le
     // state `layers` (projection d'affichage sans raster) — sinon toute
     // opération non-masque réécrirait des calques à raster null et effacerait
     // les masques.
-    const stack = new LayerStack();
-    stack.layers = layersRef.current;
-    return stack.clone();
+    return sessionRef.current.currentStack();
   }, []);
 
   const openFile = useCallback(async (file: File, path: string | null, fromLaunch: boolean) => {
@@ -131,13 +132,13 @@ export default function App() {
       setIsLaunchFile(fromLaunch);
 
       const stack = new LayerStack();
-      historyRef.current = new History(stack);
-      syncLayers(stack.layers);
-      rendererRef.current.render(stack.layers);
+      sessionRef.current.replaceDocument(stack);
+      syncSession();
+      rendererRef.current.render(sessionRef.current.layers());
     } catch (e) {
       setError((e as Error).message);
     }
-  }, [syncLayers]);
+  }, [syncSession]);
 
   useEffect(() => {
     getLaunchPath().then(async (path) => {
@@ -159,7 +160,7 @@ export default function App() {
     const r = rendererRef.current;
     if (!r) return;
     r.setMaskOverlay(maskPaintMode && selectedId ? selectedId : null);
-    r.requestRender(layersRef.current);
+    r.requestRender(sessionRef.current.layers());
   }, [maskPaintMode, selectedId]);
 
   const handleOpenFile = useCallback(async () => {
@@ -181,8 +182,8 @@ export default function App() {
   function handleAdd(effectId: string) {
     const stack = currentStack();
     const id = stack.addLayer(effectId);
-    setSelectedId(id);
     commit(stack);
+    selectLayer(id);
   }
 
   // Callbacks passés à LayerPanel/ParamPanel enveloppés dans useCallback :
@@ -203,11 +204,10 @@ export default function App() {
     (id: string) => {
       const stack = currentStack();
       stack.removeLayer(id);
-      if (selectedId === id) setSelectedId(null);
       maskPaintersRef.current.delete(id);
       commit(stack);
     },
-    [currentStack, selectedId, commit]
+    [currentStack, commit]
   );
 
   const handleReorder = useCallback(
@@ -230,8 +230,9 @@ export default function App() {
     // ça re-render la liste entière à chaque frame de drag. Ce .map() garde
     // la référence des calques NON touchés, seul le calque `id` change.
     paramDirtyRef.current = true;
-    const full = layersRef.current.map((l) => (l.id === id ? { ...l, params: { ...l.params, ...params } } : l));
-    syncLayers(full);
+    const full = sessionRef.current.layers().map((l) => (l.id === id ? { ...l, params: { ...l.params, ...params } } : l));
+    sessionRef.current.replaceLiveLayers(full);
+    syncSession();
     rendererRef.current?.requestRender(full);
   }
 
@@ -248,11 +249,12 @@ export default function App() {
       // — condition nécessaire pour que LayerRow (React.memo) ne re-render
       // QUE la ligne dont l'opacité bouge, pas la liste entière des calques.
       paramDirtyRef.current = true;
-      const full = layersRef.current.map((l) => (l.id === id ? { ...l, opacity } : l));
-      syncLayers(full);
+      const full = sessionRef.current.layers().map((l) => (l.id === id ? { ...l, opacity } : l));
+      sessionRef.current.replaceLiveLayers(full);
+      syncSession();
       rendererRef.current?.requestRender(full);
     },
-    [syncLayers]
+    [syncSession]
   );
 
   const handleBlendModeChange = useCallback(
@@ -281,7 +283,8 @@ export default function App() {
     paramDirtyRef.current = true;
     const stack = currentStack();
     stack.updateMaskSourceParams(layerId, sourceId, params);
-    syncLayers(stack.layers);
+    sessionRef.current.replaceLiveLayers(stack.layers);
+    syncSession();
     rendererRef.current?.requestRender(stack.layers);
   }
 
@@ -307,7 +310,8 @@ export default function App() {
     paramDirtyRef.current = true;
     const stack = currentStack();
     stack.updateRefineEdge(layerId, refineEdge);
-    syncLayers(stack.layers);
+    sessionRef.current.replaceLiveLayers(stack.layers);
+    syncSession();
     rendererRef.current?.requestRender(stack.layers);
   }
 
@@ -319,7 +323,7 @@ export default function App() {
   // 1x1 via drawImage pour lire un seul pixel, plutôt qu'un readback GPU
   // dédié — suffisant pour un échantillon de test, pas pour un vrai picker.
   function handleAddColorSample(layerId: string, sourceId: string) {
-    const source = layersRef.current.find((l) => l.id === layerId)?.mask.sources.find((s) => s.id === sourceId);
+    const source = sessionRef.current.layers().find((l) => l.id === layerId)?.mask.sources.find((s) => s.id === sourceId);
     if (!source || !canvasRef.current || canvasRef.current.width === 0) return;
     const existing = (source.params?.samples as number[] | undefined) ?? [];
     if (existing.length / 3 >= MAX_COLOR_RANGE_SAMPLES) return;
@@ -348,9 +352,9 @@ export default function App() {
 
   function handleMaskStroke(x: number, y: number) {
     if (!selectedId || imageSize.width === 0) return;
-    // Raster depuis layersRef (complet) — le state `layers` est la projection
+    // Raster depuis DocumentSession (complet) — le state `layers` est la projection
     // d'affichage sans raster.
-    const layer = layersRef.current.find((l) => l.id === selectedId);
+    const layer = sessionRef.current.layers().find((l) => l.id === selectedId);
     const currentMaskData = layer ? getBrushRaster(layer) : null;
     const entry = getSyncedMaskPainter(
       maskPaintersRef.current,
@@ -384,7 +388,7 @@ export default function App() {
     // are intentionally untouched here; the real, history-visible mask
     // update happens exactly once, in handleMaskStrokeEnd, matching the
     // "one entry per interaction" pattern already established for sliders.
-    rendererRef.current?.requestRender(layersRef.current, {
+    rendererRef.current?.requestRender(sessionRef.current.layers(), {
       layerId: selectedId,
       raster: entry.painter.getMaskData(),
       scope: maskStrokeIsFreshRef.current ? { kind: "full" } : { kind: "partial", rect: dirtyRect },
@@ -408,18 +412,16 @@ export default function App() {
   }
 
   function handleUndo() {
-    const previous = historyRef.current.undo();
-    if (previous) {
-      syncLayers(previous.layers);
-      rendererRef.current?.requestRender(previous.layers);
+    if (sessionRef.current.undo()) {
+      syncSession();
+      rendererRef.current?.requestRender(sessionRef.current.layers());
     }
   }
 
   function handleRedo() {
-    const next = historyRef.current.redo();
-    if (next) {
-      syncLayers(next.layers);
-      rendererRef.current?.requestRender(next.layers);
+    if (sessionRef.current.redo()) {
+      syncSession();
+      rendererRef.current?.requestRender(sessionRef.current.layers());
     }
   }
 
@@ -440,7 +442,7 @@ export default function App() {
       await exportImage(
         rendererRef.current,
         { write: writeImageFile },
-        layersRef.current,
+        sessionRef.current.layers(),
         target,
         imageSize.width,
         imageSize.height
@@ -456,8 +458,8 @@ export default function App() {
   return (
     <div className="app-shell">
       <Toolbar
-        canUndo={historyRef.current.canUndo()}
-        canRedo={historyRef.current.canRedo()}
+        canUndo={sessionRef.current.canUndo()}
+        canRedo={sessionRef.current.canRedo()}
         onUndo={handleUndo}
         onRedo={handleRedo}
         onExport={handleExport}
@@ -490,7 +492,7 @@ export default function App() {
           content: <LayerPanel
               layers={layers}
               selectedId={selectedId}
-              onSelect={setSelectedId}
+              onSelect={selectLayer}
               onToggle={handleToggle}
               onAdd={handleAdd}
               onRemove={handleRemove}

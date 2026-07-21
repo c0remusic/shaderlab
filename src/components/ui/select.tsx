@@ -44,7 +44,13 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
           </SelectPrimitive.Icon>
         </SelectPrimitive.Trigger>
         <SelectPrimitive.Portal>
-          <SelectPrimitive.Positioner sideOffset={4} className="z-[var(--z-popover)]">
+          <SelectPrimitive.Positioner
+            align="start"
+            alignItemWithTrigger={false}
+            side="bottom"
+            sideOffset={4}
+            className="z-[var(--z-popover)]"
+          >
             <SelectPrimitive.Popup className="max-h-[var(--select-listbox-max-height)] min-w-[var(--anchor-width)] overflow-y-auto rounded-[var(--radius-group)] bg-popover p-1 shadow-[var(--shadow-popover)] outline-none">
               <SelectPrimitive.List>
                 {options.map((option) => (

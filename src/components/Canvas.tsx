@@ -150,7 +150,6 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
       }}
     >
       {!hasImage && <EmptyWorkspace onOpenFile={onOpenFile} />}
-      <div className="canvas-stage__frame">
       <canvas
         ref={ref}
         aria-label="Zone de travail image"
@@ -208,7 +207,6 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
           hideCursor();
         }}
       />
-      </div>
       <div ref={cursorRef} className="canvas-stage__brush-cursor" aria-hidden="true" />
     </div>
   );

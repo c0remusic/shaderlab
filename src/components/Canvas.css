@@ -25,27 +25,20 @@
   padding-right: var(--dock-reserved-width, var(--inspector-width-default));
 }
 
-/* Ce wrapper n'a plus de padding/bordure/fond propres (voir juste en
-   dessous), mais reste indispensable comme frontière de mise en page
-   distincte du <canvas> : si un futur cadre visuel (padding/bordure/fond)
-   devait revenir, il DOIT rester sur ce wrapper, JAMAIS sur le <canvas>
-   lui-même — canvas.getBoundingClientRect() (Canvas.tsx toImageCoords/
-   updateCursorGeometry) doit rester exactement la boîte de rendu de
-   l'image, sans quoi le clic dans la marge se convertit en coordonnée
-   image décalée/rééchelonnée (bug trouvé par codex-crosscheck sur le
-   commit de fusion 0f3010d, 2026-07-21 — le padding était directement
-   sur .canvas-stage__canvas--loaded avant ce fix). */
-.canvas-stage__frame {
-  display: inline-flex;
-  max-width: 100%;
-  max-height: 100%;
-}
-
-/* Pas de cadre visuel (bordure/fond distinct) : l'image flotte directement
-   sur --surface-workspace, même couleur que le reste du plan de travail
-   (esprit Photoshop web — décision Antoine 2026-07-21, remplace le cadre
-   encadré/isolé du commit de fusion précédent). */
-
+/* Le <canvas> est un enfant flex DIRECT de .canvas-stage (retour à la
+   structure d'avant le commit de fusion 0f3010d, 2026-07-21) : le wrapper
+   .canvas-stage__frame introduit par ce commit (pour porter un cadre
+   padding/bordure/fond, retiré depuis — esprit Photoshop web, décision
+   Antoine 2026-07-21) créait un contexte flex imbriqué qui étirait le
+   canvas hors de son ratio intrinsèque sur les fenêtres larges (mesuré :
+   ratio réel 3.48 au lieu de 1.5 attendu en 2560×700, reproduit par CDP
+   Emulation.setDeviceMetricsOverride — jamais vu sur une fenêtre haute/
+   étroite, donc jamais détecté par le checkpoint initial). Ne PAS
+   réintroduire ce wrapper sans re-tester explicitement une fenêtre large
+   (proche du ratio plein écran d'un moniteur ultrawide). Aucun padding/
+   bordure/fond n'est posé ici — voir la note dans Canvas.tsx toImageCoords/
+   updateCursorGeometry : canvas.getBoundingClientRect() doit rester
+   exactement la boîte de rendu de l'image. */
 .canvas-stage__canvas {
   max-width: 100%;
   max-height: 100%;

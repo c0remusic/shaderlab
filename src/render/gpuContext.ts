@@ -1,4 +1,4 @@
-import { logDiagnostic } from "../launch";
+import { noopDiagnosticLogger, type DiagnosticLogger } from "./diagnostics";
 
 export interface GpuContext {
   device: GPUDevice;
@@ -18,7 +18,8 @@ export interface GpuContext {
 
 export async function initGpu(
   canvas: HTMLCanvasElement,
-  onFatalError?: (message: string) => void
+  onFatalError?: (message: string) => void,
+  diagnosticLogger: DiagnosticLogger = noopDiagnosticLogger
 ): Promise<GpuContext> {
   if (!navigator.gpu) {
     throw new Error("WebGPU non disponible sur ce navigateur/GPU.");
@@ -45,7 +46,7 @@ export async function initGpu(
   // errors, this is the one GPU signal that must reach the user, not just
   // the diagnostic log (audit 2026-07-17, finding 1).
   device.lost.then((info) => {
-    logDiagnostic(`GPU device lost: reason=${info.reason} message=${info.message}`);
+    diagnosticLogger(`GPU device lost: reason=${info.reason} message=${info.message}`);
     onFatalError?.("Le GPU a redémarré ou a manqué de mémoire — rouvre l'image.");
   });
   // Debugging-only (see log_diagnostic in lib.rs): no uncaptured-error
@@ -54,9 +55,9 @@ export async function initGpu(
   // completely unlogged. Added 2026-07-15 to investigate the mask-paint
   // freeze/crash alongside targeted pushErrorScope calls in renderer.ts.
   device.onuncapturederror = (event) => {
-    logDiagnostic(`GPU uncaptured error: ${event.error.constructor.name}: ${event.error.message}`);
+    diagnosticLogger(`GPU uncaptured error: ${event.error.constructor.name}: ${event.error.message}`);
   };
-  logDiagnostic(`GPU limits: maxTextureDimension2D=${adapter.limits.maxTextureDimension2D} maxBufferSize=${adapter.limits.maxBufferSize}`);
+  diagnosticLogger(`GPU limits: maxTextureDimension2D=${adapter.limits.maxTextureDimension2D} maxBufferSize=${adapter.limits.maxBufferSize}`);
   const context = canvas.getContext("webgpu") as GPUCanvasContext;
   if (!context) {
     throw new Error("Impossible d'obtenir un contexte WebGPU sur le canvas.");

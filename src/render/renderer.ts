@@ -7,7 +7,7 @@ import { composeShader, MAX_EFFECT_PARAMS, FULLSCREEN_VERTEX_WGSL } from "./shad
 import { getBlendMode } from "./blend/registry";
 import { FrameScheduler } from "./frameScheduler";
 import { assertImageFitsGpu } from "./limits";
-import { logDiagnostic } from "../launch";
+import { noopDiagnosticLogger, type DiagnosticLogger } from "./diagnostics";
 import type { DirtyRect } from "../mask/maskPainter";
 import { computeR8UploadRegion } from "./maskUpload";
 import { defaultLayerMask } from "../mask/types";
@@ -125,6 +125,7 @@ function paddedBytesPerRow(width: number): number {
  * target is an off-screen texture view or the canvas's sRGB view.
  */
 export class Renderer {
+  private readonly diagnosticLogger: DiagnosticLogger;
   private ctx: GpuContext;
   private sourceTexture: GPUTexture | null = null;
   private width = 0;
@@ -236,8 +237,9 @@ export class Renderer {
    *  OOM crash (3 confirmed renderer aborts, 2026-07-14/15) is root-caused. */
   private diagFrameCount = 0;
 
-  constructor(ctx: GpuContext) {
+  constructor(ctx: GpuContext, diagnosticLogger: DiagnosticLogger = noopDiagnosticLogger) {
     this.ctx = ctx;
+    this.diagnosticLogger = diagnosticLogger;
     this.sampler = ctx.device.createSampler({ magFilter: "linear", minFilter: "linear" });
     this.nearestSampler = ctx.device.createSampler({ magFilter: "nearest", minFilter: "nearest" });
   }
@@ -527,7 +529,7 @@ export class Renderer {
     this.diagFrameCount++;
     if (this.diagFrameCount % 15 !== 0) return;
     const elapsedMs = Math.round((performance.now() - diagStart) * 100) / 100;
-    logDiagnostic(
+    this.diagnosticLogger(
       `frame#${this.diagFrameCount} jsEncodeMs=${elapsedMs} enabledLayers=${enabledLayerCount} ` +
         `churnedThisFrame=${churnedResources} residentMaskTextures=${this.sourceTextures.size + this.foldedMaskTextures.size} ` +
         `pipelineCacheSize=${this.pipelineCache.size} imageSize=${this.width}x${this.height}`

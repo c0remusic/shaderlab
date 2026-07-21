@@ -10,7 +10,7 @@ import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { exportImage, resolveExportTarget } from "./export/exportImage";
-import { getLaunchPath, readImageFile, pickImageFile } from "./launch";
+import { getLaunchPath, readImageFile, pickImageFile, logDiagnostic } from "./launch";
 import { useGlobalControlWheel } from "./ui/activeControl";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 import { getBrushRaster } from "./mask/brushSource";
@@ -107,7 +107,7 @@ export default function App() {
     if (!canvasRef.current) return;
     try {
       if (!gpuRef.current) {
-        gpuRef.current = await initGpu(canvasRef.current, (message) => setError(message));
+        gpuRef.current = await initGpu(canvasRef.current, (message) => setError(message), logDiagnostic);
       }
       let bitmap: ImageBitmap;
       try {
@@ -119,7 +119,7 @@ export default function App() {
       canvasRef.current.height = bitmap.height;
 
       rendererRef.current?.dispose();
-      rendererRef.current = new Renderer(gpuRef.current);
+      rendererRef.current = new Renderer(gpuRef.current, logDiagnostic);
       await rendererRef.current.loadImage(bitmap);
 
       // Only commit sourcePath/isLaunchFile/imageSize state AFTER loadImage succeeds.

@@ -14,9 +14,8 @@ export interface SelectProps {
   onChange: (value: string) => void;
 }
 
-/** max-height de .ui-select__listbox (src/ui/overlays.css) — dupliqué ici
- *  pour le calcul de retournement viewport ; pas de lecture CSS->JS possible
- *  avant montage (le portail n'existe pas encore au moment du calcul). */
+/** La hauteur maximale de la listbox est lue depuis le token CSS
+ *  `--select-listbox-max-height` pour le calcul de retournement viewport. */
 /**
  * Custom button + listbox select (not a native <select>). La listbox est
  * portalée dans document.body (position: fixed, ancrée sur le rect du

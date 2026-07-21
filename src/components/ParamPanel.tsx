@@ -5,6 +5,7 @@ import { getEffect } from "../render/effects/registry";
 import { maskSourceRegistry, getMaskSourceModule } from "../mask/sources/registry";
 import "./ParamPanel.css";
 import { Slider } from "../ui/Slider";
+import { formatControlValue } from "../ui/formatValue";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
 import { Disclosure } from "../ui/Disclosure";
@@ -50,6 +51,23 @@ function paramRange(key: string): { min: number; max: number; step: number } {
   return { min: 0, max: 1, step: 0.01 };
 }
 
+function formatEffectParamValue(
+  value: number,
+  param: { unit?: "percent" | "pixels" | "degrees" | "none"; step: number },
+): string {
+  switch (param.unit) {
+    case "percent":
+      return `${Math.round(value * 100)} %`;
+    case "pixels":
+      return `${formatControlValue(value, param.step)} px`;
+    case "degrees":
+      return `${Math.round(value)}°`;
+    case "none":
+    default:
+      return formatControlValue(value, param.step);
+  }
+}
+
 export function ParamPanel({
   layer,
   onParamChange,
@@ -93,11 +111,13 @@ export function ParamPanel({
           {effect.params.map((p) => (
             <Slider
               key={p.name}
-              label={p.name}
+              label={p.label}
               value={layer.params[p.name] ?? p.default}
               min={p.min}
               max={p.max}
               step={p.step}
+              displayValue={formatEffectParamValue(layer.params[p.name] ?? p.default, p)}
+              title={p.hint}
               onChange={(v) => onParamChange(layer.id, { [p.name]: v })}
               onCommit={onParamCommit}
             />

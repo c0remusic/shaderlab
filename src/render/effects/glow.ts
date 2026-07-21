@@ -56,8 +56,8 @@ export const glow: EffectModule = {
   id: "glow",
   name: "Glow",
   params: [
-    { name: "threshold", min: 0, max: 1, default: 0.7, step: 0.01 },
-    { name: "intensity", min: 0, max: 3, default: 1.0, step: 0.05 },
+    { name: "threshold", label: "Seuil", unit: "percent", min: 0, max: 1, default: 0.7, step: 0.01 },
+    { name: "intensity", label: "Intensité", unit: "none", min: 0, max: 3, default: 1.0, step: 0.05 },
   ],
   passes: [
     {

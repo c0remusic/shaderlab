@@ -1,5 +1,8 @@
 export interface EffectParam {
   name: string;
+  label: string;
+  unit?: "percent" | "pixels" | "degrees" | "none";
+  hint?: string;
   min: number;
   max: number;
   default: number;

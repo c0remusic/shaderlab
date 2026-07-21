@@ -4,9 +4,9 @@ export const grain: EffectModule = {
   id: "grain",
   name: "Grain",
   params: [
-    { name: "intensity", min: 0, max: 0.4, default: 0.12, step: 0.01 },
-    { name: "size", min: 1, max: 8, default: 2, step: 0.5 },
-    { name: "seed", min: 0, max: 1000, default: 0, step: 1 },
+    { name: "intensity", label: "Intensité", unit: "percent", min: 0, max: 0.4, default: 0.12, step: 0.01 },
+    { name: "size", label: "Taille", unit: "pixels", min: 1, max: 8, default: 2, step: 0.5 },
+    { name: "seed", label: "Graine", unit: "none", min: 0, max: 1000, default: 0, step: 1 },
   ],
   wgsl: `
 fn hash(p: vec2<f32>) -> f32 {

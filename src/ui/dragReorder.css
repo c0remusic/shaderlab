@@ -1,0 +1,12 @@
+.drag-reorder__insert-chip {
+  position: absolute;
+  left: 50%;
+  width: 20px;
+  height: 8px;
+  border-radius: var(--radius-round);
+  background: var(--border-selection);
+  opacity: .9;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  z-index: var(--z-popover);
+}

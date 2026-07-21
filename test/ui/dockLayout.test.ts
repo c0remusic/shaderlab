@@ -1,0 +1,30 @@
+import { describe, expect, it } from "vitest";
+import { movePanelInDock, type DockLayout } from "../../src/ui/dockLayout";
+
+const layout: DockLayout = [["history"], ["layers", "params"]];
+
+describe("movePanelInDock", () => {
+  it("moves a card above another card in its column", () => {
+    expect(movePanelInDock(layout, "params", { kind: "vertical", columnIndex: 1, rowIndex: 0, position: "before" }))
+      .toEqual([["history"], ["params", "layers"]]);
+  });
+
+  it("moves a card into a new column on the left", () => {
+    expect(movePanelInDock(layout, "params", { kind: "horizontal", columnIndex: 1, position: "left" }))
+      .toEqual([["history"], ["params"], ["layers"]]);
+  });
+
+  it("moves a card into a new column on the right", () => {
+    expect(movePanelInDock(layout, "layers", { kind: "horizontal", columnIndex: 0, position: "right" }))
+      .toEqual([["history"], ["layers"], ["params"]]);
+  });
+
+  it("removes an empty source column after a horizontal move", () => {
+    expect(movePanelInDock([["layers"], ["params"]], "layers", { kind: "horizontal", columnIndex: 1, position: "right" }))
+      .toEqual([["params"], ["layers"]]);
+  });
+
+  it("returns the original layout when the panel id is absent", () => {
+    expect(movePanelInDock(layout, "missing", { kind: "horizontal", columnIndex: 0, position: "left" })).toBe(layout);
+  });
+});

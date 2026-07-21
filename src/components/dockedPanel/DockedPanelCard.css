@@ -8,6 +8,9 @@
   display: flex;
   flex-direction: column;
   height: auto;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+  background: var(--panel-bg);
   color: var(--text-primary);
 }
 
@@ -18,7 +21,7 @@
   justify-content: space-between;
   flex-shrink: 0;
   height: var(--control-height-md);
-  padding-inline: var(--space-4);
+  padding-inline: var(--space-5);
   border-bottom: 1px solid var(--border-subtle);
 }
 

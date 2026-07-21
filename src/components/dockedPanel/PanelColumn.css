@@ -4,14 +4,13 @@
   right: var(--space-6);
   width: max-content;
   max-width: calc(100vw - (var(--space-6) * 2));
-  background: var(--panel-bg);
   z-index: var(--z-popover);
 }
 
 .panel-column__grid {
   display: flex;
   align-items: flex-start;
-  gap: 0;
+  gap: var(--space-4);
   max-height: calc(100vh - (var(--space-6) * 2));
   overflow-x: auto;
 }
@@ -20,22 +19,12 @@
   display: flex;
   flex: 0 0 var(--inspector-width-default);
   flex-direction: column;
-  gap: 0;
+  gap: var(--space-4);
   max-height: inherit;
   overflow-y: auto;
 }
 
 .panel-column__item { position: relative; }
-
-.panel-column__item + .panel-column__item {
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border-subtle);
-}
-
-.panel-column__stack + .panel-column__stack {
-  padding-left: var(--space-4);
-  border-left: 1px solid var(--border-subtle);
-}
 
 .panel-column__insert-chip--horizontal {
   width: var(--space-2);
@@ -52,5 +41,3 @@
   box-shadow: var(--shadow-dragging);
   z-index: var(--z-popover);
 }
-
-.panel-column__ghost .docked-panel-card { background: var(--panel-bg); }

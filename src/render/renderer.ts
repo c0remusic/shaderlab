@@ -6,8 +6,8 @@ import { EffectPassRunner, PASSTHROUGH_EFFECT } from "./effectPassRunner";
 import { MaskTextureResolver } from "./maskTextureResolver";
 import { FrameScheduler } from "./frameScheduler";
 import { FrameReadback } from "./frameReadback";
-import { assertImageFitsGpu } from "./limits";
 import { noopDiagnosticLogger, type DiagnosticLogger } from "./diagnostics";
+import { ImageFrameResources } from "./imageFrameResources";
 import type { DirtyRect } from "../mask/maskPainter";
 import { defaultLayerMask } from "../mask/types";
 
@@ -61,11 +61,7 @@ export interface MaskPreviewOverride {
 export class Renderer {
   private readonly diagnosticLogger: DiagnosticLogger;
   private ctx: GpuContext;
-  private sourceTexture: GPUTexture | null = null;
-  private width = 0;
-  private height = 0;
-  private pingPong: [GPUTexture, GPUTexture] | null = null;
-  private exportTexture: GPUTexture | null = null;
+  private readonly imageResources: ImageFrameResources;
   private sampler: GPUSampler;
   /** Sampler `nearest` (pas bilinéaire) pour les passes edge-aware — un box
    *  filter accumule des échantillons discrets, un filtrage bilinéaire
@@ -109,6 +105,11 @@ export class Renderer {
       magFilter: "nearest",
       minFilter: "nearest",
     });
+    this.imageResources = new ImageFrameResources(
+      ctx.device,
+      ctx.srgbFormat,
+      ctx.device.limits.maxTextureDimension2D,
+    );
   }
 
   /** Active/désactive l'overlay safelight du masque d'un calque (mode peinture).
@@ -119,46 +120,15 @@ export class Renderer {
   }
 
   async loadImage(bitmap: ImageBitmap): Promise<void> {
-    assertImageFitsGpu(
-      bitmap.width,
-      bitmap.height,
-      this.ctx.device.limits.maxTextureDimension2D,
-    );
-    this.width = bitmap.width;
-    this.height = bitmap.height;
+    this.imageResources.loadImage(bitmap);
     const { device, srgbFormat } = this.ctx;
-
-    const makeTarget = () =>
-      device.createTexture({
-        size: [this.width, this.height],
-        format: srgbFormat,
-        usage:
-          GPUTextureUsage.TEXTURE_BINDING |
-          GPUTextureUsage.RENDER_ATTACHMENT |
-          GPUTextureUsage.COPY_SRC,
-      });
-
-    this.sourceTexture = device.createTexture({
-      size: [this.width, this.height],
-      format: srgbFormat,
-      usage:
-        GPUTextureUsage.TEXTURE_BINDING |
-        GPUTextureUsage.COPY_DST |
-        GPUTextureUsage.RENDER_ATTACHMENT,
-    });
-    device.queue.copyExternalImageToTexture(
-      { source: bitmap },
-      { texture: this.sourceTexture },
-      [this.width, this.height],
-    );
-
-    this.pingPong = [makeTarget(), makeTarget()];
+    const { width, height } = this.imageResources;
     this.effectPassRunner?.clearPipelines();
     this.effectPassRunner = new EffectPassRunner(
       device,
       srgbFormat,
-      this.width,
-      this.height,
+      width,
+      height,
       this.sampler,
       (layer, encoder, sourceView, pendingDestroy) =>
         this.maskTextureResolver!.resolve(
@@ -171,11 +141,11 @@ export class Renderer {
     this.maskTextureResolver?.dispose();
     this.maskTextureResolver = new MaskTextureResolver(
       this.ctx,
-      this.width,
-      this.height,
+      width,
+      height,
       this.sampler,
       this.nearestSampler,
-      () => this.sourceTexture!,
+      () => this.imageResources.sourceTexture!,
     );
   }
 
@@ -213,23 +183,14 @@ export class Renderer {
    * last one, so the readback always reflects the true final frame.
    */
   async exportFrame(layers: LayerState[]): Promise<Uint8Array> {
-    if (!this.sourceTexture) throw new Error("Aucune image chargée.");
-    const { device, srgbFormat } = this.ctx;
-
-    if (!this.exportTexture) {
-      this.exportTexture = device.createTexture({
-        size: [this.width, this.height],
-        format: srgbFormat,
-        usage:
-          GPUTextureUsage.TEXTURE_BINDING |
-          GPUTextureUsage.RENDER_ATTACHMENT |
-          GPUTextureUsage.COPY_SRC,
-      });
-    }
-
-    this.runPipeline(layers, this.exportTexture.createView());
-    const readback = new FrameReadback(device, this.width, this.height);
-    const padded = await readback.readTextureBytes(this.exportTexture);
+    const exportTexture = this.imageResources.getExportTexture();
+    this.runPipeline(layers, exportTexture.createView());
+    const readback = new FrameReadback(
+      this.ctx.device,
+      this.imageResources.width,
+      this.imageResources.height,
+    );
+    const padded = await readback.readTextureBytes(exportTexture);
     return readback.stripRowPadding(padded);
   }
 
@@ -237,14 +198,16 @@ export class Renderer {
     layers: LayerState[],
     finalTargetView: GPUTextureView,
   ): void {
-    if (!this.sourceTexture || !this.pingPong)
+    const sourceTexture = this.imageResources.sourceTexture;
+    const pingPong = this.imageResources.pingPong;
+    if (!sourceTexture || !pingPong)
       throw new Error("Aucune image chargée.");
     if (!this.effectPassRunner) throw new Error("Aucune image chargée.");
     const { device } = this.ctx;
     const diagStart = performance.now();
     this.maskTextureResolver?.sweep(new Set(layers.map((layer) => layer.id)));
 
-    let readTexture = this.sourceTexture;
+    let readTexture = sourceTexture;
     let writeIndex = 0;
     const enabledLayers = layers.filter((l) => l.enabled);
     // Overlay masque (mode peinture) : le calque sélectionné dont on montre le
@@ -267,7 +230,7 @@ export class Renderer {
     if (enabledLayers.length === 0) {
       // Nothing to composite — blit the source straight to the target (ou vers
       // un slot ping-pong si overlay actif, pour teinter par-dessus ensuite).
-      const blitTarget = overlayLayer ? this.pingPong[0] : null;
+      const blitTarget = overlayLayer ? pingPong[0] : null;
       this.effectPassRunner.runEffectPass(
         encoder,
         PASSTHROUGH_EFFECT,
@@ -313,7 +276,7 @@ export class Renderer {
       const targetView =
         isLast && !overlayLayer
           ? finalTargetView
-          : this.pingPong[writeIndex].createView();
+          : pingPong[writeIndex].createView();
 
       let prevPassView: GPUTextureView | null = null;
       let prevPassTexture: GPUTexture | null = null;
@@ -346,7 +309,7 @@ export class Renderer {
       if (prevPassTexture) pendingDestroy.push(prevPassTexture);
 
       if (!isLast) {
-        readTexture = this.pingPong[writeIndex];
+        readTexture = pingPong[writeIndex];
         writeIndex = 1 - writeIndex;
       }
     }
@@ -357,11 +320,11 @@ export class Renderer {
     if (overlayLayer) {
       this.effectPassRunner.runOverlayPass(
         encoder,
-        this.pingPong[writeIndex],
+        pingPong[writeIndex],
         this.maskTextureResolver!.resolve(
           overlayLayer,
           encoder,
-          this.pingPong[writeIndex].createView(),
+          pingPong[writeIndex].createView(),
           pendingDestroy,
         ),
         finalTargetView,
@@ -396,7 +359,7 @@ export class Renderer {
     this.diagnosticLogger(
       `frame#${this.diagFrameCount} jsEncodeMs=${elapsedMs} enabledLayers=${enabledLayerCount} ` +
         `churnedThisFrame=${churnedResources} residentMaskTextures=resolver-owned ` +
-        `pipelineCacheSize=${this.effectPassRunner?.pipelineCount ?? 0} imageSize=${this.width}x${this.height}`,
+        `pipelineCacheSize=${this.effectPassRunner?.pipelineCount ?? 0} imageSize=${this.imageResources.width}x${this.imageResources.height}`,
     );
   }
 
@@ -411,9 +374,13 @@ export class Renderer {
    * raw contents (e.g. debugging an intermediate pass).
    */
   async readPixels(): Promise<Uint8Array> {
-    if (!this.pingPong) throw new Error("Aucune image chargée.");
-    return new FrameReadback(this.ctx.device, this.width, this.height)
-      .readTextureBytes(this.pingPong[0]);
+    const pingPong = this.imageResources.pingPong;
+    if (!pingPong) throw new Error("Aucune image chargée.");
+    return new FrameReadback(
+      this.ctx.device,
+      this.imageResources.width,
+      this.imageResources.height,
+    ).readTextureBytes(pingPong[0]);
   }
 
   /**
@@ -426,15 +393,7 @@ export class Renderer {
    */
   dispose(): void {
     this.renderScheduler.cancel();
-    this.sourceTexture?.destroy();
-    this.sourceTexture = null;
-    if (this.pingPong) {
-      this.pingPong[0].destroy();
-      this.pingPong[1].destroy();
-      this.pingPong = null;
-    }
-    this.exportTexture?.destroy();
-    this.exportTexture = null;
+    this.imageResources.dispose();
     this.effectPassRunner?.clearPipelines();
     this.effectPassRunner = null;
     this.maskTextureResolver?.dispose();

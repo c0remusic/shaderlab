@@ -67,9 +67,14 @@ export function PanelColumn({ panels, layout, onMove }: PanelColumnProps) {
               rowIndex,
               position: event.clientY - rect.top < rect.height / 2 ? "before" : "after",
             };
+      const isOwnCard = layout[columnIndex]?.[rowIndex] === current.draggedId;
+      const isNoOp = isOwnCard && (
+        target.kind === "vertical" || layout[columnIndex].length === 1
+      );
+      if (isNoOp) return { ...current, pointerPosition, target: null, targetBounds: null };
       return { ...current, pointerPosition, target, targetBounds: rect };
     });
-  }, []);
+  }, [layout]);
 
   const finishDrag = useCallback((event: React.PointerEvent<HTMLDivElement>, commit: boolean) => {
     setDragState((current) => {

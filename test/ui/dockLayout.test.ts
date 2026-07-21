@@ -28,6 +28,8 @@ describe("movePanelInDock", () => {
     const singleCards: DockLayout = [["layers"], ["params"]];
     expect(movePanelInDock(singleCards, "layers", { kind: "vertical", columnIndex: 0, rowIndex: 0, position: "before" }))
       .toBe(singleCards);
+    expect(movePanelInDock(singleCards, "layers", { kind: "horizontal", columnIndex: 0, position: "right" }))
+      .toBe(singleCards);
   });
 
   it("returns the original layout when the panel id is absent", () => {

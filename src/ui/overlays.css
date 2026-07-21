@@ -69,7 +69,7 @@
      ancêtre en overflow: visible (finding auditor HAUTE, 2026-07-20). */
   position: fixed;
   z-index: var(--z-popover);
-  max-height: calc(var(--space-11) * 5);
+  max-height: var(--select-listbox-max-height);
   margin: 0;
   padding: var(--space-2);
   list-style: none;

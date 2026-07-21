@@ -17,8 +17,6 @@ export interface SelectProps {
 /** max-height de .ui-select__listbox (src/ui/overlays.css) — dupliqué ici
  *  pour le calcul de retournement viewport ; pas de lecture CSS->JS possible
  *  avant montage (le portail n'existe pas encore au moment du calcul). */
-const LISTBOX_MAX_HEIGHT = 240;
-
 /**
  * Custom button + listbox select (not a native <select>). La listbox est
  * portalée dans document.body (position: fixed, ancrée sur le rect du
@@ -85,12 +83,15 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
     // source unique avec le token CSS plutôt qu'une valeur dupliquée en dur.
     const gapPx =
       parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--space-2")) || 4;
+    const maxHeightPx = parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue("--select-listbox-max-height")
+    );
     setListboxRect(
       computeListboxPlacement(
         { top: rect.top, bottom: rect.bottom, left: rect.left, width: rect.width },
         window.innerHeight,
         gapPx,
-        LISTBOX_MAX_HEIGHT
+        maxHeightPx
       )
     );
 

@@ -72,7 +72,7 @@
   /* 0.5 littéral et ponctuel : aucun token "élément en cours de glisser"
      n'existe dans le système, et un seul usage ne justifie pas d'en créer un
      pour l'instant. */
-  opacity: 0.5;
+  opacity: var(--dragging-opacity);
 }
 
 .layer-panel__row--drop-before {

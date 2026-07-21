@@ -52,4 +52,16 @@
 
   --tooltip-delay: 500ms;
   --tooltip-max-width: 280px;
+
+  --menu-z-index: var(--z-popover);
+  --menu-min-width: 96px;
+  --menu-padding: var(--space-2);
+  --menu-radius: var(--radius-panel);
+  --menu-duration: var(--duration-fast);
+  --control-focus-ring-width: 3px;
+  --select-listbox-max-height: 240px;
+  --dragging-opacity: .5;
+  --drag-grip-opacity: .7;
+  --drag-ghost-opacity: .85;
+  --loading-indicator-opacity: .7;
 }

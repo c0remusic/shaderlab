@@ -38,7 +38,7 @@
   top: 0;
   left: 0;
   width: var(--inspector-width-default);
-  opacity: .5;
+  opacity: var(--drag-ghost-opacity);
   pointer-events: none;
   box-shadow: var(--shadow-dragging);
   z-index: var(--z-popover);

@@ -1,4 +1,12 @@
 @theme inline {
+  --spacing: var(--space-2);
+  --font-sans: var(--font-ui);
+  --text-xs: var(--font-size-xs);
+  --text-sm: var(--font-size-sm);
+  --text-base: var(--font-size-md);
+  --text-lg: var(--font-size-lg);
+  --text-xl: var(--font-size-xl);
+
   --color-background: var(--surface-window);
   --color-foreground: var(--text-primary);
   --color-card: var(--surface-panel);

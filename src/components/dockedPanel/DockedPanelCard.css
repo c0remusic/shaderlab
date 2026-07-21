@@ -63,7 +63,7 @@
   overflow-y: auto;
 }
 
-.docked-panel-card--dragging { opacity: 0.5; }
+.docked-panel-card--dragging { opacity: var(--dragging-opacity); }
 
 .docked-panel-card__drag-grip {
   position: absolute;
@@ -73,6 +73,6 @@
   transform: translateX(-50%);
   background-image: radial-gradient(circle, var(--text-tertiary) 1px, transparent 1.5px);
   background-size: var(--space-2) var(--space-2);
-  opacity: .7;
+  opacity: var(--drag-grip-opacity);
   pointer-events: none;
 }

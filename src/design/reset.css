@@ -3,7 +3,7 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 body {
   background: var(--surface-workspace);
   color: var(--text-primary);
-  font: var(--font-ui);
+  font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
 }
 button, input, select, textarea { font: inherit; }

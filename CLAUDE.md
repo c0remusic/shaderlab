@@ -88,6 +88,26 @@
 > reste valide et appliqué. Le checkpoint Tranche 3 masquage (gap spec
 > checkbox `enabled` par source, voir plus haut) reste à refaire une fois
 > CE remplacement de panneaux stabilisé — pas encore retenté depuis.
+> **MISE À JOUR 2026-07-21 (session checkpoint Task 8)** : `feature/mask-integrity`
+> MERGÉ (`769ed60`, gap checkbox `enabled` par source enfin comblé, 3
+> worktrees morts nettoyés : `ui-audit-remediation`/`beautiful-wing-eca6ea`/
+> `nervous-leakey-2d5e24`). Le checkpoint visuel Task 8 (dock-reorder-and-theme-polish)
+> a démarré normalement mais a fait remonter 9 bugs/incohérences réels en
+> cours de route (pas de simples ajustements cosmétiques) — tous corrigés
+> dans `959d9ed` : hover de "Fichier" totalement cassé (`var(--secondary)`
+> inexistant dans une formule `color-mix` Tailwind → transparent au survol),
+> `--surface-inset` était le SEUL token resté sur l'ancienne palette chaude
+> pré-migration Spectrum (`#141210`, jamais migré le 2026-07-20), Select
+> (`src/ui/Select.tsx`) avait 2 bugs d'interaction réels (le listener
+   `scroll` capture fermait la liste sur son PROPRE scroll interne ; `scrollIntoView`
+> se déclenchait sur `onMouseEnter` et se battait avec un scroll manuel).
+> "Masque" extrait de `ParamPanel` en panneau docké séparé (nouveau
+> `src/components/MaskPanel.tsx`, 3e carte du dock). Plusieurs rangs de
+> padding/espacement corrigés (marge extérieure d'un contrôle plus petite
+> que son propre padding interne — violait la règle du socle `rules/ui.md`
+> § Espacement). Voir `.claude/learning-log.md` (entrée 2026-07-21) pour le
+> pattern méthode extrait de cette session (trop de micro-fixes séquentiels
+> — un audit token/CSS large en amont en aurait capturé plusieurs d'un coup).
 
 ## Langage partagé
 

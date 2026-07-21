@@ -548,3 +548,77 @@ pas la peine de renommer/déplacer `.dev-logs/`.
 - Cross-check catches real bugs missed by own review (cache snapshot bug, scope-creep regressions)
 - Stale branch detection is automatic (HAUTE false-positives from missing upstream commits)
 - Valuable for catching logic regressions before merge
+
+## 2026-07-21 (checkpoint Task 8 — dock-reorder-and-theme-polish)
+
+`feature/mask-integrity` mergé (`769ed60`) après nettoyage de 3 worktrees
+morts. Le checkpoint visuel Task 8 lui-même a fait remonter 9 bugs/incohérences
+réels (pas de simples ajustements cosmétiques), tous corrigés dans `959d9ed` :
+
+**Bug réel — hover cassé par une formule Tailwind invalide** : `button.tsx`
+variant `secondary` avait `hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)]`
+— `--secondary` n'existe nulle part dans ce projet (le vrai token namespacé
+Tailwind v4 est `--color-secondary`). Une `custom property` indéfinie dans un
+`color-mix()` invalide toute la déclaration → `background-color` retombe sur
+`transparent` (valeur initiale). Le bouton "Fichier" devenait invisible au
+survol. **Piège générique** : une formule `color-mix()`/arbitrary-value
+Tailwind qui référence une variable "à la shadcn" (`--secondary`,
+`--foreground`) sans vérifier qu'elle correspond au namespace RÉEL du
+`@theme` du projet (`--color-*` en Tailwind v4) échoue silencieusement — pas
+d'erreur console, juste `transparent`. Toujours préférer réutiliser un
+utilitaire Tailwind existant qui marche déjà ailleurs (`hover:bg-accent`)
+plutôt qu'une formule bespoke non testée.
+
+**Bug réel — palette pré-migration orpheline** : `--surface-inset: #141210`
+était le SEUL token resté sur l'ancienne échelle "chambre noire chaude",
+jamais migré vers Adobe Spectrum le 2026-07-20 (documenté dans le commentaire
+de `primitives.css` mais jamais vérifié après coup). Balayage complet
+(`grep -rn "#[0-9a-fA-F]\{3,6\}" src --include=*.css`) confirme qu'aucune
+autre couleur hex ne traîne hors de `primitives.css` — c'était vraiment le
+seul orphelin. Migré vers `var(--primitive-neutral-1000)`.
+
+**2 bugs réels dans `src/ui/Select.tsx`** (listbox custom, pas un `<select>`
+natif) :
+1. Le listener `window.addEventListener("scroll", closeOnScrollOrResize,
+   {capture:true})` (censé fermer la liste si un ANCÊTRE scrolle) attrapait
+   AUSSI le scroll interne de la listbox elle-même — un `scroll` event ne
+   bubble pas mais un listener en phase CAPTURE d'un ancêtre le voit quand
+   même, peu importe la cible. Résultat : impossible de scroller dans une
+   liste de +8 options, fermeture dès la première tentative. Fix : ignorer
+   l'event si `event.target` est contenu dans `listRef.current`.
+2. `scrollIntoView({block:"nearest"})` se déclenchait sur CHAQUE changement
+   d'`activeIndex`, y compris ceux causés par `onMouseEnter` (survol souris)
+   — bouger la souris dans la liste la faisait scroller toute seule,
+   incontrôlable. Fix : un ref `scrollOnNextActiveChangeRef` posé à `true`
+   uniquement par les vrais déclencheurs clavier (flèches/Home/End/typeahead/
+   ouverture), `false` par le survol — `scrollIntoView` ne s'exécute que si
+   `true`. **Pattern générique** : dans un widget custom, ne jamais laisser
+   `onMouseEnter` déclencher le MÊME effet de scroll que la navigation
+   clavier — le survol est un signal d'affichage, pas d'intention de
+   défilement.
+
+**Pattern récurrent — 2 fois dans la session, même bug** : une case fixe
+contenant un `IconButton size="compact"` (28px) avec une hauteur de case ne
+laissant qu'1px de marge de chaque côté (30px, `--control-height-md`/
+`--layer-row-height` avant fix) — le "reliquat de calcul entre deux tokens
+sans rapport" plutôt qu'un rang d'espacement délibéré. Trouvé sur
+`DockedPanelCard__titlebar` (chevron collapse) ET sur `LayerPanel__row-top`
+(eye/trash). **Règle à appliquer PROACTIVEMENT** (pas seulement en review) :
+avant de fixer une hauteur de ligne/case contenant un `IconButton`, calculer
+explicitement `(hauteur_case - hauteur_bouton) / 2` et vérifier que ça tombe
+sur un rang `--space-N` réel (au moins `--space-2`, 4px) — ne jamais
+assigner une hauteur "qui a l'air correcte" sans ce calcul.
+
+**Rang de gap incohérent** : `.layer-panel__row-controls` (Opacité → Fusion)
+utilisait `--space-2` (rang "interne à un composant", icône-texte) pour une
+relation qui est en réalité "contrôles frères dans un groupe" (rang
+`--space-5`, même relation que `.param-panel__group`). Les deux zones
+affichent le même TYPE de contenu (sliders empilés) mais dans des rangs
+different — signal qu'il vaut la peine de comparer les CSS de composants
+visuellement similaires plutôt que de juger chaque composant isolément.
+
+Méthode extraite (voir aussi `~/.claude/instinct-log.md` NG29/NG30, portée
+globale) : cette session a enchaîné ~9 micro-fixes séquentiels sur des
+plaintes UI reformulées 4 fois ("thème pas cohérent" → "et les couleurs ?"
+→ "les règles de padding..."). Un audit token/CSS large fait dès la première
+plainte systémique aurait capturé plusieurs de ces bugs en une seule passe.

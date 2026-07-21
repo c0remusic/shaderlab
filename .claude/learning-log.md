@@ -468,3 +468,57 @@ transitoire), `ImageFrameResources` (source/ping-pong/export),
 `queue.submit()` ou la destruction des ressources temporaires dans un runner de
 passe; l'exécuteur de frame reste l'unique coordinateur de leur durée de vie.
 Le renderer est maintenant une façade de composition, à garder mince.
+
+**Découverte (2026-07-21, TTL 2027-01-21)** : un `git status`/`git ls-files`
+sur le seul worktree courant rate systématiquement du travail Codex orphelin
+— cette session a trouvé, en creusant `git for-each-ref` + `git ls-files`
+par worktree + `.remember/` complet, 5 fichiers doc déjà committés sur
+`feature/design-system` elle-même mais jamais indexés dans `docs/INDEX.json`
+(le chantier "audit clean-code" complet : design + 3 plans mask-integrity/
+document-export-safety/ui-runtime-hygiene, plus un plan dock-width-resize),
+ET 2 branches Codex (`codex/ui-audit-remediation` 6 commits review-clean,
+`codex/design-system-unification-exec`+`codex/design-system-audit-fixes` 5
+commits + 15 fichiers non committés) jamais fusionnées. **How to apply** :
+avant de conclure "rien à reprendre" sur ce repo, balayer `git worktree list`
++ `git for-each-ref` + `git ls-files` (pas juste `git status`) sur CHAQUE
+worktree, et lire `.remember/remember.md` + le ledger `.superpowers/sdd/
+progress.md` de chaque worktree actif — le statut affiché dans
+`docs/INDEX.json`/`CLAUDE.md` peut être faux (affirmé sans vérification par
+une session précédente) tant que ce balayage n'a pas été fait.
+
+**Découverte (2026-07-21, TTL 2027-01-21)** : le hook post-commit
+`codex-crosscheck` lit `.codex-crosscheck` (fichier marqueur opt-in) via
+`git rev-parse --show-toplevel`, qui renvoie la racine du WORKTREE courant —
+committer dans un worktree scratch/temporaire sans ce marqueur fait sauter
+le hook silencieusement (pas d'erreur, juste rien). Un rapatriement ensuite
+par fast-forward (`git merge --ff-only`) ne déclenche PAS non plus de
+post-commit (aucun nouveau commit créé). **How to apply** : après un merge
+fait via un worktree scratch + fast-forward, lancer manuellement
+`bash ~/.claude/skills/codex-crosscheck/review.sh <repo> <range>` sur le
+commit de fusion — ne pas supposer que le hook a tourné. A trouvé un vrai
+bug HAUTE (padding posé sur `<canvas>` au lieu d'un wrapper, cassant
+`toImageCoords`) sur le commit de fusion `0f3010d` de cette session.
+
+**Découverte (2026-07-21, TTL 2027-01-21)** : `Emulation.setDeviceMetricsOverride`
+(CDP) ne truque que le viewport CSS/layout — utile pour reproduire un bug
+CSS dépendant de la forme de fenêtre (ex. stretch flexbox sur fenêtre large/
+ultrawide, reproduit ici : ratio réel 3.48 au lieu de 1.5 intrinsèque en
+2560×700). Mais il NE redimensionne PAS la vraie fenêtre native, donc le
+swapchain WebGPU du `<canvas>` (lié à la fenêtre réelle) part en désync sous
+émulation — un screenshot/pixel-sample pris sous `Emulation.*Override` sur
+ce canvas est invalide (transparent/noir), alors que `getBoundingClientRect()`
+(pur CSS) reste fiable. **How to apply** : pour un bug de géométrie CSS sur
+ce canvas WebGPU, utiliser CDP emulation + mesure de rect (fiable) ; pour une
+preuve visuelle de RENDU à une taille de fenêtre donnée, redimensionner la
+vraie fenêtre native (ou demander à Antoine), jamais l'émulation CDP.
+
+**Découverte (2026-07-21, TTL 2027-01-21)** : `npm run dev:monitor` peut
+laisser un process `node` orphelin qui tail `.dev-logs/tauri.std{out,err}.log`
+en continu — ce handle bloque tout `scripts/dev.ps1` suivant sur
+`Set-Content` ("le processus ne peut pas accéder au fichier") sans qu'aucun
+process nommé `shaderlab`/`cargo`/`npm` ne soit visible dans
+`Get-Process -Name shaderlab`. **How to apply** : si `dev.ps1` échoue sur un
+verrou de fichier `.dev-logs/*.log` sans process `shaderlab` visible,
+chercher un `node.exe`/`pwsh.exe` dont la `CommandLine` contient
+`dev:monitor`/`monitor.ps1` via `Get-CimInstance Win32_Process` et le tuer —
+pas la peine de renommer/déplacer `.dev-logs/`.

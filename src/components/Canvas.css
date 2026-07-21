@@ -38,11 +38,10 @@
   max-height: 100%;
 }
 
-.canvas-stage__frame--loaded {
-  padding: var(--space-6);
-  border: 1px solid var(--border-default);
-  background: var(--surface-inset);
-}
+/* Pas de cadre visuel (bordure/fond distinct) : l'image flotte directement
+   sur --surface-workspace, même couleur que le reste du plan de travail
+   (esprit Photoshop web — décision Antoine 2026-07-21, remplace le cadre
+   encadré/isolé du commit de fusion précédent). */
 
 .canvas-stage__canvas {
   max-width: 100%;

@@ -150,7 +150,7 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
       }}
     >
       {!hasImage && <EmptyWorkspace onOpenFile={onOpenFile} />}
-      <div className={`canvas-stage__frame ${hasImage ? "canvas-stage__frame--loaded" : ""}`.trim()}>
+      <div className="canvas-stage__frame">
       <canvas
         ref={ref}
         aria-label="Zone de travail image"

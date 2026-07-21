@@ -110,6 +110,27 @@
   ],
   "plans": [
     {
+      "path": "docs/superpowers/plans/2026-07-21-clean-architecture-remediation.md",
+      "status": "✅ TERMINÉ le 2026-07-21 — ports de diagnostic/export et DocumentSession extraits; commits 776c296, f5480c2, 8cde8bb.",
+      "date": "2026-07-21",
+      "topic": "plan d'implémentation : remédiation clean architecture",
+      "summary": "Le rendu ne dépend plus de Tauri pour les diagnostics; l'export dépend de ports FrameRenderer/ImageWriter; DocumentSession devient la source de vérité application des calques, de l'historique et de la sélection, tandis que React garde la projection d'affichage sans rasters."
+    },
+    {
+      "path": "docs/superpowers/plans/2026-07-21-renderer-component-split.md",
+      "status": "✅ TERMINÉ le 2026-07-21 — renderer découpé et review-clean; commits 3831fd6, 6457655, 1dee59e, 3400b2b, c243413, cc2ae50.",
+      "date": "2026-07-21",
+      "topic": "plan d'implémentation : découpage du renderer WebGPU",
+      "summary": "Renderer est devenu une façade d'orchestration. EffectPassRunner, MaskTextureResolver, FrameReadback, ImageFrameResources, FramePipelineExecutor et FrameDiagnostics possèdent chacun leur cache ou durée de vie GPU. Invariant: le submit et la destruction post-submit restent coordonnés dans l'exécuteur de frame. 228 tests, tsc, lint tokens et build sont verts; preuve WebGPU visuelle réelle reste un checkpoint humain/CDP séparé."
+    },
+    {
+      "path": "docs/superpowers/plans/2026-07-21-ui-audit-remediation.md",
+      "status": "PLANIFIÉ le 2026-07-21 — remédiation UI exhaustive issue de l'audit des captures (contrôles, workspace, dock, menus, masques, toolbar) ; exécution bloquée volontairement jusqu'à la clôture vérifiée des plans dock reorder et dock width resize déjà en cours.",
+      "date": "2026-07-21",
+      "topic": "plan d'implémentation : remédiation exhaustive de l'audit UI",
+      "summary": "Plan TDD en 9 tâches : métadonnées effet utilisateur françaises et unités ; slider unique lisible à progression remplie ; état vide, drop feedback, mat image ; géométrie du dock multi-colonnes et scroll unique ; menus portalisés ; drag de panneaux avec seuil et poignée explicite ; checkbox enabled par source et lisibilité calques/masques ; toolbar/typographie/erreurs cohérentes ; tests, CDP et checkpoint humain final. Préserve le raster masque hors state React et dépend explicitement des deux plans dock préexistants plutôt que de les réécrire."
+    },
+    {
       "path": "docs/superpowers/plans/2026-07-21-shaderlab-dock-reorder-and-theme-polish.md",
       "status": "EN COURS (Codex) au 2026-07-21 — Tasks 1-5/8 committées au dernier point de contrôle (tokens d'ombre, application Tooltip/Select/DropdownMenu, ratio padding boutons, extraction src/ui/dragReorder.ts, migration LayerPanel). Tasks 6-8 (drag-to-reorder dans PanelColumn, câblage App.tsx, checkpoint visuel humain) pas encore committées à ce point de contrôle — vérifier git log avant de repartir dessus.",
       "date": "2026-07-21",

@@ -457,3 +457,14 @@ autre explication. Un hook post-commit `codex-crosscheck` peut aussi
 bloquer un appel `git commit` en apparence (timeout du hook, PAS un échec du
 commit lui-même) — vérifier `git log` après un timeout avant de conclure à
 un échec.
+
+**Décision d'architecture (2026-07-21)** : le renderer monolithique a été
+découpé sans modifier son API publique en six propriétaires cohérents :
+`EffectPassRunner` (pipelines couleur/overlay), `MaskTextureResolver`
+(résidence, fold et refine edge des masques), `FrameReadback` (buffer MAP_READ
+transitoire), `ImageFrameResources` (source/ping-pong/export),
+`FramePipelineExecutor` (encodeur, submit et destruction post-submit) et
+`FrameDiagnostics` (cadence de log). **How to apply** : ne jamais déplacer le
+`queue.submit()` ou la destruction des ressources temporaires dans un runner de
+passe; l'exécuteur de frame reste l'unique coordinateur de leur durée de vie.
+Le renderer est maintenant une façade de composition, à garder mince.

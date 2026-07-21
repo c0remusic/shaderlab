@@ -12,6 +12,7 @@ import {
 } from "../mask/foldPlan";
 import type {
   MaskSource,
+  ParametricMaskSource,
   MaskSourceType,
   RefineEdgeParams,
 } from "../mask/types";
@@ -228,7 +229,7 @@ export class MaskTextureResolver {
     if (source.type !== "brush")
       return this.parametric(id, source, encoder, pending);
     const key = `${id}:${source.id}`,
-      raster = source.raster!,
+      raster = source.raster,
       old = this.sourceTextures.get(key);
     if (old?.syncedFrom === raster) return old.texture;
     const texture =
@@ -254,7 +255,7 @@ export class MaskTextureResolver {
   }
   private parametric(
     id: string,
-    source: MaskSource,
+    source: ParametricMaskSource,
     encoder: GPUCommandEncoder,
     pending: (GPUTexture | GPUBuffer)[],
   ): GPUTexture {
@@ -271,11 +272,8 @@ export class MaskTextureResolver {
           GPUTextureUsage.RENDER_ATTACHMENT |
           GPUTextureUsage.COPY_SRC,
       });
-    const module = getMaskSourceModule(
-        source.type as "gradient" | "luminosity" | "colorRange",
-      ),
-      count =
-        PARAM_COUNT_BY_TYPE[source.type as Exclude<MaskSourceType, "brush">],
+    const module = getMaskSourceModule(source.type),
+      count = PARAM_COUNT_BY_TYPE[source.type],
       flat = this.flatten(source.params, module.defaultParams, count),
       buffer = this.ctx.device.createBuffer({
         size: flat.byteLength,

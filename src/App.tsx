@@ -15,7 +15,7 @@ import { useGlobalControlWheel } from "./ui/activeControl";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 import { getBrushRaster } from "./mask/brushSource";
 import { PanelColumn } from "./components/dockedPanel/PanelColumn";
-import { reorderById } from "./ui/dragReorder";
+import { movePanelInDock, type DockDropTarget, type DockLayout } from "./ui/dockLayout";
 import { LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
 import { getEffect } from "./render/effects/registry";
@@ -59,9 +59,9 @@ export default function App() {
 
   const [layersCollapsed, setLayersCollapsed] = useState(false);
   const [paramsCollapsed, setParamsCollapsed] = useState(false);
-  const [panelOrder, setPanelOrder] = useState<string[]>(["layers", "params"]);
-  const handlePanelReorder = useCallback((id: string, newIndex: number) => {
-    setPanelOrder((prev) => reorderById(prev, (panelId) => panelId, id, newIndex));
+  const [dockLayout, setDockLayout] = useState<DockLayout>([["layers", "params"]]);
+  const handlePanelMove = useCallback((id: string, target: DockDropTarget) => {
+    setDockLayout((previous) => movePanelInDock(previous, id, target));
   }, []);
 
   // `layersRef` = source de vérité COMPLÈTE des calques (avec les rasters de
@@ -478,7 +478,7 @@ export default function App() {
           brushSize={brushSize}
           brushHardness={brushHardness}
         />
-        <PanelColumn panels={panelOrder.map((id) => id === "layers" ? {
+        <PanelColumn panels={[{
           id: "layers", title: "Calques", collapsed: layersCollapsed, onCollapsedChange: setLayersCollapsed,
           content: <LayerPanel
               layers={layers}
@@ -492,7 +492,7 @@ export default function App() {
               onOpacityCommit={handleParamCommit}
               onBlendModeChange={handleBlendModeChange}
             />
-        } : {
+        }, {
           id: "params", title: paramsPanelTitle, collapsed: paramsCollapsed, onCollapsedChange: setParamsCollapsed,
           content: <ParamPanel
               layer={selectedLayer}
@@ -511,7 +511,7 @@ export default function App() {
               onRefineEdgeCommit={handleParamCommit}
               onAddColorSample={handleAddColorSample}
             />
-        })} onReorder={handlePanelReorder} />
+        }]} layout={dockLayout} onMove={handlePanelMove} />
       </main>
     </div>
   );

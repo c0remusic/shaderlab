@@ -39,6 +39,22 @@ const COMBINE_MODE_OPTIONS = [
   { value: "intersect", label: "∩ Intersecter" },
 ];
 
+const MASK_PARAM_LABELS: Record<string, string> = {
+  angle: "Angle",
+  startX: "DÃ©part X",
+  startY: "DÃ©part Y",
+  endX: "ArrivÃ©e X",
+  endY: "ArrivÃ©e Y",
+  feather: "Adoucissement",
+  invert: "Inverser",
+  shadowsMin: "Ombres min.",
+  shadowsMax: "Ombres max.",
+  highlightsMin: "Hautes lumiÃ¨res min.",
+  highlightsMax: "Hautes lumiÃ¨res max.",
+  tolerance: "TolÃ©rance",
+  hardness: "DuretÃ©",
+};
+
 /** Plage/pas générique par clé de `params` — heuristique couvrant les 3
  *  modules de sources (gradient/luminosity/colorRange). Pas de métadonnée
  *  min/max par module (hors scope de cette tâche, cf. brief Step 10 : rendu
@@ -192,7 +208,7 @@ export function MaskPanel({
                 return (
                   <LabeledSlider
                     key={key}
-                    label={key}
+                    label={MASK_PARAM_LABELS[key] ?? key}
                     value={value as number}
                     min={range.min}
                     max={range.max}
@@ -209,7 +225,7 @@ export function MaskPanel({
       <Disclosure title="Affiner le bord">
         <div className="param-panel__group">
           <LabeledSlider
-            label="feather"
+            label="Adoucir le bord"
             value={refineEdge.feather}
             min={0}
             max={50}
@@ -218,7 +234,7 @@ export function MaskPanel({
             onCommit={onRefineEdgeCommit}
           />
           <LabeledSlider
-            label="contracter/dilater"
+            label="Contracter/dilater"
             value={refineEdge.contract}
             min={-50}
             max={50}
@@ -227,7 +243,7 @@ export function MaskPanel({
             onCommit={onRefineEdgeCommit}
           />
           <LabeledSlider
-            label="lisser"
+            label="Lisser"
             value={refineEdge.smooth}
             min={0}
             max={10}
@@ -246,7 +262,7 @@ export function MaskPanel({
           {refineEdge.edgeAware && (
             <>
               <LabeledSlider
-                label="rayon des contours"
+                label="Rayon des contours"
                 value={refineEdge.edgeRadius}
                 min={1}
                 max={50}
@@ -255,7 +271,7 @@ export function MaskPanel({
                 onCommit={onRefineEdgeCommit}
               />
               <LabeledSlider
-                label="force des contours"
+                label="Force des contours"
                 value={refineEdge.edgeStrength}
                 min={0}
                 max={2}

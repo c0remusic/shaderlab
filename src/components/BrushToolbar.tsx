@@ -1,5 +1,5 @@
 import { Brush, Eraser } from "lucide-react";
-import { Slider } from "./ui/slider";
+import { Slider } from "../ui/Slider";
 import { Toggle } from "./ui/toggle";
 import { Button } from "../ui/Button";
 
@@ -36,24 +36,24 @@ export function BrushToolbar({
         Pinceau
       </span>
       <div className="brush-toolbar__control">
-        <span className="text-xs text-muted-foreground">Taille</span>
         <Slider
-          aria-label="Taille"
-          value={[brushSize]}
+          label="Taille"
+          displayValue={`${Math.round(brushSize)} px`}
+          value={brushSize}
           min={2}
           max={200}
-          onValueChange={(v) => onBrushSizeChange(Array.isArray(v) ? v[0] : v)}
+          onChange={onBrushSizeChange}
         />
       </div>
       <div className="brush-toolbar__control">
-        <span className="text-xs text-muted-foreground">Dureté</span>
         <Slider
-          aria-label="Dureté"
-          value={[brushHardness]}
+          label="Dureté"
+          displayValue={`${Math.round(brushHardness * 100)} %`}
+          value={brushHardness}
           min={0}
           max={1}
           step={0.05}
-          onValueChange={(v) => onBrushHardnessChange(Array.isArray(v) ? v[0] : v)}
+          onChange={onBrushHardnessChange}
         />
       </div>
       <Toggle pressed={erase} onPressedChange={onEraseChange} aria-label="Gomme">

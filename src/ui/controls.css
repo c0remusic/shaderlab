@@ -59,7 +59,7 @@
 .ui-slider__input::-webkit-slider-runnable-track {
   height: var(--slider-track-height);
   border-radius: var(--radius-round);
-  background: var(--border-default);
+  background: linear-gradient(to right, var(--action-primary-bg) 0 var(--slider-progress), var(--border-default) var(--slider-progress) 100%);
 }
 
 .ui-slider__input::-webkit-slider-thumb {
@@ -88,7 +88,7 @@
 .ui-slider__input::-moz-range-track {
   height: var(--slider-track-height);
   border-radius: var(--radius-round);
-  background: var(--border-default);
+  background: linear-gradient(to right, var(--action-primary-bg) 0 var(--slider-progress), var(--border-default) var(--slider-progress) 100%);
 }
 
 .ui-slider__input::-moz-range-thumb {

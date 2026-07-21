@@ -4,10 +4,10 @@ export const warp: EffectModule = {
   id: "warp",
   name: "Warp",
   params: [
-    { name: "scale", min: 0.5, max: 12, default: 3, step: 0.25 },
-    { name: "amplitude", min: 0, max: 0.08, default: 0.02, step: 0.002 },
-    { name: "octaves", min: 1, max: 4, default: 3, step: 1 },
-    { name: "seed", min: 0, max: 100, default: 0, step: 1 },
+    { name: "scale", label: "Échelle", unit: "none", min: 0.5, max: 12, default: 3, step: 0.25 },
+    { name: "amplitude", label: "Amplitude", unit: "percent", min: 0, max: 0.08, default: 0.02, step: 0.002 },
+    { name: "octaves", label: "Détails", unit: "none", min: 1, max: 4, default: 3, step: 1 },
+    { name: "seed", label: "Graine", unit: "none", min: 0, max: 100, default: 0, step: 1 },
   ],
   wgsl: `
 // 2D simplex-style gradient noise (self-contained WGSL).

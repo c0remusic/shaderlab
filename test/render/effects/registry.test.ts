@@ -14,6 +14,25 @@ describe("effectRegistry", () => {
   it("getEffect throws on an unknown id", () => {
     expect(() => getEffect("nonexistent")).toThrow(/Effet inconnu/);
   });
+
+  it("exposes French display metadata for chromatic bleed parameters", () => {
+    const chromaticBleed = getEffect("chromaticBleed");
+
+    expect(chromaticBleed.params).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "amount",
+          label: "Décalage chromatique",
+          unit: "percent",
+        }),
+        expect.objectContaining({
+          name: "centerFalloff",
+          label: "Atténuation centrale",
+          unit: "none",
+        }),
+      ]),
+    );
+  });
 });
 
 describe("glow effect module", () => {

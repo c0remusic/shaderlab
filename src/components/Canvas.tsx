@@ -1,7 +1,10 @@
-import { forwardRef, useRef, useEffect } from "react";
+import { forwardRef, useRef, useEffect, useState } from "react";
+import { EmptyWorkspace } from "./EmptyWorkspace";
 
 interface Props {
   onFileDropped: (file: File) => void;
+  hasImage: boolean;
+  onOpenFile: () => void;
   maskPaintMode: boolean;
   onMaskStroke: (x: number, y: number) => void;
   onStrokeEnd: () => void;
@@ -13,10 +16,11 @@ interface Props {
 }
 
 export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
-  { onFileDropped, maskPaintMode, onMaskStroke, onStrokeEnd, brushSize, brushHardness },
+  { onFileDropped, hasImage, onOpenFile, maskPaintMode, onMaskStroke, onStrokeEnd, brushSize, brushHardness },
   ref
 ) {
   const isPaintingRef = useRef(false);
+  const [isDragActive, setIsDragActive] = useState(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const cursorRef = useRef<HTMLDivElement>(null);
   // Dernière position souris connue (coordonnées écran), pour pouvoir
@@ -66,7 +70,7 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
     const last = lastPointerScreenRef.current;
     if (last) updateCursorGeometry(last.clientX, last.clientY);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brushSize, brushHardness]);
+  }, [brushSize, brushHardness, maskPaintMode]);
 
   // Coalesce mask painting to one paint+render per animation frame.
   //
@@ -128,18 +132,28 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
   return (
     <div
       ref={stageRef}
-      className="canvas-stage"
+      className={`canvas-stage ${isDragActive ? "canvas-stage--drag-active" : ""}`.trim()}
+      onDragEnter={(e) => {
+        e.preventDefault();
+        setIsDragActive(true);
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setIsDragActive(false);
+      }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();
+        setIsDragActive(false);
         const file = e.dataTransfer.files[0];
         if (file) onFileDropped(file);
       }}
     >
+      {!hasImage && <EmptyWorkspace onOpenFile={onOpenFile} />}
       <canvas
         ref={ref}
         aria-label="Zone de travail image"
-        className={`canvas-stage__canvas ${maskPaintMode ? "canvas-stage__canvas--paint" : ""}`.trim()}
+        className={`canvas-stage__canvas ${hasImage ? "canvas-stage__canvas--loaded" : ""} ${maskPaintMode ? "canvas-stage__canvas--paint" : ""}`.trim()}
         onPointerDown={(e) => {
           if (!maskPaintMode) return;
           isPaintingRef.current = true;
@@ -184,6 +198,7 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
             e.currentTarget.releasePointerCapture(e.pointerId);
           }
         }}
+        onPointerCancel={endStroke}
         onPointerLeave={() => {
           // Ne termine PAS le trait : grâce au pointer capture, peindre
           // continue hors du canvas tant que le bouton est maintenu (voir

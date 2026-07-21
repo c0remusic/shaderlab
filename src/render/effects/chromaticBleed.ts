@@ -4,8 +4,8 @@ export const chromaticBleed: EffectModule = {
   id: "chromaticBleed",
   name: "Chromatic bleed",
   params: [
-    { name: "amount", min: 0, max: 0.05, default: 0.008, step: 0.001 },
-    { name: "centerFalloff", min: 0.5, max: 4, default: 2, step: 0.1 },
+    { name: "amount", label: "Décalage chromatique", unit: "percent", min: 0, max: 0.05, default: 0.008, step: 0.001 },
+    { name: "centerFalloff", label: "Atténuation centrale", unit: "none", min: 0.5, max: 4, default: 2, step: 0.1 },
   ],
   wgsl: `
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {

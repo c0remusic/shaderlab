@@ -25,6 +25,13 @@ describe("computeListboxPlacement", () => {
     expect(result.maxHeight).toBe(MAX_HEIGHT);
   });
 
+  it("place un menu proche du bas au-dessus en préservant son ancrage horizontal", () => {
+    const result = computeListboxPlacement({ top: 740, bottom: 770, left: 10, width: 160 }, 800, 4, 240);
+    expect(result.bottom).toBe(64);
+    expect(result.left).toBe(10);
+    expect(result.width).toBe(160);
+  });
+
   it("ni haut ni bas n'ont 240px -> reste du côté le plus spacieux, hauteur bornée à l'espace réel (pas de débordement)", () => {
     // viewport 200, trigger au milieu : spaceAbove=90, spaceBelow=90 (égalité -> pas de flip, cf. needsFlip strict >)
     const result = computeListboxPlacement(trigger(90, 110), 200, GAP, MAX_HEIGHT);

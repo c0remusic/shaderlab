@@ -78,7 +78,7 @@
   overflow-y: auto;
   border-radius: var(--radius-group);
   border: 1px solid var(--border-default);
-  background: var(--surface-inset);
+  background: var(--surface-raised);
   box-shadow: var(--shadow-popover);
   outline: none;
 }
@@ -138,7 +138,7 @@
   list-style: none;
   border-radius: var(--radius-group);
   border: 1px solid var(--border-default);
-  background: var(--surface-inset);
+  background: var(--surface-raised);
   outline: none;
 }
 

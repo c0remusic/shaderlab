@@ -522,3 +522,29 @@ verrou de fichier `.dev-logs/*.log` sans process `shaderlab` visible,
 chercher un `node.exe`/`pwsh.exe` dont la `CommandLine` contient
 `dev:monitor`/`monitor.ps1` via `Get-CimInstance Win32_Process` et le tuer —
 pas la peine de renommer/déplacer `.dev-logs/`.
+
+## 2026-07-21 (wrap-up session)
+
+### Chantiers exécutés cette session
+
+**mask-integrity** (feature/mask-integrity, 3 commits):
+- Task 1-3 complete: MaskSource discriminated union + planFold fix for parametric sources (bug: was filtering on `raster !== null`, excluding ALL gradients/luminosity/colorRange) + checkbox "Actif" per source in UI
+- Finding MOYENNE from Codex: cache snapshot never re-updates when fold() re-encodes to same ping-pong texture → GPU refold at full-res every frame indefinitely after first invalidation
+- Tests 249/249 green, tsc/build/lint ✅
+
+**design-system-unification-exec** (codex/design-system-unification-exec, 4 commits):
+- Tasks 1-5 complete (5 tasks = full unification plan)
+- Branch is STALE (diverged after renderer-split commit 3831fd6, needs rebase)
+- 2 REAL MOYENNE findings survive rebase: onPointerCancel removed from Canvas → stroke cancellation broken; ParamPanel lost label/units metadata → UI shows bare IDs
+- Tests 217/217 green, tsc/build/lint ✅
+
+**dock-width-resize** (feature/dock-width-resize, 1 commit):
+- Task 1 complete: clampDockWidth pure function + 5 tests, all pass
+- Tasks 2-3-4 pending (Task 4 = human WebView2 visual checkpoint)
+- Plan rewritten for multi-column dock-grid API
+
+### Learnings from Codex cross-check (first time used in this repo)
+
+- Cross-check catches real bugs missed by own review (cache snapshot bug, scope-creep regressions)
+- Stale branch detection is automatic (HAUTE false-positives from missing upstream commits)
+- Valuable for catching logic regressions before merge

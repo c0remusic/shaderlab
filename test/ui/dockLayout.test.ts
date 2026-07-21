@@ -44,12 +44,12 @@ describe("movePanelInDock", () => {
 });
 
 describe("getDockDropTarget", () => {
-  it("activates horizontal docking before the card edge", () => {
-    expect(getDockDropTarget(1, 0, 0.45, 0.5)).toEqual({ kind: "horizontal", columnIndex: 1, position: "left" });
-    expect(getDockDropTarget(1, 0, 0.55, 0.5)).toEqual({ kind: "horizontal", columnIndex: 1, position: "right" });
+  it("reserves the card edges for horizontal docking", () => {
+    expect(getDockDropTarget(1, 0, 0.14, 0.5)).toEqual({ kind: "horizontal", columnIndex: 1, position: "left" });
+    expect(getDockDropTarget(1, 0, 0.86, 0.5)).toEqual({ kind: "horizontal", columnIndex: 1, position: "right" });
   });
 
-  it("keeps the center of the card for vertical reordering", () => {
-    expect(getDockDropTarget(1, 0, 0.5, 0.25)).toEqual({ kind: "vertical", columnIndex: 1, rowIndex: 0, position: "before" });
+  it("gives vertical reordering the majority of the card width", () => {
+    expect(getDockDropTarget(1, 0, 0.2, 0.25)).toEqual({ kind: "vertical", columnIndex: 1, rowIndex: 0, position: "before" });
   });
 });

@@ -4,7 +4,7 @@ export type DockDropTarget =
   | { kind: "vertical"; columnIndex: number; rowIndex: number; position: "before" | "after" }
   | { kind: "horizontal"; columnIndex: number; position: "left" | "right" };
 
-const HORIZONTAL_DOCK_SNAP_RATIO = 0.46;
+const HORIZONTAL_DOCK_SNAP_RATIO = 0.15;
 
 export function getDockDropTarget(
   columnIndex: number,

@@ -101,6 +101,7 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
         rowIndex,
         relativeX,
         (event.clientY - rect.top) / rect.height,
+        columnIndex === layout.length - 1,
       );
       if (isNoOpDockDrop(layout, current.draggedId, target)) return { ...current, pointerPosition, target: null, targetBounds: null };
       return { ...current, pointerPosition, target, targetBounds: rect };

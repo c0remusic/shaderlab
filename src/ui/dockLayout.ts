@@ -11,11 +11,12 @@ export function getDockDropTarget(
   rowIndex: number,
   relativeX: number,
   relativeY: number,
+  isRightmostColumn = false,
 ): DockDropTarget {
   if (relativeX < HORIZONTAL_DOCK_SNAP_RATIO) {
     return { kind: "horizontal", columnIndex, position: "left" };
   }
-  if (relativeX > 1 - HORIZONTAL_DOCK_SNAP_RATIO) {
+  if (!isRightmostColumn && relativeX > 1 - HORIZONTAL_DOCK_SNAP_RATIO) {
     return { kind: "horizontal", columnIndex, position: "right" };
   }
   return {

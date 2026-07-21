@@ -118,7 +118,7 @@ export function LabeledSlider({
         />
         <input
           aria-label={`${label} (valeur)`}
-          className="h-[var(--control-height-md)] w-[var(--slider-value-width)] rounded-[var(--radius-control)] border border-border bg-[var(--surface-inset)] px-2 text-right font-mono text-sm tabular-nums text-foreground outline-none transition-colors hover:border-[var(--border-emphasis)] focus-visible:border-[var(--focus-color)] focus-visible:ring-[var(--focus-width)] focus-visible:ring-[var(--focus-color)]/50 disabled:cursor-not-allowed"
+          className="h-[var(--control-height-md)] w-[var(--slider-value-width)] rounded-[var(--radius-control)] border border-border bg-[var(--surface-inset)] px-2 text-center font-mono text-sm tabular-nums text-foreground outline-none transition-colors hover:border-[var(--border-emphasis)] focus-visible:border-[var(--focus-color)] focus-visible:ring-[var(--focus-width)] focus-visible:ring-[var(--focus-color)]/50 disabled:cursor-not-allowed"
           disabled={disabled}
           inputMode="decimal"
           type="text"

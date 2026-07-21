@@ -263,6 +263,9 @@ for (const file of files) {
     let pm;
     while ((pm = PX_TOKEN_RE.exec(decl))) {
       const px = Number(pm[1]);
+      // A 1px width is a structural hairline (for example, a resize handle),
+      // not spacing. The spacing scale intentionally starts at 0px then 2px.
+      if (m[1] === 'width' && px === 1) continue;
       if (spacingPxToToken.has(px)) continue; // matches an existing token exactly
       const line = lineNumberAt(content, m.index);
       const nearest = nearestSpacingToken(px);

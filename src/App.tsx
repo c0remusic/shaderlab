@@ -15,6 +15,7 @@ import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterS
 import { getBrushRaster } from "./mask/brushSource";
 import { PanelColumn } from "./components/dockedPanel/PanelColumn";
 import { movePanelInDock, type DockDropTarget, type DockLayout } from "./ui/dockLayout";
+import { clampDockWidth } from "./components/dockedPanel/dockWidth";
 import { LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
 import { MaskPanel } from "./components/MaskPanel";
@@ -64,6 +65,12 @@ export default function App() {
   const handlePanelMove = useCallback((id: string, target: DockDropTarget) => {
     setDockLayout((previous) => movePanelInDock(previous, id, target));
   }, []);
+
+  // Largeur du dock — état session, partagée par toutes les colonnes,
+  // pas d'entrée d'historique (disposition d'interface, pas donnée de
+  // calque, même principe que dockLayout ci-dessus).
+  const [dockWidth, setDockWidth] = useState(320);
+  const handleDockWidthChange = useCallback((width: number) => setDockWidth(clampDockWidth(width)), []);
 
   // DocumentSession est la source de vérité COMPLÈTE des calques (avec les
   // rasters de masque), pour le rendu GPU, l'historique et l'export. Le state
@@ -488,7 +495,7 @@ export default function App() {
           onStop={() => setMaskPaintMode(false)}
         />
       )}
-      <main className="workspace" ref={workspaceRef}>
+      <main className="workspace" ref={workspaceRef} style={{ "--dock-reserved-width": `${dockWidth}px` } as React.CSSProperties}>
         <Canvas
           ref={canvasRef}
           onFileDropped={(file) => openFile(file, null, false)}
@@ -539,7 +546,7 @@ export default function App() {
               onRefineEdgeCommit={handleParamCommit}
               onAddColorSample={handleAddColorSample}
             />
-        }]} layout={dockLayout} onMove={handlePanelMove} />
+        }]} layout={dockLayout} onMove={handlePanelMove} width={dockWidth} onWidthChange={handleDockWidthChange} />
       </main>
     </div>
   );

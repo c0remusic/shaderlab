@@ -2,9 +2,8 @@ import type { GpuContext } from "./gpuContext";
 import { getSrgbCanvasView } from "./gpuContext";
 import type { LayerState } from "../layers/types";
 import { getEffect } from "./effects/registry";
-import type { EffectModule } from "./effects/types";
-import { composeShader, MAX_EFFECT_PARAMS, FULLSCREEN_VERTEX_WGSL } from "./shaderCompose";
-import { getBlendMode } from "./blend/registry";
+import { EffectPassRunner, PASSTHROUGH_EFFECT } from "./effectPassRunner";
+import { FULLSCREEN_VERTEX_WGSL } from "./shaderCompose";
 import { FrameScheduler } from "./frameScheduler";
 import { assertImageFitsGpu } from "./limits";
 import { noopDiagnosticLogger, type DiagnosticLogger } from "./diagnostics";
@@ -78,34 +77,6 @@ export interface MaskPreviewOverride {
   scope: MaskUploadScope;
 }
 
-const PASSTHROUGH_EFFECT: EffectModule = {
-  id: "passthrough",
-  name: "Passthrough",
-  params: [],
-  wgsl: "fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> { return color; }",
-};
-
-/** Passe overlay du masque en mode peinture : teinte le composite en rouge
- *  safelight là où le masque du calque sélectionné > 0 (zone où l'effet
- *  s'applique — convention Lightroom), pour VOIR le masque qu'on peint.
- *  Tint = `--mask-overlay-color` #e63c46 exprimé en LINÉAIRE, opacité
- *  `--mask-overlay-opacity` 0.28. Le canvas sRGB ré-encode automatiquement. */
-const MASK_OVERLAY_WGSL = `
-${FULLSCREEN_VERTEX_WGSL}
-
-@group(0) @binding(0) var overlaySrc: texture_2d<f32>;
-@group(0) @binding(1) var overlaySampler: sampler;
-@group(0) @binding(2) var overlayMask: texture_2d<f32>;
-
-@fragment
-fn fs_overlay(in: VertexOut) -> @location(0) vec4<f32> {
-  let img = textureSample(overlaySrc, overlaySampler, in.uv);
-  let m = textureSample(overlayMask, overlaySampler, in.uv).r;
-  let tint = vec3<f32>(0.791, 0.045, 0.061);
-  return vec4<f32>(mix(img.rgb, tint, m * 0.28), img.a);
-}
-`;
-
 /**
  * WebGPU's `copyTextureToBuffer` requires each row to start at a 256-byte-aligned offset.
  * Computes the padded stride for a row of RGBA pixels.
@@ -143,10 +114,7 @@ export class Renderer {
    *  plutôt que `nonFilteringSampler` pour ne pas laisser croire au type de
    *  binding WebGPU "non-filtering", qui aurait cassé `textureSample()`. */
   private nearestSampler: GPUSampler;
-  private pipelineCache = new Map<
-    string,
-    { pipeline: GPURenderPipeline; bindGroupLayout: GPUBindGroupLayout }
-  >();
+  private effectPassRunner: EffectPassRunner | null = null;
   /** Une texture GPU résidente par SOURCE de masque (clé "layerId:sourceId"),
    *  uploadée seulement quand la référence `raster` de cette source change
    *  (pattern `syncedFrom`). Alimente le fold ; la source pinceau EN COURS
@@ -163,7 +131,7 @@ export class Renderer {
    *  layerId dans `runPipeline`, destruction dans `dispose()`). */
   private parametricSourceTextures = new Map<string, { texture: GPUTexture; syncedFrom: unknown }>();
   /** Pipelines de génération de source paramétrique, mis en cache par WGSL
-   *  enveloppé (même principe que `pipelineCache`/`maskFoldPipelineCache`). */
+   *  enveloppé (même principe que le cache d'`EffectPassRunner`/`maskFoldPipelineCache`). */
   private maskSourcePipelineCache = new Map<string, { pipeline: GPURenderPipeline; layout: GPUBindGroupLayout }>();
   /** Texture masque FOLDÉE résidente par calque. Deux
    *  textures de travail en ping-pong pour la chaîne combine->combine->invert
@@ -282,6 +250,16 @@ export class Renderer {
     );
 
     this.pingPong = [makeTarget(), makeTarget()];
+    this.effectPassRunner?.clearPipelines();
+    this.effectPassRunner = new EffectPassRunner(
+      device,
+      srgbFormat,
+      this.width,
+      this.height,
+      this.sampler,
+      (layer, encoder, sourceView, pendingDestroy) =>
+        this.getMaskTexture(layer, encoder, sourceView, pendingDestroy)
+    );
   }
 
   render(layers: LayerState[], preview: MaskPreviewOverride | null = null): void {
@@ -351,6 +329,7 @@ export class Renderer {
 
   private runPipeline(layers: LayerState[], finalTargetView: GPUTextureView): void {
     if (!this.sourceTexture || !this.pingPong) throw new Error("Aucune image chargée.");
+    if (!this.effectPassRunner) throw new Error("Aucune image chargée.");
     const { device } = this.ctx;
     const diagStart = performance.now();
 
@@ -438,7 +417,7 @@ export class Renderer {
       // Nothing to composite — blit the source straight to the target (ou vers
       // un slot ping-pong si overlay actif, pour teinter par-dessus ensuite).
       const blitTarget = overlayLayer ? this.pingPong[0] : null;
-      this.runEffectPass(
+      this.effectPassRunner.runEffectPass(
         encoder,
         PASSTHROUGH_EFFECT,
         { id: "", effectId: "", params: {}, enabled: true, opacity: 1, blendMode: "normal", mask: defaultLayerMask() },
@@ -448,7 +427,7 @@ export class Renderer {
         pendingDestroy
       );
       if (overlayLayer && blitTarget) {
-        this.runOverlayPass(
+        this.effectPassRunner.runOverlayPass(
           encoder,
           blitTarget,
           this.getMaskTexture(overlayLayer, encoder, readTexture.createView(), pendingDestroy),
@@ -473,12 +452,12 @@ export class Renderer {
       let prevPassView: GPUTextureView | null = null;
       let prevPassTexture: GPUTexture | null = null;
       if (effect.passes && effect.passes.length > 0) {
-        const lastPass = this.runInternalPasses(encoder, effect, layer, readTexture.createView(), pendingDestroy);
+        const lastPass = this.effectPassRunner.runInternalPasses(encoder, effect, layer, readTexture.createView(), pendingDestroy);
         prevPassView = lastPass.view;
         prevPassTexture = lastPass.texture;
       }
 
-      this.runEffectPass(
+      this.effectPassRunner.runEffectPass(
         encoder,
         effect,
         layer,
@@ -504,7 +483,7 @@ export class Renderer {
     // (le dernier calque y a écrit, writeIndex n'a pas avancé). Teinte rouge
     // là où le masque du calque sélectionné > 0, vers le canvas.
     if (overlayLayer) {
-      this.runOverlayPass(
+      this.effectPassRunner.runOverlayPass(
         encoder,
         this.pingPong[writeIndex],
         this.getMaskTexture(overlayLayer, encoder, this.pingPong[writeIndex].createView(), pendingDestroy),
@@ -532,237 +511,8 @@ export class Renderer {
     this.diagnosticLogger(
       `frame#${this.diagFrameCount} jsEncodeMs=${elapsedMs} enabledLayers=${enabledLayerCount} ` +
         `churnedThisFrame=${churnedResources} residentMaskTextures=${this.sourceTextures.size + this.foldedMaskTextures.size} ` +
-        `pipelineCacheSize=${this.pipelineCache.size} imageSize=${this.width}x${this.height}`
+        `pipelineCacheSize=${this.effectPassRunner?.pipelineCount ?? 0} imageSize=${this.width}x${this.height}`
     );
-  }
-
-  /**
-   * Runs an effect's internal pass chain (bright-pass extract, downsample,
-   * upsample, etc. — see Glow's dual-filter bloom, Task 13) in sequence,
-   * each into its own intermediate texture sized `width*scale × height*scale`
-   * and formatted `ctx.srgbFormat` (color data, same as the ping-pong pair).
-   * Masking is deliberately NOT applied to internal passes — they're pure
-   * signal-processing steps feeding the final composite, which is the only
-   * pass the user's painted mask should gate. Returns the view (and owning
-   * texture) of the last pass's output, to be bound as `prevPass` on the
-   * final composite pass.
-   *
-   * None of these intermediate textures are destroyed here. WebGPU validates
-   * texture liveness at `submit()` time, not at record time — a command
-   * recorded against a texture does not pin that texture's lifetime through
-   * to a later submit, so destroying a texture before the command buffer
-   * referencing it is actually submitted throws a validation error at
-   * `device.queue.submit()`. Every pass texture created in this method
-   * (except the last, which the caller owns and queues itself) is instead
-   * appended to `pendingDestroy`, which the caller (`runPipeline`) drains
-   * with `.destroy()` only after `device.queue.submit([encoder.finish()])`
-   * has actually run for this frame. This is unrelated to `pingPong`/
-   * `sourceTexture`, which are never destroyed mid-frame because they're
-   * reused across frames — these intermediate textures are new every
-   * `render()` call and are torn down at the end of that same frame.
-   */
-  private runInternalPasses(
-    encoder: GPUCommandEncoder,
-    effect: EffectModule,
-    layer: LayerState,
-    sourceView: GPUTextureView,
-    pendingDestroy: (GPUTexture | GPUBuffer)[]
-  ): { view: GPUTextureView; texture: GPUTexture } {
-    const { device, srgbFormat } = this.ctx;
-    let passInputView = sourceView;
-    let prevTexture: GPUTexture | null = null;
-    let lastTexture: GPUTexture | null = null;
-    for (const pass of effect.passes!) {
-      const passTarget = device.createTexture({
-        size: [
-          Math.max(1, Math.round(this.width * pass.scale)),
-          Math.max(1, Math.round(this.height * pass.scale)),
-        ],
-        format: srgbFormat,
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
-      });
-      const passTargetView = passTarget.createView();
-      this.runEffectPass(
-        encoder,
-        { ...effect, wgsl: pass.wgsl },
-        layer,
-        passInputView,
-        passTargetView,
-        { applyMask: false },
-        pendingDestroy
-      );
-      // `prevTexture`'s only usage (as this pass's source) has just been
-      // recorded above. It must not be destroyed until after this frame's
-      // submit() — queue it for the caller to drain post-submit instead.
-      if (prevTexture) pendingDestroy.push(prevTexture);
-      passInputView = passTargetView;
-      prevTexture = passTarget;
-      lastTexture = passTarget;
-    }
-    return { view: passInputView, texture: lastTexture! };
-  }
-
-  /** Passe overlay du masque : teinte `src` en rouge safelight là où `mask` > 0
-   *  et écrit vers `targetView`. Pipeline mis en cache (clé = MASK_OVERLAY_WGSL,
-   *  comme les pipelines d'effet). Bindings : 0 image, 1 sampler, 2 masque. */
-  private runOverlayPass(
-    encoder: GPUCommandEncoder,
-    src: GPUTexture,
-    mask: GPUTexture,
-    targetView: GPUTextureView
-  ): void {
-    const { device, srgbFormat } = this.ctx;
-    let cached = this.pipelineCache.get(MASK_OVERLAY_WGSL);
-    if (!cached) {
-      const module = device.createShaderModule({ code: MASK_OVERLAY_WGSL });
-      const bindGroupLayout = device.createBindGroupLayout({
-        entries: [
-          { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } },
-          { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "filtering" } },
-          { binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } },
-        ],
-      });
-      const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
-      const pipeline = device.createRenderPipeline({
-        layout: pipelineLayout,
-        vertex: { module, entryPoint: "vs_main" },
-        fragment: { module, entryPoint: "fs_overlay", targets: [{ format: srgbFormat }] },
-      });
-      cached = { pipeline, bindGroupLayout };
-      this.pipelineCache.set(MASK_OVERLAY_WGSL, cached);
-    }
-    const bindGroup = device.createBindGroup({
-      layout: cached.bindGroupLayout,
-      entries: [
-        { binding: 0, resource: src.createView() },
-        { binding: 1, resource: this.sampler },
-        { binding: 2, resource: mask.createView() },
-      ],
-    });
-    const pass = encoder.beginRenderPass({
-      colorAttachments: [
-        { view: targetView, loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } },
-      ],
-    });
-    pass.setPipeline(cached.pipeline);
-    pass.setBindGroup(0, bindGroup);
-    pass.draw(3);
-    pass.end();
-  }
-
-  private runEffectPass(
-    encoder: GPUCommandEncoder,
-    effect: EffectModule,
-    layer: LayerState,
-    sourceView: GPUTextureView,
-    targetView: GPUTextureView,
-    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null } = {},
-    pendingDestroy: (GPUTexture | GPUBuffer)[] = []
-  ): void {
-    const { applyMask = true, prevPassView = null } = options;
-    const { device, srgbFormat } = this.ctx;
-    const paramValues = new Float32Array(MAX_EFFECT_PARAMS);
-    effect.params.forEach((p, idx) => {
-      paramValues[idx] = layer.params[p.name] ?? p.default;
-    });
-    const paramBuffer = device.createBuffer({
-      size: paramValues.byteLength,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
-    device.queue.writeBuffer(paramBuffer, 0, paramValues);
-    // paramBuffer is only used by the pipeline recorded below; like the
-    // intermediate pass textures, it must not be destroyed until after this
-    // frame's submit() has run, so it's queued rather than destroyed here.
-    pendingDestroy.push(paramBuffer);
-
-    const blendMode = getBlendMode(layer.blendMode ?? "normal");
-    const shaderCode = composeShader(effect.wgsl, {
-      applyMask,
-      hasPrevPass: prevPassView !== null,
-      blendWgsl: applyMask ? blendMode.wgsl : undefined,
-    });
-
-    // Uniform de compositing (opacité en .x), seulement quand on composite.
-    let compositingBuffer: GPUBuffer | null = null;
-    if (applyMask) {
-      const compositing = new Float32Array([layer.opacity ?? 1, 0, 0, 0]);
-      compositingBuffer = device.createBuffer({
-        size: compositing.byteLength,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      });
-      device.queue.writeBuffer(compositingBuffer, 0, compositing);
-      pendingDestroy.push(compositingBuffer);
-    }
-
-    // Le pipeline (et son layout explicite) ne dépend que du code shader —
-    // même code, même variante de bindings. Compilé UNE fois par variante,
-    // réutilisé à chaque frame : c'était le poste n°1 du coût par frame
-    // (createShaderModule + createRenderPipeline par passe par frame).
-    let cached = this.pipelineCache.get(shaderCode);
-    if (!cached) {
-      const module = device.createShaderModule({ code: shaderCode });
-      // Layout explicite, jamais `layout: "auto"` — voir le commentaire
-      // historique du bug de pruning naga/Dawn (canvas noir silencieux).
-      const layoutEntries: GPUBindGroupLayoutEntry[] = [
-        { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } },
-        { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "filtering" } },
-        { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },
-      ];
-      if (applyMask) {
-        layoutEntries.push({ binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
-      }
-      if (prevPassView) {
-        layoutEntries.push({ binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
-      }
-      if (applyMask) {
-        layoutEntries.push({ binding: 5, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } });
-      }
-      const bindGroupLayout = device.createBindGroupLayout({ entries: layoutEntries });
-      const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
-      const pipeline = device.createRenderPipeline({
-        layout: pipelineLayout,
-        vertex: { module, entryPoint: "vs_main" },
-        fragment: { module, entryPoint: "fs_wrapper", targets: [{ format: srgbFormat }] },
-      });
-      cached = { pipeline, bindGroupLayout };
-      this.pipelineCache.set(shaderCode, cached);
-    }
-
-    const entries: GPUBindGroupEntry[] = [
-      { binding: 0, resource: sourceView },
-      { binding: 1, resource: this.sampler },
-      { binding: 2, resource: { buffer: paramBuffer } },
-    ];
-    if (applyMask) {
-      // Résidente — ne PAS la mettre dans pendingDestroy. `sourceView` sert
-      // aussi de guide edge-aware : c'est la texture d'ENTRÉE de ce calque
-      // (le composite accumulé sous lui, avant son propre effet) — voir la
-      // décision documentée sur `maybeApplyEdgeAware`.
-      entries.push({
-        binding: 3,
-        resource: this.getMaskTexture(layer, encoder, sourceView, pendingDestroy).createView(),
-      });
-    }
-    if (prevPassView) {
-      entries.push({ binding: 4, resource: prevPassView });
-    }
-    if (applyMask && compositingBuffer) {
-      entries.push({ binding: 5, resource: { buffer: compositingBuffer } });
-    }
-    const bindGroup = device.createBindGroup({
-      layout: cached.bindGroupLayout,
-      entries,
-    });
-
-    const pass = encoder.beginRenderPass({
-      colorAttachments: [
-        { view: targetView, loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } },
-      ],
-    });
-    pass.setPipeline(cached.pipeline);
-    pass.setBindGroup(0, bindGroup);
-    pass.draw(3);
-    pass.end();
   }
 
   /**
@@ -1515,7 +1265,8 @@ fn fs_wrapped(in: VertexOut) -> @location(0) vec4<f32> {
     }
     this.exportTexture?.destroy();
     this.exportTexture = null;
-    this.pipelineCache.clear();
+    this.effectPassRunner?.clearPipelines();
+    this.effectPassRunner = null;
     this.whiteMask?.destroy();
     this.whiteMask = null;
     this.liveMaskTexture?.destroy();

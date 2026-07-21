@@ -4,13 +4,13 @@ import type { RefineEdgeParams } from "../mask/types";
 import { isParametricMaskSource } from "../mask/types";
 import { maskSourceRegistry, getMaskSourceModule } from "../mask/sources/registry";
 import "./ParamPanel.css";
-import { Slider } from "../ui/Slider";
-import { Button } from "../ui/Button";
-import { IconButton } from "../ui/IconButton";
-import { Disclosure } from "../ui/Disclosure";
-import { Select } from "../ui/Select";
-import { Checkbox } from "../ui/Checkbox";
-import { Menu } from "../ui/Menu";
+import { LabeledSlider } from "./ui/labeled-slider";
+import { Button } from "./ui/button";
+import { IconButton } from "./ui/icon-button";
+import { Disclosure } from "./ui/collapsible";
+import { Select } from "./ui/select";
+import { Checkbox } from "./ui/checkbox";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { Trash2 } from "lucide-react";
 
 interface Props {
@@ -113,14 +113,16 @@ export function MaskPanel({
             />
           </div>
 
-          <Menu
-            label="Ajouter une source"
-            items={maskSourceRegistry.map((m) => ({
-              value: m.id,
-              label: m.name,
-              onSelect: () => onAddMaskSource(layer.id, m.id),
-            }))}
-          />
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button variant="secondary">Ajouter une source</Button>} />
+            <DropdownMenuContent align="start">
+              {maskSourceRegistry.map((m) => (
+                <DropdownMenuItem key={m.id} onClick={() => onAddMaskSource(layer.id, m.id)}>
+                  {m.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {sources.length > 0 && (
             <ul className="param-panel__source-list">
@@ -159,7 +161,7 @@ export function MaskPanel({
                       variant="danger"
                       onClick={() => onRemoveMaskSource(layer.id, source.id)}
                     >
-                      <Trash2 size={14} strokeWidth={1.5} aria-hidden="true" />
+                      <Trash2 className="icon-sm icon-stroke" aria-hidden="true" />
                     </IconButton>
                   </li>
                 );
@@ -188,7 +190,7 @@ export function MaskPanel({
                 }
                 const range = paramRange(key);
                 return (
-                  <Slider
+                  <LabeledSlider
                     key={key}
                     label={key}
                     value={value as number}
@@ -206,7 +208,7 @@ export function MaskPanel({
       </Disclosure>
       <Disclosure title="Affiner le bord">
         <div className="param-panel__group">
-          <Slider
+          <LabeledSlider
             label="feather"
             value={refineEdge.feather}
             min={0}
@@ -215,7 +217,7 @@ export function MaskPanel({
             onChange={(v) => onRefineEdgeChange(layer.id, { feather: v })}
             onCommit={onRefineEdgeCommit}
           />
-          <Slider
+          <LabeledSlider
             label="contracter/dilater"
             value={refineEdge.contract}
             min={-50}
@@ -224,7 +226,7 @@ export function MaskPanel({
             onChange={(v) => onRefineEdgeChange(layer.id, { contract: v })}
             onCommit={onRefineEdgeCommit}
           />
-          <Slider
+          <LabeledSlider
             label="lisser"
             value={refineEdge.smooth}
             min={0}
@@ -243,7 +245,7 @@ export function MaskPanel({
           />
           {refineEdge.edgeAware && (
             <>
-              <Slider
+              <LabeledSlider
                 label="rayon des contours"
                 value={refineEdge.edgeRadius}
                 min={1}
@@ -252,7 +254,7 @@ export function MaskPanel({
                 onChange={(v) => onRefineEdgeChange(layer.id, { edgeRadius: v })}
                 onCommit={onRefineEdgeCommit}
               />
-              <Slider
+              <LabeledSlider
                 label="force des contours"
                 value={refineEdge.edgeStrength}
                 min={0}

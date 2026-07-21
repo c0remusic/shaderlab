@@ -1,7 +1,7 @@
 import { Brush, Eraser } from "lucide-react";
-import { Slider } from "../ui/Slider";
+import { LabeledSlider } from "./ui/labeled-slider";
 import { Toggle } from "./ui/toggle";
-import { Button } from "../ui/Button";
+import { Button } from "./ui/button";
 
 interface Props {
   brushSize: number;
@@ -36,7 +36,7 @@ export function BrushToolbar({
         Pinceau
       </span>
       <div className="brush-toolbar__control">
-        <Slider
+        <LabeledSlider
           label="Taille"
           displayValue={`${Math.round(brushSize)} px`}
           value={brushSize}
@@ -46,7 +46,7 @@ export function BrushToolbar({
         />
       </div>
       <div className="brush-toolbar__control">
-        <Slider
+        <LabeledSlider
           label="Dureté"
           displayValue={`${Math.round(brushHardness * 100)} %`}
           value={brushHardness}

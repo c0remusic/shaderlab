@@ -17,7 +17,7 @@
 
 .panel-column__stack {
   display: flex;
-  flex: 0 0 var(--inspector-width-default);
+  flex: 0 0 var(--dock-reserved-width, var(--inspector-width-default));
   flex-direction: column;
   gap: var(--space-4);
   max-height: inherit;
@@ -37,9 +37,40 @@
   position: fixed;
   top: 0;
   left: 0;
-  width: var(--inspector-width-default);
+  width: var(--dock-reserved-width, var(--inspector-width-default));
   opacity: var(--drag-ghost-opacity);
   pointer-events: none;
   box-shadow: var(--shadow-dragging);
   z-index: var(--z-popover);
+}
+
+/* Poignée de redimensionnement en LARGEUR — bord gauche du conteneur
+   .panel-column entier (toutes colonnes), symétrique dans son style au
+   feedback hover déjà utilisé pour les séparateurs de ce projet. */
+.panel-column__width-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--space-2) * -1);
+  width: var(--space-4);
+  cursor: col-resize;
+}
+
+.panel-column__width-handle::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: 1px;
+  background: var(--border-subtle);
+  transform: translateX(-50%);
+}
+
+.panel-column__width-handle:hover::after {
+  background: var(--border-selection);
+}
+
+.panel-column__width-handle:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
 }

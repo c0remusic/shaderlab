@@ -1,6 +1,7 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { DockedPanelCard } from "./DockedPanelCard";
 import { isNoOpDockDrop, type DockDropTarget, type DockLayout } from "../../ui/dockLayout";
+import { clampDockWidth } from "./dockWidth";
 import "../../ui/dragReorder.css";
 import "./PanelColumn.css";
 
@@ -16,6 +17,8 @@ export interface PanelColumnProps {
   panels: DockedPanelSpec[];
   layout: DockLayout;
   onMove: (id: string, target: DockDropTarget) => void;
+  width: number;
+  onWidthChange: (width: number) => void;
 }
 
 interface DockDragState {
@@ -27,9 +30,45 @@ interface DockDragState {
   targetBounds: { top: number; right: number; bottom: number; left: number } | null;
 }
 
-export function PanelColumn({ panels, layout, onMove }: PanelColumnProps) {
+export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: PanelColumnProps) {
   const [dragState, setDragState] = useState<DockDragState | null>(null);
   const draggedPanel = dragState ? panels.find((panel) => panel.id === dragState.draggedId) : null;
+
+  // Redimensionnement en largeur — poignée sur le bord GAUCHE de TOUT le
+  // conteneur .panel-column (toutes colonnes confondues, décision Antoine
+  // 2026-07-21 : largeur globale partagée, pas de redimensionnement par
+  // colonne indépendant). La colonne est ancrée à droite (right: var(--space-6)),
+  // donc glisser vers la GAUCHE agrandit la largeur, vers la DROITE la réduit —
+  // pas de magnétisme, juste un clamp aux bornes. État de drag en ref (pas
+  // besoin de re-render pendant le geste : la largeur elle-même vit dans
+  // App.tsx via onWidthChange, appelé à chaque pointermove).
+  const widthDragRef = useRef<{ pointerId: number; startClientX: number; startWidth: number } | null>(null);
+
+  const handleWidthPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      widthDragRef.current = { pointerId: e.pointerId, startClientX: e.clientX, startWidth: width };
+    },
+    [width]
+  );
+
+  const handleWidthPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const drag = widthDragRef.current;
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      const delta = e.clientX - drag.startClientX;
+      onWidthChange(clampDockWidth(drag.startWidth - delta));
+    },
+    [onWidthChange]
+  );
+
+  const handleWidthPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = widthDragRef.current;
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    widthDragRef.current = null;
+  }, []);
+
+  const handleWidthPointerCancel = handleWidthPointerUp;
 
   const handlePointerDown = useCallback((id: string, event: React.PointerEvent<HTMLDivElement>) => {
     const card = event.currentTarget.closest<HTMLElement>(".panel-column__item");
@@ -105,6 +144,17 @@ export function PanelColumn({ panels, layout, onMove }: PanelColumnProps) {
       onPointerUp={dragState ? (event) => finishDrag(event, true) : undefined}
       onPointerCancel={dragState ? (event) => finishDrag(event, false) : undefined}
     >
+      <div
+        className="panel-column__width-handle"
+        onPointerDown={handleWidthPointerDown}
+        onPointerMove={handleWidthPointerMove}
+        onPointerUp={handleWidthPointerUp}
+        onPointerCancel={handleWidthPointerCancel}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Redimensionner la largeur du dock"
+        tabIndex={0}
+      />
       <div className="panel-column__grid">
         {layout.map((column, columnIndex) => (
           <div className="panel-column__stack" key={column.join("-")}>

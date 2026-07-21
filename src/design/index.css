@@ -3,10 +3,6 @@
 @import "./components.css";
 @import "./motion.css";
 @import "./reset.css";
-@import "../ui/actions.css";
-@import "../ui/controls.css";
-@import "../ui/overlays.css";
-@import "../ui/dialog.css";
 @import "../components/BrushToolbar.css";
 @import "../components/Canvas.css";
 @import "../App.css";

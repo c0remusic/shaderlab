@@ -1,7 +1,7 @@
 import { Brush, Eraser } from "lucide-react";
 import { Slider } from "./ui/slider";
 import { Toggle } from "./ui/toggle";
-import { Button } from "./ui/button";
+import { Button } from "../ui/Button";
 
 interface Props {
   brushSize: number;

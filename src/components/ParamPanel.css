@@ -13,7 +13,10 @@
 
 .param-panel__empty {
   margin: 0;
-  padding: var(--space-4);
+  padding: var(--space-5);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-control);
+  background: var(--surface-inset);
   font-family: var(--font-ui);
   font-size: var(--font-size-md);
   color: var(--text-tertiary);
@@ -29,7 +32,7 @@
 .param-panel__effect-name {
   margin: 0;
   font-family: var(--font-ui);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
 }
@@ -84,6 +87,9 @@
   color: var(--text-primary);
   cursor: pointer;
 }
+
+.param-panel__source-name:hover { color: var(--text-primary); }
+.param-panel__source-name:focus-visible { outline: var(--focus-width) solid var(--focus-color); outline-offset: var(--focus-offset); border-radius: var(--radius-control); }
 
 .param-panel__source-params {
   display: flex;

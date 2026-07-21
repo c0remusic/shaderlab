@@ -1,5 +1,6 @@
 import { memo, useCallback } from "react";
 import { usePointerReorder, type DropPosition } from "../ui/dragReorder";
+import "../ui/dragReorder.css";
 import { Eye, EyeOff, GripVertical, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
 import { effectRegistry, getEffect } from "../render/effects/registry";
@@ -116,6 +117,7 @@ const LayerRow = memo(function LayerRow({
           <Trash2 size={14} strokeWidth={1.5} aria-hidden="true" />
         </IconButton>
       </div>
+      {dropPosition && <span className={`drag-reorder__insert-chip layer-panel__insert-chip--${dropPosition}`} aria-hidden="true" />}
       <div className="layer-panel__row-controls" onClick={(e) => e.stopPropagation()}>
         <Slider
           label="Opacité"

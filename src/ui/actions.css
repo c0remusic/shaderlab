@@ -96,8 +96,8 @@
 }
 
 .ui-button--secondary {
-  background: var(--action-secondary-bg);
-  border-color: var(--border-default);
+  background: transparent;
+  border-color: var(--border-subtle);
   color: var(--text-primary);
 }
 .ui-button--secondary:hover:not(:disabled) {
@@ -176,7 +176,7 @@
 .ui-icon-button[aria-pressed="true"] {
   background: var(--surface-selected);
   color: var(--text-primary);
-  border-color: var(--border-emphasis);
+  border-color: var(--border-selection);
 }
 
 .ui-icon-button--danger {

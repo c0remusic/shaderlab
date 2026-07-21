@@ -60,13 +60,15 @@
   cursor: col-resize;
 }
 
+/* Invisible au repos — seul le curseur col-resize signale la poignée ;
+   la ligne n'apparaît qu'au survol (décision Antoine 2026-07-22). */
 .panel-column__width-handle::after {
   content: "";
   position: absolute;
   inset-block: 0;
   left: 50%;
   width: 1px;
-  background: var(--border-subtle);
+  background: transparent;
   transform: translateX(-50%);
 }
 

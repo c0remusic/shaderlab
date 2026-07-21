@@ -25,13 +25,16 @@
   padding-right: var(--dock-reserved-width, var(--inspector-width-default));
 }
 
-/* Le cadre porte padding/bordure/fond — JAMAIS le <canvas> lui-même :
-   canvas.getBoundingClientRect() (Canvas.tsx toImageCoords/
+/* Ce wrapper n'a plus de padding/bordure/fond propres (voir juste en
+   dessous), mais reste indispensable comme frontière de mise en page
+   distincte du <canvas> : si un futur cadre visuel (padding/bordure/fond)
+   devait revenir, il DOIT rester sur ce wrapper, JAMAIS sur le <canvas>
+   lui-même — canvas.getBoundingClientRect() (Canvas.tsx toImageCoords/
    updateCursorGeometry) doit rester exactement la boîte de rendu de
-   l'image, sans quoi le clic dans la marge du cadre se convertit en
-   coordonnée image décalée/rééchelonnée (bug trouvé par codex-crosscheck
-   sur le commit de fusion 0f3010d, 2026-07-21 — le padding était
-   directement sur .canvas-stage__canvas--loaded avant ce fix). */
+   l'image, sans quoi le clic dans la marge se convertit en coordonnée
+   image décalée/rééchelonnée (bug trouvé par codex-crosscheck sur le
+   commit de fusion 0f3010d, 2026-07-21 — le padding était directement
+   sur .canvas-stage__canvas--loaded avant ce fix). */
 .canvas-stage__frame {
   display: inline-flex;
   max-width: 100%;

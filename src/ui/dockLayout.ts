@@ -18,11 +18,19 @@ function removePanel(layout: DockLayout, id: string): DockLayout {
     .filter((column) => column.length > 0);
 }
 
+export function isNoOpDockDrop(layout: DockLayout, id: string, target: DockDropTarget): boolean {
+  const source = findPanel(layout, id);
+  if (!source) return true;
+  if (target.kind === "horizontal") return source.columnIndex === target.columnIndex && layout[source.columnIndex].length === 1;
+  if (source.columnIndex !== target.columnIndex) return false;
+  return target.position === "before"
+    ? target.rowIndex === source.rowIndex || target.rowIndex === source.rowIndex + 1
+    : target.rowIndex === source.rowIndex || target.rowIndex === source.rowIndex - 1;
+}
+
 export function movePanelInDock(layout: DockLayout, id: string, target: DockDropTarget): DockLayout {
   const source = findPanel(layout, id);
-  if (!source) return layout;
-  if (target.kind === "vertical" && source.columnIndex === target.columnIndex && source.rowIndex === target.rowIndex) return layout;
-  if (target.kind === "horizontal" && source.columnIndex === target.columnIndex && layout[source.columnIndex].length === 1) return layout;
+  if (!source || isNoOpDockDrop(layout, id, target)) return layout;
 
   const withoutPanel = removePanel(layout, id);
   const removedColumnBeforeTarget = source.columnIndex < target.columnIndex && layout[source.columnIndex].length === 1;

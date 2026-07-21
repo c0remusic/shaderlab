@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { DockedPanelCard } from "./DockedPanelCard";
-import type { DockDropTarget, DockLayout } from "../../ui/dockLayout";
+import { isNoOpDockDrop, type DockDropTarget, type DockLayout } from "../../ui/dockLayout";
 import "../../ui/dragReorder.css";
 import "./PanelColumn.css";
 
@@ -67,22 +67,16 @@ export function PanelColumn({ panels, layout, onMove }: PanelColumnProps) {
               rowIndex,
               position: event.clientY - rect.top < rect.height / 2 ? "before" : "after",
             };
-      const isOwnCard = layout[columnIndex]?.[rowIndex] === current.draggedId;
-      const isNoOp = isOwnCard && (
-        target.kind === "vertical" || layout[columnIndex].length === 1
-      );
-      if (isNoOp) return { ...current, pointerPosition, target: null, targetBounds: null };
+      if (isNoOpDockDrop(layout, current.draggedId, target)) return { ...current, pointerPosition, target: null, targetBounds: null };
       return { ...current, pointerPosition, target, targetBounds: rect };
     });
   }, [layout]);
 
   const finishDrag = useCallback((event: React.PointerEvent<HTMLDivElement>, commit: boolean) => {
-    setDragState((current) => {
-      if (!current || event.pointerId !== current.pointerId) return current;
-      if (commit && current.target) onMove(current.draggedId, current.target);
-      return null;
-    });
-  }, [onMove]);
+    if (!dragState || event.pointerId !== dragState.pointerId) return;
+    if (commit && dragState.target) onMove(dragState.draggedId, dragState.target);
+    setDragState(null);
+  }, [dragState, onMove]);
 
   let chipStyle: React.CSSProperties | null = null;
   let chipClassName = "drag-reorder__insert-chip";

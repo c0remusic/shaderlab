@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { DockedPanelCard } from "./DockedPanelCard";
-import { isNoOpDockDrop, type DockDropTarget, type DockLayout } from "../../ui/dockLayout";
+import { getDockDropTarget, isNoOpDockDrop, type DockDropTarget, type DockLayout } from "../../ui/dockLayout";
 import { clampDockWidth } from "./dockWidth";
 import "../../ui/dragReorder.css";
 import "./PanelColumn.css";
@@ -96,16 +96,12 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
       const rowIndex = Number(card.dataset.dockRow);
       const rect = card.getBoundingClientRect();
       const relativeX = (event.clientX - rect.left) / rect.width;
-      const target: DockDropTarget = relativeX < .25
-        ? { kind: "horizontal", columnIndex, position: "left" }
-        : relativeX > .75
-          ? { kind: "horizontal", columnIndex, position: "right" }
-          : {
-              kind: "vertical",
-              columnIndex,
-              rowIndex,
-              position: event.clientY - rect.top < rect.height / 2 ? "before" : "after",
-            };
+      const target = getDockDropTarget(
+        columnIndex,
+        rowIndex,
+        relativeX,
+        (event.clientY - rect.top) / rect.height,
+      );
       if (isNoOpDockDrop(layout, current.draggedId, target)) return { ...current, pointerPosition, target: null, targetBounds: null };
       return { ...current, pointerPosition, target, targetBounds: rect };
     });

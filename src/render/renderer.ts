@@ -1,15 +1,14 @@
 import type { GpuContext } from "./gpuContext";
 import { getSrgbCanvasView } from "./gpuContext";
 import type { LayerState } from "../layers/types";
-import { getEffect } from "./effects/registry";
-import { EffectPassRunner, PASSTHROUGH_EFFECT } from "./effectPassRunner";
+import { EffectPassRunner } from "./effectPassRunner";
 import { MaskTextureResolver } from "./maskTextureResolver";
+import { FramePipelineExecutor } from "./framePipelineExecutor";
 import { FrameScheduler } from "./frameScheduler";
 import { FrameReadback } from "./frameReadback";
 import { noopDiagnosticLogger, type DiagnosticLogger } from "./diagnostics";
 import { ImageFrameResources } from "./imageFrameResources";
 import type { DirtyRect } from "../mask/maskPainter";
-import { defaultLayerMask } from "../mask/types";
 
 /** Which part of the live-preview mask texture a `MaskPreviewOverride` needs
  *  uploaded this frame. `"full"` re-uploads the whole image — required the
@@ -75,6 +74,7 @@ export class Renderer {
   private nearestSampler: GPUSampler;
   private effectPassRunner: EffectPassRunner | null = null;
   private maskTextureResolver: MaskTextureResolver | null = null;
+  private framePipelineExecutor: FramePipelineExecutor | null = null;
   private renderScheduler = new FrameScheduler<{
     layers: LayerState[];
     preview: MaskPreviewOverride | null;
@@ -147,6 +147,12 @@ export class Renderer {
       this.nearestSampler,
       () => this.imageResources.sourceTexture!,
     );
+    this.framePipelineExecutor = new FramePipelineExecutor(
+      device,
+      this.imageResources,
+      this.effectPassRunner,
+      this.maskTextureResolver,
+    );
   }
 
   render(
@@ -198,145 +204,17 @@ export class Renderer {
     layers: LayerState[],
     finalTargetView: GPUTextureView,
   ): void {
-    const sourceTexture = this.imageResources.sourceTexture;
-    const pingPong = this.imageResources.pingPong;
-    if (!sourceTexture || !pingPong)
-      throw new Error("Aucune image chargée.");
-    if (!this.effectPassRunner) throw new Error("Aucune image chargée.");
-    const { device } = this.ctx;
+    if (!this.framePipelineExecutor) throw new Error("Aucune image chargée.");
     const diagStart = performance.now();
-    this.maskTextureResolver?.sweep(new Set(layers.map((layer) => layer.id)));
-
-    let readTexture = sourceTexture;
-    let writeIndex = 0;
-    const enabledLayers = layers.filter((l) => l.enabled);
-    // Overlay masque (mode peinture) : le calque sélectionné dont on montre le
-    // masque en rouge. Quand actif, le composite final est rendu dans un slot
-    // ping-pong au lieu du canvas, puis une passe overlay teinte → canvas.
-    const overlayLayer = this.maskOverlayLayerId
-      ? (layers.find((l) => l.id === this.maskOverlayLayerId) ?? null)
-      : null;
-
-    const encoder = device.createCommandEncoder();
-    // Per-frame GPU resources — intermediate multi-pass textures (from
-    // runInternalPasses) and each pass's paramBuffer — both live only for
-    // this frame. They must not be destroyed until AFTER this frame's
-    // command buffer has been submitted — recording a command against a
-    // resource does NOT pin its lifetime through to a later submit (WebGPU
-    // validates at submit() time), so destroying mid-encoder throws.
-    // Collected here and drained once, post-submit, below.
-    const pendingDestroy: (GPUTexture | GPUBuffer)[] = [];
-
-    if (enabledLayers.length === 0) {
-      // Nothing to composite — blit the source straight to the target (ou vers
-      // un slot ping-pong si overlay actif, pour teinter par-dessus ensuite).
-      const blitTarget = overlayLayer ? pingPong[0] : null;
-      this.effectPassRunner.runEffectPass(
-        encoder,
-        PASSTHROUGH_EFFECT,
-        {
-          id: "",
-          effectId: "",
-          params: {},
-          enabled: true,
-          opacity: 1,
-          blendMode: "normal",
-          mask: defaultLayerMask(),
-        },
-        readTexture.createView(),
-        blitTarget ? blitTarget.createView() : finalTargetView,
-        {},
-        pendingDestroy,
-      );
-      if (overlayLayer && blitTarget) {
-        this.effectPassRunner.runOverlayPass(
-          encoder,
-          blitTarget,
-          this.maskTextureResolver!.resolve(
-            overlayLayer,
-            encoder,
-            readTexture.createView(),
-            pendingDestroy,
-          ),
-          finalTargetView,
-        );
-      }
-      device.queue.submit([encoder.finish()]);
-      for (const resource of pendingDestroy) resource.destroy();
-      return;
-    }
-
-    for (let i = 0; i < enabledLayers.length; i++) {
-      const layer = enabledLayers[i];
-      const effect = getEffect(layer.effectId);
-      const isLast = i === enabledLayers.length - 1;
-      // Dernier calque : normalement le canvas ; mais si l'overlay est actif on
-      // rend dans le slot ping-pong courant (writeIndex n'avance pas au dernier
-      // tour, cf. `if (!isLast)` plus bas) pour teinter par-dessus ensuite.
-      const targetView =
-        isLast && !overlayLayer
-          ? finalTargetView
-          : pingPong[writeIndex].createView();
-
-      let prevPassView: GPUTextureView | null = null;
-      let prevPassTexture: GPUTexture | null = null;
-      if (effect.passes && effect.passes.length > 0) {
-        const lastPass = this.effectPassRunner.runInternalPasses(
-          encoder,
-          effect,
-          layer,
-          readTexture.createView(),
-          pendingDestroy,
-        );
-        prevPassView = lastPass.view;
-        prevPassTexture = lastPass.texture;
-      }
-
-      this.effectPassRunner.runEffectPass(
-        encoder,
-        effect,
-        layer,
-        readTexture.createView(),
-        targetView,
-        { applyMask: true, prevPassView },
-        pendingDestroy,
-      );
-
-      // The final internal pass's texture was only needed as `prevPass` on
-      // the composite pass above. Its usage there has just been recorded
-      // onto `encoder`, but it must not be destroyed until this frame's
-      // submit() has actually run — queue it instead of destroying now.
-      if (prevPassTexture) pendingDestroy.push(prevPassTexture);
-
-      if (!isLast) {
-        readTexture = pingPong[writeIndex];
-        writeIndex = 1 - writeIndex;
-      }
-    }
-
-    // Overlay masque : le composite final est dans this.pingPong[writeIndex]
-    // (le dernier calque y a écrit, writeIndex n'a pas avancé). Teinte rouge
-    // là où le masque du calque sélectionné > 0, vers le canvas.
-    if (overlayLayer) {
-      this.effectPassRunner.runOverlayPass(
-        encoder,
-        pingPong[writeIndex],
-        this.maskTextureResolver!.resolve(
-          overlayLayer,
-          encoder,
-          pingPong[writeIndex].createView(),
-          pendingDestroy,
-        ),
-        finalTargetView,
-      );
-    }
-
-    device.queue.submit([encoder.finish()]);
-    for (const resource of pendingDestroy) resource.destroy();
+    const result = this.framePipelineExecutor.run(
+      layers,
+      finalTargetView,
+      this.maskOverlayLayerId,
+    );
     this.logFrameDiagnostics(
       diagStart,
-      enabledLayers.length,
-      pendingDestroy.length,
+      result.enabledLayerCount,
+      result.churnedResourceCount,
     );
   }
 
@@ -398,5 +276,6 @@ export class Renderer {
     this.effectPassRunner = null;
     this.maskTextureResolver?.dispose();
     this.maskTextureResolver = null;
+    this.framePipelineExecutor = null;
   }
 }

@@ -10,6 +10,13 @@
   ],
   "specs": [
     {
+      "path": "docs/superpowers/specs/2026-07-21-design-system-unification-design.md",
+      "status": "ÉCRIT le 2026-07-21, plan associé Tasks 1-4 non vérifiées exécutées sur ce worktree (branche codex/design-system-audit-fixes, rebasée sur feature/design-system le 2026-07-21 — cf. entrée plans ci-dessous).",
+      "date": "2026-07-21",
+      "topic": "Design (COMMENT) unification du design system — src/components/ui/* devient l'unique ensemble de primitives interactives, suppression de src/ui/*",
+      "summary": "Fait de src/components/ui/* la seule destination de primitives interactives (Button/Toggle/Slider/DropdownMenu/Alert déjà migrés), ajoute les primitives manquantes (checkbox contrôlée, select accessible, disclosure, icon button, tooltip) sur les mêmes besoins métier que src/ui/*, migre les panneaux (import + composition visuelle seulement, logique métier inchangée), puis supprime src/ui/* et ses feuilles de style legacy. Icônes basculées sur des classes de taille/épaisseur (--icon-size-*/--icon-stroke) plutôt que des props numériques dispersées. dragReorder.css doit être ajouté dans la même tranche que l'import de PanelColumn.tsx pour un build autonome."
+    },
+    {
       "path": "docs/superpowers/specs/2026-07-21-audit-remediation-design.md",
       "status": "ÉCRIT le 2026-07-21 (6b57762), jamais indexé jusqu'au 2026-07-21 (raté par 2 sessions successives — retrouvé seulement via `git ls-files` complet, pas par `git status`). AUCUN des 3 plans qui en découlent n'est implémenté (vérifié : ni `setMaskSourceEnabled` ni `BrushMaskSource`/`ParametricMaskSource` dans le code).",
       "date": "2026-07-21",
@@ -116,6 +123,13 @@
     }
   ],
   "plans": [
+    {
+      "path": "docs/superpowers/plans/2026-07-21-design-system-unification.md",
+      "status": "ÉCRIT le 2026-07-21 sur codex/design-system-audit-fixes (worktree C:\\dev\\shaderlab\\.claude\\worktrees\\design-system-audit-fixes). Task 1 (baseline de tokens, commit fix(ui): remove decorative dropdown borders) exécutée et rebasée proprement sur feature/design-system tip efecd5c le 2026-07-21 (tsc/249 tests/lint:tokens verts). Tasks 2-5 (primitives Base UI manquantes, migration des panneaux, suppression de src/ui/*, audit final) NON exécutées — worktree prêt pour merge-test mais le gros de la migration reste à faire.",
+      "date": "2026-07-21",
+      "topic": "plan d'implémentation : unification du design system (src/components/ui/* unique, suppression de src/ui/*)",
+      "summary": "5 tâches : (1) committer la baseline de tokens auditée (contrast/état/Select) déjà présente en atelier + dragReorder.css ; (2) ajouter checkbox/select/collapsible/icon-button/tooltip Base UI dans src/components/ui ; (3) migrer LayerPanel/ParamPanel/Toolbar/BrushToolbar/ErrorBanner vers ces primitives, classes d'icônes tokenisées ; (4) supprimer les primitives visuelles legacy de src/ui/* (garder dockLayout.ts/dragReorder.ts/activeControl.ts, purs) ; (5) audit final (imports morts, littéraux visuels, commentaires FloatingPanel périmés). Contraintes globales : ne jamais changer la logique calques/masque/historique/renderer, garder src/design/{primitives,semantic,components}.css comme source de valeurs, tsc/lint:tokens/test/build verts à chaque tâche."
+    },
     {
       "path": "docs/superpowers/plans/2026-07-21-audit-mask-integrity.md",
       "status": "ÉCRIT le 2026-07-21 (7c45ec7), NON exécuté (confirmé par Antoine 2026-07-21). Comble le gap connu checkbox `enabled` par source de masque — priorité naturelle si ce chantier reprend.",

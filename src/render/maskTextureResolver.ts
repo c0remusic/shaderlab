@@ -152,13 +152,14 @@ export class MaskTextureResolver {
       );
     const snapshot = snapshotFoldInputs(layer.mask),
       cached = this.foldedMaskTextures.get(layer.id);
-    const folded =
-      cached &&
+    const cacheHit =
+      !!cached &&
       foldInputsEqual(cached.lastInputs, snapshot) &&
-      cached.lastInvert === layer.mask.invert
-        ? cached.texture
-        : this.fold(layer.id, plan, layer.mask.invert, encoder, pendingDestroy);
-    if (!cached || folded !== cached.texture)
+      cached.lastInvert === layer.mask.invert;
+    const folded = cacheHit
+      ? cached!.texture
+      : this.fold(layer.id, plan, layer.mask.invert, encoder, pendingDestroy);
+    if (!cacheHit)
       this.foldedMaskTextures.set(layer.id, {
         texture: folded,
         lastInputs: snapshot,

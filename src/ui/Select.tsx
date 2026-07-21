@@ -39,6 +39,11 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const typeaheadRef = useRef({ query: "", timeoutId: undefined as number | undefined });
+  // scrollIntoView doit suivre le clavier (garder l'item actif visible),
+  // jamais le survol souris — sinon déplacer le curseur dans la liste
+  // recentre le scroll à chaque item survolé, se battant avec un scroll
+  // manuel (bug rapporté : "bouger la souris dedans scroll tout seul").
+  const scrollOnNextActiveChangeRef = useRef(true);
 
   const selectedIndex = options.findIndex((option) => option.value === value);
   const selectedOption = selectedIndex >= 0 ? options[selectedIndex] : null;
@@ -89,7 +94,14 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
       )
     );
 
-    function closeOnScrollOrResize() {
+    function closeOnScrollOrResize(event?: Event) {
+      // Un scroll DANS la listbox elle-même (molette pour voir les options
+      // suivantes) déclenche aussi cet event en phase capture (le scroll ne
+      // bubble pas mais les listeners capture d'un ancêtre le voient quand
+      // même) — sans cette garde, tout scroll interne fermait la liste avant
+      // même qu'elle ait pu défiler (bug : liste infondable, fermeture dès
+      // que le curseur approchait du bas).
+      if (event?.target instanceof Node && listRef.current?.contains(event.target)) return;
       setOpen(false);
     }
     window.addEventListener("scroll", closeOnScrollOrResize, { capture: true });
@@ -102,12 +114,14 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
 
   useEffect(() => {
     if (!open || activeIndex < 0) return;
+    if (!scrollOnNextActiveChangeRef.current) return;
     listRef.current
       ?.querySelector<HTMLLIElement>(`[data-index="${activeIndex}"]`)
       ?.scrollIntoView({ block: "nearest" });
   }, [open, activeIndex]);
 
   function openList() {
+    scrollOnNextActiveChangeRef.current = true;
     setActiveIndex(selectedIndex >= 0 ? selectedIndex : nextEnabledIndex(options, -1, 1));
     setOpen(true);
   }
@@ -179,18 +193,22 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
     switch (event.key) {
       case "ArrowDown":
         event.preventDefault();
+        scrollOnNextActiveChangeRef.current = true;
         setActiveIndex((current) => nextEnabledIndex(options, current, 1));
         break;
       case "ArrowUp":
         event.preventDefault();
+        scrollOnNextActiveChangeRef.current = true;
         setActiveIndex((current) => nextEnabledIndex(options, current, -1));
         break;
       case "Home":
         event.preventDefault();
+        scrollOnNextActiveChangeRef.current = true;
         setActiveIndex(nextEnabledIndex(options, -1, 1));
         break;
       case "End":
         event.preventDefault();
+        scrollOnNextActiveChangeRef.current = true;
         setActiveIndex(nextEnabledIndex(options, options.length, -1));
         break;
       case "Enter":
@@ -209,7 +227,10 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
         if (isPrintableKey(event.key)) {
           event.preventDefault();
           const match = typeaheadMatch(event.key, activeIndex);
-          if (match >= 0) setActiveIndex(match);
+          if (match >= 0) {
+            scrollOnNextActiveChangeRef.current = true;
+            setActiveIndex(match);
+          }
         }
         break;
     }
@@ -274,7 +295,11 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
                   ]
                     .filter(Boolean)
                     .join(" ")}
-                  onMouseEnter={() => !option.disabled && setActiveIndex(index)}
+                  onMouseEnter={() => {
+                    if (option.disabled) return;
+                    scrollOnNextActiveChangeRef.current = false;
+                    setActiveIndex(index);
+                  }}
                   onClick={() => commit(index)}
                 >
                   <span className="ui-select__option-label">{option.label}</span>

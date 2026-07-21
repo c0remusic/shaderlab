@@ -17,6 +17,7 @@ import { PanelColumn } from "./components/dockedPanel/PanelColumn";
 import { movePanelInDock, type DockDropTarget, type DockLayout } from "./ui/dockLayout";
 import { LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
+import { MaskPanel } from "./components/MaskPanel";
 import { getEffect } from "./render/effects/registry";
 import type { RefineEdgeParams } from "./mask/types";
 import { MAX_COLOR_RANGE_SAMPLES } from "./mask/sources/colorRange";
@@ -58,7 +59,8 @@ export default function App() {
 
   const [layersCollapsed, setLayersCollapsed] = useState(false);
   const [paramsCollapsed, setParamsCollapsed] = useState(false);
-  const [dockLayout, setDockLayout] = useState<DockLayout>([["layers", "params"]]);
+  const [maskCollapsed, setMaskCollapsed] = useState(false);
+  const [dockLayout, setDockLayout] = useState<DockLayout>([["layers", "params", "mask"]]);
   const handlePanelMove = useCallback((id: string, target: DockDropTarget) => {
     setDockLayout((previous) => movePanelInDock(previous, id, target));
   }, []);
@@ -518,6 +520,11 @@ export default function App() {
               layer={selectedLayer}
               onParamChange={handleParamChange}
               onParamCommit={handleParamCommit}
+            />
+        }, {
+          id: "mask", title: "Masque", collapsed: maskCollapsed, onCollapsedChange: setMaskCollapsed,
+          content: <MaskPanel
+              layer={selectedLayer}
               maskPaintMode={maskPaintMode}
               onToggleMaskPaint={() => setMaskPaintMode((v) => !v)}
               onAddMaskSource={handleAddMaskSource}

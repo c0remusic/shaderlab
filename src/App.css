@@ -5,6 +5,15 @@
   min-width: var(--window-min-width);
   min-height: var(--window-min-height);
   background: var(--surface-window);
+  /* Chrome d'app (labels, titres, boutons) — pas un document : rien n'y est
+     du contenu à sélectionner. Réactivé explicitement sur les champs de
+     saisie de texte réels. */
+  user-select: none;
+}
+
+.app-shell input,
+.app-shell textarea {
+  user-select: text;
 }
 
 .workspace {

@@ -32,7 +32,7 @@
   padding-inline: var(--space-5);
   border-radius: var(--radius-control);
   border: none;
-  background: var(--surface-inset);
+  background: var(--action-secondary-bg);
   color: var(--text-primary);
   font-family: var(--font-ui);
   font-size: var(--font-size-md);
@@ -45,7 +45,7 @@
 }
 
 .ui-select__trigger[aria-expanded="true"] {
-  background: var(--surface-active);
+  background: var(--action-secondary-hover);
 }
 
 .ui-select__value {

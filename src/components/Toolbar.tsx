@@ -1,4 +1,4 @@
-import { Download, FolderOpen, Redo2, Undo2 } from "lucide-react";
+import { Download, FolderOpen, Menu, Redo2, Undo2 } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
@@ -24,7 +24,13 @@ export function Toolbar({ canUndo, canRedo, onUndo, onRedo, onExport, onOpenFile
       className="flex items-center gap-4 min-h-[var(--toolbar-height)] px-4 py-3 bg-card border-b border-border"
     >
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="secondary">Fichier</Button>} />
+        <DropdownMenuTrigger
+          render={
+            <Button variant="secondary" size="icon" aria-label="Menu Fichier" title="Fichier">
+              <Menu size={16} strokeWidth={1.5} aria-hidden="true" />
+            </Button>
+          }
+        />
         <DropdownMenuContent align="start">
           <DropdownMenuItem onClick={onOpenFile}>
             <FolderOpen size={16} strokeWidth={1.5} aria-hidden="true" />

@@ -5,7 +5,13 @@
   --surface-workspace: var(--primitive-neutral-950);
   --surface-panel: var(--primitive-neutral-900);
   --surface-raised: var(--primitive-neutral-850);
-  --surface-inset: #141210;
+  /* Était #141210 (ancienne échelle "chaude" darkroom, jamais migrée vers
+     Adobe Spectrum le 2026-07-20 comme le reste — cf. commentaire
+     primitives.css). Remplacé par le token neutre le plus proche déjà migré :
+     seul --surface-inset restait hors palette, visible comme un carré
+     légèrement brun sur les autres surfaces neutres (empty state, lignes de
+     source de masque). */
+  --surface-inset: var(--primitive-neutral-1000);
   --surface-hover: rgba(242, 242, 242, .07);
   --surface-active: rgba(242, 242, 242, .11);
   /* .10 exact — Adobe Spectrum table-selected-row-background-opacity-non-emphasized

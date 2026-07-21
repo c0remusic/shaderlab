@@ -12,8 +12,11 @@
 }
 
 .param-panel__empty {
+  /* Rang --space-4, un cran sous le padding --space-5 du conteneur parent
+     (.docked-panel-card__content) — la marge extérieure doit rester plus
+     grande que le padding interne de cette case, jamais égale. */
   margin: 0;
-  padding: var(--space-5);
+  padding: var(--space-4);
   border: 1px dashed var(--border-default);
   border-radius: var(--radius-control);
   background: var(--surface-inset);

@@ -11,6 +11,10 @@
   border-radius: var(--radius-panel);
   background: var(--panel-bg);
   color: var(--text-primary);
+  /* Le séparateur du titlebar est une ligne droite (border-bottom) sur un
+     conteneur à coins arrondis : sans clip, elle traverse la courbe au lieu
+     de s'y arrêter (bug visuel constaté). */
+  overflow: hidden;
 }
 
 .docked-panel-card__titlebar {
@@ -19,9 +23,28 @@
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
-  height: var(--control-height-md);
-  padding-inline: var(--space-5);
+  /* Même rang --space-5 en horizontal ET vertical (comme la Toolbar
+     principale, Toolbar.tsx : px-4 py-3 autour du bouton Fichier) — pas de
+     hauteur fixe qui laisse un reliquat vertical plus petit que le padding
+     horizontal. */
+  padding: var(--space-5);
+}
+
+/* Séparateur en pseudo-élément (pas border-bottom) pour pouvoir l'inset
+   par rapport aux bords de la carte, au même rang que son padding. */
+.docked-panel-card__titlebar::after {
+  content: "";
+  position: absolute;
+  left: var(--space-5);
+  right: var(--space-5);
+  bottom: 0;
+  height: 0;
   border-bottom: 1px solid var(--border-subtle);
+}
+
+/* Replié = pas de contenu en dessous à séparer : pas de ligne. */
+.docked-panel-card__titlebar[data-collapsed]::after {
+  display: none;
 }
 
 .docked-panel-card__title {

@@ -3,7 +3,10 @@
   --control-height-md: 30px;
   --control-height-lg: 32px;
   --toolbar-height: 36px;
-  --layer-row-height: 30px;
+  /* 36px - 28px (IconButton compact) = 8px, réparti en --space-2 (4px) de
+     marge de chaque côté — même calcul que --toolbar-height, 30px ne
+     laissait qu'1px (bug déjà rencontré et corrigé sur DockedPanelCard). */
+  --layer-row-height: 36px;
   --section-header-height: 28px;
 
   --icon-size-sm: 14px;

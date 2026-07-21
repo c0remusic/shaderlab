@@ -27,8 +27,10 @@
 .panel-column__item { position: relative; }
 
 .panel-column__insert-chip--horizontal {
-  width: var(--space-2);
-  height: var(--space-5);
+  /* Même pastille que le réordonnancement vertical (20x8, drag-reorder.css) —
+     pivotée pour indiquer une couture horizontale au lieu de dimensions
+     propres qui la font paraître comme un élément différent. */
+  transform: translate(-50%, -50%) rotate(90deg);
 }
 
 .panel-column__ghost {
@@ -36,7 +38,7 @@
   top: 0;
   left: 0;
   width: var(--inspector-width-default);
-  opacity: .85;
+  opacity: .5;
   pointer-events: none;
   box-shadow: var(--shadow-dragging);
   z-index: var(--z-popover);

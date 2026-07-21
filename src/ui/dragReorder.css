@@ -5,7 +5,7 @@
   height: 8px;
   border-radius: var(--radius-round);
   background: var(--border-selection);
-  opacity: .9;
+  opacity: var(--drag-insert-chip-opacity);
   pointer-events: none;
   transform: translate(-50%, -50%);
   z-index: var(--z-popover);

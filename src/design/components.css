@@ -63,5 +63,6 @@
   --dragging-opacity: .5;
   --drag-grip-opacity: .7;
   --drag-ghost-opacity: .85;
+  --drag-insert-chip-opacity: .9;
   --loading-indicator-opacity: .7;
 }

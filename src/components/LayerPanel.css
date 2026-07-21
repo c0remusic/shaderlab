@@ -83,8 +83,8 @@
   border-bottom-color: transparent;
 }
 
-.layer-panel__insert-chip--before { top: calc(var(--space-4) * -0.5); }
-.layer-panel__insert-chip--after { top: calc(100% + (var(--space-4) * 0.5)); }
+.layer-panel__alignment-guide--before { top: calc(var(--space-4) * -0.5); }
+.layer-panel__alignment-guide--after { top: calc(100% + (var(--space-4) * 0.5)); }
 
 .layer-panel__row-main {
   display: flex;

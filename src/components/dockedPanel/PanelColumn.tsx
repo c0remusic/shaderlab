@@ -114,21 +114,23 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
     setDragState(null);
   }, [dragState, onMove]);
 
-  let chipStyle: React.CSSProperties | null = null;
-  let chipClassName = "drag-reorder__insert-chip";
+  let guideStyle: React.CSSProperties | null = null;
+  let guideClassName = "drag-reorder__alignment-guide";
   if (dragState?.target && dragState.targetBounds) {
     const dock = document.querySelector<HTMLElement>(".panel-column");
     if (dock) {
       if (dragState.target.kind === "vertical") {
-        chipStyle = {
+        guideStyle = {
           left: (dragState.targetBounds.left + dragState.targetBounds.right) / 2 - dock.getBoundingClientRect().left,
           top: (dragState.target.position === "before" ? dragState.targetBounds.top : dragState.targetBounds.bottom) - dock.getBoundingClientRect().top,
+          width: dragState.targetBounds.right - dragState.targetBounds.left,
         };
       } else {
-        chipClassName += " panel-column__insert-chip--horizontal";
-        chipStyle = {
+        guideClassName += " panel-column__alignment-guide--vertical";
+        guideStyle = {
           left: (dragState.target.position === "left" ? dragState.targetBounds.left : dragState.targetBounds.right) - dock.getBoundingClientRect().left,
           top: (dragState.targetBounds.top + dragState.targetBounds.bottom) / 2 - dock.getBoundingClientRect().top,
+          height: dragState.targetBounds.bottom - dragState.targetBounds.top,
         };
       }
     }
@@ -178,7 +180,7 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
           </div>
         ))}
       </div>
-      {chipStyle && <div className={chipClassName} style={chipStyle} aria-hidden="true" />}
+      {guideStyle && <div className={guideClassName} style={guideStyle} aria-hidden="true" />}
       {dragState && draggedPanel && (
         <div
           className="panel-column__ghost"

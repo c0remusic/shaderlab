@@ -117,7 +117,7 @@ const LayerRow = memo(function LayerRow({
           <Trash2 className="icon-sm icon-stroke" aria-hidden="true" />
         </IconButton>
       </div>
-      {dropPosition && <span className={`drag-reorder__insert-chip layer-panel__insert-chip--${dropPosition}`} aria-hidden="true" />}
+      {dropPosition && <span className={`drag-reorder__alignment-guide layer-panel__alignment-guide--${dropPosition}`} aria-hidden="true" />}
       <div className="layer-panel__row-controls" onClick={(e) => e.stopPropagation()}>
         <LabeledSlider
           label="Opacité"

@@ -27,11 +27,9 @@
 
 .panel-column__item { position: relative; }
 
-.panel-column__insert-chip--horizontal {
-  /* Même pastille que le réordonnancement vertical (20x8, drag-reorder.css) —
-     pivotée pour indiquer une couture horizontale au lieu de dimensions
-     propres qui la font paraître comme un élément différent. */
-  transform: translate(-50%, -50%) rotate(90deg);
+.panel-column__alignment-guide--vertical {
+  /* A vertical guide marks the seam for a neighboring panel column. */
+  width: var(--focus-width);
 }
 
 .panel-column__ghost {

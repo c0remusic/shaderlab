@@ -34,7 +34,7 @@
   --button-padding-inline: var(--space-6);
   --button-icon-gap: var(--space-3);
 
-  --slider-track-height: 3px;
+  --slider-track-height: var(--space-2);
   --slider-thumb-size: 12px;
   --slider-value-width: 7ch;
 

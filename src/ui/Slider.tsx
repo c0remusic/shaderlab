@@ -1,6 +1,7 @@
 import { useId, useEffect, useRef } from "react";
 import { formatControlValue } from "./formatValue";
 import { registerControl, unregisterControl, markControlActive, wheelTickValue } from "./activeControl";
+import { sliderProgress } from "./sliderMath";
 
 export interface SliderProps {
   label: string;
@@ -85,6 +86,7 @@ export function Slider({
         id={id}
         type="range"
         className="ui-slider__input"
+        style={{ "--slider-progress": `${sliderProgress(value, min, max)}%` } as React.CSSProperties}
         title={title}
         min={min}
         max={max}

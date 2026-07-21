@@ -1,0 +1,779 @@
+import type { GpuContext } from "./gpuContext";
+import { FULLSCREEN_VERTEX_WGSL } from "./shaderCompose";
+import type { LayerState } from "../layers/types";
+import type { DirtyRect } from "../mask/maskPainter";
+import { computeR8UploadRegion } from "./maskUpload";
+import type { MaskPreviewOverride, MaskUploadScope } from "./renderer";
+import {
+  planFold,
+  snapshotFoldInputs,
+  foldInputsEqual,
+  type FoldSourceSnapshot,
+} from "../mask/foldPlan";
+import type {
+  MaskSource,
+  MaskSourceType,
+  RefineEdgeParams,
+} from "../mask/types";
+import { buildCombineWgsl, buildInvertWgsl } from "../mask/maskFoldWgsl";
+import { buildMorphologyWgsl } from "../mask/refineEdgeWgsl";
+import { getMaskSourceModule } from "../mask/sources/registry";
+import {
+  buildLuminanceWgsl,
+  buildPackWgsl,
+  buildSquareCorrWgsl,
+  buildBoxFilterHWgsl,
+  buildBoxFilterVWgsl,
+  buildComputeABWgsl,
+  buildCompositeWgsl,
+} from "../mask/edgeAwareWgsl";
+
+const PARAM_COUNT_BY_TYPE: Record<Exclude<MaskSourceType, "brush">, number> = {
+  gradient: 8,
+  luminosity: 8,
+  colorRange: 32,
+};
+type Entry = { texture: GPUTexture; syncedFrom: unknown };
+type PipelineEntry = {
+  pipeline: GPURenderPipeline;
+  layout: GPUBindGroupLayout;
+};
+type EdgeWork = {
+  luminance: GPUTexture;
+  packedIp: GPUTexture;
+  squareCorr: GPUTexture;
+  meanIp: GPUTexture;
+  meanIpTmp: GPUTexture;
+  corr: GPUTexture;
+  corrTmp: GPUTexture;
+  ab: GPUTexture;
+  meanAB: GPUTexture;
+  meanABTmp: GPUTexture;
+  result: GPUTexture;
+};
+
+/** Owns every persistent mask resource. It only encodes work: Renderer owns submit and frame-scoped destruction. */
+export class MaskTextureResolver {
+  private sourceTextures = new Map<string, Entry>();
+  private parametricSourceTextures = new Map<string, Entry>();
+  private foldedMaskTextures = new Map<
+    string,
+    {
+      texture: GPUTexture;
+      lastInputs: FoldSourceSnapshot[];
+      lastInvert: boolean;
+    }
+  >();
+  private foldPingPongByLayer = new Map<string, [GPUTexture, GPUTexture]>();
+  private refineEdgePingPongByLayer = new Map<
+    string,
+    [GPUTexture, GPUTexture]
+  >();
+  private edgeAwareWorkTextures = new Map<string, EdgeWork>();
+  private maskSourcePipelineCache = new Map<string, PipelineEntry>();
+  private maskFoldPipelineCache = new Map<string, PipelineEntry>();
+  private edgeAwarePipelineCache = new Map<string, PipelineEntry>();
+  private whiteMask: GPUTexture | null = null;
+  private liveMaskTexture: GPUTexture | null = null;
+  private liveMaskLayerId: string | null = null;
+  private livePreview: MaskPreviewOverride | null = null;
+  constructor(
+    private readonly ctx: GpuContext,
+    private readonly width: number,
+    private readonly height: number,
+    private readonly sampler: GPUSampler,
+    private readonly nearestSampler: GPUSampler,
+    private readonly sourceColor: () => GPUTexture,
+  ) {}
+  setLivePreview(preview: MaskPreviewOverride | null): void {
+    this.livePreview = preview;
+  }
+  sweep(layerIds: ReadonlySet<string>): void {
+    this.sweepMap(this.sourceTextures, layerIds);
+    this.sweepMap(this.parametricSourceTextures, layerIds);
+    this.sweepMap(this.foldedMaskTextures, layerIds);
+    this.sweepPairs(this.foldPingPongByLayer, layerIds);
+    this.sweepPairs(this.refineEdgePingPongByLayer, layerIds);
+    for (const [id, w] of this.edgeAwareWorkTextures)
+      if (!layerIds.has(id)) {
+        this.destroyWork(w);
+        this.edgeAwareWorkTextures.delete(id);
+      }
+  }
+  private sweepMap<T extends { texture: GPUTexture }>(
+    map: Map<string, T>,
+    ids: ReadonlySet<string>,
+  ) {
+    for (const [key, entry] of map)
+      if (!ids.has(key.split(":")[0])) {
+        entry.texture.destroy();
+        map.delete(key);
+      }
+  }
+  private sweepPairs(
+    map: Map<string, [GPUTexture, GPUTexture]>,
+    ids: ReadonlySet<string>,
+  ) {
+    for (const [id, [a, b]] of map)
+      if (!ids.has(id)) {
+        a.destroy();
+        b.destroy();
+        map.delete(id);
+      }
+  }
+  resolve(
+    layer: LayerState,
+    encoder: GPUCommandEncoder,
+    colorView: GPUTextureView,
+    pendingDestroy: (GPUTexture | GPUBuffer)[],
+  ): GPUTexture {
+    if (this.livePreview?.layerId === layer.id)
+      return this.getLiveMaskTexture(
+        layer.id,
+        this.livePreview.raster,
+        this.livePreview.scope,
+      );
+    const plan = planFold(layer.mask);
+    if (!plan.length) return this.getWhiteMask();
+    if (plan.length === 1 && !layer.mask.invert)
+      return this.refine(
+        layer.id,
+        this.edge(
+          layer,
+          this.resident(layer.id, plan[0], encoder, pendingDestroy),
+          colorView,
+          encoder,
+          pendingDestroy,
+        ),
+        layer.mask.refineEdge,
+        encoder,
+        pendingDestroy,
+      );
+    const snapshot = snapshotFoldInputs(layer.mask),
+      cached = this.foldedMaskTextures.get(layer.id);
+    const folded =
+      cached &&
+      foldInputsEqual(cached.lastInputs, snapshot) &&
+      cached.lastInvert === layer.mask.invert
+        ? cached.texture
+        : this.fold(layer.id, plan, layer.mask.invert, encoder, pendingDestroy);
+    if (!cached || folded !== cached.texture)
+      this.foldedMaskTextures.set(layer.id, {
+        texture: folded,
+        lastInputs: snapshot,
+        lastInvert: layer.mask.invert,
+      });
+    return this.refine(
+      layer.id,
+      this.edge(layer, folded, colorView, encoder, pendingDestroy),
+      layer.mask.refineEdge,
+      encoder,
+      pendingDestroy,
+    );
+  }
+  private upload(
+    texture: GPUTexture,
+    data: Uint8Array,
+    w: number,
+    h: number,
+    rect?: DirtyRect,
+  ) {
+    const r = computeR8UploadRegion(w, h, rect);
+    this.ctx.device.queue.writeTexture(
+      { texture, origin: r.origin },
+      data as BufferSource,
+      r.dataLayout,
+      [r.size.width, r.size.height],
+    );
+  }
+  private getWhiteMask() {
+    if (!this.whiteMask) {
+      this.whiteMask = this.ctx.device.createTexture({
+        size: [1, 1],
+        format: "r8unorm",
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+      });
+      this.upload(this.whiteMask, new Uint8Array([255]), 1, 1);
+    }
+    return this.whiteMask;
+  }
+  private getLiveMaskTexture(
+    id: string,
+    raster: Uint8Array,
+    scope: MaskUploadScope,
+  ) {
+    if (!this.liveMaskTexture)
+      this.liveMaskTexture = this.ctx.device.createTexture({
+        size: [this.width, this.height],
+        format: "r8unorm",
+        usage:
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.COPY_DST |
+          GPUTextureUsage.COPY_SRC,
+      });
+    const rect =
+      scope.kind === "partial" && this.liveMaskLayerId === id
+        ? scope.rect
+        : undefined;
+    this.upload(this.liveMaskTexture, raster, this.width, this.height, rect);
+    if (!rect) this.liveMaskLayerId = id;
+    return this.liveMaskTexture;
+  }
+  private resident(
+    id: string,
+    source: MaskSource,
+    encoder: GPUCommandEncoder,
+    pending: (GPUTexture | GPUBuffer)[],
+  ): GPUTexture {
+    if (source.type !== "brush")
+      return this.parametric(id, source, encoder, pending);
+    const key = `${id}:${source.id}`,
+      raster = source.raster!,
+      old = this.sourceTextures.get(key);
+    if (old?.syncedFrom === raster) return old.texture;
+    const texture =
+      old?.texture ??
+      this.ctx.device.createTexture({
+        size: [this.width, this.height],
+        format: "r8unorm",
+        usage:
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.COPY_DST |
+          GPUTextureUsage.COPY_SRC,
+      });
+    if (this.liveMaskLayerId === id && this.liveMaskTexture) {
+      encoder.copyTextureToTexture(
+        { texture: this.liveMaskTexture },
+        { texture },
+        [this.width, this.height],
+      );
+      this.liveMaskLayerId = null;
+    } else this.upload(texture, raster, this.width, this.height);
+    this.sourceTextures.set(key, { texture, syncedFrom: raster });
+    return texture;
+  }
+  private parametric(
+    id: string,
+    source: MaskSource,
+    encoder: GPUCommandEncoder,
+    pending: (GPUTexture | GPUBuffer)[],
+  ): GPUTexture {
+    const key = `${id}:${source.id}`,
+      old = this.parametricSourceTextures.get(key);
+    if (old?.syncedFrom === source.params) return old.texture;
+    const texture =
+      old?.texture ??
+      this.ctx.device.createTexture({
+        size: [this.width, this.height],
+        format: "r8unorm",
+        usage:
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.RENDER_ATTACHMENT |
+          GPUTextureUsage.COPY_SRC,
+      });
+    const module = getMaskSourceModule(
+        source.type as "gradient" | "luminosity" | "colorRange",
+      ),
+      count =
+        PARAM_COUNT_BY_TYPE[source.type as Exclude<MaskSourceType, "brush">],
+      flat = this.flatten(source.params, module.defaultParams, count),
+      buffer = this.ctx.device.createBuffer({
+        size: flat.byteLength,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+    this.ctx.device.queue.writeBuffer(buffer, 0, flat as BufferSource);
+    const key2 = `parametric:${source.type}:${count}`;
+    let c = this.maskSourcePipelineCache.get(key2);
+    if (!c) {
+      const layout = this.ctx.device.createBindGroupLayout({
+        entries: [
+          {
+            binding: 0,
+            visibility: GPUShaderStage.FRAGMENT,
+            texture: { sampleType: "float" },
+          },
+          {
+            binding: 1,
+            visibility: GPUShaderStage.FRAGMENT,
+            sampler: { type: "filtering" },
+          },
+          {
+            binding: 2,
+            visibility: GPUShaderStage.FRAGMENT,
+            buffer: { type: "uniform" },
+          },
+        ],
+      });
+      const code = this.wrap(module.wgsl, count);
+      c = {
+        layout,
+        pipeline: this.ctx.device.createRenderPipeline({
+          layout: this.ctx.device.createPipelineLayout({
+            bindGroupLayouts: [layout],
+          }),
+          vertex: {
+            module: this.ctx.device.createShaderModule({ code }),
+            entryPoint: "vs_main",
+          },
+          fragment: {
+            module: this.ctx.device.createShaderModule({ code }),
+            entryPoint: "fs_wrapped",
+            targets: [{ format: "r8unorm" }],
+          },
+          primitive: { topology: "triangle-list" },
+        }),
+      };
+      this.maskSourcePipelineCache.set(key2, c);
+    }
+    const bind = this.ctx.device.createBindGroup({
+      layout: c.layout,
+      entries: [
+        { binding: 0, resource: this.sourceColor().createView() },
+        { binding: 1, resource: this.sampler },
+        { binding: 2, resource: { buffer } },
+      ],
+    });
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: texture.createView(),
+          loadOp: "clear",
+          storeOp: "store",
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+        },
+      ],
+    });
+    pass.setPipeline(c.pipeline);
+    pass.setBindGroup(0, bind);
+    pass.draw(3);
+    pass.end();
+    pending.push(buffer);
+    this.parametricSourceTextures.set(key, {
+      texture,
+      syncedFrom: source.params,
+    });
+    return texture;
+  }
+  private flatten(
+    params: Record<string, number | number[]> | null,
+    defaults: Record<string, number | number[]>,
+    count: number,
+  ) {
+    const out = new Float32Array(count),
+      p = params ?? defaults;
+    if ("samples" in defaults) {
+      const s = (p.samples as number[] | undefined) ?? [];
+      out[0] = (p.tolerance as number) ?? 0.15;
+      out[1] = (p.hardness as number) ?? 0.5;
+      out[2] = (p.invert as number) ?? 0;
+      out[3] = Math.min(s.length / 3, 6);
+      for (let i = 0; i < Math.min(s.length, 18); i++) out[4 + i] = s[i];
+      return out;
+    }
+    let i = 0;
+    for (const k of Object.keys(defaults)) {
+      if (i >= count) break;
+      out[i++] = (p[k] as number) ?? (defaults[k] as number);
+    }
+    return out;
+  }
+  private wrap(g: string, n: number) {
+    return `${FULLSCREEN_VERTEX_WGSL}\n@group(0) @binding(0) var srcColor: texture_2d<f32>;\n@group(0) @binding(1) var maskSampler: sampler;\n@group(0) @binding(2) var<uniform> genParams: array<f32, ${n}>;\n${g}\n@fragment fn fs_wrapped(in: VertexOut) -> @location(0) vec4<f32> { let color=textureSample(srcColor,maskSampler,in.uv).rgb; let v=fs_generate(in.uv,color,genParams); return vec4<f32>(v,v,v,1.0); }`;
+  }
+  private pair(map: Map<string, [GPUTexture, GPUTexture]>, id: string) {
+    let p = map.get(id);
+    if (!p) {
+      const make = () =>
+        this.ctx.device.createTexture({
+          size: [this.width, this.height],
+          format: "r8unorm",
+          usage:
+            GPUTextureUsage.TEXTURE_BINDING |
+            GPUTextureUsage.RENDER_ATTACHMENT |
+            GPUTextureUsage.COPY_DST |
+            GPUTextureUsage.COPY_SRC,
+        });
+      p = [make(), make()];
+      map.set(id, p);
+    }
+    return p;
+  }
+  private maskPipeline(
+    wgsl: string,
+    b: "none" | "texture" | "uniform",
+    entry: string,
+  ) {
+    let c = this.maskFoldPipelineCache.get(wgsl);
+    if (c) return c;
+    const e: GPUBindGroupLayoutEntry[] = [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { sampleType: "float" },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.FRAGMENT,
+        sampler: { type: "filtering" },
+      },
+    ];
+    if (b === "texture")
+      e.push({
+        binding: 2,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { sampleType: "float" },
+      });
+    if (b === "uniform")
+      e.push({
+        binding: 2,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: { type: "uniform" },
+      });
+    const layout = this.ctx.device.createBindGroupLayout({ entries: e });
+    c = {
+      layout,
+      pipeline: this.ctx.device.createRenderPipeline({
+        layout: this.ctx.device.createPipelineLayout({
+          bindGroupLayouts: [layout],
+        }),
+        vertex: {
+          module: this.ctx.device.createShaderModule({ code: wgsl }),
+          entryPoint: "vs_main",
+        },
+        fragment: {
+          module: this.ctx.device.createShaderModule({ code: wgsl }),
+          entryPoint: entry,
+          targets: [{ format: "r8unorm" }],
+        },
+        primitive: { topology: "triangle-list" },
+      }),
+    };
+    this.maskFoldPipelineCache.set(wgsl, c);
+    return c;
+  }
+  private pass(
+    encoder: GPUCommandEncoder,
+    w: string,
+    a: GPUTexture,
+    b: GPUTexture | null,
+    target: GPUTexture,
+    u?: GPUBuffer,
+  ) {
+    const entry = w.match(/\bfn (fs_\w+)\s*\(/)?.[1];
+    if (!entry) throw new Error("runMaskPass: no fs entry point");
+    const c = this.maskPipeline(
+        w,
+        b ? "texture" : u ? "uniform" : "none",
+        entry,
+      ),
+      entries: GPUBindGroupEntry[] = [
+        { binding: 0, resource: a.createView() },
+        { binding: 1, resource: this.sampler },
+      ];
+    if (b) entries.push({ binding: 2, resource: b.createView() });
+    else if (u) entries.push({ binding: 2, resource: { buffer: u } });
+    const bg = this.ctx.device.createBindGroup({ layout: c.layout, entries }),
+      rp = encoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: target.createView(),
+            loadOp: "clear",
+            storeOp: "store",
+            clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          },
+        ],
+      });
+    rp.setPipeline(c.pipeline);
+    rp.setBindGroup(0, bg);
+    rp.draw(3);
+    rp.end();
+  }
+  private fold(
+    id: string,
+    plan: MaskSource[],
+    invert: boolean,
+    e: GPUCommandEncoder,
+    p: (GPUTexture | GPUBuffer)[],
+  ) {
+    const [a, b] = this.pair(this.foldPingPongByLayer, id);
+    e.copyTextureToTexture(
+      { texture: this.resident(id, plan[0], e, p) },
+      { texture: a },
+      [this.width, this.height],
+    );
+    let acc = a,
+      next = b;
+    for (let i = 1; i < plan.length; i++) {
+      this.pass(
+        e,
+        buildCombineWgsl(plan[i].combineMode),
+        acc,
+        this.resident(id, plan[i], e, p),
+        next,
+      );
+      [acc, next] = [next, acc];
+    }
+    if (invert) {
+      this.pass(e, buildInvertWgsl(), acc, null, next);
+      [acc, next] = [next, acc];
+    }
+    return acc;
+  }
+  private edge(
+    layer: LayerState,
+    input: GPUTexture,
+    color: GPUTextureView,
+    e: GPUCommandEncoder,
+    p: (GPUTexture | GPUBuffer)[],
+  ) {
+    const x = layer.mask.refineEdge;
+    if (!x.edgeAware || x.edgeStrength <= 0) return input;
+    return this.edgePipeline(layer.id, input, color, x, e, p);
+  }
+  private edgePipeline(
+    id: string,
+    input: GPUTexture,
+    color: GPUTextureView,
+    x: RefineEdgeParams,
+    e: GPUCommandEncoder,
+    p: (GPUTexture | GPUBuffer)[],
+  ) {
+    let w = this.edgeAwareWorkTextures.get(id);
+    if (!w) {
+      const mk = (format: GPUTextureFormat) =>
+        this.ctx.device.createTexture({
+          size: [this.width, this.height],
+          format,
+          usage:
+            GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+        });
+      w = {
+        luminance: mk("r8unorm"),
+        packedIp: mk("rg8unorm"),
+        squareCorr: mk("rg16float"),
+        meanIp: mk("rg16float"),
+        meanIpTmp: mk("rg16float"),
+        corr: mk("rg16float"),
+        corrTmp: mk("rg16float"),
+        ab: mk("rg16float"),
+        meanAB: mk("rg16float"),
+        meanABTmp: mk("rg16float"),
+        result: mk("r8unorm"),
+      };
+      this.edgeAwareWorkTextures.set(id, w);
+    }
+    const run = (
+      wgsl: string,
+      entry: string,
+      target: GPUTexture,
+      views: GPUTextureView[],
+      u?: GPUBuffer,
+    ) => {
+      const key = `${entry}:${wgsl.length}`;
+      let c = this.edgeAwarePipelineCache.get(key);
+      if (!c) {
+        const entries: GPUBindGroupLayoutEntry[] = [
+          {
+            binding: 0,
+            visibility: GPUShaderStage.FRAGMENT,
+            texture: { sampleType: "float" },
+          },
+          {
+            binding: 1,
+            visibility: GPUShaderStage.FRAGMENT,
+            sampler: { type: "filtering" },
+          },
+        ];
+        for (let i = 1; i < views.length; i++)
+          entries.push({
+            binding: 1 + i,
+            visibility: GPUShaderStage.FRAGMENT,
+            texture: { sampleType: "float" },
+          });
+        if (u)
+          entries.push({
+            binding: 1 + views.length,
+            visibility: GPUShaderStage.FRAGMENT,
+            buffer: { type: "uniform" },
+          });
+        const layout = this.ctx.device.createBindGroupLayout({ entries });
+        c = {
+          layout,
+          pipeline: this.ctx.device.createRenderPipeline({
+            layout: this.ctx.device.createPipelineLayout({
+              bindGroupLayouts: [layout],
+            }),
+            vertex: {
+              module: this.ctx.device.createShaderModule({ code: wgsl }),
+              entryPoint: "vs_main",
+            },
+            fragment: {
+              module: this.ctx.device.createShaderModule({ code: wgsl }),
+            entryPoint: entry,
+              targets: [{ format: target.format }],
+            },
+            primitive: { topology: "triangle-list" },
+          }),
+        };
+        this.edgeAwarePipelineCache.set(key, c);
+      }
+      const entries: GPUBindGroupEntry[] = [
+        { binding: 0, resource: views[0] },
+        { binding: 1, resource: this.nearestSampler },
+      ];
+      for (let i = 1; i < views.length; i++)
+        entries.push({ binding: 1 + i, resource: views[i] });
+      if (u)
+        entries.push({ binding: 1 + views.length, resource: { buffer: u } });
+      const rp = e.beginRenderPass({
+        colorAttachments: [
+          {
+            view: target.createView(),
+            loadOp: "clear",
+            storeOp: "store",
+            clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          },
+        ],
+      });
+      rp.setPipeline(c.pipeline);
+      rp.setBindGroup(
+        0,
+        this.ctx.device.createBindGroup({ layout: c.layout, entries }),
+      );
+      rp.draw(3);
+      rp.end();
+    };
+    const uniform = (v: number) => {
+        const b = this.ctx.device.createBuffer({
+          size: 16,
+          usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+        this.ctx.device.queue.writeBuffer(b, 0, new Float32Array([v, 0, 0, 0]));
+        p.push(b);
+        return b;
+      },
+      r = uniform(x.edgeRadius),
+      s = uniform(x.edgeStrength),
+      iv = input.createView();
+    run(buildLuminanceWgsl(), "fs_luminance", w.luminance, [color]);
+    run(buildPackWgsl(), "fs_pack", w.packedIp, [w.luminance.createView(), iv]);
+    run(buildSquareCorrWgsl(), "fs_squareCorr", w.squareCorr, [
+      w.packedIp.createView(),
+    ]);
+    run(
+      buildBoxFilterHWgsl(2),
+      "fs_boxH",
+      w.meanIpTmp,
+      [w.packedIp.createView()],
+      r,
+    );
+    run(
+      buildBoxFilterVWgsl(2),
+      "fs_boxV",
+      w.meanIp,
+      [w.meanIpTmp.createView()],
+      r,
+    );
+    run(
+      buildBoxFilterHWgsl(2),
+      "fs_boxH",
+      w.corrTmp,
+      [w.squareCorr.createView()],
+      r,
+    );
+    run(buildBoxFilterVWgsl(2), "fs_boxV", w.corr, [w.corrTmp.createView()], r);
+    run(buildComputeABWgsl(), "fs_computeAB", w.ab, [
+      w.meanIp.createView(),
+      w.corr.createView(),
+    ]);
+    run(buildBoxFilterHWgsl(2), "fs_boxH", w.meanABTmp, [w.ab.createView()], r);
+    run(
+      buildBoxFilterVWgsl(2),
+      "fs_boxV",
+      w.meanAB,
+      [w.meanABTmp.createView()],
+      r,
+    );
+    run(
+      buildCompositeWgsl(),
+      "fs_composite",
+      w.result,
+      [w.meanAB.createView(), w.luminance.createView(), iv],
+      s,
+    );
+    return w.result;
+  }
+  private refine(
+    id: string,
+    input: GPUTexture,
+    x: RefineEdgeParams,
+    e: GPUCommandEncoder,
+    p: (GPUTexture | GPUBuffer)[],
+  ) {
+    if (x.feather <= 0 && x.contract === 0 && x.smooth <= 0) return input;
+    let [acc, next] = this.pair(this.refineEdgePingPongByLayer, id);
+    e.copyTextureToTexture({ texture: input }, { texture: acc }, [
+      this.width,
+      this.height,
+    ]);
+    const u = (v: number) => {
+      const b = this.ctx.device.createBuffer({
+        size: 16,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+      this.ctx.device.queue.writeBuffer(b, 0, new Float32Array([v, 0, 0, 0]));
+      p.push(b);
+      return b;
+    };
+    const run = (w: string, v: number) => {
+      this.pass(e, w, acc, null, next, u(v));
+      [acc, next] = [next, acc];
+    };
+    if (x.contract)
+      run(
+        buildMorphologyWgsl(x.contract < 0 ? "erode" : "dilate"),
+        Math.abs(x.contract),
+      );
+    if (x.feather) {
+      run(buildBoxFilterHWgsl(1), x.feather);
+      run(buildBoxFilterVWgsl(1), x.feather);
+    }
+    for (let i = 0; i < x.smooth; i++) {
+      run(buildBoxFilterHWgsl(1), 1);
+      run(buildBoxFilterVWgsl(1), 1);
+    }
+    return acc;
+  }
+  private destroyWork(w: EdgeWork) {
+    for (const t of Object.values(w)) t.destroy();
+  }
+  dispose() {
+    this.whiteMask?.destroy();
+    this.liveMaskTexture?.destroy();
+    for (const e of this.sourceTextures.values()) e.texture.destroy();
+    for (const e of this.parametricSourceTextures.values()) e.texture.destroy();
+    for (const e of this.foldedMaskTextures.values()) e.texture.destroy();
+    for (const [a, b] of this.foldPingPongByLayer.values()) {
+      a.destroy();
+      b.destroy();
+    }
+    for (const [a, b] of this.refineEdgePingPongByLayer.values()) {
+      a.destroy();
+      b.destroy();
+    }
+    for (const w of this.edgeAwareWorkTextures.values()) this.destroyWork(w);
+    this.sourceTextures.clear();
+    this.parametricSourceTextures.clear();
+    this.foldedMaskTextures.clear();
+    this.foldPingPongByLayer.clear();
+    this.refineEdgePingPongByLayer.clear();
+    this.edgeAwareWorkTextures.clear();
+    this.maskSourcePipelineCache.clear();
+    this.maskFoldPipelineCache.clear();
+    this.edgeAwarePipelineCache.clear();
+    this.whiteMask = null;
+    this.liveMaskTexture = null;
+    this.liveMaskLayerId = null;
+    this.livePreview = null;
+  }
+}

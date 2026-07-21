@@ -31,4 +31,8 @@
   --radius-md: var(--radius-group);
   --radius-lg: var(--radius-panel);
   --radius-xl: var(--radius-dialog);
+
+  --spacing-icon-sm: var(--icon-size-sm);
+  --spacing-icon-md: var(--icon-size-md);
+  --spacing-icon-lg: var(--icon-size-lg);
 }

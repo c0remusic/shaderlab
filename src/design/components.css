@@ -66,3 +66,23 @@
   --drag-insert-chip-opacity: .9;
   --loading-indicator-opacity: .7;
 }
+
+/* Icon utilities keep Lucide glyphs aligned with the component token scale. */
+.icon-sm {
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+}
+
+.icon-md {
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+}
+
+.icon-lg {
+  width: var(--icon-size-lg);
+  height: var(--icon-size-lg);
+}
+
+.icon-stroke {
+  stroke-width: var(--icon-stroke);
+}

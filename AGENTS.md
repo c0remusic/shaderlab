@@ -72,10 +72,19 @@
 > l'avancement réel avant de repartir dessus). **Redimensionnement en
 > largeur de la colonne** (3e demande, 240-400px déjà bornés via
 > `--inspector-width-min/max`) : PAS DANS CE PLAN — oublié lors de la
-> combinaison des chantiers, décision Antoine 2026-07-21 : un plan séparé,
-> écrit APRÈS que celui en cours soit terminé, pas de brainstorming à
-> refaire (le scope est déjà connu : splitter horizontal symétrique au
-> splitter vertical existant). `ADR-0001` (buffers GPU jetables par frame)
+> combinaison des chantiers. Un plan séparé A BIEN été écrit le 2026-07-21
+> (`docs/superpowers/plans/2026-07-21-shaderlab-dock-width-resize.md`,
+> `2bcae3a`) — ⚠️ ce bandeau affirmait à tort "pas encore écrit" jusqu'au
+> 2026-07-21 (trouvé seulement via `git ls-files` complet, jamais relu avant).
+> NON exécuté, et maintenant PÉRIMÉ : il cible l'ancienne API
+> `panelOrder`/`onReorder` de `PanelColumn`, remplacée le 2026-07-21 par
+> `layout`/`onMove` (plan dock-grid, grille 2D) — à réécrire avant toute
+> exécution. Un audit clean-code du 2026-07-21 a aussi produit 3 plans dormants
+> jamais exécutés (`docs/superpowers/plans/2026-07-21-audit-{mask-integrity,
+> document-export-safety,ui-runtime-hygiene}.md` + design
+> `docs/superpowers/specs/2026-07-21-audit-remediation-design.md`) — le plan
+> mask-integrity Task 3 comble justement le gap checkbox `enabled` par source
+> cité plus bas dans ce bandeau. `ADR-0001` (buffers GPU jetables par frame)
 > reste valide et appliqué. Le checkpoint Tranche 3 masquage (gap spec
 > checkbox `enabled` par source, voir plus haut) reste à refaire une fois
 > CE remplacement de panneaux stabilisé — pas encore retenté depuis.

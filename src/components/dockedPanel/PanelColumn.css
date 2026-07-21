@@ -16,6 +16,7 @@
 }
 
 .panel-column__stack {
+  position: relative;
   display: flex;
   flex: 0 0 var(--dock-reserved-width, var(--inspector-width-default));
   flex-direction: column;
@@ -44,9 +45,12 @@
   z-index: var(--z-popover);
 }
 
-/* Poignée de redimensionnement en LARGEUR — bord gauche du conteneur
-   .panel-column entier (toutes colonnes), symétrique dans son style au
-   feedback hover déjà utilisé pour les séparateurs de ce projet. */
+/* Poignée de redimensionnement en LARGEUR — rendue dans la PREMIÈRE colonne
+   (.panel-column__stack, position: relative) pour que sa hauteur suive
+   cette colonne plutôt que la hauteur max de toute la grille (sinon la
+   ligne dépasse une colonne plus courte que les autres). Une seule
+   poignée pilote --dock-reserved-width, partagé par toutes les colonnes
+   (largeur globale, pas de redimensionnement par colonne). */
 .panel-column__width-handle {
   position: absolute;
   top: 0;

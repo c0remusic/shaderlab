@@ -144,20 +144,22 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
       onPointerUp={dragState ? (event) => finishDrag(event, true) : undefined}
       onPointerCancel={dragState ? (event) => finishDrag(event, false) : undefined}
     >
-      <div
-        className="panel-column__width-handle"
-        onPointerDown={handleWidthPointerDown}
-        onPointerMove={handleWidthPointerMove}
-        onPointerUp={handleWidthPointerUp}
-        onPointerCancel={handleWidthPointerCancel}
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Redimensionner la largeur du dock"
-        tabIndex={0}
-      />
       <div className="panel-column__grid">
         {layout.map((column, columnIndex) => (
           <div className="panel-column__stack" key={column.join("-")}>
+            {columnIndex === 0 && (
+              <div
+                className="panel-column__width-handle"
+                onPointerDown={handleWidthPointerDown}
+                onPointerMove={handleWidthPointerMove}
+                onPointerUp={handleWidthPointerUp}
+                onPointerCancel={handleWidthPointerCancel}
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Redimensionner la largeur du dock"
+                tabIndex={0}
+              />
+            )}
             {column.map((id, rowIndex) => {
               const panel = panels.find((candidate) => candidate.id === id);
               if (!panel) return null;

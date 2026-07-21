@@ -39,7 +39,10 @@ const SCAN_EXTS = new Set(['.css', '.ts', '.tsx']);
 // impossible to pass on a clean repo.
 const EXCLUDE_PATH_SUBSTR_ANYWHERE = [path.sep + 'test' + path.sep, '.test.'];
 function isTestPath(fullPath) {
-  return EXCLUDE_PATH_SUBSTR_ANYWHERE.some((s) => fullPath.includes(s));
+  // Same relative-path fix as isExcludedDir above — ROOT itself may contain
+  // path.sep+'test'+path.sep-like substrings in an unrelated ancestor dir.
+  const rel = path.relative(ROOT, fullPath);
+  return EXCLUDE_PATH_SUBSTR_ANYWHERE.some((s) => rel.includes(s));
 }
 
 // Strips // and /* */ comments (best-effort, not string-literal-aware — a "//" or
@@ -99,10 +102,39 @@ function nearestSpacingToken(px) {
   return { px: best, name: spacingPxToToken.get(best) };
 }
 
+// px-value set drawn from --font-size-* tokens (primitives.css) — same
+// pattern as spacingPxToToken above.
+const fontSizePxToToken = new Map(); // px number -> token name
+for (const [name, value] of tokens) {
+  if (!name.startsWith('font-size-')) continue;
+  const m = /^(-?\d+(?:\.\d+)?)px$/.exec(value.trim());
+  if (m) {
+    fontSizePxToToken.set(Number(m[1]), `--${name}`);
+  }
+}
+const fontSizePxValues = [...fontSizePxToToken.keys()].sort((a, b) => a - b);
+
+function nearestFontSizeToken(px) {
+  if (fontSizePxValues.length === 0) return null;
+  let best = fontSizePxValues[0];
+  for (const v of fontSizePxValues) {
+    if (Math.abs(v - px) < Math.abs(best - px)) best = v;
+  }
+  return { px: best, name: fontSizePxToToken.get(best) };
+}
+
 // ---------- Step 2: walk the repo ----------
+// Substring checks below must run against the path RELATIVE TO ROOT, not the
+// absolute path — if ROOT itself lives under a directory that happens to
+// contain ".claude/worktrees" (e.g. this script running from inside a git
+// worktree checked out at .claude/worktrees/<branch>/), an absolute-path
+// substring check would match every single file under ROOT and silently
+// exclude the entire scan (confirmed 2026-07-22: "Files scanned: 2" instead
+// of the real ~90+ files when run from within such a worktree).
 function isExcludedDir(name, fullPath) {
   if (EXCLUDE_DIRS.has(name)) return true;
-  return EXCLUDE_PATH_SUBSTR.some((sub) => fullPath.includes(sub));
+  const rel = path.relative(ROOT, fullPath);
+  return EXCLUDE_PATH_SUBSTR.some((sub) => rel.includes(sub));
 }
 
 /** @type {string[]} */
@@ -146,8 +178,15 @@ const SPACING_PROP_RE =
   /\b((?:padding|margin)(?:-(?:top|right|bottom|left|inline|block)(?:-(?:start|end))?)?|width|height|(?:min|max)-(?:width|height)|gap|row-gap|column-gap)\s*:\s*([^;{}]+);/g;
 const PX_TOKEN_RE = /(-?\d+(?:\.\d+)?)px/g;
 
+// font-size: raw CSS declaration with a literal px value (not var()/calc()).
+const FONT_SIZE_PROP_RE = /\bfont-size\s*:\s*([^;{}]+);/g;
+// Tailwind arbitrary value on the text-* utility, e.g. text-[13px] or
+// text-[0.8125rem] — always a token-bypass regardless of unit, since the
+// project's font-size scale is meant to be exhaustive (2xs..3xl).
+const TEXT_ARBITRARY_RE = /\btext-\[([^\]]+)\]/g;
+
 /**
- * @typedef {{ line: number, category: 'color'|'z-index'|'px-spacing', value: string, suggestion: string }} Finding
+ * @typedef {{ line: number, category: 'color'|'z-index'|'px-spacing'|'font-size', value: string, suggestion: string }} Finding
  */
 
 /** @type {Map<string, Finding[]>} */
@@ -233,6 +272,58 @@ for (const file of files) {
       addFinding(rel, { line, category: 'px-spacing', value: `${px}px`, suggestion });
     }
   }
+
+  // --- font-size: raw CSS declarations ---
+  FONT_SIZE_PROP_RE.lastIndex = 0;
+  while ((m = FONT_SIZE_PROP_RE.exec(content))) {
+    const decl = m[1];
+    if (decl.includes('var(') || decl.includes('calc(')) continue;
+    const pxMatch = /^(-?\d+(?:\.\d+)?)px$/.exec(decl.trim());
+    const line = lineNumberAt(content, m.index);
+    if (pxMatch) {
+      const px = Number(pxMatch[1]);
+      if (fontSizePxToToken.has(px)) continue; // matches an existing token exactly
+      const nearest = nearestFontSizeToken(px);
+      const suggestion = nearest
+        ? `nearest token ${nearest.name} (${nearest.px}px) — verify intent`
+        : 'no matching token — new value';
+      addFinding(rel, { line, category: 'font-size', value: `${px}px`, suggestion });
+    } else {
+      addFinding(rel, {
+        line,
+        category: 'font-size',
+        value: decl.trim(),
+        suggestion: 'raw value bypassing --font-size-* tokens — use a token or add one to primitives.css',
+      });
+    }
+  }
+
+  // --- font-size: Tailwind arbitrary text-[...] utility ---
+  TEXT_ARBITRARY_RE.lastIndex = 0;
+  while ((m = TEXT_ARBITRARY_RE.exec(content))) {
+    const inner = m[1];
+    // text-[var(--some-color-token)] is the color utility already using a
+    // token — only a bypass when it's a raw literal (px/rem/em/number), not
+    // when it references a CSS var (color or otherwise).
+    if (inner.includes('var(')) continue;
+    const line = lineNumberAt(content, m.index);
+    const pxMatch = /^(-?\d+(?:\.\d+)?)px$/.exec(inner.trim());
+    if (pxMatch) {
+      const px = Number(pxMatch[1]);
+      const nearest = nearestFontSizeToken(px);
+      const suggestion = nearest
+        ? `nearest scale class for ${nearest.name} (${nearest.px}px) — use the Tailwind text-* class instead of an arbitrary value`
+        : 'no matching token — new value';
+      addFinding(rel, { line, category: 'font-size', value: `text-[${inner}]`, suggestion });
+    } else {
+      addFinding(rel, {
+        line,
+        category: 'font-size',
+        value: `text-[${inner}]`,
+        suggestion: 'arbitrary Tailwind text-* value bypassing the font-size scale — use text-xs..text-3xl',
+      });
+    }
+  }
 }
 
 // ---------- Step 4: report ----------
@@ -240,10 +331,11 @@ const CATEGORY_LABEL = {
   color: 'Color',
   'z-index': 'z-index',
   'px-spacing': 'px spacing',
+  'font-size': 'font-size',
 };
 
 let total = 0;
-const counts = { color: 0, 'z-index': 0, 'px-spacing': 0 };
+const counts = { color: 0, 'z-index': 0, 'px-spacing': 0, 'font-size': 0 };
 
 const sortedFiles = [...findingsByFile.keys()].sort();
 for (const file of sortedFiles) {
@@ -260,7 +352,7 @@ for (const file of sortedFiles) {
 
 console.log('\n' + '-'.repeat(60));
 console.log(
-  `Findings: ${total}  (colors: ${counts.color}, z-index: ${counts['z-index']}, px-spacing: ${counts['px-spacing']})`,
+  `Findings: ${total}  (colors: ${counts.color}, z-index: ${counts['z-index']}, px-spacing: ${counts['px-spacing']}, font-size: ${counts['font-size']})`,
 );
 console.log(`Files scanned: ${files.length}`);
 

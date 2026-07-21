@@ -481,6 +481,8 @@ export default function App() {
         <Canvas
           ref={canvasRef}
           onFileDropped={(file) => openFile(file, null, false)}
+          hasImage={imageSize.width > 0 && imageSize.height > 0}
+          onOpenFile={handleOpenFile}
           maskPaintMode={maskPaintMode}
           onMaskStroke={handleMaskStroke}
           onStrokeEnd={handleMaskStrokeEnd}

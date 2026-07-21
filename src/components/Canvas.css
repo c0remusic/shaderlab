@@ -7,7 +7,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface-window);
+  background: var(--surface-workspace);
   color: var(--text-primary);
   /* Compensation statique du centrage (design.md §8) : décale le point de
      centrage vers la gauche de la largeur par défaut du dock virtuel, pour
@@ -22,13 +22,60 @@
      W/2) — donc P doit être ÉGAL à la largeur du dock à compenser, pas le
      double (bug corrigé 2026-07-20 : le canvas était décalé deux fois plus
      loin que prévu avec `* 2`). */
-  padding-right: var(--inspector-width-default);
+  padding-right: var(--dock-reserved-width, var(--inspector-width-default));
 }
 
 .canvas-stage__canvas {
   max-width: 100%;
   max-height: 100%;
   cursor: default;
+}
+
+.canvas-stage__canvas--loaded {
+  padding: var(--space-6);
+  border: 1px solid var(--border-default);
+  background: var(--surface-inset);
+}
+
+.canvas-stage__empty-workspace {
+  position: absolute;
+  inset: var(--space-0);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-8);
+  color: var(--text-primary);
+  text-align: center;
+  z-index: var(--z-canvas-overlay);
+}
+
+.canvas-stage__empty-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.canvas-stage__empty-heading,
+.canvas-stage__empty-description {
+  margin: var(--space-0);
+}
+
+.canvas-stage__empty-heading {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.canvas-stage__empty-description {
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-body);
+}
+
+.canvas-stage--drag-active {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: calc(var(--focus-offset) * -1);
 }
 
 /* En mode masque, le curseur système est masqué : le cercle custom

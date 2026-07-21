@@ -1,6 +1,6 @@
 /*
  * ParamPanel : sliders de réglage de l'effet du calque sélectionné, réutilisé
- * dans un FloatingPanel (src/components/floatingPanel/FloatingPanel.tsx)
+ * dans une carte dockée (src/components/dockedPanel/DockedPanelCard.tsx)
  * depuis la migration hors de l'ancien Inspector docké. Chaque valeur
  * ci-dessous est une référence de token (src/design/*.css).
  */

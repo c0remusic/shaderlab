@@ -14,8 +14,8 @@
      que la photo ne semble pas centrée SOUS les panneaux Calques/Réglages
      à leur position de départ. Calculée une fois, pas réactive à un
      déplacement ultérieur des panneaux par l'utilisateur — voir
-     computeEffectiveViewportWidth (src/components/floatingPanel/effectiveViewport.ts)
-     et son commentaire pour la valeur exacte et le futur usage pan/zoom.
+     docs/superpowers/specs/2026-07-20-shaderlab-docked-panels-design.md
+     pour la valeur exacte et le futur usage pan/zoom.
      En centrage flexbox, `padding-right: P` déplace le centre visuel de
      P/2 (le contenu se centre dans l'espace restant W-P, dont le centre
      est à (W-P)/2, soit un décalage de P/2 par rapport au centre naturel

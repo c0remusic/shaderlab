@@ -1,6 +1,6 @@
 /*
- * LayerPanel : liste de calques réordonnable, réutilisée dans un
- * FloatingPanel (src/components/floatingPanel/FloatingPanel.tsx) depuis la
+ * LayerPanel : liste de calques réordonnable, réutilisée dans une carte
+ * dockée (src/components/dockedPanel/DockedPanelCard.tsx) depuis la
  * migration hors de l'ancien Inspector docké. Chaque valeur ci-dessous est
  * une référence de token (src/design/*.css) — aucune couleur/taille/durée en
  * dur.

@@ -10,7 +10,9 @@ describe("DocumentSession", () => {
     session.commit(next);
 
     expect(session.layers()[0].mask.sources[0].raster).toEqual(new Uint8Array([1, 2, 3]));
-    expect(session.displayLayers()[0].mask.sources[0].raster).toBeNull();
+    // Union discriminée: "brush" garde raster non-null par construction ; le
+    // strip de données pour le state React produit un Uint8Array VIDE.
+    expect(session.displayLayers()[0].mask.sources[0].raster!.length).toBe(0);
   });
 
   it("clears a removed selection and restores committed states through undo and redo", () => {

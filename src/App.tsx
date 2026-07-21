@@ -294,6 +294,15 @@ export default function App() {
     commit(stack);
   }
 
+  function handleMaskSourceEnabledChange(layerId: string, sourceId: string, enabled: boolean) {
+    const stack = currentStack();
+    // setMaskSourceEnabled ne commite (une entrée d'historique) que si la
+    // valeur a réellement changé — pas d'entrée vide sur un no-op (même
+    // discipline que le reste des toggles discrets de ce fichier).
+    if (!stack.setMaskSourceEnabled(layerId, sourceId, enabled)) return;
+    commit(stack);
+  }
+
   function handleMaskInvertChange(layerId: string, invert: boolean) {
     const stack = currentStack();
     stack.setMaskInvert(layerId, invert);
@@ -516,6 +525,7 @@ export default function App() {
               onMaskSourceParamsChange={handleMaskSourceParamsChange}
               onMaskSourceParamsCommit={handleParamCommit}
               onMaskSourceCombineModeChange={handleMaskSourceCombineModeChange}
+              onMaskSourceEnabledChange={handleMaskSourceEnabledChange}
               onMaskInvertChange={handleMaskInvertChange}
               onMaskEnabledChange={handleMaskEnabledChange}
               onRefineEdgeChange={handleRefineEdgeChange}

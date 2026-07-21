@@ -12,6 +12,7 @@ import {
 } from "../mask/foldPlan";
 import type {
   MaskSource,
+  ParametricMaskSource,
   MaskSourceType,
   RefineEdgeParams,
 } from "../mask/types";
@@ -151,13 +152,14 @@ export class MaskTextureResolver {
       );
     const snapshot = snapshotFoldInputs(layer.mask),
       cached = this.foldedMaskTextures.get(layer.id);
-    const folded =
-      cached &&
+    const cacheHit =
+      !!cached &&
       foldInputsEqual(cached.lastInputs, snapshot) &&
-      cached.lastInvert === layer.mask.invert
-        ? cached.texture
-        : this.fold(layer.id, plan, layer.mask.invert, encoder, pendingDestroy);
-    if (!cached || folded !== cached.texture)
+      cached.lastInvert === layer.mask.invert;
+    const folded = cacheHit
+      ? cached!.texture
+      : this.fold(layer.id, plan, layer.mask.invert, encoder, pendingDestroy);
+    if (!cacheHit)
       this.foldedMaskTextures.set(layer.id, {
         texture: folded,
         lastInputs: snapshot,
@@ -228,7 +230,7 @@ export class MaskTextureResolver {
     if (source.type !== "brush")
       return this.parametric(id, source, encoder, pending);
     const key = `${id}:${source.id}`,
-      raster = source.raster!,
+      raster = source.raster,
       old = this.sourceTextures.get(key);
     if (old?.syncedFrom === raster) return old.texture;
     const texture =
@@ -254,7 +256,7 @@ export class MaskTextureResolver {
   }
   private parametric(
     id: string,
-    source: MaskSource,
+    source: ParametricMaskSource,
     encoder: GPUCommandEncoder,
     pending: (GPUTexture | GPUBuffer)[],
   ): GPUTexture {
@@ -271,11 +273,8 @@ export class MaskTextureResolver {
           GPUTextureUsage.RENDER_ATTACHMENT |
           GPUTextureUsage.COPY_SRC,
       });
-    const module = getMaskSourceModule(
-        source.type as "gradient" | "luminosity" | "colorRange",
-      ),
-      count =
-        PARAM_COUNT_BY_TYPE[source.type as Exclude<MaskSourceType, "brush">],
+    const module = getMaskSourceModule(source.type),
+      count = PARAM_COUNT_BY_TYPE[source.type],
       flat = this.flatten(source.params, module.defaultParams, count),
       buffer = this.ctx.device.createBuffer({
         size: flat.byteLength,

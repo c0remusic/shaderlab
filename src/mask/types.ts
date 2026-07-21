@@ -18,35 +18,58 @@ export function defaultRefineEdge(): RefineEdgeParams {
   return { feather: 0, contract: 0, smooth: 0, edgeAware: false, edgeRadius: 10, edgeStrength: 1 };
 }
 
-/** Une source de masque combinable (design.md §3). Seul `type: "brush"` a une
- *  implémentation réelle en Tranche 2 (`raster` peuplé par le pinceau) —
- *  `"gradient"`/`"luminosity"`/`"colorRange"` existent dans l'union de type
- *  (zéro branche morte côté TypeScript) mais n'ont ni générateur de raster ni
- *  UI avant la Tranche 3. `params` reste `null` pour ces types tant qu'ils ne
- *  sont pas implémentés — jamais un objet vide qui laisserait croire à une
- *  config réelle. */
-export interface MaskSource {
+export type MaskSourceParams = Record<string, number | number[]>;
+
+/** Source pinceau (design.md §3) : `raster` obligatoirement peuplé, `params`
+ *  toujours `null` (le pinceau n'a pas de configuration paramétrique — sa
+ *  contribution est le buffer peint lui-même). Valide par construction :
+ *  impossible en TypeScript d'obtenir une source "brush" sans raster. */
+export interface BrushMaskSource {
   id: string;
-  type: MaskSourceType;
+  type: "brush";
   combineMode: CombineMode;
   enabled: boolean;
-  params: Record<string, number | number[]> | null;
-  raster: Uint8Array | null;
+  params: null;
+  raster: Uint8Array;
 }
 
-export function createBrushSource(id: string, raster: Uint8Array): MaskSource {
+/** Source paramétrique (dégradé/luminosité/range couleur, design.md §3) :
+ *  `params` obligatoirement peuplé, `raster` toujours `null` (sa contribution
+ *  est calculée par une passe shader depuis `params`, jamais peinte). Valide
+ *  par construction : impossible d'obtenir une source paramétrique sans
+ *  `params`, ou avec un `raster`. */
+export interface ParametricMaskSource {
+  id: string;
+  type: Exclude<MaskSourceType, "brush">;
+  combineMode: CombineMode;
+  enabled: boolean;
+  params: MaskSourceParams;
+  raster: null;
+}
+
+/** Une source de masque combinable (design.md §3), union discriminée sur
+ *  `type`/`raster`/`params` — remplace l'ancienne interface permissive où
+ *  `raster`/`params` pouvaient être `null` indépendamment du `type`, ce qui
+ *  permettait des états impossibles (source "brush" sans raster, source
+ *  paramétrique sans params) à passer la compilation. */
+export type MaskSource = BrushMaskSource | ParametricMaskSource;
+
+export function createBrushSource(id: string, raster: Uint8Array): BrushMaskSource {
   return { id, type: "brush", combineMode: "add", enabled: true, params: null, raster };
 }
 
-/** Source paramétrique (dégradé/luminosité/range couleur, design.md §3) —
- *  `raster: null` (contrairement au pinceau, sa contribution est calculée
- *  par une passe shader depuis `params`, jamais peinte). */
 export function createParametricSource(
   id: string,
   type: Exclude<MaskSourceType, "brush">,
-  params: Record<string, number | number[]>
-): MaskSource {
+  params: MaskSourceParams
+): ParametricMaskSource {
   return { id, type, combineMode: "add", enabled: true, params, raster: null };
+}
+
+/** Garde de type utilisée par les appelants qui doivent distinguer les deux
+ *  variantes sans caster (`resident()` du resolver, `ParamPanel`). */
+export function isParametricMaskSource(source: MaskSource): source is ParametricMaskSource {
+  return source.type !== "brush";
 }
 
 /** Conteneur de masque non-destructif d'un calque (design.md §3). Remplace

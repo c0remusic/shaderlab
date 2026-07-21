@@ -1,6 +1,6 @@
 import type { LayerState } from "./types";
 import { defaultLayerMask, createBrushSource, createParametricSource } from "../mask/types";
-import type { MaskSourceType, CombineMode, RefineEdgeParams } from "../mask/types";
+import type { MaskSourceType, CombineMode, RefineEdgeParams, MaskSourceParams } from "../mask/types";
 import { getMaskSourceModule } from "../mask/sources/registry";
 
 let nextId = 0;
@@ -62,6 +62,7 @@ export class LayerStack {
       return;
     }
     const existing = layer.mask.sources[idx];
+    if (existing.type !== "brush") throw new Error("Invariant violé: source pinceau attendue");
     const nextSource = { ...existing, raster: fresh };
     const nextSources = layer.mask.sources.map((s, i) => (i === idx ? nextSource : s));
     layer.mask = { ...layer.mask, sources: nextSources };
@@ -83,12 +84,15 @@ export class LayerStack {
     layer.mask = { ...layer.mask, sources: layer.mask.sources.filter((s) => s.id !== sourceId) };
   }
 
-  updateMaskSourceParams(layerId: string, sourceId: string, params: Record<string, number | number[]>): void {
+  updateMaskSourceParams(layerId: string, sourceId: string, params: MaskSourceParams): void {
     const layer = this.layers.find((l) => l.id === layerId);
     if (!layer) throw new Error(`Calque introuvable: ${layerId}`);
     layer.mask = {
       ...layer.mask,
-      sources: layer.mask.sources.map((s) => (s.id === sourceId ? { ...s, params } : s)),
+      // "brush" n'a pas de params (voir mask/types.ts) : un id de source
+      // pinceau ne matche jamais ici, la garde de type est donc un no-op
+      // pour ce cas, jamais un comportement observable différent.
+      sources: layer.mask.sources.map((s) => (s.id === sourceId && s.type !== "brush" ? { ...s, params } : s)),
     };
   }
 
@@ -115,6 +119,22 @@ export class LayerStack {
   setMaskEnabled(id: string, enabled: boolean): void {
     const layer = this.layers.find((l) => l.id === id);
     if (layer) layer.mask = { ...layer.mask, enabled };
+  }
+
+  /** Active/désactive UNE source de masque (design.md §3, gap Tranche 3 —
+   *  jusqu'ici seul `setMaskEnabled` existait, au niveau du masque entier).
+   *  Retourne `true` seulement si la source existait ET que sa valeur a
+   *  changé (évite une entrée d'historique vide sur un no-op, cf. `App.tsx`
+   *  Task 3). */
+  setMaskSourceEnabled(layerId: string, sourceId: string, enabled: boolean): boolean {
+    const layer = this.layers.find((l) => l.id === layerId);
+    if (!layer) return false;
+    const idx = layer.mask.sources.findIndex((s) => s.id === sourceId);
+    if (idx === -1) return false;
+    if (layer.mask.sources[idx].enabled === enabled) return false;
+    const nextSources = layer.mask.sources.map((s, i) => (i === idx ? { ...s, enabled } : s));
+    layer.mask = { ...layer.mask, sources: nextSources };
+    return true;
   }
 
   clone(): LayerStack {

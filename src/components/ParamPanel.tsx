@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { LayerState } from "../layers/types";
 import type { RefineEdgeParams } from "../mask/types";
+import { isParametricMaskSource } from "../mask/types";
 import { getEffect } from "../render/effects/registry";
 import { maskSourceRegistry, getMaskSourceModule } from "../mask/sources/registry";
 import "./ParamPanel.css";
@@ -25,6 +26,7 @@ interface Props {
   onMaskSourceParamsChange: (layerId: string, sourceId: string, params: Record<string, number | number[]>) => void;
   onMaskSourceParamsCommit: () => void;
   onMaskSourceCombineModeChange: (layerId: string, sourceId: string, mode: "add" | "subtract" | "intersect") => void;
+  onMaskSourceEnabledChange: (layerId: string, sourceId: string, enabled: boolean) => void;
   onMaskInvertChange: (layerId: string, invert: boolean) => void;
   onMaskEnabledChange: (layerId: string, enabled: boolean) => void;
   onRefineEdgeChange: (layerId: string, refineEdge: Partial<RefineEdgeParams>) => void;
@@ -79,6 +81,7 @@ export function ParamPanel({
   onMaskSourceParamsChange,
   onMaskSourceParamsCommit,
   onMaskSourceCombineModeChange,
+  onMaskSourceEnabledChange,
   onMaskInvertChange,
   onMaskEnabledChange,
   onRefineEdgeChange,
@@ -95,8 +98,9 @@ export function ParamPanel({
   // (peinture, cf. LayerStack.updateBrushMask) n'a pas de module dans
   // maskSourceRegistry (gradient/luminosity/colorRange seulement) : la
   // laisser dans cette liste ferait planter getMaskSourceModule() au premier
-  // calque peint au pinceau qui ouvre son panneau Masque.
-  const sources = layer.mask.sources.filter((s) => s.type !== "brush");
+  // calque peint au pinceau qui ouvre son panneau Masque. Garde de type
+  // (mask/types.ts) plutôt qu'un cast `as` sur `source.type` plus bas.
+  const sources = layer.mask.sources.filter(isParametricMaskSource);
   const activeSourceId = selectedSourceId && sources.some((s) => s.id === selectedSourceId)
     ? selectedSourceId
     : (sources[0]?.id ?? null);
@@ -164,7 +168,7 @@ export function ParamPanel({
           {sources.length > 0 && (
             <ul className="param-panel__source-list">
               {sources.map((source) => {
-                const module = getMaskSourceModule(source.type as "gradient" | "luminosity" | "colorRange");
+                const module = getMaskSourceModule(source.type);
                 return (
                   <li
                     key={source.id}
@@ -172,6 +176,11 @@ export function ParamPanel({
                       source.id === activeSourceId ? "param-panel__source-row--active" : ""
                     }`.trim()}
                   >
+                    <Checkbox
+                      label="Actif"
+                      checked={source.enabled}
+                      onChange={(enabled) => onMaskSourceEnabledChange(layer.id, source.id, enabled)}
+                    />
                     <button
                       type="button"
                       className="param-panel__source-name"

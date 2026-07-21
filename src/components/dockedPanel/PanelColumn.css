@@ -4,6 +4,7 @@
   right: var(--space-6);
   width: max-content;
   max-width: calc(100vw - (var(--space-6) * 2));
+  background: var(--panel-bg);
   z-index: var(--z-popover);
 }
 
@@ -51,3 +52,5 @@
   box-shadow: var(--shadow-dragging);
   z-index: var(--z-popover);
 }
+
+.panel-column__ghost .docked-panel-card { background: var(--panel-bg); }

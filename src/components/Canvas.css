@@ -7,7 +7,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface-workspace);
+  background: var(--surface-window);
   color: var(--text-primary);
   /* Compensation statique du centrage (design.md §8) : décale le point de
      centrage vers la gauche de la largeur par défaut du dock virtuel, pour

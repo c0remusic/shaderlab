@@ -478,6 +478,7 @@ export default function App() {
       <Toolbar
         canUndo={sessionRef.current.canUndo()}
         canRedo={sessionRef.current.canRedo()}
+        hasImage={imageSize.width > 0 && imageSize.height > 0}
         onUndo={handleUndo}
         onRedo={handleRedo}
         onExport={handleExport}
@@ -512,6 +513,7 @@ export default function App() {
           content: <LayerPanel
               layers={layers}
               selectedId={selectedId}
+              hasImage={imageSize.width > 0 && imageSize.height > 0}
               onSelect={selectLayer}
               onToggle={handleToggle}
               onAdd={handleAdd}

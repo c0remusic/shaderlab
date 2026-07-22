@@ -13,6 +13,7 @@ import "./LayerPanel.css";
 interface Props {
   layers: LayerState[];
   selectedId: string | null;
+  hasImage: boolean;
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
   onAdd: (effectId: string) => void;
@@ -142,6 +143,7 @@ const LayerRow = memo(function LayerRow({
 export function LayerPanel({
   layers,
   selectedId,
+  hasImage,
   onSelect,
   onToggle,
   onAdd,
@@ -175,6 +177,7 @@ export function LayerPanel({
         value={null}
         placeholder="+ Ajouter un effet"
         options={addEffectOptions}
+        disabled={!hasImage}
         onChange={onAdd}
       />
       <ul

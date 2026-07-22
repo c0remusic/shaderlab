@@ -10,13 +10,14 @@ import {
 interface Props {
   canUndo: boolean;
   canRedo: boolean;
+  hasImage: boolean;
   onUndo: () => void;
   onRedo: () => void;
   onExport: () => void;
   onOpenFile: () => void;
 }
 
-export function Toolbar({ canUndo, canRedo, onUndo, onRedo, onExport, onOpenFile }: Props) {
+export function Toolbar({ canUndo, canRedo, hasImage, onUndo, onRedo, onExport, onOpenFile }: Props) {
   return (
     <div
       role="toolbar"
@@ -36,7 +37,7 @@ export function Toolbar({ canUndo, canRedo, onUndo, onRedo, onExport, onOpenFile
             <FolderOpen className="icon-md icon-stroke" aria-hidden="true" />
             Ouvrir
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={onExport}>
+          <DropdownMenuItem onClick={onExport} disabled={!hasImage}>
             <Download className="icon-md icon-stroke" aria-hidden="true" />
             Exporter
           </DropdownMenuItem>

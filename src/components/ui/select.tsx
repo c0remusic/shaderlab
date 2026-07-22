@@ -19,11 +19,6 @@ export interface SelectProps {
   className?: string;
 }
 
-/** Converts Base UI's nullable change signal to this select's string-only consumer API. */
-export function toSelectChange(value: string | null): string | null {
-  return value;
-}
-
 export function Select({ label, value, placeholder = "Sélectionner…", options, disabled = false, onChange, className }: SelectProps) {
   return (
     <div className={cn("flex flex-col gap-1", className)}>
@@ -32,12 +27,13 @@ export function Select({ label, value, placeholder = "Sélectionner…", options
         value={value}
         disabled={disabled}
         onValueChange={(nextValue) => {
-          const next = toSelectChange(nextValue);
-          if (next !== null) onChange(next);
+          // Base UI signale null (désélection) — ce select n'expose que des
+          // valeurs string à ses consommateurs.
+          if (nextValue !== null) onChange(nextValue);
         }}
       >
         <SelectPrimitive.Label className="text-sm text-muted-foreground">{label}</SelectPrimitive.Label>
-        <SelectPrimitive.Trigger className="flex h-[var(--control-height-md)] w-full items-center justify-between gap-1.5 rounded-[var(--radius-control)] bg-secondary px-2.5 text-sm text-secondary-foreground transition-colors hover:bg-accent data-popup-open:bg-accent focus-visible:outline-[var(--focus-width)] focus-visible:outline-[var(--focus-color)] focus-visible:outline-offset-[var(--focus-offset)] data-disabled:cursor-not-allowed data-disabled:text-[var(--text-disabled)]">
+        <SelectPrimitive.Trigger className="flex h-[var(--control-height-md)] w-full items-center justify-between gap-1.5 rounded-[var(--radius-control)] bg-secondary px-2.5 text-sm text-secondary-foreground transition-colors hover:bg-accent data-popup-open:bg-accent focus-visible:outline-[length:var(--focus-width)] focus-visible:outline-solid focus-visible:outline-[var(--focus-color)] focus-visible:outline-offset-[var(--focus-offset)] data-disabled:cursor-not-allowed data-disabled:text-[var(--text-disabled)]">
           <SelectPrimitive.Value className="truncate data-placeholder:text-[var(--text-tertiary)]" placeholder={placeholder} />
           <SelectPrimitive.Icon>
             <ChevronDown className="icon-sm icon-stroke shrink-0 text-muted-foreground" aria-hidden="true" />

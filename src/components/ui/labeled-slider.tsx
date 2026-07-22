@@ -53,8 +53,11 @@ export function LabeledSlider({
   }, [isEditing, shownValue]);
 
   // Registre du "dernier contrôle modifié" (Ctrl+molette global, voir
-  // activeControl.ts) — réécrit à chaque rendu, toujours frais.
-  registerControl(id, { value, min, max, step, onChange, onCommit });
+  // activeControl.ts) — réécrit après CHAQUE rendu (effet de bord hors
+  // render), donc toujours frais.
+  useEffect(() => {
+    registerControl(id, { value, min, max, step, onChange, onCommit });
+  }, [id, value, min, max, step, onChange, onCommit]);
   useEffect(() => () => {
     unregisterControl(id);
     window.clearTimeout(wheelCommitTimer.current);

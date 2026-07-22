@@ -69,9 +69,8 @@
 }
 
 .layer-panel__row--dragging {
-  /* 0.5 littéral et ponctuel : aucun token "élément en cours de glisser"
-     n'existe dans le système, et un seul usage ne justifie pas d'en créer un
-     pour l'instant. */
+  /* Opacité "élément en cours de glisser" — partagée avec le dock via le
+     token --dragging-opacity (src/design/components.css). */
   opacity: var(--dragging-opacity);
 }
 

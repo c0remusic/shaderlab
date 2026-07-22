@@ -50,11 +50,10 @@
   --shadow-dragging: 0 12px 16px rgba(0, 0, 0, .24), 0 6px 8px rgba(0, 0, 0, .12), 0 0 6px rgba(0, 0, 0, .48);
   --shadow-popover: 0 4px 12px rgba(0, 0, 0, .24), 0 2px 6px rgba(0, 0, 0, .12), 0 0 2px rgba(0, 0, 0, .36);
 
-  --tooltip-delay: 500ms;
   --tooltip-max-width: 280px;
 
   --menu-z-index: var(--z-popover);
-  --menu-min-width: 96px;
+  --menu-min-width: 128px;
   --menu-padding: var(--space-2);
   --menu-radius: var(--radius-panel);
   --menu-duration: var(--duration-fast);
@@ -65,6 +64,7 @@
   --drag-ghost-opacity: .85;
   --drag-guide-opacity: .9;
   --loading-indicator-opacity: .7;
+  --drag-insert-chip-opacity: .9;
 }
 
 /* Icon utilities keep Lucide glyphs aligned with the component token scale. */

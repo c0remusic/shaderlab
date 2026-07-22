@@ -26,9 +26,10 @@ describe("design system contract", () => {
   });
 
   it("keeps the primary button on a neutral paper fill, never a brand color", () => {
-    // docs/design-system/tokens.md §Actions and statuses ; src/ui/actions.css
-    // documents this explicitly ("Primary: neutral paper fill, never a
-    // brand color"). Régression réelle le 2026-07-20 : le thème Photoshop
+    // docs/design-system/tokens.md §Actions and statuses documents this
+    // explicitly ("Primary: neutral paper fill, never a brand color").
+    // (src/ui/actions.css, l'autre source citée à l'origine, a été supprimé
+    // avec le système de contrôles legacy.) Régression réelle le 2026-07-20 : le thème Photoshop
     // avait remappé action-primary-bg vers l'accent bleu (#4069fd) sans que
     // ce test ne l'attrape (il ne vérifiait que l'absence de l'ancien hex
     // #5aa9e6, pas le mapping réel).

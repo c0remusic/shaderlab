@@ -264,7 +264,6 @@ No bounce or spring token exists. Direct manipulation MUST use
 --panel-border: var(--border-default);
 --panel-radius: var(--radius-panel);
 
---tooltip-delay: 500ms;
 --tooltip-max-width: 280px;
 ```
 

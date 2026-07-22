@@ -1,5 +1,13 @@
 {
   "_regle_entretien": "À chaque ajout/déplacement/archivage d'un doc dans docs/, mettre à jour ce fichier dans le même geste, pas en rattrapage différé. Même principe que Sift.",
+  "archive": [
+    {
+      "path": "docs/archive/claude-md-history-pre-2026-07-22.md",
+      "date": "2026-07-22",
+      "topic": "historique de sessions retiré du bandeau CLAUDE.md racine (politique doc-rot)",
+      "summary": "Bloc narratif chronologique (2026-07-12 → 2026-07-21, 108 lignes) déplacé verbatim depuis le haut de CLAUDE.md vers ce fichier — le bandeau faisait 348 lignes (148 au-dessus de la cible <200) et mélangeait invariant durable et narration de session. CLAUDE.md ne garde qu'un pointeur de 4 lignes + l'invariant réellement durable (buffers de masque hors state React). Le statut COURANT d'un chantier se lit dans docs/INDEX.json, pas dans cette archive ni dans l'ancien bandeau."
+    }
+  ],
   "changes": [
     {
       "path": "docs/superpowers/changes/2026-07-13-archi-remediation/",

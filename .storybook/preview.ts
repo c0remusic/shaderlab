@@ -9,6 +9,7 @@ const preview: Preview = {
       values: [{ name: "app", value: "var(--primitive-neutral-925)" }],
     },
   },
+  tags: ["autodocs"],
 };
 
 export default preview;

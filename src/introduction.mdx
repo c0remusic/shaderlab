@@ -1,0 +1,53 @@
+{/* introduction.mdx */}
+import { Meta, Title, Subtitle } from '@storybook/addon-docs/blocks';
+
+<Meta title="Get started" />
+
+<Title>shaderlab</Title>
+
+<Subtitle>Effets shader temps réel en calques pour photos JPEG, avec round-trip Lightroom</Subtitle>
+
+App desktop Windows (Tauri v2 + React 19 + WebGPU/WGSL brut) pour appliquer des
+effets visuels type "shader" empilables en calques (glow, chromatic bleed, warp,
+grain) sur des photos JPEG, avec masque au pinceau par calque et undo/redo en
+session. Fait aussi office d'éditeur externe Lightroom (round-trip type Dehancer :
+Lightroom exporte une copie, lance l'app avec le chemin en argument, l'app écrase
+ce même fichier, Lightroom réimporte).
+
+## Explorer cette Storybook
+
+Cette instance couvre tous les composants React du projet :
+
+- **`ui/`** — les primitives shadcn/base-ui (button, select, slider, tooltip,
+  dropdown-menu…) qui forment le socle du design system.
+- **Panneaux** — `LayerPanel`, `ParamPanel`, `MaskPanel`, `dockedPanel/*` (dock
+  fixe + splitter redimensionnable).
+- **Canvas** — le composant de rendu WebGPU (`Canvas`). Le canvas reste noir
+  dans l'iframe Storybook : aucun device WebGPU réel n'y est initialisé, seule
+  la structure/le montage du composant y est vérifiable.
+
+Chaque tag `autodocs` génère automatiquement, pour un composant donné, une page
+avec sa description, sa table d'API (props) et un exemple par story.
+
+## Design tokens
+
+Les tokens de marque réels (couleurs, espacement, typographie) vivent dans :
+
+```
+src/design/primitives.css
+src/design/semantic.css
+src/design/components.css
+```
+
+Ils sont mappés vers Tailwind v4 dans `src/design/tailwind-theme.css` — ne
+jamais redéfinir une valeur en dur ailleurs, toujours passer par un token
+existant (`npm run lint:tokens` détecte les contournements).
+
+## Commandes utiles
+
+```sh
+npm run storybook          # Storybook en dev, port 6006
+npm run build-storybook    # build statique
+npm run test               # Vitest
+npx tsc --noEmit           # type-check
+```

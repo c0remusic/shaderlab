@@ -51,6 +51,19 @@ export interface MaskTexturesPort {
 export type FramePipelineResult = {
   enabledLayerCount: number;
   churnedResourceCount: number;
+  /** Texture composée AVANT overlay (le frame réel, sans le rouge/contour de
+   *  masque) — null si aucun overlayLayer n'était actif ce rendu. Capturée
+   *  ici plutôt que recalculée : c'est la seule source de vérité pour
+   *  `Renderer.tickOverlayAnimation`, qui ne doit jamais deviner quel buffer
+   *  ping-pong contient le bon frame. */
+  composedTexture: GPUTexture | null;
+  /** Texture de masque déjà résolue par `MaskTexturesPort.resolve()` pour
+   *  l'overlay de ce rendu, ou null si aucun overlayLayer. `resolve()` n'est
+   *  PAS un cache de résultat pour edge-aware/refine-edge (seul le fold est
+   *  mis en cache, voir `maskTextureResolver.ts`) — la rappeler à chaque
+   *  frame d'animation regénérerait ce travail coûteux. La capturer ici
+   *  évite tout nouvel appel à `resolve()` hors d'un vrai rendu complet. */
+  overlayMaskTexture: GPUTexture | null;
 };
 
 /**
@@ -101,20 +114,22 @@ export class FramePipelineExecutor {
         {},
         pendingDestroy,
       );
+      let overlayMaskTexture: GPUTexture | null = null;
       if (overlayLayer && blitTarget) {
+        overlayMaskTexture = this.masks.resolve(
+          overlayLayer,
+          encoder,
+          sourceTexture.createView(),
+          pendingDestroy,
+        );
         this.effects.runOverlayPass(
           encoder,
           blitTarget,
-          this.masks.resolve(
-            overlayLayer,
-            encoder,
-            sourceTexture.createView(),
-            pendingDestroy,
-          ),
+          overlayMaskTexture,
           finalTargetView,
         );
       }
-      return this.submitAndDestroy(encoder, pendingDestroy, 0);
+      return this.submitAndDestroy(encoder, pendingDestroy, 0, blitTarget, overlayMaskTexture);
     }
 
     let readTexture = sourceTexture;
@@ -152,29 +167,40 @@ export class FramePipelineExecutor {
       }
     }
 
+    let overlayMaskTexture: GPUTexture | null = null;
+    let composedTexture: GPUTexture | null = null;
     if (overlayLayer) {
+      composedTexture = pingPong[writeIndex];
+      overlayMaskTexture = this.masks.resolve(
+        overlayLayer,
+        encoder,
+        composedTexture.createView(),
+        pendingDestroy,
+      );
       this.effects.runOverlayPass(
         encoder,
-        pingPong[writeIndex],
-        this.masks.resolve(
-          overlayLayer,
-          encoder,
-          pingPong[writeIndex].createView(),
-          pendingDestroy,
-        ),
+        composedTexture,
+        overlayMaskTexture,
         finalTargetView,
       );
     }
-    return this.submitAndDestroy(encoder, pendingDestroy, enabledLayers.length);
+    return this.submitAndDestroy(encoder, pendingDestroy, enabledLayers.length, composedTexture, overlayMaskTexture);
   }
 
   private submitAndDestroy(
     encoder: GPUCommandEncoder,
     pendingDestroy: FrameResource[],
     enabledLayerCount: number,
+    composedTexture: GPUTexture | null,
+    overlayMaskTexture: GPUTexture | null,
   ): FramePipelineResult {
     this.device.queue.submit([encoder.finish()]);
     for (const resource of pendingDestroy) resource.destroy();
-    return { enabledLayerCount, churnedResourceCount: pendingDestroy.length };
+    return {
+      enabledLayerCount,
+      churnedResourceCount: pendingDestroy.length,
+      composedTexture,
+      overlayMaskTexture,
+    };
   }
 }

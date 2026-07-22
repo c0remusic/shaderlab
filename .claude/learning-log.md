@@ -3,6 +3,40 @@
 Store instinct-system, portée projet. Écrivain = wrap-up seul. Voir
 `~/.claude/CLAUDE.md` § Store instinct-system pour la convention globale.
 
+## 2026-07-22 — 15 défauts de la tranche design-system unification (efecd5c..HEAD) invisibles à tsc/tests/lint:tokens
+
+**Découverte (TTL 6 mois)** : `/code-review ultra` (local, 4 angles en
+parallèle) a trouvé 15 défauts réels dans la migration `src/ui/*` →
+`src/components/ui/*` (Base UI) — tous survivaient à `tsc --noEmit`, aux 251
+tests, et à `npm run lint:tokens` verts. Cause générique : voir
+`[[NG37]]` (`~/.claude/instinct-log.md`) sur le piège Tailwind
+`outline-[var(--x)]`/`ring-[var(--x)]` qui compile en propriété couleur, pas
+largeur — 4 des 15 défauts (Select/Checkbox/IconButton/Collapsible +
+Button/Toggle/Slider) étaient cette même classe d'erreur. Les autres :
+chevron de disclosure qui ne tourne pas (`data-panel-open` posé par Base UI
+sur le Trigger, pas sur l'icône enfant), `<label htmlFor>` de
+`LabeledSlider` pointant sur un `<div>` non labelable (Base UI
+`Slider.Root`), `onWheel` posé sur tout le wrapper au lieu de la piste
+(volait le scroll du panneau docké), `registerControl` appelé en effet de
+bord pendant le render au lieu d'un `useEffect`, 3 valeurs de token qui
+avaient dérivé silencieusement sous couvert d'un refactor "littéral →
+primitive" (`--primitive-danger`, `--text-tertiary`, `--menu-min-width`),
+et du code mort maintenu artificiellement vert par ses propres tests
+(`selectPlacement.ts`/`selectNavigation.ts`/`sliderMath.ts`, plus aucun
+consommateur de production après la suppression de `src/ui/Select.tsx`/
+`Slider.tsx`, mais 3 suites de tests continuaient de les exercer). Fix :
+commit `35e2640`. Le nombre de tests visible est passé de 251 à 232 après ce
+fix — c'est la fausse couverture du code mort qui disparaît, PAS une
+régression de couverture ; ne pas s'alarmer sur ce chiffre seul dans
+l'historique git.
+
+**Pattern à surveiller** : `lint:tokens` (`scripts/lint-tokens.mjs`) ne scanne
+que le CSS — il ne voit jamais une valeur arbitraire Tailwind mal typée dans
+un `.tsx`. Ce garde-fou a un angle mort connu maintenant ; toute revue future
+touchant des classes `outline-[var(...)]`/`ring-[var(...)]`/`shadow-[var(...)]`
+doit vérifier le CSS RÉELLEMENT émis (`npm run build` + grep `dist/assets/*.css`),
+pas seulement lire le nom de la classe.
+
 ## 2026-07-18 — pas de composant Menu (actions groupées) avant cette session
 
 **Découverte (TTL 6 mois)** : `src/ui/` n'avait que `Select.tsx` (choix de
@@ -622,3 +656,25 @@ globale) : cette session a enchaîné ~9 micro-fixes séquentiels sur des
 plaintes UI reformulées 4 fois ("thème pas cohérent" → "et les couleurs ?"
 → "les règles de padding..."). Un audit token/CSS large fait dès la première
 plainte systémique aurait capturé plusieurs de ces bugs en une seule passe.
+
+## 2026-07-22 — dogfood-qa (nouveau skill global) : premier passage réel, 1 bug trouvé
+
+Premier test du skill `dogfood-qa` (audit QA exploratoire, ~/.claude/skills/)
+sur ce repo. Périmètre réduit à l'écran vide (avant chargement d'image), via
+CDP sur la vraie fenêtre WebView2 (confirme en pratique l'exception moyen-de-
+preuve déjà déclarée dans CLAUDE.md racine : screenshot CDP non noir, contrairement
+à ce qu'aurait donné Playwright headless sur ce canvas WebGPU).
+
+**Bug trouvé et corrigé** (`96dd8d5`) : `LayerPanel` (dropdown "+ Ajouter un
+effet") et `Toolbar` (menu Fichier › Exporter) n'étaient gatés par aucune
+condition liée à la présence d'un document — un calque complet (avec ses
+réglages) pouvait être créé, et Export restait cliquable, alors que le canvas
+affichait toujours l'écran vide "Ouvrir une photo". Fix : nouvelle prop
+`hasImage` (réutilise `imageSize.width > 0 && imageSize.height > 0`, déjà
+calculé pour `Canvas`) passée aux deux composants, `disabled={!hasImage}`.
+
+**Pattern générique à surveiller** : tout nouveau contrôle qui agit sur le
+document actif (ajout de calque, export, futurs items menu Fichier) doit
+explicitement vérifier `hasImage` — ce n'est pas gardé par défaut par
+l'architecture actuelle (chaque composant doit le faire individuellement, pas
+de garde centralisée au niveau du routeur/layout).

@@ -10,6 +10,7 @@ Approved 2026-07-13. Theme: `darkroom-balanced`.
 - Color is semantic only: mask red, danger red, warning amber, success green.
 - Compact density: 13px UI, 11–12px metadata, 28–32px controls, 36px toolbar.
 - Technical-soft geometry: 5px controls, 7px groups, 8px panels, 10px dialogs.
+- Sliders: compact dark track with a light thumb and a 30px editable monospace value field; typed values accept a comma decimal separator and retain the slider's range and step.
 - Borders + surface shifts only; no shadows, SaaS cards or decorative accents.
 - Segoe UI Variable for UI; Cascadia Mono/Consolas for values.
 - Lucide only, 14/16/20px, 1.5px stroke.

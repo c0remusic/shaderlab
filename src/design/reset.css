@@ -6,7 +6,12 @@ body {
   font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
 }
-button, input, select, textarea { font: inherit; }
+/* This belongs to Tailwind's base layer so utility classes such as `text-sm`
+   can intentionally override the form-control default. An unlayered `font`
+   shorthand would otherwise win over every layered utility. */
+@layer base {
+  button, input, select, textarea { font: inherit; }
+}
 :focus-visible { outline: var(--focus-width) solid var(--focus-color); outline-offset: var(--focus-offset); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }

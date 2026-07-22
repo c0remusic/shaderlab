@@ -25,10 +25,10 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-4);
   /* Padding uniforme (même rang horizontal/vertical, comme Toolbar et
      DockedPanelCard) au lieu de --space-3/--space-2 mélangés sans raison. */
-  padding: var(--space-3);
+  padding: var(--space-4);
   border-radius: var(--radius-control);
   color: var(--text-secondary);
   /* pointer, pas grab : draggable n'est plus sur la ligne entière (scopé à
@@ -52,7 +52,7 @@
   /* --space-5, même rang que .param-panel__group (ParamPanel.css) pour la
      même relation (contrôles frères dans un groupe) — --space-2 est le rang
      "interne à un composant" (icône-texte), pas celui-ci. */
-  gap: var(--space-5);
+  gap: var(--space-4);
   cursor: default;
 }
 
@@ -83,8 +83,8 @@
   border-bottom-color: transparent;
 }
 
-.layer-panel__insert-chip--before { top: calc(var(--space-4) * -0.5); }
-.layer-panel__insert-chip--after { top: calc(100% + (var(--space-4) * 0.5)); }
+.layer-panel__alignment-guide--before { top: calc(var(--space-4) * -0.5); }
+.layer-panel__alignment-guide--after { top: calc(100% + (var(--space-4) * 0.5)); }
 
 .layer-panel__row-main {
   display: flex;
@@ -109,7 +109,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-ui);
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 

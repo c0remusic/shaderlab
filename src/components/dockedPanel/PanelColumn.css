@@ -16,8 +16,9 @@
 }
 
 .panel-column__stack {
+  position: relative;
   display: flex;
-  flex: 0 0 var(--inspector-width-default);
+  flex: 0 0 var(--dock-reserved-width, var(--inspector-width-default));
   flex-direction: column;
   gap: var(--space-4);
   max-height: inherit;
@@ -26,20 +27,54 @@
 
 .panel-column__item { position: relative; }
 
-.panel-column__insert-chip--horizontal {
-  /* Même pastille que le réordonnancement vertical (20x8, drag-reorder.css) —
-     pivotée pour indiquer une couture horizontale au lieu de dimensions
-     propres qui la font paraître comme un élément différent. */
-  transform: translate(-50%, -50%) rotate(90deg);
+.panel-column__alignment-guide--vertical {
+  /* A vertical guide marks the seam for a neighboring panel column. */
+  width: var(--focus-width);
 }
 
 .panel-column__ghost {
   position: fixed;
   top: 0;
   left: 0;
-  width: var(--inspector-width-default);
+  width: var(--dock-reserved-width, var(--inspector-width-default));
   opacity: var(--drag-ghost-opacity);
   pointer-events: none;
   box-shadow: var(--shadow-dragging);
   z-index: var(--z-popover);
+}
+
+/* Poignée de redimensionnement en LARGEUR — rendue dans la PREMIÈRE colonne
+   (.panel-column__stack, position: relative) pour que sa hauteur suive
+   cette colonne plutôt que la hauteur max de toute la grille (sinon la
+   ligne dépasse une colonne plus courte que les autres). Une seule
+   poignée pilote --dock-reserved-width, partagé par toutes les colonnes
+   (largeur globale, pas de redimensionnement par colonne). */
+.panel-column__width-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--space-2) * -1);
+  width: var(--space-4);
+  cursor: col-resize;
+}
+
+/* Invisible au repos — seul le curseur col-resize signale la poignée ;
+   la ligne n'apparaît qu'au survol (décision Antoine 2026-07-22). */
+.panel-column__width-handle::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: 1px;
+  background: transparent;
+  transform: translateX(-50%);
+}
+
+.panel-column__width-handle:hover::after {
+  background: var(--border-selection);
+}
+
+.panel-column__width-handle:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
 }

@@ -1,6 +1,7 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { DockedPanelCard } from "./DockedPanelCard";
-import { isNoOpDockDrop, type DockDropTarget, type DockLayout } from "../../ui/dockLayout";
+import { getDockDropTarget, isNoOpDockDrop, type DockDropTarget, type DockLayout } from "../../ui/dockLayout";
+import { clampDockWidth } from "./dockWidth";
 import "../../ui/dragReorder.css";
 import "./PanelColumn.css";
 
@@ -16,6 +17,8 @@ export interface PanelColumnProps {
   panels: DockedPanelSpec[];
   layout: DockLayout;
   onMove: (id: string, target: DockDropTarget) => void;
+  width: number;
+  onWidthChange: (width: number) => void;
 }
 
 interface DockDragState {
@@ -27,9 +30,45 @@ interface DockDragState {
   targetBounds: { top: number; right: number; bottom: number; left: number } | null;
 }
 
-export function PanelColumn({ panels, layout, onMove }: PanelColumnProps) {
+export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: PanelColumnProps) {
   const [dragState, setDragState] = useState<DockDragState | null>(null);
   const draggedPanel = dragState ? panels.find((panel) => panel.id === dragState.draggedId) : null;
+
+  // Redimensionnement en largeur — poignée sur le bord GAUCHE de TOUT le
+  // conteneur .panel-column (toutes colonnes confondues, décision Antoine
+  // 2026-07-21 : largeur globale partagée, pas de redimensionnement par
+  // colonne indépendant). La colonne est ancrée à droite (right: var(--space-6)),
+  // donc glisser vers la GAUCHE agrandit la largeur, vers la DROITE la réduit —
+  // pas de magnétisme, juste un clamp aux bornes. État de drag en ref (pas
+  // besoin de re-render pendant le geste : la largeur elle-même vit dans
+  // App.tsx via onWidthChange, appelé à chaque pointermove).
+  const widthDragRef = useRef<{ pointerId: number; startClientX: number; startWidth: number } | null>(null);
+
+  const handleWidthPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      widthDragRef.current = { pointerId: e.pointerId, startClientX: e.clientX, startWidth: width };
+    },
+    [width]
+  );
+
+  const handleWidthPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const drag = widthDragRef.current;
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      const delta = e.clientX - drag.startClientX;
+      onWidthChange(clampDockWidth(drag.startWidth - delta));
+    },
+    [onWidthChange]
+  );
+
+  const handleWidthPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = widthDragRef.current;
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    widthDragRef.current = null;
+  }, []);
+
+  const handleWidthPointerCancel = handleWidthPointerUp;
 
   const handlePointerDown = useCallback((id: string, event: React.PointerEvent<HTMLDivElement>) => {
     const card = event.currentTarget.closest<HTMLElement>(".panel-column__item");
@@ -57,16 +96,13 @@ export function PanelColumn({ panels, layout, onMove }: PanelColumnProps) {
       const rowIndex = Number(card.dataset.dockRow);
       const rect = card.getBoundingClientRect();
       const relativeX = (event.clientX - rect.left) / rect.width;
-      const target: DockDropTarget = relativeX < .25
-        ? { kind: "horizontal", columnIndex, position: "left" }
-        : relativeX > .75
-          ? { kind: "horizontal", columnIndex, position: "right" }
-          : {
-              kind: "vertical",
-              columnIndex,
-              rowIndex,
-              position: event.clientY - rect.top < rect.height / 2 ? "before" : "after",
-            };
+      const target = getDockDropTarget(
+        columnIndex,
+        rowIndex,
+        relativeX,
+        (event.clientY - rect.top) / rect.height,
+        columnIndex === layout.length - 1,
+      );
       if (isNoOpDockDrop(layout, current.draggedId, target)) return { ...current, pointerPosition, target: null, targetBounds: null };
       return { ...current, pointerPosition, target, targetBounds: rect };
     });
@@ -78,21 +114,23 @@ export function PanelColumn({ panels, layout, onMove }: PanelColumnProps) {
     setDragState(null);
   }, [dragState, onMove]);
 
-  let chipStyle: React.CSSProperties | null = null;
-  let chipClassName = "drag-reorder__insert-chip";
+  let guideStyle: React.CSSProperties | null = null;
+  let guideClassName = "drag-reorder__alignment-guide";
   if (dragState?.target && dragState.targetBounds) {
     const dock = document.querySelector<HTMLElement>(".panel-column");
     if (dock) {
       if (dragState.target.kind === "vertical") {
-        chipStyle = {
+        guideStyle = {
           left: (dragState.targetBounds.left + dragState.targetBounds.right) / 2 - dock.getBoundingClientRect().left,
           top: (dragState.target.position === "before" ? dragState.targetBounds.top : dragState.targetBounds.bottom) - dock.getBoundingClientRect().top,
+          width: dragState.targetBounds.right - dragState.targetBounds.left,
         };
       } else {
-        chipClassName += " panel-column__insert-chip--horizontal";
-        chipStyle = {
+        guideClassName += " panel-column__alignment-guide--vertical";
+        guideStyle = {
           left: (dragState.target.position === "left" ? dragState.targetBounds.left : dragState.targetBounds.right) - dock.getBoundingClientRect().left,
           top: (dragState.targetBounds.top + dragState.targetBounds.bottom) / 2 - dock.getBoundingClientRect().top,
+          height: dragState.targetBounds.bottom - dragState.targetBounds.top,
         };
       }
     }
@@ -108,6 +146,19 @@ export function PanelColumn({ panels, layout, onMove }: PanelColumnProps) {
       <div className="panel-column__grid">
         {layout.map((column, columnIndex) => (
           <div className="panel-column__stack" key={column.join("-")}>
+            {columnIndex === 0 && (
+              <div
+                className="panel-column__width-handle"
+                onPointerDown={handleWidthPointerDown}
+                onPointerMove={handleWidthPointerMove}
+                onPointerUp={handleWidthPointerUp}
+                onPointerCancel={handleWidthPointerCancel}
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Redimensionner la largeur du dock"
+                tabIndex={0}
+              />
+            )}
             {column.map((id, rowIndex) => {
               const panel = panels.find((candidate) => candidate.id === id);
               if (!panel) return null;
@@ -129,7 +180,7 @@ export function PanelColumn({ panels, layout, onMove }: PanelColumnProps) {
           </div>
         ))}
       </div>
-      {chipStyle && <div className={chipClassName} style={chipStyle} aria-hidden="true" />}
+      {guideStyle && <div className={guideClassName} style={guideStyle} aria-hidden="true" />}
       {dragState && draggedPanel && (
         <div
           className="panel-column__ghost"

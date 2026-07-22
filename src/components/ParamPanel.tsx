@@ -36,7 +36,6 @@ export function ParamPanel({ layer, onParamChange, onParamCommit }: Props) {
 
   return (
     <div className="param-panel">
-      <h3 className="param-panel__effect-name">{effect.name}</h3>
       <Disclosure title="Effet" defaultOpen>
         <div className="param-panel__group">
           {effect.params.map((p) => (

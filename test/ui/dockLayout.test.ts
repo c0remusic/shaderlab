@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { movePanelInDock, type DockLayout } from "../../src/ui/dockLayout";
+import { getDockDropTarget, movePanelInDock, type DockLayout } from "../../src/ui/dockLayout";
 
 const layout: DockLayout = [["history"], ["layers", "params"]];
 
@@ -40,5 +40,20 @@ describe("movePanelInDock", () => {
 
   it("returns the original layout when the panel id is absent", () => {
     expect(movePanelInDock(layout, "missing", { kind: "horizontal", columnIndex: 0, position: "left" })).toBe(layout);
+  });
+});
+
+describe("getDockDropTarget", () => {
+  it("reserves the left edge and inner right edges for horizontal docking", () => {
+    expect(getDockDropTarget(1, 0, 0.14, 0.5)).toEqual({ kind: "horizontal", columnIndex: 1, position: "left" });
+    expect(getDockDropTarget(1, 0, 0.86, 0.5)).toEqual({ kind: "horizontal", columnIndex: 1, position: "right" });
+  });
+
+  it("does not offer a new column beyond the rightmost dock column", () => {
+    expect(getDockDropTarget(1, 0, 0.86, 0.25, true)).toEqual({ kind: "vertical", columnIndex: 1, rowIndex: 0, position: "before" });
+  });
+
+  it("gives vertical reordering the majority of the card width", () => {
+    expect(getDockDropTarget(1, 0, 0.2, 0.25)).toEqual({ kind: "vertical", columnIndex: 1, rowIndex: 0, position: "before" });
   });
 });

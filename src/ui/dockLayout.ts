@@ -4,6 +4,29 @@ export type DockDropTarget =
   | { kind: "vertical"; columnIndex: number; rowIndex: number; position: "before" | "after" }
   | { kind: "horizontal"; columnIndex: number; position: "left" | "right" };
 
+const HORIZONTAL_DOCK_SNAP_RATIO = 0.15;
+
+export function getDockDropTarget(
+  columnIndex: number,
+  rowIndex: number,
+  relativeX: number,
+  relativeY: number,
+  isRightmostColumn = false,
+): DockDropTarget {
+  if (relativeX < HORIZONTAL_DOCK_SNAP_RATIO) {
+    return { kind: "horizontal", columnIndex, position: "left" };
+  }
+  if (!isRightmostColumn && relativeX > 1 - HORIZONTAL_DOCK_SNAP_RATIO) {
+    return { kind: "horizontal", columnIndex, position: "right" };
+  }
+  return {
+    kind: "vertical",
+    columnIndex,
+    rowIndex,
+    position: relativeY < 0.5 ? "before" : "after",
+  };
+}
+
 function findPanel(layout: DockLayout, id: string): { columnIndex: number; rowIndex: number } | null {
   for (let columnIndex = 0; columnIndex < layout.length; columnIndex += 1) {
     const rowIndex = layout[columnIndex].indexOf(id);

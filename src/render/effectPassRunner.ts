@@ -10,19 +10,32 @@ export const PASSTHROUGH_EFFECT: EffectModule = {
   wgsl: "fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> { return color; }",
 };
 
-const MASK_OVERLAY_WGSL = `
+export const MASK_OVERLAY_WGSL = `
 ${FULLSCREEN_VERTEX_WGSL}
 
 @group(0) @binding(0) var overlaySrc: texture_2d<f32>;
 @group(0) @binding(1) var overlaySampler: sampler;
 @group(0) @binding(2) var overlayMask: texture_2d<f32>;
+@group(0) @binding(3) var<uniform> overlayTime: f32;
 
 @fragment
 fn fs_overlay(in: VertexOut) -> @location(0) vec4<f32> {
   let img = textureSample(overlaySrc, overlaySampler, in.uv);
   let m = textureSample(overlayMask, overlaySampler, in.uv).r;
   let tint = vec3<f32>(0.791, 0.045, 0.061);
-  return vec4<f32>(mix(img.rgb, tint, m * 0.28), img.a);
+  var rgb = mix(img.rgb, tint, m * 0.28);
+
+  // Contour au seuil 0.5 : bande de ~1.5px via dérivée d'écran, jamais de
+  // tracé d'isoligne CPU (design.md, "Contour, pas seuil binaire caché").
+  // Pointillés : phase animée le long de la diagonale écran, indépendante
+  // du contenu du masque.
+  let edgeWidth = fwidth(m) * 1.5 + 0.0001;
+  let onContour = 1.0 - smoothstep(0.0, edgeWidth, abs(m - 0.5));
+  let dashPhase = fract((in.position.x + in.position.y) * 0.12 - overlayTime * 1.5);
+  let dashColor = select(vec3<f32>(0.0), vec3<f32>(1.0), dashPhase > 0.5);
+  rgb = mix(rgb, dashColor, onContour);
+
+  return vec4<f32>(rgb, img.a);
 }
 `;
 
@@ -41,6 +54,11 @@ export class EffectPassRunner {
     string,
     { pipeline: GPURenderPipeline; bindGroupLayout: GPUBindGroupLayout }
   >();
+  /** Buffer d'uniform réutilisé pour `overlayTime` — créé une fois, mis à
+   *  jour par `writeBuffer` à chaque tick (animation OU rendu normal),
+   *  jamais recréé/détruit par frame (évite la pression allocateur d'un
+   *  buffer jetable à 60fps). Détruit dans `clearPipelines()`. */
+  private timeBuffer: GPUBuffer | null = null;
 
   constructor(
     private readonly device: GPUDevice,
@@ -57,6 +75,8 @@ export class EffectPassRunner {
 
   clearPipelines(): void {
     this.pipelineCache.clear();
+    this.timeBuffer?.destroy();
+    this.timeBuffer = null;
   }
 
   runInternalPasses(
@@ -85,7 +105,7 @@ export class EffectPassRunner {
     return { view: passInputView, texture: lastTexture! };
   }
 
-  runOverlayPass(encoder: GPUCommandEncoder, src: GPUTexture, mask: GPUTexture, targetView: GPUTextureView): void {
+  runOverlayPass(encoder: GPUCommandEncoder, src: GPUTexture, mask: GPUTexture, targetView: GPUTextureView, time: number): void {
     let cached = this.pipelineCache.get(MASK_OVERLAY_WGSL);
     if (!cached) {
       const module = this.device.createShaderModule({ code: MASK_OVERLAY_WGSL });
@@ -93,6 +113,7 @@ export class EffectPassRunner {
         { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } },
         { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "filtering" } },
         { binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } },
+        { binding: 3, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },
       ] });
       const pipeline = this.device.createRenderPipeline({
         layout: this.device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
@@ -102,10 +123,18 @@ export class EffectPassRunner {
       cached = { pipeline, bindGroupLayout };
       this.pipelineCache.set(MASK_OVERLAY_WGSL, cached);
     }
+    if (!this.timeBuffer) {
+      this.timeBuffer = this.device.createBuffer({
+        size: 16,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+    }
+    this.device.queue.writeBuffer(this.timeBuffer, 0, new Float32Array([time, 0, 0, 0]));
     const bindGroup = this.device.createBindGroup({ layout: cached.bindGroupLayout, entries: [
       { binding: 0, resource: src.createView() },
       { binding: 1, resource: this.sampler },
       { binding: 2, resource: mask.createView() },
+      { binding: 3, resource: { buffer: this.timeBuffer } },
     ] });
     const pass = encoder.beginRenderPass({ colorAttachments: [{ view: targetView, loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } }] });
     pass.setPipeline(cached.pipeline);

@@ -34,6 +34,7 @@ export interface EffectPassesPort {
     source: GPUTexture,
     mask: GPUTexture,
     targetView: GPUTextureView,
+    time: number,
   ): void;
 }
 
@@ -93,6 +94,7 @@ export class FramePipelineExecutor {
       ? (layers.find((layer) => layer.id === maskOverlayLayerId) ?? null)
       : null;
     const encoder = this.device.createCommandEncoder();
+    const overlayTimeSeconds = performance.now() / 1000;
     const pendingDestroy: FrameResource[] = [];
 
     if (enabledLayers.length === 0) {
@@ -127,6 +129,7 @@ export class FramePipelineExecutor {
           blitTarget,
           overlayMaskTexture,
           finalTargetView,
+          overlayTimeSeconds,
         );
       }
       return this.submitAndDestroy(encoder, pendingDestroy, 0, blitTarget, overlayMaskTexture);
@@ -182,6 +185,7 @@ export class FramePipelineExecutor {
         composedTexture,
         overlayMaskTexture,
         finalTargetView,
+        overlayTimeSeconds,
       );
     }
     return this.submitAndDestroy(encoder, pendingDestroy, enabledLayers.length, composedTexture, overlayMaskTexture);

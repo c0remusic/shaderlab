@@ -100,6 +100,15 @@ export class MaskTextureResolver {
    *  `parametric()` réutilisent le même objet GPUTexture d'un appel à
    *  l'autre en le re-rendant. */
   private maskRevision = new Map<string, number>();
+  /** Sous-ensemble de `maskRevision` : n'avance QUE quand le contenu du
+   *  GUIDE (image source + statistiques amont du filtre edge-aware)
+   *  change réellement — jamais sur un simple changement d'`edgeRadius`/
+   *  `edgeStrength` (qui, lui, avance `maskRevision` via le self-bump de
+   *  `edgePipeline()`). Sert de clé de cache à la construction SAT du
+   *  guide (coûteuse, ~log2(largeur)+log2(hauteur) passes) — sans cette
+   *  séparation, un drag de rayon la reconstruirait à chaque frame (voir
+   *  spec design § Cache à deux niveaux). */
+  private guideRevisionByLayer = new Map<string, number>();
   private lastInvertByLayer = new Map<string, boolean>();
   private lastEdgeAwareActiveByLayer = new Map<string, boolean>();
   private lastGuideEpochByLayer = new Map<string, number>();
@@ -127,6 +136,13 @@ export class MaskTextureResolver {
   private revision(id: string): number {
     return this.maskRevision.get(id) ?? 0;
   }
+  private bumpGuideRevision(id: string): void {
+    this.guideRevisionByLayer.set(id, (this.guideRevisionByLayer.get(id) ?? 0) + 1);
+  }
+  // @ts-ignore 6133 — used in tests via @ts-expect-error pattern, will be consumed by Task 3
+  private guideRevision(id: string): number {
+    return this.guideRevisionByLayer.get(id) ?? 0;
+  }
   sweep(layerIds: ReadonlySet<string>): void {
     this.sweepMap(this.sourceTextures, layerIds);
     this.sweepMap(this.parametricSourceTextures, layerIds);
@@ -144,6 +160,8 @@ export class MaskTextureResolver {
     // référence vers un GPUTexture détruit, jamais servie mais périmée.
     for (const id of this.maskRevision.keys())
       if (!layerIds.has(id)) this.maskRevision.delete(id);
+    for (const id of this.guideRevisionByLayer.keys())
+      if (!layerIds.has(id)) this.guideRevisionByLayer.delete(id);
     for (const id of this.lastInvertByLayer.keys())
       if (!layerIds.has(id)) this.lastInvertByLayer.delete(id);
     for (const id of this.lastEdgeAwareActiveByLayer.keys())
@@ -192,6 +210,7 @@ export class MaskTextureResolver {
     // détecteraient pas seuls puisqu'ils ne voient jamais `invert`.
     if (this.lastInvertByLayer.get(layer.id) !== layer.mask.invert) {
       this.bumpRevision(layer.id);
+      this.bumpGuideRevision(layer.id);
       this.lastInvertByLayer.set(layer.id, layer.mask.invert);
     }
     // `edge()` (filtre guidé) lit `colorView` comme image de guide — pour
@@ -206,6 +225,7 @@ export class MaskTextureResolver {
     // framePipelineExecutor.ts/effectPassRunner.ts).
     if (this.lastGuideEpochByLayer.get(layer.id) !== guideEpoch) {
       this.bumpRevision(layer.id);
+      this.bumpGuideRevision(layer.id);
       this.lastGuideEpochByLayer.set(layer.id, guideEpoch);
     }
     if (plan.length === 1 && !layer.mask.invert)
@@ -237,6 +257,7 @@ export class MaskTextureResolver {
       // ajout/suppression de source) — le contenu du masque final change
       // quand même.
       this.bumpRevision(layer.id);
+      this.bumpGuideRevision(layer.id);
       this.foldedMaskTextures.set(layer.id, {
         texture: folded,
         lastInputs: snapshot,
@@ -331,6 +352,7 @@ export class MaskTextureResolver {
     } else this.upload(texture, raster, this.width, this.height);
     this.sourceTextures.set(key, { texture, syncedFrom: raster });
     this.bumpRevision(id);
+    this.bumpGuideRevision(id);
     return texture;
   }
   private parametric(
@@ -440,6 +462,7 @@ export class MaskTextureResolver {
       syncedFrom: source.params,
     });
     this.bumpRevision(id);
+    this.bumpGuideRevision(id);
     return texture;
   }
   private flatten(

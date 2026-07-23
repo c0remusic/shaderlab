@@ -380,3 +380,30 @@ describe("MaskTextureResolver — gradient source params contract", () => {
     actual.forEach((v, i) => expect(v).toBeCloseTo(expected[i], 5));
   });
 });
+
+describe("MaskTextureResolver — guideRevision (séparé de maskRevision)", () => {
+  it("avance guideRevision quand le contenu résident d'une source change, pas quand seul edgeRadius change", () => {
+    const counts = { copies: 0, passes: 0 };
+    const resolver = makeResolver(counts);
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    stack.addMaskSource(id, "luminosity");
+    let layer = stack.layers.find((l) => l.id === id)!;
+    layer = { ...layer, mask: { ...layer.mask, refineEdge: { ...layer.mask.refineEdge, edgeAware: true, edgeStrength: 1, edgeRadius: 5 } } };
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, [], 0);
+    // @ts-expect-error accès direct pour le test — méthode privée
+    const guideRevAfterFirst = resolver.guideRevision(id);
+
+    // Changement de edgeRadius seul (même contenu) : guideRevision ne bouge pas.
+    const radiusChanged = { ...layer, mask: { ...layer.mask, refineEdge: { ...layer.mask.refineEdge, edgeRadius: 40 } } };
+    resolver.resolve(radiusChanged, createFakeEncoder(counts), {} as GPUTextureView, [], 0);
+    // @ts-expect-error accès direct pour le test
+    expect(resolver.guideRevision(id)).toBe(guideRevAfterFirst);
+
+    // Changement de contenu réel (invert) : guideRevision avance.
+    const invertChanged = { ...radiusChanged, mask: { ...radiusChanged.mask, invert: true } };
+    resolver.resolve(invertChanged, createFakeEncoder(counts), {} as GPUTextureView, [], 0);
+    // @ts-expect-error accès direct pour le test
+    expect(resolver.guideRevision(id)).toBeGreaterThan(guideRevAfterFirst);
+  });
+});

@@ -27,6 +27,10 @@ import {
   buildBoxFilterVWgsl,
   buildComputeABWgsl,
   buildCompositeWgsl,
+  buildDownsampleWgsl,
+  buildSatWidenWgsl,
+  buildSatScanWgsl,
+  buildSatLookupWgsl,
 } from "../mask/edgeAwareWgsl";
 
 const PARAM_COUNT_BY_TYPE: Record<Exclude<MaskSourceType, "brush">, number> = {
@@ -40,27 +44,40 @@ type PipelineEntry = {
   layout: GPUBindGroupLayout;
 };
 type EdgeWork = {
+  // Pleine résolution (this.width x this.height) — inchangées dans leur
+  // rôle : `luminance` sert de guide I au composite final, `result` est
+  // la sortie retournée par edgePipeline().
   luminance: GPUTexture;
+  result: GPUTexture;
+  // Résolution réduite (smallW x smallH, plafonnée à ~2048px de long
+  // côté — voir computeSmallDims()).
+  luminanceSmall: GPUTexture;
+  inputSmall: GPUTexture;
   packedIp: GPUTexture;
   squareCorr: GPUTexture;
+  /** SAT persistante de packedIp (I,p) — reconstruite UNIQUEMENT quand
+   *  guideRevision(id) avance (voir needsGuide dans edgePipeline()). */
+  satIp: GPUTexture;
+  /** SAT persistante de squareCorr (I²,Ip) — même règle que satIp. */
+  satCorr: GPUTexture;
+  /** Scratch partagé pour la construction Hillis-Steele — réutilisé
+   *  séquentiellement pour satIp, satCorr (si needsGuide) puis pour la
+   *  SAT transitoire de a/b (si needsAB) : ces trois constructions ne
+   *  sont jamais nécessaires simultanément, partager ce ping-pong évite
+   *  d'allouer 3 paires persistantes de rg32float (voir spec design §
+   *  Budget VRAM chiffré). */
+  satScratchA: GPUTexture;
+  satScratchB: GPUTexture;
+  /** Lookup O(1) bon marché, dépend du rayon — recalculé à chaque
+   *  changement de edgeRadius même si satIp/satCorr restent en cache. */
   meanIp: GPUTexture;
-  meanIpTmp: GPUTexture;
   corr: GPUTexture;
-  corrTmp: GPUTexture;
   ab: GPUTexture;
   meanAB: GPUTexture;
-  meanABTmp: GPUTexture;
-  result: GPUTexture;
-  /** Dernières entrées ayant produit `result` — si `revision`/`edgeRadius`/
-   *  `edgeStrength` sont identiques au prochain appel, `result` est renvoyé
-   *  tel quel sans rejouer les 11 passes du filtre guidé (coûteux : constaté
-   *  responsable d'un ralentissement global de l'app, ce filtre tournait à
-   *  chaque frame même quand seul un AUTRE calque/réglage changeait).
-   *  `revision` (pas l'identité de la texture d'entrée) : `resident()`/
-   *  `parametric()` RÉUTILISENT le même objet GPUTexture et le re-rendent
-   *  quand le contenu change (leur propre cache par `syncedFrom`) — comparer
-   *  `input === lastInput` aurait donc raté un changement de contenu réel
-   *  (bug trouvé par crosscheck avant la première version de ce cache). */
+  /** Palier 1 (coûteux) : guide-SAT (satIp/satCorr). */
+  lastGuideRevision: number;
+  /** Palier 2 (bon marché) : lookup + a/b + composite. Même contrat que
+   *  l'ancien cache à un seul palier (revision/edgeRadius/edgeStrength). */
   lastRevision: number;
   lastRadius: number;
   lastStrength: number;
@@ -650,6 +667,15 @@ export class MaskTextureResolver {
     if (!active) return input;
     return this.edgePipeline(layer.id, input, color, x, e, p);
   }
+  private computeSmallDims(): { smallW: number; smallH: number; scale: number } {
+    const CAP = 2048;
+    const scale = Math.min(1, CAP / Math.max(this.width, this.height));
+    return {
+      smallW: Math.max(1, Math.round(this.width * scale)),
+      smallH: Math.max(1, Math.round(this.height * scale)),
+      scale,
+    };
+  }
   private edgePipeline(
     id: string,
     input: GPUTexture,
@@ -658,9 +684,10 @@ export class MaskTextureResolver {
     e: GPUCommandEncoder,
     p: (GPUTexture | GPUBuffer)[],
   ) {
+    const { smallW, smallH, scale } = this.computeSmallDims();
     let w = this.edgeAwareWorkTextures.get(id);
     if (!w) {
-      const mk = (format: GPUTextureFormat, extraUsage = 0) =>
+      const mkFull = (format: GPUTextureFormat, extraUsage = 0) =>
         this.ctx.device.createTexture({
           size: [this.width, this.height],
           format,
@@ -669,42 +696,55 @@ export class MaskTextureResolver {
             GPUTextureUsage.RENDER_ATTACHMENT |
             extraUsage,
         });
+      const mkSmall = (format: GPUTextureFormat, extraUsage = 0) =>
+        this.ctx.device.createTexture({
+          size: [smallW, smallH],
+          format,
+          usage:
+            GPUTextureUsage.TEXTURE_BINDING |
+            GPUTextureUsage.RENDER_ATTACHMENT |
+            extraUsage,
+        });
       w = {
-        luminance: mk("r8unorm"),
-        packedIp: mk("rg8unorm"),
-        squareCorr: mk("rg16float"),
-        meanIp: mk("rg16float"),
-        meanIpTmp: mk("rg16float"),
-        corr: mk("rg16float"),
-        corrTmp: mk("rg16float"),
-        ab: mk("rg16float"),
-        meanAB: mk("rg16float"),
-        meanABTmp: mk("rg16float"),
-        // COPY_SRC : `refine()` copie ce texture comme source d'un
-        // copyTextureToTexture juste après edgePipeline() (voir refine(),
-        // ligne ~714) — sans ce flag, la validation WebGPU rejette la
-        // commande et invalide tout le command buffer de la frame (canvas
-        // noir). Seul `result` sort de cette fonction ; les 10 autres
-        // textures restent des buffers de travail internes qui n'ont
-        // jamais besoin d'être copiés.
-        result: mk("r8unorm", GPUTextureUsage.COPY_SRC),
+        luminance: mkFull("r8unorm"),
+        // COPY_SRC : refine() copie ce texture juste après edgePipeline()
+        // (voir refine(), commentaire d'origine conservé).
+        result: mkFull("r8unorm", GPUTextureUsage.COPY_SRC),
+        luminanceSmall: mkSmall("r8unorm"),
+        inputSmall: mkSmall("r8unorm"),
+        packedIp: mkSmall("rg8unorm"),
+        squareCorr: mkSmall("rg16float"),
+        // COPY_DST : cible de copyTextureToTexture depuis satScratchA/B
+        // (résultat de buildSat()) — voir needsGuide ci-dessous.
+        satIp: mkSmall("rg32float", GPUTextureUsage.COPY_DST),
+        satCorr: mkSmall("rg32float", GPUTextureUsage.COPY_DST),
+        // COPY_SRC : source du copyTextureToTexture vers satIp/satCorr —
+        // buildSat() retourne toujours l'une de ces deux textures.
+        satScratchA: mkSmall("rg32float", GPUTextureUsage.COPY_SRC),
+        satScratchB: mkSmall("rg32float", GPUTextureUsage.COPY_SRC),
+        meanIp: mkSmall("rg16float"),
+        corr: mkSmall("rg16float"),
+        ab: mkSmall("rg16float"),
+        meanAB: mkSmall("rg16float"),
+        lastGuideRevision: NaN,
         lastRevision: NaN,
         lastRadius: NaN,
         lastStrength: NaN,
       };
       this.edgeAwareWorkTextures.set(id, w);
     }
-    if (
-      w.lastRevision === this.revision(id) &&
-      w.lastRadius === x.edgeRadius &&
-      w.lastStrength === x.edgeStrength
-    )
-      return w.result;
-    // `refine()` reçoit `w.result` en `input` et met SON PROPRE résultat en
-    // cache sur cette même révision — sans ce bump, un changement de
-    // edgeRadius/edgeStrength seul (edgeAware actif) recalculerait bien ici
-    // mais laisserait refine() servir un résultat périmé en aval (trouvé par
-    // crosscheck).
+    const guideRev = this.guideRevision(id);
+    const needsGuide = w.lastGuideRevision !== guideRev;
+    const maskRev = this.revision(id);
+    const needsAB =
+      needsGuide ||
+      w.lastRevision !== maskRev ||
+      w.lastRadius !== x.edgeRadius ||
+      w.lastStrength !== x.edgeStrength;
+    if (!needsGuide && !needsAB) return w.result;
+    // Même contrat que l'ancien cache à un seul palier : refine() (en
+    // aval) sert un résultat périmé si ce bump n'a pas lieu quand le
+    // contenu de `result` change réellement (voir commentaire d'origine).
     this.bumpRevision(id);
     const run = (
       wgsl: string,
@@ -717,45 +757,19 @@ export class MaskTextureResolver {
       let c = this.edgeAwarePipelineCache.get(key);
       if (!c) {
         const entries: GPUBindGroupLayoutEntry[] = [
-          {
-            binding: 0,
-            visibility: GPUShaderStage.FRAGMENT,
-            texture: { sampleType: "float" },
-          },
-          {
-            binding: 1,
-            visibility: GPUShaderStage.FRAGMENT,
-            sampler: { type: "filtering" },
-          },
+          { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } },
+          { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "filtering" } },
         ];
         for (let i = 1; i < views.length; i++)
-          entries.push({
-            binding: 1 + i,
-            visibility: GPUShaderStage.FRAGMENT,
-            texture: { sampleType: "float" },
-          });
-        if (u)
-          entries.push({
-            binding: 1 + views.length,
-            visibility: GPUShaderStage.FRAGMENT,
-            buffer: { type: "uniform" },
-          });
+          entries.push({ binding: 1 + i, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
+        if (u) entries.push({ binding: 1 + views.length, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } });
         const layout = this.ctx.device.createBindGroupLayout({ entries });
         c = {
           layout,
           pipeline: this.ctx.device.createRenderPipeline({
-            layout: this.ctx.device.createPipelineLayout({
-              bindGroupLayouts: [layout],
-            }),
-            vertex: {
-              module: this.ctx.device.createShaderModule({ code: wgsl }),
-              entryPoint: "vs_main",
-            },
-            fragment: {
-              module: this.ctx.device.createShaderModule({ code: wgsl }),
-            entryPoint: entry,
-              targets: [{ format: target.format }],
-            },
+            layout: this.ctx.device.createPipelineLayout({ bindGroupLayouts: [layout] }),
+            vertex: { module: this.ctx.device.createShaderModule({ code: wgsl }), entryPoint: "vs_main" },
+            fragment: { module: this.ctx.device.createShaderModule({ code: wgsl }), entryPoint: entry, targets: [{ format: target.format }] },
             primitive: { topology: "triangle-list" },
           }),
         };
@@ -765,89 +779,116 @@ export class MaskTextureResolver {
         { binding: 0, resource: views[0] },
         { binding: 1, resource: this.nearestSampler },
       ];
-      for (let i = 1; i < views.length; i++)
-        entries.push({ binding: 1 + i, resource: views[i] });
-      if (u)
-        entries.push({ binding: 1 + views.length, resource: { buffer: u } });
+      for (let i = 1; i < views.length; i++) entries.push({ binding: 1 + i, resource: views[i] });
+      if (u) entries.push({ binding: 1 + views.length, resource: { buffer: u } });
       const rp = e.beginRenderPass({
-        colorAttachments: [
-          {
-            view: target.createView(),
-            loadOp: "clear",
-            storeOp: "store",
-            clearValue: { r: 0, g: 0, b: 0, a: 1 },
-          },
-        ],
+        colorAttachments: [{ view: target.createView(), loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } }],
       });
       rp.setPipeline(c.pipeline);
-      rp.setBindGroup(
-        0,
-        this.ctx.device.createBindGroup({ layout: c.layout, entries }),
-      );
+      rp.setBindGroup(0, this.ctx.device.createBindGroup({ layout: c.layout, entries }));
+      rp.draw(3);
+      rp.end();
+    };
+    const runLoad = (
+      wgsl: string,
+      entry: string,
+      target: GPUTexture,
+      views: GPUTextureView[],
+      u?: GPUBuffer,
+    ) => {
+      const key = `${entry}:${wgsl.length}:load`;
+      let c = this.edgeAwarePipelineCache.get(key);
+      if (!c) {
+        const entries: GPUBindGroupLayoutEntry[] = [];
+        for (let i = 0; i < views.length; i++)
+          entries.push({ binding: i, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "unfilterable-float" } });
+        if (u) entries.push({ binding: views.length, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } });
+        const layout = this.ctx.device.createBindGroupLayout({ entries });
+        c = {
+          layout,
+          pipeline: this.ctx.device.createRenderPipeline({
+            layout: this.ctx.device.createPipelineLayout({ bindGroupLayouts: [layout] }),
+            vertex: { module: this.ctx.device.createShaderModule({ code: wgsl }), entryPoint: "vs_main" },
+            fragment: { module: this.ctx.device.createShaderModule({ code: wgsl }), entryPoint: entry, targets: [{ format: target.format }] },
+            primitive: { topology: "triangle-list" },
+          }),
+        };
+        this.edgeAwarePipelineCache.set(key, c);
+      }
+      const entries: GPUBindGroupEntry[] = [];
+      for (let i = 0; i < views.length; i++) entries.push({ binding: i, resource: views[i] });
+      if (u) entries.push({ binding: views.length, resource: { buffer: u } });
+      const rp = e.beginRenderPass({
+        colorAttachments: [{ view: target.createView(), loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } }],
+      });
+      rp.setPipeline(c.pipeline);
+      rp.setBindGroup(0, this.ctx.device.createBindGroup({ layout: c.layout, entries }));
       rp.draw(3);
       rp.end();
     };
     const uniform = (v: number) => {
-        const b = this.ctx.device.createBuffer({
-          size: 16,
-          usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-        });
-        this.ctx.device.queue.writeBuffer(b, 0, new Float32Array([v, 0, 0, 0]));
-        p.push(b);
-        return b;
-      },
-      r = uniform(x.edgeRadius),
-      s = uniform(x.edgeStrength),
-      iv = input.createView();
-    run(buildLuminanceWgsl(), "fs_luminance", w.luminance, [color]);
-    run(buildPackWgsl(), "fs_pack", w.packedIp, [w.luminance.createView(), iv]);
-    run(buildSquareCorrWgsl(), "fs_squareCorr", w.squareCorr, [
-      w.packedIp.createView(),
-    ]);
-    run(
-      buildBoxFilterHWgsl(2),
-      "fs_boxH",
-      w.meanIpTmp,
-      [w.packedIp.createView()],
-      r,
-    );
-    run(
-      buildBoxFilterVWgsl(2),
-      "fs_boxV",
-      w.meanIp,
-      [w.meanIpTmp.createView()],
-      r,
-    );
-    run(
-      buildBoxFilterHWgsl(2),
-      "fs_boxH",
-      w.corrTmp,
-      [w.squareCorr.createView()],
-      r,
-    );
-    run(buildBoxFilterVWgsl(2), "fs_boxV", w.corr, [w.corrTmp.createView()], r);
-    run(buildComputeABWgsl(), "fs_computeAB", w.ab, [
-      w.meanIp.createView(),
-      w.corr.createView(),
-    ]);
-    run(buildBoxFilterHWgsl(2), "fs_boxH", w.meanABTmp, [w.ab.createView()], r);
-    run(
-      buildBoxFilterVWgsl(2),
-      "fs_boxV",
-      w.meanAB,
-      [w.meanABTmp.createView()],
-      r,
-    );
-    run(
-      buildCompositeWgsl(),
-      "fs_composite",
-      w.result,
-      [w.meanAB.createView(), w.luminance.createView(), iv],
-      s,
-    );
-    w.lastRevision = this.revision(id);
-    w.lastRadius = x.edgeRadius;
-    w.lastStrength = x.edgeStrength;
+      const b = this.ctx.device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      this.ctx.device.queue.writeBuffer(b, 0, new Float32Array([v, 0, 0, 0]));
+      p.push(b);
+      return b;
+    };
+    /** Construit la SAT complète (widen + scan H + scan V) à partir d'une
+     *  vue source, en réutilisant `satScratchA`/`satScratchB` comme
+     *  ping-pong. Retourne la texture (A ou B) qui porte le résultat
+     *  final — le choix dépend de la parité du nombre total de passes. */
+    const buildSat = (seedView: GPUTextureView): GPUTexture => {
+      runLoad(buildSatWidenWgsl(), "fs_satWiden", w!.satScratchA, [seedView]);
+      let src = w!.satScratchA, dst = w!.satScratchB;
+      const stepsH = Math.max(1, Math.ceil(Math.log2(smallW)));
+      for (let k = 0; k < stepsH; k++) {
+        runLoad(buildSatScanWgsl("H"), "fs_satScanH", dst, [src.createView()], uniform(2 ** k));
+        [src, dst] = [dst, src];
+      }
+      const stepsV = Math.max(1, Math.ceil(Math.log2(smallH)));
+      for (let k = 0; k < stepsV; k++) {
+        runLoad(buildSatScanWgsl("V"), "fs_satScanV", dst, [src.createView()], uniform(2 ** k));
+        [src, dst] = [dst, src];
+      }
+      return src;
+    };
+    const scaledRadius = Math.max(x.edgeRadius * scale, 1.0);
+    const iv = input.createView();
+    if (needsGuide) {
+      run(buildLuminanceWgsl(), "fs_luminance", w.luminance, [color]);
+      run(buildDownsampleWgsl(), "fs_downsample", w.luminanceSmall, [w.luminance.createView()]);
+      run(buildDownsampleWgsl(), "fs_downsample", w.inputSmall, [iv]);
+      run(buildPackWgsl(), "fs_pack", w.packedIp, [w.luminanceSmall.createView(), w.inputSmall.createView()]);
+      run(buildSquareCorrWgsl(), "fs_squareCorr", w.squareCorr, [w.packedIp.createView()]);
+      const ip = buildSat(w.packedIp.createView());
+      if (ip !== w.satIp) {
+        e.copyTextureToTexture({ texture: ip }, { texture: w.satIp }, [smallW, smallH]);
+      }
+      const corrSat = buildSat(w.squareCorr.createView());
+      if (corrSat !== w.satCorr) {
+        e.copyTextureToTexture({ texture: corrSat }, { texture: w.satCorr }, [smallW, smallH]);
+      }
+      w.lastGuideRevision = guideRev;
+    }
+    if (needsAB) {
+      const rUniform = uniform(scaledRadius);
+      runLoad(buildSatLookupWgsl(), "fs_satLookup", w.meanIp, [w.satIp.createView()], rUniform);
+      runLoad(buildSatLookupWgsl(), "fs_satLookup", w.corr, [w.satCorr.createView()], uniform(scaledRadius));
+      run(buildComputeABWgsl(), "fs_computeAB", w.ab, [w.meanIp.createView(), w.corr.createView()]);
+      const abSat = buildSat(w.ab.createView());
+      runLoad(buildSatLookupWgsl(), "fs_satLookup", w.meanAB, [abSat.createView()], uniform(scaledRadius));
+      const s = uniform(x.edgeStrength);
+      run(buildCompositeWgsl(), "fs_composite", w.result, [w.meanAB.createView(), w.luminance.createView(), iv], s);
+      // Relire this.revision(id) plutôt que réutiliser `maskRev` (capturé
+      // AVANT this.bumpRevision(id) ci-dessus) : le self-bump inconditionnel
+      // avance déjà la révision une fois par appel — stocker la valeur
+      // pré-bump ferait que la comparaison `w.lastRevision !== this.revision(id)`
+      // échoue à CHAQUE appel suivant (chemin bon marché rejoué à l'infini
+      // même sans changement réel). Écart au brief détecté aux tests, voir
+      // task-3-report.md.
+      w.lastRevision = this.revision(id);
+      w.lastRadius = x.edgeRadius;
+      w.lastStrength = x.edgeStrength;
+    }
     return w.result;
   }
   private refine(
@@ -909,16 +950,19 @@ export class MaskTextureResolver {
   }
   private destroyWork(w: EdgeWork) {
     w.luminance.destroy();
+    w.result.destroy();
+    w.luminanceSmall.destroy();
+    w.inputSmall.destroy();
     w.packedIp.destroy();
     w.squareCorr.destroy();
+    w.satIp.destroy();
+    w.satCorr.destroy();
+    w.satScratchA.destroy();
+    w.satScratchB.destroy();
     w.meanIp.destroy();
-    w.meanIpTmp.destroy();
     w.corr.destroy();
-    w.corrTmp.destroy();
     w.ab.destroy();
     w.meanAB.destroy();
-    w.meanABTmp.destroy();
-    w.result.destroy();
   }
   dispose() {
     this.whiteMask?.destroy();

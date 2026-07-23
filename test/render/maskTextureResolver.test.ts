@@ -337,6 +337,46 @@ describe("MaskTextureResolver — edge-aware/refine result cache", () => {
     expect(t2).toBe(t1);
     expect(counts).toEqual(afterFirst);
   });
+
+  it("un changement d'edgeRadius seul (guide inchangé) NE relance PAS la construction SAT du guide (downsample+pack+squareCorr+scan), seulement les passes de lookup/composite bon marché (regression : la clé de cache de la SAT du guide doit être guideRevision, pas maskRevision+edgeRadius)", () => {
+    const counts = { copies: 0, passes: 0 };
+    const resolver = makeResolver(counts);
+    const layer = oneSourceLayerWithRefineEdge({ edgeAware: true, edgeStrength: 1, edgeRadius: 5 });
+    const pending: (GPUTexture | GPUBuffer)[] = [];
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
+    const afterFirst = { ...counts };
+    const radiusChanged = { ...layer, mask: { ...layer.mask, refineEdge: { ...layer.mask.refineEdge, edgeRadius: 45 } } };
+    resolver.resolve(radiusChanged, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
+    const delta = counts.passes - afterFirst.passes;
+    // Le pipeline COMPLET (downsample x2 + pack + squareCorr + 2 SAT de
+    // guide construites de zéro + leurs lookups + computeAB + SAT a/b +
+    // son lookup + composite) coûte largement plus de 30 passes à une
+    // résolution de test — un delta sous ce seuil prouve que la
+    // construction SAT du guide N'A PAS été rejouée, seulement le chemin
+    // bon marché (2 lookups guide + computeAB + SAT a/b + son lookup +
+    // composite).
+    expect(delta).toBeGreaterThan(0);
+    expect(delta).toBeLessThan(30);
+  });
+
+  it("un changement de contenu réel (invert) relance toute la construction SAT (guide ET a/b) — coût nettement supérieur à un simple changement de rayon", () => {
+    const counts = { copies: 0, passes: 0 };
+    const resolver = makeResolver(counts);
+    const layer = oneSourceLayerWithRefineEdge({ edgeAware: true, edgeStrength: 1, edgeRadius: 5 });
+    const pending: (GPUTexture | GPUBuffer)[] = [];
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
+    const afterFirst = { ...counts };
+    const radiusChanged = { ...layer, mask: { ...layer.mask, refineEdge: { ...layer.mask.refineEdge, edgeRadius: 45 } } };
+    resolver.resolve(radiusChanged, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
+    const afterRadius = { ...counts };
+    const cheapDelta = afterRadius.passes - afterFirst.passes;
+
+    const inverted = { ...radiusChanged, mask: { ...radiusChanged.mask, invert: true } };
+    resolver.resolve(inverted, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
+    const fullDelta = counts.passes - afterRadius.passes;
+
+    expect(fullDelta).toBeGreaterThan(cheapDelta);
+  });
 });
 
 describe("MaskTextureResolver — gradient source params contract", () => {

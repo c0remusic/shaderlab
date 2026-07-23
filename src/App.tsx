@@ -8,8 +8,8 @@ import { BrushToolbar } from "./components/BrushToolbar";
 import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
 import { ErrorBanner } from "./components/ErrorBanner";
-import { exportImage, resolveExportTarget } from "./export/exportImage";
-import { getLaunchPath, readImageFile, pickImageFile, logDiagnostic, writeImageFile } from "./launch";
+import { exportImage, resolveExportTargetAsync } from "./export/exportImage";
+import { getLaunchPath, readImageFile, pickImageFile, logDiagnostic, writeImageFile, pathExists } from "./launch";
 import { useGlobalControlWheel } from "./ui/activeControl";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 import { getBrushRaster } from "./mask/brushSource";
@@ -449,9 +449,13 @@ export default function App() {
     // Manual export ALWAYS copies (buildCopyPath) unless this file was
     // opened via the Lightroom launch-path CLI arg, in which case we
     // overwrite that exact path (Lightroom's own temp copy) — see
-    // resolveExportTarget's doc comment for the full rationale.
-    const target = resolveExportTarget(sourcePath, isLaunchFile);
+    // resolveExportTargetAsync's doc comment for the full rationale. Checks
+    // real disk state through `pathExists` (Rust `path_exists` command),
+    // not an in-memory set — the previous version never actually probed
+    // disk, so a manual export could silently overwrite a same-named file
+    // left over from an earlier export.
     try {
+      const target = await resolveExportTargetAsync(sourcePath, isLaunchFile, { exists: pathExists });
       await exportImage(
         rendererRef.current,
         { write: writeImageFile },

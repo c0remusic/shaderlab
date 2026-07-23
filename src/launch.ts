@@ -33,6 +33,16 @@ export async function pickImageFile(): Promise<string | null> {
 }
 
 /**
+ * Backs `PathAvailability` (see `export/exportImage.ts`) with a real disk
+ * check via the Rust `path_exists` command — the frontend has no filesystem
+ * access of its own, so this is the only way `resolveExportTargetAsync` can
+ * know whether a candidate export path is actually free.
+ */
+export async function pathExists(path: string): Promise<boolean> {
+  return invoke<boolean>("path_exists", { path });
+}
+
+/**
  * Debugging-only: writes a durable diagnostic line via Rust (see
  * `log_diagnostic` in lib.rs) instead of console.log, so it survives a
  * renderer crash that happens immediately after this call — the failure

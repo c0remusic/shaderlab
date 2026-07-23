@@ -61,6 +61,24 @@ fn write_image_file(request: Request) -> Result<(), String> {
     write_atomic(&path, bytes)
 }
 
+/// Pure disk check backing the `path_exists` command — split out so
+/// `#[cfg(test)]` can exercise it without going through Tauri's IPC layer.
+fn path_exists_on_disk(path: &str) -> bool {
+    std::path::Path::new(path).exists()
+}
+
+/// Lets the frontend's export path resolver (`resolveExportTargetAsync` in
+/// `src/export/exportImage.ts`) probe real disk state before picking a
+/// write target — the frontend itself has no filesystem access. Backs the
+/// manual-export copy-only safety rule: without this, "does this path
+/// exist" could only ever be answered from an in-memory set the caller had
+/// to keep in sync, which is how a manual export could silently overwrite
+/// an existing file.
+#[tauri::command]
+fn path_exists(path: String) -> bool {
+    path_exists_on_disk(&path)
+}
+
 #[tauri::command]
 fn read_image_file(path: String) -> Result<Response, String> {
     // Response::new(bytes) = corps binaire brut côté WebView (ArrayBuffer),
@@ -134,7 +152,8 @@ pub fn run() {
             write_image_file,
             read_image_file,
             pick_image_file,
-            log_diagnostic
+            log_diagnostic,
+            path_exists
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -168,6 +187,21 @@ mod tests {
     #[test]
     fn decode_target_path_rejects_invalid_utf8() {
         assert!(decode_target_path("%FF%FE").is_err());
+    }
+
+    #[test]
+    fn path_exists_on_disk_true_for_a_real_file() {
+        let path = std::env::temp_dir().join("shaderlab-test-path-exists.jpg");
+        std::fs::write(&path, b"x").unwrap();
+        assert!(path_exists_on_disk(path.to_str().unwrap()));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn path_exists_on_disk_false_for_a_missing_file() {
+        let path = std::env::temp_dir().join("shaderlab-test-path-exists-missing.jpg");
+        let _ = std::fs::remove_file(&path); // ensure it's actually absent
+        assert!(!path_exists_on_disk(path.to_str().unwrap()));
     }
 
     #[test]

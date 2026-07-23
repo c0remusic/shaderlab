@@ -11,6 +11,31 @@ import type { MaskSourceModule } from "./types";
  * le dégradé est entièrement décrit par ses deux points, l'angle n'est
  * qu'une commodité de saisie côté UI (Task 5).
  */
+/** Recalcule `startX/startY/endX/endY` pour un nouvel angle (degrés), en
+ *  conservant le centre et la longueur du segment courant — c'est la
+ *  "commodité de saisie" documentée sur `angle` ci-dessus, jusqu'ici jamais
+ *  câblée : le slider "Angle" du panneau Masque modifiait `params.angle`
+ *  sans que rien ne reconvertisse ça vers les points lus par le shader,
+ *  donc bougeait le slider sans aucun effet visuel. Longueur par défaut
+ *  0.4 (== écart par défaut startX/endX) si le segment courant est nul. */
+export function angleToEndpoints(
+  params: { startX: number; startY: number; endX: number; endY: number },
+  angleDeg: number,
+): { startX: number; startY: number; endX: number; endY: number } {
+  const centerX = (params.startX + params.endX) / 2;
+  const centerY = (params.startY + params.endY) / 2;
+  const length = Math.hypot(params.endX - params.startX, params.endY - params.startY) || 0.4;
+  const rad = (angleDeg * Math.PI) / 180;
+  const halfX = (length / 2) * Math.cos(rad);
+  const halfY = (length / 2) * Math.sin(rad);
+  return {
+    startX: centerX - halfX,
+    startY: centerY - halfY,
+    endX: centerX + halfX,
+    endY: centerY + halfY,
+  };
+}
+
 export const gradientSource: MaskSourceModule = {
   id: "gradient",
   name: "Dégradé",

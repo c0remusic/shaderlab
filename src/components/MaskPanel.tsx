@@ -3,6 +3,7 @@ import type { LayerState } from "../layers/types";
 import type { RefineEdgeParams } from "../mask/types";
 import { isParametricMaskSource } from "../mask/types";
 import { maskSourceRegistry, getMaskSourceModule } from "../mask/sources/registry";
+import { angleToEndpoints } from "../mask/sources/gradient";
 import "./ParamPanel.css";
 import { LabeledSlider } from "./ui/labeled-slider";
 import { Button } from "./ui/button";
@@ -269,6 +270,19 @@ export function MaskPanel({
                   );
                 }
                 const range = paramRange(key);
+                // "angle" (source gradient) n'est pas un paramètre lu par le
+                // shader (voir gradient.ts) — juste une commodité de saisie
+                // qui doit recalculer start/end à chaque changement, sinon
+                // le slider bouge sans aucun effet visuel.
+                const onAngleChange =
+                  key === "angle" && activeSource.type === "gradient"
+                    ? (v: number) =>
+                        onMaskSourceParamsChange(layer.id, activeSource.id, {
+                          ...activeSource.params,
+                          angle: v,
+                          ...angleToEndpoints(activeSource.params as { startX: number; startY: number; endX: number; endY: number }, v),
+                        })
+                    : (v: number) => onMaskSourceParamsChange(layer.id, activeSource.id, { ...activeSource.params, [key]: v });
                 return (
                   <LabeledSlider
                     key={key}
@@ -277,7 +291,7 @@ export function MaskPanel({
                     min={range.min}
                     max={range.max}
                     step={range.step}
-                    onChange={(v) => onMaskSourceParamsChange(layer.id, activeSource.id, { ...activeSource.params, [key]: v })}
+                    onChange={onAngleChange}
                     onCommit={onMaskSourceParamsCommit}
                   />
                 );

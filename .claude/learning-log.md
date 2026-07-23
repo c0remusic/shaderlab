@@ -3,6 +3,23 @@
 Store instinct-system, portée projet. Écrivain = wrap-up seul. Voir
 `~/.claude/CLAUDE.md` § Store instinct-system pour la convention globale.
 
+## 2026-07-23 — `tsc --noEmit` de ce repo ne couvre JAMAIS `test/` (tsconfig.json `"include": ["src"]`)
+
+**Découverte (TTL 6 mois)** : `tsconfig.json` racine n'inclut que `["src"]` —
+tout "`tsc` clean" affirmé pendant une session, aussi souvent répété
+soit-il, ne dit RIEN sur la validité de type des fichiers sous `test/`.
+Trouvé en ajoutant un 5e paramètre requis (`guideEpoch: number`, sans
+défaut) à `MaskTextureResolver.resolve()` : tous les appels dans
+`test/render/maskTextureResolver.test.ts` (24 sites) sont restés à 4
+arguments pendant plusieurs commits, `tsc --noEmit` répétait "No errors
+found" à chaque fois, et Vitest (esbuild, pas tsc) ne signale jamais
+l'omission — le paramètre manquant devenait silencieusement `undefined` à
+l'exécution, sans lever la moindre erreur. **How to apply** : dans ce
+repo, ne jamais lire "tsc clean" comme "les tests sont aussi type-safe" —
+si une signature de fonction consommée par des tests change (paramètre
+ajouté/retiré/type changé), grep les sites d'appel dans `test/` à la main
+plutôt que de compter sur tsc pour les révéler.
+
 ## 2026-07-22 — 15 défauts de la tranche design-system unification (efecd5c..HEAD) invisibles à tsc/tests/lint:tokens
 
 **Découverte (TTL 6 mois)** : `/code-review ultra` (local, 4 angles en

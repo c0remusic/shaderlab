@@ -8,6 +8,8 @@ function Slider({
   value,
   min = 0,
   max = 100,
+  "aria-label": ariaLabel,
+  "aria-labelledby": ariaLabelledby,
   ...props
 }: SliderPrimitive.Root.Props) {
   const _values = Array.isArray(value)
@@ -41,6 +43,8 @@ function Slider({
           <SliderPrimitive.Thumb
             data-slot="slider-thumb"
             key={index}
+            aria-label={ariaLabel}
+            aria-labelledby={ariaLabelledby}
             className="relative block size-[var(--slider-thumb-size)] shrink-0 rounded-full border border-[var(--border-strong)] bg-[var(--text-value)] transition-[color,box-shadow] select-none after:absolute after:-inset-2 hover:border-[var(--border-selection)] focus-visible:ring-[var(--control-focus-ring-width)] focus-visible:ring-[var(--focus-color)]/50 focus-visible:outline-hidden active:ring-[var(--control-focus-ring-width)] active:ring-[var(--focus-color)]/50 disabled:pointer-events-none disabled:opacity-50"
           />
         ))}

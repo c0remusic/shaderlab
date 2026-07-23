@@ -11,6 +11,10 @@ const meta: Meta<typeof Slider> = {
     return <Slider {...args} value={value} onValueChange={(next) => setValue(Array.isArray(next) ? next : [next])} />;
   },
   args: {
+    // Bare slider has no visible label — give the range input an accessible
+    // name so axe's "label" rule passes (the labeled-slider gets its name via
+    // aria-labelledby instead).
+    "aria-label": "Valeur",
     min: 0,
     max: 100,
     value: [40],

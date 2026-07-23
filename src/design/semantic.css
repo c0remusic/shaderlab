@@ -29,7 +29,7 @@
      Photoshop" demandé par Antoine, 2026-07-20). */
   --text-primary: color-mix(in srgb, var(--primitive-neutral-100) 94%, transparent);
   --text-secondary: color-mix(in srgb, var(--primitive-neutral-100) 68%, transparent);
-  --text-tertiary: color-mix(in srgb, var(--primitive-neutral-100) 53%, transparent);
+  --text-tertiary: color-mix(in srgb, var(--primitive-neutral-100) 58%, transparent);
   --text-disabled: color-mix(in srgb, var(--primitive-neutral-100) 30%, transparent);
   --text-on-light: var(--primitive-ink-900);
   --text-value: var(--primitive-neutral-100);

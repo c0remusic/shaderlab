@@ -44,6 +44,7 @@ export function LabeledSlider({
   className,
 }: LabeledSliderProps) {
   const id = useId();
+  const labelId = `${id}-label`;
   const shownValue = displayValue ?? formatControlValue(value, step);
   const [draftValue, setDraftValue] = useState(shownValue);
   const [isEditing, setIsEditing] = useState(false);
@@ -105,12 +106,13 @@ export function LabeledSlider({
 
   return (
     <div className={cn("flex flex-col gap-1", disabled && "opacity-50", className)} onWheel={handleWheel}>
-      <label htmlFor={id} className="text-sm text-muted-foreground">
+      <label id={labelId} htmlFor={id} className="text-sm text-muted-foreground">
         {label}
       </label>
       <div className="flex items-center gap-2">
         <SliderPrimitive
           id={id}
+          aria-labelledby={labelId}
           className="min-w-0 flex-1"
           value={[value]}
           min={min}

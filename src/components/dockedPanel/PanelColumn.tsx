@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { DockedPanelCard } from "./DockedPanelCard";
 import { getDockDropTarget, isNoOpDockDrop, type DockDropTarget, type DockLayout } from "../../ui/dockLayout";
-import { clampDockWidth } from "./dockWidth";
+import { clampDockWidth, DOCK_WIDTH_MIN, DOCK_WIDTH_MAX } from "./dockWidth";
 import "../../ui/dragReorder.css";
 import "./PanelColumn.css";
 
@@ -156,6 +156,9 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
                 role="separator"
                 aria-orientation="vertical"
                 aria-label="Redimensionner la largeur du dock"
+                aria-valuenow={Math.round(clampDockWidth(width))}
+                aria-valuemin={DOCK_WIDTH_MIN}
+                aria-valuemax={DOCK_WIDTH_MAX}
                 tabIndex={0}
               />
             )}

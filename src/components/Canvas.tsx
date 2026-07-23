@@ -116,6 +116,21 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
     }
   }
 
+  // Un unmount pendant un trait en cours (ex. fermeture du panneau masque en
+  // plein drag) laisserait le rAF coalescé en vol : il finirait par appeler
+  // `onMaskStroke` sur un composant démonté, contre une prop potentiellement
+  // périmée — annule le rAF en attente sans le flusher (pas de commit après
+  // démontage, contrairement à `endStroke` qui flushe volontairement en fin
+  // de trait normal).
+  useEffect(() => {
+    return () => {
+      if (rafHandleRef.current !== null) {
+        cancelAnimationFrame(rafHandleRef.current);
+        rafHandleRef.current = null;
+      }
+    };
+  }, []);
+
   function endStroke() {
     if (isPaintingRef.current) {
       isPaintingRef.current = false;

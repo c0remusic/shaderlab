@@ -117,4 +117,26 @@ describe("FramePipelineExecutor", () => {
     expect(result.overlayMaskTexture).toBe(overlayMask);
     expect(result.overlayMaskTexture).toBe(resolved);
   });
+
+  it("destroys already-created frame resources before rethrowing when a pass throws mid-frame", () => {
+    // Deux calques activés : le premier pousse une texture transitoire dans
+    // pendingDestroy (via runEffectPass) puis le SECOND lance — sans
+    // try/finally, la texture transitoire du premier calque resterait
+    // orpheline sur le GPU (jamais détruite, jamais soumise non plus).
+    const { executor, effects, transient } = createExecutor();
+    let call = 0;
+    effects.runEffectPass = vi.fn((_encoder, _effect, _layer, _source, _target, _options, pending) => {
+      call += 1;
+      pending.push(transient as unknown as GPUTexture);
+      if (call === 2) throw new Error("pass GPU failure");
+    });
+
+    expect(() => executor.run([layer({ id: "L1" }), layer({ id: "L2" })], {} as GPUTextureView, null)).toThrow(
+      "pass GPU failure",
+    );
+    // Le calque L1 (call 1) ET le calque L2 (call 2, avant qu'il ne lance)
+    // ont chacun poussé `transient` dans pendingDestroy — les deux doivent
+    // être détruits, aucun ne doit rester orphelin sur le GPU.
+    expect(transient.destroy).toHaveBeenCalledTimes(2);
+  });
 });

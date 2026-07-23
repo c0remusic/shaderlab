@@ -25,6 +25,7 @@ import type { RefineEdgeParams } from "./mask/types";
 import { MAX_COLOR_RANGE_SAMPLES } from "./mask/sources/colorRange";
 import { planFold } from "./mask/foldPlan";
 import { OverlayAnimationLoop } from "./render/overlayAnimationLoop";
+import { hasValueChanged } from "./ui/valueChange";
 
 export default function App() {
   useGlobalControlWheel();
@@ -156,6 +157,11 @@ export default function App() {
       sessionRef.current.replaceDocument(stack);
       syncSession();
       rendererRef.current.render(sessionRef.current.layers());
+      // Une ouverture réussie efface une éventuelle erreur laissée par une
+      // tentative précédente (fichier corrompu, GPU indisponible...) — sinon
+      // le bandeau d'erreur reste affiché au-dessus du document qui vient de
+      // charger correctement.
+      setError(null);
     } catch (e) {
       setError(messageFromUnknown(e));
     }
@@ -244,7 +250,10 @@ export default function App() {
     // — avec LayerRow mémoïsé (LayerPanel.tsx, même pattern pour l'opacité),
     // ça re-render la liste entière à chaque frame de drag. Ce .map() garde
     // la référence des calques NON touchés, seul le calque `id` change.
-    paramDirtyRef.current = true;
+    const previous = sessionRef.current.layers().find((l) => l.id === id);
+    if (previous && Object.entries(params).some(([key, value]) => hasValueChanged(previous.params[key], value))) {
+      paramDirtyRef.current = true;
+    }
     const full = sessionRef.current.layers().map((l) => (l.id === id ? { ...l, params: { ...l.params, ...params } } : l));
     sessionRef.current.replaceLiveLayers(full);
     syncSession();
@@ -263,7 +272,8 @@ export default function App() {
       // du stack pendant le drag, seul le calque `id` reçoit un objet frais
       // — condition nécessaire pour que LayerRow (React.memo) ne re-render
       // QUE la ligne dont l'opacité bouge, pas la liste entière des calques.
-      paramDirtyRef.current = true;
+      const previous = sessionRef.current.layers().find((l) => l.id === id);
+      if (previous && hasValueChanged(previous.opacity, opacity)) paramDirtyRef.current = true;
       const full = sessionRef.current.layers().map((l) => (l.id === id ? { ...l, opacity } : l));
       sessionRef.current.replaceLiveLayers(full);
       syncSession();
@@ -295,7 +305,10 @@ export default function App() {
   }
 
   function handleMaskSourceParamsChange(layerId: string, sourceId: string, params: Record<string, number | number[]>) {
-    paramDirtyRef.current = true;
+    const previousSource = sessionRef.current.layers().find((l) => l.id === layerId)?.mask.sources.find((s) => s.id === sourceId);
+    if (previousSource && Object.entries(params).some(([key, value]) => hasValueChanged((previousSource.params?.[key] as number | number[] | undefined) ?? 0, value))) {
+      paramDirtyRef.current = true;
+    }
     const stack = currentStack();
     stack.updateMaskSourceParams(layerId, sourceId, params);
     sessionRef.current.replaceLiveLayers(stack.layers);
@@ -331,7 +344,19 @@ export default function App() {
   }
 
   function handleRefineEdgeChange(layerId: string, refineEdge: Partial<RefineEdgeParams>) {
-    paramDirtyRef.current = true;
+    const previousLayer = sessionRef.current.layers().find((l) => l.id === layerId);
+    if (
+      previousLayer &&
+      Object.entries(refineEdge).some(([key, value]) => {
+        const previousValue = previousLayer.mask.refineEdge[key as keyof RefineEdgeParams];
+        // edgeAware est un booléen (activation) — les autres champs de
+        // RefineEdgeParams sont numériques, seuls comparables via
+        // hasValueChanged (qui n'accepte que number|number[]).
+        return typeof value === "boolean" ? previousValue !== value : hasValueChanged(previousValue as number, value as number);
+      })
+    ) {
+      paramDirtyRef.current = true;
+    }
     const stack = currentStack();
     stack.updateRefineEdge(layerId, refineEdge);
     sessionRef.current.replaceLiveLayers(stack.layers);
@@ -456,6 +481,32 @@ export default function App() {
     }
   }
 
+  // Raccourcis globaux Ctrl+Z/Ctrl+Y (undo/redo) : fonctionnent depuis
+  // n'importe où dans la fenêtre, PAS seulement quand un bouton Toolbar a le
+  // focus — sauf par-dessus un contrôle éditable (input/textarea/
+  // contentEditable, ex. le champ de valeur d'un LabeledSlider en cours de
+  // frappe), où Ctrl+Z doit rester l'undo texte natif du champ, pas l'undo
+  // de calque.
+  useEffect(() => {
+    function handleWindowKeyDown(event: KeyboardEvent) {
+      if (!event.ctrlKey && !event.metaKey) return;
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName;
+      const isEditableTarget = tagName === "INPUT" || tagName === "TEXTAREA" || target?.isContentEditable;
+      if (isEditableTarget) return;
+      const key = event.key.toLowerCase();
+      if (key === "z") {
+        event.preventDefault();
+        handleUndo();
+      } else if (key === "y") {
+        event.preventDefault();
+        handleRedo();
+      }
+    }
+    window.addEventListener("keydown", handleWindowKeyDown);
+    return () => window.removeEventListener("keydown", handleWindowKeyDown);
+  });
+
   async function handleExport() {
     if (!rendererRef.current) return;
     if (!sourcePath) {
@@ -482,6 +533,10 @@ export default function App() {
         imageSize.width,
         imageSize.height
       );
+      // Même discipline que openFile : un export réussi efface une erreur
+      // laissée par une tentative précédente, plutôt que de laisser un
+      // bandeau d'erreur périmé affiché au-dessus d'un export qui a marché.
+      setError(null);
     } catch (e) {
       setError(messageFromUnknown(e));
     }

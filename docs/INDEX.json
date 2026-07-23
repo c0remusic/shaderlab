@@ -182,10 +182,10 @@
     },
     {
       "path": "docs/superpowers/plans/2026-07-21-audit-ui-runtime-hygiene.md",
-      "status": "ÉCRIT le 2026-07-21 (7c45ec7), NON exécuté (confirmé par Antoine 2026-07-21).",
+      "status": "TERMINÉ (worktree agent-a3d6f8de08e2d5324, commits a0b8c54/1d75897/3018ac2). tsc/281 tests/lint:tokens/build/cargo check verts. Pas de checkpoint visuel humain effectué (headless) — le comportement de drag et les raccourcis Ctrl+Z/Ctrl+Y restent à confirmer visuellement par Antoine dans la vraie fenêtre WebView2. Écarts vs plan original : src/ui/Slider|Tooltip|Select.tsx et src/render/maskResidency.ts n'existaient plus/étaient déjà morts (migration shadcn du 2026-07-21, postérieure au plan) ; Progress.tsx n'a jamais existé sous cette forme, pas réintroduit (YAGNI). Renderer.readPixels() supprimé (0 appelant réel) en plus de maskResidency.ts.",
       "date": "2026-07-21",
       "topic": "plan d'implémentation : hygiène runtime UI (3/3 de la remédiation audit clean-code)",
-      "summary": "Stabilise le drag (état figé au relâchement), cleanup systématique des timers/rAF transitoires, pas d'entrée d'historique pour une interaction sans changement de valeur, raccourcis clavier, composants morts et commentaires périmés."
+      "summary": "Stabilise le drag (état figé au relâchement, ref-sync + resolveDockDragCommit), cleanup systématique des timers/rAF/ressources GPU transitoires (Canvas rAF, Renderer.render try/finally, FramePipelineExecutor try/catch), hasValueChanged pour ne pas créer d'entrée d'historique sans changement de valeur réel, raccourcis Ctrl+Z/Ctrl+Y globaux (hors contrôles éditables), erreur effacée après open/export réussi, composants morts et commentaires périmés retirés."
     },
     {
       "path": "docs/superpowers/plans/2026-07-21-shaderlab-dock-width-resize.md",

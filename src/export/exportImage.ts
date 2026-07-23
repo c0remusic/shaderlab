@@ -99,14 +99,14 @@ export async function resolveExportTargetAsync(
  * buildCopyPath) or the exact Lightroom launch path (round-trip export,
  * per the design doc's contract — overwrite in place).
  *
- * Uses `renderer.exportFrame()`, NOT `render()` + `readPixels()`. `render()`
- * writes its final pass straight to the canvas, never into the ping-pong
- * buffers `readPixels()` reads from — calling `readPixels()` after
- * `render()` would return stale data from an intermediate pass, not the
- * actual final composited frame (a real bug flagged in Task 5's review).
- * `exportFrame()` reruns the same multi-pass pipeline targeting a dedicated
- * off-screen texture for every pass, including the last one, so its
- * readback is always correct.
+ * Uses `renderer.exportFrame()`, NOT `render()` + a raw ping-pong readback.
+ * `render()` writes its final pass straight to the canvas, never into the
+ * ping-pong buffers — reading `pingPong[0]` back after `render()` would
+ * return stale data from an intermediate pass, not the actual final
+ * composited frame (a real bug flagged in Task 5's review). `exportFrame()`
+ * reruns the same multi-pass pipeline targeting a dedicated off-screen
+ * texture for every pass, including the last one, so its readback is always
+ * correct.
  */
 export async function exportImage(
   frameRenderer: FrameRenderer,

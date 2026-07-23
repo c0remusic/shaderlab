@@ -41,7 +41,10 @@ function createFakeTexture() {
   } as unknown as GPUTexture;
 }
 
-function createFakeContext(encodeCounts: { copies: number; passes: number }): GpuContext {
+function createFakeContext(
+  encodeCounts: { copies: number; passes: number },
+  writeBufferCalls?: Float32Array[],
+): GpuContext {
   const device = {
     createTexture: () => createFakeTexture(),
     createBuffer: () => ({}) as unknown as GPUBuffer,
@@ -52,7 +55,9 @@ function createFakeContext(encodeCounts: { copies: number; passes: number }): Gp
     createBindGroup: () => ({}) as unknown as GPUBindGroup,
     queue: {
       writeTexture: () => {},
-      writeBuffer: () => {},
+      writeBuffer: (_buffer: unknown, _offset: number, data: Float32Array) => {
+        writeBufferCalls?.push(new Float32Array(data));
+      },
     },
   } as unknown as GPUDevice;
   return { device, context: {} as GPUCanvasContext, canvasFormat: "bgra8unorm", srgbFormat: "bgra8unorm-srgb" };
@@ -75,8 +80,8 @@ function createFakeEncoder(encodeCounts: { copies: number; passes: number }): GP
   } as unknown as GPUCommandEncoder;
 }
 
-function makeResolver(encodeCounts: { copies: number; passes: number }) {
-  const ctx = createFakeContext(encodeCounts);
+function makeResolver(encodeCounts: { copies: number; passes: number }, writeBufferCalls?: Float32Array[]) {
+  const ctx = createFakeContext(encodeCounts, writeBufferCalls);
   const colorTexture = createFakeTexture();
   return new MaskTextureResolver(
     ctx,
@@ -331,5 +336,47 @@ describe("MaskTextureResolver — edge-aware/refine result cache", () => {
     const t2 = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 7);
     expect(t2).toBe(t1);
     expect(counts).toEqual(afterFirst);
+  });
+});
+
+describe("MaskTextureResolver — gradient source params contract", () => {
+  // Régression : gradientSource.defaultParams (mask/sources/gradient.ts) liste
+  // `angle` en première clé — une commodité de saisie UI, jamais un slot du
+  // contrat wgsl (`params[0]=startX, [1]=startY, [2]=endX, [3]=endY,
+  // [4]=feather, [5]=invert`, documenté dans gradient.ts). Sans le filtrage
+  // de `angle` avant flatten(), Object.keys(defaults) le sérialise en
+  // premier et décale tout d'un cran — `feather` (params[4]) recevait la
+  // valeur d'`endY`, cassant le contour de seuil (fwidth-based) dès qu'un
+  // angle non-défaut recalculait endY vers une valeur de feather démesurée.
+  it("writes startX/startY/endX/endY/feather/invert at the exact wgsl slots the shader contract expects, excluding angle", () => {
+    const counts = { copies: 0, passes: 0 };
+    const writeBufferCalls: Float32Array[] = [];
+    const resolver = makeResolver(counts, writeBufferCalls);
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    stack.addMaskSource(id, "gradient");
+    let layer = stack.layers.find((l) => l.id === id)!;
+    const gradientSource = layer.mask.sources.find((s) => s.type === "gradient")!;
+    // Valeurs toutes distinctes et non-défaut pour détecter un décalage
+    // d'index (un décalage silencieux avec des valeurs égales/nulles ne
+    // ferait échouer aucune assertion).
+    const params = { angle: 200, startX: 0.11, startY: 0.22, endX: 0.33, endY: 0.44, feather: 0.55, invert: 0 };
+    layer = {
+      ...layer,
+      mask: {
+        ...layer.mask,
+        sources: layer.mask.sources.map((s) => (s.id === gradientSource.id && s.type !== "brush" ? { ...s, params } : s)),
+      },
+    };
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, [], 0);
+
+    expect(writeBufferCalls.length).toBeGreaterThan(0);
+    const flat = writeBufferCalls[writeBufferCalls.length - 1];
+    // toBeCloseTo, pas toEqual : le tableau transite par un Float32Array
+    // (précision f32), une comparaison stricte échouerait sur l'arrondi
+    // (0.11 → 0.10999999940395355), pas sur un bug d'ordonnancement.
+    const actual = Array.from(flat.slice(0, 6));
+    const expected = [params.startX, params.startY, params.endX, params.endY, params.feather, params.invert];
+    actual.forEach((v, i) => expect(v).toBeCloseTo(expected[i], 5));
   });
 });

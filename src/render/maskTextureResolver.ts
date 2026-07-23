@@ -354,7 +354,16 @@ export class MaskTextureResolver {
       });
     const module = getMaskSourceModule(source.type),
       count = PARAM_COUNT_BY_TYPE[source.type],
-      flat = this.flatten(source.params, module.defaultParams, count),
+      // `angle` (source gradient) est une commodité de saisie UI — le
+      // contrat wgsl documenté par chaque module (mask/sources/*.ts) ne le
+      // liste jamais parmi ses slots. flatten() sérialise Object.keys(defaults)
+      // dans l'ordre : le laisser passer décale tous les params suivants d'un
+      // cran (ex. `feather` recevait la valeur d'`endY`). Voir gradient.ts.
+      wgslDefaults =
+        "angle" in module.defaultParams
+          ? Object.fromEntries(Object.entries(module.defaultParams).filter(([k]) => k !== "angle"))
+          : module.defaultParams,
+      flat = this.flatten(source.params, wgslDefaults, count),
       buffer = this.ctx.device.createBuffer({
         size: flat.byteLength,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,

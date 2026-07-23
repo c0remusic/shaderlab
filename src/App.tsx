@@ -8,8 +8,9 @@ import { BrushToolbar } from "./components/BrushToolbar";
 import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
 import { ErrorBanner } from "./components/ErrorBanner";
-import { exportImage, resolveExportTarget } from "./export/exportImage";
-import { getLaunchPath, readImageFile, pickImageFile, logDiagnostic, writeImageFile } from "./launch";
+import { exportImage, resolveExportTargetAsync } from "./export/exportImage";
+import { messageFromUnknown } from "./lib/errors";
+import { getLaunchPath, readImageFile, pickImageFile, logDiagnostic, writeImageFile, pathExists } from "./launch";
 import { useGlobalControlWheel } from "./ui/activeControl";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 import { getBrushRaster } from "./mask/brushSource";
@@ -129,17 +130,24 @@ export default function App() {
       } catch {
         throw new Error("Image non supportée ou corrompue.");
       }
+
+      // Build and load the candidate renderer BEFORE touching anything the
+      // PREVIOUS document depends on (rendererRef, canvas size, app state).
+      // Renderer.createLoaded disposes the candidate's own partial
+      // resources on failure and rethrows — this used to dispose the
+      // outgoing renderer FIRST, so a failed load (unsupported image, GPU
+      // size limit) left the canvas backed by an already-destroyed
+      // renderer, with the previous document unusable despite `sourcePath`/
+      // `imageSize` state still pointing at it. Only once loading succeeds
+      // do we touch the canvas, dispose the outgoing renderer, and commit
+      // the new document's state.
+      const candidate = await Renderer.createLoaded(gpuRef.current, bitmap, logDiagnostic);
+
       canvasRef.current.width = bitmap.width;
       canvasRef.current.height = bitmap.height;
-
       rendererRef.current?.dispose();
-      rendererRef.current = new Renderer(gpuRef.current, logDiagnostic);
-      await rendererRef.current.loadImage(bitmap);
+      rendererRef.current = candidate;
 
-      // Only commit sourcePath/isLaunchFile/imageSize state AFTER loadImage succeeds.
-      // If loadImage throws, these state updates never happen, leaving the previous
-      // values intact and preventing handleExport from attempting to export with an
-      // unloaded renderer.
       setImageSize({ width: bitmap.width, height: bitmap.height });
       setSourcePath(path);
       setIsLaunchFile(fromLaunch);
@@ -149,7 +157,7 @@ export default function App() {
       syncSession();
       rendererRef.current.render(sessionRef.current.layers());
     } catch (e) {
-      setError((e as Error).message);
+      setError(messageFromUnknown(e));
     }
   }, [syncSession]);
 
@@ -161,7 +169,7 @@ export default function App() {
         const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
         await openFile(new File([blob], path, { type: "image/jpeg" }), path, true);
       } catch (e) {
-        setError((e as Error).message);
+        setError(messageFromUnknown(e));
       }
     });
   }, [openFile]);
@@ -179,7 +187,7 @@ export default function App() {
       const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
       await openFile(new File([blob], path, { type: "image/jpeg" }), path, false);
     } catch (e) {
-      setError((e as Error).message);
+      setError(messageFromUnknown(e));
     }
   }, [openFile]);
 
@@ -198,7 +206,8 @@ export default function App() {
   const handleToggle = useCallback(
     (id: string) => {
       const stack = currentStack();
-      stack.toggleLayer(id);
+      // Mutation outcome (Task 3) : id absent -> pas d'entrée d'historique.
+      if (!stack.toggleLayer(id)) return;
       commit(stack);
     },
     [currentStack, commit]
@@ -207,7 +216,7 @@ export default function App() {
   const handleRemove = useCallback(
     (id: string) => {
       const stack = currentStack();
-      stack.removeLayer(id);
+      if (!stack.removeLayer(id)) return;
       maskPaintersRef.current.delete(id);
       commit(stack);
     },
@@ -217,7 +226,9 @@ export default function App() {
   const handleReorder = useCallback(
     (id: string, newIndex: number) => {
       const stack = currentStack();
-      stack.reorderLayer(id, newIndex);
+      // Mutation outcome : id absent, index hors-borne, ou index inchangé
+      // (no-op) -> pas d'entrée d'historique.
+      if (!stack.reorderLayer(id, newIndex)) return;
       commit(stack);
     },
     [currentStack, commit]
@@ -279,7 +290,7 @@ export default function App() {
 
   function handleRemoveMaskSource(layerId: string, sourceId: string) {
     const stack = currentStack();
-    stack.removeMaskSource(layerId, sourceId);
+    if (!stack.removeMaskSource(layerId, sourceId)) return;
     commit(stack);
   }
 
@@ -294,7 +305,7 @@ export default function App() {
 
   function handleMaskSourceCombineModeChange(layerId: string, sourceId: string, mode: "add" | "subtract" | "intersect") {
     const stack = currentStack();
-    stack.setMaskSourceCombineMode(layerId, sourceId, mode);
+    if (!stack.setMaskSourceCombineMode(layerId, sourceId, mode)) return;
     commit(stack);
   }
 
@@ -309,13 +320,13 @@ export default function App() {
 
   function handleMaskInvertChange(layerId: string, invert: boolean) {
     const stack = currentStack();
-    stack.setMaskInvert(layerId, invert);
+    if (!stack.setMaskInvert(layerId, invert)) return;
     commit(stack);
   }
 
   function handleMaskEnabledChange(layerId: string, enabled: boolean) {
     const stack = currentStack();
-    stack.setMaskEnabled(layerId, enabled);
+    if (!stack.setMaskEnabled(layerId, enabled)) return;
     commit(stack);
   }
 
@@ -359,7 +370,10 @@ export default function App() {
     const rgbLinear = [toLinear(pixel[0]), toLinear(pixel[1]), toLinear(pixel[2])];
     const params = { ...source.params, samples: [...existing, ...rgbLinear] };
     const stack = currentStack();
-    stack.updateMaskSourceParams(layerId, sourceId, params);
+    // Toujours un ajout réel (echantillons.length croît strictement), mais
+    // même discipline que les autres actions discrètes : ne commit que si
+    // la mutation a effectivement changé quelque chose.
+    if (!stack.updateMaskSourceParams(layerId, sourceId, params)) return;
     commit(stack); // ajout d'un échantillon = action discrète, une entrée directe
   }
 
@@ -418,7 +432,11 @@ export default function App() {
     const stack = currentStack();
     // The one and only immutable-copy update for this stroke — see the
     // comment in handleMaskStroke for why this is deferred to stroke-end.
-    stack.updateBrushMask(selectedId, entry.painter.getMaskData());
+    // updateBrushMask only returns false if selectedId's layer was removed
+    // mid-stroke (race, not the common case) — same "no mutation, no
+    // history entry" discipline as the rest of this file's discrete
+    // commits.
+    if (!stack.updateBrushMask(selectedId, entry.painter.getMaskData())) return;
     commit(stack);
     const committedLayer = stack.layers.find((l) => l.id === selectedId);
     entry.syncedFrom = committedLayer ? getBrushRaster(committedLayer) : null;
@@ -449,9 +467,13 @@ export default function App() {
     // Manual export ALWAYS copies (buildCopyPath) unless this file was
     // opened via the Lightroom launch-path CLI arg, in which case we
     // overwrite that exact path (Lightroom's own temp copy) — see
-    // resolveExportTarget's doc comment for the full rationale.
-    const target = resolveExportTarget(sourcePath, isLaunchFile);
+    // resolveExportTargetAsync's doc comment for the full rationale. Checks
+    // real disk state through `pathExists` (Rust `path_exists` command),
+    // not an in-memory set — the previous version never actually probed
+    // disk, so a manual export could silently overwrite a same-named file
+    // left over from an earlier export.
     try {
+      const target = await resolveExportTargetAsync(sourcePath, isLaunchFile, { exists: pathExists });
       await exportImage(
         rendererRef.current,
         { write: writeImageFile },
@@ -461,7 +483,7 @@ export default function App() {
         imageSize.height
       );
     } catch (e) {
-      setError((e as Error).message);
+      setError(messageFromUnknown(e));
     }
   }
 

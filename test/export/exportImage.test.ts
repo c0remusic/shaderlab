@@ -1,5 +1,5 @@
 import { vi, describe, it, expect } from "vitest";
-import { buildCopyPath, resolveExportTarget, exportImage } from "../../src/export/exportImage";
+import { buildCopyPath, resolveExportTargetAsync, exportImage, type PathAvailability } from "../../src/export/exportImage";
 
 describe("buildCopyPath", () => {
   it("appends -edited before the extension, preserving the original file", () => {
@@ -80,29 +80,45 @@ describe("exportImage", () => {
   });
 });
 
-describe("resolveExportTarget", () => {
-  it("returns a fresh copy path for a manual (non-launch) export, never the original path", () => {
-    const target = resolveExportTarget("C:\\photos\\sunset.jpg", false);
+// Fake PathAvailability backed by a Set, standing in for the real Tauri
+// path_exists command — lets these tests exercise resolveExportTargetAsync's
+// actual disk-probing loop without touching the filesystem or Tauri IPC.
+function fakeAvailability(existingPaths: Iterable<string>): PathAvailability {
+  const existing = new Set(existingPaths);
+  return { exists: (path: string) => Promise.resolve(existing.has(path)) };
+}
+
+describe("resolveExportTargetAsync", () => {
+  it("returns a fresh copy path for a manual (non-launch) export, never the original path", async () => {
+    const target = await resolveExportTargetAsync("C:\\photos\\sunset.jpg", false, fakeAvailability([]));
     expect(target).toBe("C:\\photos\\sunset-edited.jpg");
     expect(target).not.toBe("C:\\photos\\sunset.jpg");
   });
 
-  it("overwrites the exact launch path for a Lightroom round-trip export", () => {
-    const target = resolveExportTarget("C:\\Temp\\lr-abc123.jpg", true);
+  it("overwrites the exact launch path for a Lightroom round-trip export, without probing disk", async () => {
+    const availability: PathAvailability = {
+      exists: vi.fn().mockResolvedValue(true), // would report "occupied" for anything probed
+    };
+    const target = await resolveExportTargetAsync("C:\\Temp\\lr-abc123.jpg", true, availability);
     expect(target).toBe("C:\\Temp\\lr-abc123.jpg");
+    expect(availability.exists).not.toHaveBeenCalled();
   });
 
-  it("still avoids collisions for manual exports via the existing-paths set", () => {
-    const existing = new Set(["C:\\photos\\sunset-edited.jpg"]);
-    expect(resolveExportTarget("C:\\photos\\sunset.jpg", false, existing)).toBe(
-      "C:\\photos\\sunset-edited-2.jpg"
+  it("probes disk and skips the first occupied candidate", async () => {
+    const target = await resolveExportTargetAsync(
+      "C:\\photos\\sunset.jpg",
+      false,
+      fakeAvailability(["C:\\photos\\sunset-edited.jpg"])
     );
+    expect(target).toBe("C:\\photos\\sunset-edited-2.jpg");
   });
 
-  it("ignores the existing-paths set when overwriting a launch path", () => {
-    const existing = new Set(["C:\\Temp\\lr-abc123.jpg"]);
-    expect(resolveExportTarget("C:\\Temp\\lr-abc123.jpg", true, existing)).toBe(
-      "C:\\Temp\\lr-abc123.jpg"
+  it("skips both -edited.jpg and -edited-2.jpg when both are occupied on disk", async () => {
+    const target = await resolveExportTargetAsync(
+      "C:\\photos\\sunset.jpg",
+      false,
+      fakeAvailability(["C:\\photos\\sunset-edited.jpg", "C:\\photos\\sunset-edited-2.jpg"])
     );
+    expect(target).toBe("C:\\photos\\sunset-edited-3.jpg");
   });
 });

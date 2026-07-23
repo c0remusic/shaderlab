@@ -10,17 +10,39 @@ export interface ImageWriter {
   write(path: string, bytes: Uint8Array): Promise<void>;
 }
 
-export function buildCopyPath(sourcePath: string, existing: Set<string> = new Set()): string {
+/** Yields `-edited`, `-edited-2`, `-edited-3`, ... candidate copy paths for
+ *  `sourcePath`, indefinitely — the single naming rule shared by the
+ *  synchronous (`buildCopyPath`, Set-backed, used by callers that already
+ *  hold every occupied name in memory) and asynchronous (`resolveExportTargetAsync`,
+ *  disk-backed) collision resolvers below, so the two can never drift apart
+ *  on what the Nth candidate name actually is. */
+function* candidateCopyPaths(sourcePath: string): Generator<string> {
   const lastDot = sourcePath.lastIndexOf(".");
   const base = lastDot === -1 ? sourcePath : sourcePath.slice(0, lastDot);
   const ext = lastDot === -1 ? "" : sourcePath.slice(lastDot);
-  let candidate = `${base}-edited${ext}`;
+  yield `${base}-edited${ext}`;
   let counter = 2;
-  while (existing.has(candidate)) {
-    candidate = `${base}-edited-${counter}${ext}`;
+  while (true) {
+    yield `${base}-edited-${counter}${ext}`;
     counter += 1;
   }
-  return candidate;
+}
+
+export function buildCopyPath(sourcePath: string, existing: Set<string> = new Set()): string {
+  for (const candidate of candidateCopyPaths(sourcePath)) {
+    if (!existing.has(candidate)) return candidate;
+  }
+  /* istanbul ignore next -- candidateCopyPaths never terminates on its own;
+   * TS control-flow analysis can't prove that, so this satisfies the
+   * "string" return type without ever actually running. */
+  throw new Error("unreachable");
+}
+
+/** Input boundary the export path resolver uses to ask whether a candidate
+ *  path already exists on disk. Backed by the Tauri `path_exists` command in
+ *  production (`launch.ts`'s `pathExists`); a Set-backed fake in tests. */
+export interface PathAvailability {
+  exists(path: string): Promise<boolean>;
 }
 
 async function encodeJpeg(pixels: Uint8Array, width: number, height: number): Promise<Uint8Array> {
@@ -51,13 +73,24 @@ async function encodeJpeg(pixels: Uint8Array, width: number, height: number): Pr
  * file could coincidentally share a path with a prior launch file across
  * separate opens, so the flag must be tracked alongside the open, not
  * recomputed from the path itself.
+ *
+ * Checks real disk state via `availability`, not an in-memory set the caller
+ * has to keep synced — a candidate that looked free a moment ago (or that no
+ * caller ever recorded) is exactly the "manual export overwrites an existing
+ * file" bug this replaces. Never probes disk for a launch-file export: the
+ * round-trip contract overwrites `sourcePath` unconditionally.
  */
-export function resolveExportTarget(
+export async function resolveExportTargetAsync(
   sourcePath: string,
   isLaunchFile: boolean,
-  existing: Set<string> = new Set()
-): string {
-  return isLaunchFile ? sourcePath : buildCopyPath(sourcePath, existing);
+  availability: PathAvailability
+): Promise<string> {
+  if (isLaunchFile) return sourcePath;
+  for (const candidate of candidateCopyPaths(sourcePath)) {
+    if (!(await availability.exists(candidate))) return candidate;
+  }
+  /* istanbul ignore next -- see the matching comment in buildCopyPath. */
+  throw new Error("unreachable");
 }
 
 /**

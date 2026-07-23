@@ -86,6 +86,12 @@
 .param-panel__source-name:hover { color: var(--text-primary); }
 .param-panel__source-name:focus-visible { outline: var(--focus-width) solid var(--focus-color); outline-offset: var(--focus-offset); border-radius: var(--radius-control); }
 
+.param-panel__combine-mode {
+  display: flex;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
 .param-panel__source-params {
   display: flex;
   flex-direction: column;

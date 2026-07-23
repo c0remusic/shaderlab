@@ -8,8 +8,8 @@ import { LabeledSlider } from "./ui/labeled-slider";
 import { Button } from "./ui/button";
 import { IconButton } from "./ui/icon-button";
 import { Disclosure } from "./ui/collapsible";
-import { Select } from "./ui/select";
 import { Checkbox } from "./ui/checkbox";
+import { Toggle } from "./ui/toggle";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { Trash2 } from "lucide-react";
 
@@ -41,18 +41,18 @@ const COMBINE_MODE_OPTIONS = [
 
 const MASK_PARAM_LABELS: Record<string, string> = {
   angle: "Angle",
-  startX: "DÃ©part X",
-  startY: "DÃ©part Y",
-  endX: "ArrivÃ©e X",
-  endY: "ArrivÃ©e Y",
+  startX: "Départ X",
+  startY: "Départ Y",
+  endX: "Arrivée X",
+  endY: "Arrivée Y",
   feather: "Adoucissement",
   invert: "Inverser",
   shadowsMin: "Ombres min.",
   shadowsMax: "Ombres max.",
-  highlightsMin: "Hautes lumiÃ¨res min.",
-  highlightsMax: "Hautes lumiÃ¨res max.",
-  tolerance: "TolÃ©rance",
-  hardness: "DuretÃ©",
+  highlightsMin: "Hautes lumières min.",
+  highlightsMax: "Hautes lumières max.",
+  tolerance: "Tolérance",
+  hardness: "Dureté",
 };
 
 /** Plage/pas générique par clé de `params` — heuristique couvrant les 3
@@ -163,14 +163,28 @@ export function MaskPanel({
                     >
                       {module.name}
                     </button>
-                    <Select
-                      label="Mode"
-                      value={source.combineMode}
-                      options={COMBINE_MODE_OPTIONS}
-                      onChange={(mode) =>
-                        onMaskSourceCombineModeChange(layer.id, source.id, mode as "add" | "subtract" | "intersect")
-                      }
-                    />
+                    <div className="param-panel__combine-mode" role="group" aria-label="Mode de combinaison">
+                      {COMBINE_MODE_OPTIONS.map((option) => (
+                        <Toggle
+                          key={option.value}
+                          size="sm"
+                          title={option.label}
+                          aria-label={option.label}
+                          pressed={source.combineMode === option.value}
+                          onPressedChange={(pressed) => {
+                            if (pressed) {
+                              onMaskSourceCombineModeChange(
+                                layer.id,
+                                source.id,
+                                option.value as "add" | "subtract" | "intersect",
+                              );
+                            }
+                          }}
+                        >
+                          {option.value === "add" ? "+" : option.value === "subtract" ? "−" : "∩"}
+                        </Toggle>
+                      ))}
+                    </div>
                     <IconButton
                       label="Supprimer la source"
                       tooltip="Supprimer"
@@ -222,6 +236,7 @@ export function MaskPanel({
           )}
         </div>
       </Disclosure>
+      {sources.length > 0 && (
       <Disclosure title="Affiner le bord">
         <div className="param-panel__group">
           <LabeledSlider
@@ -283,6 +298,7 @@ export function MaskPanel({
           )}
         </div>
       </Disclosure>
+      )}
     </div>
   );
 }

@@ -468,17 +468,34 @@ export default function App() {
   const selectedLayer = layers.find((l) => l.id === selectedId) ?? null;
   const paramsPanelTitle = selectedLayer ? `Réglages · ${getEffect(selectedLayer.effectId).name}` : "Réglages";
 
-  // Overlay du masque (rouge + contour animé) : visible dès qu'un calque
-  // sélectionné a un masque actif (mode peinture OU au moins une source
-  // active) — pas seulement en mode peinture comme avant, pour couvrir
-  // l'édition des sources dégradé/luminosité/range couleur qui ne passe
-  // jamais par le pinceau. Voir
-  // docs/superpowers/specs/2026-07-23-shaderlab-mask-threshold-contour-design.md.
-  // showOverlay est un booléen stable (pas `layers` en dépendance) pour que
-  // l'effet ne se redéclenche pas à chaque frame d'un drag de slider — seul
-  // un vrai changement "montrer/cacher" redémarre la boucle rAF.
+  // Overlay du masque (rouge + contour animé) : affiché tant qu'on travaille
+  // réellement sur le masque du calque sélectionné (panneau Masque ouvert OU
+  // pinceau actif) ET qu'il y a un masque actif à montrer — pas en continu
+  // dès qu'un masque existe (bruit visuel pendant qu'on règle un autre
+  // aspect du calque). `overlayForceHidden` (Task 1) reste prioritaire :
+  // un utilisateur qui veut juger le rendu final sans quitter le panneau
+  // doit pouvoir l'éteindre explicitement. Voir
+  // docs/superpowers/specs/2026-07-23-shaderlab-mask-overlay-visibility-design.md.
   const hasActiveMask = selectedLayer ? planFold(selectedLayer.mask).length > 0 : false;
-  const showOverlay = !overlayForceHidden && (maskPaintMode || hasActiveMask);
+  const wantsOverlay = (!maskCollapsed || maskPaintMode) && hasActiveMask && !!selectedId;
+
+  // Délai de grâce de 750ms avant extinction : quand on ferme le panneau
+  // Masque, change de calque, ou que le calque perd son masque actif,
+  // `wantsOverlay` passe à `false` immédiatement — mais `graceVisible` ne
+  // suit qu'après ce délai, pour laisser voir le résultat se stabiliser
+  // plutôt qu'une coupure brutale. Annulé (`clearTimeout`) si `wantsOverlay`
+  // redevient `true` avant l'échéance (ex: on rouvre le panneau vite).
+  const [graceVisible, setGraceVisible] = useState(wantsOverlay);
+  useEffect(() => {
+    if (wantsOverlay) {
+      setGraceVisible(true);
+      return;
+    }
+    const timer = setTimeout(() => setGraceVisible(false), 750);
+    return () => clearTimeout(timer);
+  }, [wantsOverlay]);
+
+  const showOverlay = !overlayForceHidden && graceVisible;
 
   useEffect(() => {
     const r = rendererRef.current;

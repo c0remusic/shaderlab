@@ -154,3 +154,125 @@ fn fs_composite(in: VertexOut) -> @location(0) vec4<f32> {
 }
 `;
 }
+
+/** Downscale du guide (I ou p, r8unorm) avant le filtre guidé — moyenne de
+ *  boîte 2x2 (4 échantillons bilinéaires) plutôt qu'un simple resize
+ *  1-tap, pour limiter l'aliasing au facteur de réduction typique (~3x sur
+ *  une photo 24MP downscalée au plafond de 2048px, cf. spec design). */
+export function buildDownsampleWgsl(): string {
+  return `
+${FULLSCREEN_VERTEX_WGSL}
+
+@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var srcSampler: sampler;
+
+@fragment
+fn fs_downsample(in: VertexOut) -> @location(0) vec4<f32> {
+  let texel = 1.0 / vec2<f32>(textureDimensions(src));
+  let o = texel * 0.5;
+  let a = textureSample(src, srcSampler, in.uv + vec2<f32>(-o.x, -o.y)).r;
+  let b = textureSample(src, srcSampler, in.uv + vec2<f32>(o.x, -o.y)).r;
+  let c = textureSample(src, srcSampler, in.uv + vec2<f32>(-o.x, o.y)).r;
+  let d = textureSample(src, srcSampler, in.uv + vec2<f32>(o.x, o.y)).r;
+  let v = (a + b + c + d) * 0.25;
+  return vec4<f32>(v, v, v, 1.0);
+}
+`;
+}
+
+/** Première étape d'une SAT (image intégrale) : convertit une source rg8/
+ *  rg16 (packedIp, squareCorr, ab) en rg32float via `textureLoad` (jamais
+ *  `textureSample` — `rg32float` est `unfilterable-float` en WebGPU, voir
+ *  spec design § Lookup SAT via textureLoad). Passthrough identité, aucune
+ *  somme — la construction Hillis-Steele proprement dite commence à la
+ *  passe suivante (`buildSatScanWgsl`). */
+export function buildSatWidenWgsl(): string {
+  return `
+${FULLSCREEN_VERTEX_WGSL}
+
+@group(0) @binding(0) var src: texture_2d<f32>;
+
+@fragment
+fn fs_satWiden(in: VertexOut) -> @location(0) vec4<f32> {
+  let coord = vec2<i32>(in.position.xy);
+  let c = textureLoad(src, coord, 0).rg;
+  return vec4<f32>(c, 0.0, 1.0);
+}
+`;
+}
+
+/** Un pas de scan Hillis-Steele (prefix-sum inclusif) le long d'un axe —
+ *  appelé ceil(log2(largeur)) fois en H puis ceil(log2(hauteur)) fois en V
+ *  (offset = 2^k à chaque appel) pour obtenir la SAT 2D complète (technique
+ *  séparable standard). `radius` (l'utilisateur) n'intervient JAMAIS ici —
+ *  c'est ce qui rend la construction de la SAT indépendante du rayon
+ *  choisi (voir spec design § Cache à deux niveaux) ; le rayon n'entre en
+ *  jeu qu'au lookup (`buildSatLookupWgsl`). */
+export function buildSatScanWgsl(direction: "H" | "V"): string {
+  const entryPoint = direction === "H" ? "fs_satScanH" : "fs_satScanV";
+  const prevCoordExpr =
+    direction === "H"
+      ? "vec2<i32>(coord.x - off, coord.y)"
+      : "vec2<i32>(coord.x, coord.y - off)";
+  const boundsCheck = direction === "H" ? "prevCoord.x >= 0" : "prevCoord.y >= 0";
+  return `
+${FULLSCREEN_VERTEX_WGSL}
+
+@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var<uniform> offset: f32;
+
+@fragment
+fn ${entryPoint}(in: VertexOut) -> @location(0) vec4<f32> {
+  let coord = vec2<i32>(in.position.xy);
+  let off = i32(offset);
+  var sum = textureLoad(src, coord, 0).rg;
+  let prevCoord = ${prevCoordExpr};
+  if (${boundsCheck}) {
+    sum = sum + textureLoad(src, prevCoord, 0).rg;
+  }
+  return vec4<f32>(sum, 0.0, 1.0);
+}
+`;
+}
+
+/** Lookup O(1) d'une moyenne de boîte de rayon quelconque à partir d'une
+ *  SAT complète (4 échantillons coin, différence d'aires — technique
+ *  standard des images intégrales). `radius` est déjà mis à l'échelle du
+ *  guide réduit par l'appelant (`edgeRadius * scale`, voir spec design §
+ *  Mise à l'échelle du rayon) — cette fonction ne connaît que des texels
+ *  du guide réduit, jamais la résolution de la photo source. */
+export function buildSatLookupWgsl(): string {
+  return `
+${FULLSCREEN_VERTEX_WGSL}
+
+@group(0) @binding(0) var sat: texture_2d<f32>;
+@group(0) @binding(1) var<uniform> radius: f32;
+
+fn satAt(coord: vec2<i32>, dims: vec2<i32>) -> vec2<f32> {
+  if (coord.x < 0 || coord.y < 0) {
+    return vec2<f32>(0.0, 0.0);
+  }
+  let clamped = vec2<i32>(min(coord.x, dims.x - 1), min(coord.y, dims.y - 1));
+  return textureLoad(sat, clamped, 0).rg;
+}
+
+@fragment
+fn fs_satLookup(in: VertexOut) -> @location(0) vec4<f32> {
+  let dims = vec2<i32>(textureDimensions(sat));
+  let coord = vec2<i32>(in.position.xy);
+  let r = max(i32(radius), 0);
+  let x1 = max(coord.x - r, 0);
+  let x2 = min(coord.x + r, dims.x - 1);
+  let y1 = max(coord.y - r, 0);
+  let y2 = min(coord.y + r, dims.y - 1);
+  let a = satAt(vec2<i32>(x2, y2), dims);
+  let b = satAt(vec2<i32>(x1 - 1, y2), dims);
+  let c = satAt(vec2<i32>(x2, y1 - 1), dims);
+  let d = satAt(vec2<i32>(x1 - 1, y1 - 1), dims);
+  let sum = a - b - c + d;
+  let count = f32((x2 - x1 + 1) * (y2 - y1 + 1));
+  let mean = sum / max(count, 1.0);
+  return vec4<f32>(mean, 0.0, 1.0);
+}
+`;
+}

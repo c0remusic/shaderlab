@@ -7,6 +7,10 @@ import {
   buildBoxFilterVWgsl,
   buildComputeABWgsl,
   buildCompositeWgsl,
+  buildDownsampleWgsl,
+  buildSatWidenWgsl,
+  buildSatScanWgsl,
+  buildSatLookupWgsl,
 } from "../../src/mask/edgeAwareWgsl";
 
 describe("edge-aware WGSL passes", () => {
@@ -57,5 +61,38 @@ describe("edge-aware WGSL passes", () => {
     expect(wgsl).toContain("var<uniform> edgeStrength: f32");
     expect(wgsl).toContain("fn fs_composite(");
     expect(wgsl).toContain("clamp(");
+  });
+
+  it("buildDownsampleWgsl fait une moyenne de boîte 2x2 en niveaux de gris", () => {
+    const wgsl = buildDownsampleWgsl();
+    expect(wgsl).toContain("fn fs_downsample(");
+    expect(wgsl).toContain("var srcSampler: sampler");
+    expect(wgsl).toContain("* 0.25");
+  });
+
+  it("buildSatWidenWgsl convertit une source rg8/rg16 en rg32float via textureLoad, sans sampler", () => {
+    const wgsl = buildSatWidenWgsl();
+    expect(wgsl).toContain("fn fs_satWiden(");
+    expect(wgsl).toContain("textureLoad(src, coord, 0)");
+    expect(wgsl).not.toContain("sampler");
+  });
+
+  it("buildSatScanWgsl fait un pas Hillis-Steele H ou V via textureLoad, offset en uniform", () => {
+    const h = buildSatScanWgsl("H");
+    const v = buildSatScanWgsl("V");
+    expect(h).toContain("fn fs_satScanH(");
+    expect(v).toContain("fn fs_satScanV(");
+    expect(h).toContain("var<uniform> offset: f32");
+    expect(h).toContain("coord.x - off");
+    expect(v).toContain("coord.y - off");
+    expect(h).not.toContain("sampler");
+  });
+
+  it("buildSatLookupWgsl calcule une moyenne de boîte O(1) via 4 échantillons coin", () => {
+    const wgsl = buildSatLookupWgsl();
+    expect(wgsl).toContain("fn fs_satLookup(");
+    expect(wgsl).toContain("var<uniform> radius: f32");
+    expect(wgsl).toContain("fn satAt(");
+    expect(wgsl).not.toContain("sampler");
   });
 });

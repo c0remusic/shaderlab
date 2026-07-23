@@ -130,12 +130,13 @@ export class Renderer {
       width,
       height,
       this.sampler,
-      (layer, encoder, sourceView, pendingDestroy) =>
+      (layer, encoder, sourceView, pendingDestroy, guideEpoch) =>
         this.maskTextureResolver!.resolve(
           layer,
           encoder,
           sourceView,
           pendingDestroy,
+          guideEpoch,
         ),
     );
     this.maskTextureResolver?.dispose();

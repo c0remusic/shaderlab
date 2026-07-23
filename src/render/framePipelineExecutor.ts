@@ -19,7 +19,7 @@ export interface EffectPassesPort {
     layer: LayerState,
     sourceView: GPUTextureView,
     targetView: GPUTextureView,
-    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null },
+    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null; guideEpoch?: number },
     pendingDestroy: FrameResource[],
   ): void;
   runInternalPasses(
@@ -41,11 +41,18 @@ export interface EffectPassesPort {
 /** Persistent mask residency; it encodes mask work but never submits it. */
 export interface MaskTexturesPort {
   sweep(layerIds: ReadonlySet<string>): void;
+  /** `guideEpoch` : identifie la "fraîcheur" de `colorView` (l'image de
+   *  guide du filtre edge-aware) — constant pour le calque du bas (guide =
+   *  image source stable), changeant à chaque exécution réelle du pipeline
+   *  sinon (le composite en dessous est ré-encodé sans mémoïsation par
+   *  calque). Sans ce signal, edge-aware pouvait rester figé sur un ancien
+   *  composite après modif d'un calque en dessous. */
   resolve(
     layer: LayerState,
     encoder: GPUCommandEncoder,
     colorView: GPUTextureView,
     pendingDestroy: FrameResource[],
+    guideEpoch: number,
   ): GPUTexture;
 }
 
@@ -72,6 +79,11 @@ export type FramePipelineResult = {
  * frame-scoped GPU destruction: resources are released only after submit.
  */
 export class FramePipelineExecutor {
+  /** Incrémenté à chaque exécution réelle du pipeline — sert de `guideEpoch`
+   *  "changeant" pour tout calque dont le guide edge-aware n'est pas
+   *  l'image source stable (voir `MaskTexturesPort.resolve`). */
+  private runGeneration = 0;
+
   constructor(
     private readonly device: GPUDevice,
     private readonly resources: FrameResourcesPort,
@@ -87,6 +99,7 @@ export class FramePipelineExecutor {
     const sourceTexture = this.resources.sourceTexture;
     const pingPong = this.resources.pingPong;
     if (!sourceTexture || !pingPong) throw new Error("Aucune image chargée.");
+    this.runGeneration++;
 
     this.masks.sweep(new Set(layers.map((layer) => layer.id)));
     const enabledLayers = layers.filter((layer) => layer.enabled);
@@ -123,6 +136,9 @@ export class FramePipelineExecutor {
           encoder,
           sourceTexture.createView(),
           pendingDestroy,
+          // Guide = image source stable (aucun calque composité) — même
+          // statut de fraîcheur que le premier calque de la pile.
+          0,
         );
         this.effects.runOverlayPass(
           encoder,
@@ -160,7 +176,14 @@ export class FramePipelineExecutor {
         layer,
         readTexture.createView(),
         targetView,
-        { applyMask: true, prevPassView: previousPass?.view },
+        {
+          applyMask: true,
+          prevPassView: previousPass?.view,
+          // 0 = image source stable (premier calque) ; sinon le composite
+          // des calques en dessous, ré-encodé à chaque run() (voir champ
+          // `runGeneration`).
+          guideEpoch: index === 0 ? 0 : this.runGeneration,
+        },
         pendingDestroy,
       );
       if (previousPass) pendingDestroy.push(previousPass.texture);
@@ -179,6 +202,9 @@ export class FramePipelineExecutor {
         encoder,
         composedTexture.createView(),
         pendingDestroy,
+        // Guide = composite de tous les calques activés, toujours ré-encodé
+        // à chaque run() — jamais le cas stable "premier calque".
+        this.runGeneration,
       );
       this.effects.runOverlayPass(
         encoder,

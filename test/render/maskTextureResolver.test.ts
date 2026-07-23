@@ -101,7 +101,7 @@ describe("MaskTextureResolver — fold cache seam", () => {
     const counts = { copies: 0, passes: 0 };
     const resolver = makeResolver(counts);
     const layer = twoSourceLayer();
-    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, []);
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, [], 0);
     expect(counts.copies).toBeGreaterThan(0);
     expect(counts.passes).toBeGreaterThan(0);
   });
@@ -111,11 +111,11 @@ describe("MaskTextureResolver — fold cache seam", () => {
     const resolver = makeResolver(counts);
     const layer = twoSourceLayer();
     const pending: (GPUTexture | GPUBuffer)[] = [];
-    const t1 = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    const t1 = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     const afterFirst = { ...counts };
     // Same layer object (same source array/params references) — cache must
     // hit, no additional encoder work.
-    const t2 = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    const t2 = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     expect(t2).toBe(t1);
     expect(counts).toEqual(afterFirst);
   });
@@ -125,7 +125,7 @@ describe("MaskTextureResolver — fold cache seam", () => {
     const resolver = makeResolver(counts);
     const layer = twoSourceLayer();
     const pending: (GPUTexture | GPUBuffer)[] = [];
-    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     const afterFirst = { ...counts };
 
     const gradientSource = layer.mask.sources.find((s) => s.type === "gradient")!;
@@ -138,7 +138,7 @@ describe("MaskTextureResolver — fold cache seam", () => {
         ),
       },
     };
-    resolver.resolve(changedLayer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    resolver.resolve(changedLayer, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     expect(counts.copies).toBeGreaterThan(afterFirst.copies);
     expect(counts.passes).toBeGreaterThan(afterFirst.passes);
   });
@@ -150,7 +150,7 @@ describe("MaskTextureResolver — fold cache seam", () => {
     const id = stack.addLayer("glow");
     stack.addMaskSource(id, "luminosity");
     const layer = stack.layers.find((l) => l.id === id)!;
-    const texture = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, []);
+    const texture = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, [], 0);
     expect(texture).toBeDefined();
     // Single-source path never runs the copy+combine fold sequence.
     expect(counts.copies).toBe(0);
@@ -171,10 +171,10 @@ describe("MaskTextureResolver — edge-aware/refine result cache", () => {
     const resolver = makeResolver(counts);
     const layer = oneSourceLayerWithRefineEdge({ edgeAware: true, edgeStrength: 1, edgeRadius: 5 });
     const pending: (GPUTexture | GPUBuffer)[] = [];
-    const t1 = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    const t1 = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     const afterFirst = { ...counts };
     expect(afterFirst.passes).toBeGreaterThan(0);
-    const t2 = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    const t2 = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     expect(t2).toBe(t1);
     expect(counts).toEqual(afterFirst);
   });
@@ -184,10 +184,10 @@ describe("MaskTextureResolver — edge-aware/refine result cache", () => {
     const resolver = makeResolver(counts);
     const layer = oneSourceLayerWithRefineEdge({ edgeAware: true, edgeStrength: 1, edgeRadius: 5 });
     const pending: (GPUTexture | GPUBuffer)[] = [];
-    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     const afterFirst = { ...counts };
     const changed = { ...layer, mask: { ...layer.mask, refineEdge: { ...layer.mask.refineEdge, edgeRadius: 20 } } };
-    resolver.resolve(changed, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    resolver.resolve(changed, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     expect(counts.passes).toBeGreaterThan(afterFirst.passes);
   });
 
@@ -196,7 +196,7 @@ describe("MaskTextureResolver — edge-aware/refine result cache", () => {
     const resolver = makeResolver(counts);
     const layer = oneSourceLayerWithRefineEdge({ edgeAware: true, edgeStrength: 1, edgeRadius: 5 });
     const pending: (GPUTexture | GPUBuffer)[] = [];
-    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     const afterFirst = { ...counts };
     const luminositySource = layer.mask.sources.find((s) => s.type === "luminosity")!;
     const changed: LayerState = {
@@ -208,7 +208,7 @@ describe("MaskTextureResolver — edge-aware/refine result cache", () => {
         ),
       },
     };
-    resolver.resolve(changed, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    resolver.resolve(changed, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     // >=10, pas juste >0 : le module luminosity ne prend qu'1 passe pour se
     // regénérer lui-même — un simple ">0" passerait même si le filtre guidé
     // (11 passes) restait à tort en cache, masquant la régression.
@@ -220,10 +220,10 @@ describe("MaskTextureResolver — edge-aware/refine result cache", () => {
     const resolver = makeResolver(counts);
     const layer = oneSourceLayerWithRefineEdge({ feather: 4 });
     const pending: (GPUTexture | GPUBuffer)[] = [];
-    const t1 = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    const t1 = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     const afterFirst = { ...counts };
     expect(afterFirst.passes).toBeGreaterThan(0);
-    const t2 = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    const t2 = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     expect(t2).toBe(t1);
     expect(counts).toEqual(afterFirst);
   });
@@ -233,10 +233,10 @@ describe("MaskTextureResolver — edge-aware/refine result cache", () => {
     const resolver = makeResolver(counts);
     const layer = oneSourceLayerWithRefineEdge({ feather: 4 });
     const pending: (GPUTexture | GPUBuffer)[] = [];
-    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     const afterFirst = { ...counts };
     const changed = { ...layer, mask: { ...layer.mask, refineEdge: { ...layer.mask.refineEdge, feather: 10 } } };
-    resolver.resolve(changed, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    resolver.resolve(changed, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     expect(counts.passes).toBeGreaterThan(afterFirst.passes);
   });
 
@@ -245,7 +245,7 @@ describe("MaskTextureResolver — edge-aware/refine result cache", () => {
     const resolver = makeResolver(counts);
     const layer = oneSourceLayerWithRefineEdge({ feather: 4 });
     const pending: (GPUTexture | GPUBuffer)[] = [];
-    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     const afterFirst = { ...counts };
     const luminositySource = layer.mask.sources.find((s) => s.type === "luminosity")!;
     const changed: LayerState = {
@@ -257,7 +257,7 @@ describe("MaskTextureResolver — edge-aware/refine result cache", () => {
         ),
       },
     };
-    resolver.resolve(changed, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    resolver.resolve(changed, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     // >=2, pas juste >0 : le module luminosity ne prend qu'1 passe pour se
     // regénérer lui-même — refine() (feather=4 seul) en prend 2 de plus
     // (boxH+boxV) s'il recalcule vraiment, contre 1 seul si son cache
@@ -270,10 +270,10 @@ describe("MaskTextureResolver — edge-aware/refine result cache", () => {
     const resolver = makeResolver(counts);
     const layer = oneSourceLayerWithRefineEdge({ feather: 4 });
     const pending: (GPUTexture | GPUBuffer)[] = [];
-    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     const afterFirst = { ...counts };
     const inverted = { ...layer, mask: { ...layer.mask, invert: true } };
-    resolver.resolve(inverted, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    resolver.resolve(inverted, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     expect(counts.passes).toBeGreaterThan(afterFirst.passes);
   });
 
@@ -282,10 +282,10 @@ describe("MaskTextureResolver — edge-aware/refine result cache", () => {
     const resolver = makeResolver(counts);
     const layer = oneSourceLayerWithRefineEdge({ edgeAware: true, edgeStrength: 1, edgeRadius: 5, feather: 4 });
     const pending: (GPUTexture | GPUBuffer)[] = [];
-    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     const afterFirst = { ...counts };
     const changed = { ...layer, mask: { ...layer.mask, refineEdge: { ...layer.mask.refineEdge, edgeRadius: 20 } } };
-    resolver.resolve(changed, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    resolver.resolve(changed, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     // edgePipeline seul = 11 passes (déjà couvert par un autre test). Si
     // refine() reste à tort en cache (son input, la sortie d'edge(), a
     // pourtant changé), le delta plafonne à 11 — >=12 exige que refine()
@@ -298,13 +298,38 @@ describe("MaskTextureResolver — edge-aware/refine result cache", () => {
     const resolver = makeResolver(counts);
     const layer = oneSourceLayerWithRefineEdge({ edgeAware: true, edgeStrength: 1, edgeRadius: 5, feather: 4 });
     const pending: (GPUTexture | GPUBuffer)[] = [];
-    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     const afterFirst = { ...counts };
     const changed = { ...layer, mask: { ...layer.mask, refineEdge: { ...layer.mask.refineEdge, edgeAware: false } } };
-    resolver.resolve(changed, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    resolver.resolve(changed, createFakeEncoder(counts), {} as GPUTextureView, pending, 0);
     // Sans le fix : edge() renvoie `input` directement (0 passe, chemin
     // court-circuité) et refine() reste à tort en cache (0 passe non plus)
     // => delta 0. Avec le fix : refine() recalcule (2 passes, boxH+boxV).
     expect(counts.passes - afterFirst.passes).toBeGreaterThan(0);
+  });
+
+  it("re-encodes edge-aware/refine when guideEpoch changes, even though the mask's own content and params stay identical (regression: an upstream layer changing recomposites the guide image the guided filter reads, which resolve()'s own revision tracking cannot see on its own)", () => {
+    const counts = { copies: 0, passes: 0 };
+    const resolver = makeResolver(counts);
+    const layer = oneSourceLayerWithRefineEdge({ edgeAware: true, edgeStrength: 1, edgeRadius: 5 });
+    const pending: (GPUTexture | GPUBuffer)[] = [];
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 1);
+    const afterFirst = { ...counts };
+    // Même calque, mêmes params, même encodeur/vue — seul guideEpoch change
+    // (simule un calque en dessous qui vient d'être recomposé).
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 2);
+    expect(counts.passes).toBeGreaterThan(afterFirst.passes);
+  });
+
+  it("reuses the cached result across resolve() calls sharing the same guideEpoch (no needless re-encode from the guide-tracking alone)", () => {
+    const counts = { copies: 0, passes: 0 };
+    const resolver = makeResolver(counts);
+    const layer = oneSourceLayerWithRefineEdge({ edgeAware: true, edgeStrength: 1, edgeRadius: 5 });
+    const pending: (GPUTexture | GPUBuffer)[] = [];
+    const t1 = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 7);
+    const afterFirst = { ...counts };
+    const t2 = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending, 7);
+    expect(t2).toBe(t1);
+    expect(counts).toEqual(afterFirst);
   });
 });

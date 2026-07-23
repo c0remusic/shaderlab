@@ -102,6 +102,7 @@ export class MaskTextureResolver {
   private maskRevision = new Map<string, number>();
   private lastInvertByLayer = new Map<string, boolean>();
   private lastEdgeAwareActiveByLayer = new Map<string, boolean>();
+  private lastGuideEpochByLayer = new Map<string, number>();
   private maskSourcePipelineCache = new Map<string, PipelineEntry>();
   private maskFoldPipelineCache = new Map<string, PipelineEntry>();
   private edgeAwarePipelineCache = new Map<string, PipelineEntry>();
@@ -176,6 +177,7 @@ export class MaskTextureResolver {
     encoder: GPUCommandEncoder,
     colorView: GPUTextureView,
     pendingDestroy: (GPUTexture | GPUBuffer)[],
+    guideEpoch: number,
   ): GPUTexture {
     if (this.livePreview?.layerId === layer.id)
       return this.getLiveMaskTexture(
@@ -191,6 +193,20 @@ export class MaskTextureResolver {
     if (this.lastInvertByLayer.get(layer.id) !== layer.mask.invert) {
       this.bumpRevision(layer.id);
       this.lastInvertByLayer.set(layer.id, layer.mask.invert);
+    }
+    // `edge()` (filtre guidé) lit `colorView` comme image de guide — pour
+    // tout calque qui n'est pas le tout premier de la pile, ce guide EST le
+    // composite des calques en dessous, ré-encodé à chaque exécution réelle
+    // du pipeline (aucune mémoïsation par calque en amont). `guideEpoch`
+    // (fourni par l'appelant : constant pour le premier calque dont le
+    // guide est l'image source stable, changeant sinon) permet de détecter
+    // ce cas — sans lui, edge-aware pouvait rester figé sur un ANCIEN
+    // composite après modif d'un calque en dessous (trouvé par audit,
+    // absent du diff seul : la provenance de colorView vit dans
+    // framePipelineExecutor.ts/effectPassRunner.ts).
+    if (this.lastGuideEpochByLayer.get(layer.id) !== guideEpoch) {
+      this.bumpRevision(layer.id);
+      this.lastGuideEpochByLayer.set(layer.id, guideEpoch);
     }
     if (plan.length === 1 && !layer.mask.invert)
       return this.refine(

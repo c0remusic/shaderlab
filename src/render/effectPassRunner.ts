@@ -44,7 +44,8 @@ type MaskResolver = (
   layer: LayerState,
   encoder: GPUCommandEncoder,
   sourceView: GPUTextureView,
-  pendingDestroy: PendingDestroy
+  pendingDestroy: PendingDestroy,
+  guideEpoch: number
 ) => GPUTexture;
 
 /** Encodes stateless colour passes. Frame submission and mask residency remain
@@ -149,10 +150,10 @@ export class EffectPassRunner {
     layer: LayerState,
     sourceView: GPUTextureView,
     targetView: GPUTextureView,
-    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null } = {},
+    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null; guideEpoch?: number } = {},
     pendingDestroy: PendingDestroy = []
   ): void {
-    const { applyMask = true, prevPassView = null } = options;
+    const { applyMask = true, prevPassView = null, guideEpoch = 0 } = options;
     const paramValues = new Float32Array(MAX_EFFECT_PARAMS);
     effect.params.forEach((p, idx) => { paramValues[idx] = layer.params[p.name] ?? p.default; });
     const paramBuffer = this.device.createBuffer({ size: paramValues.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -195,7 +196,7 @@ export class EffectPassRunner {
       { binding: 1, resource: this.sampler },
       { binding: 2, resource: { buffer: paramBuffer } },
     ];
-    if (applyMask) entries.push({ binding: 3, resource: this.resolveMask(layer, encoder, sourceView, pendingDestroy).createView() });
+    if (applyMask) entries.push({ binding: 3, resource: this.resolveMask(layer, encoder, sourceView, pendingDestroy, guideEpoch).createView() });
     if (prevPassView) entries.push({ binding: 4, resource: prevPassView });
     if (applyMask && compositingBuffer) entries.push({ binding: 5, resource: { buffer: compositingBuffer } });
     const bindGroup = this.device.createBindGroup({ layout: cached.bindGroupLayout, entries });

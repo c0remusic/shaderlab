@@ -11,12 +11,14 @@ import { Disclosure } from "./ui/collapsible";
 import { Checkbox } from "./ui/checkbox";
 import { Toggle } from "./ui/toggle";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
-import { Trash2 } from "lucide-react";
+import { Trash2, Eye, EyeOff } from "lucide-react";
 
 interface Props {
   layer: LayerState | null;
   maskPaintMode: boolean;
   onToggleMaskPaint: () => void;
+  overlayForceHidden: boolean;
+  onToggleOverlayForceHidden: () => void;
   onAddMaskSource: (layerId: string, type: "gradient" | "luminosity" | "colorRange") => void;
   onRemoveMaskSource: (layerId: string, sourceId: string) => void;
   onMaskSourceParamsChange: (layerId: string, sourceId: string, params: Record<string, number | number[]>) => void;
@@ -69,6 +71,8 @@ export function MaskPanel({
   layer,
   maskPaintMode,
   onToggleMaskPaint,
+  overlayForceHidden,
+  onToggleOverlayForceHidden,
   onAddMaskSource,
   onRemoveMaskSource,
   onMaskSourceParamsChange,
@@ -103,6 +107,23 @@ export function MaskPanel({
     <div className="param-panel">
       <Disclosure title="Masque" defaultOpen>
         <div className="param-panel__group">
+          <div className="param-panel__visibility-row">
+            <IconButton
+              label={overlayForceHidden ? "Afficher l'overlay" : "Masquer l'overlay"}
+              tooltip={overlayForceHidden ? "Afficher l'overlay" : "Masquer l'overlay"}
+              onClick={onToggleOverlayForceHidden}
+              className={overlayForceHidden ? undefined : "param-panel__visibility-icon--on"}
+            >
+              {overlayForceHidden ? (
+                <EyeOff className="icon-sm icon-stroke" aria-hidden="true" />
+              ) : (
+                <Eye className="icon-sm icon-stroke" aria-hidden="true" />
+              )}
+            </IconButton>
+            <span className="param-panel__visibility-label">
+              {overlayForceHidden ? "Overlay masqué" : "Overlay visible"}
+            </span>
+          </div>
           {maskPaintMode ? (
             <p className="param-panel__hint">
               Mode peinture actif — utilise « Terminer » dans la barre d'outils du pinceau.
@@ -117,11 +138,21 @@ export function MaskPanel({
               masque — pas ici, pour éviter la duplication. */}
 
           <div className="param-panel__mask-toggles">
-            <Checkbox
-              label="Masque actif"
-              checked={layer.mask.enabled}
-              onChange={(enabled) => onMaskEnabledChange(layer.id, enabled)}
-            />
+            <div className="param-panel__visibility-row">
+              <IconButton
+                label={layer.mask.enabled ? "Désactiver le masque" : "Activer le masque"}
+                tooltip="Masque actif"
+                onClick={() => onMaskEnabledChange(layer.id, !layer.mask.enabled)}
+                className={layer.mask.enabled ? "param-panel__visibility-icon--on" : undefined}
+              >
+                {layer.mask.enabled ? (
+                  <Eye className="icon-sm icon-stroke" aria-hidden="true" />
+                ) : (
+                  <EyeOff className="icon-sm icon-stroke" aria-hidden="true" />
+                )}
+              </IconButton>
+              <span className="param-panel__visibility-label">Masque actif</span>
+            </div>
             <Checkbox
               label="Inverser"
               checked={layer.mask.invert}
@@ -151,11 +182,18 @@ export function MaskPanel({
                       source.id === activeSourceId ? "param-panel__source-row--active" : ""
                     }`.trim()}
                   >
-                    <Checkbox
-                      label="Actif"
-                      checked={source.enabled}
-                      onChange={(enabled) => onMaskSourceEnabledChange(layer.id, source.id, enabled)}
-                    />
+                    <IconButton
+                      label={source.enabled ? "Désactiver la source" : "Activer la source"}
+                      tooltip="Actif"
+                      onClick={() => onMaskSourceEnabledChange(layer.id, source.id, !source.enabled)}
+                      className={source.enabled ? "param-panel__visibility-icon--on" : undefined}
+                    >
+                      {source.enabled ? (
+                        <Eye className="icon-sm icon-stroke" aria-hidden="true" />
+                      ) : (
+                        <EyeOff className="icon-sm icon-stroke" aria-hidden="true" />
+                      )}
+                    </IconButton>
                     <button
                       type="button"
                       className="param-panel__source-name"
@@ -163,6 +201,9 @@ export function MaskPanel({
                     >
                       {module.name}
                     </button>
+                    {source.id === activeSourceId && (
+                      <span className="param-panel__source-active-badge">EN COURS</span>
+                    )}
                     <div className="param-panel__combine-mode" role="group" aria-label="Mode de combinaison">
                       {COMBINE_MODE_OPTIONS.map((option) => (
                         <Toggle
@@ -201,6 +242,9 @@ export function MaskPanel({
 
           {activeSource && activeSource.params && (
             <div className="param-panel__source-params">
+              <p className="param-panel__source-params-title">
+                Réglages · {getMaskSourceModule(activeSource.type).name}
+              </p>
               {Object.entries(activeSource.params).map(([key, value]) => {
                 if (key === "samples") {
                   const samples = (value as number[]) ?? [];

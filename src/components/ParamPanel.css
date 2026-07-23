@@ -105,3 +105,39 @@
   flex-direction: column;
   gap: var(--space-2);
 }
+
+.param-panel__visibility-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.param-panel__visibility-label {
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.param-panel__visibility-icon--on {
+  color: var(--text-primary);
+}
+
+.param-panel__source-row--active .param-panel__source-name {
+  font-weight: var(--font-weight-medium);
+}
+
+.param-panel__source-active-badge {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  color: var(--text-tertiary);
+  letter-spacing: .05em;
+  white-space: nowrap;
+}
+
+.param-panel__source-params-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}

@@ -64,6 +64,7 @@ export default function App() {
   const [layersCollapsed, setLayersCollapsed] = useState(false);
   const [paramsCollapsed, setParamsCollapsed] = useState(false);
   const [maskCollapsed, setMaskCollapsed] = useState(false);
+  const [overlayForceHidden, setOverlayForceHidden] = useState(false);
   const [dockLayout, setDockLayout] = useState<DockLayout>([["layers", "params", "mask"]]);
   const handlePanelMove = useCallback((id: string, target: DockDropTarget) => {
     setDockLayout((previous) => movePanelInDock(previous, id, target));
@@ -477,7 +478,7 @@ export default function App() {
   // l'effet ne se redéclenche pas à chaque frame d'un drag de slider — seul
   // un vrai changement "montrer/cacher" redémarre la boucle rAF.
   const hasActiveMask = selectedLayer ? planFold(selectedLayer.mask).length > 0 : false;
-  const showOverlay = maskPaintMode || hasActiveMask;
+  const showOverlay = !overlayForceHidden && (maskPaintMode || hasActiveMask);
 
   useEffect(() => {
     const r = rendererRef.current;
@@ -558,6 +559,8 @@ export default function App() {
               layer={selectedLayer}
               maskPaintMode={maskPaintMode}
               onToggleMaskPaint={() => setMaskPaintMode((v) => !v)}
+              overlayForceHidden={overlayForceHidden}
+              onToggleOverlayForceHidden={() => setOverlayForceHidden((v) => !v)}
               onAddMaskSource={handleAddMaskSource}
               onRemoveMaskSource={handleRemoveMaskSource}
               onMaskSourceParamsChange={handleMaskSourceParamsChange}

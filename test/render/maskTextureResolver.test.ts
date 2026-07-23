@@ -191,6 +191,30 @@ describe("MaskTextureResolver — edge-aware/refine result cache", () => {
     expect(counts.passes).toBeGreaterThan(afterFirst.passes);
   });
 
+  it("re-encodes the edge-aware guided filter when the source's own params change, even though edgeRadius/edgeStrength stay the same (regression: resident()/parametric() reuse the same GPUTexture object and re-render its content, so texture identity alone cannot detect a content change)", () => {
+    const counts = { copies: 0, passes: 0 };
+    const resolver = makeResolver(counts);
+    const layer = oneSourceLayerWithRefineEdge({ edgeAware: true, edgeStrength: 1, edgeRadius: 5 });
+    const pending: (GPUTexture | GPUBuffer)[] = [];
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    const afterFirst = { ...counts };
+    const luminositySource = layer.mask.sources.find((s) => s.type === "luminosity")!;
+    const changed: LayerState = {
+      ...layer,
+      mask: {
+        ...layer.mask,
+        sources: layer.mask.sources.map((s) =>
+          s.id === luminositySource.id && s.type !== "brush" ? { ...s, params: { ...s.params, shadowsMin: 0.9 } } : s
+        ),
+      },
+    };
+    resolver.resolve(changed, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    // >=10, pas juste >0 : le module luminosity ne prend qu'1 passe pour se
+    // regénérer lui-même — un simple ">0" passerait même si le filtre guidé
+    // (11 passes) restait à tort en cache, masquant la régression.
+    expect(counts.passes - afterFirst.passes).toBeGreaterThanOrEqual(10);
+  });
+
   it("reuses the refine (feather/contract/smooth) result when its inputs are unchanged", () => {
     const counts = { copies: 0, passes: 0 };
     const resolver = makeResolver(counts);
@@ -213,6 +237,43 @@ describe("MaskTextureResolver — edge-aware/refine result cache", () => {
     const afterFirst = { ...counts };
     const changed = { ...layer, mask: { ...layer.mask, refineEdge: { ...layer.mask.refineEdge, feather: 10 } } };
     resolver.resolve(changed, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    expect(counts.passes).toBeGreaterThan(afterFirst.passes);
+  });
+
+  it("re-encodes refine when the source's own params change, even though feather/contract/smooth stay the same", () => {
+    const counts = { copies: 0, passes: 0 };
+    const resolver = makeResolver(counts);
+    const layer = oneSourceLayerWithRefineEdge({ feather: 4 });
+    const pending: (GPUTexture | GPUBuffer)[] = [];
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    const afterFirst = { ...counts };
+    const luminositySource = layer.mask.sources.find((s) => s.type === "luminosity")!;
+    const changed: LayerState = {
+      ...layer,
+      mask: {
+        ...layer.mask,
+        sources: layer.mask.sources.map((s) =>
+          s.id === luminositySource.id && s.type !== "brush" ? { ...s, params: { ...s.params, shadowsMin: 0.9 } } : s
+        ),
+      },
+    };
+    resolver.resolve(changed, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    // >=2, pas juste >0 : le module luminosity ne prend qu'1 passe pour se
+    // regénérer lui-même — refine() (feather=4 seul) en prend 2 de plus
+    // (boxH+boxV) s'il recalcule vraiment, contre 1 seul si son cache
+    // restait à tort valide.
+    expect(counts.passes - afterFirst.passes).toBeGreaterThanOrEqual(2);
+  });
+
+  it("re-encodes edge-aware/refine when layer.mask.invert toggles without touching resident source content", () => {
+    const counts = { copies: 0, passes: 0 };
+    const resolver = makeResolver(counts);
+    const layer = oneSourceLayerWithRefineEdge({ feather: 4 });
+    const pending: (GPUTexture | GPUBuffer)[] = [];
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    const afterFirst = { ...counts };
+    const inverted = { ...layer, mask: { ...layer.mask, invert: true } };
+    resolver.resolve(inverted, createFakeEncoder(counts), {} as GPUTextureView, pending);
     expect(counts.passes).toBeGreaterThan(afterFirst.passes);
   });
 });

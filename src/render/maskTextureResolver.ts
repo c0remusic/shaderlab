@@ -51,18 +51,23 @@ type EdgeWork = {
   meanAB: GPUTexture;
   meanABTmp: GPUTexture;
   result: GPUTexture;
-  /** Dernières entrées ayant produit `result` — si `input`/`edgeRadius`/
+  /** Dernières entrées ayant produit `result` — si `revision`/`edgeRadius`/
    *  `edgeStrength` sont identiques au prochain appel, `result` est renvoyé
    *  tel quel sans rejouer les 11 passes du filtre guidé (coûteux : constaté
    *  responsable d'un ralentissement global de l'app, ce filtre tournait à
-   *  chaque frame même quand seul un AUTRE calque/réglage changeait). */
-  lastInput: GPUTexture | null;
+   *  chaque frame même quand seul un AUTRE calque/réglage changeait).
+   *  `revision` (pas l'identité de la texture d'entrée) : `resident()`/
+   *  `parametric()` RÉUTILISENT le même objet GPUTexture et le re-rendent
+   *  quand le contenu change (leur propre cache par `syncedFrom`) — comparer
+   *  `input === lastInput` aurait donc raté un changement de contenu réel
+   *  (bug trouvé par crosscheck avant la première version de ce cache). */
+  lastRevision: number;
   lastRadius: number;
   lastStrength: number;
 };
 type RefineCacheEntry = {
   texture: GPUTexture;
-  lastInput: GPUTexture;
+  lastRevision: number;
   lastFeather: number;
   lastContract: number;
   lastSmooth: number;
@@ -87,6 +92,15 @@ export class MaskTextureResolver {
   >();
   private edgeAwareWorkTextures = new Map<string, EdgeWork>();
   private refineCache = new Map<string, RefineCacheEntry>();
+  /** Compteur incrémenté par calque à chaque fois que le CONTENU de son
+   *  masque résident change réellement (recompute dans resident()/
+   *  parametric(), cache-miss du fold, ou bascule de `layer.mask.invert`) —
+   *  jamais sur un cache-hit. Sert de clé de cache à edge()/refine() à la
+   *  place de l'identité de texture, qui ne suffit pas : `resident()`/
+   *  `parametric()` réutilisent le même objet GPUTexture d'un appel à
+   *  l'autre en le re-rendant. */
+  private maskRevision = new Map<string, number>();
+  private lastInvertByLayer = new Map<string, boolean>();
   private maskSourcePipelineCache = new Map<string, PipelineEntry>();
   private maskFoldPipelineCache = new Map<string, PipelineEntry>();
   private edgeAwarePipelineCache = new Map<string, PipelineEntry>();
@@ -105,6 +119,12 @@ export class MaskTextureResolver {
   setLivePreview(preview: MaskPreviewOverride | null): void {
     this.livePreview = preview;
   }
+  private bumpRevision(id: string): void {
+    this.maskRevision.set(id, (this.maskRevision.get(id) ?? 0) + 1);
+  }
+  private revision(id: string): number {
+    return this.maskRevision.get(id) ?? 0;
+  }
   sweep(layerIds: ReadonlySet<string>): void {
     this.sweepMap(this.sourceTextures, layerIds);
     this.sweepMap(this.parametricSourceTextures, layerIds);
@@ -116,6 +136,16 @@ export class MaskTextureResolver {
         this.destroyWork(w);
         this.edgeAwareWorkTextures.delete(id);
       }
+    // Métadonnées pures (aucune texture propre à détruire ici — refineCache
+    // ne fait que référencer une texture de refineEdgePingPongByLayer, déjà
+    // détruite ci-dessus) : purger quand même pour ne pas garder de
+    // référence vers un GPUTexture détruit, jamais servie mais périmée.
+    for (const id of this.maskRevision.keys())
+      if (!layerIds.has(id)) this.maskRevision.delete(id);
+    for (const id of this.lastInvertByLayer.keys())
+      if (!layerIds.has(id)) this.lastInvertByLayer.delete(id);
+    for (const id of this.refineCache.keys())
+      if (!layerIds.has(id)) this.refineCache.delete(id);
   }
   private sweepMap<T extends { texture: GPUTexture }>(
     map: Map<string, T>,
@@ -152,6 +182,13 @@ export class MaskTextureResolver {
       );
     const plan = planFold(layer.mask);
     if (!plan.length) return this.getWhiteMask();
+    // Bascule d'`invert` seule (sans qu'aucune source n'ait changé) : le
+    // contenu résultant change quand même — resident()/parametric() ne le
+    // détecteraient pas seuls puisqu'ils ne voient jamais `invert`.
+    if (this.lastInvertByLayer.get(layer.id) !== layer.mask.invert) {
+      this.bumpRevision(layer.id);
+      this.lastInvertByLayer.set(layer.id, layer.mask.invert);
+    }
     if (plan.length === 1 && !layer.mask.invert)
       return this.refine(
         layer.id,
@@ -175,12 +212,18 @@ export class MaskTextureResolver {
     const folded = cacheHit
       ? cached!.texture
       : this.fold(layer.id, plan, layer.mask.invert, encoder, pendingDestroy);
-    if (!cacheHit)
+    if (!cacheHit) {
+      // Couvre aussi les cas où le fold change sans que resident()/
+      // parametric() n'aient eux-mêmes recalculé (combineMode, enabled,
+      // ajout/suppression de source) — le contenu du masque final change
+      // quand même.
+      this.bumpRevision(layer.id);
       this.foldedMaskTextures.set(layer.id, {
         texture: folded,
         lastInputs: snapshot,
         lastInvert: layer.mask.invert,
       });
+    }
     return this.refine(
       layer.id,
       this.edge(layer, folded, colorView, encoder, pendingDestroy),
@@ -268,6 +311,7 @@ export class MaskTextureResolver {
       this.liveMaskLayerId = null;
     } else this.upload(texture, raster, this.width, this.height);
     this.sourceTextures.set(key, { texture, syncedFrom: raster });
+    this.bumpRevision(id);
     return texture;
   }
   private parametric(
@@ -367,6 +411,7 @@ export class MaskTextureResolver {
       texture,
       syncedFrom: source.params,
     });
+    this.bumpRevision(id);
     return texture;
   }
   private flatten(
@@ -583,14 +628,14 @@ export class MaskTextureResolver {
         // textures restent des buffers de travail internes qui n'ont
         // jamais besoin d'être copiés.
         result: mk("r8unorm", GPUTextureUsage.COPY_SRC),
-        lastInput: null,
+        lastRevision: NaN,
         lastRadius: NaN,
         lastStrength: NaN,
       };
       this.edgeAwareWorkTextures.set(id, w);
     }
     if (
-      w.lastInput === input &&
+      w.lastRevision === this.revision(id) &&
       w.lastRadius === x.edgeRadius &&
       w.lastStrength === x.edgeStrength
     )
@@ -734,7 +779,7 @@ export class MaskTextureResolver {
       [w.meanAB.createView(), w.luminance.createView(), iv],
       s,
     );
-    w.lastInput = input;
+    w.lastRevision = this.revision(id);
     w.lastRadius = x.edgeRadius;
     w.lastStrength = x.edgeStrength;
     return w.result;
@@ -750,7 +795,7 @@ export class MaskTextureResolver {
     const cached = this.refineCache.get(id);
     if (
       cached &&
-      cached.lastInput === input &&
+      cached.lastRevision === this.revision(id) &&
       cached.lastFeather === x.feather &&
       cached.lastContract === x.contract &&
       cached.lastSmooth === x.smooth
@@ -789,7 +834,7 @@ export class MaskTextureResolver {
     }
     this.refineCache.set(id, {
       texture: acc,
-      lastInput: input,
+      lastRevision: this.revision(id),
       lastFeather: x.feather,
       lastContract: x.contract,
       lastSmooth: x.smooth,
@@ -830,6 +875,9 @@ export class MaskTextureResolver {
     this.foldPingPongByLayer.clear();
     this.refineEdgePingPongByLayer.clear();
     this.edgeAwareWorkTextures.clear();
+    this.refineCache.clear();
+    this.maskRevision.clear();
+    this.lastInvertByLayer.clear();
     this.maskSourcePipelineCache.clear();
     this.maskFoldPipelineCache.clear();
     this.edgeAwarePipelineCache.clear();

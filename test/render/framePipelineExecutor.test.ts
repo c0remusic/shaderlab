@@ -59,6 +59,7 @@ function createExecutor() {
     transient,
     firstTarget,
     secondTarget,
+    source,
   };
 }
 
@@ -116,6 +117,19 @@ describe("FramePipelineExecutor", () => {
     expect(result.composedTexture).toBe(overlaySource);
     expect(result.overlayMaskTexture).toBe(overlayMask);
     expect(result.overlayMaskTexture).toBe(resolved);
+  });
+
+  it("uses the source texture (not the composite) as the overlay's edge-aware guide, with the stable epoch", () => {
+    const { executor, masks, source } = createExecutor();
+    const resolved = texture() as unknown as GPUTexture;
+    masks.resolve = vi.fn(() => resolved);
+
+    executor.run([layer({ enabled: true })], {} as GPUTextureView, "L1");
+
+    expect(masks.resolve).toHaveBeenCalledOnce();
+    const [, , colorView, , guideEpoch] = (masks.resolve as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(colorView).toBe(source.createView.mock.results.at(-1)!.value);
+    expect(guideEpoch).toBe(0);
   });
 
   it("destroys already-created frame resources before rethrowing when a pass throws mid-frame", () => {

@@ -234,11 +234,19 @@ export class FramePipelineExecutor {
       overlayMaskTexture = this.masks.resolve(
         overlayLayer,
         encoder,
-        composedTexture.createView(),
+        // Guide = image source stable, même statut que le rendu normal du
+        // premier calque de la pile — pas le composite. Les deux appels
+        // masks.resolve() pour ce calque (rendu normal + overlay) partagent
+        // ainsi un guide de statut cohérent : sans ça, ils écrivaient chacun
+        // dans le même slot lastGuideEpochByLayer avec des guides
+        // différents, invalidant en continu le cache SAT du filtre
+        // edge-aware dès que l'overlay est actif pendant l'édition d'un
+        // calque (voir docs/superpowers/specs/2026-07-24-shaderlab-overlay-guide-source-design.md).
+        // Le compositing visuel de l'overlay, lui, reste sur composedTexture
+        // ci-dessous — seul le guide interne au filtre change.
+        sourceTexture.createView(),
         pendingDestroy,
-        // Guide = composite de tous les calques activés, toujours ré-encodé
-        // à chaque run() — jamais le cas stable "premier calque".
-        this.runGeneration,
+        0,
       );
       this.effects.runOverlayPass(
         encoder,

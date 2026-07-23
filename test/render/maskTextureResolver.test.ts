@@ -292,4 +292,19 @@ describe("MaskTextureResolver — edge-aware/refine result cache", () => {
     // ait AUSSI rejoué ses 2 passes (boxH+boxV, feather seul).
     expect(counts.passes - afterFirst.passes).toBeGreaterThanOrEqual(12);
   });
+
+  it("re-encodes refine when edgeAware is turned off, even though feather/contract/smooth stay the same (refine's input switches from the filtered edge-aware output back to the raw resident texture)", () => {
+    const counts = { copies: 0, passes: 0 };
+    const resolver = makeResolver(counts);
+    const layer = oneSourceLayerWithRefineEdge({ edgeAware: true, edgeStrength: 1, edgeRadius: 5, feather: 4 });
+    const pending: (GPUTexture | GPUBuffer)[] = [];
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    const afterFirst = { ...counts };
+    const changed = { ...layer, mask: { ...layer.mask, refineEdge: { ...layer.mask.refineEdge, edgeAware: false } } };
+    resolver.resolve(changed, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    // Sans le fix : edge() renvoie `input` directement (0 passe, chemin
+    // court-circuité) et refine() reste à tort en cache (0 passe non plus)
+    // => delta 0. Avec le fix : refine() recalcule (2 passes, boxH+boxV).
+    expect(counts.passes - afterFirst.passes).toBeGreaterThan(0);
+  });
 });

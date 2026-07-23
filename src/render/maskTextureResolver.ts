@@ -101,6 +101,7 @@ export class MaskTextureResolver {
    *  l'autre en le re-rendant. */
   private maskRevision = new Map<string, number>();
   private lastInvertByLayer = new Map<string, boolean>();
+  private lastEdgeAwareActiveByLayer = new Map<string, boolean>();
   private maskSourcePipelineCache = new Map<string, PipelineEntry>();
   private maskFoldPipelineCache = new Map<string, PipelineEntry>();
   private edgeAwarePipelineCache = new Map<string, PipelineEntry>();
@@ -144,6 +145,8 @@ export class MaskTextureResolver {
       if (!layerIds.has(id)) this.maskRevision.delete(id);
     for (const id of this.lastInvertByLayer.keys())
       if (!layerIds.has(id)) this.lastInvertByLayer.delete(id);
+    for (const id of this.lastEdgeAwareActiveByLayer.keys())
+      if (!layerIds.has(id)) this.lastEdgeAwareActiveByLayer.delete(id);
     for (const id of this.refineCache.keys())
       if (!layerIds.has(id)) this.refineCache.delete(id);
   }
@@ -587,7 +590,16 @@ export class MaskTextureResolver {
     p: (GPUTexture | GPUBuffer)[],
   ) {
     const x = layer.mask.refineEdge;
-    if (!x.edgeAware || x.edgeStrength <= 0) return input;
+    const active = x.edgeAware && x.edgeStrength > 0;
+    // Bascule ON<->OFF : `input` (côté refine() en aval) passe de la sortie
+    // filtrée du filtre guidé au masque brut, ou inversement — un contenu
+    // différent même si aucune passe GPU ne s'exécute ici dans le cas OFF
+    // (retour direct de `input`, sans bump interne à edgePipeline).
+    if (this.lastEdgeAwareActiveByLayer.get(layer.id) !== active) {
+      this.bumpRevision(layer.id);
+      this.lastEdgeAwareActiveByLayer.set(layer.id, active);
+    }
+    if (!active) return input;
     return this.edgePipeline(layer.id, input, color, x, e, p);
   }
   private edgePipeline(
@@ -884,6 +896,7 @@ export class MaskTextureResolver {
     this.refineCache.clear();
     this.maskRevision.clear();
     this.lastInvertByLayer.clear();
+    this.lastEdgeAwareActiveByLayer.clear();
     this.maskSourcePipelineCache.clear();
     this.maskFoldPipelineCache.clear();
     this.edgeAwarePipelineCache.clear();

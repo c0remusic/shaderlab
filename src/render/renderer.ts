@@ -161,8 +161,15 @@ export class Renderer {
     preview: MaskPreviewOverride | null = null,
   ): void {
     this.maskTextureResolver?.setLivePreview(preview);
-    this.runPipeline(layers, getSrgbCanvasView(this.ctx));
-    this.maskTextureResolver?.setLivePreview(null);
+    // try/finally : si runPipeline lance (échec GPU en cours d'encodage),
+    // l'override de preview reste sinon posé indéfiniment — le PROCHAIN
+    // rendu (sans preview) réutiliserait alors par erreur la texture de
+    // preview périmée d'un trait de pinceau précédent.
+    try {
+      this.runPipeline(layers, getSrgbCanvasView(this.ctx));
+    } finally {
+      this.maskTextureResolver?.setLivePreview(null);
+    }
   }
 
   /** Rendu coalescé : à privilégier pour tout ce qui peut tirer plus vite

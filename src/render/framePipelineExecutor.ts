@@ -102,13 +102,47 @@ export class FramePipelineExecutor {
     this.runGeneration++;
 
     this.masks.sweep(new Set(layers.map((layer) => layer.id)));
+    const encoder = this.device.createCommandEncoder();
+    const overlayTimeSeconds = performance.now() / 1000;
+    const pendingDestroy: FrameResource[] = [];
+
+    // Une passe (effet interne, resolve de masque...) peut lancer en cours
+    // de frame — sans ce garde, toute texture/buffer transitoire déjà
+    // poussée dans pendingDestroy PAR UN CALQUE PRÉCÉDENT resterait
+    // orpheline sur le GPU (jamais soumise, jamais détruite). Le catch
+    // détruit ce qui a déjà été créé puis relance — aucun fallback silencieux,
+    // l'appelant voit toujours l'erreur d'origine.
+    try {
+      return this.runFrame(
+        layers,
+        finalTargetView,
+        maskOverlayLayerId,
+        sourceTexture,
+        pingPong,
+        encoder,
+        overlayTimeSeconds,
+        pendingDestroy,
+      );
+    } catch (error) {
+      for (const resource of pendingDestroy) resource.destroy();
+      throw error;
+    }
+  }
+
+  private runFrame(
+    layers: LayerState[],
+    finalTargetView: GPUTextureView,
+    maskOverlayLayerId: string | null,
+    sourceTexture: GPUTexture,
+    pingPong: [GPUTexture, GPUTexture],
+    encoder: GPUCommandEncoder,
+    overlayTimeSeconds: number,
+    pendingDestroy: FrameResource[],
+  ): FramePipelineResult {
     const enabledLayers = layers.filter((layer) => layer.enabled);
     const overlayLayer = maskOverlayLayerId
       ? (layers.find((layer) => layer.id === maskOverlayLayerId) ?? null)
       : null;
-    const encoder = this.device.createCommandEncoder();
-    const overlayTimeSeconds = performance.now() / 1000;
-    const pendingDestroy: FrameResource[] = [];
 
     if (enabledLayers.length === 0) {
       const blitTarget = overlayLayer ? pingPong[0] : null;

@@ -16,6 +16,19 @@ export default defineConfig({
     alias,
   },
   test: {
+    coverage: {
+      provider: 'v8',
+      include: ['src/**'],
+      exclude: [
+        ...configDefaults.coverage.exclude ?? [],
+        '**/*.stories.*',
+        '**/*.test.*',
+        '**/*.config.*',
+        'node_modules/**',
+        '.claude/worktrees/**',
+      ],
+      reporter: ['text', 'html'],
+    },
     projects: [
       {
         extends: true,

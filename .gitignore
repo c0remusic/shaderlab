@@ -3,6 +3,7 @@ dist/
 build/
 target/
 storybook-static/
+coverage/
 *.log
 .DS_Store
 .env

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { LayerPanel } from "./LayerPanel";
 import { defaultLayerMask } from "../mask/types";
 import type { LayerState } from "../layers/types";
@@ -21,6 +22,16 @@ const layers: LayerState[] = [
   makeLayer({ id: "layer-2", effectId: "chromaticBleed", opacity: 0.6, enabled: false }),
   makeLayer({ id: "layer-3", effectId: "grain", opacity: 0.35, blendMode: "screen" }),
 ];
+
+const effectCycle = ["glow", "chromaticBleed", "warp", "grain"];
+const manyLayers: LayerState[] = Array.from({ length: 8 }, (_, i) =>
+  makeLayer({
+    id: `layer-${i + 1}`,
+    effectId: effectCycle[i % effectCycle.length],
+    opacity: 1 - i * 0.1,
+    enabled: i % 3 !== 0,
+  })
+);
 
 const meta: Meta<typeof LayerPanel> = {
   title: "Components/LayerPanel",
@@ -51,4 +62,44 @@ export const Empty: Story = {
 
 export const NoImageLoaded: Story = {
   args: { hasImage: false },
+};
+
+export const SecondSelected: Story = {
+  args: { selectedId: "layer-2" },
+};
+
+export const ManyLayers: Story = {
+  args: { layers: manyLayers, selectedId: "layer-3" },
+};
+
+// --- Interaction tests (play) ---
+
+export const ClickLayerSelects: Story = {
+  args: { selectedId: "layer-1", onSelect: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    // Clicking the row name bubbles to the <li> onClick → onSelect(id).
+    await userEvent.click(canvas.getByText("Chromatic bleed"));
+    await expect(args.onSelect).toHaveBeenCalledWith("layer-2");
+  },
+};
+
+export const ToggleVisibility: Story = {
+  args: { onToggle: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    // layer-2 is disabled → its toggle is uniquely labeled "Afficher le calque".
+    await userEvent.click(canvas.getByRole("button", { name: "Afficher le calque" }));
+    await expect(args.onToggle).toHaveBeenCalledWith("layer-2");
+  },
+};
+
+export const RemoveLayer: Story = {
+  args: { onRemove: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const removeButtons = canvas.getAllByRole("button", { name: "Supprimer le calque" });
+    await userEvent.click(removeButtons[0]);
+    await expect(args.onRemove).toHaveBeenCalledWith("layer-1");
+  },
 };

@@ -3,14 +3,17 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 
+// Single source of truth for the `@`→./src alias, shared with vitest.config.ts.
+export const alias = {
+  "@": path.resolve(__dirname, "./src"),
+};
+
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
   plugins: [react(), tailwindcss()],
 
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
+    alias,
   },
 
   // Vite options tailored for Tauri to prevent too much magic

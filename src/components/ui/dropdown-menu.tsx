@@ -51,6 +51,17 @@ function DropdownMenuGroup({ ...props }: MenuPrimitive.Group.Props) {
   return <MenuPrimitive.Group data-slot="dropdown-menu-group" {...props} />
 }
 
+/**
+ * A group heading. MUST be rendered inside a `DropdownMenuGroup` (or
+ * `DropdownMenuRadioGroup`) — it wraps base-ui `Menu.GroupLabel`, which reads
+ * the group context to associate itself (`aria-labelledby`) with the group and
+ * THROWS at render if that context is missing.
+ *
+ * Not made self-contained (wrapping its own `Menu.Group`) on purpose: base-ui
+ * associates a label with items via the nearest enclosing `Menu.Group`, so a
+ * self-wrapping label would sit in its own group and lose the a11y association
+ * with the sibling items it heads.
+ */
 function DropdownMenuLabel({
   className,
   inset,

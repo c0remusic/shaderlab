@@ -95,7 +95,11 @@ export function LabeledSlider({
   function handleValueKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key !== "Enter") return;
     event.preventDefault();
-    commitTypedValue();
+    // Commit via the input's `onBlur` handler only. Calling
+    // commitTypedValue() here as well would double-fire onChange/onCommit:
+    // the controlled `value` prop is not updated synchronously between the
+    // explicit commit and the blur-triggered re-commit, so the
+    // `nextValue !== value` guard cannot dedupe them.
     event.currentTarget.blur();
   }
 

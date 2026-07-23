@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { PanelColumn, type DockedPanelSpec } from "./PanelColumn";
 import type { DockLayout } from "../../ui/dockLayout";
 
@@ -29,4 +30,55 @@ export const Default: Story = {};
 
 export const SingleColumn: Story = {
   args: { layout: [["layers", "params", "mask"]] },
+};
+
+// --- State variants ---
+
+export const AllCollapsed: Story = {
+  args: {
+    panels: panels.map((p) => ({ ...p, collapsed: true })),
+  },
+};
+
+export const AllExpanded: Story = {
+  args: {
+    panels: panels.map((p) => ({ ...p, collapsed: false })),
+  },
+};
+
+export const SinglePanel: Story = {
+  args: {
+    panels: [panels[0]],
+    layout: [["layers"]],
+  },
+};
+
+export const Narrow: Story = {
+  args: { width: 220 },
+};
+
+// --- Interaction test (play) ---
+
+// PanelColumn délègue le repli de chaque carte à la DockedPanelCard sous-jacente ;
+// cliquer le bouton "Replier le panneau" de la première carte dépliée (Calques)
+// doit remonter à SON callback onCollapsedChange avec true.
+export const CollapsePanelCallsSpec: Story = {
+  args: {
+    panels: [
+      { ...panels[0], onCollapsedChange: fn() },
+      { ...panels[1], collapsed: true },
+      { ...panels[2] },
+    ],
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    // Seule "Calques" est dépliée -> un unique bouton "Replier le panneau".
+    const collapse = canvas.getByRole("button", { name: "Replier le panneau" });
+    await userEvent.click(collapse);
+
+    const layersSpec = args.panels.find((p) => p.id === "layers");
+    await expect(layersSpec?.onCollapsedChange).toHaveBeenCalledTimes(1);
+    await expect(layersSpec?.onCollapsedChange).toHaveBeenCalledWith(true);
+  },
 };

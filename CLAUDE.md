@@ -1,7 +1,7 @@
 # shaderlab — CLAUDE.md
 
 > Nom provisoire (placeholder, jamais tranché). Repo local `C:\dev\shaderlab`,
-> pas encore de remote GitHub. Branche de dev active : `feature/design-system`.
+> remote origin : `github.com/c0remusic/shaderlab`. Branche de dev active : `feature/design-system`.
 > Historique complet des chantiers/sessions (2026-07-12 → 2026-07-21) archivé
 > dans `docs/archive/claude-md-history-pre-2026-07-22.md` — statut courant des
 > tranches/checkpoints dans `docs/INDEX.json` (source de vérité, pas ce

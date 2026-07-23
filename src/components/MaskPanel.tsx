@@ -271,6 +271,27 @@ export function MaskPanel({
                     </div>
                   );
                 }
+                if (key === "invert") {
+                  // Binaire (0/1 côté wgsl, voir gradient.ts/luminosity.ts) —
+                  // un LabeledSlider 0..1 pas-0.01 le rendait comme un
+                  // continu alors qu'il ne prend que deux états, incohérent
+                  // avec le Checkbox déjà utilisé pour layer.mask.invert
+                  // juste au-dessus (ligne ~159).
+                  return (
+                    <Checkbox
+                      key={key}
+                      label={MASK_PARAM_LABELS[key] ?? key}
+                      checked={value === 1}
+                      onChange={(checked) => {
+                        onMaskSourceParamsChange(layer.id, activeSource.id, {
+                          ...activeSource.params,
+                          invert: checked ? 1 : 0,
+                        });
+                        onMaskSourceParamsCommit();
+                      }}
+                    />
+                  );
+                }
                 const range = paramRange(key);
                 // "angle" (source gradient) n'est pas un paramètre lu par le
                 // shader (voir gradient.ts) — juste une commodité de saisie

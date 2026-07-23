@@ -175,7 +175,7 @@
     },
     {
       "path": "docs/superpowers/plans/2026-07-21-audit-document-export-safety.md",
-      "status": "ÉCRIT le 2026-07-21 (7c45ec7), NON exécuté (confirmé par Antoine 2026-07-21).",
+      "status": "TERMINÉ le 2026-07-23 (worktree agent-ac0cfe58524c5e878, commits 3baf6f2/13eb1c8/49d1e33). tsc/307 tests JS/7 tests Rust/cargo check/lint:tokens verts. Pas de checkpoint visuel humain effectué (headless) — retenter une image non supportée puis exporter le document original reste à confirmer par Antoine dans la vraie fenêtre WebView2.",
       "date": "2026-07-21",
       "topic": "plan d'implémentation : sécurité ouverture/export de document (2/3 de la remédiation audit clean-code)",
       "summary": "Ouverture transactionnelle (un échec laisse le document précédent intégralement utilisable), export manuel qui ne remplace jamais un fichier existant (le round-trip Lightroom reste seul à écraser son chemin d'entrée, par contrat), contrats de domaine et erreurs UI unifiés."

@@ -85,6 +85,12 @@ export class Renderer {
    *  l'UI — état plutôt que paramètre de chaque `requestRender`, pour ne pas
    *  le faire transiter par tous les sites d'appel de rendu. */
   private maskOverlayLayerId: string | null = null;
+  /** Dernier frame d'overlay capturé par un rendu complet (`runPipeline`) —
+   *  null si aucun overlay actif. Seule source lue par
+   *  `tickOverlayAnimation` : jamais recalculée, jamais un nouvel appel à
+   *  `MaskTexturesPort.resolve()` depuis la boucle d'animation (coûteux,
+   *  voir `docs/superpowers/specs/2026-07-23-shaderlab-mask-threshold-contour-design.md`). */
+  private lastOverlayFrame: { composedTexture: GPUTexture; overlayMaskTexture: GPUTexture } | null = null;
   constructor(
     ctx: GpuContext,
     diagnosticLogger: DiagnosticLogger = noopDiagnosticLogger,
@@ -170,6 +176,25 @@ export class Renderer {
     this.renderScheduler.request({ layers, preview });
   }
 
+  /** Ré-exécute UNIQUEMENT le pass d'overlay (contour + pointillés) sur le
+   *  dernier frame composé — jamais le fold du masque ni les effets. No-op
+   *  si aucun overlay n'est actif (`lastOverlayFrame` null). Appelée en
+   *  boucle par `OverlayAnimationLoop` depuis `App.tsx`, jamais par un
+   *  rendu normal. `timeMs` vient directement du timestamp rAF. */
+  tickOverlayAnimation(timeMs: number): void {
+    if (!this.lastOverlayFrame || !this.effectPassRunner) return;
+    const { composedTexture, overlayMaskTexture } = this.lastOverlayFrame;
+    const encoder = this.ctx.device.createCommandEncoder();
+    this.effectPassRunner.runOverlayPass(
+      encoder,
+      composedTexture,
+      overlayMaskTexture,
+      getSrgbCanvasView(this.ctx),
+      timeMs / 1000,
+    );
+    this.ctx.device.queue.submit([encoder.finish()]);
+  }
+
   /**
    * Renders the full layer stack into an off-screen texture instead of the
    * canvas, then reads it back — used by the export pipeline (Task 10).
@@ -205,6 +230,10 @@ export class Renderer {
       finalTargetView,
       this.maskOverlayLayerId,
     );
+    this.lastOverlayFrame =
+      result.composedTexture && result.overlayMaskTexture
+        ? { composedTexture: result.composedTexture, overlayMaskTexture: result.overlayMaskTexture }
+        : null;
     this.frameDiagnostics.record(diagStart, result, {
       pipelineCacheSize: this.effectPassRunner?.pipelineCount ?? 0,
       imageWidth: this.imageResources.width,
@@ -256,5 +285,6 @@ export class Renderer {
     this.maskTextureResolver?.dispose();
     this.maskTextureResolver = null;
     this.framePipelineExecutor = null;
+    this.lastOverlayFrame = null;
   }
 }

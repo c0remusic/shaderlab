@@ -678,3 +678,25 @@ document actif (ajout de calque, export, futurs items menu Fichier) doit
 explicitement vérifier `hasImage` — ce n'est pas gardé par défaut par
 l'architecture actuelle (chaque composant doit le faire individuellement, pas
 de garde centralisée au niveau du routeur/layout).
+
+## 2026-07-23 — un `shaderlab.exe` en cours d'exécution peut appartenir à un AUTRE worktree
+
+**Découverte (TTL 6 mois)** : pendant la vérification visuelle d'une simplification
+de `MaskPanel.tsx` (labels mojibake + segmented control combine-mode, `e7dec9f`,
+`feature/design-system`), Antoine a montré un screenshot du process `shaderlab.exe`
+déjà en cours (CDP actif sur `:9222`) affichant un toggle "Overlay masque"
+inexistant dans le fichier édité. `grep -rn "Overlay masque" src` ne trouvait
+RIEN dans le worktree courant — signal que la fenêtre visible ne pouvait
+structurellement pas montrer le code édité. Confirmé via
+`Get-CimInstance Win32_Process -Filter "Name='shaderlab.exe'" | Select ExecutablePath`
+: le process tournait depuis `.claude/worktrees/mask-threshold-contour`
+(branche `worktree-mask-threshold-contour`), pas depuis `C:\dev\shaderlab`.
+
+**How to apply** : avant de traiter un screenshot/CDP d'une fenêtre `shaderlab.exe`
+déjà ouverte comme preuve visuelle d'un changement, vérifier
+`ExecutablePath`/`CommandLine` du process (`Get-CimInstance Win32_Process
+-Filter "Name='shaderlab.exe'"`) — une fenêtre déjà lancée avant la session
+courante peut appartenir à n'importe quel worktree actif (`git worktree list`),
+pas forcément à `C:\dev\shaderlab`. Un élément UI visible mais absent du
+`grep` sur le fichier source censé le contenir est le signal fiable qu'on
+regarde la mauvaise fenêtre plutôt qu'un bug/état non commité.

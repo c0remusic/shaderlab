@@ -657,6 +657,66 @@ plaintes UI reformulées 4 fois ("thème pas cohérent" → "et les couleurs ?"
 → "les règles de padding..."). Un audit token/CSS large fait dès la première
 plainte systémique aurait capturé plusieurs de ces bugs en une seule passe.
 
+## 2026-07-23 — Cache edge-aware/refine : 4 bugs en cascade, confirme l'instinct "nouveau mécanisme → pas de convergence avant un round clean"
+
+**Contexte** : ajout d'un cache de résultat sur `edge()`/`refine()`
+(`maskTextureResolver.ts`) pour corriger un lag global signalé par Antoine.
+4 rounds successifs de crosscheck adverse (`verify-gate`) + audit ont
+chacun trouvé un VRAI bug de cache non trivial, jusqu'au round 4/5 :
+(1) identité de texture au lieu du contenu réel (resident()/parametric()
+réutilisent le même objet GPUTexture en le re-rendant), (2) edgeRadius/
+edgeStrength non propagés au cache de refine() en aval, (3) bascule ON/OFF
+d'edgeAware non trackée, (4) le guide du filtre (composite des calques EN
+DESSOUS) jamais suivi — celui-ci a nécessité un changement d'interface à
+travers 3 fichiers (`framePipelineExecutor.ts`/`effectPassRunner.ts`/
+`maskTextureResolver.ts`), pas détectable par un crosscheck limité au diff.
+
+**Confirme l'instinct déjà noté le 2026-07-20** (même fichier, entrée
+"3-4 rounds... nuancé") : le seuil "3-4 rounds puis résidu = détail" ne
+s'applique QU'à du code réutilisant un pattern déjà éprouvé — sur un
+NOUVEAU mécanisme (ici : cache par révision de contenu, jamais posé
+auparavant dans ce resolver), chaque round a trouvé un angle mort réel
+jusqu'au bout. Ne jamais présumer la convergence tôt sur un mécanisme neuf,
+même après plusieurs rounds consécutifs propres.
+
+**Découverte durable (architecture)** : dans ce renderer, `resident()`/
+`parametric()` (masques) réutilisent le MÊME objet `GPUTexture` d'un appel
+à l'autre et le RE-RENDENT en place quand le contenu change (cache par
+`syncedFrom`) — comparer `texture === lastTexture` ne détecte donc JAMAIS
+un changement de contenu réel. Tout futur cache posé sur une ressource GPU
+de ce renderer doit invalider sur une valeur de CONTENU (snapshot de
+paramètres, ou compteur de révision bumpé au moment du recalcul réel),
+jamais sur l'identité d'objet — piège déjà connu de `fold()` (son propre
+cache utilise un snapshot), pas généralisé aux nouveaux caches posés sans
+relire ce précédent d'abord.
+
+**Découverte durable (architecture)** : `FramePipelineExecutor.run()` n'a
+AUCUNE mémoïsation par calque — chaque calque activé recompose son passe
+effet/masque à CHAQUE exécution réelle du pipeline, y compris ceux qui
+n'ont eux-mêmes pas changé (seul le déclenchement global est coalescé par
+`FrameScheduler`, pas le travail par calque). Conséquence directe : un
+masque `edge-aware` sur un calque qui n'est PAS le premier de la pile lit
+un guide (`colorView` = composite des calques en dessous) qui est
+potentiellement neuf à CHAQUE frame — un cache sur ce guide doit soit
+suivre un `guideEpoch` fourni par l'appelant (implémenté cette session),
+soit accepter de ne jamais mettre en cache au-delà du premier calque.
+
+## 2026-07-23 — 3e occurrence du bug `IconButton` taille par défaut cassant l'alignement `--space-9`
+
+Déjà noté 2 fois le 2026-07-21 (`DockedPanelCard__titlebar`,
+`LayerPanel__row-top`) : une case dimensionnée pour un `IconButton
+size="compact"` (28px) reçoit un `IconButton` SANS ce prop (défaut 30px,
+`--control-height-md`), cassant l'alignement de 2px. 3e occurrence trouvée
+cette session sur `MaskPanel.tsx` (icône "Actif" par source) par le même
+audit qui a aussi corrigé le point NG48 ci-dessus (`~/.claude/instinct-log.md`).
+**Règle à graduer si une 4e occurrence survient** : ce n'est plus un
+accident isolé mais un défaut structurel du composant `IconButton`
+lui-même (`size="default"` ne devrait peut-être pas exister, ou son usage
+dans une liste dense devrait être un lint/convention explicite) — envisager
+un audit ciblé de TOUS les usages `IconButton` sans `size` dans des
+contextes de liste plutôt qu'un fix au coup par coup à la prochaine
+occurrence.
+
 ## 2026-07-22 — dogfood-qa (nouveau skill global) : premier passage réel, 1 bug trouvé
 
 Premier test du skill `dogfood-qa` (audit QA exploratoire, ~/.claude/skills/)

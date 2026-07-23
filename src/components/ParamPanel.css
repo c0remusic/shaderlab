@@ -128,7 +128,7 @@
 
 .param-panel__source-active-badge {
   font-family: var(--font-ui);
-  font-size: 10px;
+  font-size: var(--font-size-2xs);
   color: var(--text-tertiary);
   letter-spacing: .05em;
   white-space: nowrap;

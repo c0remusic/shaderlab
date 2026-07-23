@@ -182,58 +182,64 @@ export function MaskPanel({
                       source.id === activeSourceId ? "param-panel__source-row--active" : ""
                     }`.trim()}
                   >
-                    <IconButton
-                      label={source.enabled ? "Désactiver la source" : "Activer la source"}
-                      tooltip="Actif"
-                      onClick={() => onMaskSourceEnabledChange(layer.id, source.id, !source.enabled)}
-                      className={source.enabled ? "param-panel__visibility-icon--on" : undefined}
-                    >
-                      {source.enabled ? (
-                        <Eye className="icon-sm icon-stroke" aria-hidden="true" />
-                      ) : (
-                        <EyeOff className="icon-sm icon-stroke" aria-hidden="true" />
-                      )}
-                    </IconButton>
-                    <button
-                      type="button"
-                      className="param-panel__source-name"
-                      onClick={() => setSelectedSourceId(source.id)}
-                    >
-                      {module.name}
-                    </button>
-                    {source.id === activeSourceId && (
-                      <span className="param-panel__source-active-badge">EN COURS</span>
-                    )}
-                    <div className="param-panel__combine-mode" role="group" aria-label="Mode de combinaison">
-                      {COMBINE_MODE_OPTIONS.map((option) => (
-                        <Toggle
-                          key={option.value}
-                          size="sm"
-                          title={option.label}
-                          aria-label={option.label}
-                          pressed={source.combineMode === option.value}
-                          onPressedChange={(pressed) => {
-                            if (pressed) {
-                              onMaskSourceCombineModeChange(
-                                layer.id,
-                                source.id,
-                                option.value as "add" | "subtract" | "intersect",
-                              );
-                            }
-                          }}
-                        >
-                          {option.value === "add" ? "+" : option.value === "subtract" ? "−" : "∩"}
-                        </Toggle>
-                      ))}
+                    <div className="param-panel__source-row-main">
+                      <IconButton
+                        label={source.enabled ? "Désactiver la source" : "Activer la source"}
+                        tooltip="Actif"
+                        onClick={() => onMaskSourceEnabledChange(layer.id, source.id, !source.enabled)}
+                        className={source.enabled ? "param-panel__visibility-icon--on" : undefined}
+                      >
+                        {source.enabled ? (
+                          <Eye className="icon-sm icon-stroke" aria-hidden="true" />
+                        ) : (
+                          <EyeOff className="icon-sm icon-stroke" aria-hidden="true" />
+                        )}
+                      </IconButton>
+                      <button
+                        type="button"
+                        className="param-panel__source-name"
+                        onClick={() => setSelectedSourceId(source.id)}
+                      >
+                        {module.name}
+                      </button>
+                      <IconButton
+                        label="Supprimer la source"
+                        tooltip="Supprimer"
+                        variant="danger"
+                        onClick={() => onRemoveMaskSource(layer.id, source.id)}
+                      >
+                        <Trash2 className="icon-sm icon-stroke" aria-hidden="true" />
+                      </IconButton>
                     </div>
-                    <IconButton
-                      label="Supprimer la source"
-                      tooltip="Supprimer"
-                      variant="danger"
-                      onClick={() => onRemoveMaskSource(layer.id, source.id)}
-                    >
-                      <Trash2 className="icon-sm icon-stroke" aria-hidden="true" />
-                    </IconButton>
+                    <div className="param-panel__source-row-secondary">
+                      {source.id === activeSourceId ? (
+                        <span className="param-panel__source-active-badge">EN COURS</span>
+                      ) : (
+                        <span />
+                      )}
+                      <div className="param-panel__combine-mode" role="group" aria-label="Mode de combinaison">
+                        {COMBINE_MODE_OPTIONS.map((option) => (
+                          <Toggle
+                            key={option.value}
+                            size="sm"
+                            title={option.label}
+                            aria-label={option.label}
+                            pressed={source.combineMode === option.value}
+                            onPressedChange={(pressed) => {
+                              if (pressed) {
+                                onMaskSourceCombineModeChange(
+                                  layer.id,
+                                  source.id,
+                                  option.value as "add" | "subtract" | "intersect",
+                                );
+                              }
+                            }}
+                          >
+                            {option.value === "add" ? "+" : option.value === "subtract" ? "−" : "∩"}
+                          </Toggle>
+                        ))}
+                      </div>
+                    </div>
                   </li>
                 );
               })}

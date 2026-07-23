@@ -640,6 +640,12 @@ export class MaskTextureResolver {
       w.lastStrength === x.edgeStrength
     )
       return w.result;
+    // `refine()` reçoit `w.result` en `input` et met SON PROPRE résultat en
+    // cache sur cette même révision — sans ce bump, un changement de
+    // edgeRadius/edgeStrength seul (edgeAware actif) recalculerait bien ici
+    // mais laisserait refine() servir un résultat périmé en aval (trouvé par
+    // crosscheck).
+    this.bumpRevision(id);
     const run = (
       wgsl: string,
       entry: string,

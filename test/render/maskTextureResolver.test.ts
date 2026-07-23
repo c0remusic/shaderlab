@@ -276,4 +276,20 @@ describe("MaskTextureResolver — edge-aware/refine result cache", () => {
     resolver.resolve(inverted, createFakeEncoder(counts), {} as GPUTextureView, pending);
     expect(counts.passes).toBeGreaterThan(afterFirst.passes);
   });
+
+  it("re-encodes refine (not just edge-aware) when edgeRadius changes, with both edgeAware and feather active", () => {
+    const counts = { copies: 0, passes: 0 };
+    const resolver = makeResolver(counts);
+    const layer = oneSourceLayerWithRefineEdge({ edgeAware: true, edgeStrength: 1, edgeRadius: 5, feather: 4 });
+    const pending: (GPUTexture | GPUBuffer)[] = [];
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    const afterFirst = { ...counts };
+    const changed = { ...layer, mask: { ...layer.mask, refineEdge: { ...layer.mask.refineEdge, edgeRadius: 20 } } };
+    resolver.resolve(changed, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    // edgePipeline seul = 11 passes (déjà couvert par un autre test). Si
+    // refine() reste à tort en cache (son input, la sortie d'edge(), a
+    // pourtant changé), le delta plafonne à 11 — >=12 exige que refine()
+    // ait AUSSI rejoué ses 2 passes (boxH+boxV, feather seul).
+    expect(counts.passes - afterFirst.passes).toBeGreaterThanOrEqual(12);
+  });
 });

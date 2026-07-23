@@ -777,3 +777,33 @@ courante peut appartenir à n'importe quel worktree actif (`git worktree list`),
 pas forcément à `C:\dev\shaderlab`. Un élément UI visible mais absent du
 `grep` sur le fichier source censé le contenir est le signal fiable qu'on
 regarde la mauvaise fenêtre plutôt qu'un bug/état non commité.
+
+## 2026-07-23 — 3 sous-agents dispatchés sur des plans frères, 1/3 seulement a mis à jour `docs/INDEX.json`
+
+**Découverte (TTL 6 mois)**, confirme le pattern NG23/NG28 (`~/.claude/instinct-log.md`)
+sous un angle nouveau : 3 plans d'audit indépendants (`2026-07-21-audit-
+mask-integrity.md`, `-document-export-safety.md`, `-ui-runtime-hygiene.md`)
+dispatchés en parallèle, un worktree isolé chacun, prompts quasi-identiques
+(même structure : lire CLAUDE.md, exécuter le plan en TDD, committer avec
+pathspec). Aucun des 3 prompts ne mentionnait explicitement `docs/INDEX.json`.
+Résultat à la fin des 3 exécutions : l'agent mask-integrity a spontanément
+trouvé et corrigé un statut périmé (le plan était déjà livré le 2026-07-21,
+jamais marqué comme tel) ; l'agent ui-runtime-hygiene a mis à jour l'entrée
+correspondante après avoir livré son code ; l'agent document-export-safety,
+lui, a livré 3 commits de code irréprochables (tsc/tests/cargo tous verts)
+mais n'a jamais touché `docs/INDEX.json` — son entrée est restée à "NON
+exécuté" jusqu'à ce que le wrap-up de la session orchestratrice la recroise
+avec `git log` et la corrige.
+
+**How to apply** : le fait que le repo documente lui-même sa convention
+(`docs/INDEX.json._regle_entretien` : "à chaque ajout/déplacement/archivage,
+mettre à jour ce fichier dans le même geste") NE SUFFIT PAS à garantir que
+tous les agents dispatchés en parallèle la suivent, même avec des prompts
+quasi-identiques — 2 sur 3 l'ont fait, 1 sur 3 non, sans qu'aucun signal ne
+distingue à l'avance lequel dérogerait. Dans un prompt de dispatch
+`subagent-driven-development`/`dispatching-parallel-agents` sur ce repo,
+lister explicitement "mettre à jour l'entrée `docs/INDEX.json` du plan
+exécuté (statut + preuve : SHA de commit, résultat tsc/tests) dans le même
+commit" comme item de la définition de "terminé" — ne pas compter sur la
+convention auto-documentée du repo pour se propager d'elle-même à travers
+plusieurs instances de sous-agent.

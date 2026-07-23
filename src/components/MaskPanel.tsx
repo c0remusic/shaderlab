@@ -112,8 +112,9 @@ export function MaskPanel({
             <IconButton
               label={overlayForceHidden ? "Afficher l'overlay" : "Masquer l'overlay"}
               tooltip={overlayForceHidden ? "Afficher l'overlay" : "Masquer l'overlay"}
+              size="compact"
+              aria-pressed={!overlayForceHidden}
               onClick={onToggleOverlayForceHidden}
-              className={overlayForceHidden ? undefined : "param-panel__visibility-icon--on"}
             >
               {overlayForceHidden ? (
                 <EyeOff className="icon-sm icon-stroke" aria-hidden="true" />
@@ -143,8 +144,9 @@ export function MaskPanel({
               <IconButton
                 label={layer.mask.enabled ? "Désactiver le masque" : "Activer le masque"}
                 tooltip="Masque actif"
+                size="compact"
+                aria-pressed={layer.mask.enabled}
                 onClick={() => onMaskEnabledChange(layer.id, !layer.mask.enabled)}
-                className={layer.mask.enabled ? "param-panel__visibility-icon--on" : undefined}
               >
                 {layer.mask.enabled ? (
                   <Eye className="icon-sm icon-stroke" aria-hidden="true" />
@@ -187,8 +189,9 @@ export function MaskPanel({
                       <IconButton
                         label={source.enabled ? "Désactiver la source" : "Activer la source"}
                         tooltip="Actif"
+                        size="compact"
+                        aria-pressed={source.enabled}
                         onClick={() => onMaskSourceEnabledChange(layer.id, source.id, !source.enabled)}
-                        className={source.enabled ? "param-panel__visibility-icon--on" : undefined}
                       >
                         {source.enabled ? (
                           <Eye className="icon-sm icon-stroke" aria-hidden="true" />
@@ -203,9 +206,13 @@ export function MaskPanel({
                       >
                         {module.name}
                       </button>
+                      {source.id === activeSourceId && (
+                        <span className="param-panel__source-active-badge">EN COURS</span>
+                      )}
                       <IconButton
                         label="Supprimer la source"
                         tooltip="Supprimer"
+                        size="compact"
                         variant="danger"
                         onClick={() => onRemoveMaskSource(layer.id, source.id)}
                       >
@@ -213,11 +220,6 @@ export function MaskPanel({
                       </IconButton>
                     </div>
                     <div className="param-panel__source-row-secondary">
-                      {source.id === activeSourceId ? (
-                        <span className="param-panel__source-active-badge">EN COURS</span>
-                      ) : (
-                        <span />
-                      )}
                       <div className="param-panel__combine-mode" role="group" aria-label="Mode de combinaison">
                         {COMBINE_MODE_OPTIONS.map((option) => (
                           <Toggle

@@ -22,6 +22,8 @@ import { MaskPanel } from "./components/MaskPanel";
 import { getEffect } from "./render/effects/registry";
 import type { RefineEdgeParams } from "./mask/types";
 import { MAX_COLOR_RANGE_SAMPLES } from "./mask/sources/colorRange";
+import { planFold } from "./mask/foldPlan";
+import { OverlayAnimationLoop } from "./render/overlayAnimationLoop";
 
 export default function App() {
   useGlobalControlWheel();
@@ -29,6 +31,7 @@ export default function App() {
   const workspaceRef = useRef<HTMLElement>(null);
   const gpuRef = useRef<GpuContext | null>(null);
   const rendererRef = useRef<Renderer | null>(null);
+  const overlayAnimationLoopRef = useRef(new OverlayAnimationLoop());
   const sessionRef = useRef(new DocumentSession());
   const [layers, setLayers] = useState<LayerState[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -162,15 +165,6 @@ export default function App() {
     });
   }, [openFile]);
 
-  // Overlay du masque : montrer le masque du calque sélectionné en rouge
-  // safelight dès qu'on entre en mode peinture (pour VOIR ce qu'on masque),
-  // l'éteindre sinon. Piloté comme un état du renderer + un re-rendu.
-  useEffect(() => {
-    const r = rendererRef.current;
-    if (!r) return;
-    r.setMaskOverlay(maskPaintMode && selectedId ? selectedId : null);
-    r.requestRender(sessionRef.current.layers());
-  }, [maskPaintMode, selectedId]);
 
   const handleOpenFile = useCallback(async () => {
     try {
@@ -472,6 +466,34 @@ export default function App() {
 
   const selectedLayer = layers.find((l) => l.id === selectedId) ?? null;
   const paramsPanelTitle = selectedLayer ? `Réglages · ${getEffect(selectedLayer.effectId).name}` : "Réglages";
+
+  // Overlay du masque (rouge + contour animé) : visible dès qu'un calque
+  // sélectionné a un masque actif (mode peinture OU au moins une source
+  // active) — pas seulement en mode peinture comme avant, pour couvrir
+  // l'édition des sources dégradé/luminosité/range couleur qui ne passe
+  // jamais par le pinceau. Voir
+  // docs/superpowers/specs/2026-07-23-shaderlab-mask-threshold-contour-design.md.
+  // showOverlay est un booléen stable (pas `layers` en dépendance) pour que
+  // l'effet ne se redéclenche pas à chaque frame d'un drag de slider — seul
+  // un vrai changement "montrer/cacher" redémarre la boucle rAF.
+  const hasActiveMask = selectedLayer ? planFold(selectedLayer.mask).length > 0 : false;
+  const showOverlay = maskPaintMode || hasActiveMask;
+
+  useEffect(() => {
+    const r = rendererRef.current;
+    if (!r) return;
+    r.setMaskOverlay(showOverlay && selectedId ? selectedId : null);
+    r.requestRender(sessionRef.current.layers());
+
+    if (showOverlay && selectedId) {
+      overlayAnimationLoopRef.current.start((timeMs) => {
+        rendererRef.current?.tickOverlayAnimation(timeMs);
+      });
+    } else {
+      overlayAnimationLoopRef.current.stop();
+    }
+    return () => overlayAnimationLoopRef.current.stop();
+  }, [showOverlay, selectedId]);
 
   return (
     <div className="app-shell">

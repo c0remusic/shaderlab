@@ -119,6 +119,32 @@ export class Renderer {
     this.maskOverlayLayerId = layerId;
   }
 
+  /**
+   * Constructs a brand-new `Renderer` and loads `bitmap` into it, as a self-
+   * contained candidate the caller can validate BEFORE touching whatever
+   * renderer/document is currently active — the transactional-open pattern
+   * `App.tsx`'s `openFile` relies on. If `loadImage()` throws (unsupported
+   * image, GPU size limit, allocator OOM), this disposes the candidate's own
+   * partially-created resources and rethrows, so a failed open can never
+   * leave orphaned GPU textures behind, and the caller can simply discard
+   * the rejected candidate — the renderer it was about to replace is never
+   * touched.
+   */
+  static async createLoaded(
+    ctx: GpuContext,
+    bitmap: ImageBitmap,
+    diagnosticLogger: DiagnosticLogger = noopDiagnosticLogger,
+  ): Promise<Renderer> {
+    const candidate = new Renderer(ctx, diagnosticLogger);
+    try {
+      await candidate.loadImage(bitmap);
+    } catch (e) {
+      candidate.dispose();
+      throw e;
+    }
+    return candidate;
+  }
+
   async loadImage(bitmap: ImageBitmap): Promise<void> {
     this.imageResources.loadImage(bitmap);
     const { device, srgbFormat } = this.ctx;

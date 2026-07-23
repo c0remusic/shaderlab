@@ -9,6 +9,7 @@ import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { exportImage, resolveExportTargetAsync } from "./export/exportImage";
+import { messageFromUnknown } from "./lib/errors";
 import { getLaunchPath, readImageFile, pickImageFile, logDiagnostic, writeImageFile, pathExists } from "./launch";
 import { useGlobalControlWheel } from "./ui/activeControl";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
@@ -129,17 +130,24 @@ export default function App() {
       } catch {
         throw new Error("Image non supportée ou corrompue.");
       }
+
+      // Build and load the candidate renderer BEFORE touching anything the
+      // PREVIOUS document depends on (rendererRef, canvas size, app state).
+      // Renderer.createLoaded disposes the candidate's own partial
+      // resources on failure and rethrows — this used to dispose the
+      // outgoing renderer FIRST, so a failed load (unsupported image, GPU
+      // size limit) left the canvas backed by an already-destroyed
+      // renderer, with the previous document unusable despite `sourcePath`/
+      // `imageSize` state still pointing at it. Only once loading succeeds
+      // do we touch the canvas, dispose the outgoing renderer, and commit
+      // the new document's state.
+      const candidate = await Renderer.createLoaded(gpuRef.current, bitmap, logDiagnostic);
+
       canvasRef.current.width = bitmap.width;
       canvasRef.current.height = bitmap.height;
-
       rendererRef.current?.dispose();
-      rendererRef.current = new Renderer(gpuRef.current, logDiagnostic);
-      await rendererRef.current.loadImage(bitmap);
+      rendererRef.current = candidate;
 
-      // Only commit sourcePath/isLaunchFile/imageSize state AFTER loadImage succeeds.
-      // If loadImage throws, these state updates never happen, leaving the previous
-      // values intact and preventing handleExport from attempting to export with an
-      // unloaded renderer.
       setImageSize({ width: bitmap.width, height: bitmap.height });
       setSourcePath(path);
       setIsLaunchFile(fromLaunch);
@@ -149,7 +157,7 @@ export default function App() {
       syncSession();
       rendererRef.current.render(sessionRef.current.layers());
     } catch (e) {
-      setError((e as Error).message);
+      setError(messageFromUnknown(e));
     }
   }, [syncSession]);
 
@@ -161,7 +169,7 @@ export default function App() {
         const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
         await openFile(new File([blob], path, { type: "image/jpeg" }), path, true);
       } catch (e) {
-        setError((e as Error).message);
+        setError(messageFromUnknown(e));
       }
     });
   }, [openFile]);
@@ -179,7 +187,7 @@ export default function App() {
       const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
       await openFile(new File([blob], path, { type: "image/jpeg" }), path, false);
     } catch (e) {
-      setError((e as Error).message);
+      setError(messageFromUnknown(e));
     }
   }, [openFile]);
 
@@ -465,7 +473,7 @@ export default function App() {
         imageSize.height
       );
     } catch (e) {
-      setError((e as Error).message);
+      setError(messageFromUnknown(e));
     }
   }
 

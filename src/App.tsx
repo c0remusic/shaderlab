@@ -149,6 +149,11 @@ export default function App() {
       sessionRef.current.replaceDocument(stack);
       syncSession();
       rendererRef.current.render(sessionRef.current.layers());
+      // Une ouverture réussie efface une éventuelle erreur laissée par une
+      // tentative précédente (fichier corrompu, GPU indisponible...) — sinon
+      // le bandeau d'erreur reste affiché au-dessus du document qui vient de
+      // charger correctement.
+      setError(null);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -458,6 +463,32 @@ export default function App() {
     }
   }
 
+  // Raccourcis globaux Ctrl+Z/Ctrl+Y (undo/redo) : fonctionnent depuis
+  // n'importe où dans la fenêtre, PAS seulement quand un bouton Toolbar a le
+  // focus — sauf par-dessus un contrôle éditable (input/textarea/
+  // contentEditable, ex. le champ de valeur d'un LabeledSlider en cours de
+  // frappe), où Ctrl+Z doit rester l'undo texte natif du champ, pas l'undo
+  // de calque.
+  useEffect(() => {
+    function handleWindowKeyDown(event: KeyboardEvent) {
+      if (!event.ctrlKey && !event.metaKey) return;
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName;
+      const isEditableTarget = tagName === "INPUT" || tagName === "TEXTAREA" || target?.isContentEditable;
+      if (isEditableTarget) return;
+      const key = event.key.toLowerCase();
+      if (key === "z") {
+        event.preventDefault();
+        handleUndo();
+      } else if (key === "y") {
+        event.preventDefault();
+        handleRedo();
+      }
+    }
+    window.addEventListener("keydown", handleWindowKeyDown);
+    return () => window.removeEventListener("keydown", handleWindowKeyDown);
+  });
+
   async function handleExport() {
     if (!rendererRef.current) return;
     if (!sourcePath) {
@@ -480,6 +511,10 @@ export default function App() {
         imageSize.width,
         imageSize.height
       );
+      // Même discipline que openFile : un export réussi efface une erreur
+      // laissée par une tentative précédente, plutôt que de laisser un
+      // bandeau d'erreur périmé affiché au-dessus d'un export qui a marché.
+      setError(null);
     } catch (e) {
       setError((e as Error).message);
     }

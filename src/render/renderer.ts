@@ -208,12 +208,13 @@ export class Renderer {
    * canvas, then reads it back — used by the export pipeline (Task 10).
    *
    * `render()` always writes its last pass straight to the canvas's current
-   * texture, never into `pingPong`, so `readPixels()` reading `pingPong[0]`
-   * would return stale data (whatever pass happened to land there last, not
-   * the actual final composited frame). This method sidesteps that by
-   * reusing the same multi-pass loop (`runPipeline`) but targeting a
-   * dedicated off-screen `exportTexture` for every pass, including the
-   * last one, so the readback always reflects the true final frame.
+   * texture, never into `pingPong` — reading `pingPong[0]` back after a call
+   * to `render()` would return stale data (whatever pass happened to land
+   * there last, not the actual final composited frame). This method
+   * sidesteps that by reusing the same multi-pass loop (`runPipeline`) but
+   * targeting a dedicated off-screen `exportTexture` for every pass,
+   * including the last one, so the readback always reflects the true final
+   * frame.
    */
   async exportFrame(layers: LayerState[]): Promise<Uint8Array> {
     const exportTexture = this.imageResources.getExportTexture();
@@ -247,34 +248,6 @@ export class Renderer {
       imageWidth: this.imageResources.width,
       imageHeight: this.imageResources.height,
     });
-  }
-
-  /** Debugging-only, see the field comment on `diagFrameCount`. Logs every
-   *  15th frame: JS-side encode+submit time (does NOT include actual GPU
-   *  execution time, which WebGPU doesn't expose to JS), how many
-   *  intermediate textures/buffers this single frame churned through
-   *  (pendingDestroy.length — a proxy for GPU allocator pressure from
-   *  per-frame effect passes like Glow's 5-pass bloom), and the resident
-   *  mask/pipeline cache sizes (should stay bounded by layer/effect count,
-   *  not grow unboundedly). */
-  /**
-   * Reads back `pingPong[0]`. NOTE: `render()` always writes its last pass
-   * straight to the canvas, never into `pingPong`, so this does NOT hold
-   * the final composited frame after a call to `render()` — it's stale
-   * data from whichever intermediate pass happened to land there. Do not
-   * use this for export; use `exportFrame()` instead, which renders into a
-   * dedicated off-screen texture and reads that back correctly. This
-   * method is kept for any caller that genuinely wants a ping-pong buffer's
-   * raw contents (e.g. debugging an intermediate pass).
-   */
-  async readPixels(): Promise<Uint8Array> {
-    const pingPong = this.imageResources.pingPong;
-    if (!pingPong) throw new Error("Aucune image chargée.");
-    return new FrameReadback(
-      this.ctx.device,
-      this.imageResources.width,
-      this.imageResources.height,
-    ).readTextureBytes(pingPong[0]);
   }
 
   /**

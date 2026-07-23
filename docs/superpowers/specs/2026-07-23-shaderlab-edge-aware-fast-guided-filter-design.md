@@ -37,15 +37,34 @@ documenté comme sensible (crash OOM historique, bandeau `CLAUDE.md`).
   (Hillis-Steele, log2(largeur)+log2(hauteur) à 2048px) puis un lookup O(1)
   par pixel (4 échantillons coin) pour n'importe quel rayon. Le coût devient
   indépendant de la valeur du rayon.
-- **Cache à deux niveaux, c'est le point qui rend le drag fluide** :
-  - SAT de I/p/I²/Ip : keyed sur la révision du calque (le guide couleur),
-    **pas sur `edgeRadius`/`edgeStrength`**. Un drag de rayon seul ne la
-    reconstruit jamais.
-  - SAT de a/b : reconstruite à chaque changement de rayon/force (ces
-    coefficients en dépendent), mais son coût est les ~22 passes fixes
-    ci-dessus, indépendant de la valeur du rayon — remplace le pire cas
-    actuel (jusqu'à ~600 échantillons/pixel à rayon 50) par un coût
-    constant, quel que soit le rayon choisi.
+- **Cache à deux niveaux, c'est le point qui rend le drag fluide — clé
+  séparée du `maskRevision` existant** : revue `architect` (2026-07-23) —
+  `edgePipeline` bump `maskRevision` à CHAQUE recompute réel, y compris un
+  changement de rayon seul
+  ([maskTextureResolver.ts:685](../../../src/render/maskTextureResolver.ts#L685)),
+  pour invalider le cache aval de `refine()`
+  ([:841](../../../src/render/maskTextureResolver.ts#L841)). Keyer la
+  guide-SAT sur ce même `maskRevision` la ferait reconstruire à chaque
+  frame de drag — exactement le cas à éviter. Introduire un compteur
+  **`guideRevision(id)`** séparé, bumpé UNIQUEMENT par les changements de
+  contenu amont (`resident`/`parametric`/`fold`/`invert`
+  [:333](../../../src/render/maskTextureResolver.ts#L333),
+  [:442](../../../src/render/maskTextureResolver.ts#L442),
+  [:239](../../../src/render/maskTextureResolver.ts#L239),
+  [:194](../../../src/render/maskTextureResolver.ts#L194), `guideEpoch`
+  [:207](../../../src/render/maskTextureResolver.ts#L207), toggle
+  edgeAware
+  [:624](../../../src/render/maskTextureResolver.ts#L624)) — JAMAIS par le
+  self-bump de `:685`.
+  - SAT de I/p/I²/Ip : keyed sur `guideRevision(id)`, **pas sur
+    `maskRevision`/`edgeRadius`/`edgeStrength`**. Un drag de rayon seul ne
+    la reconstruit jamais.
+  - SAT de a/b : garde la clé actuelle (`maskRevision`+`edgeRadius`+
+    `edgeStrength`, comme `refine()`), reconstruite à chaque changement de
+    rayon/force (ces coefficients en dépendent), mais son coût est les
+    ~22 passes fixes ci-dessus, indépendant de la valeur du rayon —
+    remplace le pire cas actuel (jusqu'à ~600 échantillons/pixel à rayon
+    50) par un coût constant, quel que soit le rayon choisi.
 - **Mise à l'échelle du rayon** : le guide est réduit d'un facteur
   `s = min(1, 2048 / max(largeur, hauteur))`. Un rayon `edgeRadius` (en
   pixels de la photo originale) devient `radius' = edgeRadius * s` pixels
@@ -58,6 +77,20 @@ documenté comme sensible (crash OOM historique, bandeau `CLAUDE.md`).
   sommes sur jusqu'à ~2,8M pixels (2048×1365) ; `rg16float` plafonne à
   65504, largement dépassé — un débordement silencieux corromprait tout le
   filtre à grande échelle sans erreur visible.
+- **Lookup SAT via `textureLoad`, pas `textureSample`** : revue `architect`
+  — `rg32float` est `unfilterable-float` en WebGPU (sauf feature
+  `float32-filterable`, non activée ici), or le helper `run()` existant
+  code en dur `sampleType: "float"` + un bind de sampler
+  ([:701](../../../src/render/maskTextureResolver.ts#L701),
+  [:711](../../../src/render/maskTextureResolver.ts#L711),
+  [:743](../../../src/render/maskTextureResolver.ts#L743)) — un bind group
+  avec ce sampler sur une texture `rg32float` est invalide côté WebGPU
+  (command buffer rejeté, canvas noir). Les lookups SAT (les 4
+  échantillons coin de la construction Hillis-Steele et du lookup O(1)
+  final) utilisent `textureLoad` avec des coordonnées entières, sans
+  sampler — c'est aussi la méthode correcte pour un prefix-sum (évite tout
+  décalage de demi-texel qu'introduirait un sampler bilinéaire). `run()`
+  gagne une variante sans binding de sampler pour ces passes.
 - **Budget VRAM chiffré** (plafonné par le downscale, indépendant de la
   taille de la photo source) : à 2048×1365, chaque SAT `rg32float`
   (8 octets/pixel) ≈ 22 Mo. Trois SAT (I/p, I²/Ip, a/b) ≈ 66 Mo en régime
@@ -77,22 +110,32 @@ documenté comme sensible (crash OOM historique, bandeau `CLAUDE.md`).
 src/mask/edgeAwareWgsl.ts
   Nouvelles fonctions : buildDownsampleWgsl() (box average simple),
   buildSatScanHWgsl()/buildSatScanVWgsl() (un pas Hillis-Steele,
-  paramétré par l'offset de décalage — appelé log2(n) fois), remplace
-  boxFilterWgsl()/buildBoxFilterHWgsl()/buildBoxFilterVWgsl() (supprimées,
-  plus aucun appelant après ce chantier). buildSatLookupWgsl() : lookup O(1)
-  via 4 échantillons coin de la SAT, pour une moyenne de boîte de rayon
-  quelconque. buildUpsampleCombineWgsl() : upsample bilinéaire de mean_a/
-  mean_b + combinaison avec le guide PLEINE résolution (q = a*I + b).
+  paramétré par l'offset de décalage — appelé log2(n) fois, via
+  textureLoad), buildSatLookupWgsl() (lookup O(1) via 4 échantillons coin
+  de la SAT, textureLoad), buildUpsampleCombineWgsl() (upsample bilinéaire
+  de mean_a/mean_b + combinaison avec le guide PLEINE résolution,
+  q = a*I + b). `boxFilterWgsl()`/`buildBoxFilterHWgsl()`/
+  `buildBoxFilterVWgsl()` **restent inchangées** — correction post-revue
+  `architect` : `refine()` (feather + smooth) les appelle toujours en
+  `channels=1`
+  ([:871-872](../../../src/render/maskTextureResolver.ts#L871),
+  [:875-876](../../../src/render/maskTextureResolver.ts#L875)), hors
+  scope de ce chantier. Seul l'appel depuis `edgePipeline()` (channels=2,
+  `:785-826`) est remplacé par le nouveau chemin SAT.
 
 src/render/maskTextureResolver.ts
   edgePipeline() réécrit : downsample → luminance/pack (résolution
-  réduite) → SAT(I,p) + SAT(I²,Ip) [cache keyed sur revision(id) seul] →
+  réduite) → SAT(I,p) + SAT(I²,Ip) [cache keyed sur `guideRevision(id)`] →
   lookup O(1) mean_I/mean_p/corr → calcul a/b (pointwise, O(1), inchangé)
-  → SAT(a,b) [cache keyed sur revision+edgeRadius+edgeStrength, comme
-  aujourd'hui] → lookup O(1) mean_a/mean_b → upsample+combine en pleine
-  résolution. `edgeAwareWorkTextures` gagne un champ séparé pour le cache
-  du premier SAT (guide) et le second (a/b), au lieu d'un seul état
-  `lastRevision/lastRadius/lastStrength` fusionné comme aujourd'hui.
+  → SAT(a,b) [cache keyed sur `maskRevision`+edgeRadius+edgeStrength,
+  comme aujourd'hui] → lookup O(1) mean_a/mean_b → upsample+combine en
+  pleine résolution. `EdgeWork` (le type derrière `edgeAwareWorkTextures`)
+  est restructuré, pas juste étendu d'un champ — il doit porter des
+  textures à DEUX résolutions distinctes (full-res : guide luminance,
+  `result`, `p` ; réduite : guide downscalé, les 3 SAT, `ab`) alors que
+  `mk()` code aujourd'hui en dur `[this.width, this.height]`
+  ([:642](../../../src/render/maskTextureResolver.ts#L642)) — `mk()` gagne
+  un paramètre de taille explicite, plus une taille implicite membre.
 ```
 
 Les deux fichiers gardent leurs responsabilités actuelles : `edgeAwareWgsl.ts`

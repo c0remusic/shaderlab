@@ -56,12 +56,12 @@ export function BrushToolbar({
           onChange={onBrushHardnessChange}
         />
       </div>
-      <Toggle pressed={erase} onPressedChange={onEraseChange} aria-label="Gomme">
+      <Toggle size="sm" pressed={erase} onPressedChange={onEraseChange} aria-label="Gomme">
         <Eraser className="icon-md icon-stroke" aria-hidden="true" />
         Gomme
       </Toggle>
       <div className="brush-toolbar__spacer" />
-      <Button variant="secondary" onClick={onStop}>
+      <Button variant="secondary" size="sm" onClick={onStop}>
         Terminer
       </Button>
     </div>

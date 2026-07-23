@@ -72,6 +72,21 @@ describe("OverlayAnimationLoop", () => {
     expect(ticks).toEqual([]);
   });
 
+  it("does not re-arm when stop() is called synchronously from within the tick callback", () => {
+    const { raf, caf, flush, pending } = fakeRaf();
+    const loop = new OverlayAnimationLoop(raf, caf);
+    const ticks: number[] = [];
+    loop.start((t) => {
+      ticks.push(t);
+      loop.stop();
+    });
+    flush(16);
+    expect(ticks).toEqual([16]);
+    expect(pending()).toBe(0);
+    flush(32);
+    expect(ticks).toEqual([16]);
+  });
+
   it("running reflects the current state", () => {
     const { raf, caf } = fakeRaf();
     const loop = new OverlayAnimationLoop(raf, caf);

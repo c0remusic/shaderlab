@@ -24,6 +24,7 @@ export class OverlayAnimationLoop {
     if (this.rafId !== null) return;
     const tick = (timeMs: number) => {
       cb(timeMs);
+      if (this.rafId === null) return;
       this.rafId = this.raf(tick);
     };
     this.rafId = this.raf(tick);

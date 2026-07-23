@@ -51,6 +51,35 @@ export function isNoOpDockDrop(layout: DockLayout, id: string, target: DockDropT
     : target.rowIndex === source.rowIndex || target.rowIndex === source.rowIndex - 1;
 }
 
+/** Sous-ensemble de l'état de drag de `PanelColumn` pertinent pour décider
+ *  d'un commit — pas le type complet (pas besoin de grabOffset/pointerPosition/
+ *  targetBounds ici), pour ne pas coupler cette logique pure au composant. */
+export interface DockDragCommitCandidate {
+  draggedId: string;
+  pointerId: number;
+  target: DockDropTarget | null;
+}
+
+/**
+ * Décide ce qui doit être commité au relâchement/annulation d'un drag de
+ * panneau docké — logique pure extraite de `PanelColumn.finishDrag` pour
+ * être testable sans rendu React. `drag` doit être l'état le PLUS RÉCENT
+ * connu au moment de l'appel (le composant le lit depuis un ref synchronisé
+ * par le setter fonctionnel de state, pas depuis une fermeture figée) —
+ * sinon un relâchement rapide après le dernier pointermove risquerait de
+ * commiter une cible périmée plutôt que celle sous le curseur à l'instant du
+ * relâchement.
+ */
+export function resolveDockDragCommit(
+  drag: DockDragCommitCandidate | null,
+  releasePointerId: number,
+  commit: boolean
+): { draggedId: string; target: DockDropTarget } | null {
+  if (!drag || releasePointerId !== drag.pointerId) return null;
+  if (!commit || !drag.target) return null;
+  return { draggedId: drag.draggedId, target: drag.target };
+}
+
 export function movePanelInDock(layout: DockLayout, id: string, target: DockDropTarget): DockLayout {
   const source = findPanel(layout, id);
   if (!source || isNoOpDockDrop(layout, id, target)) return layout;

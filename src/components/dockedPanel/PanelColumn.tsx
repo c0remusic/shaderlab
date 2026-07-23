@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { DockedPanelCard } from "./DockedPanelCard";
-import { getDockDropTarget, isNoOpDockDrop, type DockDropTarget, type DockLayout } from "../../ui/dockLayout";
+import { getDockDropTarget, isNoOpDockDrop, resolveDockDragCommit, type DockDropTarget, type DockLayout } from "../../ui/dockLayout";
 import { clampDockWidth, DOCK_WIDTH_MIN, DOCK_WIDTH_MAX } from "./dockWidth";
 import "../../ui/dragReorder.css";
 import "./PanelColumn.css";
@@ -31,7 +31,20 @@ interface DockDragState {
 }
 
 export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: PanelColumnProps) {
-  const [dragState, setDragState] = useState<DockDragState | null>(null);
+  const [dragState, setDragStateRaw] = useState<DockDragState | null>(null);
+  // Miroir de `dragState` tenu à jour de façon SYNCHRONE par le setter
+  // fonctionnel ci-dessous, lu par `finishDrag` au relâchement/annulation —
+  // évite de commiter une cible de drop périmée si un pointerup arrive avant
+  // que le render déclenché par le dernier pointermove n'ait mis à jour la
+  // fermeture de `finishDrag` (voir resolveDockDragCommit, ui/dockLayout.ts).
+  const dragStateRef = useRef<DockDragState | null>(null);
+  const setDragState = useCallback((updater: DockDragState | null | ((current: DockDragState | null) => DockDragState | null)) => {
+    setDragStateRaw((current) => {
+      const next = typeof updater === "function" ? updater(current) : updater;
+      dragStateRef.current = next;
+      return next;
+    });
+  }, []);
   const draggedPanel = dragState ? panels.find((panel) => panel.id === dragState.draggedId) : null;
 
   // Redimensionnement en largeur — poignée sur le bord GAUCHE de TOUT le
@@ -109,10 +122,10 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
   }, [layout]);
 
   const finishDrag = useCallback((event: React.PointerEvent<HTMLDivElement>, commit: boolean) => {
-    if (!dragState || event.pointerId !== dragState.pointerId) return;
-    if (commit && dragState.target) onMove(dragState.draggedId, dragState.target);
+    const resolved = resolveDockDragCommit(dragStateRef.current, event.pointerId, commit);
+    if (resolved) onMove(resolved.draggedId, resolved.target);
     setDragState(null);
-  }, [dragState, onMove]);
+  }, [onMove, setDragState]);
 
   let guideStyle: React.CSSProperties | null = null;
   let guideClassName = "drag-reorder__alignment-guide";

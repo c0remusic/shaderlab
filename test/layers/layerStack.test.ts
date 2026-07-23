@@ -226,3 +226,217 @@ describe("LayerStack — setMaskSourceEnabled", () => {
     expect(stack.setMaskSourceEnabled("missing-layer", "missing-source", false)).toBe(false);
   });
 });
+
+describe("LayerStack — mutation outcomes (Task 3)", () => {
+  it("reorderLayer returns false for an absent id, without mutating the array", () => {
+    const stack = new LayerStack();
+    stack.addLayer("glow");
+    const before = stack.layers;
+    expect(stack.reorderLayer("missing", 0)).toBe(false);
+    expect(stack.layers).toBe(before);
+  });
+
+  it("reorderLayer returns false for an out-of-bounds index, without mutating the array", () => {
+    const stack = new LayerStack();
+    const a = stack.addLayer("glow");
+    stack.addLayer("grain");
+    const before = stack.layers;
+    expect(stack.reorderLayer(a, -1)).toBe(false);
+    expect(stack.reorderLayer(a, 5)).toBe(false);
+    expect(stack.layers).toBe(before);
+  });
+
+  it("reorderLayer returns false when newIndex equals the current index (no-op)", () => {
+    const stack = new LayerStack();
+    const a = stack.addLayer("glow");
+    stack.addLayer("grain");
+    const before = stack.layers;
+    expect(stack.reorderLayer(a, 0)).toBe(false);
+    expect(stack.layers).toBe(before);
+  });
+
+  it("reorderLayer returns true and reorders for a valid, different index", () => {
+    const stack = new LayerStack();
+    const a = stack.addLayer("glow");
+    const b = stack.addLayer("grain");
+    expect(stack.reorderLayer(a, 1)).toBe(true);
+    expect(stack.layers.map((l) => l.id)).toEqual([b, a]);
+  });
+
+  it("removeLayer returns false for an absent id, without mutating the array", () => {
+    const stack = new LayerStack();
+    stack.addLayer("glow");
+    const before = stack.layers;
+    expect(stack.removeLayer("missing")).toBe(false);
+    expect(stack.layers).toBe(before);
+  });
+
+  it("removeLayer returns true and removes for an existing id", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    expect(stack.removeLayer(id)).toBe(true);
+    expect(stack.layers).toHaveLength(0);
+  });
+
+  it("toggleLayer returns false for an absent id", () => {
+    const stack = new LayerStack();
+    expect(stack.toggleLayer("missing")).toBe(false);
+  });
+
+  it("toggleLayer returns true for an existing id", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    expect(stack.toggleLayer(id)).toBe(true);
+  });
+
+  it("updateBrushMask returns false for an absent id", () => {
+    const stack = new LayerStack();
+    expect(stack.updateBrushMask("missing", new Uint8Array([1]))).toBe(false);
+  });
+
+  it("updateBrushMask returns true for an existing id", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    expect(stack.updateBrushMask(id, new Uint8Array([1]))).toBe(true);
+  });
+
+  it("removeMaskSource returns false when the layer is absent", () => {
+    const stack = new LayerStack();
+    expect(stack.removeMaskSource("missing-layer", "missing-source")).toBe(false);
+  });
+
+  it("removeMaskSource returns false when the source is absent, without mutating sources", () => {
+    const stack = new LayerStack();
+    const layerId = stack.addLayer("grain");
+    const before = stack.layers.find((l) => l.id === layerId)!.mask.sources;
+    expect(stack.removeMaskSource(layerId, "missing-source")).toBe(false);
+    expect(stack.layers.find((l) => l.id === layerId)!.mask.sources).toBe(before);
+  });
+
+  it("removeMaskSource returns true when the source exists", () => {
+    const stack = new LayerStack();
+    const layerId = stack.addLayer("grain");
+    const sourceId = stack.addMaskSource(layerId, "gradient");
+    expect(stack.removeMaskSource(layerId, sourceId)).toBe(true);
+  });
+
+  it("updateMaskSourceParams returns false when the layer is absent", () => {
+    const stack = new LayerStack();
+    expect(stack.updateMaskSourceParams("missing-layer", "missing-source", {})).toBe(false);
+  });
+
+  it("updateMaskSourceParams returns false when the source is absent, without mutating sources", () => {
+    const stack = new LayerStack();
+    const layerId = stack.addLayer("grain");
+    const before = stack.layers.find((l) => l.id === layerId)!.mask.sources;
+    expect(stack.updateMaskSourceParams(layerId, "missing-source", {})).toBe(false);
+    expect(stack.layers.find((l) => l.id === layerId)!.mask.sources).toBe(before);
+  });
+
+  it("updateMaskSourceParams returns false when params are unchanged (no-op), without mutating sources", () => {
+    const stack = new LayerStack();
+    const layerId = stack.addLayer("grain");
+    const sourceId = stack.addMaskSource(layerId, "gradient");
+    const current = stack.layers.find((l) => l.id === layerId)!.mask.sources.find((s) => s.id === sourceId)!.params!;
+    const before = stack.layers.find((l) => l.id === layerId)!.mask.sources;
+    expect(stack.updateMaskSourceParams(layerId, sourceId, { ...current })).toBe(false);
+    expect(stack.layers.find((l) => l.id === layerId)!.mask.sources).toBe(before);
+  });
+
+  it("updateMaskSourceParams returns true when a param value actually changes", () => {
+    const stack = new LayerStack();
+    const layerId = stack.addLayer("grain");
+    const sourceId = stack.addMaskSource(layerId, "gradient");
+    const current = stack.layers.find((l) => l.id === layerId)!.mask.sources.find((s) => s.id === sourceId)!.params!;
+    expect(stack.updateMaskSourceParams(layerId, sourceId, { ...current, feather: (current.feather as number) + 1 })).toBe(true);
+  });
+
+  it("setMaskSourceCombineMode returns false when the source is absent", () => {
+    const stack = new LayerStack();
+    const layerId = stack.addLayer("grain");
+    expect(stack.setMaskSourceCombineMode(layerId, "missing-source", "subtract")).toBe(false);
+  });
+
+  it("setMaskSourceCombineMode returns false when the mode is unchanged (no-op)", () => {
+    const stack = new LayerStack();
+    const layerId = stack.addLayer("grain");
+    const sourceId = stack.addMaskSource(layerId, "gradient"); // default combineMode is "add"
+    const before = stack.layers.find((l) => l.id === layerId)!.mask.sources;
+    expect(stack.setMaskSourceCombineMode(layerId, sourceId, "add")).toBe(false);
+    expect(stack.layers.find((l) => l.id === layerId)!.mask.sources).toBe(before);
+  });
+
+  it("setMaskSourceCombineMode returns true when the mode actually changes", () => {
+    const stack = new LayerStack();
+    const layerId = stack.addLayer("grain");
+    const sourceId = stack.addMaskSource(layerId, "gradient");
+    expect(stack.setMaskSourceCombineMode(layerId, sourceId, "subtract")).toBe(true);
+  });
+
+  it("updateRefineEdge returns false for an absent layer", () => {
+    const stack = new LayerStack();
+    expect(stack.updateRefineEdge("missing", { feather: 3 })).toBe(false);
+  });
+
+  it("updateRefineEdge returns false when the patch matches current values (no-op), without mutating the mask", () => {
+    const stack = new LayerStack();
+    const layerId = stack.addLayer("grain");
+    const before = stack.layers.find((l) => l.id === layerId)!.mask;
+    expect(stack.updateRefineEdge(layerId, { feather: before.refineEdge.feather })).toBe(false);
+    expect(stack.layers.find((l) => l.id === layerId)!.mask).toBe(before);
+  });
+
+  it("updateRefineEdge returns true when a field actually changes", () => {
+    const stack = new LayerStack();
+    const layerId = stack.addLayer("grain");
+    expect(stack.updateRefineEdge(layerId, { feather: 7 })).toBe(true);
+  });
+
+  it("setMaskInvert returns false for an absent id and when unchanged (no-op)", () => {
+    const stack = new LayerStack();
+    expect(stack.setMaskInvert("missing", true)).toBe(false);
+    const id = stack.addLayer("glow");
+    const before = stack.layers.find((l) => l.id === id)!.mask;
+    expect(stack.setMaskInvert(id, false)).toBe(false); // already false
+    expect(stack.layers.find((l) => l.id === id)!.mask).toBe(before);
+  });
+
+  it("setMaskInvert returns true when the value actually changes", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    expect(stack.setMaskInvert(id, true)).toBe(true);
+  });
+
+  it("setMaskEnabled returns false for an absent id and when unchanged (no-op)", () => {
+    const stack = new LayerStack();
+    expect(stack.setMaskEnabled("missing", true)).toBe(false);
+    const id = stack.addLayer("glow");
+    const before = stack.layers.find((l) => l.id === id)!.mask;
+    expect(stack.setMaskEnabled(id, true)).toBe(false); // already true
+    expect(stack.layers.find((l) => l.id === id)!.mask).toBe(before);
+  });
+
+  it("setMaskEnabled returns true when the value actually changes", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    expect(stack.setMaskEnabled(id, false)).toBe(true);
+  });
+
+  it("updateParams returns false for an absent id", () => {
+    const stack = new LayerStack();
+    expect(stack.updateParams("missing", { intensity: 0.5 })).toBe(false);
+  });
+
+  it("updateParams returns false when the merged params are unchanged (no-op)", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    stack.updateParams(id, { intensity: 0.5 });
+    expect(stack.updateParams(id, { intensity: 0.5 })).toBe(false);
+  });
+
+  it("updateParams returns true when a param value actually changes", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    expect(stack.updateParams(id, { intensity: 0.5 })).toBe(true);
+  });
+});

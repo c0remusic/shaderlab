@@ -206,7 +206,8 @@ export default function App() {
   const handleToggle = useCallback(
     (id: string) => {
       const stack = currentStack();
-      stack.toggleLayer(id);
+      // Mutation outcome (Task 3) : id absent -> pas d'entrée d'historique.
+      if (!stack.toggleLayer(id)) return;
       commit(stack);
     },
     [currentStack, commit]
@@ -215,7 +216,7 @@ export default function App() {
   const handleRemove = useCallback(
     (id: string) => {
       const stack = currentStack();
-      stack.removeLayer(id);
+      if (!stack.removeLayer(id)) return;
       maskPaintersRef.current.delete(id);
       commit(stack);
     },
@@ -225,7 +226,9 @@ export default function App() {
   const handleReorder = useCallback(
     (id: string, newIndex: number) => {
       const stack = currentStack();
-      stack.reorderLayer(id, newIndex);
+      // Mutation outcome : id absent, index hors-borne, ou index inchangé
+      // (no-op) -> pas d'entrée d'historique.
+      if (!stack.reorderLayer(id, newIndex)) return;
       commit(stack);
     },
     [currentStack, commit]
@@ -287,7 +290,7 @@ export default function App() {
 
   function handleRemoveMaskSource(layerId: string, sourceId: string) {
     const stack = currentStack();
-    stack.removeMaskSource(layerId, sourceId);
+    if (!stack.removeMaskSource(layerId, sourceId)) return;
     commit(stack);
   }
 
@@ -302,7 +305,7 @@ export default function App() {
 
   function handleMaskSourceCombineModeChange(layerId: string, sourceId: string, mode: "add" | "subtract" | "intersect") {
     const stack = currentStack();
-    stack.setMaskSourceCombineMode(layerId, sourceId, mode);
+    if (!stack.setMaskSourceCombineMode(layerId, sourceId, mode)) return;
     commit(stack);
   }
 
@@ -317,13 +320,13 @@ export default function App() {
 
   function handleMaskInvertChange(layerId: string, invert: boolean) {
     const stack = currentStack();
-    stack.setMaskInvert(layerId, invert);
+    if (!stack.setMaskInvert(layerId, invert)) return;
     commit(stack);
   }
 
   function handleMaskEnabledChange(layerId: string, enabled: boolean) {
     const stack = currentStack();
-    stack.setMaskEnabled(layerId, enabled);
+    if (!stack.setMaskEnabled(layerId, enabled)) return;
     commit(stack);
   }
 
@@ -367,7 +370,10 @@ export default function App() {
     const rgbLinear = [toLinear(pixel[0]), toLinear(pixel[1]), toLinear(pixel[2])];
     const params = { ...source.params, samples: [...existing, ...rgbLinear] };
     const stack = currentStack();
-    stack.updateMaskSourceParams(layerId, sourceId, params);
+    // Toujours un ajout réel (echantillons.length croît strictement), mais
+    // même discipline que les autres actions discrètes : ne commit que si
+    // la mutation a effectivement changé quelque chose.
+    if (!stack.updateMaskSourceParams(layerId, sourceId, params)) return;
     commit(stack); // ajout d'un échantillon = action discrète, une entrée directe
   }
 
@@ -426,7 +432,11 @@ export default function App() {
     const stack = currentStack();
     // The one and only immutable-copy update for this stroke — see the
     // comment in handleMaskStroke for why this is deferred to stroke-end.
-    stack.updateBrushMask(selectedId, entry.painter.getMaskData());
+    // updateBrushMask only returns false if selectedId's layer was removed
+    // mid-stroke (race, not the common case) — same "no mutation, no
+    // history entry" discipline as the rest of this file's discrete
+    // commits.
+    if (!stack.updateBrushMask(selectedId, entry.painter.getMaskData())) return;
     commit(stack);
     const committedLayer = stack.layers.find((l) => l.id === selectedId);
     entry.syncedFrom = committedLayer ? getBrushRaster(committedLayer) : null;

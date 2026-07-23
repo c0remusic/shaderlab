@@ -156,3 +156,63 @@ describe("MaskTextureResolver — fold cache seam", () => {
     expect(counts.copies).toBe(0);
   });
 });
+
+describe("MaskTextureResolver — edge-aware/refine result cache", () => {
+  function oneSourceLayerWithRefineEdge(refineEdge: Partial<import("../../src/mask/types").RefineEdgeParams>): LayerState {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    stack.addMaskSource(id, "luminosity");
+    const layer = stack.layers.find((l) => l.id === id)!;
+    return { ...layer, mask: { ...layer.mask, refineEdge: { ...layer.mask.refineEdge, ...refineEdge } } };
+  }
+
+  it("reuses the edge-aware guided-filter result (no re-encode) when its inputs are unchanged", () => {
+    const counts = { copies: 0, passes: 0 };
+    const resolver = makeResolver(counts);
+    const layer = oneSourceLayerWithRefineEdge({ edgeAware: true, edgeStrength: 1, edgeRadius: 5 });
+    const pending: (GPUTexture | GPUBuffer)[] = [];
+    const t1 = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    const afterFirst = { ...counts };
+    expect(afterFirst.passes).toBeGreaterThan(0);
+    const t2 = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    expect(t2).toBe(t1);
+    expect(counts).toEqual(afterFirst);
+  });
+
+  it("re-encodes the edge-aware guided filter when edgeRadius changes", () => {
+    const counts = { copies: 0, passes: 0 };
+    const resolver = makeResolver(counts);
+    const layer = oneSourceLayerWithRefineEdge({ edgeAware: true, edgeStrength: 1, edgeRadius: 5 });
+    const pending: (GPUTexture | GPUBuffer)[] = [];
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    const afterFirst = { ...counts };
+    const changed = { ...layer, mask: { ...layer.mask, refineEdge: { ...layer.mask.refineEdge, edgeRadius: 20 } } };
+    resolver.resolve(changed, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    expect(counts.passes).toBeGreaterThan(afterFirst.passes);
+  });
+
+  it("reuses the refine (feather/contract/smooth) result when its inputs are unchanged", () => {
+    const counts = { copies: 0, passes: 0 };
+    const resolver = makeResolver(counts);
+    const layer = oneSourceLayerWithRefineEdge({ feather: 4 });
+    const pending: (GPUTexture | GPUBuffer)[] = [];
+    const t1 = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    const afterFirst = { ...counts };
+    expect(afterFirst.passes).toBeGreaterThan(0);
+    const t2 = resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    expect(t2).toBe(t1);
+    expect(counts).toEqual(afterFirst);
+  });
+
+  it("re-encodes refine when feather changes", () => {
+    const counts = { copies: 0, passes: 0 };
+    const resolver = makeResolver(counts);
+    const layer = oneSourceLayerWithRefineEdge({ feather: 4 });
+    const pending: (GPUTexture | GPUBuffer)[] = [];
+    resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    const afterFirst = { ...counts };
+    const changed = { ...layer, mask: { ...layer.mask, refineEdge: { ...layer.mask.refineEdge, feather: 10 } } };
+    resolver.resolve(changed, createFakeEncoder(counts), {} as GPUTextureView, pending);
+    expect(counts.passes).toBeGreaterThan(afterFirst.passes);
+  });
+});

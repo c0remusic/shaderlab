@@ -51,6 +51,21 @@ type EdgeWork = {
   meanAB: GPUTexture;
   meanABTmp: GPUTexture;
   result: GPUTexture;
+  /** Dernières entrées ayant produit `result` — si `input`/`edgeRadius`/
+   *  `edgeStrength` sont identiques au prochain appel, `result` est renvoyé
+   *  tel quel sans rejouer les 11 passes du filtre guidé (coûteux : constaté
+   *  responsable d'un ralentissement global de l'app, ce filtre tournait à
+   *  chaque frame même quand seul un AUTRE calque/réglage changeait). */
+  lastInput: GPUTexture | null;
+  lastRadius: number;
+  lastStrength: number;
+};
+type RefineCacheEntry = {
+  texture: GPUTexture;
+  lastInput: GPUTexture;
+  lastFeather: number;
+  lastContract: number;
+  lastSmooth: number;
 };
 
 /** Owns every persistent mask resource. It only encodes work: Renderer owns submit and frame-scoped destruction. */
@@ -71,6 +86,7 @@ export class MaskTextureResolver {
     [GPUTexture, GPUTexture]
   >();
   private edgeAwareWorkTextures = new Map<string, EdgeWork>();
+  private refineCache = new Map<string, RefineCacheEntry>();
   private maskSourcePipelineCache = new Map<string, PipelineEntry>();
   private maskFoldPipelineCache = new Map<string, PipelineEntry>();
   private edgeAwarePipelineCache = new Map<string, PipelineEntry>();
@@ -539,12 +555,14 @@ export class MaskTextureResolver {
   ) {
     let w = this.edgeAwareWorkTextures.get(id);
     if (!w) {
-      const mk = (format: GPUTextureFormat) =>
+      const mk = (format: GPUTextureFormat, extraUsage = 0) =>
         this.ctx.device.createTexture({
           size: [this.width, this.height],
           format,
           usage:
-            GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+            GPUTextureUsage.TEXTURE_BINDING |
+            GPUTextureUsage.RENDER_ATTACHMENT |
+            extraUsage,
         });
       w = {
         luminance: mk("r8unorm"),
@@ -557,10 +575,26 @@ export class MaskTextureResolver {
         ab: mk("rg16float"),
         meanAB: mk("rg16float"),
         meanABTmp: mk("rg16float"),
-        result: mk("r8unorm"),
+        // COPY_SRC : `refine()` copie ce texture comme source d'un
+        // copyTextureToTexture juste après edgePipeline() (voir refine(),
+        // ligne ~714) — sans ce flag, la validation WebGPU rejette la
+        // commande et invalide tout le command buffer de la frame (canvas
+        // noir). Seul `result` sort de cette fonction ; les 10 autres
+        // textures restent des buffers de travail internes qui n'ont
+        // jamais besoin d'être copiés.
+        result: mk("r8unorm", GPUTextureUsage.COPY_SRC),
+        lastInput: null,
+        lastRadius: NaN,
+        lastStrength: NaN,
       };
       this.edgeAwareWorkTextures.set(id, w);
     }
+    if (
+      w.lastInput === input &&
+      w.lastRadius === x.edgeRadius &&
+      w.lastStrength === x.edgeStrength
+    )
+      return w.result;
     const run = (
       wgsl: string,
       entry: string,
@@ -700,6 +734,9 @@ export class MaskTextureResolver {
       [w.meanAB.createView(), w.luminance.createView(), iv],
       s,
     );
+    w.lastInput = input;
+    w.lastRadius = x.edgeRadius;
+    w.lastStrength = x.edgeStrength;
     return w.result;
   }
   private refine(
@@ -710,6 +747,15 @@ export class MaskTextureResolver {
     p: (GPUTexture | GPUBuffer)[],
   ) {
     if (x.feather <= 0 && x.contract === 0 && x.smooth <= 0) return input;
+    const cached = this.refineCache.get(id);
+    if (
+      cached &&
+      cached.lastInput === input &&
+      cached.lastFeather === x.feather &&
+      cached.lastContract === x.contract &&
+      cached.lastSmooth === x.smooth
+    )
+      return cached.texture;
     let [acc, next] = this.pair(this.refineEdgePingPongByLayer, id);
     e.copyTextureToTexture({ texture: input }, { texture: acc }, [
       this.width,
@@ -741,10 +787,27 @@ export class MaskTextureResolver {
       run(buildBoxFilterHWgsl(1), 1);
       run(buildBoxFilterVWgsl(1), 1);
     }
+    this.refineCache.set(id, {
+      texture: acc,
+      lastInput: input,
+      lastFeather: x.feather,
+      lastContract: x.contract,
+      lastSmooth: x.smooth,
+    });
     return acc;
   }
   private destroyWork(w: EdgeWork) {
-    for (const t of Object.values(w)) t.destroy();
+    w.luminance.destroy();
+    w.packedIp.destroy();
+    w.squareCorr.destroy();
+    w.meanIp.destroy();
+    w.meanIpTmp.destroy();
+    w.corr.destroy();
+    w.corrTmp.destroy();
+    w.ab.destroy();
+    w.meanAB.destroy();
+    w.meanABTmp.destroy();
+    w.result.destroy();
   }
   dispose() {
     this.whiteMask?.destroy();

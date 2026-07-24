@@ -9,9 +9,11 @@ const meta: Meta<typeof Toolbar> = {
     canUndo: true,
     canRedo: false,
     hasImage: true,
+    hasLaunchFile: false,
     onUndo: () => {},
     onRedo: () => {},
     onExport: () => {},
+    onExportAs: () => {},
     onOpenFile: () => {},
   },
 };
@@ -79,5 +81,30 @@ export const FileMenuExportDisabledWhenNoImage: Story = {
     const user = userEvent.setup({ pointerEventsCheck: 0 });
     await user.click(exportItem);
     await expect(args.onExport).not.toHaveBeenCalled();
+  },
+};
+
+export const FileMenuExportAsWhenImage: Story = {
+  args: { hasImage: true, hasLaunchFile: false, onExportAs: fn(), onOpenFile: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Menu Fichier" }));
+    const exportAsItem = await screen.findByRole("menuitem", { name: "Exporter sous..." });
+    await userEvent.click(exportAsItem);
+    await expect(args.onExportAs).toHaveBeenCalled();
+  },
+};
+
+export const FileMenuExportAsDisabledDuringRoundTrip: Story = {
+  args: { hasImage: true, hasLaunchFile: true, onExportAs: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Menu Fichier" }));
+    const exportAsItem = await screen.findByRole("menuitem", { name: "Exporter sous..." });
+    await expect(exportAsItem).toHaveAttribute("aria-disabled", "true");
+
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    await user.click(exportAsItem);
+    await expect(args.onExportAs).not.toHaveBeenCalled();
   },
 };

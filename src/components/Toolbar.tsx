@@ -12,13 +12,26 @@ interface Props {
   canRedo: boolean;
   hasImage: boolean;
   fileName: string | null;
+  hasLaunchFile: boolean;
   onUndo: () => void;
   onRedo: () => void;
   onExport: () => void;
+  onExportAs: () => void;
   onOpenFile: () => void;
 }
 
-export function Toolbar({ canUndo, canRedo, hasImage, fileName, onUndo, onRedo, onExport, onOpenFile }: Props) {
+export function Toolbar({
+  canUndo,
+  canRedo,
+  hasImage,
+  fileName,
+  hasLaunchFile,
+  onUndo,
+  onRedo,
+  onExport,
+  onExportAs,
+  onOpenFile,
+}: Props) {
   return (
     <div
       role="toolbar"
@@ -41,6 +54,10 @@ export function Toolbar({ canUndo, canRedo, hasImage, fileName, onUndo, onRedo, 
           <DropdownMenuItem onClick={onExport} disabled={!hasImage}>
             <Download className="icon-md icon-stroke" aria-hidden="true" />
             Exporter
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onExportAs} disabled={!hasImage || hasLaunchFile}>
+            <Download className="icon-md icon-stroke" aria-hidden="true" />
+            Exporter sous...
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

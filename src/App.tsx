@@ -8,9 +8,19 @@ import { BrushToolbar } from "./components/BrushToolbar";
 import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
 import { ErrorBanner } from "./components/ErrorBanner";
-import { exportImage, resolveExportTargetAsync } from "./export/exportImage";
+import { exportImage, resolveExportTargetAsync, resolveDefaultExportTarget } from "./export/exportImage";
 import { messageFromUnknown } from "./lib/errors";
-import { getLaunchPath, readImageFile, pickImageFile, logDiagnostic, writeImageFile, pathExists } from "./launch";
+import {
+  getLaunchPath,
+  readImageFile,
+  pickImageFile,
+  logDiagnostic,
+  writeImageFile,
+  pathExists,
+  defaultExportDir,
+  pickExportFolder,
+  joinExportTarget,
+} from "./launch";
 import { useGlobalControlWheel } from "./ui/activeControl";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 import { getBrushRaster } from "./mask/brushSource";
@@ -529,7 +539,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleWindowKeyDown);
   });
 
-  async function handleExport() {
+  async function performExport(resolveDir: () => Promise<string | null>, bareFirst: boolean) {
     if (!rendererRef.current) return;
     if (!sourcePath) {
       setError(
@@ -537,16 +547,21 @@ export default function App() {
       );
       return;
     }
-    // Manual export ALWAYS copies (buildCopyPath) unless this file was
-    // opened via the Lightroom launch-path CLI arg, in which case we
-    // overwrite that exact path (Lightroom's own temp copy) — see
-    // resolveExportTargetAsync's doc comment for the full rationale. Checks
-    // real disk state through `pathExists` (Rust `path_exists` command),
-    // not an in-memory set — the previous version never actually probed
-    // disk, so a manual export could silently overwrite a same-named file
-    // left over from an earlier export.
     try {
-      const target = await resolveExportTargetAsync(sourcePath, isLaunchFile, { exists: pathExists });
+      let target: string;
+      if (isLaunchFile) {
+        // Contrat round-trip Lightroom : écrase toujours le launch path
+        // exact, quel que soit le dossier demandé par l'appelant — voir
+        // resolveExportTargetAsync's doc comment pour le contrat complet.
+        target = await resolveExportTargetAsync(sourcePath, true, { exists: pathExists });
+      } else {
+        const dir = await resolveDir();
+        if (dir === null) return; // "Exporter sous..." annulé par l'utilisateur
+        const base = await joinExportTarget(sourcePath, dir);
+        target = bareFirst
+          ? await resolveDefaultExportTarget(base, { exists: pathExists })
+          : await resolveExportTargetAsync(base, false, { exists: pathExists });
+      }
       await exportImage(
         rendererRef.current,
         { write: writeImageFile },
@@ -562,6 +577,19 @@ export default function App() {
     } catch (e) {
       setError(messageFromUnknown(e));
     }
+  }
+
+  // Bouton "Exporter" : dossier fixe Images/shaderlab-export, nom nu tant
+  // qu'il n'y a pas de collision réelle (resolveDefaultExportTarget).
+  async function handleExport() {
+    await performExport(defaultExportDir, true);
+  }
+
+  // Bouton "Exporter sous..." : dossier choisi par l'utilisateur, toujours
+  // -edited en premier (comportement conservateur) — Toolbar le désactive
+  // quand isLaunchFile est vrai, donc jamais atteint dans ce cas.
+  async function handleExportAs() {
+    await performExport(pickExportFolder, false);
   }
 
   const selectedLayer = layers.find((l) => l.id === selectedId) ?? null;
@@ -619,9 +647,11 @@ export default function App() {
         canRedo={sessionRef.current.canRedo()}
         hasImage={imageSize.width > 0 && imageSize.height > 0}
         fileName={sourcePath ? sourcePath.split(/[\\/]/).pop() ?? null : null}
+        hasLaunchFile={isLaunchFile}
         onUndo={handleUndo}
         onRedo={handleRedo}
         onExport={handleExport}
+        onExportAs={handleExportAs}
         onOpenFile={handleOpenFile}
       />
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}

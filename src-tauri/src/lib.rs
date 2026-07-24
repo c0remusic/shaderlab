@@ -42,6 +42,20 @@ fn decode_target_path(encoded: &str) -> Result<String, String> {
         .map_err(|_| "Chemin cible invalide (UTF-8 attendu après décodage).".to_string())
 }
 
+/// Crée le dossier parent de `path` s'il n'existe pas encore — couvre la
+/// création automatique et silencieuse du dossier d'export dédié
+/// (Images/shaderlab-export) ET d'un dossier choisi via "Exporter sous..."
+/// qui viendrait à manquer, en un seul point de code partagé par toutes les
+/// écritures (round-trip Lightroom inclus, sans effet là où le dossier
+/// existe déjà).
+fn ensure_parent_dir(path: &str) -> Result<(), String> {
+    if let Some(parent) = std::path::Path::new(path).parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Création du dossier {} échouée: {e}", parent.display()))?;
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn write_image_file(request: Request) -> Result<(), String> {
     let InvokeBody::Raw(bytes) = request.body() else {
@@ -59,6 +73,7 @@ fn write_image_file(request: Request) -> Result<(), String> {
             "Refus d'écrire {path} : seuls les fichiers .jpg/.jpeg sont autorisés."
         ));
     }
+    ensure_parent_dir(&path)?;
     write_atomic(&path, bytes)
 }
 
@@ -287,5 +302,17 @@ mod tests {
     #[test]
     fn join_export_filename_rejects_path_without_filename() {
         assert!(join_export_filename("C:\\", "C:\\export").is_err());
+    }
+
+    #[test]
+    fn ensure_parent_dir_creates_missing_directories() {
+        let base = std::env::temp_dir().join("shaderlab-test-ensure-parent");
+        let _ = std::fs::remove_dir_all(&base);
+        let nested = base.join("a").join("b").join("file.jpg");
+
+        ensure_parent_dir(nested.to_str().unwrap()).unwrap();
+
+        assert!(nested.parent().unwrap().exists());
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

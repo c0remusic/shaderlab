@@ -1,7 +1,8 @@
 # shaderlab — design : dossier d'export dédié (export manuel)
 
 > Cadré via `interview` puis `superpowers:brainstorming` le 2026-07-24. Le QUOI
-> et le POURQUOI vivent dans `PRD-export-folder.md` (racine repo) — ce document
+> et le POURQUOI vivent dans `docs/archive/2026-07-24-PRD-export-folder.md`
+> (archivé à la livraison, politique doc-rot) — ce document
 > couvre le COMMENT. Suite : `superpowers:writing-plans`.
 
 ## Contexte

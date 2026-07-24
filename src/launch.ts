@@ -43,6 +43,31 @@ export async function pathExists(path: string): Promise<boolean> {
 }
 
 /**
+ * Dossier d'export dédié fixe (Images/shaderlab-export) pour le bouton
+ * "Exporter" par défaut — voir `default_export_dir` côté Rust.
+ */
+export async function defaultExportDir(): Promise<string> {
+  return invoke<string>("default_export_dir");
+}
+
+/**
+ * Dialogue "choisir un dossier" pour le bouton "Exporter sous...", même
+ * contournement `rfd` que `pickImageFile`. `null` si annulé.
+ */
+export async function pickExportFolder(): Promise<string | null> {
+  return invoke<string | null>("pick_export_folder");
+}
+
+/**
+ * Joint le nom de fichier de `sourcePath` au dossier `dir` — voir
+ * `join_export_target` côté Rust (gère les séparateurs Windows correctement,
+ * pas de découpage de string côté TS).
+ */
+export async function joinExportTarget(sourcePath: string, dir: string): Promise<string> {
+  return invoke<string>("join_export_target", { sourcePath, dir });
+}
+
+/**
  * Debugging-only: writes a durable diagnostic line via Rust (see
  * `log_diagnostic` in lib.rs) instead of console.log, so it survives a
  * renderer crash that happens immediately after this call — the failure

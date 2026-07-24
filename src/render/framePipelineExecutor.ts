@@ -231,14 +231,25 @@ export class FramePipelineExecutor {
     let composedTexture: GPUTexture | null = null;
     if (overlayLayer) {
       composedTexture = pingPong[writeIndex];
+      // L'invariant qui compte n'est PAS "l'overlay utilise tel guide
+      // fixe" mais "les deux appels masks.resolve() d'un même calque, dans
+      // la même frame, portent le même guideEpoch numérique" — c'est la
+      // seule chose que MaskTextureResolver compare pour décider
+      // d'invalider (maskTextureResolver.ts:243-247), pas l'identité de
+      // texture. On mirrorise donc exactement la formule déjà utilisée par
+      // la boucle principale (index === 0 ? 0 : this.runGeneration) sur
+      // l'index réel du calque overlay, plutôt qu'une valeur fixe — sans
+      // ça, un calque non-premier édité avec overlay actif invaliderait
+      // son cache SAT à CHAQUE appel au lieu d'aucun (voir
+      // docs/superpowers/specs/2026-07-24-shaderlab-overlay-guide-source-design.md,
+      // amendement).
+      const overlayIndex = enabledLayers.findIndex((l) => l.id === overlayLayer.id);
       overlayMaskTexture = this.masks.resolve(
         overlayLayer,
         encoder,
-        composedTexture.createView(),
+        overlayIndex <= 0 ? sourceTexture.createView() : composedTexture.createView(),
         pendingDestroy,
-        // Guide = composite de tous les calques activés, toujours ré-encodé
-        // à chaque run() — jamais le cas stable "premier calque".
-        this.runGeneration,
+        overlayIndex <= 0 ? 0 : this.runGeneration,
       );
       this.effects.runOverlayPass(
         encoder,

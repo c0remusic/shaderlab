@@ -1,5 +1,11 @@
 # Contour de seuil animé sur l'overlay de masque
 
+> **Mise à jour 2026-07-24** : le guide du filtre edge-aware pour ce contour
+> n'est plus `composedTexture` mais `sourceTexture` — voir
+> [2026-07-24-shaderlab-overlay-guide-source-design.md](2026-07-24-shaderlab-overlay-guide-source-design.md).
+> Ce document garde son texte d'origine pour l'historique de la décision
+> initiale, périmée sur ce point précis.
+
 ## Objectif
 
 Le masque (dégradé/luminosité/range couleur/pinceau, combinés) est

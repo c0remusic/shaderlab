@@ -8,6 +8,17 @@ export class FrameReadback {
     private readonly device: GPUDevice,
     private readonly width: number,
     private readonly height: number,
+    /** True when the source texture's native storage is a `bgra*` format
+     *  (WebGPU's preferred canvas format on Windows/D3D12 — see
+     *  gpuContext.ts:69). `copyTextureToBuffer` inherits that native byte
+     *  layout (B,G,R,A per pixel) verbatim; downstream consumers (Canvas
+     *  `ImageData`, JPEG encoding) always assume R,G,B,A. Without the swap
+     *  below, every export produced on a bgra* platform has red and blue
+     *  inverted (real bug: exported photo came out with a blue cast, found
+     *  via visual checkpoint 2026-07-24 — the on-screen canvas is unaffected
+     *  since WebGPU's own presentation pipeline already knows the native
+     *  layout; only this manual CPU-side readback needs the correction). */
+    private readonly swapRedBlue: boolean = false,
   ) {}
 
   /** Computes the padded RGBA row stride required by copyTextureToBuffer. */
@@ -56,6 +67,21 @@ export class FrameReadback {
         padded.subarray(row * bytesPerRow, row * bytesPerRow + tightRowBytes),
         row * tightRowBytes,
       );
+    }
+    return out;
+  }
+
+  /** Swaps R and B per pixel — see the `swapRedBlue` constructor param for
+   *  why. No-op (returns the input unchanged) when the source texture is
+   *  already rgba*. */
+  swapRedBlueChannels(pixels: Uint8Array): Uint8Array {
+    if (!this.swapRedBlue) return pixels;
+    const out = new Uint8Array(pixels.length);
+    for (let i = 0; i < pixels.length; i += 4) {
+      out[i] = pixels[i + 2];
+      out[i + 1] = pixels[i + 1];
+      out[i + 2] = pixels[i];
+      out[i + 3] = pixels[i + 3];
     }
     return out;
   }

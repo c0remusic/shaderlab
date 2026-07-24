@@ -30,6 +30,22 @@ describe("FrameReadback", () => {
     expect(readback.stripRowPadding(pixels)).toBe(pixels);
   });
 
+  it("swaps R and B per pixel when the source texture is a bgra* format (Windows preferred canvas format) — without this, every export comes out with red/blue inverted (real bug found via visual checkpoint 2026-07-24, exported photo had a blue cast)", () => {
+    const readback = new FrameReadback(null as unknown as GPUDevice, 2, 1, /* swapRedBlue */ true);
+    // BGRA bytes per pixel: [B, G, R, A]. Pixel 0 = pure red in BGRA = [0,0,255,255].
+    // Pixel 1 = pure blue in BGRA = [255,0,0,255].
+    const bgra = new Uint8Array([0, 0, 255, 255, 255, 0, 0, 255]);
+    expect(readback.swapRedBlueChannels(bgra)).toEqual(
+      new Uint8Array([255, 0, 0, 255, 0, 0, 255, 255]),
+    );
+  });
+
+  it("leaves pixels untouched when the source texture is already rgba* (no swap needed)", () => {
+    const readback = new FrameReadback(null as unknown as GPUDevice, 2, 1, /* swapRedBlue */ false);
+    const rgba = new Uint8Array([255, 0, 0, 255, 0, 0, 255, 255]);
+    expect(readback.swapRedBlueChannels(rgba)).toBe(rgba);
+  });
+
   it("submits a separate copy command and destroys its transient buffer", async () => {
     const buffer = {
       mapAsync: vi.fn().mockResolvedValue(undefined),

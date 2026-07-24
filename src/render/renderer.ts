@@ -249,9 +249,11 @@ export class Renderer {
       this.ctx.device,
       this.imageResources.width,
       this.imageResources.height,
+      this.ctx.srgbFormat.startsWith("bgra"),
     );
     const padded = await readback.readTextureBytes(exportTexture);
-    return readback.stripRowPadding(padded);
+    const stripped = readback.stripRowPadding(padded);
+    return readback.swapRedBlueChannels(stripped);
   }
 
   private runPipeline(

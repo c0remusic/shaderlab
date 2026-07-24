@@ -103,6 +103,25 @@ fn pick_image_file() -> Option<String> {
         .map(|p| p.to_string_lossy().into_owned())
 }
 
+/// Extrait le nom de fichier de `source_path` et le joint à `dir` — utilisé
+/// pour poser le nom de la photo source dans le dossier d'export choisi
+/// (dédié par défaut, ou choisi via "Exporter sous..."), sans dépendre d'un
+/// découpage de string côté TS pour les séparateurs Windows.
+fn join_export_filename(source_path: &str, dir: &str) -> Result<String, String> {
+    let file_name = std::path::Path::new(source_path)
+        .file_name()
+        .ok_or_else(|| format!("Chemin source invalide (pas de nom de fichier): {source_path}"))?;
+    Ok(std::path::Path::new(dir)
+        .join(file_name)
+        .to_string_lossy()
+        .into_owned())
+}
+
+#[tauri::command]
+fn join_export_target(source_path: String, dir: String) -> Result<String, String> {
+    join_export_filename(&source_path, &dir)
+}
+
 /// Debugging-only: appends a timestamped line to `.dev-logs/gpu-diag.log` in
 /// the project root. Writing through Rust (not console.log) means the line
 /// is durably on disk before this IPC call even returns to the renderer —
@@ -152,6 +171,7 @@ pub fn run() {
             write_image_file,
             read_image_file,
             pick_image_file,
+            join_export_target,
             log_diagnostic,
             path_exists
         ])
@@ -219,5 +239,26 @@ mod tests {
         assert_eq!(std::fs::read(&path).unwrap(), b"second");
 
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn join_export_filename_extracts_name_and_joins_dir() {
+        let result = join_export_filename(
+            "C:\\photos\\été.jpg",
+            "C:\\Users\\x\\Pictures\\shaderlab-export",
+        )
+        .unwrap();
+        assert_eq!(result, "C:\\Users\\x\\Pictures\\shaderlab-export\\été.jpg");
+    }
+
+    #[test]
+    fn join_export_filename_handles_multi_dot_names() {
+        let result = join_export_filename("C:\\photos\\sunset.v2.jpg", "C:\\export").unwrap();
+        assert_eq!(result, "C:\\export\\sunset.v2.jpg");
+    }
+
+    #[test]
+    fn join_export_filename_rejects_path_without_filename() {
+        assert!(join_export_filename("C:\\", "C:\\export").is_err());
     }
 }

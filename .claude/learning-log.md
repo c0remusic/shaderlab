@@ -878,3 +878,51 @@ spécifiquement : identifier l'invariant EXACT que le cache compare (ici :
 `maskTextureResolver.ts:243-247`) avant de juger qu'un fix le respecte, ne
 pas se fier à un test visuel qui ne peut de toute façon pas voir une
 différence d'epoch.
+
+## 2026-07-24 — reprendre un checkpoint visuel coupé exige de rebaser la branche AVANT de juger
+
+**Découverte (TTL 6 mois)** : le chantier "dossier d'export" avait été
+interrompu en pleine Task 7 (checkpoint humain) la nuit du 2026-07-24 — app
+lancée puis quittée, aucun résultat consigné. À la reprise, la branche isolée
+`claude/sad-almeida-b14d66` était **15 commits en retard** sur
+`feature/design-system`, dont `85f5293` (fix de l'inversion rouge/bleu de tout
+export JPEG sur Windows). Refaire le checkpoint export SANS rebase aurait fait
+juger des fichiers exportés portant un bug déjà corrigé ailleurs — un faux
+verdict. **How to apply** : avant de reprendre un checkpoint visuel sur une
+branche/worktree isolé laissé en plan, `git rev-list --count <branche>..feature/design-system`
+et lire ce qui manque ; rebaser d'abord si des commits touchant le chemin
+sous test sont en aval. Le checkpoint ne prouve que ce que la branche contient.
+
+## 2026-07-24 — ne pas demander à Antoine d'agir sur un process lancé tant que son rendu n'est pas VÉRIFIÉ
+
+**Découverte (TTL 6 mois)** : pendant le checkpoint round-trip, une 2e instance
+`shaderlab.exe` lancée à la main (Start-Process) a été annoncée comme "lancée,
+regarde la fenêtre qui affiche roundtrip-test.JPG" — mais elle n'avait PAS pris
+`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` (CDP muet), et la fenêtre était en
+réalité sur une page `chrome-error://` (`ERR_CONNECTION_REFUSED`, Vite tué entre
+temps par la fin du wrapper `dev:debug`). Antoine a dû répondre "la deuxieme
+instance n'est pas lancée". Assertion d'état non prouvée avant de solliciter
+l'humain (C1). **How to apply** : après tout lancement de fenêtre destiné à un
+checkpoint humain, VÉRIFIER d'abord soi-même que l'app rend réellement (CDP
+joignable + `location.href` = `http://localhost:1420/` + un marqueur DOM du bon
+worktree) AVANT de demander à Antoine de regarder ou de cliquer — ne jamais lui
+faire arbitrer sur une fenêtre dont on n'a pas confirmé qu'elle sert l'app.
+
+## 2026-07-24 — pièges d'outillage dev sur ce repo (Tauri/Vite/CDP), reconfirmés
+
+**Découverte (TTL 6 mois)** :
+1. **`npm run dev:debug` en tâche de fond, à sa terminaison, tue Vite ET la
+   fenêtre qu'il avait lancée.** Une instance `shaderlab.exe` lancée séparément
+   se retrouve alors sur `ERR_CONNECTION_REFUSED` (localhost:1420 mort).
+   Contournement : relancer `npm run dev` seul (Vite persistant en tâche de
+   fond) puis recharger la page via CDP (`location.replace('http://localhost:1420/')`).
+2. **Une 2e instance lancée via `Start-Process` sans `-RedirectStandardOutput`/
+   `-RedirectStandardError` ne prend pas fiablement `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`
+   au 1er essai** (CDP jamais up, `MainWindowTitle` vide) — relancer avec les
+   deux redirections capture aussi les erreurs de démarrage.
+3. **`git worktree remove --force` échoue en "Permission denied" si un shell
+   d'outil persistant a son cwd resté DANS le worktree** (les `cd` de Bash
+   persistent entre appels — parent de NG53). L'entrée worktree git et la
+   branche se suppriment quand même ; seul le dossier reste verrouillé jusqu'à
+   la fin de session. Ne pas s'acharner : `git worktree remove` détache l'admin,
+   le dossier vide part au nettoyage suivant.

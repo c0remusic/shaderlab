@@ -75,6 +75,14 @@ réimporte (modèle type Dehancer). Phase 2, gate empirique propre. Source :
 **Export / Exporter sous** — écriture du rendu vers un fichier JPEG (écriture
 atomique tmp+rename). Source : `src/export/exportImage.ts`, `docs/design-system/patterns.md`.
 
+**Dossier d'export dédié** (design cible, pas encore livré) — dossier fixe
+(`Images/shaderlab-export`) où atterrit l'export manuel par défaut, au lieu
+d'à côté de la photo source. Distinct du round-trip Lightroom (qui, lui,
+écrase toujours le fichier de lancement au même endroit — non concerné).
+Override ponctuel via un bouton séparé "Exporter sous..." pour choisir un
+autre dossier au cas par cas, sans changer le défaut. Source :
+`PRD-export-folder.md`.
+
 **Pan / zoom** (PRD, feature cadrée) — navigation du canvas : zoom molette centré
 curseur, plafond 100% (pixel natif), pan borné, **fit-to-screen** à l'ouverture,
 **minimap** au-delà du fit. Source :

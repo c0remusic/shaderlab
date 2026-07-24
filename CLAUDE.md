@@ -38,7 +38,7 @@ Tauri v2 (coquille Rust minimale, lib = `shaderlab_lib`) · React 19 + TS ·
 Vite · **WebGPU/WGSL brut** (pas de lib de rendu) · Vitest (Node env, aucun
 test ne rend de composant React — même convention que track-finder).
 
-**UI** : Tailwind v4 (`@tailwindcss/vite`) + `shadcn/ui` (style `base-ui`,
+**UI** : Tailwind v4 (`@tailwindcss/vite`) + `shadcn/ui` (style `base-nova`,
 PAS Radix — `components.json`). Tokens de marque = `src/design/{primitives,
 semantic,components}.css`, mappés dans `src/design/tailwind-theme.css`
 (jamais redéfinis). Migration en cours composant par composant : `ErrorBanner`/

@@ -1,7 +1,7 @@
 # shaderlab — AGENTS.md
 
 > Nom provisoire (placeholder, jamais tranché — même logique que track-finder).
-> Repo local `C:\dev\shaderlab`, pas encore de remote GitHub. (Déplacé depuis
+> Repo local `C:\dev\shaderlab`, remote origin `github.com/c0remusic/shaderlab`. (Déplacé depuis
 > `C:\Users\LEETJ\Desktop\shaderlab` — l'ancien chemin n'existe plus ; une
 > relocalisation d'un repo Tauri exige un `cargo clean` COMPLET : le cache
 > `target/` contient des chemins absolus périmés qui cassent le build-script.)

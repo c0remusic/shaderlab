@@ -807,3 +807,26 @@ exécuté (statut + preuve : SHA de commit, résultat tsc/tests) dans le même
 commit" comme item de la définition de "terminé" — ne pas compter sur la
 convention auto-documentée du repo pour se propager d'elle-même à travers
 plusieurs instances de sous-agent.
+
+## 2026-07-24 — Un spike visuel qui ne varie qu'un seul paramètre peut valider un fix incomplet quand le bug dépend d'un DEUXIÈME paramètre implicite
+
+**Correction (skill gap)**, session guide overlay = source
+(`docs/adr/0002-overlay-guide-epoch-invariant.md`) : le premier fix (Task 1)
+a été validé par un spike CDP live (glow/warp poussés à l'extrême, guide=
+source vs guide=composite) qui semblait concluant — mais le spike n'a jamais
+ajouté qu'UN SEUL calque à la pile testée, donc ce calque était toujours à
+l'index 0. Le bug réel dépendait de la POSITION du calque dans la pile
+(index 0 vs index>0), une variable que le spike ne faisait jamais varier. Le
+fix a semblé validé alors qu'il ne couvrait qu'une branche du problème — la
+revue finale de branche (pas le spike) a trouvé le cas manquant.
+
+**How to apply** : avant de considérer un spike/A-B visuel comme preuve
+suffisante d'un fix, lister explicitement les variables dont dépend le bug
+(ici : identité du guide ET position du calque dans la pile) et vérifier que
+le protocole de spike fait varier CHACUNE, pas seulement celle qu'on a en
+tête au moment de le construire. Pour un bug de cache/invalidation
+spécifiquement : identifier l'invariant EXACT que le cache compare (ici :
+égalité numérique d'epoch, jamais l'identité de texture — voir
+`maskTextureResolver.ts:243-247`) avant de juger qu'un fix le respecte, ne
+pas se fier à un test visuel qui ne peut de toute façon pas voir une
+différence d'epoch.

@@ -18,6 +18,14 @@
   ],
   "specs": [
     {
+      "path": "docs/superpowers/specs/2026-07-24-shaderlab-export-folder-design.md",
+      "status": "ÉCRIT et TERMINÉ le 2026-07-24 (spec + PRD 99037e5, plan 8196012) — 6 tâches de code exécutées, Task 7 (checkpoint humain, 5 points) confirmé le 2026-07-24. Branche claude/sad-almeida-b14d66 rebasée puis mergée feature/design-system@0cdd08b (fast-forward). tsc clean, 332/332 tests.",
+      "date": "2026-07-24",
+      "topic": "Design (COMMENT) dossier d'export dédié (Images/shaderlab-export) + commande \"Exporter sous...\", sans casser le round-trip Lightroom",
+      "summary": "L'export écrivait toujours à côté du fichier source, ce qui salit le dossier d'origine quand l'app est utilisée en autonome (hors round-trip Lightroom). Deux modes désormais distingués par la présence d'un chemin de lancement en argument : (1) mode round-trip — comportement inchangé, \"Exporter\" écrase le fichier de lancement exact et \"Exporter sous...\" est désactivé ; (2) mode autonome — \"Exporter\" écrit dans `Images/shaderlab-export` (créé automatiquement à la première écriture) sous le nom EXACT de la source tant qu'il n'y a pas de collision, puis `<nom>-edited.jpg` ensuite (résolveur bare-first), et \"Exporter sous...\" ouvre un sélecteur de dossier natif (rfd via commande Rust, jamais tauri-plugin-dialog — bug IPC connu) en suffixant toujours `-edited` par prudence. Côté Rust : `join_export_target`, `default_export_dir`, `pick_export_folder`, création du dossier parent à l'écriture.",
+      "_verification": "Checkpoint prouvé sur disque et par pilotage CDP, pas sur affirmation : dossier absent avant le 1er export puis créé ; `DSCF5160.JPG` (nom nu) puis `DSCF5160-edited.JPG` (collision) ; \"Exporter sous...\" → Bureau, toujours suffixé, dialogue annulé sans effet ni erreur ; mode lancement — item \"Exporter sous...\" `aria-disabled=true` pendant que \"Ouvrir\"/\"Exporter\" restent actifs, et \"Exporter\" écrase le fichier de lancement en place (sha256 76B2CD95…32314 → 25DAD95C…36B0, 6308233 → 6306290 octets) sans rien écrire dans `Images/shaderlab-export`."
+    },
+    {
       "path": "docs/superpowers/specs/2026-07-23-shaderlab-edge-aware-fast-guided-filter-design.md",
       "status": "ÉCRIT et TERMINÉ le 2026-07-24 (spec revue par l'agent architect, 2 corrections intégrées avant le plan — clé de cache guideRevision séparée de maskRevision, lookup SAT via textureLoad pas textureSample). Plan associé (5 tâches) exécuté en subagent-driven-development, mergé feature/design-system. Checkpoint visuel humain confirmé le 2026-07-24 (drag \"Rayon des contours\" 1→50 fluide, aucun GPUDevice.lost) — a directement déclenché le chantier overlay-guide-source ci-dessus (le fix n'apportait aucun bénéfice tant que l'overlay du contour restait actif, cause racine diagnostiquée dans ce checkpoint).",
       "date": "2026-07-23",
@@ -159,6 +167,13 @@
     }
   ],
   "plans": [
+    {
+      "path": "docs/superpowers/plans/2026-07-24-shaderlab-export-folder.md",
+      "status": "✅ TERMINÉ le 2026-07-24 — Tasks 1-6 committées (44799ad/cc26b38/1ccec9c/d427cbd/3f81d77/f6958b0/88e7d5e, réécrites en 45f3e89..0cdd08b au rebase), Task 7 (checkpoint humain) confirmée. Mergé feature/design-system@0cdd08b en fast-forward. tsc clean, 332/332 tests.",
+      "date": "2026-07-24",
+      "topic": "plan d'implémentation : dossier d'export dédié + \"Exporter sous...\"",
+      "summary": "7 tâches : 3 côté Rust (`join_export_target` ; `default_export_dir`+`pick_export_folder` ; création automatique du dossier parent à l'écriture), 2 côté TS (wrappers `launch.ts` ; résolveur bare-first `resolveDefaultExportTarget`), 1 de câblage UI (`App.tsx` + item \"Exporter sous...\" dans `Toolbar.tsx`, désactivé en mode round-trip), 1 de checkpoint visuel humain. Le chantier a été interrompu en pleine Task 7 le 2026-07-24 (fenêtre quittée, aucun résultat consigné) puis repris : la branche était alors 15 commits en retard, dont `85f5293` (inversion rouge/bleu de chaque export JPEG sur Windows) — un checkpoint mené sans ce rebase aurait jugé des fichiers exportés avec un bug déjà corrigé ailleurs. Rebase fait avant reprise, conflit `App.tsx`/`Toolbar.tsx` résolu en gardant les deux apports (prop `fileName` du fix UI 141b7ac + `hasLaunchFile`/`onExportAs` de ce chantier)."
+    },
     {
       "path": "docs/superpowers/plans/2026-07-24-shaderlab-overlay-guide-source.md",
       "status": "✅ TERMINÉ le 2026-07-24 — Task 1 (09ede5f, calque du bas) + Task 2 (e84383a, amendement post-revue-finale : mirroré sur l'index réel du calque). Deux revues de tâche + deux passes de revue finale de branche (1ère a trouvé le gap calque-non-premier, 2e a confirmé le gap fermé, invariant epoch vérifié à la main). Mergé feature/design-system@2bc8e6d. 329 tests verts sur le repo fusionné.",

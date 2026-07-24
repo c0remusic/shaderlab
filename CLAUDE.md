@@ -217,7 +217,7 @@ seulement pour un futur écran web pur sans canvas GPU.
 
 ## Index des documents docs/
 
-`docs/INDEX.json` (référence, ~259 lignes) — À LIRE À LA DEMANDE (Read tool)
+`docs/INDEX.json` (référence, ~273 lignes) — À LIRE À LA DEMANDE (Read tool)
 quand tu cherches le statut d'un chantier/plan spécifique, PAS importé
 automatiquement : un `@import` charge le fichier entier à chaque session,
 quel que soit le besoin réel du tour (doublait le poids de ce CLAUDE.md).

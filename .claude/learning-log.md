@@ -856,6 +856,31 @@ commit" comme item de la définition de "terminé" — ne pas compter sur la
 convention auto-documentée du repo pour se propager d'elle-même à travers
 plusieurs instances de sous-agent.
 
+## 2026-07-24 — `test-storybook` échoue sur 21/21 fichiers ("outside of Vite serving allow list") selon le layout `node_modules` du worktree, pas selon le contenu des stories
+
+**Découverte (TTL 6 mois)** : `npm run test-storybook` échouait avant toute
+`play` function (import de `@storybook/addon-vitest/dist/vitest-plugin/
+setup-file.js` rejeté par Vite) — cause : `server.fs.allow` par défaut de
+Vite s'arrête au premier ancêtre contenant un lockfile
+(`searchForWorkspaceRoot`), donc au `package-lock.json` propre à CE worktree,
+jamais à `C:\dev\shaderlab`. Deux layouts de worktree différents produisent
+le MÊME symptôme par des mécanismes différents : `node_modules` symlinké
+vers le checkout principal (Vite résout le symlink en realpath avant de
+vérifier l'allow list → hors liste) ; ou `node_modules` réel mais vide/
+incomplet (aucun package installé dans le worktree → la résolution Node
+remonte vers l'ancêtre `node_modules` qui, lui, est complet → hors liste).
+Fix dans `vitest.config.ts` : `require.resolve('@storybook/addon-vitest/
+package.json', { paths: [dirname] })` (laisse Node faire sa propre
+résolution, qui gère les deux cas) plutôt que `fs.realpathSync` du
+`node_modules` local — puis allow-lister le parent du chemin résolu.
+
+**How to apply** : sur ce repo, si `test-storybook` échoue en bloc (tous
+fichiers, avant toute `play` function) avec une erreur `"outside of Vite
+serving allow list"`, ce n'est jamais un défaut de story individuelle —
+vérifier `vitest.config.ts` (`server.fs.allow`) et le layout réel de
+`node_modules` du worktree courant (`ls -la node_modules`, symlink ou
+dossier peu peuplé) avant de creuser ailleurs.
+
 ## 2026-07-24 — Un spike visuel qui ne varie qu'un seul paramètre peut valider un fix incomplet quand le bug dépend d'un DEUXIÈME paramètre implicite
 
 **Correction (skill gap)**, session guide overlay = source

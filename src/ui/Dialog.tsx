@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
-import { IconButton } from "./IconButton";
+import { IconButton } from "../components/ui/icon-button";
 
 export interface DialogProps {
   open: boolean;

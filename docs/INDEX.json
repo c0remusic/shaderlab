@@ -18,6 +18,13 @@
   ],
   "specs": [
     {
+      "path": "docs/superpowers/specs/2026-07-24-shaderlab-overlay-guide-source-design.md",
+      "status": "ÉCRIT et TERMINÉ le 2026-07-24 (spec 9df0928 + amendement a334524, plan 19c17b4) — Task 1 (09ede5f) + Task 2/amendement (e84383a) exécutées et reviewées, mergées feature/design-system@2bc8e6d. Checkpoint visuel humain (pile 2 calques, overlay sur calque du dessus) confirmé le 2026-07-24.",
+      "date": "2026-07-24",
+      "topic": "Design (COMMENT) guide edge-aware de l'overlay de contour = image source / mirroré sur l'index du calque, pas un composite fixe",
+      "summary": "Diagnostiqué depuis un constat que le contour de seuil animé (chantier ci-dessous) invalidait en continu le cache SAT du Fast Guided Filter dès que l'overlay était actif pendant l'édition d'un masque : deux appels `masks.resolve()` par calque (rendu normal + overlay) écrivaient dans le même slot `lastGuideEpochByLayer` de `MaskTextureResolver` avec des guides de statut incohérents. Décision initiale (Task 1, calque du bas uniquement, validée par un spike visuel live via CDP sur l'app en dev — glow/warp poussés à l'extrême, aucune différence perceptible entre guide=source et guide=composite) : `guideEpoch=0` fixe, guide=`sourceTexture`. La revue finale de branche a trouvé que ce fix aggravait le cas d'un calque NON-premier (le rendu normal de ce calque utilise `guideEpoch=this.runGeneration`, qui ne coïncide plus jamais avec `0`) — l'invariant réel n'est pas \"quel guide fixe\" mais \"les deux appels d'un même calque, même frame, doivent porter le même epoch numérique\" (MaskTextureResolver ne compare que ça, jamais l'identité de texture). Amendement (Task 2) : `overlayIndex = enabledLayers.findIndex(...)`, `overlayIndex <= 0 ? (sourceTexture, 0) : (composedTexture, this.runGeneration)` — mirrorise exactement la formule déjà utilisée par la boucle de rendu principale (`framePipelineExecutor.ts:219`) sur l'index réel du calque overlay."
+    },
+    {
       "path": "docs/superpowers/specs/2026-07-23-shaderlab-mask-overlay-visibility-design.md",
       "status": "ÉCRIT et TERMINÉ le 2026-07-23 (spec 7421a07, plan acac6e3, worktree mask-threshold-contour) — plan associé Tasks 1-2 + checkpoint Task 3 exécutés, plus 4 bugs cache edge-aware/refine trouvés en cascade et corrigés pendant le checkpoint (crosscheck adverse + audit code).",
       "date": "2026-07-23",
@@ -145,6 +152,13 @@
     }
   ],
   "plans": [
+    {
+      "path": "docs/superpowers/plans/2026-07-24-shaderlab-overlay-guide-source.md",
+      "status": "✅ TERMINÉ le 2026-07-24 — Task 1 (09ede5f, calque du bas) + Task 2 (e84383a, amendement post-revue-finale : mirroré sur l'index réel du calque). Deux revues de tâche + deux passes de revue finale de branche (1ère a trouvé le gap calque-non-premier, 2e a confirmé le gap fermé, invariant epoch vérifié à la main). Mergé feature/design-system@2bc8e6d. 329 tests verts sur le repo fusionné.",
+      "date": "2026-07-24",
+      "topic": "plan d'implémentation : guide overlay = source / mirroré sur l'index du calque",
+      "summary": "Task 1 : `framePipelineExecutor.ts` — guide overlay `composedTexture`/`runGeneration` → `sourceTexture`/`0` + test de garde + renvoi dans le doc historique 2026-07-23. Task 2 (amendement, dispatché après que la revue finale de branche a trouvé que Task 1 ne tenait que pour le calque du bas et doublait l'invalidation SAT pour un calque non-premier) : `overlayIndex` calculé depuis `enabledLayers`, formule mirorée sur celle de la boucle principale (`index === 0 ? 0 : this.runGeneration`) au lieu d'une valeur fixe — 3 tests remplaçant le test unique de Task 1 (calque du bas, calque désactivé, calque non-premier avec assertion d'égalité d'epoch cross-appel)."
+    },
     {
       "path": "docs/superpowers/plans/2026-07-23-shaderlab-mask-overlay-visibility.md",
       "status": "✅ TERMINÉ le 2026-07-23 (worktree C:\\dev\\shaderlab\\.claude\\worktrees\\mask-threshold-contour, branche worktree-mask-threshold-contour) — Task 1 (0b39016+0028f98), Task 2 (bb85219), checkpoint Task 3 confirmé par Antoine. Fixes post-checkpoint : troncature nom de source (55bcf29), cache edge-aware/refine manquant (204ea3d puis 3 corrections en cascade a4e5504/5bdb569/3224769 + un 4e gap architectural 1aae054), slider Angle mort (921e192), audit MaskPanel réinvention de composants (d82467a), audit BrushToolbar alignement (c8afe90). Gate verify-gate final : PASS (272 tests, tsc clean, lint:tokens clean, crosscheck sans finding).",

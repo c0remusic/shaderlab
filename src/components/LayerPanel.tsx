@@ -172,7 +172,6 @@ export function LayerPanel({
   return (
     <div className="layer-panel">
       <Select
-        className="[&>div:first-child]:sr-only"
         label="Ajouter un effet"
         value={null}
         placeholder="+ Ajouter un effet"

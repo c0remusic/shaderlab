@@ -618,6 +618,7 @@ export default function App() {
         canUndo={sessionRef.current.canUndo()}
         canRedo={sessionRef.current.canRedo()}
         hasImage={imageSize.width > 0 && imageSize.height > 0}
+        fileName={sourcePath ? sourcePath.split(/[\\/]/).pop() ?? null : null}
         onUndo={handleUndo}
         onRedo={handleRedo}
         onExport={handleExport}

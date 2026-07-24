@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, GripHorizontal } from "lucide-react";
 import { IconButton } from "../ui/icon-button";
 import "./DockedPanelCard.css";
 
@@ -18,7 +18,7 @@ export function DockedPanelCard({ title, collapsed, onCollapsedChange, children,
     <div className={`docked-panel-card ${dragging ? "docked-panel-card--dragging" : ""} ${className}`.trim()} data-reorder-index={reorderIndex}>
       <div className="docked-panel-card__titlebar" data-collapsed={collapsed || undefined} {...titlebarProps}>
         <span className="docked-panel-card__title">{title}</span>
-        <span className="docked-panel-card__drag-grip" aria-hidden="true" />
+        <GripHorizontal className="docked-panel-card__drag-grip icon-sm icon-stroke" aria-hidden="true" />
         <IconButton
           label={collapsed ? "Déplier le panneau" : "Replier le panneau"}
           size="compact"

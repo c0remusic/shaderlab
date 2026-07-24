@@ -68,11 +68,8 @@
 .docked-panel-card__drag-grip {
   position: absolute;
   left: 50%;
-  width: var(--space-5);
-  height: var(--space-2);
   transform: translateX(-50%);
-  background-image: radial-gradient(circle, var(--text-tertiary) 1px, transparent 1.5px);
-  background-size: var(--space-2) var(--space-2);
+  color: var(--text-tertiary);
   opacity: var(--drag-grip-opacity);
   pointer-events: none;
 }

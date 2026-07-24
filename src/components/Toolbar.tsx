@@ -11,13 +11,14 @@ interface Props {
   canUndo: boolean;
   canRedo: boolean;
   hasImage: boolean;
+  fileName: string | null;
   onUndo: () => void;
   onRedo: () => void;
   onExport: () => void;
   onOpenFile: () => void;
 }
 
-export function Toolbar({ canUndo, canRedo, hasImage, onUndo, onRedo, onExport, onOpenFile }: Props) {
+export function Toolbar({ canUndo, canRedo, hasImage, fileName, onUndo, onRedo, onExport, onOpenFile }: Props) {
   return (
     <div
       role="toolbar"
@@ -63,6 +64,15 @@ export function Toolbar({ canUndo, canRedo, hasImage, onUndo, onRedo, onExport, 
       >
         <Redo2 className="icon-md icon-stroke" aria-hidden="true" />
       </Button>
+      <div className="flex-1" />
+      {hasImage && fileName && (
+        <span
+          className="max-w-[40ch] overflow-hidden text-ellipsis whitespace-nowrap text-sm text-muted-foreground"
+          title={fileName}
+        >
+          {fileName}
+        </span>
+      )}
       <div className="flex-1" />
     </div>
   );

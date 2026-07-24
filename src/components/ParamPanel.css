@@ -14,10 +14,12 @@
 .param-panel__empty {
   /* Rang --space-4, un cran sous le padding --space-5 du conteneur parent
      (.docked-panel-card__content) — la marge extérieure doit rester plus
-     grande que le padding interne de cette case, jamais égale. */
+     grande que le padding interne de cette case, jamais égale. Pas de
+     bordure en pointillés : ce pattern est réservé aux vraies zones de drop
+     (cf. canvas-stage--drag-active) — un message statique en lecture seule
+     ne doit pas laisser croire qu'on peut y déposer quelque chose. */
   margin: 0;
   padding: var(--space-4);
-  border: 1px dashed var(--border-default);
   border-radius: var(--radius-control);
   background: var(--surface-inset);
   font-family: var(--font-ui);

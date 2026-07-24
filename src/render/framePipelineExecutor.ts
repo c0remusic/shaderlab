@@ -231,22 +231,25 @@ export class FramePipelineExecutor {
     let composedTexture: GPUTexture | null = null;
     if (overlayLayer) {
       composedTexture = pingPong[writeIndex];
+      // L'invariant qui compte n'est PAS "l'overlay utilise tel guide
+      // fixe" mais "les deux appels masks.resolve() d'un même calque, dans
+      // la même frame, portent le même guideEpoch numérique" — c'est la
+      // seule chose que MaskTextureResolver compare pour décider
+      // d'invalider (maskTextureResolver.ts:243-247), pas l'identité de
+      // texture. On mirrorise donc exactement la formule déjà utilisée par
+      // la boucle principale (index === 0 ? 0 : this.runGeneration) sur
+      // l'index réel du calque overlay, plutôt qu'une valeur fixe — sans
+      // ça, un calque non-premier édité avec overlay actif invaliderait
+      // son cache SAT à CHAQUE appel au lieu d'aucun (voir
+      // docs/superpowers/specs/2026-07-24-shaderlab-overlay-guide-source-design.md,
+      // amendement).
+      const overlayIndex = enabledLayers.findIndex((l) => l.id === overlayLayer.id);
       overlayMaskTexture = this.masks.resolve(
         overlayLayer,
         encoder,
-        // Guide = image source stable, même statut que le rendu normal du
-        // premier calque de la pile — pas le composite. Les deux appels
-        // masks.resolve() pour ce calque (rendu normal + overlay) partagent
-        // ainsi un guide de statut cohérent : sans ça, ils écrivaient chacun
-        // dans le même slot lastGuideEpochByLayer avec des guides
-        // différents, invalidant en continu le cache SAT du filtre
-        // edge-aware dès que l'overlay est actif pendant l'édition d'un
-        // calque (voir docs/superpowers/specs/2026-07-24-shaderlab-overlay-guide-source-design.md).
-        // Le compositing visuel de l'overlay, lui, reste sur composedTexture
-        // ci-dessous — seul le guide interne au filtre change.
-        sourceTexture.createView(),
+        overlayIndex <= 0 ? sourceTexture.createView() : composedTexture.createView(),
         pendingDestroy,
-        0,
+        overlayIndex <= 0 ? 0 : this.runGeneration,
       );
       this.effects.runOverlayPass(
         encoder,

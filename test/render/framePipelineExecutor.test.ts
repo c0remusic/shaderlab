@@ -119,17 +119,61 @@ describe("FramePipelineExecutor", () => {
     expect(result.overlayMaskTexture).toBe(resolved);
   });
 
-  it("uses the source texture (not the composite) as the overlay's edge-aware guide, with the stable epoch", () => {
+  it("uses the source texture and epoch 0 as the overlay's guide when the overlay layer is the bottom layer", () => {
     const { executor, masks, source } = createExecutor();
     const resolved = texture() as unknown as GPUTexture;
     masks.resolve = vi.fn(() => resolved);
 
-    executor.run([layer({ enabled: true })], {} as GPUTextureView, "L1");
+    executor.run([layer({ id: "L1", enabled: true })], {} as GPUTextureView, "L1");
 
     expect(masks.resolve).toHaveBeenCalledOnce();
     const [, , colorView, , guideEpoch] = (masks.resolve as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(colorView).toBe(source.createView.mock.results.at(-1)!.value);
     expect(guideEpoch).toBe(0);
+  });
+
+  it("uses the source texture and epoch 0 as the overlay's guide when the overlay layer is disabled (absent from enabledLayers)", () => {
+    const { executor, masks, source } = createExecutor();
+    const resolved = texture() as unknown as GPUTexture;
+    masks.resolve = vi.fn(() => resolved);
+
+    executor.run(
+      [layer({ id: "L1", enabled: true }), layer({ id: "L2", enabled: false })],
+      {} as GPUTextureView,
+      "L2",
+    );
+
+    expect(masks.resolve).toHaveBeenCalledOnce();
+    const [, , colorView, , guideEpoch] = (masks.resolve as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(colorView).toBe(source.createView.mock.results.at(-1)!.value);
+    expect(guideEpoch).toBe(0);
+  });
+
+  it("uses the composite and the same epoch as the layer's own render pass when the overlay layer is not the bottom layer", () => {
+    const { executor, effects, masks, secondTarget } = createExecutor();
+    const resolved = texture() as unknown as GPUTexture;
+    masks.resolve = vi.fn(() => resolved);
+
+    executor.run(
+      [layer({ id: "L1", enabled: true }), layer({ id: "L2", enabled: true })],
+      {} as GPUTextureView,
+      "L2",
+    );
+
+    expect(masks.resolve).toHaveBeenCalledOnce();
+    const [, , overlayColorView, , overlayGuideEpoch] = (masks.resolve as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(overlayColorView).toBe(secondTarget.createView.mock.results.at(-1)!.value);
+
+    // Le calque overlay (L2, index 1) est aussi rendu normalement par la
+    // boucle principale — c'est son deuxième appel à runEffectPass (le
+    // premier est pour L1). Les deux appels doivent porter le même
+    // guideEpoch numérique, sans quoi ils s'invalident mutuellement dans
+    // MaskTextureResolver (voir design doc, amendement 2026-07-24).
+    const runEffectPassCalls = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.calls;
+    expect(runEffectPassCalls).toHaveLength(2);
+    const l2Options = runEffectPassCalls[1][5];
+    expect(overlayGuideEpoch).toBe(l2Options.guideEpoch);
+    expect(overlayGuideEpoch).not.toBe(0);
   });
 
   it("destroys already-created frame resources before rethrowing when a pass throws mid-frame", () => {

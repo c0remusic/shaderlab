@@ -93,6 +93,38 @@ export async function resolveExportTargetAsync(
   throw new Error("unreachable");
 }
 
+/** Yields the bare `basePath` first, then falls back to the same
+ *  `-edited`/`-edited-2`/... sequence as `candidateCopyPaths` — reused
+ *  as-is, not duplicated, so the two naming rules can never drift on what
+ *  the Nth fallback candidate actually is. */
+function* candidateDefaultExportPaths(basePath: string): Generator<string> {
+  yield basePath;
+  yield* candidateCopyPaths(basePath);
+}
+
+/**
+ * Résolveur du bouton "Exporter" par défaut : `basePath` est déjà le chemin
+ * complet dans le dossier d'export dédié (dossier + nom de fichier source,
+ * voir `joinExportTarget` côté launch.ts). Contrairement à
+ * `resolveExportTargetAsync`, essaie le nom nu en premier — sûr ici car le
+ * dossier dédié est distinct du dossier de la photo source : une collision
+ * ne peut survenir qu'avec un export précédent, jamais avec l'original.
+ * `resolveExportTargetAsync` reste le résolveur du round-trip Lightroom ET
+ * du bouton "Exporter sous..." (comportement conservateur pour un dossier
+ * arbitraire, y compris potentiellement le dossier source lui-même).
+ */
+export async function resolveDefaultExportTarget(
+  basePath: string,
+  availability: PathAvailability
+): Promise<string> {
+  for (const candidate of candidateDefaultExportPaths(basePath)) {
+    if (!(await availability.exists(candidate))) return candidate;
+  }
+  /* istanbul ignore next -- candidateDefaultExportPaths never terminates on
+   * its own; see the matching comment in buildCopyPath. */
+  throw new Error("unreachable");
+}
+
 /**
  * Renders the current layer stack and writes the result to `targetPath`.
  * Caller decides `targetPath`: a fresh copy path (manual export, via

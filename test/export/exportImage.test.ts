@@ -1,5 +1,11 @@
 import { vi, describe, it, expect } from "vitest";
-import { buildCopyPath, resolveExportTargetAsync, exportImage, type PathAvailability } from "../../src/export/exportImage";
+import {
+  buildCopyPath,
+  resolveExportTargetAsync,
+  resolveDefaultExportTarget,
+  exportImage,
+  type PathAvailability,
+} from "../../src/export/exportImage";
 
 describe("buildCopyPath", () => {
   it("appends -edited before the extension, preserving the original file", () => {
@@ -120,5 +126,34 @@ describe("resolveExportTargetAsync", () => {
       fakeAvailability(["C:\\photos\\sunset-edited.jpg", "C:\\photos\\sunset-edited-2.jpg"])
     );
     expect(target).toBe("C:\\photos\\sunset-edited-3.jpg");
+  });
+});
+
+describe("resolveDefaultExportTarget", () => {
+  it("returns the bare filename when nothing occupies it", async () => {
+    const target = await resolveDefaultExportTarget(
+      "C:\\Users\\x\\Pictures\\shaderlab-export\\sunset.jpg",
+      fakeAvailability([])
+    );
+    expect(target).toBe("C:\\Users\\x\\Pictures\\shaderlab-export\\sunset.jpg");
+  });
+
+  it("falls back to -edited when the bare name is occupied", async () => {
+    const target = await resolveDefaultExportTarget(
+      "C:\\Users\\x\\Pictures\\shaderlab-export\\sunset.jpg",
+      fakeAvailability(["C:\\Users\\x\\Pictures\\shaderlab-export\\sunset.jpg"])
+    );
+    expect(target).toBe("C:\\Users\\x\\Pictures\\shaderlab-export\\sunset-edited.jpg");
+  });
+
+  it("falls back to -edited-2 when both the bare name and -edited are occupied", async () => {
+    const target = await resolveDefaultExportTarget(
+      "C:\\Users\\x\\Pictures\\shaderlab-export\\sunset.jpg",
+      fakeAvailability([
+        "C:\\Users\\x\\Pictures\\shaderlab-export\\sunset.jpg",
+        "C:\\Users\\x\\Pictures\\shaderlab-export\\sunset-edited.jpg",
+      ])
+    );
+    expect(target).toBe("C:\\Users\\x\\Pictures\\shaderlab-export\\sunset-edited-2.jpg");
   });
 });

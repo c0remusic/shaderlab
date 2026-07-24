@@ -171,7 +171,6 @@ pub fn run() {
             write_image_file,
             read_image_file,
             pick_image_file,
-            join_export_target,
             log_diagnostic,
             path_exists
         ])

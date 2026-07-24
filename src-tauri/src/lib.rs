@@ -1,6 +1,7 @@
 use percent_encoding::percent_decode_str;
 use std::fs;
 use tauri::ipc::{InvokeBody, Request, Response};
+use tauri::Manager;
 
 #[tauri::command]
 fn get_launch_path() -> Option<String> {
@@ -122,6 +123,30 @@ fn join_export_target(source_path: String, dir: String) -> Result<String, String
     join_export_filename(&source_path, &dir)
 }
 
+/// Dossier d'export dédié fixe pour l'export manuel par défaut (bouton
+/// "Exporter") : Images/shaderlab-export. Ne crée PAS le dossier — la
+/// création automatique se fait au moment de l'écriture (voir
+/// `write_image_file`), un seul point de code pour tous les dossiers cible
+/// possibles (celui-ci ou un dossier choisi via "Exporter sous...").
+#[tauri::command]
+fn default_export_dir(app: tauri::AppHandle) -> Result<String, String> {
+    let dir = app
+        .path()
+        .picture_dir()
+        .map_err(|e| format!("Dossier Images introuvable: {e}"))?;
+    Ok(dir.join("shaderlab-export").to_string_lossy().into_owned())
+}
+
+/// Dialogue "choisir un dossier" pour le bouton "Exporter sous...", même
+/// contournement de `tauri-plugin-dialog` (bug IPC connu, voir
+/// `pick_image_file`) via `rfd` directement. `None` si l'utilisateur annule.
+#[tauri::command]
+fn pick_export_folder() -> Option<String> {
+    rfd::FileDialog::new()
+        .pick_folder()
+        .map(|p| p.to_string_lossy().into_owned())
+}
+
 /// Debugging-only: appends a timestamped line to `.dev-logs/gpu-diag.log` in
 /// the project root. Writing through Rust (not console.log) means the line
 /// is durably on disk before this IPC call even returns to the renderer —
@@ -172,7 +197,10 @@ pub fn run() {
             read_image_file,
             pick_image_file,
             log_diagnostic,
-            path_exists
+            path_exists,
+            default_export_dir,
+            pick_export_folder,
+            join_export_target
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

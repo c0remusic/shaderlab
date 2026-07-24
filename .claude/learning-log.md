@@ -3,6 +3,54 @@
 Store instinct-system, portée projet. Écrivain = wrap-up seul. Voir
 `~/.claude/CLAUDE.md` § Store instinct-system pour la convention globale.
 
+## 2026-07-24 — le format préféré Windows (bgra*) exige un reswizzle explicite à chaque lecture CPU brute d'une texture couleur
+
+**Découverte (TTL 6 mois)** : `srgbFormat` (toutes les textures couleur,
+`gpuContext.ts:69-70`) résout en `bgra8unorm-srgb` sur Windows/D3D12.
+`copyTextureToBuffer` copie cet ordre natif (B,G,R,A) tel quel — l'aperçu
+écran ne s'en aperçoit jamais (le pipeline de présentation WebGPU connaît
+la disposition native), mais **toute lecture CPU manuelle qui suppose
+RGBA** (Canvas `ImageData`, encodage JPEG, futur export PNG/TIFF...) doit
+reswizzler explicitement, sinon rouge et bleu sont inversés en silence.
+Bug réel trouvé au checkpoint visuel document-export-safety (2026-07-24,
+commit 85f5293) — chaque export produit depuis le lancement du projet
+avait cette inversion sur Windows, jamais détecté (aucun test ne compare
+les octets exportés à une image de référence, seul un humain regardant le
+fichier final l'a vu). **How to apply** : avant tout nouveau code qui lit
+des pixels bruts d'une texture WebGPU côté CPU (export, capture, debug),
+vérifier explicitement l'ordre de canaux réel de `srgbFormat`/`canvasFormat`
+plutôt que supposer RGBA — voir `FrameReadback.swapRedBlueChannels()` pour
+le pattern de fix déjà en place.
+
+## 2026-07-24 — un bouton d'action async sans garde busy peut créer une race de génération (App.tsx `openFile`)
+
+**Découverte (TTL 6 mois)** : "Ouvrir une image" n'est jamais désactivé
+pendant qu'un appel `openFile()` précédent est encore en vol — un second
+clic rapide (ex. après un fichier corrompu dont `createImageBitmap` met
+plusieurs secondes à rejeter) lance un second appel concurrent. Sans garde,
+l'appel le plus ANCIEN peut committer son résultat (succès ou erreur)
+APRÈS le plus récent, écrasant un état déjà correct — le bandeau d'erreur
+réapparaissait seul quelques secondes après une ouverture pourtant réussie
+(bug réel, checkpoint ui-runtime-hygiene 2026-07-24, fixé par
+`openGenerationRef` commit 9d43f69). **How to apply** : tout futur handler
+async déclenchable plusieurs fois sans garde `disabled` (upload, export,
+tout ce qui touche `canvasRef`/`rendererRef`) doit soit désactiver son
+déclencheur pendant l'opération, soit porter un jeton de génération qui
+n'autorise que le dernier appel à committer — ce repo a déjà le pattern
+prêt à copier dans `openFile`.
+
+## 2026-07-24 — une image de test sous le plafond de downscale ne prouve jamais le chemin réduit d'un fix Fast Guided Filter
+
+**Découverte (TTL 6 mois)** : l'image synthétique utilisée pour valider le
+chantier edge-aware SAT (1600×1200) reste SOUS le plafond de downscale
+(~2048px de long côté, `computeSmallDims()`) → `scale=1`, le chemin
+"image réduite" du Fast Guided Filter n'a jamais été exercé visuellement
+cette session, seul le gain algorithmique (SAT vs boucle O(rayon)) a été
+confirmé. **How to apply** : pour valider un fix de perf dont le design
+repose sur un downscale conditionnel, toujours inclure au moins une image
+de test dont une dimension dépasse le seuil déclencheur — sinon le
+checkpoint visuel ne couvre qu'une partie du design approuvé.
+
 ## 2026-07-23 — `tsc --noEmit` de ce repo ne couvre JAMAIS `test/` (tsconfig.json `"include": ["src"]`)
 
 **Découverte (TTL 6 mois)** : `tsconfig.json` racine n'inclut que `["src"]` —

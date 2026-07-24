@@ -33,6 +33,17 @@ export default function App() {
   const workspaceRef = useRef<HTMLElement>(null);
   const gpuRef = useRef<GpuContext | null>(null);
   const rendererRef = useRef<Renderer | null>(null);
+  // "Ouvrir une image" n'est jamais désactivé pendant une ouverture en
+  // cours — un second clic (ex. après avoir choisi un fichier corrompu,
+  // dont `createImageBitmap` peut mettre plusieurs secondes à rejeter) peut
+  // lancer un second appel à `openFile` avant que le premier ne se soit
+  // résolu. Sans ce garde, le premier (en retard, en échec) peut écraser
+  // l'état posé par le second (plus rapide, réussi) une fois son rejet
+  // enfin réglé — le bandeau d'erreur réapparaît seul quelques secondes
+  // après une ouverture pourtant réussie (bug trouvé au checkpoint visuel
+  // 2026-07-24). Seul l'appel dont la génération est encore la plus
+  // récente au moment de committer est autorisé à toucher l'état visible.
+  const openGenerationRef = useRef(0);
   const overlayAnimationLoopRef = useRef(new OverlayAnimationLoop());
   const sessionRef = useRef(new DocumentSession());
   const [layers, setLayers] = useState<LayerState[]>([]);
@@ -121,6 +132,7 @@ export default function App() {
 
   const openFile = useCallback(async (file: File, path: string | null, fromLaunch: boolean) => {
     if (!canvasRef.current) return;
+    const generation = ++openGenerationRef.current;
     try {
       if (!gpuRef.current) {
         gpuRef.current = await initGpu(canvasRef.current, (message) => setError(message), logDiagnostic);
@@ -144,6 +156,15 @@ export default function App() {
       // the new document's state.
       const candidate = await Renderer.createLoaded(gpuRef.current, bitmap, logDiagnostic);
 
+      if (generation !== openGenerationRef.current) {
+        // A newer openFile() call already committed while we were still
+        // decoding/loading — discard this stale result instead of
+        // clobbering the newer document (canvas size, renderer, error
+        // banner) with an outdated one.
+        candidate.dispose();
+        return;
+      }
+
       canvasRef.current.width = bitmap.width;
       canvasRef.current.height = bitmap.height;
       rendererRef.current?.dispose();
@@ -163,6 +184,7 @@ export default function App() {
       // charger correctement.
       setError(null);
     } catch (e) {
+      if (generation !== openGenerationRef.current) return;
       setError(messageFromUnknown(e));
     }
   }, [syncSession]);

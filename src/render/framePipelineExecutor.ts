@@ -221,8 +221,12 @@ export class FramePipelineExecutor {
       let effectInputSourceView = readTexture.createView();
       let imageSourceView: GPUTextureView | null = null;
       if (layer.imageSource) {
+        // I4 : `resolved` est la texture cible PERSISTANTE possédée par
+        // PhotoLayerInputResolver (voir photoLayerInput.ts) — jamais
+        // poussée dans pendingDestroy ici, elle survit à la frame et n'est
+        // détruite que par PhotoLayerInputResolver.dispose() (au
+        // changement de document, cf. renderer.ts).
         const resolved = this.photoInputs.resolve(encoder, layer, sourceTexture.width, sourceTexture.height, pendingDestroy);
-        pendingDestroy.push(resolved);
         effectInputSourceView = resolved.createView();
         imageSourceView = resolved.createView();
       }

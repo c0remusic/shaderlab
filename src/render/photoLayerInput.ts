@@ -1,5 +1,6 @@
 import { FULLSCREEN_VERTEX_WGSL } from "./shaderCompose";
 import type { LayerTransform } from "../layers/types";
+import { clampTransformScale } from "../ui/transform";
 
 /**
  * WGSL de la pré-passe de résolution d'entrée d'un calque de photo
@@ -44,8 +45,13 @@ fn fs_photo_input(in: VertexOut) -> @location(0) vec4<f32> {
   let photoPy = ly + photoHeight * 0.5;
   let photoUv = vec2<f32>(photoPx / photoWidth, photoPy / photoHeight);
 
+  // I2 : edgeDistPx est mesuré en pixels PHOTO (avant application de
+  // scale) - un feather de 1 pixel PHOTO ne fait qu'une fraction de pixel
+  // ECRAN a scale<1 (bord crenele) et plusieurs pixels ECRAN a scale>1
+  // (bord flou). On multiplie par scale pour ramener le feather en espace
+  // ecran (1px ecran quel que soit le zoom de la photo).
   let edgeDistPx = min(min(photoPx, photoWidth - photoPx), min(photoPy, photoHeight - photoPy));
-  let coverage = clamp(edgeDistPx, 0.0, 1.0);
+  let coverage = clamp(edgeDistPx * scale, 0.0, 1.0);
 
   let sample = textureSample(photoTexture, photoSampler, photoUv);
   return vec4<f32>(sample.rgb, coverage);
@@ -55,6 +61,16 @@ fn fs_photo_input(in: VertexOut) -> @location(0) vec4<f32> {
 export class PhotoLayerInputResolver {
   private pipeline: GPURenderPipeline | null = null;
   private bindGroupLayout: GPUBindGroupLayout | null = null;
+  /** I4 : au plus un calque photo existe par document (`MAX_PHOTO_LAYERS`,
+   *  `src/layers/photoLayer.ts`) — le resolver possède donc UNE texture
+   *  cible persistante, recréée seulement quand la taille du fond change,
+   *  au lieu d'une texture bgWidth×bgHeight allouée+détruite à chaque
+   *  frame (~96 Mo de churn/frame à 24MP). N'est PAS poussée dans
+   *  `pendingDestroy` (elle survit à la frame) — détruite uniquement par
+   *  `dispose()` ou par un changement de taille de fond. */
+  private cachedTarget: GPUTexture | null = null;
+  private cachedWidth = 0;
+  private cachedHeight = 0;
 
   constructor(
     private readonly device: GPUDevice,
@@ -82,13 +98,16 @@ export class PhotoLayerInputResolver {
     return { pipeline, bindGroupLayout };
   }
 
-  /** Rend photo A transformée dans une texture transitoire bgWidth×bgHeight.
-   *  La texture cible N'EST PAS poussée dans `pendingDestroy` par cette
-   *  méthode — c'est l'appelant (`FramePipelineExecutor`, qui connaît la
-   *  durée de vie réelle du reste de la frame) qui décide quand la
-   *  détruire, exactement comme pour les textures transitoires des passes
-   *  internes d'effet (`runInternalPasses`). Seul le buffer d'uniform
-   *  transitoire de CETTE passe est poussé ici. */
+  /** Rend photo A transformée dans la texture cible persistante
+   *  bgWidth×bgHeight (voir `cachedTarget`) — recréée seulement si la
+   *  taille demandée diffère du cache actuel, sinon réutilisée telle
+   *  quelle (elle est réécrite en entier par cette passe, `loadOp:
+   *  "clear"`, donc aucune fuite de contenu d'une frame à l'autre). La
+   *  texture cible N'EST PAS poussée dans `pendingDestroy` par cette
+   *  méthode NI par l'appelant — elle survit à la frame, propriété du
+   *  resolver, détruite seulement par `dispose()` ou un changement de
+   *  taille. Seul le buffer d'uniform transitoire de CETTE passe est
+   *  poussé ici. */
   resolve(
     encoder: GPUCommandEncoder,
     photoTexture: GPUTexture,
@@ -100,13 +119,25 @@ export class PhotoLayerInputResolver {
     pendingDestroy: (GPUTexture | GPUBuffer)[],
   ): GPUTexture {
     const { pipeline, bindGroupLayout } = this.ensurePipeline();
-    const target = this.device.createTexture({
-      size: [bgWidth, bgHeight],
-      format: this.srgbFormat,
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
-    });
+    if (!this.cachedTarget || this.cachedWidth !== bgWidth || this.cachedHeight !== bgHeight) {
+      this.cachedTarget?.destroy();
+      this.cachedTarget = this.device.createTexture({
+        size: [bgWidth, bgHeight],
+        format: this.srgbFormat,
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+      });
+      this.cachedWidth = bgWidth;
+      this.cachedHeight = bgHeight;
+    }
+    const target = this.cachedTarget;
+    // I1 : clampTransformScale/MIN_TRANSFORM_SCALE (src/ui/transform.ts) est
+    // la source unique de vérité pour le plancher d'échelle - jamais un
+    // clamp dupliqué en WGSL. Sans ce clamp, un scale=0 (atteignable via un
+    // futur import de preset, ARCHITECTURE.md R8) produirait `lx = rx /
+    // scale` = division par zéro -> UV NaN côté GPU.
+    const safeScale = clampTransformScale(transform.scale);
     const paramValues = new Float32Array([
-      transform.x, transform.y, transform.scale, transform.rotation,
+      transform.x, transform.y, safeScale, transform.rotation,
       bgWidth, bgHeight, photoWidth, photoHeight,
     ]);
     const paramBuffer = this.device.createBuffer({ size: paramValues.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -132,5 +163,9 @@ export class PhotoLayerInputResolver {
   dispose(): void {
     this.pipeline = null;
     this.bindGroupLayout = null;
+    this.cachedTarget?.destroy();
+    this.cachedTarget = null;
+    this.cachedWidth = 0;
+    this.cachedHeight = 0;
   }
 }

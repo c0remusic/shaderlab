@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { effectRegistry, getEffect } from "../../../src/render/effects/registry";
 import { glow } from "../../../src/render/effects/glow";
+import { PASSTHROUGH_EFFECT } from "../../../src/render/effectPassRunner";
 
 describe("effectRegistry", () => {
   it("contains the glow effect", () => {
@@ -13,6 +14,11 @@ describe("effectRegistry", () => {
 
   it("getEffect throws on an unknown id", () => {
     expect(() => getEffect("nonexistent")).toThrow(/Effet inconnu/);
+  });
+
+  it("getEffect resolves \"passthrough\" to PASSTHROUGH_EFFECT without adding it to effectRegistry", () => {
+    expect(getEffect("passthrough")).toBe(PASSTHROUGH_EFFECT);
+    expect(effectRegistry.some((e) => e.id === "passthrough")).toBe(false);
   });
 
   it("exposes French display metadata for chromatic bleed parameters", () => {

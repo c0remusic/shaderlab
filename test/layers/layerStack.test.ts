@@ -440,3 +440,51 @@ describe("LayerStack — mutation outcomes (Task 3)", () => {
     expect(stack.updateParams(id, { intensity: 0.5 })).toBe(true);
   });
 });
+
+describe("LayerStack photo layers", () => {
+  it("addPhotoLayer crée un calque avec imageSource/transform et effectId=passthrough", () => {
+    const stack = new LayerStack();
+    const transform = { x: 100, y: 50, scale: 1, rotation: 0 };
+    const id = stack.addPhotoLayer("photo-1", transform);
+    const layer = stack.layers.find((l) => l.id === id)!;
+    expect(layer.effectId).toBe("passthrough");
+    expect(layer.imageSource).toEqual({ sourceId: "photo-1" });
+    expect(layer.transform).toEqual(transform);
+    expect(layer.opacity).toBe(1);
+    expect(layer.blendMode).toBe("normal");
+  });
+
+  it("updateLayerTransform remplace le transform d'un calque photo existant", () => {
+    const stack = new LayerStack();
+    const id = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scale: 1, rotation: 0 });
+    const changed = stack.updateLayerTransform(id, { x: 10, y: 20, scale: 1.5, rotation: 0.2 });
+    expect(changed).toBe(true);
+    expect(stack.layers[0].transform).toEqual({ x: 10, y: 20, scale: 1.5, rotation: 0.2 });
+  });
+
+  it("updateLayerTransform est un no-op (retourne false) si le transform n'a pas changé", () => {
+    const stack = new LayerStack();
+    const t = { x: 0, y: 0, scale: 1, rotation: 0 };
+    const id = stack.addPhotoLayer("photo-1", t);
+    expect(stack.updateLayerTransform(id, { ...t })).toBe(false);
+  });
+
+  it("updateLayerTransform retourne false pour un calque sans imageSource", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    expect(stack.updateLayerTransform(id, { x: 0, y: 0, scale: 1, rotation: 0 })).toBe(false);
+  });
+
+  it("updateLayerTransform retourne false pour un id absent", () => {
+    const stack = new LayerStack();
+    expect(stack.updateLayerTransform("no-such-id", { x: 0, y: 0, scale: 1, rotation: 0 })).toBe(false);
+  });
+
+  it("clone() préserve imageSource/transform d'un calque photo", () => {
+    const stack = new LayerStack();
+    stack.addPhotoLayer("photo-1", { x: 5, y: 5, scale: 2, rotation: 1 });
+    const copy = stack.clone();
+    expect(copy.layers[0].imageSource).toEqual({ sourceId: "photo-1" });
+    expect(copy.layers[0].transform).toEqual({ x: 5, y: 5, scale: 2, rotation: 1 });
+  });
+});

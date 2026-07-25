@@ -1,4 +1,4 @@
-import type { LayerState } from "./types";
+import type { LayerState, LayerTransform } from "./types";
 import { defaultLayerMask, createBrushSource, createParametricSource } from "../mask/types";
 import type { MaskSourceType, CombineMode, RefineEdgeParams, MaskSourceParams } from "../mask/types";
 import { getMaskSourceModule } from "../mask/sources/registry";
@@ -47,6 +47,40 @@ export class LayerStack {
       mask: defaultLayerMask(),
     });
     return id;
+  }
+
+  /** Crée un calque de photo (double exposure) : `effectId` par défaut
+   *  "passthrough" (résolu par `getEffect`, voir effects/registry.ts —
+   *  n'apparaît pas dans le sélecteur "ajouter un effet" de LayerPanel).
+   *  L'appelant reste responsable de vérifier `canAddPhotoLayer` (limite
+   *  dure, photoLayer.ts) AVANT d'appeler cette méthode — elle ne l'impose
+   *  pas elle-même, comme les autres mutateurs de ce fichier qui ne
+   *  connaissent pas les règles produit de plus haut niveau. */
+  addPhotoLayer(sourceId: string, transform: LayerTransform): string {
+    const id = freshId();
+    this.layers.push({
+      id,
+      effectId: "passthrough",
+      params: {},
+      enabled: true,
+      opacity: 1,
+      blendMode: "normal",
+      mask: defaultLayerMask(),
+      imageSource: { sourceId },
+      transform,
+    });
+    return id;
+  }
+
+  /** Returns `true` iff `id` existe, porte un `imageSource` (un calque sans
+   *  photo n'a pas de transform à changer), et `transform` diffère
+   *  réellement du courant (même discipline no-op que le reste du fichier). */
+  updateLayerTransform(id: string, transform: LayerTransform): boolean {
+    const layer = this.layers.find((l) => l.id === id);
+    if (!layer || !layer.imageSource) return false;
+    if (layer.transform && paramsEqual(layer.transform, transform)) return false;
+    layer.transform = transform;
+    return true;
   }
 
   /** Returns `true` iff a layer with `id` existed and was removed. Leaves

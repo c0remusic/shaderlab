@@ -15,8 +15,9 @@ export interface ColorPickerPanelProps {
   style?: React.CSSProperties;
 }
 
-const SV_SIZE = 160;
-const HUE_BAND_HEIGHT = 12;
+/** Doit rester égal au token `--color-picker-sv-size` (components.css) : un
+ *  <canvas> exige ses dimensions en attributs numériques, pas en CSS. */
+const SV_SIZE = 140;
 
 /** Saturation/lightness square for a FIXED hue — HSL's "S" axis maps to
  *  the square's X, and "L" to Y inverted (top = light, bottom = dark),
@@ -117,47 +118,48 @@ export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, 
           <X className="icon-sm icon-stroke" aria-hidden />
         </IconButton>
       </div>
-      <canvas
-        ref={svCanvasRef}
-        width={SV_SIZE}
-        height={SV_SIZE}
-        className="color-picker-panel__sv"
-        onPointerDown={(e) => {
-          e.currentTarget.setPointerCapture(e.pointerId);
-          handleSvPointer(e);
-        }}
-        onPointerMove={(e) => e.currentTarget.hasPointerCapture(e.pointerId) && handleSvPointer(e)}
-        onPointerUp={(e) => {
-          e.currentTarget.releasePointerCapture(e.pointerId);
-          onCommit();
-        }}
-      />
-      <div
-        className="color-picker-panel__hue-band"
-        style={{ height: HUE_BAND_HEIGHT }}
-        onPointerDown={(e) => {
-          e.currentTarget.setPointerCapture(e.pointerId);
-          handleHuePointer(e);
-        }}
-        onPointerMove={(e) => e.currentTarget.hasPointerCapture(e.pointerId) && handleHuePointer(e)}
-        onPointerUp={(e) => {
-          e.currentTarget.releasePointerCapture(e.pointerId);
-          onCommit();
-        }}
-      >
-        <div className="color-picker-panel__hue-thumb" style={{ left: `${(hue / 360) * 100}%` }} />
-      </div>
-      <label className="color-picker-panel__hex">
-        <span>Hex</span>
-        <input
-          type="text"
-          value={draft ?? currentHex}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commitHexInput}
-          onKeyDown={(e) => e.key === "Enter" && commitHexInput()}
-          placeholder={currentHex}
+      <div className="color-picker-panel__body">
+        <canvas
+          ref={svCanvasRef}
+          width={SV_SIZE}
+          height={SV_SIZE}
+          className="color-picker-panel__sv"
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            handleSvPointer(e);
+          }}
+          onPointerMove={(e) => e.currentTarget.hasPointerCapture(e.pointerId) && handleSvPointer(e)}
+          onPointerUp={(e) => {
+            e.currentTarget.releasePointerCapture(e.pointerId);
+            onCommit();
+          }}
         />
-      </label>
+        <div
+          className="color-picker-panel__hue-band"
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            handleHuePointer(e);
+          }}
+          onPointerMove={(e) => e.currentTarget.hasPointerCapture(e.pointerId) && handleHuePointer(e)}
+          onPointerUp={(e) => {
+            e.currentTarget.releasePointerCapture(e.pointerId);
+            onCommit();
+          }}
+        >
+          <div className="color-picker-panel__hue-thumb" style={{ left: `${(hue / 360) * 100}%` }} />
+        </div>
+        <label className="color-picker-panel__hex">
+          <span>Hex</span>
+          <input
+            type="text"
+            value={draft ?? currentHex}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitHexInput}
+            onKeyDown={(e) => e.key === "Enter" && commitHexInput()}
+            placeholder={currentHex}
+          />
+        </label>
+      </div>
     </div>
   );
 }

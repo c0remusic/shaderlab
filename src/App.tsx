@@ -796,7 +796,13 @@ export default function App() {
                   layer={selectedLayer}
                   onParamChange={handleParamChange}
                   onParamCommit={handleParamCommit}
-                  onOpenColorPicker={(group) => setColorPicker(group)}
+                  onOpenColorPicker={(group) =>
+                    // Re-cliquer la MÊME pastille referme le picker (bascule),
+                    // au lieu de le laisser ouvert sans issue autre que le X.
+                    setColorPicker((current) =>
+                      current && current.layerId === group.layerId && current.key === group.key ? null : group
+                    )
+                  }
                 />
             },
             {
@@ -851,7 +857,16 @@ export default function App() {
             }}
             onCommit={handleParamCommit}
             onClose={() => setColorPicker(null)}
-            style={{ top: "var(--space-6)", right: `calc(var(--space-6) + var(--rail-width) + var(--space-4) + ${dockWidth}px + var(--space-4))` }}
+            // Ancré à GAUCHE du dock ENTIER, pas d'une seule colonne : le dock
+            // fait `dockLayout.length` colonnes de `dockWidth`, séparées par
+            // --space-4. Les `length` gouttières comptées ici = les length-1
+            // séparations internes + celle entre le picker et le dock. Sans le
+            // facteur colonnes, le picker se posait PAR-DESSUS le dock dès
+            // qu'il avait 2 colonnes (constaté au checkpoint 2026-07-25).
+            style={{
+              top: "var(--space-6)",
+              right: `calc(var(--space-6) + var(--rail-width) + var(--space-4) + (${dockWidth}px * ${dockLayout.length}) + (var(--space-4) * ${dockLayout.length}))`,
+            }}
           />
         )}
       </main>

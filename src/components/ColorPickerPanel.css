@@ -1,35 +1,66 @@
-/* Tokens verified against src/design/{primitives,semantic,components}.css
-   (grep, see task-5-report.md) — placeholder names from the brief substituted
-   for the project's real equivalents:
-   --shadow-panel -> --shadow-popover, --input-background -> --surface-inset,
-   --text-sm/--text-xs -> --font-size-sm/--font-size-xs, --border -> --border-default,
-   --foreground -> --text-primary, --muted-foreground -> --text-secondary. */
+/* ColorPickerPanel — popover de sélection de couleur, ouvert depuis une
+   pastille de ColorGroupControl. Reprend le langage de DockedPanelCard
+   (surface --panel-bg, --radius-panel, titlebar à --space-5 avec séparateur
+   inset, contenu à --space-5) : c'est une carte de panneau flottante, pas un
+   bloc de contrôles nu. S'ajoute une ombre --shadow-popover, elle, absente
+   des cartes dockées — celles-ci sont posées, celui-ci flotte au-dessus.
+
+   Tokens vérifiés dans src/design/{primitives,semantic,components}.css. */
 
 .color-picker-panel {
   position: absolute;
   z-index: var(--z-popover);
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-2);
-  background: var(--surface-panel);
-  border: 1px solid var(--border-default);
+  width: max-content;
+  background: var(--panel-bg);
   border-radius: var(--radius-panel);
   box-shadow: var(--shadow-popover);
+  /* Même raison que .docked-panel-card : le séparateur du header est une
+     ligne droite dans un conteneur à coins arrondis. */
+  overflow: hidden;
 }
 
 .color-picker-panel__header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+/* Séparateur inset, calqué sur .docked-panel-card__titlebar::after. */
+.color-picker-panel__header::after {
+  content: "";
+  position: absolute;
+  left: var(--space-5);
+  right: var(--space-5);
+  bottom: 0;
+  height: 0;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .color-picker-panel__title {
-  font-size: var(--font-size-sm);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.color-picker-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
 }
 
 .color-picker-panel__sv {
+  width: var(--color-picker-sv-size);
+  height: var(--color-picker-sv-size);
   border-radius: var(--radius-control);
   cursor: crosshair;
   touch-action: none;
@@ -37,6 +68,7 @@
 
 .color-picker-panel__hue-band {
   position: relative;
+  height: var(--color-picker-hue-height);
   border-radius: var(--radius-control);
   cursor: pointer;
   touch-action: none;
@@ -54,10 +86,10 @@
 
 .color-picker-panel__hue-thumb {
   position: absolute;
-  top: -2px;
-  bottom: -2px;
-  width: 4px;
-  transform: translateX(-2px);
+  top: calc(var(--space-1) * -1);
+  bottom: calc(var(--space-1) * -1);
+  width: var(--space-2);
+  transform: translateX(calc(var(--space-2) / -2));
   background: var(--text-primary);
   border-radius: var(--radius-control);
   pointer-events: none;
@@ -66,17 +98,25 @@
 .color-picker-panel__hex {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-4);
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
 }
 
 .color-picker-panel__hex input {
   flex: 1;
+  width: 0;
+  height: var(--control-height-sm);
   font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
   background: var(--surface-inset);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-control);
-  padding: var(--space-1) var(--space-2);
+  padding-inline: var(--space-3);
   color: var(--text-primary);
+}
+
+.color-picker-panel__hex input:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
 }

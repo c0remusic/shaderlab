@@ -3,12 +3,13 @@ import {
   FramePipelineExecutor,
   type EffectPassesPort,
   type MaskTexturesPort,
+  type PhotoLayerInputPort,
 } from "../../src/render/framePipelineExecutor";
 import { defaultLayerMask } from "../../src/mask/types";
 import type { LayerState } from "../../src/layers/types";
 
 function texture() {
-  return { createView: vi.fn(() => ({})), destroy: vi.fn() };
+  return { createView: vi.fn(() => ({})), destroy: vi.fn(), width: 100, height: 100 };
 }
 
 function layer(overrides: Partial<LayerState> = {}): LayerState {
@@ -46,15 +47,20 @@ function createExecutor() {
     sweep: vi.fn(),
     resolve: vi.fn(() => texture() as unknown as GPUTexture),
   };
+  const photoInputs: PhotoLayerInputPort = {
+    resolve: vi.fn(() => texture() as unknown as GPUTexture),
+  };
   return {
     executor: new FramePipelineExecutor(
       device,
       { sourceTexture: source as unknown as GPUTexture, pingPong: [firstTarget, secondTarget] as unknown as [GPUTexture, GPUTexture] },
       effects,
       masks,
+      photoInputs,
     ),
     effects,
     masks,
+    photoInputs,
     submit,
     transient,
     firstTarget,
@@ -196,5 +202,55 @@ describe("FramePipelineExecutor", () => {
     // ont chacun poussé `transient` dans pendingDestroy — les deux doivent
     // être détruits, aucun ne doit rester orphelin sur le GPU.
     expect(transient.destroy).toHaveBeenCalledTimes(2);
+  });
+
+  it("resolves a photo layer's input via PhotoLayerInputPort and passes it as runInternalPasses' sourceView", () => {
+    const { executor, effects, photoInputs } = createExecutor();
+    const resolvedTexture = texture() as unknown as GPUTexture;
+    (photoInputs.resolve as ReturnType<typeof vi.fn>).mockReturnValue(resolvedTexture);
+    const photoLayer = layer({
+      id: "L1",
+      effectId: "grain",
+      imageSource: { sourceId: "photo-1" },
+      transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+    });
+
+    executor.run([photoLayer], {} as GPUTextureView, null);
+
+    expect(photoInputs.resolve).toHaveBeenCalledOnce();
+    expect(effects.runEffectPass).toHaveBeenCalledOnce();
+    const [, , , , , options] = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(options.imageSourceView).toBe((resolvedTexture as unknown as { createView: ReturnType<typeof vi.fn> }).createView.mock.results.at(-1)!.value);
+  });
+
+  it("does not call PhotoLayerInputPort for a layer without imageSource", () => {
+    const { executor, photoInputs } = createExecutor();
+
+    executor.run([layer({ id: "L1" })], {} as GPUTextureView, null);
+
+    expect(photoInputs.resolve).not.toHaveBeenCalled();
+  });
+
+  it("feeds runInternalPasses the resolved photo texture, not the composite-below, for a photo layer with a multi-pass effect", () => {
+    const { executor, effects, photoInputs, source } = createExecutor();
+    const resolvedTexture = texture() as unknown as GPUTexture;
+    (photoInputs.resolve as ReturnType<typeof vi.fn>).mockReturnValue(resolvedTexture);
+    effects.runInternalPasses = vi.fn(() => ({ view: {} as GPUTextureView, texture: texture() as unknown as GPUTexture }));
+    const photoLayer = layer({
+      id: "L1",
+      effectId: "glow", // effet réel avec effect.passes — voir registry (Task 1)
+      imageSource: { sourceId: "photo-1" },
+      transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+    });
+
+    executor.run([photoLayer], {} as GPUTextureView, null);
+
+    const [, , , internalSourceView] = (effects.runInternalPasses as ReturnType<typeof vi.fn>).mock.calls[0];
+    // resolvedTexture.createView() est appelée deux fois (effectInputSourceView
+    // ET imageSourceView, voir framePipelineExecutor.ts) — internalSourceView
+    // porte le résultat du PREMIER appel (effectInputSourceView).
+    const resolvedCreateView = (resolvedTexture as unknown as { createView: ReturnType<typeof vi.fn> }).createView;
+    expect(internalSourceView).toBe(resolvedCreateView.mock.results[0]!.value);
+    expect(internalSourceView).not.toBe(source.createView.mock.results[0]?.value);
   });
 });

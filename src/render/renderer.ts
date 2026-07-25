@@ -3,7 +3,9 @@ import { getSrgbCanvasView } from "./gpuContext";
 import type { LayerState } from "../layers/types";
 import { EffectPassRunner } from "./effectPassRunner";
 import { MaskTextureResolver } from "./maskTextureResolver";
-import { FramePipelineExecutor } from "./framePipelineExecutor";
+import { FramePipelineExecutor, type PhotoLayerInputPort } from "./framePipelineExecutor";
+import { PhotoSourceStore } from "./photoSourceStore";
+import { PhotoLayerInputResolver } from "./photoLayerInput";
 import { FrameScheduler } from "./frameScheduler";
 import { FrameReadback } from "./frameReadback";
 import { noopDiagnosticLogger, type DiagnosticLogger } from "./diagnostics";
@@ -76,6 +78,11 @@ export class Renderer {
   private effectPassRunner: EffectPassRunner | null = null;
   private maskTextureResolver: MaskTextureResolver | null = null;
   private framePipelineExecutor: FramePipelineExecutor | null = null;
+  /** Propriétaire GPU exclusif des textures de photo importée (double
+   *  exposure, ARCHITECTURE.md §4.2) — créé/vidé avec le document, jamais
+   *  référencé depuis `LayerState`/le state React. */
+  private photoSourceStore: PhotoSourceStore | null = null;
+  private photoLayerInputResolver: PhotoLayerInputResolver | null = null;
   private renderScheduler = new FrameScheduler<{
     layers: LayerState[];
     preview: MaskPreviewOverride | null;
@@ -174,12 +181,41 @@ export class Renderer {
       this.nearestSampler,
       () => this.imageResources.sourceTexture!,
     );
+
+    this.photoSourceStore?.dispose();
+    this.photoSourceStore = new PhotoSourceStore(device, srgbFormat, device.limits.maxTextureDimension2D);
+    this.photoLayerInputResolver?.dispose();
+    this.photoLayerInputResolver = new PhotoLayerInputResolver(device, srgbFormat, this.sampler);
+    const photoInputsAdapter: PhotoLayerInputPort = {
+      resolve: (encoder, layer, bgWidth, bgHeight, pendingDestroy) => {
+        if (!layer.imageSource || !layer.transform) {
+          throw new Error(`Calque "${layer.id}" sans imageSource/transform passé au port photo — invariant violé.`);
+        }
+        const photoTexture = this.photoSourceStore!.get(layer.imageSource.sourceId);
+        if (!photoTexture) {
+          throw new Error(`Source de photo introuvable: ${layer.imageSource.sourceId} (calque "${layer.id}").`);
+        }
+        const dims = this.photoSourceStore!.dimensions(layer.imageSource.sourceId)!;
+        return this.photoLayerInputResolver!.resolve(
+          encoder, photoTexture, dims.width, dims.height, bgWidth, bgHeight, layer.transform, pendingDestroy,
+        );
+      },
+    };
+
     this.framePipelineExecutor = new FramePipelineExecutor(
       device,
       this.imageResources,
       this.effectPassRunner,
       this.maskTextureResolver,
+      photoInputsAdapter,
     );
+  }
+
+  /** Le `Renderer` est le propriétaire GPU réel (créé/vidé avec `loadImage`)
+   *  — `App.tsx` s'en sert pour enregistrer/dimensionner les photos
+   *  importées sans dupliquer un second store parallèle. */
+  get photoSources(): PhotoSourceStore | null {
+    return this.photoSourceStore;
   }
 
   render(
@@ -293,6 +329,10 @@ export class Renderer {
     this.effectPassRunner = null;
     this.maskTextureResolver?.dispose();
     this.maskTextureResolver = null;
+    this.photoSourceStore?.dispose();
+    this.photoSourceStore = null;
+    this.photoLayerInputResolver?.dispose();
+    this.photoLayerInputResolver = null;
     this.framePipelineExecutor = null;
     this.lastOverlayFrame = null;
   }

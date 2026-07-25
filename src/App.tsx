@@ -10,7 +10,6 @@ import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
 import { TransformHandles } from "./components/TransformHandles";
 import { ErrorBanner } from "./components/ErrorBanner";
-import { PhotoSourceStore } from "./render/photoSourceStore";
 import { exportImage, resolveExportTargetAsync, resolveDefaultExportTarget } from "./export/exportImage";
 import { messageFromUnknown } from "./lib/errors";
 import {
@@ -46,7 +45,6 @@ export default function App() {
   const workspaceRef = useRef<HTMLElement>(null);
   const gpuRef = useRef<GpuContext | null>(null);
   const rendererRef = useRef<Renderer | null>(null);
-  const photoSourceStoreRef = useRef<PhotoSourceStore | null>(null);
   // "Ouvrir une image" n'est jamais désactivé pendant une ouverture en
   // cours — un second clic (ex. après avoir choisi un fichier corrompu,
   // dont `createImageBitmap` peut mettre plusieurs secondes à rejeter) peut
@@ -184,9 +182,6 @@ export default function App() {
       rendererRef.current?.dispose();
       rendererRef.current = candidate;
 
-      photoSourceStoreRef.current?.dispose();
-      photoSourceStoreRef.current = new PhotoSourceStore(gpuRef.current.device, gpuRef.current.srgbFormat, gpuRef.current.device.limits.maxTextureDimension2D);
-
       setImageSize({ width: bitmap.width, height: bitmap.height });
       setSourcePath(path);
       setIsLaunchFile(fromLaunch);
@@ -237,7 +232,7 @@ export default function App() {
   }, [openFile]);
 
   const handleImportPhotoLayer = useCallback(async () => {
-    if (!photoSourceStoreRef.current) return;
+    if (!rendererRef.current?.photoSources) return;
     if (!canAddPhotoLayer(sessionRef.current.layers())) {
       setError("Limite atteinte : au plus une photo importée (double exposure) par document.");
       return;
@@ -248,7 +243,7 @@ export default function App() {
       const bytes = await readImageFile(path);
       const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
       const bitmap = await createImageBitmap(blob);
-      const sourceId = photoSourceStoreRef.current.register(bitmap);
+      const sourceId = rendererRef.current.photoSources.register(bitmap);
       const transform: LayerTransform = { x: imageSize.width / 2, y: imageSize.height / 2, scale: 1, rotation: 0 };
       const stack = currentStack();
       const id = stack.addPhotoLayer(sourceId, transform);
@@ -734,7 +729,7 @@ export default function App() {
         {selectedLayer?.imageSource && selectedLayer.transform && (
           <TransformHandles
             transform={selectedLayer.transform}
-            photoSize={photoSourceStoreRef.current?.dimensions(selectedLayer.imageSource.sourceId) ?? { width: 1, height: 1 }}
+            photoSize={rendererRef.current?.photoSources?.dimensions(selectedLayer.imageSource.sourceId) ?? { width: 1, height: 1 }}
             bgSize={imageSize}
             canvasRef={canvasRef}
             onTransformChange={(t) => handleTransformChange(selectedLayer.id, t)}

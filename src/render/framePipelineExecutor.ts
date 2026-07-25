@@ -19,7 +19,7 @@ export interface EffectPassesPort {
     layer: LayerState,
     sourceView: GPUTextureView,
     targetView: GPUTextureView,
-    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null; guideEpoch?: number },
+    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null; guideEpoch?: number; imageSourceView?: GPUTextureView | null },
     pendingDestroy: FrameResource[],
   ): void;
   runInternalPasses(
@@ -56,6 +56,21 @@ export interface MaskTexturesPort {
   ): GPUTexture;
 }
 
+/** Résout l'entrée d'un calque de photo (double exposure, ARCHITECTURE.md
+ *  §4.3) en une texture pleine taille, couverture dans le canal alpha —
+ *  jamais appelé pour un calque sans `imageSource`. Lève si
+ *  `layer.imageSource.sourceId` est introuvable dans `PhotoSourceStore`
+ *  (fail-fast, pas de calque photo silencieusement vide). */
+export interface PhotoLayerInputPort {
+  resolve(
+    encoder: GPUCommandEncoder,
+    layer: LayerState,
+    bgWidth: number,
+    bgHeight: number,
+    pendingDestroy: FrameResource[],
+  ): GPUTexture;
+}
+
 export type FramePipelineResult = {
   enabledLayerCount: number;
   churnedResourceCount: number;
@@ -89,6 +104,7 @@ export class FramePipelineExecutor {
     private readonly resources: FrameResourcesPort,
     private readonly effects: EffectPassesPort,
     private readonly masks: MaskTexturesPort,
+    private readonly photoInputs: PhotoLayerInputPort,
   ) {}
 
   run(
@@ -194,13 +210,30 @@ export class FramePipelineExecutor {
       const targetView = isLast && !overlayLayer
         ? finalTargetView
         : pingPong[writeIndex].createView();
+
+      // Double exposure (ARCHITECTURE.md §4.3, approche C2) : un calque
+      // portant `imageSource` ne doit JAMAIS voir le composite-en-dessous
+      // comme son entrée d'effet/passes internes — sans ça, un effet
+      // multi-passe (glow) échantillonnerait le fond au lieu de la
+      // silhouette (défaut (a) du design doc). La pré-passe rend la photo
+      // transformée dans une texture pleine taille (couverture en alpha),
+      // consommée ensuite par la chaîne EXISTANTE sans cas particulier.
+      let effectInputSourceView = readTexture.createView();
+      let imageSourceView: GPUTextureView | null = null;
+      if (layer.imageSource) {
+        const resolved = this.photoInputs.resolve(encoder, layer, sourceTexture.width, sourceTexture.height, pendingDestroy);
+        pendingDestroy.push(resolved);
+        effectInputSourceView = resolved.createView();
+        imageSourceView = resolved.createView();
+      }
+
       let previousPass: { view: GPUTextureView; texture: GPUTexture } | null = null;
       if (effect.passes?.length) {
         previousPass = this.effects.runInternalPasses(
           encoder,
           effect,
           layer,
-          readTexture.createView(),
+          effectInputSourceView,
           pendingDestroy,
         );
       }
@@ -208,11 +241,16 @@ export class FramePipelineExecutor {
         encoder,
         effect,
         layer,
+        // `sourceView` (le `color`/base du mix) reste TOUJOURS le
+        // composite-en-dessous, jamais la photo — c'est ce qui laisse
+        // apparaître le fond hors des bornes de la silhouette (défaut (b),
+        // couverture injectée séparément via `imageSourceView`).
         readTexture.createView(),
         targetView,
         {
           applyMask: true,
           prevPassView: previousPass?.view,
+          imageSourceView,
           // 0 = image source stable (premier calque) ; sinon le composite
           // des calques en dessous, ré-encodé à chaque run() (voir champ
           // `runGeneration`).

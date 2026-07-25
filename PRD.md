@@ -1,95 +1,171 @@
-# shaderlab — PRD : migration vers shadcn/ui
+# shaderlab — PRD
 
-> Cadré via `interview` le 2026-07-20, en session croisée avec Sift (voir
-> `C:\dev\sift\docs\superpowers\changes\2026-07-20-shadcn-react-migration\design.md`
-> pour le pendant Sift, planification seulement). Le QUOI et le POURQUOI ; le
-> COMMENT détaillé (ordre des composants, découpage en tâches) se conçoit via
-> `superpowers:brainstorming` à partir de ce document.
+> Cadré via `interview` le 2026-07-24/25. Premier PRD projet-entier de
+> shaderlab (aucun n'existait avant — le PRD précédent, scopé à la migration
+> shadcn/ui, est déplacé sans perte vers
+> [`docs/prd-shadcn-migration.md`](docs/prd-shadcn-migration.md)). Rétro-cadré
+> depuis l'état réel du projet (`CLAUDE.md`, `CONTEXT.md`) pour le socle
+> existant ; interviewé en direct pour les deux features neuves (presets,
+> double exposure). Prochaine étape : `superpowers:brainstorming` (le COMMENT)
+> puis l'agent `architect` (`ARCHITECTURE.md`), à lancer quand ce document est
+> validé.
 
 ## Contexte
 
-shaderlab a déjà son propre design system CSS (`src/design/primitives.css`,
-`semantic.css`, `components.css`) construit et documenté cette session
-(z-index, tokens couleur/spacing, lint automatique via `scripts/lint-tokens.mjs`).
-Le maintenir en parallèle du design system de Sift (tokens différents, mêmes
-catégories de composants à recoder à chaque projet) coûte trop cher à faire
-évoluer. shaderlab est déjà React + Vite + Tailwind — c'est le projet où
-`shadcn/ui` s'installe directement, sans migration de framework au préalable
-(contrairement à Sift, cf. document lié ci-dessus).
+shaderlab est une app desktop Windows (Tauri v2 + React/TS + WebGPU/WGSL brut)
+d'effets visuels shader temps réel sur photos JPEG, éditée en calques
+non-destructifs avec masque au pinceau par calque. Elle sert aussi d'éditeur
+externe Lightroom (round-trip : Lightroom exporte une copie → shaderlab
+l'écrase → Lightroom réimporte). Née d'une frustration : aucun plugin
+Lightroom natif ne peut faire d'effets shader GPU (pipeline RAW fermé).
+Positionnement outil perso vs produit partageable : pas encore tranché,
+faisabilité d'abord (voir `CLAUDE.md`).
+
+Deux besoins neufs motivent ce PRD : (1) refaire la même pile de calques à
+chaque photo est répétitif — un système de **presets** manque ; (2) certaines
+références visuelles (style "serifa" observé sur Instagram) utilisent un
+**double exposure** — silhouette d'une photo superposée sur une autre — que le
+modèle actuel (un document = une seule photo source) ne permet pas.
 
 ## Objectif
 
-Adopter `shadcn/ui` comme base de composants pour shaderlab, en conservant
-l'identité visuelle propre du projet (palette actuelle mappée dans le thème
-shadcn, pas de fusion avec shaderlab/Sift/Tuple).
+Étendre shaderlab avec (a) un système de presets pour réutiliser une pile de
+calques d'une photo à l'autre, et (b) un mode double exposure pour composer
+deux photos (sujet isolé + fond) — sans casser le modèle de calques
+non-destructif existant.
 
 ## Comportements (quand X → Y)
 
-- Quand un nouveau composant UI est nécessaire (dialog, dropdown, table,
-  select, etc.) → il est installé via la CLI shadcn (`npx shadcn@latest add
-  <composant>`) plutôt qu'écrit à la main.
-- Quand un composant existant (`Toolbar`, `BrushToolbar`, `ErrorBanner` —
-  déjà storyés cette session) est migré → son comportement observable reste
-  identique (mêmes états, mêmes interactions), seule l'implémentation change.
-- Quand un token de couleur/spacing/radius change → la modification se fait
-  une seule fois (thème shadcn/Tailwind + `src/design/*.css` comme source de
-  valeurs de marque), sans resynchronisation manuelle composant par composant.
-- Quand Storybook tourne (`npm run storybook`) → les stories reflètent les
-  composants shadcn migrés au fur et à mesure, avec les vrais tokens du projet
-  (déjà branché via `preview.ts` → `src/design/index.css`).
+### Socle existant (rétro-cadré, déjà livré)
+
+- Quand un effet est ajouté à un calque → il est traité par un module shader
+  autonome du registry (`glow`, `chromatic bleed`, `warp`, `grain`, `duotone`,
+  `posterize`), avec version pipeline puis upgrade qualité obligatoire (jamais
+  un rendu "filtre Photoshop 2005").
+- Quand un calque a un masque → celui-ci dose l'effet pixel par pixel
+  (`opacity * maskValue`), peint au pinceau à falloff radial, jamais une
+  modification de l'image elle-même.
+- Quand la photo de lancement provient de Lightroom → shaderlab écrase ce même
+  fichier à l'export (round-trip, hypothèse à valider empiriquement en usage
+  réel).
+- Quand un mode de fusion est appliqué → il combine la sortie du calque avec
+  le résultat des calques du dessous (11 modes réels, pipeline linéaire strict
+  sRGB, jamais de gamma manuel).
+
+### Presets (nouveau, cadré 2026-07-24)
+
+- Quand l'utilisateur sauvegarde un preset → toute la pile de calques actifs
+  (effet, params, opacity, blendMode, ordre) est capturée, SANS les masques
+  (spécifiques à chaque photo).
+- Quand un preset est appliqué sur une photo dont la pile de calques n'est pas
+  vide → une confirmation est demandée avant de remplacer la pile existante
+  (les masques déjà peints seraient perdus sinon silencieusement).
+- Quand l'utilisateur sauvegarde sous un nom déjà existant → confirmation
+  avant d'écraser. Renommer un preset se fait par double-clic sur son nom
+  dans la liste.
+- Quand des params sont modifiés après application d'un preset → le système
+  propose "mettre à jour le preset" (overwrite) ou "créer une copie"
+  (nouveau preset), jamais une perte silencieuse de la modification.
+- Quand un preset référence un effet supprimé/renommé du registry (dérive du
+  code entre deux sessions) → le calque correspondant est ignoré à
+  l'application (le reste du preset s'applique), avec un avertissement visible
+  — jamais un échec bloquant total ni un silence complet.
+- Quand l'utilisateur veut transporter un preset → un bouton Exporter écrit un
+  fichier JSON sur disque, un bouton Importer le relit (partage par
+  email/clé USB/dossier, pas de réseau).
+- Placement UI : une carte dockée dédiée "Presets", **première de la colonne**
+  (avant Calques/Réglages/Masques) — même mécanique que les cartes existantes
+  (repliable, réorganisable). Voir `docs/wireframes/presets.html` (option 2
+  retenue).
+- **Dépendance de séquencement** : un chantier parallèle introduit un rail
+  d'icônes manuel (`PanelRail`) + affichage contextuel des cartes (Calques/
+  Réglages/Masque) — voir
+  `docs/superpowers/specs/2026-07-24-shaderlab-contextual-panels-design.md`
+  (direction confirmée par Antoine, **relecture du design doc encore en
+  attente** au moment de ce PRD, pas encore implémenté). Si ce chantier passe
+  avant Presets, la carte Presets devrait s'intégrer au même mécanisme
+  (`useContextualPanel` + item `PanelRail`) plutôt que rester une carte
+  toujours-visible isolée — point à trancher en `brainstorming`/`architect`
+  selon l'ordre réel d'exécution des deux chantiers.
+
+### Double exposure (nouveau, cadré 2026-07-24)
+
+- Quand l'utilisateur importe une deuxième photo (silhouette) en plus de la
+  photo de base (fond) → elle devient un **calque de photo**, positionnable/
+  redimensionnable/rotatable manuellement sur le fond.
+- Quand le sujet de la silhouette doit être isolé (fond effacé) → l'utilisateur
+  peint le masque à la main avec l'outil pinceau existant (`MaskPainter`),
+  aucune segmentation automatique en v1.
+- Quand un calque de photo existe → il reçoit les mêmes effets/masques/modes
+  de fusion qu'un calque d'effet classique (même modèle `LayerState`, étendu
+  d'une source d'image propre + transform position/échelle/rotation).
+- Limite dure : 2 photos sources maximum par document (silhouette + fond),
+  pas de généralisation N-photos en v1.
+- Le round-trip Lightroom n'est PAS supporté en présence d'un double exposure
+  en v1 — utilisable seulement en mode libre (sans fichier de lancement).
 
 ## Hors-scope explicite
 
-- Unifier visuellement shaderlab avec Sift ou Tuple — chaque projet garde sa
-  propre palette par-dessus la même base de composants.
-- Migrer Sift dans ce chantier — traité séparément, planification seulement
-  pour l'instant (voir document lié).
-- Toucher Tuple — exclu, aucun chemin d'intégration shadcn possible (device
-  Max/jweb).
-- Ajouter un outil de commentaire/review visuel (Chromatic ou équivalent) —
-  explicitement écarté à cette étape par Antoine ; Storybook reste une
-  visionneuse seule.
-- Toucher au code Rust/Tauri (`src-tauri/`) ou au travail en cours d'une autre
-  session sur ce repo (masking tranche 2, `TECH_DEBT_AUDIT.md`,
-  `src/layers/`, `src/mask/`) — ce chantier se limite à `src/design/`,
-  `src/components/`, config Tailwind/shadcn.
+- **Presets** : organisation par dossiers/tags (liste plate uniquement) ;
+  bibliothèque de presets fournis par défaut avec l'app (seulement ceux créés
+  par l'utilisateur).
+- **Double exposure** : plus de 2 photos sources ; segmentation automatique du
+  sujet (voir différé nommé dans `CONTEXT.md` — fast-follow, pas ce PRD) ;
+  round-trip Lightroom en présence d'un double exposure.
+- Unifier visuellement shaderlab avec Sift ou Tuple, migrer Sift, toucher
+  Tuple — inchangé depuis `docs/prd-shadcn-migration.md`, toujours hors-scope.
 
 ## Contraintes d'inacceptable
 
-**Fenêtre de coupure acceptée** (décision Antoine) : la migration peut se
-faire en une fois par composant, sans exiger que chaque composant reste
-utilisable pendant sa propre transition. Mais :
-- Aucune régression fonctionnelle constatée sans être corrigée avant de
-  déclarer un composant migré.
-- Le lint de tokens existant (`npm run lint:tokens`) doit rester vert (ou ses
-  violations expliquées) après migration — pas de retour en arrière sur la
-  discipline de tokens déjà mise en place cette session.
+**Inacceptable (projet)** :
+- Pas de rendu "filtre Photoshop 2005" sur un effet — barre de qualité déjà
+  en vigueur, s'applique aussi aux calques de photo (double exposure).
+- Pas de gamma manuel en WGSL — pipeline linéaire strict sRGB partout, y
+  compris pour la seconde source image du double exposure.
+- Pas de fallback silencieux sur une erreur de chargement (photo, preset,
+  effet manquant) — toujours un signal visible, jamais un état qui se dit
+  fini alors qu'il ne l'est pas.
+
+**Inacceptable (presets)** :
+- Aucune perte silencieuse de masques peints à l'application d'un preset —
+  la confirmation est un plancher dur, pas une option désactivable.
+
+**Inacceptable (double exposure)** :
+- Pas d'appel réseau/cloud pour l'isolation du sujet, même en v2 (segmentation
+  ML strictement locale, cohérent avec le différé `CONTEXT.md`).
+- Le VRAM avec 2 photos pleine résolution chargées simultanément est un risque
+  ouvert (déjà noté projet-large dans `CLAUDE.md` pour 1 photo — untested à 2)
+  — à mesurer à l'usage réel avant de considérer la feature terminée, pas de
+  budget théorique figé par avance.
 
 ## Terminé = démontrable
 
-shadcn/ui installé et opérationnel (`components.json` en place), au moins les
-composants déjà storyés cette session (`Toolbar`, `BrushToolbar`,
-`ErrorBanner`) migrés et fonctionnels, vérifiés visuellement (Storybook +
-lancement réel de l'app) et par le lint de tokens.
+**Presets** : carte "Presets" dockée en tête de colonne, opérationnelle
+(sauvegarder/appliquer/renommer/écraser/exporter/importer), confirmation de
+remplacement vérifiée sur une pile non vide, effet manquant géré sans crash,
+vérifié visuellement (Storybook + app réelle) et par tests sur la logique pure
+(capture/application de pile).
+
+**Double exposure** : import d'une 2e photo, transform manuel fonctionnel,
+masque peint isolant le sujet, effets/blend applicables sur le calque de
+photo, limite 2 photos respectée, absence de round-trip Lightroom confirmée
+en présence de la feature — vérifié visuellement (fenêtre réelle, CDP —
+canvas WebGPU non capturable par Playwright, cf. `CLAUDE.md` § Moyen de
+preuve) sur au moins une composition réelle bout en bout.
 
 ## Annexe — Choix techniques déduits
 
-- **shadcn/ui + `components.json`** — CLI officielle, s'installe directement
-  sur la stack React 19 + Vite 6 + Tailwind déjà en place, confirmé compatible
-  (peer deps déjà vérifiées pour Storybook cette session, même stack).
-- **`src/design/primitives.css`/`semantic.css` comme source de valeurs de
-  marque** — mappées dans la config Tailwind/thème shadcn plutôt que
-  redécidées ; pas de nouvelle palette.
-- **Migration composant par composant**, pas big-bang sur tout `src/components/`
-  — réduit le risque, chaque composant migré est vérifiable indépendamment via
-  Storybook.
-- **Storybook existant réutilisé tel quel** comme preuve visuelle de chaque
-  composant migré (déjà branché sur les vrais tokens, addon a11y installé
-  cette session).
+*(à affiner en phase de déduction avec Antoine avant `brainstorming` — liste
+de travail, pas encore validée)*
 
----
-
-**PRD prêt.** Prochaine étape : `superpowers:brainstorming` pour découper la
-migration en tranches verticales (quel composant en premier, comment gérer les
-composants qui n'ont pas d'équivalent shadcn direct comme le canvas WebGPU) —
-à lancer quand Antoine valide ce document.
+- **Presets = fichier JSON** sérialisant `LayerState[]` sans `maskData` —
+  format texte lisible/versionnable, cohérent avec "pas de réseau, transport
+  par fichier".
+- **Stockage local** des presets (dossier de config app, à confirmer via
+  `@tauri-apps/api/path`) — pas de dépendance à un backend.
+- **Calque de photo = extension de `LayerState`** (source d'image + transform
+  optionnels) plutôt qu'un type de calque parallèle — réutilise tout le
+  pipeline de rendu/masque/blend existant au lieu de dupliquer l'archi.
+- **Isolation manuelle en v1 = `MaskPainter` existant**, zéro nouvelle
+  dépendance — la segmentation ML est repoussée précisément parce qu'elle
+  introduirait une inconnue technique non validée (voir différé `CONTEXT.md`).

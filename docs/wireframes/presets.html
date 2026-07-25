@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>shaderlab — wireframe presets</title>
+<style>
+/* Tokens copiés depuis src/design/{primitives,semantic,components}.css
+   (thème dark unique, "chrome Photoshop" — pas de fallback ni de palette
+   parallèle : mêmes valeurs que l'app réelle). */
+:root {
+  --primitive-neutral-100: #f2f2f2;
+  --primitive-neutral-200: #dbdbdb;
+  --primitive-neutral-850: #323232;
+  --primitive-neutral-900: #2c2c2c;
+  --primitive-neutral-950: #222222;
+  --primitive-neutral-1000: #1b1b1b;
+  --primitive-ink-900: #211e1a;
+  --primitive-accent-blue: #4069fd;
+
+  --space-1: 2px; --space-2: 4px; --space-3: 6px; --space-4: 8px;
+  --space-5: 12px; --space-6: 16px; --space-7: 20px; --space-8: 24px; --space-9: 32px;
+
+  --font-ui: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-size-2xs: 10px; --font-size-xs: 11px; --font-size-sm: 12px;
+  --font-size-md: 13px; --font-size-lg: 14px; --font-size-xl: 16px; --font-size-2xl: 18px;
+  --font-weight-regular: 400; --font-weight-medium: 500; --font-weight-semibold: 600;
+  --tracking-label: 0.07em;
+
+  --radius-control: 5px; --radius-group: 7px; --radius-panel: 8px;
+
+  --surface-window: var(--primitive-neutral-1000);
+  --surface-workspace: var(--primitive-neutral-950);
+  --surface-panel: var(--primitive-neutral-900);
+  --surface-raised: var(--primitive-neutral-850);
+  --surface-hover: color-mix(in srgb, var(--primitive-neutral-100) 7%, transparent);
+  --surface-active: color-mix(in srgb, var(--primitive-neutral-100) 11%, transparent);
+  --surface-selected: color-mix(in srgb, var(--primitive-neutral-100) 10%, transparent);
+
+  --text-primary: color-mix(in srgb, var(--primitive-neutral-100) 94%, transparent);
+  --text-secondary: color-mix(in srgb, var(--primitive-neutral-100) 68%, transparent);
+  --text-tertiary: color-mix(in srgb, var(--primitive-neutral-100) 58%, transparent);
+  --text-disabled: color-mix(in srgb, var(--primitive-neutral-100) 30%, transparent);
+  --text-on-light: var(--primitive-ink-900);
+
+  --border-subtle: color-mix(in srgb, var(--primitive-neutral-100) 7%, transparent);
+  --border-default: color-mix(in srgb, var(--primitive-neutral-100) 11%, transparent);
+  --border-emphasis: color-mix(in srgb, var(--primitive-neutral-100) 18%, transparent);
+  --border-strong: color-mix(in srgb, var(--primitive-neutral-100) 28%, transparent);
+  --focus-color: var(--primitive-accent-blue);
+
+  --action-primary-bg: var(--primitive-neutral-200);
+  --action-primary-text: var(--text-on-light);
+  --action-secondary-bg: color-mix(in srgb, var(--primitive-neutral-100) 8%, transparent);
+  --action-secondary-hover: color-mix(in srgb, var(--primitive-neutral-100) 12%, transparent);
+
+  --panel-bg: var(--surface-panel);
+  --panel-border: var(--border-default);
+  --panel-radius: var(--radius-panel);
+  --shadow-popover: 0 4px 12px rgba(0,0,0,.24), 0 2px 6px rgba(0,0,0,.12), 0 0 2px rgba(0,0,0,.36);
+
+  --toolbar-height: 36px;
+  --icon-size-md: 16px;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--primitive-neutral-950);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-md);
+  padding: var(--space-8);
+}
+h1 {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 var(--space-3);
+}
+p.lede {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  max-width: 70ch;
+  margin: 0 0 var(--space-9);
+}
+.options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-8);
+  align-items: start;
+}
+.option {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.option__label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+.option__desc {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  line-height: 1.5;
+  min-height: 48px;
+}
+
+/* --- app shell miniature --- */
+.shell {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+  background: var(--surface-window);
+  height: 460px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.shell__toolbar {
+  height: var(--toolbar-height);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-4);
+  background: var(--surface-panel);
+  border-bottom: 1px solid var(--border-default);
+}
+.tb-icon {
+  width: 22px; height: 22px;
+  border-radius: var(--radius-control);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+.tb-icon--ghost:hover { background: var(--surface-hover); }
+.tb-spacer { flex: 1; }
+.tb-preset-btn {
+  display: flex; align-items: center; gap: var(--space-2);
+  height: 24px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--action-secondary-bg);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  border: 1px solid transparent;
+}
+.tb-preset-btn:hover { background: var(--action-secondary-hover); }
+
+.shell__body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  position: relative;
+}
+.shell__canvas {
+  flex: 1;
+  background:
+    linear-gradient(135deg, rgba(64,105,253,.10), transparent 60%),
+    var(--surface-workspace);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-disabled);
+  font-size: var(--font-size-xs);
+}
+.shell__dock {
+  width: 168px;
+  flex-shrink: 0;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  background: var(--surface-window);
+  border-left: 1px solid var(--border-subtle);
+  overflow-y: auto;
+}
+
+/* --- docked panel card (miroir DockedPanelCard.tsx/.css) --- */
+.card {
+  border-radius: var(--panel-radius);
+  background: var(--panel-bg);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.card__title {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+.card__title .chev { color: var(--text-tertiary); font-size: var(--font-size-2xs); }
+.card__content {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.card--emph .card__title { color: var(--focus-color); }
+
+.divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: var(--space-2) 0;
+}
+.section-label {
+  font-size: var(--font-size-2xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  font-weight: var(--font-weight-medium);
+}
+
+.preset-row {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) var(--space-2);
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+.preset-row:hover { background: var(--surface-hover); }
+.preset-row--selected { background: var(--surface-selected); color: var(--text-primary); }
+.preset-swatch {
+  width: 20px; height: 20px;
+  border-radius: var(--radius-control);
+  flex-shrink: 0;
+  display: flex;
+}
+.preset-swatch span { flex: 1; }
+.preset-swatch span:first-child { border-top-left-radius: var(--radius-control); border-bottom-left-radius: var(--radius-control); }
+.preset-swatch span:last-child { border-top-right-radius: var(--radius-control); border-bottom-right-radius: var(--radius-control); }
+.preset-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.btn-save {
+  display: flex; align-items: center; justify-content: center; gap: var(--space-2);
+  height: 26px;
+  border-radius: var(--radius-control);
+  background: var(--action-secondary-bg);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  border: 1px dashed var(--border-emphasis);
+}
+.btn-save:hover { background: var(--action-secondary-hover); color: var(--text-primary); }
+
+.layer-stub {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+.layer-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--primitive-accent-blue); opacity: .7; }
+
+/* --- popover flottant (option 3) --- */
+.popover {
+  position: absolute;
+  top: 44px;
+  right: var(--space-4);
+  width: 200px;
+  border-radius: var(--panel-radius);
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-popover);
+  border: 1px solid var(--border-default);
+  overflow: hidden;
+  z-index: 5;
+}
+.popover__header {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.popover__body { padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
+
+/* verdict */
+.verdict {
+  margin-top: var(--space-9);
+  padding: var(--space-6);
+  border: 1px dashed var(--border-emphasis);
+  border-radius: var(--radius-panel);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+.verdict b { color: var(--text-primary); }
+</style>
+</head>
+<body>
+  <h1>Presets — 3 options de placement</h1>
+  <p class="lede">
+    Cadrage feature presets (sauvegarder/charger une suite de calques : effet + params
+    + opacity + blend + ordre, sans les masques). Reflète l'UI réelle actuelle
+    (PanelColumn / DockedPanelCard — Calques + Réglages empilés en colonne dockée à
+    droite, pas de rail d'icônes : ce composant est un design cible non livré).
+  </p>
+
+  <div class="options">
+
+    <!-- OPTION 1 -->
+    <div class="option">
+      <div class="option__label">1 — Section intégrée dans Calques</div>
+      <div class="option__desc">
+        Bloc "Presets" ajouté dans la carte Calques existante, au-dessus de la
+        liste de calques. Zéro nouvelle carte, zéro nouvelle icône. Le panneau
+        Calques grandit.
+      </div>
+      <div class="shell">
+        <div class="shell__toolbar">
+          <div class="tb-icon tb-icon--ghost">☰</div>
+          <div class="tb-icon tb-icon--ghost">↶</div>
+          <div class="tb-icon tb-icon--ghost">↷</div>
+          <div class="tb-spacer"></div>
+          <span style="color:var(--text-tertiary); font-size:var(--font-size-xs)">photo_012.jpg</span>
+          <div class="tb-spacer"></div>
+        </div>
+        <div class="shell__body">
+          <div class="shell__canvas">canvas</div>
+          <div class="shell__dock">
+            <div class="card">
+              <div class="card__title">Calques <span class="chev">⌄</span></div>
+              <div class="card__content">
+                <div class="section-label">Presets</div>
+                <div class="preset-row preset-row--selected">
+                  <div class="preset-swatch"><span style="background:#4069fd"></span><span style="background:#e65454"></span></div>
+                  <span class="preset-name">Film chaud</span>
+                </div>
+                <div class="preset-row">
+                  <div class="preset-swatch"><span style="background:#69b579"></span><span style="background:#d6a04e"></span></div>
+                  <span class="preset-name">Duotone bleu/or</span>
+                </div>
+                <div class="btn-save">+ Enregistrer preset</div>
+                <div class="divider"></div>
+                <div class="section-label">Calques</div>
+                <div class="layer-stub"><span class="layer-dot"></span>Glow</div>
+                <div class="layer-stub"><span class="layer-dot"></span>Chromatic bleed</div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card__title">Réglages <span class="chev">⌄</span></div>
+              <div class="card__content">
+                <div class="section-label" style="opacity:.5">params du calque sélectionné</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPTION 2 -->
+    <div class="option">
+      <div class="option__label">2 — Nouvelle carte dockée "Presets"</div>
+      <div class="option__desc">
+        Une carte de plus dans la même colonne (comme Calques/Réglages/Masques
+        aujourd'hui) : repliable, déplaçable dans l'ordre du dock au même titre
+        que les autres. Pas de rail d'icônes (n'existe pas encore) — même
+        mécanique que les cartes actuelles.
+      </div>
+      <div class="shell">
+        <div class="shell__toolbar">
+          <div class="tb-icon tb-icon--ghost">☰</div>
+          <div class="tb-icon tb-icon--ghost">↶</div>
+          <div class="tb-icon tb-icon--ghost">↷</div>
+          <div class="tb-spacer"></div>
+          <span style="color:var(--text-tertiary); font-size:var(--font-size-xs)">photo_012.jpg</span>
+          <div class="tb-spacer"></div>
+        </div>
+        <div class="shell__body">
+          <div class="shell__canvas">canvas</div>
+          <div class="shell__dock">
+            <div class="card">
+              <div class="card__title">Calques <span class="chev">⌄</span></div>
+              <div class="card__content">
+                <div class="layer-stub"><span class="layer-dot"></span>Glow</div>
+                <div class="layer-stub"><span class="layer-dot"></span>Chromatic bleed</div>
+              </div>
+            </div>
+            <div class="card card--emph">
+              <div class="card__title">Presets <span class="chev">⌄</span></div>
+              <div class="card__content">
+                <div class="preset-row preset-row--selected">
+                  <div class="preset-swatch"><span style="background:#4069fd"></span><span style="background:#e65454"></span></div>
+                  <span class="preset-name">Film chaud</span>
+                </div>
+                <div class="preset-row">
+                  <div class="preset-swatch"><span style="background:#69b579"></span><span style="background:#d6a04e"></span></div>
+                  <span class="preset-name">Duotone bleu/or</span>
+                </div>
+                <div class="btn-save">+ Enregistrer preset</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPTION 3 -->
+    <div class="option">
+      <div class="option__label">3 — Bouton toolbar + popover éphémère</div>
+      <div class="option__desc">
+        Bouton "Presets" dans la barre d'outils. La liste s'ouvre en popover
+        flottant (pas dockée) et se ferme au clic ailleurs — aucune carte
+        supplémentaire dans le dock.
+      </div>
+      <div class="shell">
+        <div class="shell__toolbar">
+          <div class="tb-icon tb-icon--ghost">☰</div>
+          <div class="tb-icon tb-icon--ghost">↶</div>
+          <div class="tb-icon tb-icon--ghost">↷</div>
+          <div class="tb-spacer"></div>
+          <div class="tb-preset-btn">✦ Presets</div>
+        </div>
+        <div class="shell__body">
+          <div class="shell__canvas">canvas</div>
+          <div class="shell__dock">
+            <div class="card">
+              <div class="card__title">Calques <span class="chev">⌄</span></div>
+              <div class="card__content">
+                <div class="layer-stub"><span class="layer-dot"></span>Glow</div>
+                <div class="layer-stub"><span class="layer-dot"></span>Chromatic bleed</div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card__title">Réglages <span class="chev">⌄</span></div>
+              <div class="card__content">
+                <div class="section-label" style="opacity:.5">params du calque sélectionné</div>
+              </div>
+            </div>
+          </div>
+          <div class="popover">
+            <div class="popover__header">Presets</div>
+            <div class="popover__body">
+              <div class="preset-row preset-row--selected">
+                <div class="preset-swatch"><span style="background:#4069fd"></span><span style="background:#e65454"></span></div>
+                <span class="preset-name">Film chaud</span>
+              </div>
+              <div class="preset-row">
+                <div class="preset-swatch"><span style="background:#69b579"></span><span style="background:#d6a04e"></span></div>
+                <span class="preset-name">Duotone bleu/or</span>
+              </div>
+              <div class="btn-save">+ Enregistrer preset</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="verdict">
+    Ce fichier reste au placement/structure visuelle (le QUOI) — pas
+    l'implémentation réelle des composants. <b>À trancher :</b> quelle option,
+    pour cadrer le PRD presets (comportements, cas limites, hors-scope).
+  </div>
+</body>
+</html>

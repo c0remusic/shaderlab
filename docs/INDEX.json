@@ -18,6 +18,13 @@
   ],
   "specs": [
     {
+      "path": "docs/superpowers/specs/2026-07-25-shaderlab-double-exposure-design.md",
+      "status": "ÉCRIT, VALIDÉ par Antoine, IMPLÉMENTÉ (Tasks 1-7 du plan associé, toutes review-clean). Task 8 (mesure VRAM + checkpoint visuel bout-en-bout) exécutée le 2026-07-25 : VRAM mesurée (~1280 Mo, aucun device.lost), 6/6 critères techniques du PRD confirmés, capture envoyée à Antoine — SON VERDICT VISUEL SUR LA QUALITÉ DU RENDU N'EST PAS ENCORE CONFIRMÉ (session close sur /wrap avant réponse). 1 finding réel non lié au plan trouvé pendant le checkpoint (hors scope des revues car aucun test ne rend de composant React) : warning React \"Cannot update a component (App) while rendering a different component (LayerPanel)\" — setState pendant le render, pas de crash mais à corriger.",
+      "date": "2026-07-25",
+      "topic": "Design (COMMENT) double exposure — silhouette (2e photo) posée sur le fond, calque de photo étendant LayerState",
+      "summary": "Approche (C) : LayerState gagne imageSource{sourceId}/transform optionnels (sérialisables, jamais de GPUTexture — invariant OOM e3c7584), la texture vit dans PhotoSourceStore (render/, propriétaire unique). Entrée dans le pipeline = approche (C2) : pré-passe PhotoLayerInputResolver matérialise la photo transformée (couverture en alpha) dans une texture persistante avant que la chaîne existante (passes internes → composite → masque → blend) tourne dessus inchangée — écarte 2 défauts identifiés dans l'approche (C1) : effets multi-passes (glow) sur le mauvais contenu, et \"hors bornes = transparent\" non exprimable par l'alpha seul. Transform = bounding box à poignées type Photoshop (src/ui/transform.ts, géométrie pure vérifiée algébriquement). Isolation v1 = MaskPainter existant sans changement (masque dans l'espace du FOND, pas de la silhouette — assumé). Limite dure 2 photos, round-trip Lightroom désactivé avec message explicite si calque photo présent."
+    },
+    {
       "path": "docs/superpowers/specs/2026-07-24-shaderlab-contextual-panels-design.md",
       "status": "ÉCRIT et auto-relu le 2026-07-24 (2 ambiguïtés clarifiées : état à paire unique {key,override} pas une map par calque ; Calques ne se rouvre jamais automatiquement une fois fermé manuellement). EN ATTENTE de relecture Antoine avant passage à writing-plans — pas encore de plan ni de code.",
       "date": "2026-07-24",
@@ -174,6 +181,13 @@
     }
   ],
   "plans": [
+    {
+      "path": "docs/superpowers/plans/2026-07-25-shaderlab-double-exposure.md",
+      "status": "Tasks 1-7/8 complete, review-clean (Task 5 a nécessité 1 tour de fix pour 4 Important — clamp d'échelle, feather en espace écran, test de concordance WGSL/TS, texture persistante). Task 8 (VRAM + checkpoint bout-en-bout) exécutée le 2026-07-25, verdict visuel d'Antoine EN ATTENTE. Voir .superpowers/sdd/progress.md pour le détail par tâche.",
+      "date": "2026-07-25",
+      "topic": "plan d'implémentation : double exposure (Tasks 1-8)",
+      "summary": "1: modèle de données (imageSource/transform, addPhotoLayer, gardes MAX_PHOTO_LAYERS). 2: PhotoSourceStore (propriétaire GPU exclusif). 3: src/ui/transform.ts (géométrie pure). 4: TransformHandles overlay + import 2e photo (pick_image_file réutilisé). 5: rendu C2 (PhotoLayerInputResolver, binding hasImageSource, câblage FramePipelineExecutor/Renderer) — tâche la plus à risque, revue sur opus, 5 Important trouvés/4 corrigés (I5 = shader jamais compilé par device réel, reporté à Task 8). 6: preuve MaskPainter/LayerStack traitent un calque photo sans modification. 7: limite 2 photos + bascule round-trip→Exporter-sous. 8: mesure VRAM réelle 24MP+24MP + vérification des 6 critères \"terminé=démontrable\" du PRD."
+    },
     {
       "path": "docs/superpowers/plans/2026-07-24-shaderlab-export-folder.md",
       "status": "✅ TERMINÉ le 2026-07-24 — Tasks 1-6 committées (44799ad/cc26b38/1ccec9c/d427cbd/3f81d77/f6958b0/88e7d5e, réécrites en 45f3e89..0cdd08b au rebase), Task 7 (checkpoint humain) confirmée. Mergé feature/design-system@0cdd08b en fast-forward. tsc clean, 332/332 tests.",

@@ -1,11 +1,13 @@
 # Migration shadcn/ui — design
 
-> Cadré via `interview` (PRD.md racine) puis `brainstorming` le 2026-07-20.
-> QUOI : `PRD.md`. COMMENT : ce document.
+> Cadré via `interview` (`docs/prd-shadcn-migration.md`, ex-`PRD.md` racine —
+> déplacé le 2026-07-24 quand `PRD.md` est devenu le PRD projet-entier) puis
+> `brainstorming` le 2026-07-20.
+> QUOI : `docs/prd-shadcn-migration.md`. COMMENT : ce document.
 
 ## Contexte
 
-`PRD.md` (racine) fixe le QUOI : migrer shaderlab vers `shadcn/ui` composant par
+`docs/prd-shadcn-migration.md` fixe le QUOI : migrer shaderlab vers `shadcn/ui` composant par
 composant, palette actuelle conservée, fenêtre de coupure acceptée. Ce document
 fixe le COMMENT.
 
@@ -58,7 +60,7 @@ Chaque tranche = 1 commit distinct, vérifié avant de passer à la suivante.
 - `Inspector`, `LayerPanel`, `ParamPanel`, `Canvas` — non touchés, non storyés
   actuellement, pas demandés dans ce chantier.
 - Sift, Tuple — traités séparément (Sift : planification seulement, voir son
-  propre document ; Tuple : exclu, cf. PRD.md).
+  propre document ; Tuple : exclu, cf. `docs/prd-shadcn-migration.md`).
 - Chromatic / outil de commentaire visuel — explicitement écarté.
 
 ## Erreurs / limites

@@ -51,6 +51,7 @@ interface Props {
   layer: LayerState | null;
   onParamChange: (id: string, params: Record<string, number>) => void;
   onParamCommit: () => void;
+  onOpenColorPicker: (group: { layerId: string; key: string; label: string; hue: EffectParam; saturation: EffectParam; lightness: EffectParam }) => void;
 }
 
 function formatEffectParamValue(
@@ -70,7 +71,7 @@ function formatEffectParamValue(
   }
 }
 
-export function ParamPanel({ layer, onParamChange, onParamCommit }: Props) {
+export function ParamPanel({ layer, onParamChange, onParamCommit, onOpenColorPicker }: Props) {
   if (!layer) {
     return <p className="param-panel__empty">Sélectionne un calque.</p>;
   }
@@ -107,6 +108,9 @@ export function ParamPanel({ layer, onParamChange, onParamCommit }: Props) {
                 defaultOpen={item.isFirst}
                 onChange={(name, v) => onParamChange(layer.id, { [name]: v })}
                 onCommit={onParamCommit}
+                onOpenPicker={() =>
+                  onOpenColorPicker({ layerId: layer.id, key: item.key, label: item.label, hue: item.hue, saturation: item.saturation, lightness: item.lightness })
+                }
               />
             ),
           )}

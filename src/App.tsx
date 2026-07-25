@@ -38,6 +38,11 @@ import { MAX_COLOR_RANGE_SAMPLES } from "./mask/sources/colorRange";
 import { planFold } from "./mask/foldPlan";
 import { OverlayAnimationLoop } from "./render/overlayAnimationLoop";
 import { hasValueChanged } from "./ui/valueChange";
+import { Layers, SlidersHorizontal, Brush as BrushRailIcon } from "lucide-react";
+import { useContextualPanel } from "./ui/contextualPanel";
+import { PanelRail, type PanelRailItem } from "./components/dockedPanel/PanelRail";
+import { ColorPickerPanel } from "./components/ColorPickerPanel";
+import type { EffectParam } from "./render/effects/types";
 
 export default function App() {
   useGlobalControlWheel();
@@ -86,10 +91,18 @@ export default function App() {
   // réellement changé (un simple clic sans mouvement ne crée pas d'entrée).
   const paramDirtyRef = useRef(false);
 
-  const [layersCollapsed, setLayersCollapsed] = useState(false);
-  const [paramsCollapsed, setParamsCollapsed] = useState(false);
-  const [maskCollapsed, setMaskCollapsed] = useState(false);
+  const [layersFolded, setLayersFolded] = useState(false);
+  const [paramsFolded, setParamsFolded] = useState(false);
+  const [maskFolded, setMaskFolded] = useState(false);
   const [overlayForceHidden, setOverlayForceHidden] = useState(false);
+  const [colorPicker, setColorPicker] = useState<{
+    layerId: string;
+    key: string;
+    label: string;
+    hue: EffectParam;
+    saturation: EffectParam;
+    lightness: EffectParam;
+  } | null>(null);
   const [dockLayout, setDockLayout] = useState<DockLayout>([["layers", "params", "mask"]]);
   const handlePanelMove = useCallback((id: string, target: DockDropTarget) => {
     setDockLayout((previous) => movePanelInDock(previous, id, target));
@@ -652,6 +665,10 @@ export default function App() {
   const selectedLayer = layers.find((l) => l.id === selectedId) ?? null;
   const paramsPanelTitle = selectedLayer ? `Réglages · ${getEffect(selectedLayer.effectId).name}` : "Réglages";
 
+  const layersPanel = useContextualPanel(true, "static");
+  const paramsPanel = useContextualPanel(selectedId !== null, selectedId);
+  const maskPanel = useContextualPanel(selectedId !== null, selectedId);
+
   // Overlay du masque (rouge + contour animé) : affiché tant qu'on travaille
   // réellement sur le masque du calque sélectionné (panneau Masque ouvert OU
   // pinceau actif) ET qu'il y a un masque actif à montrer — pas en continu
@@ -661,7 +678,7 @@ export default function App() {
   // doit pouvoir l'éteindre explicitement. Voir
   // docs/superpowers/specs/2026-07-23-shaderlab-mask-overlay-visibility-design.md.
   const hasActiveMask = selectedLayer ? planFold(selectedLayer.mask).length > 0 : false;
-  const wantsOverlay = (!maskCollapsed || maskPaintMode) && hasActiveMask && !!selectedId;
+  const wantsOverlay = (!maskFolded || maskPaintMode) && hasActiveMask && !!selectedId;
 
   // Délai de grâce de 750ms avant extinction : quand on ferme le panneau
   // Masque, change de calque, ou que le calque perd son masque actif,
@@ -755,49 +772,87 @@ export default function App() {
             onTransformCommit={handleTransformCommit}
           />
         )}
-        <PanelColumn panels={[{
-          id: "layers", title: "Calques", collapsed: layersCollapsed, onCollapsedChange: setLayersCollapsed,
-          content: <LayerPanel
-              layers={layers}
-              selectedId={selectedId}
-              hasImage={imageSize.width > 0 && imageSize.height > 0}
-              onSelect={selectLayer}
-              onToggle={handleToggle}
-              onAdd={handleAdd}
-              onRemove={handleRemove}
-              onReorder={handleReorder}
-              onOpacityChange={handleOpacityChange}
-              onOpacityCommit={handleParamCommit}
-              onBlendModeChange={handleBlendModeChange}
-            />
-        }, {
-          id: "params", title: paramsPanelTitle, collapsed: paramsCollapsed, onCollapsedChange: setParamsCollapsed,
-          content: <ParamPanel
-              layer={selectedLayer}
-              onParamChange={handleParamChange}
-              onParamCommit={handleParamCommit}
-            />
-        }, {
-          id: "mask", title: "Masque", collapsed: maskCollapsed, onCollapsedChange: setMaskCollapsed,
-          content: <MaskPanel
-              layer={selectedLayer}
-              maskPaintMode={maskPaintMode}
-              onToggleMaskPaint={() => setMaskPaintMode((v) => !v)}
-              overlayForceHidden={overlayForceHidden}
-              onToggleOverlayForceHidden={() => setOverlayForceHidden((v) => !v)}
-              onAddMaskSource={handleAddMaskSource}
-              onRemoveMaskSource={handleRemoveMaskSource}
-              onMaskSourceParamsChange={handleMaskSourceParamsChange}
-              onMaskSourceParamsCommit={handleParamCommit}
-              onMaskSourceCombineModeChange={handleMaskSourceCombineModeChange}
-              onMaskSourceEnabledChange={handleMaskSourceEnabledChange}
-              onMaskInvertChange={handleMaskInvertChange}
-              onMaskEnabledChange={handleMaskEnabledChange}
-              onRefineEdgeChange={handleRefineEdgeChange}
-              onRefineEdgeCommit={handleParamCommit}
-              onAddColorSample={handleAddColorSample}
-            />
-        }]} layout={dockLayout} onMove={handlePanelMove} width={dockWidth} onWidthChange={handleDockWidthChange} />
+        <PanelColumn
+          panels={[
+            {
+              id: "layers", title: "Calques", collapsed: layersFolded, onCollapsedChange: setLayersFolded,
+              content: <LayerPanel
+                  layers={layers}
+                  selectedId={selectedId}
+                  hasImage={imageSize.width > 0 && imageSize.height > 0}
+                  onSelect={selectLayer}
+                  onToggle={handleToggle}
+                  onAdd={handleAdd}
+                  onRemove={handleRemove}
+                  onReorder={handleReorder}
+                  onOpacityChange={handleOpacityChange}
+                  onOpacityCommit={handleParamCommit}
+                  onBlendModeChange={handleBlendModeChange}
+                />
+            },
+            {
+              id: "params", title: paramsPanelTitle, collapsed: paramsFolded, onCollapsedChange: setParamsFolded,
+              content: <ParamPanel
+                  layer={selectedLayer}
+                  onParamChange={handleParamChange}
+                  onParamCommit={handleParamCommit}
+                  onOpenColorPicker={(group) => setColorPicker(group)}
+                />
+            },
+            {
+              id: "mask", title: "Masque", collapsed: maskFolded, onCollapsedChange: setMaskFolded,
+              content: <MaskPanel
+                  layer={selectedLayer}
+                  maskPaintMode={maskPaintMode}
+                  onToggleMaskPaint={() => setMaskPaintMode((v) => !v)}
+                  overlayForceHidden={overlayForceHidden}
+                  onToggleOverlayForceHidden={() => setOverlayForceHidden((v) => !v)}
+                  onAddMaskSource={handleAddMaskSource}
+                  onRemoveMaskSource={handleRemoveMaskSource}
+                  onMaskSourceParamsChange={handleMaskSourceParamsChange}
+                  onMaskSourceParamsCommit={handleParamCommit}
+                  onMaskSourceCombineModeChange={handleMaskSourceCombineModeChange}
+                  onMaskSourceEnabledChange={handleMaskSourceEnabledChange}
+                  onMaskInvertChange={handleMaskInvertChange}
+                  onMaskEnabledChange={handleMaskEnabledChange}
+                  onRefineEdgeChange={handleRefineEdgeChange}
+                  onRefineEdgeCommit={handleParamCommit}
+                  onAddColorSample={handleAddColorSample}
+                />
+            },
+          ].filter((panel) =>
+            panel.id === "layers" ? layersPanel.visible : panel.id === "params" ? paramsPanel.visible : maskPanel.visible
+          )}
+          layout={dockLayout}
+          onMove={handlePanelMove}
+          width={dockWidth}
+          onWidthChange={handleDockWidthChange}
+        />
+        <PanelRail
+          items={[
+            { id: "layers", icon: Layers, label: "Calques", active: layersPanel.visible, onClick: layersPanel.toggleRail },
+            { id: "params", icon: SlidersHorizontal, label: "Réglages", active: paramsPanel.visible, onClick: paramsPanel.toggleRail },
+            { id: "mask", icon: BrushRailIcon, label: "Masque", active: maskPanel.visible, onClick: maskPanel.toggleRail },
+          ] satisfies PanelRailItem[]}
+        />
+        {colorPicker && selectedLayer?.id === colorPicker.layerId && (
+          <ColorPickerPanel
+            label={colorPicker.label}
+            hue={layers.find((l) => l.id === colorPicker.layerId)?.params[colorPicker.hue.name] ?? colorPicker.hue.default}
+            saturation={layers.find((l) => l.id === colorPicker.layerId)?.params[colorPicker.saturation.name] ?? colorPicker.saturation.default}
+            lightness={layers.find((l) => l.id === colorPicker.layerId)?.params[colorPicker.lightness.name] ?? colorPicker.lightness.default}
+            onChange={(values) => {
+              const params: Record<string, number> = {};
+              if (values.hue !== undefined) params[colorPicker.hue.name] = values.hue;
+              if (values.saturation !== undefined) params[colorPicker.saturation.name] = values.saturation;
+              if (values.lightness !== undefined) params[colorPicker.lightness.name] = values.lightness;
+              handleParamChange(colorPicker.layerId, params);
+            }}
+            onCommit={handleParamCommit}
+            onClose={() => setColorPicker(null)}
+            style={{ left: dockWidth + 8 }}
+          />
+        )}
       </main>
     </div>
   );

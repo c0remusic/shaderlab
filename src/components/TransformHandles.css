@@ -1,0 +1,36 @@
+.transform-handles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--z-canvas-overlay);
+}
+
+.transform-handles__box {
+  position: absolute;
+  border: 1px solid var(--outline-contrast);
+  pointer-events: none;
+}
+
+.transform-handles__corner {
+  position: absolute;
+  width: var(--slider-thumb-size);
+  height: var(--slider-thumb-size);
+  margin: calc(var(--slider-thumb-size) / -2);
+  border-radius: var(--radius-round);
+  background: var(--text-value);
+  border: 1px solid var(--outline-contrast);
+  pointer-events: auto;
+  cursor: nwse-resize;
+}
+
+.transform-handles__rotation {
+  position: absolute;
+  width: var(--slider-thumb-size);
+  height: var(--slider-thumb-size);
+  margin: calc(var(--slider-thumb-size) / -2);
+  border-radius: var(--radius-round);
+  background: var(--focus-color);
+  border: 1px solid var(--outline-contrast);
+  pointer-events: auto;
+  cursor: grab;
+}

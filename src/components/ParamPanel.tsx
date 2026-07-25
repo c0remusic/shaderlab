@@ -51,7 +51,7 @@ interface Props {
   layer: LayerState | null;
   onParamChange: (id: string, params: Record<string, number>) => void;
   onParamCommit: () => void;
-  onOpenColorPicker: (group: { layerId: string; key: string; label: string; hue: EffectParam; saturation: EffectParam; lightness: EffectParam }) => void;
+  onOpenColorPicker: (group: { layerId: string; key: string; label: string; hue: EffectParam; saturation: EffectParam; lightness: EffectParam; anchorTop: number }) => void;
 }
 
 function formatEffectParamValue(
@@ -108,8 +108,8 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onOpenColorPic
                 defaultOpen={item.isFirst}
                 onChange={(name, v) => onParamChange(layer.id, { [name]: v })}
                 onCommit={onParamCommit}
-                onOpenPicker={() =>
-                  onOpenColorPicker({ layerId: layer.id, key: item.key, label: item.label, hue: item.hue, saturation: item.saturation, lightness: item.lightness })
+                onOpenPicker={(anchorTop) =>
+                  onOpenColorPicker({ layerId: layer.id, key: item.key, label: item.label, hue: item.hue, saturation: item.saturation, lightness: item.lightness, anchorTop })
                 }
               />
             ),

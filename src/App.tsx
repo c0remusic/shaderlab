@@ -102,6 +102,9 @@ export default function App() {
     hue: EffectParam;
     saturation: EffectParam;
     lightness: EffectParam;
+    /** Déjà converti en coordonnée relative à `.workspace` (le conteneur
+     *  positionné dans lequel le picker est rendu), pas en viewport. */
+    anchorTop: number;
   } | null>(null);
   const [dockLayout, setDockLayout] = useState<DockLayout>([["layers", "params", "mask"]]);
   const handlePanelMove = useCallback((id: string, target: DockDropTarget) => {
@@ -800,7 +803,14 @@ export default function App() {
                     // Re-cliquer la MÊME pastille referme le picker (bascule),
                     // au lieu de le laisser ouvert sans issue autre que le X.
                     setColorPicker((current) =>
-                      current && current.layerId === group.layerId && current.key === group.key ? null : group
+                      current && current.layerId === group.layerId && current.key === group.key
+                        ? null
+                        : {
+                            ...group,
+                            // viewport -> repère de `.workspace`, dans lequel le
+                            // picker est positionné en absolu.
+                            anchorTop: group.anchorTop - (workspaceRef.current?.getBoundingClientRect().top ?? 0),
+                          }
                     )
                   }
                 />
@@ -857,6 +867,7 @@ export default function App() {
             }}
             onCommit={handleParamCommit}
             onClose={() => setColorPicker(null)}
+            anchorTop={colorPicker.anchorTop}
             // Ancré à GAUCHE du dock ENTIER, pas d'une seule colonne : le dock
             // fait `dockLayout.length` colonnes de `dockWidth`, séparées par
             // --space-4. Les `length` gouttières comptées ici = les length-1
@@ -864,7 +875,6 @@ export default function App() {
             // facteur colonnes, le picker se posait PAR-DESSUS le dock dès
             // qu'il avait 2 colonnes (constaté au checkpoint 2026-07-25).
             style={{
-              top: "var(--space-6)",
               right: `calc(var(--space-6) + var(--rail-width) + var(--space-4) + (${dockWidth}px * ${dockLayout.length}) + (var(--space-4) * ${dockLayout.length}))`,
             }}
           />

@@ -12,6 +12,10 @@ export interface ColorPickerPanelProps {
   onChange: (values: { hue?: number; saturation?: number; lightness?: number }) => void;
   onCommit: () => void;
   onClose: () => void;
+  /** Haut du déclencheur (la pastille), relatif au conteneur positionné —
+   *  le panneau s'aligne dessus, en restant dans les bornes de ce conteneur. */
+  anchorTop: number;
+  /** Ancrage HORIZONTAL seulement (`right`) : le vertical vient de `anchorTop`. */
   style?: React.CSSProperties;
 }
 
@@ -45,8 +49,23 @@ function drawSvSquare(canvas: HTMLCanvasElement, hue: number) {
   ctx.putImageData(imageData, 0, 0);
 }
 
-export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, onCommit, onClose, style }: ColorPickerPanelProps) {
+export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, onCommit, onClose, anchorTop, style }: ColorPickerPanelProps) {
   const svCanvasRef = useRef<HTMLCanvasElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  // `anchorTop` aligne le panneau sur sa pastille, mais une pastille en bas de
+  // l'inspecteur ferait déborder le panneau hors de l'espace de travail (il
+  // est en overflow: hidden — il serait rogné, pas scrollable). Le clamp se
+  // fait ICI et pas chez l'appelant : seul le panneau connaît sa propre
+  // hauteur, qui dépend de son contenu.
+  const [top, setTop] = useState(anchorTop);
+  useLayoutEffect(() => {
+    const el = panelRef.current;
+    const container = el?.offsetParent as HTMLElement | null;
+    if (!el || !container) return;
+    const gutter = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--space-6")) || 0;
+    const maxTop = container.clientHeight - el.offsetHeight - gutter;
+    setTop(Math.max(gutter, Math.min(anchorTop, maxTop)));
+  }, [anchorTop]);
   // Only the user's in-progress typed draft lives in state — the field
   // otherwise mirrors the live hue/saturation/lightness props (so a SV/hue
   // drag keeps the hex text in sync instead of showing the color from when
@@ -111,7 +130,7 @@ export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, 
   const currentHex = hslToHex(hue, saturation, lightness);
 
   return (
-    <div className="color-picker-panel" style={style} role="dialog" aria-label={`Sélecteur de couleur — ${label}`}>
+    <div ref={panelRef} className="color-picker-panel" style={{ ...style, top }} role="dialog" aria-label={`Sélecteur de couleur — ${label}`}>
       <div className="color-picker-panel__header">
         <span className="color-picker-panel__title">{label}</span>
         <IconButton label="Fermer le sélecteur de couleur" size="compact" onClick={onClose}>

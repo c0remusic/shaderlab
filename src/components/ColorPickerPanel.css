@@ -84,14 +84,18 @@
   );
 }
 
+/* Curseur rond, calqué sur le thumb de ui/slider.tsx (--slider-thumb-size,
+   bordure --border-strong, fond --text-value) : c'est le même geste pour
+   l'utilisateur, il doit avoir la même forme. */
 .color-picker-panel__hue-thumb {
   position: absolute;
-  top: calc(var(--space-1) * -1);
-  bottom: calc(var(--space-1) * -1);
-  width: var(--space-2);
-  transform: translateX(calc(var(--space-2) / -2));
-  background: var(--text-primary);
-  border-radius: var(--radius-control);
+  top: 50%;
+  width: var(--slider-thumb-size);
+  height: var(--slider-thumb-size);
+  transform: translate(-50%, -50%);
+  background: var(--text-value);
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
   pointer-events: none;
 }
 

@@ -125,8 +125,12 @@ d'effet actuels (effets/masque/blend applicables dessus), mais porte une
 **source d'image propre** au lieu de traiter la photo de base du document
 (rupture avec l'hypothèse "un seul document = une seule photo source").
 Isolation du sujet en v1 = pinceau manuel (`MaskPainter` existant) — la
-segmentation automatique ML locale est un différé (voir ci-dessous). Le
-round-trip Lightroom (photo de lancement = photo B) n'est PAS supporté par
+segmentation automatique ML locale est un différé (voir ci-dessous).
+Le masque peint sur un calque de photo vit dans l'espace de coordonnées de
+la photo de FOND, pas de la photo importée elle-même — déplacer le calque
+après avoir peint ne fait PAS suivre le masque (comportement assumé v1, pas
+un bug ; poser le transform avant de peindre). Source : ARCHITECTURE.md §4.5.
+Le round-trip Lightroom (photo de lancement = photo B) n'est PAS supporté par
 cette feature en v1 (mode libre uniquement). Limite dure : 2 photos sources
 max. Source : session 2026-07-24.
 

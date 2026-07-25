@@ -47,6 +47,15 @@
   --panel-bg: var(--surface-panel);
   --panel-border: var(--border-default);
   --panel-radius: var(--radius-panel);
+
+  /* Rail d'icônes de panneaux (PanelRail) — ancré au bord DROIT de la
+     fenêtre, le dock s'ouvrant à sa gauche (référence Photoshop). Cible
+     cliquable au rang --toolbar-height (36px), pas --control-height-md :
+     un rail est une surface de navigation permanente, pas un contrôle
+     dans une carte. --rail-width est consommé par PanelColumn.css et
+     Canvas.css pour se décaler du rail — c'est la seule mesure partagée. */
+  --rail-item-size: var(--toolbar-height);
+  --rail-width: calc(var(--rail-item-size) + (var(--space-2) * 2));
   --shadow-dragging: 0 12px 16px rgba(0, 0, 0, .24), 0 6px 8px rgba(0, 0, 0, .12), 0 0 6px rgba(0, 0, 0, .48);
   --shadow-popover: 0 4px 12px rgba(0, 0, 0, .24), 0 2px 6px rgba(0, 0, 0, .12), 0 0 2px rgba(0, 0, 0, .36);
 

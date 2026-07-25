@@ -1,9 +1,11 @@
+/* Le dock s'ouvre à GAUCHE du rail d'icônes (PanelRail, ancré au bord droit) :
+   son offset droit réserve la largeur du rail + une gouttière. */
 .panel-column {
   position: absolute;
   top: var(--space-6);
-  right: var(--space-6);
+  right: calc(var(--space-6) + var(--rail-width) + var(--space-4));
   width: max-content;
-  max-width: calc(100vw - (var(--space-6) * 2));
+  max-width: calc(100vw - (var(--space-6) * 2) - var(--rail-width) - var(--space-4));
   z-index: var(--z-popover);
 }
 

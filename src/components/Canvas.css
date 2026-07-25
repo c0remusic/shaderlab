@@ -22,7 +22,7 @@
      W/2) — donc P doit être ÉGAL à la largeur du dock à compenser, pas le
      double (bug corrigé 2026-07-20 : le canvas était décalé deux fois plus
      loin que prévu avec `* 2`). */
-  padding-right: var(--dock-reserved-width, var(--inspector-width-default));
+  padding-right: calc(var(--dock-reserved-width, var(--inspector-width-default)) + var(--rail-width) + var(--space-4));
 }
 
 /* Le <canvas> est un enfant flex DIRECT de .canvas-stage (retour à la

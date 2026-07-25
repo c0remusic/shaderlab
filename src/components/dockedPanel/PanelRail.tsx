@@ -29,7 +29,7 @@ export function PanelRail({ items }: PanelRailProps) {
           className={active ? "panel-rail__item panel-rail__item--active" : "panel-rail__item"}
           aria-pressed={active}
         >
-          <Icon className="icon-sm icon-stroke" aria-hidden />
+          <Icon className="icon-lg icon-stroke" aria-hidden />
         </IconButton>
       ))}
     </div>

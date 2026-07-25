@@ -851,7 +851,7 @@ export default function App() {
             }}
             onCommit={handleParamCommit}
             onClose={() => setColorPicker(null)}
-            style={{ top: "var(--space-6)", right: `calc(var(--space-6) + ${dockWidth}px + var(--space-4))` }}
+            style={{ top: "var(--space-6)", right: `calc(var(--space-6) + var(--rail-width) + var(--space-4) + ${dockWidth}px + var(--space-4))` }}
           />
         )}
       </main>

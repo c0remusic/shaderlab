@@ -1,17 +1,41 @@
-/* PanelRail : fixed column of toggle icons (Photoshop-style rail next to dock) */
+/* PanelRail : colonne d'icônes de bascule ancrée au bord DROIT de la fenêtre,
+   le dock s'ouvrant à SA GAUCHE (référence Photoshop, décision Antoine au
+   checkpoint visuel 2026-07-25 : un rail posé entre le canvas et le dock
+   empêche les panneaux de s'ouvrir de ce côté). Le décalage du dock et du
+   canvas se lit dans PanelColumn.css / Canvas.css via --rail-width. */
 
 .panel-rail {
   position: absolute;
   top: var(--space-6);
-  right: calc(var(--space-6) + var(--dock-reserved-width) + var(--space-4));
+  right: var(--space-6);
   z-index: var(--z-popover);
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  padding: var(--space-1);
+  width: var(--rail-width);
+  padding: var(--space-2);
+  /* Même surface que DockedPanelCard : le rail est une carte du dock, pas
+     une rangée de boutons flottant sur le canvas. */
+  background: var(--panel-bg);
+  border-radius: var(--radius-panel);
+}
+
+/* Les items remplissent la largeur du rail (--rail-item-size), au-dessus de
+   la taille par défaut de IconButton (--control-height-md) : règle non
+   layerisée, elle l'emporte sur l'utilitaire Tailwind `size-*` de IconButton. */
+.panel-rail__item {
+  width: var(--rail-item-size);
+  height: var(--rail-item-size);
 }
 
 .panel-rail__item--active {
   background: var(--surface-selected);
   color: var(--text-primary);
+}
+
+/* Sans cette règle, l'état actif (non layerisé) masquerait le `hover:bg-muted`
+   de IconButton (utilitaire Tailwind layerisé) : un item actif ne réagirait
+   plus du tout au survol. */
+.panel-rail__item--active:hover {
+  background: var(--surface-active);
 }

@@ -1,0 +1,82 @@
+/* Tokens verified against src/design/{primitives,semantic,components}.css
+   (grep, see task-5-report.md) — placeholder names from the brief substituted
+   for the project's real equivalents:
+   --shadow-panel -> --shadow-popover, --input-background -> --surface-inset,
+   --text-sm/--text-xs -> --font-size-sm/--font-size-xs, --border -> --border-default,
+   --foreground -> --text-primary, --muted-foreground -> --text-secondary. */
+
+.color-picker-panel {
+  position: absolute;
+  z-index: var(--z-popover);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-popover);
+}
+
+.color-picker-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.color-picker-panel__title {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+
+.color-picker-panel__sv {
+  border-radius: var(--radius-control);
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.color-picker-panel__hue-band {
+  position: relative;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  touch-action: none;
+  background: linear-gradient(
+    to right,
+    var(--primitive-spectrum-0),
+    var(--primitive-spectrum-60),
+    var(--primitive-spectrum-120),
+    var(--primitive-spectrum-180),
+    var(--primitive-spectrum-240),
+    var(--primitive-spectrum-300),
+    var(--primitive-spectrum-0)
+  );
+}
+
+.color-picker-panel__hue-thumb {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 4px;
+  transform: translateX(-2px);
+  background: var(--text-primary);
+  border-radius: var(--radius-control);
+  pointer-events: none;
+}
+
+.color-picker-panel__hex {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.color-picker-panel__hex input {
+  flex: 1;
+  font-family: var(--font-mono);
+  background: var(--surface-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-control);
+  padding: var(--space-1) var(--space-2);
+  color: var(--text-primary);
+}

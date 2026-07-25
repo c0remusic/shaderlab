@@ -41,6 +41,18 @@
   --primitive-mask-overlay: #e63c46;
   --primitive-mask-overlay-edge: #ff5c65;
 
+  /* Full-saturation HSL hue-wheel stops (0/60/120/180/240/300°) — the fixed
+     spectrum shown by a hue-band picker (ColorPickerPanel). Not a brand/UI
+     color, mathematically defined by HSL itself, but tokenized here rather
+     than left as literals in the component so lint:tokens has a single
+     source of truth instead of a one-off exception. */
+  --primitive-spectrum-0: #ff0000;
+  --primitive-spectrum-60: #ffff00;
+  --primitive-spectrum-120: #00ff00;
+  --primitive-spectrum-180: #00ffff;
+  --primitive-spectrum-240: #0000ff;
+  --primitive-spectrum-300: #ff00ff;
+
   --primitive-alpha-0: 0;
   --primitive-alpha-4: .04;
   --primitive-alpha-7: .07;

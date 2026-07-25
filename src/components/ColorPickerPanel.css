@@ -71,8 +71,13 @@
   display: block;
   width: 100%;
   height: 100%;
-  border-radius: var(--radius-control);
-  cursor: crosshair;
+  /* Angles VIFS : même demande que la pastille — un coin arrondi se lit comme
+     "pas carré" sur une zone dont la géométrie porte le sens (les axes
+     saturation/luminosité vont jusqu'aux bords). */
+  border-radius: 0;
+  /* Pas de curseur système : l'anneau de position EST le curseur. Les deux
+     ensemble faisaient doublon (retour Antoine, "on a deux curseurs"). */
+  cursor: none;
   touch-action: none;
 }
 

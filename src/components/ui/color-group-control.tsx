@@ -57,7 +57,7 @@ export function ColorGroupControl({
           // La pastille est le SEUL point d'entrée du sélecteur de couleur :
           // sans curseur ni réaction au survol, rien n'indiquait qu'elle
           // ouvrait un panneau (retour checkpoint 2026-07-25).
-          className="h-5 w-5 shrink-0 cursor-pointer border border-border transition-shadow hover:ring-2 hover:ring-[var(--border-selection)] focus-visible:outline-[var(--focus-width)] focus-visible:outline-[var(--focus-color)] focus-visible:outline-offset-[var(--focus-offset)]"
+          className="h-5 w-5 shrink-0 cursor-pointer rounded-[var(--radius-control)] border border-border transition-shadow hover:ring-2 hover:ring-[var(--border-selection)] focus-visible:outline-[var(--focus-width)] focus-visible:outline-[var(--focus-color)] focus-visible:outline-offset-[var(--focus-offset)]"
           style={{ background: hex }}
           aria-label={`Ouvrir le sélecteur de couleur pour ${label}`}
           onPointerDown={(e) => e.stopPropagation()}

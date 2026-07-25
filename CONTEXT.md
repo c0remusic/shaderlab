@@ -108,6 +108,28 @@ textures internes en `rgba16float` au lieu du `bgra8unorm-srgb` du rendu
 (pas de gamma manuel) — n'ajoute qu'une profondeur de calcul plus grande, ne
 change pas l'espace de calcul. Source : `PRD-print-export.md`.
 
+**Preset** (design cible, cadré 2026-07-24, pas encore livré) — suite de calques
+sauvegardée (effet + params + opacity + blendMode + ordre), SANS les masques
+(spécifiques à chaque photo). Se sauvegarde/s'applique via une carte dockée
+dédiée (première de la colonne, avant Calques). Appliquer un preset sur une
+pile non vide demande confirmation avant de remplacer. Modifier les params
+après application propose "mettre à jour le preset" ou "créer une copie".
+Transportable par export/import de fichier (JSON), pas de réseau. Source :
+`docs/wireframes/presets.html`, session 2026-07-24.
+
+**Double exposure** (design cible, cadré 2026-07-24, pas encore livré) — 2
+photos sources : une **silhouette** (sujet isolé, fond effacé, photo A) posée
+sur un **fond** (photo B), avec position/échelle/rotation manuelles. La
+silhouette devient un **calque de photo** — même modèle que les calques
+d'effet actuels (effets/masque/blend applicables dessus), mais porte une
+**source d'image propre** au lieu de traiter la photo de base du document
+(rupture avec l'hypothèse "un seul document = une seule photo source").
+Isolation du sujet en v1 = pinceau manuel (`MaskPainter` existant) — la
+segmentation automatique ML locale est un différé (voir ci-dessous). Le
+round-trip Lightroom (photo de lancement = photo B) n'est PAS supporté par
+cette feature en v1 (mode libre uniquement). Limite dure : 2 photos sources
+max. Source : session 2026-07-24.
+
 ## Concepts différés (nommés, pas encore construits)
 
 - **Motion blur** (effet créatif) — flou directionnel ou radial simulant un
@@ -116,6 +138,15 @@ change pas l'espace de calcul. Source : `PRD-print-export.md`.
 - **Étage color grade** (effet créatif) — courbe de contraste + bleach bypass
   + split-tone highlights, distinct des 4 effets actuels. Même trigger que
   motion blur. Source : session 2026-07-20.
+- **Segmentation auto de sujet** (isolation silhouette par ML locale, ex.
+  MediaPipe Selfie Segmentation / U²-Net / BiRefNet — pas encore choisi) —
+  fast-follow de **Double exposure** ci-dessus, écarté du v1 par incertitude
+  technique (poids du modèle, vitesse réelle 24MP non benchmarkée). Trigger de
+  réouverture : spike technique validant un temps de segmentation acceptable
+  sans casser le flux d'exploration. Distinct de **Depth mask / segmentation
+  sémantique** (sujet/ciel/fond, MiDaS/Depth-Anything) déjà listé plus bas —
+  même famille technique, cette entrée-ci est spécifiquement liée au besoin
+  double exposure. Source : session 2026-07-24.
 
 - **Groupe** — conteneur de calques avec opacité/blend/masque propres sur le
   résultat aplati des enfants (compositing imbriqué). Tranche 5.

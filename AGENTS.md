@@ -251,6 +251,15 @@ docs/superpowers/
   `Get-Process -Name shaderlab` avant de lancer `dev:debug` si plusieurs
   lignes de travail sont actives en parallèle (voir la note worktree
   ci-dessus).
+  ⚠️ `Get-Process -Name shaderlab` absent ne suffit PAS à garantir une
+  fenêtre fraîche : tuer le process Vite (port 1420, souvent `node.exe`,
+  pas `shaderlab.exe`) d'une session concurrente ne tue pas forcément la
+  fenêtre WebView2 elle-même — elle peut rester vivante, connectable en CDP,
+  avec un état de session antérieur (document/calques chargés) intact.
+  Vérifier `Get-NetTCPConnection -LocalPort 1420` ET l'état réel de la page
+  via CDP (`document.body.innerText`) avant de relancer `dev:debug`/`tauri
+  dev`, et confirmer avec Antoine avant d'écraser un état qu'on n'a pas
+  soi-même produit (2026-07-25, session double exposure).
 - **Autonomie terminal de l'agent** : l'agent est autorisé à lancer lui-même les
   commandes PowerShell nécessaires au développement, aux tests, au diagnostic
   et au monitoring dans ce repo. Ne pas demander à l'utilisateur de recopier

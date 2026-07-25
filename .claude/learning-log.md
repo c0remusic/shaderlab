@@ -1022,3 +1022,77 @@ l'ancienne valeur (`effectWithParams(8)`, ou tout littéral numérique proche
 de la constante) — `tsc`/lint ne le détectent jamais, seul `npm run test`
 le révèle, et le message d'échec ne pointe pas vers `shaderCompose.ts`
 comme cause.
+
+## 2026-07-25 — l'automatisation CDP échoue sur les menus Fichier/dialogues natifs de cette app, préférer la main humaine
+
+**Découverte (TTL 6 mois)** : pour le checkpoint Task 8 double exposure,
+`.click()`, `dispatchEvent(new PointerEvent(...))` ET `Input.dispatchMouseEvent`
+CDP aux coordonnées exactes (`getBoundingClientRect`, DPI confirmé à 1 via
+`--device-scale-factor=1` dans la commandline du process renderer) ont TOUS
+échoué à déclencher l'item "Ouvrir" du menu Fichier (dropdown Base UI) — zéro
+dialogue natif ouvert, zéro changement d'état, après ~10 tentatives sur 3
+techniques différentes. Un seul essai précédent (script `cdp-check2.mjs`)
+avait réussi à ouvrir un VRAI dialogue natif `rfd` (fenêtre "Ouvrir" bloquante,
+confirmée par `Get-Process shaderlab | select MainWindowTitle`) — donc le
+mécanisme MARCHE en soi, mais est trop peu fiable pour être automatisé sans
+budget de debug disproportionné. **How to apply** : pour toute interaction
+nécessitant le menu Fichier natif (Ouvrir/Importer une 2e photo/Exporter sous),
+ne pas insister en CDP au-delà de 2-3 tentatives — demander à Antoine de faire
+les quelques clics manuellement, puis reprendre le pilotage CDP pour tout ce
+qui suit (sélection de calque, lecture d'état, screenshot) qui, lui, fonctionne
+bien via `.click()`/CDP.
+
+## 2026-07-25 — tuer le process Vite (port 1420) ne tue pas forcément la fenêtre WebView2 : elle peut rester vivante avec un état périmé
+
+**Découverte (TTL 6 mois)** : après avoir tué le process node tenant le port
+1420 (serveur Vite d'une session concurrente), `Get-Process -Name shaderlab`
+ne montrait plus rien — mais en se connectant quand même au port CDP 9222
+(resté ouvert), la page affichait encore un document chargé (calques
+Duotone/Posterize) d'une session antérieure. La fenêtre WebView2 avait donc
+survécu à la mort de son serveur Vite, avec state React intact. **How to
+apply** : avant tout dev:debug/tauri dev, vérifier `Get-Process shaderlab`
+ET l'état réel de la page via CDP (`document.body.innerText`) avant de
+supposer une fenêtre "fraîche" — l'absence du process `shaderlab.exe` ne
+suffit pas à garantir l'absence d'un état de session antérieur navigable.
+Confirmer avec Antoine avant d'écraser un état qu'on n'a pas soi-même produit
+(risque de perdre un travail en cours non sauvegardé, cf. collision multi-session
+déjà documentée dans CLAUDE.md).
+
+## 2026-07-25 — mesurer la VRAM dédiée réelle d'un process WebView2 (Windows)
+
+**Découverte (TTL 6 mois)** : le compteur perf `\GPU Process Memory(pid_X...)\
+Dedicated Usage` n'existe PAS pour le PID de `shaderlab.exe` lui-même — le
+rendu WebGPU se fait dans un process ENFANT `msedgewebview2.exe --type=gpu-process`.
+Technique : `Get-CimInstance Win32_Process -Filter "ParentProcessId=<shaderlab_pid>"`
+→ trouve le process WebView2 principal → `Get-CimInstance Win32_Process -Filter
+"ParentProcessId=<webview2_pid>"` → repère la ligne `--type=gpu-process` → son
+PID sert de clé pour `Get-Counter '\GPU Process Memory(pid_<gpu_pid>_luid_...)\
+Dedicated Usage'` (lister les instances via `(Get-Counter -ListSet "GPU Process
+Memory").PathsWithInstances` si le LUID exact est inconnu). Mesuré le 2026-07-25 :
+~1280 Mo dédiés avec 2 photos 26MP + 3 calques (dont un calque photo double
+exposure) chargés simultanément, aucun `device.lost`.
+
+## 2026-07-25 — fermer un dialogue natif Windows bloquant sans focus (PostMessage WM_CLOSE)
+
+**Découverte (TTL 6 mois)** : `SetForegroundWindow` (P/Invoke) retourne `false`
+et `SendKeys::SendWait("{ESC}")` n'a aucun effet sur un dialogue natif ouvert
+par un process qui n'a pas le focus (restriction Windows anti-vol-de-focus).
+`PostMessage(hWnd, 0x0010 /* WM_CLOSE */, 0, 0)` fonctionne SANS nécessiter le
+focus — a fermé un dialogue "Ouvrir" (`rfd`) resté bloquant après une tentative
+CDP ratée. **How to apply** : pour débloquer une fenêtre native bloquée depuis
+un agent headless, préférer `PostMessage`/`WM_CLOSE` à `SetForegroundWindow`+
+`SendKeys`.
+
+## 2026-07-25 — un warning React "setState pendant le render" (App/LayerPanel) trouvé au checkpoint visuel, non corrigé
+
+**Découverte (TTL 6 mois), suivi requis** : pendant le checkpoint Task 8
+double exposure, sélectionner le calque Passthrough a émis en console
+`"Cannot update a component (App) while rendering a different component
+(LayerPanel)"` — pas de crash, pas d'exception, mais un vrai anti-pattern
+React (setState en cours de render d'un autre composant) qu'aucune revue de
+tâche n'a pu détecter (convention du projet : aucun test ne rend de
+composant React). **How to apply** : investiguer l'origine (probablement un
+handler de sélection de calque qui déclenche un setState App.tsx pendant
+que LayerPanel est en cours de rendu) et corriger — non bloquant pour
+Double exposure (aucune régression fonctionnelle observée) mais à traiter
+avant d'accumuler d'autres warnings du même type.

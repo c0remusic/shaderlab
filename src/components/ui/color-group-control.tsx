@@ -47,6 +47,7 @@ export function ColorGroupControl({
     <CollapsiblePrimitive.Root defaultOpen={defaultOpen}>
       <CollapsiblePrimitive.Trigger
         render={<div role="button" tabIndex={0} />}
+        nativeButton={false}
         className="flex h-[var(--section-header-height)] w-full items-center gap-2 rounded-[var(--radius-control)] px-1.5 text-left transition-colors hover:bg-muted focus-visible:outline-[var(--focus-width)] focus-visible:outline-[var(--focus-color)] focus-visible:outline-offset-[var(--focus-offset)]"
       >
         <button

@@ -88,6 +88,18 @@ export function TransformHandles({ transform, photoSize, bgSize, canvasRef, onTr
     onTransformCommit();
   }
 
+  function handlePointerCancel(e: React.PointerEvent) {
+    // Perte de capture (alt-tab, interruption OS/tactile) : annule le drag
+    // SANS committer, contrairement à pointerup — même sémantique que
+    // dragReorder.ts (pointercancel n'est pas un dépôt valide). Évite un
+    // état de drag stale et une modif de transform jamais commitée.
+    if (!dragRef.current) return;
+    if ((e.currentTarget as Element).hasPointerCapture(e.pointerId)) {
+      (e.currentTarget as Element).releasePointerCapture(e.pointerId);
+    }
+    dragRef.current = null;
+  }
+
   return (
     <div className="transform-handles">
       <div
@@ -103,6 +115,7 @@ export function TransformHandles({ transform, photoSize, bgSize, canvasRef, onTr
         onPointerDown={(e) => handlePointerDown(e, { kind: "move", startX: screenToImagePixels(e.clientX, e.clientY)?.x ?? 0, startY: screenToImagePixels(e.clientX, e.clientY)?.y ?? 0, originTransform: transform })}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
       />
       {corners.map((corner, i) => (
         <div
@@ -112,6 +125,7 @@ export function TransformHandles({ transform, photoSize, bgSize, canvasRef, onTr
           onPointerDown={(e) => handlePointerDown(e, { kind: "corner" })}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
         />
       ))}
       <div
@@ -120,6 +134,7 @@ export function TransformHandles({ transform, photoSize, bgSize, canvasRef, onTr
         onPointerDown={(e) => handlePointerDown(e, { kind: "rotate" })}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
       />
     </div>
   );

@@ -112,3 +112,83 @@ describe("EffectPassRunner.runOverlayPass", () => {
     expect(createBuffer).toHaveBeenCalledTimes(2);
   });
 });
+
+function layer(): import("../../src/layers/types").LayerState {
+  return {
+    id: "L1",
+    effectId: "passthrough",
+    params: {},
+    enabled: true,
+    opacity: 1,
+    blendMode: "normal",
+    mask: defaultLayerMaskForTest(),
+  };
+}
+
+function defaultLayerMaskForTest(): import("../../src/mask/types").LayerMask {
+  return { sources: [], invert: false, enabled: true, refineEdge: { feather: 0, contract: 0, smooth: 0, edgeAware: false, edgeRadius: 10, edgeStrength: 1 } };
+}
+
+function createRunnerWithMaskResolver() {
+  const pipeline = { id: "pipeline" };
+  const bindGroupLayout = { id: "bgl" };
+  const passObj = { setPipeline: vi.fn(), setBindGroup: vi.fn(), draw: vi.fn(), end: vi.fn() };
+  const device = {
+    createShaderModule: vi.fn(() => ({})),
+    createBindGroupLayout: vi.fn(() => bindGroupLayout),
+    createPipelineLayout: vi.fn(() => ({})),
+    createRenderPipeline: vi.fn(() => pipeline),
+    createBindGroup: vi.fn(() => ({})),
+    createBuffer: vi.fn(() => ({})),
+    queue: { writeBuffer: vi.fn() },
+  } as unknown as GPUDevice;
+  const maskTexture = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+  const runner = new EffectPassRunner(
+    device,
+    "bgra8unorm-srgb",
+    4,
+    4,
+    {} as GPUSampler,
+    () => maskTexture,
+  );
+  const encoder = { beginRenderPass: vi.fn(() => passObj) } as unknown as GPUCommandEncoder;
+  const src = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+  return { runner, device, encoder, src };
+}
+
+describe("EffectPassRunner.runEffectPass imageSourceView (binding 6)", () => {
+  it("binds imageSourceTexture at binding 6 and composes hasImageSource=true only when options.imageSourceView is set", () => {
+    const { runner, device, encoder, src } = createRunnerWithMaskResolver();
+    const imageSourceView = {} as GPUTextureView;
+
+    runner.runEffectPass(
+      encoder,
+      { id: "passthrough", name: "Passthrough", params: [], wgsl: "fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> { return color; }" },
+      layer(),
+      src.createView() as unknown as GPUTextureView,
+      {} as GPUTextureView,
+      { applyMask: true, imageSourceView },
+      [],
+    );
+
+    const bindGroupCall = (device.createBindGroup as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0];
+    expect(bindGroupCall.entries).toContainEqual({ binding: 6, resource: imageSourceView });
+  });
+
+  it("omits binding 6 when options.imageSourceView is absent", () => {
+    const { runner, device, encoder, src } = createRunnerWithMaskResolver();
+
+    runner.runEffectPass(
+      encoder,
+      { id: "passthrough", name: "Passthrough", params: [], wgsl: "fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> { return color; }" },
+      layer(),
+      src.createView() as unknown as GPUTextureView,
+      {} as GPUTextureView,
+      { applyMask: true },
+      [],
+    );
+
+    const bindGroupCall = (device.createBindGroup as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0];
+    expect(bindGroupCall.entries.some((e: { binding: number }) => e.binding === 6)).toBe(false);
+  });
+});

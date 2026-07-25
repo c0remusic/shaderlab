@@ -26,6 +26,15 @@ fn vs_main(@builtin(vertex_index) i: u32) -> VertexOut {
 export interface ComposeOptions {
   applyMask: boolean;
   hasPrevPass: boolean;
+  /** Double exposure (ARCHITECTURE.md §4.3, approche C2) : ce calque porte
+   *  un `imageSource` déjà résolu par `PhotoLayerInputResolver` en une
+   *  texture pleine taille (RGB=photo A transformée, alpha=couverture).
+   *  Optionnel (défaut `false`) pour ne pas casser les appelants existants
+   *  (effets réguliers sans calque photo). Ignoré quand `applyMask` est
+   *  faux (les passes internes d'effet reçoivent directement cette texture
+   *  comme `srcTexture` — pas besoin d'un second binding, voir
+   *  `framePipelineExecutor.ts`). */
+  hasImageSource?: boolean;
   /** Corps `fn blend(base, top)` du mode de fusion du calque. Requis quand
    *  applyMask=true. Ignoré sinon (les passes internes ne compositent pas). */
   blendWgsl?: string;
@@ -61,7 +70,26 @@ export function composeShader(effectWgsl: string, opts: ComposeOptions): string 
   const compositingBinding = opts.applyMask
     ? "@group(0) @binding(5) var<uniform> compositing: vec4<f32>;"
     : "";
+  // Le binding imageSource n'a de sens QUE sur le chemin de compositing
+  // (applyMask) — les passes internes d'effet reçoivent directement la
+  // texture résolue comme srcTexture (binding 0), voir framePipelineExecutor.ts.
+  const hasImageSource = opts.applyMask && (opts.hasImageSource ?? false);
+  const imageSourceBinding = hasImageSource
+    ? "@group(0) @binding(6) var imageSourceTexture: texture_2d<f32>;"
+    : "";
   const blendBlock = opts.applyMask ? SRGB_HELPERS_WGSL + "\n" + (opts.blendWgsl ?? "") : "";
+  const effectInputExpr = hasImageSource
+    ? "textureSample(imageSourceTexture, srcSampler, in.uv);"
+    : "color;";
+  const coverageMixWeight = hasImageSource
+    ? "compositing.x * maskValue * effectInput.a"
+    : "compositing.x * maskValue";
+  const coverageComment = hasImageSource
+    ? `  // Calque photo (hasImageSource) : effectInput.a porte la COUVERTURE de
+  // la pré-passe (ARCHITECTURE.md §4.3) — hors des bornes de la photo A,
+  // effectInput.a=0 -> poids nul -> color.rgb (le fond) reste inchangé,
+  // jamais un bord répété/clampé visible.\n`
+    : "";
   const fsBody = opts.applyMask
     ? `let maskValue = textureSample(maskTexture, srcSampler, in.uv).r;
   let blended = blend(color.rgb, effected.rgb);
@@ -70,7 +98,7 @@ export function composeShader(effectWgsl: string, opts: ComposeOptions): string 
   // partout — vérifié pour glow/chromaticBleed/grain/warp). Si un futur
   // effet produit un alpha ≠ color.a, ce court-circuit le perdrait
   // silencieusement — revoir alors ce mix si un effet à alpha variable arrive.
-  return vec4<f32>(mix(color.rgb, blended, compositing.x * maskValue), color.a);`
+${coverageComment}  return vec4<f32>(mix(color.rgb, blended, ${coverageMixWeight}), color.a);`
     : "return effected;";
 
   return `
@@ -82,6 +110,7 @@ ${FULLSCREEN_VERTEX_WGSL}
 ${maskBinding}
 ${prevPassBinding}
 ${compositingBinding}
+${imageSourceBinding}
 
 ${blendBlock}
 ${effectWgsl}
@@ -89,7 +118,8 @@ ${effectWgsl}
 @fragment
 fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
   let color = textureSample(srcTexture, srcSampler, in.uv);
-  let effected = fs_main(in.uv, color);
+  let effectInput = ${effectInputExpr}
+  let effected = fs_main(in.uv, effectInput);
   ${fsBody}
 }
 `;

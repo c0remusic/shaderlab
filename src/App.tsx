@@ -2,12 +2,15 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { initGpu, type GpuContext } from "./render/gpuContext";
 import { Renderer } from "./render/renderer";
 import { LayerStack } from "./layers/layerStack";
-import type { LayerState } from "./layers/types";
+import type { LayerState, LayerTransform } from "./layers/types";
+import { canAddPhotoLayer } from "./layers/photoLayer";
 import { DocumentSession } from "./application/documentSession";
 import { BrushToolbar } from "./components/BrushToolbar";
 import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
+import { TransformHandles } from "./components/TransformHandles";
 import { ErrorBanner } from "./components/ErrorBanner";
+import { PhotoSourceStore } from "./render/photoSourceStore";
 import { exportImage, resolveExportTargetAsync, resolveDefaultExportTarget } from "./export/exportImage";
 import { messageFromUnknown } from "./lib/errors";
 import {
@@ -43,6 +46,7 @@ export default function App() {
   const workspaceRef = useRef<HTMLElement>(null);
   const gpuRef = useRef<GpuContext | null>(null);
   const rendererRef = useRef<Renderer | null>(null);
+  const photoSourceStoreRef = useRef<PhotoSourceStore | null>(null);
   // "Ouvrir une image" n'est jamais désactivé pendant une ouverture en
   // cours — un second clic (ex. après avoir choisi un fichier corrompu,
   // dont `createImageBitmap` peut mettre plusieurs secondes à rejeter) peut
@@ -180,6 +184,9 @@ export default function App() {
       rendererRef.current?.dispose();
       rendererRef.current = candidate;
 
+      photoSourceStoreRef.current?.dispose();
+      photoSourceStoreRef.current = new PhotoSourceStore(gpuRef.current.device, gpuRef.current.srgbFormat, gpuRef.current.device.limits.maxTextureDimension2D);
+
       setImageSize({ width: bitmap.width, height: bitmap.height });
       setSourcePath(path);
       setIsLaunchFile(fromLaunch);
@@ -228,6 +235,50 @@ export default function App() {
       setError(messageFromUnknown(e));
     }
   }, [openFile]);
+
+  const handleImportPhotoLayer = useCallback(async () => {
+    if (!photoSourceStoreRef.current) return;
+    if (!canAddPhotoLayer(sessionRef.current.layers())) {
+      setError("Limite atteinte : au plus une photo importée (double exposure) par document.");
+      return;
+    }
+    try {
+      const path = await pickImageFile();
+      if (!path) return;
+      const bytes = await readImageFile(path);
+      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
+      const bitmap = await createImageBitmap(blob);
+      const sourceId = photoSourceStoreRef.current.register(bitmap);
+      const transform: LayerTransform = { x: imageSize.width / 2, y: imageSize.height / 2, scale: 1, rotation: 0 };
+      const stack = currentStack();
+      const id = stack.addPhotoLayer(sourceId, transform);
+      commit(stack);
+      selectLayer(id);
+      setError(null);
+    } catch (e) {
+      setError(messageFromUnknown(e));
+    }
+  }, [commit, currentStack, imageSize.width, imageSize.height, selectLayer]);
+
+  const handleTransformChange = useCallback(
+    (id: string, transform: LayerTransform) => {
+      const previous = sessionRef.current.layers().find((l) => l.id === id);
+      if (previous?.transform && (previous.transform.x !== transform.x || previous.transform.y !== transform.y || previous.transform.scale !== transform.scale || previous.transform.rotation !== transform.rotation)) {
+        paramDirtyRef.current = true;
+      }
+      const full = sessionRef.current.layers().map((l) => (l.id === id ? { ...l, transform } : l));
+      sessionRef.current.replaceLiveLayers(full);
+      syncSession();
+      rendererRef.current?.requestRender(full);
+    },
+    [syncSession],
+  );
+
+  const handleTransformCommit = useCallback(() => {
+    if (!paramDirtyRef.current) return;
+    paramDirtyRef.current = false;
+    commit(currentStack());
+  }, [commit, currentStack]);
 
   function handleAdd(effectId: string) {
     const stack = currentStack();
@@ -653,6 +704,8 @@ export default function App() {
         onExport={handleExport}
         onExportAs={handleExportAs}
         onOpenFile={handleOpenFile}
+        onImportPhotoLayer={handleImportPhotoLayer}
+        canImportPhotoLayer={canAddPhotoLayer(layers)}
       />
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
       {maskPaintMode && (
@@ -678,6 +731,16 @@ export default function App() {
           brushSize={brushSize}
           brushHardness={brushHardness}
         />
+        {selectedLayer?.imageSource && selectedLayer.transform && (
+          <TransformHandles
+            transform={selectedLayer.transform}
+            photoSize={photoSourceStoreRef.current?.dimensions(selectedLayer.imageSource.sourceId) ?? { width: 1, height: 1 }}
+            bgSize={imageSize}
+            canvasRef={canvasRef}
+            onTransformChange={(t) => handleTransformChange(selectedLayer.id, t)}
+            onTransformCommit={handleTransformCommit}
+          />
+        )}
         <PanelColumn panels={[{
           id: "layers", title: "Calques", collapsed: layersCollapsed, onCollapsedChange: setLayersCollapsed,
           content: <LayerPanel

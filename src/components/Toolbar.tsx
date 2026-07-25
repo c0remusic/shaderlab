@@ -1,4 +1,4 @@
-import { Download, FolderOpen, Menu, Redo2, Undo2 } from "lucide-react";
+import { Download, FolderOpen, ImagePlus, Menu, Redo2, Undo2 } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
@@ -18,6 +18,8 @@ interface Props {
   onExport: () => void;
   onExportAs: () => void;
   onOpenFile: () => void;
+  onImportPhotoLayer: () => void;
+  canImportPhotoLayer: boolean;
 }
 
 export function Toolbar({
@@ -31,6 +33,8 @@ export function Toolbar({
   onExport,
   onExportAs,
   onOpenFile,
+  onImportPhotoLayer,
+  canImportPhotoLayer,
 }: Props) {
   return (
     <div
@@ -50,6 +54,10 @@ export function Toolbar({
           <DropdownMenuItem onClick={onOpenFile}>
             <FolderOpen className="icon-md icon-stroke" aria-hidden="true" />
             Ouvrir
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onImportPhotoLayer} disabled={!hasImage || !canImportPhotoLayer}>
+            <ImagePlus className="icon-md icon-stroke" aria-hidden="true" />
+            Importer une 2e photo (double exposure)
           </DropdownMenuItem>
           <DropdownMenuItem onClick={onExport} disabled={!hasImage}>
             <Download className="icon-md icon-stroke" aria-hidden="true" />

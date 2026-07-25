@@ -7,7 +7,7 @@ interface Props {
   transform: LayerTransform;
   photoSize: { width: number; height: number };
   bgSize: { width: number; height: number };
-  canvasRef: React.RefObject<HTMLCanvasElement>;
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
   onTransformChange: (transform: LayerTransform) => void;
   onTransformCommit: () => void;
 }

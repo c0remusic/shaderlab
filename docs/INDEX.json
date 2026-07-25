@@ -18,6 +18,13 @@
   ],
   "specs": [
     {
+      "path": "docs/superpowers/specs/2026-07-24-shaderlab-contextual-panels-design.md",
+      "status": "ÉCRIT et auto-relu le 2026-07-24 (2 ambiguïtés clarifiées : état à paire unique {key,override} pas une map par calque ; Calques ne se rouvre jamais automatiquement une fois fermé manuellement). EN ATTENTE de relecture Antoine avant passage à writing-plans — pas encore de plan ni de code.",
+      "date": "2026-07-24",
+      "topic": "Design (COMMENT) panneaux contextuels (Réglages/Masque) + rail d'icônes manuel façon Photoshop",
+      "summary": "Reprend le rail d'icônes laissé hors scope le 2026-07-20 (référencé comme PRD-floating-panel-rail.md, jamais réellement écrit). Hook générique useContextualPanel(conditionMet, triggerKey) unifiant Calques/Réglages/Masque : visibilité = préférence manuelle explicite (X ou rail) qui prime sur la condition automatique jusqu'à changement de triggerKey. Aucune modification de PanelColumn/DockedPanelCard/dockLayout (déjà stabilisés sur plusieurs sessions). Le sélecteur de couleur du duotone tritone (motivation initiale du chantier) reste hors de ce mécanisme : position fixe, hors dock, pas d'icône rail — décision explicite d'Antoine."
+    },
+    {
       "path": "docs/superpowers/specs/2026-07-24-shaderlab-export-folder-design.md",
       "status": "ÉCRIT et TERMINÉ le 2026-07-24 (spec + PRD 99037e5, plan 8196012) — 6 tâches de code exécutées, Task 7 (checkpoint humain, 5 points) confirmé le 2026-07-24. Branche claude/sad-almeida-b14d66 rebasée puis mergée feature/design-system@0cdd08b (fast-forward). tsc clean, 332/332 tests.",
       "date": "2026-07-24",

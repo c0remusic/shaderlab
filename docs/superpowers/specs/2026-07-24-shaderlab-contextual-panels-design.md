@@ -83,6 +83,13 @@ change pas) :
   préférence posée pour l'ancien `triggerKey` est ignorée — la condition
   automatique reprend la main pour le nouveau `triggerKey`. C'est la RÈGLE
   UNIQUE, valable pour le X et pour le rail, confirmée par Antoine.
+- **Important pour l'implémentation** : l'état ne garde qu'UNE seule paire
+  `{key, override}` (la plus récente), pas une map par `triggerKey`. Si tu
+  sélectionnes le calque A, fermes Réglages, sélectionnes B puis reviens sur
+  A, la fermeture initiale n'est PAS rappelée — seul le dernier `triggerKey`
+  visité compte. Une `Map<triggerKey, override>` qui se souviendrait de
+  chaque calque individuellement serait un comportement DIFFÉRENT et non
+  demandé ici.
 
 **Câblage par panneau** (dans `App.tsx`) :
 
@@ -95,6 +102,11 @@ change pas) :
 Calques passe par le même hook que les deux autres (uniformité du
 mécanisme demandée par Antoine) — sa condition est toujours vraie, mais il
 reste togglable manuellement via le rail comme dans la référence Photoshop.
+Conséquence attendue (pas un bug) : `triggerKey` étant une constante pour
+Calques, une fermeture manuelle ne peut JAMAIS être reprise par la
+condition automatique (qui ne change jamais) — seul un nouveau clic sur le
+rail le rouvre. C'est cohérent : Calques n'a pas de condition réelle, donc
+son affichage est purement manuel une fois qu'on y touche.
 
 **Pourquoi ce hook plutôt qu'un contrôleur central ou un dock "condition-aware"**
 (2 approches écartées en brainstorming) :

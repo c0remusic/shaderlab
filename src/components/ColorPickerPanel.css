@@ -146,7 +146,7 @@
   background: var(--surface-inset);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-control);
-  padding-inline: var(--space-3);
+  padding-inline: var(--space-4);
   color: var(--text-primary);
 }
 

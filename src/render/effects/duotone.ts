@@ -36,6 +36,14 @@ fn hsl2rgb(h: f32, s: f32, l: f32) -> vec3<f32> {
     hue2rgb(p, q, h - 1.0 / 3.0),
   );
 }
+// Encodage sRGB (OETF) : convertit une luminance LINÉAIRE en luminance
+// PERCEPTUELLE. Utilisé uniquement pour POSITIONNER les bascules tonales, pas
+// pour la couleur elle-même — le mélange reste linéaire, conformément à la
+// décision projet "jamais de gamma manuel sur les valeurs de couleur".
+fn linear_to_srgb(c: f32) -> f32 {
+  let x = max(c, 0.0);
+  return select(1.055 * pow(x, 1.0 / 2.4) - 0.055, x * 12.92, x <= 0.0031308);
+}
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let shadowColor = hsl2rgb(params[0] / 360.0, params[1], params[2]);
   let midtoneColor = hsl2rgb(params[3] / 360.0, params[4], params[5]);
@@ -45,14 +53,21 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // Luma en espace linéaire (le format de texture -srgb a déjà décodé le sRGB
   // à l'échantillonnage) — même convention que les autres effets du registry.
   let luma = dot(color.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
+  // Les seuils se posent sur la luminance PERCEPTUELLE, pas linéaire. En
+  // linéaire, pivot=0.5 plaçait la bascule des hautes lumières à luma 0.8,
+  // soit ~0.91 en sRGB : quasi blanc, donc la 3e couleur était invisible sur
+  // une photo normale, et le ton moyen mangeait toute l'image (bascule basse à
+  // 0.2 linéaire = 0.48 sRGB, le gris moyen perceptuel). Constaté au
+  // checkpoint 2026-07-26 : "hautes lumières ne change rien".
+  let tone = linear_to_srgb(luma);
   // Deux bascules symétriques autour du pivot : ombres->ton moyen à
   // pivot-0.3, ton moyen->hautes lumières à pivot+0.3. contrast=0 -> bascules
   // larges et douces ; contrast=1 -> bascules quasi instantanées (aplats).
   let halfSpan = 0.15 * (1.0 - contrast);
   let center1 = pivot - 0.3;
   let center2 = pivot + 0.3;
-  let t1 = smoothstep(center1 - halfSpan, center1 + max(halfSpan, 0.0001), luma);
-  let t2 = smoothstep(center2 - halfSpan, center2 + max(halfSpan, 0.0001), luma);
+  let t1 = smoothstep(center1 - halfSpan, center1 + max(halfSpan, 0.0001), tone);
+  let t2 = smoothstep(center2 - halfSpan, center2 + max(halfSpan, 0.0001), tone);
   let lowMid = mix(shadowColor, midtoneColor, t1);
   let result = mix(lowMid, highlightColor, t2);
   return vec4<f32>(result, color.a);

@@ -46,7 +46,13 @@ function drawSvSquare(canvas: HTMLCanvasElement, hue: number) {
 
 export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, onCommit, onClose, style }: ColorPickerPanelProps) {
   const svCanvasRef = useRef<HTMLCanvasElement>(null);
-  const [hexInput, setHexInput] = useState(() => hslToHex(hue, saturation, lightness));
+  // Only the user's in-progress typed draft lives in state — the field
+  // otherwise mirrors the live hue/saturation/lightness props (so a SV/hue
+  // drag keeps the hex text in sync instead of showing the color from when
+  // the picker opened). Cleared on successful commit AND on blur/Enter even
+  // when invalid, so a bad entry reverts to showing the live color again
+  // rather than leaving a stuck bad string.
+  const [draft, setDraft] = useState<string | null>(null);
   const lastDrawnHueRef = useRef<number | null>(null);
 
   // Redraw the SV square only when hue actually changed (not on every
@@ -89,15 +95,17 @@ export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, 
   );
 
   const commitHexInput = useCallback(() => {
-    const match = /^#?[0-9a-fA-F]{6}$/.test(hexInput);
+    if (draft === null) return;
+    const match = /^#?[0-9a-fA-F]{6}$/.test(draft);
     if (!match) {
-      setHexInput(hslToHex(hue, saturation, lightness)); // revert invalid input
+      setDraft(null); // revert invalid input — falls back to showing the live color again
       return;
     }
-    const parsed = hexToHsl(hexInput);
+    const parsed = hexToHsl(draft);
     onChange(parsed);
     onCommit();
-  }, [hexInput, hue, saturation, lightness, onChange, onCommit]);
+    setDraft(null);
+  }, [draft, onChange, onCommit]);
 
   const currentHex = hslToHex(hue, saturation, lightness);
 
@@ -143,8 +151,8 @@ export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, 
         <span>Hex</span>
         <input
           type="text"
-          value={hexInput}
-          onChange={(e) => setHexInput(e.target.value)}
+          value={draft ?? currentHex}
+          onChange={(e) => setDraft(e.target.value)}
           onBlur={commitHexInput}
           onKeyDown={(e) => e.key === "Enter" && commitHexInput()}
           placeholder={currentHex}

@@ -36,17 +36,13 @@ export function toggleRail(state: ContextualPanelState, conditionMet: boolean, t
 export function useContextualPanel(
   conditionMet: boolean,
   triggerKey: string | null
-): { visible: boolean; dismiss: () => void; toggleRail: () => void } {
+): { visible: boolean; toggleRail: () => void } {
   const [state, setState] = useState<ContextualPanelState>(NO_OVERRIDE);
   const visible = computeVisible(state, conditionMet, triggerKey);
-
-  const handleDismiss = useCallback(() => {
-    setState(dismiss(triggerKey));
-  }, [triggerKey]);
 
   const handleToggleRail = useCallback(() => {
     setState((current) => toggleRail(current, conditionMet, triggerKey));
   }, [conditionMet, triggerKey]);
 
-  return { visible, dismiss: handleDismiss, toggleRail: handleToggleRail };
+  return { visible, toggleRail: handleToggleRail };
 }

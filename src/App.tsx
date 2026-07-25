@@ -678,7 +678,7 @@ export default function App() {
   // doit pouvoir l'éteindre explicitement. Voir
   // docs/superpowers/specs/2026-07-23-shaderlab-mask-overlay-visibility-design.md.
   const hasActiveMask = selectedLayer ? planFold(selectedLayer.mask).length > 0 : false;
-  const wantsOverlay = (!maskFolded || maskPaintMode) && hasActiveMask && !!selectedId;
+  const wantsOverlay = ((maskPanel.visible && !maskFolded) || maskPaintMode) && hasActiveMask && !!selectedId;
 
   // Délai de grâce de 750ms avant extinction : quand on ferme le panneau
   // Masque, change de calque, ou que le calque perd son masque actif,
@@ -837,6 +837,7 @@ export default function App() {
         />
         {colorPicker && selectedLayer?.id === colorPicker.layerId && (
           <ColorPickerPanel
+            key={colorPicker.key}
             label={colorPicker.label}
             hue={layers.find((l) => l.id === colorPicker.layerId)?.params[colorPicker.hue.name] ?? colorPicker.hue.default}
             saturation={layers.find((l) => l.id === colorPicker.layerId)?.params[colorPicker.saturation.name] ?? colorPicker.saturation.default}
@@ -850,7 +851,7 @@ export default function App() {
             }}
             onCommit={handleParamCommit}
             onClose={() => setColorPicker(null)}
-            style={{ left: dockWidth + 8 }}
+            style={{ top: "var(--space-6)", right: `calc(var(--space-6) + ${dockWidth}px + var(--space-4))` }}
           />
         )}
       </main>

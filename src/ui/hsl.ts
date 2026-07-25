@@ -32,3 +32,41 @@ export function hslToHex(hueDeg: number, saturation: number, lightness: number):
   const toHex = (v: number) => Math.round(v * 255).toString(16).padStart(2, "0");
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
+
+/** Converts a "#rrggbb" (or "rrggbb") hex string to HSL (hue in degrees,
+ *  saturation/lightness in 0..1) — inverse of hslToHex, used by
+ *  ColorPickerPanel's hex input field. */
+export function hexToHsl(hex: string): { hue: number; saturation: number; lightness: number } {
+  const clean = hex.replace(/^#/, "");
+  const r = parseInt(clean.slice(0, 2), 16) / 255;
+  const g = parseInt(clean.slice(2, 4), 16) / 255;
+  const b = parseInt(clean.slice(4, 6), 16) / 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const lightness = (max + min) / 2;
+
+  if (max === min) {
+    return { hue: 0, saturation: 0, lightness };
+  }
+
+  const delta = max - min;
+  const saturation = lightness > 0.5 ? delta / (2 - max - min) : delta / (max + min);
+
+  let hue: number;
+  switch (max) {
+    case r:
+      hue = ((g - b) / delta) % 6;
+      break;
+    case g:
+      hue = (b - r) / delta + 2;
+      break;
+    default:
+      hue = (r - g) / delta + 4;
+      break;
+  }
+  hue *= 60;
+  if (hue < 0) hue += 360;
+
+  return { hue, saturation, lightness };
+}

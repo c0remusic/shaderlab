@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { IconButton } from "./ui/icon-button";
 import { hexToHsl, hslToHex } from "../ui/hsl";
@@ -51,13 +51,21 @@ export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, 
 
   // Redraw the SV square only when hue actually changed (not on every
   // saturation/lightness drag) — the grid's colors depend on hue alone.
-  // Runs in the render body (not an effect) so the very first paint — where
-  // the canvas ref attaches during this same commit — already has pixels
-  // instead of waiting a whole extra effect-cycle for a blank canvas.
-  if (svCanvasRef.current && lastDrawnHueRef.current !== hue) {
-    drawSvSquare(svCanvasRef.current, hue);
+  // useLayoutEffect (not the render body) because on the FIRST render
+  // svCanvasRef.current is still null — refs attach during commit, which
+  // happens after the render body runs — so a render-body guard would draw
+  // nothing on initial mount and leave the canvas blank until some unrelated
+  // re-render happened to fire. useLayoutEffect runs after the ref is
+  // attached (including on mount) and, like the render-body version, only
+  // reruns when `hue` itself changes — so a saturation/lightness drag still
+  // doesn't trigger a redraw. Layout (not passive) effect avoids a visible
+  // blank-canvas flash before the first paint.
+  useLayoutEffect(() => {
+    const canvas = svCanvasRef.current;
+    if (!canvas || lastDrawnHueRef.current === hue) return;
+    drawSvSquare(canvas, hue);
     lastDrawnHueRef.current = hue;
-  }
+  }, [hue]);
 
   const handleSvPointer = useCallback(
     (event: React.PointerEvent<HTMLCanvasElement>) => {

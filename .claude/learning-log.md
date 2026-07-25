@@ -951,3 +951,74 @@ faire arbitrer sur une fenêtre dont on n'a pas confirmé qu'elle sert l'app.
    branche se suppriment quand même ; seul le dossier reste verrouillé jusqu'à
    la fin de session. Ne pas s'acharner : `git worktree remove` détache l'admin,
    le dossier vide part au nettoyage suivant.
+
+## 2026-07-24 — grand nettoyage branches/worktrees : master aligné sur feature/design-system
+
+**Découverte (TTL 6 mois)** : repo réduit à 2 branches locales (`master`,
+`feature/design-system`), toutes deux synchronisées sur `bbeaf19` — `master`
+a été fast-forwardé sur `feature/design-system` (`origin/HEAD` pointait déjà
+sur `feature/design-system`, `master` avait juste 416 commits de retard, zéro
+commit propre). 15 branches obsolètes + 6 dossiers `.claude/worktrees/*`
+supprimés après audit (ancestry-check + diff de contenu par sous-agent
+lecture seule). Seul contenu réel récupéré avant suppression : `src/ui/
+Dialog.tsx` + `dialog.css` (depuis `feature/design-system-mine`, périmée
+depuis 2026-07-13) — seule implémentation de `Dialog` alors que la spec
+design-system le référence (`docs/design-system/components.md`,
+`tokens.md`). **How to apply** : avant de conclure qu'une vieille branche
+est "obsolète" via `git branch --merged`, vérifier que son contenu n'a pas
+été **cherry-pické** sous d'autres SHA (`--merged` rate ça — cas réel :
+`sat-feather` et `claude/happy-allen-9f4e4e` contenaient le chantier SAT
+feather déjà absorbé sous `9741ac0`/`b9e7618`, invisibles en ancestry).
+
+## 2026-07-24 — un fichier extrait d'une branche périmée peut compiler là-bas et casser ici sans avertissement
+
+**Découverte (TTL 6 mois)** : `src/ui/Dialog.tsx` récupéré depuis
+`feature/design-system-mine` importait `./IconButton` (chemin valide sur
+cette branche, 2026-07-13) — le composant a depuis été renommé en
+kebab-case sous `src/components/ui/icon-button.tsx`. Le fichier copié
+compilait à l'origine, donc rien dans son propre historique ne signalait le
+problème ; seul `tsc --noEmit` sur l'ARBRE COURANT après extraction l'a
+révélé (poussé une première fois cassé sur `origin/master` avant d'être
+rattrapé par le gate de build du wrap-up). **How to apply** : après tout
+`git checkout <branche-périmée> -- <fichier>` (récupération ciblée, pas un
+merge), lancer immédiatement `npx tsc --noEmit` avant de committer — ne pas
+attendre le gate de fin de session pour un fichier qui "vient d'une branche
+qui marchait".
+
+## 2026-07-24 — `scripts/dev.ps1` (Start-Process détaché) ne survit pas de façon fiable à un appel Bash `run_in_background` dans ce sandbox
+
+**Découverte (TTL 6 mois)** : lancer `npm run dev:debug` via le tool Bash
+(`run_in_background: true`) retourne "exit 0" quasi instantanément (normal,
+`Start-Process -WindowStyle Hidden` détache), mais le process `npm.cmd`/
+`cargo`/`shaderlab.exe` détaché n'apparaît PAS de façon fiable dans
+`Get-Process` après — sur 3 tentatives successives (Bash puis outil
+PowerShell direct), aucune n'a laissé un process nommé `shaderlab`/`cargo`
+vivant, et `dev-process.json` n'a jamais été réécrit (la 2e/3e tentative
+échouait même à `Set-Content` sur `tauri.stderr.log`, verrouillé par la 1re
+tentative pourtant introuvable via `Get-Process`). Contournement qui A
+marché : lancer `npm run tauri dev` DIRECTEMENT (pas via `dev.ps1`) en
+foreground du tool Bash avec `run_in_background: true` — reste vivant, CDP
+(`http://localhost:9222/json`) répond après ~35s de build cargo. **How to
+apply** : si `dev.ps1`/`dev:debug` ne produit aucun process visible après
+lancement, ne pas s'acharner à diagnostiquer le verrou de fichier — court-
+circuiter directement avec `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-
+debugging-port=9222 npm run tauri dev` en `run_in_background`, poll
+`curl http://localhost:9222/json` (fonctionne malgré un `curl` isolé qui
+peut échouer hors contexte de boucle — testé bash direct `curl` en dehors
+d'un `until` a échoué une fois sans raison claire, dans un `until` ça a
+marché) plutôt que `Invoke-WebRequest` PowerShell (a timeout à tort en
+parallèle alors que le port répondait déjà côté bash).
+
+## 2026-07-24 — relever `MAX_EFFECT_PARAMS` casse un test qui codait en dur l'ancienne limite, sans lien visible avec le diff qui l'a cassé
+
+**Découverte (TTL 6 mois)** : `test/render/effects/validate.test.ts`
+fixait `effectWithParams(8)`/`effectWithParams(9)` en dur pour tester la
+limite — en élargissant `MAX_EFFECT_PARAMS` de 8 à 11 (`shaderCompose.ts`,
+pour le duotone tritone à 11 params), ce test a commencé à échouer
+("expected to throw") sans qu'aucun diff ne touche directement ce fichier
+de test. **How to apply** : après toute modification de
+`MAX_EFFECT_PARAMS`, grep `test/` pour des fixtures qui codent en dur
+l'ancienne valeur (`effectWithParams(8)`, ou tout littéral numérique proche
+de la constante) — `tsc`/lint ne le détectent jamais, seul `npm run test`
+le révèle, et le message d'échec ne pointe pas vers `shaderCompose.ts`
+comme cause.

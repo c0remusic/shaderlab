@@ -212,3 +212,21 @@ describe("History byte budget", () => {
     expect(history.bytesUsed()).toBe(150); // 100 + 50, both counted
   });
 });
+
+describe("History photo layers", () => {
+  it("un calque photo (imageSource/transform) survit à un undo/redo en ne transportant qu'un sourceId", () => {
+    const initial = new LayerStack();
+    const history = new History(initial);
+    const withPhoto = initial.clone();
+    withPhoto.addPhotoLayer("photo-1", { x: 10, y: 20, scale: 1, rotation: 0 });
+    history.push(withPhoto);
+
+    const undone = history.undo();
+    expect(undone?.layers).toHaveLength(0);
+
+    const redone = history.redo();
+    expect(redone?.layers).toHaveLength(1);
+    expect(redone?.layers[0].imageSource).toEqual({ sourceId: "photo-1" });
+    expect(redone?.layers[0].transform).toEqual({ x: 10, y: 20, scale: 1, rotation: 0 });
+  });
+});

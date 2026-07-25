@@ -1,0 +1,13 @@
+/* PanelRail : fixed column of toggle icons (Photoshop-style rail next to dock) */
+
+.panel-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1);
+}
+
+.panel-rail__item--active {
+  background: var(--surface-selected);
+  color: var(--text-primary);
+}

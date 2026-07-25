@@ -1,9 +1,51 @@
 import type { LayerState } from "../layers/types";
 import { getEffect } from "../render/effects/registry";
+import type { EffectParam } from "../render/effects/types";
 import "./ParamPanel.css";
 import { LabeledSlider } from "./ui/labeled-slider";
 import { Disclosure } from "./ui/collapsible";
+import { ColorGroupControl } from "./ui/color-group-control";
 import { formatControlValue } from "../ui/formatValue";
+
+type ParamRenderItem =
+  | { kind: "single"; param: EffectParam }
+  | { kind: "group"; key: string; label: string; hue: EffectParam; saturation: EffectParam; lightness: EffectParam; isFirst: boolean };
+
+/** Groups params sharing the same `colorGroup.key` (see EffectParam) into a
+ *  single swatch+disclosure render item, in the order each group first
+ *  appears. Ungrouped params pass through unchanged. Fails fast if a group is
+ *  declared with fewer than its three required roles — a silent partial
+ *  group would render a swatch that doesn't reflect an editable color. */
+function groupEffectParams(params: EffectParam[]): ParamRenderItem[] {
+  const firstIndexByKey = new Map<string, number>();
+  const roleByKey = new Map<string, { label: string; hue?: EffectParam; saturation?: EffectParam; lightness?: EffectParam }>();
+
+  params.forEach((p, index) => {
+    if (!p.colorGroup) return;
+    const { key, role, label } = p.colorGroup;
+    if (!firstIndexByKey.has(key)) firstIndexByKey.set(key, index);
+    const entry = roleByKey.get(key) ?? { label };
+    entry[role] = p;
+    roleByKey.set(key, entry);
+  });
+
+  let seenGroups = 0;
+  const items: ParamRenderItem[] = [];
+  params.forEach((p, index) => {
+    if (!p.colorGroup) {
+      items.push({ kind: "single", param: p });
+      return;
+    }
+    if (firstIndexByKey.get(p.colorGroup.key) !== index) return;
+    const entry = roleByKey.get(p.colorGroup.key)!;
+    if (!entry.hue || !entry.saturation || !entry.lightness) {
+      throw new Error(`Groupe de couleur "${p.colorGroup.key}" incomplet : hue/saturation/lightness requis.`);
+    }
+    items.push({ kind: "group", key: p.colorGroup.key, label: entry.label, hue: entry.hue, saturation: entry.saturation, lightness: entry.lightness, isFirst: seenGroups === 0 });
+    seenGroups += 1;
+  });
+  return items;
+}
 
 interface Props {
   layer: LayerState | null;
@@ -38,20 +80,36 @@ export function ParamPanel({ layer, onParamChange, onParamCommit }: Props) {
     <div className="param-panel">
       <Disclosure title="Effet" defaultOpen>
         <div className="param-panel__group">
-          {effect.params.map((p) => (
-            <div key={p.name} title={p.hint}>
-              <LabeledSlider
-                label={p.label}
-                value={layer.params[p.name] ?? p.default}
-                min={p.min}
-                max={p.max}
-                step={p.step}
-                displayValue={formatEffectParamValue(layer.params[p.name] ?? p.default, p)}
-                onChange={(v) => onParamChange(layer.id, { [p.name]: v })}
+          {groupEffectParams(effect.params).map((item) =>
+            item.kind === "single" ? (
+              <div key={item.param.name} title={item.param.hint}>
+                <LabeledSlider
+                  label={item.param.label}
+                  value={layer.params[item.param.name] ?? item.param.default}
+                  min={item.param.min}
+                  max={item.param.max}
+                  step={item.param.step}
+                  displayValue={formatEffectParamValue(layer.params[item.param.name] ?? item.param.default, item.param)}
+                  onChange={(v) => onParamChange(layer.id, { [item.param.name]: v })}
+                  onCommit={onParamCommit}
+                />
+              </div>
+            ) : (
+              <ColorGroupControl
+                key={item.key}
+                label={item.label}
+                hueParam={item.hue}
+                saturationParam={item.saturation}
+                lightnessParam={item.lightness}
+                hue={layer.params[item.hue.name] ?? item.hue.default}
+                saturation={layer.params[item.saturation.name] ?? item.saturation.default}
+                lightness={layer.params[item.lightness.name] ?? item.lightness.default}
+                defaultOpen={item.isFirst}
+                onChange={(name, v) => onParamChange(layer.id, { [name]: v })}
                 onCommit={onParamCommit}
               />
-            </div>
-          ))}
+            ),
+          )}
         </div>
       </Disclosure>
     </div>

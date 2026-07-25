@@ -4,7 +4,7 @@ export const chromaticBleed: EffectModule = {
   id: "chromaticBleed",
   name: "Chromatic bleed",
   params: [
-    { name: "amount", label: "Décalage chromatique", unit: "percent", min: 0, max: 0.05, default: 0.008, step: 0.001 },
+    { name: "amount", label: "Décalage chromatique", unit: "percent", min: 0, max: 0.15, default: 0.008, step: 0.001 },
     { name: "centerFalloff", label: "Atténuation centrale", unit: "none", min: 0.5, max: 4, default: 2, step: 0.1 },
   ],
   wgsl: `

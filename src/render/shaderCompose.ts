@@ -1,8 +1,9 @@
 /** Taille du uniform `params: array<f32, N>` du header WGSL partagé.
  *  Un effet déclarant plus de paramètres est rejeté au chargement du
  *  registry (voir effects/validate.ts) — élargir cette constante et le
- *  header ensemble si le besoin apparaît. */
-export const MAX_EFFECT_PARAMS = 8;
+ *  header ensemble si le besoin apparaît. Élargi de 8 à 11 pour le duotone
+ *  tritone (3 couleurs HSL + contraste + pivot = 11). */
+export const MAX_EFFECT_PARAMS = 11;
 
 export const FULLSCREEN_VERTEX_WGSL = `
 struct VertexOut {

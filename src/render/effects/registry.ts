@@ -4,8 +4,10 @@ import { glow } from "./glow";
 import { chromaticBleed } from "./chromaticBleed";
 import { warp } from "./warp";
 import { grain } from "./grain";
+import { duotone } from "./duotone";
+import { posterize } from "./posterize";
 
-export const effectRegistry: EffectModule[] = [glow, chromaticBleed, warp, grain];
+export const effectRegistry: EffectModule[] = [glow, chromaticBleed, warp, grain, duotone, posterize];
 effectRegistry.forEach(validateEffect);
 
 export function getEffect(id: string): EffectModule {

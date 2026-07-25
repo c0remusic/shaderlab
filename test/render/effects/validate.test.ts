@@ -20,11 +20,11 @@ function effectWithParams(count: number): EffectModule {
 
 describe("validateEffect", () => {
   it("accepts an effect at exactly the param limit", () => {
-    expect(() => validateEffect(effectWithParams(8))).not.toThrow();
+    expect(() => validateEffect(effectWithParams(11))).not.toThrow();
   });
 
   it("rejects an effect over the limit with the effect id in the message", () => {
-    expect(() => validateEffect(effectWithParams(9))).toThrow(/test-effect.*9.*8/);
+    expect(() => validateEffect(effectWithParams(12))).toThrow(/test-effect.*12.*11/);
   });
 
   it("every registered effect is valid", () => {

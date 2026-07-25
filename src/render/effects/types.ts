@@ -7,6 +7,11 @@ export interface EffectParam {
   max: number;
   default: number;
   step: number;
+  /** Groups this param with its hue/saturation/lightness siblings (same `key`)
+   *  under a single swatch + disclosure control in ParamPanel, instead of a
+   *  standalone slider. All three roles must be present for a given `key` —
+   *  ParamPanel throws otherwise (see groupEffectParams). */
+  colorGroup?: { key: string; role: "hue" | "saturation" | "lightness"; label: string };
 }
 
 export interface EffectPass {

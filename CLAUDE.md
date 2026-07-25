@@ -66,7 +66,9 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
 - JPEG traité comme sRGB, pas de lecture de profil ICC en v1 (limitation
   documentée, pas silencieuse).
 - Effets = modules autonomes enregistrés dans `src/render/effects/registry.ts`
-  — en ajouter un = un nouveau fichier, zéro modif moteur/UI.
+  — en ajouter un = un nouveau fichier ; un effet à paramètres groupés (voir
+  `EffectParam.colorGroup`) touche aussi `ParamPanel.tsx` et peut élargir
+  `MAX_EFFECT_PARAMS` (`shaderCompose.ts`) si nécessaire.
 - Modes de fusion = modules autonomes dans `src/render/blend/registry.ts`
   (même principe, Tranche 1 2026-07-19) — chaque calque a `opacity`/
   `blendMode` sur `LayerState`.

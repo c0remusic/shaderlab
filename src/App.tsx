@@ -3,7 +3,7 @@ import { initGpu, type GpuContext } from "./render/gpuContext";
 import { Renderer } from "./render/renderer";
 import { LayerStack } from "./layers/layerStack";
 import type { LayerState, LayerTransform } from "./layers/types";
-import { canAddPhotoLayer } from "./layers/photoLayer";
+import { canAddPhotoLayer, hasPhotoLayer } from "./layers/photoLayer";
 import { DocumentSession } from "./application/documentSession";
 import { BrushToolbar } from "./components/BrushToolbar";
 import { Canvas } from "./components/Canvas";
@@ -595,7 +595,7 @@ export default function App() {
     }
     try {
       let target: string;
-      if (isLaunchFile) {
+      if (roundTripActive) {
         // Contrat round-trip Lightroom : écrase toujours le launch path
         // exact, quel que soit le dossier demandé par l'appelant — voir
         // resolveExportTargetAsync's doc comment pour le contrat complet.
@@ -626,8 +626,19 @@ export default function App() {
   }
 
   // Bouton "Exporter" : dossier fixe Images/shaderlab-export, nom nu tant
-  // qu'il n'y a pas de collision réelle (resolveDefaultExportTarget).
+  // qu'il n'y a pas de collision réelle (resolveDefaultExportTarget) —
+  // SAUF si le round-trip est bloqué par un calque photo malgré
+  // isLaunchFile vrai : bascule alors explicitement vers le comportement
+  // "Exporter sous..." (PRD : jamais un silence qui laisse croire que le
+  // round-trip a eu lieu).
   async function handleExport() {
+    if (isLaunchFile && !roundTripActive) {
+      setError(
+        "Round-trip Lightroom désactivé : ce document contient un calque de double exposure. Choisis un dossier d'export ci-dessous."
+      );
+      await handleExportAs();
+      return;
+    }
     await performExport(defaultExportDir, true);
   }
 
@@ -670,6 +681,14 @@ export default function App() {
 
   const showOverlay = !overlayForceHidden && graceVisible;
 
+  // Round-trip Lightroom désactivé dès qu'un calque photo (double exposure)
+  // existe dans le document — même si isLaunchFile est vrai. `roundTripActive`
+  // gouverne à la fois l'état du bouton "Exporter sous..." (Toolbar) et le
+  // comportement RÉEL du bouton "Exporter" (performExport ci-dessous) — un
+  // seul point de vérité, comme l'exige ARCHITECTURE.md §4.6 ("ET logique
+  // au même endroit, pas une nouvelle branche disséminée").
+  const roundTripActive = isLaunchFile && !hasPhotoLayer(layers);
+
   useEffect(() => {
     const r = rendererRef.current;
     if (!r) return;
@@ -693,7 +712,7 @@ export default function App() {
         canRedo={sessionRef.current.canRedo()}
         hasImage={imageSize.width > 0 && imageSize.height > 0}
         fileName={sourcePath ? sourcePath.split(/[\\/]/).pop() ?? null : null}
-        hasLaunchFile={isLaunchFile}
+        hasLaunchFile={roundTripActive}
         onUndo={handleUndo}
         onRedo={handleRedo}
         onExport={handleExport}

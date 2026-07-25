@@ -58,12 +58,37 @@
   padding: var(--space-5);
 }
 
-.color-picker-panel__sv {
+/* Conteneur positionné : porte le repère de la couleur courante par-dessus le
+   canvas (qui, lui, ne peut rien dessiner en surimpression sans être redessiné
+   à chaque déplacement de saturation/luminosité). */
+.color-picker-panel__sv-wrap {
+  position: relative;
   width: var(--color-picker-sv-size);
   height: var(--color-picker-sv-size);
+}
+
+.color-picker-panel__sv {
+  display: block;
+  width: 100%;
+  height: 100%;
   border-radius: var(--radius-control);
   cursor: crosshair;
   touch-action: none;
+}
+
+/* Anneau CREUX : la couleur sous le repère reste visible. Bordure claire +
+   liseré sombre pour rester lisible sur les deux extrêmes du carré (coin
+   blanc en haut à droite, coin noir en bas). `pointer-events: none` pour que
+   le canvas garde le geste. */
+.color-picker-panel__sv-thumb {
+  position: absolute;
+  width: var(--slider-thumb-size);
+  height: var(--slider-thumb-size);
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--text-value);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--border-strong);
+  pointer-events: none;
 }
 
 .color-picker-panel__hue-band {

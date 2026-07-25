@@ -138,21 +138,30 @@ export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, 
         </IconButton>
       </div>
       <div className="color-picker-panel__body">
-        <canvas
-          ref={svCanvasRef}
-          width={SV_SIZE}
-          height={SV_SIZE}
-          className="color-picker-panel__sv"
-          onPointerDown={(e) => {
-            e.currentTarget.setPointerCapture(e.pointerId);
-            handleSvPointer(e);
-          }}
-          onPointerMove={(e) => e.currentTarget.hasPointerCapture(e.pointerId) && handleSvPointer(e)}
-          onPointerUp={(e) => {
-            e.currentTarget.releasePointerCapture(e.pointerId);
-            onCommit();
-          }}
-        />
+        <div className="color-picker-panel__sv-wrap">
+          <canvas
+            ref={svCanvasRef}
+            width={SV_SIZE}
+            height={SV_SIZE}
+            className="color-picker-panel__sv"
+            onPointerDown={(e) => {
+              e.currentTarget.setPointerCapture(e.pointerId);
+              handleSvPointer(e);
+            }}
+            onPointerMove={(e) => e.currentTarget.hasPointerCapture(e.pointerId) && handleSvPointer(e)}
+            onPointerUp={(e) => {
+              e.currentTarget.releasePointerCapture(e.pointerId);
+              onCommit();
+            }}
+          />
+          {/* Mêmes axes que drawSvSquare : saturation en X, luminosité en Y
+              INVERSÉE (haut = clair). Toute divergence ici décalerait le
+              repère par rapport au dégradé qu'il annote. */}
+          <div
+            className="color-picker-panel__sv-thumb"
+            style={{ left: `${saturation * 100}%`, top: `${(1 - lightness) * 100}%` }}
+          />
+        </div>
         <div
           className="color-picker-panel__hue-band"
           onPointerDown={(e) => {

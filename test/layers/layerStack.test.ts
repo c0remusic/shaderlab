@@ -510,14 +510,23 @@ describe("LayerStack — setLayerEffect (T6)", () => {
     const id = stack.addPhotoLayer("photo-1", transform);
     stack.toggleLayer(id);
     stack.setMaskInvert(id, true);
+    // Opacité et fusion posées à des valeurs NON-défaut avant l'appel :
+    // `addPhotoLayer` les initialise à 1 / "normal" (layerStack.ts:71-72), donc
+    // les asserer telles quelles ne prouverait rien de la préservation. Mutation
+    // directe du calque, comme le fait la production (App.handleOpacityChange /
+    // handleBlendModeChange) — LayerStack n'expose pas de setter pour ces deux
+    // champs.
+    const before = stack.layers.find((l) => l.id === id)!;
+    before.opacity = 0.42;
+    before.blendMode = "screen";
     expect(stack.setLayerEffect(id, "glow")).toBe(true);
     const layer = stack.layers.find((l) => l.id === id)!;
     expect(layer.effectId).toBe("glow");
     expect(layer.imageSource).toEqual({ sourceId: "photo-1" });
     expect(layer.transform).toEqual(transform);
     expect(layer.enabled).toBe(false);
-    expect(layer.opacity).toBe(1);
-    expect(layer.blendMode).toBe("normal");
+    expect(layer.opacity).toBe(0.42);
+    expect(layer.blendMode).toBe("screen");
     expect(layer.mask.invert).toBe(true);
   });
 

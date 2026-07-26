@@ -121,8 +121,11 @@ export default function App() {
   // Task 4 : id du preset en attente de confirmation de remplacement — non
   // nul seulement quand la pile courante n'est pas vide (voir
   // `requestApplyPreset`). Le PRD interdit d'écraser des masques déjà peints
-  // sans confirmation explicite.
-  const [pendingPresetApply, setPendingPresetApply] = useState<string | null>(null);
+  // sans confirmation explicite. `hasPhotoLayer` (Important 2, final-review
+  // fix) : capturé au moment de la demande, pas recalculé au clic de
+  // confirmation — la pile ne doit plus bouger entre les deux, mais figer la
+  // valeur évite toute dépendance implicite à cet invariant.
+  const [pendingPresetApply, setPendingPresetApply] = useState<{ id: string; hasPhotoLayer: boolean } | null>(null);
 
   // Task 5 : nom en attente de saisie pour "Créer une copie" depuis la
   // bannière de dérive — non nul tant que le dialogue de nommage est ouvert.
@@ -243,6 +246,14 @@ export default function App() {
       const stack = new LayerStack();
       sessionRef.current.replaceDocument(stack);
       presets.clearActive();
+      // Important 6 (final-review fix): a new document has no relationship
+      // to the previous one's layer ids — any entry left in
+      // maskPaintersRef from the outgoing document is an orphaned ~24Mo
+      // buffer for a layer that no longer exists anywhere. This gap was
+      // pre-existing (not introduced by presets), but presets is what turns
+      // it from theoretical into "leaks on every applyPreset() in a loop" —
+      // see applyPreset's own purge below for the other half of this fix.
+      maskPaintersRef.current.clear();
       syncSession();
       rendererRef.current.render(sessionRef.current.layers());
       // Une ouverture réussie efface une éventuelle erreur laissée par une
@@ -622,6 +633,16 @@ export default function App() {
   function handleUndo() {
     if (sessionRef.current.undo()) {
       syncSession();
+      // Critique 1 (final-review fix): undo doesn't touch `activePresetId`
+      // on its own — without this, undoing back through a preset
+      // APPLICATION (e.g. to an empty stack) left the banner pointing at a
+      // preset whose snapshot no longer matches, and "Mettre à jour" would
+      // overwrite the preset file with the undone stack, unrecoverably (the
+      // disk write itself isn't an undo-history entry). See
+      // `usePresets.reconcileActiveAfterHistoryChange`'s doc comment for why
+      // this is a STRUCTURAL check, not the full-value one that drives the
+      // dirty banner.
+      presets.reconcileActiveAfterHistoryChange(sessionRef.current.layers());
       rendererRef.current?.requestRender(sessionRef.current.layers());
     }
   }
@@ -629,6 +650,7 @@ export default function App() {
   function handleRedo() {
     if (sessionRef.current.redo()) {
       syncSession();
+      presets.reconcileActiveAfterHistoryChange(sessionRef.current.layers());
       rendererRef.current?.requestRender(sessionRef.current.layers());
     }
   }
@@ -762,8 +784,26 @@ export default function App() {
   function requestUpdateActive() {
     if (!presets.activePresetId) return;
     const layers = sessionRef.current.layers();
-    const name = presets.summaries.find((s) => s.id === presets.activePresetId)?.name ?? "";
-    gateOnPhotoLayers(name, async () => {
+    // Critique 1 (final-review fix): never write an EMPTY stack over a
+    // preset file. Reachable via undo (see handleUndo/reconcileActive...)
+    // only through a race between the reconciliation and this click — kept
+    // as a second, independent guard rather than relying solely on
+    // `reconcileActiveAfterHistoryChange` clearing `activePresetId` in time.
+    // The banner itself is also gated on `layers.length > 0` below (JSX), so
+    // this button should already be unreachable when the stack is empty —
+    // this is the belt to that suspenders.
+    if (layers.length === 0) return;
+    const activeSummary = presets.summaries.find((s) => s.id === presets.activePresetId);
+    if (!activeSummary) {
+      // Mineur (final-review fix): the old `?.name ?? ""` fallback let this
+      // dialog open with an empty preset name on a lookup miss instead of
+      // reporting the anomaly (activePresetId pointing at a preset removed
+      // from the library, or summaries not yet refreshed) — fail loudly
+      // rather than silently proceeding with a blank name.
+      setError(`Preset actif introuvable dans la bibliothèque (id ${presets.activePresetId}) — impossible de le mettre à jour.`);
+      return;
+    }
+    gateOnPhotoLayers(activeSummary.name, async () => {
       try {
         await presets.updateActive(layers);
         return true;
@@ -774,10 +814,29 @@ export default function App() {
     });
   }
 
-  /** "Créer une copie" (dirty banner). Same photo-layer gate as above. */
-  function requestCopyActiveAsNew(name: string) {
+  /** "Créer une copie" (dirty banner). Same photo-layer gate as
+   *  `requestSavePreset`, AND now the same name-collision gate too
+   *  (Important 3, final-review fix): before this fix, typing an
+   *  already-taken name here created a silent duplicate — `requestSavePreset`
+   *  asked to confirm an overwrite for the same event, `importFrom` instead
+   *  auto-renamed to "(copie N)`, so the same feature had THREE different
+   *  collision policies. Chosen here: reuse the SAME "Remplacer ?" dialog as
+   *  `requestSavePreset` (not `resolveImportName`'s silent auto-rename) —
+   *  unlike an import, the name here is something the user just TYPED
+   *  themselves into a visible field, so a collision is very likely
+   *  deliberate ("overwrite that one") and deserves the same explicit
+   *  confirm/cancel as manual save, not a surprise "(copie 2)" they didn't
+   *  ask for. */
+  function requestCopyActiveAsNew(name: string): Promise<boolean> {
     const layers = sessionRef.current.layers();
-    gateOnPhotoLayers(name, async () => {
+    if (layers.length === 0) return Promise.resolve(false); // Critique 1 : jamais de preset vide
+    const existing = presets.summaries.find((s) => s.name === name);
+    if (existing) {
+      return new Promise<boolean>((resolve) => {
+        setPendingOverwrite({ id: existing.id, name, resolve });
+      });
+    }
+    return gateOnPhotoLayers(name, async () => {
       try {
         await presets.copyActiveAsNew(layers, name);
         return true;
@@ -807,7 +866,12 @@ export default function App() {
    *  applies, it never asks. */
   async function applyPreset(id: string) {
     try {
-      if (presets.activePresetId !== id) presets.clearActive();
+      // (Mineur, final-review fix) The `if (presets.activePresetId !== id)
+      // presets.clearActive();` line that used to be here was dead code:
+      // `applyTo` reposes `active` unconditionally right after via
+      // `setActive({ id, snapshot: ... })`, so this conditional clear could
+      // never have any observable effect — removed rather than left as a
+      // no-op suggesting an intention it didn't have.
       await presets.applyTo(
         id,
         sessionRef.current.layers(),
@@ -815,6 +879,17 @@ export default function App() {
           const stack = new LayerStack();
           stack.layers = newLayers;
           commit(stack);
+          // Important 6 (final-review fix): applyPreset replaces the WHOLE
+          // stack with FRESH layer ids (LayerStack's freshId counter never
+          // reuses an id) — every entry left in maskPaintersRef for the
+          // OUTGOING layers is now an orphaned ~24Mo buffer for an id that
+          // exists nowhere anymore. Purging by id (rather than relying on
+          // ids never colliding) keeps this correct even if that invariant
+          // ever changes.
+          const newIds = new Set(newLayers.map((l) => l.id));
+          for (const layerId of maskPaintersRef.current.keys()) {
+            if (!newIds.has(layerId)) maskPaintersRef.current.delete(layerId);
+          }
         },
         (message) => setError(message)
       );
@@ -825,10 +900,16 @@ export default function App() {
 
   /** Hard confirmation floor (PRD) : appliquer un preset sur une pile non
    *  vide écraserait des masques déjà peints — jamais sans confirmation
-   *  explicite. Pile vide -> applique immédiatement, aucune confirmation. */
+   *  explicite. Pile vide -> applique immédiatement, aucune confirmation.
+   *  Important 2 (final-review fix) : la pile remplacée peut aussi contenir
+   *  un calque photo (double exposure) importé et transformé à la main —
+   *  destruction au moins aussi coûteuse qu'un masque peint, mais que
+   *  l'ancien dialogue ne mentionnait jamais alors que la CAPTURE d'un
+   *  preset, elle, énumère nommément les calques photo exclus. */
   function requestApplyPreset(id: string) {
-    if (sessionRef.current.layers().length > 0) {
-      setPendingPresetApply(id);
+    const currentLayers = sessionRef.current.layers();
+    if (currentLayers.length > 0) {
+      setPendingPresetApply({ id, hasPhotoLayer: hasPhotoLayer(currentLayers) });
       return;
     }
     applyPreset(id);
@@ -1064,7 +1145,13 @@ export default function App() {
                     onExport={exportPresetFile}
                     onImport={importPresetFile}
                   />
-                  {presetIsDirty && presets.activePresetId && (
+                  {/* Critique 1 (final-review fix) : `layers.length > 0` —
+                      même garde que le bouton "Enregistrer" de PresetPanel
+                      (`hasLayers`), qui l'avait déjà et que cette bannière
+                      n'avait pas. Une pile vidée par undo ne doit jamais
+                      offrir "Mettre à jour"/"Créer une copie" : les deux
+                      écriraient un preset vide sur disque. */}
+                  {presetIsDirty && presets.activePresetId && layers.length > 0 && (
                     <div className="preset-panel__dirty-banner">
                       <span>Preset modifié.</span>
                       <Button size="sm" variant="secondary" onClick={requestUpdateActive}>
@@ -1297,7 +1384,15 @@ export default function App() {
         <Dialog
           open={pendingPresetApply !== null}
           title="Remplacer la pile de calques ?"
-          description="Les masques peints sur les calques actuels seront perdus (annulable par Ctrl+Z après confirmation)."
+          description={
+            // Important 2 (final-review fix) : nomme explicitement le calque
+            // photo (double exposure) détruit, pas seulement les masques —
+            // c'était la porte la plus destructrice ET la moins explicite
+            // (asymétrique avec la capture, qui énumère ces calques par nom).
+            pendingPresetApply?.hasPhotoLayer
+              ? "Les masques peints ET le calque photo (double exposure) importé sur les calques actuels seront perdus (annulable par Ctrl+Z après confirmation)."
+              : "Les masques peints sur les calques actuels seront perdus (annulable par Ctrl+Z après confirmation)."
+          }
           onClose={() => setPendingPresetApply(null)}
           actions={
             <>
@@ -1307,7 +1402,7 @@ export default function App() {
               <Button
                 variant="destructive"
                 onClick={() => {
-                  if (pendingPresetApply) applyPreset(pendingPresetApply);
+                  if (pendingPresetApply) applyPreset(pendingPresetApply.id);
                   setPendingPresetApply(null);
                 }}
               >

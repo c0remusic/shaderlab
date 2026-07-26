@@ -25,3 +25,20 @@ export function presetsDiffer(a: PresetLayer[], b: PresetLayer[]): boolean {
     );
   });
 }
+
+/** Coarser than `presetsDiffer` above: true only if the layer COUNT or the
+ *  effectId SEQUENCE differs, ignoring params/enabled/opacity/blendMode.
+ *  Used by `usePresets.reconcileActiveAfterHistoryChange` (final-review fix,
+ *  Critique 1) to decide whether an undo/redo should sever the link to the
+ *  active preset. A plain param-value undo (same layers, same effects, in
+ *  the same order) must NOT clear the active preset — that's what makes the
+ *  dirty banner correctly disappear when undoing a live edit back to the
+ *  preset's own state. Only a STRUCTURAL change — most importantly, undoing
+ *  the preset APPLICATION itself, which can restore an empty or
+ *  differently-shaped stack — should sever the link, so a stale
+ *  `activePresetId` can never be used to overwrite a preset file with an
+ *  undone (possibly empty) stack. */
+export function presetStructureDiffers(a: PresetLayer[], b: PresetLayer[]): boolean {
+  if (a.length !== b.length) return true;
+  return a.some((layerA, i) => layerA.effectId !== b[i].effectId);
+}

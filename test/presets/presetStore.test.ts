@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { InMemoryPresetStore, TauriPresetStore } from "../../src/presets/presetStore";
+import { InMemoryPresetStore, PartialPresetListError, TauriPresetStore } from "../../src/presets/presetStore";
 import type { PresetDocument } from "../../src/presets/presetTypes";
 import * as launch from "../../src/launch";
 
@@ -87,5 +87,47 @@ describe("TauriPresetStore", () => {
     const store = new TauriPresetStore();
     await store.remove(doc.id);
     expect(deleteSpy).toHaveBeenCalledWith(doc.id);
+  });
+
+  // Important 5 (final-review fix): one corrupt preset file used to reject
+  // list() ENTIRELY, hiding every other, perfectly valid preset — this test
+  // proves the fix: the sane presets still come back, and the failure is
+  // reported by NAME rather than swallowed.
+  it("list() ignores an unparseable entry but still returns the readable ones, naming the bad id", async () => {
+    const doc2: PresetDocument = { ...doc, id: "preset-2", name: "Autre preset" };
+    vi.spyOn(launch, "listPresetIds").mockResolvedValue(["preset-1", "corrupt-preset", "preset-2"]);
+    vi.spyOn(launch, "readPreset").mockImplementation(async (id: string) => {
+      if (id === "corrupt-preset") return "{not valid json";
+      if (id === "preset-1") return JSON.stringify(doc);
+      return JSON.stringify(doc2);
+    });
+    const store = new TauriPresetStore();
+    await expect(store.list()).rejects.toMatchObject({
+      summaries: [
+        { id: "preset-1", name: "Mon preset", updatedAt: doc.updatedAt },
+        { id: "preset-2", name: "Autre preset", updatedAt: doc2.updatedAt },
+      ],
+      unreadableIds: ["corrupt-preset"],
+    });
+  });
+
+  it("list() throws a PartialPresetListError instance (not a bare Error) so callers can recover the parsed summaries", async () => {
+    vi.spyOn(launch, "listPresetIds").mockResolvedValue(["corrupt-preset"]);
+    vi.spyOn(launch, "readPreset").mockResolvedValue("{not valid json");
+    const store = new TauriPresetStore();
+    try {
+      await store.list();
+      expect.unreachable("list() should have thrown");
+    } catch (e) {
+      expect(e).toBeInstanceOf(PartialPresetListError);
+      expect((e as PartialPresetListError).message).toContain("corrupt-preset");
+    }
+  });
+
+  it("list() returns normally (no throw) when every entry parses", async () => {
+    vi.spyOn(launch, "listPresetIds").mockResolvedValue(["preset-1"]);
+    vi.spyOn(launch, "readPreset").mockResolvedValue(JSON.stringify(doc));
+    const store = new TauriPresetStore();
+    await expect(store.list()).resolves.toEqual([{ id: "preset-1", name: "Mon preset", updatedAt: doc.updatedAt }]);
   });
 });

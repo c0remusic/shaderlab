@@ -270,9 +270,35 @@ courante (projetée en `PresetLayer[]`, mêmes 5 champs que §3.1) au `snapshot`
 Dès qu'elle retourne `true` alors qu'`activePresetId` est posé, un bandeau
 propose "Mettre à jour «Nom»" (`presetStore.save(activePresetId, capture(...))`)
 ou "Créer une copie" (nouvel id, nouveau nom demandé) — jamais une perte
-silencieuse (`PRD.md:130-131`). Sélectionner un autre calque, ajouter/retirer un
-calque, ou appliquer un autre preset efface `activePresetId` (plus de preset
-"actif" à comparer).
+silencieuse (`PRD.md:130-131`). Ajouter/retirer un calque, ou appliquer un autre
+preset, efface `activePresetId` (plus de preset "actif" à comparer).
+
+**Correction post-implémentation (revue finale de branche, 2026-07-26)** :
+contrairement à ce que cette section disait initialement, **sélectionner un
+autre calque n'efface PAS `activePresetId`**. Le code livré fait
+délibérément l'inverse — c'est ce qui rend cette bannière atteignable du
+tout : `apply()` ne sélectionne aucun calque particulier, et le premier
+geste naturel après avoir appliqué un preset (cliquer un calque pour régler
+ses paramètres) aurait sinon fait disparaître la bannière avant même que
+l'utilisateur ait eu la chance de modifier quoi que ce soit. Voir
+`selectLayer`/`normalizeSelection` dans `src/App.tsx` : `clearActive()` n'y
+est posé QUE sur `openFile`/`handleAdd`/`handleRemove`/`applyPreset`, jamais
+sur la sélection de calque.
+
+Ctrl+Z/Ctrl+Y (undo/redo) ont eux aussi un traitement dédié, ajouté par la
+même revue finale : `usePresets.reconcileActiveAfterHistoryChange` compare la
+pile restaurée au snapshot du preset actif de façon **structurelle**
+(nombre de calques + suite des `effectId`, PAS les valeurs de paramètres —
+`presetStructureDiffers`, distinct de `presetsDiffer` ci-dessus) et n'efface
+`activePresetId` que si cette structure a changé. Sans ce traitement, annuler
+l'application même du preset (retour à une pile vide ou différente) laissait
+`activePresetId` posé sur un snapshot qui ne correspondait plus à rien, et
+"Mettre à jour" pouvait écraser le fichier avec la pile annulée — un bug
+CRITIQUE trouvé par cette même revue. Une simple annulation de modification de
+paramètre (pile structurellement identique) ne passe PAS par ce chemin : c'est
+`presetsDiffer` (comparaison de valeur complète) qui continue seul à piloter
+l'affichage de la bannière dans ce cas, et fait bien disparaître le bandeau
+quand l'undo ramène la pile à l'état exact du preset.
 
 ### 5.5 Preset référence un effet disparu du registry
 

@@ -18,6 +18,25 @@ export interface PresetSummary {
   updatedAt: string;
 }
 
+/** Thrown by `TauriPresetStore.list()` when one or more preset FILES fail to
+ *  parse (corrupt JSON, hand-edited into invalid content) — final-review fix
+ *  (Important 5). Before this fix, `list()` had no per-entry guard: a single
+ *  unreadable file rejected the WHOLE promise, and the panel showed "Aucun
+ *  preset enregistré" even though the other presets were fine and nothing in
+ *  the app can delete a preset file to recover. `summaries` carries every
+ *  preset that DID parse (never discarded because a sibling failed);
+ *  `unreadableIds` names the ignored files so the surfaced error message is
+ *  actionable rather than a generic parse failure. */
+export class PartialPresetListError extends Error {
+  constructor(
+    public readonly summaries: PresetSummary[],
+    public readonly unreadableIds: string[]
+  ) {
+    super(`Preset(s) illisible(s) ignoré(s) (fichier corrompu) : ${unreadableIds.join(", ")}`);
+    this.name = "PartialPresetListError";
+  }
+}
+
 /** Port for the preset library — production (`TauriPresetStore`) and test
  *  (`InMemoryPresetStore`) implementations, same shape as `PathAvailability`
  *  in `src/export/exportImage.ts`. `rename` is load+patch+save, not a
@@ -46,10 +65,20 @@ export class TauriPresetStore implements PresetStore {
   async list(): Promise<PresetSummary[]> {
     const ids = await listPresetIds();
     const summaries: PresetSummary[] = [];
+    const unreadable: string[] = [];
     for (const id of ids) {
-      const doc: PresetDocument = JSON.parse(await readPreset(id));
-      summaries.push({ id, name: doc.name, updatedAt: doc.updatedAt });
+      // Per-entry guard (Important 5, final-review fix): one corrupt file
+      // used to reject list() entirely, hiding every OTHER, perfectly valid
+      // preset — fail-fast VISIBLE (report the bad ids), not fail-fast TOTAL
+      // (lose the whole library).
+      try {
+        const doc: PresetDocument = JSON.parse(await readPreset(id));
+        summaries.push({ id, name: doc.name, updatedAt: doc.updatedAt });
+      } catch {
+        unreadable.push(id);
+      }
     }
+    if (unreadable.length > 0) throw new PartialPresetListError(summaries, unreadable);
     return summaries;
   }
 

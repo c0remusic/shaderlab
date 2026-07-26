@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
-import type { PresetStore, PresetSummary } from "../presets/presetStore";
+import { PartialPresetListError, type PresetStore, type PresetSummary } from "../presets/presetStore";
 import { apply, capture } from "../presets/presetDocument";
-import { presetsDiffer } from "../presets/presetsDiffer";
+import { presetsDiffer, presetStructureDiffers } from "../presets/presetsDiffer";
 import type { PresetLayer } from "../presets/presetTypes";
 import { getEffect } from "../render/effects/registry";
 import { freshId } from "../layers/layerStack";
@@ -39,7 +39,17 @@ export function usePresets(store: PresetStore) {
   const [active, setActive] = useState<{ id: string; snapshot: PresetLayer[] } | null>(null);
 
   const refresh = useCallback(async () => {
-    setSummaries(await store.list());
+    try {
+      setSummaries(await store.list());
+    } catch (e) {
+      // Important 5 (final-review fix): a corrupt preset file must not hide
+      // the SANE presets that parsed fine — PartialPresetListError still
+      // carries them. The error itself is rethrown so the caller's existing
+      // `.catch(setError)` (App.tsx's mount effect) surfaces the "which
+      // file(s)" message; only the summaries update happens here.
+      if (e instanceof PartialPresetListError) setSummaries(e.summaries);
+      throw e;
+    }
   }, [store]);
 
   const isDirtyOf = useCallback(
@@ -48,6 +58,30 @@ export function usePresets(store: PresetStore) {
   );
 
   const clearActive = useCallback(() => setActive(null), []);
+
+  /** Critique 1 (final-review fix): after an undo/redo, sever the link to
+   *  the active preset if the restored stack no longer STRUCTURALLY matches
+   *  its snapshot (layer count or effectId sequence — see
+   *  `presetStructureDiffers`'s doc comment for why this is coarser than
+   *  `isDirtyOf`'s full-value comparison). Without this, undoing all the way
+   *  back through a preset APPLICATION (e.g. to an empty stack) left
+   *  `activePresetId` pointing at a preset whose snapshot no longer matched
+   *  reality — the dirty banner's "Mettre à jour" button would then
+   *  overwrite the preset file with the undone (possibly empty) stack,
+   *  irreversibly (the write is not itself an undo-history entry). A plain
+   *  param-value undo must NOT go through this path (only the same-structure
+   *  value comparison in `isDirtyOf` governs the banner in that case) —
+   *  callers pass the FULL current layer list, this function only clears
+   *  `active` when the coarser structural check fails. */
+  const reconcileActiveAfterHistoryChange = useCallback(
+    (currentLayers: LayerState[]) => {
+      if (!active) return;
+      if (presetStructureDiffers(toPresetLayers(currentLayers), active.snapshot)) {
+        setActive(null);
+      }
+    },
+    [active]
+  );
 
   /** Captures `layers` under `name` and saves it as a brand-new preset
    *  (crypto.randomUUID()'d id, see presetDocument.capture). Overwrite-by-
@@ -74,9 +108,19 @@ export function usePresets(store: PresetStore) {
       const existing = await store.load(id);
       const { preset } = capture(layers, name);
       await store.save(id, { ...preset, id, createdAt: existing.createdAt });
+      // Important 4 (final-review fix): overwriting the CURRENTLY ACTIVE
+      // preset by name (typing its own name into "Enregistrer" -> "Écraser")
+      // must repose `active.snapshot` too, same as `updateActive` below —
+      // otherwise the file is up to date but `active.snapshot` still holds
+      // the stale pre-overwrite version, so `isDirtyOf` keeps reporting
+      // dirty forever and the banner can never be dismissed (its own
+      // "Mettre à jour" would just rewrite the same content again).
+      if (active?.id === id) {
+        setActive({ id, snapshot: toPresetLayers(layers) });
+      }
       await refresh();
     },
-    [store, refresh]
+    [store, refresh, active]
   );
 
   /** C2 (PRD.md:64-65): `PresetStore.rename` (Task 2) exists but had no
@@ -162,5 +206,6 @@ export function usePresets(store: PresetStore) {
     updateActive,
     copyActiveAsNew,
     clearActive,
+    reconcileActiveAfterHistoryChange,
   };
 }

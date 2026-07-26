@@ -8,14 +8,13 @@ export interface DockedPanelCardProps {
   onCollapsedChange: (collapsed: boolean) => void;
   children: React.ReactNode;
   className?: string;
-  reorderIndex: number;
   dragging?: boolean;
   titlebarProps?: React.HTMLAttributes<HTMLDivElement>;
 }
 
-export function DockedPanelCard({ title, collapsed, onCollapsedChange, children, className = "", reorderIndex, dragging = false, titlebarProps }: DockedPanelCardProps) {
+export function DockedPanelCard({ title, collapsed, onCollapsedChange, children, className = "", dragging = false, titlebarProps }: DockedPanelCardProps) {
   return (
-    <div className={`docked-panel-card ${dragging ? "docked-panel-card--dragging" : ""} ${className}`.trim()} data-reorder-index={reorderIndex}>
+    <div className={`docked-panel-card ${dragging ? "docked-panel-card--dragging" : ""} ${className}`.trim()}>
       <div className="docked-panel-card__titlebar" data-collapsed={collapsed || undefined} {...titlebarProps}>
         <span className="docked-panel-card__title">{title}</span>
         <GripHorizontal className="docked-panel-card__drag-grip icon-sm icon-stroke" aria-hidden="true" />

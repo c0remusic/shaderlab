@@ -661,6 +661,15 @@ export default function App() {
   // contentEditable, ex. le champ de valeur d'un LabeledSlider en cours de
   // frappe), où Ctrl+Z doit rester l'undo texte natif du champ, pas l'undo
   // de calque.
+  // « Latest ref » sur les deux handlers : `handleUndo`/`handleRedo` sont
+  // redéclarés à chaque render, donc les mettre en dépendances rattacherait le
+  // listener à chaque render — exactement le comportement (non intentionnel)
+  // qu'un `useEffect` sans tableau de dépendances produisait ici. Le ref donne
+  // la correction fonctionnelle (aucune stale closure) avec un listener attaché
+  // UNE seule fois.
+  const undoRedoRef = useRef({ undo: handleUndo, redo: handleRedo });
+  undoRedoRef.current = { undo: handleUndo, redo: handleRedo };
+
   useEffect(() => {
     function handleWindowKeyDown(event: KeyboardEvent) {
       if (!event.ctrlKey && !event.metaKey) return;
@@ -671,15 +680,15 @@ export default function App() {
       const key = event.key.toLowerCase();
       if (key === "z") {
         event.preventDefault();
-        handleUndo();
+        undoRedoRef.current.undo();
       } else if (key === "y") {
         event.preventDefault();
-        handleRedo();
+        undoRedoRef.current.redo();
       }
     }
     window.addEventListener("keydown", handleWindowKeyDown);
     return () => window.removeEventListener("keydown", handleWindowKeyDown);
-  });
+  }, []);
 
   async function performExport(resolveDir: () => Promise<string | null>, bareFirst: boolean) {
     if (!rendererRef.current) return;

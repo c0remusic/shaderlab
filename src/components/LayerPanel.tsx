@@ -3,6 +3,7 @@ import { usePointerReorder, type DropPosition } from "../ui/dragReorder";
 import "../ui/dragReorder.css";
 import { Eye, EyeOff, GripVertical, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
+import { isLayerVisible } from "../layers/isolation";
 import { effectRegistry, getEffect } from "../render/effects/registry";
 import { PASSTHROUGH_EFFECT } from "../render/effectPassRunner";
 import { blendRegistry } from "../render/blend/registry";
@@ -16,7 +17,13 @@ interface Props {
   selectedId: string | null;
   hasImage: boolean;
   onSelect: (id: string) => void;
-  onToggle: (id: string) => void;
+  /** Clic sur l'œil. `altKey` porte le geste d'ISOLATION (Alt+clic) : la
+   *  décision de ce qu'il déclenche est prise par `layers/isolation.ts`, pas
+   *  ici — ce composant ne fait que transmettre le modificateur. */
+  onToggle: (id: string, altKey: boolean) => void;
+  /** Id du calque isolé, ou null. Ne change QUE l'affichage (icône + libellé) :
+   *  la visibilité stockée des calques n'est pas touchée. */
+  isolatedLayerId?: string | null;
   onAdd: (effectId: string) => void;
   onRemove: (id: string) => void;
   onReorder: (id: string, newIndex: number) => void;
@@ -38,8 +45,15 @@ interface LayerRowProps {
   selected: boolean;
   isDragging: boolean;
   dropPosition: DropPosition | null;
+  /** Visibilité EFFECTIVE (isolation comprise) : pilote l'icône et le libellé.
+   *  Booléen déjà calculé plutôt que l'id isolé, pour ne pas casser la
+   *  mémoïsation de la ligne (`memo`) sur un calque non concerné. */
+  visible: boolean;
+  /** Vrai dès qu'UN calque est isolé (pas forcément celui-ci) : pendant
+   *  l'isolation, un clic simple sur n'importe quel œil en SORT. */
+  isolationActive: boolean;
   onSelect: (id: string) => void;
-  onToggle: (id: string) => void;
+  onToggle: (id: string, altKey: boolean) => void;
   onRemove: (id: string) => void;
   onGripPointerDown: (id: string, pointerId: number, target: Element, clientX: number, clientY: number) => void;
   onOpacityChange: (id: string, opacity: number) => void;
@@ -69,6 +83,8 @@ const LayerRow = memo(function LayerRow({
   selected,
   isDragging,
   dropPosition,
+  visible,
+  isolationActive,
   onSelect,
   onToggle,
   onRemove,
@@ -112,14 +128,25 @@ const LayerRow = memo(function LayerRow({
             <GripVertical className="layer-panel__grip icon-sm icon-stroke" aria-hidden="true" />
           </span>
           <IconButton
-            label={layer.enabled ? "Masquer le calque" : "Afficher le calque"}
+            // Pendant l'isolation, l'œil affiche la visibilité EFFECTIVE et le
+            // clic simple sert à en sortir : le libellé dit donc ce que le clic
+            // fait réellement, jamais "Masquer/Afficher" sur une valeur que
+            // l'utilisateur ne voit pas (voir `eyeClickOutcome`).
+            label={isolationActive ? "Quitter l'isolation" : visible ? "Masquer le calque" : "Afficher le calque"}
+            // Découvrabilité du geste : un Alt+clic est invisible, l'infobulle
+            // est le seul endroit où l'annoncer sans alourdir la ligne.
+            tooltip={
+              isolationActive
+                ? "Quitter l'isolation · Alt+clic : isoler ce calque"
+                : `${visible ? "Masquer le calque" : "Afficher le calque"} · Alt+clic : isoler ce calque`
+            }
             size="compact"
             onClick={(e) => {
               e.stopPropagation();
-              onToggle(layer.id);
+              onToggle(layer.id, e.altKey);
             }}
           >
-            {layer.enabled ? (
+            {visible ? (
               <Eye className="icon-sm icon-stroke" aria-hidden="true" />
             ) : (
               <EyeOff className="icon-sm icon-stroke" aria-hidden="true" />
@@ -193,6 +220,7 @@ export function LayerPanel({
   hasImage,
   onSelect,
   onToggle,
+  isolatedLayerId = null,
   onAdd,
   onRemove,
   onReorder,
@@ -240,6 +268,8 @@ export function LayerPanel({
             layer={layer}
             index={index}
             selected={layer.id === selectedId}
+            visible={isLayerVisible(layer, isolatedLayerId)}
+            isolationActive={isolatedLayerId !== null}
             isDragging={dragState?.draggedId === layer.id}
             dropPosition={
               dragState !== null && dragState.overIndex === index && dragState.draggedId !== layer.id

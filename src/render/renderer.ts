@@ -1,6 +1,7 @@
 import type { GpuContext } from "./gpuContext";
 import { getSrgbCanvasView } from "./gpuContext";
 import type { LayerState } from "../layers/types";
+import { projectIsolation } from "../layers/isolation";
 import { EffectPassRunner } from "./effectPassRunner";
 import { MaskTextureResolver } from "./maskTextureResolver";
 import { FramePipelineExecutor, type PhotoLayerInputPort } from "./framePipelineExecutor";
@@ -92,6 +93,12 @@ export class Renderer {
    *  l'UI — état plutôt que paramètre de chaque `requestRender`, pour ne pas
    *  le faire transiter par tous les sites d'appel de rendu. */
   private maskOverlayLayerId: string | null = null;
+  /** Id du calque ISOLÉ (Alt+clic sur l'œil), ou null. Même statut que
+   *  `maskOverlayLayerId` : état d'interface transitoire porté par le renderer
+   *  plutôt que paramètre de chaque `requestRender`, pour ne pas le faire
+   *  transiter par tous les sites d'appel de rendu (App.tsx en compte une
+   *  dizaine). Appliqué par `render()` uniquement — voir `setIsolatedLayer`. */
+  private isolatedLayerId: string | null = null;
   /** Dernier frame d'overlay capturé par un rendu complet (`runPipeline`) —
    *  null si aucun overlay actif. Seule source lue par
    *  `tickOverlayAnimation` : jamais recalculée, jamais un nouvel appel à
@@ -136,6 +143,19 @@ export class Renderer {
    *  un `requestRender()` ensuite. */
   setMaskOverlay(layerId: string | null): void {
     this.maskOverlayLayerId = layerId;
+  }
+
+  /** Isole un calque à l'écran (tous les autres masqués), ou `null` pour
+   *  rétablir la visibilité réelle des calques. Ne déclenche pas de rendu —
+   *  l'appelant fait un `requestRender()` ensuite (même contrat que
+   *  `setMaskOverlay`).
+   *
+   *  N'affecte QUE `render()` (l'écran) : `exportFrame()` continue de rendre le
+   *  document tel qu'il est, parce que l'isolation est une aide visuelle de
+   *  jugement, pas une propriété du document. Le modèle de calques n'est jamais
+   *  touché — voir `layers/isolation.ts`. */
+  setIsolatedLayer(layerId: string | null): void {
+    this.isolatedLayerId = layerId;
   }
 
   /**
@@ -240,7 +260,9 @@ export class Renderer {
     // rendu (sans preview) réutiliserait alors par erreur la texture de
     // preview périmée d'un trait de pinceau précédent.
     try {
-      this.runPipeline(layers, getSrgbCanvasView(this.ctx));
+      // Projection d'isolation ICI et pas dans `runPipeline` : `exportFrame`
+      // passe par `runPipeline` et doit rendre le document réel.
+      this.runPipeline(projectIsolation(layers, this.isolatedLayerId), getSrgbCanvasView(this.ctx));
     } finally {
       this.maskTextureResolver?.setLivePreview(null);
     }

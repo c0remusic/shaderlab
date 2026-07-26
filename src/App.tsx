@@ -46,6 +46,7 @@ import { ColorPickerPanel } from "./components/ColorPickerPanel";
 import type { EffectParam } from "./render/effects/types";
 import { usePresets } from "./hooks/usePresets";
 import { usePhotoLayer } from "./hooks/usePhotoLayer";
+import { useLayerIsolation } from "./hooks/useLayerIsolation";
 import { PresetPanel } from "./components/PresetPanel";
 import { TauriPresetStore } from "./presets/presetStore";
 import { capture } from "./presets/presetDocument";
@@ -354,6 +355,11 @@ export default function App() {
     },
     [currentStack, commit]
   );
+
+  // Isolation d'un calque (Alt+clic sur l'œil) : état d'interface transitoire,
+  // hors modèle et hors historique — toute la logique vit dans
+  // `useLayerIsolation`/`layers/isolation.ts`, App n'en garde que le câblage.
+  const isolation = useLayerIsolation({ sessionRef, rendererRef, layers, toggleLayer: handleToggle });
 
   const handleRemove = useCallback(
     (id: string) => {
@@ -1185,7 +1191,8 @@ export default function App() {
                   selectedId={selectedId}
                   hasImage={imageSize.width > 0 && imageSize.height > 0}
                   onSelect={selectLayer}
-                  onToggle={handleToggle}
+                  onToggle={isolation.handleEyeClick}
+                  isolatedLayerId={isolation.isolatedLayerId}
                   onAdd={handleAdd}
                   onRemove={handleRemove}
                   onReorder={handleReorder}

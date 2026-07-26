@@ -370,7 +370,15 @@ export default function App() {
       maskPaintersRef.current.delete(id);
       commit(stack);
     },
-    [currentStack, commit, presets]
+    // presets.clearActive (not the whole `presets` object, which usePresets
+    // returns as a fresh literal every render) — same narrowing already used
+    // by openFile above. clearActive is `useCallback(..., [])` in
+    // usePresets.ts, so it is referentially stable; the whole `presets`
+    // object is not, and this callback is passed as onRemove to LayerRow
+    // (memo()-ised in LayerPanel.tsx specifically so an opacity drag on one
+    // layer doesn't re-render the others) — an unstable dependency here
+    // defeated that memoization on every keystroke of any param drag.
+    [currentStack, commit, presets.clearActive]
   );
 
   const handleReorder = useCallback(

@@ -1,12 +1,30 @@
 import type { LayerState } from "./types";
 
-/** Limite dure v1 (PRD "Double exposure") : 2 photos sources max par
- *  document = la photo de fond (toujours 1, hors modèle `LayerState` — elle
- *  vit dans `ImageFrameResources.sourceTexture`) + au plus UNE silhouette
- *  importée comme calque de photo. Garde applicative NOMMÉE et vérifiable,
- *  jamais codée en dur dans `LayerStack` ou le shader — voir
- *  ARCHITECTURE.md §5 "N sources d'image". */
-export const MAX_PHOTO_LAYERS = 1;
+/** Plafond de calques photo par document — la photo de FOND n'en fait pas
+ *  partie (elle est hors modèle `LayerState`, elle vit dans
+ *  `ImageFrameResources.sourceTexture`). Garde applicative NOMMÉE et
+ *  vérifiable, jamais codée en dur dans `LayerStack` ou le shader — voir
+ *  ARCHITECTURE.md §5 "N sources d'image".
+ *
+ *  Valeur retenue : 4. Base factuelle (design
+ *  `2026-07-26-shaderlab-photo-layer-parity-design.md` §3.5) : la seule
+ *  mesure disponible est ~1280 Mo avec 2 photos 26 MP et 3 calques dont un
+ *  calque photo (`.claude/learning-log.md:1060-1072`), sans
+ *  `device.lost`, et elle n'est PAS décomposée — aucune extrapolation
+ *  linéaire n'est légitime. Ce que le code permet d'affirmer : chaque calque
+ *  photo supplémentaire ajoute UNE texture source
+ *  (`photoW × photoH × 4` ≈ 96 Mo à 24 MP, `render/photoSourceStore.ts`) et
+ *  ZÉRO cible pleine taille supplémentaire, la cible de résolution étant
+ *  partagée (`render/photoLayerInput.ts`, invariant d'ordre des passes).
+ *  4 est donc un pas mesurable (≈ +3 textures sources sur la mesure
+ *  existante), pas une limite théorique.
+ *
+ *  ⚠️ CRITÈRE DE RÉVISION — mesure VRAM RÉELLE à 4 × 24 MP encore À FAIRE
+ *  (elle exige une vraie fenêtre WebView2 avec GPU : impossible en session
+ *  headless / test Node). Réviser cette valeur, ET
+ *  `MAX_REGISTERED_PHOTO_SOURCES` qui en dérive, dès que la mesure est
+ *  relevée, ou si un `device.lost` est observé sous ce plafond. */
+export const MAX_PHOTO_LAYERS = 4;
 
 export function countPhotoLayers(layers: LayerState[]): number {
   return layers.filter((layer) => layer.imageSource !== undefined).length;

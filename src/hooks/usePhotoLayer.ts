@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type MutableRefObject, type RefObject
 import type { DocumentSession } from "../application/documentSession";
 import type { LayerStack } from "../layers/layerStack";
 import type { LayerState, LayerTransform } from "../layers/types";
-import { canAddPhotoLayer } from "../layers/photoLayer";
+import { MAX_PHOTO_LAYERS, canAddPhotoLayer } from "../layers/photoLayer";
 import type { Renderer } from "../render/renderer";
 import { pickImageFile, readImageFile } from "../launch";
 import { messageFromUnknown } from "../lib/errors";
@@ -86,7 +86,9 @@ export function usePhotoLayer({
   const handleImportPhotoLayer = useCallback(async () => {
     if (!rendererRef.current?.photoSources) return;
     if (!canAddPhotoLayer(sessionRef.current.layers())) {
-      setError("Limite atteinte : au plus une photo importée (double exposure) par document.");
+      setError(
+        `Limite atteinte : au plus ${MAX_PHOTO_LAYERS} photo${MAX_PHOTO_LAYERS > 1 ? "s" : ""} importée${MAX_PHOTO_LAYERS > 1 ? "s" : ""} (double exposure) par document.`,
+      );
       return;
     }
     try {

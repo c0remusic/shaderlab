@@ -3,7 +3,7 @@ import { initGpu, type GpuContext } from "./render/gpuContext";
 import { Renderer } from "./render/renderer";
 import { LayerStack } from "./layers/layerStack";
 import type { LayerState } from "./layers/types";
-import { canAddPhotoLayer, hasPhotoLayer } from "./layers/photoLayer";
+import { canAddPhotoLayer, countPhotoLayers, hasPhotoLayer } from "./layers/photoLayer";
 import { changeLayerEffect } from "./layers/changeLayerEffect";
 import { DocumentSession } from "./application/documentSession";
 import { BrushToolbar } from "./components/BrushToolbar";
@@ -127,11 +127,14 @@ export default function App() {
   // Task 4 : id du preset en attente de confirmation de remplacement — non
   // nul seulement quand la pile courante n'est pas vide (voir
   // `requestApplyPreset`). Le PRD interdit d'écraser des masques déjà peints
-  // sans confirmation explicite. `hasPhotoLayer` (Important 2, final-review
-  // fix) : capturé au moment de la demande, pas recalculé au clic de
-  // confirmation — la pile ne doit plus bouger entre les deux, mais figer la
-  // valeur évite toute dépendance implicite à cet invariant.
-  const [pendingPresetApply, setPendingPresetApply] = useState<{ id: string; hasPhotoLayer: boolean } | null>(null);
+  // sans confirmation explicite. `photoLayerCount` (Important 2, final-review
+  // fix ; passé de booléen à COMPTE au fix de revue T5) : capturé au moment de
+  // la demande, pas recalculé au clic de confirmation — la pile ne doit plus
+  // bouger entre les deux, mais figer la valeur évite toute dépendance
+  // implicite à cet invariant. Le compte (et pas un booléen) est nécessaire
+  // depuis que `MAX_PHOTO_LAYERS` vaut 4 : un texte de confirmation
+  // destructive doit dire la vérité sur CE QUI va être perdu.
+  const [pendingPresetApply, setPendingPresetApply] = useState<{ id: string; photoLayerCount: number } | null>(null);
 
   // Task 5 : nom en attente de saisie pour "Créer une copie" depuis la
   // bannière de dérive — non nul tant que le dialogue de nommage est ouvert.
@@ -914,7 +917,7 @@ export default function App() {
   function requestApplyPreset(id: string) {
     const currentLayers = sessionRef.current.layers();
     if (currentLayers.length > 0) {
-      setPendingPresetApply({ id, hasPhotoLayer: hasPhotoLayer(currentLayers) });
+      setPendingPresetApply({ id, photoLayerCount: countPhotoLayers(currentLayers) });
       return;
     }
     applyPreset(id);
@@ -1400,12 +1403,19 @@ export default function App() {
           open={pendingPresetApply !== null}
           title="Remplacer la pile de calques ?"
           description={
-            // Important 2 (final-review fix) : nomme explicitement le calque
-            // photo (double exposure) détruit, pas seulement les masques —
+            // Important 2 (final-review fix) : nomme explicitement les calques
+            // photo (double exposure) détruits, pas seulement les masques —
             // c'était la porte la plus destructrice ET la moins explicite
             // (asymétrique avec la capture, qui énumère ces calques par nom).
-            pendingPresetApply?.hasPhotoLayer
-              ? "Les masques peints ET le calque photo (double exposure) importé sur les calques actuels seront perdus (annulable par Ctrl+Z après confirmation)."
+            // Pluralisation dynamique (fix de revue T5, même forme que le
+            // dialogue de capture) : `MAX_PHOTO_LAYERS` vaut 4, le singulier
+            // en dur mentait sur le nombre de calques réellement perdus.
+            pendingPresetApply && pendingPresetApply.photoLayerCount > 0
+              ? `Les masques peints ET ${pendingPresetApply.photoLayerCount} calque${
+                  pendingPresetApply.photoLayerCount > 1 ? "s" : ""
+                } photo (double exposure) importé${
+                  pendingPresetApply.photoLayerCount > 1 ? "s" : ""
+                } sur les calques actuels seront perdus (annulable par Ctrl+Z après confirmation).`
               : "Les masques peints sur les calques actuels seront perdus (annulable par Ctrl+Z après confirmation)."
           }
           onClose={() => setPendingPresetApply(null)}

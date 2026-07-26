@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PhotoSourceStore } from "../../src/render/photoSourceStore";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MAX_REGISTERED_PHOTO_SOURCES, PhotoSourceStore } from "../../src/render/photoSourceStore";
+import { MAX_PHOTO_LAYERS } from "../../src/layers/photoLayer";
 
 /** Reposé à CHAQUE test : `vi.unstubAllGlobals()` (afterEach, pour retirer
  *  les doubles d'OffscreenCanvas/URL) retirerait aussi celui-ci s'il n'était
@@ -205,5 +208,52 @@ describe("PhotoSourceStore", () => {
     const id = await store.register({ width: 10, height: 10 } as ImageBitmap);
     expect(store.get(id)).not.toBeNull();
     expect(store.thumbnailUrl(id)).toBeNull();
+  });
+
+  // Garde d'allocation prescrit par ARCHITECTURE.md R1 : sans refcount (un
+  // calque photo supprimé peut revenir par undo), une boucle
+  // importer/annuler ferait croître la mémoire sans borne. Le plafond est
+  // ici, au point unique d'allocation, pas dispersé dans l'UI.
+  describe("MAX_REGISTERED_PHOTO_SOURCES", () => {
+    const bitmap = { width: 10, height: 10 } as ImageBitmap;
+
+    it("vaut 4 × MAX_PHOTO_LAYERS (révisé par la même mesure VRAM)", () => {
+      expect(MAX_REGISTERED_PHOTO_SOURCES).toBe(4 * MAX_PHOTO_LAYERS);
+    });
+
+    it("laisse enregistrer exactement MAX_REGISTERED_PHOTO_SOURCES sources", async () => {
+      const { store } = createStore();
+      for (let i = 0; i < MAX_REGISTERED_PHOTO_SOURCES; i++) await store.register(bitmap);
+      expect(store.registeredCount).toBe(MAX_REGISTERED_PHOTO_SOURCES);
+    });
+
+    it("échoue explicitement au dépassement, AVANT toute allocation GPU", async () => {
+      const { store, device } = createStore();
+      for (let i = 0; i < MAX_REGISTERED_PHOTO_SOURCES; i++) await store.register(bitmap);
+      const allocationsBefore = device.createTexture.mock.calls.length;
+
+      await expect(store.register(bitmap)).rejects.toThrow(/Trop de photos importées dans cette session/);
+      await expect(store.register(bitmap)).rejects.toThrow(/Ouvre à nouveau le document/);
+      expect(device.createTexture).toHaveBeenCalledTimes(allocationsBefore);
+      expect(store.registeredCount).toBe(MAX_REGISTERED_PHOTO_SOURCES);
+    });
+
+    it("dispose() rend les jetons — c'est la sortie que nomme le message d'erreur", async () => {
+      const { store } = createStore();
+      for (let i = 0; i < MAX_REGISTERED_PHOTO_SOURCES; i++) await store.register(bitmap);
+      await expect(store.register(bitmap)).rejects.toThrow();
+
+      store.dispose();
+
+      expect(store.registeredCount).toBe(0);
+      await expect(store.register(bitmap)).resolves.toBeDefined();
+    });
+
+    it("rend toujours un sourceId frais après dispose() (les ids ne sont pas recyclés)", async () => {
+      const { store } = createStore();
+      const before = await store.register(bitmap);
+      store.dispose();
+      await expect(store.register(bitmap)).resolves.not.toBe(before);
+    });
   });
 });

@@ -175,6 +175,28 @@ describe("PhotoLayerInputResolver", () => {
       expect(second).toBe(first);
     });
 
+    // MAX_PHOTO_LAYERS vaut 4 : deux calques photo de la MÊME frame appellent
+    // resolve() sur le MÊME encoder, avec la même taille de fond. Le resolver
+    // doit leur rendre le même objet texture (une seule cible pleine taille,
+    // pas +96 Mo par calque à 24 MP) — la correction de ce partage tient à
+    // l'ordre des passes, assuré côté FramePipelineExecutor.
+    it("returns the same target object to two photo layers resolved in one frame", () => {
+      const { device, encoder } = createDevice();
+      const resolver = new PhotoLayerInputResolver(device as unknown as GPUDevice, "bgra8unorm-srgb", {} as GPUSampler);
+      const pendingDestroy: (GPUTexture | GPUBuffer)[] = [];
+
+      const forLayerA = resolver.resolve(encoder as unknown as GPUCommandEncoder, texture() as unknown as GPUTexture, 200, 100, 500, 400, { x: 10, y: 20, scale: 1, rotation: 0 }, pendingDestroy);
+      const forLayerB = resolver.resolve(encoder as unknown as GPUCommandEncoder, texture() as unknown as GPUTexture, 300, 150, 500, 400, { x: 90, y: 80, scale: 2, rotation: 0.5 }, pendingDestroy);
+
+      expect(forLayerB).toBe(forLayerA);
+      expect(device.createTexture).toHaveBeenCalledOnce();
+      // Chaque calque a bien sa propre passe qui re-clear la cible, et son
+      // propre buffer d'uniform transitoire — aucune mutualisation.
+      expect(encoder.beginRenderPass).toHaveBeenCalledTimes(2);
+      expect(encoder.beginRenderPass.mock.calls[1][0].colorAttachments[0].loadOp).toBe("clear");
+      expect(pendingDestroy).toHaveLength(2);
+    });
+
     it("recreates (and destroys the old) target texture when bgWidth/bgHeight changes", () => {
       const { device, encoder } = createDevice();
       const resolver = new PhotoLayerInputResolver(device as unknown as GPUDevice, "bgra8unorm-srgb", {} as GPUSampler);

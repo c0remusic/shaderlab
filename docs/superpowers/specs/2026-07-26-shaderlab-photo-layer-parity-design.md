@@ -519,8 +519,9 @@ ne font que traduire écran↔pixels du fond et déléguer, comme
 endroit (`src/layers/photoLayer.ts:9`), avec le critère de révision écrit
 dans son commentaire.
 
-Base factuelle : la seule mesure disponible est ~1280 Mo pour fond + 1 calque
-photo à 24 MP, sans `device.lost`. Ce nombre n'est **pas** décomposé, donc
+Base factuelle : la seule mesure disponible est ~1280 Mo avec 2 photos 26 MP et
+3 calques dont un calque photo, sans `device.lost`
+(`.claude/learning-log.md:1060-1072`). Ce nombre n'est **pas** décomposé, donc
 aucune extrapolation linéaire n'est légitime. Ce que le code permet
 d'affirmer : chaque calque photo supplémentaire ajoute **une** texture source
 (`photoW × photoH × 4` ≈ 96 Mo à 24 MP, `photoSourceStore.ts:29-38`) et
@@ -745,6 +746,117 @@ Coordination : T5 modifie le message d'erreur de `handleImportPhotoLayer`, que
 T1 **déplace** dans `usePhotoLayer`. C'est un conflit de merge d'une ligne, pas
 une dépendance — T5 ne déplace aucun code, T1 le fait. Rebaser T5 sur T1 au
 merge.
+
+#### Mesure VRAM — À FAIRE (protocole exécutable, aucun chiffre inventé)
+
+> **Statut : NON MESURÉE.** `MAX_PHOTO_LAYERS = 4` et
+> `MAX_REGISTERED_PHOTO_SOURCES = 4 × MAX_PHOTO_LAYERS` sont posés sur la seule
+> mesure existante (~1280 Mo dédiés avec **2 photos 26 MP et 3 calques**, dont
+> un calque photo — `.claude/learning-log.md:1060-1072`, relevé du 2026-07-25 ;
+> chiffre global, non décomposé, et pas dans les conditions du protocole
+> ci-dessous) plus un
+> raisonnement de coût marginal, PAS sur un relevé à 4 photos. La branche T5 a
+> été implémentée en session headless, sans GPU : aucun chiffre n'a été
+> produit, et aucun n'a été simulé. `ARCHITECTURE.md` R1 (« Mesure sur cas réel
+> 24 MP + 24 MP AVANT de déclarer la feature terminée ») reste donc **ouvert**.
+> La feature n'est pas « terminée » tant que l'encadré ci-dessous n'est pas
+> rempli.
+
+**Qui l'exécute** : un humain, sur la machine Windows cible, avec une vraie
+fenêtre WebView2 (le rendu WebGPU est nul en headless — voir `CLAUDE.md`
+§ « Moyen de preuve (UI) »).
+
+**Images à utiliser** : 5 JPEG **distincts** d'au moins 24 MP chacun
+(≈ 6000 × 4000). Distincts et non 5 copies du même fichier : chaque import
+alloue sa propre texture source, un même fichier réimporté ne doit pas laisser
+croire à un partage. 24 MP est le point de comparaison de la mesure existante —
+ne pas descendre en dessous, sinon le relevé n'est pas comparable.
+
+**Protocole, dans l'ordre** :
+
+1. `npm run dev:debug` puis `npm run dev:monitor` (voir `CLAUDE.md` § Méthode).
+   Vérifier qu'aucune autre instance `shaderlab` ne tourne avant
+   (`Get-Process -Name shaderlab`).
+2. Ouvrir l'image de FOND (24 MP). Relever la VRAM → **V0**.
+3. Importer un calque photo (24 MP), attendre le rendu → **V1**.
+4. Importer les calques photo 2, 3 puis 4 → **V2**, **V3**, **V4**. Après
+   chaque import : la fenêtre rend toujours, aucun `device.lost` dans la
+   console CDP.
+5. Tenter un 5ᵉ import : l'action doit être refusée par `canAddPhotoLayer` avec
+   le message nommant `MAX_PHOTO_LAYERS` (garde + message :
+   `src/App.tsx:314-316`, « Limite atteinte : au plus 4 photos importées
+   (double exposure) par document. »). Noter que le refus est bien applicatif,
+   pas un crash.
+6. Boucle importer/annuler (Ctrl+Z) répétée jusqu'à dépasser
+   `MAX_REGISTERED_PHOTO_SOURCES` (= 16) : l'erreur explicite de
+   `PhotoSourceStore.register()` (`src/render/photoSourceStore.ts:54-61`,
+   « Trop de photos importées dans cette session (n/16)… ») doit apparaître
+   dans `ErrorBanner`, sans crash. Relever la VRAM à ce point → **Vmax**.
+
+**Comment lire la valeur (une seule méthode, la même à chaque relevé)** :
+Gestionnaire des tâches → onglet Performance → GPU → « Mémoire GPU dédiée
+utilisée », ou `nvidia-smi --query-gpu=memory.used --format=csv` sur GPU
+NVIDIA. Noter la valeur **au repos, ≥ 3 s après la fin du rendu**, pas pendant
+la passe. Consigner l'outil utilisé : les deux ne comptent pas la même chose,
+les mélanger invalide les deltas.
+
+**Valeurs à consigner ici** (tableau à remplir, ne rien écrire tant que ce
+n'est pas mesuré) :
+
+| Relevé | Attendu (raisonnement §3.5) | Mesuré | Machine / GPU / outil |
+|---|---|---|---|
+| V0 (fond seul) | — | _à faire_ | _à faire_ |
+| V1 (fond + 1) | pas d'attendu chiffré — la mesure existante (~1280 Mo) a été prise à 26 MP avec 3 calques, conditions différentes : ne pas la traiter comme une cible | _à faire_ | _à faire_ |
+| V2 | V1 + ≈ 96 Mo | _à faire_ | _à faire_ |
+| V3 | V2 + ≈ 96 Mo | _à faire_ | _à faire_ |
+| V4 | V3 + ≈ 96 Mo | _à faire_ | _à faire_ |
+| Vmax (plafond de sources atteint) | — | _à faire_ | _à faire_ |
+
+**Seuils de décision — ce qui déclenche quoi** :
+
+- **`device.lost` observé, ou fenêtre qui cesse de rendre, à N ≤ 4 photos** →
+  `MAX_PHOTO_LAYERS` descend à `N − 1`, et `MAX_REGISTERED_PHOTO_SOURCES` suit
+  (il en dérive : `4 × MAX_PHOTO_LAYERS`). Bloquant : la feature ne se déclare
+  pas terminée avec un plafond qui casse.
+- **V4 > 80 % de la VRAM totale du GPU de test** → plafond trop haut pour cette
+  classe de machine même sans crash (aucune marge pour le reste du système) :
+  descendre `MAX_PHOTO_LAYERS` d'un cran et re-mesurer.
+- **Delta par photo nettement supérieur à ≈ 96 Mo** (disons > 150 Mo) → le
+  raisonnement « une texture source par photo, cible partagée » est faux quelque
+  part : rouvrir §3.5 et l'invariant d'ordre des passes AVANT de toucher au
+  plafond. C'est un bug d'allocation, pas un problème de constante.
+- **V4 confortable (< 60 % de la VRAM) et aucun incident** → le plafond 4 peut
+  être relevé, mais seulement avec une nouvelle mesure au nouveau plafond ; ne
+  jamais extrapoler linéairement (c'est exactement l'erreur que §3.5 refuse).
+
+Quand la mesure est faite : remplir le tableau, dater, et mettre à jour le
+commentaire « CRITÈRE DE RÉVISION » de `src/layers/photoLayer.ts` pour qu'il
+cite le relevé au lieu d'annoncer une mesure à faire.
+
+#### Dépendance T1 → T5 à vérifier au merge : révocation des object URL
+
+La ligne « révocation des object URL dans `dispose()` » de la liste T5 ci-dessus
+**n'est pas livrée par la branche T5**, et c'est légitime : le code visé
+n'existe pas sur cette branche. Preuve : `git grep -n
+"createObjectURL\|revokeObjectURL" -- src test` sur `worktree-wf_d2c07cb5-8ed-2`
+retourne **0 occurrence** sur **200 fichiers** balayés (témoin : le même grep sur
+`blob` retourne des hits, le balayage n'est donc pas vide) ;
+`src/render/photoSourceStore.ts:95-99` ne détient que des `GPUTexture`, il n'y a
+aucune URL à révoquer.
+
+Les object URL de vignettes arrivent avec **T1** (§3.3, identité du calque). À
+faire **au merge T1 + T5**, pas avant :
+
+1. Vérifier que `PhotoSourceStore` (ou le propriétaire retenu par T1) détient
+   bien les object URL en plus des `GPUTexture`.
+2. Ajouter `URL.revokeObjectURL(...)` dans `dispose()`, au même endroit que
+   `texture.destroy()` — même cycle de vie, même point unique de libération.
+3. Test Node : après `dispose()`, un `revokeObjectURL` mocké a été appelé une
+   fois par source enregistrée.
+
+Sans ce point, la fuite décrite en §3.5 (boucle importer/annuler) reste bornée
+côté VRAM par `MAX_REGISTERED_PHOTO_SOURCES` mais **pas** côté mémoire
+processus.
 
 ### T6 — Changement d'effet sur un calque existant
 Livre : `setLayerEffect` (+ `presets.clearActive()`, §3.6) + sélecteur UI +

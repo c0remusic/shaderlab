@@ -4,6 +4,7 @@ import "../ui/dragReorder.css";
 import { Eye, EyeOff, GripVertical, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
 import { effectRegistry, getEffect } from "../render/effects/registry";
+import { PASSTHROUGH_EFFECT } from "../render/effectPassRunner";
 import { blendRegistry } from "../render/blend/registry";
 import { Select } from "./ui/select";
 import { LabeledSlider } from "./ui/labeled-slider";
@@ -28,6 +29,7 @@ interface Props {
    *  DOIT être référentiellement stable (`useCallback`) : elle traverse la
    *  mémoïsation de `LayerRow`. */
   thumbnailUrl?: (sourceId: string) => string | null;
+  onEffectChange: (id: string, effectId: string) => void;
 }
 
 interface LayerRowProps {
@@ -44,9 +46,16 @@ interface LayerRowProps {
   onOpacityCommit: () => void;
   onBlendModeChange: (id: string, blendMode: string) => void;
   thumbnailUrl?: (sourceId: string) => string | null;
+  onEffectChange: (id: string, effectId: string) => void;
 }
 
 const addEffectOptions = effectRegistry.map((e) => ({ value: e.id, label: e.name }));
+/** Sélecteur de CHANGEMENT d'effet : contrairement au sélecteur d'AJOUT, il
+ *  expose `passthrough` — sous le libellé « Aucun effet », parce que c'est ce
+ *  qu'il veut dire pour l'utilisateur, et parce qu'un calque photo doit pouvoir
+ *  y revenir. `passthrough` reste hors de `effectRegistry` (contrat
+ *  `render/effects/registry.ts`), donc il est ajouté ici explicitement. */
+const changeEffectOptions = [{ value: PASSTHROUGH_EFFECT.id, label: "Aucun effet" }, ...addEffectOptions];
 const blendModeOptions = blendRegistry.map((m) => ({ value: m.id, label: m.name }));
 
 // Mémoïsée : sans ça, un drag du slider d'opacité d'UN calque re-render
@@ -68,6 +77,7 @@ const LayerRow = memo(function LayerRow({
   onOpacityCommit,
   onBlendModeChange,
   thumbnailUrl,
+  onEffectChange,
 }: LayerRowProps) {
   // Identité du calque (parité calque photo, T1) : le nom du calque prime,
   // et l'affichage retombe sur le nom de l'effet pour tout calque non nommé
@@ -154,6 +164,18 @@ const LayerRow = memo(function LayerRow({
           onChange={(v) => onOpacityChange(layer.id, v)}
           onCommit={onOpacityCommit}
         />
+        {/* Sur le calque SÉLECTIONNÉ uniquement — forme prescrite par le
+            design (§3.6, « un sélecteur d'effet sur le calque sélectionné ») :
+            un sélecteur par ligne mettrait N contrôles de changement d'effet à
+            l'écran, dont un seul concerne le calque en cours d'édition. */}
+        {selected && (
+          <Select
+            label="Effet"
+            value={layer.effectId}
+            options={changeEffectOptions}
+            onChange={(v) => onEffectChange(layer.id, v)}
+          />
+        )}
         <Select
           label="Fusion"
           value={layer.blendMode}
@@ -178,6 +200,7 @@ export function LayerPanel({
   onOpacityCommit,
   onBlendModeChange,
   thumbnailUrl,
+  onEffectChange,
 }: Props) {
   const { dragState, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel } = usePointerReorder(
     layers,
@@ -231,6 +254,7 @@ export function LayerPanel({
             onOpacityCommit={onOpacityCommit}
             onBlendModeChange={onBlendModeChange}
             thumbnailUrl={thumbnailUrl}
+            onEffectChange={onEffectChange}
           />
         ))}
       </ul>

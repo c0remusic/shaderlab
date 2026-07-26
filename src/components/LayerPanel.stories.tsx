@@ -48,6 +48,7 @@ const meta: Meta<typeof LayerPanel> = {
     onOpacityChange: () => {},
     onOpacityCommit: () => {},
     onBlendModeChange: () => {},
+    onEffectChange: () => {},
   },
 };
 
@@ -123,6 +124,8 @@ export const ClickLayerSelects: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     // Clicking the row name bubbles to the <li> onClick → onSelect(id).
+    // Pas d'ambiguïté de texte : le sélecteur d'effet n'existe que sur la
+    // ligne SÉLECTIONNÉE (layer-1, « Glow »), pas sur celle-ci.
     await userEvent.click(canvas.getByText("Chromatic bleed"));
     await expect(args.onSelect).toHaveBeenCalledWith("layer-2");
   },
@@ -135,6 +138,24 @@ export const ToggleVisibility: Story = {
     // layer-2 is disabled → its toggle is uniquely labeled "Afficher le calque".
     await userEvent.click(canvas.getByRole("button", { name: "Afficher le calque" }));
     await expect(args.onToggle).toHaveBeenCalledWith("layer-2");
+  },
+};
+
+// Le sélecteur d'effet : c'est la seule UI qui change l'effectId d'un calque
+// DÉJÀ créé (le Select du haut ne fait qu'ajouter). Il expose "Aucun effet"
+// (= passthrough), absent du sélecteur d'ajout. Il n'existe QUE sur le calque
+// sélectionné (design §3.6) — d'où le `toHaveLength(1)` sur 3 calques.
+export const ChangeLayerEffect: Story = {
+  args: { selectedId: "layer-1", onEffectChange: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const triggers = canvas.getAllByRole("combobox", { name: "Effet" });
+    await expect(triggers).toHaveLength(1);
+    await userEvent.click(triggers[0]);
+    // La popup du Select est portalisée hors de canvasElement.
+    const option = await within(document.body).findByRole("option", { name: "Aucun effet" });
+    await userEvent.click(option);
+    await expect(args.onEffectChange).toHaveBeenCalledWith("layer-1", "passthrough");
   },
 };
 

@@ -4,6 +4,7 @@ import { Renderer } from "./render/renderer";
 import { LayerStack } from "./layers/layerStack";
 import type { LayerState } from "./layers/types";
 import { canAddPhotoLayer, hasPhotoLayer } from "./layers/photoLayer";
+import { changeLayerEffect } from "./layers/changeLayerEffect";
 import { DocumentSession } from "./application/documentSession";
 import { BrushToolbar } from "./components/BrushToolbar";
 import { Canvas } from "./components/Canvas";
@@ -107,6 +108,11 @@ export default function App() {
   const [overlayForceHidden, setOverlayForceHidden] = useState(false);
   const [colorPicker, setColorPicker] = useState<{
     layerId: string;
+    /** Effet du calque au moment de l'ouverture. Les `EffectParam` capturés
+     *  ci-dessous n'appartiennent qu'à cet effet : si le calque en change
+     *  (`setLayerEffect` vide aussi `params`), le picker doit disparaître au
+     *  lieu de piloter des paramètres qui n'existent plus. Comparé au rendu. */
+    effectId: string;
     key: string;
     label: string;
     hue: EffectParam;
@@ -426,6 +432,23 @@ export default function App() {
       commit(stack); // changement discret → une entrée d'historique directe
     },
     [currentStack, commit]
+  );
+
+  const handleEffectChange = useCallback(
+    (id: string, effectId: string) => {
+      // Ordre garde-puis-effets-de-bord et sa justification : voir
+      // `changeLayerEffect` (layers/changeLayerEffect.ts). `clearActive`
+      // parce que l'effectId fait partie de la projection capturée par un
+      // preset (usePresets.toPresetLayers), comme handleAdd/handleRemove.
+      changeLayerEffect(currentStack(), id, effectId, {
+        clearActivePreset: presets.clearActive,
+        commit, // changement discret → une entrée d'historique directe
+      });
+    },
+    // presets.clearActive et non `presets` (littéral frais à chaque render) :
+    // même resserrement que handleRemove, dont le commentaire explique
+    // pourquoi la mémoïsation de LayerRow en dépend.
+    [currentStack, commit, presets.clearActive]
   );
 
   function handleAddMaskSource(layerId: string, type: "gradient" | "luminosity" | "colorRange") {
@@ -1167,6 +1190,7 @@ export default function App() {
                   onOpacityCommit={handleParamCommit}
                   onBlendModeChange={handleBlendModeChange}
                   thumbnailUrl={photoLayer.thumbnailUrl}
+                  onEffectChange={handleEffectChange}
                 />
             },
             {
@@ -1179,7 +1203,10 @@ export default function App() {
                     // Re-cliquer la MÊME pastille referme le picker (bascule),
                     // au lieu de le laisser ouvert sans issue autre que le X.
                     setColorPicker((current) =>
-                      current && current.layerId === group.layerId && current.key === group.key
+                      // `effectId` dans la comparaison : un picker masqué parce
+                      // que l'effet du calque a changé ne doit pas absorber le
+                      // premier clic sur une pastille de MÊME clé du nouvel effet.
+                      current && current.layerId === group.layerId && current.effectId === group.effectId && current.key === group.key
                         ? null
                         : {
                             ...group,
@@ -1226,7 +1253,7 @@ export default function App() {
             { id: "mask", icon: BrushRailIcon, label: "Masque", active: maskPanel.visible, onClick: maskPanel.toggleRail },
           ] satisfies PanelRailItem[]}
         />
-        {colorPicker && selectedLayer?.id === colorPicker.layerId && (
+        {colorPicker && selectedLayer?.id === colorPicker.layerId && selectedLayer.effectId === colorPicker.effectId && (
           <ColorPickerPanel
             key={colorPicker.key}
             label={colorPicker.label}

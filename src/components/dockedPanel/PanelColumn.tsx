@@ -28,6 +28,13 @@ interface DockDragState {
   pointerPosition: { x: number; y: number };
   target: DockDropTarget | null;
   targetBounds: { top: number; right: number; bottom: number; left: number } | null;
+  /** Origine (coin haut-gauche, coords viewport) du conteneur `.panel-column`,
+   *  lue DANS le handler pointermove en même temps que `targetBounds` — le
+   *  guide d'alignement est positionné en absolu dans ce conteneur, donc il
+   *  faut soustraire cette origine. Lire le DOM pendant le render (React peut
+   *  rejouer cette phase) est interdit ; capturer les deux rects au même
+   *  instant est en prime plus cohérent que de les lire à deux moments. */
+  dockOrigin: { left: number; top: number } | null;
 }
 
 export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: PanelColumnProps) {
@@ -38,6 +45,7 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
   // que le render déclenché par le dernier pointermove n'ait mis à jour la
   // fermeture de `finishDrag` (voir resolveDockDragCommit, ui/dockLayout.ts).
   const dragStateRef = useRef<DockDragState | null>(null);
+  const dockRef = useRef<HTMLDivElement | null>(null);
   const setDragState = useCallback((updater: DockDragState | null | ((current: DockDragState | null) => DockDragState | null)) => {
     setDragStateRaw((current) => {
       const next = typeof updater === "function" ? updater(current) : updater;
@@ -95,6 +103,7 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
       pointerPosition: { x: event.clientX, y: event.clientY },
       target: null,
       targetBounds: null,
+      dockOrigin: null,
     });
   }, []);
 
@@ -103,7 +112,7 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
       if (!current || event.pointerId !== current.pointerId) return current;
       const card = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-dock-column]");
       const pointerPosition = { x: event.clientX, y: event.clientY };
-      if (!card) return { ...current, pointerPosition, target: null, targetBounds: null };
+      if (!card) return { ...current, pointerPosition, target: null, targetBounds: null, dockOrigin: null };
 
       const columnIndex = Number(card.dataset.dockColumn);
       const rowIndex = Number(card.dataset.dockRow);
@@ -116,8 +125,10 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
         (event.clientY - rect.top) / rect.height,
         columnIndex === layout.length - 1,
       );
-      if (isNoOpDockDrop(layout, current.draggedId, target)) return { ...current, pointerPosition, target: null, targetBounds: null };
-      return { ...current, pointerPosition, target, targetBounds: rect };
+      if (isNoOpDockDrop(layout, current.draggedId, target)) return { ...current, pointerPosition, target: null, targetBounds: null, dockOrigin: null };
+      const dockRect = dockRef.current?.getBoundingClientRect();
+      const dockOrigin = dockRect ? { left: dockRect.left, top: dockRect.top } : null;
+      return { ...current, pointerPosition, target, targetBounds: rect, dockOrigin };
     });
   }, [layout]);
 
@@ -129,28 +140,29 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
 
   let guideStyle: React.CSSProperties | null = null;
   let guideClassName = "drag-reorder__alignment-guide";
-  if (dragState?.target && dragState.targetBounds) {
-    const dock = document.querySelector<HTMLElement>(".panel-column");
-    if (dock) {
-      if (dragState.target.kind === "vertical") {
-        guideStyle = {
-          left: (dragState.targetBounds.left + dragState.targetBounds.right) / 2 - dock.getBoundingClientRect().left,
-          top: (dragState.target.position === "before" ? dragState.targetBounds.top : dragState.targetBounds.bottom) - dock.getBoundingClientRect().top,
-          width: dragState.targetBounds.right - dragState.targetBounds.left,
-        };
-      } else {
-        guideClassName += " panel-column__alignment-guide--vertical";
-        guideStyle = {
-          left: (dragState.target.position === "left" ? dragState.targetBounds.left : dragState.targetBounds.right) - dock.getBoundingClientRect().left,
-          top: (dragState.targetBounds.top + dragState.targetBounds.bottom) / 2 - dock.getBoundingClientRect().top,
-          height: dragState.targetBounds.bottom - dragState.targetBounds.top,
-        };
-      }
+  // Calcul PUR (aucune lecture du DOM ici) : les deux rects nécessaires
+  // — `targetBounds` et `dockOrigin` — ont été capturés dans handlePointerMove.
+  if (dragState?.target && dragState.targetBounds && dragState.dockOrigin) {
+    const dockOrigin = dragState.dockOrigin;
+    if (dragState.target.kind === "vertical") {
+      guideStyle = {
+        left: (dragState.targetBounds.left + dragState.targetBounds.right) / 2 - dockOrigin.left,
+        top: (dragState.target.position === "before" ? dragState.targetBounds.top : dragState.targetBounds.bottom) - dockOrigin.top,
+        width: dragState.targetBounds.right - dragState.targetBounds.left,
+      };
+    } else {
+      guideClassName += " panel-column__alignment-guide--vertical";
+      guideStyle = {
+        left: (dragState.target.position === "left" ? dragState.targetBounds.left : dragState.targetBounds.right) - dockOrigin.left,
+        top: (dragState.targetBounds.top + dragState.targetBounds.bottom) / 2 - dockOrigin.top,
+        height: dragState.targetBounds.bottom - dragState.targetBounds.top,
+      };
     }
   }
 
   return (
     <div
+      ref={dockRef}
       className="panel-column"
       onPointerMove={dragState ? handlePointerMove : undefined}
       onPointerUp={dragState ? (event) => finishDrag(event, true) : undefined}

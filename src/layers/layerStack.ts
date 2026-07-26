@@ -4,7 +4,12 @@ import type { MaskSourceType, CombineMode, RefineEdgeParams, MaskSourceParams } 
 import { getMaskSourceModule } from "../mask/sources/registry";
 
 let nextId = 0;
-function freshId(): string {
+/** Exported so `presetDocument.apply()` (src/presets/) can inject the SAME
+ *  counter instead of running a second, independently-seeded id sequence —
+ *  two separate generators could otherwise both produce "layer-3" and
+ *  silently collide once a preset-applied layer and a manually-added layer
+ *  coexist in the same document. */
+export function freshId(): string {
   nextId += 1;
   return `layer-${nextId}`;
 }

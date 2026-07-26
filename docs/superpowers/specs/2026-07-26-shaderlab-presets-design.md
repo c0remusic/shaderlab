@@ -357,16 +357,26 @@ Ce qui change :
 Ce qui ne change pas : la mécanique de collapse/drag/largeur, déjà générique
 par tableau `panels`.
 
-### 6.4 Nouveau composant : dialogue de confirmation
+### 6.4 Dialogue de confirmation : `src/ui/Dialog.tsx` existe déjà
 
-**Aucun composant de confirmation n'existe dans `src/components/ui/`**
-(`components.json` liste `alert`/`button`/`checkbox`/`collapsible`/
-`color-group-control`/`dropdown-menu`/`icon-button`/`labeled-slider`/`select`/
-`slider`/`toggle`/`tooltip` — pas d'`alert-dialog`). Les confirmations 5.2/5.3
-sont un plancher dur du PRD (`PRD.md:130-131`), donc ce composant est requis,
-pas optionnel — voir §9 "À trancher avec Antoine" pour le choix visuel exact
-(modal shadcn `alert-dialog` vs bandeau inline façon `ErrorBanner` à deux
-boutons). Ce document ne tranche que la nécessité, pas la forme.
+**Correction d'une erreur de la première rédaction de ce doc** (2026-07-26) :
+elle concluait qu'aucun composant de confirmation n'existait, sur la foi d'un
+balayage limité à `src/components/ui/`. Le composant vit en réalité dans
+`src/ui/Dialog.tsx` — modal bâtie sur l'élément natif `<dialog>`
+(`showModal()`/`close()`), avec top-layer, piège de focus et Échap natifs,
+`aria-labelledby`/`aria-describedby`, restauration du focus précédent, et un
+slot `actions` prévu exactement pour une paire Confirmer/Annuler
+(`Dialog.tsx:5-13,32-40`). Feuille de style associée : `src/ui/dialog.css`.
+
+Il n'a **aucun consommateur** aujourd'hui (`grep "from.*Dialog\|<Dialog" src`
+→ 0 résultat) : il a été écrit puis récupéré lors d'un nettoyage de branches
+le 2026-07-24. Les confirmations 5.2/5.3 sont donc du CÂBLAGE, pas un nouveau
+composant à concevoir.
+
+Point d'attention documenté dans le composant lui-même
+(`Dialog.tsx:25-30`) : le focus initial va au premier élément portant
+`autofocus`, sinon au bouton de fermeture. Pour une confirmation destructive,
+l'appelant DOIT poser `autoFocus` sur le bouton le plus sûr (Annuler).
 
 ## 7. Découpage en tranches verticales
 
@@ -451,7 +461,7 @@ env, aucun test ne rend de composant React)") :
 
 | # | Risque | Mitigation |
 |---|---|---|
-| P1 | **Aucun composant de confirmation dans le design system actuel** (§6.4) — bloquant pour T4/T5 tant que non tranché. | À trancher avec Antoine avant `writing-plans` (voir liste ci-dessous). |
+| P1 | ~~Aucun composant de confirmation dans le design system actuel~~ — **erreur de la première rédaction, corrigée** : `src/ui/Dialog.tsx` existe (§6.4). | Plus de risque : câblage d'un composant existant, non testé en usage réel (0 consommateur à ce jour) — première utilisation à vérifier au checkpoint visuel de T4. |
 | P2 | **Fichier preset édité à la main, malformé ou avec un `schemaVersion` absent.** | `apply()`/l'import valident la structure AVANT tout usage — un JSON qui ne respecte pas `PresetDocument` échoue avec un message explicite, jamais un plantage (R8 `ARCHITECTURE.md:520`). |
 | P3 | **Collision de nom sans collision d'id** (deux presets différents nommés pareil après un import) — le PRD ne demande l'unicité que pour l'écrasement volontaire (5.3), pas une contrainte globale. | Assumé : les noms ne sont PAS uniques en base, seule une sauvegarde EXPLICITE sous un nom déjà pris déclenche la confirmation d'écrasement — un import qui crée un doublon de nom est silencieusement accepté (comportement volontaire, à confirmer si contre-intuitif en usage réel). |
 | P4 | **`activePresetId` perdu au changement de session/document** — pas de persistance de "quel preset est actif" entre deux photos ni au redémarrage de l'app, cohérent avec `History` déjà session-only (`CONTEXT.md:66-68`). | Assumé sans besoin de confirmation — aucune exigence PRD contraire. |
@@ -459,11 +469,9 @@ env, aucun test ne rend de composant React)") :
 
 ### À trancher avec Antoine
 
-1. **Forme visuelle du dialogue de confirmation** (§6.4) : modal centrée façon
-   `alert-dialog` shadcn (nouveau composant, cohérent avec l'écosystème shadcn
-   déjà en place) vs bandeau inline à deux boutons façon `ErrorBanner` étendu.
-   Bloquant pour T4 (remplacement de pile non vide) et T3/5.3 (écrasement par
-   nom).
+1. ~~Forme visuelle du dialogue de confirmation~~ — **tranché, plus bloquant** :
+   `src/ui/Dialog.tsx` existe et sert (§6.4). Plus rien à concevoir ni à
+   choisir ; T3 et T4 peuvent partir.
 2. **Confirmation explicite de l'exclusion des calques photo à la capture**
    (§3.1, P5) : un simple avertissement (`SkipNotice{reason:"photo-layer"}`,
    même canal que l'effet manquant) suffit-il, ou faut-il une confirmation

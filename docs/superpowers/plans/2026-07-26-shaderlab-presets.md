@@ -885,7 +885,32 @@ export interface DialogProps {
 }
 ```
 
-No other line in `Dialog.tsx` changes — `{children}` at line 99 already renders fine as `undefined` (React skips it).
+Aucune autre ligne de `Dialog.tsx` ne change pour ce point — `{children}` rend déjà `undefined` sans broncher (React l'ignore).
+
+- [ ] **Step 0b: Faire importer sa feuille de style par `Dialog`**
+
+`src/ui/dialog.css` existe mais **n'est importé nulle part** — vérifie-le avant
+de corriger :
+
+```bash
+grep -rn "dialog.css" src/
+```
+
+Attendu : une seule occurrence, la définition du fichier lui-même, aucun import.
+`Dialog.tsx` n'importe que React, `lucide-react` et `IconButton` ; `Dialog`
+n'ayant eu aucun consommateur jusqu'ici, personne ne l'a jamais constaté. Sans
+cet import, les trois dialogues de ce chantier rendront un `<dialog>` natif
+brut, non stylé — et `tsc`, les tests et `lint:tokens` passeront tous au vert.
+
+Tous les autres composants du projet importent leur CSS eux-mêmes
+(`src/components/ColorPickerPanel.tsx:5`, `src/components/dockedPanel/PanelRail.tsx:2`,
+`src/components/LayerPanel.tsx:11`) : suivre la même convention.
+
+Ajouter en tête de `src/ui/Dialog.tsx`, après les imports existants :
+
+```ts
+import "./dialog.css";
+```
 
 - [ ] **Step 1: Implement `src/hooks/usePresets.ts` (save/summaries/refresh only)**
 

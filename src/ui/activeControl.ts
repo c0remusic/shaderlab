@@ -63,6 +63,40 @@ export function wheelTickValue(handle: Pick<ControlHandle, "value" | "min" | "ma
   return roundClean(Math.min(handle.max, Math.max(handle.min, handle.value + direction * tick)));
 }
 
+export interface WheelAdjustContext {
+  disabled: boolean;
+  /** Le focus clavier est-il DANS le contrôle (thumb du slider ou champ de
+   *  valeur) ? Base UI focalise l'`input[type=range]` caché du thumb au
+   *  pointerdown (`SliderControl.js:248` focusThumb), donc « après un clic »
+   *  vaut true au même titre qu'« après une tabulation ». */
+  hasFocusWithin: boolean;
+  /** Ctrl enfoncé ⇒ le geste appartient à `useGlobalControlWheel` (écouteur
+   *  window), PAS au contrôle survolé. */
+  ctrlKey: boolean;
+}
+
+/**
+ * Décide si un évènement `wheel` reçu par un contrôle doit AJUSTER sa valeur
+ * (true) ou être laissé au défilement du panneau (false).
+ *
+ * Le survol seul ne suffit PAS : sans focus, la molette au-dessus d'un panneau
+ * dérèglait des paramètres pendant un simple défilement (le contenu glissant
+ * sous le curseur, un seul geste pouvait toucher plusieurs contrôles). Le
+ * contrôle doit avoir été délibérément saisi — clic ou tabulation.
+ *
+ * Ctrl+molette est EXCLU : ce geste appartient à `useGlobalControlWheel`
+ * (écouteur window), qui doit de toute façon tirer sur chaque Ctrl+molette
+ * pour bloquer le zoom natif de WebView2 — on ne peut donc pas le rendre
+ * inerte sans rouvrir ce trou. Sans cette exclusion les deux écouteurs
+ * tiraient ensemble : valeur avancée de deux crans et deux timers de commit
+ * concurrents.
+ */
+export function shouldWheelAdjust({ disabled, hasFocusWithin, ctrlKey }: WheelAdjustContext): boolean {
+  if (disabled) return false;
+  if (ctrlKey) return false;
+  return hasFocusWithin;
+}
+
 /** Hook à monter UNE FOIS à la racine de l'app : Ctrl+molette n'importe où
  *  dans la fenêtre ajuste le dernier contrôle modifié. `preventDefault()`
  *  bloque aussi le zoom de page natif de WebView2 sur Ctrl+molette. */
@@ -71,9 +105,19 @@ export function useGlobalControlWheel(): void {
     let commitTimer: number | undefined;
     function handleWheel(event: WheelEvent) {
       if (!event.ctrlKey) return;
+      // Blocage du zoom natif WebView2 AVANT toute autre condition : tant
+      // que ce preventDefault vivait après `if (!handle) return`, Ctrl+molette
+      // zoomait toute l'application tant qu'aucun contrôle n'avait été
+      // modifié dans la session — exactement l'inverse de l'intention
+      // annoncée. `preventDefault` n'annule que l'action par défaut du
+      // navigateur, il n'empêche AUCUN autre écouteur de recevoir
+      // l'évènement : un futur zoom molette sur le canvas (PRD pan/zoom,
+      // non implémenté) reste donc possible — et le voudra de toute façon,
+      // puisqu'un zoom canvas n'a aucun intérêt si la page zoome en même
+      // temps.
+      event.preventDefault();
       const handle = getActiveControl();
       if (!handle) return;
-      event.preventDefault();
       handle.onChange(wheelTickValue(handle, event.deltaY));
       if (handle.onCommit) {
         window.clearTimeout(commitTimer);

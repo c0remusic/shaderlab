@@ -1,9 +1,15 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type WheelEvent as ReactWheelEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 
 import { Slider as SliderPrimitive } from "./slider";
 import { cn } from "../../lib/utils";
 import { formatControlValue, parseControlValue } from "../../ui/formatValue";
-import { registerControl, unregisterControl, markControlActive, wheelTickValue } from "../../ui/activeControl";
+import {
+  registerControl,
+  unregisterControl,
+  markControlActive,
+  wheelTickValue,
+  shouldWheelAdjust,
+} from "../../ui/activeControl";
 
 export interface LabeledSliderProps {
   label: string;
@@ -64,21 +70,37 @@ export function LabeledSlider({
     window.clearTimeout(wheelCommitTimer.current);
   }, [id]);
 
-  // Molette survolée = ajuste directement (1% de la plage par cran). Le
-  // commit (historique) est différé : une seule entrée après la dernière
-  // molette, pas une par cran (même logique "une entrée par interaction"
-  // que le drag/clavier, couverts nativement par onValueCommitted).
+  // Molette SUR UN CONTRÔLE FOCALISÉ (clic ou tabulation) = ajuste directement
+  // (1% de la plage par cran) ; sans focus, l'évènement est laissé au
+  // défilement du panneau. Le commit (historique) est différé : une seule
+  // entrée après la dernière molette, pas une par cran (même logique "une
+  // entrée par interaction" que le drag/clavier, couverts nativement par
+  // onValueCommitted).
+  //
+  // Écouteur DOM natif (pas `onWheel` React) : React 19 enregistre `wheel` en
+  // PASSIF sur la racine, donc un `preventDefault()` depuis un handler React
+  // est un no-op et le panneau défilerait EN PLUS de l'ajustement de valeur.
+  // `{ passive: false }` est la seule façon d'annuler réellement le
+  // défilement.
+  const rowRef = useRef<HTMLDivElement | null>(null);
   const wheelCommitTimer = useRef<number | undefined>(undefined);
-  function handleWheel(event: ReactWheelEvent<HTMLDivElement>) {
-    if (disabled) return;
-    event.preventDefault();
-    onChange(wheelTickValue({ value, min, max }, event.deltaY));
-    markControlActive(id);
-    if (onCommit) {
-      window.clearTimeout(wheelCommitTimer.current);
-      wheelCommitTimer.current = window.setTimeout(onCommit, 400);
-    }
-  }
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    const handleWheel = (event: WheelEvent) => {
+      const hasFocusWithin = row.contains(document.activeElement);
+      if (!shouldWheelAdjust({ disabled, hasFocusWithin, ctrlKey: event.ctrlKey })) return;
+      event.preventDefault();
+      onChange(wheelTickValue({ value, min, max }, event.deltaY));
+      markControlActive(id);
+      if (onCommit) {
+        window.clearTimeout(wheelCommitTimer.current);
+        wheelCommitTimer.current = window.setTimeout(onCommit, 400);
+      }
+    };
+    row.addEventListener("wheel", handleWheel, { passive: false });
+    return () => row.removeEventListener("wheel", handleWheel);
+  }, [id, disabled, value, min, max, onChange, onCommit]);
 
   function commitTypedValue() {
     const nextValue = parseControlValue(draftValue, min, max, step);
@@ -105,7 +127,7 @@ export function LabeledSlider({
   }
 
   return (
-    <div className={cn("flex flex-col gap-1", disabled && "opacity-50", className)} onWheel={handleWheel}>
+    <div ref={rowRef} className={cn("flex flex-col gap-1", disabled && "opacity-50", className)}>
       <label id={labelId} htmlFor={id} className="text-sm text-muted-foreground">
         {label}
       </label>

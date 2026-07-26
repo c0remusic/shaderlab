@@ -8,6 +8,19 @@ export interface ImageSourceRef {
   sourceId: string;
 }
 
+/** Rectangle de recadrage d'un calque photo, en PIXELS de la photo SOURCE
+ *  (entiers, origine haut-gauche de la photo). Introduit en T1 parce que
+ *  `CanvasMode` (src/ui/canvasMode.ts) doit pouvoir mémoriser le crop
+ *  d'entrée de son mode ; le champ `crop` de `LayerTransform` et la
+ *  géométrie associée arrivent en T4 (design
+ *  `2026-07-26-shaderlab-photo-layer-parity-design.md` §3.1). */
+export interface CropRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 /** Position/échelle/rotation d'un calque de photo, en coordonnées PIXELS
  *  de la photo de FOND (origine haut-gauche), pas de la photo elle-même —
  *  `(x, y)` est le centre de la photo transformée. `rotation` en radians. */
@@ -38,4 +51,11 @@ export interface LayerState {
    *  jamais l'un sans l'autre). */
   imageSource?: ImageSourceRef;
   transform?: LayerTransform;
+  /** Nom affiché du calque (parité calque photo, T1). Générique — pas
+   *  réservé aux calques photo : l'affichage retombe sur le nom de l'effet
+   *  quand il est absent (`LayerPanel`). Alimenté par le basename du fichier
+   *  à l'import d'une photo. Champ SCALAIRE, donc présent dans chaque
+   *  snapshot d'historique par construction (survie à l'undo automatique) et
+   *  sans risque pour l'invariant OOM. */
+  name?: string;
 }

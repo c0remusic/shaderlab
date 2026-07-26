@@ -8,7 +8,8 @@ import type { LayerState } from "./types";
  *
  *  Valeur retenue : 4. Base factuelle (design
  *  `2026-07-26-shaderlab-photo-layer-parity-design.md` §3.5) : la seule
- *  mesure disponible est ~1280 Mo pour fond + 1 calque photo à 24 MP, sans
+ *  mesure disponible est ~1280 Mo avec 2 photos 26 MP et 3 calques dont un
+ *  calque photo (`.claude/learning-log.md:1060-1072`), sans
  *  `device.lost`, et elle n'est PAS décomposée — aucune extrapolation
  *  linéaire n'est légitime. Ce que le code permet d'affirmer : chaque calque
  *  photo supplémentaire ajoute UNE texture source

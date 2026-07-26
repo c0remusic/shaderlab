@@ -519,8 +519,9 @@ ne font que traduire écran↔pixels du fond et déléguer, comme
 endroit (`src/layers/photoLayer.ts:9`), avec le critère de révision écrit
 dans son commentaire.
 
-Base factuelle : la seule mesure disponible est ~1280 Mo pour fond + 1 calque
-photo à 24 MP, sans `device.lost`. Ce nombre n'est **pas** décomposé, donc
+Base factuelle : la seule mesure disponible est ~1280 Mo avec 2 photos 26 MP et
+3 calques dont un calque photo, sans `device.lost`
+(`.claude/learning-log.md:1060-1072`). Ce nombre n'est **pas** décomposé, donc
 aucune extrapolation linéaire n'est légitime. Ce que le code permet
 d'affirmer : chaque calque photo supplémentaire ajoute **une** texture source
 (`photoW × photoH × 4` ≈ 96 Mo à 24 MP, `photoSourceStore.ts:29-38`) et
@@ -750,7 +751,10 @@ merge.
 
 > **Statut : NON MESURÉE.** `MAX_PHOTO_LAYERS = 4` et
 > `MAX_REGISTERED_PHOTO_SOURCES = 4 × MAX_PHOTO_LAYERS` sont posés sur la seule
-> mesure existante (fond + 1 photo à 24 MP ≈ 1280 Mo, non décomposée) plus un
+> mesure existante (~1280 Mo dédiés avec **2 photos 26 MP et 3 calques**, dont
+> un calque photo — `.claude/learning-log.md:1060-1072`, relevé du 2026-07-25 ;
+> chiffre global, non décomposé, et pas dans les conditions du protocole
+> ci-dessous) plus un
 > raisonnement de coût marginal, PAS sur un relevé à 4 photos. La branche T5 a
 > été implémentée en session headless, sans GPU : aucun chiffre n'a été
 > produit, et aucun n'a été simulé. `ARCHITECTURE.md` R1 (« Mesure sur cas réel
@@ -779,12 +783,15 @@ ne pas descendre en dessous, sinon le relevé n'est pas comparable.
    chaque import : la fenêtre rend toujours, aucun `device.lost` dans la
    console CDP.
 5. Tenter un 5ᵉ import : l'action doit être refusée par `canAddPhotoLayer` avec
-   le message nommant `MAX_PHOTO_LAYERS` (`App.tsx:312`). Noter que le refus
-   est bien applicatif, pas un crash.
+   le message nommant `MAX_PHOTO_LAYERS` (garde + message :
+   `src/App.tsx:314-316`, « Limite atteinte : au plus 4 photos importées
+   (double exposure) par document. »). Noter que le refus est bien applicatif,
+   pas un crash.
 6. Boucle importer/annuler (Ctrl+Z) répétée jusqu'à dépasser
-   `MAX_REGISTERED_PHOTO_SOURCES` : l'erreur explicite de
-   `PhotoSourceStore.register()` doit apparaître dans `ErrorBanner`, sans
-   crash. Relever la VRAM à ce point → **Vmax**.
+   `MAX_REGISTERED_PHOTO_SOURCES` (= 16) : l'erreur explicite de
+   `PhotoSourceStore.register()` (`src/render/photoSourceStore.ts:54-61`,
+   « Trop de photos importées dans cette session (n/16)… ») doit apparaître
+   dans `ErrorBanner`, sans crash. Relever la VRAM à ce point → **Vmax**.
 
 **Comment lire la valeur (une seule méthode, la même à chaque relevé)** :
 Gestionnaire des tâches → onglet Performance → GPU → « Mémoire GPU dédiée
@@ -799,7 +806,7 @@ n'est pas mesuré) :
 | Relevé | Attendu (raisonnement §3.5) | Mesuré | Machine / GPU / outil |
 |---|---|---|---|
 | V0 (fond seul) | — | _à faire_ | _à faire_ |
-| V1 (fond + 1) | ≈ 1280 Mo (mesure existante) | _à faire_ | _à faire_ |
+| V1 (fond + 1) | pas d'attendu chiffré — la mesure existante (~1280 Mo) a été prise à 26 MP avec 3 calques, conditions différentes : ne pas la traiter comme une cible | _à faire_ | _à faire_ |
 | V2 | V1 + ≈ 96 Mo | _à faire_ | _à faire_ |
 | V3 | V2 + ≈ 96 Mo | _à faire_ | _à faire_ |
 | V4 | V3 + ≈ 96 Mo | _à faire_ | _à faire_ |

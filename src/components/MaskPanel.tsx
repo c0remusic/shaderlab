@@ -128,7 +128,9 @@ export function MaskPanel({
           </div>
           {maskPaintMode ? (
             <p className="param-panel__hint">
-              Mode peinture actif — utilise « Terminer » dans la barre d'outils du pinceau.
+              Mode peinture actif — les poignées de la photo sont masquées. Pour la déplacer ou la
+              redimensionner, quitte d'abord la peinture avec « Quitter la peinture » dans la barre
+              d'outils du pinceau.
             </p>
           ) : (
             <Button variant="secondary" onClick={onToggleMaskPaint}>

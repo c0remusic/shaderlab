@@ -57,7 +57,7 @@ export const ClickStopCallsHandler: Story = {
   args: { onStop: fn() },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Terminer" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Quitter la peinture" }));
     await expect(args.onStop).toHaveBeenCalled();
   },
 };

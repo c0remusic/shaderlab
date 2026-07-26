@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { initGpu, type GpuContext } from "./render/gpuContext";
 import { Renderer } from "./render/renderer";
 import { LayerStack } from "./layers/layerStack";
-import type { LayerState, LayerTransform } from "./layers/types";
+import type { LayerState } from "./layers/types";
 import { canAddPhotoLayer, hasPhotoLayer } from "./layers/photoLayer";
 import { DocumentSession } from "./application/documentSession";
 import { BrushToolbar } from "./components/BrushToolbar";
@@ -44,6 +44,7 @@ import { PanelRail, type PanelRailItem } from "./components/dockedPanel/PanelRai
 import { ColorPickerPanel } from "./components/ColorPickerPanel";
 import type { EffectParam } from "./render/effects/types";
 import { usePresets } from "./hooks/usePresets";
+import { usePhotoLayer } from "./hooks/usePhotoLayer";
 import { PresetPanel } from "./components/PresetPanel";
 import { TauriPresetStore } from "./presets/presetStore";
 import { capture } from "./presets/presetDocument";
@@ -91,7 +92,6 @@ export default function App() {
   // stroke use partial (dirtyRect-scoped) updates. Reset in
   // handleMaskStrokeEnd so the NEXT stroke also starts with a full upload.
   const maskStrokeIsFreshRef = useRef(true);
-  const [maskPaintMode, setMaskPaintMode] = useState(false);
   const [brushSize, setBrushSize] = useState(30);
   const [brushHardness, setBrushHardness] = useState(0.5);
   const [erase, setErase] = useState(false);
@@ -306,49 +306,22 @@ export default function App() {
     }
   }, [openFile]);
 
-  const handleImportPhotoLayer = useCallback(async () => {
-    if (!rendererRef.current?.photoSources) return;
-    if (!canAddPhotoLayer(sessionRef.current.layers())) {
-      setError("Limite atteinte : au plus une photo importée (double exposure) par document.");
-      return;
-    }
-    try {
-      const path = await pickImageFile();
-      if (!path) return;
-      const bytes = await readImageFile(path);
-      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
-      const bitmap = await createImageBitmap(blob);
-      const sourceId = rendererRef.current.photoSources.register(bitmap);
-      const transform: LayerTransform = { x: imageSize.width / 2, y: imageSize.height / 2, scale: 1, rotation: 0 };
-      const stack = currentStack();
-      const id = stack.addPhotoLayer(sourceId, transform);
-      commit(stack);
-      selectLayer(id);
-      setError(null);
-    } catch (e) {
-      setError(messageFromUnknown(e));
-    }
-  }, [commit, currentStack, imageSize.width, imageSize.height, selectLayer]);
-
-  const handleTransformChange = useCallback(
-    (id: string, transform: LayerTransform) => {
-      const previous = sessionRef.current.layers().find((l) => l.id === id);
-      if (previous?.transform && (previous.transform.x !== transform.x || previous.transform.y !== transform.y || previous.transform.scale !== transform.scale || previous.transform.rotation !== transform.rotation)) {
-        paramDirtyRef.current = true;
-      }
-      const full = sessionRef.current.layers().map((l) => (l.id === id ? { ...l, transform } : l));
-      sessionRef.current.replaceLiveLayers(full);
-      syncSession();
-      rendererRef.current?.requestRender(full);
-    },
-    [syncSession],
-  );
-
-  const handleTransformCommit = useCallback(() => {
-    if (!paramDirtyRef.current) return;
-    paramDirtyRef.current = false;
-    commit(currentStack());
-  }, [commit, currentStack]);
+  // Tout ce qui est propre au calque photo (mode canvas, import, transform)
+  // vit dans usePhotoLayer — App n'en garde que le câblage.
+  const photoLayer = usePhotoLayer({
+    sessionRef,
+    rendererRef,
+    imageSize,
+    paramDirtyRef,
+    commit,
+    currentStack,
+    selectLayer,
+    syncSession,
+    setError,
+    selectedId,
+    layers,
+  });
+  const { maskPaintMode, showTransformHandles, handleTransformChange, handleTransformCommit } = photoLayer;
 
   function handleAdd(effectId: string) {
     presets.clearActive();
@@ -1075,7 +1048,7 @@ export default function App() {
         onExport={handleExport}
         onExportAs={handleExportAs}
         onOpenFile={handleOpenFile}
-        onImportPhotoLayer={handleImportPhotoLayer}
+        onImportPhotoLayer={photoLayer.handleImportPhotoLayer}
         canImportPhotoLayer={canAddPhotoLayer(layers)}
       />
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
@@ -1087,7 +1060,7 @@ export default function App() {
           onBrushHardnessChange={setBrushHardness}
           erase={erase}
           onEraseChange={setErase}
-          onStop={() => setMaskPaintMode(false)}
+          onStop={photoLayer.stopMaskPaintMode}
         />
       )}
       {/* Deux mesures DISTINCTES, à ne pas confondre :
@@ -1120,7 +1093,12 @@ export default function App() {
           brushSize={brushSize}
           brushHardness={brushHardness}
         />
-        {selectedLayer?.imageSource && selectedLayer.transform && (
+        {/* `showTransformHandles` = mode canvas `idle` (usePhotoLayer/CanvasMode).
+            Avant T1, les poignées se montaient sur la seule SÉLECTION : un calque
+            photo sélectionné en mode peinture superposait sa boîte de déplacement
+            (pointerEvents: "auto" sur toute la boîte) au geste de pinceau. Les
+            deux modes sont maintenant mutuellement exclusifs. */}
+        {showTransformHandles && selectedLayer?.imageSource && selectedLayer.transform && (
           <TransformHandles
             transform={selectedLayer.transform}
             photoSize={rendererRef.current?.photoSources?.dimensions(selectedLayer.imageSource.sourceId) ?? { width: 1, height: 1 }}
@@ -1179,6 +1157,7 @@ export default function App() {
                   onOpacityChange={handleOpacityChange}
                   onOpacityCommit={handleParamCommit}
                   onBlendModeChange={handleBlendModeChange}
+                  thumbnailUrl={photoLayer.thumbnailUrl}
                 />
             },
             {
@@ -1208,7 +1187,7 @@ export default function App() {
               content: <MaskPanel
                   layer={selectedLayer}
                   maskPaintMode={maskPaintMode}
-                  onToggleMaskPaint={() => setMaskPaintMode((v) => !v)}
+                  onToggleMaskPaint={photoLayer.toggleMaskPaintMode}
                   overlayForceHidden={overlayForceHidden}
                   onToggleOverlayForceHidden={() => setOverlayForceHidden((v) => !v)}
                   onAddMaskSource={handleAddMaskSource}

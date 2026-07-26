@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PhotoSourceStore } from "../../src/render/photoSourceStore";
+import { MAX_REGISTERED_PHOTO_SOURCES, PhotoSourceStore } from "../../src/render/photoSourceStore";
+import { MAX_PHOTO_LAYERS } from "../../src/layers/photoLayer";
 
 vi.stubGlobal("GPUTextureUsage", {
   TEXTURE_BINDING: 1,
@@ -76,5 +77,52 @@ describe("PhotoSourceStore", () => {
     const { store, device } = createStore();
     expect(() => store.register({ width: 20000, height: 10 } as ImageBitmap)).toThrow("trop grande");
     expect(device.createTexture).not.toHaveBeenCalled();
+  });
+
+  // Garde d'allocation prescrit par ARCHITECTURE.md R1 : sans refcount (un
+  // calque photo supprimé peut revenir par undo), une boucle
+  // importer/annuler ferait croître la mémoire sans borne. Le plafond est
+  // ici, au point unique d'allocation, pas dispersé dans l'UI.
+  describe("MAX_REGISTERED_PHOTO_SOURCES", () => {
+    const bitmap = { width: 10, height: 10 } as ImageBitmap;
+
+    it("vaut 4 × MAX_PHOTO_LAYERS (révisé par la même mesure VRAM)", () => {
+      expect(MAX_REGISTERED_PHOTO_SOURCES).toBe(4 * MAX_PHOTO_LAYERS);
+    });
+
+    it("laisse enregistrer exactement MAX_REGISTERED_PHOTO_SOURCES sources", () => {
+      const { store } = createStore();
+      for (let i = 0; i < MAX_REGISTERED_PHOTO_SOURCES; i++) store.register(bitmap);
+      expect(store.registeredCount).toBe(MAX_REGISTERED_PHOTO_SOURCES);
+    });
+
+    it("échoue explicitement au dépassement, AVANT toute allocation GPU", () => {
+      const { store, device } = createStore();
+      for (let i = 0; i < MAX_REGISTERED_PHOTO_SOURCES; i++) store.register(bitmap);
+      const allocationsBefore = device.createTexture.mock.calls.length;
+
+      expect(() => store.register(bitmap)).toThrow(/Trop de photos importées dans cette session/);
+      expect(() => store.register(bitmap)).toThrow(/Ouvre à nouveau le document/);
+      expect(device.createTexture).toHaveBeenCalledTimes(allocationsBefore);
+      expect(store.registeredCount).toBe(MAX_REGISTERED_PHOTO_SOURCES);
+    });
+
+    it("dispose() rend les jetons — c'est la sortie que nomme le message d'erreur", () => {
+      const { store } = createStore();
+      for (let i = 0; i < MAX_REGISTERED_PHOTO_SOURCES; i++) store.register(bitmap);
+      expect(() => store.register(bitmap)).toThrow();
+
+      store.dispose();
+
+      expect(store.registeredCount).toBe(0);
+      expect(() => store.register(bitmap)).not.toThrow();
+    });
+
+    it("rend toujours un sourceId frais après dispose() (les ids ne sont pas recyclés)", () => {
+      const { store } = createStore();
+      const before = store.register(bitmap);
+      store.dispose();
+      expect(store.register(bitmap)).not.toBe(before);
+    });
   });
 });

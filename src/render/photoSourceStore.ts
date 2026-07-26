@@ -1,4 +1,23 @@
+import { MAX_PHOTO_LAYERS } from "../layers/photoLayer";
 import { assertImageFitsGpu } from "./limits";
+
+/** Plafond de sources photo ENREGISTRÉES (vivantes) dans un même document —
+ *  à distinguer de `MAX_PHOTO_LAYERS`, qui plafonne les calques photo
+ *  PRÉSENTS dans la pile. Les deux diffèrent parce qu'il n'y a
+ *  volontairement pas de refcount : une source n'est jamais libérée au
+ *  retrait de son calque (un undo peut le ramener), elle vit jusqu'au
+ *  changement de document (`dispose()`). Une boucle importer/annuler fait
+ *  donc croître la mémoire sans borne — ce garde est cette borne.
+ *
+ *  Facteur 4 : pas arbitraire assumé (design
+ *  `2026-07-26-shaderlab-photo-layer-parity-design.md` §3.5). Il borne la
+ *  fuite sans gêner un usage normal (4 imports annulés par calque autorisé),
+ *  et il est révisé par la MÊME mesure VRAM que `MAX_PHOTO_LAYERS` — voir le
+ *  critère de révision sur cette constante (`src/layers/photoLayer.ts`).
+ *  Posé ICI et pas dans l'UI : `PhotoSourceStore` est le point unique
+ *  d'allocation (ARCHITECTURE.md R1 : « si un garde arrive, il se pose dans
+ *  `PhotoSourceStore`, pas dispersé »). */
+export const MAX_REGISTERED_PHOTO_SOURCES = 4 * MAX_PHOTO_LAYERS;
 
 /**
  * Propriétaire GPU EXCLUSIF des textures de photo importée (double
@@ -19,10 +38,27 @@ export class PhotoSourceStore {
     private readonly maxTextureDimension2D: number,
   ) {}
 
+  /** Nombre de sources actuellement enregistrées (vivantes). Remis à zéro par
+   *  `dispose()` — c'est `textures.size` et pas un compteur parallèle, pour
+   *  qu'aucune dérive entre les deux ne soit possible. */
+  get registeredCount(): number {
+    return this.textures.size;
+  }
+
   /** Valide, alloue et uploade une nouvelle source de photo. Retourne un
    *  `sourceId` frais à CHAQUE appel, même pour un bitmap identique — deux
-   *  imports distincts de la même photo sont deux sources indépendantes. */
+   *  imports distincts de la même photo sont deux sources indépendantes.
+   *  Lève AVANT toute allocation si le plafond de sources vivantes est déjà
+   *  atteint (fail-fast, ARCHITECTURE.md §2.5 — jamais un état qui se dit
+   *  fini sans l'être). */
   register(bitmap: ImageBitmap): string {
+    if (this.textures.size >= MAX_REGISTERED_PHOTO_SOURCES) {
+      throw new Error(
+        `Trop de photos importées dans cette session (${this.textures.size}/${MAX_REGISTERED_PHOTO_SOURCES}) : ` +
+          `chaque import garde sa texture en mémoire jusqu'au changement de document, même après annulation. ` +
+          `Ouvre à nouveau le document pour libérer la mémoire.`,
+      );
+    }
     assertImageFitsGpu(bitmap.width, bitmap.height, this.maxTextureDimension2D);
     this.nextId += 1;
     const sourceId = `photo-${this.nextId}`;
@@ -51,8 +87,11 @@ export class PhotoSourceStore {
 
   /** Détruit toutes les textures possédées — appelé au changement de
    *  document (même discipline que `ImageFrameResources.dispose()`), jamais
-   *  au retrait d'un seul calque (pas de refcount : au plus un calque photo
-   *  existe à la fois, `MAX_PHOTO_LAYERS`). */
+   *  au retrait d'un seul calque : PAS de refcount, parce qu'un calque photo
+   *  supprimé peut revenir par undo et que libérer sa texture casserait
+   *  l'undo. C'est donc aussi le seul point qui rend des jetons sous
+   *  `MAX_REGISTERED_PHOTO_SOURCES`, et la sortie que nomme son message
+   *  d'erreur. */
   dispose(): void {
     for (const texture of this.textures.values()) texture.destroy();
     this.textures.clear();

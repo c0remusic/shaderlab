@@ -467,19 +467,29 @@ env, aucun test ne rend de composant React)") :
 | P4 | **`activePresetId` perdu au changement de session/document** — pas de persistance de "quel preset est actif" entre deux photos ni au redémarrage de l'app, cohérent avec `History` déjà session-only (`CONTEXT.md:66-68`). | Assumé sans besoin de confirmation — aucune exigence PRD contraire. |
 | P5 | **Presets × double exposure non couvert par le PRD** (§3.1, exclusion à la capture). | Décision d'architecture déjà recommandée (`ARCHITECTURE.md:234-237`), reprise ici — confirmation explicite demandée ci-dessous, pas bloquante pour T1-T4 (aucun calque photo tant que la double exposure n'est pas utilisée en pratique par le testeur). |
 
-### À trancher avec Antoine
+### Points tranchés par Antoine (2026-07-26) — plus rien en attente
 
-1. ~~Forme visuelle du dialogue de confirmation~~ — **tranché, plus bloquant** :
+1. ~~Forme visuelle du dialogue de confirmation~~ — **tranché** :
    `src/ui/Dialog.tsx` existe et sert (§6.4). Plus rien à concevoir ni à
    choisir ; T3 et T4 peuvent partir.
-2. **Confirmation explicite de l'exclusion des calques photo à la capture**
-   (§3.1, P5) : un simple avertissement (`SkipNotice{reason:"photo-layer"}`,
-   même canal que l'effet manquant) suffit-il, ou faut-il une confirmation
-   bloquante avant de sauvegarder un preset partiel ? Le PRD ne le couvre pas ;
-   la recommandation d'`ARCHITECTURE.md` est l'avertissement simple (non
-   bloquant), reprise ici par défaut — à confirmer.
-3. **Comportement d'un import qui crée un doublon de nom** (P3) : silencieux
-   (proposé ici par défaut) ou signalé ?
+
+2. **Exclusion des calques photo à la capture → CONFIRMATION BLOQUANTE**
+   (§3.1, P5). L'avertissement simple proposé par défaut est écarté : capturer
+   un preset amputé d'un calque photo sans que l'utilisateur l'ait accepté
+   produirait un preset silencieusement incomplet, exactement le type de perte
+   silencieuse que le PRD interdit (`PRD.md:129-131`). Mécanisme : même
+   `Dialog` que 5.2/5.3, avant écriture du preset, énumérant les calques
+   exclus. `autoFocus` sur Annuler (bouton le plus sûr, cf. `Dialog.tsx:25-30`).
+   Annuler = aucun fichier écrit.
+
+3. **Import qui crée un doublon de nom → RENOMMAGE EN `<nom> (copie)`**
+   (P3). Ni silencieux ni bloquant : l'import aboutit toujours, mais le preset
+   entrant est renommé pour que les deux restent distinguables dans la liste.
+   Collisions successives : `(copie)`, `(copie 2)`, `(copie 3)`… — le premier
+   suffixe libre. Ce comportement est de la logique PURE (une fonction de
+   résolution de nom prenant les noms existants et le nom entrant), donc
+   testable unitairement, et il doit l'être : c'est la seule garantie que la
+   suite de suffixes ne boucle pas et ne réintroduit pas de collision.
 
 ## 10. Vérification contre le PRD
 

@@ -4,6 +4,7 @@ import { Renderer } from "./render/renderer";
 import { LayerStack } from "./layers/layerStack";
 import type { LayerState, LayerTransform } from "./layers/types";
 import { canAddPhotoLayer, hasPhotoLayer } from "./layers/photoLayer";
+import { changeLayerEffect } from "./layers/changeLayerEffect";
 import { DocumentSession } from "./application/documentSession";
 import { BrushToolbar } from "./components/BrushToolbar";
 import { Canvas } from "./components/Canvas";
@@ -457,16 +458,14 @@ export default function App() {
 
   const handleEffectChange = useCallback(
     (id: string, effectId: string) => {
-      // `presets.clearActive()` AVANT de muter la pile, comme handleAdd
-      // (:354) et handleRemove (:378) — changer l'effet d'un calque fait
-      // diverger la pile du preset appliqué (l'effectId fait partie de la
-      // projection capturée, usePresets.toPresetLayers).
-      presets.clearActive();
-      const stack = currentStack();
-      // Mutation outcome : id absent ou effet inchangé -> pas d'entrée
-      // d'historique (et pas de reset de params sur un faux changement).
-      if (!stack.setLayerEffect(id, effectId)) return;
-      commit(stack); // changement discret → une entrée d'historique directe
+      // Ordre garde-puis-effets-de-bord et sa justification : voir
+      // `changeLayerEffect` (layers/changeLayerEffect.ts). `clearActive`
+      // parce que l'effectId fait partie de la projection capturée par un
+      // preset (usePresets.toPresetLayers), comme handleAdd/handleRemove.
+      changeLayerEffect(currentStack(), id, effectId, {
+        clearActivePreset: presets.clearActive,
+        commit, // changement discret → une entrée d'historique directe
+      });
     },
     // presets.clearActive et non `presets` (littéral frais à chaque render) :
     // même resserrement que handleRemove, dont le commentaire explique

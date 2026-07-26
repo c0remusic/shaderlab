@@ -104,9 +104,21 @@ export class Renderer {
   ) {
     this.ctx = ctx;
     this.frameDiagnostics = new FrameDiagnostics(diagnosticLogger);
+    // `clamp-to-edge` EXPLICITE, pas un défaut implicite : ce sampler est
+    // partagé par toutes les passes (effets, fold de masque, générateurs,
+    // edge-aware/SAT, pré-passe de calque photo), et plusieurs en dépendent
+    // vraiment — `photoLayerInput.ts` transforme la photo hors du cadre puis
+    // annule le hors-bornes par sa couverture alpha (un mode repeat/mirror y
+    // ferait réapparaître la photo répétée sur tout le fond), et la chaîne
+    // bloom/SAT s'appuie sur des bords non repliés. Il ne doit donc PAS être
+    // basculé en repeat/mirror pour régler une traînée de bord : les effets qui
+    // échantillonnent hors cadre (chromaticBleed, warp) traitent leur propre
+    // bord via `mirrorUv` (voir effects/uvSpace.ts).
     this.sampler = ctx.device.createSampler({
       magFilter: "linear",
       minFilter: "linear",
+      addressModeU: "clamp-to-edge",
+      addressModeV: "clamp-to-edge",
     });
     this.nearestSampler = ctx.device.createSampler({
       magFilter: "nearest",

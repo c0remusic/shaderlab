@@ -12,3 +12,8 @@ src-tauri/gen/
 .superpowers/
 .remember/
 .dev-logs/
+# Profil WebView2 isolé, créé quand on lance deux instances en parallèle
+# (WEBVIEW2_USER_DATA_FOLDER). À garder HORS de l'arbre surveillé par Vite si
+# possible : dedans, chaque écriture de cache déclenche un rechargement en
+# boucle (flashs blancs au moindre mouvement de souris, vécu 2026-07-26).
+.webview2-data/

@@ -20,7 +20,8 @@
     "coverage": "vitest run --project=storybook --coverage",
     "lint:tokens": "node scripts/lint-tokens.mjs",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "test:gpu-shaders": "node scripts/gpu-shader-check.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

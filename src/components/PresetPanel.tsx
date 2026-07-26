@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PresetSummary } from "../presets/presetStore";
 import { Button } from "./ui/button";
 import "./PresetPanel.css";
@@ -46,6 +46,17 @@ export function PresetPanel({ summaries, hasLayers, onSave, onRename, onApply, o
   // explicite indépendamment de ce détail de moteur.
   const cancelledRef = useRef(false);
   const applyTimerRef = useRef<number | null>(null);
+
+  // Le panneau peut être démonté (fermeture par le rail) pendant la fenêtre de
+  // 200ms qui sépare le clic simple de l'application effective. Sans ce
+  // nettoyage, `onApply` tirerait après démontage — application d'un preset
+  // que l'utilisateur ne voit plus demander.
+  useEffect(() => () => {
+    if (applyTimerRef.current !== null) {
+      window.clearTimeout(applyTimerRef.current);
+      applyTimerRef.current = null;
+    }
+  }, []);
 
   function startRename(summary: PresetSummary) {
     cancelledRef.current = false;

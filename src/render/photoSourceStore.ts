@@ -1,16 +1,51 @@
 import { assertImageFitsGpu } from "./limits";
 
+/** Côté maximal (px) de la vignette de calque produite à l'import. Le
+ *  rapport d'aspect de la photo est conservé ; c'est la plus grande
+ *  dimension qui est ramenée à cette valeur. */
+export const THUMBNAIL_MAX_SIDE = 64;
+
+/** Réduit `bitmap` à une vignette au plus `THUMBNAIL_MAX_SIDE` de côté et
+ *  rend une object URL. Isolé du reste, et TOTAL : toute défaillance du
+ *  chemin vignette (absence d'`OffscreenCanvas` en env Node/WebView2
+ *  ancienne, contexte 2d refusé, `drawImage`/`convertToBlob` qui jettent)
+ *  rend `null`. Jamais une exception : elle ferait échouer tout l'import
+ *  d'une photo — texture déjà enregistrée comprise — pour une vignette.
+ *  L'échec n'est pas silencieux pour autant : il est journalisé en
+ *  avertissement (la photo, elle, est bien importée). */
+async function buildThumbnailUrl(bitmap: ImageBitmap): Promise<string | null> {
+  if (typeof OffscreenCanvas === "undefined") return null;
+  try {
+    const ratio = Math.min(1, THUMBNAIL_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * ratio));
+    const height = Math.max(1, Math.round(bitmap.height * ratio));
+    const canvas = new OffscreenCanvas(width, height);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    const blob = await canvas.convertToBlob({ type: "image/png" });
+    return URL.createObjectURL(blob);
+  } catch (e) {
+    console.warn("Vignette de calque non produite (la photo est importée quand même) :", e);
+    return null;
+  }
+}
+
 /**
- * Propriétaire GPU EXCLUSIF des textures de photo importée (double
- * exposure, ARCHITECTURE.md §4.2) — jamais référencée depuis
+ * Propriétaire EXCLUSIF de tout ce qui n'est pas sérialisable d'une source
+ * photo importée (double exposure, ARCHITECTURE.md §4.2) : la texture GPU
+ * ET la vignette d'affichage. Rien de tout ça n'est jamais référencé depuis
  * `LayerState`/le state React/un snapshot d'historique (invariant OOM,
- * `e3c7584`). Vit aux côtés d'`ImageFrameResources` dans `render/` (même
- * cycle de vie : créé/vidé avec le document), jamais dans `layers/`, qui ne
- * doit jamais dépendre de WebGPU.
+ * `e3c7584`) — `LayerState` ne porte qu'un `sourceId`, et la vignette se lit
+ * par accesseur (`thumbnailUrl`), symétrique de `dimensions`. Vit aux côtés
+ * d'`ImageFrameResources` dans `render/` (même cycle de vie : créé/vidé avec
+ * le document), jamais dans `layers/`, qui ne doit jamais dépendre de
+ * WebGPU.
  */
 export class PhotoSourceStore {
   private textures = new Map<string, GPUTexture>();
   private sizes = new Map<string, { width: number; height: number }>();
+  private thumbnails = new Map<string, string>();
   private nextId = 0;
 
   constructor(
@@ -19,10 +54,25 @@ export class PhotoSourceStore {
     private readonly maxTextureDimension2D: number,
   ) {}
 
-  /** Valide, alloue et uploade une nouvelle source de photo. Retourne un
-   *  `sourceId` frais à CHAQUE appel, même pour un bitmap identique — deux
-   *  imports distincts de la même photo sont deux sources indépendantes. */
-  register(bitmap: ImageBitmap): string {
+  /** Valide, alloue et uploade une nouvelle source de photo, et produit sa
+   *  vignette d'affichage à partir du MÊME `ImageBitmap` déjà décodé.
+   *  Retourne un `sourceId` frais à CHAQUE appel, même pour un bitmap
+   *  identique — deux imports distincts de la même photo sont deux sources
+   *  indépendantes.
+   *
+   *  ASYNC à cause de `convertToBlob`. L'appelant DOIT l'attendre avant
+   *  d'ajouter le calque, pour que le re-render qui crée la ligne ait déjà
+   *  sa vignette (sinon apparition différée sans re-render). La texture,
+   *  elle, est allouée et uploadée AVANT tout `await`, et
+   *  `buildThumbnailUrl` est TOTAL (jamais de rejet) : un échec de vignette
+   *  ne peut ni faire rejeter `register` ni laisser une source enregistrée
+   *  sous un `sourceId` que personne ne recevrait (fuite VRAM).
+   *
+   *  Fuite assumée et nommée (design §3.3) : un `sourceId` frais par appel
+   *  signifie qu'une boucle importer/annuler accumule texture + blob +
+   *  object URL jusqu'au changement de document. Le plafond de sources qui
+   *  borne cette fuite arrive en T5. */
+  async register(bitmap: ImageBitmap): Promise<string> {
     assertImageFitsGpu(bitmap.width, bitmap.height, this.maxTextureDimension2D);
     this.nextId += 1;
     const sourceId = `photo-${this.nextId}`;
@@ -38,6 +88,8 @@ export class PhotoSourceStore {
     );
     this.textures.set(sourceId, texture);
     this.sizes.set(sourceId, { width: bitmap.width, height: bitmap.height });
+    const url = await buildThumbnailUrl(bitmap);
+    if (url !== null) this.thumbnails.set(sourceId, url);
     return sourceId;
   }
 
@@ -49,13 +101,29 @@ export class PhotoSourceStore {
     return this.sizes.get(sourceId) ?? null;
   }
 
-  /** Détruit toutes les textures possédées — appelé au changement de
-   *  document (même discipline que `ImageFrameResources.dispose()`), jamais
-   *  au retrait d'un seul calque (pas de refcount : au plus un calque photo
-   *  existe à la fois, `MAX_PHOTO_LAYERS`). */
+  /** Object URL de la vignette d'affichage — accesseur SYMÉTRIQUE de
+   *  `dimensions()`, même contrat : lecture par `sourceId`, `null` si
+   *  inconnu. `null` aussi quand la vignette n'a pas pu être produite
+   *  (pas d'`OffscreenCanvas`) : l'appelant affiche alors un emplacement
+   *  vide, il ne casse pas. Retourne une CHAÎNE, jamais un raster — c'est ce
+   *  qui autorise `LayerPanel` à l'afficher sans rien faire entrer dans le
+   *  state React (invariant OOM). */
+  thumbnailUrl(sourceId: string): string | null {
+    return this.thumbnails.get(sourceId) ?? null;
+  }
+
+  /** Détruit toutes les textures possédées ET révoque toutes les object URL
+   *  de vignette — appelé au changement de document (même discipline que
+   *  `ImageFrameResources.dispose()`), jamais au retrait d'un seul calque
+   *  (pas de refcount : un calque supprimé peut revenir par undo, libérer sa
+   *  source casserait l'undo). Sans la révocation, chaque changement de
+   *  document laisserait fuiter un blob par photo importée pour toute la
+   *  durée de vie de la page. */
   dispose(): void {
     for (const texture of this.textures.values()) texture.destroy();
+    for (const url of this.thumbnails.values()) URL.revokeObjectURL(url);
     this.textures.clear();
     this.sizes.clear();
+    this.thumbnails.clear();
   }
 }

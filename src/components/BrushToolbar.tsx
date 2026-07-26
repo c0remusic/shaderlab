@@ -10,7 +10,10 @@ interface Props {
   onBrushHardnessChange: (v: number) => void;
   erase: boolean;
   onEraseChange: (v: boolean) => void;
-  /** Sort du mode peinture (bouton « Terminer »). */
+  /** Sort du mode peinture (bouton « Quitter la peinture »). Le libellé dit
+   *  explicitement qu'on QUITTE un mode, et non qu'on « termine » le masque :
+   *  peinture et poignées de transform s'excluent (design T1), donc déplacer
+   *  ou redimensionner la photo passe obligatoirement par ce bouton. */
   onStop: () => void;
 }
 
@@ -61,8 +64,13 @@ export function BrushToolbar({
         Gomme
       </Toggle>
       <div className="brush-toolbar__spacer" />
-      <Button variant="secondary" size="sm" onClick={onStop}>
-        Terminer
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={onStop}
+        title="Quitter la peinture pour retrouver les poignées de déplacement et de redimensionnement"
+      >
+        Quitter la peinture
       </Button>
     </div>
   );

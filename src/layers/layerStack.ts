@@ -60,8 +60,12 @@ export class LayerStack {
    *  L'appelant reste responsable de vérifier `canAddPhotoLayer` (limite
    *  dure, photoLayer.ts) AVANT d'appeler cette méthode — elle ne l'impose
    *  pas elle-même, comme les autres mutateurs de ce fichier qui ne
-   *  connaissent pas les règles produit de plus haut niveau. */
-  addPhotoLayer(sourceId: string, transform: LayerTransform): string {
+   *  connaissent pas les règles produit de plus haut niveau.
+   *  `name` (T1, parité calque photo) : nom affiché du calque, en pratique
+   *  le basename du fichier importé. Omis -> champ `name` absent (et non
+   *  `undefined` posé explicitement), l'affichage retombe alors sur le nom
+   *  de l'effet. */
+  addPhotoLayer(sourceId: string, transform: LayerTransform, name?: string): string {
     const id = freshId();
     this.layers.push({
       id,
@@ -73,6 +77,7 @@ export class LayerStack {
       mask: defaultLayerMask(),
       imageSource: { sourceId },
       transform,
+      ...(name === undefined ? {} : { name }),
     });
     return id;
   }

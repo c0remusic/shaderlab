@@ -72,6 +72,50 @@ export const ManyLayers: Story = {
   args: { layers: manyLayers, selectedId: "layer-3" },
 };
 
+// Parité calque photo (T1) : la ligne d'un calque photo affiche son NOM de
+// fichier et sa vignette, plus « Passthrough ». La vignette est une object
+// URL résolue par `thumbnailUrl` (possédée par PhotoSourceStore côté App) —
+// ici un data URI 1x1 pour rester autonome, aucun raster en props.
+const PHOTO_THUMB =
+  "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==";
+
+const photoLayers: LayerState[] = [
+  makeLayer({
+    id: "photo-layer",
+    effectId: "passthrough",
+    name: "IMG_1234.jpg",
+    imageSource: { sourceId: "photo-1" },
+    transform: { x: 100, y: 100, scale: 1, rotation: 0 },
+  }),
+  makeLayer({ id: "layer-2", effectId: "glow" }),
+];
+
+export const PhotoLayerNamedWithThumbnail: Story = {
+  args: {
+    layers: photoLayers,
+    selectedId: "photo-layer",
+    thumbnailUrl: () => PHOTO_THUMB,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("IMG_1234.jpg")).toBeInTheDocument();
+    await expect(canvas.queryByText("Passthrough")).not.toBeInTheDocument();
+  },
+};
+
+export const PhotoLayerWithoutThumbnail: Story = {
+  args: {
+    layers: photoLayers,
+    selectedId: "photo-layer",
+    thumbnailUrl: () => null,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // La vignette peut manquer ; le nom, lui, reste toujours affiché.
+    await expect(canvas.getByText("IMG_1234.jpg")).toBeInTheDocument();
+  },
+};
+
 // --- Interaction tests (play) ---
 
 export const ClickLayerSelects: Story = {

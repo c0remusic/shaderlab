@@ -103,6 +103,25 @@
   flex-shrink: 0;
 }
 
+/* Vignette d'un calque photo (parité calque photo, T1). L'`src` est une
+   object URL possédée par PhotoSourceStore — aucun raster ne transite par le
+   state React. `flex: 0 0 auto` : la vignette ne se comprime jamais, c'est le
+   nom (ellipsé) qui absorbe l'étroitesse du panneau. */
+.layer-panel__thumbnail {
+  flex: 0 0 auto;
+  width: var(--layer-thumbnail-size);
+  height: var(--layer-thumbnail-size);
+  border-radius: var(--radius-control);
+  object-fit: cover;
+  background: var(--surface-inset);
+}
+
+.layer-panel__thumbnail--empty {
+  /* 1px : le repo n'a pas de token d'épaisseur de bordure, la valeur
+     littérale est la convention en place (cf. ColorPickerPanel.css:41). */
+  border: 1px solid var(--border-subtle);
+}
+
 .layer-panel__row-name {
   overflow: hidden;
   text-overflow: ellipsis;

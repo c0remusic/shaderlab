@@ -454,6 +454,26 @@ describe("LayerStack photo layers", () => {
     expect(layer.blendMode).toBe("normal");
   });
 
+  it("addPhotoLayer pose le nom fourni sur le calque", () => {
+    const stack = new LayerStack();
+    const id = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scale: 1, rotation: 0 }, "IMG_1234.jpg");
+    expect(stack.layers.find((l) => l.id === id)!.name).toBe("IMG_1234.jpg");
+  });
+
+  it("addPhotoLayer sans nom laisse le champ name absent (pas de clé undefined)", () => {
+    const stack = new LayerStack();
+    const id = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scale: 1, rotation: 0 });
+    const layer = stack.layers.find((l) => l.id === id)!;
+    expect(layer.name).toBeUndefined();
+    expect("name" in layer).toBe(false);
+  });
+
+  it("clone() préserve le nom d'un calque photo (survie à l'undo/redo)", () => {
+    const stack = new LayerStack();
+    stack.addPhotoLayer("photo-1", { x: 0, y: 0, scale: 1, rotation: 0 }, "IMG_1234.jpg");
+    expect(stack.clone().layers[0].name).toBe("IMG_1234.jpg");
+  });
+
   it("updateLayerTransform remplace le transform d'un calque photo existant", () => {
     const stack = new LayerStack();
     const id = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scale: 1, rotation: 0 });

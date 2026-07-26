@@ -7,6 +7,12 @@
      marge de chaque côté — même calcul que --toolbar-height, 30px ne
      laissait qu'1px (bug déjà rencontré et corrigé sur DockedPanelCard). */
   --layer-row-height: 36px;
+  /* Vignette de calque photo (parité calque photo, T1) : 24px = hauteur de
+     ligne 36px moins --space-2 (4px) au-dessus et au-dessous plus la marge
+     déjà prise par l'IconButton compact — même calcul que --layer-row-height
+     ci-dessus. Le raster source est réduit à 64px de côté
+     (THUMBNAIL_MAX_SIDE), affiché ici en 24px : net sur écran HiDPI. */
+  --layer-thumbnail-size: 24px;
   --section-header-height: 28px;
 
   --icon-size-sm: 14px;

@@ -22,6 +22,12 @@ interface Props {
   onOpacityChange: (id: string, opacity: number) => void;
   onOpacityCommit: () => void;
   onBlendModeChange: (id: string, blendMode: string) => void;
+  /** Résout la vignette d'un calque photo par `sourceId`. La vignette est
+   *  POSSÉDÉE par `PhotoSourceStore` (object URL, hors state React) — cette
+   *  prop n'en transporte que la lecture, jamais le raster (invariant OOM).
+   *  DOIT être référentiellement stable (`useCallback`) : elle traverse la
+   *  mémoïsation de `LayerRow`. */
+  thumbnailUrl?: (sourceId: string) => string | null;
 }
 
 interface LayerRowProps {
@@ -37,6 +43,7 @@ interface LayerRowProps {
   onOpacityChange: (id: string, opacity: number) => void;
   onOpacityCommit: () => void;
   onBlendModeChange: (id: string, blendMode: string) => void;
+  thumbnailUrl?: (sourceId: string) => string | null;
 }
 
 const addEffectOptions = effectRegistry.map((e) => ({ value: e.id, label: e.name }));
@@ -60,7 +67,13 @@ const LayerRow = memo(function LayerRow({
   onOpacityChange,
   onOpacityCommit,
   onBlendModeChange,
+  thumbnailUrl,
 }: LayerRowProps) {
+  // Identité du calque (parité calque photo, T1) : le nom du calque prime,
+  // et l'affichage retombe sur le nom de l'effet pour tout calque non nommé
+  // (c'est-à-dire tous les calques d'effet, inchangés).
+  const displayName = layer.name ?? getEffect(layer.effectId).name;
+  const thumbnail = layer.imageSource ? thumbnailUrl?.(layer.imageSource.sourceId) ?? null : null;
   const rowClass = [
     "layer-panel__row",
     selected && "layer-panel__row--selected",
@@ -102,8 +115,20 @@ const LayerRow = memo(function LayerRow({
               <EyeOff className="icon-sm icon-stroke" aria-hidden="true" />
             )}
           </IconButton>
-          <span className={`layer-panel__row-name ${selected ? "layer-panel__row-name--selected" : ""}`.trim()}>
-            {getEffect(layer.effectId).name}
+          {layer.imageSource &&
+            (thumbnail ? (
+              <img className="layer-panel__thumbnail" src={thumbnail} alt="" aria-hidden="true" />
+            ) : (
+              // Emplacement réservé : la vignette peut manquer (pas
+              // d'OffscreenCanvas). La ligne ne doit pas se réaligner selon
+              // qu'elle est disponible ou non.
+              <span className="layer-panel__thumbnail layer-panel__thumbnail--empty" aria-hidden="true" />
+            ))}
+          <span
+            className={`layer-panel__row-name ${selected ? "layer-panel__row-name--selected" : ""}`.trim()}
+            title={displayName}
+          >
+            {displayName}
           </span>
         </span>
         <IconButton
@@ -152,6 +177,7 @@ export function LayerPanel({
   onOpacityChange,
   onOpacityCommit,
   onBlendModeChange,
+  thumbnailUrl,
 }: Props) {
   const { dragState, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel } = usePointerReorder(
     layers,
@@ -204,6 +230,7 @@ export function LayerPanel({
             onOpacityChange={onOpacityChange}
             onOpacityCommit={onOpacityCommit}
             onBlendModeChange={onBlendModeChange}
+            thumbnailUrl={thumbnailUrl}
           />
         ))}
       </ul>

@@ -51,7 +51,7 @@ interface Props {
   layer: LayerState | null;
   onParamChange: (id: string, params: Record<string, number>) => void;
   onParamCommit: () => void;
-  onOpenColorPicker: (group: { layerId: string; key: string; label: string; hue: EffectParam; saturation: EffectParam; lightness: EffectParam; anchorTop: number }) => void;
+  onOpenColorPicker: (group: { layerId: string; effectId: string; key: string; label: string; hue: EffectParam; saturation: EffectParam; lightness: EffectParam; anchorTop: number }) => void;
 }
 
 function formatEffectParamValue(
@@ -109,7 +109,12 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onOpenColorPic
                 onChange={(name, v) => onParamChange(layer.id, { [name]: v })}
                 onCommit={onParamCommit}
                 onOpenPicker={(anchorTop) =>
-                  onOpenColorPicker({ layerId: layer.id, key: item.key, label: item.label, hue: item.hue, saturation: item.saturation, lightness: item.lightness, anchorTop })
+                  // `effectId` capturé avec le groupe : les EffectParam ci-dessus
+                  // n'appartiennent qu'à CET effet. Si l'effet du calque change
+                  // (setLayerEffect vide `params`), le picker ouvert doit
+                  // disparaître au lieu de piloter des paramètres qui n'existent
+                  // plus — c'est App.tsx qui le compare au rendu.
+                  onOpenColorPicker({ layerId: layer.id, effectId: layer.effectId, key: item.key, label: item.label, hue: item.hue, saturation: item.saturation, lightness: item.lightness, anchorTop })
                 }
               />
             ),

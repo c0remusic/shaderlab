@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { initGpu, type GpuContext } from "./render/gpuContext";
 import { Renderer } from "./render/renderer";
 import { LayerStack } from "./layers/layerStack";
@@ -27,7 +27,7 @@ import { useGlobalControlWheel } from "./ui/activeControl";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 import { getBrushRaster } from "./mask/brushSource";
 import { PanelColumn } from "./components/dockedPanel/PanelColumn";
-import { movePanelInDock, type DockDropTarget, type DockLayout } from "./ui/dockLayout";
+import { movePanelInDock, toFullDockTarget, visibleDockLayout, type DockDropTarget, type DockLayout } from "./ui/dockLayout";
 import { clampDockWidth } from "./components/dockedPanel/dockWidth";
 import { LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
@@ -107,9 +107,6 @@ export default function App() {
     anchorTop: number;
   } | null>(null);
   const [dockLayout, setDockLayout] = useState<DockLayout>([["layers", "params", "mask"]]);
-  const handlePanelMove = useCallback((id: string, target: DockDropTarget) => {
-    setDockLayout((previous) => movePanelInDock(previous, id, target));
-  }, []);
 
   // Largeur du dock — état session, partagée par toutes les colonnes,
   // pas d'entrée d'historique (disposition d'interface, pas donnée de
@@ -672,6 +669,32 @@ export default function App() {
   const paramsPanel = useContextualPanel(selectedId !== null, selectedId);
   const maskPanel = useContextualPanel(selectedId !== null, selectedId);
 
+  const isPanelVisible = useCallback(
+    (id: string) => (id === "layers" ? layersPanel.visible : id === "params" ? paramsPanel.visible : maskPanel.visible),
+    [layersPanel.visible, paramsPanel.visible, maskPanel.visible]
+  );
+
+  // Le dock ne reçoit QUE les panneaux visibles : une colonne dont tous les
+  // panneaux sont masqués garderait sinon sa largeur (`.panel-column__stack`
+  // est en `flex: 0 0 --dock-reserved-width`) et laisserait un trou. Filtrer le
+  // LAYOUT plutôt que le tableau `panels` est ce qui fait disparaître la
+  // colonne : une colonne vide reste une colonne.
+  const visibleLayout = useMemo(() => visibleDockLayout(dockLayout, isPanelVisible), [dockLayout, isPanelVisible]);
+
+  // `dockLayout` (complet) reste la source de vérité : il mémorise la place
+  // d'un panneau masqué, qui la retrouve en réapparaissant. La cible de drop
+  // rapportée par PanelColumn est donc exprimée dans les index de la
+  // projection VISIBLE et doit être retraduite avant mutation, sinon masquer
+  // un panneau décale les colonnes et le glisser-déposer atterrit à côté.
+  const handlePanelMove = useCallback(
+    (id: string, target: DockDropTarget) => {
+      setDockLayout((previous) =>
+        movePanelInDock(previous, id, toFullDockTarget(previous, visibleDockLayout(previous, isPanelVisible), target))
+      );
+    },
+    [isPanelVisible]
+  );
+
   // Overlay du masque (rouge + contour animé) : affiché tant qu'on travaille
   // réellement sur le masque du calque sélectionné (panneau Masque ouvert OU
   // pinceau actif) ET qu'il y a un masque actif à montrer — pas en continu
@@ -836,10 +859,8 @@ export default function App() {
                   onAddColorSample={handleAddColorSample}
                 />
             },
-          ].filter((panel) =>
-            panel.id === "layers" ? layersPanel.visible : panel.id === "params" ? paramsPanel.visible : maskPanel.visible
-          )}
-          layout={dockLayout}
+          ]}
+          layout={visibleLayout}
           onMove={handlePanelMove}
           width={dockWidth}
           onWidthChange={handleDockWidthChange}
@@ -869,13 +890,15 @@ export default function App() {
             onClose={() => setColorPicker(null)}
             anchorTop={colorPicker.anchorTop}
             // Ancré à GAUCHE du dock ENTIER, pas d'une seule colonne : le dock
-            // fait `dockLayout.length` colonnes de `dockWidth`, séparées par
+            // fait `visibleLayout.length` colonnes de `dockWidth`, séparées par
             // --space-4. Les `length` gouttières comptées ici = les length-1
             // séparations internes + celle entre le picker et le dock. Sans le
             // facteur colonnes, le picker se posait PAR-DESSUS le dock dès
             // qu'il avait 2 colonnes (constaté au checkpoint 2026-07-25).
+            // `visibleLayout` et NON `dockLayout` : une colonne entièrement
+            // masquée n'occupe plus de place, le picker doit se recaler dessus.
             style={{
-              right: `calc(var(--space-6) + var(--rail-width) + var(--space-4) + (${dockWidth}px * ${dockLayout.length}) + (var(--space-4) * ${dockLayout.length}))`,
+              right: `calc(var(--space-6) + var(--rail-width) + var(--space-4) + (${dockWidth}px * ${visibleLayout.length}) + (var(--space-4) * ${visibleLayout.length}))`,
             }}
           />
         )}

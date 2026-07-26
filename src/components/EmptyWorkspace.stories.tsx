@@ -20,7 +20,7 @@ export const Default: Story = {};
 // le conteneur pour montrer le centrage vertical/horizontal dans une vraie scène.
 export const InCanvasStage: Story = {
   render: (args) => (
-    <div style={{ width: 640, height: 400, position: "relative", border: "1px solid var(--border, #333)" }}>
+    <div style={{ width: 640, height: 400, position: "relative", border: "1px solid var(--border-default)" }}>
       <EmptyWorkspace {...args} />
     </div>
   ),
@@ -28,7 +28,7 @@ export const InCanvasStage: Story = {
 
 export const Narrow: Story = {
   render: (args) => (
-    <div style={{ width: 280, height: 360, position: "relative", border: "1px solid var(--border, #333)" }}>
+    <div style={{ width: 280, height: 360, position: "relative", border: "1px solid var(--border-default)" }}>
       <EmptyWorkspace {...args} />
     </div>
   ),

@@ -19,7 +19,7 @@ function isPresetLayer(value: unknown): value is PresetLayer {
  *  §5.6, R8). Rust's `import_preset` does zero validation by design (§4.2) —
  *  this is the ONLY place schema validation happens. */
 export function validatePresetDocument(raw: unknown): { valid: true; doc: PresetDocument } | { valid: false; error: string } {
-  if (typeof raw !== "object" || raw === null) {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     return { valid: false, error: "Fichier de preset invalide : contenu JSON attendu, objet introuvable." };
   }
   const d = raw as Record<string, unknown>;

@@ -42,4 +42,12 @@ describe("validatePresetDocument", () => {
   it("rejects layers that isn't an array", () => {
     expect(validatePresetDocument({ ...valid, layers: "oops" }).valid).toBe(false);
   });
+
+  it("rejects a JSON array at top level with object error message", () => {
+    const result = validatePresetDocument([{ some: "thing" }]);
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.error).toMatch(/objet/i);
+    }
+  });
 });

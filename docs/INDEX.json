@@ -18,6 +18,20 @@
   ],
   "specs": [
     {
+      "path": "docs/superpowers/specs/2026-07-26-shaderlab-presets-design.md",
+      "status": "ÉCRIT, corrigé et IMPLÉMENTÉ le 2026-07-26 — plan associé exécuté en entier (6 tranches), mergé master + feature/design-system @48daf84. GATE RESTANT : checkpoint visuel humain (les presets écrivent sur disque et peuvent faire perdre des masques peints — ça ne se juge pas dans un diff). 2 corrections du doc après rédaction : (1) il déclarait qu'aucun composant de confirmation n'existait, sur la foi d'un balayage limité à src/components/ui/ — src/ui/Dialog.tsx existe, complet, sans aucun consommateur ; (2) Antoine a tranché les 2 points ouverts (confirmation BLOQUANTE à l'exclusion d'un calque photo ; import en doublon de nom renommé en `(copie)`/`(copie N)`).",
+      "date": "2026-07-26",
+      "topic": "Design (COMMENT) presets — réutiliser une pile de calques d'une photo à l'autre",
+      "summary": "Preset = JSON versionné sérialisant LayerState[] SANS les masques (spécifiques à chaque photo) : PresetLayer n'a structurellement pas de champ mask, ce n'est pas une omission à la copie. Stockage local (dossier de config app) + export/import de fichier pour le partage, aucun réseau. La carte s'intègre au mécanisme des panneaux contextuels (useContextualPanel + item PanelRail) puisque ce chantier est passé en premier — dépendance de séquencement que le PRD laissait ouverte, désormais tranchée. 4 portes de confirmation : exclusion d'un calque photo à la capture, écrasement d'un nom existant, remplacement d'une pile non vide à l'application, bannière de dérive après modification de paramètres."
+    },
+    {
+      "path": "docs/superpowers/plans/2026-07-26-shaderlab-presets.md",
+      "status": "ÉCRIT le 2026-07-26, passé en REVUE ADVERSE AVANT exécution (7 bloquants, 3 manques PRD, 8 importants — tous corrigés avant de lancer le moindre implémenteur), puis EXÉCUTÉ en entier. Les 3 défauts les plus coûteux évités : le plan détruisait la garde fail-fast panelVisibility d'App.tsx (retour au repli silencieux qu'elle existe pour empêcher) ; applyPreset contournait le helper commit (pas de requestRender, et setLayers recevant les calques COMPLETS = violation de l'invariant OOM 24MP) ; la confirmation d'exclusion de calque photo était régressée dès la tranche 4.",
+      "date": "2026-07-26",
+      "topic": "Plan d'exécution presets — 6 tranches verticales",
+      "summary": "T1 modèle pur (capture/apply/migration) · T2 stockage disque (4 commandes Rust + port PresetStore et ses adaptateurs) · T3 carte dockée, sauvegarde, confirmations, renommage par double-clic · T4 application avec confirmation sur pile non vide · T5 détection de dérive et bannière mettre-à-jour/copier · T6 export/import JSON avec renommage anti-collision. Exécuté en subagent-driven-development : un implémenteur frais par tranche, revue systématique après chacune (3 ont demandé un tour de correction), puis revue finale de branche."
+    },
+    {
       "path": "docs/superpowers/specs/2026-07-25-shaderlab-double-exposure-design.md",
       "status": "ÉCRIT, VALIDÉ par Antoine, IMPLÉMENTÉ (Tasks 1-7 du plan associé, toutes review-clean). Task 8 (mesure VRAM + checkpoint visuel bout-en-bout) exécutée le 2026-07-25 : VRAM mesurée (~1280 Mo, aucun device.lost), 6/6 critères techniques du PRD confirmés, capture envoyée à Antoine — SON VERDICT VISUEL SUR LA QUALITÉ DU RENDU N'EST PAS ENCORE CONFIRMÉ (session close sur /wrap avant réponse). 1 finding réel non lié au plan trouvé pendant le checkpoint (hors scope des revues car aucun test ne rend de composant React) : warning React \"Cannot update a component (App) while rendering a different component (LayerPanel)\" — setState pendant le render, pas de crash mais à corriger.",
       "date": "2026-07-25",
@@ -26,7 +40,7 @@
     },
     {
       "path": "docs/superpowers/specs/2026-07-24-shaderlab-contextual-panels-design.md",
-      "status": "ÉCRIT et auto-relu le 2026-07-24 (2 ambiguïtés clarifiées : état à paire unique {key,override} pas une map par calque ; Calques ne se rouvre jamais automatiquement une fois fermé manuellement). EN ATTENTE de relecture Antoine avant passage à writing-plans — pas encore de plan ni de code.",
+      "status": "ÉCRIT 2026-07-24, VALIDÉ par Antoine et IMPLÉMENTÉ le 2026-07-25/26 — plan associé (docs/superpowers/plans/2026-07-25-shaderlab-contextual-panels.md) exécuté en entier, mergé master + feature/design-system @9b66a67. Checkpoint visuel fait en direct avec Antoine : 14 commits de correctifs ont suivi (rail repositionné au bord DROIT — posé entre le canvas et le dock il empêchait les panneaux de s'ouvrir ; picker sorti du dock et aligné sur sa pastille ; espacement aligné sur DockedPanelCard ; bascule au re-clic ; repère de position dans le carré ; curseur unique). ÉCART NOTABLE avec la spec : `dismiss` (bouton X de titlebar) a été RETIRÉ — la spec le demandait mais DockedPanelCard était déclaré hors scope, donc rien ne pouvait l'appeler ; Antoine a tranché le rail comme unique moyen de fermeture.",
       "date": "2026-07-24",
       "topic": "Design (COMMENT) panneaux contextuels (Réglages/Masque) + rail d'icônes manuel façon Photoshop",
       "summary": "Reprend le rail d'icônes laissé hors scope le 2026-07-20 (référencé comme PRD-floating-panel-rail.md, jamais réellement écrit). Hook générique useContextualPanel(conditionMet, triggerKey) unifiant Calques/Réglages/Masque : visibilité = préférence manuelle explicite (X ou rail) qui prime sur la condition automatique jusqu'à changement de triggerKey. Aucune modification de PanelColumn/DockedPanelCard/dockLayout (déjà stabilisés sur plusieurs sessions). Le sélecteur de couleur du duotone tritone (motivation initiale du chantier) reste hors de ce mécanisme : position fixe, hors dock, pas d'icône rail — décision explicite d'Antoine."

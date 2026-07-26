@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 /**
  * Réordonnancement générique par pointer events, PAS le DnD HTML5 natif —
@@ -63,28 +63,51 @@ export function usePointerReorder<T>(
   indexAttribute: string,
   onReorder: (id: string, newIndex: number) => void
 ) {
-  const [dragState, setDragState] = useState<DragReorderState | null>(null);
+  const [dragState, setDragStateRaw] = useState<DragReorderState | null>(null);
+  // Miroir synchrone de `dragState`, même pattern que `PanelColumn.tsx`
+  // (setDragState) : `captureTarget.setPointerCapture` (handlePointerDown)
+  // et `onReorder` (handlePointerUp) sont des EFFETS DE BORD — l'un un appel
+  // DOM, l'autre un setState d'un composant ANCÊTRE (App, via onReorder).
+  // Un updater fonctionnel passé à `setState` peut être réévalué par React
+  // PENDANT le rendu du composant propriétaire (ici LayerPanel, via
+  // usePointerReorder) pour reconcilier la file d'attente — si l'updater
+  // contient un effet de bord, celui-ci s'exécute alors PENDANT ce rendu.
+  // Pour `onReorder`, ça déclenche precisément le warning React "Cannot
+  // update a component (App) while rendering a different component
+  // (LayerPanel)" — confirmé par repro CDP le 2026-07-26 (stack : LayerPanel
+  // → usePointerReorder → useState → updateReducerImpl → l'updater lui-même).
+  // Fix : lire ce miroir AVANT d'appeler setDragState, jamais depuis
+  // l'intérieur d'un updater ; l'updater lui-même reste pur.
+  const dragStateRef = useRef<DragReorderState | null>(null);
+  const setDragState = useCallback(
+    (updater: DragReorderState | null | ((current: DragReorderState | null) => DragReorderState | null)) => {
+      setDragStateRaw((current) => {
+        const next = typeof updater === "function" ? updater(current) : updater;
+        dragStateRef.current = next;
+        return next;
+      });
+    },
+    []
+  );
 
   const handlePointerDown = useCallback(
     (id: string, pointerId: number, captureTarget: Element, measureElement: Element, clientX: number, clientY: number) => {
       // Ignore un 2e pointeur tant qu'un drag est déjà en cours — sinon il
       // écraserait dragState et le drag du 1er pointeur serait silencieusement
       // perdu.
-      setDragState((prev) => {
-        if (prev) return prev;
-        captureTarget.setPointerCapture(pointerId);
-        const rect = measureElement.getBoundingClientRect();
-        return {
-          draggedId: id,
-          pointerId,
-          grabOffset: { x: clientX - rect.left, y: clientY - rect.top },
-          pointerPosition: { x: clientX, y: clientY },
-          overIndex: null,
-          overPosition: null,
-        };
+      if (dragStateRef.current) return;
+      captureTarget.setPointerCapture(pointerId);
+      const rect = measureElement.getBoundingClientRect();
+      setDragState({
+        draggedId: id,
+        pointerId,
+        grabOffset: { x: clientX - rect.left, y: clientY - rect.top },
+        pointerPosition: { x: clientX, y: clientY },
+        overIndex: null,
+        overPosition: null,
       });
     },
-    []
+    [setDragState]
   );
 
   // Continue de recevoir les événements même quand le pointeur sort de son
@@ -109,34 +132,39 @@ export function usePointerReorder<T>(
         return { ...prev, overIndex, overPosition, pointerPosition };
       });
     },
-    [indexAttribute]
+    [indexAttribute, setDragState]
   );
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
-      setDragState((prev) => {
-        if (!prev || e.pointerId !== prev.pointerId) return prev;
-        if (prev.overIndex !== null && prev.overPosition !== null) {
-          const fromIndex = items.findIndex((item) => getId(item) === prev.draggedId);
-          if (fromIndex !== -1 && fromIndex !== prev.overIndex) {
-            const newIndex = computeInsertIndex(fromIndex, prev.overIndex, prev.overPosition);
-            // Déposer "avant" son voisin immédiat suivant (ou "après" son
-            // voisin immédiat précédent) ne change rien à l'ordre final —
-            // computeInsertIndex peut renvoyer fromIndex dans ce cas.
-            if (newIndex !== fromIndex) onReorder(prev.draggedId, newIndex);
-          }
+      // Lu depuis le miroir synchrone, PAS depuis l'intérieur de l'updater
+      // setDragState — onReorder doit s'exécuter dans le call stack de
+      // l'event handler, jamais dans un updater potentiellement rejoué
+      // pendant le rendu de LayerPanel (cf. commentaire sur dragStateRef).
+      const prev = dragStateRef.current;
+      if (prev && e.pointerId === prev.pointerId && prev.overIndex !== null && prev.overPosition !== null) {
+        const fromIndex = items.findIndex((item) => getId(item) === prev.draggedId);
+        if (fromIndex !== -1 && fromIndex !== prev.overIndex) {
+          const newIndex = computeInsertIndex(fromIndex, prev.overIndex, prev.overPosition);
+          // Déposer "avant" son voisin immédiat suivant (ou "après" son
+          // voisin immédiat précédent) ne change rien à l'ordre final —
+          // computeInsertIndex peut renvoyer fromIndex dans ce cas.
+          if (newIndex !== fromIndex) onReorder(prev.draggedId, newIndex);
         }
-        return null;
-      });
+      }
+      setDragState((current) => (current && e.pointerId === current.pointerId ? null : current));
     },
-    [items, getId, onReorder]
+    [items, getId, onReorder, setDragState]
   );
 
   // pointercancel (perte de capture, interruption tactile...) N'EST PAS un
   // dépôt valide — annule le drag sans réordonner, contrairement à pointerup.
-  const handlePointerCancel = useCallback((e: React.PointerEvent) => {
-    setDragState((prev) => (prev && e.pointerId === prev.pointerId ? null : prev));
-  }, []);
+  const handlePointerCancel = useCallback(
+    (e: React.PointerEvent) => {
+      setDragState((prev) => (prev && e.pointerId === prev.pointerId ? null : prev));
+    },
+    [setDragState]
+  );
 
   return { dragState, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel };
 }

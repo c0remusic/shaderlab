@@ -139,12 +139,18 @@ const LayerRow = memo(function LayerRow({
           onChange={(v) => onOpacityChange(layer.id, v)}
           onCommit={onOpacityCommit}
         />
-        <Select
-          label="Effet"
-          value={layer.effectId}
-          options={changeEffectOptions}
-          onChange={(v) => onEffectChange(layer.id, v)}
-        />
+        {/* Sur le calque SÉLECTIONNÉ uniquement — forme prescrite par le
+            design (§3.6, « un sélecteur d'effet sur le calque sélectionné ») :
+            un sélecteur par ligne mettrait N contrôles de changement d'effet à
+            l'écran, dont un seul concerne le calque en cours d'édition. */}
+        {selected && (
+          <Select
+            label="Effet"
+            value={layer.effectId}
+            options={changeEffectOptions}
+            onChange={(v) => onEffectChange(layer.id, v)}
+          />
+        )}
         <Select
           label="Fusion"
           value={layer.blendMode}

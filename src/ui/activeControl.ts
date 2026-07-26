@@ -105,9 +105,19 @@ export function useGlobalControlWheel(): void {
     let commitTimer: number | undefined;
     function handleWheel(event: WheelEvent) {
       if (!event.ctrlKey) return;
+      // Blocage du zoom natif WebView2 AVANT toute autre condition : tant
+      // que ce preventDefault vivait après `if (!handle) return`, Ctrl+molette
+      // zoomait toute l'application tant qu'aucun contrôle n'avait été
+      // modifié dans la session — exactement l'inverse de l'intention
+      // annoncée. `preventDefault` n'annule que l'action par défaut du
+      // navigateur, il n'empêche AUCUN autre écouteur de recevoir
+      // l'évènement : un futur zoom molette sur le canvas (PRD pan/zoom,
+      // non implémenté) reste donc possible — et le voudra de toute façon,
+      // puisqu'un zoom canvas n'a aucun intérêt si la page zoome en même
+      // temps.
+      event.preventDefault();
       const handle = getActiveControl();
       if (!handle) return;
-      event.preventDefault();
       handle.onChange(wheelTickValue(handle, event.deltaY));
       if (handle.onCommit) {
         window.clearTimeout(commitTimer);

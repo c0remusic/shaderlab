@@ -63,6 +63,29 @@ export function wheelTickValue(handle: Pick<ControlHandle, "value" | "min" | "ma
   return roundClean(Math.min(handle.max, Math.max(handle.min, handle.value + direction * tick)));
 }
 
+export interface WheelAdjustContext {
+  disabled: boolean;
+  /** Le focus clavier est-il DANS le contrôle (thumb du slider ou champ de
+   *  valeur) ? Base UI focalise l'`input[type=range]` caché du thumb au
+   *  pointerdown (`SliderControl.js:248` focusThumb), donc « après un clic »
+   *  vaut true au même titre qu'« après une tabulation ». */
+  hasFocusWithin: boolean;
+}
+
+/**
+ * Décide si un évènement `wheel` reçu par un contrôle doit AJUSTER sa valeur
+ * (true) ou être laissé au défilement du panneau (false).
+ *
+ * Le survol seul ne suffit PAS : sans focus, la molette au-dessus d'un panneau
+ * dérèglait des paramètres pendant un simple défilement (le contenu glissant
+ * sous le curseur, un seul geste pouvait toucher plusieurs contrôles). Le
+ * contrôle doit avoir été délibérément saisi — clic ou tabulation.
+ */
+export function shouldWheelAdjust({ disabled, hasFocusWithin }: WheelAdjustContext): boolean {
+  if (disabled) return false;
+  return hasFocusWithin;
+}
+
 /** Hook à monter UNE FOIS à la racine de l'app : Ctrl+molette n'importe où
  *  dans la fenêtre ajuste le dernier contrôle modifié. `preventDefault()`
  *  bloque aussi le zoom de page natif de WebView2 sur Ctrl+molette. */

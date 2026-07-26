@@ -5,6 +5,7 @@ import {
   unregisterControl,
   markControlActive,
   getActiveControl,
+  shouldWheelAdjust,
 } from "../../src/ui/activeControl";
 
 describe("wheelTickValue", () => {
@@ -58,6 +59,24 @@ describe("wheelTickValue", () => {
   it("un tout petit deltaY (trackpad) reste au minimum 1% (pas de micro-pas inutiles)", () => {
     const next = wheelTickValue({ value: 50, min: 0, max: 100 }, -5);
     expect(next).toBeCloseTo(51, 6);
+  });
+});
+
+describe("shouldWheelAdjust (molette conditionnée au focus)", () => {
+  it("contrôle focalisé : la molette ajuste la valeur", () => {
+    expect(shouldWheelAdjust({ disabled: false, hasFocusWithin: true })).toBe(true);
+  });
+
+  it("contrôle seulement survolé (pas focalisé) : la molette est laissée au défilement", () => {
+    expect(shouldWheelAdjust({ disabled: false, hasFocusWithin: false })).toBe(false);
+  });
+
+  it("contrôle désactivé : jamais d'ajustement, même focalisé", () => {
+    expect(shouldWheelAdjust({ disabled: true, hasFocusWithin: true })).toBe(false);
+  });
+
+  it("contrôle désactivé et non focalisé : pas d'ajustement", () => {
+    expect(shouldWheelAdjust({ disabled: true, hasFocusWithin: false })).toBe(false);
   });
 });
 

@@ -72,6 +72,7 @@ export default function App() {
   const presetStoreRef = useRef(new TauriPresetStore());
   const presets = usePresets(presetStoreRef.current);
   const [layers, setLayers] = useState<LayerState[]>([]);
+  const presetIsDirty = presets.isDirtyOf(layers);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [sourcePath, setSourcePath] = useState<string | null>(null);
@@ -122,6 +123,10 @@ export default function App() {
   // `requestApplyPreset`). Le PRD interdit d'écraser des masques déjà peints
   // sans confirmation explicite.
   const [pendingPresetApply, setPendingPresetApply] = useState<string | null>(null);
+
+  // Task 5 : nom en attente de saisie pour "Créer une copie" depuis la
+  // bannière de dérive — non nul tant que le dialogue de nommage est ouvert.
+  const [pendingPresetCopyName, setPendingPresetCopyName] = useState<string | null>(null);
 
   // Deux confirmations peuvent s'enchaîner sur un même enregistrement (C1
   // overwrite-by-name, puis exclusion de calque photo) — voir
@@ -237,6 +242,7 @@ export default function App() {
 
       const stack = new LayerStack();
       sessionRef.current.replaceDocument(stack);
+      presets.clearActive();
       syncSession();
       rendererRef.current.render(sessionRef.current.layers());
       // Une ouverture réussie efface une éventuelle erreur laissée par une
@@ -248,7 +254,7 @@ export default function App() {
       if (generation !== openGenerationRef.current) return;
       setError(messageFromUnknown(e));
     }
-  }, [syncSession]);
+  }, [syncSession, presets.clearActive]);
 
   useEffect(() => {
     getLaunchPath().then(async (path) => {
@@ -334,6 +340,7 @@ export default function App() {
   }, [commit, currentStack]);
 
   function handleAdd(effectId: string) {
+    presets.clearActive();
     const stack = currentStack();
     const id = stack.addLayer(effectId);
     commit(stack);
@@ -357,12 +364,13 @@ export default function App() {
 
   const handleRemove = useCallback(
     (id: string) => {
+      presets.clearActive();
       const stack = currentStack();
       if (!stack.removeLayer(id)) return;
       maskPaintersRef.current.delete(id);
       commit(stack);
     },
-    [currentStack, commit]
+    [currentStack, commit, presets]
   );
 
   const handleReorder = useCallback(
@@ -738,6 +746,40 @@ export default function App() {
     }
   }
 
+  /** "Mettre à jour" (dirty banner). Reuses the active preset's own current
+   *  name — `updateActive` keeps the name unchanged, `capture()` only needs
+   *  SOME name to run its exclusion check. Routes through the SAME
+   *  `gateOnPhotoLayers` gate as `requestSavePreset` (a photo layer must
+   *  never be silently dropped from a written preset file). */
+  function requestUpdateActive() {
+    if (!presets.activePresetId) return;
+    const layers = sessionRef.current.layers();
+    const name = presets.summaries.find((s) => s.id === presets.activePresetId)?.name ?? "";
+    gateOnPhotoLayers(name, async () => {
+      try {
+        await presets.updateActive(layers);
+        return true;
+      } catch (e) {
+        setError(messageFromUnknown(e));
+        return false;
+      }
+    });
+  }
+
+  /** "Créer une copie" (dirty banner). Same photo-layer gate as above. */
+  function requestCopyActiveAsNew(name: string) {
+    const layers = sessionRef.current.layers();
+    gateOnPhotoLayers(name, async () => {
+      try {
+        await presets.copyActiveAsNew(layers, name);
+        return true;
+      } catch (e) {
+        setError(messageFromUnknown(e));
+        return false;
+      }
+    });
+  }
+
   async function handleRenamePreset(id: string, name: string) {
     try {
       await presets.rename(id, name);
@@ -757,6 +799,7 @@ export default function App() {
    *  applies, it never asks. */
   async function applyPreset(id: string) {
     try {
+      if (presets.activePresetId !== id) presets.clearActive();
       await presets.applyTo(
         id,
         sessionRef.current.layers(),
@@ -981,13 +1024,28 @@ export default function App() {
           panels={[
             {
               id: "presets", title: "Presets", collapsed: presetsFolded, onCollapsedChange: setPresetsFolded,
-              content: <PresetPanel
-                  summaries={presets.summaries}
-                  hasLayers={layers.length > 0}
-                  onSave={requestSavePreset}
-                  onRename={handleRenamePreset}
-                  onApply={requestApplyPreset}
-                />
+              content: (
+                <>
+                  <PresetPanel
+                    summaries={presets.summaries}
+                    hasLayers={layers.length > 0}
+                    onSave={requestSavePreset}
+                    onRename={handleRenamePreset}
+                    onApply={requestApplyPreset}
+                  />
+                  {presetIsDirty && presets.activePresetId && (
+                    <div className="preset-panel__dirty-banner">
+                      <span>Preset modifié.</span>
+                      <Button size="sm" variant="secondary" onClick={requestUpdateActive}>
+                        Mettre à jour
+                      </Button>
+                      <Button size="sm" variant="secondary" onClick={() => setPendingPresetCopyName("")}>
+                        Créer une copie
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )
             },
             {
               id: "layers", title: "Calques", collapsed: layersFolded, onCollapsedChange: setLayersFolded,
@@ -1174,6 +1232,36 @@ export default function App() {
               ))}
             </ul>
           )}
+        </Dialog>
+        <Dialog
+          open={pendingPresetCopyName !== null}
+          title="Créer une copie du preset"
+          onClose={() => setPendingPresetCopyName(null)}
+          actions={
+            <>
+              <Button variant="secondary" autoFocus onClick={() => setPendingPresetCopyName(null)}>
+                Annuler
+              </Button>
+              <Button
+                variant="default"
+                disabled={!pendingPresetCopyName || pendingPresetCopyName.trim() === ""}
+                onClick={() => {
+                  if (pendingPresetCopyName) requestCopyActiveAsNew(pendingPresetCopyName.trim());
+                  setPendingPresetCopyName(null);
+                }}
+              >
+                Créer
+              </Button>
+            </>
+          }
+        >
+          <input
+            type="text"
+            className="preset-panel__name-input"
+            placeholder="Nom du nouveau preset"
+            value={pendingPresetCopyName ?? ""}
+            onChange={(e) => setPendingPresetCopyName(e.target.value)}
+          />
         </Dialog>
         <Dialog
           open={pendingPresetApply !== null}

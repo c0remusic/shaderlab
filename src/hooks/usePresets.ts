@@ -1,10 +1,21 @@
 import { useCallback, useState } from "react";
 import type { PresetStore, PresetSummary } from "../presets/presetStore";
 import { apply, capture } from "../presets/presetDocument";
+import { presetsDiffer } from "../presets/presetsDiffer";
+import type { PresetLayer } from "../presets/presetTypes";
 import { getEffect } from "../render/effects/registry";
 import { freshId } from "../layers/layerStack";
 import type { LayerState } from "../layers/types";
 import type { EffectParam } from "../render/effects/types";
+
+/** Same 5-field projection as `presetDocument.capture`'s per-layer shape,
+ *  WITHOUT allocating a full `PresetDocument` — used only to feed
+ *  `presetsDiffer`, never persisted. */
+function toPresetLayers(layers: LayerState[]): PresetLayer[] {
+  return layers
+    .filter((l) => !l.imageSource)
+    .map((l) => ({ effectId: l.effectId, params: { ...l.params }, enabled: l.enabled, opacity: l.opacity, blendMode: l.blendMode }));
+}
 
 function effectExists(effectId: string): boolean {
   try {
@@ -25,10 +36,18 @@ function effectParamsFor(effectId: string): EffectParam[] | null {
 
 export function usePresets(store: PresetStore) {
   const [summaries, setSummaries] = useState<PresetSummary[]>([]);
+  const [active, setActive] = useState<{ id: string; snapshot: PresetLayer[] } | null>(null);
 
   const refresh = useCallback(async () => {
     setSummaries(await store.list());
   }, [store]);
+
+  const isDirtyOf = useCallback(
+    (currentLayers: LayerState[]) => (active ? presetsDiffer(toPresetLayers(currentLayers), active.snapshot) : false),
+    [active]
+  );
+
+  const clearActive = useCallback(() => setActive(null), []);
 
   /** Captures `layers` under `name` and saves it as a brand-new preset
    *  (crypto.randomUUID()'d id, see presetDocument.capture). Overwrite-by-
@@ -92,6 +111,7 @@ export function usePresets(store: PresetStore) {
       const preset = await store.load(id);
       const { layers: newLayers, warnings } = apply(preset, effectExists, effectParamsFor, freshId);
       onApply(newLayers);
+      setActive({ id, snapshot: toPresetLayers(newLayers) });
       if (warnings.length > 0) {
         onWarning(warnings.map((w) => w.message).join(" "));
       }
@@ -99,5 +119,48 @@ export function usePresets(store: PresetStore) {
     [store]
   );
 
-  return { summaries, refresh, save, overwrite, rename, applyTo };
+  /** Overwrites the currently-active preset with a fresh capture of
+   *  `currentLayers`, keeping its existing name — the "Mettre à jour" banner
+   *  action. The photo-layer-exclusion gate is the CALLER's responsibility
+   *  (`App.tsx`'s `requestUpdateActive`, same division of labor as `save`/
+   *  `overwrite` above): this function always writes immediately. */
+  const updateActive = useCallback(
+    async (currentLayers: LayerState[]) => {
+      if (!active) return;
+      const existing = await store.load(active.id);
+      const { preset } = capture(currentLayers, existing.name);
+      const updated = { ...preset, id: active.id, createdAt: existing.createdAt };
+      await store.save(active.id, updated);
+      setActive({ id: active.id, snapshot: toPresetLayers(currentLayers) });
+      await refresh();
+    },
+    [active, store, refresh]
+  );
+
+  /** Captures `currentLayers` under a NEW name/id — the "Créer une copie"
+   *  banner action. Same photo-layer-exclusion gating contract as
+   *  `updateActive`/`save`. The new copy becomes the active preset. */
+  const copyActiveAsNew = useCallback(
+    async (currentLayers: LayerState[], name: string) => {
+      const { preset } = capture(currentLayers, name);
+      await store.save(preset.id, preset);
+      setActive({ id: preset.id, snapshot: toPresetLayers(currentLayers) });
+      await refresh();
+    },
+    [store, refresh]
+  );
+
+  return {
+    summaries,
+    refresh,
+    save,
+    overwrite,
+    rename,
+    applyTo,
+    isDirtyOf,
+    activePresetId: active?.id ?? null,
+    updateActive,
+    copyActiveAsNew,
+    clearActive,
+  };
 }

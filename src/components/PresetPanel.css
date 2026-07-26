@@ -57,6 +57,16 @@
   background: var(--surface-hover);
 }
 
+.preset-panel__dirty-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--status-warning-bg);
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-sm);
+}
+
 .preset-panel__excluded-list {
   display: flex;
   flex-direction: column;

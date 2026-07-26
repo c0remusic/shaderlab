@@ -84,3 +84,22 @@ export function logDiagnostic(message: string): void {
   if (!import.meta.env.DEV) return;
   invoke("log_diagnostic", { message }).catch(() => {});
 }
+
+/** Bibliothèque locale de presets (design.md §4). `crypto.randomUUID()`
+ *  côté TS génère l'id, jamais dérivé du nom affiché (renommer un preset ne
+ *  renomme jamais son fichier). */
+export async function listPresetIds(): Promise<string[]> {
+  return invoke<string[]>("list_preset_ids");
+}
+
+export async function readPreset(id: string): Promise<string> {
+  return invoke<string>("read_preset", { id });
+}
+
+export async function writePreset(id: string, contents: string): Promise<void> {
+  await invoke("write_preset", { id, contents });
+}
+
+export async function deletePreset(id: string): Promise<void> {
+  await invoke("delete_preset", { id });
+}

@@ -162,6 +162,80 @@ fn pick_export_folder() -> Option<String> {
         .map(|p| p.to_string_lossy().into_owned())
 }
 
+/// Dossier de bibliothèque locale des presets, sous le dossier de config
+/// app — même famille d'API que `default_export_dir` (`app.path().picture_dir()`).
+/// Ne crée pas le dossier lui-même : `write_preset` le fait via
+/// `ensure_parent_dir`, un seul point de création comme pour l'export.
+fn presets_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("Dossier de config app introuvable: {e}"))?;
+    Ok(dir.join("presets"))
+}
+
+/// Confinement d'id, symétrique à `is_jpeg_path` : rejeté même si l'id vient
+/// d'un `crypto.randomUUID()` TS de confiance — défense en profondeur contre
+/// un id malformé qui traverserait accidentellement vers ce code (ex. après
+/// une désérialisation ratée côté appelant).
+fn is_safe_preset_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+        && !id.contains("..")
+}
+
+fn preset_path(app: &tauri::AppHandle, id: &str) -> Result<std::path::PathBuf, String> {
+    if !is_safe_preset_id(id) {
+        return Err(format!("Id de preset invalide: {id}"));
+    }
+    Ok(presets_dir(app)?.join(format!("{id}.json")))
+}
+
+#[tauri::command]
+fn list_preset_ids(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let dir = presets_dir(&app)?;
+    if !dir.exists() {
+        return Ok(Vec::new());
+    }
+    let entries = fs::read_dir(&dir).map_err(|e| format!("Lecture du dossier presets échouée: {e}"))?;
+    let mut ids = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Entrée de dossier illisible: {e}"))?;
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) == Some("json") {
+            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                if is_safe_preset_id(stem) {
+                    ids.push(stem.to_string());
+                }
+            }
+        }
+    }
+    Ok(ids)
+}
+
+#[tauri::command]
+fn read_preset(app: tauri::AppHandle, id: String) -> Result<String, String> {
+    let path = preset_path(&app, &id)?;
+    fs::read_to_string(&path).map_err(|e| format!("Lecture du preset {id} échouée: {e}"))
+}
+
+#[tauri::command]
+fn write_preset(app: tauri::AppHandle, id: String, contents: String) -> Result<(), String> {
+    let path = preset_path(&app, &id)?;
+    let path_str = path.to_string_lossy().into_owned();
+    ensure_parent_dir(&path_str)?;
+    write_atomic(&path_str, contents.as_bytes())
+}
+
+#[tauri::command]
+fn delete_preset(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    let path = preset_path(&app, &id)?;
+    if !path.exists() {
+        return Ok(()); // suppression d'un preset déjà absent = no-op, pas une erreur
+    }
+    fs::remove_file(&path).map_err(|e| format!("Suppression du preset {id} échouée: {e}"))
+}
+
 /// Debugging-only: appends a timestamped line to `.dev-logs/gpu-diag.log` in
 /// the project root. Writing through Rust (not console.log) means the line
 /// is durably on disk before this IPC call even returns to the renderer —
@@ -215,7 +289,11 @@ pub fn run() {
             path_exists,
             default_export_dir,
             pick_export_folder,
-            join_export_target
+            join_export_target,
+            list_preset_ids,
+            read_preset,
+            write_preset,
+            delete_preset
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -314,5 +392,47 @@ mod tests {
 
         assert!(nested.parent().unwrap().exists());
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn is_safe_preset_id_accepts_uuid_like_ids() {
+        assert!(is_safe_preset_id("a1b2c3d4-e5f6-47a8-89bc-0123456789ab"));
+    }
+
+    #[test]
+    fn is_safe_preset_id_rejects_path_traversal_and_separators() {
+        assert!(!is_safe_preset_id(""));
+        assert!(!is_safe_preset_id("../secret"));
+        assert!(!is_safe_preset_id("a/b"));
+        assert!(!is_safe_preset_id("a\\b"));
+        assert!(!is_safe_preset_id("a..b"));
+    }
+
+    #[test]
+    fn preset_round_trip_write_read_delete() {
+        // preset_path() needs an AppHandle, which requires a running Tauri
+        // app — exercised here at the level BELOW it (write_atomic +
+        // ensure_parent_dir, already unit-tested above) plus a direct
+        // is_safe_preset_id check, matching the split already used by
+        // path_exists_on_disk/path_exists for the same reason (§ commandes
+        // pas testables sans IPC réel, design.md §8 "Testé (Rust)").
+        let dir = std::env::temp_dir().join("shaderlab-test-presets");
+        let _ = std::fs::remove_dir_all(&dir);
+        let id = "test-preset-1";
+        assert!(is_safe_preset_id(id));
+        let path = dir.join(format!("{id}.json"));
+        let path_str = path.to_str().unwrap();
+
+        ensure_parent_dir(path_str).unwrap();
+        write_atomic(path_str, b"{\"schemaVersion\":1}").unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "{\"schemaVersion\":1}");
+
+        write_atomic(path_str, b"{\"schemaVersion\":1,\"name\":\"renamed\"}").unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "{\"schemaVersion\":1,\"name\":\"renamed\"}");
+
+        std::fs::remove_file(&path).unwrap();
+        assert!(!path.exists());
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

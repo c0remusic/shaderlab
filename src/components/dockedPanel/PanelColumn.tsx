@@ -184,7 +184,6 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
                     title={panel.title}
                     collapsed={panel.collapsed}
                     onCollapsedChange={panel.onCollapsedChange}
-                    reorderIndex={rowIndex}
                     dragging={dragState?.draggedId === panel.id}
                     titlebarProps={{ onPointerDown: (event) => handlePointerDown(panel.id, event) }}
                   >

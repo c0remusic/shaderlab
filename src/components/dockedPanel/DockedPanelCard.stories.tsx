@@ -9,7 +9,6 @@ const meta: Meta<typeof DockedPanelCard> = {
     title: "Calques",
     collapsed: false,
     onCollapsedChange: () => {},
-    reorderIndex: 0,
     children: <p style={{ margin: 0 }}>Contenu du panneau.</p>,
   },
 };

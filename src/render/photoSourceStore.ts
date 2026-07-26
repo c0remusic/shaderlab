@@ -6,21 +6,29 @@ import { assertImageFitsGpu } from "./limits";
 export const THUMBNAIL_MAX_SIDE = 64;
 
 /** Réduit `bitmap` à une vignette au plus `THUMBNAIL_MAX_SIDE` de côté et
- *  rend une object URL. Isolé du reste pour que l'absence
- *  d'`OffscreenCanvas` (env Node des tests, WebView2 ancienne) soit un
- *  chemin explicite rendant `null`, jamais une exception qui ferait échouer
- *  tout l'import d'une photo pour une vignette. */
+ *  rend une object URL. Isolé du reste, et TOTAL : toute défaillance du
+ *  chemin vignette (absence d'`OffscreenCanvas` en env Node/WebView2
+ *  ancienne, contexte 2d refusé, `drawImage`/`convertToBlob` qui jettent)
+ *  rend `null`. Jamais une exception : elle ferait échouer tout l'import
+ *  d'une photo — texture déjà enregistrée comprise — pour une vignette.
+ *  L'échec n'est pas silencieux pour autant : il est journalisé en
+ *  avertissement (la photo, elle, est bien importée). */
 async function buildThumbnailUrl(bitmap: ImageBitmap): Promise<string | null> {
   if (typeof OffscreenCanvas === "undefined") return null;
-  const ratio = Math.min(1, THUMBNAIL_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
-  const width = Math.max(1, Math.round(bitmap.width * ratio));
-  const height = Math.max(1, Math.round(bitmap.height * ratio));
-  const canvas = new OffscreenCanvas(width, height);
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return null;
-  ctx.drawImage(bitmap, 0, 0, width, height);
-  const blob = await canvas.convertToBlob({ type: "image/png" });
-  return URL.createObjectURL(blob);
+  try {
+    const ratio = Math.min(1, THUMBNAIL_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * ratio));
+    const height = Math.max(1, Math.round(bitmap.height * ratio));
+    const canvas = new OffscreenCanvas(width, height);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    const blob = await canvas.convertToBlob({ type: "image/png" });
+    return URL.createObjectURL(blob);
+  } catch (e) {
+    console.warn("Vignette de calque non produite (la photo est importée quand même) :", e);
+    return null;
+  }
 }
 
 /**
@@ -55,8 +63,10 @@ export class PhotoSourceStore {
    *  ASYNC à cause de `convertToBlob`. L'appelant DOIT l'attendre avant
    *  d'ajouter le calque, pour que le re-render qui crée la ligne ait déjà
    *  sa vignette (sinon apparition différée sans re-render). La texture,
-   *  elle, est allouée et uploadée AVANT tout `await` : un échec de vignette
-   *  ne peut pas laisser une source à moitié enregistrée.
+   *  elle, est allouée et uploadée AVANT tout `await`, et
+   *  `buildThumbnailUrl` est TOTAL (jamais de rejet) : un échec de vignette
+   *  ne peut ni faire rejeter `register` ni laisser une source enregistrée
+   *  sous un `sourceId` que personne ne recevrait (fuite VRAM).
    *
    *  Fuite assumée et nommée (design §3.3) : un `sourceId` frais par appel
    *  signifie qu'une boucle importer/annuler accumule texture + blob +

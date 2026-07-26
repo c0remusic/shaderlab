@@ -149,6 +149,57 @@ describe("PhotoSourceStore", () => {
     expect(store.thumbnailUrl(id2)).toBeNull();
   });
 
+  it("si convertToBlob rejette, register réussit et la source reste utilisable sans vignette", async () => {
+    class FailingOffscreenCanvas {
+      constructor(public width: number, public height: number) {}
+      getContext() {
+        return { drawImage: vi.fn() };
+      }
+      async convertToBlob(): Promise<Blob> {
+        throw new Error("encodage png indisponible");
+      }
+    }
+    vi.stubGlobal("OffscreenCanvas", FailingOffscreenCanvas);
+    vi.stubGlobal("URL", { createObjectURL: vi.fn(), revokeObjectURL: vi.fn() });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { store } = createStore();
+
+    const id = await store.register({ width: 40, height: 30 } as ImageBitmap);
+
+    expect(store.get(id)).not.toBeNull();
+    expect(store.dimensions(id)).toEqual({ width: 40, height: 30 });
+    expect(store.thumbnailUrl(id)).toBeNull();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("si drawImage jette, register réussit et la source reste utilisable sans vignette", async () => {
+    class ThrowingOffscreenCanvas {
+      constructor(public width: number, public height: number) {}
+      getContext() {
+        return {
+          drawImage: () => {
+            throw new Error("source detachée");
+          },
+        };
+      }
+      async convertToBlob(): Promise<Blob> {
+        return {} as Blob;
+      }
+    }
+    vi.stubGlobal("OffscreenCanvas", ThrowingOffscreenCanvas);
+    vi.stubGlobal("URL", { createObjectURL: vi.fn(), revokeObjectURL: vi.fn() });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { store } = createStore();
+
+    const id = await store.register({ width: 40, height: 30 } as ImageBitmap);
+
+    expect(store.get(id)).not.toBeNull();
+    expect(store.thumbnailUrl(id)).toBeNull();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it("sans OffscreenCanvas, register réussit quand même et thumbnailUrl rend null", async () => {
     const { store } = createStore();
     const id = await store.register({ width: 10, height: 10 } as ImageBitmap);

@@ -4,6 +4,7 @@ import "../ui/dragReorder.css";
 import { Eye, EyeOff, GripVertical, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
 import { effectRegistry, getEffect } from "../render/effects/registry";
+import { PASSTHROUGH_EFFECT } from "../render/effectPassRunner";
 import { blendRegistry } from "../render/blend/registry";
 import { Select } from "./ui/select";
 import { LabeledSlider } from "./ui/labeled-slider";
@@ -22,6 +23,7 @@ interface Props {
   onOpacityChange: (id: string, opacity: number) => void;
   onOpacityCommit: () => void;
   onBlendModeChange: (id: string, blendMode: string) => void;
+  onEffectChange: (id: string, effectId: string) => void;
 }
 
 interface LayerRowProps {
@@ -37,9 +39,16 @@ interface LayerRowProps {
   onOpacityChange: (id: string, opacity: number) => void;
   onOpacityCommit: () => void;
   onBlendModeChange: (id: string, blendMode: string) => void;
+  onEffectChange: (id: string, effectId: string) => void;
 }
 
 const addEffectOptions = effectRegistry.map((e) => ({ value: e.id, label: e.name }));
+/** Sélecteur de CHANGEMENT d'effet : contrairement au sélecteur d'AJOUT, il
+ *  expose `passthrough` — sous le libellé « Aucun effet », parce que c'est ce
+ *  qu'il veut dire pour l'utilisateur, et parce qu'un calque photo doit pouvoir
+ *  y revenir. `passthrough` reste hors de `effectRegistry` (contrat
+ *  `render/effects/registry.ts`), donc il est ajouté ici explicitement. */
+const changeEffectOptions = [{ value: PASSTHROUGH_EFFECT.id, label: "Aucun effet" }, ...addEffectOptions];
 const blendModeOptions = blendRegistry.map((m) => ({ value: m.id, label: m.name }));
 
 // Mémoïsée : sans ça, un drag du slider d'opacité d'UN calque re-render
@@ -60,6 +69,7 @@ const LayerRow = memo(function LayerRow({
   onOpacityChange,
   onOpacityCommit,
   onBlendModeChange,
+  onEffectChange,
 }: LayerRowProps) {
   const rowClass = [
     "layer-panel__row",
@@ -130,6 +140,12 @@ const LayerRow = memo(function LayerRow({
           onCommit={onOpacityCommit}
         />
         <Select
+          label="Effet"
+          value={layer.effectId}
+          options={changeEffectOptions}
+          onChange={(v) => onEffectChange(layer.id, v)}
+        />
+        <Select
           label="Fusion"
           value={layer.blendMode}
           options={blendModeOptions}
@@ -152,6 +168,7 @@ export function LayerPanel({
   onOpacityChange,
   onOpacityCommit,
   onBlendModeChange,
+  onEffectChange,
 }: Props) {
   const { dragState, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel } = usePointerReorder(
     layers,
@@ -204,6 +221,7 @@ export function LayerPanel({
             onOpacityChange={onOpacityChange}
             onOpacityCommit={onOpacityCommit}
             onBlendModeChange={onBlendModeChange}
+            onEffectChange={onEffectChange}
           />
         ))}
       </ul>

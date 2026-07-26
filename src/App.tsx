@@ -455,6 +455,25 @@ export default function App() {
     [currentStack, commit]
   );
 
+  const handleEffectChange = useCallback(
+    (id: string, effectId: string) => {
+      // `presets.clearActive()` AVANT de muter la pile, comme handleAdd
+      // (:354) et handleRemove (:378) — changer l'effet d'un calque fait
+      // diverger la pile du preset appliqué (l'effectId fait partie de la
+      // projection capturée, usePresets.toPresetLayers).
+      presets.clearActive();
+      const stack = currentStack();
+      // Mutation outcome : id absent ou effet inchangé -> pas d'entrée
+      // d'historique (et pas de reset de params sur un faux changement).
+      if (!stack.setLayerEffect(id, effectId)) return;
+      commit(stack); // changement discret → une entrée d'historique directe
+    },
+    // presets.clearActive et non `presets` (littéral frais à chaque render) :
+    // même resserrement que handleRemove, dont le commentaire explique
+    // pourquoi la mémoïsation de LayerRow en dépend.
+    [currentStack, commit, presets.clearActive]
+  );
+
   function handleAddMaskSource(layerId: string, type: "gradient" | "luminosity" | "colorRange") {
     const stack = currentStack();
     stack.addMaskSource(layerId, type);
@@ -1179,6 +1198,7 @@ export default function App() {
                   onOpacityChange={handleOpacityChange}
                   onOpacityCommit={handleParamCommit}
                   onBlendModeChange={handleBlendModeChange}
+                  onEffectChange={handleEffectChange}
                 />
             },
             {

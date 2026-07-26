@@ -153,6 +153,12 @@ export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, 
               e.currentTarget.releasePointerCapture(e.pointerId);
               onCommit();
             }}
+            // Perte de capture (alt-tab, interruption OS/tactile) : relâcher SANS
+            // committer — pointercancel n'est pas une validation. Même sémantique
+            // que TransformHandles.tsx et ui/dragReorder.ts.
+            onPointerCancel={(e) => {
+              if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+            }}
           />
           {/* Mêmes axes que drawSvSquare : saturation en X, luminosité en Y
               INVERSÉE (haut = clair). Toute divergence ici décalerait le
@@ -172,6 +178,10 @@ export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, 
           onPointerUp={(e) => {
             e.currentTarget.releasePointerCapture(e.pointerId);
             onCommit();
+          }}
+          // Idem bande de teinte : annulation = pas de commit.
+          onPointerCancel={(e) => {
+            if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
           }}
         >
           <div className="color-picker-panel__hue-thumb" style={{ left: `${(hue / 360) * 100}%` }} />

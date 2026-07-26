@@ -124,10 +124,19 @@ export default function App() {
   // le Task 5 réutilise cette même porte pour "Mettre à jour"/"Créer une
   // copie", qui ne rentrent pas dans une forme overwrite-id mais ont besoin
   // du même contrat "confirmer, puis lancer cette écriture précise".
-  const [pendingOverwrite, setPendingOverwrite] = useState<{ id: string; name: string } | null>(null);
-  const [pendingPhotoLayerSave, setPendingPhotoLayerSave] = useState<{ excludedLayerIndexes: number[]; onConfirm: () => void } | null>(
+  // `resolve`/`onCancel` portent la résolution de la promesse rendue par
+  // `requestSavePreset` (Mineur 4, revue tâche 3) : PresetPanel n'efface son
+  // champ de saisie qu'une fois l'écriture réellement aboutie, jamais sur la
+  // seule demande — donc chaque porte de confirmation doit savoir dire "annulé"
+  // (false) aussi bien que "confirmé puis écrit" (true/false selon l'issue).
+  const [pendingOverwrite, setPendingOverwrite] = useState<{ id: string; name: string; resolve: (written: boolean) => void } | null>(
     null
   );
+  const [pendingPhotoLayerSave, setPendingPhotoLayerSave] = useState<{
+    excludedLayerIndexes: number[];
+    onConfirm: () => void;
+    onCancel: () => void;
+  } | null>(null);
 
   // Largeur du dock — état session, partagée par toutes les colonnes,
   // pas d'entrée d'historique (disposition d'interface, pas donnée de
@@ -249,7 +258,12 @@ export default function App() {
   }, [openFile]);
 
   useEffect(() => {
-    presets.refresh();
+    // Important 1 (revue tâche 3) : c'était le SEUL appel preset non gardé —
+    // un preset corrompu fait rejeter `TauriPresetStore.list()`, et sans
+    // `.catch` ici le rejet restait non géré : aucun bandeau d'erreur, le
+    // panneau affichait juste "Aucun preset enregistré" comme si la
+    // bibliothèque était vide. Fail-fast comme les trois autres chemins preset.
+    presets.refresh().catch((e) => setError(messageFromUnknown(e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh is stable (useCallback), run once on mount only.
   }, []);
 
@@ -663,13 +677,18 @@ export default function App() {
     }
   }
 
-  function requestSavePreset(name: string) {
+  // Mineur 4 (revue tâche 3) : rend une Promise<boolean> résolue à `true`
+  // SEULEMENT si l'écriture a réellement abouti (aucune confirmation
+  // annulée, aucune exception) — PresetPanel n'efface son champ de saisie
+  // que sur `true`, jamais sur la seule demande d'enregistrement.
+  async function requestSavePreset(name: string): Promise<boolean> {
     const existing = presets.summaries.find((s) => s.name === name);
     if (existing) {
-      setPendingOverwrite({ id: existing.id, name });
-      return;
+      return new Promise<boolean>((resolve) => {
+        setPendingOverwrite({ id: existing.id, name, resolve });
+      });
     }
-    gateOnPhotoLayers(name, () => commitSavePreset(name, null));
+    return gateOnPhotoLayers(name, () => commitSavePreset(name, null));
   }
 
   /** Runs `capture(sessionRef.current.layers(), name)` purely to inspect
@@ -679,26 +698,37 @@ export default function App() {
    *  immediately. `name` is only used to compute `skipped` (a photo-layer
    *  exclusion doesn't depend on the target name) — callers that don't have
    *  a natural "new name" yet (Task 5's `updateActive`) pass the CURRENT
-   *  preset's existing name, which is what would be recaptured anyway. */
-  function gateOnPhotoLayers(name: string, onConfirmed: () => void) {
+   *  preset's existing name, which is what would be recaptured anyway.
+   *  Rend `false` si l'utilisateur annule la porte (Mineur 4), sinon le
+   *  résultat de `onConfirmed` (issue réelle de l'écriture). */
+  function gateOnPhotoLayers(name: string, onConfirmed: () => Promise<boolean>): Promise<boolean> {
     const { skipped } = capture(sessionRef.current.layers(), name);
     const excludedLayerIndexes = skipped.filter((s) => s.reason === "photo-layer").map((s) => s.layerIndex);
     if (excludedLayerIndexes.length > 0) {
-      setPendingPhotoLayerSave({ excludedLayerIndexes, onConfirm: onConfirmed });
-      return;
+      return new Promise<boolean>((resolve) => {
+        setPendingPhotoLayerSave({
+          excludedLayerIndexes,
+          onConfirm: () => {
+            onConfirmed().then(resolve);
+          },
+          onCancel: () => resolve(false),
+        });
+      });
     }
-    onConfirmed();
+    return onConfirmed();
   }
 
-  async function commitSavePreset(name: string, overwriteId: string | null) {
+  async function commitSavePreset(name: string, overwriteId: string | null): Promise<boolean> {
     try {
       if (overwriteId) {
         await presets.overwrite(overwriteId, sessionRef.current.layers(), name);
       } else {
         await presets.save(sessionRef.current.layers(), name);
       }
+      return true;
     } catch (e) {
       setError(messageFromUnknown(e));
+      return false;
     }
   }
 
@@ -1023,16 +1053,32 @@ export default function App() {
           open={pendingOverwrite !== null}
           title="Remplacer le preset existant ?"
           description={pendingOverwrite ? `Un preset nommé "${pendingOverwrite.name}" existe déjà. L'enregistrement va écraser son contenu.` : undefined}
-          onClose={() => setPendingOverwrite(null)}
+          onClose={() => {
+            // Mineur 4 : annuler l'écrasement (X / Échap) doit résoudre
+            // `requestSavePreset` à `false` — sinon la Promise reste en
+            // suspens et PresetPanel ne sait jamais que l'écriture n'a pas eu lieu.
+            pendingOverwrite?.resolve(false);
+            setPendingOverwrite(null);
+          }}
           actions={
             <>
-              <Button variant="secondary" autoFocus onClick={() => setPendingOverwrite(null)}>
+              <Button
+                variant="secondary"
+                autoFocus
+                onClick={() => {
+                  pendingOverwrite?.resolve(false);
+                  setPendingOverwrite(null);
+                }}
+              >
                 Annuler
               </Button>
               <Button
                 variant="destructive"
                 onClick={() => {
-                  if (pendingOverwrite) gateOnPhotoLayers(pendingOverwrite.name, () => commitSavePreset(pendingOverwrite.name, pendingOverwrite.id));
+                  if (pendingOverwrite) {
+                    const { name, id, resolve } = pendingOverwrite;
+                    gateOnPhotoLayers(name, () => commitSavePreset(name, id)).then(resolve);
+                  }
                   setPendingOverwrite(null);
                 }}
               >
@@ -1049,10 +1095,20 @@ export default function App() {
               ? `${pendingPhotoLayerSave.excludedLayerIndexes.length} calque${pendingPhotoLayerSave.excludedLayerIndexes.length > 1 ? "s" : ""} de photo (double exposure) ne ${pendingPhotoLayerSave.excludedLayerIndexes.length > 1 ? "seront" : "sera"} pas inclus dans le preset — une source de photo n'a de sens que dans ce document.`
               : undefined
           }
-          onClose={() => setPendingPhotoLayerSave(null)}
+          onClose={() => {
+            pendingPhotoLayerSave?.onCancel();
+            setPendingPhotoLayerSave(null);
+          }}
           actions={
             <>
-              <Button variant="secondary" autoFocus onClick={() => setPendingPhotoLayerSave(null)}>
+              <Button
+                variant="secondary"
+                autoFocus
+                onClick={() => {
+                  pendingPhotoLayerSave?.onCancel();
+                  setPendingPhotoLayerSave(null);
+                }}
+              >
                 Annuler
               </Button>
               <Button

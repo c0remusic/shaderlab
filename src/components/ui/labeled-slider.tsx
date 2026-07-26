@@ -87,8 +87,8 @@ export function LabeledSlider({
   useEffect(() => {
     const row = rowRef.current;
     if (!row) return;
-    function handleWheel(event: WheelEvent) {
-      const hasFocusWithin = row!.contains(document.activeElement);
+    const handleWheel = (event: WheelEvent) => {
+      const hasFocusWithin = row.contains(document.activeElement);
       if (!shouldWheelAdjust({ disabled, hasFocusWithin, ctrlKey: event.ctrlKey })) return;
       event.preventDefault();
       onChange(wheelTickValue({ value, min, max }, event.deltaY));
@@ -97,7 +97,7 @@ export function LabeledSlider({
         window.clearTimeout(wheelCommitTimer.current);
         wheelCommitTimer.current = window.setTimeout(onCommit, 400);
       }
-    }
+    };
     row.addEventListener("wheel", handleWheel, { passive: false });
     return () => row.removeEventListener("wheel", handleWheel);
   }, [id, disabled, value, min, max, onChange, onCommit]);

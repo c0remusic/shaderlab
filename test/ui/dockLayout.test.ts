@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getDockDropTarget, movePanelInDock, resolveDockDragCommit, type DockLayout } from "../../src/ui/dockLayout";
+import { getDockDropTarget, movePanelInDock, resolveDockDragCommit, toFullDockTarget, visibleDockLayout, type DockLayout } from "../../src/ui/dockLayout";
 
 const layout: DockLayout = [["history"], ["layers", "params"]];
 
@@ -89,5 +89,57 @@ describe("resolveDockDragCommit", () => {
 
   it("returns null when there is no drag in progress", () => {
     expect(resolveDockDragCommit(null, 7, true)).toBeNull();
+  });
+});
+
+describe("visibleDockLayout", () => {
+  const layout: DockLayout = [["params"], ["layers", "mask"]];
+
+  it("laisse le layout intact quand tout est visible", () => {
+    expect(visibleDockLayout(layout, () => true)).toEqual([["params"], ["layers", "mask"]]);
+  });
+
+  it("retire la colonne devenue vide, pas seulement le panneau masqué", () => {
+    // C'est le défaut corrigé : sans le filtre de colonne, la colonne de
+    // `params` gardait sa largeur (flex-basis) et laissait un trou.
+    expect(visibleDockLayout(layout, (id) => id !== "params")).toEqual([["layers", "mask"]]);
+  });
+
+  it("retire un panneau sans toucher à sa colonne quand il reste un voisin", () => {
+    expect(visibleDockLayout(layout, (id) => id !== "layers")).toEqual([["params"], ["mask"]]);
+  });
+
+  it("rend un layout vide quand plus rien n'est visible", () => {
+    expect(visibleDockLayout(layout, () => false)).toEqual([]);
+  });
+});
+
+describe("toFullDockTarget", () => {
+  const full: DockLayout = [["params"], ["layers", "mask"]];
+
+  it("décale l'index de colonne quand une colonne masquée précède la cible", () => {
+    const visible = visibleDockLayout(full, (id) => id !== "params"); // [["layers","mask"]]
+    // Dans le repère VISIBLE la colonne est 0 ; dans le repère COMPLET c'est 1.
+    expect(toFullDockTarget(full, visible, { kind: "horizontal", columnIndex: 0, position: "left" }))
+      .toEqual({ kind: "horizontal", columnIndex: 1, position: "left" });
+  });
+
+  it("retrouve la ligne réelle quand un panneau masqué la précède dans la colonne", () => {
+    const visible = visibleDockLayout(full, (id) => id !== "layers"); // [["params"],["mask"]]
+    // "mask" est en ligne 0 du repère visible, mais en ligne 1 du complet.
+    expect(toFullDockTarget(full, visible, { kind: "vertical", columnIndex: 1, rowIndex: 0, position: "before" }))
+      .toEqual({ kind: "vertical", columnIndex: 1, rowIndex: 1, position: "before" });
+  });
+
+  it("laisse la cible inchangée quand rien n'est masqué", () => {
+    const target = { kind: "vertical", columnIndex: 1, rowIndex: 1, position: "after" } as const;
+    expect(toFullDockTarget(full, full, target)).toEqual(target);
+  });
+
+  it("rend la cible telle quelle plutôt que d'inventer une position quand elle ne correspond à rien", () => {
+    // Colonne hors bornes de la projection visible (layout muté entre le
+    // dernier pointermove et le relâchement).
+    const target = { kind: "vertical", columnIndex: 9, rowIndex: 0, position: "before" } as const;
+    expect(toFullDockTarget(full, [["layers", "mask"]], target)).toEqual(target);
   });
 });

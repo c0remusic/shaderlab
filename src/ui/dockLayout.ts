@@ -80,6 +80,52 @@ export function resolveDockDragCommit(
   return { draggedId: drag.draggedId, target: drag.target };
 }
 
+/**
+ * Retire des colonnes les panneaux actuellement masqués, PUIS les colonnes
+ * devenues vides. Sans ça, `.panel-column__stack` (flex: 0 0 largeur du dock)
+ * garde ses 320px et laisse un trou dans le dock quand le seul panneau d'une
+ * colonne est masqué depuis le rail.
+ *
+ * Le layout COMPLET reste la source de vérité (il mémorise la place d'un
+ * panneau masqué, qui la retrouve quand il réapparaît) ; celui-ci n'est que la
+ * projection affichée. C'est pourquoi une cible de drop calculée sur cette
+ * projection doit être retraduite avant mutation — voir `toFullDockTarget`.
+ */
+export function visibleDockLayout(layout: DockLayout, isVisible: (id: string) => boolean): DockLayout {
+  return layout.map((column) => column.filter(isVisible)).filter((column) => column.length > 0);
+}
+
+/**
+ * Traduit une cible de drop exprimée dans les index de la projection VISIBLE
+ * (ce que `PanelColumn` voit et rapporte) vers les index du layout COMPLET (ce
+ * que `movePanelInDock` mute). Sans cette traduction, masquer un panneau
+ * décale silencieusement toutes les colonnes suivantes et un glisser-déposer
+ * déplace la carte dans la mauvaise colonne.
+ *
+ * L'ancrage se fait par IDENTITÉ de panneau, pas par arithmétique d'index :
+ * `rowIndex` désigne toujours une carte réellement rendue, donc on retrouve sa
+ * position réelle par `indexOf`. Une cible qui ne correspond à rien (layout
+ * modifié entre le pointermove et le relâchement) retombe sur la cible telle
+ * quelle plutôt que d'inventer une position.
+ */
+export function toFullDockTarget(full: DockLayout, visible: DockLayout, target: DockDropTarget): DockDropTarget {
+  const visibleColumn = visible[target.columnIndex];
+  if (!visibleColumn) return target;
+
+  // Une colonne visible correspond à la colonne complète qui contient ses
+  // panneaux — on la retrouve par le premier id de la colonne, seul lien
+  // stable entre les deux repères.
+  const fullColumnIndex = full.findIndex((column) => column.includes(visibleColumn[0]));
+  if (fullColumnIndex === -1) return target;
+
+  if (target.kind === "horizontal") return { ...target, columnIndex: fullColumnIndex };
+
+  const anchorId = visibleColumn[target.rowIndex];
+  const fullRowIndex = anchorId === undefined ? -1 : full[fullColumnIndex].indexOf(anchorId);
+  if (fullRowIndex === -1) return target;
+  return { ...target, columnIndex: fullColumnIndex, rowIndex: fullRowIndex };
+}
+
 export function movePanelInDock(layout: DockLayout, id: string, target: DockDropTarget): DockLayout {
   const source = findPanel(layout, id);
   if (!source || isNoOpDockDrop(layout, id, target)) return layout;

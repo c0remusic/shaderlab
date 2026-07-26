@@ -108,14 +108,37 @@ textures internes en `rgba16float` au lieu du `bgra8unorm-srgb` du rendu
 (pas de gamma manuel) — n'ajoute qu'une profondeur de calcul plus grande, ne
 change pas l'espace de calcul. Source : `PRD-print-export.md`.
 
-**Preset** (design cible, cadré 2026-07-24, pas encore livré) — suite de calques
+**Preset** (livré 2026-07-26) — suite de calques
 sauvegardée (effet + params + opacity + blendMode + ordre), SANS les masques
 (spécifiques à chaque photo). Se sauvegarde/s'applique via une carte dockée
 dédiée (première de la colonne, avant Calques). Appliquer un preset sur une
 pile non vide demande confirmation avant de remplacer. Modifier les params
 après application propose "mettre à jour le preset" ou "créer une copie".
 Transportable par export/import de fichier (JSON), pas de réseau. Source :
-`docs/wireframes/presets.html`, session 2026-07-24.
+`docs/wireframes/presets.html`, session 2026-07-24 ; implémentation
+`src/presets/`, session 2026-07-26.
+_Avoid_ : « profil », « style », « filtre enregistré » — on dit **preset**.
+
+**Preset actif** (`activePresetId`, livré 2026-07-26) — le preset dont la pile
+courante est issue. Posé à l'application, il sert à détecter la **dérive** et à
+proposer « mettre à jour ». Il est effacé dès que la pile cesse d'être celle du
+preset : autre preset appliqué, nouveau document, ajout ou suppression de
+calque, ou annulation qui change la STRUCTURE de la pile. Il survit
+délibérément à la sélection d'un calque et à la modification d'un paramètre —
+sans quoi la dérive serait indétectable, la sélection étant remise à zéro à
+l'application.
+_Avoid_ : « preset courant », « preset sélectionné » (ambigu avec la ligne
+surlignée dans la liste).
+
+**Dérive** (livré 2026-07-26) — écart entre la pile courante et le preset actif,
+comparé sur les valeurs (params, opacity, blendMode, activation). Distincte de
+la comparaison STRUCTURELLE (nombre de calques + suite des `effectId`), qui sert
+elle à décider si le preset actif doit être effacé après une annulation. Les
+deux ne doivent pas être confondues : une dérive de valeurs se répare en
+mettant à jour le preset, une divergence de structure signifie qu'on ne
+travaille plus sur ce preset du tout.
+_Avoid_ : « preset modifié » comme terme technique (c'est le libellé affiché à
+l'utilisateur, pas le concept).
 
 **Double exposure** (design cible, cadré 2026-07-24, pas encore livré) — 2
 photos sources : une **silhouette** (sujet isolé, fond effacé, photo A) posée

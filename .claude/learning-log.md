@@ -1096,3 +1096,79 @@ handler de sélection de calque qui déclenche un setState App.tsx pendant
 que LayerPanel est en cours de rendu) et corriger — non bloquant pour
 Double exposure (aucune régression fonctionnelle observée) mais à traiter
 avant d'accumuler d'autres warnings du même type.
+
+## 2026-07-26 — le warning setState-during-render du 2026-07-25 : cause racine trouvée et corrigée
+
+**Correction (clôt la découverte du 2026-07-25 ci-dessus)** : l'hypothèse
+inscrite alors ("probablement un handler de sélection de calque") était FAUSSE.
+La vraie cause est `src/ui/dragReorder.ts` : `onReorder` était appelé À
+L'INTÉRIEUR de l'updater fonctionnel passé à `setDragState`. React peut rejouer
+un updater pendant la passe de rendu du composant propriétaire du hook pour
+réconcilier sa file — quand ça arrive (rafale de `pointermove` rapprochés, un
+vrai glissement physique), `onReorder` remonte alors un `setState` d'`App`
+pendant le rendu de `LayerPanel`.
+**How to apply** : ne JAMAIS appeler un callback à effet de bord dans un updater
+de `setState` — un updater doit être pur. Sortir l'effet dans la pile du
+gestionnaire d'événement, en lisant l'état via un miroir en `ref` synchronisé
+(motif déjà en place dans `PanelColumn.tsx`). Reproduit puis éteint sous CDP
+avec 40 `pointermove` synthétiques : c'est la rafale qui déclenche le rejeu,
+un glissement lent ne le montre pas.
+
+## 2026-07-26 — un CSS jamais importé passe tous les contrôles du projet au vert
+
+**Découverte (TTL 6 mois)** : `src/ui/dialog.css` existait depuis le
+2026-07-24 sans être importé nulle part — `Dialog.tsx` n'importait que React,
+lucide et `IconButton`. Aucun consommateur du composant, donc personne ne
+l'avait constaté. `tsc`, `npm run test` et `npm run lint:tokens` passent tous
+au vert sur une feuille de style jamais chargée : le seul symptôme aurait été
+un `<dialog>` natif brut à l'écran. Trouvé par une revue de PLAN, pas par un
+outil.
+**How to apply** : quand un composant du projet est mis en service pour la
+première fois, vérifier qu'il importe bien sa feuille (`grep -rn "<nom>.css"
+src/`) — la convention du projet est que chaque composant importe la sienne
+(`ColorPickerPanel.tsx:5`, `PanelRail.tsx:2`, `LayerPanel.tsx:11`). Aucun
+contrôle automatisé n'attrape ce cas, ni celui d'un `var(--token-inexistant)`
+(`lint:tokens` ne détecte que les valeurs en dur qui doublent un token
+existant).
+
+## 2026-07-26 — deux mesures de "largeur du dock" à ne pas confondre
+
+**Découverte (TTL 6 mois)** : `--dock-reserved-width` est la largeur d'UNE
+colonne (lue par `PanelColumn.css` pour dimensionner chaque pile, pilotée par
+la poignée de redimensionnement). `--dock-total-width` (ajoutée le 2026-07-26)
+est la place RÉELLEMENT occupée à l'écran : n colonnes et leurs n-1 gouttières,
+0 si le dock est vide. Le canvas et l'ancrage du sélecteur de couleur doivent
+lire la SECONDE. Avec la première, masquer tous les panneaux depuis le rail
+laissait le canvas décalé de 320px pour un dock invisible, et un dock à 2
+colonnes n'était compensé que pour une.
+**How to apply** : toute nouvelle surface qui doit "se pousser" pour le dock lit
+`--dock-total-width`. Vérifié par CDP : padding du canvas 372px → 52px quand le
+dock se vide.
+
+## 2026-07-26 — l'invariant OOM 24MP se re-viole par le chemin le plus banal
+
+**Correction** : deux plans successifs (double exposure puis presets) ont
+proposé, pour appliquer une nouvelle pile de calques, de réécrire à la main le
+contenu du helper `commit` d'`App.tsx` — donc `sessionRef.current.commit(stack)`
+suivi de `setLayers(sessionRef.current.layers())`. Ce `setLayers` pousse les
+calques COMPLETS (avec leurs rasters de masque, ~26 Mo à 24MP) dans l'état
+React, exactement la cause du crash résolu en `e3c7584`. Le second effet est
+qu'oublier `requestRender` rend la fonctionnalité muette : rien ne se redessine.
+**How to apply** : toute mutation de pile passe par `commit(stack)`, jamais par
+une réécriture de son contenu. C'est le genre d'erreur qu'un plan écrit de
+mémoire réintroduit naturellement, parce que la séquence "commit puis setState"
+paraît anodine — la relire à chaque plan qui touche aux calques.
+
+## 2026-07-26 — un objet de retour de hook en dépendance casse la mémoïsation d'une liste
+
+**Correction** : `handleRemove` (`App.tsx`) avait reçu l'objet `presets` entier
+dans ses dépendances de `useCallback` pour pouvoir appeler `presets.clearActive()`.
+`usePresets` rend un littéral objet neuf à chaque render, donc `handleRemove`
+changeait d'identité à chaque frame de glissement de curseur (`handleParamChange`
+→ `syncSession` → `setLayers` → re-render), ce qui cassait la mémoïsation de
+TOUTES les `LayerRow` — la régression de performance à 24MP que ce `memo` existe
+précisément pour empêcher.
+**How to apply** : dépendre de la FONCTION précise (`presets.clearActive`,
+stable car en `useCallback([])`), jamais de l'objet de retour du hook. Envelopper
+le retour du hook dans un `useMemo` ne règle rien si ses fonctions changent
+elles-mêmes d'identité — ça ne fige que l'enveloppe.

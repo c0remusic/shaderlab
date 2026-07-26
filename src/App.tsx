@@ -117,6 +117,12 @@ export default function App() {
   } | null>(null);
   const [dockLayout, setDockLayout] = useState<DockLayout>([["presets", "layers", "params", "mask"]]);
 
+  // Task 4 : id du preset en attente de confirmation de remplacement — non
+  // nul seulement quand la pile courante n'est pas vide (voir
+  // `requestApplyPreset`). Le PRD interdit d'écraser des masques déjà peints
+  // sans confirmation explicite.
+  const [pendingPresetApply, setPendingPresetApply] = useState<string | null>(null);
+
   // Deux confirmations peuvent s'enchaîner sur un même enregistrement (C1
   // overwrite-by-name, puis exclusion de calque photo) — voir
   // requestSavePreset/gateOnPhotoLayers plus bas. `pendingPhotoLayerSave`
@@ -740,6 +746,43 @@ export default function App() {
     }
   }
 
+  /** Applies preset `id` immediately — goes through the shared `commit`
+   *  helper (`sessionRef.current.commit` + `syncSession` + `requestRender`),
+   *  the SAME path as every other layer mutation: a hand-rolled
+   *  `setLayers(sessionRef.current.layers())` would push full layer objects
+   *  (with mask rasters) into React state, the 24MP OOM crash this file's
+   *  `syncSession` comment documents as already fixed once, and would skip
+   *  `requestRender` entirely (canvas wouldn't redraw). The confirmation gate
+   *  lives in `requestApplyPreset` below, not here — this function always
+   *  applies, it never asks. */
+  async function applyPreset(id: string) {
+    try {
+      await presets.applyTo(
+        id,
+        sessionRef.current.layers(),
+        (newLayers) => {
+          const stack = new LayerStack();
+          stack.layers = newLayers;
+          commit(stack);
+        },
+        (message) => setError(message)
+      );
+    } catch (e) {
+      setError(messageFromUnknown(e));
+    }
+  }
+
+  /** Hard confirmation floor (PRD) : appliquer un preset sur une pile non
+   *  vide écraserait des masques déjà peints — jamais sans confirmation
+   *  explicite. Pile vide -> applique immédiatement, aucune confirmation. */
+  function requestApplyPreset(id: string) {
+    if (sessionRef.current.layers().length > 0) {
+      setPendingPresetApply(id);
+      return;
+    }
+    applyPreset(id);
+  }
+
   // Bouton "Exporter" : dossier fixe Images/shaderlab-export, nom nu tant
   // qu'il n'y a pas de collision réelle (resolveDefaultExportTarget) —
   // SAUF si le round-trip est bloqué par un calque photo malgré
@@ -943,6 +986,7 @@ export default function App() {
                   hasLayers={layers.length > 0}
                   onSave={requestSavePreset}
                   onRename={handleRenamePreset}
+                  onApply={requestApplyPreset}
                 />
             },
             {
@@ -1131,6 +1175,28 @@ export default function App() {
             </ul>
           )}
         </Dialog>
+        <Dialog
+          open={pendingPresetApply !== null}
+          title="Remplacer la pile de calques ?"
+          description="Les masques peints sur les calques actuels seront perdus (annulable par Ctrl+Z après confirmation)."
+          onClose={() => setPendingPresetApply(null)}
+          actions={
+            <>
+              <Button variant="secondary" autoFocus onClick={() => setPendingPresetApply(null)}>
+                Annuler
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (pendingPresetApply) applyPreset(pendingPresetApply);
+                  setPendingPresetApply(null);
+                }}
+              >
+                Remplacer
+              </Button>
+            </>
+          }
+        />
       </main>
     </div>
   );

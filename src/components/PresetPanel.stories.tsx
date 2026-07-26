@@ -17,6 +17,7 @@ const meta: Meta<typeof PresetPanel> = {
     hasLayers: true,
     onSave: async () => true,
     onRename: () => {},
+    onApply: () => {},
   },
 };
 
@@ -109,5 +110,34 @@ export const EmptyOrUnchangedNameWritesNothing: Story = {
     await userEvent.type(input, "   ");
     await userEvent.keyboard("{Enter}");
     await expect(args.onRename).not.toHaveBeenCalled();
+  },
+};
+
+// --- Interaction tests (play) — clic simple = appliquer, double-clic =
+// renommer (Task 4, disambiguation clic/dblclick) ---
+
+export const SingleClickAppliesAfterDelay: Story = {
+  args: { onApply: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByText("Glow doux"));
+    // Le clic est retardé (200ms) — pas d'appel immédiat.
+    await expect(args.onApply).not.toHaveBeenCalled();
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await expect(args.onApply).toHaveBeenCalledTimes(1);
+    await expect(args.onApply).toHaveBeenCalledWith("p2");
+  },
+};
+
+export const DoubleClickCancelsPendingApplyAndStartsRename: Story = {
+  args: { onApply: fn(), onRename: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    // Un double-clic dispatche deux `click` avant le `dblclick` — les deux
+    // clics simples doivent être annulés, seul le renommage doit démarrer.
+    await userEvent.dblClick(canvas.getByText("Glow doux"));
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await expect(args.onApply).not.toHaveBeenCalled();
+    await expect(canvas.getByLabelText("Renommer le preset")).toHaveValue("Glow doux");
   },
 };

@@ -43,8 +43,18 @@
 
 .preset-panel__row-name {
   flex: 1;
+  text-align: left;
+  background: none;
+  border: none;
   font-size: var(--font-size-sm);
   color: var(--text-primary);
+  cursor: pointer;
+  padding: var(--space-1);
+  border-radius: var(--radius-control);
+}
+
+.preset-panel__row-name:hover {
+  background: var(--surface-hover);
 }
 
 .preset-panel__excluded-list {

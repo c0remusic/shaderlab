@@ -1,7 +1,27 @@
 import { useCallback, useState } from "react";
 import type { PresetStore, PresetSummary } from "../presets/presetStore";
-import { capture } from "../presets/presetDocument";
+import { apply, capture } from "../presets/presetDocument";
+import { getEffect } from "../render/effects/registry";
+import { freshId } from "../layers/layerStack";
 import type { LayerState } from "../layers/types";
+import type { EffectParam } from "../render/effects/types";
+
+function effectExists(effectId: string): boolean {
+  try {
+    getEffect(effectId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function effectParamsFor(effectId: string): EffectParam[] | null {
+  try {
+    return getEffect(effectId).params;
+  } catch {
+    return null;
+  }
+}
 
 export function usePresets(store: PresetStore) {
   const [summaries, setSummaries] = useState<PresetSummary[]>([]);
@@ -51,5 +71,33 @@ export function usePresets(store: PresetStore) {
     [store, refresh]
   );
 
-  return { summaries, refresh, save, overwrite, rename };
+  /** Loads preset `id` and rebuilds it into fresh `LayerState[]` (Task 1's
+   *  `apply`, sharing `LayerStack`'s `freshId` counter — see the injection
+   *  note on that export). The confirmation-on-non-empty-stack gate is the
+   *  CALLER's responsibility (`App.tsx`'s `requestApplyPreset`, mirroring
+   *  `save`/`overwrite`'s division of labor above): this function always
+   *  applies immediately, it never checks whether `currentLayers` is empty
+   *  itself — `currentLayers` is accepted only so the signature documents
+   *  what the caller is expected to have already checked. A layer whose
+   *  effect no longer resolves is dropped with a warning (never a throw
+   *  that would abort the rest of the preset); `onWarning` is only called
+   *  when there's something to report. */
+  const applyTo = useCallback(
+    async (
+      id: string,
+      _currentLayers: LayerState[],
+      onApply: (layers: LayerState[]) => void,
+      onWarning: (message: string) => void
+    ) => {
+      const preset = await store.load(id);
+      const { layers: newLayers, warnings } = apply(preset, effectExists, effectParamsFor, freshId);
+      onApply(newLayers);
+      if (warnings.length > 0) {
+        onWarning(warnings.map((w) => w.message).join(" "));
+      }
+    },
+    [store]
+  );
+
+  return { summaries, refresh, save, overwrite, rename, applyTo };
 }

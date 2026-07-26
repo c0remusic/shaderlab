@@ -12,9 +12,21 @@ export interface PresetPanelProps {
   // seule demande d'enregistrement.
   onSave: (name: string) => Promise<boolean>;
   onRename: (id: string, name: string) => void;
+  /** Task 4 : clic simple sur le nom d'un preset -> demande d'application. La
+   *  confirmation de remplacement (pile non vide) est de la responsabilité de
+   *  l'appelant (`App.tsx`'s `requestApplyPreset`), pas de ce composant. */
+  onApply: (id: string) => void;
 }
 
-export function PresetPanel({ summaries, hasLayers, onSave, onRename }: PresetPanelProps) {
+// Un vrai double-clic navigateur dispatche DEUX évènements `click` avant le
+// `dblclick` — un handler `onClick` naïf sur le même élément que
+// `onDoubleClick` (renommage) déclencherait donc `onApply` (deux fois) à
+// chaque tentative de renommage. Le clic simple est retardé et annulé si un
+// `dblclick` arrive dans la fenêtre ; 200ms colle au seuil par défaut de
+// double-clic de l'OS sans faire manquer un double-clic délibéré.
+const APPLY_CLICK_DELAY_MS = 200;
+
+export function PresetPanel({ summaries, hasLayers, onSave, onRename, onApply }: PresetPanelProps) {
   const [nameInput, setNameInput] = useState("");
   // C2 (PRD.md:64-65), decided by Antoine 2026-07-26 (no interaction spec
   // existed in design.md — double-click-to-edit is this plan's own decision,
@@ -31,11 +43,28 @@ export function PresetPanel({ summaries, hasLayers, onSave, onRename }: PresetPa
   // et VALIDERAIT le renommage à la place. Ce drapeau rend l'intention
   // explicite indépendamment de ce détail de moteur.
   const cancelledRef = useRef(false);
+  const applyTimerRef = useRef<number | null>(null);
 
   function startRename(summary: PresetSummary) {
     cancelledRef.current = false;
     setEditingId(summary.id);
     setEditingValue(summary.name);
+  }
+
+  function handleNameClick(id: string) {
+    if (applyTimerRef.current !== null) window.clearTimeout(applyTimerRef.current);
+    applyTimerRef.current = window.setTimeout(() => {
+      onApply(id);
+      applyTimerRef.current = null;
+    }, APPLY_CLICK_DELAY_MS);
+  }
+
+  function handleNameDoubleClick(summary: PresetSummary) {
+    if (applyTimerRef.current !== null) {
+      window.clearTimeout(applyTimerRef.current);
+      applyTimerRef.current = null;
+    }
+    startRename(summary);
   }
 
   function commitRename() {
@@ -106,9 +135,14 @@ export function PresetPanel({ summaries, hasLayers, onSave, onRename }: PresetPa
               </li>
             ) : (
               <li key={summary.id} className="preset-panel__row">
-                <span className="preset-panel__row-name" onDoubleClick={() => startRename(summary)}>
+                <button
+                  type="button"
+                  className="preset-panel__row-name"
+                  onClick={() => handleNameClick(summary.id)}
+                  onDoubleClick={() => handleNameDoubleClick(summary)}
+                >
                   {summary.name}
-                </span>
+                </button>
               </li>
             )
           )}

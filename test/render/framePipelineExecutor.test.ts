@@ -231,6 +231,98 @@ describe("FramePipelineExecutor", () => {
     expect(photoInputs.resolve).not.toHaveBeenCalled();
   });
 
+  // I4 — la cible de résolution de PhotoLayerInputResolver est UNE texture
+  // persistante partagée par tous les calques photo. Ce qui rend ce partage
+  // correct n'est plus « au plus un calque photo » (MAX_PHOTO_LAYERS vaut 4
+  // depuis T5) mais l'ORDRE DES PASSES encodées ici : resolve(A) → passes(A)
+  // → resolve(B) → passes(B). Les passes d'un même GPUCommandEncoder
+  // s'exécutent dans l'ordre de soumission, donc A a fini de lire la cible
+  // avant que le resolve de B ne la re-clear. Propriété structurelle, donc
+  // assérable en Node — elle cesse d'être une promesse en commentaire.
+  describe("I4 — deux calques photo partagent une seule cible de résolution", () => {
+    function photoLayer(id: string, sourceId: string): LayerState {
+      return layer({
+        id,
+        effectId: "glow", // effet réel à passes internes — voir registry
+        imageSource: { sourceId },
+        transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+      });
+    }
+
+    it("encodes resolve(A) → passes(A) → resolve(B) → passes(B), never hoisting the resolves", () => {
+      const { executor, effects, photoInputs } = createExecutor();
+      // Un SEUL objet texture rendu aux deux appels : c'est exactement ce que
+      // fait le vrai PhotoLayerInputResolver à taille de fond constante (voir
+      // test/render/photoLayerInput.test.ts, « I4 — persistent target texture
+      // cache »).
+      const sharedTarget = texture() as unknown as GPUTexture;
+      (photoInputs.resolve as ReturnType<typeof vi.fn>).mockReturnValue(sharedTarget);
+      effects.runInternalPasses = vi.fn(() => ({ view: {} as GPUTextureView, texture: texture() as unknown as GPUTexture }));
+
+      executor.run([photoLayer("L1", "photo-1"), photoLayer("L2", "photo-2")], {} as GPUTextureView, null);
+
+      const resolveOrder = (photoInputs.resolve as ReturnType<typeof vi.fn>).mock.invocationCallOrder;
+      const internalOrder = (effects.runInternalPasses as ReturnType<typeof vi.fn>).mock.invocationCallOrder;
+      const effectOrder = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.invocationCallOrder;
+      expect(resolveOrder).toHaveLength(2);
+      expect(internalOrder).toHaveLength(2);
+      expect(effectOrder).toHaveLength(2);
+      // Toutes les passes de A précèdent le resolve de B — c'est l'invariant.
+      expect(resolveOrder[0]).toBeLessThan(internalOrder[0]);
+      expect(internalOrder[0]).toBeLessThan(effectOrder[0]);
+      expect(effectOrder[0]).toBeLessThan(resolveOrder[1]);
+      expect(resolveOrder[1]).toBeLessThan(internalOrder[1]);
+      expect(internalOrder[1]).toBeLessThan(effectOrder[1]);
+    });
+
+    it("calls the port once per photo layer, with each layer's own imageSource", () => {
+      const { executor, photoInputs } = createExecutor();
+      const sharedTarget = texture() as unknown as GPUTexture;
+      (photoInputs.resolve as ReturnType<typeof vi.fn>).mockReturnValue(sharedTarget);
+
+      executor.run([photoLayer("L1", "photo-1"), photoLayer("L2", "photo-2")], {} as GPUTextureView, null);
+
+      const calls = (photoInputs.resolve as ReturnType<typeof vi.fn>).mock.calls;
+      expect(calls).toHaveLength(2);
+      expect((calls[0][1] as LayerState).imageSource).toEqual({ sourceId: "photo-1" });
+      expect((calls[1][1] as LayerState).imageSource).toEqual({ sourceId: "photo-2" });
+      // Même encoder pour les deux : c'est ce qui garantit l'ordre
+      // d'exécution sur lequel repose le partage de la cible.
+      expect(calls[0][0]).toBe(calls[1][0]);
+    });
+
+    it("feeds every photo layer a view of the SAME shared target texture", () => {
+      const { executor, effects, photoInputs } = createExecutor();
+      const sharedTarget = texture();
+      (photoInputs.resolve as ReturnType<typeof vi.fn>).mockReturnValue(sharedTarget as unknown as GPUTexture);
+
+      executor.run([photoLayer("L1", "photo-1"), photoLayer("L2", "photo-2")], {} as GPUTextureView, null);
+
+      const effectCalls = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.calls;
+      const sharedViews = sharedTarget.createView.mock.results.map((r) => r.value);
+      expect(effectCalls[0][5].imageSourceView).not.toBeNull();
+      expect(sharedViews).toContain(effectCalls[0][5].imageSourceView);
+      expect(sharedViews).toContain(effectCalls[1][5].imageSourceView);
+      // Vues distinctes (createView() par calque), même texture sous-jacente.
+      expect(effectCalls[0][5].imageSourceView).not.toBe(effectCalls[1][5].imageSourceView);
+    });
+
+    it("mixes photo and non-photo layers without calling the port for the non-photo one", () => {
+      const { executor, photoInputs } = createExecutor();
+      (photoInputs.resolve as ReturnType<typeof vi.fn>).mockReturnValue(texture() as unknown as GPUTexture);
+
+      executor.run(
+        [photoLayer("L1", "photo-1"), layer({ id: "L2" }), photoLayer("L3", "photo-3")],
+        {} as GPUTextureView,
+        null,
+      );
+
+      const calls = (photoInputs.resolve as ReturnType<typeof vi.fn>).mock.calls;
+      expect(calls).toHaveLength(2);
+      expect((calls[1][1] as LayerState).imageSource).toEqual({ sourceId: "photo-3" });
+    });
+  });
+
   it("feeds runInternalPasses the resolved photo texture, not the composite-below, for a photo layer with a multi-pass effect", () => {
     const { executor, effects, photoInputs, source } = createExecutor();
     const resolvedTexture = texture() as unknown as GPUTexture;

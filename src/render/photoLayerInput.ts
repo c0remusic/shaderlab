@@ -61,13 +61,30 @@ fn fs_photo_input(in: VertexOut) -> @location(0) vec4<f32> {
 export class PhotoLayerInputResolver {
   private pipeline: GPURenderPipeline | null = null;
   private bindGroupLayout: GPUBindGroupLayout | null = null;
-  /** I4 : au plus un calque photo existe par document (`MAX_PHOTO_LAYERS`,
-   *  `src/layers/photoLayer.ts`) — le resolver possède donc UNE texture
-   *  cible persistante, recréée seulement quand la taille du fond change,
-   *  au lieu d'une texture bgWidth×bgHeight allouée+détruite à chaque
-   *  frame (~96 Mo de churn/frame à 24MP). N'est PAS poussée dans
-   *  `pendingDestroy` (elle survit à la frame) — détruite uniquement par
-   *  `dispose()` ou par un changement de taille de fond. */
+  /** I4 : le resolver possède UNE texture cible persistante, PARTAGÉE par
+   *  tous les calques photo de la frame, recréée seulement quand la taille
+   *  du fond change — au lieu d'une texture bgWidth×bgHeight
+   *  allouée+détruite à chaque frame (~96 Mo de churn/frame à 24MP), et au
+   *  lieu d'une cible par calque photo (+96 Mo par calque à 24MP). N'est PAS
+   *  poussée dans `pendingDestroy` (elle survit à la frame) — détruite
+   *  uniquement par `dispose()` ou par un changement de taille de fond.
+   *
+   *  ⚠️ INVARIANT QUI REND LE PARTAGE CORRECT — c'est l'ORDRE DES PASSES,
+   *  PAS « au plus un calque photo ». `MAX_PHOTO_LAYERS` vaut 4 depuis T5 :
+   *  la justification historique par l'unicité est FAUSSE, ne pas la
+   *  rétablir. Ce qui tient : les passes enregistrées dans un même
+   *  `GPUCommandEncoder` s'exécutent dans l'ordre de soumission, et
+   *  `FramePipelineExecutor` encode, calque par calque,
+   *  `resolve(A) → passes(A) → resolve(B) → passes(B)`
+   *  (`framePipelineExecutor.ts`, boucle sur `enabledLayers`). Les passes de
+   *  A lisent donc la cible AVANT que le `resolve` de B ne la re-`clear`.
+   *
+   *  INTERDIT, en conséquence directe : mettre en cache un résultat de
+   *  `resolve()` entre deux calques, ou différer/réordonner les passes d'un
+   *  calque après le `resolve` d'un suivant. Le premier calque photo verrait
+   *  alors les pixels du dernier. L'ordre est assuré en Node par
+   *  `test/render/framePipelineExecutor.test.ts` (« shares one resolver
+   *  target across two photo layers »), pas seulement par ce commentaire. */
   private cachedTarget: GPUTexture | null = null;
   private cachedWidth = 0;
   private cachedHeight = 0;

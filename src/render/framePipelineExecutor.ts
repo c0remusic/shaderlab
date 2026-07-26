@@ -221,11 +221,21 @@ export class FramePipelineExecutor {
       let effectInputSourceView = readTexture.createView();
       let imageSourceView: GPUTextureView | null = null;
       if (layer.imageSource) {
-        // I4 : `resolved` est la texture cible PERSISTANTE possédée par
-        // PhotoLayerInputResolver (voir photoLayerInput.ts) — jamais
-        // poussée dans pendingDestroy ici, elle survit à la frame et n'est
-        // détruite que par PhotoLayerInputResolver.dispose() (au
+        // I4 : `resolved` est la texture cible PERSISTANTE et PARTAGÉE
+        // possédée par PhotoLayerInputResolver (voir photoLayerInput.ts) —
+        // jamais poussée dans pendingDestroy ici, elle survit à la frame et
+        // n'est détruite que par PhotoLayerInputResolver.dispose() (au
         // changement de document, cf. renderer.ts).
+        //
+        // ⚠️ Avec N calques photo (MAX_PHOTO_LAYERS = 4), TOUS reçoivent la
+        // MÊME texture. Ce qui rend ça correct est l'ordre d'encodage ici :
+        // resolve(A) puis les passes de A, ENSUITE resolve(B) puis les
+        // passes de B — les passes d'un même encoder s'exécutent dans
+        // l'ordre de soumission, donc A a fini de lire la cible avant que B
+        // ne la re-clear. Ne jamais hisser ces resolve() hors de la boucle,
+        // ni les regrouper en tête de frame : le premier calque photo
+        // verrait les pixels du dernier.
+
         const resolved = this.photoInputs.resolve(encoder, layer, sourceTexture.width, sourceTexture.height, pendingDestroy);
         effectInputSourceView = resolved.createView();
         imageSourceView = resolved.createView();

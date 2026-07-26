@@ -3,7 +3,7 @@ import { initGpu, type GpuContext } from "./render/gpuContext";
 import { Renderer } from "./render/renderer";
 import { LayerStack } from "./layers/layerStack";
 import type { LayerState, LayerTransform } from "./layers/types";
-import { canAddPhotoLayer, hasPhotoLayer } from "./layers/photoLayer";
+import { MAX_PHOTO_LAYERS, canAddPhotoLayer, hasPhotoLayer } from "./layers/photoLayer";
 import { DocumentSession } from "./application/documentSession";
 import { BrushToolbar } from "./components/BrushToolbar";
 import { Canvas } from "./components/Canvas";
@@ -309,7 +309,7 @@ export default function App() {
   const handleImportPhotoLayer = useCallback(async () => {
     if (!rendererRef.current?.photoSources) return;
     if (!canAddPhotoLayer(sessionRef.current.layers())) {
-      setError("Limite atteinte : au plus une photo importée (double exposure) par document.");
+      setError(`Limite atteinte : au plus ${MAX_PHOTO_LAYERS} photos importées (double exposure) par document.`);
       return;
     }
     try {

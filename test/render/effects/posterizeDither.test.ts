@@ -1,0 +1,120 @@
+import { describe, it, expect } from "vitest";
+import {
+  BAYER_4X4,
+  BAYER4_WGSL,
+  bayerThreshold,
+  ditheredQuantize,
+} from "../../../src/render/effects/bayer";
+import { posterize } from "../../../src/render/effects/posterize";
+
+/** Quantification sèche d'avant le dither — sert de témoin du bug. */
+function nakedQuantize(value: number, levels: number): number {
+  const stepSize = 1 / (Math.max(levels, 2) - 1);
+  return Math.floor(value / stepSize + 0.5) * stepSize;
+}
+
+const BLOCK = Array.from({ length: 16 }, (_, i) => ({ x: i % 4, y: Math.floor(i / 4) }));
+
+describe("matrice de Bayer 4x4", () => {
+  it("est une permutation de 0..15 (répartition uniforme des seuils)", () => {
+    expect([...BAYER_4X4].sort((a, b) => a - b)).toEqual(
+      Array.from({ length: 16 }, (_, i) => i),
+    );
+  });
+
+  it("produit des seuils dans [-0.5, 0.5) de moyenne nulle", () => {
+    const t = BLOCK.map(({ x, y }) => bayerThreshold(x, y));
+    for (const v of t) {
+      expect(v).toBeGreaterThanOrEqual(-0.5);
+      expect(v).toBeLessThan(0.5);
+    }
+    expect(t.reduce((a, b) => a + b, 0) / t.length).toBeCloseTo(0, 12);
+  });
+
+  it("ne dépend QUE de la position en pixels, et se répète toutes les 4 (stable dans le temps)", () => {
+    for (const { x, y } of BLOCK) {
+      expect(bayerThreshold(x, y)).toBe(bayerThreshold(x, y));
+      expect(bayerThreshold(x + 4, y + 8)).toBe(bayerThreshold(x, y));
+    }
+  });
+});
+
+describe("quantification dithérée", () => {
+  it("le bruit ajouté ne dépasse jamais un demi-palier", () => {
+    for (const levels of [2, 5, 16]) {
+      const stepSize = 1 / (levels - 1);
+      for (const { x, y } of BLOCK) {
+        expect(Math.abs(bayerThreshold(x, y) * stepSize)).toBeLessThanOrEqual(stepSize / 2);
+      }
+    }
+  });
+
+  it("casse la bande : une valeur constante dans un palier sort sur DEUX niveaux voisins", () => {
+    const levels = 5; // paliers de 0.25
+    const value = 0.3;
+    const naive = new Set(BLOCK.map(() => nakedQuantize(value, levels)));
+    const dithered = new Set(BLOCK.map(({ x, y }) => ditheredQuantize(value, levels, x, y)));
+    expect(naive.size).toBe(1); // témoin du bug : aplat franc
+    expect(dithered.size).toBe(2);
+    expect([...dithered].sort()).toEqual([0.25, 0.5]);
+  });
+
+  it("préserve la moyenne locale (l'erreur de quantification devient un motif, pas un décalage)", () => {
+    const levels = 5;
+    for (const value of [0.05, 0.3, 0.42, 0.61, 0.77]) {
+      const mean =
+        BLOCK.reduce((acc, { x, y }) => acc + ditheredQuantize(value, levels, x, y), 0) / 16;
+      expect(Math.abs(mean - value)).toBeLessThan(0.01);
+      // la quantification sèche, elle, dérive jusqu'à un demi-palier.
+      expect(Math.abs(mean - value)).toBeLessThan(Math.abs(nakedQuantize(value, levels) - value) + 1e-12);
+    }
+  });
+
+  it("un dégradé doux ressort avec des frontières de palier diffuses, pas franches", () => {
+    const levels = 5;
+    // 64 px de dégradé, une ligne par ligne de la matrice : la sortie contient
+    // strictement plus de transitions que les 4 marches d'un aplat sec.
+    const ramp = Array.from({ length: 64 }, (_, i) => i / 63);
+    const transitions = (vals: number[]) =>
+      vals.reduce((n, v, i) => (i > 0 && v !== vals[i - 1] ? n + 1 : n), 0);
+    const naive = ramp.map((v) => nakedQuantize(v, levels));
+    const dith = ramp.map((v, i) => ditheredQuantize(v, levels, i, 0));
+    expect(transitions(naive)).toBe(levels - 1);
+    expect(transitions(dith)).toBeGreaterThan(transitions(naive));
+  });
+
+  it("reste borné à [0,1] aux extrêmes (le demi-palier ne fait pas déborder le blanc)", () => {
+    for (const levels of [2, 5, 16]) {
+      for (const { x, y } of BLOCK) {
+        expect(ditheredQuantize(1, levels, x, y)).toBe(1);
+        expect(ditheredQuantize(0, levels, x, y)).toBe(0);
+      }
+    }
+  });
+});
+
+describe("WGSL posterize", () => {
+  it("embarque la même matrice que la spécification TS", () => {
+    expect(posterize.wgsl).toContain(BAYER4_WGSL.trim());
+    expect(BAYER4_WGSL).toContain(BAYER_4X4.map((v) => v.toFixed(1)).join(", "));
+  });
+
+  it("dithère avant de quantifier, en coordonnées pixel", () => {
+    expect(posterize.wgsl).toContain("vec2<u32>(uv * vec2<f32>(textureDimensions(srcTexture)))");
+    expect(posterize.wgsl).toContain("color.rgb + vec3<f32>(bayerThreshold(px) * stepSize)");
+    expect(posterize.wgsl).toContain("floor(dithered / stepSize + 0.5) * stepSize");
+    expect(posterize.wgsl).toContain("clamp(quantized");
+  });
+
+  it("n'introduit aucune source temporelle ou aléatoire (pas de scintillement)", () => {
+    // commentaires retirés : ils PARLENT de frames, le code ne doit pas en lire.
+    const code = posterize.wgsl.replace(/\/\/[^\n]*/g, "");
+    expect(code).not.toMatch(/time|frame|random|rand\(/i);
+    expect(posterize.params.map((p) => p.name)).toEqual(["levels"]);
+  });
+
+  it("laisse intacte la répartition des paliers (stepSize inchangé)", () => {
+    expect(posterize.wgsl).toContain("let levels = max(params[0], 2.0);");
+    expect(posterize.wgsl).toContain("let stepSize = 1.0 / (levels - 1.0);");
+  });
+});

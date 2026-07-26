@@ -1,12 +1,13 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { IconButton } from "../components/ui/icon-button";
+import "./dialog.css";
 
 export interface DialogProps {
   open: boolean;
   title: string;
   description?: string;
-  children: ReactNode;
+  children?: ReactNode;
   actions?: ReactNode;
   onClose: () => void;
   closeLabel?: string;

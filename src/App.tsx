@@ -38,11 +38,17 @@ import { MAX_COLOR_RANGE_SAMPLES } from "./mask/sources/colorRange";
 import { planFold } from "./mask/foldPlan";
 import { OverlayAnimationLoop } from "./render/overlayAnimationLoop";
 import { hasValueChanged } from "./ui/valueChange";
-import { Layers, SlidersHorizontal, Brush as BrushRailIcon } from "lucide-react";
+import { Layers, SlidersHorizontal, Brush as BrushRailIcon, PackagePlus } from "lucide-react";
 import { useContextualPanel } from "./ui/contextualPanel";
 import { PanelRail, type PanelRailItem } from "./components/dockedPanel/PanelRail";
 import { ColorPickerPanel } from "./components/ColorPickerPanel";
 import type { EffectParam } from "./render/effects/types";
+import { usePresets } from "./hooks/usePresets";
+import { PresetPanel } from "./components/PresetPanel";
+import { TauriPresetStore } from "./presets/presetStore";
+import { capture } from "./presets/presetDocument";
+import { Dialog } from "./ui/Dialog";
+import { Button } from "./components/ui/button";
 
 export default function App() {
   useGlobalControlWheel();
@@ -63,6 +69,8 @@ export default function App() {
   const openGenerationRef = useRef(0);
   const overlayAnimationLoopRef = useRef(new OverlayAnimationLoop());
   const sessionRef = useRef(new DocumentSession());
+  const presetStoreRef = useRef(new TauriPresetStore());
+  const presets = usePresets(presetStoreRef.current);
   const [layers, setLayers] = useState<LayerState[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
@@ -91,6 +99,7 @@ export default function App() {
   // réellement changé (un simple clic sans mouvement ne crée pas d'entrée).
   const paramDirtyRef = useRef(false);
 
+  const [presetsFolded, setPresetsFolded] = useState(false);
   const [layersFolded, setLayersFolded] = useState(false);
   const [paramsFolded, setParamsFolded] = useState(false);
   const [maskFolded, setMaskFolded] = useState(false);
@@ -106,7 +115,19 @@ export default function App() {
      *  positionné dans lequel le picker est rendu), pas en viewport. */
     anchorTop: number;
   } | null>(null);
-  const [dockLayout, setDockLayout] = useState<DockLayout>([["layers", "params", "mask"]]);
+  const [dockLayout, setDockLayout] = useState<DockLayout>([["presets", "layers", "params", "mask"]]);
+
+  // Deux confirmations peuvent s'enchaîner sur un même enregistrement (C1
+  // overwrite-by-name, puis exclusion de calque photo) — voir
+  // requestSavePreset/gateOnPhotoLayers plus bas. `pendingPhotoLayerSave`
+  // porte un `onConfirm` CALLBACK plutôt qu'un flag figé "overwrite ou pas" :
+  // le Task 5 réutilise cette même porte pour "Mettre à jour"/"Créer une
+  // copie", qui ne rentrent pas dans une forme overwrite-id mais ont besoin
+  // du même contrat "confirmer, puis lancer cette écriture précise".
+  const [pendingOverwrite, setPendingOverwrite] = useState<{ id: string; name: string } | null>(null);
+  const [pendingPhotoLayerSave, setPendingPhotoLayerSave] = useState<{ excludedLayerIndexes: number[]; onConfirm: () => void } | null>(
+    null
+  );
 
   // Largeur du dock — état session, partagée par toutes les colonnes,
   // pas d'entrée d'historique (disposition d'interface, pas donnée de
@@ -227,6 +248,10 @@ export default function App() {
     });
   }, [openFile]);
 
+  useEffect(() => {
+    presets.refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh is stable (useCallback), run once on mount only.
+  }, []);
 
   const handleOpenFile = useCallback(async () => {
     try {
@@ -638,6 +663,53 @@ export default function App() {
     }
   }
 
+  function requestSavePreset(name: string) {
+    const existing = presets.summaries.find((s) => s.name === name);
+    if (existing) {
+      setPendingOverwrite({ id: existing.id, name });
+      return;
+    }
+    gateOnPhotoLayers(name, () => commitSavePreset(name, null));
+  }
+
+  /** Runs `capture(sessionRef.current.layers(), name)` purely to inspect
+   *  `skipped` — if it reports any excluded photo layer, blocks on the
+   *  `pendingPhotoLayerSave` Dialog and defers `onConfirmed` to its
+   *  "Enregistrer quand même" button; otherwise runs `onConfirmed`
+   *  immediately. `name` is only used to compute `skipped` (a photo-layer
+   *  exclusion doesn't depend on the target name) — callers that don't have
+   *  a natural "new name" yet (Task 5's `updateActive`) pass the CURRENT
+   *  preset's existing name, which is what would be recaptured anyway. */
+  function gateOnPhotoLayers(name: string, onConfirmed: () => void) {
+    const { skipped } = capture(sessionRef.current.layers(), name);
+    const excludedLayerIndexes = skipped.filter((s) => s.reason === "photo-layer").map((s) => s.layerIndex);
+    if (excludedLayerIndexes.length > 0) {
+      setPendingPhotoLayerSave({ excludedLayerIndexes, onConfirm: onConfirmed });
+      return;
+    }
+    onConfirmed();
+  }
+
+  async function commitSavePreset(name: string, overwriteId: string | null) {
+    try {
+      if (overwriteId) {
+        await presets.overwrite(overwriteId, sessionRef.current.layers(), name);
+      } else {
+        await presets.save(sessionRef.current.layers(), name);
+      }
+    } catch (e) {
+      setError(messageFromUnknown(e));
+    }
+  }
+
+  async function handleRenamePreset(id: string, name: string) {
+    try {
+      await presets.rename(id, name);
+    } catch (e) {
+      setError(messageFromUnknown(e));
+    }
+  }
+
   // Bouton "Exporter" : dossier fixe Images/shaderlab-export, nom nu tant
   // qu'il n'y a pas de collision réelle (resolveDefaultExportTarget) —
   // SAUF si le round-trip est bloqué par un calque photo malgré
@@ -665,6 +737,7 @@ export default function App() {
   const selectedLayer = layers.find((l) => l.id === selectedId) ?? null;
   const paramsPanelTitle = selectedLayer ? `Réglages · ${getEffect(selectedLayer.effectId).name}` : "Réglages";
 
+  const presetsPanel = useContextualPanel(true, "static");
   const layersPanel = useContextualPanel(true, "static");
   const paramsPanel = useContextualPanel(selectedId !== null, selectedId);
   const maskPanel = useContextualPanel(selectedId !== null, selectedId);
@@ -677,8 +750,8 @@ export default function App() {
   // Presets ajoute un 4e panneau : il DOIT échouer bruyamment ici s'il oublie
   // sa ligne (fail-fast projet, pas de repli silencieux).
   const panelVisibility: Record<string, boolean> = useMemo(
-    () => ({ layers: layersPanel.visible, params: paramsPanel.visible, mask: maskPanel.visible }),
-    [layersPanel.visible, paramsPanel.visible, maskPanel.visible]
+    () => ({ presets: presetsPanel.visible, layers: layersPanel.visible, params: paramsPanel.visible, mask: maskPanel.visible }),
+    [presetsPanel.visible, layersPanel.visible, paramsPanel.visible, maskPanel.visible]
   );
   const isPanelVisible = useCallback(
     (id: string) => {
@@ -834,6 +907,15 @@ export default function App() {
         <PanelColumn
           panels={[
             {
+              id: "presets", title: "Presets", collapsed: presetsFolded, onCollapsedChange: setPresetsFolded,
+              content: <PresetPanel
+                  summaries={presets.summaries}
+                  hasLayers={layers.length > 0}
+                  onSave={requestSavePreset}
+                  onRename={handleRenamePreset}
+                />
+            },
+            {
               id: "layers", title: "Calques", collapsed: layersFolded, onCollapsedChange: setLayersFolded,
               content: <LayerPanel
                   layers={layers}
@@ -900,6 +982,7 @@ export default function App() {
         />
         <PanelRail
           items={[
+            { id: "presets", icon: PackagePlus, label: "Presets", active: presetsPanel.visible, onClick: presetsPanel.toggleRail },
             { id: "layers", icon: Layers, label: "Calques", active: layersPanel.visible, onClick: layersPanel.toggleRail },
             { id: "params", icon: SlidersHorizontal, label: "Réglages", active: paramsPanel.visible, onClick: paramsPanel.toggleRail },
             { id: "mask", icon: BrushRailIcon, label: "Masque", active: maskPanel.visible, onClick: maskPanel.toggleRail },
@@ -936,6 +1019,62 @@ export default function App() {
             }}
           />
         )}
+        <Dialog
+          open={pendingOverwrite !== null}
+          title="Remplacer le preset existant ?"
+          description={pendingOverwrite ? `Un preset nommé "${pendingOverwrite.name}" existe déjà. L'enregistrement va écraser son contenu.` : undefined}
+          onClose={() => setPendingOverwrite(null)}
+          actions={
+            <>
+              <Button variant="secondary" autoFocus onClick={() => setPendingOverwrite(null)}>
+                Annuler
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (pendingOverwrite) gateOnPhotoLayers(pendingOverwrite.name, () => commitSavePreset(pendingOverwrite.name, pendingOverwrite.id));
+                  setPendingOverwrite(null);
+                }}
+              >
+                Écraser
+              </Button>
+            </>
+          }
+        />
+        <Dialog
+          open={pendingPhotoLayerSave !== null}
+          title="Calque(s) photo exclu(s) du preset"
+          description={
+            pendingPhotoLayerSave
+              ? `${pendingPhotoLayerSave.excludedLayerIndexes.length} calque${pendingPhotoLayerSave.excludedLayerIndexes.length > 1 ? "s" : ""} de photo (double exposure) ne ${pendingPhotoLayerSave.excludedLayerIndexes.length > 1 ? "seront" : "sera"} pas inclus dans le preset — une source de photo n'a de sens que dans ce document.`
+              : undefined
+          }
+          onClose={() => setPendingPhotoLayerSave(null)}
+          actions={
+            <>
+              <Button variant="secondary" autoFocus onClick={() => setPendingPhotoLayerSave(null)}>
+                Annuler
+              </Button>
+              <Button
+                variant="default"
+                onClick={() => {
+                  pendingPhotoLayerSave?.onConfirm();
+                  setPendingPhotoLayerSave(null);
+                }}
+              >
+                Enregistrer quand même
+              </Button>
+            </>
+          }
+        >
+          {pendingPhotoLayerSave && (
+            <ul className="preset-panel__excluded-list">
+              {pendingPhotoLayerSave.excludedLayerIndexes.map((layerIndex) => (
+                <li key={layerIndex}>Calque {layerIndex + 1} — photo (double exposure)</li>
+              ))}
+            </ul>
+          )}
+        </Dialog>
       </main>
     </div>
   );

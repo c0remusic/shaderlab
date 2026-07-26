@@ -77,6 +77,39 @@ export class LayerStack {
     return id;
   }
 
+  /** Remplace l'effet d'un calque DÉJÀ créé, en remettant ses params aux
+   *  défauts du nouvel effet. Sans ce mutateur, l'`effectId` posé à la
+   *  création était définitif : un calque photo (`addPhotoLayer`, ci-dessus)
+   *  restait `passthrough` à vie alors que le moteur sait déjà router la
+   *  photo transformée comme ENTRÉE d'effet du calque
+   *  (`render/framePipelineExecutor.ts`).
+   *
+   *  Params remis à `{}` — et pas fusionnés ni conservés : les params sont
+   *  indexés par NOM côté state mais par POSITION dans l'uniform du shader
+   *  (`effectPassRunner.ts` : `layer.params[p.name] ?? p.default`), donc une
+   *  valeur héritée de l'ancien effet atterrirait dans un slot qui n'est pas
+   *  le sien, hors de ses bornes min/max. `{}` EST le jeu de défauts du
+   *  nouvel effet, exactement comme `addLayer` qui pose déjà `params: {}`.
+   *  Le masque, l'opacité, le mode de fusion et l'identité photo
+   *  (`imageSource`/`transform`) sont conservés : changer d'effet n'est pas
+   *  recréer le calque.
+   *
+   *  Cette méthode ne valide PAS que `effectId` existe dans le registry —
+   *  même contrat que `addLayer`, dont elle est le pendant sur un calque
+   *  existant ; c'est `getEffect` qui échoue fail-fast à la résolution.
+   *
+   *  Returns `true` iff `id` existe ET `effectId` diffère réellement de
+   *  l'actuel (même discipline no-op que le reste du fichier : pas d'entrée
+   *  d'historique vide, et pas de reset de params sur un faux changement). */
+  setLayerEffect(id: string, effectId: string): boolean {
+    const layer = this.layers.find((l) => l.id === id);
+    if (!layer) return false;
+    if (layer.effectId === effectId) return false;
+    layer.effectId = effectId;
+    layer.params = {};
+    return true;
+  }
+
   /** Returns `true` iff `id` existe, porte un `imageSource` (un calque sans
    *  photo n'a pas de transform à changer), et `transform` diffère
    *  réellement du courant (même discipline no-op que le reste du fichier). */

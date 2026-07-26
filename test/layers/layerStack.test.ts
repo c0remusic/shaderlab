@@ -488,3 +488,67 @@ describe("LayerStack photo layers", () => {
     expect(copy.layers[0].transform).toEqual({ x: 5, y: 5, scale: 2, rotation: 1 });
   });
 });
+
+describe("LayerStack — setLayerEffect (T6)", () => {
+  it("remplace l'effectId d'un calque existant et remet les params aux défauts", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    expect(stack.updateParams(id, { radius: 42 })).toBe(true);
+    expect(stack.setLayerEffect(id, "grain")).toBe(true);
+    const layer = stack.layers.find((l) => l.id === id)!;
+    expect(layer.effectId).toBe("grain");
+    // Params vidés : chaque consommateur résout `layer.params[p.name] ?? p.default`
+    // (effectPassRunner.ts:158, ParamPanel.tsx:89) — un objet vide EST le jeu de
+    // défauts du nouvel effet, et garder `radius: 42` aurait fait fuiter une
+    // valeur de l'ancien effet dans un slot d'index différent du nouveau.
+    expect(layer.params).toEqual({});
+  });
+
+  it("préserve enabled/opacity/blendMode/mask et l'identité photo du calque", () => {
+    const stack = new LayerStack();
+    const transform = { x: 3, y: 4, scale: 2, rotation: 0.5 };
+    const id = stack.addPhotoLayer("photo-1", transform);
+    stack.toggleLayer(id);
+    stack.setMaskInvert(id, true);
+    expect(stack.setLayerEffect(id, "glow")).toBe(true);
+    const layer = stack.layers.find((l) => l.id === id)!;
+    expect(layer.effectId).toBe("glow");
+    expect(layer.imageSource).toEqual({ sourceId: "photo-1" });
+    expect(layer.transform).toEqual(transform);
+    expect(layer.enabled).toBe(false);
+    expect(layer.opacity).toBe(1);
+    expect(layer.blendMode).toBe("normal");
+    expect(layer.mask.invert).toBe(true);
+  });
+
+  it("un calque photo peut revenir à passthrough", () => {
+    const stack = new LayerStack();
+    const id = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scale: 1, rotation: 0 });
+    expect(stack.setLayerEffect(id, "glow")).toBe(true);
+    expect(stack.setLayerEffect(id, "passthrough")).toBe(true);
+    expect(stack.layers[0].effectId).toBe("passthrough");
+  });
+
+  it("est un no-op (retourne false) si l'effectId est déjà celui du calque", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    stack.updateParams(id, { radius: 42 });
+    expect(stack.setLayerEffect(id, "glow")).toBe(false);
+    // No-op strict : les params ne sont PAS réinitialisés par un faux changement.
+    expect(stack.layers[0].params).toEqual({ radius: 42 });
+  });
+
+  it("retourne false pour un id absent", () => {
+    const stack = new LayerStack();
+    stack.addLayer("glow");
+    expect(stack.setLayerEffect("no-such-id", "grain")).toBe(false);
+  });
+
+  it("ne touche qu'un seul calque", () => {
+    const stack = new LayerStack();
+    const a = stack.addLayer("glow");
+    const b = stack.addLayer("grain");
+    expect(stack.setLayerEffect(a, "warp")).toBe(true);
+    expect(stack.layers.find((l) => l.id === b)!.effectId).toBe("grain");
+  });
+});

@@ -140,9 +140,10 @@ travaille plus sur ce preset du tout.
 _Avoid_ : « preset modifié » comme terme technique (c'est le libellé affiché à
 l'utilisateur, pas le concept).
 
-**Double exposure** (design cible, cadré 2026-07-24, pas encore livré) — 2
-photos sources : une **silhouette** (sujet isolé, fond effacé, photo A) posée
-sur un **fond** (photo B), avec position/échelle/rotation manuelles. La
+**Double exposure** (cadré 2026-07-24, livré 2026-07-25 ; plafond porté à 4
+calques photo en T5, 2026-07-26) — une ou plusieurs **silhouettes** (sujet
+isolé, fond effacé) posées sur un **fond** (la photo de base du document),
+avec position/échelle/rotation manuelles. La
 silhouette devient un **calque de photo** — même modèle que les calques
 d'effet actuels (effets/masque/blend applicables dessus), mais porte une
 **source d'image propre** au lieu de traiter la photo de base du document
@@ -153,9 +154,25 @@ Le masque peint sur un calque de photo vit dans l'espace de coordonnées de
 la photo de FOND, pas de la photo importée elle-même — déplacer le calque
 après avoir peint ne fait PAS suivre le masque (comportement assumé v1, pas
 un bug ; poser le transform avant de peindre). Source : ARCHITECTURE.md §4.5.
-Le round-trip Lightroom (photo de lancement = photo B) n'est PAS supporté par
-cette feature en v1 (mode libre uniquement). Limite dure : 2 photos sources
-max. Source : session 2026-07-24.
+Le round-trip Lightroom (photo de lancement = le fond) est **coupé dès qu'un
+calque photo est présent** : l'export bascule sur « Exporter sous » (copie) au
+lieu d'écraser le fichier de lancement — prédicat `hasPhotoLayer`
+(`src/layers/photoLayer.ts`), consommé par `App.tsx` (`roundTripActive =
+isLaunchFile && !hasPhotoLayer(layers)`). Retirer tous les calques photo
+rétablit le round-trip. Source : ARCHITECTURE.md §4.6.
+**Limite dure : `MAX_PHOTO_LAYERS` calques photo par document, valeur 4 depuis
+T5** (`src/layers/photoLayer.ts`) — soit au plus 5 photos sources à l'écran
+(le fond + 4). La photo de FOND n'est pas un calque et ne compte pas dans ce
+plafond. Limite atteinte : l'import est refusé côté application par
+`canAddPhotoLayer`, avec un message d'erreur nommant le plafond dans
+`ErrorBanner` — jamais un crash ni un import silencieusement ignoré. Un second
+plafond distinct, `MAX_REGISTERED_PHOTO_SOURCES` (= `4 × MAX_PHOTO_LAYERS`,
+`src/render/photoSourceStore.ts`), borne les sources GPU encore vivantes
+après des boucles importer/annuler (pas de refcount : une source n'est libérée
+qu'au changement de document). La valeur 4 est une **borne de sécurité VRAM
+non encore mesurée** : critère de révision écrit sur la constante, protocole de
+mesure dans `docs/superpowers/specs/2026-07-26-shaderlab-photo-layer-parity-design.md`.
+Source : sessions 2026-07-24 et 2026-07-26.
 
 ## Concepts différés (nommés, pas encore construits)
 

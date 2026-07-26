@@ -101,6 +101,16 @@ non-destructif existant.
   d'une source d'image propre + transform position/échelle/rotation).
 - Limite dure : 2 photos sources maximum par document (silhouette + fond),
   pas de généralisation N-photos en v1.
+  > **Amendement 2026-07-26 (tranche T5 « N photos », design
+  > `docs/superpowers/specs/2026-07-26-shaderlab-photo-layer-parity-design.md`
+  > §3.5)** — cette limite a été levée : le plafond livré est
+  > `MAX_PHOTO_LAYERS = 4` calques photo par document (`src/layers/photoLayer.ts`),
+  > soit au plus 5 photos sources (le fond + 4). L'exigence « limite dure
+  > NOMMÉE et vérifiable, jamais codée en dur » reste, elle, entièrement
+  > valable — seule la VALEUR change. Elle est elle-même provisoire : borne de
+  > sécurité VRAM non encore mesurée, critère de révision écrit sur la
+  > constante. Les mentions « 2 photos » ci-dessous (hors-scope, risques,
+  > critères de fin) se lisent avec cet amendement.
 - Le round-trip Lightroom n'est PAS supporté en présence d'un double exposure
   en v1 — utilisable seulement en mode libre (sans fichier de lancement).
 

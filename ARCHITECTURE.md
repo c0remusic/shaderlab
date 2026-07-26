@@ -461,8 +461,10 @@ la géométrie vit dans `ui/transform.ts` (§4.4), pas dans le composant.
 Ce qui suit est **noté, pas conçu** (YAGNI) : aucune abstraction spéculative n'est
 demandée aujourd'hui.
 
-- **N sources d'image.** La limite dure « 2 photos max » est une règle **produit**
-  (PRD), pas une contrainte du modèle : `imageSource.sourceId` + un store indexé
+- **N sources d'image.** La limite dure sur le nombre de photos est une règle
+  **produit** (PRD : 2 photos max ; portée à `MAX_PHOTO_LAYERS = 4` calques
+  photo + le fond en T5, 2026-07-26, `src/layers/photoLayer.ts`), pas une
+  contrainte du modèle : `imageSource.sourceId` + un store indexé
   supportent N sources sans changement de forme. Conséquence à retenir : **placer
   la limite dans une garde applicative nommée** (une règle vérifiable et
   supprimable), jamais en la codant en dur dans le modèle ou le shader. Le seul
@@ -510,7 +512,7 @@ de merge trivial, pas un couplage architectural.
 
 | # | Risque | État | Ce qui le rend acceptable / trigger |
 |---|---|---|---|
-| R1 | **VRAM à 2 photos.** Un document tient déjà 4 textures pleine taille persistantes (source + ping-pong ×2 + cible d'export paresseuse) ≈ 96 Mo/texture à 24MP, **plus** les textures de masque résidentes par calque. Une 2ᵉ photo ajoute sa propre texture, et la variante (C2) une texture transitoire par calque photo par frame. | **Non mesuré** (PRD : « à mesurer à l'usage réel, pas de budget théorique figé »). | Mesure sur cas réel 24MP + 24MP **avant** de déclarer la feature terminée. Pas de garde-fou numérique en dur en v1 (décision PRD). Si un garde arrive, il se pose dans `PhotoSourceStore` (point unique d'allocation), pas dispersé. |
+| R1 | **VRAM à N photos** (rédigé à 2 photos ; plafond porté à `MAX_PHOTO_LAYERS = 4` calques photo + le fond en T5, 2026-07-26 — le risque grandit d'autant et reste ouvert). Un document tient déjà 4 textures pleine taille persistantes (source + ping-pong ×2 + cible d'export paresseuse) ≈ 96 Mo/texture à 24MP, **plus** les textures de masque résidentes par calque. Une 2ᵉ photo ajoute sa propre texture, et la variante (C2) une texture transitoire par calque photo par frame. | **Non mesuré** (PRD : « à mesurer à l'usage réel, pas de budget théorique figé »). | Mesure sur cas réel 24MP + 24MP **avant** de déclarer la feature terminée. Pas de garde-fou numérique en dur en v1 (décision PRD). Si un garde arrive, il se pose dans `PhotoSourceStore` (point unique d'allocation), pas dispersé. |
 | R2 | **Invariant OOM étendu à `imageSource`.** Toute régression qui remettrait un handle GPU / un `ImageBitmap` dans `LayerState` ou dans un snapshot d'historique rouvre la classe de bug de `e3c7584`. | Traité par conception (§4.2). | Un test de la logique pure garantissant qu'un calque photo survit à un undo/redo **en ne transportant qu'un `sourceId`** est le meilleur filet (déjà listé au design doc). |
 | R3 | **Alpha / couverture du calque photo.** La formule de compositing actuelle ignore l'alpha de l'effet — « hors bornes = transparent » rendrait du noir si on s'appuie sur l'alpha. | Identifié, non traité. | Le terme de couverture doit être **explicite dans le poids du mix**. À valider visuellement (CDP) sur une silhouette plus petite que le fond. |
 | R4 | **Effets multi-passes sur calque photo** (§4.3a). | Identifié, non traité. | Tranché par le choix (C1) + cas particulier vs (C2). À confirmer avec Antoine. |

@@ -1,5 +1,16 @@
 import type { PresetDocument } from "./presetTypes";
-import { listPresetIds, readPreset, writePreset, deletePreset } from "../launch";
+import {
+  listPresetIds,
+  readPreset,
+  writePreset,
+  deletePreset,
+  pickPresetExportPath,
+  exportPreset,
+  pickPresetImportPath,
+  importPreset,
+} from "../launch";
+import { validatePresetDocument } from "./presetImportValidation";
+import { resolveImportName } from "./presetImportNaming";
 
 export interface PresetSummary {
   id: string;
@@ -60,13 +71,26 @@ export class TauriPresetStore implements PresetStore {
     await deletePreset(id);
   }
 
-  // Implemented in Task 6 (Family B commands don't exist yet).
-  async exportTo(): Promise<boolean> {
-    throw new Error("exportTo: not implemented until Task 6");
+  async exportTo(defaultFileName: string, doc: PresetDocument): Promise<boolean> {
+    const path = await pickPresetExportPath(defaultFileName);
+    if (!path) return false;
+    await exportPreset(path, JSON.stringify(doc, null, 2));
+    return true;
   }
 
   async importFrom(): Promise<PresetDocument | null> {
-    throw new Error("importFrom: not implemented until Task 6");
+    const path = await pickPresetImportPath();
+    if (!path) return null;
+    const raw = JSON.parse(await importPreset(path));
+    const result = validatePresetDocument(raw);
+    if (!result.valid) throw new Error(result.error);
+    // Decided by Antoine 2026-07-26 (design.md §9, P3): a name collision is
+    // renamed to the first free "(copie[ N])" suffix, never silently
+    // duplicated — resolveImportName is pure, this.list() supplies the
+    // current names to check against.
+    const existingNames = (await this.list()).map((s) => s.name);
+    const resolvedName = resolveImportName(existingNames, result.doc.name);
+    return { ...result.doc, id: crypto.randomUUID(), name: resolvedName }; // jamais l'id du fichier importé (design.md §5.6)
   }
 }
 

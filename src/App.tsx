@@ -834,6 +834,27 @@ export default function App() {
     applyPreset(id);
   }
 
+  async function exportPresetFile(id: string) {
+    try {
+      const doc = await presetStoreRef.current.load(id);
+      const sanitized = doc.name.replace(/[\\/:*?"<>|]/g, "_");
+      await presetStoreRef.current.exportTo(`${sanitized}.json`, doc);
+    } catch (e) {
+      setError(messageFromUnknown(e));
+    }
+  }
+
+  async function importPresetFile() {
+    try {
+      const doc = await presetStoreRef.current.importFrom();
+      if (!doc) return; // annulé par l'utilisateur
+      await presetStoreRef.current.save(doc.id, doc);
+      await presets.refresh();
+    } catch (e) {
+      setError(messageFromUnknown(e));
+    }
+  }
+
   // Bouton "Exporter" : dossier fixe Images/shaderlab-export, nom nu tant
   // qu'il n'y a pas de collision réelle (resolveDefaultExportTarget) —
   // SAUF si le round-trip est bloqué par un calque photo malgré
@@ -1040,6 +1061,8 @@ export default function App() {
                     onSave={requestSavePreset}
                     onRename={handleRenamePreset}
                     onApply={requestApplyPreset}
+                    onExport={exportPresetFile}
+                    onImport={importPresetFile}
                   />
                   {presetIsDirty && presets.activePresetId && (
                     <div className="preset-panel__dirty-banner">

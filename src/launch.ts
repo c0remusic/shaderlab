@@ -103,3 +103,19 @@ export async function writePreset(id: string, contents: string): Promise<void> {
 export async function deletePreset(id: string): Promise<void> {
   await invoke("delete_preset", { id });
 }
+
+export async function pickPresetExportPath(defaultFileName: string): Promise<string | null> {
+  return invoke<string | null>("pick_preset_export_path", { defaultFileName });
+}
+
+export async function exportPreset(path: string, contents: string): Promise<void> {
+  await invoke("export_preset", { path, contents });
+}
+
+export async function pickPresetImportPath(): Promise<string | null> {
+  return invoke<string | null>("pick_preset_import_path");
+}
+
+export async function importPreset(path: string): Promise<string> {
+  return invoke<string>("import_preset", { path });
+}

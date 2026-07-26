@@ -236,6 +236,47 @@ fn delete_preset(app: tauri::AppHandle, id: String) -> Result<(), String> {
     fs::remove_file(&path).map_err(|e| format!("Suppression du preset {id} échouée: {e}"))
 }
 
+fn is_json_path(path: &str) -> bool {
+    path.to_ascii_lowercase().ends_with(".json")
+}
+
+/// Dialogue "enregistrer sous..." filtré .json — même contournement `rfd`
+/// que `pick_export_folder` (bug IPC connu de `tauri-plugin-dialog`).
+#[tauri::command]
+fn pick_preset_export_path(default_file_name: String) -> Option<String> {
+    rfd::FileDialog::new()
+        .add_filter("Preset shaderlab", &["json"])
+        .set_file_name(&default_file_name)
+        .save_file()
+        .map(|p| p.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn export_preset(path: String, contents: String) -> Result<(), String> {
+    if !is_json_path(&path) {
+        return Err(format!("Refus d'écrire {path} : seuls les fichiers .json sont autorisés."));
+    }
+    ensure_parent_dir(&path)?;
+    write_atomic(&path, contents.as_bytes())
+}
+
+#[tauri::command]
+fn pick_preset_import_path() -> Option<String> {
+    rfd::FileDialog::new()
+        .add_filter("Preset shaderlab", &["json"])
+        .pick_file()
+        .map(|p| p.to_string_lossy().into_owned())
+}
+
+/// Lecture brute uniquement — AUCUNE validation de schéma ici (design.md
+/// §5.6, §4.2): la structure PresetDocument est validée côté TS
+/// (`presetImportValidation.ts`), Rust ne fait que de l'IO texte, même
+/// partage des responsabilités que le reste du projet (voir `read_preset`).
+#[tauri::command]
+fn import_preset(path: String) -> Result<String, String> {
+    fs::read_to_string(&path).map_err(|e| format!("Lecture du fichier {path} échouée: {e}"))
+}
+
 /// Debugging-only: appends a timestamped line to `.dev-logs/gpu-diag.log` in
 /// the project root. Writing through Rust (not console.log) means the line
 /// is durably on disk before this IPC call even returns to the renderer —
@@ -293,7 +334,11 @@ pub fn run() {
             list_preset_ids,
             read_preset,
             write_preset,
-            delete_preset
+            delete_preset,
+            pick_preset_export_path,
+            export_preset,
+            pick_preset_import_path,
+            import_preset
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -302,6 +347,19 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn json_paths_are_accepted_case_insensitively() {
+        assert!(is_json_path("C:\\presets\\Mon Preset.JSON"));
+        assert!(is_json_path("preset.json"));
+    }
+
+    #[test]
+    fn non_json_paths_are_rejected() {
+        assert!(!is_json_path("C:\\presets\\preset.json.exe"));
+        assert!(!is_json_path("preset.txt"));
+        assert!(!is_json_path("sans-extension"));
+    }
 
     #[test]
     fn jpeg_paths_are_accepted_case_insensitively() {

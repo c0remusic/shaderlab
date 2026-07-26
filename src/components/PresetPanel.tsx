@@ -16,6 +16,8 @@ export interface PresetPanelProps {
    *  confirmation de remplacement (pile non vide) est de la responsabilité de
    *  l'appelant (`App.tsx`'s `requestApplyPreset`), pas de ce composant. */
   onApply: (id: string) => void;
+  onExport: (id: string) => void;
+  onImport: () => void;
 }
 
 // Un vrai double-clic navigateur dispatche DEUX évènements `click` avant le
@@ -26,7 +28,7 @@ export interface PresetPanelProps {
 // double-clic de l'OS sans faire manquer un double-clic délibéré.
 const APPLY_CLICK_DELAY_MS = 200;
 
-export function PresetPanel({ summaries, hasLayers, onSave, onRename, onApply }: PresetPanelProps) {
+export function PresetPanel({ summaries, hasLayers, onSave, onRename, onApply, onExport, onImport }: PresetPanelProps) {
   const [nameInput, setNameInput] = useState("");
   // C2 (PRD.md:64-65), decided by Antoine 2026-07-26 (no interaction spec
   // existed in design.md — double-click-to-edit is this plan's own decision,
@@ -107,6 +109,9 @@ export function PresetPanel({ summaries, hasLayers, onSave, onRename, onApply }:
         >
           Enregistrer
         </Button>
+        <Button variant="ghost" size="sm" onClick={onImport}>
+          Importer
+        </Button>
       </div>
       {summaries.length === 0 ? (
         <p className="preset-panel__empty">Aucun preset enregistré.</p>
@@ -143,6 +148,9 @@ export function PresetPanel({ summaries, hasLayers, onSave, onRename, onApply }:
                 >
                   {summary.name}
                 </button>
+                <Button variant="ghost" size="sm" onClick={() => onExport(summary.id)}>
+                  Exporter
+                </Button>
               </li>
             )
           )}

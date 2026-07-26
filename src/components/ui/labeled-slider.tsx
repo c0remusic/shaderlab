@@ -89,7 +89,7 @@ export function LabeledSlider({
     if (!row) return;
     function handleWheel(event: WheelEvent) {
       const hasFocusWithin = row!.contains(document.activeElement);
-      if (!shouldWheelAdjust({ disabled, hasFocusWithin })) return;
+      if (!shouldWheelAdjust({ disabled, hasFocusWithin, ctrlKey: event.ctrlKey })) return;
       event.preventDefault();
       onChange(wheelTickValue({ value, min, max }, event.deltaY));
       markControlActive(id);

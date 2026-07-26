@@ -64,19 +64,27 @@ describe("wheelTickValue", () => {
 
 describe("shouldWheelAdjust (molette conditionnée au focus)", () => {
   it("contrôle focalisé : la molette ajuste la valeur", () => {
-    expect(shouldWheelAdjust({ disabled: false, hasFocusWithin: true })).toBe(true);
+    expect(shouldWheelAdjust({ ctrlKey: false, disabled: false, hasFocusWithin: true })).toBe(true);
   });
 
   it("contrôle seulement survolé (pas focalisé) : la molette est laissée au défilement", () => {
-    expect(shouldWheelAdjust({ disabled: false, hasFocusWithin: false })).toBe(false);
+    expect(shouldWheelAdjust({ ctrlKey: false, disabled: false, hasFocusWithin: false })).toBe(false);
   });
 
   it("contrôle désactivé : jamais d'ajustement, même focalisé", () => {
-    expect(shouldWheelAdjust({ disabled: true, hasFocusWithin: true })).toBe(false);
+    expect(shouldWheelAdjust({ ctrlKey: false, disabled: true, hasFocusWithin: true })).toBe(false);
   });
 
   it("contrôle désactivé et non focalisé : pas d'ajustement", () => {
-    expect(shouldWheelAdjust({ disabled: true, hasFocusWithin: false })).toBe(false);
+    expect(shouldWheelAdjust({ ctrlKey: false, disabled: true, hasFocusWithin: false })).toBe(false);
+  });
+
+  it("Ctrl+molette sur un contrôle focalisé : l'écouteur local reste inerte (le geste appartient à useGlobalControlWheel)", () => {
+    expect(shouldWheelAdjust({ ctrlKey: true, disabled: false, hasFocusWithin: true })).toBe(false);
+  });
+
+  it("Ctrl+molette sur un contrôle non focalisé : inerte aussi", () => {
+    expect(shouldWheelAdjust({ ctrlKey: true, disabled: false, hasFocusWithin: false })).toBe(false);
   });
 });
 

@@ -70,6 +70,9 @@ export interface WheelAdjustContext {
    *  pointerdown (`SliderControl.js:248` focusThumb), donc « après un clic »
    *  vaut true au même titre qu'« après une tabulation ». */
   hasFocusWithin: boolean;
+  /** Ctrl enfoncé ⇒ le geste appartient à `useGlobalControlWheel` (écouteur
+   *  window), PAS au contrôle survolé. */
+  ctrlKey: boolean;
 }
 
 /**
@@ -80,9 +83,17 @@ export interface WheelAdjustContext {
  * dérèglait des paramètres pendant un simple défilement (le contenu glissant
  * sous le curseur, un seul geste pouvait toucher plusieurs contrôles). Le
  * contrôle doit avoir été délibérément saisi — clic ou tabulation.
+ *
+ * Ctrl+molette est EXCLU : ce geste appartient à `useGlobalControlWheel`
+ * (écouteur window), qui doit de toute façon tirer sur chaque Ctrl+molette
+ * pour bloquer le zoom natif de WebView2 — on ne peut donc pas le rendre
+ * inerte sans rouvrir ce trou. Sans cette exclusion les deux écouteurs
+ * tiraient ensemble : valeur avancée de deux crans et deux timers de commit
+ * concurrents.
  */
-export function shouldWheelAdjust({ disabled, hasFocusWithin }: WheelAdjustContext): boolean {
+export function shouldWheelAdjust({ disabled, hasFocusWithin, ctrlKey }: WheelAdjustContext): boolean {
   if (disabled) return false;
+  if (ctrlKey) return false;
   return hasFocusWithin;
 }
 

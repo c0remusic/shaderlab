@@ -88,7 +88,15 @@ export function LabeledSlider({
     const row = rowRef.current;
     if (!row) return;
     const handleWheel = (event: WheelEvent) => {
-      const hasFocusWithin = row.contains(document.activeElement);
+      // Focus sur le THUMB, pas n'importe où dans la ligne : le champ de
+      // saisie de la valeur est lui aussi dans la ligne, et pendant une
+      // édition il gèle son brouillon. Une molette acceptée là ferait
+      // avancer `value`, puis le blur reparserait le brouillon gelé et
+      // restaurerait l'ancienne valeur — en posant une entrée d'historique.
+      // La saisie texte reste donc maîtresse de son propre champ.
+      const thumb = row.querySelector('[data-slot="slider-thumb"]');
+      const active = document.activeElement;
+      const hasFocusWithin = thumb !== null && active !== null && thumb.contains(active);
       if (!shouldWheelAdjust({ disabled, hasFocusWithin, ctrlKey: event.ctrlKey })) return;
       event.preventDefault();
       onChange(wheelTickValue({ value, min, max }, event.deltaY));

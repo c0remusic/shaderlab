@@ -115,6 +115,74 @@ export class LayerStack {
     return true;
   }
 
+  /** Duplique le calque `id` (équivalent Ctrl+J) et insère la copie JUSTE
+   *  AU-DESSUS de l'original, c'est-à-dire à `index + 1` : dans ce projet la
+   *  pile est appliquée dans l'ordre du tableau (`framePipelineExecutor.run`
+   *  itère `layers` du premier au dernier, chaque calque composite par-dessus
+   *  le résultat du précédent), donc l'indice SUPÉRIEUR est le calque du
+   *  DESSUS. Retourne l'id du duplicata, ou `null` si `id` est absent (même
+   *  discipline no-op que le reste du fichier : pas d'entrée d'historique sur
+   *  une cible inexistante).
+   *
+   *  **Masque : partagé par référence, jamais recopié.** Chaque `raster` de
+   *  source est immuable par convention (`updateBrushMask` remplace toujours
+   *  la référence) — c'est exactement la politique de `clone()`, et
+   *  `History` la refcount déjà par buffer unique (`history.ts:34-59`), donc
+   *  un calque dupliqué n'ajoute AUCUN octet de masque au budget
+   *  d'historique. Copier le raster (26 Mo à 26 MP) le ferait entrer dans le
+   *  state React à chaque duplication — exactement le crash OOM résolu en
+   *  `e3c7584`. Les CONTENEURS (LayerMask, tableau `sources`, chaque source)
+   *  sont eux frais, pour que peindre/inverser le duplicata ne touche jamais
+   *  l'original. Une touche de pinceau sur l'un ou l'autre REMPLACE sa propre
+   *  référence de raster : le partage se défait tout seul, il n'est jamais
+   *  observable comme une édition croisée.
+   *
+   *  Les ids de source du duplicata sont FRAIS : les textures GPU de masque
+   *  sont indexées `${layerId}:${sourceId}` et balayées par `layerId`
+   *  (`render/maskTextureResolver.ts:163-186, 348, 381`), donc l'aliasing
+   *  serait déjà inoffensif côté GPU — mais deux calques exposant les mêmes
+   *  ids de source dans l'UI (`MaskPanel`, sélection de source courante)
+   *  n'aurait aucun sens. La convention `${layerId}-brush` d'`updateBrushMask`
+   *  est conservée pour la source pinceau.
+   *
+   *  `imageSource` est partagé par VALEUR (même `sourceId`) : `PhotoSourceStore`
+   *  est un store à durée de vie DOCUMENT, sans refcount et sans libération
+   *  par calque (`render/photoSourceStore.ts:148-156`) — deux calques qui
+   *  lisent la même source est donc sain, et ne réenregistre aucune texture.
+   *  Le duplicata compte en revanche dans `countPhotoLayers` : c'est
+   *  l'appelant qui doit vérifier `canAddPhotoLayer` AVANT (même contrat
+   *  qu'`addPhotoLayer`, voir `layers/duplicateLayer.ts`).
+   *
+   *  Nom : `"<nom> copie"` si l'original porte un `name` explicite, sinon
+   *  aucun `name` — l'affichage retombe alors sur le nom de l'effet, comme
+   *  l'original (`LayerPanel`). `layers/` ne connaît pas le registre d'effets
+   *  (dépendance `render/` interdite ici), donc fabriquer « Glow copie » pour
+   *  un calque d'effet supposerait de faire remonter ce registre jusqu'ici. */
+  duplicateLayer(id: string): string | null {
+    const index = this.layers.findIndex((l) => l.id === id);
+    if (index === -1) return null;
+    const source = this.layers[index];
+    const newId = freshId();
+    const copy: LayerState = {
+      ...source,
+      id: newId,
+      params: { ...source.params },
+      mask: {
+        ...source.mask,
+        refineEdge: { ...source.mask.refineEdge },
+        sources: source.mask.sources.map((s) => ({
+          ...s,
+          id: s.type === "brush" ? `${newId}-brush` : freshId(),
+        })),
+      },
+      ...(source.imageSource === undefined ? {} : { imageSource: { ...source.imageSource } }),
+      ...(source.transform === undefined ? {} : { transform: { ...source.transform } }),
+      ...(source.name === undefined ? {} : { name: `${source.name} copie` }),
+    };
+    this.layers.splice(index + 1, 0, copy);
+    return newId;
+  }
+
   /** Returns `true` iff `id` existe, porte un `imageSource` (un calque sans
    *  photo n'a pas de transform à changer), et `transform` diffère
    *  réellement du courant (même discipline no-op que le reste du fichier). */

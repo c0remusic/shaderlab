@@ -581,3 +581,117 @@ describe("LayerStack — setLayerEffect (T6)", () => {
     expect(stack.layers.find((l) => l.id === b)!.effectId).toBe("grain");
   });
 });
+
+describe("LayerStack.duplicateLayer", () => {
+  it("insère le duplicata JUSTE AU-DESSUS de l'original (index + 1)", () => {
+    const stack = new LayerStack();
+    const a = stack.addLayer("glow");
+    const b = stack.addLayer("grain");
+    const copy = stack.duplicateLayer(a);
+    expect(copy).not.toBeNull();
+    expect(stack.layers.map((l) => l.id)).toEqual([a, copy, b]);
+  });
+
+  it("donne au duplicata un id frais et recopie les métadonnées du calque", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    stack.updateParams(id, { radius: 12 });
+    stack.toggleLayer(id);
+    stack.layers[0].opacity = 0.42;
+    stack.layers[0].blendMode = "screen";
+    stack.setMaskInvert(id, true);
+
+    const copy = stack.duplicateLayer(id)!;
+    expect(copy).not.toBe(id);
+    const duplicated = stack.layers[1];
+    expect(duplicated).toMatchObject({
+      id: copy,
+      effectId: "glow",
+      enabled: false,
+      opacity: 0.42,
+      blendMode: "screen",
+    });
+    expect(duplicated.params).toEqual({ radius: 12 });
+    expect(duplicated.mask.invert).toBe(true);
+  });
+
+  it("partage le raster de masque par RÉFÉRENCE (invariant OOM) mais pas ses conteneurs", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    stack.updateBrushMask(id, new Uint8Array([1, 2, 3, 4]));
+    const original = stack.layers[0];
+
+    stack.duplicateLayer(id);
+    const duplicated = stack.layers[1];
+
+    expect(duplicated.mask.sources[0].raster).toBe(original.mask.sources[0].raster);
+    expect(duplicated.mask).not.toBe(original.mask);
+    expect(duplicated.mask.sources).not.toBe(original.mask.sources);
+    expect(duplicated.mask.sources[0]).not.toBe(original.mask.sources[0]);
+    expect(duplicated.mask.refineEdge).not.toBe(original.mask.refineEdge);
+  });
+
+  it("muter le duplicata (masque, params) ne touche jamais l'original", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    stack.updateBrushMask(id, new Uint8Array([1, 2, 3, 4]));
+    const copy = stack.duplicateLayer(id)!;
+
+    stack.setMaskInvert(copy, true);
+    stack.updateParams(copy, { radius: 99 });
+    stack.updateBrushMask(copy, new Uint8Array([9, 9, 9, 9]));
+
+    expect(stack.layers[0].mask.invert).toBe(false);
+    expect(stack.layers[0].params).toEqual({});
+    expect(Array.from(stack.layers[0].mask.sources[0].raster!)).toEqual([1, 2, 3, 4]);
+  });
+
+  it("donne des ids de source FRAIS au duplicata (clé de texture GPU = layerId:sourceId)", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    stack.updateBrushMask(id, new Uint8Array([1, 2, 3, 4]));
+    stack.addMaskSource(id, "gradient");
+
+    const copy = stack.duplicateLayer(id)!;
+    const originalIds = stack.layers[0].mask.sources.map((s) => s.id);
+    const copyIds = stack.layers[1].mask.sources.map((s) => s.id);
+
+    expect(copyIds).toHaveLength(2);
+    expect(copyIds.some((sid) => originalIds.includes(sid))).toBe(false);
+    expect(copyIds[0]).toBe(`${copy}-brush`);
+  });
+
+  it("un calque photo dupliqué partage le MÊME sourceId et copie sa transform", () => {
+    const stack = new LayerStack();
+    const transform = { x: 10, y: 20, scale: 2, rotation: 0.5 };
+    const id = stack.addPhotoLayer("photo-1", transform, "plage.jpg");
+
+    stack.duplicateLayer(id);
+    const duplicated = stack.layers[1];
+
+    expect(duplicated.imageSource).toEqual({ sourceId: "photo-1" });
+    expect(duplicated.imageSource).not.toBe(stack.layers[0].imageSource);
+    expect(duplicated.transform).toEqual(transform);
+    expect(duplicated.transform).not.toBe(stack.layers[0].transform);
+  });
+
+  it("nomme le duplicata « <nom> copie », et laisse un calque sans nom sans nom", () => {
+    const stack = new LayerStack();
+    const named = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scale: 1, rotation: 0 }, "plage.jpg");
+    stack.duplicateLayer(named);
+    expect(stack.layers[1].name).toBe("plage.jpg copie");
+
+    const unnamed = stack.addLayer("glow");
+    stack.duplicateLayer(unnamed);
+    const last = stack.layers[stack.layers.length - 1];
+    expect(last.name).toBeUndefined();
+    expect("name" in last).toBe(false);
+  });
+
+  it("retourne null pour un id absent et ne touche pas la pile", () => {
+    const stack = new LayerStack();
+    stack.addLayer("glow");
+    expect(stack.duplicateLayer("no-such-id")).toBeNull();
+    expect(stack.layers).toHaveLength(1);
+  });
+});

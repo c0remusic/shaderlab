@@ -1,4 +1,5 @@
 import type { EffectModule } from "./types";
+import { SRGB_TO_LINEAR_WGSL } from "./srgbTransfer";
 
 /**
  * Dual-filter downsample kernel (ARM/Marius Bjørge, "Bandwidth-Efficient
@@ -65,9 +66,18 @@ export const glow: EffectModule = {
       // channel above `threshold`, scaled back onto the original color so
       // hue is preserved in the bloom.
       scale: 0.5,
-      wgsl: `
+      wgsl: `${SRGB_TO_LINEAR_WGSL}
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
-  let threshold = params[0];
+  // Le seuil vient d'un slider : c'est une valeur PERCEPTUELLE (sRGB), alors
+  // que \`brightness\` est LINÉAIRE (le format -srgb décode déjà à
+  // l'échantillonnage). Comparés tels quels, le défaut 0.7 posait la bascule
+  // à 0.7 LINÉAIRE, soit ~0.87 perceptuel : le slider n'entamait l'image que
+  // sur ses zones cramées, donc
+  // inerte sur ~85% de sa course. On décode la CONSTANTE vers le linéaire —
+  // l'échantillon d'image, lui, n'est jamais converti. À 0.5 le seuil tombe
+  // désormais à ~0.214 linéaire : le bloom prend les nuages et les peaux
+  // claires.
+  let threshold = srgb_to_linear(params[0]);
   let brightness = max(color.r, max(color.g, color.b));
   let contribution = max(brightness - threshold, 0.0) / max(brightness, 0.0001);
   return vec4<f32>(color.rgb * contribution, 1.0);

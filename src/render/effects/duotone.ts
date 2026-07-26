@@ -1,4 +1,9 @@
 import type { EffectModule } from "./types";
+import {
+  LINEAR_TO_SRGB_WGSL,
+  SRGB_TO_LINEAR_VEC3_WGSL,
+  SRGB_TO_LINEAR_WGSL,
+} from "./srgbTransfer";
 
 export const duotone: EffectModule = {
   id: "duotone",
@@ -36,18 +41,18 @@ fn hsl2rgb(h: f32, s: f32, l: f32) -> vec3<f32> {
     hue2rgb(p, q, h - 1.0 / 3.0),
   );
 }
-// Encodage sRGB (OETF) : convertit une luminance LINÉAIRE en luminance
-// PERCEPTUELLE. Utilisé uniquement pour POSITIONNER les bascules tonales, pas
-// pour la couleur elle-même — le mélange reste linéaire, conformément à la
-// décision projet "jamais de gamma manuel sur les valeurs de couleur".
-fn linear_to_srgb(c: f32) -> f32 {
-  let x = max(c, 0.0);
-  return select(1.055 * pow(x, 1.0 / 2.4) - 0.055, x * 12.92, x <= 0.0031308);
-}
+${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
-  let shadowColor = hsl2rgb(params[0] / 360.0, params[1], params[2]);
-  let midtoneColor = hsl2rgb(params[3] / 360.0, params[4], params[5]);
-  let highlightColor = hsl2rgb(params[6] / 360.0, params[7], params[8]);
+  // Les trois couleurs sortent du picker HSL en sRGB (valeurs PERCEPTUELLES,
+  // exactement ce qu'affiche la pastille CSS du sélecteur). Elles étaient
+  // écrites telles quelles dans une cible -srgb, qui les ré-encode une
+  // seconde fois : un bordeaux à luminosité 0.25 ressortait ~2x trop clair,
+  // en gris-rosé délavé, et la pastille ne pouvait pas coïncider avec le
+  // canvas. On les décode vers le LINÉAIRE avant tout mélange — c'est la
+  // COULEUR D'ENTRÉE qu'on convertit, jamais l'échantillon d'image.
+  let shadowColor = srgb_to_linear3(hsl2rgb(params[0] / 360.0, params[1], params[2]));
+  let midtoneColor = srgb_to_linear3(hsl2rgb(params[3] / 360.0, params[4], params[5]));
+  let highlightColor = srgb_to_linear3(hsl2rgb(params[6] / 360.0, params[7], params[8]));
   let contrast = params[9];
   let pivot = params[10];
   // Luma en espace linéaire (le format de texture -srgb a déjà décodé le sRGB

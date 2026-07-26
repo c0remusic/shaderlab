@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeVisible, dismiss, toggleRail, type ContextualPanelState } from "../../src/ui/contextualPanel";
+import { computeVisible, toggleRail, type ContextualPanelState } from "../../src/ui/contextualPanel";
 
 const NO_OVERRIDE: ContextualPanelState = { key: null, override: null };
 
@@ -27,15 +27,6 @@ describe("computeVisible", () => {
   });
 });
 
-describe("dismiss", () => {
-  it("sets override to closed for the given triggerKey", () => {
-    expect(dismiss("layer-a")).toEqual({ key: "layer-a", override: "closed" });
-  });
-
-  it("works with a null triggerKey (Calques' constant trigger)", () => {
-    expect(dismiss(null)).toEqual({ key: null, override: "closed" });
-  });
-});
 
 describe("toggleRail", () => {
   it("forces the panel open when conditionMet is false (empty state shown on demand)", () => {

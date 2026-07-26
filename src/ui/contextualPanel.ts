@@ -21,11 +21,6 @@ export function computeVisible(state: ContextualPanelState, conditionMet: boolea
   return conditionMet;
 }
 
-/** Titlebar close (X) — always records "closed" for the given triggerKey. */
-export function dismiss(triggerKey: string | null): ContextualPanelState {
-  return { key: triggerKey, override: "closed" };
-}
-
 /** Rail icon click — flips the CURRENT visible state (as computed from
  *  `state`/`conditionMet`/`triggerKey`), not the raw override field. */
 export function toggleRail(state: ContextualPanelState, conditionMet: boolean, triggerKey: string | null): ContextualPanelState {

@@ -22,7 +22,11 @@
      W/2) — donc P doit être ÉGAL à la largeur du dock à compenser, pas le
      double (bug corrigé 2026-07-20 : le canvas était décalé deux fois plus
      loin que prévu avec `* 2`). */
-  padding-right: calc(var(--dock-reserved-width, var(--inspector-width-default)) + var(--rail-width) + var(--space-4));
+  /* --dock-total-width (place RÉELLEMENT occupée : n colonnes + gouttières) et
+     non --dock-reserved-width (largeur d'UNE colonne) : sinon le canvas reste
+     décalé pour un dock vide, et n'est compensé que d'une colonne quand le dock
+     en affiche deux. */
+  padding-right: calc(var(--dock-total-width, var(--inspector-width-default)) + var(--rail-width) + var(--space-4));
 }
 
 /* Le <canvas> est un enfant flex DIRECT de .canvas-stage (retour à la

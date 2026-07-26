@@ -1,8 +1,5 @@
-/** Converts HSL (hue in degrees, saturation/lightness in 0..1) to a "#rrggbb"
- *  hex string, for swatch previews in ParamPanel color-group controls. Mirrors
- *  the hsl2rgb() WGSL helper in duotone.ts — same algorithm, kept in sync by
- *  hand since GPU and UI code can't share a source file across languages.
- */
+/** Interpolation d'un canal sur la roue des teintes — détail interne de
+ *  `hslToRgb`, jamais appelé directement ailleurs. */
 function hue2rgb(p: number, q: number, tIn: number): number {
   let t = tIn;
   if (t < 0) t += 1;
@@ -34,6 +31,9 @@ export function hslToRgb(hueDeg: number, saturation: number, lightness: number):
   };
 }
 
+/** HSL -> chaîne "#rrggbb", pour l'aperçu des pastilles de couleur du panneau
+ *  Réglages. Reprend le helper WGSL `hsl2rgb()` de duotone.ts — même algorithme,
+ *  tenu synchronisé à la main, GPU et UI ne pouvant pas partager de source. */
 export function hslToHex(hueDeg: number, saturation: number, lightness: number): string {
   const { r, g, b } = hslToRgb(hueDeg, saturation, lightness);
   const toHex = (v: number) => Math.round(v * 255).toString(16).padStart(2, "0");

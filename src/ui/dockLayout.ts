@@ -122,7 +122,13 @@ export function toFullDockTarget(full: DockLayout, visible: DockLayout, target: 
 
   const anchorId = visibleColumn[target.rowIndex];
   const fullRowIndex = anchorId === undefined ? -1 : full[fullColumnIndex].indexOf(anchorId);
-  if (fullRowIndex === -1) return target;
+  // La colonne, elle, EST résolue : la rendre traduite même si la ligne ne
+  // l'est pas. Rendre `target` tel quel jetterait un index de colonne correct
+  // pour en garder un exprimé dans l'autre repère — donc faux dès qu'une
+  // colonne masquée précède. Inatteignable en pratique (les ids sont uniques
+  // par layout, l'ancre vient d'une carte réellement rendue), mais un repli ne
+  // doit pas être moins juste que ce qu'il remplace.
+  if (fullRowIndex === -1) return { ...target, columnIndex: fullColumnIndex };
   return { ...target, columnIndex: fullColumnIndex, rowIndex: fullRowIndex };
 }
 

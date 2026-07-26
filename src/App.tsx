@@ -669,9 +669,24 @@ export default function App() {
   const paramsPanel = useContextualPanel(selectedId !== null, selectedId);
   const maskPanel = useContextualPanel(selectedId !== null, selectedId);
 
-  const isPanelVisible = useCallback(
-    (id: string) => (id === "layers" ? layersPanel.visible : id === "params" ? paramsPanel.visible : maskPanel.visible),
+  // Table explicite plutôt qu'une chaîne de ternaires : sans branche par
+  // défaut, un id inconnu héritait silencieusement de la visibilité du Masque.
+  // Ce prédicat ne sert plus seulement à filtrer l'affichage, il alimente aussi
+  // la traduction des index de glisser-déposer (`toFullDockTarget`) — un id
+  // oublié y fausserait le déplacement sans jamais lever d'erreur. Le chantier
+  // Presets ajoute un 4e panneau : il DOIT échouer bruyamment ici s'il oublie
+  // sa ligne (fail-fast projet, pas de repli silencieux).
+  const panelVisibility: Record<string, boolean> = useMemo(
+    () => ({ layers: layersPanel.visible, params: paramsPanel.visible, mask: maskPanel.visible }),
     [layersPanel.visible, paramsPanel.visible, maskPanel.visible]
+  );
+  const isPanelVisible = useCallback(
+    (id: string) => {
+      const visible = panelVisibility[id];
+      if (visible === undefined) throw new Error(`Panneau inconnu dans le dock : "${id}" (ajouter sa visibilité à panelVisibility).`);
+      return visible;
+    },
+    [panelVisibility]
   );
 
   // Le dock ne reçoit QUE les panneaux visibles : une colonne dont tous les
@@ -776,7 +791,25 @@ export default function App() {
           onStop={() => setMaskPaintMode(false)}
         />
       )}
-      <main className="workspace" ref={workspaceRef} style={{ "--dock-reserved-width": `${dockWidth}px` } as React.CSSProperties}>
+      {/* Deux mesures DISTINCTES, à ne pas confondre :
+          --dock-reserved-width = largeur d'UNE colonne (lue par PanelColumn.css
+          pour dimensionner chaque pile, et pilotée par la poignée de resize) ;
+          --dock-total-width = place réellement occupée par le dock à l'écran,
+          soit n colonnes et leurs n-1 gouttières. C'est cette seconde mesure que
+          le canvas doit compenser : avec la première, masquer tous les panneaux
+          depuis le rail laissait le canvas décalé de 320px pour un dock devenu
+          invisible, et un dock à 2 colonnes n'était compensé que pour une. */}
+      <main
+        className="workspace"
+        ref={workspaceRef}
+        style={{
+          "--dock-reserved-width": `${dockWidth}px`,
+          "--dock-total-width":
+            visibleLayout.length === 0
+              ? "0px"
+              : `calc(${visibleLayout.length} * ${dockWidth}px + ${visibleLayout.length - 1} * var(--space-4))`,
+        } as React.CSSProperties}
+      >
         <Canvas
           ref={canvasRef}
           onFileDropped={(file) => openFile(file, null, false)}
@@ -895,10 +928,11 @@ export default function App() {
             // séparations internes + celle entre le picker et le dock. Sans le
             // facteur colonnes, le picker se posait PAR-DESSUS le dock dès
             // qu'il avait 2 colonnes (constaté au checkpoint 2026-07-25).
-            // `visibleLayout` et NON `dockLayout` : une colonne entièrement
-            // masquée n'occupe plus de place, le picker doit se recaler dessus.
+            // Même mesure que le canvas (--dock-total-width) : les deux doivent
+            // s'accorder sur la place occupée par le dock, sinon l'un se recale
+            // et l'autre pas.
             style={{
-              right: `calc(var(--space-6) + var(--rail-width) + var(--space-4) + (${dockWidth}px * ${visibleLayout.length}) + (var(--space-4) * ${visibleLayout.length}))`,
+              right: "calc(var(--space-6) + var(--rail-width) + var(--space-4) + var(--dock-total-width) + var(--space-4))",
             }}
           />
         )}

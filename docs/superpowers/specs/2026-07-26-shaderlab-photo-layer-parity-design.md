@@ -747,9 +747,52 @@ T1 **déplace** dans `usePhotoLayer`. C'est un conflit de merge d'une ligne, pas
 une dépendance — T5 ne déplace aucun code, T1 le fait. Rebaser T5 sur T1 au
 merge.
 
-#### Mesure VRAM — À FAIRE (protocole exécutable, aucun chiffre inventé)
+#### Mesure VRAM — FAITE le 2026-07-27
 
-> **Statut : NON MESURÉE.** `MAX_PHOTO_LAYERS = 4` et
+> **Statut : MESURÉE. Le plafond `MAX_PHOTO_LAYERS = 4` est validé.**
+> Relevé par `nvidia-smi` sur la machine d'Antoine (NVIDIA GeForce RTX 2060,
+> **6144 Mo**), app lancée en `tauri dev` avec CDP, scénario exécuté par le
+> pont de debug dev-only (`window.__shaderlabDebug`, `src/App.tsx`) — donc par
+> les MÊMES handlers que l'interface, aucun mécanisme simulé.
+> Photos : `6240×4160 = 26,0 MP` (99 Mo par texture RGBA8), 5 fichiers distincts.
+>
+> | Étape | VRAM utilisée | Delta |
+> |---|---|---|
+> | V0 aucun document | 1341 Mo | — |
+> | V1 fond chargé | 1808 Mo | +467 |
+> | V2 +photo 1 | 2129 Mo | +321 |
+> | V3 +photo 2 | 2289 Mo | +160 |
+> | V4 +photo 3 | 2375 Mo | +86 |
+> | V5 +photo 4 (plafond) | **2461 Mo** | +86 |
+>
+> **Pic à 40,1 % de la VRAM. Aucun `device.lost`.** Deux passes indépendantes
+> (dont une après rechargement complet de la page) donnent des chiffres
+> cohérents à ±60 Mo près — l'écart vient de la VRAM occupée par le reste du
+> système, que `nvidia-smi` mesure aussi.
+>
+> Le premier import coûte nettement plus (+321) que les suivants (+86, +86) :
+> il alloue en plus la cible de résolution partagée de `PhotoLayerInputResolver`.
+> Le coût marginal stabilisé (86 Mo) est cohérent avec les 99 Mo théoriques
+> d'une texture 26 MP, la différence tenant au recyclage interne.
+>
+> **Aucun des quatre seuils de révision n'est franchi** : pas de `device.lost`
+> sous 4 photos ; V4 à 40 % et non > 80 % ; delta par photo à 86 Mo et non
+> > 150 Mo (donc pas de bug d'allocation) ; V4 < 60 %, ce qui autorise un
+> relèvement du plafond — mais SEULEMENT re-mesuré, jamais extrapolé, la marge
+> dépendant du GPU de la machine.
+>
+> Garde vérifiée dans le même passage : un 5ᵉ import laisse bien 4 photos.
+> (Le script de mesure attendait un rejet de promesse ; la garde signale en
+> réalité par le bandeau d'erreur et résout normalement — c'est le compte de
+> photos après tentative qui fait foi, pas la forme du retour.)
+>
+> Script : `scratchpad/mesure-vram.mjs` (hors dépôt, jetable — le pont de debug,
+> lui, est dans le dépôt et réutilisable).
+
+<details>
+<summary>Protocole d'origine (conservé pour re-mesure sur une autre machine)</summary>
+
+> **Statut à la rédaction : NON MESURÉE.** `MAX_PHOTO_LAYERS = 4` et
 > `MAX_REGISTERED_PHOTO_SOURCES = 4 × MAX_PHOTO_LAYERS` sont posés sur la seule
 > mesure existante (~1280 Mo dédiés avec **2 photos 26 MP et 3 calques**, dont
 > un calque photo — `.claude/learning-log.md:1060-1072`, relevé du 2026-07-25 ;
@@ -832,6 +875,9 @@ n'est pas mesuré) :
 Quand la mesure est faite : remplir le tableau, dater, et mettre à jour le
 commentaire « CRITÈRE DE RÉVISION » de `src/layers/photoLayer.ts` pour qu'il
 cite le relevé au lieu d'annoncer une mesure à faire.
+
+
+</details>
 
 #### Dépendance T1 → T5 à vérifier au merge : révocation des object URL
 

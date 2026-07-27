@@ -83,7 +83,15 @@ export function usePhotoLayer({
     setCanvasMode((mode) => reconcileCanvasMode(mode, selectedId, layers.map((l) => l.id)));
   }, [selectedId, layers]);
 
-  const handleImportPhotoLayer = useCallback(async () => {
+  /** Importe une photo depuis un chemin ABSOLU déjà connu — extrait de
+   *  `handleImportPhotoLayer` pour que le chemin soit fournissable autrement
+   *  que par le dialogue natif. Consommé par le pont de debug dev-only
+   *  (`App.tsx`), qui permet de piloter un import depuis CDP : le dialogue
+   *  natif n'est pilotable ni par CDP ni par computer-use sur ce projet
+   *  (limite documentée dans CLAUDE.md), donc sans ce point d'entrée aucune
+   *  mesure ni aucun test de bout en bout impliquant un calque photo n'est
+   *  possible sur la vraie fenêtre. */
+  const importPhotoFromPath = useCallback(async (path: string) => {
     if (!rendererRef.current?.photoSources) return;
     if (!canAddPhotoLayer(sessionRef.current.layers())) {
       setError(
@@ -92,8 +100,6 @@ export function usePhotoLayer({
       return;
     }
     try {
-      const path = await pickImageFile();
-      if (!path) return;
       const bytes = await readImageFile(path);
       const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
       const bitmap = await createImageBitmap(blob);
@@ -111,6 +117,16 @@ export function usePhotoLayer({
       setError(messageFromUnknown(e));
     }
   }, [rendererRef, sessionRef, setError, commit, currentStack, imageSize.width, imageSize.height, selectLayer]);
+
+  const handleImportPhotoLayer = useCallback(async () => {
+    try {
+      const path = await pickImageFile();
+      if (!path) return;
+      await importPhotoFromPath(path);
+    } catch (e) {
+      setError(messageFromUnknown(e));
+    }
+  }, [importPhotoFromPath, setError]);
 
   const handleTransformChange = useCallback(
     (id: string, transform: LayerTransform) => {
@@ -150,6 +166,7 @@ export function usePhotoLayer({
     toggleMaskPaintMode,
     stopMaskPaintMode,
     handleImportPhotoLayer,
+    importPhotoFromPath,
     handleTransformChange,
     handleTransformCommit,
     thumbnailUrl,

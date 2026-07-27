@@ -334,6 +334,38 @@ export default function App() {
   });
   const { maskPaintMode, showTransformHandles, handleTransformChange, handleTransformCommit } = photoLayer;
 
+  // Pont de debug DEV-ONLY. Raison d'être : le dialogue natif de sélection de
+  // fichier (`pick_image_file`, rfd côté Rust) n'est pilotable NI par CDP NI
+  // par computer-use sur ce projet (limite documentée dans CLAUDE.md § Méthode).
+  // Sans ce pont, aucun scénario impliquant l'ouverture d'un document ou
+  // l'import d'un calque photo ne peut être exécuté sur la vraie fenêtre —
+  // donc ni la mesure VRAM exigée par ARCHITECTURE.md R1, ni un futur harnais
+  // de parité pixel. Gardé par `import.meta.env.DEV` : Vite élimine ce bloc du
+  // bundle de production, il ne peut pas fuiter.
+  const importPhotoFromPath = photoLayer.importPhotoFromPath;
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as unknown as Record<string, unknown>).__shaderlabDebug = {
+      openByPath: async (path: string) => {
+        const bytes = await readImageFile(path);
+        const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
+        await openFile(new File([blob], path, { type: "image/jpeg" }), path, false);
+      },
+      importPhotoByPath: (path: string) => importPhotoFromPath(path),
+      state: () => ({
+        layers: sessionRef.current.layers().map((l) => ({
+          id: l.id,
+          effectId: l.effectId,
+          hasImageSource: l.imageSource !== undefined,
+          enabled: l.enabled,
+        })),
+      }),
+    };
+    return () => {
+      delete (window as unknown as Record<string, unknown>).__shaderlabDebug;
+    };
+  }, [openFile, importPhotoFromPath]);
+
   function handleAdd(effectId: string) {
     presets.clearActive();
     const stack = currentStack();

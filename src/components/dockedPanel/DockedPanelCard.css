@@ -8,6 +8,18 @@
   display: flex;
   flex-direction: column;
   height: auto;
+  /* La carte remplit la hauteur que la colonne lui a allouée (voir
+     PanelColumn.css § modèle de défilement). ATTENTION — la carte n'a AUCUNE
+     protection propre contre l'écrasement : `overflow: hidden` ci-dessous en
+     fait un conteneur défilant, dont la taille minimale automatique vaut
+     ZÉRO. Sans le plancher posé sur .panel-column__item, elle est donc
+     comprimée sous sa barre de titre + son en-tête, qui se retrouvent rognés
+     (le commentaire précédent affirmait l'inverse — corrigé le 2026-07-27
+     après mesure : carte à 0px, en-tête de 120px rogné). Ce sont
+     `flex-shrink: 0` sur la barre de titre et l'en-tête qui garantissent
+     qu'ils ne se COMPRIMENT pas ; c'est le plancher de la colonne qui
+     garantit qu'ils restent VISIBLES. */
+  flex: 1 1 auto;
   border-radius: var(--radius-panel);
   background: var(--panel-bg);
   color: var(--text-primary);
@@ -57,25 +69,56 @@
   white-space: nowrap;
 }
 
+/* Zone FIXE entre la barre de titre et le contenu : `flex-shrink: 0`, donc
+   elle ne se comprime pas et ne défile pas avec le contenu. C'est ce qui
+   permet aux contrôles du calque sélectionné (LayerHeader) de rester visibles
+   quelle que soit la position dans une longue pile — modèle observé sur
+   Photoshop web (docs/design-system/photoshop-web-observations-2026-07-27.md
+   §5bis, point 1). */
+.docked-panel-card__header {
+  position: relative;
+  flex-shrink: 0;
+  padding: var(--space-5);
+}
+
+/* Même séparateur inset que le titlebar (mêmes raisons : ligne droite sur
+   conteneur à coins arrondis). */
+.docked-panel-card__header::after {
+  content: "";
+  position: absolute;
+  left: var(--space-5);
+  right: var(--space-5);
+  bottom: 0;
+  height: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
 .docked-panel-card__content {
   padding: var(--space-5);
-  /* PAS de max-height ni d'overflow-y ici : le dock est content-sized depuis
-   * 0efdfe4 (le splitter react-resizable-panels a ete retire), et
-   * `.panel-column__stack` est deja un conteneur defilant. Un second
-   * defilement a ce niveau empilait deux scrollers sur le meme axe dans la
-   * meme chaine d'ancetres — la molette faisait defiler la carte, puis la
-   * colonne en butee — et le plafond a 42vh tronquait une pile longue meme
-   * quand l'ecran avait de la place. Une carte prend donc la hauteur de son
-   * contenu ; c'est la colonne qui defile. */
-  /* `clip` et NON `hidden` : `hidden` sur un seul axe force l'autre a `auto`
-   * par coercition CSS, ce qui recreerait ici le second scroller vertical
-   * qu'on vient justement de retirer. `clip` ne coerce pas.
-   * Un panneau dont le contenu debordait de quelques pixels gagnait sinon une
-   * barre horizontale que personne n'avait demandee, laquelle rognait 15px de
-   * hauteur utile. La largeur d'une colonne est imposee par le dock : un
-   * contenu de panneau doit s'y plier, pas defiler lateralement. */
+  /* MODÈLE DE DÉFILEMENT (2026-07-27) : le scroll vit ICI, par panneau, et
+   * PAS sur `.panel-column__stack`. `f8b2a0b` avait supprimé le double
+   * défilement en gardant celui de la colonne : l'observation directe de
+   * Photoshop web (§5bis) montre que c'est l'inverse — sinon une pile longue
+   * pousse les panneaux suivants hors de l'écran.
+   * La borne n'est PAS un `vh` littéral (l'ex-`max-height: 42vh` tronquait
+   * alors qu'il restait de la place) : la hauteur vient du flex, la colonne
+   * étant elle-même bornée par la hauteur disponible. `min-height: 0` est ce
+   * qui autorise ce bloc — et lui seul dans la carte — à se comprimer sous sa
+   * taille de contenu. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  /* La largeur d'une colonne est imposée par le dock : un contenu de panneau
+   * doit s'y plier, pas défiler latéralement. `clip` (et non `hidden`) reste
+   * la valeur écrite : `hidden` sur un seul axe force l'autre à `auto` par
+   * coercition CSS — sans effet ici puisque l'axe Y est déjà `auto`, mais la
+   * règle vaut pour quiconque retirerait le `overflow-y` ci-dessus. */
   overflow-x: clip;
 }
+
+/* Barre de défilement fine : utilitaire partagé `.scroll-thin`
+   (src/design/components.css), posé sur le contenu par DockedPanelCard.tsx —
+   la grille de colonnes l'utilise aussi, les deux ne doivent pas diverger. */
 
 .docked-panel-card--dragging { opacity: var(--dragging-opacity); }
 

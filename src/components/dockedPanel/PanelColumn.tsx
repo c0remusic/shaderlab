@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { DockedPanelCard } from "./DockedPanelCard";
 import { getDockDropTarget, isNoOpDockDrop, resolveDockDragCommit, type DockDropTarget, type DockLayout } from "../../ui/dockLayout";
 import { clampDockWidth, DOCK_WIDTH_MIN, DOCK_WIDTH_MAX } from "./dockWidth";
@@ -11,6 +11,21 @@ export interface DockedPanelSpec {
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
   content: React.ReactNode;
+  /** Optionnel : zone fixe (non défilante) de la carte, voir
+   *  `DockedPanelCardProps.header`. */
+  header?: React.ReactNode;
+  /** Le contenu de ce panneau est une LISTE de longueur variable (calques,
+   *  sources de masque, presets) — donc la seule carte de la colonne qui
+   *  absorbe la compression quand la place manque. Drapeau EXPLICITE et non
+   *  heuristique : c'est le panneau lui-même qui sait si son contenu peut
+   *  s'allonger sans fin, aucune mesure ne le devine de façon fiable (une
+   *  carte à contenu fixe peut être temporairement plus haute qu'une liste
+   *  courte).
+   *  Défaut `false` = hauteur naturelle conservée, jamais comprimée : c'est le
+   *  modèle observé sur Photoshop web (docs/design-system/
+   *  photoshop-web-observations-2026-07-27.md §5bis) — les panneaux du dessous
+   *  restent à leur place, c'est la liste longue qui défile chez elle. */
+  variableLength?: boolean;
 }
 
 export interface PanelColumnProps {
@@ -46,6 +61,7 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
   // fermeture de `finishDrag` (voir resolveDockDragCommit, ui/dockLayout.ts).
   const dragStateRef = useRef<DockDragState | null>(null);
   const dockRef = useRef<HTMLDivElement | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
   const setDragState = useCallback((updater: DockDragState | null | ((current: DockDragState | null) => DockDragState | null)) => {
     setDragStateRaw((current) => {
       const next = typeof updater === "function" ? updater(current) : updater;
@@ -54,6 +70,59 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
     });
   }, []);
   const draggedPanel = dragState ? panels.find((panel) => panel.id === dragState.draggedId) : null;
+
+  // PLANCHER DE COMPRESSION (2026-07-27) — publie sur chaque .panel-column__item
+  // les deux hauteurs que CSS ne sait pas calculer seul (voir le commentaire
+  // de PanelColumn.css § PLANCHER) :
+  //   --dock-card-chrome-height  = barre de titre + en-tête (incompressibles)
+  //   --dock-card-content-height = hauteur NATURELLE du contenu (scrollHeight,
+  //                                donc indépendante de la compression en cours)
+  // La règle CSS en fait `chrome + min(contenu naturel, plancher)` : une carte
+  // ne peut jamais être écrasée sous son chrome, ni gonflée par le plancher si
+  // son contenu est plus court que lui.
+  const cardShape = `${layout.map((column) => column.join(">")).join("|")}#${panels
+    .map((panel) => `${panel.id}:${panel.collapsed ? "c" : "o"}`)
+    .join(",")}`;
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const items = Array.from(grid.querySelectorAll<HTMLElement>(".panel-column__item"));
+    const setVar = (element: HTMLElement, name: string, px: number) => {
+      const next = `${Math.ceil(px)}px`;
+      // Écriture conditionnelle : une écriture inconditionnelle relance le
+      // ResizeObserver à chaque passe et boucle.
+      if (element.style.getPropertyValue(name) !== next) element.style.setProperty(name, next);
+    };
+    const measure = () => {
+      for (const item of items) {
+        const titlebar = item.querySelector<HTMLElement>(".docked-panel-card__titlebar");
+        const header = item.querySelector<HTMLElement>(".docked-panel-card__header");
+        const content = item.querySelector<HTMLElement>(".docked-panel-card__content");
+        // Carte repliée : pas de contenu, donc rien à comprimer — pas de
+        // plancher, sinon la carte repliée serait gonflée à la hauteur d'une
+        // ligne fantôme.
+        if (!titlebar || !content) {
+          item.style.removeProperty("--dock-card-chrome-height");
+          item.style.removeProperty("--dock-card-content-height");
+          continue;
+        }
+        setVar(item, "--dock-card-chrome-height", titlebar.offsetHeight + (header?.offsetHeight ?? 0));
+        setVar(item, "--dock-card-content-height", content.scrollHeight);
+      }
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    for (const item of items) {
+      for (const part of item.querySelectorAll(".docked-panel-card__titlebar, .docked-panel-card__header, .docked-panel-card__content")) {
+        observer.observe(part);
+        // Le contenu COMPRIMÉ garde une boîte de taille constante quand sa
+        // liste s'allonge : seul son enfant grandit. Sans l'observer, la
+        // hauteur naturelle publiée resterait celle d'avant l'ajout.
+        if (part.firstElementChild) observer.observe(part.firstElementChild);
+      }
+    }
+    return () => observer.disconnect();
+  }, [cardShape]);
 
   // Redimensionnement en largeur — poignée sur le bord GAUCHE de TOUT le
   // conteneur .panel-column (toutes colonnes confondues, décision Antoine
@@ -168,7 +237,7 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
       onPointerUp={dragState ? (event) => finishDrag(event, true) : undefined}
       onPointerCancel={dragState ? (event) => finishDrag(event, false) : undefined}
     >
-      <div className="panel-column__grid">
+      <div className="panel-column__grid scroll-thin">
         {layout.map((column, columnIndex) => (
           <div className="panel-column__stack" key={column.join("-")}>
             {columnIndex === 0 && (
@@ -191,11 +260,18 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
               const panel = panels.find((candidate) => candidate.id === id);
               if (!panel) return null;
               return (
-                <div className="panel-column__item" data-dock-column={columnIndex} data-dock-row={rowIndex} key={panel.id}>
+                <div
+                  className="panel-column__item"
+                  data-dock-column={columnIndex}
+                  data-dock-row={rowIndex}
+                  data-variable-length={panel.variableLength || undefined}
+                  key={panel.id}
+                >
                   <DockedPanelCard
                     title={panel.title}
                     collapsed={panel.collapsed}
                     onCollapsedChange={panel.onCollapsedChange}
+                    header={panel.header}
                     dragging={dragState?.draggedId === panel.id}
                     titlebarProps={{ onPointerDown: (event) => handlePointerDown(panel.id, event) }}
                   >
@@ -216,6 +292,7 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
         >
           <div className="docked-panel-card">
             <div className="docked-panel-card__titlebar"><span className="docked-panel-card__title">{draggedPanel.title}</span></div>
+            {!draggedPanel.collapsed && draggedPanel.header && <div className="docked-panel-card__header">{draggedPanel.header}</div>}
             {!draggedPanel.collapsed && <div className="docked-panel-card__content">{draggedPanel.content}</div>}
           </div>
         </div>

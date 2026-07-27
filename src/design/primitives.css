@@ -31,6 +31,12 @@
      (boutons "Télécharger"/"Mise à niveau" sur la référence). */
   --primitive-accent-blue: #4069fd;
   --primitive-accent-blue-hover: #5681ff;
+  /* Cran clair de l'accent, réservé au MARQUAGE DE SÉLECTION (lavis de fond +
+     barre latérale) — tranché sur maquette le 2026-07-27. Plus clair que
+     --primitive-accent-blue pour tenir 3:1 en barre pleine contre son propre
+     lavis à 24% sur --surface-panel (mesuré 3,24:1 ; le bleu de base n'y
+     arrive pas). */
+  --primitive-accent-blue-400: #6b90ff;
 
   --primitive-danger: #e65454;
   --primitive-danger-text: #ef8d8d;

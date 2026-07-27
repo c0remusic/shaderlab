@@ -21,6 +21,18 @@
   gap: var(--space-4);
 }
 
+/* En-tête FIXE de la carte Calques (2026-07-27) : opacité/fusion/effet du
+   calque SÉLECTIONNÉ. Ces trois contrôles étaient répétés sur CHAQUE ligne —
+   167,2px par ligne, contre ~29px sur Photoshop web (facteur 5,8). Monté dans
+   le slot `header` de DockedPanelCard, donc hors du conteneur défilant. */
+.layer-header {
+  display: flex;
+  flex-direction: column;
+  /* Même rang que .layer-panel__row-controls avant sa suppression : contrôles
+     frères d'un même groupe. */
+  gap: var(--space-4);
+}
+
 .layer-panel__row {
   position: relative;
   display: flex;
@@ -56,14 +68,16 @@
   gap: var(--space-2);
 }
 
-.layer-panel__row-controls {
-  display: flex;
-  flex-direction: column;
-  /* --space-5, même rang que .param-panel__group (ParamPanel.css) pour la
-     même relation (contrôles frères dans un groupe) — --space-2 est le rang
-     "interne à un composant" (icône-texte), pas celui-ci. */
-  gap: var(--space-4);
-  cursor: default;
+/* Opacité en LECTURE SEULE (2026-07-27) : le slider est parti dans l'en-tête,
+   mais la valeur reste lisible sur chaque ligne pour comparer la pile d'un
+   coup d'œil. Chiffres tabulaires : les valeurs s'alignent verticalement d'une
+   ligne à l'autre, ce qui est tout l'intérêt de la comparaison. */
+.layer-panel__row-opacity {
+  font-family: var(--font-ui);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+  white-space: nowrap;
 }
 
 .layer-panel__row:hover {
@@ -80,17 +94,53 @@
   padding-left: calc(var(--space-4) + var(--space-5));
 }
 
+/* Icône de NATURE (effet ou photo) : même traitement que la poignée et la
+   flèche d'écrêtage — --text-tertiary, jamais comprimée. Elle tient dans la
+   hauteur de ligne existante (--layer-row-height, 36px) : --icon-size-sm vaut
+   14px, la ligne ne grandit pas. */
+.layer-panel__row-nature {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+}
+
 .layer-panel__clip-arrow {
   flex-shrink: 0;
   color: var(--text-tertiary);
 }
 
+/* SÉLECTION (décision Antoine sur maquette, 2026-07-27) : lavis 24% de
+   l'accent + barre 2px + nom en medium. Le fond seul ne suffit pas — il valait
+   auparavant --surface-hover, donc sélectionné et survolé étaient
+   INDISTINGUABLES dès que l'écart de hauteur entre les deux états a disparu.
+   Trois signaux, dont un NON COLORÉ (la graisse du nom) : une sélection ne
+   repose jamais sur la couleur seule. */
 .layer-panel__row--selected {
-  /* Sélectionné = le même fond que le hover, mais en permanence (pas
-     besoin du curseur dessus) — pas de barre d'accent ni de fond plus
-     marqué que --surface-hover. */
-  background: var(--surface-hover);
+  background: var(--surface-selected-accent);
   color: var(--text-primary);
+}
+
+/* La barre est en pseudo-élément à `left: 0` : elle couvre la ligne ENTIÈRE,
+   donc l'indentation d'un calque écrêté (padding, jamais marge) ne peut pas la
+   décaler ni la casser. Coins arrondis côté gauche seulement, pour épouser le
+   --radius-control de la ligne au lieu de dépasser de sa courbe. */
+.layer-panel__row--selected::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--selection-bar-width);
+  background: var(--selection-accent);
+  border-radius: var(--radius-control) 0 0 var(--radius-control);
+}
+
+/* Survol d'une ligne DÉJÀ sélectionnée : on garde le lavis tel quel.
+   `.layer-panel__row:hover` a une spécificité plus forte que
+   `.layer-panel__row--selected` et lui reprendrait sinon son fond — et
+   éclaircir le lavis au survol ferait retomber la barre sous 3:1 (mesuré
+   2,94:1 à 30%). */
+.layer-panel__row--selected:hover {
+  background: var(--surface-selected-accent);
 }
 
 .layer-panel__row--dragging {
@@ -156,6 +206,9 @@
   color: var(--text-secondary);
 }
 
+/* Signal NON COLORÉ de la sélection : la graisse. Sans lui, le marquage
+   reposerait entièrement sur la couleur (lavis + barre). */
 .layer-panel__row-name--selected {
   color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
 }

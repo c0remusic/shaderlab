@@ -17,6 +17,16 @@
   /* .10 exact — Adobe Spectrum table-selected-row-background-opacity-non-emphasized
      (github.com/adobe/spectrum-css tokens.json), pas une valeur au jugé. */
   --surface-selected: color-mix(in srgb, var(--primitive-neutral-100) 10%, transparent);
+  /* MARQUAGE DE SÉLECTION d'une ligne de liste (décision Antoine sur maquette,
+     2026-07-27) : lavis 24% de l'accent clair sur le fond de panneau, plus une
+     barre latérale pleine. Opaque (mélange avec --surface-panel, pas avec
+     `transparent`) : un lavis translucide sur une ligne survolée s'additionnerait
+     au fond de survol et dériverait. Valeur résolue : rgb(59,68,95) sur
+     #2c2c2c. Le lavis seul plafonne à 1,45:1 contre le panneau — il ne PORTE
+     pas le signal, c'est la barre (3,24:1 contre le lavis) et la graisse du
+     nom qui le portent, le fond ne fait que délimiter la ligne. */
+  --surface-selected-accent: color-mix(in srgb, var(--primitive-accent-blue-400) 24%, var(--surface-panel));
+  --selection-accent: var(--primitive-accent-blue-400);
   --surface-scrim: color-mix(in srgb, var(--primitive-ink-1000) 76%, transparent);
   /* Thin dark contour stroke for shapes drawn over arbitrary image content (brush cursor
      ring/dot) — needs contrast on any background, lighter than --surface-scrim which is a

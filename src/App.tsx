@@ -31,7 +31,7 @@ import { getBrushRaster } from "./mask/brushSource";
 import { PanelColumn } from "./components/dockedPanel/PanelColumn";
 import { movePanelInDock, toFullDockTarget, visibleDockLayout, type DockDropTarget, type DockLayout } from "./ui/dockLayout";
 import { clampDockWidth } from "./components/dockedPanel/dockWidth";
-import { LayerPanel } from "./components/LayerPanel";
+import { LayerHeader, LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
 import { PhotoPanel } from "./components/PhotoPanel";
 import { MaskPanel } from "./components/MaskPanel";
@@ -1253,6 +1253,10 @@ export default function App() {
           panels={[
             {
               id: "presets", title: "Presets", collapsed: presetsFolded, onCollapsedChange: setPresetsFolded,
+              // Liste de longueur variable : c'est elle qui se comprime et
+              // défile quand la colonne manque de place, pas les cartes à
+              // contenu fixe (Photo, Réglages) — voir `variableLength`.
+              variableLength: true,
               content: (
                 <>
                   <PresetPanel
@@ -1285,7 +1289,27 @@ export default function App() {
               )
             },
             {
-              id: "layers", title: "Calques", collapsed: layersFolded, onCollapsedChange: setLayersFolded,
+              // LIBELLÉ « Effets » (décision Antoine sur maquette, 2026-07-27) :
+              // dans shaderlab la pile n'est pas un empilement de contenus
+              // comme dans Photoshop, c'est une chaîne de traitement appliquée
+              // à une image de fond. L'IDENTIFIANT reste `layers` — il est lu
+              // par dockLayout, panelVisibility et le rail ; aucun libellé
+              // n'est persisté nulle part (vérifié : ni localStorage ni
+              // document de preset ne porte de titre de panneau).
+              id: "layers", title: "Effets", collapsed: layersFolded, onCollapsedChange: setLayersFolded,
+              // La pile de calques est LA liste longue du dock.
+              variableLength: true,
+              // Contrôles du calque SÉLECTIONNÉ, dans la zone fixe de la carte
+              // (ils ne défilent pas avec la liste) — ils étaient répétés sur
+              // chaque ligne jusqu'au 2026-07-27.
+              header: <LayerHeader
+                  layers={layers}
+                  selectedId={selectedId}
+                  onOpacityChange={handleOpacityChange}
+                  onOpacityCommit={handleParamCommit}
+                  onBlendModeChange={handleBlendModeChange}
+                  onEffectChange={handleEffectChange}
+                />,
               content: <LayerPanel
                   layers={layers}
                   selectedId={selectedId}
@@ -1297,11 +1321,7 @@ export default function App() {
                   onDuplicate={handleDuplicate}
                   onRemove={handleRemove}
                   onReorder={handleReorder}
-                  onOpacityChange={handleOpacityChange}
-                  onOpacityCommit={handleParamCommit}
-                  onBlendModeChange={handleBlendModeChange}
                   thumbnailUrl={photoLayer.thumbnailUrl}
-                  onEffectChange={handleEffectChange}
                 />
             },
             {
@@ -1344,6 +1364,8 @@ export default function App() {
             },
             {
               id: "mask", title: "Masque", collapsed: maskFolded, onCollapsedChange: setMaskFolded,
+              // Liste des sources de masque : longueur variable elle aussi.
+              variableLength: true,
               content: <MaskPanel
                   layer={selectedLayer}
                   maskPaintMode={maskPaintMode}
@@ -1372,7 +1394,7 @@ export default function App() {
         <PanelRail
           items={[
             { id: "presets", icon: PackagePlus, label: "Presets", active: presetsPanel.visible, onClick: presetsPanel.toggleRail },
-            { id: "layers", icon: Layers, label: "Calques", active: layersPanel.visible, onClick: layersPanel.toggleRail },
+            { id: "layers", icon: Layers, label: "Effets", active: layersPanel.visible, onClick: layersPanel.toggleRail },
             { id: "photo", icon: PhotoRailIcon, label: "Photo", active: photoPanel.visible, onClick: photoPanel.toggleRail },
             { id: "params", icon: SlidersHorizontal, label: "Réglages", active: paramsPanel.visible, onClick: paramsPanel.toggleRail },
             { id: "mask", icon: BrushRailIcon, label: "Masque", active: maskPanel.visible, onClick: maskPanel.toggleRail },

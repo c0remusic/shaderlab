@@ -47,6 +47,11 @@
   --slider-thumb-size: 12px;
   --slider-value-width: 9ch;
 
+  /* Barre de sélection d'une ligne de liste — 2px pleins, l'épaisseur qui
+     porte le contraste (3,24:1 contre le lavis) ; en dessous elle se lit comme
+     un liseré et le seuil UI 3:1 n'a plus de surface pour s'appliquer. */
+  --selection-bar-width: 2px;
+
   --checkbox-size: var(--icon-size-md);
   --progress-height: 4px;
 
@@ -62,6 +67,15 @@
      Canvas.css pour se décaler du rail — c'est la seule mesure partagée. */
   --rail-item-size: var(--toolbar-height);
   --rail-width: calc(var(--rail-item-size) + (var(--space-2) * 2));
+
+  /* Plancher de compression d'une carte dockée : ce qu'il doit rester de
+     CONTENU visible quand la colonne comprime la carte — une ligne pleine
+     (--layer-row-height) plus le padding vertical de la zone de contenu
+     (--space-5 en haut et en bas). En dessous, une carte comprimée n'affiche
+     plus une seule ligne entière et sa barre de défilement ne mène nulle
+     part. La partie INCOMPRESSIBLE (barre de titre + en-tête) n'est pas ici :
+     elle est mesurée à l'exécution, voir PanelColumn.tsx. */
+  --dock-card-content-min-height: calc(var(--layer-row-height) + (var(--space-5) * 2));
 
   /* ColorPickerPanel — --color-picker-sv-size est DUPLIQUÉ en constante JS
      (SV_SIZE, ColorPickerPanel.tsx) : un <canvas> exige ses dimensions en
@@ -86,6 +100,34 @@
   --drag-guide-opacity: .9;
   --loading-indicator-opacity: .7;
   --drag-insert-chip-opacity: .9;
+}
+
+/* Barre de défilement FINE et discrète (2026-07-27), utilitaire partagé par
+   tout conteneur défilant du dock (contenu d'une carte, grille de colonnes).
+   La barre système en rognait 15px sur 320 de large : toutes les cartes
+   étaient rétrécies d'autant. Ici elle vit à l'intérieur du conteneur, sur une
+   piste transparente, et reste VISIBLE dès qu'il y a du contenu caché — une
+   barre invisible est pire qu'une barre laide. Une seule définition : deux
+   conteneurs qui défilent ne doivent pas diverger sur l'épaisseur ou la
+   couleur du curseur. */
+.scroll-thin::-webkit-scrollbar {
+  width: var(--space-3);
+  height: var(--space-3);
+}
+
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroll-thin::-webkit-scrollbar-thumb {
+  /* --border-emphasis (18%) au repos, --border-strong (28%) au survol : le
+     curseur monte en contraste quand on le vise, il ne descend pas. */
+  background: var(--border-emphasis);
+  border-radius: var(--radius-control);
+}
+
+.scroll-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
 }
 
 /* Icon utilities keep Lucide glyphs aligned with the component token scale. */

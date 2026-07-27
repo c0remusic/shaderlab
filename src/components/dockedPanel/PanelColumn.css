@@ -9,14 +9,32 @@
   z-index: var(--z-popover);
 }
 
+/* Les DEUX axes sont écrits explicitement (2026-07-27) : `overflow-x: auto`
+   seul COERCE l'axe Y à `auto` (règle CSS overflow — un axe non `visible`
+   force l'autre à `auto`), ce qui faisait de la grille le vrai conteneur
+   défilant et rendait inerte le défilement par carte. L'axe X est un vrai
+   besoin (le dock peut compter plusieurs colonnes côte à côte, plus larges
+   que la place disponible) ; l'axe Y n'est plus qu'une SORTIE DE SECOURS,
+   atteinte seulement quand toutes les cartes sont déjà à leur plancher
+   (voir .panel-column__item). Le laisser à `hidden` rendrait ce reliquat
+   inatteignable en silence — pas de repli muet. `scroll-thin` :
+   la barre système de 15px ne revient sur aucun des deux axes. */
 .panel-column__grid {
   display: flex;
   align-items: flex-start;
   gap: var(--space-4);
   max-height: calc(100vh - (var(--space-6) * 2));
   overflow-x: auto;
+  overflow-y: auto;
 }
 
+/* MODÈLE DE DÉFILEMENT (2026-07-27) : la colonne NE défile PLUS. Elle est
+   bornée par la hauteur disponible (max-height héritée de .panel-column__grid)
+   et distribue cette hauteur à ses cartes ; chaque carte défile dans son propre
+   contenu (voir DockedPanelCard.css). Sans ça, une pile de calques longue
+   poussait Réglages et Masque hors de l'écran — c'est le constat direct de
+   l'observation Photoshop web (§5bis) et ce que `f8b2a0b` avait gardé à
+   l'envers. */
 .panel-column__stack {
   position: relative;
   display: flex;
@@ -24,10 +42,59 @@
   flex-direction: column;
   gap: var(--space-4);
   max-height: inherit;
-  overflow-y: auto;
 }
 
-.panel-column__item { position: relative; }
+/* Chaque carte est un élément flexible de la colonne : content-sized tant que
+   la place suffit (flex-basis auto, pas de grow), comprimée sinon.
+   `min-height: 0` est INDISPENSABLE ici : la taille minimale automatique d'un
+   élément flex vaut la taille de son contenu, donc sans cette ligne AUCUNE
+   carte ne peut se comprimer, la colonne déborde toujours et le défilement
+   remonte sur .panel-column__grid — le défilement par carte est alors inerte
+   (constat de revue, 2026-07-27). Chaîne complète de compression :
+   .panel-column__grid (borné par max-height) → .panel-column__stack
+   (max-height: inherit) → .panel-column__item (min-height: 0, ICI) →
+   .docked-panel-card (min automatique nul via overflow: hidden) →
+   .docked-panel-card__content (min-height: 0, seul bloc qui défile). */
+.panel-column__item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* `0 0 auto` = HAUTEUR NATURELLE, jamais comprimée. Défaut volontaire :
+     seules les cartes marquées `data-variable-length` (une LISTE : calques,
+     sources de masque, presets) absorbent la compression. Sans cette
+     distinction, toutes les cartes rétrécissaient ensemble et gagnaient
+     chacune une barre de défilement — l'inverse du modèle observé sur
+     Photoshop web (§5bis) où les panneaux du dessous restent à leur place. */
+  flex: 0 0 auto;
+  /* `min-height` est posé juste en dessous : sa valeur vaut 0 tant que les
+     hauteurs mesurées sont absentes, c'est donc bien elle qui porte à la fois
+     le déblocage de la compression et son plancher. */
+}
+
+/* PLANCHER de compression (2026-07-27). `min-height: 0` seul laisse la carte
+   descendre jusqu'à 0 : `overflow: hidden` sur .docked-panel-card met déjà sa
+   taille minimale automatique à zéro, donc en fenêtre courte la carte est
+   écrasée SOUS sa barre de titre + son en-tête (mesuré : carte à 0px pour une
+   barre de titre de 44px et un en-tête de 120px — en-tête rogné, liste
+   inatteignable, contenu à 24px sans barre utile).
+   CSS ne sait pas calculer ce plancher seul : `min-height: min-content`
+   remonte la hauteur ENTIÈRE du contenu (mesuré : 804px au lieu de 164px),
+   parce que le min-content d'un conteneur défilant n'est pas nul en Chromium.
+   Les deux hauteurs sont donc MESURÉES à l'exécution par PanelColumn.tsx :
+   --dock-card-chrome-height (barre de titre + en-tête, incompressibles) et
+   --dock-card-content-height (hauteur naturelle du contenu). Le `min()` borne
+   le plancher à la hauteur réelle du contenu : une carte plus courte que le
+   plancher n'est jamais GONFLÉE par lui. */
+.panel-column__item[data-variable-length] {
+  flex: 0 1 auto;
+}
+
+.panel-column__item {
+  min-height: calc(
+    var(--dock-card-chrome-height, 0px) +
+    min(var(--dock-card-content-height, 0px), var(--dock-card-content-min-height))
+  );
+}
 
 .panel-column__alignment-guide--vertical {
   /* A vertical guide marks the seam for a neighboring panel column. */

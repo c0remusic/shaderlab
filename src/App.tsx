@@ -47,6 +47,7 @@ import { ColorPickerPanel } from "./components/ColorPickerPanel";
 import type { EffectParam } from "./render/effects/types";
 import { usePresets } from "./hooks/usePresets";
 import { usePhotoLayer } from "./hooks/usePhotoLayer";
+import { useLayerIsolation } from "./hooks/useLayerIsolation";
 import { PresetPanel } from "./components/PresetPanel";
 import { TauriPresetStore } from "./presets/presetStore";
 import { capture } from "./presets/presetDocument";
@@ -355,6 +356,11 @@ export default function App() {
     },
     [currentStack, commit]
   );
+
+  // Isolation d'un calque (Alt+clic sur l'œil) : état d'interface transitoire,
+  // hors modèle et hors historique — toute la logique vit dans
+  // `useLayerIsolation`/`layers/isolation.ts`, App n'en garde que le câblage.
+  const isolation = useLayerIsolation({ sessionRef, rendererRef, layers, toggleLayer: handleToggle });
 
   const handleRemove = useCallback(
     (id: string) => {
@@ -674,20 +680,30 @@ export default function App() {
     }
   }
 
-  // Raccourcis globaux Ctrl+Z/Ctrl+Y (undo/redo) : fonctionnent depuis
+  // Raccourcis globaux Ctrl+Z/Ctrl+Y (undo/redo) et Ctrl+I (isoler le calque
+  // sélectionné — le pendant clavier de l'Alt+clic sur l'œil, sans lequel
+  // l'isolation ne serait atteignable qu'à la souris) : fonctionnent depuis
   // n'importe où dans la fenêtre, PAS seulement quand un bouton Toolbar a le
   // focus — sauf par-dessus un contrôle éditable (input/textarea/
   // contentEditable, ex. le champ de valeur d'un LabeledSlider en cours de
   // frappe), où Ctrl+Z doit rester l'undo texte natif du champ, pas l'undo
   // de calque.
-  // « Latest ref » sur les deux handlers : `handleUndo`/`handleRedo` sont
-  // redéclarés à chaque render, donc les mettre en dépendances rattacherait le
-  // listener à chaque render — exactement le comportement (non intentionnel)
-  // qu'un `useEffect` sans tableau de dépendances produisait ici. Le ref donne
-  // la correction fonctionnelle (aucune stale closure) avec un listener attaché
-  // UNE seule fois.
-  const undoRedoRef = useRef({ undo: handleUndo, redo: handleRedo });
-  undoRedoRef.current = { undo: handleUndo, redo: handleRedo };
+  // « Latest ref » sur les handlers : `handleUndo`/`handleRedo` sont redéclarés
+  // à chaque render (et `selectedId` change), donc les mettre en dépendances
+  // rattacherait le listener à chaque render — exactement le comportement (non
+  // intentionnel) qu'un `useEffect` sans tableau de dépendances produisait ici.
+  // Le ref donne la correction fonctionnelle (aucune stale closure) avec un
+  // listener attaché UNE seule fois.
+  const shortcutsRef = useRef({
+    undo: handleUndo,
+    redo: handleRedo,
+    isolate: () => isolation.toggleIsolation(selectedId),
+  });
+  shortcutsRef.current = {
+    undo: handleUndo,
+    redo: handleRedo,
+    isolate: () => isolation.toggleIsolation(selectedId),
+  };
 
   useEffect(() => {
     function handleWindowKeyDown(event: KeyboardEvent) {
@@ -699,10 +715,18 @@ export default function App() {
       const key = event.key.toLowerCase();
       if (key === "z") {
         event.preventDefault();
-        undoRedoRef.current.undo();
+        shortcutsRef.current.undo();
       } else if (key === "y") {
         event.preventDefault();
-        undoRedoRef.current.redo();
+        shortcutsRef.current.redo();
+      } else if (key === "i") {
+        // Ctrl+I : « Isoler ». Retenu après vérification des conflits — les
+        // seuls autres raccourcis clavier de l'app sont Ctrl+Z/Ctrl+Y (le
+        // Ctrl+molette d'`activeControl` est un geste souris, pas une touche).
+        // Ctrl+Alt+… est écarté : sur clavier AZERTY, Ctrl+Alt EST AltGr.
+        // Ctrl+Maj+I est écarté : c'est l'ouverture des DevTools de WebView2.
+        event.preventDefault();
+        shortcutsRef.current.isolate();
       }
     }
     window.addEventListener("keydown", handleWindowKeyDown);
@@ -1205,7 +1229,8 @@ export default function App() {
                   selectedId={selectedId}
                   hasImage={imageSize.width > 0 && imageSize.height > 0}
                   onSelect={selectLayer}
-                  onToggle={handleToggle}
+                  onToggle={isolation.handleEyeClick}
+                  isolatedLayerId={isolation.isolatedLayerId}
                   onAdd={handleAdd}
                   onDuplicate={handleDuplicate}
                   onRemove={handleRemove}

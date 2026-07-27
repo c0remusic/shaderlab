@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fireEvent, fn, userEvent, within } from "storybook/test";
 import { LayerPanel } from "./LayerPanel";
 import { defaultLayerMask } from "../mask/types";
 import type { LayerState } from "../layers/types";
@@ -138,7 +138,40 @@ export const ToggleVisibility: Story = {
     const canvas = within(canvasElement);
     // layer-2 is disabled → its toggle is uniquely labeled "Afficher le calque".
     await userEvent.click(canvas.getByRole("button", { name: "Afficher le calque" }));
-    await expect(args.onToggle).toHaveBeenCalledWith("layer-2");
+    // `altKey` = false : clic simple, bascule normale (voir eyeClickOutcome).
+    await expect(args.onToggle).toHaveBeenCalledWith("layer-2", false);
+  },
+};
+
+// Isolation (Alt+clic sur l'œil) : état d'AFFICHAGE seulement — `layers` est
+// inchangé (layer-2 y reste `enabled: false`), seule la visibilité effective
+// affichée par les icônes/libellés change. Le geste étant invisible, le libellé
+// du bouton est le porteur de l'affordance de SORTIE.
+export const IsolatedLayer: Story = {
+  args: { isolatedLayerId: "layer-3", onToggle: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    // Les trois lignes annoncent la sortie d'isolation, y compris celle du
+    // calque isolé : pendant l'isolation, un clic simple ne bascule rien.
+    const exits = canvas.getAllByRole("button", { name: "Quitter l'isolation" });
+    await expect(exits).toHaveLength(3);
+    await userEvent.click(exits[0]);
+    await expect(args.onToggle).toHaveBeenCalledWith("layer-1", false);
+  },
+};
+
+// Alt+clic sur l'œil d'un calque : le composant ne décide de rien, il
+// transmet le modificateur — c'est `eyeClickOutcome` qui tranche (testé
+// unitairement, aucun test ne rend de composant React sur ce projet).
+export const AltClickRequestsIsolation: Story = {
+  args: { onToggle: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    // `fireEvent` et non `userEvent` : le modificateur doit être porté par
+    // l'événement de clic lui-même (`e.altKey`), ce que l'état clavier de
+    // userEvent ne propage pas au clic dans ce runner.
+    fireEvent.click(canvas.getByRole("button", { name: "Afficher le calque" }), { altKey: true });
+    await expect(args.onToggle).toHaveBeenCalledWith("layer-2", true);
   },
 };
 

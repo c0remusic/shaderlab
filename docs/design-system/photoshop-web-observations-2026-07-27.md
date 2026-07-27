@@ -68,10 +68,43 @@ vient du choix d'avoir monté `BrushToolbar` dans le flux, en frère du workspac
 - réordonner = **glisser** la ligne ;
 - afficher/masquer = **icône œil** à côté de la vignette.
 
-## 6. NON OBSERVÉ — ne rien en déduire
+## 5bis. Pile longue — LE constat décisif (observé sur 8 calques)
 
-- Comportement au-delà de 2 calques (le document ouvert n'en avait que deux) : le seuil
-  de défilement de la pile n'a pas pu être établi.
+Observé en dupliquant un calque 7 fois (Ctrl+J) dans un document d'Antoine, avec son
+accord explicite, puis en revenant à l'état « Ouvrir » via le panneau Historique —
+retour vérifié en capture (état actif = « Ouvrir », les 7 « Calque par Copier »
+grisés, pile revenue à 1 calque).
+
+Avec 8 calques, Photoshop web :
+
+1. **L'en-tête Fusion/Opacité reste FIXE** en haut du panneau — il ne défile pas avec
+   la liste, il est toujours visible quel que soit le défilement.
+2. **La liste des calques défile À L'INTÉRIEUR du panneau**, barre de défilement fine
+   sur son bord droit.
+3. **Le panneau Propriétés reste à sa place**, en dessous, visible. Il n'est jamais
+   poussé hors écran par la longueur de la pile.
+4. Le panneau Calques garde une **hauteur bornée** : il ne s'étend pas pour absorber
+   son contenu.
+
+**shaderlab fait exactement l'inverse** : la carte prend la hauteur de son contenu,
+pousse les cartes suivantes vers le bas, et c'est la COLONNE qui défile — donc
+Réglages et Masque sortent de l'écran dès que la pile s'allonge. C'est la cause
+directe du « plusieurs calques gênaient la navigation » rapporté par Antoine.
+
+### Conséquence : le commit f8b2a0b a gardé la mauvaise moitié
+
+`f8b2a0b` (2026-07-27) a supprimé le double défilement en retirant celui des cartes
+(`max-height: 42vh` + `overflow-y` sur `.docked-panel-card__content`) et en laissant
+`.panel-column__stack` seul scroller. Le modèle observé impose l'inverse : **scroll
+PAR PANNEAU, avec en-tête fixe, et pas de scroll de colonne**.
+
+Le diagnostic « deux scrollers empilés, il faut n'en garder qu'un » était juste ; le
+choix de celui à garder était faux. À corriger : rendre au contenu de carte son
+défilement propre (hauteur bornée par la place disponible, pas par un `vh` arbitraire),
+retirer celui de la colonne, et sortir Fusion/Opacité des lignes vers un en-tête fixe
+de la carte Calques (§2).
+
+## 6. NON OBSERVÉ — ne rien en déduire
 - Nombre de panneaux ouverts par défaut sur une session vierge (celle-ci était déjà
   configurée).
 - Photoshop **desktop** : non observé, seule la version web l'a été. Ne pas

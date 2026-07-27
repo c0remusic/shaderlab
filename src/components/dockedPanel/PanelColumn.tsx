@@ -14,6 +14,18 @@ export interface DockedPanelSpec {
   /** Optionnel : zone fixe (non défilante) de la carte, voir
    *  `DockedPanelCardProps.header`. */
   header?: React.ReactNode;
+  /** Le contenu de ce panneau est une LISTE de longueur variable (calques,
+   *  sources de masque, presets) — donc la seule carte de la colonne qui
+   *  absorbe la compression quand la place manque. Drapeau EXPLICITE et non
+   *  heuristique : c'est le panneau lui-même qui sait si son contenu peut
+   *  s'allonger sans fin, aucune mesure ne le devine de façon fiable (une
+   *  carte à contenu fixe peut être temporairement plus haute qu'une liste
+   *  courte).
+   *  Défaut `false` = hauteur naturelle conservée, jamais comprimée : c'est le
+   *  modèle observé sur Photoshop web (docs/design-system/
+   *  photoshop-web-observations-2026-07-27.md §5bis) — les panneaux du dessous
+   *  restent à leur place, c'est la liste longue qui défile chez elle. */
+  variableLength?: boolean;
 }
 
 export interface PanelColumnProps {
@@ -248,7 +260,13 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
               const panel = panels.find((candidate) => candidate.id === id);
               if (!panel) return null;
               return (
-                <div className="panel-column__item" data-dock-column={columnIndex} data-dock-row={rowIndex} key={panel.id}>
+                <div
+                  className="panel-column__item"
+                  data-dock-column={columnIndex}
+                  data-dock-row={rowIndex}
+                  data-variable-length={panel.variableLength || undefined}
+                  key={panel.id}
+                >
                   <DockedPanelCard
                     title={panel.title}
                     collapsed={panel.collapsed}

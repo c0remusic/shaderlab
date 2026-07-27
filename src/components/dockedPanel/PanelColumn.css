@@ -59,7 +59,13 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  flex: 0 1 auto;
+  /* `0 0 auto` = HAUTEUR NATURELLE, jamais comprimée. Défaut volontaire :
+     seules les cartes marquées `data-variable-length` (une LISTE : calques,
+     sources de masque, presets) absorbent la compression. Sans cette
+     distinction, toutes les cartes rétrécissaient ensemble et gagnaient
+     chacune une barre de défilement — l'inverse du modèle observé sur
+     Photoshop web (§5bis) où les panneaux du dessous restent à leur place. */
+  flex: 0 0 auto;
   /* `min-height` est posé juste en dessous : sa valeur vaut 0 tant que les
      hauteurs mesurées sont absentes, c'est donc bien elle qui porte à la fois
      le déblocage de la compression et son plancher. */
@@ -79,6 +85,10 @@
    --dock-card-content-height (hauteur naturelle du contenu). Le `min()` borne
    le plancher à la hauteur réelle du contenu : une carte plus courte que le
    plancher n'est jamais GONFLÉE par lui. */
+.panel-column__item[data-variable-length] {
+  flex: 0 1 auto;
+}
+
 .panel-column__item {
   min-height: calc(
     var(--dock-card-chrome-height, 0px) +

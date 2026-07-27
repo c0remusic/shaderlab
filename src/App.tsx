@@ -1253,6 +1253,10 @@ export default function App() {
           panels={[
             {
               id: "presets", title: "Presets", collapsed: presetsFolded, onCollapsedChange: setPresetsFolded,
+              // Liste de longueur variable : c'est elle qui se comprime et
+              // défile quand la colonne manque de place, pas les cartes à
+              // contenu fixe (Photo, Réglages) — voir `variableLength`.
+              variableLength: true,
               content: (
                 <>
                   <PresetPanel
@@ -1286,6 +1290,8 @@ export default function App() {
             },
             {
               id: "layers", title: "Calques", collapsed: layersFolded, onCollapsedChange: setLayersFolded,
+              // La pile de calques est LA liste longue du dock.
+              variableLength: true,
               // Contrôles du calque SÉLECTIONNÉ, dans la zone fixe de la carte
               // (ils ne défilent pas avec la liste) — ils étaient répétés sur
               // chaque ligne jusqu'au 2026-07-27.
@@ -1351,6 +1357,8 @@ export default function App() {
             },
             {
               id: "mask", title: "Masque", collapsed: maskFolded, onCollapsedChange: setMaskFolded,
+              // Liste des sources de masque : longueur variable elle aussi.
+              variableLength: true,
               content: <MaskPanel
                   layer={selectedLayer}
                   maskPaintMode={maskPaintMode}

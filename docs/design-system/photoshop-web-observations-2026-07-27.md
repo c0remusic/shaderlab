@@ -104,6 +104,50 @@ défilement propre (hauteur bornée par la place disponible, pas par un `vh` arb
 retirer celui de la colonne, et sortir Fusion/Opacité des lignes vers un en-tête fixe
 de la carte Calques (§2).
 
+## 5ter. Écrêtage — OBSERVÉ (corrige une décision prise sur maquette)
+
+Observé en créant un calque de réglage (Teinte/saturation) sur le document
+d'Antoine, puis en lui appliquant « Créer un masque d'écrêtage » (menu
+contextuel de la ligne), puis en revenant à l'état « Ouvrir » par l'Historique
+— retour vérifié en capture.
+
+1. **Un calque de réglage NON écrêté ne porte AUCUNE marque.** Ni indentation,
+   ni flèche, ni filet, ni changement de fond. Sa ligne est identique à celle
+   d'un calque pixel. Raison : s'appliquer à tout ce qui est en dessous est le
+   comportement PAR DÉFAUT — Photoshop ne signale pas le cas normal.
+2. **Une fois écrêté, il gagne une petite flèche coudée (↳) placée ENTRE l'œil
+   et la vignette.** C'est la seule marque. **AUCUNE INDENTATION** : la ligne
+   reste alignée sur les autres.
+3. La commande vit dans le menu contextuel de la ligne, libellée « Créer un
+   masque d'écrêtage ».
+
+### Ce que ça corrige
+
+Antoine avait tranché « indentation + flèche » le 2026-07-27, **sur une maquette
+où j'avais présenté l'indentation comme la convention Photoshop — sans l'avoir
+observée**. La référence réelle ne fait que la flèche.
+
+Conséquence pour shaderlab : la signalisation livrée (indentation de 12-14 px +
+flèche) doit perdre son indentation. Bénéfice collatéral : plus de perte de
+largeur utile, et la marque de sélection (lavis + barre 2 px) couvre la ligne
+entière sans décalage.
+
+### Ce que ça répond à la question « quel effet est lié à quelle photo »
+
+Rien ne le montre pour un effet LIBRE — parce qu'il n'est lié à rien en
+particulier : il agit sur tout ce qui est en dessous. L'écrêtage EST le
+mécanisme de liaison, la flèche en est la marque, et il n'existe aucun
+affichage de « portée » dans Photoshop web. Toute proposition de filet, de
+surlignage de portée ou d'accolade est une invention — écartée.
+
+### Autres commandes relevées dans le menu contextuel de ligne
+
+Utile au backlog calques, observé mais NON instruit : Verrouiller le calque ·
+Dupliquer · Copier · Charger en tant que sélection · Associer/Dissocier ·
+**Afficher/masquer les autres calques** (l'équivalent de notre isolation) ·
+Convertir en objet dynamique · Fusionner avec le calque inférieur · Fusionner
+les calques visibles.
+
 ## 6. NON OBSERVÉ — ne rien en déduire
 - Nombre de panneaux ouverts par défaut sur une session vierge (celle-ci était déjà
   configurée).

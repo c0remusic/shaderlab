@@ -47,7 +47,9 @@ semantic,components}.css`, mappés dans `src/design/tailwind-theme.css`
 supprimé le 2026-07-20, remplacé par `FloatingPanel`
 (panneaux déplaçables/repliables/dockables), lui-même **supprimé le
 2026-07-20/21** et remplacé par `PanelColumn`/`DockedPanelCard`
-(`src/components/dockedPanel/`, dock fixe + splitter `react-resizable-panels`
+(`src/components/dockedPanel/`, dock fixe **content-sized**, sans splitter —
+`react-resizable-panels` a ete RETIRE le 2026-07-21 par `0efdfe4` : chaque carte
+prend la hauteur de son contenu et c'est la colonne qui defile
 — voir `docs/superpowers/specs/2026-07-20-shaderlab-docked-panels-design.md`)
 — ne plus citer `FloatingPanel`/`src/components/floatingPanel/` comme
 composant existant ou à migrer, le dossier n'existe plus. Voir aussi

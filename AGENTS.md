@@ -53,8 +53,10 @@
 > erreur ; position Réglages suppose Calques toujours à hauteur max). Suite
 > à la demande d'Antoine de rapprocher l'UI de Photoshop en ligne, `FloatingPanel`
 > (drag libre + magnétisme + nudge clavier) a été **REMPLACÉ** le 2026-07-20/21
-> par `PanelColumn`/`DockedPanelCard` (dock fixe à droite, splitter vertical
-> `react-resizable-panels`) : plan `docs/superpowers/plans/2026-07-20-shaderlab-docked-panels.md`
+> par `PanelColumn`/`DockedPanelCard` (dock fixe à droite ; le splitter vertical
+> `react-resizable-panels` de ce plan a ensuite été RETIRÉ le 2026-07-21 par
+> `0efdfe4` au profit de cartes dimensionnées par leur contenu) :
+> plan `docs/superpowers/plans/2026-07-20-shaderlab-docked-panels.md`
 > (8 tâches, review-clean, `src/components/floatingPanel/` entièrement
 > supprimé). Le checkpoint visuel humain (Task 8) a été fait via CDP +
 > confirmation Antoine EN DIRECT dans la conversation — 3 demandes de suite
@@ -147,7 +149,9 @@ semantic,components}.css`, mappés dans `src/design/tailwind-theme.css`
 supprimé le 2026-07-20, remplacé par `FloatingPanel`
 (panneaux déplaçables/repliables/dockables), lui-même **supprimé le
 2026-07-20/21** et remplacé par `PanelColumn`/`DockedPanelCard`
-(`src/components/dockedPanel/`, dock fixe + splitter `react-resizable-panels`
+(`src/components/dockedPanel/`, dock fixe **content-sized**, sans splitter —
+`react-resizable-panels` a ete RETIRE le 2026-07-21 par `0efdfe4` : chaque carte
+prend la hauteur de son contenu et c'est la colonne qui defile
 — voir `docs/superpowers/specs/2026-07-20-shaderlab-docked-panels-design.md`)
 — ne plus citer `FloatingPanel`/`src/components/floatingPanel/` comme
 composant existant ou à migrer, le dossier n'existe plus. Voir aussi

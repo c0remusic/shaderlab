@@ -59,15 +59,22 @@
 
 .docked-panel-card__content {
   padding: var(--space-5);
-  max-height: 42vh;
-  overflow-y: auto;
-  /* Explicite, jamais laisse a la valeur calculee : des qu'un axe n'est plus
-   * `visible`, CSS force l'autre a `auto`. Un panneau dont le contenu deborde
-   * de quelques pixels gagnait donc une barre horizontale que personne n'avait
-   * demandee, laquelle rognait 15px de hauteur utile. La largeur du dock est
-   * fixee par le splitter : un contenu de panneau doit s'y plier, pas defiler
-   * lateralement. */
-  overflow-x: hidden;
+  /* PAS de max-height ni d'overflow-y ici : le dock est content-sized depuis
+   * 0efdfe4 (le splitter react-resizable-panels a ete retire), et
+   * `.panel-column__stack` est deja un conteneur defilant. Un second
+   * defilement a ce niveau empilait deux scrollers sur le meme axe dans la
+   * meme chaine d'ancetres — la molette faisait defiler la carte, puis la
+   * colonne en butee — et le plafond a 42vh tronquait une pile longue meme
+   * quand l'ecran avait de la place. Une carte prend donc la hauteur de son
+   * contenu ; c'est la colonne qui defile. */
+  /* `clip` et NON `hidden` : `hidden` sur un seul axe force l'autre a `auto`
+   * par coercition CSS, ce qui recreerait ici le second scroller vertical
+   * qu'on vient justement de retirer. `clip` ne coerce pas.
+   * Un panneau dont le contenu debordait de quelques pixels gagnait sinon une
+   * barre horizontale que personne n'avait demandee, laquelle rognait 15px de
+   * hauteur utile. La largeur d'une colonne est imposee par le dock : un
+   * contenu de panneau doit s'y plier, pas defiler lateralement. */
+  overflow-x: clip;
 }
 
 .docked-panel-card--dragging { opacity: var(--dragging-opacity); }

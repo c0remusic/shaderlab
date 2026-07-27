@@ -3,7 +3,7 @@ import { usePointerReorder, type DropPosition } from "../ui/dragReorder";
 import "../ui/dragReorder.css";
 import { Eye, EyeOff, GripVertical, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
-import { isLayerVisible } from "../layers/isolation";
+import { eyeButtonLabels, isLayerVisible, isolationRole, type IsolationRole } from "../layers/isolation";
 import { effectRegistry, getEffect } from "../render/effects/registry";
 import { PASSTHROUGH_EFFECT } from "../render/effectPassRunner";
 import { blendRegistry } from "../render/blend/registry";
@@ -49,9 +49,13 @@ interface LayerRowProps {
    *  Booléen déjà calculé plutôt que l'id isolé, pour ne pas casser la
    *  mémoïsation de la ligne (`memo`) sur un calque non concerné. */
   visible: boolean;
-  /** Vrai dès qu'UN calque est isolé (pas forcément celui-ci) : pendant
-   *  l'isolation, un clic simple sur n'importe quel œil en SORT. */
-  isolationActive: boolean;
+  /** Rôle de CE calque dans l'isolation en cours (`none`/`isolated`/`other`) :
+   *  pendant l'isolation, un clic simple sur n'importe quel œil en SORT, mais
+   *  l'Alt+clic ne fait pas la même chose sur le calque isolé et sur les
+   *  autres — voir `eyeButtonLabels`. Valeur déjà réduite à ce calque plutôt
+   *  que l'id isolé, pour ne pas casser la mémoïsation de la ligne (`memo`)
+   *  sur un calque non concerné. */
+  role: IsolationRole;
   onSelect: (id: string) => void;
   onToggle: (id: string, altKey: boolean) => void;
   onRemove: (id: string) => void;
@@ -84,7 +88,7 @@ const LayerRow = memo(function LayerRow({
   isDragging,
   dropPosition,
   visible,
-  isolationActive,
+  role,
   onSelect,
   onToggle,
   onRemove,
@@ -100,6 +104,12 @@ const LayerRow = memo(function LayerRow({
   // (c'est-à-dire tous les calques d'effet, inchangés).
   const displayName = layer.name ?? getEffect(layer.effectId).name;
   const thumbnail = layer.imageSource ? thumbnailUrl?.(layer.imageSource.sourceId) ?? null : null;
+  // Libellés du bouton œil : dérivés de l'état réel par une fonction pure
+  // (testée dans test/layers/isolation.test.ts), jamais écrits en dur ici —
+  // pendant l'isolation, le clic simple et l'Alt+clic ne font pas la même chose
+  // selon la ligne, et une infobulle qui annonce la mauvaise action est pire
+  // qu'une absence d'infobulle.
+  const eyeLabels = eyeButtonLabels(visible, role);
   const rowClass = [
     "layer-panel__row",
     selected && "layer-panel__row--selected",
@@ -132,14 +142,8 @@ const LayerRow = memo(function LayerRow({
             // clic simple sert à en sortir : le libellé dit donc ce que le clic
             // fait réellement, jamais "Masquer/Afficher" sur une valeur que
             // l'utilisateur ne voit pas (voir `eyeClickOutcome`).
-            label={isolationActive ? "Quitter l'isolation" : visible ? "Masquer le calque" : "Afficher le calque"}
-            // Découvrabilité du geste : un Alt+clic est invisible, l'infobulle
-            // est le seul endroit où l'annoncer sans alourdir la ligne.
-            tooltip={
-              isolationActive
-                ? "Quitter l'isolation · Alt+clic : isoler ce calque"
-                : `${visible ? "Masquer le calque" : "Afficher le calque"} · Alt+clic : isoler ce calque`
-            }
+            label={eyeLabels.label}
+            tooltip={eyeLabels.tooltip}
             size="compact"
             onClick={(e) => {
               e.stopPropagation();
@@ -269,7 +273,7 @@ export function LayerPanel({
             index={index}
             selected={layer.id === selectedId}
             visible={isLayerVisible(layer, isolatedLayerId)}
-            isolationActive={isolatedLayerId !== null}
+            role={isolationRole(layer.id, isolatedLayerId)}
             isDragging={dragState?.draggedId === layer.id}
             dropPosition={
               dragState !== null && dragState.overIndex === index && dragState.draggedId !== layer.id

@@ -57,6 +57,45 @@ export function reconcileIsolation(isolatedLayerId: string | null, layerIds: str
   return layerIds.includes(isolatedLayerId) ? isolatedLayerId : null;
 }
 
+/** Rôle d'un calque vis-à-vis de l'isolation en cours. Tri-état plutôt que deux
+ *  booléens (« isolation active » + « c'est celui-là ») : la combinaison
+ *  impossible n'est alors pas représentable. */
+export type IsolationRole = "none" | "isolated" | "other";
+
+/** Rôle d'un calque donné dans l'isolation courante. */
+export function isolationRole(layerId: string, isolatedLayerId: string | null): IsolationRole {
+  if (isolatedLayerId === null) return "none";
+  return isolatedLayerId === layerId ? "isolated" : "other";
+}
+
+export interface EyeButtonLabels {
+  /** `aria-label` du bouton : ce que le CLIC SIMPLE fait, rien d'autre. */
+  label: string;
+  /** Infobulle : le clic simple, puis l'Alt+clic seulement quand il fait
+   *  autre chose. */
+  tooltip: string;
+}
+
+/**
+ * Libellés du bouton œil, dérivés de l'état RÉEL. L'Alt+clic étant invisible,
+ * l'infobulle est le seul endroit où l'annoncer — mais elle doit annoncer ce
+ * que le geste fait ICI : sur le calque isolé, Alt+clic QUITTE l'isolation
+ * (`eyeClickOutcome`), donc y écrire « isoler ce calque » décrirait la mauvaise
+ * action. Sur ce calque-là, clic simple et Alt+clic font la même chose : une
+ * seule mention, pas une clause redondante.
+ */
+export function eyeButtonLabels(visible: boolean, role: IsolationRole): EyeButtonLabels {
+  if (role === "isolated") return { label: "Quitter l'isolation", tooltip: "Quitter l'isolation" };
+  if (role === "other") {
+    return {
+      label: "Quitter l'isolation",
+      tooltip: "Quitter l'isolation · Alt+clic : isoler ce calque",
+    };
+  }
+  const label = visible ? "Masquer le calque" : "Afficher le calque";
+  return { label, tooltip: `${label} · Alt+clic : isoler ce calque` };
+}
+
 /** Ce qu'un clic sur l'œil doit produire, séparé de son exécution pour être
  *  testable (aucun test ne rend de composant React sur ce projet). */
 export interface EyeClickOutcome {

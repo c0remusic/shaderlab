@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
+  eyeButtonLabels,
   eyeClickOutcome,
   isLayerVisible,
+  isolationRole,
   projectIsolation,
   reconcileIsolation,
 } from "../../src/layers/isolation";
@@ -107,5 +109,59 @@ describe("eyeClickOutcome", () => {
   it("clic simple pendant l'isolation en sort SANS basculer la visibilité", () => {
     expect(eyeClickOutcome("a", "b", false)).toEqual({ isolatedLayerId: null, toggleEnabled: false });
     expect(eyeClickOutcome("a", "a", false)).toEqual({ isolatedLayerId: null, toggleEnabled: false });
+  });
+});
+
+describe("isolationRole", () => {
+  it("rend « none » hors isolation", () => {
+    expect(isolationRole("a", null)).toBe("none");
+  });
+
+  it("distingue le calque isolé des autres", () => {
+    expect(isolationRole("a", "a")).toBe("isolated");
+    expect(isolationRole("b", "a")).toBe("other");
+  });
+});
+
+describe("eyeButtonLabels", () => {
+  it("hors isolation, annonce la bascule de visibilité et l'entrée en isolation", () => {
+    expect(eyeButtonLabels(true, "none")).toEqual({
+      label: "Masquer le calque",
+      tooltip: "Masquer le calque · Alt+clic : isoler ce calque",
+    });
+    expect(eyeButtonLabels(false, "none")).toEqual({
+      label: "Afficher le calque",
+      tooltip: "Afficher le calque · Alt+clic : isoler ce calque",
+    });
+  });
+
+  // Le défaut corrigé : sur le calque ISOLÉ, l'Alt+clic QUITTE l'isolation
+  // (eyeClickOutcome("a","a",true) -> null), donc l'infobulle ne doit surtout
+  // pas y annoncer « isoler ce calque ».
+  it("sur le calque isolé, n'annonce QUE la sortie d'isolation", () => {
+    expect(eyeButtonLabels(true, "isolated")).toEqual({
+      label: "Quitter l'isolation",
+      tooltip: "Quitter l'isolation",
+    });
+    expect(eyeButtonLabels(true, "isolated").tooltip).not.toContain("isoler ce calque");
+  });
+
+  it("sur un autre calque, annonce la sortie et le déplacement de l'isolation", () => {
+    expect(eyeButtonLabels(false, "other")).toEqual({
+      label: "Quitter l'isolation",
+      tooltip: "Quitter l'isolation · Alt+clic : isoler ce calque",
+    });
+  });
+
+  it("l'infobulle décrit toujours ce que l'Alt+clic fait réellement", () => {
+    for (const [role, layerId, isolated] of [
+      ["none", "a", null],
+      ["isolated", "a", "a"],
+      ["other", "b", "a"],
+    ] as const) {
+      const annonceIsolation = eyeButtonLabels(true, role).tooltip.includes("Alt+clic : isoler ce calque");
+      const isoleVraiment = eyeClickOutcome(isolated, layerId, true).isolatedLayerId === layerId;
+      expect(annonceIsolation).toBe(isoleVraiment);
+    }
   });
 });

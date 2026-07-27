@@ -63,6 +63,15 @@
   --rail-item-size: var(--toolbar-height);
   --rail-width: calc(var(--rail-item-size) + (var(--space-2) * 2));
 
+  /* Plancher de compression d'une carte dockée : ce qu'il doit rester de
+     CONTENU visible quand la colonne comprime la carte — une ligne pleine
+     (--layer-row-height) plus le padding vertical de la zone de contenu
+     (--space-5 en haut et en bas). En dessous, une carte comprimée n'affiche
+     plus une seule ligne entière et sa barre de défilement ne mène nulle
+     part. La partie INCOMPRESSIBLE (barre de titre + en-tête) n'est pas ici :
+     elle est mesurée à l'exécution, voir PanelColumn.tsx. */
+  --dock-card-content-min-height: calc(var(--layer-row-height) + (var(--space-5) * 2));
+
   /* ColorPickerPanel — --color-picker-sv-size est DUPLIQUÉ en constante JS
      (SV_SIZE, ColorPickerPanel.tsx) : un <canvas> exige ses dimensions en
      attributs numériques, pas en CSS. Les deux doivent bouger ensemble. */

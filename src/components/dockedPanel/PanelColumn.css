@@ -60,7 +60,30 @@
   display: flex;
   flex-direction: column;
   flex: 0 1 auto;
-  min-height: 0;
+  /* `min-height` est posé juste en dessous : sa valeur vaut 0 tant que les
+     hauteurs mesurées sont absentes, c'est donc bien elle qui porte à la fois
+     le déblocage de la compression et son plancher. */
+}
+
+/* PLANCHER de compression (2026-07-27). `min-height: 0` seul laisse la carte
+   descendre jusqu'à 0 : `overflow: hidden` sur .docked-panel-card met déjà sa
+   taille minimale automatique à zéro, donc en fenêtre courte la carte est
+   écrasée SOUS sa barre de titre + son en-tête (mesuré : carte à 0px pour une
+   barre de titre de 44px et un en-tête de 120px — en-tête rogné, liste
+   inatteignable, contenu à 24px sans barre utile).
+   CSS ne sait pas calculer ce plancher seul : `min-height: min-content`
+   remonte la hauteur ENTIÈRE du contenu (mesuré : 804px au lieu de 164px),
+   parce que le min-content d'un conteneur défilant n'est pas nul en Chromium.
+   Les deux hauteurs sont donc MESURÉES à l'exécution par PanelColumn.tsx :
+   --dock-card-chrome-height (barre de titre + en-tête, incompressibles) et
+   --dock-card-content-height (hauteur naturelle du contenu). Le `min()` borne
+   le plancher à la hauteur réelle du contenu : une carte plus courte que le
+   plancher n'est jamais GONFLÉE par lui. */
+.panel-column__item {
+  min-height: calc(
+    var(--dock-card-chrome-height, 0px) +
+    min(var(--dock-card-content-height, 0px), var(--dock-card-content-min-height))
+  );
 }
 
 .panel-column__alignment-guide--vertical {

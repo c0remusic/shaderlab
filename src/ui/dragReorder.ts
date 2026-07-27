@@ -116,19 +116,44 @@ export function usePointerReorder<T>(
   // avant/après.
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
+      // Lectures DOM faites AVANT l'updater : `e.currentTarget` est remis à
+      // null par React dès que le handler rend la main, et l'updater peut être
+      // évalué plus tard.
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const rowEl = el?.closest<HTMLElement>(`[${indexAttribute}]`) ?? null;
+      // BUTOIR (2026-07-27) : survoler le CONTENEUR sans être sur une ligne
+      // réordonnable — une gouttière entre deux lignes, ou une ligne non
+      // déplaçable comme l'arrière-plan verrouillé de la liste des calques — ne
+      // doit PAS effacer la cible de dépôt. Elle l'effaçait : l'indicateur
+      // disparaissait et le relâchement annulait le geste SANS RIEN DIRE, ce
+      // qui est un échec silencieux. La dernière position valide tient lieu de
+      // butée, donc le dépôt aboutit là où l'indicateur le montrait encore.
+      // Choix assumé plutôt que « traiter le relâchement comme un dépôt en
+      // position extrême » : une zone sans cible ne doit pas INVENTER une
+      // destination que l'utilisateur n'a pas visée — et en pratique les deux
+      // convergent, la dernière position valide au-dessus de l'arrière-plan
+      // ÉTANT la position la plus basse de la pile.
+      // Sortir complètement du conteneur, en revanche, efface bien la cible :
+      // c'est le seul geste par lequel l'utilisateur peut encore renoncer.
+      const insideContainer = el !== null && e.currentTarget.contains(el);
+      const rect = rowEl?.getBoundingClientRect() ?? null;
+      const overPosition: DropPosition | null =
+        rect === null ? null : e.clientY - rect.top < rect.height / 2 ? "before" : "after";
+      const overIndex = rowEl === null ? null : Number(rowEl.getAttribute(indexAttribute));
       setDragState((prev) => {
         if (!prev || e.pointerId !== prev.pointerId) return prev;
-        const el = document.elementFromPoint(e.clientX, e.clientY);
-        const rowEl = el?.closest<HTMLElement>(`[${indexAttribute}]`);
         const pointerPosition = { x: e.clientX, y: e.clientY };
-        if (!rowEl) {
-          return prev.overIndex === null && prev.pointerPosition.x === pointerPosition.x && prev.pointerPosition.y === pointerPosition.y
-            ? prev
+        if (rowEl === null) {
+          const next = insideContainer
+            ? { ...prev, pointerPosition }
             : { ...prev, overIndex: null, overPosition: null, pointerPosition };
+          return next.overIndex === prev.overIndex &&
+            next.overPosition === prev.overPosition &&
+            prev.pointerPosition.x === pointerPosition.x &&
+            prev.pointerPosition.y === pointerPosition.y
+            ? prev
+            : next;
         }
-        const overIndex = Number(rowEl.getAttribute(indexAttribute));
-        const rect = rowEl.getBoundingClientRect();
-        const overPosition: DropPosition = e.clientY - rect.top < rect.height / 2 ? "before" : "after";
         return { ...prev, overIndex, overPosition, pointerPosition };
       });
     },

@@ -21,3 +21,34 @@ export function documentFileName(sourcePath: string | null | undefined): string 
   const segments = sourcePath.split(/[\\/]/).filter((segment) => segment.length > 0);
   return segments.length > 0 ? segments[segments.length - 1] : null;
 }
+
+/** Libellé de repli quand un document est ouvert par un chemin qui ne fournit
+ *  AUCUN nom. Il est affiché, jamais silencieux : la ligne d'arrière-plan doit
+ *  exister dès qu'un document est chargé — un document sans nom reste un
+ *  document, et le faire disparaître de la liste est précisément le défaut que
+ *  cette ligne était censée corriger. */
+export const UNTITLED_DOCUMENT_NAME = "Document sans titre";
+
+/**
+ * Nom AFFICHABLE du document, quel que soit le chemin d'ouverture. Toujours une
+ * chaîne : jamais `null`, donc jamais une ligne d'arrière-plan escamotée.
+ *
+ * Les trois chemins d'ouverture ne fournissent pas la même chose :
+ *  - lancement Lightroom (`getLaunchPath`) et dialogue Ouvrir (`pick_image_file`)
+ *    donnent un CHEMIN disque complet ;
+ *  - le GLISSER-DÉPOSER sur le canvas ne donne qu'un `File`, dont seul `name`
+ *    est exploitable — le navigateur ne divulgue jamais le chemin. C'est ce
+ *    chemin d'ouverture qui faisait disparaître la ligne d'arrière-plan, alors
+ *    que c'est le plus courant.
+ *
+ * `documentFileName` est appliqué AUSSI à `fileName` : un `File.name` est
+ * normalement un nom nu, mais un dossier déposé ou un `File` fabriqué peut en
+ * porter un préfixé — l'y passer coûte une ligne et évite d'afficher un chemin
+ * là où on attend un nom.
+ */
+export function documentDisplayName(
+  sourcePath: string | null | undefined,
+  fileName: string | null | undefined,
+): string {
+  return documentFileName(sourcePath) ?? documentFileName(fileName) ?? UNTITLED_DOCUMENT_NAME;
+}

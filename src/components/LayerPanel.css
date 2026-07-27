@@ -99,12 +99,39 @@
   color: var(--text-tertiary);
 }
 
+/* SÉLECTION (décision Antoine sur maquette, 2026-07-27) : lavis 24% de
+   l'accent + barre 2px + nom en medium. Le fond seul ne suffit pas — il valait
+   auparavant --surface-hover, donc sélectionné et survolé étaient
+   INDISTINGUABLES dès que l'écart de hauteur entre les deux états a disparu.
+   Trois signaux, dont un NON COLORÉ (la graisse du nom) : une sélection ne
+   repose jamais sur la couleur seule. */
 .layer-panel__row--selected {
-  /* Sélectionné = le même fond que le hover, mais en permanence (pas
-     besoin du curseur dessus) — pas de barre d'accent ni de fond plus
-     marqué que --surface-hover. */
-  background: var(--surface-hover);
+  background: var(--surface-selected-accent);
   color: var(--text-primary);
+}
+
+/* La barre est en pseudo-élément à `left: 0` : elle couvre la ligne ENTIÈRE,
+   donc l'indentation d'un calque écrêté (padding, jamais marge) ne peut pas la
+   décaler ni la casser. Coins arrondis côté gauche seulement, pour épouser le
+   --radius-control de la ligne au lieu de dépasser de sa courbe. */
+.layer-panel__row--selected::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--selection-bar-width);
+  background: var(--selection-accent);
+  border-radius: var(--radius-control) 0 0 var(--radius-control);
+}
+
+/* Survol d'une ligne DÉJÀ sélectionnée : on garde le lavis tel quel.
+   `.layer-panel__row:hover` a une spécificité plus forte que
+   `.layer-panel__row--selected` et lui reprendrait sinon son fond — et
+   éclaircir le lavis au survol ferait retomber la barre sous 3:1 (mesuré
+   2,94:1 à 30%). */
+.layer-panel__row--selected:hover {
+  background: var(--surface-selected-accent);
 }
 
 .layer-panel__row--dragging {
@@ -170,6 +197,9 @@
   color: var(--text-secondary);
 }
 
+/* Signal NON COLORÉ de la sélection : la graisse. Sans lui, le marquage
+   reposerait entièrement sur la couleur (lavis + barre). */
 .layer-panel__row-name--selected {
   color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
 }

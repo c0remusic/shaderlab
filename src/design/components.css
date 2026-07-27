@@ -47,6 +47,11 @@
   --slider-thumb-size: 12px;
   --slider-value-width: 9ch;
 
+  /* Barre de sélection d'une ligne de liste — 2px pleins, l'épaisseur qui
+     porte le contraste (3,24:1 contre le lavis) ; en dessous elle se lit comme
+     un liseré et le seuil UI 3:1 n'a plus de surface pour s'appliquer. */
+  --selection-bar-width: 2px;
+
   --checkbox-size: var(--icon-size-md);
   --progress-height: 4px;
 

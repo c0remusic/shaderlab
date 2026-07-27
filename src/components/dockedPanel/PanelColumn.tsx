@@ -23,7 +23,8 @@ export interface DockedPanelSpec {
    *  Ce que le drapeau décide (2026-07-27, corrigé le même jour) : le RANG
    *  auquel la carte cède de la hauteur, et son PLANCHER.
    *  - `true`  : cède EN PREMIER, jusqu'à un plancher de plusieurs lignes
-   *              entières (--dock-card-list-min-height) — une liste défile
+   *              entières (--dock-card-list-rows-height, plus le coût mesuré
+   *              de ce qui vit à côté de la liste) — une liste défile
    *              chez elle, c'est son mode normal.
    *  - `false` : cède ENSUITE seulement, jusqu'à une ligne
    *              (--dock-card-content-min-height).
@@ -110,6 +111,7 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
         if (!titlebar) {
           item.style.removeProperty("--dock-card-chrome-height");
           item.style.removeProperty("--dock-card-content-height");
+          item.style.removeProperty("--dock-card-list-extra-height");
           continue;
         }
         // Le CHROME est publié même sur une carte REPLIÉE (2026-07-27) : sans
@@ -122,6 +124,28 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
         // repliée à la hauteur d'une ligne fantôme.
         setVar(item, "--dock-card-chrome-height", titlebar.offsetHeight + (header?.offsetHeight ?? 0));
         setVar(item, "--dock-card-content-height", content?.scrollHeight ?? 0);
+        // COÛT DU HORS-LISTE (2026-07-27) : le plancher promettait N lignes et
+        // n'en montrait que N-1, parce que la zone défilante ne contient pas
+        // QUE la liste — dans le panneau Effets, le sélecteur « Ajouter un
+        // effet » y vit aussi et lui prend sa hauteur (label + gouttière +
+        // contrôle), plus le padding de la zone. Le plancher ne comptait rien
+        // de tout ça, donc la promesse était fausse d'exactement ce montant.
+        // Mesuré plutôt que codé en dur : ce coût dépend de ce que chaque
+        // panneau met à côté de sa liste, CSS ne peut pas le déduire, et une
+        // constante devrait être révisée à chaque contrôle ajouté ou retiré.
+        // La différence est prise sur les hauteurs NATURELLES (scrollHeight du
+        // contenu, offsetHeight de la liste qui déborde librement), donc elle
+        // est indépendante de la compression en cours.
+        const list = content?.querySelector<HTMLElement>("[data-dock-list]") ?? null;
+        if (content && list) {
+          setVar(item, "--dock-card-list-extra-height", Math.max(0, content.scrollHeight - list.offsetHeight));
+        } else {
+          // Panneau sans liste marquée : la propriété reste absente et CSS
+          // retombe sur son défaut (le padding de la zone de contenu, seul
+          // coût connu sans mesure) — comportement d'avant ce correctif, pas
+          // un plancher à zéro.
+          item.style.removeProperty("--dock-card-list-extra-height");
+        }
       }
     };
     measure();

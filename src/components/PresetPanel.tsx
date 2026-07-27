@@ -127,7 +127,13 @@ export function PresetPanel({ summaries, hasLayers, onSave, onRename, onApply, o
       {summaries.length === 0 ? (
         <p className="preset-panel__empty">Aucun preset enregistré.</p>
       ) : (
-        <ul className="preset-panel__list">
+        <ul
+          // `data-dock-list` : voir PanelColumn.tsx § COÛT DU HORS-LISTE — les
+          // boutons Enregistrer/Importer vivent dans la même boîte défilante et
+          // ne doivent pas être décomptés du plancher de lignes.
+          data-dock-list=""
+          className="preset-panel__list"
+        >
           {summaries.map((summary) =>
             editingId === summary.id ? (
               <li key={summary.id} className="preset-panel__row">

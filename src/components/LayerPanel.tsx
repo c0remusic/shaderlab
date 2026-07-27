@@ -412,6 +412,11 @@ export function LayerPanel({
         onChange={onAdd}
       />
       <ul
+        // `data-dock-list` : marque la LISTE dans la zone défilante de la
+        // carte, pour que le plancher de compression compte séparément les
+        // lignes et ce qui vit à côté d'elles — ici le sélecteur
+        // « Ajouter un effet ». Voir PanelColumn.tsx § COÛT DU HORS-LISTE.
+        data-dock-list=""
         className="layer-panel__list"
         onPointerMove={dragState ? handlePointerMove : undefined}
         onPointerUp={dragState ? handlePointerUp : undefined}

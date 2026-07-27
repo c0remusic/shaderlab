@@ -75,7 +75,13 @@
      plus une seule ligne entière et sa barre de défilement ne mène nulle
      part. La partie INCOMPRESSIBLE (barre de titre + en-tête) n'est pas ici :
      elle est mesurée à l'exécution, voir PanelColumn.tsx. */
-  --dock-card-content-min-height: calc(var(--layer-row-height) + (var(--space-5) * 2));
+  /* Padding vertical (haut + bas) de la zone de contenu d'une carte dockée —
+     nommé parce que les DEUX planchers ci-dessous le comptent, et parce que
+     c'est le repli de --dock-card-list-extra-height quand aucune liste n'est
+     marquée (voir PanelColumn.css § Plancher d'une carte à LISTE). */
+  --dock-card-content-padding: calc(var(--space-5) * 2);
+
+  --dock-card-content-min-height: calc(var(--layer-row-height) + var(--dock-card-content-padding));
 
   /* Plancher d'une carte à LISTE (calques, sources de masque, presets), exprimé
      en NOMBRE DE LIGNES visibles. Une ligne pleine ne suffit pas ici : une
@@ -85,14 +91,18 @@
      carte à contenu fixe gardait ses 382px intouchés).
      --dock-card-list-rows = 4 entrées : le minimum sous lequel la liste cesse
      de rendre son service. Le calcul reprend la géométrie réelle d'une ligne
-     (--layer-row-height + le padding de .layer-panel__row de part et d'autre),
-     les gouttières inter-lignes (n-1), et le padding vertical de la zone de
-     contenu. */
+     (--layer-row-height + le padding de .layer-panel__row de part et d'autre)
+     et les gouttières inter-lignes (n-1) — LES LIGNES SEULES, rien d'autre.
+     Le padding de la zone de contenu N'EST PLUS ici : il est compté avec le
+     reste du hors-liste par --dock-card-list-extra-height, mesuré à
+     l'exécution (PanelColumn.tsx). Il y était seul auparavant, et le plancher
+     promettait donc 4 lignes tout en en montrant 3 — le sélecteur
+     « Ajouter un effet », qui vit dans la même boîte défilante, prenait sa
+     hauteur sur la liste sans être compté. */
   --dock-card-list-rows: 4;
-  --dock-card-list-min-height: calc(
+  --dock-card-list-rows-height: calc(
     (var(--layer-row-height) + (var(--space-4) * 2)) * var(--dock-card-list-rows) +
-    var(--space-4) * (var(--dock-card-list-rows) - 1) +
-    var(--space-5) * 2
+    var(--space-4) * (var(--dock-card-list-rows) - 1)
   );
 
   /* ColorPickerPanel — --color-picker-sv-size est DUPLIQUÉ en constante JS

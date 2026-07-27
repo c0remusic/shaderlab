@@ -58,5 +58,17 @@ export function useLayerIsolation({ sessionRef, rendererRef, layers, toggleLayer
     [isolatedLayerId, toggleLayer]
   );
 
-  return { isolatedLayerId, handleEyeClick };
+  /** Bascule l'isolation d'un calque SANS souris (raccourci clavier). Réutilise
+   *  `eyeClickOutcome(..., altKey: true)` plutôt que de redéfinir la règle :
+   *  entrer, déplacer l'isolation, ou en sortir si c'est déjà ce calque — un
+   *  seul endroit décide, testé unitairement. Comme l'Alt+clic, ne touche ni au
+   *  modèle ni à l'historique (`toggleEnabled` est toujours faux sur ce chemin).
+   *  `null` (aucun calque sélectionné) = no-op : le raccourci n'a alors pas de
+   *  cible, et sortir de l'isolation « au passage » serait un effet surprise. */
+  const toggleIsolation = useCallback((id: string | null) => {
+    if (id === null) return;
+    setIsolatedLayerId((current) => eyeClickOutcome(current, id, true).isolatedLayerId);
+  }, []);
+
+  return { isolatedLayerId, handleEyeClick, toggleIsolation };
 }

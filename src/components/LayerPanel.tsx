@@ -1,9 +1,11 @@
 import { memo, useCallback, useMemo } from "react";
 import { usePointerReorder, type DropPosition } from "../ui/dragReorder";
 import "../ui/dragReorder.css";
-import { Copy, CornerLeftUp, Eye, EyeOff, GripVertical, Image as PhotoLayerIcon, Lock, Sparkles as EffectLayerIcon, Trash2 } from "lucide-react";
+import { Copy, CornerLeftDown, Eye, EyeOff, GripVertical, Image as PhotoLayerIcon, Lock, Sparkles as EffectLayerIcon, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
 import { eyeButtonLabels, isLayerVisible, isolationRole, isolationVisibleIds, type IsolationRole } from "../layers/isolation";
+import { resolveClipping } from "../layers/clipping";
+import { displayInsertToModelInsert, toDisplayOrder } from "./layerDisplayOrder";
 import { effectRegistry, getEffect } from "../render/effects/registry";
 import { PASSTHROUGH_EFFECT } from "../render/effectPassRunner";
 import { blendRegistry } from "../render/blend/registry";
@@ -60,6 +62,12 @@ export interface LayerHeaderProps {
 
 interface LayerRowProps {
   layer: LayerState;
+  /** Index de LIGNE AFFICHÉE (0 = première ligne, en haut), pas l'index dans
+   *  `layers` — la liste est le miroir du tableau depuis l'inversion du sens
+   *  d'affichage. C'est cette valeur que porte `data-layer-row-index`, sur
+   *  laquelle le glisser-déposer fait son hit-test ; la conversion vers le
+   *  modèle a lieu une seule fois, à la sortie du hook (voir
+   *  `layerDisplayOrder.ts`). */
   index: number;
   selected: boolean;
   isDragging: boolean;
@@ -75,6 +83,13 @@ interface LayerRowProps {
    *  que l'id isolé, pour ne pas casser la mémoïsation de la ligne (`memo`)
    *  sur un calque non concerné. */
   role: IsolationRole;
+  /** L'écrêtage de ce calque est-il EFFECTIF (une base photo existe sous lui) ?
+   *  Déjà résolu par `resolveClipping` côté panneau plutôt que dérivé de
+   *  `layer.clipToBelow` ici : l'attribut peut être posé sans qu'aucune base
+   *  n'existe (calque écrêté en bas de pile), auquel cas le rendu est linéaire
+   *  et la flèche ne doit pas apparaître. Booléen déjà réduit à ce calque pour
+   *  ne pas casser la mémoïsation de la ligne (`memo`). */
+  clipped: boolean;
   onSelect: (id: string) => void;
   onToggle: (id: string, altKey: boolean) => void;
   onDuplicate: (id: string) => void;
@@ -105,6 +120,7 @@ const LayerRow = memo(function LayerRow({
   dropPosition,
   visible,
   role,
+  clipped,
   onSelect,
   onToggle,
   onDuplicate,
@@ -129,7 +145,7 @@ const LayerRow = memo(function LayerRow({
   // ligne écrêtée y reste alignée sur les autres, seule une petite flèche
   // apparaît entre l'œil et la vignette. L'indentation avait été validée sur
   // une maquette qui la présentait à tort comme la convention Photoshop.
-  const clipped = layer.clipToBelow === true;
+  // `clipped` arrive RÉSOLU en prop — voir `LayerRowProps.clipped`.
   const rowClass = [
     "layer-panel__row",
     selected && "layer-panel__row--selected",
@@ -191,10 +207,14 @@ const LayerRow = memo(function LayerRow({
             <EffectLayerIcon className="layer-panel__row-nature icon-sm icon-stroke" aria-hidden="true" />
           )}
           {clipped && (
-            // La ligne de base est celle du DESSOUS dans la pile — donc
-            // JUSTE AU-DESSUS dans cette liste, qui affiche le bas de pile en
-            // premier. La flèche pointe vers elle : vers le haut de la liste.
-            <CornerLeftUp
+            // La ligne de base est celle du DESSOUS dans la pile. Depuis
+            // l'inversion du sens d'affichage (`layerDisplayOrder.ts`), elle
+            // est aussi celle du dessous dans la LISTE — la flèche pointe donc
+            // vers le BAS. Elle ne s'affiche que si une base EXISTE : un calque
+            // écrêté en bas de pile n'a rien sous lui, `resolveClipping` le
+            // rend `inert` (il rend linéairement), et une flèche qui désigne
+            // une base inexistante est un mensonge.
+            <CornerLeftDown
               className="layer-panel__clip-arrow icon-sm icon-stroke"
               role="img"
               aria-label="Écrêté sur le calque du dessous"
@@ -331,11 +351,39 @@ export function LayerPanel({
   thumbnailUrl,
   backgroundName = null,
 }: Props) {
+  // SENS D'AFFICHAGE (2026-07-27) : la liste est le MIROIR du tableau. Le
+  // modèle ne bouge pas — `layers[0]` reste le calque appliqué en premier, donc
+  // le bas de pile — mais il s'affiche en DERNIÈRE ligne, juste au-dessus de la
+  // ligne d'arrière-plan qu'il consomme, comme dans tous les éditeurs.
+  const displayLayers = useMemo(() => toDisplayOrder(layers), [layers]);
+
+  // Le glisser-déposer raisonne ENTIÈREMENT en espace d'affichage : le hook
+  // reçoit la liste affichée, `data-layer-row-index` porte l'index de LIGNE, et
+  // les indicateurs avant/après gardent donc leur sens visuel sans inversion.
+  // Une seule frontière convertit — ici, à la sortie du hook, par la fonction
+  // pure testée `displayInsertToModelInsert` (test/components/layerDisplayOrder.test.ts).
+  const handleReorderFromDisplay = useCallback(
+    (id: string, displayNewIndex: number) => {
+      onReorder(id, displayInsertToModelInsert(displayNewIndex, layers.length));
+    },
+    [onReorder, layers.length]
+  );
+
   const { dragState, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel } = usePointerReorder(
-    layers,
+    displayLayers,
     (layer) => layer.id,
     "data-layer-row-index",
-    onReorder
+    handleReorderFromDisplay
+  );
+
+  // Écrêtage EFFECTIF de toute la pile, calculé une fois par render. L'ensemble
+  // « rendu » passé ici est la pile ENTIÈRE : la flèche marque un ATTACHEMENT
+  // structurel, qui ne doit pas clignoter selon qu'un œil est fermé (même
+  // invariance que `clipBaseId`, voir src/layers/clipping.ts). Seul le cas
+  // `inert` — aucune base photo en dessous — retire la flèche.
+  const clipResolutions = useMemo(
+    () => resolveClipping(layers, new Set(layers.map((l) => l.id))),
+    [layers]
   );
 
   // Visibilité effective de TOUTE la pile, calculée une fois par render plutôt
@@ -369,17 +417,18 @@ export function LayerPanel({
         onPointerUp={dragState ? handlePointerUp : undefined}
         onPointerCancel={dragState ? handlePointerCancel : undefined}
       >
-        {layers.map((layer, index) => (
+        {displayLayers.map((layer, displayRow) => (
           <LayerRow
             key={layer.id}
             layer={layer}
-            index={index}
+            index={displayRow}
             selected={layer.id === selectedId}
             visible={isLayerVisible(layer, visibleIds)}
             role={isolationRole(layer.id, isolatedLayerId)}
+            clipped={clipResolutions.get(layer.id)?.kind === "active"}
             isDragging={dragState?.draggedId === layer.id}
             dropPosition={
-              dragState !== null && dragState.overIndex === index && dragState.draggedId !== layer.id
+              dragState !== null && dragState.overIndex === displayRow && dragState.draggedId !== layer.id
                 ? dragState.overPosition
                 : null
             }

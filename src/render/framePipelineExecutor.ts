@@ -1,9 +1,29 @@
 import type { LayerState } from "../layers/types";
+import { resolveClipping, type ClipResolution } from "../layers/clipping";
 import { defaultLayerMask } from "../mask/types";
 import { getEffect } from "./effects/registry";
 import { PASSTHROUGH_EFFECT } from "./effectPassRunner";
 
 type FrameResource = GPUTexture | GPUBuffer;
+
+/** Descripteur de calque NEUTRE d'une passe qui doit se contenter de recopier
+ *  son entrée : opacité pleine, fusion normale, masque par défaut, aucun
+ *  paramètre. Sert au court-circuit « 0 calque activé » et à la neutralisation
+ *  d'un calque écrêté `suppressed` (design 2026-07-27 §3.4) — dans les deux cas
+ *  couplé à `PASSTHROUGH_EFFECT`, dont le `fs_main` rend son entrée telle
+ *  quelle : le mix de compositing ramène alors `color` quel que soit le masque
+ *  résolu. */
+function neutralPassLayer(): LayerState {
+  return {
+    id: "",
+    effectId: "",
+    params: {},
+    enabled: true,
+    opacity: 1,
+    blendMode: "normal",
+    mask: defaultLayerMask(),
+  };
+}
 
 /** The persistent colour textures required to encode one frame. */
 export interface FrameResourcesPort {
@@ -19,7 +39,7 @@ export interface EffectPassesPort {
     layer: LayerState,
     sourceView: GPUTextureView,
     targetView: GPUTextureView,
-    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null; guideEpoch?: number; imageSourceView?: GPUTextureView | null },
+    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null; guideEpoch?: number; imageSourceView?: GPUTextureView | null; clipCoverageView?: GPUTextureView | null },
     pendingDestroy: FrameResource[],
   ): void;
   runInternalPasses(
@@ -165,15 +185,7 @@ export class FramePipelineExecutor {
       this.effects.runEffectPass(
         encoder,
         PASSTHROUGH_EFFECT,
-        {
-          id: "",
-          effectId: "",
-          params: {},
-          enabled: true,
-          opacity: 1,
-          blendMode: "normal",
-          mask: defaultLayerMask(),
-        },
+        neutralPassLayer(),
         sourceTexture.createView(),
         blitTarget ? blitTarget.createView() : finalTargetView,
         {},
@@ -201,6 +213,20 @@ export class FramePipelineExecutor {
       return this.submitAndDestroy(encoder, pendingDestroy, 0, blitTarget, overlayMaskTexture);
     }
 
+    // Écrêtage (design 2026-07-27 §3.2/§3.4) : l'attachement est STRUCTUREL
+    // (calculé sur la pile reçue, sans regarder `enabled`), l'effectivité
+    // dépend de ce que cette frame encode réellement — donc des calques
+    // activés APRÈS la projection d'isolation, qui a déjà eu lieu (renderer.ts).
+    const clipResolutions = resolveClipping(layers, new Set(enabledLayers.map((l) => l.id)));
+    // Vue de la cible photo déjà résolue, RETENUE d'une itération à l'autre :
+    // aucune passe, aucune texture, aucun octet de VRAM supplémentaires. Ce qui
+    // rend la rétention correcte est la garde « la photo est terminale »
+    // (layers/clipping.ts) : entre une base photo et le calque écrêté qui la
+    // consomme, la pile ne peut contenir que des calques écrêtés NON photo,
+    // donc aucun `photoInputs.resolve()` ne peut s'intercaler et re-`clear`er
+    // la cible partagée.
+    let clipCoverageView: GPUTextureView | null = null;
+
     let readTexture = sourceTexture;
     let writeIndex = 0;
     for (let index = 0; index < enabledLayers.length; index++) {
@@ -210,6 +236,35 @@ export class FramePipelineExecutor {
       const targetView = isLast && !overlayLayer
         ? finalTargetView
         : pingPong[writeIndex].createView();
+      const clip: ClipResolution = clipResolutions.get(layer.id) ?? { kind: "none" };
+
+      // Calque écrêté dont la base photo n'est pas rendue : il ne contribue
+      // pas, mais il RESTE dans la boucle, à son index, encodé en passe
+      // neutre. Le filtrer casserait tout ce que la boucle dérive de
+      // `enabledLayers` — `isLast`, le choix cible finale/ping-pong,
+      // `guideEpoch`, l'avance du ping-pong, l'index overlay et le compte
+      // remonté : si le DERNIER calque activé était sauté, plus aucune passe
+      // n'écrirait `finalTargetView`. Aucune option (donc aucune passe
+      // interne, aucun `masks.resolve` du calque) : le coût se réduit à une
+      // copie plein écran, sur le chemin déjà éprouvé du court-circuit
+      // « 0 calque activé ».
+      if (clip.kind === "suppressed") {
+        this.effects.runEffectPass(
+          encoder,
+          PASSTHROUGH_EFFECT,
+          neutralPassLayer(),
+          readTexture.createView(),
+          targetView,
+          {},
+          pendingDestroy,
+        );
+        clipCoverageView = null;
+        if (!isLast) {
+          readTexture = pingPong[writeIndex];
+          writeIndex = 1 - writeIndex;
+        }
+        continue;
+      }
 
       // Double exposure (ARCHITECTURE.md §4.3, approche C2) : un calque
       // portant `imageSource` ne doit JAMAIS voir le composite-en-dessous
@@ -241,6 +296,21 @@ export class FramePipelineExecutor {
         imageSourceView = resolved.createView();
       }
 
+      // Rétention : un calque photo POSE la couverture pour ce qui vient
+      // au-dessus, un écrêté `active` la CONSOMME et la CONSERVE (chaîne),
+      // tout autre calque la remet à null.
+      const clipView: GPUTextureView | null = clip.kind === "active" ? clipCoverageView : null;
+      if (clip.kind === "active" && clipView === null) {
+        // Invariant rompu : `active` signifie que la base photo est rendue et
+        // qu'elle précède ce calque sans qu'aucun calque non écrêté ne
+        // s'intercale. Lever plutôt que rendre linéairement en silence — un
+        // écrêtage qui « ne fait rien » serait invisible à l'œil nu.
+        throw new Error(
+          `Écrêtage: couverture absente pour le calque ${layer.id} (base ${clip.baseLayerId}) — invariant d'ordre des passes rompu.`,
+        );
+      }
+      clipCoverageView = layer.imageSource ? imageSourceView : clipView;
+
       let previousPass: { view: GPUTextureView; texture: GPUTexture } | null = null;
       if (effect.passes?.length) {
         previousPass = this.effects.runInternalPasses(
@@ -265,6 +335,10 @@ export class FramePipelineExecutor {
           applyMask: true,
           prevPassView: previousPass?.view,
           imageSourceView,
+          // Écrêté `active` : la couverture de la base photo borne le POIDS de
+          // compositing, sans toucher à l'entrée d'effet (qui reste le
+          // composite en dessous) — voir shaderCompose §clipToCoverage.
+          clipCoverageView: clipView,
           // 0 = image source stable (premier calque) ; sinon le composite
           // des calques en dessous, ré-encodé à chaque run() (voir champ
           // `runGeneration`).

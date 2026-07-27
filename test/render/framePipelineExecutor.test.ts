@@ -346,3 +346,137 @@ describe("FramePipelineExecutor", () => {
     expect(internalSourceView).not.toBe(source.createView.mock.results[0]?.value);
   });
 });
+
+// Écrêtage (design 2026-07-27 §3.3/§3.4). Ce qui est asséré ici est
+// l'IDENTITÉ des vues passées et l'ORDRE d'encodage — ce que le shader fait
+// ensuite de ces vues relève de shaderCompose.test.ts (texte du WGSL) et du
+// checkpoint visuel humain.
+describe("FramePipelineExecutor — écrêtage", () => {
+  function photo(id: string, sourceId: string, overrides: Partial<LayerState> = {}): LayerState {
+    return layer({
+      id,
+      effectId: "passthrough",
+      imageSource: { sourceId },
+      transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+      ...overrides,
+    });
+  }
+  const clipped = (id: string, overrides: Partial<LayerState> = {}) =>
+    layer({ id, clipToBelow: true, ...overrides });
+
+  it("(a) un écrêté reçoit LA MÊME vue que la photo qui le précède", () => {
+    const { executor, effects, photoInputs } = createExecutor();
+    (photoInputs.resolve as ReturnType<typeof vi.fn>).mockReturnValue(texture() as unknown as GPUTexture);
+
+    executor.run([photo("P", "photo-1"), clipped("C")], {} as GPUTextureView, null);
+
+    const calls = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[1][5].clipCoverageView).toBe(calls[0][5].imageSourceView);
+    // Le calque écrêté n'est PAS une photo : il ne doit pas recevoir la
+    // couverture comme entrée d'effet.
+    expect(calls[1][5].imageSourceView).toBeNull();
+  });
+
+  it("(b) deux écrêtés consécutifs reçoivent tous deux la couverture de la même base", () => {
+    const { executor, effects, photoInputs } = createExecutor();
+    (photoInputs.resolve as ReturnType<typeof vi.fn>).mockReturnValue(texture() as unknown as GPUTexture);
+
+    executor.run([photo("P", "photo-1"), clipped("C1"), clipped("C2")], {} as GPUTextureView, null);
+
+    const calls = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(3);
+    expect(calls[1][5].clipCoverageView).toBe(calls[0][5].imageSourceView);
+    expect(calls[2][5].clipCoverageView).toBe(calls[0][5].imageSourceView);
+  });
+
+  it("(c) un écrêté INERTE (base non-photo) ne reçoit aucune couverture et rend linéairement", () => {
+    const { executor, effects, photoInputs } = createExecutor();
+
+    executor.run([layer({ id: "X" }), clipped("C")], {} as GPUTextureView, null);
+
+    const calls = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[1][5].clipCoverageView).toBeNull();
+    expect(calls[1][5].applyMask).toBe(true);
+    expect(photoInputs.resolve).not.toHaveBeenCalled();
+  });
+
+  it("(d) un écrêté SUPPRIMÉ est encodé, en PASSTHROUGH_EFFECT, sans options ni passes internes", () => {
+    const { executor, effects } = createExecutor();
+    effects.runInternalPasses = vi.fn(() => ({ view: {} as GPUTextureView, texture: texture() as unknown as GPUTexture }));
+
+    executor.run(
+      // Base photo masquée -> l'écrêté est `suppressed`. `glow` a des passes
+      // internes : elles ne doivent PAS être encodées pour un calque neutralisé.
+      [photo("P", "photo-1", { enabled: false }), clipped("C", { effectId: "glow" })],
+      {} as GPUTextureView,
+      null,
+    );
+
+    const calls = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1].id).toBe("passthrough");
+    expect(calls[0][5]).toEqual({});
+    expect(effects.runInternalPasses).not.toHaveBeenCalled();
+  });
+
+  it("(e) l'ordre resolve(A) → passes(A) → passes(écrêtés de A) → resolve(B) est préservé", () => {
+    const { executor, effects, photoInputs } = createExecutor();
+    (photoInputs.resolve as ReturnType<typeof vi.fn>).mockReturnValue(texture() as unknown as GPUTexture);
+
+    executor.run(
+      [photo("A", "photo-1"), clipped("C"), photo("B", "photo-2")],
+      {} as GPUTextureView,
+      null,
+    );
+
+    const resolveOrder = (photoInputs.resolve as ReturnType<typeof vi.fn>).mock.invocationCallOrder;
+    const effectOrder = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.invocationCallOrder;
+    expect(resolveOrder).toHaveLength(2);
+    expect(effectOrder).toHaveLength(3);
+    // resolve(A) < passe(A) < passe(C, qui LIT encore la cible de A) < resolve(B)
+    expect(resolveOrder[0]).toBeLessThan(effectOrder[0]);
+    expect(effectOrder[0]).toBeLessThan(effectOrder[1]);
+    expect(effectOrder[1]).toBeLessThan(resolveOrder[1]);
+    expect(resolveOrder[1]).toBeLessThan(effectOrder[2]);
+  });
+
+  it("(f) la cible finale est écrite même quand le DERNIER calque activé est supprimé", () => {
+    const { executor, effects } = createExecutor();
+    const finalTargetView = {} as GPUTextureView;
+
+    const result = executor.run(
+      [photo("P", "photo-1", { enabled: false }), clipped("C")],
+      finalTargetView,
+      null,
+    );
+
+    const calls = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(1);
+    expect(calls[0][4]).toBe(finalTargetView);
+    // Le calque supprimé reste COMPTÉ : la boucle ne le filtre pas.
+    expect(result.enabledLayerCount).toBe(1);
+  });
+
+  it("le ping-pong avance quand même sur un calque supprimé (calque suivant lisible)", () => {
+    const { executor, effects, firstTarget } = createExecutor();
+    const finalTargetView = {} as GPUTextureView;
+
+    executor.run(
+      [photo("P", "photo-1", { enabled: false }), clipped("C"), layer({ id: "E" })],
+      finalTargetView,
+      null,
+    );
+
+    const calls = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(2);
+    // C écrit dans le ping-pong (1re vue de firstTarget), E lit ce même buffer
+    // (2e vue de firstTarget) puis écrit la cible finale. `createView()` rend
+    // un objet frais à chaque appel : c'est la TEXTURE d'origine qui compte.
+    const firstTargetViews = firstTarget.createView.mock.results.map((r) => r.value);
+    expect(calls[0][4]).toBe(firstTargetViews[0]);
+    expect(firstTargetViews).toContain(calls[1][3]);
+    expect(calls[1][4]).toBe(finalTargetView);
+  });
+});

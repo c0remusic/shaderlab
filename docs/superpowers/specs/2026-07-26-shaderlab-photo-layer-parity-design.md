@@ -5,6 +5,16 @@
 > n'est pas rediscuté ici.
 > Modèle imposé (non rediscutable) : **la photo EST un calque de plein droit**,
 > pas une ressource référencée par des calques.
+>
+> **AMENDÉ le 2026-07-27 — la barre contextuelle est SUPERSEDED.** Le design
+> `2026-07-27-shaderlab-panneau-photo-et-ecretage-design.md` (§3.7) remplace la
+> `PhotoLayerToolbar` prévue ici par un **5ᵉ panneau du dock, « Photo »**
+> (`src/components/PhotoPanel.tsx`), avec son icône au rail. Rien n'est perdu :
+> la barre n'a jamais été implémentée. Partout ci-dessous, lire
+> `PhotoLayerToolbar` → `PhotoPanel` et « barre contextuelle / barre de
+> transform » → « panneau Photo » — chaque occurrence est marquée
+> *[superseded 2026-07-27]* à son point d'usage. Le reste du document (T1, T3,
+> T4, T5, T6, géométrie, uniformes) est **inchangé et actif**.
 
 ## 1. Besoin (rappel, non négociable)
 
@@ -13,6 +23,7 @@ doit se comporter comme un calque Photoshop :
 
 1. Identité dans la pile : vignette + nom de fichier au lieu de « Passthrough ».
 2. Barre contextuelle avec valeurs numériques éditables : X, Y, échelle %, angle °.
+   *[superseded 2026-07-27 : c'est le panneau « Photo » du dock, pas une barre.]*
 3. Actions : réinitialiser, ajuster à la toile, centrer, snap d'angle.
 4. Flip horizontal / vertical.
 5. Recadrage (crop) du calque.
@@ -420,6 +431,12 @@ jumeau qu'il faudrait disposer en lockstep.
 
 ### 3.4 Surface UI
 
+*[superseded 2026-07-27 pour le CONTENANT uniquement : le mécanisme
+`useContextualPanel(isPhotoLayerSelected, selectedId)` est conservé tel quel,
+mais il monte le panneau « Photo » du dock (`PhotoPanel`) et non une barre
+entre `ErrorBanner` et `<main class="workspace">`. Le paragraphe « Montage »
+ci-dessous ne s'applique plus : le panneau ne pousse PAS le canvas.]*
+
 **Barre de transform : sur SÉLECTION, pas sur mode explicite.** Les poignées
 apparaissent déjà à la sélection sans mode (`App.tsx:1123`) ; imposer un mode
 contredirait cette affordance et ajouterait un clic sur l'action la plus
@@ -623,7 +640,7 @@ indépendante, parallélisable.
 | `src/layers/photoLayer.ts` | `MAX_PHOTO_LAYERS` révisé | inchangé en forme |
 | `src/render/photoSourceStore.ts` | `register()` devient async, compte les sources et échoue au plafond ; + `thumbnailUrl(sourceId)` ; `dispose()` révoque les URL | propriétaire unique du non-sérialisable |
 | `src/hooks/usePhotoLayer.ts` (nouveau) | possède `canvasMode`, `handleImportPhotoLayer`, `handleTransformChange/Commit`, puis les handlers d'action de T2/T3/T4 et `setLayerEffect` de T6 ; parle à `DocumentSession` | profond — modèle exact de `src/hooks/usePresets.ts` (211 lignes), remède prescrit par `ARCHITECTURE.md` §7 R6 |
-| `src/components/PhotoLayerToolbar.tsx` (nouveau) | props = transform + callbacks, zéro logique | mince, assumé (traduction UI) |
+| ~~`src/components/PhotoLayerToolbar.tsx` (nouveau)~~ *[superseded 2026-07-27 → `src/components/PhotoPanel.tsx`, livré en P1 du design du 2026-07-27]* | props = transform + source + callbacks + état vide, zéro logique | mince, assumé (traduction UI) |
 | `src/components/TransformHandles.tsx` | + mode crop, + modificateur `Shift` (`shiftKey` déjà disponible, `:64-70`) | mince, assumé |
 | `src/components/LayerPanel.tsx` | + vignette/nom, + sélecteur d'effet | mince, assumé |
 | `scripts/gpu-parity.mjs` (nouveau) | harnais CDP de parité pixel (§3.2 b), lancé par `npm run test:gpu` | outillage, hors bundle |
@@ -686,7 +703,12 @@ bouton de sortie de mode doit le rendre évident.
 Bloqué par : rien. **Aucun WGSL.**
 
 ### T2 — Barre contextuelle + actions non destructives
-Livre : `PhotoLayerToolbar` montée sur sélection via `useContextualPanel` ;
+*[superseded 2026-07-27 : tranche LIVRÉE sous une autre forme — le panneau
+« Photo » du dock (`PhotoPanel`), P1 du design
+`2026-07-27-shaderlab-panneau-photo-et-ecretage-design.md`. Lire
+`PhotoLayerToolbar` → `PhotoPanel` dans tout ce paragraphe ; le contenu livré
+(champs, actions, snap 15°, fonctions pures, a11y) est inchangé.]*
+Livre : `PhotoLayerToolbar` *[superseded → `PhotoPanel`]* montée sur sélection via `useContextualPanel` ;
 champs X / Y / échelle % / angle ° éditables ; Réinitialiser · Ajuster à la
 toile (*contain*) · Centrer ; snap d'angle à 15° ; fonctions pures dans
 `ui/transform.ts` ; arbitrage `Entrée`/`Échap` et a11y de §3.4.
@@ -694,7 +716,7 @@ Preuve : saisir 45 dans l'angle → l'image tourne ; « Ajuster à la toile » �
 la photo entière tient dans le fond, y compris quand elle est plus grande que
 lui ; chaque saisie commitée = exactement une étape d'undo ; tests Node sur
 chaque fonction pure (dont le cas « photo > fond ») ; **story Storybook
-d'interaction** sur `PhotoLayerToolbar` — saisie clavier, `Entrée`, `Échap`,
+d'interaction** sur `PhotoLayerToolbar` *[superseded → `PhotoPanel`]* — saisie clavier, `Entrée`, `Échap`,
 ordre de tabulation, `aria-label` présents.
 Bloqué par : T1 (fournit `usePhotoLayer` et `CanvasMode`). **Aucun WGSL.**
 
@@ -878,7 +900,7 @@ crée. Les liens de confort ont été retirés.
 |---|---|---|---|
 | T1 | — | — | HITL (jugement visuel sur la ligne de calque) |
 | T2 | T1 | `usePhotoLayer`, type `CanvasMode` | HITL (barre = surface sensible) |
-| T3 | T2 | `PhotoLayerToolbar` (porte les boutons Miroir) | AFK une fois le harnais posé |
+| T3 | T2 | ~~`PhotoLayerToolbar`~~ `PhotoPanel` *[superseded 2026-07-27]* (porte les boutons Miroir) | AFK une fois le harnais posé |
 | T4 | T3 | struct `PhotoInputParams`, `scripts/gpu-parity.mjs` | AFK |
 | T5 | — | — | AFK |
 | T6 | — | — | AFK |

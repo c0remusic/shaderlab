@@ -5,10 +5,15 @@
  * (src/design/*.css) — aucune valeur littérale de couleur/espacement.
  */
 
+/* Même structure que .param-panel : une colonne de <Disclosure> (le seul
+   pattern de section des panneaux du dock — cf. ParamPanel/MaskPanel), au
+   même rang d'espacement --space-4. Les sections n'ont PAS de titre
+   sémantique : le titre d'une Disclosure est le libellé de son bouton
+   (components/ui/collapsible.tsx). */
 .photo-panel {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-4);
 }
 
 .photo-panel__empty {
@@ -22,20 +27,6 @@
   font-family: var(--font-ui);
   font-size: var(--font-size-sm);
   color: var(--text-tertiary);
-}
-
-.photo-panel__section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.photo-panel__section-title {
-  margin: 0;
-  font-family: var(--font-ui);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--text-primary);
 }
 
 .photo-panel__source {

@@ -91,11 +91,18 @@ export const EscapeAbandonsFieldEdit: Story = {
 export const TabOrderFollowsVisualOrder: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const expected = ["X", "Y", "Échelle", "Angle"];
-    for (const label of expected) {
+    // Ordre visuel complet : le bouton de repli de chaque section (pattern
+    // `Disclosure` des panneaux du dock) précède son contenu.
+    await userEvent.tab();
+    await expect(document.activeElement).toBe(canvas.getByRole("button", { name: "Source" }));
+    await userEvent.tab();
+    await expect(document.activeElement).toBe(canvas.getByRole("button", { name: "Placement" }));
+    for (const label of ["X", "Y", "Échelle", "Angle"]) {
       await userEvent.tab();
       await expect(document.activeElement).toBe(canvas.getByLabelText(label));
     }
+    await userEvent.tab();
+    await expect(document.activeElement).toBe(canvas.getByRole("button", { name: "Actions" }));
     await userEvent.tab();
     await expect(document.activeElement).toBe(canvas.getByRole("button", { name: "Réinitialiser" }));
   },

@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import type { LayerState, LayerTransform } from "../layers/types";
 import { parseControlValue } from "../ui/formatValue";
 import { Button } from "./ui/button";
+import { Disclosure } from "./ui/collapsible";
 import "./PhotoPanel.css";
 
 /** Bornes de saisie des champs de placement. Larges à dessein : une photo
@@ -129,6 +130,12 @@ interface Props {
  * Reste utilisable dans les TROIS modes de canvas (idle/maskPaint/crop) : un
  * champ numérique du dock n'intercepte aucun geste de pinceau, contrairement
  * aux poignées du canvas que `showsTransformHandles` gouverne.
+ *
+ * Sections = `Disclosure`, le seul pattern de section des panneaux du dock
+ * (`ParamPanel`, `MaskPanel`). Aucun titre sémantique (`<h1>`…`<h6>`) : le
+ * dock n'en a pas, et en introduire ici partirait d'un `<h3>` dans un écran
+ * sans `<h1>` ni `<h2>` — un saut de niveau, donc un défaut d'accessibilité.
+ * Le titre d'une section est le libellé du bouton qui la replie.
  */
 export function PhotoPanel({ layer, thumbnailUrl, onTransformChange, onTransformCommit, onReset, onFitToCanvas, onCenter }: Props) {
   // Liaisons LOCALES (`const`) avant la garde : le paramètre `layer` n'est
@@ -154,8 +161,7 @@ export function PhotoPanel({ layer, thumbnailUrl, onTransformChange, onTransform
 
   return (
     <div className="photo-panel">
-      <section className="photo-panel__section">
-        <h3 className="photo-panel__section-title">Source</h3>
+      <Disclosure title="Source" defaultOpen>
         <div className="photo-panel__source">
           {thumbnail ? (
             <img className="photo-panel__thumbnail" src={thumbnail} alt="" aria-hidden="true" />
@@ -166,10 +172,9 @@ export function PhotoPanel({ layer, thumbnailUrl, onTransformChange, onTransform
             {layerName ?? "Photo importée"}
           </span>
         </div>
-      </section>
+      </Disclosure>
 
-      <section className="photo-panel__section">
-        <h3 className="photo-panel__section-title">Placement</h3>
+      <Disclosure title="Placement" defaultOpen>
         <div className="photo-panel__fields">
           <NumberField
             label="X"
@@ -208,10 +213,9 @@ export function PhotoPanel({ layer, thumbnailUrl, onTransformChange, onTransform
             onCommit={(degrees) => commitTransform({ ...transform, rotation: (degrees * Math.PI) / 180 })}
           />
         </div>
-      </section>
+      </Disclosure>
 
-      <section className="photo-panel__section">
-        <h3 className="photo-panel__section-title">Actions</h3>
+      <Disclosure title="Actions" defaultOpen>
         <div className="photo-panel__actions">
           <Button size="sm" variant="secondary" onClick={() => onReset(layerId)}>
             Réinitialiser
@@ -223,7 +227,7 @@ export function PhotoPanel({ layer, thumbnailUrl, onTransformChange, onTransform
             Centrer
           </Button>
         </div>
-      </section>
+      </Disclosure>
     </div>
   );
 }

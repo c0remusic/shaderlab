@@ -1,5 +1,6 @@
 import { defineConfig, configDefaults } from 'vitest/config';
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin';
+import tailwindcss from '@tailwindcss/vite';
 import { playwright } from '@vitest/browser-playwright';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -72,6 +73,13 @@ export default defineConfig({
         extends: true,
         plugins: [
           storybookTest({ configDir: path.join(dirname, '.storybook') }),
+          // Sans ce plugin, les stories rendent SANS Tailwind : `flex`,
+          // `sr-only` et les hauteurs en `h-[var(...)]` n'existent pas pendant
+          // les tests, alors qu'elles existent sous `storybook dev` (dont la
+          // config vient de vite.config.ts, qui le charge). Toute assertion de
+          // style y etait donc aveugle — decouvert le 2026-07-28 en mesurant un
+          // en-tete a 132px sous vitest contre 92px en rendu reel.
+          tailwindcss(),
         ],
         test: {
           name: 'storybook',

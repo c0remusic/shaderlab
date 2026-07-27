@@ -70,11 +70,22 @@ export const ManyLayers: Story = {
   args: { layers: manyLayers, selectedId: "layer-3" },
 };
 
-// Écrêtage (2026-07-27) : la ligne écrêtée est indentée et porte une flèche
-// vers son calque de base — celui du DESSOUS dans la pile, donc la ligne
-// JUSTE AU-DESSUS dans cette liste (elle affiche le bas de pile en premier).
-// La ligne écrêtée est ici SÉLECTIONNÉE : l'indentation ne doit pas manger le
-// marquage de sélection (fond de ligne pleine largeur).
+// Ligne d'ARRIÈRE-PLAN (2026-07-27) : le document lui-même, dérivé de son
+// chemin, en bas de liste. Verrouillé — ni œil, ni poignée, ni actions.
+export const WithBackground: Story = {
+  args: { backgroundName: "DSC_0042.jpg" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("DSC_0042.jpg")).toBeTruthy();
+    await expect(canvas.getByRole("img", { name: "Arrière-plan verrouillé" })).toBeTruthy();
+  },
+};
+
+// Écrêtage : la ligne écrêtée porte une flèche vers son calque de base — celui
+// du DESSOUS dans la pile, donc la ligne JUSTE AU-DESSUS dans cette liste
+// (elle affiche le bas de pile en premier). Elle n'est PLUS indentée
+// (observation Photoshop web §5ter) : elle est ici SÉLECTIONNÉE pour vérifier
+// que le marquage couvre la ligne entière, alignée sur ses voisines.
 const clippedLayers: LayerState[] = [
   makeLayer({
     id: "layer-1",

@@ -167,6 +167,42 @@
   min-width: 0;
 }
 
+/* Ligne d'ARRIÈRE-PLAN (2026-07-27) : le document lui-même, affiché en bas de
+   la liste. Ni sélectionnable ni déplaçable — donc pas de curseur `pointer` ni
+   de fond de survol, qui annonceraient une interaction inexistante. Le nom
+   reste au rang secondaire comme les autres, seul le cadenas la distingue. */
+.layer-panel__row--background {
+  cursor: default;
+}
+
+.layer-panel__row--background:hover {
+  background: transparent;
+}
+
+.layer-panel__row-lock {
+  color: var(--text-tertiary);
+}
+
+/* Emplacements RÉSERVÉS de la ligne d'arrière-plan : elle n'a pas de poignée
+   de réordonnancement, et son cadenas remplace le bouton œil. Sans ces deux
+   boîtes aux largeurs exactes de ce qu'elles remplacent (icône de poignée,
+   IconButton compact), les colonnes suivantes — nature, vignette, nom — se
+   décaleraient d'un cran par rapport aux lignes de calque. */
+.layer-panel__row-slot {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+}
+
+.layer-panel__row-slot--grip {
+  width: var(--icon-size-sm);
+}
+
+.layer-panel__row-slot--eye {
+  width: var(--control-height-sm);
+}
+
 .layer-panel__grip-handle {
   display: inline-flex;
   cursor: grab;

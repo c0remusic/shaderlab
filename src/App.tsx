@@ -5,6 +5,7 @@ import { LayerStack } from "./layers/layerStack";
 import type { LayerState } from "./layers/types";
 import { canAddPhotoLayer, countPhotoLayers, hasPhotoLayer } from "./layers/photoLayer";
 import { changeLayerEffect } from "./layers/changeLayerEffect";
+import { documentFileName } from "./layers/documentName";
 import { duplicateLayer } from "./layers/duplicateLayer";
 import { DocumentSession } from "./application/documentSession";
 import { BrushToolbar } from "./components/BrushToolbar";
@@ -1182,7 +1183,7 @@ export default function App() {
         canUndo={sessionRef.current.canUndo()}
         canRedo={sessionRef.current.canRedo()}
         hasImage={imageSize.width > 0 && imageSize.height > 0}
-        fileName={sourcePath ? sourcePath.split(/[\\/]/).pop() ?? null : null}
+        fileName={documentFileName(sourcePath)}
         hasLaunchFile={roundTripActive}
         onUndo={handleUndo}
         onRedo={handleRedo}
@@ -1322,6 +1323,11 @@ export default function App() {
                   onRemove={handleRemove}
                   onReorder={handleReorder}
                   thumbnailUrl={photoLayer.thumbnailUrl}
+                  // Le document est `sourceTexture`, pas un `LayerState` : la
+                  // liste ne pouvait pas le montrer, et l'utilisateur voyait
+                  // deux sortes de photos. La ligne est DÉRIVÉE de ce nom, le
+                  // modèle et le pipeline sont inchangés.
+                  backgroundName={documentFileName(sourcePath)}
                 />
             },
             {

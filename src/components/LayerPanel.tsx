@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo } from "react";
 import { usePointerReorder, type DropPosition } from "../ui/dragReorder";
 import "../ui/dragReorder.css";
-import { Copy, CornerLeftUp, Eye, EyeOff, GripVertical, Image as PhotoLayerIcon, Sparkles as EffectLayerIcon, Trash2 } from "lucide-react";
+import { Copy, CornerLeftUp, Eye, EyeOff, GripVertical, Image as PhotoLayerIcon, Lock, Sparkles as EffectLayerIcon, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
 import { eyeButtonLabels, isLayerVisible, isolationRole, isolationVisibleIds, type IsolationRole } from "../layers/isolation";
 import { effectRegistry, getEffect } from "../render/effects/registry";
@@ -35,6 +35,13 @@ interface Props {
    *  DOIT être référentiellement stable (`useCallback`) : elle traverse la
    *  mémoïsation de `LayerRow`. */
   thumbnailUrl?: (sourceId: string) => string | null;
+  /** Nom de fichier du DOCUMENT (`documentFileName`, src/layers/documentName.ts),
+   *  ou `null` si aucun document n'est ouvert. Pilote la ligne d'ARRIÈRE-PLAN,
+   *  qui est DÉRIVÉE et non un `LayerState` : le document est `sourceTexture`,
+   *  l'entrée du pipeline, pas un élément de la pile. Sans elle, l'utilisateur
+   *  voyait deux sortes de « photos » — celles qu'il importe, listées, et celle
+   *  qui a ouvert le document, invisible. */
+  backgroundName?: string | null;
 }
 
 /** Contrôles de l'EN-TÊTE : ils ne vivent plus sur chaque ligne mais une seule
@@ -322,6 +329,7 @@ export function LayerPanel({
   onRemove,
   onReorder,
   thumbnailUrl,
+  backgroundName = null,
 }: Props) {
   const { dragState, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel } = usePointerReorder(
     layers,
@@ -383,6 +391,33 @@ export function LayerPanel({
             thumbnailUrl={thumbnailUrl}
           />
         ))}
+        {/* Ligne d'ARRIÈRE-PLAN — DÉRIVÉE du document, pas un `LayerState` :
+            elle ne porte donc pas `data-layer-row-index` (invisible au
+            réordonnancement, qui indexe par cet attribut), ne se sélectionne
+            pas, ne se supprime pas et ne s'écrête pas. Le cadenas est la seule
+            marque de ce statut, comme l'Arrière-plan verrouillé de Photoshop.
+            Aucune vignette : le document est `sourceTexture`, il n'est pas
+            enregistré dans `PhotoSourceStore` et n'a donc pas d'object URL —
+            l'emplacement reste réservé pour que les colonnes restent alignées
+            sur celles des lignes de calque (aucun raster ne transite par le
+            state React, invariant OOM 24MP). */}
+        {backgroundName && (
+          <li className="layer-panel__row layer-panel__row--background">
+            <div className="layer-panel__row-top">
+              <span className="layer-panel__row-main">
+                <span className="layer-panel__row-slot layer-panel__row-slot--grip" aria-hidden="true" />
+                <span className="layer-panel__row-slot layer-panel__row-slot--eye">
+                  <Lock className="layer-panel__row-lock icon-sm icon-stroke" role="img" aria-label="Arrière-plan verrouillé" />
+                </span>
+                <PhotoLayerIcon className="layer-panel__row-nature icon-sm icon-stroke" aria-hidden="true" />
+                <span className="layer-panel__thumbnail layer-panel__thumbnail--empty" aria-hidden="true" />
+                <span className="layer-panel__row-name" title={backgroundName}>
+                  {backgroundName}
+                </span>
+              </span>
+            </div>
+          </li>
+        )}
       </ul>
     </div>
   );

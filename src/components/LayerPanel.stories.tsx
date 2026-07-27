@@ -46,10 +46,6 @@ const meta: Meta<typeof LayerPanel> = {
     onDuplicate: () => {},
     onRemove: () => {},
     onReorder: () => {},
-    onOpacityChange: () => {},
-    onOpacityCommit: () => {},
-    onBlendModeChange: () => {},
-    onEffectChange: () => {},
   },
 };
 
@@ -150,8 +146,8 @@ export const ClickLayerSelects: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     // Clicking the row name bubbles to the <li> onClick → onSelect(id).
-    // Pas d'ambiguïté de texte : le sélecteur d'effet n'existe que sur la
-    // ligne SÉLECTIONNÉE (layer-1, « Glow »), pas sur celle-ci.
+    // Pas d'ambiguïté de texte : depuis 2026-07-27 les lignes ne portent plus
+    // aucun sélecteur, seul le nom du calque porte ce libellé.
     await userEvent.click(canvas.getByText("Chromatic bleed"));
     await expect(args.onSelect).toHaveBeenCalledWith("layer-2");
   },
@@ -200,21 +196,17 @@ export const AltClickRequestsIsolation: Story = {
   },
 };
 
-// Le sélecteur d'effet : c'est la seule UI qui change l'effectId d'un calque
-// DÉJÀ créé (le Select du haut ne fait qu'ajouter). Il expose "Aucun effet"
-// (= passthrough), absent du sélecteur d'ajout. Il n'existe QUE sur le calque
-// sélectionné (design §3.6) — d'où le `toHaveLength(1)` sur 3 calques.
-export const ChangeLayerEffect: Story = {
-  args: { selectedId: "layer-1", onEffectChange: fn() },
-  play: async ({ args, canvasElement }) => {
+// Le sélecteur d'effet a quitté les lignes pour l'en-tête (2026-07-27) :
+// son test d'interaction vit dans `LayerHeader.stories.tsx`. La liste ne doit
+// plus en exposer aucun.
+export const NoPerRowControls: Story = {
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const triggers = canvas.getAllByRole("combobox", { name: "Effet" });
-    await expect(triggers).toHaveLength(1);
-    await userEvent.click(triggers[0]);
-    // La popup du Select est portalisée hors de canvasElement.
-    const option = await within(document.body).findByRole("option", { name: "Aucun effet" });
-    await userEvent.click(option);
-    await expect(args.onEffectChange).toHaveBeenCalledWith("layer-1", "passthrough");
+    await expect(canvas.queryAllByRole("combobox", { name: "Effet" })).toHaveLength(0);
+    await expect(canvas.queryAllByRole("combobox", { name: "Fusion" })).toHaveLength(0);
+    await expect(canvas.queryAllByRole("slider", { name: "Opacité" })).toHaveLength(0);
+    // L'opacité reste LISIBLE sur chaque ligne (valeur seule, non éditable).
+    await expect(canvas.getByText("35 %")).toBeInTheDocument();
   },
 };
 

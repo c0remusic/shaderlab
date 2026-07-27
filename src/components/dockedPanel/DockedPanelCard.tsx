@@ -7,12 +7,18 @@ export interface DockedPanelCardProps {
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
   children: React.ReactNode;
+  /** Zone FIXE entre la barre de titre et le contenu : elle ne défile pas avec
+   *  `children` (c'est le contenu qui porte le défilement). C'est ce qui permet
+   *  aux contrôles du calque sélectionné de rester visibles quelle que soit la
+   *  position dans une longue pile — modèle observé sur Photoshop web
+   *  (`docs/design-system/photoshop-web-observations-2026-07-27.md` §5bis). */
+  header?: React.ReactNode;
   className?: string;
   dragging?: boolean;
   titlebarProps?: React.HTMLAttributes<HTMLDivElement>;
 }
 
-export function DockedPanelCard({ title, collapsed, onCollapsedChange, children, className = "", dragging = false, titlebarProps }: DockedPanelCardProps) {
+export function DockedPanelCard({ title, collapsed, onCollapsedChange, children, header, className = "", dragging = false, titlebarProps }: DockedPanelCardProps) {
   return (
     <div className={`docked-panel-card ${dragging ? "docked-panel-card--dragging" : ""} ${className}`.trim()}>
       <div className="docked-panel-card__titlebar" data-collapsed={collapsed || undefined} {...titlebarProps}>
@@ -34,6 +40,7 @@ export function DockedPanelCard({ title, collapsed, onCollapsedChange, children,
           )}
         </IconButton>
       </div>
+      {!collapsed && header && <div className="docked-panel-card__header">{header}</div>}
       {!collapsed && <div className="docked-panel-card__content">{children}</div>}
     </div>
   );

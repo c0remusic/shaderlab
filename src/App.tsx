@@ -31,7 +31,7 @@ import { getBrushRaster } from "./mask/brushSource";
 import { PanelColumn } from "./components/dockedPanel/PanelColumn";
 import { movePanelInDock, toFullDockTarget, visibleDockLayout, type DockDropTarget, type DockLayout } from "./ui/dockLayout";
 import { clampDockWidth } from "./components/dockedPanel/dockWidth";
-import { LayerPanel } from "./components/LayerPanel";
+import { LayerHeader, LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
 import { PhotoPanel } from "./components/PhotoPanel";
 import { MaskPanel } from "./components/MaskPanel";
@@ -1286,6 +1286,17 @@ export default function App() {
             },
             {
               id: "layers", title: "Calques", collapsed: layersFolded, onCollapsedChange: setLayersFolded,
+              // Contrôles du calque SÉLECTIONNÉ, dans la zone fixe de la carte
+              // (ils ne défilent pas avec la liste) — ils étaient répétés sur
+              // chaque ligne jusqu'au 2026-07-27.
+              header: <LayerHeader
+                  layers={layers}
+                  selectedId={selectedId}
+                  onOpacityChange={handleOpacityChange}
+                  onOpacityCommit={handleParamCommit}
+                  onBlendModeChange={handleBlendModeChange}
+                  onEffectChange={handleEffectChange}
+                />,
               content: <LayerPanel
                   layers={layers}
                   selectedId={selectedId}
@@ -1297,11 +1308,7 @@ export default function App() {
                   onDuplicate={handleDuplicate}
                   onRemove={handleRemove}
                   onReorder={handleReorder}
-                  onOpacityChange={handleOpacityChange}
-                  onOpacityCommit={handleParamCommit}
-                  onBlendModeChange={handleBlendModeChange}
                   thumbnailUrl={photoLayer.thumbnailUrl}
-                  onEffectChange={handleEffectChange}
                 />
             },
             {

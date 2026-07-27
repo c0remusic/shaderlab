@@ -21,6 +21,18 @@
   gap: var(--space-4);
 }
 
+/* En-tête FIXE de la carte Calques (2026-07-27) : opacité/fusion/effet du
+   calque SÉLECTIONNÉ. Ces trois contrôles étaient répétés sur CHAQUE ligne —
+   167,2px par ligne, contre ~29px sur Photoshop web (facteur 5,8). Monté dans
+   le slot `header` de DockedPanelCard, donc hors du conteneur défilant. */
+.layer-header {
+  display: flex;
+  flex-direction: column;
+  /* Même rang que .layer-panel__row-controls avant sa suppression : contrôles
+     frères d'un même groupe. */
+  gap: var(--space-4);
+}
+
 .layer-panel__row {
   position: relative;
   display: flex;
@@ -56,14 +68,16 @@
   gap: var(--space-2);
 }
 
-.layer-panel__row-controls {
-  display: flex;
-  flex-direction: column;
-  /* --space-5, même rang que .param-panel__group (ParamPanel.css) pour la
-     même relation (contrôles frères dans un groupe) — --space-2 est le rang
-     "interne à un composant" (icône-texte), pas celui-ci. */
-  gap: var(--space-4);
-  cursor: default;
+/* Opacité en LECTURE SEULE (2026-07-27) : le slider est parti dans l'en-tête,
+   mais la valeur reste lisible sur chaque ligne pour comparer la pile d'un
+   coup d'œil. Chiffres tabulaires : les valeurs s'alignent verticalement d'une
+   ligne à l'autre, ce qui est tout l'intérêt de la comparaison. */
+.layer-panel__row-opacity {
+  font-family: var(--font-ui);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+  white-space: nowrap;
 }
 
 .layer-panel__row:hover {

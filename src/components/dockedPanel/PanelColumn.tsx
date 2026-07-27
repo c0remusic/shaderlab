@@ -11,6 +11,9 @@ export interface DockedPanelSpec {
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
   content: React.ReactNode;
+  /** Optionnel : zone fixe (non défilante) de la carte, voir
+   *  `DockedPanelCardProps.header`. */
+  header?: React.ReactNode;
 }
 
 export interface PanelColumnProps {
@@ -196,6 +199,7 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
                     title={panel.title}
                     collapsed={panel.collapsed}
                     onCollapsedChange={panel.onCollapsedChange}
+                    header={panel.header}
                     dragging={dragState?.draggedId === panel.id}
                     titlebarProps={{ onPointerDown: (event) => handlePointerDown(panel.id, event) }}
                   >
@@ -216,6 +220,7 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
         >
           <div className="docked-panel-card">
             <div className="docked-panel-card__titlebar"><span className="docked-panel-card__title">{draggedPanel.title}</span></div>
+            {!draggedPanel.collapsed && draggedPanel.header && <div className="docked-panel-card__header">{draggedPanel.header}</div>}
             {!draggedPanel.collapsed && <div className="docked-panel-card__content">{draggedPanel.content}</div>}
           </div>
         </div>

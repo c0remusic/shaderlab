@@ -10,6 +10,7 @@ import { blendRegistry } from "../render/blend/registry";
 import { Select } from "./ui/select";
 import { LabeledSlider } from "./ui/labeled-slider";
 import { IconButton } from "./ui/icon-button";
+import { formatOpacityPercent, layerHeaderModel } from "./layerHeaderModel";
 import "./LayerPanel.css";
 
 interface Props {
@@ -28,15 +29,25 @@ interface Props {
   onDuplicate: (id: string) => void;
   onRemove: (id: string) => void;
   onReorder: (id: string, newIndex: number) => void;
-  onOpacityChange: (id: string, opacity: number) => void;
-  onOpacityCommit: () => void;
-  onBlendModeChange: (id: string, blendMode: string) => void;
   /** Résout la vignette d'un calque photo par `sourceId`. La vignette est
    *  POSSÉDÉE par `PhotoSourceStore` (object URL, hors state React) — cette
    *  prop n'en transporte que la lecture, jamais le raster (invariant OOM).
    *  DOIT être référentiellement stable (`useCallback`) : elle traverse la
    *  mémoïsation de `LayerRow`. */
   thumbnailUrl?: (sourceId: string) => string | null;
+}
+
+/** Contrôles de l'EN-TÊTE : ils ne vivent plus sur chaque ligne mais une seule
+ *  fois, dans le slot d'en-tête de la carte Calques (`DockedPanelCard`), et
+ *  agissent sur le calque SÉLECTIONNÉ. Ce composant est monté par `App.tsx`
+ *  DEHORS de `LayerPanel` — c'est ce qui lui permet de ne pas défiler avec la
+ *  liste. */
+export interface LayerHeaderProps {
+  layers: LayerState[];
+  selectedId: string | null;
+  onOpacityChange: (id: string, opacity: number) => void;
+  onOpacityCommit: () => void;
+  onBlendModeChange: (id: string, blendMode: string) => void;
   onEffectChange: (id: string, effectId: string) => void;
 }
 
@@ -62,11 +73,7 @@ interface LayerRowProps {
   onDuplicate: (id: string) => void;
   onRemove: (id: string) => void;
   onGripPointerDown: (id: string, pointerId: number, target: Element, clientX: number, clientY: number) => void;
-  onOpacityChange: (id: string, opacity: number) => void;
-  onOpacityCommit: () => void;
-  onBlendModeChange: (id: string, blendMode: string) => void;
   thumbnailUrl?: (sourceId: string) => string | null;
-  onEffectChange: (id: string, effectId: string) => void;
 }
 
 const addEffectOptions = effectRegistry.map((e) => ({ value: e.id, label: e.name }));
@@ -96,11 +103,7 @@ const LayerRow = memo(function LayerRow({
   onDuplicate,
   onRemove,
   onGripPointerDown,
-  onOpacityChange,
-  onOpacityCommit,
-  onBlendModeChange,
   thumbnailUrl,
-  onEffectChange,
 }: LayerRowProps) {
   // Identité du calque (parité calque photo, T1) : le nom du calque prime,
   // et l'affichage retombe sur le nom de l'effet pour tout calque non nommé
@@ -197,6 +200,15 @@ const LayerRow = memo(function LayerRow({
             déclencher la sélection de la ligne) — la duplication se range
             avec elle, à droite de la ligne. */}
         <span className="layer-panel__row-actions">
+          {/* Opacité en LECTURE SEULE : le slider a quitté la ligne pour
+              l'en-tête, mais comparer les opacités de la pile d'un coup d'œil
+              reste un besoin — sans quoi il faudrait sélectionner chaque
+              calque pour lire sa valeur. `aria-hidden` : la valeur est déjà
+              annoncée par le slider de l'en-tête pour le calque sélectionné,
+              et un chiffre nu sans libellé n'apporte rien au lecteur d'écran. */}
+          <span className="layer-panel__row-opacity" aria-hidden="true">
+            {formatOpacityPercent(layer.opacity)}
+          </span>
           <IconButton
             label="Dupliquer le calque"
             size="compact"
@@ -221,38 +233,64 @@ const LayerRow = memo(function LayerRow({
         </span>
       </div>
       {dropPosition && <span className={`drag-reorder__alignment-guide layer-panel__alignment-guide--${dropPosition}`} aria-hidden="true" />}
-      <div className="layer-panel__row-controls" onClick={(e) => e.stopPropagation()}>
-        <LabeledSlider
-          label="Opacité"
-          value={layer.opacity}
-          min={0}
-          max={1}
-          step={0.01}
-          onChange={(v) => onOpacityChange(layer.id, v)}
-          onCommit={onOpacityCommit}
-        />
-        {/* Sur le calque SÉLECTIONNÉ uniquement — forme prescrite par le
-            design (§3.6, « un sélecteur d'effet sur le calque sélectionné ») :
-            un sélecteur par ligne mettrait N contrôles de changement d'effet à
-            l'écran, dont un seul concerne le calque en cours d'édition. */}
-        {selected && (
-          <Select
-            label="Effet"
-            value={layer.effectId}
-            options={changeEffectOptions}
-            onChange={(v) => onEffectChange(layer.id, v)}
-          />
-        )}
-        <Select
-          label="Fusion"
-          value={layer.blendMode}
-          options={blendModeOptions}
-          onChange={(v) => onBlendModeChange(layer.id, v)}
-        />
-      </div>
     </li>
   );
 });
+
+/**
+ * En-tête FIXE de la carte Calques : opacité, fusion et effet du calque
+ * SÉLECTIONNÉ. Monté dans le slot `header` de `DockedPanelCard` (donc hors du
+ * conteneur défilant), il reste visible quelle que soit la position dans la
+ * liste — modèle observé sur Photoshop web (voir
+ * `docs/design-system/photoshop-web-observations-2026-07-27.md` §2 et §5bis).
+ *
+ * Le sélecteur d'effet reste disponible sur un calque PHOTO : appliquer des
+ * effets différents selon la photo est un usage voulu, et « Aucun effet »
+ * (passthrough) permet d'y revenir.
+ */
+export function LayerHeader({
+  layers,
+  selectedId,
+  onOpacityChange,
+  onOpacityCommit,
+  onBlendModeChange,
+  onEffectChange,
+}: LayerHeaderProps) {
+  // Aucune sélection : l'en-tête reste MONTÉ mais désactivé. Le faire
+  // disparaître ferait sauter la liste de toute sa hauteur à chaque
+  // désélection (et rendrait le panneau instable au clic).
+  const model = layerHeaderModel(layers, selectedId);
+  return (
+    <div className="layer-header">
+      <Select
+        label="Effet"
+        value={model.effectId}
+        placeholder="Aucun calque sélectionné"
+        options={changeEffectOptions}
+        disabled={!model.enabled}
+        onChange={(v) => model.layerId !== null && onEffectChange(model.layerId, v)}
+      />
+      <Select
+        label="Fusion"
+        value={model.blendMode}
+        placeholder="Aucun calque sélectionné"
+        options={blendModeOptions}
+        disabled={!model.enabled}
+        onChange={(v) => model.layerId !== null && onBlendModeChange(model.layerId, v)}
+      />
+      <LabeledSlider
+        label="Opacité"
+        value={model.opacity}
+        min={0}
+        max={1}
+        step={0.01}
+        disabled={!model.enabled}
+        onChange={(v) => model.layerId !== null && onOpacityChange(model.layerId, v)}
+        onCommit={onOpacityCommit}
+      />
+    </div>
+  );
+}
 
 export function LayerPanel({
   layers,
@@ -265,11 +303,7 @@ export function LayerPanel({
   onDuplicate,
   onRemove,
   onReorder,
-  onOpacityChange,
-  onOpacityCommit,
-  onBlendModeChange,
   thumbnailUrl,
-  onEffectChange,
 }: Props) {
   const { dragState, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel } = usePointerReorder(
     layers,
@@ -328,11 +362,7 @@ export function LayerPanel({
             onDuplicate={onDuplicate}
             onRemove={onRemove}
             onGripPointerDown={handleGripPointerDown}
-            onOpacityChange={onOpacityChange}
-            onOpacityCommit={onOpacityCommit}
-            onBlendModeChange={onBlendModeChange}
             thumbnailUrl={thumbnailUrl}
-            onEffectChange={onEffectChange}
           />
         ))}
       </ul>

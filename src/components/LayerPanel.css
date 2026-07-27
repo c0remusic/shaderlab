@@ -33,6 +33,28 @@
   gap: var(--space-4);
 }
 
+/* Une LIGNE de l'en-tête porte un ou deux contrôles, étiquette comprise (voir
+   `labelPlacement`). L'en-tête empilait trois contrôles étiquetés au-dessus,
+   soit ~50 px chacun : 189 px mesurés, l'équivalent de trois lignes de liste
+   pour trois contrôles — exactement le retournement que l'ADR-0001 met en
+   garde (l'en-tête existe pour rendre de la hauteur à la liste, pas pour la
+   lui prendre). */
+.layer-header__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* `min-width: 0` : sans lui la taille minimale automatique d'un élément flex
+   vaut celle de son contenu, et un libellé de fusion long élargirait la ligne
+   au-delà de la colonne (barre de défilement horizontale parasite — déjà vécu
+   sur la rangée des presets). `flex: 1 1 0` répartit la largeur à parts
+   égales plutôt qu'au prorata du contenu. */
+.layer-header__row > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 .layer-panel__row {
   position: relative;
   display: flex;

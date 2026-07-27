@@ -307,32 +307,49 @@ export function LayerHeader({
   const model = layerHeaderModel(layers, selectedId);
   return (
     <div className="layer-header">
-      <Select
-        label="Effet"
-        value={model.effectId}
-        placeholder="Aucun calque sélectionné"
-        options={changeEffectOptions}
-        disabled={!model.enabled}
-        onChange={(v) => model.layerId !== null && onEffectChange(model.layerId, v)}
-      />
-      <Select
-        label="Fusion"
-        value={model.blendMode}
-        placeholder="Aucun calque sélectionné"
-        options={blendModeOptions}
-        disabled={!model.enabled}
-        onChange={(v) => model.layerId !== null && onBlendModeChange(model.layerId, v)}
-      />
-      <LabeledSlider
-        label="Opacité"
-        value={model.opacity}
-        min={0}
-        max={1}
-        step={0.01}
-        disabled={!model.enabled}
-        onChange={(v) => model.layerId !== null && onOpacityChange(model.layerId, v)}
-        onCommit={onOpacityCommit}
-      />
+      {/* Ligne 1 — EFFET seul, étiquette à gauche. Il ne rejoint pas la ligne
+          suivante : c'est le contrôle aux libellés les plus longs
+          (« Aberration chromatique »), et le partager à trois le réduirait à
+          une poignée de caractères dans une colonne de 240 à 400 px. */}
+      <div className="layer-header__row">
+        <Select
+          label="Effet"
+          labelPlacement="inline"
+          value={model.effectId}
+          placeholder="Aucun calque sélectionné"
+          options={changeEffectOptions}
+          disabled={!model.enabled}
+          onChange={(v) => model.layerId !== null && onEffectChange(model.layerId, v)}
+        />
+      </div>
+      {/* Ligne 2 — FUSION + OPACITÉ côte à côte, comme observé sur Photoshop
+          web (§2 des observations du 2026-07-27). L'opacité porte son
+          étiquette en `sr-only` : à deux contrôles sur une ligne de 216 px au
+          dock le plus étroit, un mot de plus prendrait la place de la piste,
+          et une piste avec sa valeur chiffrée se lit sans être nommée — le
+          nom accessible, lui, reste (lecteur d'écran, `aria-labelledby`). */}
+      <div className="layer-header__row">
+        <Select
+          label="Fusion"
+          labelPlacement="inline"
+          value={model.blendMode}
+          placeholder="Aucun calque sélectionné"
+          options={blendModeOptions}
+          disabled={!model.enabled}
+          onChange={(v) => model.layerId !== null && onBlendModeChange(model.layerId, v)}
+        />
+        <LabeledSlider
+          label="Opacité"
+          labelPlacement="hidden"
+          value={model.opacity}
+          min={0}
+          max={1}
+          step={0.01}
+          disabled={!model.enabled}
+          onChange={(v) => model.layerId !== null && onOpacityChange(model.layerId, v)}
+          onCommit={onOpacityCommit}
+        />
+      </div>
     </div>
   );
 }

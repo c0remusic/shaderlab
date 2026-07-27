@@ -1289,7 +1289,14 @@ export default function App() {
               )
             },
             {
-              id: "layers", title: "Calques", collapsed: layersFolded, onCollapsedChange: setLayersFolded,
+              // LIBELLÉ « Effets » (décision Antoine sur maquette, 2026-07-27) :
+              // dans shaderlab la pile n'est pas un empilement de contenus
+              // comme dans Photoshop, c'est une chaîne de traitement appliquée
+              // à une image de fond. L'IDENTIFIANT reste `layers` — il est lu
+              // par dockLayout, panelVisibility et le rail ; aucun libellé
+              // n'est persisté nulle part (vérifié : ni localStorage ni
+              // document de preset ne porte de titre de panneau).
+              id: "layers", title: "Effets", collapsed: layersFolded, onCollapsedChange: setLayersFolded,
               // La pile de calques est LA liste longue du dock.
               variableLength: true,
               // Contrôles du calque SÉLECTIONNÉ, dans la zone fixe de la carte
@@ -1387,7 +1394,7 @@ export default function App() {
         <PanelRail
           items={[
             { id: "presets", icon: PackagePlus, label: "Presets", active: presetsPanel.visible, onClick: presetsPanel.toggleRail },
-            { id: "layers", icon: Layers, label: "Calques", active: layersPanel.visible, onClick: layersPanel.toggleRail },
+            { id: "layers", icon: Layers, label: "Effets", active: layersPanel.visible, onClick: layersPanel.toggleRail },
             { id: "photo", icon: PhotoRailIcon, label: "Photo", active: photoPanel.visible, onClick: photoPanel.toggleRail },
             { id: "params", icon: SlidersHorizontal, label: "Réglages", active: paramsPanel.visible, onClick: paramsPanel.toggleRail },
             { id: "mask", icon: BrushRailIcon, label: "Masque", active: maskPanel.visible, onClick: maskPanel.toggleRail },

@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo } from "react";
 import { usePointerReorder, type DropPosition } from "../ui/dragReorder";
 import "../ui/dragReorder.css";
-import { Copy, CornerLeftUp, Eye, EyeOff, GripVertical, Trash2 } from "lucide-react";
+import { Copy, CornerLeftUp, Eye, EyeOff, GripVertical, Image as PhotoLayerIcon, Sparkles as EffectLayerIcon, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
 import { eyeButtonLabels, isLayerVisible, isolationRole, isolationVisibleIds, type IsolationRole } from "../layers/isolation";
 import { effectRegistry, getEffect } from "../render/effects/registry";
@@ -169,6 +169,20 @@ const LayerRow = memo(function LayerRow({
               <EyeOff className="icon-sm icon-stroke" aria-hidden="true" />
             )}
           </IconButton>
+          {/* NATURE de la ligne (2026-07-27) : la pile de shaderlab est une
+              chaîne de traitement, pas un empilement de contenus — le panneau
+              s'appelle « Effets », et cette icône est ce qui empêche ce titre
+              de devenir faux quand une photo importée est dans la pile. Rien
+              d'autre ne distinguait un effet d'une photo à part la vignette.
+              `aria-hidden` : purement décorative, elle double le nom du calque
+              (et la vignette), déjà lisibles. Position FIXE (juste après
+              l'œil, avant tout ce qui est optionnel) pour qu'elle forme une
+              colonne scannable d'une ligne à l'autre. */}
+          {layer.imageSource ? (
+            <PhotoLayerIcon className="layer-panel__row-nature icon-sm icon-stroke" aria-hidden="true" />
+          ) : (
+            <EffectLayerIcon className="layer-panel__row-nature icon-sm icon-stroke" aria-hidden="true" />
+          )}
           {clipped && (
             // La ligne de base est celle du DESSOUS dans la pile — donc
             // JUSTE AU-DESSUS dans cette liste, qui affiche le bas de pile en

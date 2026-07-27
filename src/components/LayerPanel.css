@@ -94,6 +94,15 @@
   padding-left: calc(var(--space-4) + var(--space-5));
 }
 
+/* Icône de NATURE (effet ou photo) : même traitement que la poignée et la
+   flèche d'écrêtage — --text-tertiary, jamais comprimée. Elle tient dans la
+   hauteur de ligne existante (--layer-row-height, 36px) : --icon-size-sm vaut
+   14px, la ligne ne grandit pas. */
+.layer-panel__row-nature {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+}
+
 .layer-panel__clip-arrow {
   flex-shrink: 0;
   color: var(--text-tertiary);

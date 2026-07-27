@@ -1,9 +1,9 @@
-import { memo, useCallback } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { usePointerReorder, type DropPosition } from "../ui/dragReorder";
 import "../ui/dragReorder.css";
 import { Copy, Eye, EyeOff, GripVertical, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
-import { eyeButtonLabels, isLayerVisible, isolationRole, type IsolationRole } from "../layers/isolation";
+import { eyeButtonLabels, isLayerVisible, isolationRole, isolationVisibleIds, type IsolationRole } from "../layers/isolation";
 import { effectRegistry, getEffect } from "../render/effects/registry";
 import { PASSTHROUGH_EFFECT } from "../render/effectPassRunner";
 import { blendRegistry } from "../render/blend/registry";
@@ -261,6 +261,12 @@ export function LayerPanel({
     onReorder
   );
 
+  // Visibilité effective de TOUTE la pile, calculée une fois par render plutôt
+  // qu'une fois par ligne : isoler un calque écrêté rend aussi visible sa base
+  // photo (`isolationVisibleIds`), donc la réponse dépend de la pile entière,
+  // plus seulement de l'id isolé.
+  const visibleIds = useMemo(() => isolationVisibleIds(layers, isolatedLayerId), [layers, isolatedLayerId]);
+
   const handleGripPointerDown = useCallback(
     (id: string, pointerId: number, target: Element, clientX: number, clientY: number) => {
       // measureElement = target : LayerPanel n'utilise pas grabOffset/pointerPosition
@@ -292,7 +298,7 @@ export function LayerPanel({
             layer={layer}
             index={index}
             selected={layer.id === selectedId}
-            visible={isLayerVisible(layer, isolatedLayerId)}
+            visible={isLayerVisible(layer, visibleIds)}
             role={isolationRole(layer.id, isolatedLayerId)}
             isDragging={dragState?.draggedId === layer.id}
             dropPosition={

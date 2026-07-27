@@ -1,3 +1,4 @@
+import { clipBaseId } from "./clipping";
 import type { LayerState } from "./types";
 
 /**
@@ -22,14 +23,45 @@ import type { LayerState } from "./types";
  * sort du document est le document, pas l'aide visuelle en cours.
  */
 
+/**
+ * Ensemble des calques VISIBLES pendant l'isolation, ou `null` hors isolation.
+ *
+ * = { le calque isolé } ∪ { sa base d'écrêtage, si c'est un calque photo }.
+ *
+ * **La règle d'écrêtage vit ICI, pas dans la résolution d'écrêtage** (design
+ * 2026-07-27 §3.5). Isoler un calque écrêté sans tirer sa base photo le rendrait
+ * `suppressed` — donc un ÉCRAN VIDE, exactement le piège que ce fichier se donne
+ * pour règle d'éviter. Et l'inverse (une exception d'isolation dans
+ * `clipping.ts`) détruirait l'invariance par projection : entrer en isolation
+ * changerait alors À QUOI un calque est écrêté, c'est-à-dire le sens du
+ * document. `isolation.ts` importe `clipping.ts` ; jamais l'inverse.
+ *
+ * La visibilité n'est étendue que **vers le bas** : isoler la PHOTO ne tire pas
+ * les calques qui lui sont écrêtés au-dessus (elle rend parfaitement seule,
+ * aucun écran vide à éviter).
+ */
+export function isolationVisibleIds(
+  layers: LayerState[],
+  isolatedLayerId: string | null,
+): ReadonlySet<string> | null {
+  if (isolatedLayerId === null) return null;
+  const visible = new Set<string>([isolatedLayerId]);
+  const baseId = clipBaseId(layers, isolatedLayerId);
+  if (baseId !== null && layers.find((l) => l.id === baseId)?.imageSource !== undefined) {
+    visible.add(baseId);
+  }
+  return visible;
+}
+
 /** Visibilité EFFECTIVE d'un calque à l'écran compte tenu de l'isolation.
- *  Le calque isolé est forcé visible même si `enabled` est faux : Alt+clic sur
- *  l'œil d'un calque masqué veut dire « montre-moi celui-là seul », et rendre
- *  un écran noir serait un piège. Son `enabled` réel est intact et reprend la
- *  main dès la sortie d'isolation. */
-export function isLayerVisible(layer: LayerState, isolatedLayerId: string | null): boolean {
-  if (isolatedLayerId === null) return layer.enabled;
-  return layer.id === isolatedLayerId;
+ *  `visibleIds` = le set rendu par `isolationVisibleIds` (`null` hors
+ *  isolation, où la valeur stockée fait foi). Le calque isolé y est présent
+ *  même si `enabled` est faux : Alt+clic sur l'œil d'un calque masqué veut dire
+ *  « montre-moi celui-là seul », et rendre un écran noir serait un piège. Son
+ *  `enabled` réel est intact et reprend la main dès la sortie d'isolation. */
+export function isLayerVisible(layer: LayerState, visibleIds: ReadonlySet<string> | null): boolean {
+  if (visibleIds === null) return layer.enabled;
+  return visibleIds.has(layer.id);
 }
 
 /** Projection d'isolation : la même pile, avec `enabled` recalculé en
@@ -38,9 +70,10 @@ export function isLayerVisible(layer: LayerState, isolatedLayerId: string | null
  *  copie de raster de masque (le `mask` est partagé par référence, même
  *  discipline que `LayerStack.clone`/`History`). */
 export function projectIsolation(layers: LayerState[], isolatedLayerId: string | null): LayerState[] {
-  if (isolatedLayerId === null) return layers;
+  const visibleIds = isolationVisibleIds(layers, isolatedLayerId);
+  if (visibleIds === null) return layers;
   return layers.map((layer) => {
-    const visible = isLayerVisible(layer, isolatedLayerId);
+    const visible = isLayerVisible(layer, visibleIds);
     return visible === layer.enabled ? layer : { ...layer, enabled: visible };
   });
 }

@@ -4,6 +4,7 @@ import {
   eyeClickOutcome,
   isLayerVisible,
   isolationRole,
+  isolationVisibleIds,
   projectIsolation,
   reconcileIsolation,
 } from "../../src/layers/isolation";
@@ -20,13 +21,59 @@ describe("isLayerVisible", () => {
     expect(isLayerVisible(makeLayer("a", false), null)).toBe(false);
   });
 
-  it("ne rend visible que le calque isolé", () => {
-    expect(isLayerVisible(makeLayer("a", true), "a")).toBe(true);
-    expect(isLayerVisible(makeLayer("b", true), "a")).toBe(false);
+  it("ne rend visible que ce que le set d'isolation contient", () => {
+    expect(isLayerVisible(makeLayer("a", true), new Set(["a"]))).toBe(true);
+    expect(isLayerVisible(makeLayer("b", true), new Set(["a"]))).toBe(false);
   });
 
   it("force la visibilité du calque isolé même s'il était masqué", () => {
-    expect(isLayerVisible(makeLayer("a", false), "a")).toBe(true);
+    expect(isLayerVisible(makeLayer("a", false), new Set(["a"]))).toBe(true);
+  });
+});
+
+describe("isolationVisibleIds (écrêtage × isolation, §3.5)", () => {
+  function photo(id: string, enabled = true): LayerState {
+    return {
+      ...makeLayer(id, enabled),
+      effectId: "passthrough",
+      imageSource: { sourceId: `src-${id}` },
+      transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+    };
+  }
+  const clipped = (id: string, enabled = true): LayerState => ({ ...makeLayer(id, enabled), clipToBelow: true });
+
+  it("rend null hors isolation", () => {
+    expect(isolationVisibleIds([makeLayer("a", true)], null)).toBeNull();
+  });
+
+  it("le calque isolé seul quand il n'est pas écrêté", () => {
+    const layers = [photo("P"), makeLayer("E", true)];
+    expect(isolationVisibleIds(layers, "E")).toEqual(new Set(["E"]));
+  });
+
+  it("isoler un écrêté ACTIF rend aussi visible sa base photo (jamais d'écran vide)", () => {
+    const layers = [photo("P"), clipped("C")];
+    expect(isolationVisibleIds(layers, "C")).toEqual(new Set(["C", "P"]));
+  });
+
+  it("tire la base photo même si elle est masquée dans le modèle", () => {
+    const layers = [photo("P", false), clipped("C")];
+    expect(isolationVisibleIds(layers, "C")).toEqual(new Set(["C", "P"]));
+  });
+
+  it("isoler un écrêté INERTE ne tire rien (la base n'est pas une photo)", () => {
+    const layers = [photo("P"), makeLayer("X", true), clipped("C")];
+    expect(isolationVisibleIds(layers, "C")).toEqual(new Set(["C"]));
+  });
+
+  it("isoler le 2e d'une chaîne tire la base photo, PAS le 1er écrêté", () => {
+    const layers = [photo("P"), clipped("C1"), clipped("C2")];
+    expect(isolationVisibleIds(layers, "C2")).toEqual(new Set(["C2", "P"]));
+  });
+
+  it("isoler la PHOTO ne tire pas les écrêtés au-dessus (extension vers le bas seulement)", () => {
+    const layers = [photo("P"), clipped("C")];
+    expect(isolationVisibleIds(layers, "P")).toEqual(new Set(["P"]));
   });
 });
 

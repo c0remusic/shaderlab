@@ -695,3 +695,47 @@ describe("LayerStack.duplicateLayer", () => {
     expect(stack.layers).toHaveLength(1);
   });
 });
+
+describe("LayerStack — setLayerClip (écrêtage, 2026-07-27)", () => {
+  it("pose l'écrêtage sur un calque d'effet et le retire", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    expect(stack.layers[0].clipToBelow).toBeUndefined();
+    expect(stack.setLayerClip(id, true)).toBe(true);
+    expect(stack.layers[0].clipToBelow).toBe(true);
+    expect(stack.setLayerClip(id, false)).toBe(true);
+    expect(stack.layers[0].clipToBelow).toBe(false);
+  });
+
+  it("REFUSE un calque photo — la garde vit dans le mutateur, pas au rendu", () => {
+    const stack = new LayerStack();
+    const id = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scale: 1, rotation: 0 });
+    expect(stack.setLayerClip(id, true)).toBe(false);
+    expect(stack.layers[0].clipToBelow).toBeUndefined();
+  });
+
+  it("no-op sur un id absent ou sur une valeur inchangée (pas d'entrée d'historique vide)", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    expect(stack.setLayerClip("no-such-id", true)).toBe(false);
+    // Absent ≡ false : reposer false ne change rien.
+    expect(stack.setLayerClip(id, false)).toBe(false);
+    expect(stack.setLayerClip(id, true)).toBe(true);
+    expect(stack.setLayerClip(id, true)).toBe(false);
+  });
+
+  it("le duplicata hérite de l'écrêtage sans code supplémentaire (spread)", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    stack.setLayerClip(id, true);
+    const copyId = stack.duplicateLayer(id)!;
+    expect(stack.layers.find((l) => l.id === copyId)!.clipToBelow).toBe(true);
+  });
+
+  it("clone() transporte l'écrêtage (snapshot d'historique)", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    stack.setLayerClip(id, true);
+    expect(stack.clone().layers.find((l) => l.id === id)!.clipToBelow).toBe(true);
+  });
+});

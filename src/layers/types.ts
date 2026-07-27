@@ -58,4 +58,13 @@ export interface LayerState {
    *  snapshot d'historique par construction (survie à l'undo automatique) et
    *  sans risque pour l'invariant OOM. */
   name?: string;
+  /** Écrêtage (clipping, 2026-07-27) : cet effet ne s'applique QUE là où le
+   *  calque photo situé en dessous couvre l'image. Absent/false =
+   *  comportement linéaire (défaut historique : l'effet s'applique au
+   *  composite complet en dessous). INTERDIT sur un calque portant
+   *  `imageSource` — la garde vit dans `LayerStack.setLayerClip`, unique
+   *  chemin d'écriture. Résolution : `layers/clipping.ts`.
+   *  Champ SCALAIRE : présent par construction dans chaque snapshot
+   *  d'historique, aucun risque pour l'invariant OOM. */
+  clipToBelow?: boolean;
 }

@@ -20,6 +20,14 @@
 // une volee de « unresolved value 'params' » qui ne prouve rien — il faut
 // passer par `composeShader` avec les MEMES options que le renderer, y compris
 // `hasPrevPass` coherent avec le nombre de passes internes de l'effet.
+//
+// Compte attendu (a tenir a jour si le registre bouge) :
+//   passes internes (glow: 5)
+// + 3 variantes de compositing x 6 effets (composite, +photo, +clip) = 18
+// + 11 modes de fusion sur un effet neutre
+// + 1 passe neutre passthrough (court-circuit « 0 calque » et neutralisation
+//   d'un calque ecrete `suppressed`)
+// = 35 shaders composes, + 1 garde d'exclusion mutuelle (non compilee).
 const targets = await (await fetch("http://localhost:9222/json")).json();
 const page = targets.find((t) => t.type === "page" && t.url.includes("1420"));
 if (!page) throw new Error("aucune page shaderlab sur le port 1420");
@@ -48,9 +56,24 @@ const script = `(async () => {
     const reg = await import("/src/render/effects/registry.ts");
     const { composeShader } = await import("/src/render/shaderCompose.ts");
     const blend = await import("/src/render/blend/registry.ts");
+    const { PASSTHROUGH_EFFECT } = await import("/src/render/effectPassRunner.ts");
     const effects = reg.effectRegistry ?? reg.default ?? [];
     out.nbEffets = effects.length;
     out.nbBlend = (blend.blendRegistry ?? []).length;
+
+    // Un GARDE n'est pas un shader : c'est une combinaison d'options que
+    // \`composeShader\` doit REFUSER. On ne la compile pas (il n'y a rien a
+    // compiler), on verifie qu'elle leve. Comptee a part des shaders composes,
+    // mais elle FAIT ECHOUER le script si la levee disparait — sans quoi la
+    // regression passerait inapercue.
+    out.gardes = [];
+    const garde = (nom, fn) => {
+      let leve = null;
+      try { fn(); } catch (e) { leve = String(e && e.message ? e.message : e); }
+      const ok = leve !== null;
+      out.gardes.push({ nom, ok, leve });
+      if (!ok) out.echecs.push("garde:" + nom);
+    };
 
     const compile = async (nom, code) => {
       device.pushErrorScope("validation");
@@ -97,6 +120,23 @@ const script = `(async () => {
       await compile("blend:" + b.id,
         composeShader(neutre.wgsl, { applyMask: true, hasPrevPass: neutrePrev, blendWgsl: b.wgsl }));
     }
+
+    // 4) passe NEUTRE : celle qu'encode le court-circuit « 0 calque active »
+    // et, depuis P2, la neutralisation d'un calque ecrete \`suppressed\`
+    // (framePipelineExecutor.ts:251-267). \`passthrough\` n'est PAS dans
+    // effectRegistry (il n'est pas choisissable par l'utilisateur), donc la
+    // boucle ci-dessus ne le voyait pas — et \`runEffectPass\` a
+    // \`applyMask = true\` PAR DEFAUT (effectPassRunner.ts:155) : options \`{}\`
+    // produit bien le chemin de compositing complet, masque + blend normal.
+    await compile("passthrough neutre (compositing)",
+      composeShader(PASSTHROUGH_EFFECT.wgsl, { applyMask: true, hasPrevPass: false, blendWgsl: normal }));
+
+    // 5) garde : un calque photo ne peut pas etre ecrete. Les deux drapeaux
+    // partagent le binding 6 mais n'ont pas le meme sens — \`composeShader\`
+    // leve plutot que de replier silencieusement (shaderCompose.ts:87-91), et
+    // \`LayerStack.setLayerClip\` refuse deja un calque photo en amont.
+    garde("hasImageSource+clipToCoverage rejete", () =>
+      composeShader(neutre.wgsl, { applyMask: true, hasPrevPass: neutrePrev, blendWgsl: normal, hasImageSource: true, clipToCoverage: true }));
   } catch (e) {
     out.fatal = String(e && e.stack ? e.stack : e);
   }
@@ -108,7 +148,9 @@ const val = r.result?.result?.value ?? JSON.stringify(r.result?.exceptionDetails
 const d = typeof val === "string" ? JSON.parse(val) : val;
 
 console.log(`GPU: ${d.device} | ${d.nbEffets} effets, ${d.nbBlend} modes de fusion`);
-console.log(`${d.cas.length} shaders composes compiles, ${d.echecs.length} en echec\n`);
+console.log(`${d.cas.length} shaders composes compiles, ${(d.gardes ?? []).length} garde(s) d'exclusion, ${d.echecs.length} en echec\n`);
 for (const c of d.cas) console.log(`${c.ok ? "OK  " : "FAIL"}  ${c.nom}${c.ok ? "" : "\n      " + (c.errs.join("\n      ") || c.scope)}`);
+for (const g of d.gardes ?? [])
+  console.log(`${g.ok ? "OK  " : "FAIL"}  garde: ${g.nom}${g.ok ? " (leve: " + g.leve + ")" : "\n      AUCUNE LEVEE — la combinaison interdite a produit un shader"}`);
 if (d.fatal) console.log("\nFATAL: " + d.fatal);
 ws.close();

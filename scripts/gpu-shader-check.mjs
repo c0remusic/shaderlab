@@ -82,6 +82,10 @@ const script = `(async () => {
           composeShader(e.wgsl, { applyMask: true, hasPrevPass: (e.passes || []).length > 0, blendWgsl: normal }));
         await compile(e.id + " composite+photo",
           composeShader(e.wgsl, { applyMask: true, hasPrevPass: (e.passes || []).length > 0, blendWgsl: normal, hasImageSource: true }));
+        // Écrêtage (2026-07-27) : même binding 6, autre expression de poids —
+        // une variante de pipeline distincte, donc à compiler séparément.
+        await compile(e.id + " composite+clip",
+          composeShader(e.wgsl, { applyMask: true, hasPrevPass: (e.passes || []).length > 0, blendWgsl: normal, clipToCoverage: true }));
       }
     }
 

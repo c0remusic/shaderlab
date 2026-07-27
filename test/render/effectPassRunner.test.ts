@@ -157,7 +157,7 @@ function createRunnerWithMaskResolver() {
 }
 
 describe("EffectPassRunner.runEffectPass imageSourceView (binding 6)", () => {
-  it("binds imageSourceTexture at binding 6 and composes hasImageSource=true only when options.imageSourceView is set", () => {
+  it("binds coverageTexture at binding 6 and composes hasImageSource=true only when options.imageSourceView is set", () => {
     const { runner, device, encoder, src } = createRunnerWithMaskResolver();
     const imageSourceView = {} as GPUTextureView;
 
@@ -190,5 +190,25 @@ describe("EffectPassRunner.runEffectPass imageSourceView (binding 6)", () => {
 
     const bindGroupCall = (device.createBindGroup as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0];
     expect(bindGroupCall.entries.some((e: { binding: number }) => e.binding === 6)).toBe(false);
+  });
+
+  it("binde la vue d'écrêtage au MÊME binding 6 (couverture de la photo du dessous)", () => {
+    const { runner, device, encoder, src } = createRunnerWithMaskResolver();
+    const clipCoverageView = {} as GPUTextureView;
+
+    runner.runEffectPass(
+      encoder,
+      { id: "passthrough", name: "Passthrough", params: [], wgsl: "fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> { return color; }" },
+      layer(),
+      src.createView() as unknown as GPUTextureView,
+      {} as GPUTextureView,
+      { applyMask: true, clipCoverageView },
+      [],
+    );
+
+    const bindGroupCall = (device.createBindGroup as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0];
+    expect(bindGroupCall.entries).toContainEqual({ binding: 6, resource: clipCoverageView });
+    const layoutCall = (device.createBindGroupLayout as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0];
+    expect(layoutCall.entries.some((e: { binding: number }) => e.binding === 6)).toBe(true);
   });
 });

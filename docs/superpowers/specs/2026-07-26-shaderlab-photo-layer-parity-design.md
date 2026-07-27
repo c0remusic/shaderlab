@@ -446,6 +446,8 @@ mémorisé par sélection.
 Montage : même emplacement que `BrushToolbar` — entre `ErrorBanner` et
 `<main class="workspace">` (`App.tsx:1081-1092`), en **poussant** le canvas,
 jamais en overlay au-dessus de l'image.
+*[CADUC 2026-07-27 — ne pas lire par substitution. Le panneau Photo est monté
+dans la colonne du dock (`App.tsx:1263-1274`) et ne pousse pas le canvas.]*
 
 **Modes du canvas : une union, plus deux booléens.** Aujourd'hui
 `maskPaintMode` (`App.tsx:94`) et l'affichage des handles ne s'excluent pas :
@@ -462,8 +464,19 @@ type CanvasMode =
 ```
 
 Un seul état, états incompatibles inexprimables. Règles : entrer dans un mode
-sort de l'autre ; la barre de transform et les poignées ne s'affichent qu'en
-`idle` ; `crop` porte le crop capturé à l'entrée pour pouvoir annuler.
+sort de l'autre ; ~~la barre de transform et~~ les poignées ne s'affichent
+qu'en `idle` ; `crop` porte le crop capturé à l'entrée pour pouvoir annuler.
+
+*[CADUC 2026-07-27 pour la BARRE, actif pour les poignées — reformulé, ne pas
+lire par substitution. La règle « ne s'affiche qu'en `idle` » ne vaut QUE pour
+les poignées du canvas, qui interceptent le geste de pinceau ; c'est
+exactement ce que `showsTransformHandles` gouverne (`src/ui/canvasMode.ts:47-53`),
+et c'est toujours vrai. Le **panneau Photo reste visible et éditable dans les
+trois modes** (`idle`/`maskPaint`/`crop`) : un champ numérique du dock
+n'intercepte aucun geste. Décidé et motivé au design
+`2026-07-27-shaderlab-panneau-photo-et-ecretage-design.md` §3.7 ; livré tel
+quel — `App.tsx:1263-1274` monte `PhotoPanel` sans aucune condition de
+`canvasMode`.]*
 
 **`crop` porte `layerId`, et c'est structurel.** Sans lui, l'utilisateur qui
 entre en crop sur A puis sélectionne B (ou supprime A) garde un mode `crop`
@@ -494,7 +507,14 @@ Centrer · Miroir H · Miroir V · Recadrer.
 **Snap d'angle : 15°.** Valeur retenue par défaut parce que c'est celle de
 Photoshop, la référence explicite de tout ce chantier — pas une question à
 poser. La *forme* du déclencheur (bascule persistante dans la barre, `Shift`
-maintenu pendant le drag, ou les deux) reste ouverte (§8). Correction de coût
+maintenu pendant le drag, ou les deux) reste ouverte (§8).
+*[CADUC 2026-07-27 — question CLOSE, ne pas lire par substitution : il n'y a
+pas de bascule dans le panneau Photo. Le déclencheur retenu est `Shift`
+maintenu pendant le drag de rotation au canvas
+(`src/components/TransformHandles.tsx:77`, `snapAngle` de
+`src/ui/transform.ts:77`) ; le champ « Angle » du panneau reste littéral — snapper une
+valeur TAPÉE serait un défaut d'usage. Voir §8 point 2, également clos.]*
+Correction de coût
 au passage : `PointerEvent.shiftKey` est déjà disponible dans
 `handlePointerMove` (`TransformHandles.tsx:64-70`) sans aucun listener clavier —
 la variante `Shift` fait une ligne, pas de la « plomberie ».
@@ -687,7 +707,9 @@ Livre : `src/hooks/usePhotoLayer.ts` (périmètre exact en §4) ; `name` sur
 `LayerState` alimenté par le basename à l'import ; vignette possédée par
 `PhotoSourceStore` ; ligne de `LayerPanel` = vignette + nom au lieu de
 « Passthrough » ; `canvasMode` union (avec `layerId` sur `crop`) remplaçant
-`maskPaintMode`, qui masque barre et poignées pendant la peinture de masque, et
+`maskPaintMode`, qui masque ~~barre et~~ poignées pendant la peinture de
+masque *[CADUC 2026-07-27 pour la barre — le panneau Photo reste visible en
+`maskPaint`, cf. §3.4 ; seules les poignées sont masquées]*, et
 retombe en `idle` sur tout changement de sélection ou suppression de calque.
 Preuve : importer une photo → la ligne affiche `IMG_1234.jpg` + sa vignette ;
 entrer en peinture de masque → les poignées disparaissent, le pinceau n'est
@@ -972,8 +994,13 @@ snap (§3.4, 15° comme Photoshop).
      un chantier à part entière, plus gros que les six tranches réunies, et
      qui touche tous les calques, pas seulement les calques photo.
    Recommandation : **(A)**, à confirmer avant T3.
-2. **Forme du déclencheur de snap d'angle : bascule persistante dans la barre,
-   `Shift` maintenu pendant le drag, ou les deux ?** L'angle (15°) est tranché ;
+2. ~~**Forme du déclencheur de snap d'angle : bascule persistante dans la barre,
+   `Shift` maintenu pendant le drag, ou les deux ?**~~
+   *[CLOS 2026-07-27 — n'est plus un point ouvert, ne pas rouvrir par
+   substitution. Retenu : `Shift` maintenu pendant le drag de rotation, SEUL —
+   pas de bascule dans le panneau Photo. Livré `TransformHandles.tsx:77`.
+   Le paragraphe ci-dessous est conservé pour la trace du raisonnement.]*
+   L'angle (15°) est tranché ;
    il ne reste que l'interaction. Les deux variantes coûtent une ligne chacune
    (`shiftKey` est déjà disponible, `TransformHandles.tsx:64-70`), donc le choix
    est purement une question d'usage. **À poser avec un rendu de la barre en

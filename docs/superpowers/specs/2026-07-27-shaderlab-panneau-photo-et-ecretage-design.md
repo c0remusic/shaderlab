@@ -480,7 +480,8 @@ change pas (`contextualPanel.ts:18-29`). Le panneau affiche alors
 **Comportement en `maskPaint` et en `crop` — tranché.** Le panneau **reste
 visible et ses champs restent éditables dans les trois modes**. La règle du
 2026-07-26 (« la barre de transform et les poignées ne s'affichent qu'en
-`idle` », `:448-449`) visait les **poignées du canvas**, qui interceptent le
+`idle` », `:467-468`, désormais marquée CADUC pour la barre à son point
+d'usage) visait les **poignées du canvas**, qui interceptent le
 geste de pinceau — c'est exactement ce que `showsTransformHandles` gouverne
 (`canvasMode.ts:47-53`), et ça reste vrai. Un champ numérique dans le dock
 n'intercepte aucun geste de canvas et ne pousse plus le canvas (§3.7) : rien ne

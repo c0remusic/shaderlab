@@ -44,10 +44,15 @@ export function isMaskPaint(mode: CanvasMode): boolean {
   return mode.kind === "maskPaint";
 }
 
-/** Vrai ssi la barre de transform et les poignées peuvent s'afficher —
+/** Vrai ssi les poignées de transform DU CANVAS peuvent s'afficher —
  *  c'est-à-dire en `idle` uniquement (en `crop`, ce sont les poignées de
  *  crop qui prennent la place ; en `maskPaint`, rien ne doit intercepter le
- *  pinceau). */
+ *  pinceau).
+ *
+ *  Ne gouverne QUE les poignées : le panneau « Photo » du dock reste visible
+ *  et éditable dans les trois modes (un champ numérique n'intercepte aucun
+ *  geste de pinceau) — design 2026-07-27 §3.7. La barre contextuelle que
+ *  visait la formulation d'origine n'a jamais existé. */
 export function showsTransformHandles(mode: CanvasMode): boolean {
   return mode.kind === "idle";
 }

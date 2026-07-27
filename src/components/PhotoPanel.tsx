@@ -1,8 +1,7 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import type { LayerState, LayerTransform } from "../layers/types";
-import { parseControlValue } from "../ui/formatValue";
 import { Button } from "./ui/button";
 import { Disclosure } from "./ui/collapsible";
+import { NumberField, type NumberFieldClassNames } from "./ui/number-field";
 import "./PhotoPanel.css";
 
 /** Bornes de saisie des champs de placement. Larges à dessein : une photo
@@ -13,98 +12,18 @@ const POSITION_LIMIT_PX = 100000;
 const SCALE_MIN_PERCENT = 2;
 const SCALE_MAX_PERCENT = 2000;
 
-interface NumberFieldProps {
-  label: string;
-  /** Valeur affichée, DÉJÀ dans l'unité du champ (px, %, °). */
-  value: number;
-  unit: string;
-  min: number;
-  max: number;
-  step: number;
-  onCommit: (value: number) => void;
-}
-
-/**
- * Champ numérique de placement. Même contrat de commit que le champ de
- * valeur de `LabeledSlider` : brouillon local pendant l'édition, commit au
- * `blur` (et `Entrée` ne fait que blurrer, jamais committer deux fois — la
- * prop contrôlée n'est pas rafraîchie entre les deux). `Échap` abandonne
- * l'édition du champ sans rien committer.
- */
-function NumberField({ label, value, unit, min, max, step, onCommit }: NumberFieldProps) {
-  const id = useId();
-  const shown = String(value);
-  const [draft, setDraft] = useState(shown);
-  const [isEditing, setIsEditing] = useState(false);
-  // `Échap` doit annuler l'édition SYNCHRONEMENT : un `setDraft(shown)` avant
-  // le blur ne suffit pas — le `commitDraft` déclenché par ce blur s'exécute
-  // AVANT le re-render et lirait encore le brouillon abandonné (constaté au
-  // test d'interaction Storybook : « 999 » était committé malgré Échap).
-  const abandonRef = useRef(false);
-
-  useEffect(() => {
-    if (!isEditing) setDraft(shown);
-  }, [isEditing, shown]);
-
-  function commitDraft() {
-    setIsEditing(false);
-    if (abandonRef.current) {
-      abandonRef.current = false;
-      setDraft(shown);
-      return;
-    }
-    const parsed = parseControlValue(draft, min, max, step);
-    if (parsed === null) {
-      setDraft(shown);
-      return;
-    }
-    setDraft(String(parsed));
-    if (parsed !== value) onCommit(parsed);
-  }
-
-  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      // Commit par le seul `onBlur` — appeler `commitDraft()` ici EN PLUS
-      // doublerait l'entrée d'historique (même piège que LabeledSlider).
-      event.currentTarget.blur();
-      return;
-    }
-    if (event.key === "Escape") {
-      event.preventDefault();
-      // Abandon de l'édition du champ, jamais un commit.
-      abandonRef.current = true;
-      event.currentTarget.blur();
-    }
-  }
-
-  return (
-    <div className="photo-panel__field">
-      <label className="photo-panel__field-label" htmlFor={id}>
-        {label}
-      </label>
-      <div className="photo-panel__field-input">
-        <input
-          id={id}
-          className="photo-panel__input"
-          type="text"
-          inputMode="decimal"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onFocus={(event) => {
-            setIsEditing(true);
-            event.currentTarget.select();
-          }}
-          onBlur={commitDraft}
-          onKeyDown={handleKeyDown}
-        />
-        <span className="photo-panel__unit" aria-hidden="true">
-          {unit}
-        </span>
-      </div>
-    </div>
-  );
-}
+/** Le champ numérique a été EXTRAIT vers `components/ui/number-field.tsx` le
+ *  2026-07-28 (l'en-tête compact du panneau Effets en avait besoin pour son
+ *  opacité). Ces classes sont celles d'avant l'extraction, à l'identique :
+ *  `NumberFieldClassNames` remplace le style par défaut au lieu de s'y ajouter,
+ *  donc `PhotoPanel.css` reste seul maître du rendu de ces quatre champs. */
+const PHOTO_FIELD_CLASSES: NumberFieldClassNames = {
+  root: "photo-panel__field",
+  label: "photo-panel__field-label",
+  field: "photo-panel__field-input",
+  input: "photo-panel__input",
+  unit: "photo-panel__unit",
+};
 
 interface Props {
   /** Calque photo sélectionné, ou `null` (aucune sélection, ou sélection non
@@ -177,6 +96,7 @@ export function PhotoPanel({ layer, thumbnailUrl, onTransformChange, onTransform
       <Disclosure title="Placement" defaultOpen>
         <div className="photo-panel__fields">
           <NumberField
+            classNames={PHOTO_FIELD_CLASSES}
             label="X"
             unit="px"
             value={Math.round(transform.x)}
@@ -186,6 +106,7 @@ export function PhotoPanel({ layer, thumbnailUrl, onTransformChange, onTransform
             onCommit={(x) => commitTransform({ ...transform, x })}
           />
           <NumberField
+            classNames={PHOTO_FIELD_CLASSES}
             label="Y"
             unit="px"
             value={Math.round(transform.y)}
@@ -195,6 +116,7 @@ export function PhotoPanel({ layer, thumbnailUrl, onTransformChange, onTransform
             onCommit={(y) => commitTransform({ ...transform, y })}
           />
           <NumberField
+            classNames={PHOTO_FIELD_CLASSES}
             label="Échelle"
             unit="%"
             value={Math.round(transform.scale * 100)}
@@ -204,6 +126,7 @@ export function PhotoPanel({ layer, thumbnailUrl, onTransformChange, onTransform
             onCommit={(percent) => commitTransform({ ...transform, scale: percent / 100 })}
           />
           <NumberField
+            classNames={PHOTO_FIELD_CLASSES}
             label="Angle"
             unit="°"
             value={Math.round((transform.rotation * 180) / Math.PI)}

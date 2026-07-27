@@ -57,6 +57,69 @@ export const NoSelection: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("combobox", { name: "Effet" })).toBeDisabled();
     await expect(canvas.getByRole("combobox", { name: "Fusion" })).toBeDisabled();
+    await expect(canvas.getByRole("textbox", { name: "Opacité" })).toBeDisabled();
+  },
+};
+
+// L'opacité est le SEUL contrôle de l'en-tête dont l'étiquette a quitté l'écran
+// (`labelPlacement="hidden"`, donc `sr-only`). Sans cette story, une régression
+// qui le rendrait anonyme — étiquette non liée, `htmlFor` cassé — passerait au
+// vert : plus rien d'autre ne vérifie son nom accessible. Elle verrouille aussi
+// l'UNITÉ affichée : un pourcentage entier, jamais un 0..1.
+export const OpacityFieldIsNamedAndShowsPercent: Story = {
+  args: { selectedId: "layer-2" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const field = canvas.getByRole("textbox", { name: "Opacité" });
+    await expect(field).toHaveValue("35");
+    await expect(canvas.getByText("%")).toBeVisible();
+  },
+};
+
+// Contrat de commit du champ (précédent du repo : `ui/labeled-slider.tsx`,
+// `PhotoPanel`) — brouillon local, commit au blur, EXACTEMENT une entrée
+// d'historique. La saisie porte l'unité (« 60 % ») : le champ doit l'accepter
+// telle qu'il l'affiche.
+export const OpacityFieldCommitsTypedPercent: Story = {
+  args: { selectedId: "layer-2", onOpacityChange: fn(), onOpacityCommit: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const field = canvas.getByRole("textbox", { name: "Opacité" });
+    await userEvent.click(field);
+    await userEvent.keyboard("{Control>}a{/Control}60 %");
+    await userEvent.tab();
+    await expect(args.onOpacityChange).toHaveBeenCalledTimes(1);
+    await expect(args.onOpacityChange).toHaveBeenCalledWith("layer-2", 0.6);
+    await expect(args.onOpacityCommit).toHaveBeenCalledTimes(1);
+  },
+};
+
+// Saisie invalide : retour à la valeur précédente, jamais un NaN poussé dans le
+// modèle ni une entrée d'historique.
+export const OpacityFieldRejectsInvalidInput: Story = {
+  args: { selectedId: "layer-2", onOpacityChange: fn(), onOpacityCommit: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const field = canvas.getByRole("textbox", { name: "Opacité" });
+    await userEvent.click(field);
+    await userEvent.keyboard("{Control>}a{/Control}bloup");
+    await userEvent.tab();
+    await expect(field).toHaveValue("35");
+    await expect(args.onOpacityChange).not.toHaveBeenCalled();
+    await expect(args.onOpacityCommit).not.toHaveBeenCalled();
+  },
+};
+
+// Échap abandonne l'édition en cours sans rien committer.
+export const OpacityFieldEscapeAbandons: Story = {
+  args: { selectedId: "layer-2", onOpacityChange: fn(), onOpacityCommit: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const field = canvas.getByRole("textbox", { name: "Opacité" });
+    await userEvent.click(field);
+    await userEvent.keyboard("{Control>}a{/Control}99{Escape}");
+    await expect(field).toHaveValue("35");
+    await expect(args.onOpacityChange).not.toHaveBeenCalled();
   },
 };
 

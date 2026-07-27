@@ -88,25 +88,36 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
   // 2026-07-27 §3.7) : un calque photo porte `passthrough`, dont la liste de
   // paramètres est vide — le cadre vide ne disait pas pourquoi. Deux causes
   // distinctes, deux phrases : aucun effet du tout, ou un effet sans réglage.
+  // L'écrêtage est une propriété du CALQUE, pas de son effet : il reste donc
+  // accessible même quand l'effet n'a aucun paramètre. Le sortir du chemin
+  // « avec paramètres » corrige un piège sans issue — un calque écrêté repassé
+  // à « Aucun effet » gardait `clipToBelow: true` sans plus aucun moyen de le
+  // décocher, l'état vide étant retourné avant la case (seul un undo en
+  // sortait).
+  const clipRow = layer.imageSource === undefined && (
+    <div className="param-panel__clip-row">
+      <Checkbox
+        label="Écrêter sur la photo du dessous"
+        checked={layer.clipToBelow ?? false}
+        onChange={(clip) => onClipChange(layer.id, clip)}
+      />
+    </div>
+  );
+
   if (effect.params.length === 0) {
     return (
-      <p className="param-panel__empty">
-        {layer.effectId === "passthrough" ? "Aucun effet appliqué à ce calque." : "Cet effet n'a pas de paramètres."}
-      </p>
+      <div className="param-panel">
+        {clipRow}
+        <p className="param-panel__empty">
+          {layer.effectId === "passthrough" ? "Aucun effet appliqué à ce calque." : "Cet effet n'a pas de paramètres."}
+        </p>
+      </div>
     );
   }
 
   return (
     <div className="param-panel">
-      {layer.imageSource === undefined && (
-        <div className="param-panel__clip-row">
-          <Checkbox
-            label="Écrêter sur la photo du dessous"
-            checked={layer.clipToBelow ?? false}
-            onChange={(clip) => onClipChange(layer.id, clip)}
-          />
-        </div>
-      )}
+      {clipRow}
       <Disclosure title="Effet" defaultOpen>
         <div className="param-panel__group">
           {groupEffectParams(effect.params).map((item) =>

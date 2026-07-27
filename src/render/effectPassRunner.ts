@@ -5,7 +5,14 @@ import { MAX_EFFECT_PARAMS, composeShader, FULLSCREEN_VERTEX_WGSL } from "./shad
 
 export const PASSTHROUGH_EFFECT: EffectModule = {
   id: "passthrough",
-  name: "Passthrough",
+  // Libellé UTILISATEUR, pas un nom technique : ce `name` est affiché tel quel
+  // dans la ligne de pile (`LayerPanel`, quand le calque n'a pas de `name`
+  // propre) et dans le titre « Réglages · … » (`App.tsx`). « Passthrough » y
+  // apparaissait pendant que le corps du panneau disait « Aucun effet » —
+  // trois libellés pour une seule chose, dont deux incompréhensibles.
+  // L'identifiant technique reste `passthrough` : c'est lui que le moteur
+  // manipule, jamais ce libellé.
+  name: "Aucun effet",
   params: [],
   wgsl: "fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> { return color; }",
 };

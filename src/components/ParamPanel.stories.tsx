@@ -45,6 +45,20 @@ export const PassthroughLayer: Story = {
   args: { layer: makeLayer({ id: "layer-photo", effectId: "passthrough", params: {} }) },
 };
 
+/** Régression : un calque ÉCRÊTÉ repassé à « Aucun effet » doit garder sa case
+ *  d'écrêtage. L'état vide était retourné AVANT la case, donc l'utilisateur ne
+ *  pouvait plus la décocher — piège sans issue hors undo. L'écrêtage est une
+ *  propriété du CALQUE, pas de son effet. */
+export const ClippedLayerWithoutEffectKeepsClipToggle: Story = {
+  args: { layer: makeLayer({ id: "layer-5", effectId: "passthrough", params: {}, clipToBelow: true }) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const toggle = canvas.getByRole("checkbox", { name: "Écrêter sur la photo du dessous" });
+    await expect(toggle).toBeChecked();
+    await expect(canvas.getByText("Aucun effet appliqué à ce calque.")).toBeInTheDocument();
+  },
+};
+
 export const WarpLayer: Story = {
   args: { layer: makeLayer({ id: "layer-2", effectId: "warp" }) },
 };

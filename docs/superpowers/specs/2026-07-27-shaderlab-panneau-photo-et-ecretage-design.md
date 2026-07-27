@@ -472,10 +472,23 @@ défaut subsiste sur `BrushToolbar` — hors scope, §8.)
    l'utilisateur a délibérément TAPÉE (saisir 20, lire 15) est un défaut
    d'usage, et rendrait tout angle non multiple de 15° insaisissable au
    clavier — la seule voie de saisie exacte. Les deux surfaces sont donc
-   complémentaires, pas redondantes : le canvas cale, le champ obéit ; aperçu live
-   au `change`, une entrée d'historique au commit (blur/Entrée), même couple
-   `onTransformChange` / `onTransformCommit` que les poignées
-   (`usePhotoLayer.ts:115-133`).
+   complémentaires, pas redondantes : le canvas cale, le champ obéit.
+
+   **Pas d'aperçu live à chaque frappe — commit au blur/`Entrée` seulement.**
+   Le champ tient un brouillon local ; `onTransformChange` /
+   `onTransformCommit` (`usePhotoLayer.ts:115-133`) ne partent qu'au commit,
+   en UNE entrée d'historique. C'est le contrat déjà en place pour le champ
+   numérique de `LabeledSlider` (`components/ui/labeled-slider.tsx:164-170`
+   pose le brouillon, `:114-123` committe au seul `onBlur`) — et c'est la
+   même frontière que pour le snap ci-dessus : **l'aperçu live appartient au
+   geste continu** (la poignée du slider, `labeled-slider.tsx:153` ; les
+   poignées du canvas), **pas à la saisie clavier**. Reparser à chaque frappe
+   rendrait tout état intermédiaire d'une saisie légitime — « 4 » puis « 45 »,
+   ou le vide transitoire d'un `Ctrl+A` — visible comme un rendu, ferait
+   sauter l'image sous les doigts, et donnerait un sens à des chaînes qui n'en
+   ont pas encore (« - », « 1e »). Corollaire assumé : `Échap` peut abandonner
+   l'édition sans rien à défaire, précisément parce que rien n'a été appliqué
+   (`PhotoPanel.tsx:38-42,72-77`).
 3. **Actions** — Réinitialiser · Ajuster à la toile (*contain*) · Centrer ·
    Miroir H · Miroir V (T3) · Recadrer (T4, entre en mode `crop`).
 

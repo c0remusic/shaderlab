@@ -498,11 +498,20 @@ d'historique, contenant à la fois le nouveau crop et le `(x, y)` compensé par
 entrée d'historique. Même discipline `pointerup` = commit /
 `pointercancel` = abandon que `TransformHandles.tsx:82-101`.
 
-**Champs numériques et actions.** X, Y, échelle %, angle ° : aperçu live au
-`change`, une entrée d'historique au commit (blur/Entrée) — même couple
+**Champs numériques et actions.** X, Y, échelle %, angle ° : ~~aperçu live au
+`change`,~~ une entrée d'historique au commit (blur/Entrée) — même couple
 `onTransformChange` / `onTransformCommit` que les poignées
 (`App.tsx:333-351`). Rangée d'actions : Réinitialiser · Ajuster à la toile ·
 Centrer · Miroir H · Miroir V · Recadrer.
+
+*[CADUC 2026-07-27 pour « aperçu live au `change` », le reste actif. Livré et
+voulu : commit au blur/`Entrée` SEULEMENT, brouillon local pendant la saisie
+(`PhotoPanel.tsx:33-62`). C'est le contrat déjà en place sur le champ
+numérique de `LabeledSlider` (`components/ui/labeled-slider.tsx:164-170`,
+commit au seul `onBlur` `:114-123`) : l'aperçu live appartient au geste
+continu (poignée de slider `:153`, poignées du canvas), pas à la frappe
+clavier — reparser à chaque touche rendrait visibles les états intermédiaires
+d'une saisie légitime. Motivé au design 2026-07-27 §3.7.]*
 
 **Snap d'angle : 15°.** Valeur retenue par défaut parce que c'est celle de
 Photoshop, la référence explicite de tout ce chantier — pas une question à

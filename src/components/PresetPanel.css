@@ -12,6 +12,12 @@
 
 .preset-panel__name-input {
   flex: 1;
+  /* Sans `min-width: 0`, un element flex ne peut pas retrecir sous sa taille
+   * intrinseque — et un <input> en a une (une vingtaine de caracteres). La
+   * rangee debordait donc de la carte quelle que soit la largeur du dock,
+   * ce qui declenchait une barre de defilement horizontale qui volait
+   * elle-meme 15px de hauteur au contenu. */
+  min-width: 0;
   background: var(--surface-inset);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-control);

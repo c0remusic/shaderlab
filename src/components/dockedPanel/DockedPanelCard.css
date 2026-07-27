@@ -61,6 +61,13 @@
   padding: var(--space-5);
   max-height: 42vh;
   overflow-y: auto;
+  /* Explicite, jamais laisse a la valeur calculee : des qu'un axe n'est plus
+   * `visible`, CSS force l'autre a `auto`. Un panneau dont le contenu deborde
+   * de quelques pixels gagnait donc une barre horizontale que personne n'avait
+   * demandee, laquelle rognait 15px de hauteur utile. La largeur du dock est
+   * fixee par le splitter : un contenu de panneau doit s'y plier, pas defiler
+   * lateralement. */
+  overflow-x: hidden;
 }
 
 .docked-panel-card--dragging { opacity: var(--dragging-opacity); }

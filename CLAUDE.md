@@ -235,6 +235,22 @@ quand tu cherches le statut d'un chantier/plan spécifique, PAS importé
 automatiquement : un `@import` charge le fichier entier à chaque session,
 quel que soit le besoin réel du tour (doublait le poids de ce CLAUDE.md).
 
+## Densité de l'UI — règle permanente (ADR-0001)
+
+**Tout élément d'interface ajouté doit passer la checklist de densité AU MOMENT
+où il est ajouté**, jamais dans un lot de rattrapage : `.claude/decisions/ADR-0001-densite-ui-controles-repetes.md`.
+
+Résumé : un contrôle qui se répète sur chaque ligne d'une liste devient UN
+contrôle unique en en-tête fixe, agissant sur l'élément sélectionné — avec son
+corollaire indissociable (en-tête fixe + liste défilante DANS le panneau +
+hauteur de panneau bornée ; jamais un défilement de colonne). Ligne au-dessus de
+56 px hors sélection = à justifier par écrit ou à réduire.
+
+Cette règle existe parce qu'elle a été enfreinte le jour même où elle a été
+posée : le panneau Photo a été livré avant le lot de densité, portant la colonne
+à 1613 px pour 1345 px disponibles avec **deux** calques. Les décisions du
+projet vivent dans `.claude/decisions/` (INDEX.md), pas dans les docs de design.
+
 ## Wireframe & tokens
 Source de tokens canonique (à viser pour tout wireframe `interface-design`) :
 `src/design/primitives.css` + `src/design/semantic.css` + `src/design/components.css`

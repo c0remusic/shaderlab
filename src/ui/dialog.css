@@ -4,6 +4,17 @@
  * hardcoded colors, sizes or durations. No decorative blur on the backdrop.
  */
 
+/* Le navigateur masque un <dialog> ferme via `display: none` dans sa feuille
+ * utilisateur. La regle `.ui-dialog` ci-dessous pose `display: flex`, ce qui
+ * l'ecrase — sans cette garde, TOUS les dialogues montes s'affichent en
+ * permanence, empiles au meme endroit, et paraissent impossibles a fermer
+ * (leur etat React est deja ferme : cliquer Annuler ne change rien).
+ * Dialog.tsx rend toujours l'element et pilote showModal()/close(), donc la
+ * garde doit vivre ici, pas dans le composant. */
+.ui-dialog:not([open]) {
+  display: none;
+}
+
 .ui-dialog {
   position: fixed;
   inset: 0;

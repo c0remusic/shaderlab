@@ -6,6 +6,7 @@ import { MAX_PHOTO_LAYERS, canAddPhotoLayer } from "../layers/photoLayer";
 import type { Renderer } from "../render/renderer";
 import { pickImageFile, readImageFile } from "../launch";
 import { messageFromUnknown } from "../lib/errors";
+import { centerTransform, fitToCanvas, resetTransform } from "../ui/transform";
 import {
   IDLE_CANVAS_MODE,
   isMaskPaint,
@@ -132,6 +133,38 @@ export function usePhotoLayer({
     commit(currentStack());
   }, [paramDirtyRef, commit, currentStack]);
 
+  /** Applique une transformation PURE (`src/ui/transform.ts`) au calque photo
+   *  `id` et committe en UNE seule entrée d'historique. Les trois actions du
+   *  panneau Photo (Réinitialiser · Ajuster à la toile · Centrer) passent
+   *  toutes par ici : elles ne diffèrent que par la fonction pure appliquée.
+   *  No-op si le calque n'existe plus, n'est pas un calque photo, ou si ses
+   *  dimensions source sont inconnues — une action ne peut pas inventer une
+   *  transform, et « Ajuster » sans dimensions produirait une échelle fausse. */
+  const applyTransformAction = useCallback(
+    (id: string, produce: (transform: LayerTransform, photoSize: { width: number; height: number }) => LayerTransform) => {
+      const layer = sessionRef.current.layers().find((l) => l.id === id);
+      if (!layer?.imageSource || !layer.transform) return;
+      const photoSize = rendererRef.current?.photoSources?.dimensions(layer.imageSource.sourceId);
+      if (!photoSize) return;
+      handleTransformChange(id, produce(layer.transform, photoSize));
+      handleTransformCommit();
+    },
+    [sessionRef, rendererRef, handleTransformChange, handleTransformCommit],
+  );
+
+  const handlePhotoReset = useCallback(
+    (id: string) => applyTransformAction(id, () => resetTransform(imageSize)),
+    [applyTransformAction, imageSize],
+  );
+  const handlePhotoFitToCanvas = useCallback(
+    (id: string) => applyTransformAction(id, (transform, photoSize) => fitToCanvas(transform, imageSize, photoSize)),
+    [applyTransformAction, imageSize],
+  );
+  const handlePhotoCenter = useCallback(
+    (id: string) => applyTransformAction(id, (transform) => centerTransform(transform, imageSize)),
+    [applyTransformAction, imageSize],
+  );
+
   const toggleMaskPaintMode = useCallback(() => setCanvasMode(toggleMaskPaint), []);
   const stopMaskPaintMode = useCallback(() => setCanvasMode(IDLE_CANVAS_MODE), []);
 
@@ -152,6 +185,9 @@ export function usePhotoLayer({
     handleImportPhotoLayer,
     handleTransformChange,
     handleTransformCommit,
+    handlePhotoReset,
+    handlePhotoFitToCanvas,
+    handlePhotoCenter,
     thumbnailUrl,
   };
 }

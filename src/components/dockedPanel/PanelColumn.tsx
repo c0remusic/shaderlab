@@ -275,7 +275,14 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
       onPointerUp={dragState ? (event) => finishDrag(event, true) : undefined}
       onPointerCancel={dragState ? (event) => finishDrag(event, false) : undefined}
     >
-      <div className="panel-column__grid scroll-thin">
+      {/* `ref={gridRef}` : SANS lui, `useLayoutEffect` sort au premier `if
+          (!grid) return` et AUCUNE hauteur n'est mesurée — les trois variables
+          du plancher restent absentes, leurs valeurs de repli valent 0px, et
+          `min-height` calcule 0. C'est le défaut mesuré au banc les 2026-07-27
+          et 28 : débordement de grille nul à TOUTES les hauteurs (720 → 1377),
+          carte Effets réduite à son chrome, liste invisible. Le plancher
+          existait depuis `5a77077` mais n'a jamais atteint le DOM. */}
+      <div ref={gridRef} className="panel-column__grid scroll-thin">
         {layout.map((column, columnIndex) => (
           <div className="panel-column__stack" key={column.join("-")}>
             {columnIndex === 0 && (

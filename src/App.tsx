@@ -5,6 +5,7 @@ import { LayerStack } from "./layers/layerStack";
 import type { LayerState } from "./layers/types";
 import { canAddPhotoLayer, countPhotoLayers, hasPhotoLayer } from "./layers/photoLayer";
 import { changeLayerEffect } from "./layers/changeLayerEffect";
+import { documentDisplayName } from "./layers/documentName";
 import { duplicateLayer } from "./layers/duplicateLayer";
 import { DocumentSession } from "./application/documentSession";
 import { BrushToolbar } from "./components/BrushToolbar";
@@ -81,6 +82,14 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [sourcePath, setSourcePath] = useState<string | null>(null);
+  // Nom AFFICHABLE du document, distinct de `sourcePath` — qui reste le chemin
+  // disque, et lui seul, parce que c'est lui qui décide de l'écrasement à
+  // l'export. Le glisser-déposer sur le canvas n'a PAS de chemin (le navigateur
+  // ne le divulgue jamais) : dériver l'affichage de `sourcePath` faisait
+  // disparaître le titre de la barre d'outils ET la ligne d'arrière-plan sur le
+  // chemin d'ouverture le plus courant. `documentDisplayName` rend toujours une
+  // chaîne, jamais `null` — voir src/layers/documentName.ts.
+  const [documentName, setDocumentName] = useState<string | null>(null);
   // Tracks whether `sourcePath` came from `getLaunchPath()` (Lightroom
   // round-trip) as opposed to a manual drag&drop open. This flag — not a
   // string comparison on the path — is what decides overwrite-vs-copy in
@@ -258,6 +267,10 @@ export default function App() {
 
       setImageSize({ width: bitmap.width, height: bitmap.height });
       setSourcePath(path);
+      // Posé au MÊME instant que `imageSize` et `sourcePath` : un document
+      // chargé a toujours un nom affichable, donc la ligne d'arrière-plan
+      // existe toujours, quel que soit le chemin d'ouverture.
+      setDocumentName(documentDisplayName(path, file.name));
       setIsLaunchFile(fromLaunch);
 
       const stack = new LayerStack();
@@ -1182,7 +1195,7 @@ export default function App() {
         canUndo={sessionRef.current.canUndo()}
         canRedo={sessionRef.current.canRedo()}
         hasImage={imageSize.width > 0 && imageSize.height > 0}
-        fileName={sourcePath ? sourcePath.split(/[\\/]/).pop() ?? null : null}
+        fileName={documentName}
         hasLaunchFile={roundTripActive}
         onUndo={handleUndo}
         onRedo={handleRedo}
@@ -1322,6 +1335,11 @@ export default function App() {
                   onRemove={handleRemove}
                   onReorder={handleReorder}
                   thumbnailUrl={photoLayer.thumbnailUrl}
+                  // Le document est `sourceTexture`, pas un `LayerState` : la
+                  // liste ne pouvait pas le montrer, et l'utilisateur voyait
+                  // deux sortes de photos. La ligne est DÉRIVÉE de ce nom, le
+                  // modèle et le pipeline sont inchangés.
+                  backgroundName={documentName}
                 />
             },
             {

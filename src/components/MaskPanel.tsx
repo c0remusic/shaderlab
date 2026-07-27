@@ -177,7 +177,13 @@ export function MaskPanel({
           </DropdownMenu>
 
           {sources.length > 0 && (
-            <ul className="param-panel__source-list">
+            <ul
+              // `data-dock-list` : voir PanelColumn.tsx § COÛT DU HORS-LISTE —
+              // les contrôles de pinceau et le menu d'ajout de source vivent
+              // dans la même boîte défilante que cette liste.
+              data-dock-list=""
+              className="param-panel__source-list"
+            >
               {sources.map((source) => {
                 const module = getMaskSourceModule(source.type);
                 return (

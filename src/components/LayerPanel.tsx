@@ -1,9 +1,11 @@
 import { memo, useCallback, useMemo } from "react";
 import { usePointerReorder, type DropPosition } from "../ui/dragReorder";
 import "../ui/dragReorder.css";
-import { Copy, CornerLeftUp, Eye, EyeOff, GripVertical, Image as PhotoLayerIcon, Sparkles as EffectLayerIcon, Trash2 } from "lucide-react";
+import { Copy, CornerLeftDown, Eye, EyeOff, GripVertical, Image as PhotoLayerIcon, Lock, Sparkles as EffectLayerIcon, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
 import { eyeButtonLabels, isLayerVisible, isolationRole, isolationVisibleIds, type IsolationRole } from "../layers/isolation";
+import { resolveClipping } from "../layers/clipping";
+import { displayInsertToModelInsert, toDisplayOrder } from "./layerDisplayOrder";
 import { effectRegistry, getEffect } from "../render/effects/registry";
 import { PASSTHROUGH_EFFECT } from "../render/effectPassRunner";
 import { blendRegistry } from "../render/blend/registry";
@@ -35,6 +37,13 @@ interface Props {
    *  DOIT être référentiellement stable (`useCallback`) : elle traverse la
    *  mémoïsation de `LayerRow`. */
   thumbnailUrl?: (sourceId: string) => string | null;
+  /** Nom de fichier du DOCUMENT (`documentFileName`, src/layers/documentName.ts),
+   *  ou `null` si aucun document n'est ouvert. Pilote la ligne d'ARRIÈRE-PLAN,
+   *  qui est DÉRIVÉE et non un `LayerState` : le document est `sourceTexture`,
+   *  l'entrée du pipeline, pas un élément de la pile. Sans elle, l'utilisateur
+   *  voyait deux sortes de « photos » — celles qu'il importe, listées, et celle
+   *  qui a ouvert le document, invisible. */
+  backgroundName?: string | null;
 }
 
 /** Contrôles de l'EN-TÊTE : ils ne vivent plus sur chaque ligne mais une seule
@@ -53,6 +62,12 @@ export interface LayerHeaderProps {
 
 interface LayerRowProps {
   layer: LayerState;
+  /** Index de LIGNE AFFICHÉE (0 = première ligne, en haut), pas l'index dans
+   *  `layers` — la liste est le miroir du tableau depuis l'inversion du sens
+   *  d'affichage. C'est cette valeur que porte `data-layer-row-index`, sur
+   *  laquelle le glisser-déposer fait son hit-test ; la conversion vers le
+   *  modèle a lieu une seule fois, à la sortie du hook (voir
+   *  `layerDisplayOrder.ts`). */
   index: number;
   selected: boolean;
   isDragging: boolean;
@@ -68,6 +83,13 @@ interface LayerRowProps {
    *  que l'id isolé, pour ne pas casser la mémoïsation de la ligne (`memo`)
    *  sur un calque non concerné. */
   role: IsolationRole;
+  /** L'écrêtage de ce calque est-il EFFECTIF (une base photo existe sous lui) ?
+   *  Déjà résolu par `resolveClipping` côté panneau plutôt que dérivé de
+   *  `layer.clipToBelow` ici : l'attribut peut être posé sans qu'aucune base
+   *  n'existe (calque écrêté en bas de pile), auquel cas le rendu est linéaire
+   *  et la flèche ne doit pas apparaître. Booléen déjà réduit à ce calque pour
+   *  ne pas casser la mémoïsation de la ligne (`memo`). */
+  clipped: boolean;
   onSelect: (id: string) => void;
   onToggle: (id: string, altKey: boolean) => void;
   onDuplicate: (id: string) => void;
@@ -98,6 +120,7 @@ const LayerRow = memo(function LayerRow({
   dropPosition,
   visible,
   role,
+  clipped,
   onSelect,
   onToggle,
   onDuplicate,
@@ -116,15 +139,15 @@ const LayerRow = memo(function LayerRow({
   // selon la ligne, et une infobulle qui annonce la mauvaise action est pire
   // qu'une absence d'infobulle.
   const eyeLabels = eyeButtonLabels(visible, role);
-  // Écrêtage (design 2026-07-27 §3.8) : indentation + flèche vers le calque
-  // qui sert de base. Le marquage de sélection n'est PAS cassé par
-  // l'indentation — c'est le padding intérieur de la ligne qui augmente, pas
-  // sa marge : le fond de sélection couvre toujours la ligne entière (voir
-  // .layer-panel__row--clipped).
-  const clipped = layer.clipToBelow === true;
+  // Écrêtage : la flèche coudée, et RIEN d'autre. L'indentation livrée le
+  // 2026-07-27 a été retirée après observation directe de Photoshop web
+  // (docs/design-system/photoshop-web-observations-2026-07-27.md §5ter) : une
+  // ligne écrêtée y reste alignée sur les autres, seule une petite flèche
+  // apparaît entre l'œil et la vignette. L'indentation avait été validée sur
+  // une maquette qui la présentait à tort comme la convention Photoshop.
+  // `clipped` arrive RÉSOLU en prop — voir `LayerRowProps.clipped`.
   const rowClass = [
     "layer-panel__row",
-    clipped && "layer-panel__row--clipped",
     selected && "layer-panel__row--selected",
     isDragging && "layer-panel__row--dragging",
     dropPosition === "before" && "layer-panel__row--drop-before",
@@ -184,10 +207,14 @@ const LayerRow = memo(function LayerRow({
             <EffectLayerIcon className="layer-panel__row-nature icon-sm icon-stroke" aria-hidden="true" />
           )}
           {clipped && (
-            // La ligne de base est celle du DESSOUS dans la pile — donc
-            // JUSTE AU-DESSUS dans cette liste, qui affiche le bas de pile en
-            // premier. La flèche pointe vers elle : vers le haut de la liste.
-            <CornerLeftUp
+            // La ligne de base est celle du DESSOUS dans la pile. Depuis
+            // l'inversion du sens d'affichage (`layerDisplayOrder.ts`), elle
+            // est aussi celle du dessous dans la LISTE — la flèche pointe donc
+            // vers le BAS. Elle ne s'affiche que si une base EXISTE : un calque
+            // écrêté en bas de pile n'a rien sous lui, `resolveClipping` le
+            // rend `inert` (il rend linéairement), et une flèche qui désigne
+            // une base inexistante est un mensonge.
+            <CornerLeftDown
               className="layer-panel__clip-arrow icon-sm icon-stroke"
               role="img"
               aria-label="Écrêté sur le calque du dessous"
@@ -322,12 +349,41 @@ export function LayerPanel({
   onRemove,
   onReorder,
   thumbnailUrl,
+  backgroundName = null,
 }: Props) {
+  // SENS D'AFFICHAGE (2026-07-27) : la liste est le MIROIR du tableau. Le
+  // modèle ne bouge pas — `layers[0]` reste le calque appliqué en premier, donc
+  // le bas de pile — mais il s'affiche en DERNIÈRE ligne, juste au-dessus de la
+  // ligne d'arrière-plan qu'il consomme, comme dans tous les éditeurs.
+  const displayLayers = useMemo(() => toDisplayOrder(layers), [layers]);
+
+  // Le glisser-déposer raisonne ENTIÈREMENT en espace d'affichage : le hook
+  // reçoit la liste affichée, `data-layer-row-index` porte l'index de LIGNE, et
+  // les indicateurs avant/après gardent donc leur sens visuel sans inversion.
+  // Une seule frontière convertit — ici, à la sortie du hook, par la fonction
+  // pure testée `displayInsertToModelInsert` (test/components/layerDisplayOrder.test.ts).
+  const handleReorderFromDisplay = useCallback(
+    (id: string, displayNewIndex: number) => {
+      onReorder(id, displayInsertToModelInsert(displayNewIndex, layers.length));
+    },
+    [onReorder, layers.length]
+  );
+
   const { dragState, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel } = usePointerReorder(
-    layers,
+    displayLayers,
     (layer) => layer.id,
     "data-layer-row-index",
-    onReorder
+    handleReorderFromDisplay
+  );
+
+  // Écrêtage EFFECTIF de toute la pile, calculé une fois par render. L'ensemble
+  // « rendu » passé ici est la pile ENTIÈRE : la flèche marque un ATTACHEMENT
+  // structurel, qui ne doit pas clignoter selon qu'un œil est fermé (même
+  // invariance que `clipBaseId`, voir src/layers/clipping.ts). Seul le cas
+  // `inert` — aucune base photo en dessous — retire la flèche.
+  const clipResolutions = useMemo(
+    () => resolveClipping(layers, new Set(layers.map((l) => l.id))),
+    [layers]
   );
 
   // Visibilité effective de TOUTE la pile, calculée une fois par render plutôt
@@ -356,22 +412,28 @@ export function LayerPanel({
         onChange={onAdd}
       />
       <ul
+        // `data-dock-list` : marque la LISTE dans la zone défilante de la
+        // carte, pour que le plancher de compression compte séparément les
+        // lignes et ce qui vit à côté d'elles — ici le sélecteur
+        // « Ajouter un effet ». Voir PanelColumn.tsx § COÛT DU HORS-LISTE.
+        data-dock-list=""
         className="layer-panel__list"
         onPointerMove={dragState ? handlePointerMove : undefined}
         onPointerUp={dragState ? handlePointerUp : undefined}
         onPointerCancel={dragState ? handlePointerCancel : undefined}
       >
-        {layers.map((layer, index) => (
+        {displayLayers.map((layer, displayRow) => (
           <LayerRow
             key={layer.id}
             layer={layer}
-            index={index}
+            index={displayRow}
             selected={layer.id === selectedId}
             visible={isLayerVisible(layer, visibleIds)}
             role={isolationRole(layer.id, isolatedLayerId)}
+            clipped={clipResolutions.get(layer.id)?.kind === "active"}
             isDragging={dragState?.draggedId === layer.id}
             dropPosition={
-              dragState !== null && dragState.overIndex === index && dragState.draggedId !== layer.id
+              dragState !== null && dragState.overIndex === displayRow && dragState.draggedId !== layer.id
                 ? dragState.overPosition
                 : null
             }
@@ -383,6 +445,33 @@ export function LayerPanel({
             thumbnailUrl={thumbnailUrl}
           />
         ))}
+        {/* Ligne d'ARRIÈRE-PLAN — DÉRIVÉE du document, pas un `LayerState` :
+            elle ne porte donc pas `data-layer-row-index` (invisible au
+            réordonnancement, qui indexe par cet attribut), ne se sélectionne
+            pas, ne se supprime pas et ne s'écrête pas. Le cadenas est la seule
+            marque de ce statut, comme l'Arrière-plan verrouillé de Photoshop.
+            Aucune vignette : le document est `sourceTexture`, il n'est pas
+            enregistré dans `PhotoSourceStore` et n'a donc pas d'object URL —
+            l'emplacement reste réservé pour que les colonnes restent alignées
+            sur celles des lignes de calque (aucun raster ne transite par le
+            state React, invariant OOM 24MP). */}
+        {backgroundName && (
+          <li className="layer-panel__row layer-panel__row--background">
+            <div className="layer-panel__row-top">
+              <span className="layer-panel__row-main">
+                <span className="layer-panel__row-slot layer-panel__row-slot--grip" aria-hidden="true" />
+                <span className="layer-panel__row-slot layer-panel__row-slot--eye">
+                  <Lock className="layer-panel__row-lock icon-sm icon-stroke" role="img" aria-label="Arrière-plan verrouillé" />
+                </span>
+                <PhotoLayerIcon className="layer-panel__row-nature icon-sm icon-stroke" aria-hidden="true" />
+                <span className="layer-panel__thumbnail layer-panel__thumbnail--empty" aria-hidden="true" />
+                <span className="layer-panel__row-name" title={backgroundName}>
+                  {backgroundName}
+                </span>
+              </span>
+            </div>
+          </li>
+        )}
       </ul>
     </div>
   );

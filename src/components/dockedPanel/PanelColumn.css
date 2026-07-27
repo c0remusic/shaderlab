@@ -59,13 +59,23 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  /* `0 0 auto` = HAUTEUR NATURELLE, jamais comprimée. Défaut volontaire :
-     seules les cartes marquées `data-variable-length` (une LISTE : calques,
-     sources de masque, presets) absorbent la compression. Sans cette
-     distinction, toutes les cartes rétrécissaient ensemble et gagnaient
-     chacune une barre de défilement — l'inverse du modèle observé sur
-     Photoshop web (§5bis) où les panneaux du dessous restent à leur place. */
-  flex: 0 0 auto;
+  /* ORDRE DE SACRIFICE (2026-07-27, corrige la règle du même jour).
+     Toutes les cartes sont désormais compressibles ; ce qui les distingue
+     n'est plus « peut/ne peut pas », c'est le RANG auquel elles cèdent, porté
+     par le facteur de rétrécissement (flex-shrink pondère le déficit) :
+       1. les cartes à LISTE cèdent d'abord (facteur écrasant, voir
+          `[data-variable-length]`) jusqu'à leur plancher de N lignes ;
+       2. les cartes à contenu FIXE cèdent ensuite, jusqu'au leur (une ligne),
+          en gagnant leur propre défilement ;
+       3. la grille scrolle en dernier recours (voir .panel-column__grid).
+     La règle précédente donnait aux contenus fixes une priorité ABSOLUE
+     (`flex: 0 0 auto`) : personne ne contestait ses 382px au panneau Réglages
+     et le panneau le plus important, Effets, absorbait toute la compression à
+     leur place — 158px, liste invisible. Un contenu fixe n'a aucun titre à
+     être plus intouchable qu'une liste : il est seulement moins élastique,
+     d'où le rang, pas l'immunité. */
+  flex: 0 1 auto;
+  flex-shrink: 1;
   /* `min-height` est posé juste en dessous : sa valeur vaut 0 tant que les
      hauteurs mesurées sont absentes, c'est donc bien elle qui porte à la fois
      le déblocage de la compression et son plancher. */
@@ -85,14 +95,54 @@
    --dock-card-content-height (hauteur naturelle du contenu). Le `min()` borne
    le plancher à la hauteur réelle du contenu : une carte plus courte que le
    plancher n'est jamais GONFLÉE par lui. */
+/* Rang 1 du sacrifice : une carte à LISTE cède AVANT les cartes à contenu
+   fixe. Flexbox n'a pas de compression séquentielle — elle répartit le déficit
+   au prorata de `flex-shrink × base`. Un facteur de trois ordres de grandeur
+   revient en pratique à un ordre : la liste absorbe ~tout le déficit jusqu'à
+   son plancher, puis, ne pouvant plus descendre, laisse le reliquat aux cartes
+   fixes restées à 1. Nombre sans unité assumé : ce n'est pas une mesure
+   d'interface (aucun token de rang de compression n'existe, et il n'en faut
+   pas un pour un seul usage). */
 .panel-column__item[data-variable-length] {
-  flex: 0 1 auto;
+  flex-shrink: 1000;
 }
 
 .panel-column__item {
   min-height: calc(
     var(--dock-card-chrome-height, 0px) +
     min(var(--dock-card-content-height, 0px), var(--dock-card-content-min-height))
+  );
+}
+
+/* Plancher d'une carte à LISTE : N lignes entières, pas une seule. C'est le
+   plancher qui fait exister l'ordre de sacrifice ci-dessus — sans lui, la
+   liste céderait tout et le rang ne changerait rien.
+
+   Le plancher compte DEUX termes (corrigé le 2026-07-27) :
+   1. --dock-card-list-rows-height : les N lignes elles-mêmes et leurs
+      gouttières, et RIEN d'autre ;
+   2. --dock-card-list-extra-height : ce que la zone défilante contient EN PLUS
+      de la liste — son padding, et tout contrôle qui vit à côté d'elle (dans
+      le panneau Effets, le sélecteur « Ajouter un effet »). Mesuré à
+      l'exécution par PanelColumn.tsx, parce que ce coût dépend du contenu de
+      chaque panneau.
+   La formule précédente ne comptait que le padding : le plancher annonçait
+   4 lignes et n'en montrait que 3, la hauteur du sélecteur étant prise sur
+   la liste. Le défaut de --dock-card-list-extra-height vaut ce padding seul,
+   pour qu'un panneau dont la liste n'est pas marquée garde le comportement
+   d'avant plutôt qu'un plancher rétréci.
+
+   Sortir le sélecteur de la zone défilante réglerait ça plus proprement — il
+   cesserait de disputer sa hauteur à la liste au lieu d'être compensé — mais
+   c'est une question de PLACEMENT (pied fixe ou barre de titre) qui n'est pas
+   tranchée : elle n'est pas arbitrée ici. */
+.panel-column__item[data-variable-length] {
+  min-height: calc(
+    var(--dock-card-chrome-height, 0px) +
+    min(
+      var(--dock-card-content-height, 0px),
+      var(--dock-card-list-extra-height, var(--dock-card-content-padding)) + var(--dock-card-list-rows-height)
+    )
   );
 }
 

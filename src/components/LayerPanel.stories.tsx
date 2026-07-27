@@ -70,11 +70,45 @@ export const ManyLayers: Story = {
   args: { layers: manyLayers, selectedId: "layer-3" },
 };
 
-// Écrêtage (2026-07-27) : la ligne écrêtée est indentée et porte une flèche
-// vers son calque de base — celui du DESSOUS dans la pile, donc la ligne
-// JUSTE AU-DESSUS dans cette liste (elle affiche le bas de pile en premier).
-// La ligne écrêtée est ici SÉLECTIONNÉE : l'indentation ne doit pas manger le
-// marquage de sélection (fond de ligne pleine largeur).
+// SENS D'AFFICHAGE (2026-07-27) : la liste est le MIROIR du tableau `layers`.
+// `layers[0]` est le calque appliqué EN PREMIER sur la photo de fond, donc le
+// BAS de la pile — il s'affiche en DERNIÈRE ligne, juste au-dessus de la ligne
+// d'arrière-plan qu'il consomme. C'est le seul test qui verrouille ce sens :
+// s'il tombe, un dépôt de glisser-déposer atterrira à l'envers.
+export const StackOrderIsMirrored: Story = {
+  args: { backgroundName: "DSC_0042.jpg" },
+  play: async ({ canvasElement }) => {
+    const rows = Array.from(canvasElement.querySelectorAll("[data-layer-row-index]"));
+    await expect(rows.map((row) => row.getAttribute("data-layer-row-index"))).toEqual(["0", "1", "2"]);
+    // layers = [glow, chromaticBleed, grain] ⇒ lignes [Grain, Chromatic bleed, Glow].
+    await expect(rows.map((row) => row.querySelector(".layer-panel__row-name")?.textContent)).toEqual([
+      "Grain",
+      "Chromatic bleed",
+      "Glow",
+    ]);
+    // La ligne d'arrière-plan ferme la liste, SOUS le calque qu'elle alimente
+    // (`layers[0]`, ici Glow) — c'est ce que l'inversion vient réparer.
+    const allRows = Array.from(canvasElement.querySelectorAll(".layer-panel__row"));
+    await expect(allRows[allRows.length - 1].className).toContain("layer-panel__row--background");
+  },
+};
+
+// Ligne d'ARRIÈRE-PLAN (2026-07-27) : le document lui-même, dérivé de son
+// chemin, en bas de liste. Verrouillé — ni œil, ni poignée, ni actions.
+export const WithBackground: Story = {
+  args: { backgroundName: "DSC_0042.jpg" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("DSC_0042.jpg")).toBeTruthy();
+    await expect(canvas.getByRole("img", { name: "Arrière-plan verrouillé" })).toBeTruthy();
+  },
+};
+
+// Écrêtage : la ligne écrêtée porte une flèche vers son calque de base — celui
+// du DESSOUS dans la pile, donc, depuis l'inversion du sens d'affichage, la
+// ligne JUSTE AU-DESSOUS dans cette liste. Elle n'est PLUS indentée
+// (observation Photoshop web §5ter) : elle est ici SÉLECTIONNÉE pour vérifier
+// que le marquage couvre la ligne entière, alignée sur ses voisines.
 const clippedLayers: LayerState[] = [
   makeLayer({
     id: "layer-1",
@@ -92,6 +126,24 @@ export const ClippedLayerSelected: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("img", { name: "Écrêté sur le calque du dessous" })).toBeTruthy();
+  },
+};
+
+// Écrêtage SANS BASE : `clipToBelow` est posé sur `layers[0]`, le bas de pile —
+// il n'y a rien en dessous. `resolveClipping` rend ce cas `inert` (le calque
+// rend linéairement) et la flèche ne doit PAS apparaître : elle désignerait une
+// base inexistante. La ligne reste écrêtable/décochable, seul l'affichage suit
+// l'état résolu.
+const clippedWithoutBase: LayerState[] = [
+  makeLayer({ id: "layer-1", effectId: "glow", clipToBelow: true }),
+  makeLayer({ id: "layer-2", effectId: "grain" }),
+];
+
+export const ClippedWithoutBaseShowsNoArrow: Story = {
+  args: { layers: clippedWithoutBase, selectedId: "layer-1" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("img", { name: "Écrêté sur le calque du dessous" })).not.toBeInTheDocument();
   },
 };
 
@@ -176,8 +228,10 @@ export const IsolatedLayer: Story = {
     // calque isolé : pendant l'isolation, un clic simple ne bascule rien.
     const exits = canvas.getAllByRole("button", { name: "Quitter l'isolation" });
     await expect(exits).toHaveLength(3);
+    // La PREMIÈRE ligne est le HAUT de pile depuis l'inversion du sens
+    // d'affichage : `layers[2]`, donc layer-3.
     await userEvent.click(exits[0]);
-    await expect(args.onToggle).toHaveBeenCalledWith("layer-1", false);
+    await expect(args.onToggle).toHaveBeenCalledWith("layer-3", false);
   },
 };
 
@@ -215,8 +269,9 @@ export const DuplicateLayer: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const duplicateButtons = canvas.getAllByRole("button", { name: "Dupliquer le calque" });
+    // Première ligne = haut de pile = `layers[2]` (sens d'affichage inversé).
     await userEvent.click(duplicateButtons[0]);
-    await expect(args.onDuplicate).toHaveBeenCalledWith("layer-1");
+    await expect(args.onDuplicate).toHaveBeenCalledWith("layer-3");
   },
 };
 
@@ -225,7 +280,8 @@ export const RemoveLayer: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const removeButtons = canvas.getAllByRole("button", { name: "Supprimer le calque" });
+    // Première ligne = haut de pile = `layers[2]` (sens d'affichage inversé).
     await userEvent.click(removeButtons[0]);
-    await expect(args.onRemove).toHaveBeenCalledWith("layer-1");
+    await expect(args.onRemove).toHaveBeenCalledWith("layer-3");
   },
 };

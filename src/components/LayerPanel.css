@@ -84,15 +84,14 @@
   background: var(--surface-hover);
 }
 
-/* Calque ÉCRÊTÉ (design 2026-07-27 §3.8) : indentation par le PADDING de la
-   ligne, jamais par sa marge — le fond de sélection
-   (.layer-panel__row--selected) et le fond de survol couvrent ainsi toujours
-   la ligne entière, l'indentation ne peut pas casser le marquage de
-   sélection. --space-5 = un cran au-dessus du padding de ligne (--space-4),
-   assez pour se lire comme un décrochement sans écraser le nom. */
-.layer-panel__row--clipped {
-  padding-left: calc(var(--space-4) + var(--space-5));
-}
+/* Calque ÉCRÊTÉ : AUCUNE indentation. La règle qui vivait ici
+   (.layer-panel__row--clipped, padding-left majoré) a été retirée le
+   2026-07-27 après observation directe de Photoshop web
+   (docs/design-system/photoshop-web-observations-2026-07-27.md §5ter) : une
+   ligne écrêtée y reste alignée sur les autres et ne gagne qu'une petite
+   flèche coudée. Ne pas la réintroduire : elle coûtait de la largeur utile
+   sur un dock déjà étroit, et elle avait été validée sur une maquette qui la
+   présentait à tort comme la convention Photoshop. */
 
 /* Icône de NATURE (effet ou photo) : même traitement que la poignée et la
    flèche d'écrêtage — --text-tertiary, jamais comprimée. Elle tient dans la
@@ -119,9 +118,10 @@
   color: var(--text-primary);
 }
 
-/* La barre est en pseudo-élément à `left: 0` : elle couvre la ligne ENTIÈRE,
-   donc l'indentation d'un calque écrêté (padding, jamais marge) ne peut pas la
-   décaler ni la casser. Coins arrondis côté gauche seulement, pour épouser le
+/* La barre est en pseudo-élément à `left: 0` : elle couvre la ligne ENTIÈRE.
+   Depuis le retrait de l'indentation d'écrêtage (§5ter), toutes les lignes ont
+   le même padding, donc lavis et barre couvrent la même surface d'une ligne à
+   l'autre — sans décalage. Coins arrondis côté gauche seulement, pour épouser le
    --radius-control de la ligne au lieu de dépasser de sa courbe. */
 .layer-panel__row--selected::before {
   content: "";
@@ -165,6 +165,42 @@
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
+}
+
+/* Ligne d'ARRIÈRE-PLAN (2026-07-27) : le document lui-même, affiché en bas de
+   la liste. Ni sélectionnable ni déplaçable — donc pas de curseur `pointer` ni
+   de fond de survol, qui annonceraient une interaction inexistante. Le nom
+   reste au rang secondaire comme les autres, seul le cadenas la distingue. */
+.layer-panel__row--background {
+  cursor: default;
+}
+
+.layer-panel__row--background:hover {
+  background: transparent;
+}
+
+.layer-panel__row-lock {
+  color: var(--text-tertiary);
+}
+
+/* Emplacements RÉSERVÉS de la ligne d'arrière-plan : elle n'a pas de poignée
+   de réordonnancement, et son cadenas remplace le bouton œil. Sans ces deux
+   boîtes aux largeurs exactes de ce qu'elles remplacent (icône de poignée,
+   IconButton compact), les colonnes suivantes — nature, vignette, nom — se
+   décaleraient d'un cran par rapport aux lignes de calque. */
+.layer-panel__row-slot {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+}
+
+.layer-panel__row-slot--grip {
+  width: var(--icon-size-sm);
+}
+
+.layer-panel__row-slot--eye {
+  width: var(--control-height-sm);
 }
 
 .layer-panel__grip-handle {

@@ -33,6 +33,7 @@ import { movePanelInDock, toFullDockTarget, visibleDockLayout, type DockDropTarg
 import { clampDockWidth } from "./components/dockedPanel/dockWidth";
 import { LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
+import { PhotoPanel } from "./components/PhotoPanel";
 import { MaskPanel } from "./components/MaskPanel";
 import { getEffect } from "./render/effects/registry";
 import type { RefineEdgeParams } from "./mask/types";
@@ -40,7 +41,7 @@ import { MAX_COLOR_RANGE_SAMPLES } from "./mask/sources/colorRange";
 import { planFold } from "./mask/foldPlan";
 import { OverlayAnimationLoop } from "./render/overlayAnimationLoop";
 import { hasValueChanged } from "./ui/valueChange";
-import { Layers, SlidersHorizontal, Brush as BrushRailIcon, PackagePlus } from "lucide-react";
+import { Layers, SlidersHorizontal, Brush as BrushRailIcon, PackagePlus, Image as PhotoRailIcon } from "lucide-react";
 import { useContextualPanel } from "./ui/contextualPanel";
 import { PanelRail, type PanelRailItem } from "./components/dockedPanel/PanelRail";
 import { ColorPickerPanel } from "./components/ColorPickerPanel";
@@ -105,6 +106,7 @@ export default function App() {
 
   const [presetsFolded, setPresetsFolded] = useState(false);
   const [layersFolded, setLayersFolded] = useState(false);
+  const [photoFolded, setPhotoFolded] = useState(false);
   const [paramsFolded, setParamsFolded] = useState(false);
   const [maskFolded, setMaskFolded] = useState(false);
   const [overlayForceHidden, setOverlayForceHidden] = useState(false);
@@ -124,7 +126,11 @@ export default function App() {
      *  positionné dans lequel le picker est rendu), pas en viewport. */
     anchorTop: number;
   } | null>(null);
-  const [dockLayout, setDockLayout] = useState<DockLayout>([["presets", "layers", "params", "mask"]]);
+  // Ordre par défaut du dock : `photo` s'insère entre `layers` et `params` —
+  // inventaire (Calques) -> ce que le calque EST (Photo) -> ce qu'il FAIT
+  // (Réglages) -> OÙ il agit (Masque). Voir design
+  // `2026-07-27-shaderlab-panneau-photo-et-ecretage-design.md` §3.9.
+  const [dockLayout, setDockLayout] = useState<DockLayout>([["presets", "layers", "photo", "params", "mask"]]);
 
   // Task 4 : id du preset en attente de confirmation de remplacement — non
   // nul seulement quand la pile courante n'est pas vide (voir
@@ -1051,6 +1057,12 @@ export default function App() {
   const layersPanel = useContextualPanel(true, "static");
   const paramsPanel = useContextualPanel(selectedId !== null, selectedId);
   const maskPanel = useContextualPanel(selectedId !== null, selectedId);
+  // Panneau « Photo » : même câblage que Réglages/Masque (condition liée à la
+  // sélection), mais la condition est d'être un calque PHOTO. Le rail restant
+  // l'unique moyen de fermeture, il peut aussi l'OUVRIR hors condition — d'où
+  // l'état vide obligatoire de `PhotoPanel`.
+  const isPhotoLayerSelected = selectedLayer?.imageSource !== undefined;
+  const photoPanel = useContextualPanel(isPhotoLayerSelected, selectedId);
 
   // Table explicite plutôt qu'une chaîne de ternaires : sans branche par
   // défaut, un id inconnu héritait silencieusement de la visibilité du Masque.
@@ -1060,8 +1072,14 @@ export default function App() {
   // Presets ajoute un 4e panneau : il DOIT échouer bruyamment ici s'il oublie
   // sa ligne (fail-fast projet, pas de repli silencieux).
   const panelVisibility: Record<string, boolean> = useMemo(
-    () => ({ presets: presetsPanel.visible, layers: layersPanel.visible, params: paramsPanel.visible, mask: maskPanel.visible }),
-    [presetsPanel.visible, layersPanel.visible, paramsPanel.visible, maskPanel.visible]
+    () => ({
+      presets: presetsPanel.visible,
+      layers: layersPanel.visible,
+      photo: photoPanel.visible,
+      params: paramsPanel.visible,
+      mask: maskPanel.visible,
+    }),
+    [presetsPanel.visible, layersPanel.visible, photoPanel.visible, paramsPanel.visible, maskPanel.visible]
   );
   const isPanelVisible = useCallback(
     (id: string) => {
@@ -1275,6 +1293,18 @@ export default function App() {
                 />
             },
             {
+              id: "photo", title: "Photo", collapsed: photoFolded, onCollapsedChange: setPhotoFolded,
+              content: <PhotoPanel
+                  layer={selectedLayer}
+                  thumbnailUrl={photoLayer.thumbnailUrl}
+                  onTransformChange={handleTransformChange}
+                  onTransformCommit={handleTransformCommit}
+                  onReset={photoLayer.handlePhotoReset}
+                  onFitToCanvas={photoLayer.handlePhotoFitToCanvas}
+                  onCenter={photoLayer.handlePhotoCenter}
+                />
+            },
+            {
               id: "params", title: paramsPanelTitle, collapsed: paramsFolded, onCollapsedChange: setParamsFolded,
               content: <ParamPanel
                   layer={selectedLayer}
@@ -1330,6 +1360,7 @@ export default function App() {
           items={[
             { id: "presets", icon: PackagePlus, label: "Presets", active: presetsPanel.visible, onClick: presetsPanel.toggleRail },
             { id: "layers", icon: Layers, label: "Calques", active: layersPanel.visible, onClick: layersPanel.toggleRail },
+            { id: "photo", icon: PhotoRailIcon, label: "Photo", active: photoPanel.visible, onClick: photoPanel.toggleRail },
             { id: "params", icon: SlidersHorizontal, label: "Réglages", active: paramsPanel.visible, onClick: paramsPanel.toggleRail },
             { id: "mask", icon: BrushRailIcon, label: "Masque", active: maskPanel.visible, onClick: maskPanel.toggleRail },
           ] satisfies PanelRailItem[]}

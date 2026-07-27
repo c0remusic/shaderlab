@@ -77,6 +77,18 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onOpenColorPic
   }
   const effect = getEffect(layer.effectId);
 
+  // État vide EXPLICITE plutôt qu'un `Disclosure "Effet"` vide (design
+  // 2026-07-27 §3.7) : un calque photo porte `passthrough`, dont la liste de
+  // paramètres est vide — le cadre vide ne disait pas pourquoi. Deux causes
+  // distinctes, deux phrases : aucun effet du tout, ou un effet sans réglage.
+  if (effect.params.length === 0) {
+    return (
+      <p className="param-panel__empty">
+        {layer.effectId === "passthrough" ? "Aucun effet appliqué à ce calque." : "Cet effet n'a pas de paramètres."}
+      </p>
+    );
+  }
+
   return (
     <div className="param-panel">
       <Disclosure title="Effet" defaultOpen>

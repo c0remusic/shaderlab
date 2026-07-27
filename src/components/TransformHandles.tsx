@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 import type { LayerTransform } from "../layers/types";
-import { computeHandleGeometry, scaleFromCornerDrag, rotationFromPointer } from "../ui/transform";
+import { computeHandleGeometry, scaleFromCornerDrag, rotationFromPointer, snapAngle } from "../ui/transform";
 import "./TransformHandles.css";
 
 interface Props {
@@ -70,7 +70,11 @@ export function TransformHandles({ transform, photoSize, bgSize, canvasRef, onTr
       const scale = scaleFromCornerDrag(transform, photoSize, pointer);
       onTransformChange({ ...transform, scale });
     } else if (drag.kind === "rotate") {
-      const rotation = rotationFromPointer(transform, pointer);
+      // Snap d'angle à 15° (design 2026-07-26 §3.4) : déclencheur = `Shift`
+      // maintenu pendant le drag, disponible sans aucun listener clavier.
+      // La saisie au clavier dans le panneau Photo reste littérale.
+      const raw = rotationFromPointer(transform, pointer);
+      const rotation = e.shiftKey ? snapAngle(raw) : raw;
       onTransformChange({ ...transform, rotation });
     } else {
       const dx = pointer.x - drag.startX;

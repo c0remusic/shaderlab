@@ -6,6 +6,7 @@ import { MAX_PHOTO_LAYERS, canAddPhotoLayer } from "../layers/photoLayer";
 import type { Renderer } from "../render/renderer";
 import { pickImageFile, readImageFile } from "../launch";
 import { messageFromUnknown } from "../lib/errors";
+import { centerTransform, fitToCanvas, resetTransform } from "../ui/transform";
 import {
   IDLE_CANVAS_MODE,
   isMaskPaint,
@@ -148,6 +149,56 @@ export function usePhotoLayer({
     commit(currentStack());
   }, [paramDirtyRef, commit, currentStack]);
 
+  /** Applique une transformation PURE (`src/ui/transform.ts`) au calque photo
+   *  `id` et committe en UNE seule entrée d'historique. Les trois actions du
+   *  panneau Photo (Réinitialiser · Ajuster à la toile · Centrer) passent
+   *  toutes par ici : elles ne diffèrent que par la fonction pure appliquée.
+   *  No-op si le calque n'existe plus ou n'est pas un calque photo — cas
+   *  inatteignable depuis le panneau, qui n'affiche ses boutons que pour un
+   *  calque photo sélectionné (`PhotoPanel.tsx`, garde d'état vide).
+   *
+   *  Ne demande PAS les dimensions de la source : `resetTransform` et
+   *  `centerTransform` ne s'en servent pas (`transform.ts`, elles ne lisent
+   *  que la taille du FOND). Seul « Ajuster à la toile » en a besoin, et il
+   *  les résout lui-même — les exiger ici transformait deux actions
+   *  parfaitement calculables en no-op silencieux. */
+  const applyTransformAction = useCallback(
+    (id: string, produce: (transform: LayerTransform) => LayerTransform) => {
+      const layer = sessionRef.current.layers().find((l) => l.id === id);
+      if (!layer?.imageSource || !layer.transform) return;
+      handleTransformChange(id, produce(layer.transform));
+      handleTransformCommit();
+    },
+    [sessionRef, handleTransformChange, handleTransformCommit],
+  );
+
+  const handlePhotoReset = useCallback(
+    (id: string) => applyTransformAction(id, () => resetTransform(imageSize)),
+    [applyTransformAction, imageSize],
+  );
+  const handlePhotoCenter = useCallback(
+    (id: string) => applyTransformAction(id, (transform) => centerTransform(transform, imageSize)),
+    [applyTransformAction, imageSize],
+  );
+
+  /** « Ajuster à la toile » est la SEULE des trois actions qui a besoin des
+   *  dimensions de la photo source (le rapport photo/fond donne l'échelle
+   *  *contain*). Si le store ne les connaît pas, l'action ne peut pas être
+   *  calculée : elle le DIT, elle ne se tait pas (fail-fast projet). */
+  const handlePhotoFitToCanvas = useCallback(
+    (id: string) => {
+      const layer = sessionRef.current.layers().find((l) => l.id === id);
+      if (!layer?.imageSource || !layer.transform) return;
+      const photoSize = rendererRef.current?.photoSources?.dimensions(layer.imageSource.sourceId);
+      if (!photoSize) {
+        setError("« Ajuster à la toile » indisponible : les dimensions de la photo source sont inconnues (source non enregistrée). Réimporte la photo.");
+        return;
+      }
+      applyTransformAction(id, (transform) => fitToCanvas(transform, imageSize, photoSize));
+    },
+    [sessionRef, rendererRef, setError, applyTransformAction, imageSize],
+  );
+
   const toggleMaskPaintMode = useCallback(() => setCanvasMode(toggleMaskPaint), []);
   const stopMaskPaintMode = useCallback(() => setCanvasMode(IDLE_CANVAS_MODE), []);
 
@@ -169,6 +220,9 @@ export function usePhotoLayer({
     importPhotoFromPath,
     handleTransformChange,
     handleTransformCommit,
+    handlePhotoReset,
+    handlePhotoFitToCanvas,
+    handlePhotoCenter,
     thumbnailUrl,
   };
 }

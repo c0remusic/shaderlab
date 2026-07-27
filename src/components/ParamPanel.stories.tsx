@@ -38,6 +38,12 @@ export const NoLayerSelected: Story = {
   args: { layer: null },
 };
 
+/** Calque photo (`passthrough`) : état vide EXPLICITE, plus un `Disclosure`
+ *  vide (design 2026-07-27 §3.7). */
+export const PassthroughLayer: Story = {
+  args: { layer: makeLayer({ id: "layer-photo", effectId: "passthrough", params: {} }) },
+};
+
 export const WarpLayer: Story = {
   args: { layer: makeLayer({ id: "layer-2", effectId: "warp" }) },
 };

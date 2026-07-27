@@ -1,0 +1,126 @@
+/*
+ * PhotoPanel : propriétés du calque PHOTO sélectionné, rendu dans une carte
+ * dockée (src/components/dockedPanel/DockedPanelCard.tsx), au même titre que
+ * ParamPanel/MaskPanel. Chaque valeur ci-dessous est une référence de token
+ * (src/design/*.css) — aucune valeur littérale de couleur/espacement.
+ */
+
+/* Même structure que .param-panel : une colonne de <Disclosure> (le seul
+   pattern de section des panneaux du dock — cf. ParamPanel/MaskPanel), au
+   même rang d'espacement --space-4. Les sections n'ont PAS de titre
+   sémantique : le titre d'une Disclosure est le libellé de son bouton
+   (components/ui/collapsible.tsx). */
+.photo-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.photo-panel__empty {
+  /* Même case d'état vide que .param-panel__empty : rang --space-4, un cran
+     sous le padding --space-5 du conteneur parent, sans bordure pointillée
+     (réservée aux vraies zones de dépôt). */
+  margin: 0;
+  padding: var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--surface-inset);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+.photo-panel__source {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.photo-panel__thumbnail {
+  flex: 0 0 auto;
+  width: var(--layer-thumbnail-size);
+  height: var(--layer-thumbnail-size);
+  border-radius: var(--radius-control);
+  object-fit: cover;
+  background: var(--surface-inset);
+}
+
+.photo-panel__thumbnail--empty {
+  /* 1px : le repo n'a pas de token d'épaisseur de bordure, la valeur
+     littérale est la convention en place (cf. LayerPanel.css). */
+  border: 1px solid var(--border-subtle);
+}
+
+.photo-panel__source-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.photo-panel__fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.photo-panel__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.photo-panel__field-label {
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+.photo-panel__field-input {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.photo-panel__input {
+  flex: 1;
+  min-width: 0;
+  height: var(--control-height-md);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-control);
+  background: var(--surface-inset);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--text-value);
+  outline: none;
+}
+
+.photo-panel__input:hover {
+  border-color: var(--border-emphasis);
+}
+
+.photo-panel__input:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.photo-panel__unit {
+  flex: 0 0 auto;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+.photo-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

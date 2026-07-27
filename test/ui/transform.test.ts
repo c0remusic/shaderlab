@@ -6,6 +6,11 @@ import {
   computeHandleGeometry,
   scaleFromCornerDrag,
   rotationFromPointer,
+  snapAngle,
+  ANGLE_SNAP_DEGREES,
+  resetTransform,
+  centerTransform,
+  fitToCanvas,
 } from "../../src/ui/transform";
 
 describe("clampTransformScale", () => {
@@ -80,6 +85,71 @@ describe("computeHandleGeometry", () => {
     const { rotationHandle, corners } = computeHandleGeometry(transform, photoSize);
     expect(rotationHandle.x).toBeCloseTo(500);
     expect(rotationHandle.y).toBeLessThan(corners[0].y);
+  });
+});
+
+describe("snapAngle", () => {
+  const deg = (d: number) => (d * Math.PI) / 180;
+
+  it("le pas par défaut est 15°", () => {
+    expect(ANGLE_SNAP_DEGREES).toBe(15);
+  });
+
+  it("cale sur le multiple de 15° le plus proche, vers le bas", () => {
+    expect(snapAngle(deg(20))).toBeCloseTo(deg(15), 6);
+  });
+
+  it("cale sur le multiple de 15° le plus proche, vers le haut", () => {
+    expect(snapAngle(deg(38))).toBeCloseTo(deg(45), 6);
+  });
+
+  it("laisse un angle déjà multiple de 15° inchangé", () => {
+    expect(snapAngle(deg(90))).toBeCloseTo(deg(90), 6);
+  });
+
+  it("fonctionne sur les angles négatifs", () => {
+    expect(snapAngle(deg(-22))).toBeCloseTo(deg(-15), 6);
+  });
+
+  it("un pas nul ou négatif ne réécrit pas l'angle (pas de division par zéro)", () => {
+    expect(snapAngle(deg(37), 0)).toBeCloseTo(deg(37), 6);
+  });
+});
+
+describe("resetTransform / centerTransform / fitToCanvas", () => {
+  const bgSize = { width: 1000, height: 800 };
+
+  it("resetTransform centre sur le fond, échelle 1, rotation 0", () => {
+    expect(resetTransform(bgSize)).toEqual({ x: 500, y: 400, scale: 1, rotation: 0 });
+  });
+
+  it("centerTransform recentre sans toucher à l'échelle ni à la rotation", () => {
+    const transform = { x: 10, y: 20, scale: 2.5, rotation: 1.1 };
+    expect(centerTransform(transform, bgSize)).toEqual({ x: 500, y: 400, scale: 2.5, rotation: 1.1 });
+  });
+
+  it("fitToCanvas fait tenir une photo PLUS GRANDE que le fond (contain, pas cover)", () => {
+    const transform = { x: 0, y: 0, scale: 3, rotation: 0 };
+    // Photo 2000x1000, fond 1000x800 -> min(0.5, 0.8) = 0.5 (contain).
+    const fitted = fitToCanvas(transform, bgSize, { width: 2000, height: 1000 });
+    expect(fitted.scale).toBeCloseTo(0.5, 6);
+    expect(fitted).toMatchObject({ x: 500, y: 400, rotation: 0 });
+  });
+
+  it("fitToCanvas agrandit une photo plus petite que le fond", () => {
+    const transform = { x: 0, y: 0, scale: 1, rotation: 0 };
+    // Photo 500x200, fond 1000x800 -> min(2, 4) = 2.
+    expect(fitToCanvas(transform, bgSize, { width: 500, height: 200 }).scale).toBeCloseTo(2, 6);
+  });
+
+  it("fitToCanvas conserve la rotation", () => {
+    const transform = { x: 0, y: 0, scale: 1, rotation: 0.7 };
+    expect(fitToCanvas(transform, bgSize, { width: 500, height: 200 }).rotation).toBe(0.7);
+  });
+
+  it("fitToCanvas laisse l'échelle inchangée sur une photo de taille dégénérée", () => {
+    const transform = { x: 3, y: 4, scale: 1.75, rotation: 0 };
+    expect(fitToCanvas(transform, bgSize, { width: 0, height: 0 })).toEqual(transform);
   });
 });
 

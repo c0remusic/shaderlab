@@ -65,6 +65,51 @@ export function compositeUvToPhotoUv(
   return { u: photoPx / photoSize.width, v: photoPy / photoSize.height };
 }
 
+/** Pas de snap d'angle, en DEGRÉS — valeur de Photoshop, référence explicite
+ *  du chantier calque photo (design 2026-07-26 §3.4, tranché avec sa raison).
+ *  Le *déclencheur* retenu est `Shift` maintenu pendant le drag de rotation
+ *  (voir `TransformHandles`) : la saisie au clavier dans le panneau Photo
+ *  reste littérale, un angle tapé n'est jamais réécrit. */
+export const ANGLE_SNAP_DEGREES = 15;
+
+/** Cale un angle (RADIANS) sur le multiple de `stepDegrees` le plus proche.
+ *  Fonction pure — aucune connaissance du geste qui l'appelle. */
+export function snapAngle(rotation: number, stepDegrees: number = ANGLE_SNAP_DEGREES): number {
+  const step = (stepDegrees * Math.PI) / 180;
+  if (step <= 0) return rotation;
+  return Math.round(rotation / step) * step;
+}
+
+/** Transform d'un calque photo fraîchement importé : centrée sur le fond,
+ *  échelle 1, aucune rotation. MÊME expression que celle posée à l'import
+ *  (`usePhotoLayer.handleImportPhotoLayer`) — « Réinitialiser » doit rendre
+ *  exactement l'état initial, pas une approximation. */
+export function resetTransform(bgSize: PixelSize): LayerTransform {
+  return { x: bgSize.width / 2, y: bgSize.height / 2, scale: 1, rotation: 0 };
+}
+
+/** Recentre sur le fond sans toucher à l'échelle ni à la rotation. */
+export function centerTransform(transform: LayerTransform, bgSize: PixelSize): LayerTransform {
+  return { ...transform, x: bgSize.width / 2, y: bgSize.height / 2 };
+}
+
+/**
+ * « Ajuster à la toile » = *contain* (design 2026-07-26 §3.4) : toute la
+ * photo tient dans le fond, bandes autour si les ratios diffèrent — jamais
+ * *cover*. La rotation est ignorée dans le calcul (l'ajustement porte sur la
+ * box non tournée, comme l'ajustement de Photoshop) mais conservée.
+ * Cas « photo plus grande que le fond » : c'est précisément celui que cette
+ * action rend exploitable en un clic — la pré-passe rend dans une cible
+ * bgWidth × bgHeight, donc tout ce qui dépasse est perdu par construction.
+ * Une photo de taille dégénérée (0) laisse l'échelle inchangée plutôt que de
+ * produire un `Infinity`/`NaN` silencieux.
+ */
+export function fitToCanvas(transform: LayerTransform, bgSize: PixelSize, photoSize: PixelSize): LayerTransform {
+  if (photoSize.width <= 0 || photoSize.height <= 0) return { ...transform };
+  const scale = clampTransformScale(Math.min(bgSize.width / photoSize.width, bgSize.height / photoSize.height));
+  return { ...transform, x: bgSize.width / 2, y: bgSize.height / 2, scale };
+}
+
 function rotatePoint(local: PixelPoint, transform: LayerTransform): PixelPoint {
   const cos = Math.cos(transform.rotation);
   const sin = Math.sin(transform.rotation);

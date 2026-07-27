@@ -5,6 +5,16 @@
 > n'est pas rediscuté ici.
 > Modèle imposé (non rediscutable) : **la photo EST un calque de plein droit**,
 > pas une ressource référencée par des calques.
+>
+> **AMENDÉ le 2026-07-27 — la barre contextuelle est SUPERSEDED.** Le design
+> `2026-07-27-shaderlab-panneau-photo-et-ecretage-design.md` (§3.7) remplace la
+> `PhotoLayerToolbar` prévue ici par un **5ᵉ panneau du dock, « Photo »**
+> (`src/components/PhotoPanel.tsx`), avec son icône au rail. Rien n'est perdu :
+> la barre n'a jamais été implémentée. Partout ci-dessous, lire
+> `PhotoLayerToolbar` → `PhotoPanel` et « barre contextuelle / barre de
+> transform » → « panneau Photo » — chaque occurrence est marquée
+> *[superseded 2026-07-27]* à son point d'usage. Le reste du document (T1, T3,
+> T4, T5, T6, géométrie, uniformes) est **inchangé et actif**.
 
 ## 1. Besoin (rappel, non négociable)
 
@@ -13,6 +23,7 @@ doit se comporter comme un calque Photoshop :
 
 1. Identité dans la pile : vignette + nom de fichier au lieu de « Passthrough ».
 2. Barre contextuelle avec valeurs numériques éditables : X, Y, échelle %, angle °.
+   *[superseded 2026-07-27 : c'est le panneau « Photo » du dock, pas une barre.]*
 3. Actions : réinitialiser, ajuster à la toile, centrer, snap d'angle.
 4. Flip horizontal / vertical.
 5. Recadrage (crop) du calque.
@@ -420,6 +431,12 @@ jumeau qu'il faudrait disposer en lockstep.
 
 ### 3.4 Surface UI
 
+*[superseded 2026-07-27 pour le CONTENANT uniquement : le mécanisme
+`useContextualPanel(isPhotoLayerSelected, selectedId)` est conservé tel quel,
+mais il monte le panneau « Photo » du dock (`PhotoPanel`) et non une barre
+entre `ErrorBanner` et `<main class="workspace">`. Le paragraphe « Montage »
+ci-dessous ne s'applique plus : le panneau ne pousse PAS le canvas.]*
+
 **Barre de transform : sur SÉLECTION, pas sur mode explicite.** Les poignées
 apparaissent déjà à la sélection sans mode (`App.tsx:1123`) ; imposer un mode
 contredirait cette affordance et ajouterait un clic sur l'action la plus
@@ -429,6 +446,8 @@ mémorisé par sélection.
 Montage : même emplacement que `BrushToolbar` — entre `ErrorBanner` et
 `<main class="workspace">` (`App.tsx:1081-1092`), en **poussant** le canvas,
 jamais en overlay au-dessus de l'image.
+*[CADUC 2026-07-27 — ne pas lire par substitution. Le panneau Photo est monté
+dans la colonne du dock (`App.tsx:1263-1274`) et ne pousse pas le canvas.]*
 
 **Modes du canvas : une union, plus deux booléens.** Aujourd'hui
 `maskPaintMode` (`App.tsx:94`) et l'affichage des handles ne s'excluent pas :
@@ -445,8 +464,19 @@ type CanvasMode =
 ```
 
 Un seul état, états incompatibles inexprimables. Règles : entrer dans un mode
-sort de l'autre ; la barre de transform et les poignées ne s'affichent qu'en
-`idle` ; `crop` porte le crop capturé à l'entrée pour pouvoir annuler.
+sort de l'autre ; ~~la barre de transform et~~ les poignées ne s'affichent
+qu'en `idle` ; `crop` porte le crop capturé à l'entrée pour pouvoir annuler.
+
+*[CADUC 2026-07-27 pour la BARRE, actif pour les poignées — reformulé, ne pas
+lire par substitution. La règle « ne s'affiche qu'en `idle` » ne vaut QUE pour
+les poignées du canvas, qui interceptent le geste de pinceau ; c'est
+exactement ce que `showsTransformHandles` gouverne (`src/ui/canvasMode.ts:47-53`),
+et c'est toujours vrai. Le **panneau Photo reste visible et éditable dans les
+trois modes** (`idle`/`maskPaint`/`crop`) : un champ numérique du dock
+n'intercepte aucun geste. Décidé et motivé au design
+`2026-07-27-shaderlab-panneau-photo-et-ecretage-design.md` §3.7 ; livré tel
+quel — `App.tsx:1263-1274` monte `PhotoPanel` sans aucune condition de
+`canvasMode`.]*
 
 **`crop` porte `layerId`, et c'est structurel.** Sans lui, l'utilisateur qui
 entre en crop sur A puis sélectionne B (ou supprime A) garde un mode `crop`
@@ -468,16 +498,32 @@ d'historique, contenant à la fois le nouveau crop et le `(x, y)` compensé par
 entrée d'historique. Même discipline `pointerup` = commit /
 `pointercancel` = abandon que `TransformHandles.tsx:82-101`.
 
-**Champs numériques et actions.** X, Y, échelle %, angle ° : aperçu live au
-`change`, une entrée d'historique au commit (blur/Entrée) — même couple
+**Champs numériques et actions.** X, Y, échelle %, angle ° : ~~aperçu live au
+`change`,~~ une entrée d'historique au commit (blur/Entrée) — même couple
 `onTransformChange` / `onTransformCommit` que les poignées
 (`App.tsx:333-351`). Rangée d'actions : Réinitialiser · Ajuster à la toile ·
 Centrer · Miroir H · Miroir V · Recadrer.
 
+*[CADUC 2026-07-27 pour « aperçu live au `change` », le reste actif. Livré et
+voulu : commit au blur/`Entrée` SEULEMENT, brouillon local pendant la saisie
+(`PhotoPanel.tsx:33-62`). C'est le contrat déjà en place sur le champ
+numérique de `LabeledSlider` (`components/ui/labeled-slider.tsx:164-170`,
+commit au seul `onBlur` `:114-123`) : l'aperçu live appartient au geste
+continu (poignée de slider `:153`, poignées du canvas), pas à la frappe
+clavier — reparser à chaque touche rendrait visibles les états intermédiaires
+d'une saisie légitime. Motivé au design 2026-07-27 §3.7.]*
+
 **Snap d'angle : 15°.** Valeur retenue par défaut parce que c'est celle de
 Photoshop, la référence explicite de tout ce chantier — pas une question à
 poser. La *forme* du déclencheur (bascule persistante dans la barre, `Shift`
-maintenu pendant le drag, ou les deux) reste ouverte (§8). Correction de coût
+maintenu pendant le drag, ou les deux) reste ouverte (§8).
+*[CADUC 2026-07-27 — question CLOSE, ne pas lire par substitution : il n'y a
+pas de bascule dans le panneau Photo. Le déclencheur retenu est `Shift`
+maintenu pendant le drag de rotation au canvas
+(`src/components/TransformHandles.tsx:77`, `snapAngle` de
+`src/ui/transform.ts:77`) ; le champ « Angle » du panneau reste littéral — snapper une
+valeur TAPÉE serait un défaut d'usage. Voir §8 point 2, également clos.]*
+Correction de coût
 au passage : `PointerEvent.shiftKey` est déjà disponible dans
 `handlePointerMove` (`TransformHandles.tsx:64-70`) sans aucun listener clavier —
 la variante `Shift` fait une ligne, pas de la « plomberie ».
@@ -623,7 +669,7 @@ indépendante, parallélisable.
 | `src/layers/photoLayer.ts` | `MAX_PHOTO_LAYERS` révisé | inchangé en forme |
 | `src/render/photoSourceStore.ts` | `register()` devient async, compte les sources et échoue au plafond ; + `thumbnailUrl(sourceId)` ; `dispose()` révoque les URL | propriétaire unique du non-sérialisable |
 | `src/hooks/usePhotoLayer.ts` (nouveau) | possède `canvasMode`, `handleImportPhotoLayer`, `handleTransformChange/Commit`, puis les handlers d'action de T2/T3/T4 et `setLayerEffect` de T6 ; parle à `DocumentSession` | profond — modèle exact de `src/hooks/usePresets.ts` (211 lignes), remède prescrit par `ARCHITECTURE.md` §7 R6 |
-| `src/components/PhotoLayerToolbar.tsx` (nouveau) | props = transform + callbacks, zéro logique | mince, assumé (traduction UI) |
+| ~~`src/components/PhotoLayerToolbar.tsx` (nouveau)~~ *[superseded 2026-07-27 → `src/components/PhotoPanel.tsx`, livré en P1 du design du 2026-07-27]* | props = transform + source + callbacks + état vide, zéro logique | mince, assumé (traduction UI) |
 | `src/components/TransformHandles.tsx` | + mode crop, + modificateur `Shift` (`shiftKey` déjà disponible, `:64-70`) | mince, assumé |
 | `src/components/LayerPanel.tsx` | + vignette/nom, + sélecteur d'effet | mince, assumé |
 | `scripts/gpu-parity.mjs` (nouveau) | harnais CDP de parité pixel (§3.2 b), lancé par `npm run test:gpu` | outillage, hors bundle |
@@ -670,7 +716,9 @@ Livre : `src/hooks/usePhotoLayer.ts` (périmètre exact en §4) ; `name` sur
 `LayerState` alimenté par le basename à l'import ; vignette possédée par
 `PhotoSourceStore` ; ligne de `LayerPanel` = vignette + nom au lieu de
 « Passthrough » ; `canvasMode` union (avec `layerId` sur `crop`) remplaçant
-`maskPaintMode`, qui masque barre et poignées pendant la peinture de masque, et
+`maskPaintMode`, qui masque ~~barre et~~ poignées pendant la peinture de
+masque *[CADUC 2026-07-27 pour la barre — le panneau Photo reste visible en
+`maskPaint`, cf. §3.4 ; seules les poignées sont masquées]*, et
 retombe en `idle` sur tout changement de sélection ou suppression de calque.
 Preuve : importer une photo → la ligne affiche `IMG_1234.jpg` + sa vignette ;
 entrer en peinture de masque → les poignées disparaissent, le pinceau n'est
@@ -686,7 +734,12 @@ bouton de sortie de mode doit le rendre évident.
 Bloqué par : rien. **Aucun WGSL.**
 
 ### T2 — Barre contextuelle + actions non destructives
-Livre : `PhotoLayerToolbar` montée sur sélection via `useContextualPanel` ;
+*[superseded 2026-07-27 : tranche LIVRÉE sous une autre forme — le panneau
+« Photo » du dock (`PhotoPanel`), P1 du design
+`2026-07-27-shaderlab-panneau-photo-et-ecretage-design.md`. Lire
+`PhotoLayerToolbar` → `PhotoPanel` dans tout ce paragraphe ; le contenu livré
+(champs, actions, snap 15°, fonctions pures, a11y) est inchangé.]*
+Livre : `PhotoLayerToolbar` *[superseded → `PhotoPanel`]* montée sur sélection via `useContextualPanel` ;
 champs X / Y / échelle % / angle ° éditables ; Réinitialiser · Ajuster à la
 toile (*contain*) · Centrer ; snap d'angle à 15° ; fonctions pures dans
 `ui/transform.ts` ; arbitrage `Entrée`/`Échap` et a11y de §3.4.
@@ -694,7 +747,7 @@ Preuve : saisir 45 dans l'angle → l'image tourne ; « Ajuster à la toile » �
 la photo entière tient dans le fond, y compris quand elle est plus grande que
 lui ; chaque saisie commitée = exactement une étape d'undo ; tests Node sur
 chaque fonction pure (dont le cas « photo > fond ») ; **story Storybook
-d'interaction** sur `PhotoLayerToolbar` — saisie clavier, `Entrée`, `Échap`,
+d'interaction** sur `PhotoLayerToolbar` *[superseded → `PhotoPanel`]* — saisie clavier, `Entrée`, `Échap`,
 ordre de tabulation, `aria-label` présents.
 Bloqué par : T1 (fournit `usePhotoLayer` et `CanvasMode`). **Aucun WGSL.**
 
@@ -924,7 +977,7 @@ crée. Les liens de confort ont été retirés.
 |---|---|---|---|
 | T1 | — | — | HITL (jugement visuel sur la ligne de calque) |
 | T2 | T1 | `usePhotoLayer`, type `CanvasMode` | HITL (barre = surface sensible) |
-| T3 | T2 | `PhotoLayerToolbar` (porte les boutons Miroir) | AFK une fois le harnais posé |
+| T3 | T2 | ~~`PhotoLayerToolbar`~~ `PhotoPanel` *[superseded 2026-07-27]* (porte les boutons Miroir) | AFK une fois le harnais posé |
 | T4 | T3 | struct `PhotoInputParams`, `scripts/gpu-parity.mjs` | AFK |
 | T5 | — | — | AFK |
 | T6 | — | — | AFK |
@@ -996,8 +1049,13 @@ snap (§3.4, 15° comme Photoshop).
      un chantier à part entière, plus gros que les six tranches réunies, et
      qui touche tous les calques, pas seulement les calques photo.
    Recommandation : **(A)**, à confirmer avant T3.
-2. **Forme du déclencheur de snap d'angle : bascule persistante dans la barre,
-   `Shift` maintenu pendant le drag, ou les deux ?** L'angle (15°) est tranché ;
+2. ~~**Forme du déclencheur de snap d'angle : bascule persistante dans la barre,
+   `Shift` maintenu pendant le drag, ou les deux ?**~~
+   *[CLOS 2026-07-27 — n'est plus un point ouvert, ne pas rouvrir par
+   substitution. Retenu : `Shift` maintenu pendant le drag de rotation, SEUL —
+   pas de bascule dans le panneau Photo. Livré `TransformHandles.tsx:77`.
+   Le paragraphe ci-dessous est conservé pour la trace du raisonnement.]*
+   L'angle (15°) est tranché ;
    il ne reste que l'interaction. Les deux variantes coûtent une ligne chacune
    (`shiftKey` est déjà disponible, `TransformHandles.tsx:64-70`), donc le choix
    est purement une question d'usage. **À poser avec un rendu de la barre en

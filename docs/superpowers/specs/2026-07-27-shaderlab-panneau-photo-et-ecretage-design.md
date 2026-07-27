@@ -461,12 +461,34 @@ défaut subsiste sur `BrushToolbar` — hors scope, §8.)
 1. **Source** — vignette + nom du fichier (`photoSources.thumbnailUrl(sourceId)` /
    `layer.name`, T1 livré). Lecture seule en v1.
 2. **Placement** — X, Y (px du fond), échelle (%), angle (°), champs numériques
-   éditables, **avec le snap d'angle à 15°** (livrable explicite de T2,
-   `2026-07-26-…-parity-design.md:691`, décision tranchée avec sa raison
-   `:1036-1038` — il ne doit pas disparaître dans le déménagement) ; aperçu live
-   au `change`, une entrée d'historique au commit (blur/Entrée), même couple
-   `onTransformChange` / `onTransformCommit` que les poignées
-   (`usePhotoLayer.ts:115-133`).
+   éditables. **Le champ « Angle » NE SNAPPE PAS** : il est littéral, un angle
+   tapé n'est jamais réécrit. Le snap d'angle à 15° (livrable explicite de T2,
+   `2026-07-26-…-parity-design.md:735`, valeur tranchée avec sa raison
+   `:507-510` — il ne doit pas disparaître dans le déménagement) vit sur le
+   **geste de rotation au canvas**, déclenché par `Shift` maintenu pendant le
+   drag (`TransformHandles.tsx:77`, `snapAngle` de `ui/transform.ts:77`).
+   Pourquoi pas dans le champ : le snap est une aide au geste continu, où la
+   valeur exacte n'est pas choisie mais subie ; réécrire une valeur que
+   l'utilisateur a délibérément TAPÉE (saisir 20, lire 15) est un défaut
+   d'usage, et rendrait tout angle non multiple de 15° insaisissable au
+   clavier — la seule voie de saisie exacte. Les deux surfaces sont donc
+   complémentaires, pas redondantes : le canvas cale, le champ obéit.
+
+   **Pas d'aperçu live à chaque frappe — commit au blur/`Entrée` seulement.**
+   Le champ tient un brouillon local ; `onTransformChange` /
+   `onTransformCommit` (`usePhotoLayer.ts:115-133`) ne partent qu'au commit,
+   en UNE entrée d'historique. C'est le contrat déjà en place pour le champ
+   numérique de `LabeledSlider` (`components/ui/labeled-slider.tsx:164-170`
+   pose le brouillon, `:114-123` committe au seul `onBlur`) — et c'est la
+   même frontière que pour le snap ci-dessus : **l'aperçu live appartient au
+   geste continu** (la poignée du slider, `labeled-slider.tsx:153` ; les
+   poignées du canvas), **pas à la saisie clavier**. Reparser à chaque frappe
+   rendrait tout état intermédiaire d'une saisie légitime — « 4 » puis « 45 »,
+   ou le vide transitoire d'un `Ctrl+A` — visible comme un rendu, ferait
+   sauter l'image sous les doigts, et donnerait un sens à des chaînes qui n'en
+   ont pas encore (« - », « 1e »). Corollaire assumé : `Échap` peut abandonner
+   l'édition sans rien à défaire, précisément parce que rien n'a été appliqué
+   (`PhotoPanel.tsx:38-42,72-77`).
 3. **Actions** — Réinitialiser · Ajuster à la toile (*contain*) · Centrer ·
    Miroir H · Miroir V (T3) · Recadrer (T4, entre en mode `crop`).
 
@@ -480,7 +502,8 @@ change pas (`contextualPanel.ts:18-29`). Le panneau affiche alors
 **Comportement en `maskPaint` et en `crop` — tranché.** Le panneau **reste
 visible et ses champs restent éditables dans les trois modes**. La règle du
 2026-07-26 (« la barre de transform et les poignées ne s'affichent qu'en
-`idle` », `:448-449`) visait les **poignées du canvas**, qui interceptent le
+`idle` », `:467-468`, désormais marquée CADUC pour la barre à son point
+d'usage) visait les **poignées du canvas**, qui interceptent le
 geste de pinceau — c'est exactement ce que `showsTransformHandles` gouverne
 (`canvasMode.ts:47-53`), et ça reste vrai. Un champ numérique dans le dock
 n'intercepte aucun geste de canvas et ne pousse plus le canvas (§3.7) : rien ne

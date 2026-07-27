@@ -203,10 +203,14 @@ const LayerRow = memo(function LayerRow({
           {/* Opacité en LECTURE SEULE : le slider a quitté la ligne pour
               l'en-tête, mais comparer les opacités de la pile d'un coup d'œil
               reste un besoin — sans quoi il faudrait sélectionner chaque
-              calque pour lire sa valeur. `aria-hidden` : la valeur est déjà
-              annoncée par le slider de l'en-tête pour le calque sélectionné,
-              et un chiffre nu sans libellé n'apporte rien au lecteur d'écran. */}
-          <span className="layer-panel__row-opacity" aria-hidden="true">
+              calque pour lire sa valeur. Elle est ANNONCÉE (2026-07-27) : le
+              slider de l'en-tête ne couvre que le calque sélectionné, donc la
+              masquer partout retirait l'opacité de tous les autres calques aux
+              technologies d'assistance. Le libellé porté ici évite le chiffre
+              nu ; sur la ligne SÉLECTIONNÉE, `aria-hidden` évite au contraire
+              de doubler ce que le slider annonce déjà. */}
+          <span className="layer-panel__row-opacity" aria-hidden={selected || undefined}>
+            <span className="sr-only">Opacité </span>
             {formatOpacityPercent(layer.opacity)}
           </span>
           <IconButton

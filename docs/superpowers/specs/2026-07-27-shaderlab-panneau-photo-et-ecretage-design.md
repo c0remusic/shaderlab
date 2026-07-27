@@ -461,9 +461,18 @@ défaut subsiste sur `BrushToolbar` — hors scope, §8.)
 1. **Source** — vignette + nom du fichier (`photoSources.thumbnailUrl(sourceId)` /
    `layer.name`, T1 livré). Lecture seule en v1.
 2. **Placement** — X, Y (px du fond), échelle (%), angle (°), champs numériques
-   éditables, **avec le snap d'angle à 15°** (livrable explicite de T2,
-   `2026-07-26-…-parity-design.md:691`, décision tranchée avec sa raison
-   `:1036-1038` — il ne doit pas disparaître dans le déménagement) ; aperçu live
+   éditables. **Le champ « Angle » NE SNAPPE PAS** : il est littéral, un angle
+   tapé n'est jamais réécrit. Le snap d'angle à 15° (livrable explicite de T2,
+   `2026-07-26-…-parity-design.md:735`, valeur tranchée avec sa raison
+   `:507-510` — il ne doit pas disparaître dans le déménagement) vit sur le
+   **geste de rotation au canvas**, déclenché par `Shift` maintenu pendant le
+   drag (`TransformHandles.tsx:77`, `snapAngle` de `ui/transform.ts:77`).
+   Pourquoi pas dans le champ : le snap est une aide au geste continu, où la
+   valeur exacte n'est pas choisie mais subie ; réécrire une valeur que
+   l'utilisateur a délibérément TAPÉE (saisir 20, lire 15) est un défaut
+   d'usage, et rendrait tout angle non multiple de 15° insaisissable au
+   clavier — la seule voie de saisie exacte. Les deux surfaces sont donc
+   complémentaires, pas redondantes : le canvas cale, le champ obéit ; aperçu live
    au `change`, une entrée d'historique au commit (blur/Entrée), même couple
    `onTransformChange` / `onTransformCommit` que les poignées
    (`usePhotoLayer.ts:115-133`).

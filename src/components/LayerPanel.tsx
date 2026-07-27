@@ -116,15 +116,15 @@ const LayerRow = memo(function LayerRow({
   // selon la ligne, et une infobulle qui annonce la mauvaise action est pire
   // qu'une absence d'infobulle.
   const eyeLabels = eyeButtonLabels(visible, role);
-  // Écrêtage (design 2026-07-27 §3.8) : indentation + flèche vers le calque
-  // qui sert de base. Le marquage de sélection n'est PAS cassé par
-  // l'indentation — c'est le padding intérieur de la ligne qui augmente, pas
-  // sa marge : le fond de sélection couvre toujours la ligne entière (voir
-  // .layer-panel__row--clipped).
+  // Écrêtage : la flèche coudée, et RIEN d'autre. L'indentation livrée le
+  // 2026-07-27 a été retirée après observation directe de Photoshop web
+  // (docs/design-system/photoshop-web-observations-2026-07-27.md §5ter) : une
+  // ligne écrêtée y reste alignée sur les autres, seule une petite flèche
+  // apparaît entre l'œil et la vignette. L'indentation avait été validée sur
+  // une maquette qui la présentait à tort comme la convention Photoshop.
   const clipped = layer.clipToBelow === true;
   const rowClass = [
     "layer-panel__row",
-    clipped && "layer-panel__row--clipped",
     selected && "layer-panel__row--selected",
     isDragging && "layer-panel__row--dragging",
     dropPosition === "before" && "layer-panel__row--drop-before",

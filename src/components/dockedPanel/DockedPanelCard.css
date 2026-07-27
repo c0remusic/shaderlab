@@ -110,29 +110,9 @@
   overflow-x: clip;
 }
 
-/* Barre de défilement FINE et discrète (2026-07-27). La barre système en
-   rognait 15px sur 320 : toutes les cartes étaient rétrécies d'autant. Ici
-   elle vit à l'intérieur du panneau, sur la piste transparente, et reste
-   VISIBLE dès qu'il y a du contenu caché — une barre invisible est pire
-   qu'une barre laide. */
-.docked-panel-card__content::-webkit-scrollbar {
-  width: var(--space-3);
-}
-
-.docked-panel-card__content::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.docked-panel-card__content::-webkit-scrollbar-thumb {
-  /* --border-emphasis (18%) au repos, --border-strong (28%) au survol : le
-     curseur monte en contraste quand on le vise, il ne descend pas. */
-  background: var(--border-emphasis);
-  border-radius: var(--radius-control);
-}
-
-.docked-panel-card__content::-webkit-scrollbar-thumb:hover {
-  background: var(--border-strong);
-}
+/* Barre de défilement fine : utilitaire partagé `.scroll-thin`
+   (src/design/components.css), posé sur le contenu par DockedPanelCard.tsx —
+   la grille de colonnes l'utilise aussi, les deux ne doivent pas diverger. */
 
 .docked-panel-card--dragging { opacity: var(--dragging-opacity); }
 

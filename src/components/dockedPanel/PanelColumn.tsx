@@ -171,7 +171,7 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
       onPointerUp={dragState ? (event) => finishDrag(event, true) : undefined}
       onPointerCancel={dragState ? (event) => finishDrag(event, false) : undefined}
     >
-      <div className="panel-column__grid">
+      <div className="panel-column__grid scroll-thin">
         {layout.map((column, columnIndex) => (
           <div className="panel-column__stack" key={column.join("-")}>
             {columnIndex === 0 && (

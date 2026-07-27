@@ -9,12 +9,23 @@
   z-index: var(--z-popover);
 }
 
+/* Les DEUX axes sont écrits explicitement (2026-07-27) : `overflow-x: auto`
+   seul COERCE l'axe Y à `auto` (règle CSS overflow — un axe non `visible`
+   force l'autre à `auto`), ce qui faisait de la grille le vrai conteneur
+   défilant et rendait inerte le défilement par carte. L'axe X est un vrai
+   besoin (le dock peut compter plusieurs colonnes côte à côte, plus larges
+   que la place disponible) ; l'axe Y n'est plus qu'une SORTIE DE SECOURS,
+   atteinte seulement quand toutes les cartes sont déjà à leur plancher
+   (voir .panel-column__item). Le laisser à `hidden` rendrait ce reliquat
+   inatteignable en silence — pas de repli muet. `scroll-thin` :
+   la barre système de 15px ne revient sur aucun des deux axes. */
 .panel-column__grid {
   display: flex;
   align-items: flex-start;
   gap: var(--space-4);
   max-height: calc(100vh - (var(--space-6) * 2));
   overflow-x: auto;
+  overflow-y: auto;
 }
 
 /* MODÈLE DE DÉFILEMENT (2026-07-27) : la colonne NE défile PLUS. Elle est
@@ -34,13 +45,22 @@
 }
 
 /* Chaque carte est un élément flexible de la colonne : content-sized tant que
-   la place suffit (flex-basis auto, pas de grow), comprimée sinon. Sa taille
-   minimale automatique reste celle de sa barre de titre + son en-tête — le
-   contenu est le seul bloc à `min-height: 0`, donc le seul à se comprimer. */
+   la place suffit (flex-basis auto, pas de grow), comprimée sinon.
+   `min-height: 0` est INDISPENSABLE ici : la taille minimale automatique d'un
+   élément flex vaut la taille de son contenu, donc sans cette ligne AUCUNE
+   carte ne peut se comprimer, la colonne déborde toujours et le défilement
+   remonte sur .panel-column__grid — le défilement par carte est alors inerte
+   (constat de revue, 2026-07-27). Chaîne complète de compression :
+   .panel-column__grid (borné par max-height) → .panel-column__stack
+   (max-height: inherit) → .panel-column__item (min-height: 0, ICI) →
+   .docked-panel-card (min automatique nul via overflow: hidden) →
+   .docked-panel-card__content (min-height: 0, seul bloc qui défile). */
 .panel-column__item {
   position: relative;
   display: flex;
   flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
 }
 
 .panel-column__alignment-guide--vertical {

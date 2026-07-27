@@ -41,7 +41,7 @@ export function DockedPanelCard({ title, collapsed, onCollapsedChange, children,
         </IconButton>
       </div>
       {!collapsed && header && <div className="docked-panel-card__header">{header}</div>}
-      {!collapsed && <div className="docked-panel-card__content">{children}</div>}
+      {!collapsed && <div className="docked-panel-card__content scroll-thin">{children}</div>}
     </div>
   );
 }

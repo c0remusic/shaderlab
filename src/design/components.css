@@ -88,6 +88,34 @@
   --drag-insert-chip-opacity: .9;
 }
 
+/* Barre de défilement FINE et discrète (2026-07-27), utilitaire partagé par
+   tout conteneur défilant du dock (contenu d'une carte, grille de colonnes).
+   La barre système en rognait 15px sur 320 de large : toutes les cartes
+   étaient rétrécies d'autant. Ici elle vit à l'intérieur du conteneur, sur une
+   piste transparente, et reste VISIBLE dès qu'il y a du contenu caché — une
+   barre invisible est pire qu'une barre laide. Une seule définition : deux
+   conteneurs qui défilent ne doivent pas diverger sur l'épaisseur ou la
+   couleur du curseur. */
+.scroll-thin::-webkit-scrollbar {
+  width: var(--space-3);
+  height: var(--space-3);
+}
+
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroll-thin::-webkit-scrollbar-thumb {
+  /* --border-emphasis (18%) au repos, --border-strong (28%) au survol : le
+     curseur monte en contraste quand on le vise, il ne descend pas. */
+  background: var(--border-emphasis);
+  border-radius: var(--radius-control);
+}
+
+.scroll-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
 /* Icon utilities keep Lucide glyphs aligned with the component token scale. */
 .icon-sm {
   width: var(--icon-size-sm);

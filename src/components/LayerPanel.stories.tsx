@@ -43,6 +43,7 @@ const meta: Meta<typeof LayerPanel> = {
     onSelect: () => {},
     onToggle: () => {},
     onAdd: () => {},
+    onDuplicate: () => {},
     onRemove: () => {},
     onReorder: () => {},
     onOpacityChange: () => {},
@@ -156,6 +157,16 @@ export const ChangeLayerEffect: Story = {
     const option = await within(document.body).findByRole("option", { name: "Aucun effet" });
     await userEvent.click(option);
     await expect(args.onEffectChange).toHaveBeenCalledWith("layer-1", "passthrough");
+  },
+};
+
+export const DuplicateLayer: Story = {
+  args: { onDuplicate: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const duplicateButtons = canvas.getAllByRole("button", { name: "Dupliquer le calque" });
+    await userEvent.click(duplicateButtons[0]);
+    await expect(args.onDuplicate).toHaveBeenCalledWith("layer-1");
   },
 };
 

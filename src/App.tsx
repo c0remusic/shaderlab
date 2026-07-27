@@ -5,6 +5,7 @@ import { LayerStack } from "./layers/layerStack";
 import type { LayerState } from "./layers/types";
 import { canAddPhotoLayer, countPhotoLayers, hasPhotoLayer } from "./layers/photoLayer";
 import { changeLayerEffect } from "./layers/changeLayerEffect";
+import { duplicateLayer } from "./layers/duplicateLayer";
 import { DocumentSession } from "./application/documentSession";
 import { BrushToolbar } from "./components/BrushToolbar";
 import { Canvas } from "./components/Canvas";
@@ -372,6 +373,25 @@ export default function App() {
     // layer doesn't re-render the others) — an unstable dependency here
     // defeated that memoization on every keystroke of any param drag.
     [currentStack, commit, presets.clearActive]
+  );
+
+  const handleDuplicate = useCallback(
+    (id: string) => {
+      // Garde photo, ordre des effets de bord et politique de masque : voir
+      // `duplicateLayer` (layers/duplicateLayer.ts). Même forme que
+      // handleEffectChange — la logique vit dans le module pur testé, ce
+      // handler ne fait que l'alimenter en effets de bord d'App.
+      duplicateLayer(currentStack(), id, {
+        clearActivePreset: presets.clearActive,
+        commit,
+        selectLayer,
+        setError,
+      });
+    },
+    // presets.clearActive et non `presets` : même resserrement que
+    // handleRemove, dont le commentaire explique pourquoi la mémoïsation de
+    // LayerRow en dépend.
+    [currentStack, commit, selectLayer, presets.clearActive]
   );
 
   const handleReorder = useCallback(
@@ -1187,6 +1207,7 @@ export default function App() {
                   onSelect={selectLayer}
                   onToggle={handleToggle}
                   onAdd={handleAdd}
+                  onDuplicate={handleDuplicate}
                   onRemove={handleRemove}
                   onReorder={handleReorder}
                   onOpacityChange={handleOpacityChange}

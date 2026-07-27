@@ -1,7 +1,7 @@
 import { memo, useCallback } from "react";
 import { usePointerReorder, type DropPosition } from "../ui/dragReorder";
 import "../ui/dragReorder.css";
-import { Eye, EyeOff, GripVertical, Trash2 } from "lucide-react";
+import { Copy, Eye, EyeOff, GripVertical, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
 import { effectRegistry, getEffect } from "../render/effects/registry";
 import { PASSTHROUGH_EFFECT } from "../render/effectPassRunner";
@@ -18,6 +18,7 @@ interface Props {
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
   onAdd: (effectId: string) => void;
+  onDuplicate: (id: string) => void;
   onRemove: (id: string) => void;
   onReorder: (id: string, newIndex: number) => void;
   onOpacityChange: (id: string, opacity: number) => void;
@@ -40,6 +41,7 @@ interface LayerRowProps {
   dropPosition: DropPosition | null;
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
+  onDuplicate: (id: string) => void;
   onRemove: (id: string) => void;
   onGripPointerDown: (id: string, pointerId: number, target: Element, clientX: number, clientY: number) => void;
   onOpacityChange: (id: string, opacity: number) => void;
@@ -71,6 +73,7 @@ const LayerRow = memo(function LayerRow({
   dropPosition,
   onSelect,
   onToggle,
+  onDuplicate,
   onRemove,
   onGripPointerDown,
   onOpacityChange,
@@ -141,17 +144,33 @@ const LayerRow = memo(function LayerRow({
             {displayName}
           </span>
         </span>
-        <IconButton
-          label="Supprimer le calque"
-          size="compact"
-          variant="danger"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove(layer.id);
-          }}
-        >
-          <Trash2 className="icon-sm icon-stroke" aria-hidden="true" />
-        </IconButton>
+        {/* Mêmes affordances que la suppression (IconButton compact,
+            libellé accessible explicite, stopPropagation pour ne pas
+            déclencher la sélection de la ligne) — la duplication se range
+            avec elle, à droite de la ligne. */}
+        <span className="layer-panel__row-actions">
+          <IconButton
+            label="Dupliquer le calque"
+            size="compact"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDuplicate(layer.id);
+            }}
+          >
+            <Copy className="icon-sm icon-stroke" aria-hidden="true" />
+          </IconButton>
+          <IconButton
+            label="Supprimer le calque"
+            size="compact"
+            variant="danger"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove(layer.id);
+            }}
+          >
+            <Trash2 className="icon-sm icon-stroke" aria-hidden="true" />
+          </IconButton>
+        </span>
       </div>
       {dropPosition && <span className={`drag-reorder__alignment-guide layer-panel__alignment-guide--${dropPosition}`} aria-hidden="true" />}
       <div className="layer-panel__row-controls" onClick={(e) => e.stopPropagation()}>
@@ -194,6 +213,7 @@ export function LayerPanel({
   onSelect,
   onToggle,
   onAdd,
+  onDuplicate,
   onRemove,
   onReorder,
   onOpacityChange,
@@ -248,6 +268,7 @@ export function LayerPanel({
             }
             onSelect={onSelect}
             onToggle={onToggle}
+            onDuplicate={onDuplicate}
             onRemove={onRemove}
             onGripPointerDown={handleGripPointerDown}
             onOpacityChange={onOpacityChange}

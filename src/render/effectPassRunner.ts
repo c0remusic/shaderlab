@@ -150,10 +150,10 @@ export class EffectPassRunner {
     layer: LayerState,
     sourceView: GPUTextureView,
     targetView: GPUTextureView,
-    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null; guideEpoch?: number; imageSourceView?: GPUTextureView | null } = {},
+    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null; guideEpoch?: number; imageSourceView?: GPUTextureView | null; clipCoverageView?: GPUTextureView | null } = {},
     pendingDestroy: PendingDestroy = []
   ): void {
-    const { applyMask = true, prevPassView = null, guideEpoch = 0, imageSourceView = null } = options;
+    const { applyMask = true, prevPassView = null, guideEpoch = 0, imageSourceView = null, clipCoverageView = null } = options;
     const paramValues = new Float32Array(MAX_EFFECT_PARAMS);
     effect.params.forEach((p, idx) => { paramValues[idx] = layer.params[p.name] ?? p.default; });
     const paramBuffer = this.device.createBuffer({ size: paramValues.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -162,7 +162,12 @@ export class EffectPassRunner {
 
     const blendMode = getBlendMode(layer.blendMode ?? "normal");
     const hasImageSource = imageSourceView !== null;
-    const shaderCode = composeShader(effect.wgsl, { applyMask, hasPrevPass: prevPassView !== null, hasImageSource, blendWgsl: applyMask ? blendMode.wgsl : undefined });
+    const clipToCoverage = clipCoverageView !== null;
+    // Binding 6 partagé (voir shaderCompose) : la vue vient du calque lui-même
+    // (photo) ou de la base photo du DESSOUS (écrêtage). `composeShader` lève
+    // si les deux sont posés — assert inatteignable, pas de repli ici.
+    const coverageView = imageSourceView ?? clipCoverageView;
+    const shaderCode = composeShader(effect.wgsl, { applyMask, hasPrevPass: prevPassView !== null, hasImageSource, clipToCoverage, blendWgsl: applyMask ? blendMode.wgsl : undefined });
     let compositingBuffer: GPUBuffer | null = null;
     if (applyMask) {
       const compositing = new Float32Array([layer.opacity ?? 1, 0, 0, 0]);
@@ -182,7 +187,7 @@ export class EffectPassRunner {
       if (applyMask) layoutEntries.push({ binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
       if (prevPassView) layoutEntries.push({ binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
       if (applyMask) layoutEntries.push({ binding: 5, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } });
-      if (applyMask && hasImageSource) layoutEntries.push({ binding: 6, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
+      if (applyMask && coverageView) layoutEntries.push({ binding: 6, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
       const bindGroupLayout = this.device.createBindGroupLayout({ entries: layoutEntries });
       const pipeline = this.device.createRenderPipeline({
         layout: this.device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
@@ -201,7 +206,7 @@ export class EffectPassRunner {
     if (applyMask) entries.push({ binding: 3, resource: this.resolveMask(layer, encoder, sourceView, pendingDestroy, guideEpoch).createView() });
     if (prevPassView) entries.push({ binding: 4, resource: prevPassView });
     if (applyMask && compositingBuffer) entries.push({ binding: 5, resource: { buffer: compositingBuffer } });
-    if (applyMask && hasImageSource) entries.push({ binding: 6, resource: imageSourceView! });
+    if (applyMask && coverageView) entries.push({ binding: 6, resource: coverageView });
     const bindGroup = this.device.createBindGroup({ layout: cached.bindGroupLayout, entries });
     const pass = encoder.beginRenderPass({ colorAttachments: [{ view: targetView, loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } }] });
     pass.setPipeline(cached.pipeline);

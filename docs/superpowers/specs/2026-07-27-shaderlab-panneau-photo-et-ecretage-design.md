@@ -304,30 +304,49 @@ calque d'effet (différé, §8).
 
 **Un calque `suppressed` n'est PAS retiré de la boucle.** L'instruction « sauter
 les `suppressed` » de la révision 1 était fausse et cassait le rendu : la boucle
-dérive **tout** de `enabledLayers` — `isLast` (`:209`), le choix
-`finalTargetView` vs ping-pong (`:210-212`), `guideEpoch` (`:271`), l'avance du
-ping-pong (`:276-279`), le court-circuit « 0 calque » (`:163`), le compte
-remonté (`:314`) et l'index overlay (`:298`). Un `continue` fait que si le
+dérive **tout** de `enabledLayers` — `isLast` (`:235`), le choix
+`finalTargetView` vs ping-pong (`:236-238`), `guideEpoch` (`:345`), l'avance du
+ping-pong (`:351-352`), le court-circuit « 0 calque » (`:183`), le compte
+remonté (`:388`) et l'index overlay (`:371`). Un `continue` fait que si le
 DERNIER calque activé est supprimé, **plus aucune passe n'écrit
 `finalTargetView`**.
 
 **Règle : le calque reste dans la boucle, à son index, et est encodé sans
 contribuer.** Concrètement, pour un calque dont la résolution est
 `suppressed`, on substitue l'appel normal par la forme déjà utilisée par le
-court-circuit « 0 calque activé » (`framePipelineExecutor.ts:165-181`) :
+court-circuit « 0 calque activé » (`framePipelineExecutor.ts:185-193`) —
+implémenté en `framePipelineExecutor.ts:251-267` :
 
 ```
-runEffectPass(encoder, PASSTHROUGH_EFFECT, <descripteur neutre>,
+runEffectPass(encoder, PASSTHROUGH_EFFECT, neutralPassLayer(),
               readTexture.createView(), targetView, {}, pendingDestroy)
 ```
 
-- **Pas d'options** → `applyMask` absent → `fsBody = "return effected;"`
-  (`shaderCompose.ts:102`) → copie exacte de `readTexture` vers `targetView`.
-  Poids nul au sens strict : le calque ne peut rien modifier.
+- **Options `{}` ne veut PAS dire « chemin sans compositing ».**
+  `runEffectPass` a `applyMask = true` **par défaut**
+  (`effectPassRunner.ts:156`) : la passe neutre emprunte donc le chemin de
+  compositing complet — bindings 3 (masque) et 5 (compositing), blend
+  `normal`, `fsBody = mix(...)` (`shaderCompose.ts:125-134`), pas
+  `return effected;`. Ce qui la rend neutre est **l'arithmétique**, pas
+  l'absence de branche : `neutralPassLayer()` (`:16-26`) porte un masque par
+  défaut (donc `maskValue ≡ 1`), `opacity: 1` et `blendMode: "normal"`, et
+  `PASSTHROUGH_EFFECT` renvoie sa couleur d'entrée — soit
+  `mix(color, color, 1) = color`, copie exacte de `readTexture` vers
+  `targetView`. Le calque ne peut rien modifier, mais par annulation, pas par
+  court-circuit du shader.
 - **Pas de passes internes** (`runInternalPasses` n'est pas appelé) : un glow
   supprimé ne coûte pas ses passes de flou — le coût se réduit à une passe
   plein écran, sur un chemin déjà éprouvé.
-- **Pas de `masks.resolve`** pour ce calque : rien à résoudre.
+- **Aucune résolution du masque PEINT du calque supprimé.** L'executor
+  n'appelle pas `this.masks.resolve` pour lui ; c'est `runEffectPass` qui
+  résout, en interne (`effectPassRunner.ts:206`), le masque du **descripteur
+  neutre** — dont `planFold` est vide, d'où un retour immédiat sur la texture
+  blanche partagée `getWhiteMask()` (`maskTextureResolver.ts:224`). Aucun
+  fold, aucune passe de SAT, aucune entrée de cache touchée.
+- **La couverture retenue est relâchée** : le branchement pose
+  `clipCoverageView = null` (`framePipelineExecutor.ts:261`) avant de
+  `continue` — une base photo non rendue ne laisse pas sa couverture en
+  héritage à ce qui suit.
 - `index`, `isLast`, le ping-pong, `guideEpoch` et `enabledLayerCount` sont
   **inchangés par construction** — c'est tout l'intérêt de ne pas filtrer.
   Aucun risque de régression sur la double-invalidation du cache SAT corrigée en
@@ -653,7 +672,12 @@ Preuve — voir §6 pour ce que chaque filet attrape réellement :
 color;`, poids contenant `textureSample(coverageTexture, srcSampler, in.uv).a`,
 et `composeShader` lève quand les deux drapeaux sont vrais) ;
 `npm run test:gpu-shaders` vert avec un compte de cas **supérieur** à celui
-d'avant la tranche ; tests Node sur `FramePipelineExecutor` (port
+d'avant la tranche — 28 → **35 shaders composés** (5 passes internes de glow
++ 3 variantes de compositing × 6 effets, `composite` / `+photo` / `+clip`
++ 11 modes de fusion + 1 passe neutre `passthrough`, celle qu'encode §3.4),
+**plus 1 garde** non compilée : `hasImageSource` + `clipToCoverage` doit lever
+(comptée à part, mais fait échouer le script si la levée disparaît) ;
+tests Node sur `FramePipelineExecutor` (port
 `PhotoLayerInputPort` déjà mocké dans `test/render/framePipelineExecutor.test.ts`)
 assérant (a) un écrêté reçoit **la même** vue que la photo qui le précède,
 (b) deux écrêtés consécutifs la reçoivent tous deux, (c) un `inert` n'en reçoit
@@ -698,7 +722,7 @@ compilation. Il faut donc dire précisément ce qui l'attrape :
 | Filet | Attrape | N'attrape PAS |
 |---|---|---|
 | `test/render/shaderCompose.test.ts` (env Node, assertions sur le TEXTE du WGSL composé, `:74-104` pour le précédent) | **La couverture oubliée dans le poids** — c'est le défaut le plus probable, et c'est bien une assertion textuelle qui le prend. Aussi : binding manquant, mauvaise entrée d'effet, exclusion mutuelle non levée | Une erreur dans la formule *mathématique* (mauvais canal, `1 - a` au lieu de `a`) si elle est écrite conformément à l'assertion |
-| `npm run test:gpu-shaders` (`gpu-shader-check.mjs:55-65`, GPU réel) | Uniquement la **compilation** : WGSL invalide, binding déclaré mais absent du layout | **Aucune valeur.** Un poids `compositing.x * maskValue` (couverture oubliée) compile parfaitement |
+| `npm run test:gpu-shaders` (`gpu-shader-check.mjs:78-140`, GPU réel) | Uniquement la **compilation** : WGSL invalide, binding déclaré mais absent du layout — sur les 35 shaders composés, y compris `+clip` et la passe neutre de §3.4. Plus une **garde** (`:138`) : la levée sur `hasImageSource`+`clipToCoverage` disparue = échec du script | **Aucune valeur.** Un poids `compositing.x * maskValue` (couverture oubliée) compile parfaitement |
 | Tests Node `FramePipelineExecutor` (port mocké) | L'**identité des vues** passées, l'ordre d'encodage, le fait qu'un `suppressed` soit encodé et que la cible finale soit écrite | Ce que le shader fait de ces vues |
 | **Checkpoint visuel humain sur la vraie fenêtre (CDP)** | Tout le reste | — |
 

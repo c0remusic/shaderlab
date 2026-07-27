@@ -115,6 +115,31 @@ export class LayerStack {
     return true;
   }
 
+  /** Bascule l'ÉCRÊTAGE d'un calque d'effet (design 2026-07-27 §3.2) : l'effet
+   *  ne s'applique alors qu'à la couverture du calque photo situé en dessous.
+   *
+   *  **Garde structurante : un calque portant `imageSource` est REFUSÉ.** Elle
+   *  vit ICI, dans l'unique chemin d'écriture de `clipToBelow`, et nulle part
+   *  ailleurs : un calque écrêté qui serait lui-même une photo casserait
+   *  l'invariant d'ordre des passes dont dépend le partage de la cible de
+   *  résolution photo (`photoLayerInput.ts`), et rendrait atteignable en un
+   *  clic l'exclusion mutuelle que `composeShader` traite en assert. Un calque
+   *  ne peut jamais acquérir les deux attributs : `imageSource` n'est écrit
+   *  qu'à la création (`addPhotoLayer`) et à la duplication, aucun chemin ne
+   *  transforme un calque d'effet existant en photo.
+   *
+   *  Returns `true` iff `id` existe, n'est PAS un calque photo, et `clip`
+   *  diffère réellement de la valeur courante (même discipline no-op que le
+   *  reste du fichier : pas d'entrée d'historique vide). */
+  setLayerClip(id: string, clip: boolean): boolean {
+    const layer = this.layers.find((l) => l.id === id);
+    if (!layer) return false;
+    if (layer.imageSource !== undefined) return false;
+    if ((layer.clipToBelow ?? false) === clip) return false;
+    layer.clipToBelow = clip;
+    return true;
+  }
+
   /** Duplique le calque `id` (équivalent Ctrl+J) et insère la copie JUSTE
    *  AU-DESSUS de l'original, c'est-à-dire à `index + 1` : dans ce projet la
    *  pile est appliquée dans l'ordre du tableau (`framePipelineExecutor.run`

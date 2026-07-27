@@ -4,6 +4,7 @@ import type { EffectParam } from "../render/effects/types";
 import "./ParamPanel.css";
 import { LabeledSlider } from "./ui/labeled-slider";
 import { Disclosure } from "./ui/collapsible";
+import { Checkbox } from "./ui/checkbox";
 import { ColorGroupControl } from "./ui/color-group-control";
 import { formatControlValue } from "../ui/formatValue";
 
@@ -51,6 +52,12 @@ interface Props {
   layer: LayerState | null;
   onParamChange: (id: string, params: Record<string, number>) => void;
   onParamCommit: () => void;
+  /** Bascule l'écrêtage du calque SÉLECTIONNÉ (design 2026-07-27 §3.7). En
+   *  en-tête plutôt qu'une case par ligne de la pile : un contrôle qui se
+   *  répète sur chaque ligne devient un contrôle unique agissant sur la
+   *  sélection. Jamais rendu pour un calque photo — c'est le calque d'EFFET qui
+   *  porte l'attribut, une photo ne peut pas être écrêtée. */
+  onClipChange: (id: string, clip: boolean) => void;
   onOpenColorPicker: (group: { layerId: string; effectId: string; key: string; label: string; hue: EffectParam; saturation: EffectParam; lightness: EffectParam; anchorTop: number }) => void;
 }
 
@@ -71,7 +78,7 @@ function formatEffectParamValue(
   }
 }
 
-export function ParamPanel({ layer, onParamChange, onParamCommit, onOpenColorPicker }: Props) {
+export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, onOpenColorPicker }: Props) {
   if (!layer) {
     return <p className="param-panel__empty">Sélectionne un calque.</p>;
   }
@@ -91,6 +98,15 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onOpenColorPic
 
   return (
     <div className="param-panel">
+      {layer.imageSource === undefined && (
+        <div className="param-panel__clip-row">
+          <Checkbox
+            label="Écrêter sur la photo du dessous"
+            checked={layer.clipToBelow ?? false}
+            onChange={(clip) => onClipChange(layer.id, clip)}
+          />
+        </div>
+      )}
       <Disclosure title="Effet" defaultOpen>
         <div className="param-panel__group">
           {groupEffectParams(effect.params).map((item) =>

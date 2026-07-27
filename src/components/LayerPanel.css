@@ -70,6 +70,21 @@
   background: var(--surface-hover);
 }
 
+/* Calque ÉCRÊTÉ (design 2026-07-27 §3.8) : indentation par le PADDING de la
+   ligne, jamais par sa marge — le fond de sélection
+   (.layer-panel__row--selected) et le fond de survol couvrent ainsi toujours
+   la ligne entière, l'indentation ne peut pas casser le marquage de
+   sélection. --space-5 = un cran au-dessus du padding de ligne (--space-4),
+   assez pour se lire comme un décrochement sans écraser le nom. */
+.layer-panel__row--clipped {
+  padding-left: calc(var(--space-4) + var(--space-5));
+}
+
+.layer-panel__clip-arrow {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+}
+
 .layer-panel__row--selected {
   /* Sélectionné = le même fond que le hover, mais en permanence (pas
      besoin du curseur dessus) — pas de barre d'accent ni de fond plus

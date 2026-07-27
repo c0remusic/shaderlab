@@ -17,6 +17,13 @@
   overflow-x: auto;
 }
 
+/* MODÈLE DE DÉFILEMENT (2026-07-27) : la colonne NE défile PLUS. Elle est
+   bornée par la hauteur disponible (max-height héritée de .panel-column__grid)
+   et distribue cette hauteur à ses cartes ; chaque carte défile dans son propre
+   contenu (voir DockedPanelCard.css). Sans ça, une pile de calques longue
+   poussait Réglages et Masque hors de l'écran — c'est le constat direct de
+   l'observation Photoshop web (§5bis) et ce que `f8b2a0b` avait gardé à
+   l'envers. */
 .panel-column__stack {
   position: relative;
   display: flex;
@@ -24,10 +31,17 @@
   flex-direction: column;
   gap: var(--space-4);
   max-height: inherit;
-  overflow-y: auto;
 }
 
-.panel-column__item { position: relative; }
+/* Chaque carte est un élément flexible de la colonne : content-sized tant que
+   la place suffit (flex-basis auto, pas de grow), comprimée sinon. Sa taille
+   minimale automatique reste celle de sa barre de titre + son en-tête — le
+   contenu est le seul bloc à `min-height: 0`, donc le seul à se comprimer. */
+.panel-column__item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
 
 .panel-column__alignment-guide--vertical {
   /* A vertical guide marks the seam for a neighboring panel column. */

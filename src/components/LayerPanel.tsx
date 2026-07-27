@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo } from "react";
 import { usePointerReorder, type DropPosition } from "../ui/dragReorder";
 import "../ui/dragReorder.css";
-import { Copy, Eye, EyeOff, GripVertical, Trash2 } from "lucide-react";
+import { Copy, CornerLeftUp, Eye, EyeOff, GripVertical, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
 import { eyeButtonLabels, isLayerVisible, isolationRole, isolationVisibleIds, type IsolationRole } from "../layers/isolation";
 import { effectRegistry, getEffect } from "../render/effects/registry";
@@ -113,8 +113,15 @@ const LayerRow = memo(function LayerRow({
   // selon la ligne, et une infobulle qui annonce la mauvaise action est pire
   // qu'une absence d'infobulle.
   const eyeLabels = eyeButtonLabels(visible, role);
+  // Écrêtage (design 2026-07-27 §3.8) : indentation + flèche vers le calque
+  // qui sert de base. Le marquage de sélection n'est PAS cassé par
+  // l'indentation — c'est le padding intérieur de la ligne qui augmente, pas
+  // sa marge : le fond de sélection couvre toujours la ligne entière (voir
+  // .layer-panel__row--clipped).
+  const clipped = layer.clipToBelow === true;
   const rowClass = [
     "layer-panel__row",
+    clipped && "layer-panel__row--clipped",
     selected && "layer-panel__row--selected",
     isDragging && "layer-panel__row--dragging",
     dropPosition === "before" && "layer-panel__row--drop-before",
@@ -159,6 +166,16 @@ const LayerRow = memo(function LayerRow({
               <EyeOff className="icon-sm icon-stroke" aria-hidden="true" />
             )}
           </IconButton>
+          {clipped && (
+            // La ligne de base est celle du DESSOUS dans la pile — donc
+            // JUSTE AU-DESSUS dans cette liste, qui affiche le bas de pile en
+            // premier. La flèche pointe vers elle : vers le haut de la liste.
+            <CornerLeftUp
+              className="layer-panel__clip-arrow icon-sm icon-stroke"
+              role="img"
+              aria-label="Écrêté sur le calque du dessous"
+            />
+          )}
           {layer.imageSource &&
             (thumbnail ? (
               <img className="layer-panel__thumbnail" src={thumbnail} alt="" aria-hidden="true" />

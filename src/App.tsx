@@ -480,6 +480,18 @@ export default function App() {
     [currentStack, commit, presets.clearActive]
   );
 
+  const handleClipChange = useCallback(
+    (id: string, clip: boolean) => {
+      const stack = currentStack();
+      // Mutation outcome (même discipline que handleEffectChange) : calque
+      // absent, calque PHOTO (refusé par la garde de setLayerClip), ou valeur
+      // inchangée -> pas d'entrée d'historique.
+      if (!stack.setLayerClip(id, clip)) return;
+      commit(stack); // changement discret -> une entrée d'historique directe
+    },
+    [currentStack, commit]
+  );
+
   function handleAddMaskSource(layerId: string, type: "gradient" | "luminosity" | "colorRange") {
     const stack = currentStack();
     stack.addMaskSource(layerId, type);
@@ -1248,6 +1260,7 @@ export default function App() {
                   layer={selectedLayer}
                   onParamChange={handleParamChange}
                   onParamCommit={handleParamCommit}
+                  onClipChange={handleClipChange}
                   onOpenColorPicker={(group) =>
                     // Re-cliquer la MÊME pastille referme le picker (bascule),
                     // au lieu de le laisser ouvert sans issue autre que le X.

@@ -26,6 +26,7 @@ const meta: Meta<typeof ParamPanel> = {
     layer: glowLayer,
     onParamChange: () => {},
     onParamCommit: () => {},
+    onClipChange: () => {},
   },
 };
 
@@ -46,7 +47,38 @@ export const GrainLayer: Story = {
   args: { layer: makeLayer({ id: "layer-3", effectId: "grain" }) },
 };
 
+/** Écrêtage déjà posé : la case d'en-tête est cochée. */
+export const ClippedLayer: Story = {
+  args: { layer: makeLayer({ id: "layer-4", clipToBelow: true }) },
+};
+
+/** Calque PHOTO : la bascule d'écrêtage n'est pas rendue du tout — c'est le
+ *  calque d'effet qui porte l'attribut, une photo ne peut pas être écrêtée. */
+export const PhotoLayerHasNoClipToggle: Story = {
+  args: {
+    layer: makeLayer({
+      id: "layer-5",
+      effectId: "passthrough",
+      imageSource: { sourceId: "photo-1" },
+      transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("checkbox", { name: "Écrêter sur la photo du dessous" })).toBeNull();
+  },
+};
+
 // --- Interaction tests (play) ---
+
+export const ToggleClipFiresChange: Story = {
+  args: { layer: glowLayer, onClipChange: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("checkbox", { name: "Écrêter sur la photo du dessous" }));
+    await expect(args.onClipChange).toHaveBeenCalledWith("layer-1", true);
+  },
+};
 
 export const ChangeParamFiresChange: Story = {
   args: { layer: glowLayer, onParamChange: fn() },

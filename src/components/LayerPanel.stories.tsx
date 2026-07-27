@@ -74,6 +74,31 @@ export const ManyLayers: Story = {
   args: { layers: manyLayers, selectedId: "layer-3" },
 };
 
+// Écrêtage (2026-07-27) : la ligne écrêtée est indentée et porte une flèche
+// vers son calque de base — celui du DESSOUS dans la pile, donc la ligne
+// JUSTE AU-DESSUS dans cette liste (elle affiche le bas de pile en premier).
+// La ligne écrêtée est ici SÉLECTIONNÉE : l'indentation ne doit pas manger le
+// marquage de sélection (fond de ligne pleine largeur).
+const clippedLayers: LayerState[] = [
+  makeLayer({
+    id: "layer-1",
+    effectId: "passthrough",
+    imageSource: { sourceId: "photo-1" },
+    transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+    name: "plage.jpg",
+  }),
+  makeLayer({ id: "layer-2", effectId: "glow", clipToBelow: true }),
+  makeLayer({ id: "layer-3", effectId: "grain" }),
+];
+
+export const ClippedLayerSelected: Story = {
+  args: { layers: clippedLayers, selectedId: "layer-2" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("img", { name: "Écrêté sur le calque du dessous" })).toBeTruthy();
+  },
+};
+
 // Parité calque photo (T1) : la ligne d'un calque photo affiche son NOM de
 // fichier et sa vignette, plus « Passthrough ». La vignette est une object
 // URL résolue par `thumbnailUrl` (possédée par PhotoSourceStore côté App) —

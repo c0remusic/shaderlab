@@ -10,9 +10,9 @@ import { effectRegistry, getEffect } from "../render/effects/registry";
 import { PASSTHROUGH_EFFECT } from "../render/effectPassRunner";
 import { blendRegistry } from "../render/blend/registry";
 import { Select } from "./ui/select";
-import { LabeledSlider } from "./ui/labeled-slider";
+import { NumberField } from "./ui/number-field";
 import { IconButton } from "./ui/icon-button";
-import { formatOpacityPercent, layerHeaderModel } from "./layerHeaderModel";
+import { formatOpacityPercent, layerHeaderModel, opacityToPercent, parseOpacityPercent } from "./layerHeaderModel";
 import "./LayerPanel.css";
 
 interface Props {
@@ -107,10 +107,9 @@ const addEffectOptions = effectRegistry.map((e) => ({ value: e.id, label: e.name
 const changeEffectOptions = [{ value: PASSTHROUGH_EFFECT.id, label: "Aucun effet" }, ...addEffectOptions];
 const blendModeOptions = blendRegistry.map((m) => ({ value: m.id, label: m.name }));
 
-// Mémoïsée : sans ça, un drag du slider d'opacité d'UN calque re-render
-// (re-diffe) la liste ENTIÈRE des calques à chaque frame — coût qui grandit
-// avec le nombre de calques, contrairement au slider de paramètre d'effet
-// (ParamPanel) qui ne porte qu'un seul calque. Ne sert à rien sans callbacks
+// Mémoïsée : sans ça, un drag de slider (paramètre d'effet, pinceau)
+// re-render (re-diffe) la liste ENTIÈRE des calques à chaque frame — coût qui
+// grandit avec le nombre de calques. Ne sert à rien sans callbacks
 // stables côté App.tsx (useCallback) : voir le commentaire équivalent là-bas.
 const LayerRow = memo(function LayerRow({
   layer,
@@ -241,15 +240,17 @@ const LayerRow = memo(function LayerRow({
             déclencher la sélection de la ligne) — la duplication se range
             avec elle, à droite de la ligne. */}
         <span className="layer-panel__row-actions">
-          {/* Opacité en LECTURE SEULE : le slider a quitté la ligne pour
+          {/* Opacité en LECTURE SEULE : le contrôle a quitté la ligne pour
               l'en-tête, mais comparer les opacités de la pile d'un coup d'œil
               reste un besoin — sans quoi il faudrait sélectionner chaque
               calque pour lire sa valeur. Elle est ANNONCÉE (2026-07-27) : le
-              slider de l'en-tête ne couvre que le calque sélectionné, donc la
+              champ de l'en-tête ne couvre que le calque sélectionné, donc la
               masquer partout retirait l'opacité de tous les autres calques aux
-              technologies d'assistance. Le libellé porté ici évite le chiffre
-              nu ; sur la ligne SÉLECTIONNÉE, `aria-hidden` évite au contraire
-              de doubler ce que le slider annonce déjà. */}
+              technologies d'assistance. MÊME UNITÉ que ce champ — un
+              pourcentage entier, jamais un 0..1 — pour qu'une valeur lue sur
+              une ligne et la même valeur lue dans l'en-tête soient
+              comparables. Sur la ligne SÉLECTIONNÉE, `aria-hidden` évite de
+              doubler ce que le champ annonce déjà. */}
           <span className="layer-panel__row-opacity" aria-hidden={selected || undefined}>
             <span className="sr-only">Opacité </span>
             {formatOpacityPercent(layer.opacity)}
@@ -323,11 +324,22 @@ export function LayerHeader({
         />
       </div>
       {/* Ligne 2 — FUSION + OPACITÉ côte à côte, comme observé sur Photoshop
-          web (§2 des observations du 2026-07-27). L'opacité porte son
-          étiquette en `sr-only` : à deux contrôles sur une ligne de 216 px au
-          dock le plus étroit, un mot de plus prendrait la place de la piste,
-          et une piste avec sa valeur chiffrée se lit sans être nommée — le
-          nom accessible, lui, reste (lecteur d'écran, `aria-labelledby`). */}
+          web (§2 des observations du 2026-07-27).
+
+          L'opacité est un CHAMP, pas une piste. C'est le contrôle le plus
+          utilisé de l'en-tête, et une piste partagée à deux sur une ligne de
+          dock perd l'essentiel de sa course : mesuré au banc avant ce
+          changement, 116,9 px de piste au dock 240 px — et le champ de valeur
+          qui l'accompagnait débordait de sa propre boîte. Un champ, lui, ne
+          perd aucune précision en rétrécissant, et c'est exactement ce que
+          Photoshop web met là (§2 : « Opacité » puis un champ « 100 % »).
+          `flex: 0 0 auto` via `.layer-header__opacity` : le champ prend sa
+          largeur de contenu et rend TOUT le reste de la ligne au sélecteur de
+          fusion, dont les libellés sont longs.
+
+          Étiquette en `sr-only` : le « % » du champ dit déjà de quoi il
+          s'agit à l'œil, et le nom accessible reste porté par le `<label
+          htmlFor>` du champ. */}
       <div className="layer-header__row">
         <Select
           label="Fusion"
@@ -338,16 +350,25 @@ export function LayerHeader({
           disabled={!model.enabled}
           onChange={(v) => model.layerId !== null && onBlendModeChange(model.layerId, v)}
         />
-        <LabeledSlider
+        <NumberField
           label="Opacité"
           labelPlacement="hidden"
-          value={model.opacity}
+          classNames={{ root: "layer-header__opacity", field: "layer-header__opacity-field", input: "layer-header__opacity-input", unit: "layer-header__opacity-unit" }}
+          value={opacityToPercent(model.opacity)}
+          unit="%"
           min={0}
-          max={1}
-          step={0.01}
+          max={100}
+          step={1}
+          parse={parseOpacityPercent}
           disabled={!model.enabled}
-          onChange={(v) => model.layerId !== null && onOpacityChange(model.layerId, v)}
-          onCommit={onOpacityCommit}
+          // Un commit de champ = un `onOpacityChange` puis un
+          // `onOpacityCommit`, soit EXACTEMENT une entrée d'historique (le
+          // champ ne rappelle rien tant que la valeur n'a pas changé).
+          onCommit={(percent) => {
+            if (model.layerId === null) return;
+            onOpacityChange(model.layerId, percent / 100);
+            onOpacityCommit();
+          }}
         />
       </div>
     </div>

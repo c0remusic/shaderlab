@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { layerHeaderModel, formatOpacityPercent } from "../../src/components/layerHeaderModel";
+import { layerHeaderModel, formatOpacityPercent, opacityToPercent, parseOpacityPercent } from "../../src/components/layerHeaderModel";
 import type { LayerState } from "../../src/layers/types";
 import { defaultLayerMask } from "../../src/mask/types";
 
@@ -61,5 +61,51 @@ describe("formatOpacityPercent", () => {
   it("borne les valeurs hors plage au lieu d'afficher un pourcentage impossible", () => {
     expect(formatOpacityPercent(1.5)).toBe("100 %");
     expect(formatOpacityPercent(-0.2)).toBe("0 %");
+  });
+});
+
+describe("opacityToPercent", () => {
+  it("convertit l'opacité du modèle en pourcentage entier", () => {
+    expect(opacityToPercent(0)).toBe(0);
+    expect(opacityToPercent(0.6)).toBe(60);
+    expect(opacityToPercent(1)).toBe(100);
+  });
+
+  it("borne, pour ne jamais afficher un pourcentage impossible", () => {
+    expect(opacityToPercent(-1)).toBe(0);
+    expect(opacityToPercent(4)).toBe(100);
+  });
+});
+
+// Contrat de SAISIE du champ d'opacité de l'en-tête. Le champ lui-même n'est pas
+// testable ici (aucun test de ce projet ne rend de composant React) : c'est
+// cette fonction pure qui porte le contrat, et le composant ne fait que
+// l'appeler.
+describe("parseOpacityPercent", () => {
+  it("accepte le nombre nu", () => {
+    expect(parseOpacityPercent("60")).toBe(60);
+  });
+
+  it("accepte l'unité, collée ou espacée, et les espaces autour", () => {
+    expect(parseOpacityPercent("60 %")).toBe(60);
+    expect(parseOpacityPercent("60%")).toBe(60);
+    expect(parseOpacityPercent("  60 %  ")).toBe(60);
+  });
+
+  it("accepte la virgule décimale et arrondit à l'entier", () => {
+    expect(parseOpacityPercent("60,4")).toBe(60);
+    expect(parseOpacityPercent("60.6")).toBe(61);
+  });
+
+  it("borne à 0..100 au lieu de laisser passer une valeur hors plage", () => {
+    expect(parseOpacityPercent("250")).toBe(100);
+    expect(parseOpacityPercent("-30")).toBe(0);
+  });
+
+  it("rend null sur une saisie sans nombre — l'appelant revient à la valeur précédente, jamais un NaN", () => {
+    expect(parseOpacityPercent("")).toBeNull();
+    expect(parseOpacityPercent("   ")).toBeNull();
+    expect(parseOpacityPercent("abc")).toBeNull();
+    expect(parseOpacityPercent("%")).toBeNull();
   });
 });

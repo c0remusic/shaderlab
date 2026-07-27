@@ -55,6 +55,66 @@
   min-width: 0;
 }
 
+/* OPACITÉ (2026-07-28) : un CHAMP, pas une piste. `flex: 0 0 auto` ÉCRASE le
+   `flex: 1 1 0` ci-dessus — un champ n'a besoin que de la largeur de sa valeur,
+   et tout ce qu'il ne prend pas revient au sélecteur de fusion, dont les
+   libellés sont les plus longs de la ligne. Une piste, elle, perdait sa course
+   avec la largeur du dock (116,9 px mesurés au dock 240 px contre 225 px quand
+   elle occupait sa ligne entière) ; un champ ne perd aucune précision en
+   rétrécissant. */
+.layer-header__opacity {
+  flex: 0 0 auto;
+}
+
+.layer-header__opacity-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Même largeur que le champ de valeur d'un LabeledSlider
+   (--slider-value-width) : c'est le même rôle, deux largeurs différentes
+   seraient une dérive. Style aligné sur .photo-panel__input, l'autre champ
+   numérique du dock. */
+.layer-header__opacity-input {
+  width: var(--slider-value-width);
+  height: var(--control-height-md);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-control);
+  background: var(--surface-inset);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--text-value);
+  outline: none;
+}
+
+.layer-header__opacity-input:hover:not(:disabled) {
+  border-color: var(--border-emphasis);
+}
+
+.layer-header__opacity-input:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+/* Aucun calque sélectionné : l'en-tête reste MONTÉ mais inerte (le masquer
+   ferait sauter la liste). Même traitement que le trigger désactivé d'un
+   Select (data-disabled:text-[var(--text-disabled)]). */
+.layer-header__opacity-input:disabled {
+  cursor: not-allowed;
+  color: var(--text-disabled);
+}
+
+.layer-header__opacity-unit {
+  flex: 0 0 auto;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
 .layer-panel__row {
   position: relative;
   display: flex;

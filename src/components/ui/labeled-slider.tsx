@@ -1,7 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 
 import { Slider as SliderPrimitive } from "./slider";
-import type { ControlLabelPlacement } from "./select";
 import { cn } from "../../lib/utils";
 import { formatControlValue, parseControlValue } from "../../ui/formatValue";
 import {
@@ -29,12 +28,6 @@ export interface LabeledSliderProps {
    */
   onCommit?: () => void;
   className?: string;
-  /** Voir `ControlLabelPlacement` (./select). `hidden` garde le nom accessible
-   *  (l'étiquette reste dans le DOM, en `sr-only`, et reste liée au slider par
-   *  `aria-labelledby`) tout en rendant la ligne aussi haute qu'un seul
-   *  contrôle — c'est ce qui permet à Fusion et Opacité de tenir sur une même
-   *  ligne dans une colonne de dock. */
-  labelPlacement?: ControlLabelPlacement;
 }
 
 /**
@@ -55,7 +48,6 @@ export function LabeledSlider({
   onChange,
   onCommit,
   className,
-  labelPlacement = "block",
 }: LabeledSliderProps) {
   const id = useId();
   const labelId = `${id}-label`;
@@ -143,26 +135,11 @@ export function LabeledSlider({
   }
 
   return (
-    <div
-      ref={rowRef}
-      className={cn(
-        labelPlacement === "inline" ? "flex items-center gap-2" : "flex flex-col gap-1",
-        disabled && "opacity-50",
-        className
-      )}
-    >
-      <label
-        id={labelId}
-        htmlFor={id}
-        className={cn("text-sm text-muted-foreground", labelPlacement === "hidden" ? "sr-only" : "shrink-0")}
-      >
+    <div ref={rowRef} className={cn("flex flex-col gap-1", disabled && "opacity-50", className)}>
+      <label id={labelId} htmlFor={id} className="text-sm text-muted-foreground">
         {label}
       </label>
-      {/* `min-w-0 flex-1` seulement en étiquette inline : la piste et le champ
-          partagent alors la place restante de la LIGNE. En disposition bloc,
-          cette boîte est un élément de colonne — un `flex-1` y grandirait sur
-          l'axe vertical. */}
-      <div className={cn("flex items-center gap-2", labelPlacement === "inline" && "min-w-0 flex-1")}>
+      <div className="flex items-center gap-2">
         <SliderPrimitive
           id={id}
           aria-labelledby={labelId}

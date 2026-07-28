@@ -39,10 +39,11 @@ import { toDisplayOrder } from "./layerDisplayOrder";
  * tableau `layers`, où l'indice supérieur est le calque du DESSUS
  * (`src/layers/layerStack.ts`). Il ne sait rien du sens vertical de la liste.
  * Le SENS reste entièrement l'affaire de `layerDisplayOrder.ts`, appliqué ici
- * en une seule ligne. Si le sens d'affichage était un jour inversé
- * (l'ADR-0003 fixe aujourd'hui le sens Photoshop : la photo de fond FERME la
- * liste par le bas, ses effets rattachés sont AU-DESSUS d'elle), seule cette
- * frontière bougerait — le rattachement survivrait intact.
+ * en une seule ligne. Cette séparation a déjà servi : le 2026-07-28 l'ADR-0004
+ * a renversé le sens fixé la veille par l'ADR-0003, et ce module n'a eu à
+ * changer que ses commentaires. Le sens en vigueur est CAUSAL — la photo
+ * parente OUVRE son groupe par le haut, ses effets rattachés sont EN DESSOUS
+ * d'elle, dans l'ordre où ils la traitent.
  *
  * L'ORDRE des lignes est EXACTEMENT `toDisplayOrder(layers)` — l'imbrication est
  * une profondeur portée par la ligne, jamais un tri. C'est ce qui garantit que
@@ -51,7 +52,8 @@ import { toDisplayOrder } from "./layerDisplayOrder";
  * d'exécution sont inchangés (test/components/layerTree.test.ts).
  *
  * Cette invariance n'est pas fortuite : les enfants d'une photo sont toujours
- * CONTIGUS juste au-dessus d'elle dans le modèle. Entre deux photos, tout effet
+ * CONTIGUS juste après elle dans le modèle — donc, en sens causal, juste en
+ * dessous d'elle dans la liste. Entre deux photos, tout effet
  * a la même photo sous lui (donc le même parent) ; au-dessus de la photo la plus
  * haute, tout effet non écrêté en compte au moins deux (donc reste racine).
  */
@@ -62,10 +64,14 @@ export interface LayerTreeRow {
   depth: 0 | 1;
   /** Id de la photo parente (`depth === 1`), sinon `null`. */
   parentId: string | null;
-  /** Bornes du groupe en ordre d'AFFICHAGE, pour le filet vertical : le filet
-   *  démarre à la première ligne enfant et descend jusqu'à la photo parente,
-   *  qui est juste sous la dernière. Calculées ici plutôt que devinées en CSS —
-   *  `:has()` ne sait pas exprimer « même parent que la ligne précédente ». */
+  /** Bornes du groupe en ordre d'AFFICHAGE, pour le filet vertical. Ce sont des
+   *  bornes de POSITION dans la liste, pas des rôles : `firstChild` est la
+   *  ligne enfant la plus HAUTE, `lastChild` la plus BASSE, quel que soit le
+   *  sens en vigueur. Depuis l'ADR-0004 la photo parente est AU-DESSUS de son
+   *  groupe, donc c'est `firstChild` qui la touche et dont le filet doit
+   *  remonter jusqu'à elle (voir `.layer-panel__rail--first`, LayerPanel.css).
+   *  Calculées ici plutôt que devinées en CSS — `:has()` ne sait pas exprimer
+   *  « même parent que la ligne précédente ». */
   firstChild: boolean;
   lastChild: boolean;
 }

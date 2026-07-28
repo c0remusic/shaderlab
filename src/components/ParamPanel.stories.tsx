@@ -53,7 +53,7 @@ export const ClippedLayerWithoutEffectKeepsClipToggle: Story = {
   args: { layer: makeLayer({ id: "layer-5", effectId: "passthrough", params: {}, clipToBelow: true }) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const toggle = canvas.getByRole("checkbox", { name: "Écrêter sur la photo du dessous" });
+    const toggle = canvas.getByRole("checkbox", { name: "Écrêter sur la photo du dessus" });
     await expect(toggle).toBeChecked();
     await expect(canvas.getByText("Aucun effet appliqué à ce calque.")).toBeInTheDocument();
   },
@@ -85,7 +85,7 @@ export const PhotoLayerHasNoClipToggle: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.queryByRole("checkbox", { name: "Écrêter sur la photo du dessous" })).toBeNull();
+    await expect(canvas.queryByRole("checkbox", { name: "Écrêter sur la photo du dessus" })).toBeNull();
   },
 };
 
@@ -95,7 +95,7 @@ export const ToggleClipFiresChange: Story = {
   args: { layer: glowLayer, onClipChange: fn() },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("checkbox", { name: "Écrêter sur la photo du dessous" }));
+    await userEvent.click(canvas.getByRole("checkbox", { name: "Écrêter sur la photo du dessus" }));
     await expect(args.onClipChange).toHaveBeenCalledWith("layer-1", true);
   },
 };

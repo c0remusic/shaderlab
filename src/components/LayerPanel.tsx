@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo } from "react";
 import { usePointerReorder, type DropPosition } from "../ui/dragReorder";
 import "../ui/dragReorder.css";
-import { Copy, CornerLeftDown, Eye, EyeOff, GripVertical, Image as PhotoLayerIcon, Lock, Sparkles as EffectLayerIcon, Trash2 } from "lucide-react";
+import { Copy, CornerLeftUp, Eye, EyeOff, GripVertical, Image as PhotoLayerIcon, Lock, Sparkles as EffectLayerIcon, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
 import { eyeButtonLabels, isLayerVisible, isolationRole, isolationVisibleIds, type IsolationRole } from "../layers/isolation";
 import { resolveClipping } from "../layers/clipping";
@@ -65,12 +65,13 @@ export interface LayerControlsProps {
 
 interface LayerRowProps {
   layer: LayerState;
-  /** Index de LIGNE AFFICHÉE (0 = première ligne, en haut), pas l'index dans
-   *  `layers` — la liste est le miroir du tableau depuis l'inversion du sens
-   *  d'affichage. C'est cette valeur que porte `data-layer-row-index`, sur
-   *  laquelle le glisser-déposer fait son hit-test ; la conversion vers le
-   *  modèle a lieu une seule fois, à la sortie du hook (voir
-   *  `layerDisplayOrder.ts`). */
+  /** Index de LIGNE AFFICHÉE (0 = première ligne, en haut), à ne pas confondre
+   *  avec l'index dans `layers` même quand les deux coïncident : c'est le sens
+   *  d'affichage en vigueur qui décide s'ils coïncident (ADR-0004 : oui,
+   *  aujourd'hui), pas ce composant. C'est cette valeur que porte
+   *  `data-layer-row-index`, sur laquelle le glisser-déposer fait son hit-test ;
+   *  la conversion vers le modèle a lieu une seule fois, à la sortie du hook
+   *  (voir `layerDisplayOrder.ts`). */
   index: number;
   selected: boolean;
   isDragging: boolean;
@@ -239,17 +240,18 @@ const LayerRow = memo(function LayerRow({
             <EffectLayerIcon className="layer-panel__row-nature icon-sm icon-stroke" aria-hidden="true" />
           )}
           {clipped && (
-            // La ligne de base est celle du DESSOUS dans la pile. Depuis
-            // l'inversion du sens d'affichage (`layerDisplayOrder.ts`), elle
-            // est aussi celle du dessous dans la LISTE — la flèche pointe donc
-            // vers le BAS. Elle ne s'affiche que si une base EXISTE : un calque
-            // écrêté en bas de pile n'a rien sous lui, `resolveClipping` le
-            // rend `inert` (il rend linéairement), et une flèche qui désigne
-            // une base inexistante est un mensonge.
-            <CornerLeftDown
+            // La ligne de base est celle appliquée AVANT dans la pile. Depuis
+            // le sens causal (ADR-0004, `layerDisplayOrder.ts`), elle est la
+            // ligne du DESSUS dans la LISTE — la flèche pointe donc vers le
+            // HAUT (elle pointait vers le bas sous l'ADR-0003). Elle ne
+            // s'affiche que si une base EXISTE : un calque écrêté en bas de
+            // pile n'a rien avant lui, `resolveClipping` le rend `inert` (il
+            // rend linéairement), et une flèche qui désigne une base
+            // inexistante est un mensonge.
+            <CornerLeftUp
               className="layer-panel__clip-arrow icon-sm icon-stroke"
               role="img"
-              aria-label="Écrêté sur le calque du dessous"
+              aria-label="Écrêté sur le calque du dessus"
             />
           )}
           {layer.imageSource &&
@@ -422,10 +424,11 @@ export function LayerPanel({
   thumbnailUrl,
   backgroundName = null,
 }: Props) {
-  // SENS D'AFFICHAGE (2026-07-27) : la liste est le MIROIR du tableau. Le
-  // modèle ne bouge pas — `layers[0]` reste le calque appliqué en premier, donc
-  // le bas de pile — mais il s'affiche en DERNIÈRE ligne, juste au-dessus de la
-  // ligne d'arrière-plan qu'il consomme, comme dans tous les éditeurs.
+  // SENS D'AFFICHAGE (ADR-0004, 2026-07-28) : la liste se lit de haut en bas
+  // dans l'ordre du TRAITEMENT. Le modèle ne bouge pas — `layers[0]` reste le
+  // calque appliqué en premier — et il s'affiche en PREMIÈRE ligne, juste sous
+  // la ligne d'arrière-plan qu'il consomme. La photo est la matière, l'effet
+  // est l'opération : la matière vient avant.
   //
   // IMBRICATION (2026-07-28) : `toLayerTreeRows` rend ce MÊME ordre, chaque
   // ligne portant en plus sa profondeur et son rattachement (voir
@@ -502,6 +505,37 @@ export function LayerPanel({
         onPointerUp={dragState ? handlePointerUp : undefined}
         onPointerCancel={dragState ? handlePointerCancel : undefined}
       >
+        {/* Ligne d'ARRIÈRE-PLAN — DÉRIVÉE du document, pas un `LayerState` :
+            elle ne porte donc pas `data-layer-row-index` (invisible au
+            réordonnancement, qui indexe par cet attribut), ne se sélectionne
+            pas, ne se supprime pas et ne s'écrête pas. Le cadenas est la seule
+            marque de ce statut, comme l'Arrière-plan verrouillé de Photoshop.
+            Elle OUVRE la liste depuis l'ADR-0004 (elle la fermait par le bas
+            sous l'ADR-0003) : elle alimente `layers[0]`, la ligne juste en
+            dessous d'elle, et en sens causal la matière s'annonce avant les
+            opérations qui la traitent.
+            Aucune vignette : le document est `sourceTexture`, il n'est pas
+            enregistré dans `PhotoSourceStore` et n'a donc pas d'object URL —
+            l'emplacement reste réservé pour que les colonnes restent alignées
+            sur celles des lignes de calque (aucun raster ne transite par le
+            state React, invariant OOM 24MP). */}
+        {backgroundName && (
+          <li className="layer-panel__row layer-panel__row--background">
+            <div className="layer-panel__row-top">
+              <span className="layer-panel__row-main">
+                <span className="layer-panel__row-slot layer-panel__row-slot--grip" aria-hidden="true" />
+                <span className="layer-panel__row-slot layer-panel__row-slot--eye">
+                  <Lock className="layer-panel__row-lock icon-sm icon-stroke" role="img" aria-label="Arrière-plan verrouillé" />
+                </span>
+                <PhotoLayerIcon className="layer-panel__row-nature icon-sm icon-stroke" aria-hidden="true" />
+                <span className="layer-panel__thumbnail layer-panel__thumbnail--empty" aria-hidden="true" />
+                <span className="layer-panel__row-name" title={backgroundName}>
+                  {backgroundName}
+                </span>
+              </span>
+            </div>
+          </li>
+        )}
         {rows.map(({ layer, depth, firstChild, lastChild }, displayRow) => (
           <LayerRow
             key={layer.id}
@@ -528,33 +562,6 @@ export function LayerPanel({
             thumbnailUrl={thumbnailUrl}
           />
         ))}
-        {/* Ligne d'ARRIÈRE-PLAN — DÉRIVÉE du document, pas un `LayerState` :
-            elle ne porte donc pas `data-layer-row-index` (invisible au
-            réordonnancement, qui indexe par cet attribut), ne se sélectionne
-            pas, ne se supprime pas et ne s'écrête pas. Le cadenas est la seule
-            marque de ce statut, comme l'Arrière-plan verrouillé de Photoshop.
-            Aucune vignette : le document est `sourceTexture`, il n'est pas
-            enregistré dans `PhotoSourceStore` et n'a donc pas d'object URL —
-            l'emplacement reste réservé pour que les colonnes restent alignées
-            sur celles des lignes de calque (aucun raster ne transite par le
-            state React, invariant OOM 24MP). */}
-        {backgroundName && (
-          <li className="layer-panel__row layer-panel__row--background">
-            <div className="layer-panel__row-top">
-              <span className="layer-panel__row-main">
-                <span className="layer-panel__row-slot layer-panel__row-slot--grip" aria-hidden="true" />
-                <span className="layer-panel__row-slot layer-panel__row-slot--eye">
-                  <Lock className="layer-panel__row-lock icon-sm icon-stroke" role="img" aria-label="Arrière-plan verrouillé" />
-                </span>
-                <PhotoLayerIcon className="layer-panel__row-nature icon-sm icon-stroke" aria-hidden="true" />
-                <span className="layer-panel__thumbnail layer-panel__thumbnail--empty" aria-hidden="true" />
-                <span className="layer-panel__row-name" title={backgroundName}>
-                  {backgroundName}
-                </span>
-              </span>
-            </div>
-          </li>
-        )}
       </ul>
     </div>
   );

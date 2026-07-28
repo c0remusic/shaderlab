@@ -194,10 +194,11 @@
 }
 
 /* Filet vertical reliant les lignes enfants à leur photo parente, tracé dans la
-   gouttière d'indentation. Les enfants d'une photo sont CONTIGUS juste au-dessus
-   d'elle (invariant démontré dans layerTree.ts), donc un segment par ligne
-   suffit : chacun déborde d'une demi-gouttière de liste (--space-4) en haut et
-   en bas, et les segments de deux lignes voisines se rejoignent exactement.
+   gouttière d'indentation. Les enfants d'une photo sont CONTIGUS juste en
+   dessous d'elle depuis le sens causal de l'ADR-0004 (invariant démontré dans
+   layerTree.ts), donc un segment par ligne suffit : chacun déborde d'une
+   demi-gouttière de liste (--space-4) en haut et en bas, et les segments de deux
+   lignes voisines se rejoignent exactement.
    1px : le repo n'a pas de token d'épaisseur de bordure, la valeur littérale est
    la convention en place (cf. .layer-panel__thumbnail--empty plus bas). */
 .layer-panel__rail {
@@ -210,17 +211,19 @@
   pointer-events: none;
 }
 
-/* PREMIÈRE ligne enfant : le filet démarre à la hauteur du contenu de la ligne
-   plutôt que de dépasser au-dessus du groupe, où il ne relierait rien. */
+/* PREMIÈRE ligne enfant (la plus HAUTE du groupe) : depuis l'ADR-0004 la photo
+   parente est la ligne juste AU-DESSUS — le filet traverse la gouttière ENTIÈRE
+   pour la toucher, sinon il s'arrête dans le vide à mi-chemin. Les deux règles
+   ci-dessous ont été ÉCHANGÉES le 2026-07-28 avec le sens d'affichage : les
+   bornes sont des positions dans la liste, c'est le parent qui a changé de côté. */
 .layer-panel__rail--first {
-  top: var(--space-4);
+  top: calc(var(--space-4) * -1);
 }
 
-/* DERNIÈRE ligne enfant : la photo parente est la ligne juste en dessous — le
-   filet traverse la gouttière ENTIÈRE pour la toucher, sinon il s'arrête dans
-   le vide à mi-chemin. */
+/* DERNIÈRE ligne enfant (la plus BASSE) : rien à relier en dessous — le filet
+   s'arrête à la hauteur du contenu plutôt que de dépasser sous le groupe. */
 .layer-panel__rail--last {
-  bottom: calc(var(--space-4) * -1);
+  bottom: var(--space-4);
 }
 
 /* Icône de NATURE (effet ou photo) : même traitement que la poignée et la

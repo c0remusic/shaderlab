@@ -4,32 +4,42 @@
  * Le MODÈLE est inchangé et le reste : `layers[0]` est le calque appliqué EN
  * PREMIER, directement sur la photo de fond (`framePipelineExecutor.ts` part de
  * `readTexture = sourceTexture` puis boucle sur la pile dans l'ordre du
- * tableau). `layers[0]` est donc le BAS de la pile.
+ * tableau).
  *
- * L'AFFICHAGE, lui, suit la convention de tous les éditeurs (Photoshop en
- * tête) : le bas de pile est en BAS de la liste, juste au-dessus de la ligne
- * d'arrière-plan qui l'alimente. La liste est donc le miroir du tableau.
+ * L'AFFICHAGE suit depuis l'ADR-0004 (2026-07-28) le SENS CAUSAL : la liste se
+ * lit de haut en bas dans l'ordre du TRAITEMENT. La photo vient d'abord, puis
+ * les effets qui s'appliquent dessus — « la photo ne traite rien, c'est les
+ * effets qui traitent la photo », la matière avant l'opération. La liste est
+ * donc l'ordre DIRECT du tableau, et la ligne d'arrière-plan OUVRE la liste par
+ * le haut : elle alimente `layers[0]`, elle doit l'annoncer.
  *
- * Ces trois fonctions sont le SEUL endroit où cette inversion existe. Rien
- * d'autre ne bouge : ni le pipeline, ni `LayerStack`, ni les presets, ni
- * l'historique. Elles sont ici, pures et testées, parce que le glisser-déposer
- * en dépend : une conversion dispersée dans le composant est la façon la plus
- * sûre de faire atterrir un calque au mauvais endroit.
+ * Ces trois fonctions restent le SEUL endroit où le sens d'affichage existe.
+ * Elles sont aujourd'hui l'IDENTITÉ, et ce n'est pas une raison de les
+ * supprimer : elles sont la frontière nommée par laquelle passent le
+ * glisser-déposer et l'arbre de rattachement. Les inliner rendrait un futur
+ * changement de sens (celui-ci est le second en deux jours) dispersé dans le
+ * composant — exactement le défaut que l'ADR-0003 interdisait et que l'ADR-0004
+ * reconduit. Un `reverse()` ou un calcul d'index ailleurs dans le code est un
+ * bug, pas une simplification.
  */
 
-/** Le tableau du modèle, dans l'ordre où la LISTE doit le rendre. Copie : le
- *  tableau d'origine n'est jamais muté (`reverse` est destructif). */
+/** Le tableau du modèle, dans l'ordre où la LISTE doit le rendre. Copie
+ *  défensive : l'appelant ne doit jamais pouvoir muter `layers` à travers la
+ *  valeur rendue, quel que soit le sens en vigueur. */
 export function toDisplayOrder<T>(layers: readonly T[]): T[] {
-  return layers.slice().reverse();
+  return layers.slice();
 }
 
 /**
  * Index de MODÈLE de la ligne affichée en position `displayRow`.
  *
- * Bijection sur la pile entière : `displayRow` ∈ [0, length-1].
+ * Bijection sur la pile entière : `displayRow` ∈ [0, length-1]. `length` reste
+ * dans la signature bien qu'inutilisé dans le sens direct : c'est la donnée dont
+ * dépend toute inversion, et la retirer ferait retoucher tous les appelants au
+ * prochain changement de sens.
  */
-export function displayRowToModelIndex(displayRow: number, length: number): number {
-  return length - 1 - displayRow;
+export function displayRowToModelIndex(displayRow: number, _length: number): number {
+  return displayRow;
 }
 
 /**
@@ -39,13 +49,12 @@ export function displayRowToModelIndex(displayRow: number, length: number): numb
  * `src/ui/dragReorder.ts`).
  *
  * Le tableau amputé compte `length - 1` éléments, donc les positions
- * d'insertion valides vont de 0 à `length - 1` des DEUX côtés. Insérer en
- * position `d` d'un tableau affiché (= miroir de l'amputé) place l'élément à la
- * position `d` en partant du haut de la liste, donc à `length - 1 - d` en
- * partant du bas de la pile : la formule est la même que pour une ligne, mais
- * son domaine ne l'est pas — d'où deux fonctions nommées séparément plutôt
- * qu'une seule que l'appelant pourrait appliquer au mauvais index.
+ * d'insertion valides vont de 0 à `length - 1` des DEUX côtés. La liste étant
+ * l'ordre direct du tableau, insérer en position `d` de la liste affichée place
+ * l'élément en position `d` du tableau amputé. Le domaine reste distinct de
+ * celui d'une LIGNE — d'où deux fonctions nommées séparément plutôt qu'une
+ * seule que l'appelant pourrait appliquer au mauvais index.
  */
-export function displayInsertToModelInsert(displayInsert: number, length: number): number {
-  return length - 1 - displayInsert;
+export function displayInsertToModelInsert(displayInsert: number, _length: number): number {
+  return displayInsert;
 }

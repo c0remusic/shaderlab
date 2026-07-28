@@ -17,7 +17,10 @@ import type {
   RefineEdgeParams,
 } from "../mask/types";
 import { buildCombineWgsl, buildInvertWgsl } from "../mask/maskFoldWgsl";
-import { buildMorphologyWgsl } from "../mask/refineEdgeWgsl";
+import {
+  buildMorphologyWgsl,
+  MORPHOLOGY_PASS_AXES,
+} from "../mask/refineEdgeWgsl";
 import { getMaskSourceModule } from "../mask/sources/registry";
 import {
   buildLuminanceWgsl,
@@ -926,11 +929,19 @@ export class MaskTextureResolver {
       this.pass(e, w, acc, null, next, u(v));
       [acc, next] = [next, acc];
     };
-    if (x.contract)
-      run(
-        buildMorphologyWgsl(x.contract < 0 ? "erode" : "dilate"),
-        Math.abs(x.contract),
-      );
+    if (x.contract) {
+      // Morphologie SÉPARÉE en deux passes 1D (H puis V) — exactement
+      // équivalent à l'ancienne fenêtre carrée (2r+1)², pour 2*(2r+1)
+      // échantillons par pixel au lieu de (2r+1)² : facteur 50 à r=50.
+      // Preuve d'équivalence : test/mask/morphologySeparable.test.ts.
+      // Réutilise le ping-pong existant via `run` (même mécanisme que
+      // feather, juste en dessous) : aucune texture intermédiaire nouvelle,
+      // et rien ne survit à l'appel — chaque passe repart d'un loadOp clear.
+      const mode = x.contract < 0 ? "erode" : "dilate";
+      const radius = Math.abs(x.contract);
+      for (const axis of MORPHOLOGY_PASS_AXES)
+        run(buildMorphologyWgsl(mode, axis), radius);
+    }
     if (x.feather) {
       run(buildBoxFilterHWgsl(1), x.feather);
       run(buildBoxFilterVWgsl(1), x.feather);

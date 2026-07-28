@@ -27,7 +27,13 @@
 // + 11 modes de fusion sur un effet neutre
 // + 1 passe neutre passthrough (court-circuit « 0 calque » et neutralisation
 //   d'un calque ecrete `suppressed`)
-// = 35 shaders composes, + 1 garde d'exclusion mutuelle (non compilee).
+// + 4 variantes de morphologie du masque (2 modes erode/dilate x 2 axes H/V,
+//   depuis la separation de la fenetre carree — 2026-07-27)
+// = 39 shaders composes, + 1 garde d'exclusion mutuelle (non compilee).
+//
+// Les shaders de MASQUE ne passent pas par `composeShader` : ce sont des
+// sources WGSL completes (elles embarquent deja FULLSCREEN_VERTEX_WGSL), donc
+// elles se compilent telles quelles.
 const targets = await (await fetch("http://localhost:9222/json")).json();
 const page = targets.find((t) => t.type === "page" && t.url.includes("1420"));
 if (!page) throw new Error("aucune page shaderlab sur le port 1420");
@@ -131,7 +137,17 @@ const script = `(async () => {
     await compile("passthrough neutre (compositing)",
       composeShader(PASSTHROUGH_EFFECT.wgsl, { applyMask: true, hasPrevPass: false, blendWgsl: normal }));
 
-    // 5) garde : un calque photo ne peut pas etre ecrete. Les deux drapeaux
+    // 5) morphologie du masque : 2 modes x 2 axes. Une source par variante,
+    // et le pipeline est cache PAR SOURCE (maskTextureResolver.ts:534) — une
+    // variante qui ne compilerait pas ne casserait qu'au premier usage reel
+    // du slider Contracter/Dilater, pas aux tests Node.
+    const refine = await import("/src/mask/refineEdgeWgsl.ts");
+    for (const mode of ["erode", "dilate"])
+      for (const axis of refine.MORPHOLOGY_PASS_AXES)
+        await compile("masque morphologie:" + mode + ":" + axis,
+          refine.buildMorphologyWgsl(mode, axis));
+
+    // 6) garde : un calque photo ne peut pas etre ecrete. Les deux drapeaux
     // partagent le binding 6 mais n'ont pas le meme sens — \`composeShader\`
     // leve plutot que de replier silencieusement (shaderCompose.ts:87-91), et
     // \`LayerStack.setLayerClip\` refuse deja un calque photo en amont.

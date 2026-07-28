@@ -22,18 +22,49 @@
 // `hasPrevPass` coherent avec le nombre de passes internes de l'effet.
 //
 // Compte attendu (a tenir a jour si le registre bouge) :
-//   passes internes (glow: 5)
-// + 3 variantes de compositing x 6 effets (composite, +photo, +clip) = 18
-// + 11 modes de fusion sur un effet neutre
-// + 1 passe neutre passthrough (court-circuit « 0 calque » et neutralisation
-//   d'un calque ecrete `suppressed`)
-// + 4 variantes de morphologie du masque (2 modes erode/dilate x 2 axes H/V,
-//   depuis la separation de la fenetre carree — 2026-07-27)
-// = 39 shaders composes, + 1 garde d'exclusion mutuelle (non compilee).
 //
-// Les shaders de MASQUE ne passent pas par `composeShader` : ce sont des
-// sources WGSL completes (elles embarquent deja FULLSCREEN_VERTEX_WGSL), donc
-// elles se compilent telles quelles.
+//   A. Shaders COMPOSES (via `composeShader`, a partir de FRAGMENTS) :
+//     passes internes (glow: 5)
+//   + 3 variantes de compositing x 6 effets (composite, +photo, +clip) = 18
+//   + 11 modes de fusion sur un effet neutre
+//   + 1 passe neutre passthrough (court-circuit « 0 calque » et neutralisation
+//     d'un calque ecrete `suppressed`)
+//   = 35
+//
+//   B. Sources WGSL COMPLETES du masque / de la pre-passe photo (elles
+//      embarquent deja FULLSCREEN_VERTEX_WGSL, donc se compilent telles
+//      quelles — voir la note « deux categories » plus bas) :
+//     4 variantes de morphologie (2 modes erode/dilate x 2 axes H/V, depuis la
+//       separation de la fenetre carree — 2026-07-27)
+//   + 3 combinaisons de fold (add/subtract/intersect) + 1 inversion
+//   + 14 passes edge-aware (luminance, pack, squareCorr, computeAB, composite,
+//       downsample, satWiden, satScan H/V, satLookup, box-filter H/V x
+//       channels 1|2)
+//   + 1 overlay de masque (MASK_OVERLAY_WGSL)
+//   + 1 pre-passe d'entree d'un calque photo (PHOTO_LAYER_INPUT_WGSL)
+//   = 24
+//
+//   C. Sources de masque PARAMETRIQUES : ce sont des FRAGMENTS `fs_generate`
+//      (comme les effets, mais avec un autre wrapper — `wrapMaskSourceWgsl`,
+//      PAS `composeShader`), un par module de `mask/sources/registry.ts`,
+//      chacun avec son propre nombre de slots `PARAM_COUNT_BY_TYPE` (un N
+//      different = une source differente) = 3
+//
+// = 62 shaders compiles au total, + 1 garde d'exclusion mutuelle (non
+//   compilee).
+//
+// DEUX CATEGORIES, a ne pas confondre (2e piege) : les `wgsl` du registre
+// d'effets et le `wgsl` d'un module de source de masque sont des FRAGMENTS et
+// doivent passer par leur wrapper (`composeShader` / `wrapMaskSourceWgsl`) ;
+// les shaders de MASQUE construits par `mask/*Wgsl.ts` et les constantes
+// `*_WGSL` de `render/` sont des sources COMPLETES et se compilent telles
+// quelles. Verifier la categorie AVANT d'ajouter une source ici.
+//
+// Note : `buildBoxFilter{H,V}Wgsl(2)` (channels=2) n'est appele par aucun
+// chemin de rendu actuel (`maskTextureResolver.ts` n'utilise que channels=1
+// depuis le passage a la SAT) — il reste compile ici parce que c'est une API
+// exportee et une source DIFFERENTE, donc une regression y serait invisible
+// partout ailleurs.
 const targets = await (await fetch("http://localhost:9222/json")).json();
 const page = targets.find((t) => t.type === "page" && t.url.includes("1420"));
 if (!page) throw new Error("aucune page shaderlab sur le port 1420");
@@ -146,6 +177,59 @@ const script = `(async () => {
       for (const axis of refine.MORPHOLOGY_PASS_AXES)
         await compile("masque morphologie:" + mode + ":" + axis,
           refine.buildMorphologyWgsl(mode, axis));
+
+    // 5bis) fold du masque : combinaison (une source par mode) + inversion.
+    // Encodees par \`maskTextureResolver.foldSources\` (maskTextureResolver.ts:
+    // 638/646) et mises en cache PAR SOURCE — une variante invalide ne
+    // casserait qu'au premier masque multi-sources reel.
+    const fold = await import("/src/mask/maskFoldWgsl.ts");
+    for (const mode of ["add", "subtract", "intersect"])
+      await compile("masque fold:" + mode, fold.buildCombineWgsl(mode));
+    await compile("masque fold:invert", fold.buildInvertWgsl());
+
+    // 5ter) chaine edge-aware (guided filter + SAT). Toutes ces passes sont
+    // des sources COMPLETES construites par src/mask/edgeAwareWgsl.ts, aucune
+    // ne passe par \`composeShader\`. Elles ne s'executent que quand
+    // \`refineEdge.edgeAware\` est actif : sans ce harnais, une regression WGSL
+    // y dort jusqu'a ce que quelqu'un coche la case.
+    const ea = await import("/src/mask/edgeAwareWgsl.ts");
+    await compile("masque edge:luminance", ea.buildLuminanceWgsl());
+    await compile("masque edge:downsample", ea.buildDownsampleWgsl());
+    await compile("masque edge:pack", ea.buildPackWgsl());
+    await compile("masque edge:squareCorr", ea.buildSquareCorrWgsl());
+    await compile("masque edge:computeAB", ea.buildComputeABWgsl());
+    await compile("masque edge:composite", ea.buildCompositeWgsl());
+    await compile("masque edge:satWiden", ea.buildSatWidenWgsl());
+    await compile("masque edge:satLookup", ea.buildSatLookupWgsl());
+    for (const dir of ["H", "V"]) {
+      await compile("masque edge:satScan:" + dir, ea.buildSatScanWgsl(dir));
+      // channels 1|2 changent le type echantillonne ET l'expression de sortie
+      // -> deux sources distinctes, pas un uniforme.
+      for (const ch of [1, 2])
+        await compile("masque edge:box" + dir + ":ch" + ch,
+          dir === "H" ? ea.buildBoxFilterHWgsl(ch) : ea.buildBoxFilterVWgsl(ch));
+    }
+
+    // 5quater) sources de masque PARAMETRIQUES. Ce sont des FRAGMENTS
+    // \`fs_generate\` : les compiler nus produirait « unresolved value
+    // 'genParams' » (meme piege que les effets, autre wrapper). On passe donc
+    // par \`wrapMaskSourceWgsl\` avec le MEME \`PARAM_COUNT_BY_TYPE\` que le
+    // resolver — les deux sont importes de maskTextureResolver.ts plutot que
+    // recopies ici, pour qu'un changement de N ne puisse pas deriver.
+    const resolver = await import("/src/render/maskTextureResolver.ts");
+    const sources = await import("/src/mask/sources/registry.ts");
+    for (const m of sources.maskSourceRegistry)
+      await compile("masque source:" + m.id,
+        resolver.wrapMaskSourceWgsl(m.wgsl, resolver.PARAM_COUNT_BY_TYPE[m.id]));
+
+    // 5quinquies) sources completes hors masque : l'overlay de masque
+    // (effectPassRunner.ts:20, pipeline cache par source) et la pre-passe
+    // d'entree d'un calque photo (photoLayerInput.ts:16). Aucune des deux ne
+    // passe par \`composeShader\`.
+    const runner = await import("/src/render/effectPassRunner.ts");
+    await compile("overlay de masque", runner.MASK_OVERLAY_WGSL);
+    const photo = await import("/src/render/photoLayerInput.ts");
+    await compile("pre-passe entree photo", photo.PHOTO_LAYER_INPUT_WGSL);
 
     // 6) garde : un calque photo ne peut pas etre ecrete. Les deux drapeaux
     // partagent le binding 6 mais n'ont pas le meme sens — \`composeShader\`

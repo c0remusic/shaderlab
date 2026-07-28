@@ -34,11 +34,26 @@ import {
   buildSatLookupWgsl,
 } from "../mask/edgeAwareWgsl";
 
-const PARAM_COUNT_BY_TYPE: Record<Exclude<MaskSourceType, "brush">, number> = {
+/** Nombre de slots `array<f32, N>` alloués au contrat wgsl de chaque source
+ *  paramétrique. Exporté pour que le harnais GPU (`scripts/gpu-shader-check.mjs`)
+ *  compile EXACTEMENT la source que le resolver produit — un N différent
+ *  produit un shader différent, donc une copie du chiffre dans le harnais
+ *  dériverait en silence. */
+export const PARAM_COUNT_BY_TYPE: Record<Exclude<MaskSourceType, "brush">, number> = {
   gradient: 8,
   luminosity: 8,
   colorRange: 32,
 };
+
+/** Enveloppe le fragment `fs_generate` d'un module de source paramétrique
+ *  (`src/mask/sources/*.ts`) en source WGSL complète. Les modules exposent un
+ *  FRAGMENT (comme les effets), pas un shader : sans ce wrapper, `vs_main`,
+ *  `VertexOut`, les bindings et `fs_wrapped` manquent. Fonction de module (et
+ *  non méthode privée) pour que `scripts/gpu-shader-check.mjs` compile la même
+ *  source que le rendu. */
+export function wrapMaskSourceWgsl(g: string, n: number): string {
+  return `${FULLSCREEN_VERTEX_WGSL}\n@group(0) @binding(0) var srcColor: texture_2d<f32>;\n@group(0) @binding(1) var maskSampler: sampler;\n@group(0) @binding(2) var<uniform> genParams: array<f32, ${n}>;\n${g}\n@fragment fn fs_wrapped(in: VertexOut) -> @location(0) vec4<f32> { let color=textureSample(srcColor,maskSampler,in.uv).rgb; let v=fs_generate(in.uv,color,genParams); return vec4<f32>(v,v,v,1.0); }`;
+}
 type Entry = { texture: GPUTexture; syncedFrom: unknown };
 type PipelineEntry = {
   pipeline: GPURenderPipeline;
@@ -431,7 +446,7 @@ export class MaskTextureResolver {
           },
         ],
       });
-      const code = this.wrap(module.wgsl, count);
+      const code = wrapMaskSourceWgsl(module.wgsl, count);
       c = {
         layout,
         pipeline: this.ctx.device.createRenderPipeline({
@@ -505,9 +520,6 @@ export class MaskTextureResolver {
       out[i++] = (p[k] as number) ?? (defaults[k] as number);
     }
     return out;
-  }
-  private wrap(g: string, n: number) {
-    return `${FULLSCREEN_VERTEX_WGSL}\n@group(0) @binding(0) var srcColor: texture_2d<f32>;\n@group(0) @binding(1) var maskSampler: sampler;\n@group(0) @binding(2) var<uniform> genParams: array<f32, ${n}>;\n${g}\n@fragment fn fs_wrapped(in: VertexOut) -> @location(0) vec4<f32> { let color=textureSample(srcColor,maskSampler,in.uv).rgb; let v=fs_generate(in.uv,color,genParams); return vec4<f32>(v,v,v,1.0); }`;
   }
   private pair(map: Map<string, [GPUTexture, GPUTexture]>, id: string) {
     let p = map.get(id);

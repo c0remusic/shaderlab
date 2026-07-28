@@ -110,14 +110,17 @@ export function usePhotoLayer({
       const sourceId = await rendererRef.current.photoSources.register(bitmap);
       const transform: LayerTransform = { x: imageSize.width / 2, y: imageSize.height / 2, scale: 1, rotation: 0 };
       const stack = currentStack();
-      const id = stack.addPhotoLayer(sourceId, transform, basename(path) ?? undefined);
+      // La photo s'insère JUSTE AU-DESSUS du calque sélectionné (parité
+      // Photoshop, `LayerStack.insertIndexAfter`) ; sans sélection, en haut de
+      // pile. La sélection passe ensuite sur la photo importée — inchangé.
+      const id = stack.addPhotoLayer(sourceId, transform, basename(path) ?? undefined, selectedId);
       commit(stack);
       selectLayer(id);
       setError(null);
     } catch (e) {
       setError(messageFromUnknown(e));
     }
-  }, [rendererRef, sessionRef, setError, commit, currentStack, imageSize.width, imageSize.height, selectLayer]);
+  }, [rendererRef, sessionRef, setError, commit, currentStack, imageSize.width, imageSize.height, selectLayer, selectedId]);
 
   const handleImportPhotoLayer = useCallback(async () => {
     try {

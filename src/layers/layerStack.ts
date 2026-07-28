@@ -40,9 +40,38 @@ function paramsEqual(a: object, b: object): boolean {
 export class LayerStack {
   layers: LayerState[] = [];
 
-  addLayer(effectId: string): string {
+  /** Index d'insertion d'un NOUVEAU calque, pour `addLayer`/`addPhotoLayer`.
+   *
+   *  Parité Photoshop : un calque créé se place JUSTE AU-DESSUS du calque
+   *  sélectionné. Dans ce projet l'indice SUPÉRIEUR du tableau est le calque du
+   *  DESSUS (`framePipelineExecutor.run` itère `layers` du premier au dernier,
+   *  chaque calque composite par-dessus le résultat du précédent), donc
+   *  « au-dessus de la sélection » = `index + 1` — exactement le calcul que
+   *  `duplicateLayer` fait déjà.
+   *
+   *  **Aucune sélection (`null`/omis) -> haut de pile** (fin de tableau).
+   *  C'est l'ancre par défaut la plus proche de Photoshop, où un document a
+   *  toujours un calque actif : sans ancre, le nouveau calque coiffe la pile.
+   *  C'est aussi, par construction, l'ancien comportement de ce fichier — un
+   *  document neuf (pile vide) et un import sans sélection restent identiques
+   *  à avant.
+   *
+   *  **Id introuvable -> même traitement que « aucune sélection ».** Ce n'est
+   *  pas un état exceptionnel mais un id périmé (calque supprimé, undo), déjà
+   *  traité en no-op par le reste du fichier (`removeLayer`, `toggleLayer`…) ;
+   *  ces deux constructeurs rendent un id et n'ont pas de canal d'échec. */
+  private insertIndexAfter(afterId: string | null | undefined): number {
+    if (afterId === undefined || afterId === null) return this.layers.length;
+    const index = this.layers.findIndex((l) => l.id === afterId);
+    return index === -1 ? this.layers.length : index + 1;
+  }
+
+  /** `afterId` = calque sélectionné au moment de l'ajout ; le nouveau calque
+   *  s'insère juste AU-DESSUS de lui (voir `insertIndexAfter` pour le sens de
+   *  l'indice et le traitement de l'absence de sélection). */
+  addLayer(effectId: string, afterId?: string | null): string {
     const id = freshId();
-    this.layers.push({
+    this.layers.splice(this.insertIndexAfter(afterId), 0, {
       id,
       effectId,
       params: {},
@@ -64,10 +93,17 @@ export class LayerStack {
    *  `name` (T1, parité calque photo) : nom affiché du calque, en pratique
    *  le basename du fichier importé. Omis -> champ `name` absent (et non
    *  `undefined` posé explicitement), l'affichage retombe alors sur le nom
-   *  de l'effet. */
-  addPhotoLayer(sourceId: string, transform: LayerTransform, name?: string): string {
+   *  de l'effet.
+   *  `afterId` : calque sélectionné au moment de l'import — la photo s'insère
+   *  juste AU-DESSUS de lui (voir `insertIndexAfter`). Insérer au MILIEU d'une
+   *  chaîne d'écrêtage est autorisé et non exceptionnel : `clipBaseId`
+   *  s'arrêtant à la première photo rencontrée en descendant, le calque écrêté
+   *  au-dessus voit simplement sa base basculer sur la photo qui vient d'être
+   *  insérée (`clipping.ts`, cas couvert par
+   *  `test/layers/insertAboveSelection.test.ts`). */
+  addPhotoLayer(sourceId: string, transform: LayerTransform, name?: string, afterId?: string | null): string {
     const id = freshId();
-    this.layers.push({
+    this.layers.splice(this.insertIndexAfter(afterId), 0, {
       id,
       effectId: "passthrough",
       params: {},

@@ -166,7 +166,15 @@ export function MaskPanel({
           </div>
 
           <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="secondary">Ajouter une source</Button>} />
+            {/* Calque VERROUILLÉ : `LayerStack.addMaskSource` LÈVE dans ce cas
+                (elle rend un id, elle n'a pas de canal d'échec no-op comme les
+                autres mutateurs). Ce `disabled` est ce qui rend la levée
+                inatteignable depuis l'UI — la garde reste dans le modèle, ici
+                on ne fait que ne pas offrir le geste. Les autres contrôles de
+                masque de ce panneau sont refusés par le modèle en no-op ; ils
+                ne sont PAS encore désactivés visuellement (voir le rapport de
+                tranche : gap déclaré, pas oublié). */}
+            <DropdownMenuTrigger render={<Button variant="secondary" disabled={layer.locked === true}>Ajouter une source</Button>} />
             <DropdownMenuContent align="start">
               {maskSourceRegistry.map((m) => (
                 <DropdownMenuItem key={m.id} onClick={() => onAddMaskSource(layer.id, m.id)}>

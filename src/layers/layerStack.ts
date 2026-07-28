@@ -66,6 +66,60 @@ export class LayerStack {
     return index === -1 ? this.layers.length : index + 1;
   }
 
+  /** Le calque `id` est-il VERROUILLÉ ? Unique lecture du champ `locked` dans
+   *  ce fichier : chaque mutateur bloqué appelle CETTE fonction, jamais
+   *  `layer.locked` en direct, pour que la liste des opérations refusées se
+   *  lise en un seul `grep isLocked`.
+   *
+   *  **Opérations REFUSÉES sur un calque verrouillé** (toutes rendent le
+   *  même no-op `false` que le reste du fichier — donc aucune entrée
+   *  d'historique vide côté `App.tsx`) : `setLayerEffect`, `setLayerClip`,
+   *  `updateLayerTransform`, `removeLayer`, `reorderLayer`, `updateParams`,
+   *  `updateBrushMask`, et toute la famille masque (`removeMaskSource`,
+   *  `updateMaskSourceParams`, `setMaskSourceCombineMode`,
+   *  `setMaskSourceEnabled`, `updateRefineEdge`, `setMaskInvert`,
+   *  `setMaskEnabled`). `addMaskSource` refuse aussi, mais en LEVANT — il n'a
+   *  pas de canal d'échec (il rend un id) et lève déjà sur un calque
+   *  introuvable ; un calque verrouillé est la même classe de cible invalide.
+   *
+   *  **Opérations AUTORISÉES, et pourquoi.**
+   *  - `setLayerLocked` : sinon le verrou serait irréversible.
+   *  - `toggleLayer` (visibilité) : masquer n'est pas modifier — c'est un
+   *    confort de lecture de la pile, réversible et sans effet sur le travail
+   *    du calque. Le verrouiller rendrait le verrou hostile.
+   *  - `duplicateLayer` : ne mute PAS la source, il la lit. La copie hérite du
+   *    verrou (`...source` la recopie comme tout autre champ scalaire) : un
+   *    garde-fou ne doit pas disparaître silencieusement à la duplication, et
+   *    le déverrouillage de la copie reste à un clic.
+   *  - `addLayer`/`addPhotoLayer` : insèrent À CÔTÉ, ne touchent pas le calque
+   *    verrouillé.
+   *
+   *  **Limite assumée** : `reorderLayer` empêche de déplacer LE calque
+   *  verrouillé, pas de déplacer un AUTRE calque au travers de lui — ce
+   *  second geste est une mutation de l'autre calque, dont l'index du calque
+   *  verrouillé n'est qu'une conséquence. */
+  private isLocked(id: string): boolean {
+    return this.layers.find((l) => l.id === id)?.locked === true;
+  }
+
+  /** Pose/retire le VERROU d'un calque (arbitrage n°2 du design
+   *  `2026-07-28-shaderlab-fond-comme-calque-design.md` §7). Unique chemin
+   *  d'écriture de `locked`, sur le modèle de `setLayerClip`.
+   *
+   *  Contrairement à tous les autres mutateurs, il ne consulte PAS `isLocked` :
+   *  un verrou qu'on ne peut pas retirer n'est pas un verrou.
+   *
+   *  Returns `true` iff `id` existe ET `locked` diffère réellement de la valeur
+   *  courante (même discipline no-op que le reste du fichier : pas d'entrée
+   *  d'historique vide). */
+  setLayerLocked(id: string, locked: boolean): boolean {
+    const layer = this.layers.find((l) => l.id === id);
+    if (!layer) return false;
+    if ((layer.locked ?? false) === locked) return false;
+    layer.locked = locked;
+    return true;
+  }
+
   /** `afterId` = calque sélectionné au moment de l'ajout ; le nouveau calque
    *  s'insère juste AU-DESSUS de lui (voir `insertIndexAfter` pour le sens de
    *  l'indice et le traitement de l'absence de sélection). */
@@ -145,6 +199,7 @@ export class LayerStack {
   setLayerEffect(id: string, effectId: string): boolean {
     const layer = this.layers.find((l) => l.id === id);
     if (!layer) return false;
+    if (this.isLocked(id)) return false;
     if (layer.effectId === effectId) return false;
     layer.effectId = effectId;
     layer.params = {};
@@ -170,6 +225,7 @@ export class LayerStack {
   setLayerClip(id: string, clip: boolean): boolean {
     const layer = this.layers.find((l) => l.id === id);
     if (!layer) return false;
+    if (this.isLocked(id)) return false;
     if (layer.imageSource !== undefined) return false;
     if ((layer.clipToBelow ?? false) === clip) return false;
     layer.clipToBelow = clip;
@@ -250,6 +306,7 @@ export class LayerStack {
   updateLayerTransform(id: string, transform: LayerTransform): boolean {
     const layer = this.layers.find((l) => l.id === id);
     if (!layer || !layer.imageSource) return false;
+    if (this.isLocked(id)) return false;
     if (layer.transform && paramsEqual(layer.transform, transform)) return false;
     layer.transform = transform;
     return true;
@@ -261,6 +318,7 @@ export class LayerStack {
    *  discipline as the mask-container setters below. */
   removeLayer(id: string): boolean {
     if (!this.layers.some((l) => l.id === id)) return false;
+    if (this.isLocked(id)) return false;
     this.layers = this.layers.filter((l) => l.id !== id);
     return true;
   }
@@ -274,6 +332,7 @@ export class LayerStack {
   reorderLayer(id: string, newIndex: number): boolean {
     const from = this.layers.findIndex((l) => l.id === id);
     if (from === -1) return false;
+    if (this.isLocked(id)) return false;
     if (newIndex < 0 || newIndex >= this.layers.length) return false;
     if (newIndex === from) return false;
     const [layer] = this.layers.splice(from, 1);
@@ -294,6 +353,7 @@ export class LayerStack {
   updateParams(id: string, params: Record<string, number>): boolean {
     const layer = this.layers.find((l) => l.id === id);
     if (!layer) return false;
+    if (this.isLocked(id)) return false;
     const merged = { ...layer.params, ...params };
     if (paramsEqual(layer.params, merged)) return false;
     layer.params = merged;
@@ -309,6 +369,7 @@ export class LayerStack {
   updateBrushMask(id: string, raster: Uint8Array): boolean {
     const layer = this.layers.find((l) => l.id === id);
     if (!layer) return false;
+    if (this.isLocked(id)) return false;
     const fresh = new Uint8Array(raster);
     const idx = layer.mask.sources.findIndex((s) => s.type === "brush");
     if (idx === -1) {
@@ -327,6 +388,12 @@ export class LayerStack {
   addMaskSource(layerId: string, type: Exclude<MaskSourceType, "brush">): string {
     const layer = this.layers.find((l) => l.id === layerId);
     if (!layer) throw new Error(`Calque introuvable: ${layerId}`);
+    // Refus par LEVÉE, et non par no-op : cette méthode rend un id, elle n'a
+    // pas de canal d'échec — et elle lève déjà juste au-dessus sur un calque
+    // introuvable. Un calque verrouillé est la même classe de cible invalide.
+    // L'UI ne doit jamais l'atteindre : `MaskPanel` désactive « Ajouter une
+    // source » sur un calque verrouillé.
+    if (this.isLocked(layerId)) throw new Error(`Calque verrouillé: ${layerId}`);
     const module = getMaskSourceModule(type);
     const id = freshId();
     const source = createParametricSource(id, type, { ...module.defaultParams });
@@ -341,6 +408,7 @@ export class LayerStack {
   removeMaskSource(layerId: string, sourceId: string): boolean {
     const layer = this.layers.find((l) => l.id === layerId);
     if (!layer) return false;
+    if (this.isLocked(layerId)) return false;
     const before = layer.mask.sources.length;
     const sources = layer.mask.sources.filter((s) => s.id !== sourceId);
     if (sources.length === before) return false;
@@ -354,6 +422,7 @@ export class LayerStack {
   updateMaskSourceParams(layerId: string, sourceId: string, params: MaskSourceParams): boolean {
     const layer = this.layers.find((l) => l.id === layerId);
     if (!layer) return false;
+    if (this.isLocked(layerId)) return false;
     const idx = layer.mask.sources.findIndex((s) => s.id === sourceId);
     if (idx === -1) return false;
     const source = layer.mask.sources[idx];
@@ -371,6 +440,7 @@ export class LayerStack {
   setMaskSourceCombineMode(layerId: string, sourceId: string, mode: CombineMode): boolean {
     const layer = this.layers.find((l) => l.id === layerId);
     if (!layer) return false;
+    if (this.isLocked(layerId)) return false;
     const idx = layer.mask.sources.findIndex((s) => s.id === sourceId);
     if (idx === -1) return false;
     if (layer.mask.sources[idx].combineMode === mode) return false;
@@ -384,6 +454,7 @@ export class LayerStack {
   updateRefineEdge(layerId: string, refineEdge: Partial<RefineEdgeParams>): boolean {
     const layer = this.layers.find((l) => l.id === layerId);
     if (!layer) return false;
+    if (this.isLocked(layerId)) return false;
     const merged = { ...layer.mask.refineEdge, ...refineEdge };
     if (paramsEqual(layer.mask.refineEdge, merged)) return false;
     layer.mask = { ...layer.mask, refineEdge: merged };
@@ -395,6 +466,7 @@ export class LayerStack {
   setMaskInvert(id: string, invert: boolean): boolean {
     const layer = this.layers.find((l) => l.id === id);
     if (!layer) return false;
+    if (this.isLocked(id)) return false;
     if (layer.mask.invert === invert) return false;
     layer.mask = { ...layer.mask, invert };
     return true;
@@ -405,6 +477,7 @@ export class LayerStack {
   setMaskEnabled(id: string, enabled: boolean): boolean {
     const layer = this.layers.find((l) => l.id === id);
     if (!layer) return false;
+    if (this.isLocked(id)) return false;
     if (layer.mask.enabled === enabled) return false;
     layer.mask = { ...layer.mask, enabled };
     return true;
@@ -418,6 +491,7 @@ export class LayerStack {
   setMaskSourceEnabled(layerId: string, sourceId: string, enabled: boolean): boolean {
     const layer = this.layers.find((l) => l.id === layerId);
     if (!layer) return false;
+    if (this.isLocked(layerId)) return false;
     const idx = layer.mask.sources.findIndex((s) => s.id === sourceId);
     if (idx === -1) return false;
     if (layer.mask.sources[idx].enabled === enabled) return false;

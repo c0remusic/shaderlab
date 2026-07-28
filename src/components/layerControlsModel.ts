@@ -9,9 +9,22 @@ import type { LayerState } from "../layers/types";
  * la zone de contrôles qui se teste (Vitest env Node — aucun test ne rend de composant React).
  */
 export interface LayerControlsModel {
-  /** false = aucun calque sélectionné : la zone de contrôles reste AFFICHÉ mais désactivé.
-   *  Le masquer ferait sauter la liste en dessous à chaque désélection. */
+  /** false = aucun calque sélectionné, OU calque sélectionné VERROUILLÉ : la
+   *  zone de contrôles reste AFFICHÉE mais désactivée. Le masquer ferait sauter
+   *  la liste en dessous à chaque désélection.
+   *
+   *  Le cas VERROUILLÉ passe par ici et pas seulement par `LayerStack` parce
+   *  que l'opacité et le mode de fusion ne traversent AUCUN mutateur de
+   *  `LayerStack` : `App.tsx` les écrit en direct sur la projection de calques
+   *  (`handleOpacityChange`/`handleBlendModeChange`). La garde du modèle ne les
+   *  couvre donc pas, et un contrôle qui reste actif en ne faisant rien serait
+   *  exactement l'échec silencieux que ce dépôt refuse. */
   enabled: boolean;
+  /** Le calque sélectionné est-il verrouillé ? Distinct de `!enabled`, qui
+   *  vaut aussi quand rien n'est sélectionné : c'est ce booléen qui permet à la
+   *  zone de contrôles de DIRE pourquoi elle est inerte plutôt que de la
+   *  laisser passer pour une absence de sélection. */
+  locked: boolean;
   /** Cible des callbacks de mutation. `null` quand `enabled` est false. */
   layerId: string | null;
   /** Opacité du MODÈLE (0..1) ; la zone de contrôles l'affiche en pourcentage entier via
@@ -26,6 +39,7 @@ export interface LayerControlsModel {
 
 const EMPTY: LayerControlsModel = {
   enabled: false,
+  locked: false,
   layerId: null,
   opacity: 1,
   blendMode: null,
@@ -41,8 +55,13 @@ export function layerControlsModel(layers: readonly LayerState[], selectedId: st
   if (selectedId === null) return EMPTY;
   const layer = layers.find((candidate) => candidate.id === selectedId);
   if (layer === undefined) return EMPTY;
+  const locked = layer.locked === true;
   return {
-    enabled: true,
+    // Un calque verrouillé garde ses VALEURS affichées (opacité, fusion, effet
+    // restent lisibles) mais ses contrôles sont inertes : le verrou empêche de
+    // modifier, pas de consulter.
+    enabled: !locked,
+    locked,
     layerId: layer.id,
     opacity: layer.opacity,
     blendMode: layer.blendMode,

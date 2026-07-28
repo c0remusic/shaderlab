@@ -308,11 +308,66 @@
 .layer-panel__alignment-guide--before { top: calc(var(--space-4) * -0.5); }
 .layer-panel__alignment-guide--after { top: calc(100% + (var(--space-4) * 0.5)); }
 
+/* COLONNES FIXES DE L'IDENTITÉ (2026-07-29) — une GRILLE, pas un flex.
+ *
+ * Le défaut corrigé : les éléments étaient posés bout à bout dans un flex avec
+ * DEUX enfants conditionnels au milieu (flèche d'écrêtage, vignette). Un effet
+ * simple avait 4 éléments avant son nom, une photo 5, un effet écrêté 5 — le
+ * nom ne tombait jamais à la même abscisse d'une ligne à l'autre. Le
+ * commentaire de LayerPanel.tsx revendiquait pourtant une « position FIXE » de
+ * l'icône de nature : l'intention était écrite, pas obtenue.
+ *
+ * GRILLE PLUTÔT QUE FLEX + CALES : avec la grille, chaque élément déclare sa
+ * COLONNE (`layer-panel__col--*`) et un élément absent laisse simplement sa
+ * piste vide, à sa largeur. L'invariant d'alignement tient alors dans UNE
+ * déclaration lisible d'un coup d'œil, au lieu d'être réparti sur autant de
+ * cales `<span>` vides qu'il y a d'emplacements optionnels × formes de ligne —
+ * cales qu'il faudrait penser à ajouter dans chacun des deux rendus (ligne de
+ * calque et ligne d'arrière-plan). C'est exactement la façon dont le défaut
+ * est né : la cale existait pour la vignette manquante d'un calque PHOTO
+ * (`--empty`) et n'a jamais été posée pour un calque d'effet.
+ *
+ * Les quatre formes de ligne — effet simple, effet écrêté, photo, arrière-plan
+ * — partagent cette seule et même définition de colonnes. Vérifié par mesure
+ * dans la story `AllRowFormsShareOneGrid` (LayerPanel.stories.tsx).
+ *
+ * `flex: 1 1 auto` + `min-width: 0` : la grille occupe la largeur restante de
+ * `.layer-panel__row-top` (le groupe d'actions ne cède jamais, voir plus haut)
+ * et peut se comprimer sous sa taille de contenu. C'est ce qui permet à la
+ * dernière piste, `minmax(0, 1fr)`, d'absorber l'étroitesse du dock et de faire
+ * ellipser le nom SANS élargir la colonne. */
 .layer-panel__row-main {
-  display: flex;
+  display: grid;
+  grid-template-columns:
+    var(--icon-size-sm)          /* 1 poignée de réordonnancement */
+    var(--control-height-sm)     /* 2 œil (visibilité) */
+    var(--control-height-sm)     /* 3 verrou */
+    var(--icon-size-sm)          /* 4 nature (effet ou photo) */
+    var(--icon-size-sm)          /* 5 flèche d'écrêtage */
+    var(--layer-thumbnail-size)  /* 6 vignette */
+    minmax(0, 1fr);              /* 7 nom */
   align-items: center;
-  gap: var(--space-2);
+  column-gap: var(--space-2);
+  flex: 1 1 auto;
   min-width: 0;
+}
+
+.layer-panel__col--grip { grid-column: 1; }
+.layer-panel__col--eye { grid-column: 2; }
+.layer-panel__col--lock { grid-column: 3; }
+.layer-panel__col--nature { grid-column: 4; }
+.layer-panel__col--clip { grid-column: 5; }
+.layer-panel__col--thumbnail { grid-column: 6; }
+.layer-panel__col--name { grid-column: 7; }
+
+/* Le cadenas de la ligne d'ARRIÈRE-PLAN n'est pas un bouton (voir le bloc de
+   commentaire de la ligne dans LayerPanel.tsx) : il lui faut donc son propre
+   centrage dans la piste, que l'IconButton fournit tout seul sur les lignes de
+   calque. */
+.layer-panel__row-lock-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Ligne d'ARRIÈRE-PLAN (2026-07-27) : le document lui-même, affiché en bas de
@@ -327,28 +382,23 @@
   background: transparent;
 }
 
+/* Cadenas MARQUEUR DE STATUT de la ligne d'arrière-plan : rang tertiaire, comme
+   la poignée et l'icône de nature. Il ne monte jamais — il ne se bascule pas.
+   Les cales `layer-panel__row-slot--grip/--eye` qui vivaient ici ont été
+   SUPPRIMÉES le 2026-07-29 : la ligne d'arrière-plan partage désormais la
+   grille de `.layer-panel__row-main` et laisse simplement ses colonnes vides.
+   Ne pas les réintroduire — deux définitions de colonnes qui doivent rester
+   d'accord sont précisément ce qui a produit le désalignement corrigé. */
 .layer-panel__row-lock {
   color: var(--text-tertiary);
 }
 
-/* Emplacements RÉSERVÉS de la ligne d'arrière-plan : elle n'a pas de poignée
-   de réordonnancement, et son cadenas remplace le bouton œil. Sans ces deux
-   boîtes aux largeurs exactes de ce qu'elles remplacent (icône de poignée,
-   IconButton compact), les colonnes suivantes — nature, vignette, nom — se
-   décaleraient d'un cran par rapport aux lignes de calque. */
-.layer-panel__row-slot {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-}
-
-.layer-panel__row-slot--grip {
-  width: var(--icon-size-sm);
-}
-
-.layer-panel__row-slot--eye {
-  width: var(--control-height-sm);
+/* Cadenas ACTIF d'un calque : le seul état du verrou qui doit se lire sans
+   survoler. Il monte d'un rang par rapport au cadenas au repos (que
+   l'IconButton laisse à `--text-muted-foreground`) — c'est ce qui distingue
+   « verrouillé » de « verrouillable » en balayant la pile. */
+.layer-panel__row-lock--active {
+  color: var(--text-primary);
 }
 
 .layer-panel__grip-handle {

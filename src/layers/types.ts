@@ -67,4 +67,16 @@ export interface LayerState {
    *  Champ SCALAIRE : présent par construction dans chaque snapshot
    *  d'historique, aucun risque pour l'invariant OOM. */
   clipToBelow?: boolean;
+  /** VERROU du calque (arbitrage n°2 du design « le fond devient un calque »,
+   *  2026-07-28). Propriété de calque ORDINAIRE, posable sur n'importe quel
+   *  calque — ce n'est PAS un statut d'arrière-plan : c'est précisément ce qui
+   *  évite de réintroduire un cas particulier par l'UI tout en gardant le
+   *  garde-fou contre la modification accidentelle.
+   *  Absent/false = calque modifiable (défaut : rien n'est verrouillé à la
+   *  création). Le respect du verrou vit dans `LayerStack` — chaque mutateur
+   *  bloqué y porte sa garde, sur le modèle de `setLayerClip` ; la liste
+   *  exacte est documentée sur `LayerStack.isLocked`.
+   *  Champ SCALAIRE : présent par construction dans chaque snapshot
+   *  d'historique, aucun risque pour l'invariant OOM. */
+  locked?: boolean;
 }

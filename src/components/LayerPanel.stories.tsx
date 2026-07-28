@@ -70,31 +70,31 @@ export const ManyLayers: Story = {
   args: { layers: manyLayers, selectedId: "layer-3" },
 };
 
-// SENS D'AFFICHAGE (2026-07-27) : la liste est le MIROIR du tableau `layers`.
-// `layers[0]` est le calque appliqué EN PREMIER sur la photo de fond, donc le
-// BAS de la pile — il s'affiche en DERNIÈRE ligne, juste au-dessus de la ligne
+// SENS D'AFFICHAGE (ADR-0004, 2026-07-28) : la liste se lit de haut en bas dans
+// l'ordre du TRAITEMENT. `layers[0]` est le calque appliqué EN PREMIER sur la
+// photo de fond — il s'affiche en PREMIÈRE ligne de calque, juste sous la ligne
 // d'arrière-plan qu'il consomme. C'est le seul test qui verrouille ce sens :
 // s'il tombe, un dépôt de glisser-déposer atterrira à l'envers.
-export const StackOrderIsMirrored: Story = {
+export const StackOrderIsCausal: Story = {
   args: { backgroundName: "DSC_0042.jpg" },
   play: async ({ canvasElement }) => {
     const rows = Array.from(canvasElement.querySelectorAll("[data-layer-row-index]"));
     await expect(rows.map((row) => row.getAttribute("data-layer-row-index"))).toEqual(["0", "1", "2"]);
-    // layers = [glow, chromaticBleed, grain] ⇒ lignes [Grain, Chromatic bleed, Glow].
+    // layers = [glow, chromaticBleed, grain] ⇒ lignes [Glow, Chromatic bleed, Grain].
     await expect(rows.map((row) => row.querySelector(".layer-panel__row-name")?.textContent)).toEqual([
-      "Grain",
-      "Chromatic bleed",
       "Glow",
+      "Chromatic bleed",
+      "Grain",
     ]);
-    // La ligne d'arrière-plan ferme la liste, SOUS le calque qu'elle alimente
-    // (`layers[0]`, ici Glow) — c'est ce que l'inversion vient réparer.
+    // La ligne d'arrière-plan OUVRE la liste, AU-DESSUS du calque qu'elle
+    // alimente (`layers[0]`, ici Glow) : la matière avant les opérations.
     const allRows = Array.from(canvasElement.querySelectorAll(".layer-panel__row"));
-    await expect(allRows[allRows.length - 1].className).toContain("layer-panel__row--background");
+    await expect(allRows[0].className).toContain("layer-panel__row--background");
   },
 };
 
-// Ligne d'ARRIÈRE-PLAN (2026-07-27) : le document lui-même, dérivé de son
-// chemin, en bas de liste. Verrouillé — ni œil, ni poignée, ni actions.
+// Ligne d'ARRIÈRE-PLAN : le document lui-même, dérivé de son chemin, en TÊTE de
+// liste depuis l'ADR-0004. Verrouillé — ni œil, ni poignée, ni actions.
 export const WithBackground: Story = {
   args: { backgroundName: "DSC_0042.jpg" },
   play: async ({ canvasElement }) => {
@@ -105,8 +105,8 @@ export const WithBackground: Story = {
 };
 
 // Écrêtage : la ligne écrêtée porte une flèche vers son calque de base — celui
-// du DESSOUS dans la pile, donc, depuis l'inversion du sens d'affichage, la
-// ligne JUSTE AU-DESSOUS dans cette liste. Elle n'est PLUS indentée
+// appliqué AVANT elle, donc, en sens causal (ADR-0004), la ligne JUSTE
+// AU-DESSUS dans cette liste. Elle n'est PLUS indentée
 // (observation Photoshop web §5ter) : elle est ici SÉLECTIONNÉE pour vérifier
 // que le marquage couvre la ligne entière, alignée sur ses voisines.
 const clippedLayers: LayerState[] = [
@@ -125,7 +125,7 @@ export const ClippedLayerSelected: Story = {
   args: { layers: clippedLayers, selectedId: "layer-2" },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("img", { name: "Écrêté sur le calque du dessous" })).toBeTruthy();
+    await expect(canvas.getByRole("img", { name: "Écrêté sur le calque du dessus" })).toBeTruthy();
   },
 };
 
@@ -143,7 +143,7 @@ export const ClippedWithoutBaseShowsNoArrow: Story = {
   args: { layers: clippedWithoutBase, selectedId: "layer-1" },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.queryByRole("img", { name: "Écrêté sur le calque du dessous" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("img", { name: "Écrêté sur le calque du dessus" })).not.toBeInTheDocument();
   },
 };
 
@@ -165,17 +165,17 @@ export const NestedUnderPhoto: Story = {
   args: { layers: twoPhotoLayers, selectedId: "layer-A", backgroundName: "DSC_0042.jpg" },
   play: async ({ canvasElement }) => {
     const rows = Array.from(canvasElement.querySelectorAll("[data-layer-row-index]"));
-    // Affichage : Grain (à plat) · ciel.jpg · Glow (imbriqué) · plage.jpg.
+    // Affichage : plage.jpg · Glow (imbriqué sous elle) · ciel.jpg · Grain (à plat).
     await expect(rows.map((r) => r.querySelector(".layer-panel__row-name")?.textContent)).toEqual([
-      "Grain",
-      "ciel.jpg",
-      "Glow",
       "plage.jpg",
+      "Glow",
+      "ciel.jpg",
+      "Grain",
     ]);
     await expect(rows.map((r) => r.classList.contains("layer-panel__row--nested"))).toEqual([
       false,
-      false,
       true,
+      false,
       false,
     ]);
     // Un seul filet, sur l'unique ligne enfant — et il est décoratif.
@@ -185,8 +185,9 @@ export const NestedUnderPhoto: Story = {
     // Enfant unique : le filet porte les deux bornes du groupe.
     await expect(rails[0].className).toContain("layer-panel__rail--first");
     await expect(rails[0].className).toContain("layer-panel__rail--last");
-    // AUCUN marquage inventé sur la ligne à plat qui touche les deux photos.
-    await expect(rows[0].className).not.toContain("nested");
+    // AUCUN marquage inventé sur la ligne à plat qui touche les deux photos
+    // (Grain, dernière ligne : deux photos sont appliquées avant lui).
+    await expect(rows[3].className).not.toContain("nested");
   },
 };
 
@@ -282,10 +283,10 @@ export const IsolatedLayer: Story = {
     // calque isolé : pendant l'isolation, un clic simple ne bascule rien.
     const exits = canvas.getAllByRole("button", { name: "Quitter l'isolation" });
     await expect(exits).toHaveLength(3);
-    // La PREMIÈRE ligne est le HAUT de pile depuis l'inversion du sens
-    // d'affichage : `layers[2]`, donc layer-3.
+    // La PREMIÈRE ligne est le calque appliqué en PREMIER depuis le sens causal
+    // (ADR-0004) : `layers[0]`, donc layer-1.
     await userEvent.click(exits[0]);
-    await expect(args.onToggle).toHaveBeenCalledWith("layer-3", false);
+    await expect(args.onToggle).toHaveBeenCalledWith("layer-1", false);
   },
 };
 
@@ -323,9 +324,9 @@ export const DuplicateLayer: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const duplicateButtons = canvas.getAllByRole("button", { name: "Dupliquer le calque" });
-    // Première ligne = haut de pile = `layers[2]` (sens d'affichage inversé).
+    // Première ligne = premier calque appliqué = `layers[0]` (sens causal, ADR-0004).
     await userEvent.click(duplicateButtons[0]);
-    await expect(args.onDuplicate).toHaveBeenCalledWith("layer-3");
+    await expect(args.onDuplicate).toHaveBeenCalledWith("layer-1");
   },
 };
 
@@ -334,8 +335,8 @@ export const RemoveLayer: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const removeButtons = canvas.getAllByRole("button", { name: "Supprimer le calque" });
-    // Première ligne = haut de pile = `layers[2]` (sens d'affichage inversé).
+    // Première ligne = premier calque appliqué = `layers[0]` (sens causal, ADR-0004).
     await userEvent.click(removeButtons[0]);
-    await expect(args.onRemove).toHaveBeenCalledWith("layer-3");
+    await expect(args.onRemove).toHaveBeenCalledWith("layer-1");
   },
 };

@@ -97,7 +97,11 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
   const clipRow = layer.imageSource === undefined && (
     <div className="param-panel__clip-row">
       <Checkbox
-        label="Écrêter sur la photo du dessous"
+        // « du dessus » depuis l'ADR-0004 : la base d'un écrêtage est le calque
+        // appliqué AVANT, qui est la ligne du dessus dans la liste causale (elle
+        // était en dessous sous l'ADR-0003). Le libellé décrit ce que
+        // l'utilisateur VOIT, comme la flèche d'écrêtage de `LayerPanel`.
+        label="Écrêter sur la photo du dessus"
         checked={layer.clipToBelow ?? false}
         onChange={(clip) => onClipChange(layer.id, clip)}
       />

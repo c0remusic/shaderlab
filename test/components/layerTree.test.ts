@@ -48,7 +48,8 @@ describe("layerParentIds — espace modèle, indépendant du sens d'affichage", 
 
   it("« en dessous » veut dire indice INFÉRIEUR dans le tableau, jamais une position à l'écran", () => {
     // A est à l'indice 0 : rien n'est appliqué avant lui, donc aucune photo
-    // « en dessous » — même s'il sera rendu en BAS de la liste (ADR-0003).
+    // « en dessous ». Ce fait n'a pas bougé quand le sens d'affichage a été
+    // renversé (ADR-0003 le rendait en bas de liste, l'ADR-0004 en haut).
     const layers = [effect("A"), photo("P")];
     expect(layerParentIds(layers)).toEqual([null, null]);
   });
@@ -80,90 +81,91 @@ describe("toLayerTreeRows — ordre d'affichage", () => {
 
 describe("toLayerTreeRows — 0 photo", () => {
   it("laisse tous les effets à plat : il n'y a aucune photo sous laquelle imbriquer", () => {
-    expect(shape([effect("A"), effect("B"), effect("C")])).toEqual(["C", "B", "A"]);
+    expect(shape([effect("A"), effect("B"), effect("C")])).toEqual(["A", "B", "C"]);
     expect(parents([effect("A"), effect("B"), effect("C")])).toEqual([null, null, null]);
   });
 
   it("un effet ÉCRÊTÉ sans aucune photo reste à plat (écrêtage inerte)", () => {
     // `resolveClipping` rend ce cas `inert` : le calque rend LINÉAIREMENT.
     // L'imbriquer désignerait une base qui n'existe pas.
-    expect(shape([effect("A", { clipToBelow: true }), effect("B")])).toEqual(["B", "A"]);
+    expect(shape([effect("A", { clipToBelow: true }), effect("B")])).toEqual(["A", "B"]);
   });
 });
 
 describe("toLayerTreeRows — une seule photo", () => {
-  it("imbrique tous les effets au-dessus d'elle, écrêtés ou non", () => {
+  it("imbrique tous les effets appliqués après elle, écrêtés ou non", () => {
     const layers = [photo("P"), effect("A"), effect("B", { clipToBelow: true }), effect("C")];
-    expect(shape(layers)).toEqual(["  C", "  B", "  A", "P"]);
-    expect(parents(layers)).toEqual(["P", "P", "P", null]);
+    expect(shape(layers)).toEqual(["P", "  A", "  B", "  C"]);
+    expect(parents(layers)).toEqual([null, "P", "P", "P"]);
   });
 
-  it("laisse à plat les effets situés SOUS l'unique photo (aucune photo en dessous d'eux)", () => {
+  it("laisse à plat les effets appliqués AVANT l'unique photo (aucune photo en dessous d'eux)", () => {
     const layers = [effect("A"), photo("P"), effect("B")];
-    expect(shape(layers)).toEqual(["  B", "P", "A"]);
-    expect(parents(layers)).toEqual(["P", null, null]);
+    expect(shape(layers)).toEqual(["A", "P", "  B"]);
+    expect(parents(layers)).toEqual([null, null, "P"]);
   });
 
   it("une photo est toujours une ligne racine, jamais imbriquée sous une autre", () => {
     const layers = [photo("P"), photo("Q")];
-    expect(shape(layers)).toEqual(["Q", "P"]);
+    expect(shape(layers)).toEqual(["P", "Q"]);
   });
 
   it("marque la première et la dernière ligne enfant (bornes du filet vertical)", () => {
     const rows = toLayerTreeRows([photo("P"), effect("A"), effect("B"), effect("C")]);
-    // Affichage : C, B, A, P — C est la PREMIÈRE ligne enfant, A la dernière
-    // (celle qui touche la photo parente, juste en dessous d'elle).
+    // Affichage : P, A, B, C — A est la PREMIÈRE ligne enfant, celle qui touche
+    // la photo parente juste AU-DESSUS d'elle (sens causal, ADR-0004) ; C est la
+    // dernière, et son filet n'a plus rien à relier en dessous.
     expect(rows.map((r) => [r.layer.id, r.firstChild, r.lastChild])).toEqual([
-      ["C", true, false],
-      ["B", false, false],
-      ["A", false, true],
       ["P", false, false],
+      ["A", true, false],
+      ["B", false, false],
+      ["C", false, true],
     ]);
   });
 
   it("un enfant unique est à la fois premier et dernier", () => {
     const rows = toLayerTreeRows([photo("P"), effect("A")]);
-    expect(rows[0]).toMatchObject({ firstChild: true, lastChild: true });
+    expect(rows[1]).toMatchObject({ layer: { id: "A" }, firstChild: true, lastChild: true });
   });
 });
 
 describe("toLayerTreeRows — deux photos", () => {
   it("un effet NON écrêté au-dessus de DEUX photos reste à plat : il dépend du composite entier", () => {
     const layers = [photo("P"), photo("Q"), effect("A")];
-    expect(shape(layers)).toEqual(["A", "Q", "P"]);
+    expect(shape(layers)).toEqual(["P", "Q", "A"]);
     expect(parents(layers)).toEqual([null, null, null]);
   });
 
   it("des effets de part et d'autre : celui du bas s'imbrique, celui du haut reste à plat", () => {
     const layers = [photo("P"), effect("A"), photo("Q"), effect("B")];
-    expect(shape(layers)).toEqual(["B", "Q", "  A", "P"]);
-    expect(parents(layers)).toEqual([null, null, "P", null]);
+    expect(shape(layers)).toEqual(["P", "  A", "Q", "B"]);
+    expect(parents(layers)).toEqual([null, "P", null, null]);
   });
 
   it("un effet ÉCRÊTÉ s'imbrique même quand DEUX photos sont sous lui", () => {
     // C'est la différence de fond entre les deux règles : l'écrêtage nomme sa
     // base, le non-écrêté ne fait que la déduire quand elle est unique.
     const layers = [photo("P"), photo("Q"), effect("A", { clipToBelow: true })];
-    expect(shape(layers)).toEqual(["  A", "Q", "P"]);
-    expect(parents(layers)).toEqual(["Q", null, null]);
+    expect(shape(layers)).toEqual(["P", "Q", "  A"]);
+    expect(parents(layers)).toEqual([null, null, "Q"]);
   });
 
   it("effet écrêté sous la photo du HAUT alors qu'une autre photo existe plus bas", () => {
     // Pile : P (bas) · B (libre, 1 photo dessous → enfant de P) · Q · A (écrêté
     // → enfant de Q). Deux groupes distincts, aucun effet à plat.
     const layers = [photo("P"), effect("B"), photo("Q"), effect("A", { clipToBelow: true })];
-    expect(shape(layers)).toEqual(["  A", "Q", "  B", "P"]);
-    expect(parents(layers)).toEqual(["Q", null, "P", null]);
+    expect(shape(layers)).toEqual(["P", "  B", "Q", "  A"]);
+    expect(parents(layers)).toEqual([null, "P", null, "Q"]);
   });
 
   it("les bornes du filet sont calculées par GROUPE, pas globalement", () => {
     const layers = [photo("P"), effect("B"), photo("Q"), effect("A", { clipToBelow: true })];
     const rows = toLayerTreeRows(layers);
     expect(rows.map((r) => [r.layer.id, r.firstChild, r.lastChild])).toEqual([
-      ["A", true, true],
-      ["Q", false, false],
-      ["B", true, true],
       ["P", false, false],
+      ["B", true, true],
+      ["Q", false, false],
+      ["A", true, true],
     ]);
   });
 });
@@ -172,14 +174,14 @@ describe("toLayerTreeRows — chaînes d'écrêtage", () => {
   it("une chaîne d'effets écrêtés consécutifs pointe toute entière vers la même photo", () => {
     // `clipBaseId` traverse les écrêtés consécutifs jusqu'à la photo.
     const layers = [photo("P"), effect("A", { clipToBelow: true }), effect("B", { clipToBelow: true })];
-    expect(parents(layers)).toEqual(["P", "P", null]);
+    expect(parents(layers)).toEqual([null, "P", "P"]);
   });
 
   it("un écrêté dont la base résolue n'est PAS une photo retombe sur la règle du non-écrêté", () => {
     // Base résolue = A (non écrêté, non photo) → `resolveClipping` dit `inert`.
     // Il reste néanmoins UNE seule photo sous B, donc B s'imbrique sous elle.
     const layers = [photo("P"), effect("A"), effect("B", { clipToBelow: true })];
-    expect(parents(layers)).toEqual(["P", "P", null]);
+    expect(parents(layers)).toEqual([null, "P", "P"]);
   });
 
   it("un écrêté inerte au-dessus de DEUX photos reste à plat", () => {
@@ -191,7 +193,7 @@ describe("toLayerTreeRows — chaînes d'écrêtage", () => {
 
   it("un calque PHOTO portant clipToBelow reste racine (l'attribut y est interdit par LayerStack)", () => {
     const layers = [photo("P"), photo("Q", { clipToBelow: true })];
-    expect(shape(layers)).toEqual(["Q", "P"]);
+    expect(shape(layers)).toEqual(["P", "Q"]);
   });
 });
 
@@ -203,7 +205,7 @@ describe("toLayerTreeRows — aucun marquage inventé", () => {
 
   it("un effet à plat touchant plusieurs photos ne porte AUCUN parent ni indentation", () => {
     const rows = toLayerTreeRows([photo("P"), photo("Q"), effect("A")]);
-    expect(rows[0]).toMatchObject({ depth: 0, parentId: null, firstChild: false, lastChild: false });
+    expect(rows[2]).toMatchObject({ layer: { id: "A" }, depth: 0, parentId: null, firstChild: false, lastChild: false });
   });
 });
 
@@ -233,13 +235,14 @@ describe("glisser-déposer sur une pile imbriquée", () => {
     expect(tree).toEqual(flat);
   });
 
-  it("déposer A (imbriqué sous P) au-dessus de la première ligne l'envoie en haut de pile", () => {
-    // Affichage : [B, Q, A(enfant de P), P]. A monte avant B.
-    expect(dropFromTree("A", 0, "before")).toEqual(["P", "Q", "B", "A"]);
+  it("déposer A (imbriqué sous P) avant la première ligne l'envoie en tête de pile", () => {
+    // Affichage : [P, A(enfant de P), Q, B]. A remonte avant P et perd son
+    // parent : plus aucune photo n'est appliquée avant lui.
+    expect(dropFromTree("A", 0, "before")).toEqual(["A", "P", "Q", "B"]);
   });
 
-  it("déposer B (racine) sous la dernière ligne l'envoie en bas de pile", () => {
-    expect(dropFromTree("B", 3, "after")).toEqual(["B", "P", "A", "Q"]);
+  it("déposer P (première ligne) après la dernière l'envoie en fin de pile", () => {
+    expect(dropFromTree("P", 3, "after")).toEqual(["A", "Q", "B", "P"]);
   });
 
   it("tout dépôt reste une PERMUTATION du modèle, sur toutes les cibles", () => {

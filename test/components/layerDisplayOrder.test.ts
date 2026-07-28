@@ -30,14 +30,19 @@ function drop(layers: Item[], draggedId: string, hoverDisplayRow: number, positi
   return ids(reorderById(layers, (i) => i.id, draggedId, modelInsert));
 }
 
+/** Où se retrouve `id` dans la LISTE après un dépôt — c'est la seule chose que
+ *  l'utilisateur juge. Reconverti depuis le modèle par la frontière testée. */
+const rowOf = (modelIds: string[], id: string): number => toDisplayOrder(modelIds).indexOf(id);
+
 describe("toDisplayOrder", () => {
-  it("rend le bas de pile en DERNIÈRE ligne (convention Photoshop)", () => {
-    expect(ids(toDisplayOrder(model("bas", "milieu", "haut")))).toEqual(["haut", "milieu", "bas"]);
+  it("rend le premier calque appliqué en PREMIÈRE ligne (sens causal, ADR-0004)", () => {
+    expect(ids(toDisplayOrder(model("premier", "puis", "enfin")))).toEqual(["premier", "puis", "enfin"]);
   });
 
-  it("ne mute jamais le tableau du modèle", () => {
+  it("ne mute jamais le tableau du modèle et n'en partage pas l'identité", () => {
     const layers = model("a", "b", "c");
-    toDisplayOrder(layers);
+    const display = toDisplayOrder(layers);
+    display.reverse();
     expect(ids(layers)).toEqual(["a", "b", "c"]);
   });
 
@@ -48,10 +53,10 @@ describe("toDisplayOrder", () => {
 });
 
 describe("displayRowToModelIndex", () => {
-  it("est le miroir exact de la pile", () => {
-    expect(displayRowToModelIndex(0, 3)).toBe(2);
+  it("suit l'ordre direct du tableau", () => {
+    expect(displayRowToModelIndex(0, 3)).toBe(0);
     expect(displayRowToModelIndex(1, 3)).toBe(1);
-    expect(displayRowToModelIndex(2, 3)).toBe(0);
+    expect(displayRowToModelIndex(2, 3)).toBe(2);
   });
 
   it("est une involution : l'appliquer deux fois redonne l'index de départ", () => {
@@ -73,8 +78,8 @@ describe("displayRowToModelIndex", () => {
 
 describe("displayInsertToModelInsert", () => {
   it("couvre tout le domaine d'insertion (0..length-1) dans les deux sens", () => {
-    expect(displayInsertToModelInsert(0, 4)).toBe(3);
-    expect(displayInsertToModelInsert(3, 4)).toBe(0);
+    expect(displayInsertToModelInsert(0, 4)).toBe(0);
+    expect(displayInsertToModelInsert(3, 4)).toBe(3);
   });
 
   it("est une involution sur son domaine", () => {
@@ -87,36 +92,62 @@ describe("displayInsertToModelInsert", () => {
 });
 
 /**
- * Le cœur du risque de l'inversion : ce que l'utilisateur VOIT après un dépôt.
- * Chaque cas est écrit en ordre AFFICHÉ (haut de liste → bas de liste), et
- * l'attendu est reconverti pour être comparé à la pile modèle.
+ * LES SIX DÉPLACEMENTS. Le cœur du risque de tout changement de sens : ce que
+ * l'utilisateur VOIT après un dépôt. Un calque qui atterrit au mauvais endroit
+ * est pire que pas de changement de sens du tout (ADR-0003, reconduit par
+ * l'ADR-0004) — chaque cas vérifie donc DEUX choses : la pile modèle obtenue
+ * (l'ordre d'exécution) ET la ligne où le calque atterrit (ce qui est jugé).
+ *
+ * Modèle [A, B, C, D] ⇒ liste affichée [A, B, C, D] : A ouvre la liste (appliqué
+ * en premier), D la ferme.
+ *
+ * QUATRE calques, pas trois, et ce n'est pas un détail : sur une pile de trois,
+ * l'insertion médiane est un POINT FIXE de l'ancienne formule miroir
+ * (`length - 1 - d` vaut 1 pour d = 1). Les cas 3 et 5 passaient donc au vert
+ * avec la conversion cassée — mesuré au témoin le 2026-07-28. À quatre, aucun
+ * des six ne survit à l'inversion.
  */
-describe("chaîne de dépôt complète (affichage → modèle)", () => {
-  // Modèle [A, B, C] ⇒ liste affichée [C, B, A].
-  const layers = model("A", "B", "C");
+describe("les six déplacements (affichage → modèle)", () => {
+  const layers = model("A", "B", "C", "D");
 
-  it("déposer A (bas de pile, dernière ligne) AVANT C (première ligne) l'envoie en haut de pile", () => {
-    expect(drop(layers, "A", 0, "before")).toEqual(["B", "C", "A"]);
-    expect(ids(toDisplayOrder(model("B", "C", "A")))).toEqual(["A", "C", "B"]);
+  it("1. VERS LE HAUT — D (dernière ligne) déposé avant A (première ligne) ouvre la liste", () => {
+    const after = drop(layers, "D", 0, "before");
+    expect(after).toEqual(["D", "A", "B", "C"]);
+    expect(rowOf(after, "D")).toBe(0);
   });
 
-  it("déposer C (haut de pile, première ligne) APRÈS A (dernière ligne) l'envoie en bas de pile", () => {
-    expect(drop(layers, "C", 2, "after")).toEqual(["C", "A", "B"]);
-    expect(ids(toDisplayOrder(model("C", "A", "B")))).toEqual(["B", "A", "C"]);
+  it("2. VERS LE BAS — A (première ligne) déposé après D (dernière ligne) ferme la liste", () => {
+    const after = drop(layers, "A", 3, "after");
+    expect(after).toEqual(["B", "C", "D", "A"]);
+    expect(rowOf(after, "A")).toBe(3);
+  });
+
+  it("3. DEPUIS LE SOMMET — A quitte la première ligne pour la deuxième", () => {
+    const after = drop(layers, "A", 1, "after");
+    expect(after).toEqual(["B", "A", "C", "D"]);
+    expect(rowOf(after, "A")).toBe(1);
+  });
+
+  it("4. VERS LE SOMMET — B monte d'un cran et prend la première ligne", () => {
+    const after = drop(layers, "B", 0, "before");
+    expect(after).toEqual(["B", "A", "C", "D"]);
+    expect(rowOf(after, "B")).toBe(0);
+  });
+
+  it("5. DEPUIS LE BAS — D quitte la dernière ligne pour l'avant-dernière", () => {
+    const after = drop(layers, "D", 2, "before");
+    expect(after).toEqual(["A", "B", "D", "C"]);
+    expect(rowOf(after, "D")).toBe(2);
+  });
+
+  it("6. VERS LE BAS DE LA LISTE — C descend et prend la dernière ligne", () => {
+    const after = drop(layers, "C", 3, "after");
+    expect(after).toEqual(["A", "B", "D", "C"]);
+    expect(rowOf(after, "C")).toBe(3);
   });
 
   it("déposer la première ligne AVANT elle-même ne change rien", () => {
-    expect(drop(layers, "C", 0, "before")).toEqual(["A", "B", "C"]);
-  });
-
-  it("déposer B AVANT C le fait passer au-dessus de C", () => {
-    // Liste [C, B, A] → [B, C, A] ; modèle [A, B, C] → [A, C, B].
-    expect(drop(layers, "B", 0, "before")).toEqual(["A", "C", "B"]);
-  });
-
-  it("déposer B APRÈS A le fait passer sous A", () => {
-    // Liste [C, B, A] → [C, A, B] ; modèle [A, B, C] → [B, A, C].
-    expect(drop(layers, "B", 2, "after")).toEqual(["B", "A", "C"]);
+    expect(drop(layers, "A", 0, "before")).toEqual(["A", "B", "C", "D"]);
   });
 
   it("un dépôt reste une PERMUTATION : aucun calque perdu ni dupliqué, sur toutes les cibles", () => {
@@ -138,7 +169,7 @@ describe("chaîne de dépôt complète (affichage → modèle)", () => {
       for (let row = 0; row < display.length; row++) {
         // `handlePointerUp` écarte le survol de sa propre ligne AVANT
         // `computeInsertIndex` : sans cette garde, « après sa propre dernière
-        // ligne » produirait un index d'insertion hors domaine (mesuré : -1).
+        // ligne » produirait un index d'insertion hors domaine.
         if (from === row) continue;
         for (const position of ["before", "after"] as DropPosition[]) {
           const modelInsert = displayInsertToModelInsert(computeInsertIndex(from, row, position), five.length);

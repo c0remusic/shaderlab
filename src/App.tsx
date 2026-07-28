@@ -388,7 +388,10 @@ export default function App() {
   function handleAdd(effectId: string) {
     presets.clearActive();
     const stack = currentStack();
-    const id = stack.addLayer(effectId);
+    // Même parité Photoshop que l'import photo : le calque d'effet se place
+    // juste AU-DESSUS du calque sélectionné (`LayerStack.insertIndexAfter`),
+    // pas systématiquement en haut de pile. Sans sélection -> haut de pile.
+    const id = stack.addLayer(effectId, selectedId);
     commit(stack);
     selectLayer(id);
   }

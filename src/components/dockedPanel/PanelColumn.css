@@ -42,6 +42,18 @@
   flex-direction: column;
   gap: var(--space-4);
   max-height: inherit;
+  /* `min-width: 0` est le PENDANT HORIZONTAL du `min-height: 0` de
+     .panel-column__item, et il est tout aussi indispensable (2026-07-28) : la
+     colonne est un élément flex de .panel-column__grid, dont l'axe principal
+     est l'axe X — sa taille minimale automatique vaut donc son min-content
+     LARGEUR, qui l'emporte sur le `flex-basis` fixe ci-dessus. Une ligne au
+     contenu insécable (un nom de fichier long, `white-space: nowrap`) élargit
+     alors la colonne bien au-delà de --dock-reserved-width : mesuré au banc,
+     411px de ligne pour 320px réservés, et le nom ne se tronquait JAMAIS
+     puisqu'on lui donnait toute la largeur qu'il demandait. `.panel-column`
+     étant en `width: max-content`, ce débordement remontait jusqu'au dock
+     entier, qui s'élargissait au rythme du nom de fichier le plus long. */
+  min-width: 0;
 }
 
 /* Chaque carte est un élément flexible de la colonne : content-sized tant que

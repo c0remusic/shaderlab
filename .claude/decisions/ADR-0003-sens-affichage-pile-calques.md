@@ -1,6 +1,6 @@
 ---
 id: ADR-0003
-status: active
+status: superseded by ADR-0004
 date: 2026-07-27
 ---
 

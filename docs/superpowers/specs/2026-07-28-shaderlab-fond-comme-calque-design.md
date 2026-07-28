@@ -226,11 +226,20 @@ décide aussi ce que l'export écrit.
   (`shaderCompose.ts:128-133`, court-circuit assumé).
 - **Blanc** — arbitraire.
 
-**Recommandation : noir opaque en v1.** Le damier exige de revoir la propagation
-d'alpha dans toute la chaîne — chantier à part, sans rapport avec le besoin.
+**Recommandation initiale : noir opaque en v1.** Le damier exige de revoir la
+propagation d'alpha dans toute la chaîne — chantier à part, sans rapport avec le
+besoin.
 
-**Mérite un arbitrage d'Antoine** — question de goût visuelle. À poser avec un
-rendu en face, jamais en texte seul.
+**TRANCHÉ le 2026-07-28 : damier de transparence.** Antoine a choisi le damier
+après avoir vu les trois options rendues côte à côte, en connaissance du coût
+annoncé. **Conséquence directe : la propagation d'alpha sort de la section
+« Différé » et devient un PRÉALABLE**, la tranche T0 du §6. La recommandation
+ci-dessus n'a pas été suivie ; elle reste écrite pour que la raison du surcoût
+soit lisible plus tard.
+
+L'export reste opaque : le damier est un rendu d'écran, pas un contenu. Un JPEG
+n'a pas de canal alpha — les zones non couvertes sortent en noir à l'export,
+comme aujourd'hui. Le damier ne doit JAMAIS être écrit dans le fichier exporté.
 
 ### 3.3 Faut-il signaler un calque caché ?
 Aucune preuve qu'il le faille **maintenant** : différé, §8.
@@ -293,10 +302,37 @@ sûre et gratuite mais retire une capacité existante : non recommandée.
 
 ## 6. Découpage en tranches verticales
 
-Cinq tranches, quatre indépendantes entre elles ⇒ DAG justifié.
+Six tranches depuis l'arbitrage du damier (§3.2). T0 est un préalable ajouté par
+ce choix ; T1 reste le cœur ; T2/T3/T4/T5 sont indépendantes entre elles ⇒ DAG
+justifié.
+
+### T0 — Propagation de l'alpha dans la chaîne de compositing
+**bloqué_par :** — · **type : AFK**
+
+Préalable créé par le choix du damier. Aujourd'hui le composite propage `color.a`
+depuis le bas de chaîne par un court-circuit qui se documente lui-même comme
+conditionnel (`src/render/shaderCompose.ts:128-133`) : l'alpha n'est pas
+réellement composé, il est hérité. Un damier exige de savoir, par pixel, si
+quelque chose couvre — donc un alpha juste.
+
+Portée : composition de l'alpha au même titre que la couleur dans la passe de
+compositing ; toile effacée en **alpha 0** au lieu de 1 (ce qui contredit §1.2 —
+la contrainte « alpha 1 » n'était dictée QUE par l'export) ; damier rendu à
+l'affichage, jamais dans la texture exportée.
+
+**Piège à ne pas rater, c'est le cœur de cette tranche** : l'export encode via
+`putImageData` + `convertToBlob` (`src/export/exportImage.ts:48-55`). Un alpha 0
+qui arrive jusque-là produit un **JPEG entièrement noir, en silence** (§2.2). La
+séparation « alpha à l'écran / opaque à l'export » doit être explicite et testée,
+pas implicite.
+
+**Done =** une zone non couverte affiche le damier à l'écran ET sort en noir dans
+le JPEG exporté ; comparaison d'export avant/après sur un document dont le fond
+couvre toute la toile → identique au pixel près. Preuve : CDP sur la vraie
+fenêtre + comparaison d'export.
 
 ### T1 — La toile et le calque de fond
-**bloqué_par :** — · **type : HITL** (la preuve exige la vraie fenêtre WebView2)
+**bloqué_par : T0** · **type : HITL** (la preuve exige la vraie fenêtre WebView2)
 
 `ImageFrameResources` (toile allouée + effacée **alpha 1**, plus d'upload) →
 dimensions explicites au lieu de `sourceTexture.width` → `openFile` enregistre le
@@ -340,23 +376,47 @@ signaler le fond. **Done =** appliquer un preset ne fait pas disparaître la
 photo ; enregistrer un preset n'affiche plus d'avis parasite.
 
 ### Vagues
+- **Vague 0** : T0.
 - **Vague 1** : T1.
 - **Vague 2** : T2, T3, T4, T5 en parallèle.
 
 ---
 
-## 7. Ce qui exige un arbitrage d'Antoine
+## 7. Arbitrages — tranchés le 2026-07-28
 
-1. **Que montre la toile là où rien ne couvre ?** Noir opaque (recommandé) /
-   damier / blanc. Décide aussi l'export. §3.2. À poser **avec un rendu en
-   face**, jamais en A/B/C textuel.
-2. **Le fond reste-t-il supprimable et masquable ?** « C'est un calque » implique
-   oui, et le cadenas disparaît. Photoshop verrouille son Arrière-plan par
-   défaut. Recommandation : oui — sinon on réintroduit le statut spécial par l'UI.
-3. **Capacité : 4 imports + fond (plafond 5) ou 4 au total (3 imports) ?**
-   Recommandation : 5, mesuré en T4.
-4. **Signaler un calque recouvert par un calque opaque ?** Recommandation : non
-   en v1.
+Les trois premiers ont été posés à Antoine avec un rendu en face pour le n°1
+(règle du mockup avant toute question de goût). Réponses telles que données.
+
+1. **Que montre la toile là où rien ne couvre ?** → **Damier de transparence.**
+   La recommandation était le noir opaque ; Antoine a choisi le damier en
+   connaissance du surcoût. Crée la tranche T0 (§6) et sort la propagation
+   d'alpha du différé (§8). L'export reste opaque. Détail : §3.2.
+
+2. **Le fond garde-t-il un statut spécial ?** → **Calque ordinaire, MAIS avec un
+   verrou disponible.** Verbatim : « 1 mais il faut l'option cadenas visible ».
+   Lecture retenue : le fond n'est plus verrouillé *par défaut* — il est
+   supprimable, masquable, déplaçable, duplicable comme tout calque — et un
+   **verrouillage manuel par calque** est offert, avec le cadenas visible sur la
+   ligne quand il est actif. Le verrou devient donc une propriété de calque
+   ordinaire (utilisable sur n'importe quel calque, pas seulement le fond), pas
+   un statut d'arrière-plan. C'est ce qui évite de réintroduire le cas
+   particulier par l'UI tout en gardant le garde-fou contre la suppression
+   accidentelle.
+   **Portée ajoutée à T1** : champ `locked` sur `LayerState`, respect du verrou
+   par les mutateurs de `LayerStack` (suppression, réordonnancement, édition),
+   affordance de (dé)verrouillage et cadenas dans la ligne du panneau.
+   Le cadenas existe déjà comme marque visuelle sur la ligne d'arrière-plan
+   dérivée (`src/components/LayerPanel.tsx:502`) : il change de sens — de
+   « statut immuable » à « verrou posé par l'utilisateur » — au lieu de
+   disparaître.
+
+3. **Capacité** → **5 au total, soit 4 imports + le fond.** Ne retire aucune
+   capacité actuelle. `MAX_PHOTO_LAYERS = 5`, `MAX_REGISTERED_PHOTO_SOURCES = 20`.
+   Le chiffre de 41,5 % de VRAM reste une **estimation** : T4 le mesure, et le
+   plafond descend si la mesure dément (§4.3).
+
+4. **Signaler un calque recouvert par un calque opaque ?** Non posé — tranché sur
+   la recommandation : **non en v1**, différé avec son déclencheur (§8).
 
 ---
 
@@ -374,10 +434,12 @@ photo ; enregistrer un preset n'affiche plus d'avis parasite.
   demande explicite de recadrage de document.
 - **Indicateur « calque recouvert »**. **Déclencheur** : Antoine signale avoir
   perdu du temps sur un calque invisible.
-- **Alpha réellement propagé** dans la chaîne de compositing (préalable au
-  damier). **Déclencheur** : arbitrage n°1 tranché en faveur du damier, ou
-  arrivée d'un effet produisant un alpha variable — le court-circuit actuel se
-  documente lui-même comme conditionnel (`shaderCompose.ts:128-133`).
+- ~~**Alpha réellement propagé** dans la chaîne de compositing (préalable au
+  damier).~~ **N'EST PLUS DIFFÉRÉ.** Son déclencheur — « arbitrage n°1 tranché en
+  faveur du damier » — s'est produit le jour même de la rédaction. Devenu la
+  tranche **T0** (§6). Conservé barré plutôt que supprimé : un différé dont le
+  déclencheur se déclenche immédiatement est un signal sur la façon dont il avait
+  été estimé.
 
 ---
 

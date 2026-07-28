@@ -17,10 +17,8 @@ import type {
   RefineEdgeParams,
 } from "../mask/types";
 import { buildCombineWgsl, buildInvertWgsl } from "../mask/maskFoldWgsl";
-import {
-  buildMorphologyWgsl,
-  MORPHOLOGY_PASS_AXES,
-} from "../mask/refineEdgeWgsl";
+import { buildMorphologyWgsl } from "../mask/refineEdgeWgsl";
+import { planRefine } from "../mask/refinePlan";
 import { getMaskSourceModule } from "../mask/sources/registry";
 import {
   buildLuminanceWgsl,
@@ -901,7 +899,13 @@ export class MaskTextureResolver {
     e: GPUCommandEncoder,
     p: (GPUTexture | GPUBuffer)[],
   ) {
-    if (x.feather <= 0 && x.contract === 0 && x.smooth <= 0) return input;
+    // Le PLAN (quelles passes, dans quel ordre) est une fonction pure testée
+    // en env Node — `planRefine`, src/mask/refinePlan.ts. Cette méthode-ci ne
+    // fait plus que le CONSOMMER : elle mappe chaque passe vers sa source WGSL
+    // et l'encode sur le ping-pong. Plan vide == rien à faire (contrat de
+    // planRefine), on rend l'entrée telle quelle sans même la copier.
+    const plan = planRefine(x);
+    if (plan.length === 0) return input;
     const cached = this.refineCache.get(id);
     if (
       cached &&
@@ -929,26 +933,22 @@ export class MaskTextureResolver {
       this.pass(e, w, acc, null, next, u(v));
       [acc, next] = [next, acc];
     };
-    if (x.contract) {
-      // Morphologie SÉPARÉE en deux passes 1D (H puis V) — exactement
-      // équivalent à l'ancienne fenêtre carrée (2r+1)², pour 2*(2r+1)
-      // échantillons par pixel au lieu de (2r+1)² : facteur 50 à r=50.
-      // Preuve d'équivalence : test/mask/morphologySeparable.test.ts.
-      // Réutilise le ping-pong existant via `run` (même mécanisme que
-      // feather, juste en dessous) : aucune texture intermédiaire nouvelle,
-      // et rien ne survit à l'appel — chaque passe repart d'un loadOp clear.
-      const mode = x.contract < 0 ? "erode" : "dilate";
-      const radius = Math.abs(x.contract);
-      for (const axis of MORPHOLOGY_PASS_AXES)
-        run(buildMorphologyWgsl(mode, axis), radius);
-    }
-    if (x.feather) {
-      run(buildBoxFilterHWgsl(1), x.feather);
-      run(buildBoxFilterVWgsl(1), x.feather);
-    }
-    for (let i = 0; i < x.smooth; i++) {
-      run(buildBoxFilterHWgsl(1), 1);
-      run(buildBoxFilterVWgsl(1), 1);
+    // Toutes les passes réutilisent le MÊME ping-pong via `run` : aucune
+    // texture intermédiaire nouvelle, et rien ne survit à l'appel — chaque
+    // passe repart d'un loadOp clear. La morphologie y est SÉPARÉE en deux
+    // passes 1D (H puis V), exactement équivalente à l'ancienne fenêtre carrée
+    // (2r+1)² pour 2*(2r+1) échantillons par pixel : facteur 50 à r=50
+    // (équivalence prouvée dans test/mask/morphologySeparable.test.ts, compte
+    // de passes prouvé dans test/mask/refinePlan.test.ts).
+    for (const p of plan) {
+      if (p.kind === "morphology") {
+        run(buildMorphologyWgsl(p.mode, p.axis), p.radius);
+      } else {
+        run(
+          p.axis === "H" ? buildBoxFilterHWgsl(1) : buildBoxFilterVWgsl(1),
+          p.radius,
+        );
+      }
     }
     this.refineCache.set(id, {
       texture: acc,

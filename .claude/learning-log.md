@@ -1172,3 +1172,49 @@ précisément pour empêcher.
 stable car en `useCallback([])`), jamais de l'objet de retour du hook. Envelopper
 le retour du hook dans un `useMemo` ne règle rien si ses fonctions changent
 elles-mêmes d'identité — ça ne fige que l'enveloppe.
+
+## 2026-07-28 — un compte de tests ne prouve « inchangé » que mesuré deux fois au MÊME HEAD
+
+**Découverte (TTL 6 mois)** : plusieurs sessions mergent des
+`worktree-agent-*` dans `master` en continu sur ce repo (4 merges en 30 min
+le 2026-07-28 : `bf6810d`, `7821eae`, `24e8cf7`, `8d3b7f0`). Un baseline pris
+avant un changement et un run pris après ne portent donc pas sur le même
+arbre : 760 tests unitaires sont devenus 788 sans qu'aucune ligne de la
+session ne soit en cause. La baseline citée dans une consigne (747/73) était
+elle-même déjà périmée à la lecture.
+**How to apply** : pour prouver qu'un changement laisse les comptes
+inchangés, ne pas comparer avant/après dans le temps — remettre
+temporairement l'état d'origine et relancer, en encadrant les deux runs d'un
+`git rev-parse --short HEAD` identique. Corollaire : tout compte de tests
+écrit quelque part porte sa date ET son SHA, sinon il ment dès le lendemain.
+
+## 2026-07-28 — changer le rôle ou l'aria-label d'un contrôle casse sa story en silence
+
+**Correction** : `c0d18b5` a remplacé la `Checkbox` « Masque actif » par un
+`IconButton` `aria-pressed` (`MaskPanel.tsx:146-158`), le libellé devenant un
+`<span>` frère hors du bouton (`MaskPanel.tsx:159`) — donc hors du nom
+accessible. Le commit n'a pas touché `MaskPanel.stories.tsx`, resté sur
+`getByRole("checkbox", { name: "Masque actif" })`. L'échec a voyagé sur
+`master` par quatre merges successifs sans que personne ne l'attribue à son
+origine, parce qu'un `test-storybook` rouge se lit spontanément comme « cassé
+par le dernier merge ».
+**How to apply** : un refactor qui change le `role`, l'`aria-label` ou
+l'association label↔contrôle d'un élément doit mettre à jour ses stories DANS
+LE MÊME COMMIT. Le nom accessible d'un `IconButton` est son `aria-label`, qui
+décrit l'ACTION (« Désactiver le masque »), pas l'état — un test qui cherche
+le libellé visible ne le trouvera jamais. Pour dater un tel échec :
+`git log --oneline -- <composant> <stories>` puis vérifier lequel de ces
+commits ne touche QUE le composant.
+
+## 2026-07-28 — `git stash push -- <chemins>` refuse un fichier supprimé en index, mais crée quand même une entrée vide
+
+**Découverte (TTL 6 mois)** : sur un arbre portant une suppression stagée
+(`git rm`), `git stash push --include-untracked -m "..." -- <chemins>` sort en
+`fatal: pathspec ':(prefix:0)<chemin>' did not match any files` — et laisse
+malgré tout une entrée dans `git stash list`, vide (`git stash show` ne rend
+rien), pendant que l'arbre de travail reste intact. L'erreur ressemble à un
+échec total alors qu'elle a un effet de bord.
+**How to apply** : après tout `git stash push` qui échoue, vérifier
+`git stash list` avant de conclure. Pour comparer deux états sans git, passer
+par une édition de fichier directe (réécrire le fichier, relancer, ré-appliquer)
+— c'est plus court et sans effet de bord sur l'index.

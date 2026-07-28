@@ -330,7 +330,12 @@ seulement pour un futur écran web pur sans canvas GPU.
 
 ## Index des documents docs/
 
-@docs/INDEX.json
+`docs/INDEX.json` (référence, ~330 lignes) — À LIRE À LA DEMANDE (Read tool)
+quand tu cherches le statut d'un chantier/plan spécifique, PAS importé
+automatiquement. L'import `@` qui vivait ici collait 71,8 Ko de JSON dans le
+contexte à chaque session, en contradiction directe avec CLAUDE.md
+§ « Index des documents docs/ » qui déclare ce fichier à lire à la demande ;
+retiré le 2026-07-28 pour aligner les deux.
 
 ## Wireframe & tokens
 Source de tokens canonique (à viser pour tout wireframe `interface-design`) :

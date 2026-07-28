@@ -13,6 +13,14 @@
      ci-dessus. Le raster source est réduit à 64px de côté
      (THUMBNAIL_MAX_SIDE), affiché ici en 24px : net sur écran HiDPI. */
   --layer-thumbnail-size: 24px;
+  /* IMBRICATION des effets sous leur photo (2026-07-28, src/components/layerTree.ts).
+     14px = --space-4 + --space-3 : dérivé de l'échelle plutôt qu'inventé, et
+     assez large pour loger le filet vertical sans manger la largeur utile d'un
+     dock de 240px. Le filet lui-même réutilise --border-default, le rôle
+     « hairline discret » déjà en place — la maquette disait « ~15% », et
+     ajouter une quatrième nuance de bordure à 4 points d'une existante est
+     exactement la dérive que l'audit UI signale. */
+  --layer-nest-indent: calc(var(--space-4) + var(--space-3));
   --section-header-height: 28px;
 
   --icon-size-sm: 14px;

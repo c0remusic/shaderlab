@@ -5,14 +5,15 @@ import { Copy, CornerLeftDown, Eye, EyeOff, GripVertical, Image as PhotoLayerIco
 import type { LayerState } from "../layers/types";
 import { eyeButtonLabels, isLayerVisible, isolationRole, isolationVisibleIds, type IsolationRole } from "../layers/isolation";
 import { resolveClipping } from "../layers/clipping";
-import { displayInsertToModelInsert, toDisplayOrder } from "./layerDisplayOrder";
+import { displayInsertToModelInsert } from "./layerDisplayOrder";
+import { toLayerTreeRows } from "./layerTree";
 import { effectRegistry, getEffect } from "../render/effects/registry";
 import { PASSTHROUGH_EFFECT } from "../render/effectPassRunner";
 import { blendRegistry } from "../render/blend/registry";
 import { Select } from "./ui/select";
 import { NumberField } from "./ui/number-field";
 import { IconButton } from "./ui/icon-button";
-import { formatOpacityPercent, layerHeaderModel, opacityToPercent, parseOpacityPercent } from "./layerHeaderModel";
+import { formatOpacityPercent, layerControlsModel, opacityToPercent, parseOpacityPercent } from "./layerControlsModel";
 import "./LayerPanel.css";
 
 interface Props {
@@ -46,12 +47,14 @@ interface Props {
   backgroundName?: string | null;
 }
 
-/** Contrôles de l'EN-TÊTE : ils ne vivent plus sur chaque ligne mais une seule
- *  fois, dans le slot d'en-tête de la carte Calques (`DockedPanelCard`), et
- *  agissent sur le calque SÉLECTIONNÉ. Ce composant est monté par `App.tsx`
- *  DEHORS de `LayerPanel` — c'est ce qui lui permet de ne pas défiler avec la
- *  liste. */
-export interface LayerHeaderProps {
+/** Contrôles CENTRALISÉS : ils ne vivent plus sur chaque ligne mais une seule
+ *  fois, dans la zone de contrôles fixe de la carte Effets (`DockedPanelCard`,
+ *  slot `controls`), et agissent sur le calque SÉLECTIONNÉ. Ce composant est
+ *  monté par `App.tsx` DEHORS de `LayerPanel` — c'est ce qui lui permet de ne
+ *  pas défiler avec la liste. Depuis le 2026-07-28 la zone est posée en PIED
+ *  (`controlsPlacement: "bottom"`) : on lit d'abord ce qui est modifié, puis
+ *  les réglages. Ex-`LayerHeader`. */
+export interface LayerControlsProps {
   layers: LayerState[];
   selectedId: string | null;
   onOpacityChange: (id: string, opacity: number) => void;
@@ -90,6 +93,15 @@ interface LayerRowProps {
    *  et la flèche ne doit pas apparaître. Booléen déjà réduit à ce calque pour
    *  ne pas casser la mémoïsation de la ligne (`memo`). */
   clipped: boolean;
+  /** Profondeur d'IMBRICATION (0 racine, 1 sous une photo) et bornes du groupe,
+   *  décidées par `toLayerTreeRows` (src/components/layerTree.ts). Passées
+   *  RÉDUITES à cette ligne — jamais l'arbre entier — pour ne pas casser la
+   *  mémoïsation (`memo`) d'une ligne dont le rattachement n'a pas bougé.
+   *  N'affectent QUE l'affichage : ni le modèle, ni l'ordre d'exécution, ni
+   *  l'index de ligne sur lequel le glisser-déposer fait son hit-test. */
+  depth: 0 | 1;
+  firstChild: boolean;
+  lastChild: boolean;
   onSelect: (id: string) => void;
   onToggle: (id: string, altKey: boolean) => void;
   onDuplicate: (id: string) => void;
@@ -120,6 +132,9 @@ const LayerRow = memo(function LayerRow({
   visible,
   role,
   clipped,
+  depth,
+  firstChild,
+  lastChild,
   onSelect,
   onToggle,
   onDuplicate,
@@ -147,6 +162,7 @@ const LayerRow = memo(function LayerRow({
   // `clipped` arrive RÉSOLU en prop — voir `LayerRowProps.clipped`.
   const rowClass = [
     "layer-panel__row",
+    depth > 0 && "layer-panel__row--nested",
     selected && "layer-panel__row--selected",
     isDragging && "layer-panel__row--dragging",
     dropPosition === "before" && "layer-panel__row--drop-before",
@@ -160,6 +176,23 @@ const LayerRow = memo(function LayerRow({
       data-layer-row-index={index}
       className={rowClass}
     >
+      {/* Filet vertical vers la photo parente. `aria-hidden` : purement
+          décoratif — l'indentation est un raccourci VISUEL, et annoncer une
+          hiérarchie exigerait `role="tree"` avec sa navigation clavier, ce que
+          cette liste n'implémente pas. Un `aria-level` sans `role` de tree est
+          de l'ARIA invalide, donc pire que rien. */}
+      {depth > 0 && (
+        <span
+          className={[
+            "layer-panel__rail",
+            firstChild && "layer-panel__rail--first",
+            lastChild && "layer-panel__rail--last",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          aria-hidden="true"
+        />
+      )}
       <div className="layer-panel__row-top">
         <span className="layer-panel__row-main">
           <span
@@ -241,14 +274,14 @@ const LayerRow = memo(function LayerRow({
             avec elle, à droite de la ligne. */}
         <span className="layer-panel__row-actions">
           {/* Opacité en LECTURE SEULE : le contrôle a quitté la ligne pour
-              l'en-tête, mais comparer les opacités de la pile d'un coup d'œil
+              la zone de contrôles, mais comparer les opacités de la pile d'un coup d'œil
               reste un besoin — sans quoi il faudrait sélectionner chaque
               calque pour lire sa valeur. Elle est ANNONCÉE (2026-07-27) : le
-              champ de l'en-tête ne couvre que le calque sélectionné, donc la
+              champ de la zone de contrôles ne couvre que le calque sélectionné, donc la
               masquer partout retirait l'opacité de tous les autres calques aux
               technologies d'assistance. MÊME UNITÉ que ce champ — un
               pourcentage entier, jamais un 0..1 — pour qu'une valeur lue sur
-              une ligne et la même valeur lue dans l'en-tête soient
+              une ligne et la même valeur lue dans la zone de contrôles soient
               comparables. Sur la ligne SÉLECTIONNÉE, `aria-hidden` évite de
               doubler ce que le champ annonce déjà. */}
           <span className="layer-panel__row-opacity" aria-hidden={selected || undefined}>
@@ -284,7 +317,7 @@ const LayerRow = memo(function LayerRow({
 });
 
 /**
- * En-tête FIXE de la carte Calques : opacité, fusion et effet du calque
+ * Zone de contrôles FIXE de la carte Calques : opacité, fusion et effet du calque
  * SÉLECTIONNÉ. Monté dans le slot `header` de `DockedPanelCard` (donc hors du
  * conteneur défilant), il reste visible quelle que soit la position dans la
  * liste — modèle observé sur Photoshop web (voir
@@ -294,25 +327,25 @@ const LayerRow = memo(function LayerRow({
  * effets différents selon la photo est un usage voulu, et « Aucun effet »
  * (passthrough) permet d'y revenir.
  */
-export function LayerHeader({
+export function LayerControls({
   layers,
   selectedId,
   onOpacityChange,
   onOpacityCommit,
   onBlendModeChange,
   onEffectChange,
-}: LayerHeaderProps) {
-  // Aucune sélection : l'en-tête reste MONTÉ mais désactivé. Le faire
+}: LayerControlsProps) {
+  // Aucune sélection : la zone de contrôles reste MONTÉ mais désactivé. Le faire
   // disparaître ferait sauter la liste de toute sa hauteur à chaque
   // désélection (et rendrait le panneau instable au clic).
-  const model = layerHeaderModel(layers, selectedId);
+  const model = layerControlsModel(layers, selectedId);
   return (
-    <div className="layer-header">
+    <div className="layer-controls">
       {/* Ligne 1 — EFFET seul, étiquette à gauche. Il ne rejoint pas la ligne
           suivante : c'est le contrôle aux libellés les plus longs
           (« Aberration chromatique »), et le partager à trois le réduirait à
           une poignée de caractères dans une colonne de 240 à 400 px. */}
-      <div className="layer-header__row">
+      <div className="layer-controls__row">
         <Select
           label="Effet"
           labelPlacement="inline"
@@ -327,20 +360,20 @@ export function LayerHeader({
           web (§2 des observations du 2026-07-27).
 
           L'opacité est un CHAMP, pas une piste. C'est le contrôle le plus
-          utilisé de l'en-tête, et une piste partagée à deux sur une ligne de
+          utilisé de la zone de contrôles, et une piste partagée à deux sur une ligne de
           dock perd l'essentiel de sa course : mesuré au banc avant ce
           changement, 116,9 px de piste au dock 240 px — et le champ de valeur
           qui l'accompagnait débordait de sa propre boîte. Un champ, lui, ne
           perd aucune précision en rétrécissant, et c'est exactement ce que
           Photoshop web met là (§2 : « Opacité » puis un champ « 100 % »).
-          `flex: 0 0 auto` via `.layer-header__opacity` : le champ prend sa
+          `flex: 0 0 auto` via `.layer-controls__opacity` : le champ prend sa
           largeur de contenu et rend TOUT le reste de la ligne au sélecteur de
           fusion, dont les libellés sont longs.
 
           Étiquette en `sr-only` : le « % » du champ dit déjà de quoi il
           s'agit à l'œil, et le nom accessible reste porté par le `<label
           htmlFor>` du champ. */}
-      <div className="layer-header__row">
+      <div className="layer-controls__row">
         <Select
           label="Fusion"
           labelPlacement="inline"
@@ -353,7 +386,7 @@ export function LayerHeader({
         <NumberField
           label="Opacité"
           labelPlacement="hidden"
-          classNames={{ root: "layer-header__opacity", field: "layer-header__opacity-field", input: "layer-header__opacity-input", unit: "layer-header__opacity-unit" }}
+          classNames={{ root: "layer-controls__opacity", field: "layer-controls__opacity-field", input: "layer-controls__opacity-input", unit: "layer-controls__opacity-unit" }}
           value={opacityToPercent(model.opacity)}
           unit="%"
           min={0}
@@ -393,7 +426,16 @@ export function LayerPanel({
   // modèle ne bouge pas — `layers[0]` reste le calque appliqué en premier, donc
   // le bas de pile — mais il s'affiche en DERNIÈRE ligne, juste au-dessus de la
   // ligne d'arrière-plan qu'il consomme, comme dans tous les éditeurs.
-  const displayLayers = useMemo(() => toDisplayOrder(layers), [layers]);
+  //
+  // IMBRICATION (2026-07-28) : `toLayerTreeRows` rend ce MÊME ordre, chaque
+  // ligne portant en plus sa profondeur et son rattachement (voir
+  // src/components/layerTree.ts). L'ordre est inchangé par construction — c'est
+  // ce qui laisse `data-layer-row-index` et `displayInsertToModelInsert`
+  // valides, donc le glisser-déposer intact.
+  const rows = useMemo(() => toLayerTreeRows(layers), [layers]);
+  // Le hook de réordonnancement ne s'intéresse qu'aux identités, pas à la
+  // hiérarchie : il reçoit la liste plate dans l'ordre affiché.
+  const displayLayers = useMemo(() => rows.map((row) => row.layer), [rows]);
 
   // Le glisser-déposer raisonne ENTIÈREMENT en espace d'affichage : le hook
   // reçoit la liste affichée, `data-layer-row-index` porte l'index de LIGNE, et
@@ -460,7 +502,7 @@ export function LayerPanel({
         onPointerUp={dragState ? handlePointerUp : undefined}
         onPointerCancel={dragState ? handlePointerCancel : undefined}
       >
-        {displayLayers.map((layer, displayRow) => (
+        {rows.map(({ layer, depth, firstChild, lastChild }, displayRow) => (
           <LayerRow
             key={layer.id}
             layer={layer}
@@ -469,6 +511,9 @@ export function LayerPanel({
             visible={isLayerVisible(layer, visibleIds)}
             role={isolationRole(layer.id, isolatedLayerId)}
             clipped={clipResolutions.get(layer.id)?.kind === "active"}
+            depth={depth}
+            firstChild={firstChild}
+            lastChild={lastChild}
             isDragging={dragState?.draggedId === layer.id}
             dropPosition={
               dragState !== null && dragState.overIndex === displayRow && dragState.draggedId !== layer.id

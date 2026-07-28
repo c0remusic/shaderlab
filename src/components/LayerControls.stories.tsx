@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { LayerHeader } from "./LayerPanel";
+import { LayerControls } from "./LayerPanel";
 import { defaultLayerMask } from "../mask/types";
 import type { LayerState } from "../layers/types";
 
@@ -31,9 +31,9 @@ const layers: LayerState[] = [
   }),
 ];
 
-const meta: Meta<typeof LayerHeader> = {
-  title: "Components/LayerHeader",
-  component: LayerHeader,
+const meta: Meta<typeof LayerControls> = {
+  title: "Components/LayerControls",
+  component: LayerControls,
   args: {
     layers,
     selectedId: "layer-1",
@@ -45,7 +45,7 @@ const meta: Meta<typeof LayerHeader> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof LayerHeader>;
+type Story = StoryObj<typeof LayerControls>;
 
 export const Default: Story = {};
 

@@ -69,28 +69,42 @@
   white-space: nowrap;
 }
 
-/* Zone FIXE entre la barre de titre et le contenu : `flex-shrink: 0`, donc
-   elle ne se comprime pas et ne défile pas avec le contenu. C'est ce qui
-   permet aux contrôles du calque sélectionné (LayerHeader) de rester visibles
-   quelle que soit la position dans une longue pile — modèle observé sur
-   Photoshop web (docs/design-system/photoshop-web-observations-2026-07-27.md
-   §5bis, point 1). */
-.docked-panel-card__header {
+/* Zone de CONTRÔLES FIXE : `flex-shrink: 0`, donc elle ne se comprime pas et
+   ne défile pas avec le contenu. C'est ce qui permet aux contrôles de
+   l'élément sélectionné (LayerControls) de rester visibles quelle que soit la
+   position dans une longue liste — modèle observé sur Photoshop web
+   (docs/design-system/photoshop-web-observations-2026-07-27.md §5bis, point 1),
+   formalisé par l'ADR-0001.
+
+   Ex-`.docked-panel-card__header` : renommée le 2026-07-28 quand la zone a
+   gagné le droit de vivre en PIED. Ce qui compte pour l'ADR-0001 est qu'elle
+   soit FIXE et hors du conteneur défilant — pas qu'elle soit en haut. */
+.docked-panel-card__controls {
   position: relative;
   flex-shrink: 0;
   padding: var(--space-5);
 }
 
 /* Même séparateur inset que le titlebar (mêmes raisons : ligne droite sur
-   conteneur à coins arrondis). */
-.docked-panel-card__header::after {
+   conteneur à coins arrondis). Il se pose du côté du CONTENU : sous la zone
+   quand elle coiffe la liste, au-dessus quand elle la clôt — un séparateur du
+   mauvais côté détacherait la zone du bord de la carte au lieu de la séparer
+   de ce qu'elle borde. */
+.docked-panel-card__controls::after {
   content: "";
   position: absolute;
   left: var(--space-5);
   right: var(--space-5);
-  bottom: 0;
   height: 0;
   border-bottom: 1px solid var(--border-subtle);
+}
+
+.docked-panel-card__controls--top::after {
+  bottom: 0;
+}
+
+.docked-panel-card__controls--bottom::after {
+  top: 0;
 }
 
 .docked-panel-card__content {

@@ -120,8 +120,10 @@ export const ToggleMaskActive: Story = {
   args: { onMaskEnabledChange: fn() },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    // "Masque actif" starts checked → unchecking fires (layerId, false).
-    await userEvent.click(canvas.getByRole("checkbox", { name: "Masque actif" }));
+    // "Masque actif" is an aria-pressed IconButton (not a checkbox since
+    // c0d18b5) — its accessible name is the aria-label, which reflects the
+    // action, not the state. Mask starts enabled → clicking fires (id, false).
+    await userEvent.click(canvas.getByRole("button", { name: "Désactiver le masque" }));
     await expect(args.onMaskEnabledChange).toHaveBeenCalledWith("layer-1", false);
   },
 };

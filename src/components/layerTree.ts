@@ -3,7 +3,7 @@ import { clipBaseId } from "../layers/clipping";
 import { toDisplayOrder } from "./layerDisplayOrder";
 
 /**
- * IMBRICATION DES EFFETS SOUS LEUR PHOTO (2026-07-28) — conversion pure
+ * IMBRICATION DES EFFETS SOUS LEUR PHOTO — conversion pure
  * `pile modèle → lignes arborescentes`.
  *
  * DIVERGENCE ASSUMÉE d'avec Photoshop. La référence observée
@@ -15,24 +15,37 @@ import { toDisplayOrder } from "./layerDisplayOrder";
  * que l'utilisateur se pose. Ne pas « corriger » cette divergence vers
  * Photoshop.
  *
- * Le prix de cette divergence est une règle de VÉRITÉ stricte : une ligne n'est
- * imbriquée que quand la relation « cet effet s'applique à cette photo » est
- * LITTÉRALEMENT vraie.
+ * RÈGLE EN VIGUEUR (2026-07-29) — PROXIMITÉ. **Un effet appartient à la photo
+ * qui le précède dans la chaîne.** Une photo OUVRE son groupe ; tous les effets
+ * qui suivent lui appartiennent jusqu'à la photo suivante. En espace modèle
+ * (indice supérieur = calque du dessus) : le parent de `layers[i]` est la photo
+ * d'indice le plus élevé strictement inférieur à `i`.
  *
- *  - Un effet ÉCRÊTÉ (`clipToBelow`) nomme sa base : il ne rend que là où une
- *    photo couvre l'image. Il s'imbrique sous elle, quel que soit le nombre de
- *    photos plus bas. Sauf écrêtage INERTE (aucune base photo sous lui —
- *    `resolveClipping` le fait alors rendre linéairement) : on retombe sur la
- *    règle du non-écrêté, sinon la ligne désignerait une base inexistante.
- *  - Un effet NON écrêté ne dépend d'aucune photo en particulier : il s'applique
- *    à TOUT le composite en dessous. Il ne s'imbrique donc que s'il n'y a
- *    qu'UNE SEULE photo sous lui — auquel cas « tout le composite » ET « cette
- *    photo » désignent la même chose. Deux photos ou plus : il reste à plat.
- *  - Un effet à plat qui touche plusieurs photos ne porte AUCUN marquage. Pas
- *    de filet, pas de badge, pas de libellé de portée : Photoshop ne signale
- *    jamais le cas normal, et nommer « les deux photos » serait une invention.
+ *  - Le FOND DU DOCUMENT compte comme photo parente. Un effet sous lequel aucun
+ *    calque photo n'existe lui est rattaché — c'est littéralement vrai, il
+ *    s'applique bien à lui. Le fond n'étant pas un `LayerState`
+ *    (`src/layers/photoLayer.ts:3-5` : c'est `sourceTexture`, l'entrée du
+ *    pipeline), son identité arrive en PARAMÈTRE (`backgroundId`), jamais
+ *    devinée ici. `null` = aucun document ouvert : ces effets restent racine.
+ *  - L'ÉCRÊTAGE garde la priorité : un effet écrêté nomme explicitement sa base
+ *    (`clipBaseId`), et ce rattachement l'emporte sur la proximité. Sauf
+ *    écrêtage INERTE (aucune base photo — `resolveClipping` le fait alors rendre
+ *    linéairement), où l'on retombe sur la proximité : une ligne ne désigne
+ *    jamais une base inexistante.
  *  - Un calque PHOTO est toujours une ligne racine (l'écrêtage lui est interdit,
  *    garde dans `LayerStack.setLayerClip`).
+ *
+ * NUANCE ASSUMÉE, À NE PAS « CORRIGER ». Un effet NON écrêté s'applique en
+ * réalité à TOUT le composite sous lui, pas à cette seule photo — l'imbrication
+ * dit donc un peu plus que ce que le pipeline fait. C'est délibéré : l'affichage
+ * privilégie la LISIBILITÉ DU GROUPE sur l'exactitude littérale. Décision
+ * d'Antoine du 2026-07-29, prise après avoir vu la limite illustrée sur son
+ * propre document. La règle précédente — n'imbriquer que quand la relation est
+ * littéralement vraie, donc seulement s'il n'y a qu'UNE photo sous l'effet —
+ * était exacte et illisible : sur un document réel (fond + Glow + Grain + photo
+ * importée + un écrêté), une seule ligne sur quatre était indentée, les deux
+ * effets posés sur le fond n'ayant aucune photo sous eux. Ne pas re-litiger ce
+ * point dans le code ; le rouvrir demande de rouvrir la décision.
  *
  * SÉPARATION STRICTE rattachement / sens d'affichage. Le RATTACHEMENT
  * (`layerParentIds`) raisonne exclusivement en espace MODÈLE : indices du
@@ -51,11 +64,14 @@ import { toDisplayOrder } from "./layerDisplayOrder";
  * `displayInsertToModelInsert` : le glisser-déposer, le modèle et l'ordre
  * d'exécution sont inchangés (test/components/layerTree.test.ts).
  *
- * Cette invariance n'est pas fortuite : les enfants d'une photo sont toujours
- * CONTIGUS juste après elle dans le modèle — donc, en sens causal, juste en
- * dessous d'elle dans la liste. Entre deux photos, tout effet
- * a la même photo sous lui (donc le même parent) ; au-dessus de la photo la plus
- * haute, tout effet non écrêté en compte au moins deux (donc reste racine).
+ * Cette invariance n'est pas fortuite : la règle de proximité découpe la pile en
+ * TRANCHES contiguës — chaque photo ouvre la sienne et la garde jusqu'à la photo
+ * suivante — et le groupe du fond est la tranche qui précède la première photo.
+ * Un effet écrêté, lui, ne peut désigner que la photo de sa propre tranche :
+ * `clipBaseId` s'arrête au premier calque non écrêté rencontré en descendant, et
+ * une photo est terminale (voir src/layers/clipping.ts). Aucun groupe ne peut
+ * donc être discontinu, et comparer au voisin immédiat suffit pour en trouver
+ * les bornes.
  */
 export interface LayerTreeRow {
   layer: LayerState;
@@ -77,41 +93,59 @@ export interface LayerTreeRow {
 }
 
 /**
+ * Id CONVENTIONNEL du fond du document dans l'arbre de rattachement. Le fond
+ * n'est pas un `LayerState` et n'a donc pas d'id de modèle : il lui en faut un
+ * pour pouvoir être DÉSIGNÉ comme parent, et cet id doit être posé une seule
+ * fois, ici, plutôt que réinventé par chaque appelant.
+ *
+ * Le double soulignement est là pour qu'une collision avec un id de calque réel
+ * (`crypto.randomUUID`, voir `LayerStack`) reste inconcevable plutôt
+ * qu'improbable.
+ */
+export const BACKGROUND_LAYER_ID = "__background__";
+
+/**
  * RATTACHEMENT, en espace MODÈLE uniquement. Pour chaque `layers[i]`, l'id de
- * la photo à laquelle il s'applique littéralement, ou `null`. Aucune notion de
- * haut/bas de LISTE ici : « en dessous » veut dire « d'indice inférieur dans
- * `layers` », c'est-à-dire appliqué plus tôt dans le pipeline.
+ * la photo à laquelle il appartient, ou `null`. Aucune notion de haut/bas de
+ * LISTE ici : « en dessous » veut dire « d'indice inférieur dans `layers` »,
+ * c'est-à-dire appliqué plus tôt dans le pipeline.
+ *
+ * `backgroundId` : identité du fond du document (`BACKGROUND_LAYER_ID` quand un
+ * document est ouvert, `null` sinon). Ce module ne peut pas la DEVINER — le fond
+ * ne vit pas dans `layers`. Seul son ID est demandé : son nom d'affichage ne
+ * sert nulle part ici, et l'exiger ferait porter à cette interface une donnée
+ * qu'elle ne lit pas.
  *
  * Exportée et testée seule (test/components/layerTree.test.ts) pour que le sens
  * d'affichage puisse changer sans toucher à cette décision.
  */
-export function layerParentIds(layers: LayerState[]): Array<string | null> {
-  return layers.map((_, index) => resolveParentId(layers, index));
+export function layerParentIds(layers: LayerState[], backgroundId: string | null = null): Array<string | null> {
+  return layers.map((_, index) => resolveParentId(layers, index, backgroundId));
 }
 
-/** Photo à laquelle `layers[index]` s'applique LITTÉRALEMENT, ou `null`. */
-function resolveParentId(layers: LayerState[], index: number): string | null {
+/** Photo à laquelle `layers[index]` appartient, ou `null`. */
+function resolveParentId(layers: LayerState[], index: number, backgroundId: string | null): string | null {
   const layer = layers[index];
   // Une photo n'est jamais imbriquée : elle est le contenu, pas un traitement.
+  // Elle n'est pas non plus rattachée au fond — elle OUVRE son propre groupe.
   if (layer.imageSource !== undefined) return null;
 
   if (layer.clipToBelow) {
     const baseId = clipBaseId(layers, layer.id);
     const base = baseId === null ? undefined : layers.find((l) => l.id === baseId);
-    // Base photo trouvée = l'écrêtage est effectif (`active`/`suppressed`).
-    // Sinon `inert` : on ne retourne pas ici, on retombe sur la règle ci-dessous.
+    // Base photo trouvée = l'écrêtage est effectif (`active`/`suppressed`), et
+    // il l'emporte sur la proximité. Sinon `inert` : on ne retourne pas ici, on
+    // retombe sur la proximité ci-dessous.
     if (base?.imageSource !== undefined) return base.id;
   }
 
-  let onlyPhotoId: string | null = null;
-  let photoCount = 0;
+  // PROXIMITÉ : la première photo rencontrée en descendant, c'est-à-dire celle
+  // d'indice le plus élevé strictement inférieur à `index`.
   for (let i = index - 1; i >= 0; i--) {
-    if (layers[i].imageSource === undefined) continue;
-    photoCount++;
-    if (photoCount > 1) return null;
-    onlyPhotoId = layers[i].id;
+    if (layers[i].imageSource !== undefined) return layers[i].id;
   }
-  return photoCount === 1 ? onlyPhotoId : null;
+  // Aucun calque photo avant lui : cet effet traite le fond du document.
+  return backgroundId;
 }
 
 /** Lignes de la liste des effets, dans l'ordre d'AFFICHAGE, chacune portant sa
@@ -122,8 +156,8 @@ function resolveParentId(layers: LayerState[], index: number): string | null {
  *  (`firstChild`/`lastChild`) sont volontairement calculées APRÈS, en espace
  *  d'affichage — ce sont des bornes VISUELLES, elles doivent suivre le sens de
  *  la liste si celui-ci change. */
-export function toLayerTreeRows(layers: LayerState[]): LayerTreeRow[] {
-  const parentByIndex = layerParentIds(layers);
+export function toLayerTreeRows(layers: LayerState[], backgroundId: string | null = null): LayerTreeRow[] {
+  const parentByIndex = layerParentIds(layers, backgroundId);
   const display = toDisplayOrder(layers.map((layer, index) => ({ layer, parentId: parentByIndex[index] })));
   return display.map((entry, row) => ({
     layer: entry.layer,

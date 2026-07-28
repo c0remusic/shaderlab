@@ -212,6 +212,7 @@ export const FiveRowDocumentHidesNoRow: Story = {
                 onSelect={() => {}}
                 onToggle={() => {}}
                 onAdd={() => {}}
+                onToggleLock={() => {}}
                 onDuplicate={() => {}}
                 onRemove={() => {}}
                 onReorder={() => {}}

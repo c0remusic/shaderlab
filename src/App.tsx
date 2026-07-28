@@ -546,6 +546,21 @@ export default function App() {
     [currentStack, commit]
   );
 
+  const handleToggleLock = useCallback(
+    (id: string, locked: boolean) => {
+      const stack = currentStack();
+      // Même discipline que handleClipChange : calque absent ou valeur
+      // inchangée -> pas d'entrée d'historique. Verrouiller/déverrouiller EST
+      // en revanche annulable comme le reste (commit direct), sinon un verrou
+      // posé par erreur ne se retire qu'à la main.
+      // Le mutateur `setLayerLocked` est le SEUL de LayerStack à ne pas
+      // consulter le verrou : un verrou qu'on ne peut pas retirer n'en est pas un.
+      if (!stack.setLayerLocked(id, locked)) return;
+      commit(stack);
+    },
+    [currentStack, commit]
+  );
+
   function handleAddMaskSource(layerId: string, type: "gradient" | "luminosity" | "colorRange") {
     const stack = currentStack();
     stack.addMaskSource(layerId, type);
@@ -1343,6 +1358,7 @@ export default function App() {
                   onDuplicate={handleDuplicate}
                   onRemove={handleRemove}
                   onReorder={handleReorder}
+                  onToggleLock={handleToggleLock}
                   thumbnailUrl={photoLayer.thumbnailUrl}
                   // Le document est `sourceTexture`, pas un `LayerState` : la
                   // liste ne pouvait pas le montrer, et l'utilisateur voyait

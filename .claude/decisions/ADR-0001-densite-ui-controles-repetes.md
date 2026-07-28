@@ -35,12 +35,17 @@ n'a pas été pris en compte pour ce nouvel élément ».
 ## Décision
 
 **Un contrôle qui se répète sur chaque ligne d'une liste devient UN contrôle
-unique, placé dans un en-tête fixe du panneau, agissant sur l'élément
-sélectionné.**
+unique, placé dans une zone de contrôles fixe du panneau, agissant sur
+l'élément sélectionné.**
 
-Corollaire structurel, indissociable : **en-tête fixe + liste défilante à
-l'intérieur du panneau + hauteur de panneau bornée**. Sortir les contrôles sans
-ce triplet ne donne rien — l'en-tête défilerait avec la colonne.
+Corollaire structurel, indissociable : **zone de contrôles fixe (en-tête OU
+pied) + liste défilante à l'intérieur du panneau + hauteur de panneau bornée**.
+Sortir les contrôles sans ce triplet ne donne rien — la zone défilerait avec la
+colonne.
+
+Ce que le triplet exige de la zone, c'est d'être **unique**, **fixe** et **hors
+du conteneur défilant**. Sa POSITION — en haut ou en bas de la carte — n'est pas
+contrainte par cet ADR : voir l'entrée datée du 2026-07-28 en fin de document.
 
 **Cette décision s'applique à tout élément d'interface AJOUTÉ après cette date,
 au moment où il est ajouté — pas dans un lot de rattrapage ultérieur.**
@@ -51,9 +56,10 @@ au moment où il est ajouté — pas dans un lot de rattrapage ultérieur.**
 dans le rapport de la tranche, pas supposée.
 
 1. Un contrôle apparaît-il plus d'une fois à l'écran dans ce composant ?
-   → Si oui, il monte en en-tête et agit sur la sélection.
+   → Si oui, il monte dans la zone de contrôles du panneau et agit sur la sélection.
 2. La liste peut-elle dépasser la hauteur de son panneau ?
-   → Si oui, c'est le PANNEAU qui défile, jamais la colonne, et l'en-tête reste fixe.
+   → Si oui, c'est le PANNEAU qui défile, jamais la colonne, et la zone de
+     contrôles reste fixe, hors du conteneur défilant.
 3. La hauteur de ligne dépasse-t-elle **56 px** hors état sélectionné ?
    → Si oui, justifier par écrit ou réduire. Cible : la ligne porte l'identité
      (icône d'état, vignette, nom) et les actions propres à la ligne, rien d'autre.
@@ -79,6 +85,9 @@ dans le rapport de la tranche, pas supposée.
 
 ## Conséquences
 
+- `DockedPanelCard` porte la zone dans un slot `controls` accompagné de
+  `controlsPlacement` (`"top"` par défaut, `"bottom"` sur la carte Effets).
+  Ex-slot `header`, renommé le 2026-07-28 : « en-tête » était devenu faux.
 - **Perte assumée** : régler un contrôle sans changer la sélection devient
   impossible. Aujourd'hui un `stopPropagation` sur le slider d'opacité permet de
   régler le calque B en gardant A sélectionné. Ce cas disparaît. Atténuation
@@ -88,8 +97,8 @@ dans le rapport de la tranche, pas supposée.
   fermé au rail se rouvrirait à chaque sélection. À corriger avant, sinon le
   principe dégrade l'expérience au lieu de l'améliorer.
 - Chaque changement de sélection déclenche un rendu pleine résolution.
-- `DockedPanelCard` gagne un troisième slot (titlebar / **en-tête** / contenu),
-  l'en-tête en `flex-shrink: 0`, hors du conteneur défilant.
+- `DockedPanelCard` gagne un troisième slot (titlebar / **contrôles** /
+  contenu), la zone en `flex-shrink: 0`, hors du conteneur défilant.
 
 ## Alternatives écartées
 
@@ -119,3 +128,19 @@ dans le rapport de la tranche, pas supposée.
   a produit une prémisse fausse dans un brief.
   Ce que ça change : toute règle de dimensionnement du dock se vérifie sur le
   code, jamais sur la documentation d'architecture.
+
+- **2026-07-28** — Croyance : « la zone de contrôles doit être un EN-TÊTE ».
+  Réfutée par : décision d'Antoine du 2026-07-28, demandant les contrôles
+  Effet/Fusion/Opacité SOUS la liste — « on lit d'abord ce qui est modifié, puis
+  les réglages ». Relecture de la preuve d'origine : l'observation de Photoshop
+  web (§2 et §5bis) établit que la zone est **unique**, **fixe** et **hors du
+  scroller** ; elle n'a jamais établi que le HAUT était load-bearing. Cette
+  position avait été recopiée de la référence sans être justifiée à part.
+  Ce que ça change : la décision est reformulée en « zone de contrôles fixe
+  (en-tête ou pied) ». Le triplet et la checklist sont inchangés — ce qui les
+  fait tenir est l'unicité et le hors-scroller, pas la position. La carte Effets
+  passe en `controlsPlacement: "bottom"` ; les invariants de l'ADR sont
+  verrouillés par les stories `ControlsOnTop`/`ControlsAtBottom`/
+  `CollapsedHidesControls` (`src/components/dockedPanel/DockedPanelCard.stories.tsx`),
+  qui vérifient l'unicité de la zone et le fait qu'elle n'est jamais enfant du
+  conteneur défilant.

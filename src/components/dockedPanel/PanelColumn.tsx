@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
-import { DockedPanelCard } from "./DockedPanelCard";
+import { DockedPanelCard, dockedPanelControlsClass } from "./DockedPanelCard";
 import { getDockDropTarget, isNoOpDockDrop, resolveDockDragCommit, type DockDropTarget, type DockLayout } from "../../ui/dockLayout";
 import { clampDockWidth, DOCK_WIDTH_MIN, DOCK_WIDTH_MAX } from "./dockWidth";
 import "../../ui/dragReorder.css";
@@ -11,9 +11,10 @@ export interface DockedPanelSpec {
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
   content: React.ReactNode;
-  /** Optionnel : zone fixe (non défilante) de la carte, voir
-   *  `DockedPanelCardProps.header`. */
-  header?: React.ReactNode;
+  /** Optionnel : zone de contrôles fixe (non défilante) de la carte, voir
+   *  `DockedPanelCardProps.controls` / `controlsPlacement`. */
+  controls?: React.ReactNode;
+  controlsPlacement?: "top" | "bottom";
   /** Le contenu de ce panneau est une LISTE de longueur variable (calques,
    *  sources de masque, presets). Drapeau EXPLICITE et non heuristique : c'est
    *  le panneau lui-même qui sait si son contenu peut s'allonger sans fin,
@@ -106,7 +107,10 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
     const measure = () => {
       for (const item of items) {
         const titlebar = item.querySelector<HTMLElement>(".docked-panel-card__titlebar");
-        const header = item.querySelector<HTMLElement>(".docked-panel-card__header");
+        // La zone de contrôles compte dans le CHROME quel que soit son
+        // placement (haut ou pied) : dans les deux cas elle est fixe, hors du
+        // conteneur défilant, et son coût de hauteur est le même.
+        const controls = item.querySelector<HTMLElement>(".docked-panel-card__controls");
         const content = item.querySelector<HTMLElement>(".docked-panel-card__content");
         if (!titlebar) {
           item.style.removeProperty("--dock-card-chrome-height");
@@ -122,7 +126,7 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
         // La hauteur de CONTENU, elle, vaut 0 quand il n'y a pas de contenu :
         // c'est ce qui empêche le `min()` du plancher de GONFLER une carte
         // repliée à la hauteur d'une ligne fantôme.
-        setVar(item, "--dock-card-chrome-height", titlebar.offsetHeight + (header?.offsetHeight ?? 0));
+        setVar(item, "--dock-card-chrome-height", titlebar.offsetHeight + (controls?.offsetHeight ?? 0));
         setVar(item, "--dock-card-content-height", content?.scrollHeight ?? 0);
         // COÛT DU HORS-LISTE (2026-07-27) : le plancher promettait N lignes et
         // n'en montrait que N-1, parce que la zone défilante ne contient pas
@@ -151,7 +155,7 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
     measure();
     const observer = new ResizeObserver(measure);
     for (const item of items) {
-      for (const part of item.querySelectorAll(".docked-panel-card__titlebar, .docked-panel-card__header, .docked-panel-card__content")) {
+      for (const part of item.querySelectorAll(".docked-panel-card__titlebar, .docked-panel-card__controls, .docked-panel-card__content")) {
         observer.observe(part);
         // Le contenu COMPRIMÉ garde une boîte de taille constante quand sa
         // liste s'allonge : seul son enfant grandit. Sans l'observer, la
@@ -316,7 +320,8 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
                     title={panel.title}
                     collapsed={panel.collapsed}
                     onCollapsedChange={panel.onCollapsedChange}
-                    header={panel.header}
+                    controls={panel.controls}
+                    controlsPlacement={panel.controlsPlacement}
                     dragging={dragState?.draggedId === panel.id}
                     titlebarProps={{ onPointerDown: (event) => handlePointerDown(panel.id, event) }}
                   >
@@ -337,8 +342,16 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
         >
           <div className="docked-panel-card">
             <div className="docked-panel-card__titlebar"><span className="docked-panel-card__title">{draggedPanel.title}</span></div>
-            {!draggedPanel.collapsed && draggedPanel.header && <div className="docked-panel-card__header">{draggedPanel.header}</div>}
+            {/* Le fantôme reconstruit la carte à la main : il doit respecter le
+                MÊME placement de la zone de contrôles, sinon l'aperçu de
+                glisser-déposer ne ressemble pas au panneau déplacé. */}
+            {!draggedPanel.collapsed && draggedPanel.controls && draggedPanel.controlsPlacement !== "bottom" && (
+              <div className={dockedPanelControlsClass("top")}>{draggedPanel.controls}</div>
+            )}
             {!draggedPanel.collapsed && <div className="docked-panel-card__content">{draggedPanel.content}</div>}
+            {!draggedPanel.collapsed && draggedPanel.controls && draggedPanel.controlsPlacement === "bottom" && (
+              <div className={dockedPanelControlsClass("bottom")}>{draggedPanel.controls}</div>
+            )}
           </div>
         </div>
       )}

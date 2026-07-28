@@ -147,6 +147,60 @@ export const ClippedWithoutBaseShowsNoArrow: Story = {
   },
 };
 
+// IMBRICATION (2026-07-28) — DIVERGENCE ASSUMÉE d'avec Photoshop, qui
+// n'indente rien (observations §5ter). La RÈGLE est testée unitairement
+// (test/components/layerTree.test.ts) ; ces stories ne vérifient que son
+// RENDU : quelles lignes portent la classe d'indentation et le filet.
+//
+// Pile : P (photo) · A (effet libre, une seule photo dessous → enfant de P) ·
+// Q (photo) · B (effet libre, DEUX photos dessous → reste à plat).
+const twoPhotoLayers: LayerState[] = [
+  makeLayer({ id: "photo-P", effectId: "passthrough", name: "plage.jpg", imageSource: { sourceId: "s-P" }, transform: { x: 0, y: 0, scale: 1, rotation: 0 } }),
+  makeLayer({ id: "layer-A", effectId: "glow" }),
+  makeLayer({ id: "photo-Q", effectId: "passthrough", name: "ciel.jpg", imageSource: { sourceId: "s-Q" }, transform: { x: 0, y: 0, scale: 1, rotation: 0 } }),
+  makeLayer({ id: "layer-B", effectId: "grain" }),
+];
+
+export const NestedUnderPhoto: Story = {
+  args: { layers: twoPhotoLayers, selectedId: "layer-A", backgroundName: "DSC_0042.jpg" },
+  play: async ({ canvasElement }) => {
+    const rows = Array.from(canvasElement.querySelectorAll("[data-layer-row-index]"));
+    // Affichage : Grain (à plat) · ciel.jpg · Glow (imbriqué) · plage.jpg.
+    await expect(rows.map((r) => r.querySelector(".layer-panel__row-name")?.textContent)).toEqual([
+      "Grain",
+      "ciel.jpg",
+      "Glow",
+      "plage.jpg",
+    ]);
+    await expect(rows.map((r) => r.classList.contains("layer-panel__row--nested"))).toEqual([
+      false,
+      false,
+      true,
+      false,
+    ]);
+    // Un seul filet, sur l'unique ligne enfant — et il est décoratif.
+    const rails = canvasElement.querySelectorAll(".layer-panel__rail");
+    await expect(rails).toHaveLength(1);
+    await expect(rails[0].getAttribute("aria-hidden")).toBe("true");
+    // Enfant unique : le filet porte les deux bornes du groupe.
+    await expect(rails[0].className).toContain("layer-panel__rail--first");
+    await expect(rails[0].className).toContain("layer-panel__rail--last");
+    // AUCUN marquage inventé sur la ligne à plat qui touche les deux photos.
+    await expect(rows[0].className).not.toContain("nested");
+  },
+};
+
+// L'index de LIGNE reste celui de l'ordre d'affichage plat : c'est lui que le
+// glisser-déposer utilise pour son hit-test, et l'imbrication ne doit pas le
+// décaler. S'il bouge, un dépôt atterrit au mauvais endroit du modèle.
+export const NestingDoesNotShiftRowIndexes: Story = {
+  args: { layers: twoPhotoLayers, selectedId: "layer-A" },
+  play: async ({ canvasElement }) => {
+    const rows = Array.from(canvasElement.querySelectorAll("[data-layer-row-index]"));
+    await expect(rows.map((r) => r.getAttribute("data-layer-row-index"))).toEqual(["0", "1", "2", "3"]);
+  },
+};
+
 // Parité calque photo (T1) : la ligne d'un calque photo affiche son NOM de
 // fichier et sa vignette, plus « Passthrough ». La vignette est une object
 // URL résolue par `thumbnailUrl` (possédée par PhotoSourceStore côté App) —
@@ -250,9 +304,9 @@ export const AltClickRequestsIsolation: Story = {
   },
 };
 
-// Le sélecteur d'effet a quitté les lignes pour l'en-tête (2026-07-27) :
-// son test d'interaction vit dans `LayerHeader.stories.tsx`. La liste ne doit
-// plus en exposer aucun.
+// Le sélecteur d'effet a quitté les lignes pour la zone de contrôles
+// centralisée (2026-07-27) : son test d'interaction vit dans
+// `LayerControls.stories.tsx`. La liste ne doit plus en exposer aucun.
 export const NoPerRowControls: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

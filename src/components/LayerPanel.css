@@ -21,11 +21,11 @@
   gap: var(--space-4);
 }
 
-/* En-tête FIXE de la carte Calques (2026-07-27) : opacité/fusion/effet du
+/* Zone de contrôles FIXE de la carte Calques (2026-07-27) : opacité/fusion/effet du
    calque SÉLECTIONNÉ. Ces trois contrôles étaient répétés sur CHAQUE ligne —
    167,2px par ligne, contre ~29px sur Photoshop web (facteur 5,8). Monté dans
    le slot `header` de DockedPanelCard, donc hors du conteneur défilant. */
-.layer-header {
+.layer-controls {
   display: flex;
   flex-direction: column;
   /* Même rang que .layer-panel__row-controls avant sa suppression : contrôles
@@ -33,13 +33,13 @@
   gap: var(--space-4);
 }
 
-/* Une LIGNE de l'en-tête porte un ou deux contrôles, étiquette comprise (voir
-   `labelPlacement`). L'en-tête empilait trois contrôles étiquetés au-dessus,
+/* Une LIGNE de la zone de contrôles porte un ou deux contrôles, étiquette comprise (voir
+   `labelPlacement`). La zone empilait trois contrôles étiquetés au-dessus,
    soit ~50 px chacun : 189 px mesurés, l'équivalent de trois lignes de liste
    pour trois contrôles — exactement le retournement que l'ADR-0001 met en
-   garde (l'en-tête existe pour rendre de la hauteur à la liste, pas pour la
+   garde (la zone de contrôles existe pour rendre de la hauteur à la liste, pas pour la
    lui prendre). */
-.layer-header__row {
+.layer-controls__row {
   display: flex;
   align-items: center;
   gap: var(--space-4);
@@ -50,7 +50,7 @@
    au-delà de la colonne (barre de défilement horizontale parasite — déjà vécu
    sur la rangée des presets). `flex: 1 1 0` répartit la largeur à parts
    égales plutôt qu'au prorata du contenu. */
-.layer-header__row > * {
+.layer-controls__row > * {
   flex: 1 1 0;
   min-width: 0;
 }
@@ -62,11 +62,11 @@
    avec la largeur du dock (116,9 px mesurés au dock 240 px contre 225 px quand
    elle occupait sa ligne entière) ; un champ ne perd aucune précision en
    rétrécissant. */
-.layer-header__opacity {
+.layer-controls__opacity {
   flex: 0 0 auto;
 }
 
-.layer-header__opacity-field {
+.layer-controls__opacity-field {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -76,7 +76,7 @@
    (--slider-value-width) : c'est le même rôle, deux largeurs différentes
    seraient une dérive. Style aligné sur .photo-panel__input, l'autre champ
    numérique du dock. */
-.layer-header__opacity-input {
+.layer-controls__opacity-input {
   width: var(--slider-value-width);
   height: var(--control-height-md);
   padding: 0 var(--space-2);
@@ -91,24 +91,24 @@
   outline: none;
 }
 
-.layer-header__opacity-input:hover:not(:disabled) {
+.layer-controls__opacity-input:hover:not(:disabled) {
   border-color: var(--border-emphasis);
 }
 
-.layer-header__opacity-input:focus-visible {
+.layer-controls__opacity-input:focus-visible {
   outline: var(--focus-width) solid var(--focus-color);
   outline-offset: var(--focus-offset);
 }
 
-/* Aucun calque sélectionné : l'en-tête reste MONTÉ mais inerte (le masquer
+/* Aucun calque sélectionné : la zone de contrôles reste MONTÉ mais inerte (le masquer
    ferait sauter la liste). Même traitement que le trigger désactivé d'un
    Select (data-disabled:text-[var(--text-disabled)]). */
-.layer-header__opacity-input:disabled {
+.layer-controls__opacity-input:disabled {
   cursor: not-allowed;
   color: var(--text-disabled);
 }
 
-.layer-header__opacity-unit {
+.layer-controls__opacity-unit {
   flex: 0 0 auto;
   font-family: var(--font-ui);
   font-size: var(--font-size-sm);
@@ -150,7 +150,7 @@
   gap: var(--space-2);
 }
 
-/* Opacité en LECTURE SEULE (2026-07-27) : le slider est parti dans l'en-tête,
+/* Opacité en LECTURE SEULE (2026-07-27) : le slider est parti dans la zone de contrôles,
    mais la valeur reste lisible sur chaque ligne pour comparer la pile d'un
    coup d'œil. Chiffres tabulaires : les valeurs s'alignent verticalement d'une
    ligne à l'autre, ce qui est tout l'intérêt de la comparaison. */
@@ -174,6 +174,54 @@
    flèche coudée. Ne pas la réintroduire : elle coûtait de la largeur utile
    sur un dock déjà étroit, et elle avait été validée sur une maquette qui la
    présentait à tort comme la convention Photoshop. */
+
+/* IMBRICATION sous la photo parente (2026-07-28) — DIVERGENCE ASSUMÉE d'avec
+   Photoshop, qui n'indente rien (observations §5ter). Décision d'Antoine prise
+   en connaissance de cette observation : ici la pile est une chaîne de
+   traitement, et « quel effet s'applique à quelle photo » est LA question.
+   Ne pas ramener ces règles vers la référence.
+
+   La décision d'imbriquer une ligne n'est PAS prise ici : elle vient de
+   `toLayerTreeRows` (src/components/layerTree.ts), fonction pure testée, qui
+   n'imbrique que quand la relation est littéralement vraie. Le CSS ne fait que
+   rendre la profondeur qu'on lui donne.
+
+   L'indentation passe par le PADDING, pas par une marge : le lavis de sélection
+   et la barre 2px (::before à left:0) continuent de couvrir la ligne entière,
+   comme pour toute autre ligne. */
+.layer-panel__row--nested {
+  padding-left: calc(var(--space-4) + var(--layer-nest-indent));
+}
+
+/* Filet vertical reliant les lignes enfants à leur photo parente, tracé dans la
+   gouttière d'indentation. Les enfants d'une photo sont CONTIGUS juste au-dessus
+   d'elle (invariant démontré dans layerTree.ts), donc un segment par ligne
+   suffit : chacun déborde d'une demi-gouttière de liste (--space-4) en haut et
+   en bas, et les segments de deux lignes voisines se rejoignent exactement.
+   1px : le repo n'a pas de token d'épaisseur de bordure, la valeur littérale est
+   la convention en place (cf. .layer-panel__thumbnail--empty plus bas). */
+.layer-panel__rail {
+  position: absolute;
+  left: calc(var(--space-4) + (var(--layer-nest-indent) / 2));
+  top: calc(var(--space-4) * -0.5);
+  bottom: calc(var(--space-4) * -0.5);
+  width: 1px;
+  background: var(--border-default);
+  pointer-events: none;
+}
+
+/* PREMIÈRE ligne enfant : le filet démarre à la hauteur du contenu de la ligne
+   plutôt que de dépasser au-dessus du groupe, où il ne relierait rien. */
+.layer-panel__rail--first {
+  top: var(--space-4);
+}
+
+/* DERNIÈRE ligne enfant : la photo parente est la ligne juste en dessous — le
+   filet traverse la gouttière ENTIÈRE pour la toucher, sinon il s'arrête dans
+   le vide à mi-chemin. */
+.layer-panel__rail--last {
+  bottom: calc(var(--space-4) * -1);
+}
 
 /* Icône de NATURE (effet ou photo) : même traitement que la poignée et la
    flèche d'écrêtage — --text-tertiary, jamais comprimée. Elle tient dans la

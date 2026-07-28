@@ -241,10 +241,13 @@ quel que soit le besoin réel du tour (doublait le poids de ce CLAUDE.md).
 où il est ajouté**, jamais dans un lot de rattrapage : `.claude/decisions/ADR-0001-densite-ui-controles-repetes.md`.
 
 Résumé : un contrôle qui se répète sur chaque ligne d'une liste devient UN
-contrôle unique en en-tête fixe, agissant sur l'élément sélectionné — avec son
-corollaire indissociable (en-tête fixe + liste défilante DANS le panneau +
-hauteur de panneau bornée ; jamais un défilement de colonne). Ligne au-dessus de
-56 px hors sélection = à justifier par écrit ou à réduire.
+contrôle unique dans une zone de contrôles fixe, agissant sur l'élément
+sélectionné — avec son corollaire indissociable (zone fixe **en-tête OU pied**,
+hors du conteneur défilant + liste défilante DANS le panneau + hauteur de
+panneau bornée ; jamais un défilement de colonne). La position de la zone n'est
+pas contrainte, son unicité et son hors-scroller le sont (amendement
+2026-07-28 : la carte Effets la pose en pied). Ligne au-dessus de 56 px hors
+sélection = à justifier par écrit ou à réduire.
 
 Cette règle existe parce qu'elle a été enfreinte le jour même où elle a été
 posée : le panneau Photo a été livré avant le lot de densité, portant la colonne

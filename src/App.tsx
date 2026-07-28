@@ -32,7 +32,7 @@ import { getBrushRaster } from "./mask/brushSource";
 import { PanelColumn } from "./components/dockedPanel/PanelColumn";
 import { movePanelInDock, toFullDockTarget, visibleDockLayout, type DockDropTarget, type DockLayout } from "./ui/dockLayout";
 import { clampDockWidth } from "./components/dockedPanel/dockWidth";
-import { LayerHeader, LayerPanel } from "./components/LayerPanel";
+import { LayerControls, LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
 import { PhotoPanel } from "./components/PhotoPanel";
 import { MaskPanel } from "./components/MaskPanel";
@@ -1315,7 +1315,13 @@ export default function App() {
               // Contrôles du calque SÉLECTIONNÉ, dans la zone fixe de la carte
               // (ils ne défilent pas avec la liste) — ils étaient répétés sur
               // chaque ligne jusqu'au 2026-07-27.
-              header: <LayerHeader
+              // PIED et non en-tête (décision Antoine 2026-07-28) : on lit
+              // d'abord CE QUI est modifié — la ligne sélectionnée dans la
+              // liste — puis les réglages qui s'y appliquent. L'ADR-0001 est
+              // préservé : la zone reste unique, fixe, hors du conteneur
+              // défilant ; seule sa position change.
+              controlsPlacement: "bottom",
+              controls: <LayerControls
                   layers={layers}
                   selectedId={selectedId}
                   onOpacityChange={handleOpacityChange}

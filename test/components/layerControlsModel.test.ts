@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { layerHeaderModel, formatOpacityPercent, opacityToPercent, parseOpacityPercent } from "../../src/components/layerHeaderModel";
+import { layerControlsModel, formatOpacityPercent, opacityToPercent, parseOpacityPercent } from "../../src/components/layerControlsModel";
 import type { LayerState } from "../../src/layers/types";
 import { defaultLayerMask } from "../../src/mask/types";
 
@@ -15,14 +15,14 @@ function layer(overrides: Partial<LayerState> & { id: string }): LayerState {
   };
 }
 
-describe("layerHeaderModel", () => {
+describe("layerControlsModel", () => {
   it("sans sélection, l'en-tête est désactivé et n'emprunte aucune valeur à la pile", () => {
-    const model = layerHeaderModel([layer({ id: "a", opacity: 0.2, blendMode: "screen" })], null);
+    const model = layerControlsModel([layer({ id: "a", opacity: 0.2, blendMode: "screen" })], null);
     expect(model).toEqual({ enabled: false, layerId: null, opacity: 1, blendMode: null, effectId: null });
   });
 
   it("sur pile vide, l'en-tête est désactivé", () => {
-    expect(layerHeaderModel([], null).enabled).toBe(false);
+    expect(layerControlsModel([], null).enabled).toBe(false);
   });
 
   it("reflète le calque sélectionné, pas le premier de la pile", () => {
@@ -30,7 +30,7 @@ describe("layerHeaderModel", () => {
       layer({ id: "a", effectId: "glow", opacity: 1, blendMode: "normal" }),
       layer({ id: "b", effectId: "grain", opacity: 0.4, blendMode: "screen" }),
     ];
-    expect(layerHeaderModel(layers, "b")).toEqual({
+    expect(layerControlsModel(layers, "b")).toEqual({
       enabled: true,
       layerId: "b",
       opacity: 0.4,
@@ -40,7 +40,7 @@ describe("layerHeaderModel", () => {
   });
 
   it("un selectedId périmé (calque supprimé) retombe sur l'état désactivé", () => {
-    const model = layerHeaderModel([layer({ id: "a" })], "disparu");
+    const model = layerControlsModel([layer({ id: "a" })], "disparu");
     expect(model.enabled).toBe(false);
     expect(model.layerId).toBeNull();
   });

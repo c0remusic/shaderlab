@@ -1,20 +1,20 @@
 import type { LayerState } from "../layers/types";
 
 /**
- * Modèle de l'EN-TÊTE du panneau Calques : les contrôles qui étaient répétés
+ * Modèle de la ZONE DE CONTRÔLES du panneau Calques : les contrôles qui étaient répétés
  * sur chaque ligne (opacité, fusion, effet) deviennent UN contrôle unique agissant
  * sur le calque SÉLECTIONNÉ (observation Photoshop web 2026-07-27, §2).
  *
  * Logique pure, sans DOM ni registre d'effets/fusions : c'est la seule partie de
- * l'en-tête qui se teste (Vitest env Node — aucun test ne rend de composant React).
+ * la zone de contrôles qui se teste (Vitest env Node — aucun test ne rend de composant React).
  */
-export interface LayerHeaderModel {
-  /** false = aucun calque sélectionné : l'en-tête reste AFFICHÉ mais désactivé.
+export interface LayerControlsModel {
+  /** false = aucun calque sélectionné : la zone de contrôles reste AFFICHÉ mais désactivé.
    *  Le masquer ferait sauter la liste en dessous à chaque désélection. */
   enabled: boolean;
   /** Cible des callbacks de mutation. `null` quand `enabled` est false. */
   layerId: string | null;
-  /** Opacité du MODÈLE (0..1) ; l'en-tête l'affiche en pourcentage entier via
+  /** Opacité du MODÈLE (0..1) ; la zone de contrôles l'affiche en pourcentage entier via
    *  `opacityToPercent`. 1 (opaque) au repos — le champ a besoin d'un nombre
    *  même désactivé, pas d'un `null`. */
   opacity: number;
@@ -24,7 +24,7 @@ export interface LayerHeaderModel {
   effectId: string | null;
 }
 
-const EMPTY: LayerHeaderModel = {
+const EMPTY: LayerControlsModel = {
   enabled: false,
   layerId: null,
   opacity: 1,
@@ -33,11 +33,11 @@ const EMPTY: LayerHeaderModel = {
 };
 
 /**
- * Dérive l'état de l'en-tête depuis la pile et l'id sélectionné. Un `selectedId`
+ * Dérive l'état de la zone de contrôles depuis la pile et l'id sélectionné. Un `selectedId`
  * périmé (calque supprimé) est traité comme une absence de sélection, jamais
  * comme une erreur : la suppression du calque sélectionné est un geste normal.
  */
-export function layerHeaderModel(layers: readonly LayerState[], selectedId: string | null): LayerHeaderModel {
+export function layerControlsModel(layers: readonly LayerState[], selectedId: string | null): LayerControlsModel {
   if (selectedId === null) return EMPTY;
   const layer = layers.find((candidate) => candidate.id === selectedId);
   if (layer === undefined) return EMPTY;
@@ -54,7 +54,7 @@ export function layerHeaderModel(layers: readonly LayerState[], selectedId: stri
  * Opacité en LECTURE SEULE sur la ligne de calque : le contrôle a quitté les
  * lignes, mais comparer les opacités de la pile d'un coup d'œil (sans
  * sélectionner chaque calque) reste un besoin explicite. Même unité que le
- * champ de l'en-tête (pourcentage entier).
+ * champ de la zone de contrôles (pourcentage entier).
  */
 export function formatOpacityPercent(opacity: number): string {
   return `${opacityToPercent(opacity)} %`;
@@ -62,7 +62,7 @@ export function formatOpacityPercent(opacity: number): string {
 
 /**
  * Opacité du MODÈLE (0..1) vers l'entier de POURCENTAGE affiché par le champ de
- * l'en-tête. Une seule échelle à l'écran : le champ de l'en-tête et la valeur
+ * la zone de contrôles. Une seule échelle à l'écran : le champ de la zone de contrôles et la valeur
  * en lecture seule des lignes disent tous deux « 60 % », jamais « 0.6 ».
  */
 export function opacityToPercent(opacity: number): number {
@@ -75,7 +75,7 @@ export function opacityToPercent(opacity: number): number {
  * alors à la valeur précédente ; jamais un `NaN` appliqué au modèle).
  *
  * Accepte « 60 », « 60 % », « 60% », « 60,5 » (virgule décimale) et les espaces
- * autour. Fonction PURE et testée (`test/components/layerHeaderModel.test.ts`) :
+ * autour. Fonction PURE et testée (`test/components/layerControlsModel.test.ts`) :
  * c'est elle le contrat de saisie, pas le composant qui l'appelle — aucun test
  * de ce projet ne rend de composant React.
  */

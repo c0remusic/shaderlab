@@ -136,7 +136,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-2);
+  /* GOUTTIÈRE INTER-GROUPES (2026-07-28) : cette ligne n'a que deux enfants —
+     l'identité (poignée/œil/nature/vignette/nom) et les actions (opacité en
+     lecture, dupliquer, supprimer). Ce `gap` est donc EXACTEMENT l'écart entre
+     la fin du nom et le « 100 % ». Il valait --space-2 (4px), le même rang que
+     les gouttières INTERNES à chaque groupe : un nom long venait alors coller
+     le pourcentage sans qu'aucune séparation ne se lise. --space-4 (8px) rend
+     l'écart entre groupes au double de l'écart à l'intérieur d'un groupe,
+     ce qui est ce qui fait lire deux groupes plutôt qu'une bouillie. */
+  gap: var(--space-4);
   min-height: var(--layer-row-height);
 }
 
@@ -148,6 +156,13 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  /* Le groupe d'actions ne CÈDE JAMAIS de largeur (2026-07-28) : sans ce
+     `flex-shrink: 0`, la pression d'un nom long se répartit entre les deux
+     groupes au prorata de leur taille, et le « 100 % » (nowrap) se retrouve à
+     rogner ses propres marges avant que le nom ne consente à s'ellipser. Le
+     nom est le SEUL contenu élastique de la ligne — il porte déjà l'ellipse et
+     un `title` qui rend la valeur entière lisible. */
+  flex-shrink: 0;
 }
 
 /* Opacité en LECTURE SEULE (2026-07-27) : le slider est parti dans la zone de contrôles,

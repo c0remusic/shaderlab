@@ -179,7 +179,9 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
 
 - Dev : `npm run tauri dev` (lance Vite + la fenêtre native, tout-en-un)
 - Build frontend seul : `npm run build` (tsc + vite build)
-- Tests : `npm run test` (Vitest)
+- Tests unitaires : `npm run test` (Vitest, projet `unit` uniquement)
+- Tests de stories : `npm run test-storybook` (Vitest + Playwright chromium, projet `storybook`) · `npm run test:all` pour les deux
+- Shaders GPU : `npm run test:gpu-shaders` (`scripts/gpu-shader-check.mjs`)
 - Type-check : `npx tsc --noEmit`
 - Lint tokens design : `npm run lint:tokens` (détecte couleurs/z-index/spacing en dur qui contournent un token existant, `scripts/lint-tokens.mjs`)
 - Rust : `cd src-tauri && cargo check`

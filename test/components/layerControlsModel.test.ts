@@ -18,7 +18,7 @@ function layer(overrides: Partial<LayerState> & { id: string }): LayerState {
 describe("layerControlsModel", () => {
   it("sans sélection, l'en-tête est désactivé et n'emprunte aucune valeur à la pile", () => {
     const model = layerControlsModel([layer({ id: "a", opacity: 0.2, blendMode: "screen" })], null);
-    expect(model).toEqual({ enabled: false, layerId: null, opacity: 1, blendMode: null, effectId: null });
+    expect(model).toEqual({ enabled: false, locked: false, layerId: null, opacity: 1, blendMode: null, effectId: null });
   });
 
   it("sur pile vide, l'en-tête est désactivé", () => {
@@ -32,11 +32,38 @@ describe("layerControlsModel", () => {
     ];
     expect(layerControlsModel(layers, "b")).toEqual({
       enabled: true,
+      locked: false,
       layerId: "b",
       opacity: 0.4,
       blendMode: "screen",
       effectId: "grain",
     });
+  });
+
+  // VERROU (2026-07-29) : l'opacité et le mode de fusion ne passent par AUCUN
+  // mutateur de `LayerStack` — `App.tsx` les écrit en direct sur la projection
+  // de calques. La garde du modèle ne les couvre donc pas : c'est ce `enabled:
+  // false` qui empêche de modifier un calque verrouillé depuis la zone de
+  // contrôles. Les VALEURS restent rendues — le verrou empêche de modifier,
+  // pas de consulter.
+  it("un calque VERROUILLÉ désactive la zone de contrôles tout en gardant ses valeurs lisibles", () => {
+    const layers = [layer({ id: "a", effectId: "grain", opacity: 0.4, blendMode: "screen", locked: true })];
+    expect(layerControlsModel(layers, "a")).toEqual({
+      enabled: false,
+      locked: true,
+      layerId: "a",
+      opacity: 0.4,
+      blendMode: "screen",
+      effectId: "grain",
+    });
+  });
+
+  // `locked` et `!enabled` ne sont pas synonymes : sans sélection, la zone est
+  // inerte SANS qu'aucun calque soit verrouillé. C'est ce qui permet à l'UI de
+  // dire POURQUOI elle est inerte.
+  it("locked distingue « verrouillé » de « rien de sélectionné »", () => {
+    expect(layerControlsModel([layer({ id: "a" })], null).locked).toBe(false);
+    expect(layerControlsModel([layer({ id: "a", locked: true })], "a").locked).toBe(true);
   });
 
   it("un selectedId périmé (calque supprimé) retombe sur l'état désactivé", () => {

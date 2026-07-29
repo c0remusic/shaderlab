@@ -130,6 +130,18 @@ export class Renderer {
    *  canvas et de la cible d'export. Voir `presentPass.ts` pour pourquoi cette
    *  unicité est la garde contre le JPEG noir silencieux. */
   private readonly presentPass: PresentPass;
+  /** Facteur de réduction CSS du canvas (px CSS de mise en page par px de
+   *  canvas). Même statut que `maskOverlayLayerId`/`isolatedLayerId` : un état
+   *  d'ÉCRAN porté par le renderer plutôt que passé à chaque `requestRender`.
+   *
+   *  Le renderer ne le MESURE pas — il ne peut pas : la valeur est une propriété
+   *  de mise en page du DOM, qui change au redimensionnement de la fenêtre comme
+   *  à l'ouverture d'un panneau, deux événements que le moteur de rendu ne voit
+   *  pas. `App.tsx` l'observe (`ResizeObserver` sur l'élément canvas, seul
+   *  détenteur du fait) et la pose ici — voir `setDisplayScale`. Le défaut 1
+   *  correspond à un canvas affiché à sa taille native : c'est la seule valeur
+   *  vraie tant qu'aucune mesure n'a eu lieu. */
+  private displayScale = 1;
   constructor(
     ctx: GpuContext,
     diagnosticLogger: DiagnosticLogger = noopDiagnosticLogger,
@@ -189,6 +201,19 @@ export class Renderer {
    *  touché — voir `layers/isolation.ts`. */
   setIsolatedLayer(layerId: string | null): void {
     this.isolatedLayerId = layerId;
+  }
+
+  /** Pose le facteur de réduction CSS du canvas (px CSS par px de canvas), mesuré
+   *  par l'appelant. Ne déclenche pas de rendu — même contrat que
+   *  `setMaskOverlay`/`setIsolatedLayer` : l'appelant fait un `requestRender()`
+   *  ensuite, et il doit le faire, sinon le damier garde la taille de case du
+   *  dernier rendu (le navigateur, lui, se contente de redimensionner l'image
+   *  déjà présente dans le canvas).
+   *
+   *  N'affecte QUE l'écran, par construction et pas par discipline : la valeur
+   *  n'entre dans le pipeline que via le cas `canvas` de `PresentDestination`. */
+  setDisplayScale(scale: number): void {
+    this.displayScale = scale;
   }
 
   /**
@@ -341,7 +366,7 @@ export class Renderer {
     try {
       // Projection d'isolation ICI et pas dans `runPipeline` : `exportFrame`
       // passe par `runPipeline` et doit rendre le document réel.
-      this.runPipeline(projectIsolation(layers, this.isolatedLayerId), { kind: "canvas" });
+      this.runPipeline(projectIsolation(layers, this.isolatedLayerId), this.canvasDestination());
     } finally {
       this.maskTextureResolver?.setLivePreview(null);
     }
@@ -383,9 +408,16 @@ export class Renderer {
       encoder,
       overlayTargetTexture.createView(),
       getSrgbCanvasView(this.ctx),
-      presentBackgroundFor({ kind: "canvas" }),
+      presentBackgroundFor(this.canvasDestination()),
     );
     this.ctx.device.queue.submit([encoder.finish()]);
+  }
+
+  /** Unique construction du cas `canvas` de `PresentDestination` : les deux
+   *  chemins d'écran (rendu complet et animation d'overlay) passent par ici,
+   *  donc ils ne peuvent pas diverger sur le facteur d'échelle. */
+  private canvasDestination(): PresentDestination {
+    return { kind: "canvas", displayScale: this.displayScale };
   }
 
   /**

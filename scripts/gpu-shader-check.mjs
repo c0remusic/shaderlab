@@ -68,6 +68,17 @@
 // depuis le passage a la SAT) — il reste compile ici parce que c'est une API
 // exportee et une source DIFFERENTE, donc une regression y serait invisible
 // partout ailleurs.
+// --origin http://localhost:1431 : compile les shaders du WORKTREE servi par ce
+// Vite, et non ceux que la fenetre a chargee au demarrage. Sans cette option le
+// script importe `/src/**` depuis l'origine de la page (le Vite de l'app, port
+// 1420) — sur une machine ou plusieurs worktrees travaillent en parallele, il
+// verifie alors le code de QUELQU'UN D'AUTRE en annoncant un vert. Meme piege,
+// meme parade que `render-check.mjs` : un iframe servi par le Vite du worktree,
+// donc une origine et un module map a lui (voir scripts/render-check-page.html).
+const argvGsc = process.argv.slice(2);
+const iOrigin = argvGsc.indexOf("--origin");
+const ORIGIN = iOrigin === -1 ? null : argvGsc[iOrigin + 1];
+
 const targets = await (await fetch("http://localhost:9222/json")).json();
 const page = targets.find((t) => t.type === "page" && t.url.includes("1420"));
 if (!page) throw new Error("aucune page shaderlab sur le port 1420");
@@ -75,8 +86,10 @@ if (!page) throw new Error("aucune page shaderlab sur le port 1420");
 const ws = new WebSocket(page.webSocketDebuggerUrl);
 let id = 0;
 const pending = new Map();
+const contexts = [];
 ws.addEventListener("message", (ev) => {
   const m = JSON.parse(ev.data);
+  if (m.method === "Runtime.executionContextCreated") contexts.push(m.params.context);
   if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
 });
 const send = (method, params = {}) =>
@@ -84,6 +97,41 @@ const send = (method, params = {}) =>
 
 await new Promise((r) => ws.addEventListener("open", r));
 await send("Runtime.enable");
+
+// Contexte d'execution cible : celui de l'iframe du worktree si --origin est
+// passe, celui de la page sinon.
+let contextId;
+if (ORIGIN) {
+  const FRAME_ID = "__gpuShaderCheckFrame";
+  const before = new Set(contexts.map((c) => c.uniqueId));
+  const loaded = await send("Runtime.evaluate", {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((res) => {
+      document.getElementById(${JSON.stringify(FRAME_ID)})?.remove();
+      const f = document.createElement("iframe");
+      f.id = ${JSON.stringify(FRAME_ID)};
+      f.style.cssText = "position:fixed;left:-9999px;top:0;width:8px;height:8px;border:0";
+      f.src = ${JSON.stringify(`${ORIGIN}/scripts/render-check-page.html`)};
+      f.onload = () => res("ok");
+      f.onerror = () => res("erreur de chargement");
+      document.body.appendChild(f);
+    })`,
+  });
+  if (loaded.result?.result?.value !== "ok")
+    throw new Error(`iframe ${ORIGIN}/scripts/render-check-page.html : ${loaded.result?.result?.value}`);
+  let frame = null;
+  for (let i = 0; i < 60 && !frame; i++) {
+    frame = contexts.find((c) => c.origin === ORIGIN && !before.has(c.uniqueId)) ?? null;
+    if (!frame) await new Promise((r) => setTimeout(r, 50));
+  }
+  if (!frame)
+    throw new Error(
+      `Aucun contexte d'execution sur ${ORIGIN}. Le Vite du worktree tourne-t-il ` +
+        `(\`npx vite --port ${new URL(ORIGIN).port}\`) ?`,
+    );
+  contextId = frame.id;
+}
 
 const script = `(async () => {
   const out = { cas: [], echecs: [], device: null };
@@ -237,7 +285,8 @@ const script = `(async () => {
     await compile("pre-passe entree photo", photo.PHOTO_LAYER_INPUT_WGSL);
 
     // 5sexies) passes de PRESENTATION (T0, 2026-07-28). Deux sources
-    // distinctes — le fond damier est du code WGSL, pas un uniforme — et c'est
+    // distinctes — le CHOIX du fond est du code WGSL (seule la taille de case
+    // du damier est un uniforme, depuis 2026-07-29) — et c'est
     // la SEULE chose qui ecrit le canvas ou la cible d'export. Une regression
     // WGSL ici ne casse pas un effet : elle casse tout affichage ET tout
     // export d'un coup.
@@ -257,7 +306,12 @@ const script = `(async () => {
   return JSON.stringify(out);
 })()`;
 
-const r = await send("Runtime.evaluate", { expression: script, awaitPromise: true, returnByValue: true });
+const r = await send("Runtime.evaluate", {
+  expression: script,
+  awaitPromise: true,
+  returnByValue: true,
+  ...(contextId === undefined ? {} : { contextId }),
+});
 const val = r.result?.result?.value ?? JSON.stringify(r.result?.exceptionDetails ?? r, null, 2);
 const d = typeof val === "string" ? JSON.parse(val) : val;
 

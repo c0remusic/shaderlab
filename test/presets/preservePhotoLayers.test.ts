@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { withPhotoLayersPreserved } from "../../src/presets/preservePhotoLayers";
 import { LayerStack } from "../../src/layers/layerStack";
+import { MAX_PHOTO_LAYERS, canAddPhotoLayer, countPhotoLayers } from "../../src/layers/photoLayer";
 import type { LayerState } from "../../src/layers/types";
 
 const IDENTITY = { x: 0, y: 0, scale: 1, rotation: 0 };
@@ -79,5 +80,71 @@ describe("withPhotoLayersPreserved — §2.3, appliquer un preset ne détruit pa
   it("sur un document sans photo, rend le preset tel quel", () => {
     const preset = presetLayers();
     expect(withPhotoLayersPreserved([], preset)).toEqual(preset);
+  });
+});
+
+// Contrôles sur pièce demandés à la reprise de T5 : le design date d'avant T1
+// et ne dit rien de ces cas. Ils vérifient ce que la concaténation « devant »
+// produit RÉELLEMENT, pas ce que la doc suppose.
+describe("withPhotoLayersPreserved — cas que le design ne couvrait pas", () => {
+  it("préserve un calque photo VERROUILLÉ tel quel, verrou compris", () => {
+    // Le verrou (arbitrage n°2 du 2026-07-28) est un champ scalaire de
+    // LayerState : préserver le calque par référence le préserve par
+    // construction. Sans cette assertion, une future copie/reconstruction du
+    // calque photo pourrait perdre le verrou sans qu'aucun test ne bronche.
+    const stack = new LayerStack();
+    const id = stack.addPhotoLayer("src-fond", IDENTITY, "fond.jpg");
+    stack.setLayerLocked(id, true);
+    const photoBefore = stack.layers[0];
+
+    const merged = withPhotoLayersPreserved(stack.layers, presetLayers());
+
+    expect(merged[0]).toBe(photoBefore);
+    expect(merged[0].locked).toBe(true);
+  });
+
+  it("regroupe en bas une photo qui était AU MILIEU de la pile", () => {
+    // Conséquence assumée et visible : la photo passe SOUS les effets du
+    // preset. C'est le sens causal (ADR-0004) — le preset se pose sur la
+    // matière, comme au moment où il a été capturé.
+    const stack = new LayerStack();
+    stack.addLayer("glow");
+    stack.addPhotoLayer("src-milieu", IDENTITY, "milieu.jpg");
+    stack.addLayer("grain");
+
+    const merged = withPhotoLayersPreserved(stack.layers, presetLayers());
+
+    expect(merged.map((l) => l.imageSource?.sourceId ?? l.effectId)).toEqual([
+      "src-milieu",
+      "chromaticBleed",
+      "warp",
+    ]);
+  });
+
+  it("ne peut pas franchir MAX_PHOTO_LAYERS, même au plafond", () => {
+    const stack = new LayerStack();
+    for (let i = 0; i < MAX_PHOTO_LAYERS; i += 1) {
+      stack.addPhotoLayer(`src-${i}`, IDENTITY, `photo-${i}.jpg`);
+    }
+    expect(countPhotoLayers(stack.layers)).toBe(MAX_PHOTO_LAYERS);
+
+    const merged = withPhotoLayersPreserved(stack.layers, presetLayers());
+
+    // Le compte ne peut que rester constant ou diminuer : un preset ne porte
+    // aucun calque photo (garanti par `apply`, voir presetDocument.test.ts).
+    expect(countPhotoLayers(merged)).toBe(MAX_PHOTO_LAYERS);
+    expect(canAddPhotoLayer(merged)).toBe(false);
+  });
+
+  it("conserve le masque peint de la photo préservée", () => {
+    // La photo est préservée PAR RÉFÉRENCE : son masque survit à l'application
+    // du preset, contrairement à ceux des calques d'effet remplacés.
+    const stack = new LayerStack();
+    stack.addPhotoLayer("src-fond", IDENTITY, "fond.jpg");
+    const maskBefore = stack.layers[0].mask;
+
+    const merged = withPhotoLayersPreserved(stack.layers, presetLayers());
+
+    expect(merged[0].mask).toBe(maskBefore);
   });
 });

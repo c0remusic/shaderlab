@@ -55,6 +55,7 @@ import { PresetPanel } from "./components/PresetPanel";
 import { TauriPresetStore } from "./presets/presetStore";
 import { capture } from "./presets/presetDocument";
 import { withPhotoLayersPreserved } from "./presets/preservePhotoLayers";
+import { applyPresetImpactMessage } from "./presets/applyPresetImpact";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./components/ui/button";
 
@@ -150,9 +151,10 @@ export default function App() {
   // fix ; passé de booléen à COMPTE au fix de revue T5) : capturé au moment de
   // la demande, pas recalculé au clic de confirmation — la pile ne doit plus
   // bouger entre les deux, mais figer la valeur évite toute dépendance
-  // implicite à cet invariant. Le compte (et pas un booléen) est nécessaire
-  // depuis que `MAX_PHOTO_LAYERS` vaut 4 : un texte de confirmation
-  // destructive doit dire la vérité sur CE QUI va être perdu.
+  // implicite à cet invariant. Le compte (et pas un booléen) sert désormais à
+  // dire ce qui est CONSERVÉ, pas ce qui est perdu : depuis T1 les calques
+  // photo survivent à l'application d'un preset — voir
+  // `presets/applyPresetImpact.ts`.
   const [pendingPresetApply, setPendingPresetApply] = useState<{ id: string; photoLayerCount: number } | null>(null);
 
   // Task 5 : nom en attente de saisie pour "Créer une copie" depuis la
@@ -1618,7 +1620,12 @@ export default function App() {
           title="Calque(s) photo exclu(s) du preset"
           description={
             pendingPhotoLayerSave
-              ? `${pendingPhotoLayerSave.excludedLayerIndexes.length} calque${pendingPhotoLayerSave.excludedLayerIndexes.length > 1 ? "s" : ""} de photo (double exposure) ne ${pendingPhotoLayerSave.excludedLayerIndexes.length > 1 ? "seront" : "sera"} pas inclus dans le preset — une source de photo n'a de sens que dans ce document.`
+              ? // « photo », plus « photo (double exposure) » : depuis T1 la
+                // photo d'ouverture est un calque photo comme un autre et peut
+                // figurer dans cette liste — la nommer « double exposure »
+                // serait faux. L'avis lui-même ne se déclenche plus que si le
+                // document contient une photo IMPORTÉE (presetDocument.ts).
+                `${pendingPhotoLayerSave.excludedLayerIndexes.length} calque${pendingPhotoLayerSave.excludedLayerIndexes.length > 1 ? "s" : ""} photo ne ${pendingPhotoLayerSave.excludedLayerIndexes.length > 1 ? "seront" : "sera"} pas inclus dans le preset — une source de photo n'a de sens que dans ce document.`
               : undefined
           }
           onClose={() => {
@@ -1652,7 +1659,7 @@ export default function App() {
           {pendingPhotoLayerSave && (
             <ul className="preset-panel__excluded-list">
               {pendingPhotoLayerSave.excludedLayerIndexes.map((layerIndex) => (
-                <li key={layerIndex}>Calque {layerIndex + 1} — photo (double exposure)</li>
+                <li key={layerIndex}>Calque {layerIndex + 1} — photo</li>
               ))}
             </ul>
           )}
@@ -1691,20 +1698,13 @@ export default function App() {
           open={pendingPresetApply !== null}
           title="Remplacer la pile de calques ?"
           description={
-            // Important 2 (final-review fix) : nomme explicitement les calques
-            // photo (double exposure) détruits, pas seulement les masques —
-            // c'était la porte la plus destructrice ET la moins explicite
-            // (asymétrique avec la capture, qui énumère ces calques par nom).
-            // Pluralisation dynamique (fix de revue T5, même forme que le
-            // dialogue de capture) : `MAX_PHOTO_LAYERS` vaut 4, le singulier
-            // en dur mentait sur le nombre de calques réellement perdus.
-            pendingPresetApply && pendingPresetApply.photoLayerCount > 0
-              ? `Les masques peints ET ${pendingPresetApply.photoLayerCount} calque${
-                  pendingPresetApply.photoLayerCount > 1 ? "s" : ""
-                } photo (double exposure) importé${
-                  pendingPresetApply.photoLayerCount > 1 ? "s" : ""
-                } sur les calques actuels seront perdus (annulable par Ctrl+Z après confirmation).`
-              : "Les masques peints sur les calques actuels seront perdus (annulable par Ctrl+Z après confirmation)."
+            // T5 (2026-07-28) : cette phrase annonçait la perte des calques
+            // photo. C'était vrai quand `applyPreset` remplaçait la pile
+            // entière ; c'est FAUX depuis que T1 les préserve
+            // (`withPhotoLayersPreserved`). Elle vit maintenant dans une
+            // fonction testée — voir `presets/applyPresetImpact.ts` pour
+            // pourquoi une fausse menace est aussi grave qu'un avis parasite.
+            pendingPresetApply ? applyPresetImpactMessage(pendingPresetApply.photoLayerCount) : undefined
           }
           onClose={() => setPendingPresetApply(null)}
           actions={

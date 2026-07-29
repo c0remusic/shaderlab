@@ -71,9 +71,9 @@ function createExecutor() {
 
 describe("FramePipelineExecutor", () => {
   it("sweeps masks, submits the empty-stack blit, then destroys frame resources", () => {
-    const { executor, effects, masks, submit, transient } = createExecutor();
+    const { executor, effects, masks, submit, transient, firstTarget } = createExecutor();
 
-    const result = executor.run([], {} as GPUTextureView, null);
+    const result = executor.run([], null);
 
     expect(masks.sweep).toHaveBeenCalledWith(new Set());
     expect(effects.runEffectPass).toHaveBeenCalledOnce();
@@ -87,13 +87,14 @@ describe("FramePipelineExecutor", () => {
       churnedResourceCount: 1,
       composedTexture: null,
       overlayMaskTexture: null,
+      presentTexture: firstTarget,
     });
   });
 
   it("returns null composedTexture/overlayMaskTexture when the overlay id matches no layer", () => {
     const { executor } = createExecutor();
 
-    const result = executor.run([layer({ enabled: false })], {} as GPUTextureView, "no-such-id");
+    const result = executor.run([layer({ enabled: false })], "no-such-id");
 
     expect(result.composedTexture).toBeNull();
     expect(result.overlayMaskTexture).toBeNull();
@@ -104,7 +105,7 @@ describe("FramePipelineExecutor", () => {
     const resolved = texture() as unknown as GPUTexture;
     masks.resolve = vi.fn(() => resolved);
 
-    const result = executor.run([layer({ enabled: false })], {} as GPUTextureView, "L1");
+    const result = executor.run([layer({ enabled: false })], "L1");
 
     expect(effects.runOverlayPass).toHaveBeenCalledOnce();
     expect(result.composedTexture).toBe(firstTarget);
@@ -116,7 +117,7 @@ describe("FramePipelineExecutor", () => {
     const resolved = texture() as unknown as GPUTexture;
     masks.resolve = vi.fn(() => resolved);
 
-    const result = executor.run([layer({ enabled: true })], {} as GPUTextureView, "L1");
+    const result = executor.run([layer({ enabled: true })], "L1");
 
     expect(effects.runOverlayPass).toHaveBeenCalledOnce();
     const [, overlaySource, overlayMask] = (effects.runOverlayPass as ReturnType<typeof vi.fn>).mock.calls[0];
@@ -130,7 +131,7 @@ describe("FramePipelineExecutor", () => {
     const resolved = texture() as unknown as GPUTexture;
     masks.resolve = vi.fn(() => resolved);
 
-    executor.run([layer({ id: "L1", enabled: true })], {} as GPUTextureView, "L1");
+    executor.run([layer({ id: "L1", enabled: true })], "L1");
 
     expect(masks.resolve).toHaveBeenCalledOnce();
     const [, , colorView, , guideEpoch] = (masks.resolve as ReturnType<typeof vi.fn>).mock.calls[0];
@@ -145,7 +146,6 @@ describe("FramePipelineExecutor", () => {
 
     executor.run(
       [layer({ id: "L1", enabled: true }), layer({ id: "L2", enabled: false })],
-      {} as GPUTextureView,
       "L2",
     );
 
@@ -162,7 +162,6 @@ describe("FramePipelineExecutor", () => {
 
     executor.run(
       [layer({ id: "L1", enabled: true }), layer({ id: "L2", enabled: true })],
-      {} as GPUTextureView,
       "L2",
     );
 
@@ -195,7 +194,7 @@ describe("FramePipelineExecutor", () => {
       if (call === 2) throw new Error("pass GPU failure");
     });
 
-    expect(() => executor.run([layer({ id: "L1" }), layer({ id: "L2" })], {} as GPUTextureView, null)).toThrow(
+    expect(() => executor.run([layer({ id: "L1" }), layer({ id: "L2" })], null)).toThrow(
       "pass GPU failure",
     );
     // Le calque L1 (call 1) ET le calque L2 (call 2, avant qu'il ne lance)
@@ -215,7 +214,7 @@ describe("FramePipelineExecutor", () => {
       transform: { x: 0, y: 0, scale: 1, rotation: 0 },
     });
 
-    executor.run([photoLayer], {} as GPUTextureView, null);
+    executor.run([photoLayer], null);
 
     expect(photoInputs.resolve).toHaveBeenCalledOnce();
     expect(effects.runEffectPass).toHaveBeenCalledOnce();
@@ -226,7 +225,7 @@ describe("FramePipelineExecutor", () => {
   it("does not call PhotoLayerInputPort for a layer without imageSource", () => {
     const { executor, photoInputs } = createExecutor();
 
-    executor.run([layer({ id: "L1" })], {} as GPUTextureView, null);
+    executor.run([layer({ id: "L1" })], null);
 
     expect(photoInputs.resolve).not.toHaveBeenCalled();
   });
@@ -259,7 +258,7 @@ describe("FramePipelineExecutor", () => {
       (photoInputs.resolve as ReturnType<typeof vi.fn>).mockReturnValue(sharedTarget);
       effects.runInternalPasses = vi.fn(() => ({ view: {} as GPUTextureView, texture: texture() as unknown as GPUTexture }));
 
-      executor.run([photoLayer("L1", "photo-1"), photoLayer("L2", "photo-2")], {} as GPUTextureView, null);
+      executor.run([photoLayer("L1", "photo-1"), photoLayer("L2", "photo-2")], null);
 
       const resolveOrder = (photoInputs.resolve as ReturnType<typeof vi.fn>).mock.invocationCallOrder;
       const internalOrder = (effects.runInternalPasses as ReturnType<typeof vi.fn>).mock.invocationCallOrder;
@@ -280,7 +279,7 @@ describe("FramePipelineExecutor", () => {
       const sharedTarget = texture() as unknown as GPUTexture;
       (photoInputs.resolve as ReturnType<typeof vi.fn>).mockReturnValue(sharedTarget);
 
-      executor.run([photoLayer("L1", "photo-1"), photoLayer("L2", "photo-2")], {} as GPUTextureView, null);
+      executor.run([photoLayer("L1", "photo-1"), photoLayer("L2", "photo-2")], null);
 
       const calls = (photoInputs.resolve as ReturnType<typeof vi.fn>).mock.calls;
       expect(calls).toHaveLength(2);
@@ -296,7 +295,7 @@ describe("FramePipelineExecutor", () => {
       const sharedTarget = texture();
       (photoInputs.resolve as ReturnType<typeof vi.fn>).mockReturnValue(sharedTarget as unknown as GPUTexture);
 
-      executor.run([photoLayer("L1", "photo-1"), photoLayer("L2", "photo-2")], {} as GPUTextureView, null);
+      executor.run([photoLayer("L1", "photo-1"), photoLayer("L2", "photo-2")], null);
 
       const effectCalls = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.calls;
       const sharedViews = sharedTarget.createView.mock.results.map((r) => r.value);
@@ -313,7 +312,6 @@ describe("FramePipelineExecutor", () => {
 
       executor.run(
         [photoLayer("L1", "photo-1"), layer({ id: "L2" }), photoLayer("L3", "photo-3")],
-        {} as GPUTextureView,
         null,
       );
 
@@ -335,7 +333,7 @@ describe("FramePipelineExecutor", () => {
       transform: { x: 0, y: 0, scale: 1, rotation: 0 },
     });
 
-    executor.run([photoLayer], {} as GPUTextureView, null);
+    executor.run([photoLayer], null);
 
     const [, , , internalSourceView] = (effects.runInternalPasses as ReturnType<typeof vi.fn>).mock.calls[0];
     // resolvedTexture.createView() est appelée deux fois (effectInputSourceView
@@ -368,7 +366,7 @@ describe("FramePipelineExecutor — écrêtage", () => {
     const { executor, effects, photoInputs } = createExecutor();
     (photoInputs.resolve as ReturnType<typeof vi.fn>).mockReturnValue(texture() as unknown as GPUTexture);
 
-    executor.run([photo("P", "photo-1"), clipped("C")], {} as GPUTextureView, null);
+    executor.run([photo("P", "photo-1"), clipped("C")], null);
 
     const calls = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls).toHaveLength(2);
@@ -382,7 +380,7 @@ describe("FramePipelineExecutor — écrêtage", () => {
     const { executor, effects, photoInputs } = createExecutor();
     (photoInputs.resolve as ReturnType<typeof vi.fn>).mockReturnValue(texture() as unknown as GPUTexture);
 
-    executor.run([photo("P", "photo-1"), clipped("C1"), clipped("C2")], {} as GPUTextureView, null);
+    executor.run([photo("P", "photo-1"), clipped("C1"), clipped("C2")], null);
 
     const calls = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls).toHaveLength(3);
@@ -393,7 +391,7 @@ describe("FramePipelineExecutor — écrêtage", () => {
   it("(c) un écrêté INERTE (base non-photo) ne reçoit aucune couverture et rend linéairement", () => {
     const { executor, effects, photoInputs } = createExecutor();
 
-    executor.run([layer({ id: "X" }), clipped("C")], {} as GPUTextureView, null);
+    executor.run([layer({ id: "X" }), clipped("C")], null);
 
     const calls = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls).toHaveLength(2);
@@ -410,14 +408,17 @@ describe("FramePipelineExecutor — écrêtage", () => {
       // Base photo masquée -> l'écrêté est `suppressed`. `glow` a des passes
       // internes : elles ne doivent PAS être encodées pour un calque neutralisé.
       [photo("P", "photo-1", { enabled: false }), clipped("C", { effectId: "glow" })],
-      {} as GPUTextureView,
       null,
     );
 
     const calls = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls).toHaveLength(1);
     expect(calls[0][1].id).toBe("passthrough");
-    expect(calls[0][5]).toEqual({});
+    // `applyMask: false` et rien d'autre : c'est une COPIE, pas un compositing.
+    // Le chemin de compositing forcerait l'alpha de sortie à 1 (poids =
+    // opacité 1 × masque par défaut 1) et écraserait l'alpha recopié — voir
+    // shaderCompose.ts et la tranche T0 (2026-07-28).
+    expect(calls[0][5]).toEqual({ applyMask: false });
     expect(effects.runInternalPasses).not.toHaveBeenCalled();
   });
 
@@ -427,7 +428,6 @@ describe("FramePipelineExecutor — écrêtage", () => {
 
     executor.run(
       [photo("A", "photo-1"), clipped("C"), photo("B", "photo-2")],
-      {} as GPUTextureView,
       null,
     );
 
@@ -442,41 +442,105 @@ describe("FramePipelineExecutor — écrêtage", () => {
     expect(resolveOrder[1]).toBeLessThan(effectOrder[2]);
   });
 
-  it("(f) la cible finale est écrite même quand le DERNIER calque activé est supprimé", () => {
-    const { executor, effects } = createExecutor();
-    const finalTargetView = {} as GPUTextureView;
+  it("(f) le composite à présenter est produit même quand le DERNIER calque activé est supprimé", () => {
+    const { executor, effects, firstTarget } = createExecutor();
 
     const result = executor.run(
       [photo("P", "photo-1", { enabled: false }), clipped("C")],
-      finalTargetView,
       null,
     );
 
     const calls = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls).toHaveLength(1);
-    expect(calls[0][4]).toBe(finalTargetView);
+    const firstTargetViews = firstTarget.createView.mock.results.map((r) => r.value);
+    expect(calls[0][4]).toBe(firstTargetViews[0]);
+    expect(result.presentTexture).toBe(firstTarget);
     // Le calque supprimé reste COMPTÉ : la boucle ne le filtre pas.
     expect(result.enabledLayerCount).toBe(1);
   });
 
   it("le ping-pong avance quand même sur un calque supprimé (calque suivant lisible)", () => {
-    const { executor, effects, firstTarget } = createExecutor();
-    const finalTargetView = {} as GPUTextureView;
+    const { executor, effects, firstTarget, secondTarget } = createExecutor();
 
-    executor.run(
+    const result = executor.run(
       [photo("P", "photo-1", { enabled: false }), clipped("C"), layer({ id: "E" })],
-      finalTargetView,
       null,
     );
 
     const calls = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls).toHaveLength(2);
     // C écrit dans le ping-pong (1re vue de firstTarget), E lit ce même buffer
-    // (2e vue de firstTarget) puis écrit la cible finale. `createView()` rend
+    // (2e vue de firstTarget) puis écrit l'AUTRE buffer. `createView()` rend
     // un objet frais à chaque appel : c'est la TEXTURE d'origine qui compte.
     const firstTargetViews = firstTarget.createView.mock.results.map((r) => r.value);
+    const secondTargetViews = secondTarget.createView.mock.results.map((r) => r.value);
     expect(calls[0][4]).toBe(firstTargetViews[0]);
     expect(firstTargetViews).toContain(calls[1][3]);
-    expect(calls[1][4]).toBe(finalTargetView);
+    expect(secondTargetViews).toContain(calls[1][4]);
+    expect(result.presentTexture).toBe(secondTarget);
+  });
+});
+
+// T0 (design 2026-07-28) : l'exécuteur n'écrit plus jamais la surface visible.
+// Il rend la texture à APLATIR, et `PresentPass` est le seul écrivain du canvas
+// et de la cible d'export. Ce qui est verrouillé ici est la propriété dont tout
+// le reste dépend : cette texture est toujours l'un des deux buffers de
+// ping-pong (aucune VRAM supplémentaire) et n'est JAMAIS celle qu'une passe de
+// la même frame lit en même temps qu'elle l'écrit.
+describe("FramePipelineExecutor — texture à présenter", () => {
+  it("rend le buffer de ping-pong écrit par la dernière passe (pile vide)", () => {
+    const { executor, effects, firstTarget } = createExecutor();
+
+    const result = executor.run([], null);
+
+    const calls = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.calls;
+    const firstTargetViews = firstTarget.createView.mock.results.map((r) => r.value);
+    expect(calls[0][4]).toBe(firstTargetViews[0]);
+    expect(result.presentTexture).toBe(firstTarget);
+  });
+
+  it("recopie la toile SANS masque sur la pile vide (copie stricte, alpha inclus)", () => {
+    const { executor, effects } = createExecutor();
+
+    executor.run([], null);
+
+    const calls = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls[0][1].id).toBe("passthrough");
+    expect(calls[0][5]).toEqual({ applyMask: false });
+  });
+
+  it("rend le buffer écrit par la dernière passe de la boucle (2 calques)", () => {
+    const { executor, secondTarget } = createExecutor();
+
+    const result = executor.run([layer({ id: "L1" }), layer({ id: "L2" })], null);
+
+    expect(result.presentTexture).toBe(secondTarget);
+  });
+
+  it("avec overlay, rend la SORTIE de l'overlay, jamais le composite qu'il vient de lire", () => {
+    const { executor, effects, masks, firstTarget, secondTarget } = createExecutor();
+    masks.resolve = vi.fn(() => texture() as unknown as GPUTexture);
+
+    const result = executor.run([layer({ id: "L1" })], "L1");
+
+    // Un seul calque : sa passe écrit firstTarget, l'overlay le LIT et écrit
+    // secondTarget. Lire et écrire la même texture dans une passe serait une
+    // erreur de validation WebGPU — invisible en Node, fatale à l'écran.
+    expect(result.composedTexture).toBe(firstTarget);
+    expect(result.presentTexture).toBe(secondTarget);
+    expect(result.presentTexture).not.toBe(result.composedTexture);
+    const overlayCall = (effects.runOverlayPass as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(overlayCall[1]).toBe(firstTarget);
+    expect(secondTarget.createView.mock.results.map((r) => r.value)).toContain(overlayCall[3]);
+  });
+
+  it("avec overlay sur pile vide, rend aussi la sortie de l'overlay", () => {
+    const { executor, masks, firstTarget, secondTarget } = createExecutor();
+    masks.resolve = vi.fn(() => texture() as unknown as GPUTexture);
+
+    const result = executor.run([layer({ id: "L1", enabled: false })], "L1");
+
+    expect(result.composedTexture).toBe(firstTarget);
+    expect(result.presentTexture).toBe(secondTarget);
   });
 });

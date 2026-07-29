@@ -107,6 +107,12 @@ export type FramePipelineResult = {
    *  frame d'animation regénérerait ce travail coûteux. La capturer ici
    *  évite tout nouvel appel à `resolve()` hors d'un vrai rendu complet. */
   overlayMaskTexture: GPUTexture | null;
+  /** Texture qui contient le résultat FINAL de cette frame, à alpha droit
+   *  composé. L'exécuteur n'écrit plus jamais la surface visible (canvas ou
+   *  cible d'export) : c'est `PresentPass` qui l'aplatit sur un fond opaque,
+   *  en un seul point (voir `presentPass.ts`). Toujours l'un des deux buffers
+   *  de ping-pong — aucune texture supplémentaire n'est allouée pour ça. */
+  presentTexture: GPUTexture;
 };
 
 /**
@@ -129,7 +135,6 @@ export class FramePipelineExecutor {
 
   run(
     layers: LayerState[],
-    finalTargetView: GPUTextureView,
     maskOverlayLayerId: string | null,
   ): FramePipelineResult {
     const sourceTexture = this.resources.sourceTexture;
@@ -151,7 +156,6 @@ export class FramePipelineExecutor {
     try {
       return this.runFrame(
         layers,
-        finalTargetView,
         maskOverlayLayerId,
         sourceTexture,
         pingPong,
@@ -167,7 +171,6 @@ export class FramePipelineExecutor {
 
   private runFrame(
     layers: LayerState[],
-    finalTargetView: GPUTextureView,
     maskOverlayLayerId: string | null,
     sourceTexture: GPUTexture,
     pingPong: [GPUTexture, GPUTexture],
@@ -181,18 +184,26 @@ export class FramePipelineExecutor {
       : null;
 
     if (enabledLayers.length === 0) {
-      const blitTarget = overlayLayer ? pingPong[0] : null;
+      const blitTarget = pingPong[0];
       this.effects.runEffectPass(
         encoder,
         PASSTHROUGH_EFFECT,
         neutralPassLayer(),
         sourceTexture.createView(),
-        blitTarget ? blitTarget.createView() : finalTargetView,
-        {},
+        blitTarget.createView(),
+        // `applyMask: false` — c'est une COPIE, pas un compositing. Depuis que
+        // l'alpha est réellement composé (shaderCompose.ts), passer cette
+        // passe par le chemin de compositing forcerait `outAlpha` à 1 (poids =
+        // opacité 1 × masque par défaut 1) et écraserait l'alpha de l'entrée
+        // qu'elle est censée recopier — une toile transparente ressortirait
+        // opaque. Le chemin sans masque rend `effected` tel quel, alpha inclus,
+        // et évite au passage un `masks.resolve` inutile.
+        { applyMask: false },
         pendingDestroy,
       );
       let overlayMaskTexture: GPUTexture | null = null;
-      if (overlayLayer && blitTarget) {
+      let presentTexture: GPUTexture = blitTarget;
+      if (overlayLayer) {
         overlayMaskTexture = this.masks.resolve(
           overlayLayer,
           encoder,
@@ -202,15 +213,25 @@ export class FramePipelineExecutor {
           // statut de fraîcheur que le premier calque de la pile.
           0,
         );
+        // L'overlay LIT `blitTarget` (pingPong[0]) et ÉCRIT l'autre buffer :
+        // jamais la même texture en lecture et en écriture.
+        presentTexture = pingPong[1];
         this.effects.runOverlayPass(
           encoder,
           blitTarget,
           overlayMaskTexture,
-          finalTargetView,
+          presentTexture.createView(),
           overlayTimeSeconds,
         );
       }
-      return this.submitAndDestroy(encoder, pendingDestroy, 0, blitTarget, overlayMaskTexture);
+      return this.submitAndDestroy(
+        encoder,
+        pendingDestroy,
+        0,
+        overlayLayer ? blitTarget : null,
+        overlayMaskTexture,
+        presentTexture,
+      );
     }
 
     // Écrêtage (design 2026-07-27 §3.2/§3.4) : l'attachement est STRUCTUREL
@@ -233,9 +254,12 @@ export class FramePipelineExecutor {
       const layer = enabledLayers[index];
       const effect = getEffect(layer.effectId);
       const isLast = index === enabledLayers.length - 1;
-      const targetView = isLast && !overlayLayer
-        ? finalTargetView
-        : pingPong[writeIndex].createView();
+      // Toujours un buffer de ping-pong, y compris pour la DERNIÈRE passe : la
+      // surface visible n'est plus écrite ici mais par `PresentPass`, qui
+      // aplatit l'alpha composé sur un fond opaque (presentPass.ts). Retirer
+      // cette destination externe supprime aussi un cas particulier de la
+      // boucle la plus sensible du projet.
+      const targetView = pingPong[writeIndex].createView();
       const clip: ClipResolution = clipResolutions.get(layer.id) ?? { kind: "none" };
 
       // Calque écrêté dont la base photo n'est pas rendue : il ne contribue
@@ -255,7 +279,9 @@ export class FramePipelineExecutor {
           neutralPassLayer(),
           readTexture.createView(),
           targetView,
-          {},
+          // `applyMask: false` : copie stricte, alpha inclus — même raison que
+          // le court-circuit « 0 calque activé » ci-dessus.
+          { applyMask: false },
           pendingDestroy,
         );
         clipCoverageView = null;
@@ -355,6 +381,9 @@ export class FramePipelineExecutor {
 
     let overlayMaskTexture: GPUTexture | null = null;
     let composedTexture: GPUTexture | null = null;
+    // La boucle n'avance pas le ping-pong après sa dernière passe : le
+    // composite final est donc dans `pingPong[writeIndex]`.
+    let presentTexture: GPUTexture = pingPong[writeIndex];
     if (overlayLayer) {
       composedTexture = pingPong[writeIndex];
       // L'invariant qui compte n'est PAS "l'overlay utilise tel guide
@@ -377,15 +406,28 @@ export class FramePipelineExecutor {
         pendingDestroy,
         overlayIndex <= 0 ? 0 : this.runGeneration,
       );
+      // L'overlay LIT `composedTexture` (pingPong[writeIndex]) et ÉCRIT
+      // l'autre buffer. Sûr : ce buffer-là a servi de `readTexture` à la
+      // dernière passe de la boucle, donc plus tôt dans le MÊME encoder — les
+      // passes s'exécutent dans l'ordre de soumission (même raisonnement que
+      // le partage de la cible photo, plus haut).
+      presentTexture = pingPong[1 - writeIndex];
       this.effects.runOverlayPass(
         encoder,
         composedTexture,
         overlayMaskTexture,
-        finalTargetView,
+        presentTexture.createView(),
         overlayTimeSeconds,
       );
     }
-    return this.submitAndDestroy(encoder, pendingDestroy, enabledLayers.length, composedTexture, overlayMaskTexture);
+    return this.submitAndDestroy(
+      encoder,
+      pendingDestroy,
+      enabledLayers.length,
+      composedTexture,
+      overlayMaskTexture,
+      presentTexture,
+    );
   }
 
   private submitAndDestroy(
@@ -394,6 +436,7 @@ export class FramePipelineExecutor {
     enabledLayerCount: number,
     composedTexture: GPUTexture | null,
     overlayMaskTexture: GPUTexture | null,
+    presentTexture: GPUTexture,
   ): FramePipelineResult {
     this.device.queue.submit([encoder.finish()]);
     for (const resource of pendingDestroy) resource.destroy();
@@ -402,6 +445,7 @@ export class FramePipelineExecutor {
       churnedResourceCount: pendingDestroy.length,
       composedTexture,
       overlayMaskTexture,
+      presentTexture,
     };
   }
 }

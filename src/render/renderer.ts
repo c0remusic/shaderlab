@@ -7,6 +7,7 @@ import { MaskTextureResolver } from "./maskTextureResolver";
 import { FramePipelineExecutor, type PhotoLayerInputPort } from "./framePipelineExecutor";
 import { PhotoSourceStore } from "./photoSourceStore";
 import { PhotoLayerInputResolver } from "./photoLayerInput";
+import { PresentPass, presentBackgroundFor, type PresentDestination } from "./presentPass";
 import { FrameScheduler } from "./frameScheduler";
 import { FrameReadback } from "./frameReadback";
 import { noopDiagnosticLogger, type DiagnosticLogger } from "./diagnostics";
@@ -104,7 +105,19 @@ export class Renderer {
    *  `tickOverlayAnimation` : jamais recalculée, jamais un nouvel appel à
    *  `MaskTexturesPort.resolve()` depuis la boucle d'animation (coûteux,
    *  voir `docs/superpowers/specs/2026-07-23-shaderlab-mask-threshold-contour-design.md`). */
-  private lastOverlayFrame: { composedTexture: GPUTexture; overlayMaskTexture: GPUTexture } | null = null;
+  private lastOverlayFrame: {
+    composedTexture: GPUTexture;
+    overlayMaskTexture: GPUTexture;
+    /** Buffer dans lequel la passe d'overlay a écrit ce frame-là — celui que
+     *  `PresentPass` a ensuite aplati vers le canvas. `tickOverlayAnimation`
+     *  le réutilise comme cible : c'est l'autre buffer de ping-pong que
+     *  `composedTexture`, donc jamais lu et écrit dans la même passe. */
+    overlayTargetTexture: GPUTexture;
+  } | null = null;
+  /** Aplatit le composite (alpha droit) sur un fond opaque — SEUL écrivain du
+   *  canvas et de la cible d'export. Voir `presentPass.ts` pour pourquoi cette
+   *  unicité est la garde contre le JPEG noir silencieux. */
+  private readonly presentPass: PresentPass;
   constructor(
     ctx: GpuContext,
     diagnosticLogger: DiagnosticLogger = noopDiagnosticLogger,
@@ -136,6 +149,9 @@ export class Renderer {
       ctx.srgbFormat,
       ctx.device.limits.maxTextureDimension2D,
     );
+    // Aucun état lié au document : contrairement aux autres passes, elle ne
+    // dépend ni de la taille de l'image ni du store de photos.
+    this.presentPass = new PresentPass(ctx.device, ctx.srgbFormat, this.sampler);
   }
 
   /** Active/désactive l'overlay safelight du masque d'un calque (mode peinture).
@@ -262,7 +278,7 @@ export class Renderer {
     try {
       // Projection d'isolation ICI et pas dans `runPipeline` : `exportFrame`
       // passe par `runPipeline` et doit rendre le document réel.
-      this.runPipeline(projectIsolation(layers, this.isolatedLayerId), getSrgbCanvasView(this.ctx));
+      this.runPipeline(projectIsolation(layers, this.isolatedLayerId), { kind: "canvas" });
     } finally {
       this.maskTextureResolver?.setLivePreview(null);
     }
@@ -287,14 +303,24 @@ export class Renderer {
    *  rendu normal. `timeMs` vient directement du timestamp rAF. */
   tickOverlayAnimation(timeMs: number): void {
     if (!this.lastOverlayFrame || !this.effectPassRunner) return;
-    const { composedTexture, overlayMaskTexture } = this.lastOverlayFrame;
+    const { composedTexture, overlayMaskTexture, overlayTargetTexture } = this.lastOverlayFrame;
     const encoder = this.ctx.device.createCommandEncoder();
+    // Même chaîne que le rendu complet : overlay dans un buffer de ping-pong,
+    // PUIS aplatissement. Écrire le canvas directement ici court-circuiterait
+    // le seul point qui rend l'alpha présentable — l'animation d'overlay
+    // afficherait un rendu différent de celui de la frame précédente.
     this.effectPassRunner.runOverlayPass(
       encoder,
       composedTexture,
       overlayMaskTexture,
-      getSrgbCanvasView(this.ctx),
+      overlayTargetTexture.createView(),
       timeMs / 1000,
+    );
+    this.presentPass.encode(
+      encoder,
+      overlayTargetTexture.createView(),
+      getSrgbCanvasView(this.ctx),
+      presentBackgroundFor({ kind: "canvas" }),
     );
     this.ctx.device.queue.submit([encoder.finish()]);
   }
@@ -314,7 +340,7 @@ export class Renderer {
    */
   async exportFrame(layers: LayerState[]): Promise<Uint8Array> {
     const exportTexture = this.imageResources.getExportTexture();
-    this.runPipeline(layers, exportTexture.createView());
+    this.runPipeline(layers, { kind: "export" });
     const readback = new FrameReadback(
       this.ctx.device,
       this.imageResources.width,
@@ -326,26 +352,47 @@ export class Renderer {
     return readback.swapRedBlueChannels(stripped);
   }
 
+  /** Encode la frame puis l'APLATIT dans `destination`. `destination` est un
+   *  type fermé, pas une vue de texture : c'est ce qui empêche un appelant de
+   *  choisir lui-même le fond d'aplatissement — donc d'écrire le damier dans
+   *  un fichier exporté (voir `presentBackgroundFor`). */
   private runPipeline(
     layers: LayerState[],
-    finalTargetView: GPUTextureView,
+    destination: PresentDestination,
   ): void {
     if (!this.framePipelineExecutor) throw new Error("Aucune image chargée.");
     const diagStart = performance.now();
-    const result = this.framePipelineExecutor.run(
-      layers,
-      finalTargetView,
-      this.maskOverlayLayerId,
-    );
+    const result = this.framePipelineExecutor.run(layers, this.maskOverlayLayerId);
     this.lastOverlayFrame =
       result.composedTexture && result.overlayMaskTexture
-        ? { composedTexture: result.composedTexture, overlayMaskTexture: result.overlayMaskTexture }
+        ? {
+            composedTexture: result.composedTexture,
+            overlayMaskTexture: result.overlayMaskTexture,
+            overlayTargetTexture: result.presentTexture,
+          }
         : null;
+    const encoder = this.ctx.device.createCommandEncoder();
+    this.presentPass.encode(
+      encoder,
+      result.presentTexture.createView(),
+      this.destinationView(destination),
+      presentBackgroundFor(destination),
+    );
+    this.ctx.device.queue.submit([encoder.finish()]);
     this.frameDiagnostics.record(diagStart, result, {
       pipelineCacheSize: this.effectPassRunner?.pipelineCount ?? 0,
       imageWidth: this.imageResources.width,
       imageHeight: this.imageResources.height,
     });
+  }
+
+  /** Unique traduction destination → surface GPU réelle. Le pendant de
+   *  `presentBackgroundFor` : les deux dérivent du MÊME `destination`, donc le
+   *  fond d'aplatissement ne peut pas se désynchroniser de la surface écrite. */
+  private destinationView(destination: PresentDestination): GPUTextureView {
+    return destination.kind === "canvas"
+      ? getSrgbCanvasView(this.ctx)
+      : this.imageResources.getExportTexture().createView();
   }
 
   /**
@@ -368,6 +415,7 @@ export class Renderer {
     this.photoLayerInputResolver?.dispose();
     this.photoLayerInputResolver = null;
     this.framePipelineExecutor = null;
+    this.presentPass.clearPipelines();
     this.lastOverlayFrame = null;
   }
 }

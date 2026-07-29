@@ -49,7 +49,12 @@ export interface ComposeOptions {
   blendWgsl?: string;
 }
 
-const SRGB_HELPERS_WGSL = `
+/** Conversions sRGB↔linéaire partagées. Exportées parce que la passe de
+ *  présentation (`presentPass.ts`) en a besoin pour poser les gris du damier
+ *  en valeurs sRGB lisibles plutôt qu'en constantes linéaires magiques — pas
+ *  pour un gamma manuel sur les couleurs du pipeline, que les formats `-srgb`
+ *  interdisent (CLAUDE.md § Décisions techniques verrouillées). */
+export const SRGB_HELPERS_WGSL = `
 fn srgb2lin(c: vec3<f32>) -> vec3<f32> {
   let lo = c / 12.92;
   let hi = pow((c + vec3<f32>(0.055)) / vec3<f32>(1.055), vec3<f32>(2.4));
@@ -124,13 +129,35 @@ export function composeShader(effectWgsl: string, opts: ComposeOptions): string 
       : "";
   const fsBody = opts.applyMask
     ? `let maskValue = textureSample(maskTexture, srcSampler, in.uv).r;
-  let blended = blend(color.rgb, effected.rgb);
-  // Passe color.a tel quel (ne le mélange plus avec effected.a) : hypothèse
-  // sûre tant que tout effet préserve l'alpha (source JPEG opaque, α≡1
-  // partout — vérifié pour glow/chromaticBleed/grain/warp). Si un futur
-  // effet produit un alpha ≠ color.a, ce court-circuit le perdrait
-  // silencieusement — revoir alors ce mix si un effet à alpha variable arrive.
-${coverageComment}  return vec4<f32>(mix(color.rgb, blended, ${coverageMixWeight}), color.a);`
+  // Alpha du CALQUE (la source du source-over) : opacité × masque peint ×
+  // couverture. C'est le même poids qu'avant — il porte désormais aussi
+  // l'alpha, au lieu de ne piloter que le mélange des couleurs.
+  let srcAlpha = ${coverageMixWeight};
+  let backdropAlpha = color.a;
+  // Source-over (Porter-Duff) : l'alpha est COMPOSÉ, plus hérité du bas de
+  // chaîne. Le court-circuit précédent (alpha recopié tel quel depuis color.a)
+  // se documentait lui-même comme conditionnel ; il rendait impossible de savoir,
+  // par pixel, si quelque chose couvre — ce qu'exige le damier de transparence
+  // (design 2026-07-28 « le fond devient un calque », tranche T0).
+  let outAlpha = srcAlpha + backdropAlpha * (1.0 - srcAlpha);
+  // Le mode de fusion n'agit que sur la part RÉELLEMENT couverte du backdrop
+  // (formule de composition PDF, celle de Photoshop) : là où le backdrop est
+  // transparent, le calque ressort tel quel au lieu de fusionner avec du vide.
+  // Sur un backdrop opaque (backdropAlpha=1) ce mix rend blend(color, effected)
+  // à l'identique — voir la propriété d'identité ci-dessous.
+  let blended = mix(effected.rgb, blend(color.rgb, effected.rgb), backdropAlpha);
+${coverageComment}  // Alpha DROIT (non prémultiplié) dans toute la chaîne : les effets et les
+  // passes internes échantillonnent ces textures et attendent une couleur
+  // réelle, pas une couleur assombrie par sa propre couverture. La
+  // prémultiplication/l'aplatissement sur fond opaque n'a lieu qu'une fois, à
+  // la présentation (render/presentPass.ts).
+  //
+  // IDENTITÉ (non-régression) : avec backdropAlpha=1 — le seul cas qui existe
+  // tant que la toile porte la photo — outAlpha=1, srcAlpha/outAlpha=srcAlpha
+  // et blended=blend(color.rgb, effected.rgb), donc cette expression se réduit
+  // EXACTEMENT à l'ancienne forme vec4(mix(color.rgb, blended, poids), color.a).
+  let outRgb = select(vec3<f32>(0.0), mix(color.rgb, blended, srcAlpha / outAlpha), outAlpha > 0.0);
+  return vec4<f32>(outRgb, outAlpha);`
     : "return effected;";
 
   return `

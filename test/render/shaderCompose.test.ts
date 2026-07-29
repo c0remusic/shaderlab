@@ -25,7 +25,8 @@ describe("composeShader", () => {
     });
     const unmasked = composeShader(FS, { applyMask: false, hasPrevPass: false });
     expect(masked).toContain("@binding(3) var maskTexture");
-    expect(masked).toContain("mix(color.rgb, blended, compositing.x * maskValue)");
+    expect(masked).toContain("let srcAlpha = compositing.x * maskValue;");
+    expect(masked).toContain("mix(color.rgb, blended, srcAlpha / outAlpha)");
     expect(unmasked).not.toContain("maskTexture");
     expect(unmasked).toContain("return effected;");
   });
@@ -89,18 +90,60 @@ describe("composeShader hasImageSource", () => {
   it("le poids du mix inclut la couverture (alpha imageSource) uniquement quand hasImageSource est vrai", () => {
     const withSource = composeShader(FS, { applyMask: true, hasPrevPass: false, hasImageSource: true, blendWgsl: "fn blend(base: vec3<f32>, top: vec3<f32>) -> vec3<f32> { return top; }" });
     const without = composeShader(FS, { applyMask: true, hasPrevPass: false, hasImageSource: false, blendWgsl: "fn blend(base: vec3<f32>, top: vec3<f32>) -> vec3<f32> { return top; }" });
-    expect(withSource).toContain("compositing.x * maskValue * effectInput.a");
+    expect(withSource).toContain("let srcAlpha = compositing.x * maskValue * effectInput.a;");
     expect(without).not.toContain("effectInput.a");
-    // NB : le brief attendait littéralement "compositing.x * maskValue);" —
-    // divergence avec le code réel, qui enveloppe toujours le mix dans
-    // `vec4<f32>(mix(...), color.a)` (voir shaderCompose.ts, préservé
-    // depuis avant cette tâche). Assertion adaptée à la structure réelle.
-    expect(without).toContain("compositing.x * maskValue),");
+    expect(without).toContain("let srcAlpha = compositing.x * maskValue;");
   });
 
   it("hasImageSource=true SANS applyMask ne déclare pas le binding (les passes internes n'en ont pas besoin)", () => {
     const code = composeShader(FS, { applyMask: false, hasPrevPass: false, hasImageSource: true });
     expect(code).not.toContain("coverageTexture");
+  });
+});
+
+// Tranche T0 (design 2026-07-28 « le fond devient un calque ») : l'alpha est
+// COMPOSÉ, plus hérité du bas de chaîne. Ces tests verrouillent le texte du
+// WGSL, pas son exécution — la compilation réelle est le rôle de
+// `npm run test:gpu-shaders`, le rendu celui du checkpoint visuel.
+describe("composeShader — composition de l'alpha (T0)", () => {
+  const BLEND_T0 = "fn blend(base: vec3<f32>, top: vec3<f32>) -> vec3<f32> { return top; }";
+  const masked = () =>
+    composeShader(FS, { applyMask: true, hasPrevPass: false, blendWgsl: BLEND_T0 });
+
+  it("ne renvoie plus color.a tel quel : l'alpha de sortie est composé", () => {
+    const code = masked();
+    // Le court-circuit d'avant T0. Sa disparition est LE changement : tant
+    // qu'il est là, une toile transparente ressort opaque et le damier ne peut
+    // pas exister.
+    expect(code).not.toContain(", color.a);");
+    expect(code).toContain("let outAlpha = srcAlpha + backdropAlpha * (1.0 - srcAlpha);");
+    expect(code).toContain("return vec4<f32>(outRgb, outAlpha);");
+  });
+
+  it("le mode de fusion n'agit que sur la part couverte du backdrop", () => {
+    // Sans ce mix, un calque posé là où rien ne couvre fusionnerait avec du
+    // vide (color.rgb = 0) au lieu de ressortir tel quel — un `multiply` en bas
+    // de pile donnerait du noir sur toute la zone transparente.
+    expect(masked()).toContain(
+      "let blended = mix(effected.rgb, blend(color.rgb, effected.rgb), backdropAlpha);",
+    );
+  });
+
+  it("protège la division par l'alpha de sortie (zone totalement transparente)", () => {
+    // `srcAlpha / outAlpha` vaut NaN quand rien ne couvre. `select` choisit une
+    // valeur, il ne calcule pas : la branche NaN est évaluée puis jetée.
+    expect(masked()).toContain(
+      "let outRgb = select(vec3<f32>(0.0), mix(color.rgb, blended, srcAlpha / outAlpha), outAlpha > 0.0);",
+    );
+  });
+
+  it("le chemin SANS masque reste une copie verbatim (alpha inclus)", () => {
+    // C'est ce chemin qu'emprunte la passe neutre `passthrough` depuis T0 :
+    // court-circuit « 0 calque activé » et neutralisation d'un écrêté supprimé.
+    // Le chemin de compositing forcerait leur alpha de sortie à 1.
+    const code = composeShader(FS, { applyMask: false, hasPrevPass: false });
+    expect(code).toContain("return effected;");
+    expect(code).not.toContain("outAlpha");
   });
 });
 
@@ -121,9 +164,13 @@ describe("composeShader clipToCoverage (écrêtage, 2026-07-27)", () => {
 
   it("borne le POIDS du mix par l'alpha de la couverture (le défaut le plus probable est de l'oublier)", () => {
     const clipped = composeShader(FS, { applyMask: true, hasPrevPass: false, clipToCoverage: true, blendWgsl: BLEND });
+    // Depuis T0 le poids s'appelle `srcAlpha` et sert AUSSI d'alpha du calque
+    // dans le source-over — la borne par la couverture doit donc y rester, sans
+    // quoi un écrêté rendrait la zone hors silhouette opaque.
     expect(clipped).toContain(
-      "mix(color.rgb, blended, compositing.x * maskValue * textureSample(coverageTexture, srcSampler, in.uv).a)",
+      "let srcAlpha = compositing.x * maskValue * textureSample(coverageTexture, srcSampler, in.uv).a;",
     );
+    expect(clipped).toContain("mix(color.rgb, blended, srcAlpha / outAlpha)");
   });
 
   it("clipToCoverage=true SANS applyMask ne déclare pas le binding (passes internes)", () => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPresentWgsl,
   presentBackgroundFor,
+  maskOverlayFor,
   CHECKER_CELL_PX,
 } from "../../src/render/presentPass";
 
@@ -25,6 +26,33 @@ describe("presentBackgroundFor", () => {
       presentBackgroundFor({ kind }),
     );
     expect(new Set(backgrounds)).toEqual(new Set(["checker", "black"]));
+  });
+});
+
+// Même séparation, autre aide de visée : l'overlay safelight du masque.
+// Défaut mesuré le 2026-07-29 (`render-check --diagnostic`) : le voile rouge
+// atteignait le JPEG exporté, sur 19,6 % des canaux.
+describe("maskOverlayFor", () => {
+  it("le canvas garde l'overlay actif", () => {
+    expect(maskOverlayFor({ kind: "canvas" }, "L0")).toBe("L0");
+  });
+
+  it("l'export n'a JAMAIS d'overlay, même quand l'aperçu est actif à l'écran", () => {
+    expect(maskOverlayFor({ kind: "export" }, "L0")).toBeNull();
+  });
+
+  it("overlay éteint : rien à porter, quelle que soit la destination", () => {
+    expect(maskOverlayFor({ kind: "canvas" }, null)).toBeNull();
+    expect(maskOverlayFor({ kind: "export" }, null)).toBeNull();
+  });
+
+  it("aucune destination ne peut demander l'overlay dans un fichier", () => {
+    // Comme pour le damier : ce n'est pas une convention d'appel mais le seul
+    // chemin qui existe — un appelant ne fournit qu'un `PresentDestination`.
+    const withOverlay = (["canvas", "export"] as const).filter(
+      (kind) => maskOverlayFor({ kind }, "L0") !== null,
+    );
+    expect(withOverlay).toEqual(["canvas"]);
   });
 });
 

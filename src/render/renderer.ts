@@ -8,7 +8,7 @@ import { MaskTextureResolver } from "./maskTextureResolver";
 import { FramePipelineExecutor, type PhotoLayerInputPort } from "./framePipelineExecutor";
 import { PhotoSourceStore } from "./photoSourceStore";
 import { PhotoLayerInputResolver } from "./photoLayerInput";
-import { PresentPass, presentBackgroundFor, type PresentDestination } from "./presentPass";
+import { PresentPass, presentBackgroundFor, maskOverlayFor, type PresentDestination } from "./presentPass";
 import { FrameScheduler } from "./frameScheduler";
 import { FrameReadback } from "./frameReadback";
 import { noopDiagnosticLogger, type DiagnosticLogger } from "./diagnostics";
@@ -168,7 +168,12 @@ export class Renderer {
 
   /** Active/désactive l'overlay safelight du masque d'un calque (mode peinture).
    *  Passer `null` pour l'éteindre. Ne déclenche pas de rendu — l'appelant fait
-   *  un `requestRender()` ensuite. */
+   *  un `requestRender()` ensuite.
+   *
+   *  N'affecte QUE l'écran, même statut que `setIsolatedLayer` : l'overlay est
+   *  une aide de visée, pas une propriété du document. La séparation n'est pas
+   *  posée ici mais dans `maskOverlayFor` (presentPass.ts), dérivée de la
+   *  destination — voir `runPipeline`. */
   setMaskOverlay(layerId: string | null): void {
     this.maskOverlayLayerId = layerId;
   }
@@ -421,15 +426,28 @@ export class Renderer {
     if (!this.framePipelineExecutor) throw new Error("Aucune image chargée.");
     const diagStart = performance.now();
     this.currentLayers = layers;
-    const result = this.framePipelineExecutor.run(layers, this.maskOverlayLayerId);
-    this.lastOverlayFrame =
-      result.composedTexture && result.overlayMaskTexture
-        ? {
-            composedTexture: result.composedTexture,
-            overlayMaskTexture: result.overlayMaskTexture,
-            overlayTargetTexture: result.presentTexture,
-          }
-        : null;
+    const result = this.framePipelineExecutor.run(
+      layers,
+      // JAMAIS `this.maskOverlayLayerId` directement : l'overlay est dérivé de
+      // la destination, au même titre que le fond d'aplatissement — voir
+      // `maskOverlayFor`. C'est ce qui empêche le voile rouge d'atteindre un
+      // fichier exporté.
+      maskOverlayFor(destination, this.maskOverlayLayerId),
+    );
+    // `lastOverlayFrame` décrit le dernier frame d'ÉCRAN, seule chose que
+    // `tickOverlayAnimation` a le droit de rejouer. Un export ne le remet donc
+    // pas à null : sans ce garde, exporter pendant un aperçu de masque figerait
+    // l'animation du contour jusqu'au rendu suivant.
+    if (destination.kind === "canvas") {
+      this.lastOverlayFrame =
+        result.composedTexture && result.overlayMaskTexture
+          ? {
+              composedTexture: result.composedTexture,
+              overlayMaskTexture: result.overlayMaskTexture,
+              overlayTargetTexture: result.presentTexture,
+            }
+          : null;
+    }
     const encoder = this.ctx.device.createCommandEncoder();
     this.presentPass.encode(
       encoder,

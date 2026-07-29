@@ -1255,3 +1255,57 @@ l'app ne peut pas atteindre.
 **How to apply** : c'est une feature à moitié câblée (parité calque photo T1,
 design 2026-07-26 §3.4), pas un reliquat — ne pas la « nettoyer ». Le travail
 restant est le point d'entrée : ce qui appelle `enterCrop` depuis l'UI.
+
+## 2026-07-29 — les références de `render-check` sont périmées depuis T1 : `npm run test:render` est rouge sur master, 6/6
+
+**Découverte (TTL 6 mois)** : la tranche T1 (`26ab0ed`, « le fond du document
+devient un calque ordinaire ») a été mergée dans master sans régénérer
+`test/render-refs/*.png` — `git diff --stat 3e05658..master -- test/render-refs/
+scripts/render-check.mjs` rend vide. Mesuré sur master seul
+(`9272a7d`, branche jetable `tmp/baseline-master`, aucune modification locale) :
+
+```
+FAIL base                   ecart max 255 > 1 LSB  [max 255, moyenne 106.6865]
+FAIL effets-glow-posterize  ecart max 255 > 1 LSB  [max 255, moyenne 142.6365]
+FAIL grain-graine-fixe      ecart max 255 > 1 LSB  [max 255, moyenne 106.9312]
+FAIL photo-double-exposure  ecart max 255 > 1 LSB  [max 255, moyenne 73.7160]
+FAIL masque-pinceau-degrade ecart max 255 > 1 LSB  [max 255, moyenne 107.1959]
+FAIL masque-edge-aware      ecart max 255 > 1 LSB  [max 255, moyenne 98.7802]
+```
+
+Cause probable, non vérifiée en profondeur : les scénarios construisent leur
+pile avec `new LayerStack()` nu (`scripts/render-check.mjs:287-353`) et
+n'ajoutent jamais de calque photo de fond. Depuis T1, `loadImage` n'uploade plus
+la photo dans la toile (`allocateCanvas`, `renderer.ts`) — la toile est vide,
+donc les six scénarios rendent sur du noir. Le protocole reste reproductible
+(2 passes, 0 canal d'écart) : c'est bien la RÉFÉRENCE qui est périmée, pas le
+rendu qui est instable.
+**How to apply** : tant que ce n'est pas réglé, `npm run test:render` ne peut
+pas servir de preuve de non-régression sur une branche basée après T1 — il est
+rouge quoi qu'on fasse. Deux gestes à faire ensemble, et dans cet ordre :
+adapter les scénarios pour qu'ils posent le calque photo de fond (sinon on
+verrouille une image noire comme référence), PUIS `--update` et relire les six
+PNG avant de committer. Le mode `--diagnostic`, lui, reste valable : il ne
+compare à aucune référence.
+
+## 2026-07-29 — l'overlay de masque suit la destination, comme le damier
+
+**Correction (projet)** : toute aide de VISÉE (damier de fond, overlay
+safelight, isolation de calque) se dérive de `PresentDestination`, jamais lue
+directement depuis un champ d'état du `Renderer` au moment d'encoder la frame.
+Trois de ces aides existent aujourd'hui, chacune avec son point de dérivation
+unique : `presentBackgroundFor` et `maskOverlayFor` (`src/render/presentPass.ts`),
+et `projectIsolation` appliqué dans `render()` seulement (`renderer.ts`).
+**Why** : `exportFrame` et le rendu d'écran partagent `runPipeline`. Une aide
+qui lit son état d'interface directement part donc AUSSI dans le fichier
+exporté, en silence. Mesuré le 2026-07-29 (`render-check.mjs --diagnostic`,
+avant correctif `87cf44f`) : le voile rouge de l'overlay occupait 51 248 canaux
+sur 262 144 du JPEG exporté (19,55 %), et le fichier était en prime
+non déterministe (3 799 canaux d'écart entre deux exports du même document,
+la passe d'overlay recevant `performance.now()`).
+**How to apply** : en ajoutant une quatrième aide de visée, ne pas se contenter
+d'une convention d'appel — ajouter la fonction de dérivation à côté de ses deux
+sœurs dans `presentPass.ts`, pour que « cette aide, dans le fichier exporté »
+reste inexprimable. Et vérifier au passage ce que le résultat de frame alimente
+en aval : le correctif a dû garder `lastOverlayFrame` réservé au chemin canvas,
+sinon un export figeait l'animation du contour jusqu'au rendu d'écran suivant.

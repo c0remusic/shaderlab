@@ -6,14 +6,14 @@ import type { LayerState } from "../layers/types";
 import { eyeButtonLabels, isLayerVisible, isolationRole, isolationVisibleIds, type IsolationRole } from "../layers/isolation";
 import { resolveClipping } from "../layers/clipping";
 import { displayInsertToModelInsert } from "./layerDisplayOrder";
-import { toLayerTreeRows } from "./layerTree";
+import { BACKGROUND_LAYER_ID, toLayerTreeRows } from "./layerTree";
 import { effectRegistry, getEffect } from "../render/effects/registry";
 import { PASSTHROUGH_EFFECT } from "../render/effectPassRunner";
 import { blendRegistry } from "../render/blend/registry";
 import { Select } from "./ui/select";
 import { NumberField } from "./ui/number-field";
 import { IconButton } from "./ui/icon-button";
-import { formatOpacityPercent, layerControlsModel, opacityToPercent, parseOpacityPercent } from "./layerControlsModel";
+import { layerControlsModel, opacityToPercent, parseOpacityPercent } from "./layerControlsModel";
 import "./LayerPanel.css";
 
 interface Props {
@@ -29,14 +29,7 @@ interface Props {
    *  la visibilité stockée des calques n'est pas touchée. */
   isolatedLayerId?: string | null;
   onAdd: (effectId: string) => void;
-  onDuplicate: (id: string) => void;
-  onRemove: (id: string) => void;
   onReorder: (id: string, newIndex: number) => void;
-  /** Pose/retire le VERROU d'un calque (arbitrage n°2 du design
-   *  `2026-07-28-shaderlab-fond-comme-calque-design.md` §7). Le verrou est une
-   *  propriété de calque ORDINAIRE, pas un statut d'arrière-plan : ce callback
-   *  vise n'importe quel calque de la pile. */
-  onToggleLock: (id: string, locked: boolean) => void;
   /** Résout la vignette d'un calque photo par `sourceId`. La vignette est
    *  POSSÉDÉE par `PhotoSourceStore` (object URL, hors state React) — cette
    *  prop n'en transporte que la lecture, jamais le raster (invariant OOM).
@@ -66,6 +59,19 @@ export interface LayerControlsProps {
   onOpacityCommit: () => void;
   onBlendModeChange: (id: string, blendMode: string) => void;
   onEffectChange: (id: string, effectId: string) => void;
+  /** ACTIONS migrées depuis la ligne le 2026-07-29 (ADR-0001). Elles s'y
+   *  répétaient sur chaque calque — trois contrôles × N lignes — et mangeaient
+   *  la largeur du nom, mesurée à 52 px au dock par défaut : « Chromatic bleed »
+   *  s'affichait « C… ». Elles agissent désormais sur le calque SÉLECTIONNÉ.
+   *
+   *  Le verrou est le seul dont une trace reste sur la ligne, et seulement
+   *  quand il est POSÉ : point 5 de la checklist de l'ADR-0001 — un état qu'on
+   *  doit pouvoir comparer sans sélectionner chaque calque. Un verrou ouvert
+   *  n'est rien à voir ; sur la ligne, c'est un MARQUEUR (`role="img"`), le
+   *  contrôle vit ici. */
+  onToggleLock: (id: string, locked: boolean) => void;
+  onDuplicate: (id: string) => void;
+  onRemove: (id: string) => void;
 }
 
 interface LayerRowProps {
@@ -101,7 +107,9 @@ interface LayerRowProps {
   clipped: boolean;
   /** Ce calque est-il VERROUILLÉ ? Booléen déjà réduit à ce calque (et non
    *  `layer.locked`, qui est optionnel) pour que la ligne ne raisonne jamais
-   *  sur l'absence du champ. */
+   *  sur l'absence du champ. Depuis le 2026-07-29 il ne pilote plus un bouton
+   *  mais la PRÉSENCE d'un marqueur : le contrôle a migré dans la zone de
+   *  contrôles (voir `LayerControlsProps.onToggleLock`). */
   locked: boolean;
   /** Profondeur d'IMBRICATION (0 racine, 1 sous une photo) et bornes du groupe,
    *  décidées par `toLayerTreeRows` (src/components/layerTree.ts). Passées
@@ -114,9 +122,6 @@ interface LayerRowProps {
   lastChild: boolean;
   onSelect: (id: string) => void;
   onToggle: (id: string, altKey: boolean) => void;
-  onDuplicate: (id: string) => void;
-  onRemove: (id: string) => void;
-  onToggleLock: (id: string, locked: boolean) => void;
   onGripPointerDown: (id: string, pointerId: number, target: Element, clientX: number, clientY: number) => void;
   thumbnailUrl?: (sourceId: string) => string | null;
 }
@@ -149,9 +154,6 @@ const LayerRow = memo(function LayerRow({
   lastChild,
   onSelect,
   onToggle,
-  onDuplicate,
-  onRemove,
-  onToggleLock,
   onGripPointerDown,
   thumbnailUrl,
 }: LayerRowProps) {
@@ -238,33 +240,6 @@ const LayerRow = memo(function LayerRow({
               <EyeOff className="icon-sm icon-stroke" aria-hidden="true" />
             )}
           </IconButton>
-          {/* VERROU (arbitrage n°2 du design du 2026-07-28) — un vrai CONTRÔLE,
-              pas une marque décorative : il pose `locked` sur le calque, et
-              `LayerStack` refuse alors toute mutation de son travail.
-              Il RESTE sur la ligne malgré la règle de densité de l'ADR-0001,
-              pour la même raison que l'œil : c'est un état par calque qu'on
-              doit pouvoir comparer d'un coup d'œil sur toute la pile (le point
-              5 de la checklist de l'ADR), et un garde-fou qu'on ne voit que
-              sur le calque sélectionné ne garde rien. L'ADR range explicitement
-              « icône d'état » et « actions propres à la ligne » dans ce qui
-              reste sur la ligne.
-              `stopPropagation` : même patron que dupliquer/supprimer — cliquer
-              le verrou ne sélectionne pas la ligne. */}
-          <IconButton
-            label={locked ? "Déverrouiller le calque" : "Verrouiller le calque"}
-            size="compact"
-            className="layer-panel__col--lock"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleLock(layer.id, !locked);
-            }}
-          >
-            {locked ? (
-              <Lock className="layer-panel__row-lock--active icon-sm icon-stroke" aria-hidden="true" />
-            ) : (
-              <LockOpen className="icon-sm icon-stroke" aria-hidden="true" />
-            )}
-          </IconButton>
           {/* NATURE de la ligne (2026-07-27) : la pile de shaderlab est une
               chaîne de traitement, pas un empilement de contenus — le panneau
               s'appelle « Effets », et cette icône est ce qui empêche ce titre
@@ -281,31 +256,40 @@ const LayerRow = memo(function LayerRow({
           ) : (
             <EffectLayerIcon className="layer-panel__row-nature layer-panel__col--nature icon-sm icon-stroke" aria-hidden="true" />
           )}
+          {/* MARQUE — une seule colonne pour la flèche d'écrêtage ET la
+              vignette (fusion du 2026-07-29). Elles sont MUTUELLEMENT
+              EXCLUSIVES par invariant du modèle : `LayerStack.setLayerClip`
+              refuse un calque portant `imageSource`, donc aucune ligne ne peut
+              porter les deux. Deux colonnes distinctes coûtaient 18 px de
+              largeur (--icon-size-sm + une gouttière) prélevés sur le nom, sur
+              un dock où le nom tombait à 52 px. L'invariant est verrouillé par
+              `test/layers/layerStack.test.ts` — si cette garde tombe, la fusion
+              n'est plus légitime et le test le dit avant l'écran.
+
+              La flèche : la base est le calque appliqué AVANT dans la pile.
+              Depuis le sens causal (ADR-0004, `layerDisplayOrder.ts`) c'est la
+              ligne du DESSUS dans la LISTE — la flèche pointe donc vers le HAUT
+              (elle pointait vers le bas sous l'ADR-0003). Elle ne s'affiche que
+              si une base EXISTE : un calque écrêté en bas de pile n'a rien avant
+              lui, `resolveClipping` le rend `inert` (il rend linéairement), et
+              une flèche qui désigne une base inexistante est un mensonge. */}
           {clipped && (
-            // La ligne de base est celle appliquée AVANT dans la pile. Depuis
-            // le sens causal (ADR-0004, `layerDisplayOrder.ts`), elle est la
-            // ligne du DESSUS dans la LISTE — la flèche pointe donc vers le
-            // HAUT (elle pointait vers le bas sous l'ADR-0003). Elle ne
-            // s'affiche que si une base EXISTE : un calque écrêté en bas de
-            // pile n'a rien avant lui, `resolveClipping` le rend `inert` (il
-            // rend linéairement), et une flèche qui désigne une base
-            // inexistante est un mensonge.
             <CornerLeftUp
-              className="layer-panel__clip-arrow layer-panel__col--clip icon-sm icon-stroke"
+              className="layer-panel__clip-arrow layer-panel__col--mark icon-sm icon-stroke"
               role="img"
               aria-label="Écrêté sur le calque du dessus"
             />
           )}
           {layer.imageSource &&
             (thumbnail ? (
-              <img className="layer-panel__thumbnail layer-panel__col--thumbnail" src={thumbnail} alt="" aria-hidden="true" />
+              <img className="layer-panel__thumbnail layer-panel__col--mark" src={thumbnail} alt="" aria-hidden="true" />
             ) : (
               // Boîte vide bordée : la vignette peut manquer (pas
               // d'OffscreenCanvas), et la ligne doit tout de même dire « ceci
               // est une photo ». Ce n'est PLUS une cale d'alignement — c'est la
               // colonne de grille qui réserve la place, y compris sur les
               // lignes qui ne rendent rien ici.
-              <span className="layer-panel__thumbnail layer-panel__thumbnail--empty layer-panel__col--thumbnail" aria-hidden="true" />
+              <span className="layer-panel__thumbnail layer-panel__thumbnail--empty layer-panel__col--mark" aria-hidden="true" />
             ))}
           <span
             className={`layer-panel__col--name layer-panel__row-name ${selected ? "layer-panel__row-name--selected" : ""}`.trim()}
@@ -313,48 +297,28 @@ const LayerRow = memo(function LayerRow({
           >
             {displayName}
           </span>
-        </span>
-        {/* Mêmes affordances que la suppression (IconButton compact,
-            libellé accessible explicite, stopPropagation pour ne pas
-            déclencher la sélection de la ligne) — la duplication se range
-            avec elle, à droite de la ligne. */}
-        <span className="layer-panel__row-actions">
-          {/* Opacité en LECTURE SEULE : le contrôle a quitté la ligne pour
-              la zone de contrôles, mais comparer les opacités de la pile d'un coup d'œil
-              reste un besoin — sans quoi il faudrait sélectionner chaque
-              calque pour lire sa valeur. Elle est ANNONCÉE (2026-07-27) : le
-              champ de la zone de contrôles ne couvre que le calque sélectionné, donc la
-              masquer partout retirait l'opacité de tous les autres calques aux
-              technologies d'assistance. MÊME UNITÉ que ce champ — un
-              pourcentage entier, jamais un 0..1 — pour qu'une valeur lue sur
-              une ligne et la même valeur lue dans la zone de contrôles soient
-              comparables. Sur la ligne SÉLECTIONNÉE, `aria-hidden` évite de
-              doubler ce que le champ annonce déjà. */}
-          <span className="layer-panel__row-opacity" aria-hidden={selected || undefined}>
-            <span className="sr-only">Opacité </span>
-            {formatOpacityPercent(layer.opacity)}
-          </span>
-          <IconButton
-            label="Dupliquer le calque"
-            size="compact"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDuplicate(layer.id);
-            }}
-          >
-            <Copy className="icon-sm icon-stroke" aria-hidden="true" />
-          </IconButton>
-          <IconButton
-            label="Supprimer le calque"
-            size="compact"
-            variant="danger"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove(layer.id);
-            }}
-          >
-            <Trash2 className="icon-sm icon-stroke" aria-hidden="true" />
-          </IconButton>
+          {/* VERROU — MARQUEUR, et seulement quand il est POSÉ (2026-07-29).
+              Le CONTRÔLE a migré dans la zone de contrôles de la carte
+              (ADR-0001 : un contrôle répété sur chaque ligne devient unique et
+              agit sur la sélection). Ce qui reste ici est l'ÉTAT, parce que le
+              point 5 de la checklist de l'ADR exige de pouvoir le comparer sans
+              sélectionner chaque calque : un verrou posé est un état à balayer,
+              un verrou ouvert n'est rien à voir. La colonne, elle, est RÉSERVÉE
+              en permanence par la grille — sans quoi le nom se décalerait selon
+              la présence du cadenas, exactement le défaut d'alignement corrigé
+              la veille.
+              `role="img"` et non un bouton : même sémantique que le cadenas de
+              la ligne d'arrière-plan, et un lecteur d'écran n'annonce pas une
+              action qui n'existe plus ici. */}
+          {locked && (
+            <span className="layer-panel__col--lock layer-panel__row-lock-slot">
+              <Lock
+                className="layer-panel__row-lock--active icon-sm icon-stroke"
+                role="img"
+                aria-label="Calque verrouillé"
+              />
+            </span>
+          )}
         </span>
       </div>
       {dropPosition && <span className={`drag-reorder__alignment-guide layer-panel__alignment-guide--${dropPosition}`} aria-hidden="true" />}
@@ -380,6 +344,9 @@ export function LayerControls({
   onOpacityCommit,
   onBlendModeChange,
   onEffectChange,
+  onToggleLock,
+  onDuplicate,
+  onRemove,
 }: LayerControlsProps) {
   // Aucune sélection : la zone de contrôles reste MONTÉ mais désactivé. Le faire
   // disparaître ferait sauter la liste de toute sa hauteur à chaque
@@ -406,6 +373,66 @@ export function LayerControls({
           disabled={!model.enabled}
           onChange={(v) => model.layerId !== null && onEffectChange(model.layerId, v)}
         />
+        {/* ACTIONS du calque sélectionné (2026-07-29). Elles vivaient sur
+            CHAQUE ligne de la liste ; l'ADR-0001 veut un contrôle unique
+            agissant sur la sélection, et c'est ce qui rend au NOM la largeur
+            qu'elles lui prenaient (52 px mesurés au dock par défaut).
+
+            POSÉES SUR CETTE LIGNE, pas sur une troisième (mesuré, pas supposé) :
+            une ligne de plus dans la zone de contrôles ajoutait 36 px au pied,
+            et la carte Effets débordait alors de 2 px sur le document minimal à
+            deux photos — soit une ligne de liste redevenue hors champ, très
+            exactement la récidive que garde
+            `PanelColumn.stories.tsx > FiveRowDocumentHidesNoRow`. L'ADR-0001
+            prévient que la zone de contrôles existe pour RENDRE de la hauteur à
+            la liste, pas pour la lui prendre : ces trois icônes se logent donc
+            dans la place libre de la ligne « Effet », qui occupait seule toute
+            sa largeur.
+
+            Le VERROU reste actionnable sur un calque verrouillé — c'est le seul
+            contrôle de cette zone dans ce cas, sinon le verrou serait une trappe
+            sans sortie, l'affordance ayant quitté la ligne.
+            `layerControlsModel.enabled` vaut `false` dès que le calque est
+            verrouillé : on ne peut donc pas s'en servir ici, d'où la lecture
+            directe de `model.layerId`.
+
+            DUPLIQUER reste actif sur un calque verrouillé, SUPPRIMER non —
+            c'est exactement ce que le modèle fait :
+            `LayerStack.duplicateLayer` lit la source sans la muter (la copie
+            hérite du verrou), `removeLayer` consulte `isLocked` et refuse. Un
+            bouton actif dont le modèle refuse l'effet serait l'échec silencieux
+            que ce dépôt proscrit. */}
+        <div className="layer-controls__actions">
+          <IconButton
+            label={model.locked ? "Déverrouiller le calque" : "Verrouiller le calque"}
+            size="compact"
+            disabled={model.layerId === null}
+            onClick={() => model.layerId !== null && onToggleLock(model.layerId, !model.locked)}
+          >
+            {model.locked ? (
+              <Lock className="layer-panel__row-lock--active icon-sm icon-stroke" aria-hidden="true" />
+            ) : (
+              <LockOpen className="icon-sm icon-stroke" aria-hidden="true" />
+            )}
+          </IconButton>
+          <IconButton
+            label="Dupliquer le calque"
+            size="compact"
+            disabled={model.layerId === null}
+            onClick={() => model.layerId !== null && onDuplicate(model.layerId)}
+          >
+            <Copy className="icon-sm icon-stroke" aria-hidden="true" />
+          </IconButton>
+          <IconButton
+            label="Supprimer le calque"
+            size="compact"
+            variant="danger"
+            disabled={!model.enabled}
+            onClick={() => model.layerId !== null && onRemove(model.layerId)}
+          >
+            <Trash2 className="icon-sm icon-stroke" aria-hidden="true" />
+          </IconButton>
+        </div>
       </div>
       {/* Ligne 2 — FUSION + OPACITÉ côte à côte, comme observé sur Photoshop
           web (§2 des observations du 2026-07-27).
@@ -467,10 +494,7 @@ export function LayerPanel({
   onToggle,
   isolatedLayerId = null,
   onAdd,
-  onDuplicate,
-  onRemove,
   onReorder,
-  onToggleLock,
   thumbnailUrl,
   backgroundName = null,
 }: Props) {
@@ -485,7 +509,17 @@ export function LayerPanel({
   // src/components/layerTree.ts). L'ordre est inchangé par construction — c'est
   // ce qui laisse `data-layer-row-index` et `displayInsertToModelInsert`
   // valides, donc le glisser-déposer intact.
-  const rows = useMemo(() => toLayerTreeRows(layers), [layers]);
+  //
+  // Le FOND est passé par son ID CONVENTIONNEL (2026-07-29) : il n'est pas un
+  // `LayerState`, `layerTree` ne peut donc pas le trouver dans `layers` — il
+  // doit le recevoir. `backgroundName` est ici l'unique témoin qu'un document
+  // est ouvert (c'est la même condition qui décide de rendre la ligne
+  // d'arrière-plan plus bas) : sans document, aucun effet ne se rattache au
+  // fond, et les lignes qu'il aurait adoptées restent racine.
+  const rows = useMemo(
+    () => toLayerTreeRows(layers, backgroundName ? BACKGROUND_LAYER_ID : null),
+    [layers, backgroundName]
+  );
   // Le hook de réordonnancement ne s'intéresse qu'aux identités, pas à la
   // hiérarchie : il reçoit la liste plate dans l'ordre affiché.
   const displayLayers = useMemo(() => rows.map((row) => row.layer), [rows]);
@@ -579,10 +613,11 @@ export function LayerPanel({
             pas porter un champ `locked`, donc il n'y a rien à basculer. Rendre
             le fond déverrouillable est la tranche T1 du design
             « le fond devient un calque », pas cette tranche.
-            Distinction SÉMANTIQUE : `role="img"` + libellé « Arrière-plan
-            verrouillé » ici, contre un `<button>` « Verrouiller/Déverrouiller
-            le calque » sur les lignes de calque — un lecteur d'écran annonce
-            une image d'un côté, un bouton de l'autre.
+            Distinction SÉMANTIQUE : libellé « Arrière-plan verrouillé » ici,
+            « Calque verrouillé » sur une ligne de calque — deux états
+            différents, deux annonces différentes ; le CONTRÔLE, lui, vit
+            depuis le 2026-07-29 dans la zone de contrôles de la carte
+            (ADR-0001) et ne vise que des calques.
             Distinction VISUELLE : ce cadenas n'est ni focusable ni survolable
             et reste au rang `--text-tertiary` ; le cadenas ACTIF d'un calque
             monte à `--text-primary` et porte les états d'un IconButton.
@@ -596,13 +631,17 @@ export function LayerPanel({
           <li className="layer-panel__row layer-panel__row--background">
             <div className="layer-panel__row-top">
               <span className="layer-panel__row-main">
-                <span className="layer-panel__col--lock layer-panel__row-lock-slot">
-                  <Lock className="layer-panel__row-lock icon-sm icon-stroke" role="img" aria-label="Arrière-plan verrouillé" />
-                </span>
                 <PhotoLayerIcon className="layer-panel__row-nature layer-panel__col--nature icon-sm icon-stroke" aria-hidden="true" />
-                <span className="layer-panel__thumbnail layer-panel__thumbnail--empty layer-panel__col--thumbnail" aria-hidden="true" />
+                <span className="layer-panel__thumbnail layer-panel__thumbnail--empty layer-panel__col--mark" aria-hidden="true" />
                 <span className="layer-panel__col--name layer-panel__row-name" title={backgroundName}>
                   {backgroundName}
+                </span>
+                {/* Le cadenas est rendu EN DERNIER, comme sur une ligne de
+                    calque : il occupe la dernière colonne, et l'ordre du DOM
+                    doit suivre l'ordre des colonnes (ordre de lecture, ordre
+                    d'annonce). Il ouvrait la ligne jusqu'au 2026-07-29. */}
+                <span className="layer-panel__col--lock layer-panel__row-lock-slot">
+                  <Lock className="layer-panel__row-lock icon-sm icon-stroke" role="img" aria-label="Arrière-plan verrouillé" />
                 </span>
               </span>
             </div>
@@ -629,9 +668,6 @@ export function LayerPanel({
             }
             onSelect={onSelect}
             onToggle={onToggle}
-            onDuplicate={onDuplicate}
-            onRemove={onRemove}
-            onToggleLock={onToggleLock}
             onGripPointerDown={handleGripPointerDown}
             thumbnailUrl={thumbnailUrl}
           />

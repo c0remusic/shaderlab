@@ -45,10 +45,7 @@ const meta: Meta<typeof LayerPanel> = {
     onSelect: () => {},
     onToggle: () => {},
     onAdd: () => {},
-    onDuplicate: () => {},
-    onRemove: () => {},
     onReorder: () => {},
-    onToggleLock: () => {},
   },
 };
 
@@ -150,13 +147,16 @@ export const ClippedWithoutBaseShowsNoArrow: Story = {
   },
 };
 
-// IMBRICATION (2026-07-28) — DIVERGENCE ASSUMÉE d'avec Photoshop, qui
-// n'indente rien (observations §5ter). La RÈGLE est testée unitairement
+// IMBRICATION — DIVERGENCE ASSUMÉE d'avec Photoshop, qui n'indente rien
+// (observations §5ter). La RÈGLE est testée unitairement
 // (test/components/layerTree.test.ts) ; ces stories ne vérifient que son
 // RENDU : quelles lignes portent la classe d'indentation et le filet.
 //
-// Pile : P (photo) · A (effet libre, une seule photo dessous → enfant de P) ·
-// Q (photo) · B (effet libre, DEUX photos dessous → reste à plat).
+// Pile : P (photo) · A (effet) · Q (photo) · B (effet). Sous la règle de
+// PROXIMITÉ (2026-07-29), chaque effet rejoint la photo qui le précède : A sous
+// P, B sous Q. Deux groupes, aucune ligne d'effet à plat. C'est précisément ce
+// que l'ancienne règle ne faisait pas — B y restait racine parce que DEUX
+// photos étaient sous lui — et c'est le défaut qu'Antoine a constaté.
 const twoPhotoLayers: LayerState[] = [
   makeLayer({ id: "photo-P", effectId: "passthrough", name: "plage.jpg", imageSource: { sourceId: "s-P" }, transform: { x: 0, y: 0, scale: 1, rotation: 0 } }),
   makeLayer({ id: "layer-A", effectId: "glow" }),
@@ -175,22 +175,25 @@ export const NestedUnderPhoto: Story = {
       "ciel.jpg",
       "Grain",
     ]);
+    // Chaque photo ouvre son groupe ; l'effet qui la suit lui appartient.
     await expect(rows.map((r) => r.classList.contains("layer-panel__row--nested"))).toEqual([
       false,
       true,
       false,
-      false,
+      true,
     ]);
-    // Un seul filet, sur l'unique ligne enfant — et il est décoratif.
+    // Un filet par ligne enfant — décoratifs.
     const rails = canvasElement.querySelectorAll(".layer-panel__rail");
-    await expect(rails).toHaveLength(1);
-    await expect(rails[0].getAttribute("aria-hidden")).toBe("true");
-    // Enfant unique : le filet porte les deux bornes du groupe.
-    await expect(rails[0].className).toContain("layer-panel__rail--first");
-    await expect(rails[0].className).toContain("layer-panel__rail--last");
-    // AUCUN marquage inventé sur la ligne à plat qui touche les deux photos
-    // (Grain, dernière ligne : deux photos sont appliquées avant lui).
-    await expect(rows[3].className).not.toContain("nested");
+    await expect(rails).toHaveLength(2);
+    for (const rail of rails) {
+      await expect(rail.getAttribute("aria-hidden")).toBe("true");
+      // Chaque groupe n'a qu'un enfant : son filet porte les DEUX bornes. Si
+      // les bornes étaient calculées globalement au lieu de par groupe, le
+      // second filet perdrait son `--first` et ne remonterait pas jusqu'à
+      // ciel.jpg.
+      await expect(rail.className).toContain("layer-panel__rail--first");
+      await expect(rail.className).toContain("layer-panel__rail--last");
+    }
   },
 };
 
@@ -317,19 +320,29 @@ export const NoPerRowControls: Story = {
     await expect(canvas.queryAllByRole("combobox", { name: "Effet" })).toHaveLength(0);
     await expect(canvas.queryAllByRole("combobox", { name: "Fusion" })).toHaveLength(0);
     await expect(canvas.queryAllByRole("slider", { name: "Opacité" })).toHaveLength(0);
-    // L'opacité reste LISIBLE sur chaque ligne (valeur seule, non éditable).
-    await expect(canvas.getByText("35 %")).toBeInTheDocument();
   },
 };
 
-export const DuplicateLayer: Story = {
-  args: { onDuplicate: fn() },
-  play: async ({ args, canvasElement }) => {
+// DENSITÉ DE LA LIGNE (2026-07-29, ADR-0001) : dupliquer, supprimer, le verrou
+// et l'opacité en lecture ont QUITTÉ les lignes pour la zone de contrôles de la
+// carte, où ils agissent sur la sélection. Leurs tests d'interaction vivent
+// désormais dans `LayerControls.stories.tsx`. Ce qui reste ici est la preuve
+// qu'ils ne sont PLUS sur la ligne : sans elle, les réintroduire passerait au
+// vert et le nom retomberait à 52 px.
+export const NoPerRowActions: Story = {
+  args: { layers: [makeLayer({ id: "layer-1", effectId: "glow", opacity: 0.35 })], selectedId: null },
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const duplicateButtons = canvas.getAllByRole("button", { name: "Dupliquer le calque" });
-    // Première ligne = premier calque appliqué = `layers[0]` (sens causal, ADR-0004).
-    await userEvent.click(duplicateButtons[0]);
-    await expect(args.onDuplicate).toHaveBeenCalledWith("layer-1");
+    await expect(canvas.queryAllByRole("button", { name: "Dupliquer le calque" })).toHaveLength(0);
+    await expect(canvas.queryAllByRole("button", { name: "Supprimer le calque" })).toHaveLength(0);
+    await expect(canvas.queryAllByRole("button", { name: "Verrouiller le calque" })).toHaveLength(0);
+    await expect(canvas.queryAllByRole("button", { name: "Déverrouiller le calque" })).toHaveLength(0);
+    // L'opacité en lecture seule disparaît elle aussi : elle DOUBLAIT le champ
+    // de la zone de contrôles, qui affiche la même valeur dans la même unité.
+    await expect(canvas.queryByText("35 %")).not.toBeInTheDocument();
+    // La ligne garde ce qui l'IDENTIFIE : l'œil, la nature, le nom.
+    await expect(canvas.getAllByRole("button", { name: "Masquer le calque" })).toHaveLength(1);
+    await expect(canvas.getByText("Glow")).toBeInTheDocument();
   },
 };
 
@@ -405,37 +418,59 @@ export const AllRowFormsShareOneGrid: Story = {
     await expect(new Set(offsets).size).toBe(1);
 
     // ---- CE QUE L'UTILISATEUR VOIT ----
-    // Abscisse ABSOLUE du nom, identique sur les quatre lignes NON imbriquées
-    // (arrière-plan, les deux photos, l'effet simple). C'est le constat
-    // d'Antoine — « les icônes semblent positionnées un peu aléatoirement ».
+    // Abscisse ABSOLUE du nom, identique sur les trois lignes NON imbriquées
+    // (arrière-plan, les deux photos). C'est le constat d'Antoine — « les
+    // icônes semblent positionnées un peu aléatoirement ».
     const absolute = (row: HTMLElement) => {
       const name = row.querySelector<HTMLElement>(".layer-panel__row-name");
       if (!name) throw new Error("ligne sans nom");
       return Math.round(name.getBoundingClientRect().left);
     };
-    const flat = [rows[0], rows[1], rows[2], rows[4]];
+    const flat = [rows[0], rows[1], rows[2]];
     await expect(flat.every((r) => !r.className.includes("--nested"))).toBe(true);
     await expect(new Set(flat.map(absolute)).size).toBe(1);
 
-    // La SEULE ligne dont le nom se décale est la ligne IMBRIQUÉE, et son
-    // décalage vaut exactement l'indentation d'imbrication — divergence voulue
-    // (layerTree.ts), pas une dérive. Sans cette assertion, réintroduire un
-    // décalage accidentel sur une ligne écrêtée passerait pour l'indentation.
-    // La SEULE ligne dont le nom se décale est la ligne IMBRIQUÉE, et son
-    // décalage vient ENTIÈREMENT de l'indentation de la ligne (padding), pas
-    // d'un décalage à l'intérieur de la grille — divergence voulue
-    // (layerTree.ts), pas une dérive. Mesuré plutôt que lu dans le token :
+    // Les lignes qui se décalent sont les lignes IMBRIQUÉES, et leur décalage
+    // vient ENTIÈREMENT de l'indentation de la ligne (padding), pas d'un
+    // décalage à l'intérieur de la grille — divergence voulue (layerTree.ts),
+    // pas une dérive. Sous la règle de PROXIMITÉ les deux effets rejoignent
+    // ciel.jpg, la photo qui les précède : elles sont donc imbriquées toutes
+    // les deux, au même cran. Mesuré plutôt que lu dans le token :
     // `--layer-nest-indent` est un `calc()`, `getPropertyValue` rend la formule
     // non résolue et `parseFloat` en tirerait un 0 silencieux.
-    await expect(rows[3].className).toContain("layer-panel__row--nested");
+    const nested = [rows[3], rows[4]];
+    await expect(nested.every((r) => r.className.includes("layer-panel__row--nested"))).toBe(true);
     const gridLeft = (row: HTMLElement) => {
       const main = row.querySelector<HTMLElement>(".layer-panel__row-main");
       if (!main) throw new Error("ligne sans grille d'identité");
       return Math.round(main.getBoundingClientRect().left);
     };
-    const indentPx = gridLeft(rows[3]) - gridLeft(rows[4]);
-    await expect(indentPx).toBeGreaterThan(0); // la ligne est bien indentée
-    await expect(absolute(rows[3]) - absolute(rows[4])).toBe(indentPx);
+    const indentPx = gridLeft(rows[3]) - gridLeft(rows[2]);
+    await expect(indentPx).toBeGreaterThan(0); // les lignes sont bien indentées
+    await expect(new Set(nested.map(absolute)).size).toBe(1);
+    await expect(absolute(rows[3]) - absolute(rows[2])).toBe(indentPx);
+
+    // ---- LARGEUR UTILE DU NOM (2026-07-29) ----
+    // LA mesure qui manquait, et qui aurait attrapé le défaut avant l'écran :
+    // rien ne vérifiait combien de place il RESTAIT au nom. À la largeur réelle
+    // du dock, la ligne comptait sept colonnes — poignée, œil, verrou, nature,
+    // flèche, vignette, nom — plus un groupe d'actions (opacité en lecture,
+    // dupliquer, supprimer) : le nom tombait à 52 px, où « Chromatic bleed »
+    // s'affiche « C… » et « DSCF5160-edited.JPG » « DSC… ».
+    // Après migration des actions vers la zone de contrôles (ADR-0001) et
+    // fusion de la flèche avec la vignette, il en reste plus du triple.
+    // Le seuil est un PLANCHER, pas une valeur exacte : il doit résister à une
+    // différence de métrique de police entre machines, tout en tombant
+    // immédiatement si un contrôle revient s'installer sur la ligne.
+    const nameWidth = (row: HTMLElement) => {
+      const name = row.querySelector<HTMLElement>(".layer-panel__row-name");
+      if (!name) throw new Error("ligne sans nom");
+      return Math.round(name.getBoundingClientRect().width);
+    };
+    // Ligne NON imbriquée (la plus large) et ligne imbriquée (amputée de
+    // l'indentation) : les deux doivent rester lisibles.
+    await expect(nameWidth(rows[1])).toBeGreaterThanOrEqual(170);
+    await expect(nameWidth(rows[3])).toBeGreaterThanOrEqual(150);
 
     // ---- LE DOCK NE S'ÉLARGIT PAS ----
     // `min-width: 0` + ellipse du nom : aucune ligne ne déborde de la colonne,
@@ -454,7 +489,12 @@ export const AllRowFormsShareOneGrid: Story = {
 
 // --- Verrou (arbitrage n°2 du design du 2026-07-28) ---
 
-export const LockedLayer: Story = {
+// Le CADENAS de la ligne n'est plus un contrôle depuis le 2026-07-29 : c'est un
+// MARQUEUR, et il n'apparaît QUE sur les lignes verrouillées. Justification
+// (point 5 de la checklist ADR-0001) : un verrou posé est un état qu'on doit
+// pouvoir balayer sans sélectionner chaque calque ; un verrou ouvert n'est rien
+// à voir, et le montrer partout coûtait une colonne de 28 px prise au nom.
+export const LockedLayerShowsMarkerOnly: Story = {
   args: {
     layers: [makeLayer({ id: "layer-1", effectId: "glow", locked: true }), makeLayer({ id: "layer-2", effectId: "grain" })],
     selectedId: "layer-1",
@@ -462,49 +502,23 @@ export const LockedLayer: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // Le calque verrouillé propose de DÉVERROUILLER ; l'autre, de verrouiller.
-    await expect(canvas.getAllByRole("button", { name: "Déverrouiller le calque" })).toHaveLength(1);
-    await expect(canvas.getAllByRole("button", { name: "Verrouiller le calque" })).toHaveLength(1);
-    // DEUX CADENAS, DEUX CHOSES : celui de l'arrière-plan reste un MARQUEUR
-    // (`role="img"`, non focusable) tant que le fond n'est pas un `LayerState`
-    // — c'est la tranche T1. Celui d'un calque est un `<button>`.
+    // UN seul cadenas de calque, sur la seule ligne verrouillée — et c'est une
+    // image, pas un bouton : l'action vit dans la zone de contrôles.
+    const marker = canvas.getByRole("img", { name: "Calque verrouillé" });
+    await expect(marker.closest("button")).toBeNull();
+    await expect(canvas.getAllByRole("img", { name: "Calque verrouillé" })).toHaveLength(1);
+    // Le cadenas de l'arrière-plan reste distinct, avec son propre libellé.
     const backgroundLock = canvas.getByRole("img", { name: "Arrière-plan verrouillé" });
     await expect(backgroundLock.closest("button")).toBeNull();
   },
 };
 
-export const ToggleLock: Story = {
-  args: { onToggleLock: fn() },
-  play: async ({ args, canvasElement }) => {
+// L'ABSENCE est la moitié du contrat : une pile sans verrou ne montre aucun
+// cadenas de calque. Sans cette story, rendre le marqueur en permanence
+// passerait au vert.
+export const UnlockedLayersShowNoLock: Story = {
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const locks = canvas.getAllByRole("button", { name: "Verrouiller le calque" });
-    // Première ligne = premier calque appliqué = `layers[0]` (sens causal, ADR-0004).
-    await userEvent.click(locks[0]);
-    await expect(args.onToggleLock).toHaveBeenCalledWith("layer-1", true);
-  },
-};
-
-// Le verrou ne sélectionne pas la ligne : même patron que dupliquer/supprimer
-// (`stopPropagation`). Sans ça, verrouiller un calque déplacerait la sélection
-// et donc tout le contenu de la zone de contrôles.
-export const LockDoesNotSelectRow: Story = {
-  args: { selectedId: "layer-1", onSelect: fn(), onToggleLock: fn() },
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
-    const locks = canvas.getAllByRole("button", { name: "Verrouiller le calque" });
-    await userEvent.click(locks[1]);
-    await expect(args.onToggleLock).toHaveBeenCalledWith("layer-2", true);
-    await expect(args.onSelect).not.toHaveBeenCalled();
-  },
-};
-
-export const RemoveLayer: Story = {
-  args: { onRemove: fn() },
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
-    const removeButtons = canvas.getAllByRole("button", { name: "Supprimer le calque" });
-    // Première ligne = premier calque appliqué = `layers[0]` (sens causal, ADR-0004).
-    await userEvent.click(removeButtons[0]);
-    await expect(args.onRemove).toHaveBeenCalledWith("layer-1");
+    await expect(canvas.queryAllByRole("img", { name: "Calque verrouillé" })).toHaveLength(0);
   },
 };

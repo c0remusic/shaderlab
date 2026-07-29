@@ -123,7 +123,7 @@ export const ListCardHasCompressionFloor: Story = {
 // sans qu'aucune ligne ne se cache.
 //
 // Cinq lignes : arrière-plan · Glow · Grain · une photo importée · un effet
-// écrêté sur elle (donc IMBRIQUÉ sous elle, ADR-0004). C'est le plus petit
+// écrêté sur elle. C'est le plus petit
 // document réel comportant deux photos. Mesuré sur la vraie fenêtre puis
 // reproduit ici au byte près : carte Effets gelée à 456px — exactement son
 // plancher à 4 lignes — et `.docked-panel-card__content` débordant de 60px,
@@ -137,8 +137,9 @@ export const ListCardHasCompressionFloor: Story = {
 //   3. c'est bien la CARTE qui borne, pas la colonne — la grille ne défile pas
 //      (corollaire indissociable de l'ADR-0001) ;
 //   4. une ligne fait au plus 56px hors sélection (checklist ADR-0001, point 3) ;
-//   5. un nom de fichier long s'ELLIPSE et garde sa gouttière, au lieu
-//      d'élargir la colonne jusqu'à coller le pourcentage d'opacité.
+//   5. un nom de fichier long s'ELLIPSE au lieu d'élargir la colonne, ET il lui
+//      reste assez de largeur pour être lu (ajouté le 2026-07-29 : c'est la
+//      mesure qui manquait quand le nom est tombé à 52 px).
 //
 // La hauteur de fenêtre est SIMULÉE (surcharge de `max-height` sur la grille) :
 // le runner de stories a son propre viewport, et cette garde doit mesurer la
@@ -202,6 +203,9 @@ export const FiveRowDocumentHidesNoRow: Story = {
                 onOpacityCommit={() => {}}
                 onBlendModeChange={() => {}}
                 onEffectChange={() => {}}
+                onToggleLock={() => {}}
+                onDuplicate={() => {}}
+                onRemove={() => {}}
               />
             ),
             content: (
@@ -212,9 +216,6 @@ export const FiveRowDocumentHidesNoRow: Story = {
                 onSelect={() => {}}
                 onToggle={() => {}}
                 onAdd={() => {}}
-                onToggleLock={() => {}}
-                onDuplicate={() => {}}
-                onRemove={() => {}}
                 onReorder={() => {}}
                 backgroundName="DSCF5160-edited.JPG"
               />
@@ -234,9 +235,16 @@ export const FiveRowDocumentHidesNoRow: Story = {
     const content = card.querySelector<HTMLElement>(".docked-panel-card__content")!;
     const rows = Array.from(content.querySelectorAll<HTMLElement>(".layer-panel__row"));
 
-    // Le document mesuré : 5 lignes, dont une imbriquée sous la photo importée.
+    // Le document mesuré : 5 lignes. Sous la règle de PROXIMITÉ (2026-07-29),
+    // TROIS sont imbriquées — Glow et Grain sous le FOND du document (aucun
+    // calque photo n'est appliqué avant eux), l'écrêté sous la photo importée.
+    // Seuls l'arrière-plan et la photo importée sont racine. C'est exactement
+    // le document sur lequel Antoine a constaté qu'une seule ligne sur quatre
+    // était indentée : cette assertion est ce qui l'empêche de revenir.
     await expect(rows).toHaveLength(5);
-    await expect(rows.filter((row) => row.classList.contains("layer-panel__row--nested"))).toHaveLength(1);
+    await expect(rows.map((row) => row.classList.contains("layer-panel__row--nested"))).toEqual([
+      false, true, true, false, true,
+    ]);
 
     // 1+2. Aucune ligne hors champ, et la zone défilante ne déborde pas.
     const contentBottom = content.getBoundingClientRect().bottom;
@@ -248,15 +256,27 @@ export const FiveRowDocumentHidesNoRow: Story = {
     // 3. La colonne ne défile pas : c'est la carte qui borne (ADR-0001).
     await expect(grid.scrollHeight).toBeLessThanOrEqual(grid.clientHeight);
 
-    // 4. Densité de ligne (checklist ADR-0001, point 3).
+    // 4. Densité de ligne (checklist ADR-0001, point 3). Le budget est SERRÉ :
+    // 2 px de trop par ligne suffisent à renvoyer la cinquième hors champ — la
+    // ligne d'arrière-plan les a réellement pris le 2026-07-29 en repliant sa
+    // grille sur deux rangées (voir `.layer-panel__row-main > *`,
+    // LayerPanel.css). Cette assertion-ci ne l'aurait PAS vu (54 <= 56) ; c'est
+    // le point 2 ci-dessus qui l'a attrapé.
     for (const row of rows) await expect(row.offsetHeight).toBeLessThanOrEqual(56);
 
-    // 5. Le nom cède, jamais le pourcentage — et la gouttière tient.
+    // 5. Le nom cède plutôt que d'élargir la colonne — et il lui reste de quoi
+    // se lire. Le « % » en lecture seule contre lequel il venait buter a quitté
+    // la ligne le 2026-07-29 avec les autres contrôles répétés (ADR-0001) :
+    // c'est la LARGEUR RENDUE au nom qui se mesure désormais, parce que c'est
+    // elle qui manquait — à 52 px, « DSCF5160-edited.JPG » s'affichait « DSC… ».
     const photoRow = rows[3];
     const name = photoRow.querySelector<HTMLElement>(".layer-panel__row-name")!;
-    const opacity = photoRow.querySelector<HTMLElement>(".layer-panel__row-opacity")!;
     await expect(name.scrollWidth).toBeGreaterThan(name.clientWidth); // ellipse active
-    await expect(opacity.getBoundingClientRect().left - name.getBoundingClientRect().right).toBeGreaterThanOrEqual(8);
+    // 152 px mesurés ici, contre 176 px dans `LayerPanel.stories.tsx` : la
+    // différence est le CHROME de la carte (padding de `.docked-panel-card` et
+    // de sa zone défilante), absent d'une story qui monte le panneau nu à 320 px.
+    // C'est CE chiffre-ci qui est celui de la vraie fenêtre.
+    await expect(Math.round(name.getBoundingClientRect().width)).toBeGreaterThanOrEqual(145);
     // La colonne garde sa largeur réservée : le nom n'a pas le droit de
     // l'élargir (c'est ce que `min-width: 0` sur .panel-column__stack empêche).
     await expect(photoRow.offsetWidth).toBeLessThanOrEqual(320);

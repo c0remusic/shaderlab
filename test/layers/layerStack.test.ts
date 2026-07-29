@@ -714,6 +714,28 @@ describe("LayerStack — setLayerClip (écrêtage, 2026-07-27)", () => {
     expect(stack.layers[0].clipToBelow).toBeUndefined();
   });
 
+  // CE QUI DÉPEND DE CETTE GARDE, AU-DELÀ DU RENDU (2026-07-29) : la ligne de
+  // calque fait PARTAGER une seule piste de grille à la vignette et à la flèche
+  // d'écrêtage (`.layer-panel__col--mark`, LayerPanel.css), précisément parce
+  // qu'un calque ne peut pas porter les deux. Le partage a rendu 18 px de
+  // largeur au nom, sur un dock où il était tombé à 52 px.
+  // Si cette garde tombe, la fusion devient un empilement silencieux de deux
+  // contenus dans la même cellule — ce test le dit avant l'écran.
+  it("aucun calque ne peut porter À LA FOIS `imageSource` et `clipToBelow` (invariant dont dépend la fusion de colonnes)", () => {
+    const stack = new LayerStack();
+    // Sens 1 : une photo ne devient jamais écrêtée.
+    const photo = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scale: 1, rotation: 0 });
+    stack.setLayerClip(photo, true);
+    // Sens 2 : un calque écrêté ne devient jamais une photo — `imageSource`
+    // n'est écrit qu'à la création et à la duplication, aucun mutateur ne
+    // transforme un calque d'effet existant en photo.
+    const effect = stack.addLayer("glow");
+    expect(stack.setLayerClip(effect, true)).toBe(true);
+    for (const layer of stack.layers) {
+      expect(layer.imageSource !== undefined && layer.clipToBelow === true).toBe(false);
+    }
+  });
+
   it("no-op sur un id absent ou sur une valeur inchangée (pas d'entrée d'historique vide)", () => {
     const stack = new LayerStack();
     const id = stack.addLayer("glow");

@@ -41,6 +41,9 @@ const meta: Meta<typeof LayerControls> = {
     onOpacityCommit: () => {},
     onBlendModeChange: () => {},
     onEffectChange: () => {},
+    onToggleLock: () => {},
+    onDuplicate: () => {},
+    onRemove: () => {},
   },
 };
 
@@ -58,6 +61,72 @@ export const NoSelection: Story = {
     await expect(canvas.getByRole("combobox", { name: "Effet" })).toBeDisabled();
     await expect(canvas.getByRole("combobox", { name: "Fusion" })).toBeDisabled();
     await expect(canvas.getByRole("textbox", { name: "Opacité" })).toBeDisabled();
+    // Les actions migrées depuis les lignes (2026-07-29) suivent la même
+    // règle : montées mais inertes. Les faire disparaître ferait sauter la
+    // liste au-dessus à chaque désélection (ADR-0001, § Conséquences).
+    await expect(canvas.getByRole("button", { name: "Verrouiller le calque" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Dupliquer le calque" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Supprimer le calque" })).toBeDisabled();
+  },
+};
+
+// --- Actions migrées depuis les lignes (2026-07-29, ADR-0001) ---
+//
+// Elles se répétaient sur CHAQUE ligne de la liste et mangeaient la largeur du
+// nom (mesurée à 52 px au dock par défaut). Elles agissent désormais sur le
+// calque SÉLECTIONNÉ. Leur contrepartie côté liste — la preuve qu'elles n'y
+// sont plus — vit dans `LayerPanel.stories.tsx` (`NoPerRowActions`).
+
+export const ToggleLock: Story = {
+  args: { selectedId: "layer-2", onToggleLock: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Verrouiller le calque" }));
+    await expect(args.onToggleLock).toHaveBeenCalledWith("layer-2", true);
+  },
+};
+
+export const DuplicateSelectedLayer: Story = {
+  args: { selectedId: "layer-2", onDuplicate: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Dupliquer le calque" }));
+    await expect(args.onDuplicate).toHaveBeenCalledWith("layer-2");
+  },
+};
+
+export const RemoveSelectedLayer: Story = {
+  args: { selectedId: "layer-2", onRemove: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Supprimer le calque" }));
+    await expect(args.onRemove).toHaveBeenCalledWith("layer-2");
+  },
+};
+
+// CALQUE VERROUILLÉ : la zone entière est inerte SAUF le verrou lui-même — sans
+// quoi le verrou serait une trappe sans sortie, l'affordance de déverrouillage
+// ayant quitté la ligne. DUPLIQUER reste actif, SUPPRIMER non : c'est
+// exactement ce que le modèle fait (`LayerStack.duplicateLayer` lit la source
+// sans la muter, `removeLayer` consulte `isLocked` et refuse). Un bouton actif
+// dont la mutation est refusée en silence serait un échec silencieux.
+export const LockedLayerKeepsOnlyItsWayOut: Story = {
+  args: {
+    layers: [makeLayer({ id: "layer-1", effectId: "glow", locked: true })],
+    selectedId: "layer-1",
+    onToggleLock: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("combobox", { name: "Effet" })).toBeDisabled();
+    await expect(canvas.getByRole("combobox", { name: "Fusion" })).toBeDisabled();
+    await expect(canvas.getByRole("textbox", { name: "Opacité" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Supprimer le calque" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Dupliquer le calque" })).not.toBeDisabled();
+    const unlock = canvas.getByRole("button", { name: "Déverrouiller le calque" });
+    await expect(unlock).not.toBeDisabled();
+    await userEvent.click(unlock);
+    await expect(args.onToggleLock).toHaveBeenCalledWith("layer-1", false);
   },
 };
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { layerParentIds, toLayerTreeRows } from "../../src/components/layerTree";
+import { BACKGROUND_LAYER_ID, layerParentIds, toLayerTreeRows } from "../../src/components/layerTree";
 import { displayInsertToModelInsert, toDisplayOrder } from "../../src/components/layerDisplayOrder";
 import { computeInsertIndex, reorderById, type DropPosition } from "../../src/ui/dragReorder";
 import { defaultLayerMask } from "../../src/mask/types";
@@ -28,11 +28,11 @@ function photo(id: string, overrides: Partial<LayerState> = {}): LayerState {
 }
 
 /** Résumé lisible d'une ligne : `id` préfixé de son indentation. */
-const shape = (layers: LayerState[]): string[] =>
-  toLayerTreeRows(layers).map((row) => `${"  ".repeat(row.depth)}${row.layer.id}`);
+const shape = (layers: LayerState[], backgroundId: string | null = null): string[] =>
+  toLayerTreeRows(layers, backgroundId).map((row) => `${"  ".repeat(row.depth)}${row.layer.id}`);
 
-const parents = (layers: LayerState[]): Array<string | null> =>
-  toLayerTreeRows(layers).map((row) => row.parentId);
+const parents = (layers: LayerState[], backgroundId: string | null = null): Array<string | null> =>
+  toLayerTreeRows(layers, backgroundId).map((row) => row.parentId);
 
 /**
  * RATTACHEMENT SEUL, en espace MODÈLE. Ces cas sont écrits dans l'ordre du
@@ -43,7 +43,7 @@ const parents = (layers: LayerState[]): Array<string | null> =>
 describe("layerParentIds — espace modèle, indépendant du sens d'affichage", () => {
   it("rend un parent par calque, dans l'ordre du TABLEAU", () => {
     const layers = [photo("P"), effect("A"), photo("Q"), effect("B")];
-    expect(layerParentIds(layers)).toEqual([null, "P", null, null]);
+    expect(layerParentIds(layers)).toEqual([null, "P", null, "Q"]);
   });
 
   it("« en dessous » veut dire indice INFÉRIEUR dans le tableau, jamais une position à l'écran", () => {
@@ -56,6 +56,86 @@ describe("layerParentIds — espace modèle, indépendant du sens d'affichage", 
 
   it("un écrêté nomme sa base photo quel que soit le nombre de photos plus bas", () => {
     expect(layerParentIds([photo("P"), photo("Q"), effect("A", { clipToBelow: true })])).toEqual([null, null, "Q"]);
+  });
+});
+
+/**
+ * PROXIMITÉ (2026-07-29) — la règle en vigueur. Un effet appartient à la photo
+ * qui le PRÉCÈDE dans la chaîne : parent de `layers[i]` = photo d'indice le plus
+ * élevé strictement inférieur à `i`. Remplace la règle de VÉRITÉ LITTÉRALE
+ * (« une seule photo en dessous, sinon racine »), abandonnée parce qu'elle
+ * laissait à plat presque toute la pile.
+ */
+describe("layerParentIds — règle de PROXIMITÉ", () => {
+  it("la photo la PLUS PROCHE en dessous gagne, même quand plusieurs photos existent", () => {
+    // Sous l'ancienne règle A restait racine (deux photos sous lui).
+    const layers = [photo("P"), photo("Q"), effect("A")];
+    expect(layerParentIds(layers)).toEqual([null, null, "Q"]);
+  });
+
+  it("chaque photo OUVRE son groupe : les effets suivants lui appartiennent jusqu'à la photo suivante", () => {
+    const layers = [photo("P"), effect("A"), effect("B"), photo("Q"), effect("C")];
+    expect(layerParentIds(layers)).toEqual([null, "P", "P", null, "Q"]);
+  });
+});
+
+/**
+ * FOND DU DOCUMENT comme photo parente. Le fond n'est PAS un `LayerState`
+ * (`src/layers/photoLayer.ts:3-5` : c'est `sourceTexture`, l'entrée du
+ * pipeline) — son identité arrive donc en PARAMÈTRE, jamais devinée ici.
+ */
+describe("layerParentIds — le fond du document compte comme photo parente", () => {
+  it("les effets sous lesquels aucun calque photo n'existe sont rattachés au FOND", () => {
+    const layers = [effect("A"), effect("B")];
+    expect(layerParentIds(layers, BACKGROUND_LAYER_ID)).toEqual([BACKGROUND_LAYER_ID, BACKGROUND_LAYER_ID]);
+  });
+
+  it("sans fond fourni (aucun document ouvert), ces mêmes effets restent racine", () => {
+    const layers = [effect("A"), effect("B")];
+    expect(layerParentIds(layers, null)).toEqual([null, null]);
+  });
+
+  it("un calque photo reste racine même quand un fond existe : il est la matière, pas un traitement", () => {
+    expect(layerParentIds([photo("P")], BACKGROUND_LAYER_ID)).toEqual([null]);
+  });
+
+  it("le fond ne l'emporte jamais sur un calque photo plus proche", () => {
+    const layers = [effect("A"), photo("P"), effect("B")];
+    expect(layerParentIds(layers, BACKGROUND_LAYER_ID)).toEqual([BACKGROUND_LAYER_ID, null, "P"]);
+  });
+});
+
+/**
+ * LE DOCUMENT D'ANTOINE, tel qu'observé sur la vraie fenêtre le 2026-07-29 :
+ * fond `DSCF5160.JPG` + Glow + Grain + photo importée `DSCF5160-edited.JPG` +
+ * Chromatic bleed écrêté. Une seule ligne sur quatre était indentée.
+ */
+describe("toLayerTreeRows — le document constaté à l'écran", () => {
+  const document = [
+    effect("glow"),
+    effect("grain"),
+    photo("edited"),
+    effect("bleed", { clipToBelow: true }),
+  ];
+
+  it("rattache les quatre lignes : deux au fond, une à la photo importée", () => {
+    expect(shape(document, BACKGROUND_LAYER_ID)).toEqual(["  glow", "  grain", "edited", "  bleed"]);
+    expect(parents(document, BACKGROUND_LAYER_ID)).toEqual([
+      BACKGROUND_LAYER_ID,
+      BACKGROUND_LAYER_ID,
+      null,
+      "edited",
+    ]);
+  });
+
+  it("le groupe du FOND commence à la première ligne : son filet remonte jusqu'à la ligne d'arrière-plan", () => {
+    const rows = toLayerTreeRows(document, BACKGROUND_LAYER_ID);
+    expect(rows.map((r) => [r.layer.id, r.firstChild, r.lastChild])).toEqual([
+      ["glow", true, false],
+      ["grain", false, true],
+      ["edited", false, false],
+      ["bleed", true, true],
+    ]);
   });
 });
 
@@ -130,16 +210,20 @@ describe("toLayerTreeRows — une seule photo", () => {
 });
 
 describe("toLayerTreeRows — deux photos", () => {
-  it("un effet NON écrêté au-dessus de DEUX photos reste à plat : il dépend du composite entier", () => {
+  it("un effet NON écrêté au-dessus de DEUX photos rejoint la PLUS PROCHE", () => {
+    // Ancienne règle (abandonnée le 2026-07-29) : il restait à plat, parce
+    // qu'il s'applique en réalité au composite entier. Voir l'en-tête de
+    // src/components/layerTree.ts — la lisibilité du groupe l'emporte
+    // désormais sur l'exactitude littérale.
     const layers = [photo("P"), photo("Q"), effect("A")];
-    expect(shape(layers)).toEqual(["P", "Q", "A"]);
-    expect(parents(layers)).toEqual([null, null, null]);
+    expect(shape(layers)).toEqual(["P", "Q", "  A"]);
+    expect(parents(layers)).toEqual([null, null, "Q"]);
   });
 
-  it("des effets de part et d'autre : celui du bas s'imbrique, celui du haut reste à plat", () => {
+  it("des effets de part et d'autre : chacun rejoint la photo qui le précède", () => {
     const layers = [photo("P"), effect("A"), photo("Q"), effect("B")];
-    expect(shape(layers)).toEqual(["P", "  A", "Q", "B"]);
-    expect(parents(layers)).toEqual([null, "P", null, null]);
+    expect(shape(layers)).toEqual(["P", "  A", "Q", "  B"]);
+    expect(parents(layers)).toEqual([null, "P", null, "Q"]);
   });
 
   it("un effet ÉCRÊTÉ s'imbrique même quand DEUX photos sont sous lui", () => {
@@ -160,7 +244,7 @@ describe("toLayerTreeRows — deux photos", () => {
 
   it("les bornes du filet sont calculées par GROUPE, pas globalement", () => {
     const layers = [photo("P"), effect("B"), photo("Q"), effect("A", { clipToBelow: true })];
-    const rows = toLayerTreeRows(layers);
+    const rows = toLayerTreeRows(layers, null);
     expect(rows.map((r) => [r.layer.id, r.firstChild, r.lastChild])).toEqual([
       ["P", false, false],
       ["B", true, true],
@@ -184,11 +268,13 @@ describe("toLayerTreeRows — chaînes d'écrêtage", () => {
     expect(parents(layers)).toEqual([null, "P", "P"]);
   });
 
-  it("un écrêté inerte au-dessus de DEUX photos reste à plat", () => {
+  it("un écrêté INERTE retombe sur la règle de proximité, y compris avec deux photos", () => {
     const layers = [photo("P"), photo("Q"), effect("A"), effect("B", { clipToBelow: true })];
-    // Base résolue de B = A (non photo) → inerte → règle du non-écrêté → 2
-    // photos dessous → racine.
-    expect(parents(layers)).toEqual([null, null, null, null]);
+    // Base résolue de B = A (non photo) → `resolveClipping` dit `inert` → on
+    // retombe sur la proximité, qui désigne Q. Une ligne ne désigne jamais une
+    // base d'écrêtage inexistante ; elle rejoint son groupe comme un effet
+    // ordinaire.
+    expect(parents(layers)).toEqual([null, null, "Q", "Q"]);
   });
 
   it("un calque PHOTO portant clipToBelow reste racine (l'attribut y est interdit par LayerStack)", () => {
@@ -203,9 +289,9 @@ describe("toLayerTreeRows — aucun marquage inventé", () => {
     expect(Object.keys(rows[0]).sort()).toEqual(["depth", "firstChild", "lastChild", "layer", "parentId"]);
   });
 
-  it("un effet à plat touchant plusieurs photos ne porte AUCUN parent ni indentation", () => {
-    const rows = toLayerTreeRows([photo("P"), photo("Q"), effect("A")]);
-    expect(rows[2]).toMatchObject({ layer: { id: "A" }, depth: 0, parentId: null, firstChild: false, lastChild: false });
+  it("un effet appliqué AVANT toute photo, sans fond fourni, ne porte AUCUN parent ni indentation", () => {
+    const rows = toLayerTreeRows([effect("A"), photo("P")], null);
+    expect(rows[0]).toMatchObject({ layer: { id: "A" }, depth: 0, parentId: null, firstChild: false, lastChild: false });
   });
 });
 

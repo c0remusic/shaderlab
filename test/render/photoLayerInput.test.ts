@@ -109,8 +109,49 @@ describe("PhotoLayerInputResolver", () => {
   // `scale` — donc edgeDistPx (en pixels PHOTO) doit être multiplié par
   // `scale` avant le clamp, pas utilisé brut.
   it("multiplies edgeDistPx by scale before clamping into coverage (I2 — feather in screen space, not photo space)", () => {
-    expect(PHOTO_LAYER_INPUT_WGSL).toContain("clamp(edgeDistPx * scale, 0.0, 1.0)");
+    expect(PHOTO_LAYER_INPUT_WGSL).toContain("clamp(edgeDistPx * scale + 0.5, 0.0, 1.0)");
     expect(PHOTO_LAYER_INPUT_WGSL).not.toContain("clamp(edgeDistPx, 0.0, 1.0)");
+  });
+
+  // I5 — la rampe de couverture doit être CENTRÉE sur le bord de la photo.
+  // `in.uv` échantillonne au centre d'un texel, donc `edgeDistPx * scale` est
+  // la distance du CENTRE du pixel au bord, pas sa couverture : sans le
+  // `+ 0.5`, le premier rang de pixels d'une photo qui couvre exactement la
+  // toile (centre à 0,5 px du bord) sortait à 0,5 et s'aplatissait à demi sur
+  // le fond — un liseré sombre d'un pixel sur toute photo ouverte, mesuré le
+  // 2026-07-29 sur 4×256−4 pixels de contour du harnais de rendu.
+  // Ces assertions décrivent la couverture analytique d'un pixel de 1 px
+  // d'empreinte : elles doivent rester vraies EN GARDANT une couverture
+  // partielle réelle (0,5 quand le bord passe par le centre du pixel).
+  describe("I5 — coverage ramp centred on the photo edge", () => {
+    /** La formule de `PHOTO_LAYER_INPUT_WGSL` (ligne `coverage`), en TS. */
+    const coverage = (edgeDistPx: number, scale: number) =>
+      Math.min(Math.max(edgeDistPx * scale + 0.5, 0), 1);
+
+    it("returns 1 for a pixel fully inside the photo (edge row of a photo covering the canvas)", () => {
+      // Photo 256×256 sur toile 256×256, scale 1 : le centre du texel 0 est à
+      // 0,5 px du bord — le pixel est entièrement dans la photo.
+      expect(coverage(0.5, 1)).toBe(1);
+      expect(coverage(1.5, 1)).toBe(1);
+    });
+
+    it("still returns a PARTIAL coverage when the edge falls inside the pixel", () => {
+      expect(coverage(0, 1)).toBe(0.5);
+      expect(coverage(0.25, 1)).toBe(0.75);
+      expect(coverage(-0.25, 1)).toBe(0.25);
+    });
+
+    it("returns 0 for a pixel fully outside the photo", () => {
+      expect(coverage(-0.5, 1)).toBe(0);
+      expect(coverage(-8, 1)).toBe(0);
+    });
+
+    it("keeps the ramp 1 screen pixel wide whatever the scale (I2 preserved)", () => {
+      // À scale 0,25, il faut 4 px PHOTO pour franchir 1 px ÉCRAN.
+      expect(coverage(2, 0.25)).toBe(1);
+      expect(coverage(-2, 0.25)).toBe(0);
+      expect(coverage(0, 0.25)).toBe(0.5);
+    });
   });
 
   // I3 — parité maths de transform inverse entre le WGSL de cette pré-passe

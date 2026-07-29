@@ -50,8 +50,25 @@ fn fs_photo_input(in: VertexOut) -> @location(0) vec4<f32> {
   // ECRAN a scale<1 (bord crenele) et plusieurs pixels ECRAN a scale>1
   // (bord flou). On multiplie par scale pour ramener le feather en espace
   // ecran (1px ecran quel que soit le zoom de la photo).
+  //
+  // I5 : le + 0.5 CENTRE la rampe sur le bord, il ne la supprime pas.
+  // in.uv echantillonne au CENTRE d'un texel : le texel i est lu en
+  // (i + 0.5) / bgWidth, donc edgeDistPx * scale est la distance du
+  // CENTRE du pixel au bord de la photo, pas sa couverture. Un pixel
+  // entierement a l'interieur de la photo (le premier rang, centre a 0,5 px
+  // du bord) sortait a 0,5 : d'ou le lisere sombre d'un pixel sur toute
+  // photo ouverte, a l'ecran comme a l'export (mesure 2026-07-29 : 4x256-4
+  // pixels du contour, rapport 0,73 en sRGB = 0,5 en lineaire).
+  // La couverture analytique d'un pixel de 1px d'empreinte dont le centre
+  // est a la distance signee d du bord vaut clamp(d + 0.5, 0, 1) : 1 quand
+  // le pixel est entierement dedans (d = +0,5), 0,5 quand le bord passe
+  // exactement par son centre (d = 0), 0 quand il est entierement dehors
+  // (d = -0,5). La couverture PARTIELLE reste donc pleinement en vigueur —
+  // une photo reduite ou deplacee dont le bord tombe au milieu d'un pixel
+  // rend toujours une valeur intermediaire, c'est ce qui lui donne un bord
+  // propre. Seul le cas « la photo couvre exactement la toile » redevient 1.
   let edgeDistPx = min(min(photoPx, photoWidth - photoPx), min(photoPy, photoHeight - photoPy));
-  let coverage = clamp(edgeDistPx * scale, 0.0, 1.0);
+  let coverage = clamp(edgeDistPx * scale + 0.5, 0.0, 1.0);
 
   let sample = textureSample(photoTexture, photoSampler, photoUv);
   return vec4<f32>(sample.rgb, coverage);

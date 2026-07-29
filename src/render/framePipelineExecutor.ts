@@ -72,11 +72,11 @@ export interface EffectPassesPort {
 export interface MaskTexturesPort {
   sweep(layerIds: ReadonlySet<string>): void;
   /** `guideEpoch` : identifie la "fraîcheur" de `colorView` (l'image de
-   *  guide du filtre edge-aware) — constant pour le calque du bas (guide =
-   *  image source stable), changeant à chaque exécution réelle du pipeline
-   *  sinon (le composite en dessous est ré-encodé sans mémoïsation par
-   *  calque). Sans ce signal, edge-aware pouvait rester figé sur un ancien
-   *  composite après modif d'un calque en dessous. */
+   *  guide du filtre edge-aware). Ne change QUE lorsque le composite qui sert
+   *  de guide change réellement — voir `computeGuideEpochs`. Sans ce signal,
+   *  edge-aware resterait figé sur un ancien composite après modif d'un
+   *  calque en dessous ; avec un signal trop grossier (une valeur par
+   *  exécution du pipeline), il reconstruirait sa SAT à chaque frame. */
   resolve(
     layer: LayerState,
     encoder: GPUCommandEncoder,
@@ -130,10 +130,17 @@ export type FramePipelineResult = {
  * frame-scoped GPU destruction: resources are released only after submit.
  */
 export class FramePipelineExecutor {
-  /** Incrémenté à chaque exécution réelle du pipeline — sert de `guideEpoch`
-   *  "changeant" pour tout calque dont le guide edge-aware n'est pas
-   *  l'image source stable (voir `MaskTexturesPort.resolve`). */
-  private runGeneration = 0;
+  /** Compteur monotone d'où sortent les `guideEpoch`. N'avance PAS à chaque
+   *  frame : seulement quand `computeGuideEpochs` constate qu'un guide a
+   *  réellement changé. */
+  private guideGeneration = 0;
+  /** `lastGuideKeys[i]` : l'identité qui, la frame précédente, occupait la
+   *  position `i` de la chaîne dont dépend un guide — position 0 = la toile,
+   *  position `i>0` = `enabledLayers[i-1]`. `lastGuideEpochs[i]` : l'epoch
+   *  servie à cette position. Les deux tableaux sont indexés ensemble et
+   *  tronqués à la taille de la pile activée courante. */
+  private lastGuideKeys: unknown[] = [];
+  private lastGuideEpochs: number[] = [];
 
   constructor(
     private readonly device: GPUDevice,
@@ -143,14 +150,20 @@ export class FramePipelineExecutor {
     private readonly photoInputs: PhotoLayerInputPort,
   ) {}
 
+  /** `livePreviewLayerId` : calque dont le masque est servi par l'APERÇU live
+   *  du pinceau (`MaskTexturesPort` court-circuite alors sa résolution). Son
+   *  contenu change d'une frame à l'autre SANS que son `LayerState` change —
+   *  c'est le seul cas où l'identité d'objet ne suffit pas à détecter qu'un
+   *  guide au-dessus de lui est périmé, d'où ce paramètre explicite plutôt
+   *  qu'une invalidation permanente « au cas où ». */
   run(
     layers: LayerState[],
     maskOverlayLayerId: string | null,
+    livePreviewLayerId: string | null = null,
   ): FramePipelineResult {
     const canvasTexture = this.resources.canvasTexture;
     const pingPong = this.resources.pingPong;
     if (!canvasTexture || !pingPong) throw new Error("Aucune image chargée.");
-    this.runGeneration++;
 
     this.masks.sweep(new Set(layers.map((layer) => layer.id)));
     const encoder = this.device.createCommandEncoder();
@@ -167,6 +180,7 @@ export class FramePipelineExecutor {
       return this.runFrame(
         layers,
         maskOverlayLayerId,
+        livePreviewLayerId,
         canvasTexture,
         pingPong,
         encoder,
@@ -179,9 +193,58 @@ export class FramePipelineExecutor {
     }
   }
 
+  /** Epochs de guide de la frame, indexées par POSITION dans la chaîne de
+   *  composition : `epochs[i]` identifie la fraîcheur du guide edge-aware
+   *  servi au calque `enabledLayers[i]` — c'est-à-dire de la toile composée
+   *  des calques `0..i-1`. `epochs[0]` (la toile seule) existe toujours, même
+   *  pile vide : c'est l'epoch du guide « aucun calque en dessous ».
+   *
+   *  La granularité n'est PLUS une position dans la pile (« index 0 = guide
+   *  stable ») ni l'exécution du pipeline (« une frame = une epoch »), mais ce
+   *  dont le guide dépend réellement : l'identité de la toile, puis celle de
+   *  chaque `LayerState` en dessous. Les états de calque sont immuables (une
+   *  modification produit un nouvel objet — c'est déjà la monnaie de change de
+   *  `MaskTextureResolver.resident`, qui compare `syncedFrom === raster`), donc
+   *  une chaîne d'identités inchangée signifie un guide inchangé. Dès qu'une
+   *  position diverge, toutes les positions AU-DESSUS reçoivent une epoch
+   *  neuve : un guide dépend de tout son préfixe, pas seulement du calque qui
+   *  le précède. */
+  private computeGuideEpochs(
+    canvasTexture: GPUTexture,
+    enabledLayers: LayerState[],
+    livePreviewLayerId: string | null,
+  ): number[] {
+    const epochs: number[] = [];
+    let stale = false;
+    for (let i = 0; i < Math.max(enabledLayers.length, 1); i++) {
+      const below = i === 0 ? null : enabledLayers[i - 1];
+      const key =
+        below === null
+          ? canvasTexture
+          : below.id === livePreviewLayerId
+            ? // Aperçu live : le masque servi change à chaque échantillon de
+              // pinceau sans nouveau `LayerState`. Une clé neuve à chaque
+              // frame est la seule façon honnête de le dire — sinon le guide
+              // d'un calque au-dessus resterait figé pendant tout le trait.
+              {}
+            : below;
+      if (!stale && this.lastGuideKeys[i] !== key) stale = true;
+      if (stale) this.lastGuideEpochs[i] = ++this.guideGeneration;
+      this.lastGuideKeys[i] = key;
+      epochs.push(this.lastGuideEpochs[i]);
+    }
+    // Pile raccourcie : les positions disparues sont oubliées. Si elles
+    // reviennent, leur clé mémorisée sera `undefined` — donc divergente, donc
+    // epoch neuve. Conservateur dans le bon sens (jamais un guide périmé).
+    this.lastGuideKeys.length = epochs.length;
+    this.lastGuideEpochs.length = epochs.length;
+    return epochs;
+  }
+
   private runFrame(
     layers: LayerState[],
     maskOverlayLayerId: string | null,
+    livePreviewLayerId: string | null,
     canvasTexture: GPUTexture,
     pingPong: [GPUTexture, GPUTexture],
     encoder: GPUCommandEncoder,
@@ -189,6 +252,11 @@ export class FramePipelineExecutor {
     pendingDestroy: FrameResource[],
   ): FramePipelineResult {
     const enabledLayers = layers.filter((layer) => layer.enabled);
+    const guideEpochs = this.computeGuideEpochs(
+      canvasTexture,
+      enabledLayers,
+      livePreviewLayerId,
+    );
     const overlayLayer = maskOverlayLayerId
       ? (layers.find((layer) => layer.id === maskOverlayLayerId) ?? null)
       : null;
@@ -219,9 +287,9 @@ export class FramePipelineExecutor {
           encoder,
           canvasTexture.createView(),
           pendingDestroy,
-          // Guide = image source stable (aucun calque composité) — même
-          // statut de fraîcheur que le premier calque de la pile.
-          0,
+          // Guide = la toile seule (aucun calque composité) — exactement le
+          // guide de la position 0, donc son epoch.
+          guideEpochs[0],
         );
         // L'overlay LIT `blitTarget` (pingPong[0]) et ÉCRIT l'autre buffer :
         // jamais la même texture en lecture et en écriture.
@@ -376,10 +444,11 @@ export class FramePipelineExecutor {
           // compositing, sans toucher à l'entrée d'effet (qui reste le
           // composite en dessous) — voir shaderCompose §clipToCoverage.
           clipCoverageView: clipView,
-          // 0 = image source stable (premier calque) ; sinon le composite
-          // des calques en dessous, ré-encodé à chaque run() (voir champ
-          // `runGeneration`).
-          guideEpoch: index === 0 ? 0 : this.runGeneration,
+          // Fraîcheur du guide edge-aware de CE calque = celle de la chaîne
+          // toile + calques en dessous (voir `computeGuideEpochs`). Une
+          // position dans la pile ne dit plus rien à elle seule : depuis la
+          // tranche T1, l'index 0 est le calque photo de fond.
+          guideEpoch: guideEpochs[index],
         },
         pendingDestroy,
       );
@@ -401,21 +470,21 @@ export class FramePipelineExecutor {
       // fixe" mais "les deux appels masks.resolve() d'un même calque, dans
       // la même frame, portent le même guideEpoch numérique" — c'est la
       // seule chose que MaskTextureResolver compare pour décider
-      // d'invalider (maskTextureResolver.ts:243-247), pas l'identité de
-      // texture. On mirrorise donc exactement la formule déjà utilisée par
-      // la boucle principale (index === 0 ? 0 : this.runGeneration) sur
-      // l'index réel du calque overlay, plutôt qu'une valeur fixe — sans
-      // ça, un calque non-premier édité avec overlay actif invaliderait
-      // son cache SAT à CHAQUE appel au lieu d'aucun (voir
-      // docs/superpowers/specs/2026-07-24-shaderlab-overlay-guide-source-design.md,
-      // amendement).
+      // d'invalider (maskTextureResolver.ts:259-263), pas l'identité de
+      // texture. On ne mirrorise plus une FORMULE (risque de dérive entre
+      // deux sites) : on relit la MÊME case du tableau d'epochs de la frame
+      // que la boucle principale a servie à ce calque. Un calque overlay
+      // absent d'`enabledLayers` (désactivé) a pour guide la toile seule,
+      // donc la position 0. Sans cette égalité, un calque édité avec
+      // overlay actif invaliderait son cache SAT à CHAQUE appel au lieu
+      // d'aucun (voir docs/adr/0002-overlay-guide-epoch-invariant.md).
       const overlayIndex = enabledLayers.findIndex((l) => l.id === overlayLayer.id);
       overlayMaskTexture = this.masks.resolve(
         overlayLayer,
         encoder,
         overlayIndex <= 0 ? canvasTexture.createView() : composedTexture.createView(),
         pendingDestroy,
-        overlayIndex <= 0 ? 0 : this.runGeneration,
+        guideEpochs[Math.max(overlayIndex, 0)],
       );
       // L'overlay LIT `composedTexture` (pingPong[writeIndex]) et ÉCRIT
       // l'autre buffer. Sûr : ce buffer-là a servi de `readTexture` à la

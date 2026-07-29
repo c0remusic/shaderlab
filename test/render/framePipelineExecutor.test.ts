@@ -135,33 +135,38 @@ describe("FramePipelineExecutor", () => {
     expect(result.overlayMaskTexture).toBe(resolved);
   });
 
-  it("uses the source texture and epoch 0 as the overlay's guide when the overlay layer is the bottom layer", () => {
+  it("uses the source texture and a STABLE epoch as the overlay's guide when the overlay layer is the bottom layer", () => {
     const { executor, masks, source } = createExecutor();
     const resolved = texture() as unknown as GPUTexture;
     masks.resolve = vi.fn(() => resolved);
+    const bottom = layer({ id: "L1", enabled: true });
 
-    executor.run([layer({ id: "L1", enabled: true })], "L1");
+    executor.run([bottom], "L1");
+    executor.run([bottom], "L1");
 
-    expect(masks.resolve).toHaveBeenCalledOnce();
-    const [, , colorView, , guideEpoch] = (masks.resolve as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(colorView).toBe(source.createView.mock.results.at(-1)!.value);
-    expect(guideEpoch).toBe(0);
+    const calls = (masks.resolve as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[1][2]).toBe(source.createView.mock.results.at(-1)!.value);
+    // Le guide du calque du bas est la TOILE seule : rien ne peut le rendre
+    // périmé tant que la toile est la même texture. La valeur numérique n'a
+    // aucune importance, sa stabilité en a une (voir `computeGuideEpochs`).
+    expect(calls[1][4]).toBe(calls[0][4]);
   });
 
-  it("uses the source texture and epoch 0 as the overlay's guide when the overlay layer is disabled (absent from enabledLayers)", () => {
+  it("uses the source texture and the bottom-position epoch when the overlay layer is disabled (absent from enabledLayers)", () => {
     const { executor, masks, source } = createExecutor();
     const resolved = texture() as unknown as GPUTexture;
     masks.resolve = vi.fn(() => resolved);
+    const enabled = layer({ id: "L1", enabled: true });
+    const disabled = layer({ id: "L2", enabled: false });
 
-    executor.run(
-      [layer({ id: "L1", enabled: true }), layer({ id: "L2", enabled: false })],
-      "L2",
-    );
+    executor.run([enabled, disabled], "L2");
+    executor.run([enabled, disabled], "L2");
 
-    expect(masks.resolve).toHaveBeenCalledOnce();
-    const [, , colorView, , guideEpoch] = (masks.resolve as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(colorView).toBe(source.createView.mock.results.at(-1)!.value);
-    expect(guideEpoch).toBe(0);
+    const calls = (masks.resolve as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[1][2]).toBe(source.createView.mock.results.at(-1)!.value);
+    expect(calls[1][4]).toBe(calls[0][4]);
   });
 
   it("uses the composite and the same epoch as the layer's own render pass when the overlay layer is not the bottom layer", () => {
@@ -556,5 +561,141 @@ describe("FramePipelineExecutor — texture à présenter", () => {
 
     expect(result.composedTexture).toBe(firstTarget);
     expect(result.presentTexture).toBe(secondTarget);
+  });
+});
+
+/**
+ * Fraîcheur du guide edge-aware (tranche T3 du design 2026-07-28 §2.6).
+ *
+ * Ce que ces tests MESURENT : le nombre de reconstructions de SAT de guide
+ * qu'un `MaskTextureResolver` réel ferait à partir du flux d'epochs que
+ * l'exécuteur produit. Le compteur reproduit littéralement la seule
+ * comparaison qui les déclenche — `lastGuideEpochByLayer.get(id) !==
+ * guideEpoch` (`src/render/maskTextureResolver.ts:259-263`), qui avance
+ * `guideRevision`, elle-même la clé de cache de `needsGuide`
+ * (`maskTextureResolver.ts:749-750`).
+ *
+ * Ce qu'ils NE mesurent PAS : le temps GPU réel, ni le contenu des textures.
+ * Aucun device WebGPU n'est instancié ici. La non-régression des pixels est
+ * du ressort de `scripts/render-check.mjs`.
+ */
+describe("FramePipelineExecutor — epochs de guide", () => {
+  /** Branche un compteur de reconstructions sur les DEUX chemins par lesquels
+   *  une epoch atteint `MaskTextureResolver.resolve` : les options de
+   *  `runEffectPass` (rendu normal, via `effectPassRunner.resolveMask`) et
+   *  l'appel direct de l'overlay. */
+  function trackGuideRebuilds(effects: EffectPassesPort, masks: MaskTexturesPort) {
+    const lastEpoch = new Map<string, number>();
+    const rebuilds = new Map<string, number>();
+    const feed = (id: string, epoch: number) => {
+      if (lastEpoch.get(id) === epoch) return;
+      lastEpoch.set(id, epoch);
+      rebuilds.set(id, (rebuilds.get(id) ?? 0) + 1);
+    };
+    effects.runEffectPass = vi.fn((_e, _effect, l: LayerState, _s, _t, options) => {
+      if (options?.applyMask) feed(l.id, options.guideEpoch as number);
+    });
+    masks.resolve = vi.fn((l: LayerState, _e, _v, _p, epoch: number) => {
+      feed(l.id, epoch);
+      return texture() as unknown as GPUTexture;
+    });
+    return (id: string) => rebuilds.get(id) ?? 0;
+  }
+
+  /** Le fond depuis T1 : un calque photo ordinaire, à l'index 0. */
+  const background = layer({
+    id: "BG",
+    imageSource: { sourceId: "s1" },
+    transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+  });
+  const above = layer({ id: "ABOVE" });
+
+  it("ne reconstruit le guide d'aucun calque quand la pile ne change pas d'une frame à l'autre", () => {
+    const { executor, effects, masks } = createExecutor();
+    const rebuilds = trackGuideRebuilds(effects, masks);
+
+    executor.run([background, above], null);
+    executor.run([background, above], null);
+    executor.run([background, above], null);
+
+    // 1 = la construction initiale, obligatoire. Le témoin de la régression
+    // corrigée par T3 est le calque AU-DESSUS du fond : avec l'ancienne
+    // formule (`index === 0 ? 0 : runGeneration`) il en comptait 3 sur 3
+    // frames, une reconstruction complète de SAT par frame pour rien.
+    expect(rebuilds("BG")).toBe(1);
+    expect(rebuilds("ABOVE")).toBe(1);
+  });
+
+  it("reconstruit le guide du calque au-dessus quand le calque photo de fond change", () => {
+    const { executor, effects, masks } = createExecutor();
+    const rebuilds = trackGuideRebuilds(effects, masks);
+
+    executor.run([background, above], null);
+    // Un transform de photo modifié = un nouvel objet d'état (immuabilité
+    // React), donc une entrée d'effet différente pour le fond, donc un
+    // composite différent sous `above`.
+    const moved = { ...background, params: { ...background.params, moved: 1 } };
+    executor.run([moved, above], null);
+
+    expect(rebuilds("ABOVE")).toBe(2);
+    // Le guide du fond, lui, reste la toile : sa propre modification ne le
+    // périme pas.
+    expect(rebuilds("BG")).toBe(1);
+  });
+
+  it("ne reconstruit rien quand seul le calque du DESSUS change", () => {
+    const { executor, effects, masks } = createExecutor();
+    const rebuilds = trackGuideRebuilds(effects, masks);
+
+    executor.run([background, above], null);
+    executor.run([background, { ...above, opacity: 0.5 }], null);
+
+    expect(rebuilds("BG")).toBe(1);
+    expect(rebuilds("ABOVE")).toBe(1);
+  });
+
+  it("reconstruit le guide quand l'ordre de la pile change", () => {
+    const { executor, effects, masks } = createExecutor();
+    const rebuilds = trackGuideRebuilds(effects, masks);
+
+    executor.run([background, above], null);
+    executor.run([above, background], null);
+
+    // `above` passe en position 0 (guide = toile) et `background` en position
+    // 1 (guide = above) : les deux guides changent d'identité.
+    expect(rebuilds("ABOVE")).toBe(2);
+    expect(rebuilds("BG")).toBe(2);
+  });
+
+  it("répute périmé le guide au-dessus d'un calque en aperçu live de pinceau", () => {
+    const { executor, effects, masks } = createExecutor();
+    const rebuilds = trackGuideRebuilds(effects, masks);
+
+    // Pendant un trait, le masque du calque peint change à chaque échantillon
+    // SANS nouveau `LayerState` : l'identité d'objet ne peut pas le voir.
+    executor.run([background, above], null, "BG");
+    executor.run([background, above], null, "BG");
+    executor.run([background, above], null, "BG");
+
+    expect(rebuilds("ABOVE")).toBe(3);
+    expect(rebuilds("BG")).toBe(1);
+  });
+
+  it("sert la MÊME epoch aux deux appels d'un même calque dans une frame (ADR-0002)", () => {
+    const { executor, effects, masks } = createExecutor();
+    const epochs: Array<[string, number]> = [];
+    effects.runEffectPass = vi.fn((_e, _effect, l: LayerState, _s, _t, options) => {
+      if (options?.applyMask) epochs.push([`effect:${l.id}`, options.guideEpoch as number]);
+    });
+    masks.resolve = vi.fn((l: LayerState, _e, _v, _p, epoch: number) => {
+      epochs.push([`overlay:${l.id}`, epoch]);
+      return texture() as unknown as GPUTexture;
+    });
+
+    executor.run([background, above], "ABOVE");
+
+    const effectEpoch = epochs.find(([k]) => k === "effect:ABOVE")![1];
+    const overlayEpoch = epochs.find(([k]) => k === "overlay:ABOVE")![1];
+    expect(overlayEpoch).toBe(effectEpoch);
   });
 });

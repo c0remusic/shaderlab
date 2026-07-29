@@ -28,7 +28,8 @@
 //   + 3 variantes de compositing x 6 effets (composite, +photo, +clip) = 18
 //   + 11 modes de fusion sur un effet neutre
 //   + 1 passe neutre passthrough (court-circuit « 0 calque » et neutralisation
-//     d'un calque ecrete `suppressed`)
+//     d'un calque ecrete `suppressed`) — variante SANS masque depuis T0
+//     (2026-07-28) : c'est une copie stricte, alpha inclus, pas un compositing
 //   = 35
 //
 //   B. Sources WGSL COMPLETES du masque / de la pre-passe photo (elles
@@ -42,7 +43,9 @@
 //       channels 1|2)
 //   + 1 overlay de masque (MASK_OVERLAY_WGSL)
 //   + 1 pre-passe d'entree d'un calque photo (PHOTO_LAYER_INPUT_WGSL)
-//   = 24
+//   + 2 passes de presentation (buildPresentWgsl : damier / noir) — l'unique
+//       ecrivain du canvas et de la cible d'export depuis T0 (2026-07-28)
+//   = 26
 //
 //   C. Sources de masque PARAMETRIQUES : ce sont des FRAGMENTS `fs_generate`
 //      (comme les effets, mais avec un autre wrapper — `wrapMaskSourceWgsl`,
@@ -50,7 +53,7 @@
 //      chacun avec son propre nombre de slots `PARAM_COUNT_BY_TYPE` (un N
 //      different = une source differente) = 3
 //
-// = 62 shaders compiles au total, + 1 garde d'exclusion mutuelle (non
+// = 64 shaders compiles au total, + 1 garde d'exclusion mutuelle (non
 //   compilee).
 //
 // DEUX CATEGORIES, a ne pas confondre (2e piege) : les `wgsl` du registre
@@ -163,10 +166,12 @@ const script = `(async () => {
     // (framePipelineExecutor.ts:251-267). \`passthrough\` n'est PAS dans
     // effectRegistry (il n'est pas choisissable par l'utilisateur), donc la
     // boucle ci-dessus ne le voyait pas — et \`runEffectPass\` a
-    // \`applyMask = true\` PAR DEFAUT (effectPassRunner.ts:155) : options \`{}\`
-    // produit bien le chemin de compositing complet, masque + blend normal.
-    await compile("passthrough neutre (compositing)",
-      composeShader(PASSTHROUGH_EFFECT.wgsl, { applyMask: true, hasPrevPass: false, blendWgsl: normal }));
+    // \`applyMask = true\` PAR DEFAUT (effectPassRunner.ts:155) — mais depuis
+    // T0 (2026-07-28) l'executeur passe explicitement \`{ applyMask: false }\`
+    // pour ces deux sites : c'est une COPIE (alpha inclus), pas un
+    // compositing. Le chemin de compositing forcerait l'alpha de sortie a 1.
+    await compile("passthrough neutre (copie, sans masque)",
+      composeShader(PASSTHROUGH_EFFECT.wgsl, { applyMask: false, hasPrevPass: false }));
 
     // 5) morphologie du masque : 2 modes x 2 axes. Une source par variante,
     // et le pipeline est cache PAR SOURCE (maskTextureResolver.ts:534) — une
@@ -230,6 +235,15 @@ const script = `(async () => {
     await compile("overlay de masque", runner.MASK_OVERLAY_WGSL);
     const photo = await import("/src/render/photoLayerInput.ts");
     await compile("pre-passe entree photo", photo.PHOTO_LAYER_INPUT_WGSL);
+
+    // 5sexies) passes de PRESENTATION (T0, 2026-07-28). Deux sources
+    // distinctes — le fond damier est du code WGSL, pas un uniforme — et c'est
+    // la SEULE chose qui ecrit le canvas ou la cible d'export. Une regression
+    // WGSL ici ne casse pas un effet : elle casse tout affichage ET tout
+    // export d'un coup.
+    const present = await import("/src/render/presentPass.ts");
+    for (const bg of ["checker", "black"])
+      await compile("presentation:" + bg, present.buildPresentWgsl(bg));
 
     // 6) garde : un calque photo ne peut pas etre ecrete. Les deux drapeaux
     // partagent le binding 6 mais n'ont pas le meme sens — \`composeShader\`

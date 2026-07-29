@@ -9,7 +9,7 @@ vi.stubGlobal("GPUTextureUsage", {
 });
 
 function texture() {
-  return { destroy: vi.fn() };
+  return { destroy: vi.fn(), createView: vi.fn(() => ({})) };
 }
 
 function createResources() {
@@ -17,13 +17,16 @@ function createResources() {
   const firstTarget = texture();
   const secondTarget = texture();
   const exportTarget = texture();
+  const beginRenderPass = vi.fn(() => ({ end: vi.fn() }));
+  const submit = vi.fn();
   const device = {
     createTexture: vi.fn()
       .mockReturnValueOnce(source)
       .mockReturnValueOnce(firstTarget)
       .mockReturnValueOnce(secondTarget)
       .mockReturnValueOnce(exportTarget),
-    queue: { copyExternalImageToTexture: vi.fn() },
+    createCommandEncoder: vi.fn(() => ({ beginRenderPass, finish: vi.fn(() => ({})) })),
+    queue: { copyExternalImageToTexture: vi.fn(), submit },
   };
   return {
     resources: new ImageFrameResources(
@@ -32,6 +35,8 @@ function createResources() {
       100,
     ),
     device,
+    beginRenderPass,
+    submit,
     source,
     firstTarget,
     secondTarget,
@@ -56,6 +61,27 @@ describe("ImageFrameResources", () => {
       { source: bitmap },
       { texture: source },
       [20, 10],
+    );
+  });
+
+  // Tranche T0 (design 2026-07-28) : la toile s'efface en TRANSPARENT, jamais
+  // en noir opaque. Le §1.2 du design imposait `alpha = 1` ; cette contrainte
+  // n'était dictée QUE par l'export, et l'aplatissement explicite de
+  // `presentPass.ts` la remplace. Aujourd'hui l'upload recouvre cet
+  // effacement — il devient porteur à T1, quand la toile cesse d'être uploadée.
+  it("efface la toile en alpha 0 AVANT d'uploader la photo", () => {
+    const { resources, beginRenderPass, submit, source, device } = createResources();
+
+    resources.loadImage({ width: 20, height: 10 } as ImageBitmap);
+
+    expect(beginRenderPass).toHaveBeenCalledOnce();
+    const attachment = beginRenderPass.mock.calls[0][0].colorAttachments[0];
+    expect(attachment.loadOp).toBe("clear");
+    expect(attachment.clearValue).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+    expect(attachment.view).toBe(source.createView.mock.results[0]!.value);
+    // L'ordre compte : effacer APRÈS l'upload effacerait la photo.
+    expect(submit.mock.invocationCallOrder[0]).toBeLessThan(
+      device.queue.copyExternalImageToTexture.mock.invocationCallOrder[0],
     );
   });
 

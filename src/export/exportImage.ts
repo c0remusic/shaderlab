@@ -45,7 +45,39 @@ export interface PathAvailability {
   exists(path: string): Promise<boolean>;
 }
 
+/**
+ * Refuse d'encoder un pixel non opaque — le second verrou de la séparation
+ * « alpha à l'écran / opaque à l'export » (le premier étant `PresentPass`,
+ * seul écrivain de la cible d'export, voir `render/presentPass.ts`).
+ *
+ * Un JPEG n'a PAS de canal alpha : la spécification HTML fait composer
+ * `convertToBlob` sur du NOIR quand le format cible n'en a pas. Un composite à
+ * alpha 0 qui arriverait jusqu'ici produirait donc un JPEG entièrement noir,
+ * sans aucun message — le piège central de la tranche T0. Lever ici transforme
+ * ce silence en erreur nommée, et rend impossible de retirer l'aplatissement en
+ * amont sans que quelque chose casse bruyamment.
+ *
+ * Fail-fast plutôt qu'aplatir une seconde fois sur le CPU : un alpha qui
+ * survit jusqu'ici est un défaut de pipeline, et le corriger en douce le
+ * rendrait indétectable (« pas de fallback silencieux », CLAUDE.md § Méthode).
+ *
+ * Coût : un balayage de plus du tampon relu (un octet sur quatre). Négligeable
+ * devant la relecture GPU et l'encodage JPEG qui l'encadrent.
+ */
+export function assertOpaqueForJpeg(pixels: Uint8Array): void {
+  for (let i = 3; i < pixels.length; i += 4) {
+    if (pixels[i] !== 255) {
+      throw new Error(
+        `Export JPEG : pixel non opaque (alpha=${pixels[i]}) au pixel ${(i - 3) / 4}. ` +
+          "Un JPEG n'a pas de canal alpha — l'encodage composerait ce pixel sur du noir en silence. " +
+          "L'aplatissement sur fond opaque doit avoir lieu dans la passe de présentation (render/presentPass.ts) avant la relecture.",
+      );
+    }
+  }
+}
+
 async function encodeJpeg(pixels: Uint8Array, width: number, height: number): Promise<Uint8Array> {
+  assertOpaqueForJpeg(pixels);
   const canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext("2d")!;
   const imageData = new ImageData(new Uint8ClampedArray(pixels.buffer as ArrayBuffer), width, height);

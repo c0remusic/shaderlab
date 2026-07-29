@@ -74,7 +74,8 @@ export class LayerStack {
    *  **Opérations REFUSÉES sur un calque verrouillé** (toutes rendent le
    *  même no-op `false` que le reste du fichier — donc aucune entrée
    *  d'historique vide côté `App.tsx`) : `setLayerEffect`, `setLayerClip`,
-   *  `updateLayerTransform`, `removeLayer`, `reorderLayer`, `updateParams`,
+   *  `setLayerImageSource`, `updateLayerTransform`, `removeLayer`,
+   *  `reorderLayer`, `updateParams`,
    *  `updateBrushMask`, et toute la famille masque (`removeMaskSource`,
    *  `updateMaskSourceParams`, `setMaskSourceCombineMode`,
    *  `setMaskSourceEnabled`, `updateRefineEdge`, `setMaskInvert`,
@@ -229,6 +230,64 @@ export class LayerStack {
     if (layer.imageSource !== undefined) return false;
     if ((layer.clipToBelow ?? false) === clip) return false;
     layer.clipToBelow = clip;
+    return true;
+  }
+
+  /** Remplace l'IMAGE d'un calque photo sans rien perdre d'autre (tranche T2
+   *  du design `2026-07-28-shaderlab-fond-comme-calque-design.md`). Unique
+   *  chemin d'écriture de `imageSource` sur un calque EXISTANT — les deux
+   *  autres écritures du champ le POSENT à la naissance du calque
+   *  (`addPhotoLayer`, `duplicateLayer`), aucune ne le change après coup.
+   *
+   *  Vaut pour TOUT calque photo, le fond compris : depuis T1 rien ne le
+   *  distingue des autres, et une garde « sauf le fond » réintroduirait le
+   *  statut spécial que cette tranche a supprimé.
+   *
+   *  **Le `transform` n'est PAS touché**, même quand la nouvelle image a
+   *  d'autres dimensions. La toile ne dérive plus de la texture source depuis
+   *  T1 (`ImageFrameResources.allocateCanvas` prend des dimensions
+   *  explicites, posées à l'ouverture du document) : remplacer le contenu
+   *  d'un calque ne redimensionne donc jamais le document, et l'image
+   *  arrivante se place dans l'espace existant selon le placement déjà réglé
+   *  — c'est le comportement attendu d'un montage où plusieurs images
+   *  coexistent. `transform.x/y` étant le CENTRE de la photo et `scale` un
+   *  facteur, la nouvelle image arrive centrée au même point, à la même
+   *  échelle et au même angle ; seule l'étendue couverte change, ce qui est
+   *  inhérent à un changement de dimensions et immédiatement visible.
+   *  Recentrer ou ré-échelonner d'office écraserait en silence un placement
+   *  délibéré, alors que « Centrer » et « Ajuster à la toile » sont à un clic
+   *  dans le panneau Photo.
+   *
+   *  **Objet FRAIS, jamais de mutation en place** (`{ sourceId }` et non
+   *  `layer.imageSource.sourceId = …`) : `clone()` copie les calques par
+   *  spread shallow, donc `imageSource` est partagé par référence avec toutes
+   *  les entrées d'historique. Muter en place réécrirait rétroactivement
+   *  chaque snapshot et l'annulation rendrait un calque intact affichant la
+   *  NOUVELLE image, sans la moindre erreur. Verrouillé par le témoin de
+   *  `test/layers/setLayerImageSource.test.ts`.
+   *
+   *  Le masque n'est pas touché non plus : il est en coordonnées de DOCUMENT
+   *  et la toile ne bouge pas, il reste donc valide tel quel.
+   *
+   *  `name` (optionnel) : nom affiché du calque, en pratique le basename du
+   *  nouveau fichier. Il est posé PAR CE MÊME mutateur et pas par un second
+   *  appel, pour deux raisons : le nom affiché décrit l'image, il devient un
+   *  mensonge à l'instant où l'image change ; et l'écrire ici garantit qu'il
+   *  voyage dans la MÊME entrée d'historique que la source — annuler restaure
+   *  l'image et son nom d'un seul geste, jamais l'un sans l'autre. Omis ->
+   *  nom inchangé.
+   *
+   *  Returns `true` iff `id` existe, porte déjà un `imageSource` (un calque
+   *  d'effet n'a pas de source à remplacer), n'est pas verrouillé, et
+   *  `sourceId` diffère réellement de l'actuel (même discipline no-op que le
+   *  reste du fichier : pas d'entrée d'historique vide). */
+  setLayerImageSource(id: string, sourceId: string, name?: string): boolean {
+    const layer = this.layers.find((l) => l.id === id);
+    if (!layer || layer.imageSource === undefined) return false;
+    if (this.isLocked(id)) return false;
+    if (layer.imageSource.sourceId === sourceId) return false;
+    layer.imageSource = { sourceId };
+    if (name !== undefined) layer.name = name;
     return true;
   }
 

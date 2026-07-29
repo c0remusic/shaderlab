@@ -450,6 +450,36 @@ export const AllRowFormsShareOneGrid: Story = {
     await expect(new Set(nested.map(absolute)).size).toBe(1);
     await expect(absolute(rows[3]) - absolute(rows[2])).toBe(indentPx);
 
+    // ---- DEUX ZONES (2026-07-29) ----
+    // À gauche ce qui manipule et identifie (poignée · œil · marque · nom), à
+    // droite ce que la ligne EST et son état (nature · verrou). L'icône de
+    // nature vivait entre l'œil et la marque, où elle doublait la vignette sur
+    // une ligne photo. `--nature` est rendue sur les CINQ formes de ligne : si
+    // une seule la perdait, la zone de droite ne serait plus lisible en
+    // colonne.
+    const natures = rows.map((row) => row.querySelector<HTMLElement>(".layer-panel__col--nature"));
+    await expect(natures.every((n) => n !== null)).toBe(true);
+    for (const row of rows) {
+      const name = row.querySelector<HTMLElement>(".layer-panel__row-name")!;
+      const nature = row.querySelector<HTMLElement>(".layer-panel__col--nature")!;
+      await expect(nature.getBoundingClientRect().left).toBeGreaterThanOrEqual(name.getBoundingClientRect().right);
+    }
+    // Et elle tombe à la MÊME abscisse sur les lignes non imbriquées, comme le
+    // nom : c'est une colonne, pas une position d'écoulement.
+    const natureLeft = (row: HTMLElement) =>
+      Math.round(row.querySelector<HTMLElement>(".layer-panel__col--nature")!.getBoundingClientRect().left);
+    await expect(new Set([rows[0], rows[1], rows[2]].map(natureLeft)).size).toBe(1);
+
+    // La ligne d'ARRIÈRE-PLAN partage la MÊME définition de colonnes que les
+    // lignes de calque — c'est ce qui rend ses pistes poignée et œil réservées
+    // alors qu'elle n'y place rien, et ce qui les rendra prêtes le jour où le
+    // fond aura un œil (tranche T1). Comparé sur la valeur RÉSOLUE : deux
+    // `grid-template-columns` identiques au pixel près, pas deux règles CSS
+    // qu'on suppose d'accord.
+    const resolvedColumns = (row: HTMLElement) =>
+      getComputedStyle(row.querySelector<HTMLElement>(".layer-panel__row-main")!).gridTemplateColumns;
+    await expect(resolvedColumns(rows[0])).toBe(resolvedColumns(rows[1]));
+
     // ---- LARGEUR UTILE DU NOM (2026-07-29) ----
     // LA mesure qui manquait, et qui aurait attrapé le défaut avant l'écran :
     // rien ne vérifiait combien de place il RESTAIT au nom. À la largeur réelle
@@ -483,6 +513,82 @@ export const AllRowFormsShareOneGrid: Story = {
     // Aucune ligne n'est sélectionnée ici (`selectedId: null`).
     for (const row of rows) {
       await expect(row.getBoundingClientRect().height).toBeLessThanOrEqual(56);
+    }
+  },
+};
+
+// --- Géométrie du filet (2026-07-29) ---
+
+// LE test qui manquait, n°2. Le défaut qu'il attrape : le filet vertical
+// démarrait EN DESSOUS de sa photo parente, 8 px de blanc entre les deux, et
+// rien ne le voyait — `NestedUnderPhoto` vérifie quelles lignes PORTENT un
+// filet et avec quelles bornes, jamais où ce filet commence.
+//
+// Cause mesurée : `.layer-panel__rail--first` ne franchissait que la gouttière
+// de liste (`--space-4`) et s'arrêtait au bord de BOÎTE du parent, alors que le
+// CONTENU visible du parent (`.layer-panel__row-top`) s'arrête un `--space-4`
+// plus haut, la ligne portant `padding: var(--space-4)`. Il fallait franchir
+// les DEUX. Relevé avant correctif : contenu du parent à 159,59 px, haut du
+// filet à 167,59 px.
+//
+// La mesure porte sur le bas du CONTENU du parent, pas sur le bas de sa boîte :
+// c'est le contenu que l'œil lit comme « la ligne », et le bord de boîte était
+// déjà touché quand le blanc était visible à l'écran. Un test écrit contre le
+// bord de boîte serait passé au vert sur le défaut rapporté.
+//
+// Les deux formes de parent sont couvertes — la ligne d'ARRIÈRE-PLAN (Glow lui
+// est rattaché : aucun calque photo ne le précède, ADR-0005 clause 1) et un
+// calque PHOTO (Grain, rattaché à plage.jpg).
+const twoParentKinds: LayerState[] = [
+  makeLayer({ id: "layer-A", effectId: "glow" }),
+  makeLayer({ id: "photo-P", effectId: "passthrough", name: "plage.jpg", imageSource: { sourceId: "s-P" }, transform: { x: 0, y: 0, scale: 1, rotation: 0 } }),
+  makeLayer({ id: "layer-B", effectId: "grain" }),
+];
+
+export const RailTouchesParentRow: Story = {
+  args: { layers: twoParentKinds, selectedId: null, backgroundName: "DSC_0042.jpg" },
+  decorators: [dockWidthDecorator],
+  play: async ({ canvasElement }) => {
+    const rows = Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__row"));
+    // Affichage : arrière-plan · Glow (sous le fond) · plage.jpg · Grain (sous
+    // elle). Sans ce bloc, les mesures pourraient porter sur une autre pile.
+    await expect(rows).toHaveLength(4);
+    await expect(rows.map((r) => r.classList.contains("layer-panel__row--nested"))).toEqual([
+      false, true, false, true,
+    ]);
+
+    const contentBottom = (row: HTMLElement) => {
+      const top = row.querySelector<HTMLElement>(".layer-panel__row-top");
+      if (!top) throw new Error("ligne sans bande de contenu");
+      return top.getBoundingClientRect().bottom;
+    };
+
+    // ---- L'ÉCART, ligne enfant de tête par ligne enfant de tête ----
+    const firsts = rows.filter((row) => row.querySelector(".layer-panel__rail--first") !== null);
+    // DEUX groupes : un sous le fond, un sous la photo. Si ce compte tombe, la
+    // mesure ci-dessous ne balaye plus les deux formes de parent.
+    await expect(firsts).toHaveLength(2);
+    for (const child of firsts) {
+      const rail = child.querySelector<HTMLElement>(".layer-panel__rail--first")!;
+      // Le parent d'une ligne enfant de tête est la ligne juste AU-DESSUS dans
+      // la liste (sens causal, ADR-0004 ; groupes contigus, layerTree.ts).
+      const parent = rows[rows.indexOf(child) - 1];
+      const gap = rail.getBoundingClientRect().top - contentBottom(parent);
+      // Zéro, pas « petit » : le filet rejoint son parent ou il ne le rejoint
+      // pas. La tolérance ne couvre que l'arrondi sous-pixel du navigateur.
+      await expect(Math.abs(gap)).toBeLessThan(0.5);
+    }
+
+    // ---- ET LES SEGMENTS SE REJOIGNENT ----
+    // Corollaire : remonter le seul segment de tête ne doit pas décrocher les
+    // suivants. Le bas d'un filet touche le haut de celui de la ligne suivante.
+    const rails = Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__rail"));
+    await expect(rails).toHaveLength(2); // un enfant par groupe ici
+    for (const rail of rails) {
+      // Chaque groupe n'ayant qu'un enfant, chaque filet est à la fois de tête
+      // et de queue : il s'arrête au bas du contenu de SA propre ligne.
+      const own = rail.closest<HTMLElement>(".layer-panel__row")!;
+      await expect(Math.abs(rail.getBoundingClientRect().bottom - contentBottom(own))).toBeLessThan(0.5);
     }
   },
 };

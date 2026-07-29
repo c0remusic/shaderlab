@@ -450,6 +450,36 @@ export const AllRowFormsShareOneGrid: Story = {
     await expect(new Set(nested.map(absolute)).size).toBe(1);
     await expect(absolute(rows[3]) - absolute(rows[2])).toBe(indentPx);
 
+    // ---- DEUX ZONES (2026-07-29) ----
+    // À gauche ce qui manipule et identifie (poignée · œil · marque · nom), à
+    // droite ce que la ligne EST et son état (nature · verrou). L'icône de
+    // nature vivait entre l'œil et la marque, où elle doublait la vignette sur
+    // une ligne photo. `--nature` est rendue sur les CINQ formes de ligne : si
+    // une seule la perdait, la zone de droite ne serait plus lisible en
+    // colonne.
+    const natures = rows.map((row) => row.querySelector<HTMLElement>(".layer-panel__col--nature"));
+    await expect(natures.every((n) => n !== null)).toBe(true);
+    for (const row of rows) {
+      const name = row.querySelector<HTMLElement>(".layer-panel__row-name")!;
+      const nature = row.querySelector<HTMLElement>(".layer-panel__col--nature")!;
+      await expect(nature.getBoundingClientRect().left).toBeGreaterThanOrEqual(name.getBoundingClientRect().right);
+    }
+    // Et elle tombe à la MÊME abscisse sur les lignes non imbriquées, comme le
+    // nom : c'est une colonne, pas une position d'écoulement.
+    const natureLeft = (row: HTMLElement) =>
+      Math.round(row.querySelector<HTMLElement>(".layer-panel__col--nature")!.getBoundingClientRect().left);
+    await expect(new Set([rows[0], rows[1], rows[2]].map(natureLeft)).size).toBe(1);
+
+    // La ligne d'ARRIÈRE-PLAN partage la MÊME définition de colonnes que les
+    // lignes de calque — c'est ce qui rend ses pistes poignée et œil réservées
+    // alors qu'elle n'y place rien, et ce qui les rendra prêtes le jour où le
+    // fond aura un œil (tranche T1). Comparé sur la valeur RÉSOLUE : deux
+    // `grid-template-columns` identiques au pixel près, pas deux règles CSS
+    // qu'on suppose d'accord.
+    const resolvedColumns = (row: HTMLElement) =>
+      getComputedStyle(row.querySelector<HTMLElement>(".layer-panel__row-main")!).gridTemplateColumns;
+    await expect(resolvedColumns(rows[0])).toBe(resolvedColumns(rows[1]));
+
     // ---- LARGEUR UTILE DU NOM (2026-07-29) ----
     // LA mesure qui manquait, et qui aurait attrapé le défaut avant l'écran :
     // rien ne vérifiait combien de place il RESTAIT au nom. À la largeur réelle

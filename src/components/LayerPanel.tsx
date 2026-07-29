@@ -240,22 +240,6 @@ const LayerRow = memo(function LayerRow({
               <EyeOff className="icon-sm icon-stroke" aria-hidden="true" />
             )}
           </IconButton>
-          {/* NATURE de la ligne (2026-07-27) : la pile de shaderlab est une
-              chaîne de traitement, pas un empilement de contenus — le panneau
-              s'appelle « Effets », et cette icône est ce qui empêche ce titre
-              de devenir faux quand une photo importée est dans la pile. Rien
-              d'autre ne distinguait un effet d'une photo à part la vignette.
-              `aria-hidden` : purement décorative, elle double le nom du calque
-              (et la vignette), déjà lisibles. Position FIXE : ce n'est plus
-              une promesse de l'ordre des éléments (elle était FAUSSE — un
-              élément optionnel absent en amont décalait tout ce qui suit)
-              mais une COLONNE de la grille de `.layer-panel__row-main`, tenue
-              par `layer-panel__col--nature`. */}
-          {layer.imageSource ? (
-            <PhotoLayerIcon className="layer-panel__row-nature layer-panel__col--nature icon-sm icon-stroke" aria-hidden="true" />
-          ) : (
-            <EffectLayerIcon className="layer-panel__row-nature layer-panel__col--nature icon-sm icon-stroke" aria-hidden="true" />
-          )}
           {/* MARQUE — une seule colonne pour la flèche d'écrêtage ET la
               vignette (fusion du 2026-07-29). Elles sont MUTUELLEMENT
               EXCLUSIVES par invariant du modèle : `LayerStack.setLayerClip`
@@ -297,6 +281,29 @@ const LayerRow = memo(function LayerRow({
           >
             {displayName}
           </span>
+          {/* NATURE de la ligne (2026-07-27) : la pile de shaderlab est une
+              chaîne de traitement, pas un empilement de contenus — le panneau
+              s'appelle « Effets », et cette icône est ce qui empêche ce titre
+              de devenir faux quand une photo importée est dans la pile. Rien
+              d'autre ne distinguait un effet d'une photo à part la vignette.
+              `aria-hidden` : purement décorative, elle double le nom du calque
+              (et la vignette), déjà lisibles.
+
+              À DROITE depuis le 2026-07-29 (demande d'Antoine). Elle vivait
+              entre l'œil et la marque, où elle DOUBLAIT la vignette sur une
+              ligne photo — deux façons de dire « ceci est une photo » collées
+              l'une à l'autre — et où elle empêchait la zone gauche d'avoir la
+              même forme d'une ligne à l'autre. Elle rejoint le verrou dans la
+              zone d'ÉTAT : ce que la ligne EST, puis dans quel état elle est.
+              Position tenue par la COLONNE `layer-panel__col--nature`, jamais
+              par l'ordre des éléments (cette promesse-là avait déjà été
+              fausse : un élément optionnel absent en amont décalait tout ce
+              qui suit). */}
+          {layer.imageSource ? (
+            <PhotoLayerIcon className="layer-panel__row-nature layer-panel__col--nature icon-sm icon-stroke" aria-hidden="true" />
+          ) : (
+            <EffectLayerIcon className="layer-panel__row-nature layer-panel__col--nature icon-sm icon-stroke" aria-hidden="true" />
+          )}
           {/* VERROU — MARQUEUR, et seulement quand il est POSÉ (2026-07-29).
               Le CONTRÔLE a migré dans la zone de contrôles de la carte
               (ADR-0001 : un contrôle répété sur chaque ligne devient unique et
@@ -605,6 +612,15 @@ export function LayerPanel({
             œil, écrêtage). C'est ce qui garantit qu'elle ne peut pas dériver
             d'un cran quand une colonne bouge : il n'y a qu'une seule
             définition de colonnes pour les quatre formes de ligne.
+            NE PAS y remettre de `<span>` vide pour « réserver » la poignée ou
+            l'œil : une piste de grille est DÉJÀ réservée quand personne ne s'y
+            place — c'est mesuré par `AllRowFormsShareOneGrid`, qui compare les
+            abscisses absolues. Une cale ne rendrait rien de plus et
+            réintroduirait la seconde définition de colonnes dont le
+            désaccord avait produit le désalignement d'origine.
+            La piste de l'ŒIL restera vide tant que le fond n'est pas un
+            `LayerState` : il n'a pas de visibilité à basculer. Elle est déjà
+            là, à sa largeur, le jour où il en aura une (tranche T1).
 
             DEUX CADENAS, DEUX CHOSES. Celui-ci est un MARQUEUR DE STATUT, pas
             un contrôle : tant que le fond n'est PAS un `LayerState`
@@ -631,11 +647,11 @@ export function LayerPanel({
           <li className="layer-panel__row layer-panel__row--background">
             <div className="layer-panel__row-top">
               <span className="layer-panel__row-main">
-                <PhotoLayerIcon className="layer-panel__row-nature layer-panel__col--nature icon-sm icon-stroke" aria-hidden="true" />
                 <span className="layer-panel__thumbnail layer-panel__thumbnail--empty layer-panel__col--mark" aria-hidden="true" />
                 <span className="layer-panel__col--name layer-panel__row-name" title={backgroundName}>
                   {backgroundName}
                 </span>
+                <PhotoLayerIcon className="layer-panel__row-nature layer-panel__col--nature icon-sm icon-stroke" aria-hidden="true" />
                 {/* Le cadenas est rendu EN DERNIER, comme sur une ligne de
                     calque : il occupe la dernière colonne, et l'ordre du DOM
                     doit suivre l'ordre des colonnes (ordre de lecture, ordre

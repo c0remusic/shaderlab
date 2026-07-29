@@ -6,7 +6,7 @@ import type { LayerState } from "../layers/types";
 import { eyeButtonLabels, isLayerVisible, isolationRole, isolationVisibleIds, type IsolationRole } from "../layers/isolation";
 import { resolveClipping } from "../layers/clipping";
 import { displayInsertToModelInsert } from "./layerDisplayOrder";
-import { BACKGROUND_LAYER_ID, toLayerTreeRows } from "./layerTree";
+import { toLayerTreeRows } from "./layerTree";
 import { effectRegistry, getEffect } from "../render/effects/registry";
 import { PASSTHROUGH_EFFECT } from "../render/effectPassRunner";
 import { blendRegistry } from "../render/blend/registry";
@@ -36,14 +36,16 @@ interface Props {
    *  DOIT être référentiellement stable (`useCallback`) : elle traverse la
    *  mémoïsation de `LayerRow`. */
   thumbnailUrl?: (sourceId: string) => string | null;
-  /** Nom de fichier du DOCUMENT (`documentFileName`, src/layers/documentName.ts),
-   *  ou `null` si aucun document n'est ouvert. Pilote la ligne d'ARRIÈRE-PLAN,
-   *  qui est DÉRIVÉE et non un `LayerState` : le document est `sourceTexture`,
-   *  l'entrée du pipeline, pas un élément de la pile. Sans elle, l'utilisateur
-   *  voyait deux sortes de « photos » — celles qu'il importe, listées, et celle
-   *  qui a ouvert le document, invisible. */
-  backgroundName?: string | null;
 }
+
+/* LA LIGNE D'ARRIÈRE-PLAN DÉRIVÉE A ÉTÉ SUPPRIMÉE (tranche T1 du design
+   2026-07-28, arbitrage n°2). Elle rendait un objet qui n'existait pas dans le
+   modèle : ni œil, ni poignée, ni sélection — d'où un vide de 50 px à gauche de
+   son nom, deux fois signalé à l'écran. La photo de fond est désormais un
+   `LayerState` ordinaire, rendue par `LayerRow` comme tout autre calque photo,
+   ce qui résout ce vide mécaniquement plutôt que par un rattrapage de style.
+   Avec elle partent la prop `backgroundName` et l'id conventionnel
+   `BACKGROUND_LAYER_ID` (`layerTree.ts`). Ne pas les réintroduire. */
 
 /** Contrôles CENTRALISÉS : ils ne vivent plus sur chaque ligne mais une seule
  *  fois, dans la zone de contrôles fixe de la carte Effets (`DockedPanelCard`,
@@ -314,9 +316,8 @@ const LayerRow = memo(function LayerRow({
               en permanence par la grille — sans quoi le nom se décalerait selon
               la présence du cadenas, exactement le défaut d'alignement corrigé
               la veille.
-              `role="img"` et non un bouton : même sémantique que le cadenas de
-              la ligne d'arrière-plan, et un lecteur d'écran n'annonce pas une
-              action qui n'existe plus ici. */}
+              `role="img"` et non un bouton : un lecteur d'écran n'annonce pas
+              une action qui n'existe plus ici. */}
           {locked && (
             <span className="layer-panel__col--lock layer-panel__row-lock-slot">
               <Lock
@@ -503,13 +504,13 @@ export function LayerPanel({
   onAdd,
   onReorder,
   thumbnailUrl,
-  backgroundName = null,
 }: Props) {
   // SENS D'AFFICHAGE (ADR-0004, 2026-07-28) : la liste se lit de haut en bas
   // dans l'ordre du TRAITEMENT. Le modèle ne bouge pas — `layers[0]` reste le
-  // calque appliqué en premier — et il s'affiche en PREMIÈRE ligne, juste sous
-  // la ligne d'arrière-plan qu'il consomme. La photo est la matière, l'effet
-  // est l'opération : la matière vient avant.
+  // calque appliqué en premier — et il s'affiche en PREMIÈRE ligne. Depuis la
+  // tranche T1 c'est en général la photo de fond, et les effets qui la traitent
+  // suivent en dessous. La photo est la matière, l'effet est l'opération : la
+  // matière vient avant.
   //
   // IMBRICATION (2026-07-28) : `toLayerTreeRows` rend ce MÊME ordre, chaque
   // ligne portant en plus sa profondeur et son rattachement (voir
@@ -517,16 +518,9 @@ export function LayerPanel({
   // ce qui laisse `data-layer-row-index` et `displayInsertToModelInsert`
   // valides, donc le glisser-déposer intact.
   //
-  // Le FOND est passé par son ID CONVENTIONNEL (2026-07-29) : il n'est pas un
-  // `LayerState`, `layerTree` ne peut donc pas le trouver dans `layers` — il
-  // doit le recevoir. `backgroundName` est ici l'unique témoin qu'un document
-  // est ouvert (c'est la même condition qui décide de rendre la ligne
-  // d'arrière-plan plus bas) : sans document, aucun effet ne se rattache au
-  // fond, et les lignes qu'il aurait adoptées restent racine.
-  const rows = useMemo(
-    () => toLayerTreeRows(layers, backgroundName ? BACKGROUND_LAYER_ID : null),
-    [layers, backgroundName]
-  );
+  // Le FOND n'a plus de traitement à part : c'est un calque photo de `layers`,
+  // que la règle de proximité trouve d'elle-même (tranche T1).
+  const rows = useMemo(() => toLayerTreeRows(layers), [layers]);
   // Le hook de réordonnancement ne s'intéresse qu'aux identités, pas à la
   // hiérarchie : il reçoit la liste plate dans l'ordre affiché.
   const displayLayers = useMemo(() => rows.map((row) => row.layer), [rows]);
@@ -596,73 +590,6 @@ export function LayerPanel({
         onPointerUp={dragState ? handlePointerUp : undefined}
         onPointerCancel={dragState ? handlePointerCancel : undefined}
       >
-        {/* Ligne d'ARRIÈRE-PLAN — DÉRIVÉE du document, pas un `LayerState` :
-            elle ne porte donc pas `data-layer-row-index` (invisible au
-            réordonnancement, qui indexe par cet attribut), ne se sélectionne
-            pas, ne se supprime pas et ne s'écrête pas.
-            Elle OUVRE la liste depuis l'ADR-0004 (elle la fermait par le bas
-            sous l'ADR-0003) : elle alimente `layers[0]`, la ligne juste en
-            dessous d'elle, et en sens causal la matière s'annonce avant les
-            opérations qui la traitent.
-
-            ALIGNEMENT : cette ligne n'a plus de cales
-            (`layer-panel__row-slot`, supprimées) — elle partage la MÊME grille
-            que les lignes de calque (`.layer-panel__row-main`), et se contente
-            de laisser vides les colonnes qui ne la concernent pas (poignée,
-            œil, écrêtage). C'est ce qui garantit qu'elle ne peut pas dériver
-            d'un cran quand une colonne bouge : il n'y a qu'une seule
-            définition de colonnes pour les quatre formes de ligne.
-            NE PAS y remettre de `<span>` vide pour « réserver » la poignée ou
-            l'œil : une piste de grille est DÉJÀ réservée quand personne ne s'y
-            place — c'est mesuré par `AllRowFormsShareOneGrid`, qui compare les
-            abscisses absolues. Une cale ne rendrait rien de plus et
-            réintroduirait la seconde définition de colonnes dont le
-            désaccord avait produit le désalignement d'origine.
-            La piste de l'ŒIL restera vide tant que le fond n'est pas un
-            `LayerState` : il n'a pas de visibilité à basculer. Elle est déjà
-            là, à sa largeur, le jour où il en aura une (tranche T1).
-
-            DEUX CADENAS, DEUX CHOSES. Celui-ci est un MARQUEUR DE STATUT, pas
-            un contrôle : tant que le fond n'est PAS un `LayerState`
-            (`src/layers/photoLayer.ts:3-5` — le document est
-            `sourceTexture`, l'entrée du pipeline), il ne peut littéralement
-            pas porter un champ `locked`, donc il n'y a rien à basculer. Rendre
-            le fond déverrouillable est la tranche T1 du design
-            « le fond devient un calque », pas cette tranche.
-            Distinction SÉMANTIQUE : libellé « Arrière-plan verrouillé » ici,
-            « Calque verrouillé » sur une ligne de calque — deux états
-            différents, deux annonces différentes ; le CONTRÔLE, lui, vit
-            depuis le 2026-07-29 dans la zone de contrôles de la carte
-            (ADR-0001) et ne vise que des calques.
-            Distinction VISUELLE : ce cadenas n'est ni focusable ni survolable
-            et reste au rang `--text-tertiary` ; le cadenas ACTIF d'un calque
-            monte à `--text-primary` et porte les états d'un IconButton.
-
-            Aucune vignette : le document est `sourceTexture`, il n'est pas
-            enregistré dans `PhotoSourceStore` et n'a donc pas d'object URL —
-            la boîte vide bordée dit « photo sans vignette », exactement comme
-            sur un calque photo dont la vignette manque (aucun raster ne
-            transite par le state React, invariant OOM 24MP). */}
-        {backgroundName && (
-          <li className="layer-panel__row layer-panel__row--background">
-            <div className="layer-panel__row-top">
-              <span className="layer-panel__row-main">
-                <span className="layer-panel__thumbnail layer-panel__thumbnail--empty layer-panel__col--mark" aria-hidden="true" />
-                <span className="layer-panel__col--name layer-panel__row-name" title={backgroundName}>
-                  {backgroundName}
-                </span>
-                <PhotoLayerIcon className="layer-panel__row-nature layer-panel__col--nature icon-sm icon-stroke" aria-hidden="true" />
-                {/* Le cadenas est rendu EN DERNIER, comme sur une ligne de
-                    calque : il occupe la dernière colonne, et l'ordre du DOM
-                    doit suivre l'ordre des colonnes (ordre de lecture, ordre
-                    d'annonce). Il ouvrait la ligne jusqu'au 2026-07-29. */}
-                <span className="layer-panel__col--lock layer-panel__row-lock-slot">
-                  <Lock className="layer-panel__row-lock icon-sm icon-stroke" role="img" aria-label="Arrière-plan verrouillé" />
-                </span>
-              </span>
-            </div>
-          </li>
-        )}
         {rows.map(({ layer, depth, firstChild, lastChild }, displayRow) => (
           <LayerRow
             key={layer.id}

@@ -25,10 +25,20 @@ function neutralPassLayer(): LayerState {
   };
 }
 
-/** The persistent colour textures required to encode one frame. */
+/** The persistent colour textures required to encode one frame.
+ *
+ *  `width`/`height` sont les dimensions du DOCUMENT, exposées explicitement
+ *  plutôt que relues sur la texture de toile (design 2026-07-28 §1.4). La
+ *  toile n'est plus la photo depuis la tranche T1 : lire sa taille pour
+ *  dimensionner la pré-passe des calques photo ferait dépendre la géométrie du
+ *  document d'une texture qui n'a plus de rapport avec elle, et bloquerait
+ *  l'optimisation « toile 1×1 » (§8) comme une future toile de taille
+ *  indépendante. */
 export interface FrameResourcesPort {
-  readonly sourceTexture: GPUTexture | null;
+  readonly canvasTexture: GPUTexture | null;
   readonly pingPong: [GPUTexture, GPUTexture] | null;
+  readonly width: number;
+  readonly height: number;
 }
 
 /** Stateless effect/overlay encoding. Frame submission remains outside this port. */
@@ -137,9 +147,9 @@ export class FramePipelineExecutor {
     layers: LayerState[],
     maskOverlayLayerId: string | null,
   ): FramePipelineResult {
-    const sourceTexture = this.resources.sourceTexture;
+    const canvasTexture = this.resources.canvasTexture;
     const pingPong = this.resources.pingPong;
-    if (!sourceTexture || !pingPong) throw new Error("Aucune image chargée.");
+    if (!canvasTexture || !pingPong) throw new Error("Aucune image chargée.");
     this.runGeneration++;
 
     this.masks.sweep(new Set(layers.map((layer) => layer.id)));
@@ -157,7 +167,7 @@ export class FramePipelineExecutor {
       return this.runFrame(
         layers,
         maskOverlayLayerId,
-        sourceTexture,
+        canvasTexture,
         pingPong,
         encoder,
         overlayTimeSeconds,
@@ -172,7 +182,7 @@ export class FramePipelineExecutor {
   private runFrame(
     layers: LayerState[],
     maskOverlayLayerId: string | null,
-    sourceTexture: GPUTexture,
+    canvasTexture: GPUTexture,
     pingPong: [GPUTexture, GPUTexture],
     encoder: GPUCommandEncoder,
     overlayTimeSeconds: number,
@@ -189,7 +199,7 @@ export class FramePipelineExecutor {
         encoder,
         PASSTHROUGH_EFFECT,
         neutralPassLayer(),
-        sourceTexture.createView(),
+        canvasTexture.createView(),
         blitTarget.createView(),
         // `applyMask: false` — c'est une COPIE, pas un compositing. Depuis que
         // l'alpha est réellement composé (shaderCompose.ts), passer cette
@@ -207,7 +217,7 @@ export class FramePipelineExecutor {
         overlayMaskTexture = this.masks.resolve(
           overlayLayer,
           encoder,
-          sourceTexture.createView(),
+          canvasTexture.createView(),
           pendingDestroy,
           // Guide = image source stable (aucun calque composité) — même
           // statut de fraîcheur que le premier calque de la pile.
@@ -248,7 +258,7 @@ export class FramePipelineExecutor {
     // la cible partagée.
     let clipCoverageView: GPUTextureView | null = null;
 
-    let readTexture = sourceTexture;
+    let readTexture = canvasTexture;
     let writeIndex = 0;
     for (let index = 0; index < enabledLayers.length; index++) {
       const layer = enabledLayers[index];
@@ -308,8 +318,9 @@ export class FramePipelineExecutor {
         // n'est détruite que par PhotoLayerInputResolver.dispose() (au
         // changement de document, cf. renderer.ts).
         //
-        // ⚠️ Avec N calques photo (MAX_PHOTO_LAYERS = 4), TOUS reçoivent la
-        // MÊME texture. Ce qui rend ça correct est l'ordre d'encodage ici :
+        // ⚠️ Avec N calques photo (MAX_PHOTO_LAYERS, le calque de FOND
+        // compris depuis la tranche T1), TOUS reçoivent la MÊME texture. Ce qui
+        // rend ça correct est l'ordre d'encodage ici :
         // resolve(A) puis les passes de A, ENSUITE resolve(B) puis les
         // passes de B — les passes d'un même encoder s'exécutent dans
         // l'ordre de soumission, donc A a fini de lire la cible avant que B
@@ -317,7 +328,7 @@ export class FramePipelineExecutor {
         // ni les regrouper en tête de frame : le premier calque photo
         // verrait les pixels du dernier.
 
-        const resolved = this.photoInputs.resolve(encoder, layer, sourceTexture.width, sourceTexture.height, pendingDestroy);
+        const resolved = this.photoInputs.resolve(encoder, layer, this.resources.width, this.resources.height, pendingDestroy);
         effectInputSourceView = resolved.createView();
         imageSourceView = resolved.createView();
       }
@@ -402,7 +413,7 @@ export class FramePipelineExecutor {
       overlayMaskTexture = this.masks.resolve(
         overlayLayer,
         encoder,
-        overlayIndex <= 0 ? sourceTexture.createView() : composedTexture.createView(),
+        overlayIndex <= 0 ? canvasTexture.createView() : composedTexture.createView(),
         pendingDestroy,
         overlayIndex <= 0 ? 0 : this.runGeneration,
       );

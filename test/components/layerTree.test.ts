@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BACKGROUND_LAYER_ID, layerParentIds, toLayerTreeRows } from "../../src/components/layerTree";
+import { layerParentIds, toLayerTreeRows } from "../../src/components/layerTree";
 import { displayInsertToModelInsert, toDisplayOrder } from "../../src/components/layerDisplayOrder";
 import { computeInsertIndex, reorderById, type DropPosition } from "../../src/ui/dragReorder";
 import { defaultLayerMask } from "../../src/mask/types";
@@ -28,11 +28,11 @@ function photo(id: string, overrides: Partial<LayerState> = {}): LayerState {
 }
 
 /** Résumé lisible d'une ligne : `id` préfixé de son indentation. */
-const shape = (layers: LayerState[], backgroundId: string | null = null): string[] =>
-  toLayerTreeRows(layers, backgroundId).map((row) => `${"  ".repeat(row.depth)}${row.layer.id}`);
+const shape = (layers: LayerState[]): string[] =>
+  toLayerTreeRows(layers).map((row) => `${"  ".repeat(row.depth)}${row.layer.id}`);
 
-const parents = (layers: LayerState[], backgroundId: string | null = null): Array<string | null> =>
-  toLayerTreeRows(layers, backgroundId).map((row) => row.parentId);
+const parents = (layers: LayerState[]): Array<string | null> =>
+  toLayerTreeRows(layers).map((row) => row.parentId);
 
 /**
  * RATTACHEMENT SEUL, en espace MODÈLE. Ces cas sont écrits dans l'ordre du
@@ -80,28 +80,30 @@ describe("layerParentIds — règle de PROXIMITÉ", () => {
 });
 
 /**
- * FOND DU DOCUMENT comme photo parente. Le fond n'est PAS un `LayerState`
- * (`src/layers/photoLayer.ts:3-5` : c'est `sourceTexture`, l'entrée du
- * pipeline) — son identité arrive donc en PARAMÈTRE, jamais devinée ici.
+ * LE FOND EST UN CALQUE (tranche T1 du design 2026-07-28). Il vit dans
+ * `layers` comme n'importe quelle photo : la règle de proximité le trouve
+ * seule, et le paramètre `backgroundId`/`BACKGROUND_LAYER_ID` a disparu avec la
+ * ligne d'arrière-plan dérivée qu'il servait. Ce bloc vérifie que le
+ * rattachement d'ADR-0005 est PRÉSERVÉ par ce changement de représentation :
+ * les effets posés sur la photo d'ouverture lui restent rattachés, exactement
+ * comme ils l'étaient à l'id conventionnel.
  */
-describe("layerParentIds — le fond du document compte comme photo parente", () => {
-  it("les effets sous lesquels aucun calque photo n'existe sont rattachés au FOND", () => {
-    const layers = [effect("A"), effect("B")];
-    expect(layerParentIds(layers, BACKGROUND_LAYER_ID)).toEqual([BACKGROUND_LAYER_ID, BACKGROUND_LAYER_ID]);
+describe("layerParentIds — le fond, désormais calque photo ordinaire", () => {
+  it("les effets posés sur la photo d'ouverture lui sont rattachés", () => {
+    const layers = [photo("fond"), effect("A"), effect("B")];
+    expect(layerParentIds(layers)).toEqual([null, "fond", "fond"]);
   });
 
-  it("sans fond fourni (aucun document ouvert), ces mêmes effets restent racine", () => {
-    const layers = [effect("A"), effect("B")];
-    expect(layerParentIds(layers, null)).toEqual([null, null]);
+  it("un effet placé SOUS toute photo reste racine : il ne traite que la toile vide", () => {
+    // Rendu possible par T1 — le fond se déplace, donc un effet peut passer
+    // dessous. Il ne rend rien de visible tant que le fond couvre la toile
+    // (design §3.1), et il ne désigne aucune photo parente.
+    const layers = [effect("A"), photo("fond"), effect("B")];
+    expect(layerParentIds(layers)).toEqual([null, null, "fond"]);
   });
 
-  it("un calque photo reste racine même quand un fond existe : il est la matière, pas un traitement", () => {
-    expect(layerParentIds([photo("P")], BACKGROUND_LAYER_ID)).toEqual([null]);
-  });
-
-  it("le fond ne l'emporte jamais sur un calque photo plus proche", () => {
-    const layers = [effect("A"), photo("P"), effect("B")];
-    expect(layerParentIds(layers, BACKGROUND_LAYER_ID)).toEqual([BACKGROUND_LAYER_ID, null, "P"]);
+  it("un calque photo reste racine : il est la matière, pas un traitement", () => {
+    expect(layerParentIds([photo("P")])).toEqual([null]);
   });
 });
 
@@ -109,28 +111,29 @@ describe("layerParentIds — le fond du document compte comme photo parente", ()
  * LE DOCUMENT D'ANTOINE, tel qu'observé sur la vraie fenêtre le 2026-07-29 :
  * fond `DSCF5160.JPG` + Glow + Grain + photo importée `DSCF5160-edited.JPG` +
  * Chromatic bleed écrêté. Une seule ligne sur quatre était indentée.
+ *
+ * MISE À JOUR T1 : le fond est maintenant une LIGNE de la pile, en tête. Le
+ * rattachement des quatre autres lignes est inchangé — c'est ce que ce bloc
+ * verrouille.
  */
 describe("toLayerTreeRows — le document constaté à l'écran", () => {
   const document = [
+    photo("fond"),
     effect("glow"),
     effect("grain"),
     photo("edited"),
     effect("bleed", { clipToBelow: true }),
   ];
 
-  it("rattache les quatre lignes : deux au fond, une à la photo importée", () => {
-    expect(shape(document, BACKGROUND_LAYER_ID)).toEqual(["  glow", "  grain", "edited", "  bleed"]);
-    expect(parents(document, BACKGROUND_LAYER_ID)).toEqual([
-      BACKGROUND_LAYER_ID,
-      BACKGROUND_LAYER_ID,
-      null,
-      "edited",
-    ]);
+  it("rattache les quatre effets : deux au fond, une à la photo importée", () => {
+    expect(shape(document)).toEqual(["fond", "  glow", "  grain", "edited", "  bleed"]);
+    expect(parents(document)).toEqual([null, "fond", "fond", null, "edited"]);
   });
 
-  it("le groupe du FOND commence à la première ligne : son filet remonte jusqu'à la ligne d'arrière-plan", () => {
-    const rows = toLayerTreeRows(document, BACKGROUND_LAYER_ID);
+  it("le groupe du FOND commence juste sous sa ligne : son filet remonte jusqu'à elle", () => {
+    const rows = toLayerTreeRows(document);
     expect(rows.map((r) => [r.layer.id, r.firstChild, r.lastChild])).toEqual([
+      ["fond", false, false],
       ["glow", true, false],
       ["grain", false, true],
       ["edited", false, false],

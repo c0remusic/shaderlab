@@ -1,8 +1,18 @@
 import { assertImageFitsGpu } from "./limits";
 
-/** Persistent colour textures belonging to one loaded image. */
+/**
+ * Textures persistantes d'un document : la TOILE et les cibles de rendu.
+ *
+ * La toile n'est PLUS la photo (tranche T1 du design 2026-07-28, §1.2). Elle
+ * est allouée aux dimensions du DOCUMENT, effacée une fois, et **jamais
+ * uploadée** : la photo qui ouvre le document est devenue un `LayerState`
+ * ordinaire portant `imageSource`, enregistré dans `PhotoSourceStore` comme
+ * n'importe quelle photo importée. Ce que la toile apporte au pipeline est un
+ * point de départ inconditionnel — l'exécuteur de frame n'a pas à savoir si son
+ * premier calque est une photo à couverture pleine (§9.4, information leakage).
+ */
 export class ImageFrameResources {
-  private source: GPUTexture | null = null;
+  private canvas: GPUTexture | null = null;
   private intermediate: [GPUTexture, GPUTexture] | null = null;
   private exportTarget: GPUTexture | null = null;
   private imageWidth = 0;
@@ -16,26 +26,23 @@ export class ImageFrameResources {
 
   get width(): number { return this.imageWidth; }
   get height(): number { return this.imageHeight; }
-  get sourceTexture(): GPUTexture | null { return this.source; }
+  get canvasTexture(): GPUTexture | null { return this.canvas; }
   get pingPong(): [GPUTexture, GPUTexture] | null { return this.intermediate; }
 
-  /** Validates, allocates, and uploads a new source image. */
-  loadImage(bitmap: ImageBitmap): void {
-    assertImageFitsGpu(bitmap.width, bitmap.height, this.maxTextureDimension2D);
+  /** Valide, alloue et EFFACE la toile du document — aucun pixel n'y est
+   *  uploadé. Prend des DIMENSIONS et non un `ImageBitmap` : c'est la trace
+   *  dans la signature que cette classe ne connaît plus d'image du tout. */
+  allocateCanvas(width: number, height: number): void {
+    assertImageFitsGpu(width, height, this.maxTextureDimension2D);
     this.dispose();
-    this.imageWidth = bitmap.width;
-    this.imageHeight = bitmap.height;
-    this.source = this.device.createTexture({
+    this.imageWidth = width;
+    this.imageHeight = height;
+    this.canvas = this.device.createTexture({
       size: [this.imageWidth, this.imageHeight],
       format: this.srgbFormat,
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
     });
-    this.clearCanvas(this.source);
-    this.device.queue.copyExternalImageToTexture(
-      { source: bitmap },
-      { texture: this.source },
-      [this.imageWidth, this.imageHeight],
-    );
+    this.clearCanvas(this.canvas);
     this.intermediate = [this.createRenderTarget(), this.createRenderTarget()];
   }
 
@@ -47,8 +54,8 @@ export class ImageFrameResources {
   }
 
   dispose(): void {
-    this.source?.destroy();
-    this.source = null;
+    this.canvas?.destroy();
+    this.canvas = null;
     this.intermediate?.[0].destroy();
     this.intermediate?.[1].destroy();
     this.intermediate = null;
@@ -68,12 +75,12 @@ export class ImageFrameResources {
    * et une toile transparente est ce qui permet de savoir, par pixel, si un
    * calque couvre — donc d'afficher le damier.
    *
-   * AUJOURD'HUI l'upload juste après recouvre intégralement cet effacement :
-   * la toile porte encore la photo, il n'existe aucune zone non couverte, et
-   * cet appel n'est observable par rien. Il devient porteur à la tranche T1,
-   * quand la toile cesse d'être uploadée. Il est posé explicitement plutôt que
-   * laissé à l'initialisation-à-zéro garantie par WebGPU pour que l'intention
-   * soit lisible et greppable au moment où elle comptera.
+   * DEPUIS LA TRANCHE T1 cet effacement est le contenu DÉFINITIF de la toile :
+   * plus aucun upload ne le recouvre. Une zone que ne couvre aucun calque
+   * arrive donc à alpha 0 jusqu'à la passe de présentation, qui l'aplatit sur
+   * un damier à l'écran et sur du noir à l'export (`render/presentPass.ts`).
+   * Masquer le calque de fond fait apparaître le damier : c'est la preuve
+   * observable de toute cette chaîne.
    */
   private clearCanvas(texture: GPUTexture): void {
     const encoder = this.device.createCommandEncoder();
@@ -101,6 +108,6 @@ export class ImageFrameResources {
   }
 
   private requireLoaded(): void {
-    if (!this.source || !this.intermediate) throw new Error("Aucune image chargée.");
+    if (!this.canvas || !this.intermediate) throw new Error("Aucune image chargée.");
   }
 }

@@ -162,6 +162,17 @@ const fillerPanel = (id: string, title: string, height: number, variableLength =
 });
 
 const twoPhotoDocument: LayerState[] = [
+  // La photo de FOND est un calque depuis la tranche T1 (design 2026-07-28) :
+  // elle occupe une VRAIE ligne de la liste, là où elle était une ligne dérivée
+  // rendue à part. Le document reste donc à cinq lignes, ce que garde le nom de
+  // cette story.
+  makeStoryLayer({
+    id: "background",
+    effectId: "passthrough",
+    name: "DSCF5160.JPG",
+    imageSource: { sourceId: "s0" },
+    transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+  }),
   makeStoryLayer({ id: "glow", effectId: "glow" }),
   makeStoryLayer({ id: "grain", effectId: "grain" }),
   makeStoryLayer({
@@ -217,7 +228,6 @@ export const FiveRowDocumentHidesNoRow: Story = {
                 onToggle={() => {}}
                 onAdd={() => {}}
                 onReorder={() => {}}
-                backgroundName="DSCF5160-edited.JPG"
               />
             ),
           },

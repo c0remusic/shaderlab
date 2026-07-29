@@ -57,3 +57,15 @@ grossier.
 `docs/superpowers/specs/2026-07-24-shaderlab-overlay-guide-source-design.md`
 porte le détail complet (architecture cible, testing, checkpoint visuel
 multi-calques confirmé le 2026-07-24). Mergé `feature/design-system@2bc8e6d`.
+
+**Amendement 2026-07-29 (tranche T3, design 2026-07-28 §2.6).** La DÉCISION est
+inchangée — l'invariant reste l'égalité numérique des epochs des deux appels
+d'un même calque dans une même frame. Ce qui change est la FORMULE qu'elle
+mirrorait : `index === 0 ? 0 : runGeneration` reposait sur « l'index 0 est le
+document, son guide est stable », hypothèse tombée avec la tranche T1 (l'index 0
+est désormais le calque photo de fond). L'epoch est maintenant dérivée de ce
+dont le guide dépend réellement — identité de la toile, puis de chaque
+`LayerState` en dessous (`FramePipelineExecutor.computeGuideEpochs`). Effet de
+bord sur l'invariant : il n'est plus tenu par la RÉPÉTITION d'une formule sur
+deux sites, mais par la lecture de la MÊME case du tableau d'epochs de la frame
+— une divergence entre les deux sites n'est plus représentable.

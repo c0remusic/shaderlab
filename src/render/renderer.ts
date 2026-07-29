@@ -366,7 +366,14 @@ export class Renderer {
     try {
       // Projection d'isolation ICI et pas dans `runPipeline` : `exportFrame`
       // passe par `runPipeline` et doit rendre le document réel.
-      this.runPipeline(projectIsolation(layers, this.isolatedLayerId), this.canvasDestination());
+      this.runPipeline(
+        projectIsolation(layers, this.isolatedLayerId),
+        this.canvasDestination(),
+        // Le calque en aperçu live est le SEUL dont le contenu de masque
+        // change sans nouveau `LayerState` : l'exécuteur ne peut pas le
+        // déduire de la pile qu'il reçoit (voir `computeGuideEpochs`).
+        preview?.layerId ?? null,
+      );
     } finally {
       this.maskTextureResolver?.setLivePreview(null);
     }
@@ -454,6 +461,7 @@ export class Renderer {
   private runPipeline(
     layers: LayerState[],
     destination: PresentDestination,
+    livePreviewLayerId: string | null = null,
   ): void {
     if (!this.framePipelineExecutor) throw new Error("Aucune image chargée.");
     const diagStart = performance.now();
@@ -465,6 +473,7 @@ export class Renderer {
       // `maskOverlayFor`. C'est ce qui empêche le voile rouge d'atteindre un
       // fichier exporté.
       maskOverlayFor(destination, this.maskOverlayLayerId),
+      livePreviewLayerId,
     );
     // `lastOverlayFrame` décrit le dernier frame d'ÉCRAN, seule chose que
     // `tickOverlayAnimation` a le droit de rejouer. Un export ne le remet donc

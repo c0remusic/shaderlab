@@ -1,0 +1,29 @@
+<!doctype html>
+<!--
+  Page hote du harnais de non-regression de rendu (`scripts/render-check.mjs`).
+
+  Elle est VIDE, et c'est tout son interet. Le harnais a besoin de tourner sur
+  une vraie surface WebGPU : la seule de ce projet est la fenetre WebView2 de
+  l'app. Mais evaluer le harnais DANS le document de l'app poserait deux
+  problemes, l'un genant, l'autre disqualifiant :
+
+  - il partagerait le DOM et les globales de l'application React ;
+  - surtout, il partagerait son MODULE MAP. Les modules `/src/**` que l'app a
+    deja importes y sont caches par URL : un `import()` du harnais rendrait la
+    version chargee au demarrage de la fenetre, pas celle du disque. Le harnais
+    verifierait alors du code perime en annoncant un vert — exactement le genre
+    de verdict rassurant sur un protocole faux qu'il est cense empecher.
+    (Constate en pratique : un temoin plante dans un shader est passe au vert
+    tant que le harnais tournait dans le document de l'app.)
+
+  Chargee dans un iframe servi par le Vite du worktree, cette page donne un
+  contexte d'execution neuf, donc un module map vierge, a chaque execution.
+  Aucun script ici : tout est injecte par CDP.
+-->
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <title>render-check</title>
+  </head>
+  <body></body>
+</html>

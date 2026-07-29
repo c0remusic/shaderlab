@@ -14,6 +14,11 @@ export interface ColorGroupControlProps {
   saturation: number;
   lightness: number;
   defaultOpen?: boolean;
+  /** Rend les trois curseurs ET la pastille INERTES, sans rien masquer : le
+   *  repli continue de s'ouvrir et l'hexadécimal reste lu. La pastille en fait
+   *  partie parce qu'elle n'est pas décorative — c'est le point d'entrée du
+   *  sélecteur de couleur, qui écrit les mêmes paramètres que les curseurs. */
+  disabled?: boolean;
   onChange: (paramName: string, value: number) => void;
   onCommit: () => void;
   /** Reçoit la position verticale (viewport) de la pastille : le picker
@@ -39,6 +44,7 @@ export function ColorGroupControl({
   saturation,
   lightness,
   defaultOpen = false,
+  disabled = false,
   onChange,
   onCommit,
   onOpenPicker,
@@ -57,8 +63,9 @@ export function ColorGroupControl({
           // La pastille est le SEUL point d'entrée du sélecteur de couleur :
           // sans curseur ni réaction au survol, rien n'indiquait qu'elle
           // ouvrait un panneau (retour checkpoint 2026-07-25).
-          className="h-5 w-5 shrink-0 cursor-pointer rounded-[var(--radius-control)] border border-border transition-shadow hover:ring-2 hover:ring-[var(--border-selection)] focus-visible:outline-[var(--focus-width)] focus-visible:outline-[var(--focus-color)] focus-visible:outline-offset-[var(--focus-offset)]"
+          className="h-5 w-5 shrink-0 cursor-pointer rounded-[var(--radius-control)] border border-border transition-shadow hover:ring-2 hover:ring-[var(--border-selection)] focus-visible:outline-[var(--focus-width)] focus-visible:outline-[var(--focus-color)] focus-visible:outline-offset-[var(--focus-offset)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:ring-0"
           style={{ background: hex }}
+          disabled={disabled}
           aria-label={`Ouvrir le sélecteur de couleur pour ${label}`}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
@@ -78,6 +85,7 @@ export function ColorGroupControl({
           max={hueParam.max}
           step={hueParam.step}
           displayValue={`${Math.round(hue)}°`}
+          disabled={disabled}
           onChange={(v) => onChange(hueParam.name, v)}
           onCommit={onCommit}
         />
@@ -88,6 +96,7 @@ export function ColorGroupControl({
           max={saturationParam.max}
           step={saturationParam.step}
           displayValue={`${Math.round(saturation * 100)} %`}
+          disabled={disabled}
           onChange={(v) => onChange(saturationParam.name, v)}
           onCommit={onCommit}
         />
@@ -98,6 +107,7 @@ export function ColorGroupControl({
           max={lightnessParam.max}
           step={lightnessParam.step}
           displayValue={`${Math.round(lightness * 100)} %`}
+          disabled={disabled}
           onChange={(v) => onChange(lightnessParam.name, v)}
           onCommit={onCommit}
         />

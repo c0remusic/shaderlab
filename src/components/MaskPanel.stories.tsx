@@ -38,6 +38,34 @@ const layerWithMask: LayerState = {
   mask: { ...defaultLayerMask(), sources: [gradientSource] },
 };
 
+/** Un contrôle INERTE, quelle que soit la primitive qui le rend.
+ *
+ *  `toBeDisabled()` ne connaît que les éléments de formulaire NATIFS. La case
+ *  Base UI est un `<span role="checkbox">` : elle porte `aria-disabled` et
+ *  `tabindex="-1"` mais aucun attribut `disabled`, et `toBeDisabled()` la
+ *  déclarerait active à tort. On vérifie donc les deux formes — et
+ *  `tabindex="-1"` est la preuve directe que la NAVIGATION CLAVIER saute le
+ *  contrôle, ce qu'un simple `disabled` sur un natif garantit par ailleurs.
+ *  (Copie locale de l'helper de `ParamPanel.stories.tsx` : un export nommé
+ *  depuis un fichier CSF serait interprété par Storybook comme une story.) */
+async function expectInert(el: HTMLElement) {
+  if (el.hasAttribute("aria-disabled")) {
+    await expect(el).toHaveAttribute("aria-disabled", "true");
+    await expect(el).toHaveAttribute("tabindex", "-1");
+    return;
+  }
+  await expect(el).toBeDisabled();
+}
+
+/** Miroir de `expectInert` : le contrôle est réellement actionnable. */
+async function expectLive(el: HTMLElement) {
+  if (el.hasAttribute("aria-disabled")) {
+    await expect(el).toHaveAttribute("aria-disabled", "false");
+    return;
+  }
+  await expect(el).toBeEnabled();
+}
+
 const meta: Meta<typeof MaskPanel> = {
   title: "Components/MaskPanel",
   component: MaskPanel,
@@ -103,6 +131,92 @@ export const PaintModeActive: Story = {
 
 export const NoLayerSelected: Story = {
   args: { layer: null },
+};
+
+/** Calque VERROUILLÉ : chaque contrôle dont la mutation est refusée par
+ *  `LayerStack.isLocked` est rendu INERTE ; ceux que la garde n'atteint pas
+ *  restent actionnables, et toutes les valeurs restent LISIBLES.
+ *
+ *  Cette story est la liste exécutable du partage : si un contrôle change de
+ *  camp dans `layerStack.ts`, elle échoue ici plutôt que de mentir à l'écran.
+ *  Le « pourquoi » passe par `title` sur la racine du panneau, jamais par une
+ *  ligne de texte — la hauteur des cartes est sous budget (ADR-0001). */
+export const LockedLayer: Story = {
+  args: {
+    layer: { ...layerWithMask, id: "layer-locked", locked: true },
+    onMaskEnabledChange: fn(),
+    onMaskInvertChange: fn(),
+    onMaskSourceParamsChange: fn(),
+    onRefineEdgeChange: fn(),
+    onToggleMaskPaint: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByTitle("Calque verrouillé")).toBeInTheDocument();
+
+    // --- INERTES : la garde du modèle refuse ces mutations ---
+    // setMaskEnabled
+    await expectInert(canvas.getByRole("button", { name: "Désactiver le masque" }));
+    // setMaskInvert + le param `invert` de la source (updateMaskSourceParams) :
+    // même libellé « Inverser », d'où la requête plurielle.
+    const inverts = canvas.getAllByRole("checkbox", { name: "Inverser" });
+    await expect(inverts).toHaveLength(2);
+    for (const box of inverts) await expectInert(box);
+    // updateBrushMask — le mode peinture est la SEULE porte d'entrée du pinceau.
+    await expectInert(canvas.getByRole("button", { name: "Peindre le masque" }));
+    // addMaskSource (refuse en LEVANT, d'où ce disabled antérieur)
+    await expectInert(canvas.getByRole("button", { name: "Ajouter une source" }));
+    // setMaskSourceEnabled / removeMaskSource
+    await expectInert(canvas.getByRole("button", { name: "Désactiver la source" }));
+    await expectInert(canvas.getByRole("button", { name: "Supprimer la source" }));
+    // setMaskSourceCombineMode (3 bascules)
+    for (const name of ["+ Ajouter", "− Soustraire", "∩ Intersecter"]) {
+      await expectInert(canvas.getByRole("button", { name }));
+    }
+    // updateMaskSourceParams — tous les curseurs de la source active.
+    const sourceSliders = canvas.getAllByRole("slider");
+    await expect(sourceSliders.length).toBeGreaterThan(0);
+    for (const slider of sourceSliders) await expectInert(slider);
+
+    // --- ACTIONNABLES : la garde ne les atteint pas ---
+    // Préférence de VUE, aucun calque muté.
+    await expectLive(canvas.getByRole("button", { name: "Masquer l'overlay" }));
+    // Choix de la source à CONSULTER : état local du panneau, pas une mutation.
+    await expectLive(canvas.getByRole("button", { name: "Dégradé" }));
+
+    // --- LISIBILITÉ : consulter reste possible, y compris replié ---
+    const angle = canvas.getByLabelText("Angle (valeur)");
+    await expectInert(angle);
+    await expect(angle).toHaveValue("0");
+    // Le repli « Affiner le bord » s'ouvre encore : sinon ces valeurs seraient
+    // non pas désactivées mais INACCESSIBLES.
+    await userEvent.click(canvas.getByRole("button", { name: "Affiner le bord" }));
+    const feather = await canvas.findByLabelText("Adoucir le bord (valeur)");
+    await expectInert(feather);
+    await expect(feather).toHaveValue("0");
+    await expectInert(canvas.getByRole("checkbox", { name: "Accroché aux contours (edge-aware)" }));
+
+    // Aucun de ces gestes n'a pu écrire.
+    await expect(args.onMaskEnabledChange).not.toHaveBeenCalled();
+    await expect(args.onRefineEdgeChange).not.toHaveBeenCalled();
+  },
+};
+
+/** Contre-épreuve de `LockedLayer` : le MÊME calque non verrouillé garde tous
+ *  ses contrôles actifs. Sans elle, `LockedLayer` passerait aussi si le panneau
+ *  désactivait tout en permanence. */
+export const UnlockedLayerKeepsControlsActive: Story = {
+  args: { layer: { ...layerWithMask, id: "layer-unlocked" } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByTitle("Calque verrouillé")).toBeNull();
+    for (const name of ["Désactiver le masque", "Peindre le masque", "Ajouter une source", "Supprimer la source", "+ Ajouter"]) {
+      await expectLive(canvas.getByRole("button", { name }));
+    }
+    for (const box of canvas.getAllByRole("checkbox", { name: "Inverser" })) await expectLive(box);
+    for (const slider of canvas.getAllByRole("slider")) await expectLive(slider);
+  },
 };
 
 // --- Interaction tests (play) ---

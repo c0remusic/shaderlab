@@ -227,6 +227,29 @@ export default function App() {
     return sessionRef.current.currentStack();
   }, []);
 
+  // Unique mesure du facteur de réduction CSS du canvas, appelée par
+  // l'observateur de taille plus bas ET par `openFile`. Les deux sont
+  // nécessaires : le facteur est un RAPPORT, et son dénominateur
+  // (`canvas.width`) peut changer sans que la boîte de mise en page bouge d'un
+  // pixel — ouvrir une photo de largeur différente alors que les deux débordent
+  // déjà le conteneur donne exactement la même largeur affichée, donc aucun
+  // `ResizeObserver` ne se déclenche, pour un facteur pourtant changé.
+  //
+  // Rend `false` quand il n'y a rien à mesurer, pour que l'appelant n'enchaîne
+  // pas sur un rendu qu'aucune mesure ne justifie.
+  const syncDisplayScale = useCallback((): boolean => {
+    const canvas = canvasRef.current;
+    const renderer = rendererRef.current;
+    if (!canvas || !renderer) return false;
+    const displayed = canvas.getBoundingClientRect().width;
+    // Une largeur nulle est une mise en page pas encore faite (ou un canvas
+    // masqué), pas une mesure : la pousser ferait échouer `checkerCellPx`, qui
+    // refuse à juste titre un facteur non positif.
+    if (displayed <= 0 || canvas.width <= 0) return false;
+    renderer.setDisplayScale(displayed / canvas.width);
+    return true;
+  }, []);
+
   const openFile = useCallback(async (file: File, path: string | null, fromLaunch: boolean) => {
     if (!canvasRef.current) return;
     const generation = ++openGenerationRef.current;
@@ -304,6 +327,9 @@ export default function App() {
       // see applyPreset's own purge below for the other half of this fix.
       maskPaintersRef.current.clear();
       syncSession();
+      // AVANT le premier rendu du nouveau document : `canvas.width` vient de
+      // changer, donc le facteur mesuré pour le document précédent est périmé.
+      syncDisplayScale();
       rendererRef.current.render(sessionRef.current.layers());
       // Une ouverture réussie efface une éventuelle erreur laissée par une
       // tentative précédente (fichier corrompu, GPU indisponible...) — sinon
@@ -314,7 +340,48 @@ export default function App() {
       if (generation !== openGenerationRef.current) return;
       setError(messageFromUnknown(e));
     }
-  }, [syncSession, presets.clearActive]);
+  }, [syncSession, presets.clearActive, syncDisplayScale]);
+
+  // Le facteur de réduction CSS du canvas, mesuré et poussé dans le renderer.
+  //
+  // Ce fait n'existe QUE dans le DOM : le canvas a la résolution native de
+  // l'image (aucun downscale, décision projet) et c'est la mise en page qui le
+  // réduit pour le faire tenir dans l'espace laissé par la colonne de docks. Le
+  // moteur de rendu ne peut pas le connaître, et il change sans qu'aucun rendu
+  // soit demandé — redimensionnement de la fenêtre, ouverture ou fermeture d'un
+  // panneau. Seul consommateur à ce jour : la taille de case du damier de
+  // transparence, qui doit rester constante à l'écran (`render/presentPass.ts`).
+  //
+  // `ResizeObserver` plutôt qu'un `resize` de fenêtre : la largeur du canvas
+  // change aussi à mise en page constante (dock replié, largeur de colonne).
+  // Un rendu est redemandé à chaque changement — sans lui le navigateur se
+  // contente de redimensionner l'image déjà dans le canvas, et le damier
+  // garderait la taille de case du rendu précédent.
+  // Le facteur de réduction CSS du canvas, mesuré et poussé dans le renderer.
+  //
+  // Ce fait n'existe QUE dans le DOM : le canvas a la résolution native de
+  // l'image (aucun downscale, décision projet) et c'est la mise en page qui le
+  // réduit pour le faire tenir dans l'espace laissé par la colonne de docks. Le
+  // moteur de rendu ne peut pas le connaître, et il change sans qu'aucun rendu
+  // soit demandé — redimensionnement de la fenêtre, ouverture ou fermeture d'un
+  // panneau. Seul consommateur à ce jour : la taille de case du damier de
+  // transparence, qui doit rester constante à l'écran (`render/presentPass.ts`).
+  //
+  // `ResizeObserver` plutôt qu'un `resize` de fenêtre : la largeur du canvas
+  // change aussi à mise en page constante (dock replié, largeur de colonne).
+  // Un rendu est redemandé à chaque changement — sans lui le navigateur se
+  // contente de redimensionner l'image déjà dans le canvas, et le damier
+  // garderait la taille de case du rendu précédent.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const observer = new ResizeObserver(() => {
+      if (!syncDisplayScale()) return;
+      rendererRef.current?.requestRender(sessionRef.current.layers());
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [syncDisplayScale]);
 
   useEffect(() => {
     getLaunchPath().then(async (path) => {

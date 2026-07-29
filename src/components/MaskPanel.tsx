@@ -97,6 +97,21 @@ export function MaskPanel({
   // laisser dans cette liste ferait planter getMaskSourceModule() au premier
   // calque peint au pinceau qui ouvre son panneau Masque. Garde de type
   // (mask/types.ts) plutôt qu'un cast `as` sur `source.type` plus bas.
+  // Calque VERROUILLÉ. `LayerStack.isLocked` refuse TOUTE la famille masque
+  // (`addMaskSource` en levant, le reste en no-op `false`) : chaque contrôle
+  // qui la déclenche est rendu inerte ci-dessous. Trois exceptions, adossées au
+  // modèle et non au confort :
+  //  - l'œil d'overlay est une préférence de VUE (`setOverlayForceHidden`,
+  //    App.tsx), il ne mute aucun calque ;
+  //  - le nom d'une source ne fait que choisir laquelle CONSULTER
+  //    (`setSelectedSourceId`, état local de ce composant) ;
+  //  - les replis (`Disclosure`) doivent continuer de s'ouvrir, sans quoi les
+  //    valeurs ne seraient pas désactivées mais inaccessibles.
+  // `disabled` par CONTRÔLE plutôt qu'un `<fieldset disabled>` : voir la note
+  // équivalente dans ParamPanel.tsx — un fieldset n'émet pas le `data-disabled`
+  // des primitives Base UI (rendu inerte mais d'apparence vive) et emporterait
+  // ces trois exceptions avec le reste.
+  const locked = layer.locked === true;
   const sources = layer.mask.sources.filter(isParametricMaskSource);
   const activeSourceId = selectedSourceId && sources.some((s) => s.id === selectedSourceId)
     ? selectedSourceId
@@ -105,7 +120,10 @@ export function MaskPanel({
   const refineEdge = layer.mask.refineEdge;
 
   return (
-    <div className="param-panel">
+    // `title` plutôt qu'une ligne de texte pour DIRE pourquoi les contrôles
+    // sont inertes : la hauteur des cartes est sous budget (ADR-0001). Même
+    // traitement que la zone de contrôles du panneau Calques.
+    <div className="param-panel" title={locked ? "Calque verrouillé" : undefined}>
       <Disclosure title="Masque" defaultOpen>
         <div className="param-panel__group">
           <div className="param-panel__visibility-row">
@@ -133,7 +151,15 @@ export function MaskPanel({
               d'outils du pinceau.
             </p>
           ) : (
-            <Button variant="secondary" onClick={onToggleMaskPaint}>
+            // ARBITRAGE : ce bouton ne mute rien lui-même (il bascule le mode
+            // de canvas, `usePhotoLayer.toggleMaskPaintMode`), mais il est
+            // l'UNIQUE porte d'entrée de `updateBrushMask`, que la garde
+            // refuse. Le laisser actif offrirait un mode peinture où chaque
+            // touche de pinceau ne fait rien en silence — le piège même que
+            // cette tranche ferme. Sans commune mesure avec `toggleLayer`, que
+            // la garde laisse passer par DÉCISION assumée du modèle
+            // (`layerStack.ts` § Opérations AUTORISÉES) et qui reste actif.
+            <Button variant="secondary" disabled={locked} onClick={onToggleMaskPaint}>
               Peindre le masque
             </Button>
           )}
@@ -148,6 +174,7 @@ export function MaskPanel({
                 tooltip="Masque actif"
                 size="compact"
                 aria-pressed={layer.mask.enabled}
+                disabled={locked}
                 onClick={() => onMaskEnabledChange(layer.id, !layer.mask.enabled)}
               >
                 {layer.mask.enabled ? (
@@ -161,6 +188,7 @@ export function MaskPanel({
             <Checkbox
               label="Inverser"
               checked={layer.mask.invert}
+              disabled={locked}
               onChange={(invert) => onMaskInvertChange(layer.id, invert)}
             />
           </div>
@@ -171,10 +199,10 @@ export function MaskPanel({
                 autres mutateurs). Ce `disabled` est ce qui rend la levée
                 inatteignable depuis l'UI — la garde reste dans le modèle, ici
                 on ne fait que ne pas offrir le geste. Les autres contrôles de
-                masque de ce panneau sont refusés par le modèle en no-op ; ils
-                ne sont PAS encore désactivés visuellement (voir le rapport de
-                tranche : gap déclaré, pas oublié). */}
-            <DropdownMenuTrigger render={<Button variant="secondary" disabled={layer.locked === true}>Ajouter une source</Button>} />
+                masque de ce panneau sont refusés par le modèle en no-op et
+                sont désormais désactivés eux aussi (`locked`, ci-dessus) —
+                celui-ci n'est plus le cas particulier qu'il était. */}
+            <DropdownMenuTrigger render={<Button variant="secondary" disabled={locked}>Ajouter une source</Button>} />
             <DropdownMenuContent align="start">
               {maskSourceRegistry.map((m) => (
                 <DropdownMenuItem key={m.id} onClick={() => onAddMaskSource(layer.id, m.id)}>
@@ -207,6 +235,7 @@ export function MaskPanel({
                         tooltip="Actif"
                         size="compact"
                         aria-pressed={source.enabled}
+                        disabled={locked}
                         onClick={() => onMaskSourceEnabledChange(layer.id, source.id, !source.enabled)}
                       >
                         {source.enabled ? (
@@ -230,6 +259,7 @@ export function MaskPanel({
                         tooltip="Supprimer"
                         size="compact"
                         variant="danger"
+                        disabled={locked}
                         onClick={() => onRemoveMaskSource(layer.id, source.id)}
                       >
                         <Trash2 className="icon-sm icon-stroke" aria-hidden="true" />
@@ -243,6 +273,7 @@ export function MaskPanel({
                             size="sm"
                             title={option.label}
                             aria-label={option.label}
+                            disabled={locked}
                             pressed={source.combineMode === option.value}
                             onPressedChange={(pressed) => {
                               if (pressed) {
@@ -281,7 +312,7 @@ export function MaskPanel({
                         canvas hors scope de cette tranche (Tranche 4) ; ce bouton prend la couleur du CENTRE du
                         canvas comme valeur de test minimale.
                       </p>
-                      <Button variant="secondary" onClick={() => onAddColorSample(layer.id, activeSource.id)}>
+                      <Button variant="secondary" disabled={locked} onClick={() => onAddColorSample(layer.id, activeSource.id)}>
                         Ajouter un échantillon (centre canvas)
                       </Button>
                     </div>
@@ -298,6 +329,7 @@ export function MaskPanel({
                       key={key}
                       label={MASK_PARAM_LABELS[key] ?? key}
                       checked={value === 1}
+                      disabled={locked}
                       onChange={(checked) => {
                         onMaskSourceParamsChange(layer.id, activeSource.id, {
                           ...activeSource.params,
@@ -330,6 +362,7 @@ export function MaskPanel({
                     min={range.min}
                     max={range.max}
                     step={range.step}
+                    disabled={locked}
                     onChange={onAngleChange}
                     onCommit={onMaskSourceParamsCommit}
                   />
@@ -348,6 +381,7 @@ export function MaskPanel({
             min={0}
             max={50}
             step={1}
+            disabled={locked}
             onChange={(v) => onRefineEdgeChange(layer.id, { feather: v })}
             onCommit={onRefineEdgeCommit}
           />
@@ -357,6 +391,7 @@ export function MaskPanel({
             min={-50}
             max={50}
             step={1}
+            disabled={locked}
             onChange={(v) => onRefineEdgeChange(layer.id, { contract: v })}
             onCommit={onRefineEdgeCommit}
           />
@@ -366,12 +401,14 @@ export function MaskPanel({
             min={0}
             max={10}
             step={1}
+            disabled={locked}
             onChange={(v) => onRefineEdgeChange(layer.id, { smooth: v })}
             onCommit={onRefineEdgeCommit}
           />
           <Checkbox
             label="Accroché aux contours (edge-aware)"
             checked={refineEdge.edgeAware}
+            disabled={locked}
             onChange={(edgeAware) => {
               onRefineEdgeChange(layer.id, { edgeAware });
               onRefineEdgeCommit();
@@ -385,6 +422,7 @@ export function MaskPanel({
                 min={1}
                 max={50}
                 step={1}
+                disabled={locked}
                 onChange={(v) => onRefineEdgeChange(layer.id, { edgeRadius: v })}
                 onCommit={onRefineEdgeCommit}
               />
@@ -394,6 +432,7 @@ export function MaskPanel({
                 min={0}
                 max={2}
                 step={0.05}
+                disabled={locked}
                 onChange={(v) => onRefineEdgeChange(layer.id, { edgeStrength: v })}
                 onCommit={onRefineEdgeCommit}
               />

@@ -84,6 +84,25 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
   }
   const effect = getEffect(layer.effectId);
 
+  // Calque VERROUILLÉ. `LayerStack.isLocked` refuse `setLayerClip` et
+  // `updateParams` : les DEUX seules mutations que ce panneau déclenche sont
+  // donc mortes, et un contrôle qui bouge sans rien changer est exactement
+  // l'échec silencieux que ce dépôt proscrit.
+  //
+  // `disabled` par CONTRÔLE, et non un `<fieldset disabled>` englobant : le
+  // fieldset natif rend inertes tous ses descendants d'un bloc, sans poser le
+  // `data-disabled` dont dépend le rendu désactivé des primitives Base UI
+  // (checkbox/slider/toggle) — l'interface mentirait alors dans l'autre sens,
+  // inerte mais d'apparence vive. Il emporterait de surcroît les replis
+  // (`Disclosure`) et la pastille de couleur, donc la LISIBILITÉ des valeurs,
+  // qui est précisément ce qu'un verrou doit préserver.
+  const locked = layer.locked === true;
+  // `title` plutôt qu'une ligne de texte : la hauteur des cartes est sous
+  // budget (ADR-0001, la carte Effets déborde déjà à six lignes). Même
+  // traitement que la zone de contrôles du panneau Calques
+  // (`LayerPanel.tsx` : `title={model.locked ? "Calque verrouillé" : undefined}`).
+  const lockedTitle = locked ? "Calque verrouillé" : undefined;
+
   // État vide EXPLICITE plutôt qu'un `Disclosure "Effet"` vide (design
   // 2026-07-27 §3.7) : un calque photo porte `passthrough`, dont la liste de
   // paramètres est vide — le cadre vide ne disait pas pourquoi. Deux causes
@@ -103,6 +122,7 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
         // l'utilisateur VOIT, comme la flèche d'écrêtage de `LayerPanel`.
         label="Écrêter sur la photo du dessus"
         checked={layer.clipToBelow ?? false}
+        disabled={locked}
         onChange={(clip) => onClipChange(layer.id, clip)}
       />
     </div>
@@ -110,7 +130,7 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
 
   if (effect.params.length === 0) {
     return (
-      <div className="param-panel">
+      <div className="param-panel" title={lockedTitle}>
         {clipRow}
         <p className="param-panel__empty">
           {layer.effectId === "passthrough" ? "Aucun effet appliqué à ce calque." : "Cet effet n'a pas de paramètres."}
@@ -120,7 +140,7 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
   }
 
   return (
-    <div className="param-panel">
+    <div className="param-panel" title={lockedTitle}>
       {clipRow}
       <Disclosure title="Effet" defaultOpen>
         <div className="param-panel__group">
@@ -134,6 +154,7 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
                   max={item.param.max}
                   step={item.param.step}
                   displayValue={formatEffectParamValue(layer.params[item.param.name] ?? item.param.default, item.param)}
+                  disabled={locked}
                   onChange={(v) => onParamChange(layer.id, { [item.param.name]: v })}
                   onCommit={onParamCommit}
                 />
@@ -149,6 +170,7 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
                 saturation={layer.params[item.saturation.name] ?? item.saturation.default}
                 lightness={layer.params[item.lightness.name] ?? item.lightness.default}
                 defaultOpen={item.isFirst}
+                disabled={locked}
                 onChange={(name, v) => onParamChange(layer.id, { [name]: v })}
                 onCommit={onParamCommit}
                 onOpenPicker={(anchorTop) =>

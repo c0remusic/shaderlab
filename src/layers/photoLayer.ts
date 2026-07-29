@@ -27,11 +27,19 @@ import type { LayerState } from "./types";
  *  4 est donc un pas mesurable (≈ +3 textures sources sur la mesure
  *  existante), pas une limite théorique.
  *
- *  ⚠️ CRITÈRE DE RÉVISION — mesure VRAM RÉELLE à 5 × 24 MP encore À FAIRE
- *  (elle exige une vraie fenêtre WebView2 avec GPU : impossible en session
- *  headless / test Node). C'est la tranche T4. Réviser cette valeur, ET
- *  `MAX_REGISTERED_PHOTO_SOURCES` qui en dérive, dès que la mesure est
- *  relevée, ou si un `device.lost` est observé sous ce plafond. */
+ *  ✅ MESURÉ le 2026-07-29 (tranche T4, RTX 2060 6144 Mo, 5 photos 6240×4160
+ *  toutes distinctes, 4 passes) : pic à **2576 Mo = 41,9 % de la VRAM** au
+ *  plafond de 5 calques photo, **aucun `device.lost`**. Aucun des quatre
+ *  seuils de révision n'est franchi — détail chiffré, écart entre passes et
+ *  ce que la mesure ne couvre pas :
+ *  `docs/superpowers/specs/2026-07-28-shaderlab-fond-comme-calque-design.md`
+ *  §4.4. La valeur 5 n'est donc PAS une estimation.
+ *
+ *  ⚠️ CRITÈRE DE RÉVISION — cette valeur, ET `MAX_REGISTERED_PHOTO_SOURCES`
+ *  qui en dérive, se révisent sur une NOUVELLE mesure au NOUVEAU plafond,
+ *  jamais par extrapolation, ou si un `device.lost` est observé sous ce
+ *  plafond. La mesure exige une vraie fenêtre WebView2 avec GPU (impossible
+ *  en session headless / test Node). */
 export const MAX_PHOTO_LAYERS = 5;
 
 export function countPhotoLayers(layers: LayerState[]): number {

@@ -87,7 +87,8 @@ export class PhotoLayerInputResolver {
    *  uniquement par `dispose()` ou par un changement de taille de fond.
    *
    *  ⚠️ INVARIANT QUI REND LE PARTAGE CORRECT — c'est l'ORDRE DES PASSES,
-   *  PAS « au plus un calque photo ». `MAX_PHOTO_LAYERS` vaut 4 depuis T5 :
+   *  PAS « au plus un calque photo ». `MAX_PHOTO_LAYERS` vaut 5 (fond compris,
+   *  valeur confirmée par la mesure VRAM du 2026-07-29, T4) :
    *  la justification historique par l'unicité est FAUSSE, ne pas la
    *  rétablir. Ce qui tient : les passes enregistrées dans un même
    *  `GPUCommandEncoder` s'exécutent dans l'ordre de soumission, et

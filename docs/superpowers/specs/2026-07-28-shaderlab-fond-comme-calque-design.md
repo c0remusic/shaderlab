@@ -285,6 +285,105 @@ avant d'être déclaré acquis — d'où une tranche à part (T4), qui exige la 
 machine. L'option « ne pas bouger » (4 fond compris, donc 3 imports) est plus
 sûre et gratuite mais retire une capacité existante : non recommandée.
 
+### 4.4 Mesure VRAM — FAITE le 2026-07-29 (tranche T4)
+
+> **Statut : MESURÉE. Le plafond `MAX_PHOTO_LAYERS = 5` est validé, il ne
+> bouge pas.** L'estimation de §4.2 (~2547 Mo, ≈ 41,5 % au plafond) est
+> **confirmée** : mesuré **2597 Mo en moyenne, 42,2 %**.
+>
+> Relevé par `nvidia-smi --query-gpu=memory.used` (valeur au repos, ≥ 4 s après
+> la fin du rendu), sur la machine d'Antoine, **NVIDIA GeForce RTX 2060,
+> 6144 Mo** — la MÊME machine et le même outil que le relevé du 2026-07-27,
+> donc les deux tableaux sont comparables. App = binaire `tauri dev` déjà
+> compilé (`src-tauri/target/debug/shaderlab.exe`) lancé avec
+> `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`, Vite du
+> worktree sur 1420 ; scénario exécuté par le pont de debug dev-only
+> (`window.__shaderlabDebug`, `src/App.tsx`) — donc par les MÊMES handlers que
+> l'interface.
+> Photos : **6 fichiers RÉELLEMENT distincts**, `6240×4160 = 26,0 MP`
+> (99 Mo/texture RGBA8), `~/Pictures/2018/2018-01-22/DSCF5152…5157.JPG`. ⚠️ Les
+> 6 fichiers de `~/Pictures/vram-test/` et `~/Pictures/shaderlab-export/` ont
+> tous le MÊME MD5 (`B99088A6…`) : ce sont six copies d'une seule photo, elles
+> ne satisfont pas l'exigence « distincts » du protocole. Ne pas les utiliser.
+>
+> Rappel de sémantique : depuis T1 le fond EST un calque photo. « V1 fond
+> chargé » = 1 calque photo, « V5 » = **5 calques photo** = le plafond.
+>
+> | Étape | passe 1 | passe 2 | passe 3 | passe 4 | Delta moyen |
+> |---|---|---|---|---|---|
+> | V0 aucun document | 1316 | 1267 | 1229 | *(invalide)* | — |
+> | V1 fond chargé (1 photo) | 2111 | 2108 | 2100 | 2043 | +835 |
+> | V2 +photo 1 | 2238 | 2204 | 2095 | 2149 | +81 |
+> | V3 +photo 2 | 2307 | 2302 | 2188 | 2246 | +89 |
+> | V4 +photo 3 | 2504 | 2520 | 2373 | 2421 | +200 |
+> | V5 +photo 4 (**plafond, 5 calques photo**) | **2604** | **2619** | **2483** | **2597** | +96 |
+>
+> **Pic moyen 2576 Mo = 41,9 % de la VRAM. Aucun `device.lost` sur aucune des
+> quatre passes** (guetté par le handler `device.lost` de `gpuContext.ts:48`,
+> qui journalise en console, console lue par CDP sur toute la durée) ; aucune
+> exception WebView2 ; la fenêtre rend après chaque import.
+>
+> **Reproductibilité — l'écart entre passes, dit franchement.** Les quatre pics
+> V5 s'étalent sur **136 Mo** (2483 à 2619), soit **2,2 points de VRAM**. C'est
+> **du même ordre que le coût marginal d'une photo** (~100 Mo). Conséquences
+> honnêtes :
+> - Le **pic en % est solide** : 40,4 % à 42,6 %, quelle que soit la passe. La
+>   comparaison au seuil de 80 % ne dépend pas du bruit.
+> - Le **delta par étape n'est PAS résolu** par cette méthode : `nvidia-smi`
+>   compte aussi le reste du système, et la ligne de base a dérivé de 87 Mo
+>   entre la passe 1 et la passe 3, sans que l'app y soit pour rien. Un
+>   raffinement du type « +86 contre +100 Mo par photo » n'est pas mesurable
+>   ici et ne doit pas être écrit.
+> - Le coût du document au plafond, hors ligne de base (V5 − V0), vaut
+>   1288 / 1352 / 1254 Mo sur les trois passes à V0 valide : **1300 Mo ± 50**.
+> - La colonne « delta moyen » est une moyenne des quatre passes ; la bosse à
+>   V4 (+200) se reproduit sur les QUATRE passes, ce n'est pas du bruit — une
+>   allocation paresseuse survient à ce palier. Elle est compensée au pas
+>   suivant : sur les 4 imports, le coût marginal moyen est de **96 à 128 Mo
+>   par photo** selon la passe, sous le seuil de 150.
+> - Passe 4 : sa ligne V0 est **invalide** (le rechargement de page n'avait pas
+>   encore démonté le document de la passe précédente — `state()` rendait
+>   1 calque là où il en fallait 0). V1→V5 restent cohérents avec les autres
+>   passes et sont conservés ; V0 est écarté plutôt que rattrapé.
+>
+> **Les quatre seuils de révision (§…parity-design.md:911-926), un par un** :
+> 1. `device.lost` ou fenêtre qui cesse de rendre à N ≤ 5 photos →
+>    **NON franchi.** Aucun sur 4 passes, ni pendant la saturation ci-dessous.
+> 2. V5 > 80 % de la VRAM totale → **NON franchi**, et de loin : 42,2 % contre
+>    80 %. Marge ≈ 2,3 Go.
+> 3. Delta par photo > 150 Mo → **NON franchi** en moyenne sur les imports
+>    (96 à 128 Mo/photo). ⚠️ Le pas V3→V4 dépasse ponctuellement (185 à
+>    218 Mo) sur les quatre passes ; il est compensé au pas suivant et le total
+>    reste conforme. Signalé, pas ignoré : voir « ce que la mesure ne couvre
+>    pas ».
+> 4. V5 < 60 % et aucun incident → **atteint** (42,2 %) : le plafond POURRAIT
+>    encore monter. Il ne monte pas dans cette tranche — la règle est « jamais
+>    extrapolé, toujours re-mesuré », et monter à 6 exigerait une nouvelle
+>    mesure à 6.
+>
+> **Décision : `MAX_PHOTO_LAYERS` reste à 5**, `MAX_REGISTERED_PHOTO_SOURCES`
+> reste à `4 × 5 = 20`. Aucune constante ne change : la mesure confirme
+> l'estimation à ~1 point près (41,5 % estimé, 42,2 % mesuré).
+>
+> **Étape 6 du protocole — saturation de `MAX_REGISTERED_PHOTO_SOURCES`,
+> jamais mesurée jusqu'ici.** Document au plafond, puis remplacements d'image
+> successifs sur le calque du haut (chaque remplacement enregistre une source
+> neuve sans ajouter de calque — même mécanisme d'accumulation que la boucle
+> importer/annuler du protocole, et pilotable par le pont de debug qui n'expose
+> pas l'undo) :
+> - la garde lève **exactement à 20/20**, au 16ᵉ remplacement (5 sources du
+>   document + 15 remplacements acceptés), par le bandeau d'erreur : « Trop de
+>   photos importées dans cette session (20/20)… ». Pas de crash.
+> - **Vmax = 4168 Mo = 67,8 % de la VRAM.** Aucun `device.lost`.
+> C'est le VRAI pire cas atteignable dans les gardes actuelles, et il est bien
+> plus haut que le pic du plafond de calques (42 %). Sous 80 %, donc conforme,
+> mais **sans grande marge sur un GPU de 6 Go, et hors budget sur un GPU de
+> 4 Go**. À rouvrir si le plafond de calques monte : `MAX_REGISTERED_PHOTO_
+> SOURCES` en dérive, donc 6 calques feraient 24 sources ≈ 5 Go.
+>
+> Scripts : `scratchpad/mesure-vram-t4.mjs` et `mesure-vram-t4-vmax.mjs` (hors
+> dépôt, jetables — le pont de debug, lui, est dans le dépôt et réutilisable).
+
 ---
 
 ## 5. Migration
@@ -363,11 +462,14 @@ Corrige l'hypothèse « index 0 = guide stable » (§2.6). **Done =** test Node 
 `FramePipelineExecutor` verrouillant l'epoch attendue pour le fond et le calque
 au-dessus ; pas de reconstruction SAT à chaque frame quand rien ne change.
 
-### T4 — Plafond et mesure VRAM
+### T4 — Plafond et mesure VRAM — **FAITE le 2026-07-29**
 **bloqué_par : T1** · **type : HITL**
 Re-mesure au protocole de `…parity-design.md` avec 5 calques photo ; fixe
 `MAX_PHOTO_LAYERS` et `MAX_REGISTERED_PHOTO_SOURCES` sur la mesure.
 **Done =** encadré de mesure rempli, aucun seuil franchi, ou plafond descendu.
+**Résultat : §4.4.** Pic mesuré 42,2 % (estimé 41,5 %), aucun `device.lost`,
+aucun des quatre seuils franchi → `MAX_PHOTO_LAYERS` reste à **5**, aucune
+constante modifiée.
 
 ### T5 — Presets et fond
 **bloqué_par : T1** · **type : AFK**

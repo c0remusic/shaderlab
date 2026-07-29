@@ -48,6 +48,17 @@ async function buildThumbnailUrl(bitmap: ImageBitmap): Promise<string | null> {
  *  fuite sans gêner un usage normal (4 imports annulés par calque autorisé),
  *  et il est révisé par la MÊME mesure VRAM que `MAX_PHOTO_LAYERS` — voir le
  *  critère de révision sur cette constante (`src/layers/photoLayer.ts`).
+ *
+ *  ✅ MESURÉ le 2026-07-29 (T4) : la saturation de ce garde est le VRAI pire
+ *  cas VRAM du produit, bien au-dessus du plafond de calques. Document à
+ *  5 calques photo 26 MP puis remplacements successifs jusqu'au refus :
+ *  la garde lève exactement à 20/20 par le bandeau d'erreur, sans crash, et
+ *  la VRAM culmine à **4168 Mo = 67,8 %** sur RTX 2060 6144 Mo, sans
+ *  `device.lost`. Conforme au seuil de 80 %, mais sans grande marge à 6 Go et
+ *  hors budget à 4 Go — à rouvrir AVANT toute hausse de `MAX_PHOTO_LAYERS`,
+ *  dont ce plafond dérive (6 calques ⇒ 24 sources ≈ 5 Go). Détail :
+ *  `docs/superpowers/specs/2026-07-28-shaderlab-fond-comme-calque-design.md`
+ *  §4.4.
  *  Posé ICI et pas dans l'UI : `PhotoSourceStore` est le point unique
  *  d'allocation (ARCHITECTURE.md R1 : « si un garde arrive, il se pose dans
  *  `PhotoSourceStore`, pas dispersé »). */

@@ -1218,3 +1218,40 @@ rien), pendant que l'arbre de travail reste intact. L'erreur ressemble à un
 `git stash list` avant de conclure. Pour comparer deux états sans git, passer
 par une édition de fichier directe (réécrire le fichier, relancer, ré-appliquer)
 — c'est plus court et sans effet de bord sur l'index.
+
+## 2026-07-29 — un export sans appelant n'est pas du code mort : ce dépôt a deux familles d'exports volontairement non appelés
+
+**Découverte (TTL 6 mois)** : un balayage des 327 exports de `src/` a rendu 72
+symboles sans aucun appelant en production. Après lecture, aucun n'était un
+reliquat, et deux familles expliquent presque tout :
+1. **Miroirs TS de WGSL** — `srgbToLinear`/`linearToSrgb`
+   (`src/render/effects/srgbTransfer.ts`), `mirrorCoord`/`isotropicUvOffset`
+   (`uvSpace.ts`), `ditheredQuantize` (`bayer.ts`), `computeGuidedAB`/
+   `composeEdgeAware` (`src/mask/edgeAware.ts`). Leur en-tête le dit :
+   « `UV_SPACE_WGSL` est la seule définition GPU ; les fonctions TS en-dessous en
+   sont la spécification pure, testée en Node » (`uvSpace.ts:23`). Le GPU exécute
+   la constante WGSL, le TS n'existe que pour être testé. Non appelé = leur rôle.
+2. **`export interface XProps`** consommées uniquement dans leur propre fichier —
+   convention React, ~35 des 72.
+**How to apply** : avant de retirer un export « sans appelant » ici, lire son
+en-tête de module. Le critère utile n'est pas « zéro appelant » mais « zéro
+appelant ET aucune intention écrite ». Un balayage automatique ne tranche rien
+tout seul dans ce dépôt. Témoin obligatoire pour valider le balayage lui-même :
+un symbole connu-vivant (`LayerPanel` → 22 refs hors son fichier) ; une première
+version du scan, via `rg` en `execSync` avec un `catch` silencieux, rendait
+327/327 « morts » sans lever d'erreur ([[NG81]] en version inverse — un scan qui
+trouve TOUT est aussi suspect qu'un scan qui ne trouve rien).
+
+## 2026-07-29 — le mode `crop` du canvas est injoignable en production
+
+**Découverte (TTL 6 mois)** : `CanvasMode` déclare trois variantes
+(`src/ui/canvasMode.ts:22-25`) mais `{ kind: "crop" }` n'est construit nulle part
+hors de son propre module — `git grep '"crop"' -- src` rend 3 occurrences, toutes
+dans `canvasMode.ts` (25, 39, 75). `enterCrop` (`canvasMode.ts:38`) n'a aucun
+appelant ; `usePhotoLayer` ne pose jamais que `IDLE_CANVAS_MODE` ou
+`toggleMaskPaint` (`src/hooks/usePhotoLayer.ts:205-206`). Le garde
+`reconcileCanvasMode` et la moitié de ses tests portent donc sur un état que
+l'app ne peut pas atteindre.
+**How to apply** : c'est une feature à moitié câblée (parité calque photo T1,
+design 2026-07-26 §3.4), pas un reliquat — ne pas la « nettoyer ». Le travail
+restant est le point d'entrée : ce qui appelle `enterCrop` depuis l'UI.

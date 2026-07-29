@@ -70,19 +70,10 @@ export function layerControlsModel(layers: readonly LayerState[], selectedId: st
 }
 
 /**
- * Opacité en LECTURE SEULE sur la ligne de calque : le contrôle a quitté les
- * lignes, mais comparer les opacités de la pile d'un coup d'œil (sans
- * sélectionner chaque calque) reste un besoin explicite. Même unité que le
- * champ de la zone de contrôles (pourcentage entier).
- */
-export function formatOpacityPercent(opacity: number): string {
-  return `${opacityToPercent(opacity)} %`;
-}
-
-/**
  * Opacité du MODÈLE (0..1) vers l'entier de POURCENTAGE affiché par le champ de
- * la zone de contrôles. Une seule échelle à l'écran : le champ de la zone de contrôles et la valeur
- * en lecture seule des lignes disent tous deux « 60 % », jamais « 0.6 ».
+ * la zone de contrôles. Une seule échelle à l'écran : le champ dit « 60 »,
+ * jamais « 0.6 ». (L'opacité en lecture seule a quitté la ligne de calque en
+ * 88705d6 — elle doublait ce champ, même unité, même valeur.)
  */
 export function opacityToPercent(opacity: number): number {
   return Math.round(Math.min(1, Math.max(0, opacity)) * 100);

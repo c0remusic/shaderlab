@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { layerControlsModel, formatOpacityPercent, opacityToPercent, parseOpacityPercent } from "../../src/components/layerControlsModel";
+import { layerControlsModel, opacityToPercent, parseOpacityPercent } from "../../src/components/layerControlsModel";
 import type { LayerState } from "../../src/layers/types";
 import { defaultLayerMask } from "../../src/mask/types";
 
@@ -73,29 +73,16 @@ describe("layerControlsModel", () => {
   });
 });
 
-describe("formatOpacityPercent", () => {
-  it("rend un pourcentage entier", () => {
-    expect(formatOpacityPercent(1)).toBe("100 %");
-    expect(formatOpacityPercent(0)).toBe("0 %");
-    expect(formatOpacityPercent(0.64)).toBe("64 %");
-  });
-
-  it("arrondit au plus proche plutôt que de tronquer", () => {
-    expect(formatOpacityPercent(0.635)).toBe("64 %");
-    expect(formatOpacityPercent(0.634)).toBe("63 %");
-  });
-
-  it("borne les valeurs hors plage au lieu d'afficher un pourcentage impossible", () => {
-    expect(formatOpacityPercent(1.5)).toBe("100 %");
-    expect(formatOpacityPercent(-0.2)).toBe("0 %");
-  });
-});
-
 describe("opacityToPercent", () => {
   it("convertit l'opacité du modèle en pourcentage entier", () => {
     expect(opacityToPercent(0)).toBe(0);
     expect(opacityToPercent(0.6)).toBe(60);
     expect(opacityToPercent(1)).toBe(100);
+  });
+
+  it("arrondit au plus proche plutôt que de tronquer", () => {
+    expect(opacityToPercent(0.635)).toBe(64);
+    expect(opacityToPercent(0.634)).toBe(63);
   });
 
   it("borne, pour ne jamais afficher un pourcentage impossible", () => {

@@ -214,12 +214,29 @@
 }
 
 /* PREMIÈRE ligne enfant (la plus HAUTE du groupe) : depuis l'ADR-0004 la photo
-   parente est la ligne juste AU-DESSUS — le filet traverse la gouttière ENTIÈRE
-   pour la toucher, sinon il s'arrête dans le vide à mi-chemin. Les deux règles
-   ci-dessous ont été ÉCHANGÉES le 2026-07-28 avec le sens d'affichage : les
-   bornes sont des positions dans la liste, c'est le parent qui a changé de côté. */
+   parente est la ligne juste AU-DESSUS — le filet doit la TOUCHER. Les deux
+   règles ci-dessous ont été ÉCHANGÉES le 2026-07-28 avec le sens d'affichage :
+   les bornes sont des positions dans la liste, c'est le parent qui a changé de
+   côté.
+
+   DEUX GOUTTIÈRES, PAS UNE (2026-07-29). La valeur précédente,
+   `calc(var(--space-4) * -1)`, ne franchissait que la gouttière de LISTE
+   (`.layer-panel__list`, `gap: var(--space-4)`) et s'arrêtait donc au bord de
+   BOÎTE de la ligne parente. Mais une ligne porte `padding: var(--space-4)`
+   (voir `.layer-panel__row`) : son CONTENU visible — la bande
+   `.layer-panel__row-top`, haute de `--layer-row-height` — s'arrête 8 px plus
+   haut que sa boîte. Mesuré : contenu du parent à 159,59 px, haut du filet à
+   167,59 px, soit 8 px de blanc entre les deux, exactement le défaut constaté à
+   l'écran. Il faut donc franchir la gouttière de liste ET le padding bas du
+   parent : `* -2`.
+
+   Le filet s'arrête au BAS DU CONTENU du parent et n'y remonte pas plus haut :
+   à cette abscisse (moitié de la gouttière d'indentation) il croiserait la
+   colonne de poignée de la ligne parente, donc son icône. Symétrique de
+   `--last`, qui s'arrête lui aussi au bas du contenu de sa propre ligne.
+   Vérifié par mesure dans `RailTouchesParentRow` (LayerPanel.stories.tsx). */
 .layer-panel__rail--first {
-  top: calc(var(--space-4) * -1);
+  top: calc(var(--space-4) * -2);
 }
 
 /* DERNIÈRE ligne enfant (la plus BASSE) : rien à relier en dessous — le filet

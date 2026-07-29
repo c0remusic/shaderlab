@@ -517,6 +517,82 @@ export const AllRowFormsShareOneGrid: Story = {
   },
 };
 
+// --- Géométrie du filet (2026-07-29) ---
+
+// LE test qui manquait, n°2. Le défaut qu'il attrape : le filet vertical
+// démarrait EN DESSOUS de sa photo parente, 8 px de blanc entre les deux, et
+// rien ne le voyait — `NestedUnderPhoto` vérifie quelles lignes PORTENT un
+// filet et avec quelles bornes, jamais où ce filet commence.
+//
+// Cause mesurée : `.layer-panel__rail--first` ne franchissait que la gouttière
+// de liste (`--space-4`) et s'arrêtait au bord de BOÎTE du parent, alors que le
+// CONTENU visible du parent (`.layer-panel__row-top`) s'arrête un `--space-4`
+// plus haut, la ligne portant `padding: var(--space-4)`. Il fallait franchir
+// les DEUX. Relevé avant correctif : contenu du parent à 159,59 px, haut du
+// filet à 167,59 px.
+//
+// La mesure porte sur le bas du CONTENU du parent, pas sur le bas de sa boîte :
+// c'est le contenu que l'œil lit comme « la ligne », et le bord de boîte était
+// déjà touché quand le blanc était visible à l'écran. Un test écrit contre le
+// bord de boîte serait passé au vert sur le défaut rapporté.
+//
+// Les deux formes de parent sont couvertes — la ligne d'ARRIÈRE-PLAN (Glow lui
+// est rattaché : aucun calque photo ne le précède, ADR-0005 clause 1) et un
+// calque PHOTO (Grain, rattaché à plage.jpg).
+const twoParentKinds: LayerState[] = [
+  makeLayer({ id: "layer-A", effectId: "glow" }),
+  makeLayer({ id: "photo-P", effectId: "passthrough", name: "plage.jpg", imageSource: { sourceId: "s-P" }, transform: { x: 0, y: 0, scale: 1, rotation: 0 } }),
+  makeLayer({ id: "layer-B", effectId: "grain" }),
+];
+
+export const RailTouchesParentRow: Story = {
+  args: { layers: twoParentKinds, selectedId: null, backgroundName: "DSC_0042.jpg" },
+  decorators: [dockWidthDecorator],
+  play: async ({ canvasElement }) => {
+    const rows = Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__row"));
+    // Affichage : arrière-plan · Glow (sous le fond) · plage.jpg · Grain (sous
+    // elle). Sans ce bloc, les mesures pourraient porter sur une autre pile.
+    await expect(rows).toHaveLength(4);
+    await expect(rows.map((r) => r.classList.contains("layer-panel__row--nested"))).toEqual([
+      false, true, false, true,
+    ]);
+
+    const contentBottom = (row: HTMLElement) => {
+      const top = row.querySelector<HTMLElement>(".layer-panel__row-top");
+      if (!top) throw new Error("ligne sans bande de contenu");
+      return top.getBoundingClientRect().bottom;
+    };
+
+    // ---- L'ÉCART, ligne enfant de tête par ligne enfant de tête ----
+    const firsts = rows.filter((row) => row.querySelector(".layer-panel__rail--first") !== null);
+    // DEUX groupes : un sous le fond, un sous la photo. Si ce compte tombe, la
+    // mesure ci-dessous ne balaye plus les deux formes de parent.
+    await expect(firsts).toHaveLength(2);
+    for (const child of firsts) {
+      const rail = child.querySelector<HTMLElement>(".layer-panel__rail--first")!;
+      // Le parent d'une ligne enfant de tête est la ligne juste AU-DESSUS dans
+      // la liste (sens causal, ADR-0004 ; groupes contigus, layerTree.ts).
+      const parent = rows[rows.indexOf(child) - 1];
+      const gap = rail.getBoundingClientRect().top - contentBottom(parent);
+      // Zéro, pas « petit » : le filet rejoint son parent ou il ne le rejoint
+      // pas. La tolérance ne couvre que l'arrondi sous-pixel du navigateur.
+      await expect(Math.abs(gap)).toBeLessThan(0.5);
+    }
+
+    // ---- ET LES SEGMENTS SE REJOIGNENT ----
+    // Corollaire : remonter le seul segment de tête ne doit pas décrocher les
+    // suivants. Le bas d'un filet touche le haut de celui de la ligne suivante.
+    const rails = Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__rail"));
+    await expect(rails).toHaveLength(2); // un enfant par groupe ici
+    for (const rail of rails) {
+      // Chaque groupe n'ayant qu'un enfant, chaque filet est à la fois de tête
+      // et de queue : il s'arrête au bas du contenu de SA propre ligne.
+      const own = rail.closest<HTMLElement>(".layer-panel__row")!;
+      await expect(Math.abs(rail.getBoundingClientRect().bottom - contentBottom(own))).toBeLessThan(0.5);
+    }
+  },
+};
+
 // --- Verrou (arbitrage n°2 du design du 2026-07-28) ---
 
 // Le CADENAS de la ligne n'est plus un contrôle depuis le 2026-07-29 : c'est un

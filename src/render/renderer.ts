@@ -2,6 +2,7 @@ import type { GpuContext } from "./gpuContext";
 import { getSrgbCanvasView } from "./gpuContext";
 import type { LayerState } from "../layers/types";
 import { projectIsolation } from "../layers/isolation";
+import { bottomPhotoSourceId } from "../layers/photoLayer";
 import { EffectPassRunner } from "./effectPassRunner";
 import { MaskTextureResolver } from "./maskTextureResolver";
 import { FramePipelineExecutor, type PhotoLayerInputPort } from "./framePipelineExecutor";
@@ -85,6 +86,17 @@ export class Renderer {
    *  référencé depuis `LayerState`/le state React. */
   private photoSourceStore: PhotoSourceStore | null = null;
   private photoLayerInputResolver: PhotoLayerInputResolver | null = null;
+  /** `sourceId` de la photo d'ouverture, enregistrée comme toutes les autres
+   *  (tranche T1). Le renderer ne sait rien du calque qui la porte — il ne fait
+   *  que rendre l'id à `App.tsx`, qui construit la pile initiale. */
+  private backgroundSource: string | null = null;
+  /** Pile RÉELLEMENT passée au dernier encodage de frame. Sert uniquement à
+   *  `parametricMaskSourceTexture()`, appelée pendant l'encodage : le resolver
+   *  de masque ne reçoit pas la pile en paramètre, et la lui faire traverser
+   *  toucherait quatre signatures pour une donnée dont un seul point a besoin.
+   *  Posée dans `runPipeline`, juste avant `FramePipelineExecutor.run` — donc
+   *  toujours la pile de la frame en cours, isolation projetée comprise. */
+  private currentLayers: LayerState[] = [];
   private renderScheduler = new FrameScheduler<{
     layers: LayerState[];
     preview: MaskPreviewOverride | null;
@@ -179,11 +191,16 @@ export class Renderer {
    * contained candidate the caller can validate BEFORE touching whatever
    * renderer/document is currently active — the transactional-open pattern
    * `App.tsx`'s `openFile` relies on. If `loadImage()` throws (unsupported
-   * image, GPU size limit, allocator OOM), this disposes the candidate's own
-   * partially-created resources and rethrows, so a failed open can never
-   * leave orphaned GPU textures behind, and the caller can simply discard
-   * the rejected candidate — the renderer it was about to replace is never
-   * touched.
+   * image, GPU size limit, allocator OOM, échec d'enregistrement de la source
+   * de fond), this disposes the candidate's own partially-created resources
+   * and rethrows, so a failed open can never leave orphaned GPU textures
+   * behind, and the caller can simply discard the rejected candidate — the
+   * renderer it was about to replace is never touched.
+   *
+   * Depuis la tranche T1, « réussir » inclut l'enregistrement de la photo
+   * d'ouverture dans `PhotoSourceStore` : un candidat rendu ici porte toujours
+   * un `backgroundSourceId`, donc l'appelant ne peut jamais committer un
+   * document sans fond (design 2026-07-28 §2.4).
    */
   static async createLoaded(
     ctx: GpuContext,
@@ -200,8 +217,12 @@ export class Renderer {
     return candidate;
   }
 
+  /** Alloue la toile aux dimensions de `bitmap` puis enregistre `bitmap`
+   *  comme SOURCE PHOTO — la photo d'ouverture est un calque comme un autre
+   *  (§1.1) et la toile n'est plus jamais uploadée (§1.2). L'appelant
+   *  construit le calque de fond à partir de `backgroundSourceId`. */
   async loadImage(bitmap: ImageBitmap): Promise<void> {
-    this.imageResources.loadImage(bitmap);
+    this.imageResources.allocateCanvas(bitmap.width, bitmap.height);
     const { device, srgbFormat } = this.ctx;
     const { width, height } = this.imageResources;
     this.effectPassRunner?.clearPipelines();
@@ -227,7 +248,7 @@ export class Renderer {
       height,
       this.sampler,
       this.nearestSampler,
-      () => this.imageResources.sourceTexture!,
+      () => this.parametricMaskSourceTexture(),
     );
 
     this.photoSourceStore?.dispose();
@@ -257,6 +278,43 @@ export class Renderer {
       this.maskTextureResolver,
       photoInputsAdapter,
     );
+
+    // EN DERNIER, et dans la même méthode : le document n'est utilisable que si
+    // sa photo d'ouverture est une source enregistrée. Un rejet ici (limite GPU,
+    // plafond de sources) remonte à `createLoaded`, qui dispose le candidat —
+    // aucun document sans fond ne peut être committé (§2.4).
+    this.backgroundSource = await this.photoSourceStore.register(bitmap);
+  }
+
+  /** `sourceId` de la photo qui a ouvert le document, à partir duquel
+   *  `App.tsx` construit le calque de fond. `null` tant qu'aucune image n'est
+   *  chargée. */
+  get backgroundSourceId(): string | null {
+    return this.backgroundSource;
+  }
+
+  /**
+   * Image que les masques PARAMÉTRIQUES (luminosité, plage de couleur,
+   * dégradé) échantillonnent — injectée dans `MaskTextureResolver`, qui est
+   * son unique consommateur (`maskTextureResolver.ts`, binding 0 des pipelines
+   * `parametric:*`).
+   *
+   * Ce n'est PLUS la toile depuis la tranche T1 : la toile est vide, un masque
+   * de luminosité y lirait du noir partout et deviendrait aveugle (§2.1). On
+   * rend la texture du calque photo le PLUS BAS de la pile en cours de rendu —
+   * tant que le fond est en bas, c'est exactement la photo qu'on
+   * échantillonnait avant, donc comportement inchangé.
+   *
+   * Repli sur la toile quand la pile ne contient aucune photo : c'est
+   * littéralement ce qui est sous le calque, et c'est la seule texture dont
+   * l'existence est garantie. Jamais une exception — un masque paramétrique sur
+   * un document dont l'utilisateur a supprimé toutes les photos est un cas
+   * ordinaire, pas une erreur de pipeline.
+   */
+  private parametricMaskSourceTexture(): GPUTexture {
+    const sourceId = bottomPhotoSourceId(this.currentLayers);
+    const texture = sourceId === null ? null : this.photoSourceStore?.get(sourceId);
+    return texture ?? this.imageResources.canvasTexture!;
   }
 
   /** Le `Renderer` est le propriétaire GPU réel (créé/vidé avec `loadImage`)
@@ -362,6 +420,7 @@ export class Renderer {
   ): void {
     if (!this.framePipelineExecutor) throw new Error("Aucune image chargée.");
     const diagStart = performance.now();
+    this.currentLayers = layers;
     const result = this.framePipelineExecutor.run(layers, this.maskOverlayLayerId);
     this.lastOverlayFrame =
       result.composedTexture && result.overlayMaskTexture
@@ -417,5 +476,7 @@ export class Renderer {
     this.framePipelineExecutor = null;
     this.presentPass.clearPipelines();
     this.lastOverlayFrame = null;
+    this.backgroundSource = null;
+    this.currentLayers = [];
   }
 }

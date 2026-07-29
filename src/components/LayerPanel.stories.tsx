@@ -19,6 +19,21 @@ function makeLayer(overrides: Partial<LayerState>): LayerState {
   };
 }
 
+/** Calque de FOND — la photo qui a ouvert le document. Depuis la tranche T1
+ *  (design 2026-07-28) c'est un `LayerState` ordinaire portant `imageSource` :
+ *  il n'y a plus de ligne d'arrière-plan dérivée ni de prop `backgroundName`.
+ *  Les stories le mettent donc dans `layers`, en TÊTE de pile — ce que
+ *  `App.tsx` fait à l'ouverture d'un document. */
+function backgroundLayer(name = "DSC_0042.jpg"): LayerState {
+  return makeLayer({
+    id: "layer-background",
+    effectId: "passthrough",
+    name,
+    imageSource: { sourceId: "s-background" },
+    transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+  });
+}
+
 const layers: LayerState[] = [
   makeLayer({ id: "layer-1", effectId: "glow", opacity: 1 }),
   makeLayer({ id: "layer-2", effectId: "chromaticBleed", opacity: 0.6, enabled: false }),
@@ -71,36 +86,50 @@ export const ManyLayers: Story = {
 };
 
 // SENS D'AFFICHAGE (ADR-0004, 2026-07-28) : la liste se lit de haut en bas dans
-// l'ordre du TRAITEMENT. `layers[0]` est le calque appliqué EN PREMIER sur la
-// photo de fond — il s'affiche en PREMIÈRE ligne de calque, juste sous la ligne
-// d'arrière-plan qu'il consomme. C'est le seul test qui verrouille ce sens :
+// l'ordre du TRAITEMENT. `layers[0]` est le calque appliqué EN PREMIER — depuis
+// la tranche T1 c'est la photo de fond elle-même, et les effets qui la
+// consomment s'affichent en dessous. C'est le seul test qui verrouille ce sens :
 // s'il tombe, un dépôt de glisser-déposer atterrira à l'envers.
 export const StackOrderIsCausal: Story = {
-  args: { backgroundName: "DSC_0042.jpg" },
+  args: { layers: [backgroundLayer(), ...layers] },
   play: async ({ canvasElement }) => {
     const rows = Array.from(canvasElement.querySelectorAll("[data-layer-row-index]"));
-    await expect(rows.map((row) => row.getAttribute("data-layer-row-index"))).toEqual(["0", "1", "2"]);
-    // layers = [glow, chromaticBleed, grain] ⇒ lignes [Glow, Chromatic bleed, Grain].
+    // QUATRE lignes indexées, plus aucune ligne dérivée hors index : le fond
+    // est devenu une ligne comme les autres, donc réordonnable.
+    await expect(rows.map((row) => row.getAttribute("data-layer-row-index"))).toEqual(["0", "1", "2", "3"]);
     await expect(rows.map((row) => row.querySelector(".layer-panel__row-name")?.textContent)).toEqual([
+      "DSC_0042.jpg",
       "Glow",
       "Chromatic bleed",
       "Grain",
     ]);
-    // La ligne d'arrière-plan OUVRE la liste, AU-DESSUS du calque qu'elle
-    // alimente (`layers[0]`, ici Glow) : la matière avant les opérations.
+    // Toutes les lignes de la liste sont des lignes de calque — la ligne
+    // d'arrière-plan dérivée a disparu avec T1.
     const allRows = Array.from(canvasElement.querySelectorAll(".layer-panel__row"));
-    await expect(allRows[0].className).toContain("layer-panel__row--background");
+    await expect(allRows).toHaveLength(rows.length);
   },
 };
 
-// Ligne d'ARRIÈRE-PLAN : le document lui-même, dérivé de son chemin, en TÊTE de
-// liste depuis l'ADR-0004. Verrouillé — ni œil, ni poignée, ni actions.
-export const WithBackground: Story = {
-  args: { backgroundName: "DSC_0042.jpg" },
+// LE FOND EST UN CALQUE (tranche T1, arbitrage n°2 du 2026-07-28). Ce qui lui
+// manquait comme ligne dérivée — et qui laissait 50 px de vide à gauche de son
+// nom, deux fois signalé à l'écran par Antoine — il l'a maintenant : une
+// poignée, un œil, une sélection. Il n'est PAS verrouillé par défaut.
+export const BackgroundIsAnOrdinaryLayer: Story = {
+  args: { layers: [backgroundLayer(), ...layers], selectedId: "layer-background" },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText("DSC_0042.jpg")).toBeTruthy();
-    await expect(canvas.getByRole("img", { name: "Arrière-plan verrouillé" })).toBeTruthy();
+    const row = canvasElement.querySelector<HTMLElement>('[data-layer-row-index="0"]')!;
+    await expect(row.querySelector(".layer-panel__row-name")?.textContent).toBe("DSC_0042.jpg");
+    // Les DEUX affordances qui manquaient — c'est leur absence qui creusait le
+    // vide de 50 px, la grille réservant leurs colonnes sans personne dedans.
+    await expect(row.querySelector(".layer-panel__grip-handle")).not.toBeNull();
+    await expect(within(row).getByRole("button", { name: /Masquer le calque|Afficher le calque/ })).toBeTruthy();
+    // Sélectionnable, et sélectionné ici.
+    await expect(row.className).toContain("layer-panel__row--selected");
+    // Plus AUCUN cadenas d'arrière-plan : le verrou du fond est devenu la
+    // propriété `locked` ordinaire, absente par défaut.
+    await expect(canvas.queryByRole("img", { name: "Arrière-plan verrouillé" })).toBeNull();
+    await expect(canvas.queryAllByRole("img", { name: "Calque verrouillé" })).toHaveLength(0);
   },
 };
 
@@ -165,7 +194,7 @@ const twoPhotoLayers: LayerState[] = [
 ];
 
 export const NestedUnderPhoto: Story = {
-  args: { layers: twoPhotoLayers, selectedId: "layer-A", backgroundName: "DSC_0042.jpg" },
+  args: { layers: twoPhotoLayers, selectedId: "layer-A" },
   play: async ({ canvasElement }) => {
     const rows = Array.from(canvasElement.querySelectorAll("[data-layer-row-index]"));
     // Affichage : plage.jpg · Glow (imbriqué sous elle) · ciel.jpg · Grain (à plat).
@@ -355,13 +384,17 @@ export const NoPerRowActions: Story = {
 // la même abscisse d'une ligne à l'autre. Aucun test ne le voyait : les stories
 // existantes vérifient des PRÉSENCES (texte, rôle, classe), jamais une position.
 //
-// Les QUATRE formes de ligne, empilées dans un seul panneau :
-//   1. arrière-plan   (rendu séparé, `backgroundName`)
-//   2. photo          (`imageSource` -> vignette)
-//   3. photo          (une seconde, pour que l'effet simple reste à plat)
+// Les TROIS formes de ligne qui restent depuis la tranche T1 — la quatrième,
+// la ligne d'arrière-plan DÉRIVÉE, a disparu : le fond est une ligne photo
+// ordinaire, et c'est ce qui rend son alignement gratuit au lieu d'être une
+// grille à tenir d'accord avec une autre.
+//   1. photo de FOND  (`imageSource` -> vignette, comme toute photo)
+//   2. photo importée (`imageSource` -> vignette)
+//   3. photo importée (une seconde, pour que l'effet simple reste à plat)
 //   4. effet ÉCRÊTÉ   (flèche coudée ; imbriqué sous sa base, cf. layerTree.ts)
-//   5. effet simple   (deux photos en dessous -> reste à plat)
+//   5. effet simple   (rattaché par proximité à la photo qui le précède)
 const allRowForms: LayerState[] = [
+  backgroundLayer(),
   makeLayer({ id: "photo-P", effectId: "passthrough", name: "plage.jpg", imageSource: { sourceId: "s-P" }, transform: { x: 0, y: 0, scale: 1, rotation: 0 } }),
   makeLayer({ id: "photo-Q", effectId: "passthrough", name: "ciel.jpg", imageSource: { sourceId: "s-Q" }, transform: { x: 0, y: 0, scale: 1, rotation: 0 } }),
   makeLayer({ id: "effet-clip", effectId: "glow", clipToBelow: true }),
@@ -382,16 +415,16 @@ export const AllRowFormsShareOneGrid: Story = {
   args: {
     layers: allRowForms,
     selectedId: null,
-    backgroundName: "DSC_0042.jpg",
     thumbnailUrl: () => PHOTO_THUMB,
   },
   decorators: [dockWidthDecorator],
   play: async ({ canvasElement }) => {
     const rows = Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__row"));
-    // Les cinq lignes sont bien là, dans l'ordre attendu (arrière-plan en tête,
-    // ADR-0004) : sans ça, les mesures ci-dessous porteraient sur autre chose.
+    // Les cinq lignes sont bien là, dans l'ordre attendu (la photo de fond en
+    // tête, ADR-0004) : sans ça, les mesures ci-dessous porteraient sur autre
+    // chose. Toutes portent `data-layer-row-index` — plus aucune ligne dérivée.
     await expect(rows).toHaveLength(5);
-    await expect(rows[0].className).toContain("layer-panel__row--background");
+    await expect(canvasElement.querySelectorAll("[data-layer-row-index]")).toHaveLength(5);
     await expect(rows.map((r) => r.querySelector(".layer-panel__row-name")?.textContent)).toEqual([
       "DSC_0042.jpg",
       "plage.jpg",
@@ -399,9 +432,9 @@ export const AllRowFormsShareOneGrid: Story = {
       "Glow",
       "Grain",
     ]);
-    // Les quatre formes sont réellement représentées — un témoin qui retirerait
-    // la vignette ou la flèche ferait tomber CE bloc avant les mesures.
-    await expect(canvasElement.querySelectorAll(".layer-panel__thumbnail")).toHaveLength(3); // 2 photos + arrière-plan
+    // Les formes sont réellement représentées — un témoin qui retirerait la
+    // vignette ou la flèche ferait tomber CE bloc avant les mesures.
+    await expect(canvasElement.querySelectorAll(".layer-panel__thumbnail")).toHaveLength(3); // les 3 calques photo
     await expect(canvasElement.querySelectorAll(".layer-panel__clip-arrow")).toHaveLength(1);
 
     // ---- L'INVARIANT DE GRILLE ----
@@ -419,8 +452,8 @@ export const AllRowFormsShareOneGrid: Story = {
 
     // ---- CE QUE L'UTILISATEUR VOIT ----
     // Abscisse ABSOLUE du nom, identique sur les trois lignes NON imbriquées
-    // (arrière-plan, les deux photos). C'est le constat d'Antoine — « les
-    // icônes semblent positionnées un peu aléatoirement ».
+    // (les trois calques photo, fond compris). C'est le constat d'Antoine —
+    // « les icônes semblent positionnées un peu aléatoirement ».
     const absolute = (row: HTMLElement) => {
       const name = row.querySelector<HTMLElement>(".layer-panel__row-name");
       if (!name) throw new Error("ligne sans nom");
@@ -454,7 +487,7 @@ export const AllRowFormsShareOneGrid: Story = {
     // À gauche ce qui manipule et identifie (poignée · œil · marque · nom), à
     // droite ce que la ligne EST et son état (nature · verrou). L'icône de
     // nature vivait entre l'œil et la marque, où elle doublait la vignette sur
-    // une ligne photo. `--nature` est rendue sur les CINQ formes de ligne : si
+    // une ligne photo. `--nature` est rendue sur les CINQ lignes : si
     // une seule la perdait, la zone de droite ne serait plus lisible en
     // colonne.
     const natures = rows.map((row) => row.querySelector<HTMLElement>(".layer-panel__col--nature"));
@@ -536,21 +569,23 @@ export const AllRowFormsShareOneGrid: Story = {
 // déjà touché quand le blanc était visible à l'écran. Un test écrit contre le
 // bord de boîte serait passé au vert sur le défaut rapporté.
 //
-// Les deux formes de parent sont couvertes — la ligne d'ARRIÈRE-PLAN (Glow lui
-// est rattaché : aucun calque photo ne le précède, ADR-0005 clause 1) et un
-// calque PHOTO (Grain, rattaché à plage.jpg).
+// Les deux formes de parent sont couvertes — la photo de FOND (Glow lui est
+// rattaché par proximité, ADR-0005) et une photo IMPORTÉE (Grain, rattaché à
+// plage.jpg). Depuis la tranche T1 les deux sont des lignes de calque : c'est
+// la même forme de ligne, ce qui est précisément l'acquis de la tranche.
 const twoParentKinds: LayerState[] = [
+  backgroundLayer(),
   makeLayer({ id: "layer-A", effectId: "glow" }),
   makeLayer({ id: "photo-P", effectId: "passthrough", name: "plage.jpg", imageSource: { sourceId: "s-P" }, transform: { x: 0, y: 0, scale: 1, rotation: 0 } }),
   makeLayer({ id: "layer-B", effectId: "grain" }),
 ];
 
 export const RailTouchesParentRow: Story = {
-  args: { layers: twoParentKinds, selectedId: null, backgroundName: "DSC_0042.jpg" },
+  args: { layers: twoParentKinds, selectedId: null },
   decorators: [dockWidthDecorator],
   play: async ({ canvasElement }) => {
     const rows = Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__row"));
-    // Affichage : arrière-plan · Glow (sous le fond) · plage.jpg · Grain (sous
+    // Affichage : DSC_0042.jpg · Glow (sous le fond) · plage.jpg · Grain (sous
     // elle). Sans ce bloc, les mesures pourraient porter sur une autre pile.
     await expect(rows).toHaveLength(4);
     await expect(rows.map((r) => r.classList.contains("layer-panel__row--nested"))).toEqual([
@@ -593,6 +628,121 @@ export const RailTouchesParentRow: Story = {
   },
 };
 
+// LE test qui manquait, n°3 (2026-07-29). Constat d'Antoine à l'écran : « le
+// calque actif bouffe l'espace du lien » — le filet d'imbrication disparaissait
+// là où il croise une ligne SÉLECTIONNÉE.
+//
+// CE QUE LA MESURE A ÉCARTÉ. La première hypothèse — le lavis de sélection
+// PEINT PAR-DESSUS le filet — est FAUSSE, et le `z-index` posé pour la corriger
+// était un no-op. Relevé au hit-test (`elementFromPoint`, que la spécification
+// dérive de l'ordre de peinture), AVEC puis SANS ce `z-index` : le filet
+// ressort dans les deux cas, sur toute la portion qui recouvre la ligne
+// sélectionnée. Il est l'enfant d'une ligne qui peint après ses voisines — il
+// était déjà au-dessus.
+//
+// LA CAUSE RÉELLE est le CONTRASTE. `--border-default` est un blanc à 11 %
+// d'opacité (relevé : `color(srgb 0.949 0.949 0.949 / 0.11)`) ; le lavis de
+// sélection est bien plus clair que la surface du panneau (relevé :
+// `color(srgb 0.2318 0.2667 0.3711)`), et 11 % de blanc par-dessus n'y produit
+// presque aucun écart. Le filet ne disparaît pas SOUS le lavis : il se dissout
+// DEDANS.
+//
+// La mesure porte donc sur le rapport de contraste entre le filet COMPOSÉ sur
+// son fond et ce fond, au seuil WCAG des éléments d'interface non textuels
+// (3:1). C'est ce que l'œil constate, et c'est ce qui retombe au rouge si le
+// correctif est retiré.
+const RAIL_MIN_CONTRAST = 3;
+
+/** `color(srgb r g b / a)` ou `rgb(...)`/`rgba(...)` -> canaux en 0..255 et
+ *  alpha en 0..1. Le navigateur rend l'une ou l'autre forme selon que la valeur
+ *  vient d'un `color-mix()` ou d'un littéral. */
+function parseColor(value: string): [number, number, number, number] {
+  const numbers = value.match(/-?\d*\.?\d+/g);
+  if (!numbers || numbers.length < 3) throw new Error(`couleur illisible: ${value}`);
+  const [a, b, c, d] = numbers.map(Number);
+  const scale = value.startsWith("color(") ? 255 : 1;
+  return [a * scale, b * scale, c * scale, d === undefined ? 1 : d];
+}
+
+/** Source-over d'une couleur translucide sur un fond opaque. */
+function composite(front: [number, number, number, number], back: [number, number, number, number]): number[] {
+  return [0, 1, 2].map((i) => front[i] * front[3] + back[i] * (1 - front[3]));
+}
+
+/** Contraste WCAG entre deux couleurs opaques. */
+function contrastRatio(x: number[], y: number[]): number {
+  const luminance = (c: number[]) => {
+    const [r, g, b] = c.map((channel) => {
+      const v = channel / 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const [hi, lo] = [luminance(x), luminance(y)].sort((p, q) => q - p);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+export const RailStaysVisibleUnderSelection: Story = {
+  // La ligne SÉLECTIONNÉE est la photo de FOND, et le filet de l'effet juste en
+  // dessous remonte dans son padding bas (`--first`, 8 px sur le lavis) : c'est
+  // le croisement filet/sélection le plus courant à l'écran, le fond étant la
+  // ligne qu'on sélectionne en ouvrant un document.
+  args: { layers: twoParentKinds, selectedId: "layer-background" },
+  decorators: [dockWidthDecorator],
+  play: async ({ canvasElement }) => {
+    const rows = Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__row"));
+    await expect(rows).toHaveLength(4);
+    const selected = rows[0];
+    await expect(selected.className).toContain("layer-panel__row--selected");
+
+    const rail = rows[1].querySelector<HTMLElement>(".layer-panel__rail--first");
+    if (!rail) throw new Error("la ligne sous la sélection devrait porter un filet de tête");
+
+    // ---- LE CROISEMENT EXISTE BIEN ----
+    // Sans ce bloc, la mesure de contraste porterait peut-être sur un filet qui
+    // ne touche jamais le lavis, et ne prouverait rien.
+    const railBox = rail.getBoundingClientRect();
+    const selectedBox = selected.getBoundingClientRect();
+    const overlap = Math.min(railBox.bottom, selectedBox.bottom) - Math.max(railBox.top, selectedBox.top);
+    await expect(overlap).toBeGreaterThan(0);
+
+    // ---- ET LE FILET Y RESTE LISIBLE ----
+    const railColor = parseColor(getComputedStyle(rail).backgroundColor);
+    const washColor = parseColor(getComputedStyle(selected).backgroundColor);
+    const ratio = contrastRatio(composite(railColor, washColor), washColor.slice(0, 3));
+    await expect(ratio).toBeGreaterThanOrEqual(RAIL_MIN_CONTRAST);
+
+    // ---- ET LE DÉBORDEMENT VERS LE BAS NE CROISE RIEN ----
+    // C'est ce qui justifie de ne traiter que DEUX cas en CSS plutôt que
+    // d'essayer d'exprimer « la ligne suivante est sélectionnée », que CSS ne
+    // sait pas dire : le bas d'un filet s'arrête dans la gouttière de liste.
+    await expect(railBox.bottom).toBeLessThanOrEqual(rows[2].getBoundingClientRect().top);
+  },
+};
+
+// L'ALLURE AU REPOS NE BOUGE PAS. Le correctif est scopé à la sélection : sans
+// cette story, relever le filet PARTOUT passerait au vert — et un connecteur
+// décoratif au rang d'un texte serait un bruit visuel sur toute la liste.
+export const RailKeepsItsRestingRank: Story = {
+  args: { layers: twoParentKinds, selectedId: null },
+  decorators: [dockWidthDecorator],
+  play: async ({ canvasElement }) => {
+    const rails = Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__rail"));
+    await expect(rails.length).toBeGreaterThan(0);
+    // Résolution du token par le navigateur lui-même : comparer à une chaîne
+    // écrite en dur ici ferait passer le test au vert si `--border-default`
+    // changeait de valeur sans que le filet suive.
+    const probe = document.createElement("div");
+    probe.style.backgroundColor = "var(--border-default)";
+    canvasElement.appendChild(probe);
+    const expected = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    for (const rail of rails) {
+      await expect(getComputedStyle(rail).backgroundColor).toBe(expected);
+    }
+  },
+};
+
 // --- Verrou (arbitrage n°2 du design du 2026-07-28) ---
 
 // Le CADENAS de la ligne n'est plus un contrôle depuis le 2026-07-29 : c'est un
@@ -602,9 +752,8 @@ export const RailTouchesParentRow: Story = {
 // à voir, et le montrer partout coûtait une colonne de 28 px prise au nom.
 export const LockedLayerShowsMarkerOnly: Story = {
   args: {
-    layers: [makeLayer({ id: "layer-1", effectId: "glow", locked: true }), makeLayer({ id: "layer-2", effectId: "grain" })],
+    layers: [backgroundLayer(), makeLayer({ id: "layer-1", effectId: "glow", locked: true }), makeLayer({ id: "layer-2", effectId: "grain" })],
     selectedId: "layer-1",
-    backgroundName: "DSC_0042.jpg",
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -613,9 +762,30 @@ export const LockedLayerShowsMarkerOnly: Story = {
     const marker = canvas.getByRole("img", { name: "Calque verrouillé" });
     await expect(marker.closest("button")).toBeNull();
     await expect(canvas.getAllByRole("img", { name: "Calque verrouillé" })).toHaveLength(1);
-    // Le cadenas de l'arrière-plan reste distinct, avec son propre libellé.
-    const backgroundLock = canvas.getByRole("img", { name: "Arrière-plan verrouillé" });
-    await expect(backgroundLock.closest("button")).toBeNull();
+    // UN SEUL LIBELLÉ DÉSORMAIS. « Arrière-plan verrouillé » a disparu avec la
+    // ligne dérivée : le fond n'a plus de statut immuable à annoncer, il porte
+    // le même verrou ordinaire que les autres, et ne l'a pas ici.
+    await expect(canvas.queryByRole("img", { name: "Arrière-plan verrouillé" })).toBeNull();
+  },
+};
+
+// Et le fond se VERROUILLE comme n'importe quel calque : c'est l'autre moitié
+// de l'arbitrage n°2 — plus verrouillé par défaut, mais verrouillable.
+export const BackgroundCanBeLocked: Story = {
+  args: {
+    layers: [
+      makeLayer({ ...backgroundLayer(), locked: true }),
+      makeLayer({ id: "layer-1", effectId: "glow" }),
+    ],
+    selectedId: "layer-background",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const row = canvasElement.querySelector<HTMLElement>('[data-layer-row-index="0"]')!;
+    // Même marqueur, même libellé que sur un calque d'effet : le verrou est une
+    // propriété de calque, pas un statut d'arrière-plan.
+    await expect(within(row).getByRole("img", { name: "Calque verrouillé" })).toBeTruthy();
+    await expect(canvas.getAllByRole("img", { name: "Calque verrouillé" })).toHaveLength(1);
   },
 };
 

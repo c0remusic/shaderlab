@@ -3,7 +3,7 @@ import { initGpu, type GpuContext } from "./render/gpuContext";
 import { Renderer } from "./render/renderer";
 import { LayerStack } from "./layers/layerStack";
 import type { LayerState } from "./layers/types";
-import { canAddPhotoLayer, countPhotoLayers, hasPhotoLayer } from "./layers/photoLayer";
+import { canAddPhotoLayer, countPhotoLayers, hasImportedPhotoLayer } from "./layers/photoLayer";
 import { changeLayerEffect } from "./layers/changeLayerEffect";
 import { documentDisplayName } from "./layers/documentName";
 import { duplicateLayer } from "./layers/duplicateLayer";
@@ -27,6 +27,7 @@ import {
   joinExportTarget,
 } from "./launch";
 import { useGlobalControlWheel } from "./ui/activeControl";
+import { resetTransform } from "./ui/transform";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 import { getBrushRaster } from "./mask/brushSource";
 import { PanelColumn } from "./components/dockedPanel/PanelColumn";
@@ -53,6 +54,7 @@ import { useLayerIsolation } from "./hooks/useLayerIsolation";
 import { PresetPanel } from "./components/PresetPanel";
 import { TauriPresetStore } from "./presets/presetStore";
 import { capture } from "./presets/presetDocument";
+import { withPhotoLayersPreserved } from "./presets/preservePhotoLayers";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./components/ui/button";
 
@@ -86,7 +88,7 @@ export default function App() {
   // disque, et lui seul, parce que c'est lui qui décide de l'écrasement à
   // l'export. Le glisser-déposer sur le canvas n'a PAS de chemin (le navigateur
   // ne le divulgue jamais) : dériver l'affichage de `sourcePath` faisait
-  // disparaître le titre de la barre d'outils ET la ligne d'arrière-plan sur le
+  // disparaître le titre de la barre d'outils ET le nom du calque de fond sur le
   // chemin d'ouverture le plus courant. `documentDisplayName` rend toujours une
   // chaîne, jamais `null` — voir src/layers/documentName.ts.
   const [documentName, setDocumentName] = useState<string | null>(null);
@@ -268,12 +270,29 @@ export default function App() {
       setImageSize({ width: bitmap.width, height: bitmap.height });
       setSourcePath(path);
       // Posé au MÊME instant que `imageSize` et `sourcePath` : un document
-      // chargé a toujours un nom affichable, donc la ligne d'arrière-plan
-      // existe toujours, quel que soit le chemin d'ouverture.
-      setDocumentName(documentDisplayName(path, file.name));
+      // chargé a toujours un nom affichable. Il ne pilote plus la ligne
+      // d'arrière-plan (supprimée en T1) mais reste le titre de la barre
+      // d'outils, et il NOMME le calque de fond créé juste en dessous.
+      const name = documentDisplayName(path, file.name);
+      setDocumentName(name);
       setIsLaunchFile(fromLaunch);
 
+      // LE CALQUE DE FOND (tranche T1). La photo d'ouverture n'est plus la
+      // texture d'entrée du pipeline : c'est un `LayerState` ordinaire portant
+      // `imageSource`, donc masquable, déplaçable, supprimable et duplicable
+      // comme tout autre calque. Son `sourceId` vient du renderer, qui l'a
+      // enregistrée dans `PhotoSourceStore` pendant `createLoaded` — un échec
+      // d'enregistrement aurait déjà fait échouer l'ouverture entière, donc
+      // arriver ici sans id serait un invariant rompu, pas un cas à absorber.
+      const backgroundSourceId = candidate.backgroundSourceId;
+      if (backgroundSourceId === null) {
+        throw new Error("Document chargé sans source de fond enregistrée — invariant rompu (render/renderer.ts).");
+      }
       const stack = new LayerStack();
+      // Transform IDENTITÉ : la photo est centrée sur une toile de ses propres
+      // dimensions, à l'échelle 1 — sa couverture vaut donc 1 partout et le
+      // rendu est identique au pixel près à celui d'avant cette tranche.
+      stack.addPhotoLayer(backgroundSourceId, resetTransform({ width: bitmap.width, height: bitmap.height }), name);
       sessionRef.current.replaceDocument(stack);
       presets.clearActive();
       // Important 6 (final-review fix): a new document has no relationship
@@ -1010,7 +1029,13 @@ export default function App() {
         sessionRef.current.layers(),
         (newLayers) => {
           const stack = new LayerStack();
-          stack.layers = newLayers;
+          // §2.3 du design 2026-07-28 : appliquer un preset ne doit PAS faire
+          // disparaître les photos du document — depuis la tranche T1 le fond
+          // en est une, et un remplacement total de la pile laisserait l'écran
+          // sur le damier de la toile vide. Voir `withPhotoLayersPreserved`
+          // pour le choix de position.
+          const mergedLayers = withPhotoLayersPreserved(sessionRef.current.layers(), newLayers);
+          stack.layers = mergedLayers;
           commit(stack);
           // Important 6 (final-review fix): applyPreset replaces the WHOLE
           // stack with FRESH layer ids (LayerStack's freshId counter never
@@ -1019,7 +1044,7 @@ export default function App() {
           // exists nowhere anymore. Purging by id (rather than relying on
           // ids never colliding) keeps this correct even if that invariant
           // ever changes.
-          const newIds = new Set(newLayers.map((l) => l.id));
+          const newIds = new Set(mergedLayers.map((l) => l.id));
           for (const layerId of maskPaintersRef.current.keys()) {
             if (!newIds.has(layerId)) maskPaintersRef.current.delete(layerId);
           }
@@ -1183,13 +1208,16 @@ export default function App() {
 
   const showOverlay = !overlayForceHidden && graceVisible;
 
-  // Round-trip Lightroom désactivé dès qu'un calque photo (double exposure)
-  // existe dans le document — même si isLaunchFile est vrai. `roundTripActive`
+  // Round-trip Lightroom désactivé dès que le document contient une photo
+  // AUTRE que celle qui l'a ouvert — même si isLaunchFile est vrai. Depuis la
+  // tranche T1, la photo d'ouverture est elle-même un calque : le prédicat
+  // compte donc « exactement une photo, en bas de pile » (voir
+  // `hasImportedPhotoLayer`), pas « aucune ». `roundTripActive`
   // gouverne à la fois l'état du bouton "Exporter sous..." (Toolbar) et le
   // comportement RÉEL du bouton "Exporter" (performExport ci-dessous) — un
   // seul point de vérité, comme l'exige ARCHITECTURE.md §4.6 ("ET logique
   // au même endroit, pas une nouvelle branche disséminée").
-  const roundTripActive = isLaunchFile && !hasPhotoLayer(layers);
+  const roundTripActive = isLaunchFile && !hasImportedPhotoLayer(layers);
 
   useEffect(() => {
     const r = rendererRef.current;
@@ -1363,11 +1391,6 @@ export default function App() {
                   onAdd={handleAdd}
                   onReorder={handleReorder}
                   thumbnailUrl={photoLayer.thumbnailUrl}
-                  // Le document est `sourceTexture`, pas un `LayerState` : la
-                  // liste ne pouvait pas le montrer, et l'utilisateur voyait
-                  // deux sortes de photos. La ligne est DÉRIVÉE de ce nom, le
-                  // modèle et le pipeline sont inchangés.
-                  backgroundName={documentName}
                 />
             },
             {

@@ -21,12 +21,16 @@ import { toDisplayOrder } from "./layerDisplayOrder";
  * (indice supérieur = calque du dessus) : le parent de `layers[i]` est la photo
  * d'indice le plus élevé strictement inférieur à `i`.
  *
- *  - Le FOND DU DOCUMENT compte comme photo parente. Un effet sous lequel aucun
- *    calque photo n'existe lui est rattaché — c'est littéralement vrai, il
- *    s'applique bien à lui. Le fond n'étant pas un `LayerState`
- *    (`src/layers/photoLayer.ts:3-5` : c'est `sourceTexture`, l'entrée du
- *    pipeline), son identité arrive en PARAMÈTRE (`backgroundId`), jamais
- *    devinée ici. `null` = aucun document ouvert : ces effets restent racine.
+ *  - Le FOND DU DOCUMENT est un calque photo COMME LES AUTRES depuis la tranche
+ *    T1 (design 2026-07-28 §1.1) : il vit dans `layers`, la proximité le trouve
+ *    toute seule, et ce module n'a plus rien à recevoir de l'extérieur. Le
+ *    paramètre `backgroundId` et son id conventionnel `BACKGROUND_LAYER_ID` ont
+ *    été RETIRÉS avec la ligne d'arrière-plan dérivée qu'ils servaient — ne pas
+ *    les réintroduire : un id de fond hors modèle est précisément le statut
+ *    spécial que cette tranche supprime.
+ *  - Un effet placé SOUS toute photo (désormais possible : le fond se déplace)
+ *    reste une ligne RACINE. Il ne traite aucune photo — il compose sur la
+ *    toile vide, littéralement rien.
  *  - L'ÉCRÊTAGE garde la priorité : un effet écrêté nomme explicitement sa base
  *    (`clipBaseId`), et ce rattachement l'emporte sur la proximité. Sauf
  *    écrêtage INERTE (aucune base photo — `resolveClipping` le fait alors rendre
@@ -93,38 +97,20 @@ export interface LayerTreeRow {
 }
 
 /**
- * Id CONVENTIONNEL du fond du document dans l'arbre de rattachement. Le fond
- * n'est pas un `LayerState` et n'a donc pas d'id de modèle : il lui en faut un
- * pour pouvoir être DÉSIGNÉ comme parent, et cet id doit être posé une seule
- * fois, ici, plutôt que réinventé par chaque appelant.
- *
- * Le double soulignement est là pour qu'une collision avec un id de calque réel
- * (`crypto.randomUUID`, voir `LayerStack`) reste inconcevable plutôt
- * qu'improbable.
- */
-export const BACKGROUND_LAYER_ID = "__background__";
-
-/**
  * RATTACHEMENT, en espace MODÈLE uniquement. Pour chaque `layers[i]`, l'id de
  * la photo à laquelle il appartient, ou `null`. Aucune notion de haut/bas de
  * LISTE ici : « en dessous » veut dire « d'indice inférieur dans `layers` »,
  * c'est-à-dire appliqué plus tôt dans le pipeline.
  *
- * `backgroundId` : identité du fond du document (`BACKGROUND_LAYER_ID` quand un
- * document est ouvert, `null` sinon). Ce module ne peut pas la DEVINER — le fond
- * ne vit pas dans `layers`. Seul son ID est demandé : son nom d'affichage ne
- * sert nulle part ici, et l'exiger ferait porter à cette interface une donnée
- * qu'elle ne lit pas.
- *
  * Exportée et testée seule (test/components/layerTree.test.ts) pour que le sens
  * d'affichage puisse changer sans toucher à cette décision.
  */
-export function layerParentIds(layers: LayerState[], backgroundId: string | null = null): Array<string | null> {
-  return layers.map((_, index) => resolveParentId(layers, index, backgroundId));
+export function layerParentIds(layers: LayerState[]): Array<string | null> {
+  return layers.map((_, index) => resolveParentId(layers, index));
 }
 
 /** Photo à laquelle `layers[index]` appartient, ou `null`. */
-function resolveParentId(layers: LayerState[], index: number, backgroundId: string | null): string | null {
+function resolveParentId(layers: LayerState[], index: number): string | null {
   const layer = layers[index];
   // Une photo n'est jamais imbriquée : elle est le contenu, pas un traitement.
   // Elle n'est pas non plus rattachée au fond — elle OUVRE son propre groupe.
@@ -144,8 +130,9 @@ function resolveParentId(layers: LayerState[], index: number, backgroundId: stri
   for (let i = index - 1; i >= 0; i--) {
     if (layers[i].imageSource !== undefined) return layers[i].id;
   }
-  // Aucun calque photo avant lui : cet effet traite le fond du document.
-  return backgroundId;
+  // Aucun calque photo avant lui : il n'y a que la toile vide en dessous —
+  // aucun parent à désigner, la ligne reste racine.
+  return null;
 }
 
 /** Lignes de la liste des effets, dans l'ordre d'AFFICHAGE, chacune portant sa
@@ -156,8 +143,8 @@ function resolveParentId(layers: LayerState[], index: number, backgroundId: stri
  *  (`firstChild`/`lastChild`) sont volontairement calculées APRÈS, en espace
  *  d'affichage — ce sont des bornes VISUELLES, elles doivent suivre le sens de
  *  la liste si celui-ci change. */
-export function toLayerTreeRows(layers: LayerState[], backgroundId: string | null = null): LayerTreeRow[] {
-  const parentByIndex = layerParentIds(layers, backgroundId);
+export function toLayerTreeRows(layers: LayerState[]): LayerTreeRow[] {
+  const parentByIndex = layerParentIds(layers);
   const display = toDisplayOrder(layers.map((layer, index) => ({ layer, parentId: parentByIndex[index] })));
   return display.map((entry, row) => ({
     layer: entry.layer,

@@ -113,7 +113,7 @@
 // La tolerance par defaut est ZERO : tout ecart non nul fait echouer. Ce n'est
 // pas de la severite gratuite, c'est ce que la MESURE autorise — deux
 // executions completes, sur deux `GPUDevice` distincts, rendent la meme image
-// a l'octet pres, sur les huit scenarios. Aucun ecart n'a jamais ete observe
+// a l'octet pres, sur les neuf scenarios. Aucun ecart n'a jamais ete observe
 // sur cette machine, donc aucun ecart n'a besoin d'etre pardonne.
 //
 // L'ecart d'arrondi d'un aller-retour `-srgb` (1 LSB par canal) existe bien en
@@ -438,6 +438,27 @@ const INSTALL = `(async () => {
         const a = stack.addLayer("duotone");
         stack.updateBrushMask(a, brushRaster(W, H));
         stack.updateRefineEdge(a, { feather: 2, edgeAware: true, edgeRadius: 8, edgeStrength: 0.8 });
+      },
+    },
+
+    // MEME CHAINE, SUR LE CALQUE LE PLUS BAS. Le scenario ci-dessus pose son
+    // masque edge-aware sur un calque d'effet POSE SUR le fond : son guide est
+    // le composite en dessous, qui contient la mire — il ne pouvait donc pas
+    // voir le defaut. Celui-ci pose le masque sur le calque PHOTO DE FOND
+    // lui-meme. Jusqu'au 2026-07-29 son guide etait la TOILE, effacee une fois
+    // en alpha 0 et jamais uploadee depuis T1 : le filtre guide travaillait sur
+    // du vide, sans une seule arete a suivre, et rien ne le disait. Mesure a
+    // l'appui (sonde CDP sur GPU reel) : le guide servi au calque du bas etait
+    // litteralement la texture de toile. Le guide est desormais la photo du
+    // calque lui-meme.
+    "masque-edge-aware-calque-du-bas": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        // stack.layers[0] EST le calque photo de fond pose plus haut par le
+        // harnais — c'est bien lui, et pas un calque ajoute, qu'on masque.
+        const fond = stack.layers[0].id;
+        stack.updateBrushMask(fond, brushRaster(W, H));
+        stack.updateRefineEdge(fond, { feather: 2, edgeAware: true, edgeRadius: 8, edgeStrength: 0.8 });
       },
     },
   };

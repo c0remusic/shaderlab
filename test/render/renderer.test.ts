@@ -53,6 +53,95 @@ function createRenderer() {
   return new Renderer(ctx);
 }
 
+/** Injecte un `framePipelineExecutor` fictif qui ENREGISTRE l'id d'overlay
+ *  reçu puis lance : l'encodage réel demanderait un vrai GPU, et tout ce qui
+ *  est sous test ici se joue AVANT lui. La sentinelle est attendue par chaque
+ *  appelant — jamais avalée. */
+function captureOverlayArg(renderer: Renderer): { calls: (string | null)[] } {
+  const calls: (string | null)[] = [];
+  (renderer as unknown as { framePipelineExecutor: unknown }).framePipelineExecutor = {
+    run: (_layers: unknown, maskOverlayLayerId: string | null) => {
+      calls.push(maskOverlayLayerId);
+      throw new Error("sentinelle: capture faite");
+    },
+  };
+  return { calls };
+}
+
+// Défaut mesuré le 2026-07-29 par `scripts/render-check.mjs --diagnostic` :
+// `exportFrame` passe par le même `runPipeline` que l'écran, donc par la même
+// passe d'overlay — exporter pendant un aperçu de masque écrivait le safelight
+// (voile rouge) dans le JPEG, sur 19,6 % des canaux, en silence.
+describe("Renderer.exportFrame — l'overlay de masque ne sort jamais dans un fichier", () => {
+  it("n'arme aucun overlay, même quand l'aperçu de masque est actif à l'écran", async () => {
+    const renderer = createRenderer();
+    vi.spyOn(
+      (renderer as unknown as { imageResources: { getExportTexture(): unknown } }).imageResources,
+      "getExportTexture",
+    ).mockReturnValue({ createView: () => ({}) });
+    const { calls } = captureOverlayArg(renderer);
+
+    renderer.setMaskOverlay("L0");
+    await expect(renderer.exportFrame([])).rejects.toThrow("sentinelle: capture faite");
+
+    // AVANT le correctif : ["L0"] — le voile rouge part dans le fichier.
+    expect(calls).toEqual([null]);
+  });
+
+  it("l'écran, lui, garde l'overlay — le correctif ne l'éteint pas partout", () => {
+    const renderer = createRenderer();
+    const { calls } = captureOverlayArg(renderer);
+
+    renderer.setMaskOverlay("L0");
+    expect(() => renderer.render([])).toThrow("sentinelle: capture faite");
+
+    expect(calls).toEqual(["L0"]);
+  });
+
+  it("un export ne détruit pas le dernier frame d'overlay affiché à l'écran", () => {
+    const renderer = createRenderer();
+    const texture = { createView: () => ({}) } as unknown as GPUTexture;
+    const screenFrame = {
+      composedTexture: texture,
+      overlayMaskTexture: texture,
+      overlayTargetTexture: texture,
+    };
+    const priv = renderer as unknown as {
+      ctx: { device: Record<string, unknown> };
+      imageResources: { getExportTexture(): unknown };
+      lastOverlayFrame: unknown;
+      presentPass: unknown;
+      framePipelineExecutor: unknown;
+      runPipeline(layers: unknown[], destination: { kind: string }): void;
+    };
+    vi.spyOn(priv.imageResources, "getExportTexture").mockReturnValue({ createView: () => ({}) });
+    // `runPipeline` encode et soumet toujours, même avec une passe de
+    // présentation fictive : ce sont les deux seuls appels GPU restants.
+    priv.ctx.device.createCommandEncoder = vi.fn(() => ({ finish: () => ({}) }));
+    priv.ctx.device.queue = { submit: vi.fn() };
+    priv.presentPass = { encode: vi.fn() };
+    priv.framePipelineExecutor = {
+      // Sur le chemin d'export l'overlay n'est plus armé : le résultat ne porte
+      // donc plus de texture d'overlay. Sans le garde `kind === "canvas"`,
+      // c'est ce null-là qui écraserait le frame d'écran.
+      run: () => ({
+        enabledLayerCount: 0,
+        churnedResourceCount: 0,
+        composedTexture: null,
+        overlayMaskTexture: null,
+        presentTexture: texture,
+      }),
+    };
+    priv.lastOverlayFrame = screenFrame;
+
+    priv.runPipeline([], { kind: "export" });
+
+    // Sinon `tickOverlayAnimation` deviendrait un no-op après chaque export :
+    // le contour animé se figerait jusqu'au rendu d'écran suivant.
+    expect(priv.lastOverlayFrame).toBe(screenFrame);
+  });
+});
+
 describe("Renderer.render live-preview lifetime", () => {
   it("clears the live-preview override even when the pipeline run throws", () => {
     const renderer = createRenderer();

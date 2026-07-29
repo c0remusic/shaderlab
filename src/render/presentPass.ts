@@ -38,6 +38,31 @@ export function presentBackgroundFor(destination: PresentDestination): PresentBa
   return destination.kind === "canvas" ? "checker" : "black";
 }
 
+/**
+ * Unique mapping destination → overlay de masque autorisé. Même statut que
+ * `presentBackgroundFor`, pour la même raison : l'overlay safelight (voile
+ * rouge + contour animé) est une AIDE DE VISÉE, exactement comme le damier
+ * est un fond d'écran. Ni l'un ni l'autre n'est un contenu de fichier.
+ *
+ * Défaut mesuré le 2026-07-29 par `scripts/render-check.mjs --diagnostic` :
+ * `exportFrame` passait `Renderer.maskOverlayLayerId` tel quel à
+ * `FramePipelineExecutor.run`, donc exporter pendant un aperçu de masque
+ * écrivait le safelight DANS le JPEG — 19,6 % des canaux de l'image, sans le
+ * moindre avertissement. L'utilisateur ne s'en apercevait qu'en rouvrant le
+ * fichier.
+ *
+ * `activeLayerId` est l'état d'interface courant (`setMaskOverlay`) ; le
+ * retour est ce que la DESTINATION autorise à en faire. Aucun site d'appel ne
+ * peut donc demander « l'overlay, dans le fichier exporté » : la seule chose
+ * qu'un appelant fournit est un `PresentDestination`, type fermé à deux cas.
+ */
+export function maskOverlayFor(
+  destination: PresentDestination,
+  activeLayerId: string | null,
+): string | null {
+  return destination.kind === "canvas" ? activeLayerId : null;
+}
+
 /** Côté d'une case du damier, en pixels de la texture de destination (donc en
  *  pixels du canvas, pas de l'image affichée à l'échelle). Valeur de confort,
  *  pas un token de design : le damier n'existe pas dans le DOM et n'a aucun

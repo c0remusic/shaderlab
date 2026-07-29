@@ -2,16 +2,17 @@
  * SENS D'AFFICHAGE de la pile de calques — conversion pure affichage ↔ modèle.
  *
  * Le MODÈLE est inchangé et le reste : `layers[0]` est le calque appliqué EN
- * PREMIER, directement sur la photo de fond (`framePipelineExecutor.ts` part de
- * `readTexture = sourceTexture` puis boucle sur la pile dans l'ordre du
- * tableau).
+ * PREMIER, directement sur la TOILE (`framePipelineExecutor.ts` part de
+ * `readTexture = canvasTexture` puis boucle sur la pile dans l'ordre du
+ * tableau). Depuis la tranche T1 `layers[0]` est en général la photo de fond
+ * elle-même, devenue un calque ordinaire.
  *
  * L'AFFICHAGE suit depuis l'ADR-0004 (2026-07-28) le SENS CAUSAL : la liste se
  * lit de haut en bas dans l'ordre du TRAITEMENT. La photo vient d'abord, puis
  * les effets qui s'appliquent dessus — « la photo ne traite rien, c'est les
  * effets qui traitent la photo », la matière avant l'opération. La liste est
- * donc l'ordre DIRECT du tableau, et la ligne d'arrière-plan OUVRE la liste par
- * le haut : elle alimente `layers[0]`, elle doit l'annoncer.
+ * donc l'ordre DIRECT du tableau, la photo de fond en tête : c'est elle que les
+ * effets suivants traitent.
  *
  * Ces trois fonctions restent le SEUL endroit où le sens d'affichage existe.
  * Elles sont aujourd'hui l'IDENTITÉ, et ce n'est pas une raison de les

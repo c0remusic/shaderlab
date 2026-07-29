@@ -53,7 +53,16 @@ function createExecutor() {
   return {
     executor: new FramePipelineExecutor(
       device,
-      { sourceTexture: source as unknown as GPUTexture, pingPong: [firstTarget, secondTarget] as unknown as [GPUTexture, GPUTexture] },
+      // Dimensions du DOCUMENT portées par le port lui-même, jamais relues sur
+      // la texture de toile (design 2026-07-28 §1.4) : elles sont ici
+      // DIFFÉRENTES de `texture()` (100×100) pour qu'un retour à
+      // `canvasTexture.width` retombe au rouge au lieu de passer par accident.
+      {
+        canvasTexture: source as unknown as GPUTexture,
+        pingPong: [firstTarget, secondTarget] as unknown as [GPUTexture, GPUTexture],
+        width: 640,
+        height: 480,
+      },
       effects,
       masks,
       photoInputs,
@@ -217,6 +226,11 @@ describe("FramePipelineExecutor", () => {
     executor.run([photoLayer], null);
 
     expect(photoInputs.resolve).toHaveBeenCalledOnce();
+    // §1.4 : la pré-passe est dimensionnée sur le DOCUMENT (640×480 ci-dessus),
+    // jamais sur la texture de toile (100×100 dans ce banc). C'est ce qui
+    // permettra la toile 1×1 (§8) et une toile indépendante de toute photo.
+    const [, , resolveWidth, resolveHeight] = (photoInputs.resolve as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect([resolveWidth, resolveHeight]).toEqual([640, 480]);
     expect(effects.runEffectPass).toHaveBeenCalledOnce();
     const [, , , , , options] = (effects.runEffectPass as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(options.imageSourceView).toBe((resolvedTexture as unknown as { createView: ReturnType<typeof vi.fn> }).createView.mock.results.at(-1)!.value);

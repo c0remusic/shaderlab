@@ -40,6 +40,9 @@ async function buildThumbnailUrl(bitmap: ImageBitmap): Promise<string | null> {
  *  changement de document (`dispose()`). Une boucle importer/annuler fait
  *  donc croître la mémoire sans borne — ce garde est cette borne.
  *
+ *  Vaut 20 depuis que `MAX_PHOTO_LAYERS` est passé à 5 (arbitrage n°3 du
+ *  2026-07-28) : il en DÉRIVE, il ne se pose pas à côté.
+ *
  *  Facteur 4 : pas arbitraire assumé (design
  *  `2026-07-26-shaderlab-photo-layer-parity-design.md` §3.5). Il borne la
  *  fuite sans gêner un usage normal (4 imports annulés par calque autorisé),

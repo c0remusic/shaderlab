@@ -120,14 +120,25 @@ qui manipule le vocabulaire métier ; le maintenir via le skill `interview`.
 
 App desktop **Windows** (Tauri v2) d'effets visuels "shader" temps réel sur
 photos JPEG : effets empilables en calques (glow, chromatic bleed, warp,
-grain), masque au pinceau par calque, undo/redo en session. Fait aussi
-office d'**éditeur externe Lightroom** (round-trip type Dehancer : Lightroom
+grain), masque au pinceau par calque, undo/redo en session. Le projet est né
+comme **éditeur externe Lightroom** (round-trip type Dehancer : Lightroom
 exporte une copie → lance l'app avec le chemin en argument → l'app écrase ce
 même fichier → Lightroom réimporte).
 
+⚠️ **Ce positionnement est abandonné en DÉCISION mais pas encore en CODE**
+([ADR-0002](.claude/decisions/ADR-0002-abandon-round-trip-lightroom.md), active
+depuis le 2026-07-27 : shaderlab devient un éditeur autonome). Le mécanisme est
+toujours vivant et toujours entretenu — `roundTripActive` / `isLaunchFile`
+(`src/App.tsx:99`, `:1294`), `get_launch_path` (`src/launch.ts`,
+`src-tauri/src/lib.rs`), et le prédicat a même été mis à jour pour T1
+(`App.tsx:1286-1294`). Ne pas se fier à l'ADR seul pour conclure que le code
+est propre, et ne pas « nettoyer » ce chemin au passage : sa dépose est un
+chantier à part entière, pas un effet de bord.
+
 Née d'une frustration : aucun plugin Lightroom natif ne peut faire d'effets
-shader GPU (pipeline RAW fermé). Positionnement outil perso vs produit
-partageable : pas encore tranché, faisabilité d'abord.
+shader GPU (pipeline RAW fermé). C'est cette origine qui explique la barre de
+qualité ci-dessous. Positionnement outil perso vs produit partageable : pas
+encore tranché.
 
 **Exigence qualité explicite** : pas de rendu "filtre Photoshop 2005".
 Chaque effet a une version pipeline (naïve) puis un upgrade qualité
@@ -321,14 +332,19 @@ seulement pour un futur écran web pur sans canvas GPU.
 
 ## Risques ouverts / gates
 
-- **Task 2 = go/no-go WebGPU dans WebView2** : code revu et approuvé, en
-  attente de confirmation visuelle humaine (fenêtre = canvas rose/rouge uni
-  `rgb(0.8, 0.2, 0.4)`). Si ça ne rend pas → toute l'archi est à revoir,
-  STOP.
-- Contrat round-trip Lightroom = hypothèse documentée (écrasement même
-  chemin), à valider empiriquement en Task 3 avec un vrai Lightroom.
 - VRAM : ~96 Mo par texture RGBA 24MP, multiplié par ping-pong + masques —
   à mesurer à l'usage réel, pas de budget théorique figé.
+
+- **Dépose du round-trip Lightroom** : décidée (ADR-0002, 2026-07-27), pas
+  faite. Le code le porte toujours et l'entretient — voir l'avertissement du
+  § Quoi. Tant que la dépose n'est pas planifiée, ce chemin reste du code
+  vivant à ne pas casser.
+
+Deux gates de la phase MVP ont été retirées d'ici le 2026-07-29 : le go/no-go
+WebGPU dans WebView2 (Task 2) est levé depuis longtemps — le pipeline rend, les
+shaders compilent (`npm run test:gpu-shaders`) et le rendu est verrouillé au
+pixel (`npm run test:render`) ; « valider le round-trip avec un vrai
+Lightroom » (Task 3) est sans objet, puisqu'on le retire au lieu de le valider.
 
 ## Index des documents docs/
 

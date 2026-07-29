@@ -212,3 +212,72 @@ describe("EffectPassRunner.runEffectPass imageSourceView (binding 6)", () => {
     expect(layoutCall.entries.some((e: { binding: number }) => e.binding === 6)).toBe(true);
   });
 });
+
+/** Variante de `createRunnerWithMaskResolver` qui ESPIONNE le résolveur de
+ *  masque : son 3e argument (`colorView`) EST l'image de guide du filtre
+ *  edge-aware, et cette méthode-ci est le seul endroit du code où elle se
+ *  décide. Rien d'autre ne le vérifiait — d'où le défaut ci-dessous. */
+function createRunnerSpyingGuide() {
+  const passObj = { setPipeline: vi.fn(), setBindGroup: vi.fn(), draw: vi.fn(), end: vi.fn() };
+  const device = {
+    createShaderModule: vi.fn(() => ({})),
+    createBindGroupLayout: vi.fn(() => ({ id: "bgl" })),
+    createPipelineLayout: vi.fn(() => ({})),
+    createRenderPipeline: vi.fn(() => ({ id: "pipeline" })),
+    createBindGroup: vi.fn(() => ({})),
+    createBuffer: vi.fn(() => ({})),
+    queue: { writeBuffer: vi.fn() },
+  } as unknown as GPUDevice;
+  const maskTexture = { createView: vi.fn(() => ({})) } as unknown as GPUTexture;
+  const resolveMask = vi.fn(() => maskTexture);
+  const runner = new EffectPassRunner(device, "bgra8unorm-srgb", 4, 4, {} as GPUSampler, resolveMask);
+  const encoder = { beginRenderPass: vi.fn(() => passObj) } as unknown as GPUCommandEncoder;
+  return { runner, encoder, resolveMask };
+}
+
+const PASSTHROUGH_MODULE = {
+  id: "passthrough",
+  name: "Passthrough",
+  params: [],
+  wgsl: "fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> { return color; }",
+};
+
+describe("EffectPassRunner — image de guide du masque edge-aware", () => {
+  it("guide = le composite EN DESSOUS pour un calque ordinaire", () => {
+    const { runner, encoder, resolveMask } = createRunnerSpyingGuide();
+    const compositeEnDessous = { nom: "composite" } as unknown as GPUTextureView;
+
+    runner.runEffectPass(encoder, PASSTHROUGH_MODULE, layer(), compositeEnDessous, {} as GPUTextureView, { applyMask: true }, []);
+
+    expect(resolveMask.mock.calls[0][2]).toBe(compositeEnDessous);
+  });
+
+  it("guide = SA PROPRE photo pour un calque photo, jamais le composite en dessous", () => {
+    // LE DÉFAUT QUE CE TEST FERME. Pour le calque le PLUS BAS, le composite en
+    // dessous est la TOILE — allouée, effacée une fois en alpha 0 et jamais
+    // uploadée depuis la tranche T1 (`imageFrameResources.ts`). Un masque
+    // edge-aware posé sur le calque photo de fond travaillait donc sur du vide :
+    // plus une seule arête à suivre, en silence. Mesuré sur GPU réel le
+    // 2026-07-29 : le guide du calque du bas ÉTAIT la texture de toile.
+    const { runner, encoder, resolveMask } = createRunnerSpyingGuide();
+    const toileVide = { nom: "toile" } as unknown as GPUTextureView;
+    const saPhoto = { nom: "photo" } as unknown as GPUTextureView;
+
+    runner.runEffectPass(encoder, PASSTHROUGH_MODULE, layer(), toileVide, {} as GPUTextureView, { applyMask: true, imageSourceView: saPhoto }, []);
+
+    expect(resolveMask.mock.calls[0][2]).toBe(saPhoto);
+  });
+
+  it("guide = le composite en dessous pour un calque ÉCRÊTÉ sur une photo (il ne porte pas d'image)", () => {
+    // L'écrêtage borne le POIDS de compositing, il ne change pas ce que le
+    // calque dessine : son entrée reste le composite en dessous, qui contient
+    // déjà la photo de base composée. Le guide le suit — donc rien à changer.
+    const { runner, encoder, resolveMask } = createRunnerSpyingGuide();
+    const compositeEnDessous = { nom: "composite" } as unknown as GPUTextureView;
+    const couverture = { nom: "couverture" } as unknown as GPUTextureView;
+
+    runner.runEffectPass(encoder, PASSTHROUGH_MODULE, layer(), compositeEnDessous, {} as GPUTextureView, { applyMask: true, clipCoverageView: couverture }, []);
+
+    expect(resolveMask.mock.calls[0][2]).toBe(compositeEnDessous);
+  });
+});

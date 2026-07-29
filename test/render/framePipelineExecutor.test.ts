@@ -638,9 +638,44 @@ describe("FramePipelineExecutor — epochs de guide", () => {
     executor.run([moved, above], null);
 
     expect(rebuilds("ABOVE")).toBe(2);
-    // Le guide du fond, lui, reste la toile : sa propre modification ne le
-    // périme pas.
+    // Le guide du fond, lui, est SA PROPRE photo : un paramètre d'effet
+    // modifié ne change ni sa source ni sa transformation, donc ne le périme
+    // pas.
     expect(rebuilds("BG")).toBe(1);
+  });
+
+  it("reconstruit le guide d'un calque photo quand SA photo bouge", () => {
+    // Le défaut symétrique de celui que la tranche T4 corrige : depuis que le
+    // guide d'un calque photo est sa propre photo, une epoch qui ne suivrait
+    // que la chaîne EN DESSOUS ne bougerait jamais quand on déplace la photo —
+    // la SAT du guide resterait celle de l'ancienne position, servie en
+    // silence. C'est exactement « un cache qui sert du périmé ».
+    const { executor, effects, masks } = createExecutor();
+    const rebuilds = trackGuideRebuilds(effects, masks);
+
+    executor.run([background, above], null);
+    const deplacee = { ...background, transform: { x: 40, y: 0, scale: 1, rotation: 0 } };
+    executor.run([deplacee, above], null);
+
+    expect(rebuilds("BG")).toBe(2);
+  });
+
+  it("ne reconstruit PAS le guide d'un calque photo quand un calque EN DESSOUS change", () => {
+    // L'autre moitié de la même décision : le guide d'un calque photo ne
+    // dépend plus du composite en dessous, donc rien de ce qui s'y passe ne
+    // doit déclencher la reconstruction (coûteuse) de sa SAT.
+    const { executor, effects, masks } = createExecutor();
+    const rebuilds = trackGuideRebuilds(effects, masks);
+    const photoAuMilieu = layer({
+      id: "MID",
+      imageSource: { sourceId: "s2" },
+      transform: { x: 10, y: 10, scale: 1, rotation: 0 },
+    });
+
+    executor.run([above, photoAuMilieu], null);
+    executor.run([{ ...above, opacity: 0.4 }, photoAuMilieu], null);
+
+    expect(rebuilds("MID")).toBe(1);
   });
 
   it("ne reconstruit rien quand seul le calque du DESSUS change", () => {

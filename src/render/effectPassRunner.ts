@@ -210,7 +210,21 @@ export class EffectPassRunner {
       { binding: 1, resource: this.sampler },
       { binding: 2, resource: { buffer: paramBuffer } },
     ];
-    if (applyMask) entries.push({ binding: 3, resource: this.resolveMask(layer, encoder, sourceView, pendingDestroy, guideEpoch).createView() });
+    // IMAGE DE GUIDE du masque (filtre edge-aware) — ce n'est PAS forcément
+    // `sourceView`. La règle est : le guide est l'image que CE calque dessine.
+    //  - calque ordinaire (effet, écrêté compris) : il travaille le composite
+    //    en dessous, donc `sourceView` — inchangé ;
+    //  - calque photo : il dessine SA photo, résolue par la pré-passe
+    //    (`imageSourceView`). Le composite en dessous ne serait pas seulement
+    //    approximatif, il serait faux : ce sont exactement les pixels que la
+    //    photo RECOUVRE. Et pour le calque le plus bas, c'est la toile — vide
+    //    depuis la tranche T1 (allouée, effacée en alpha 0, jamais uploadée) :
+    //    le filtre guidé n'avait plus AUCUNE arête à suivre, en silence.
+    //    Mesuré sur GPU réel le 2026-07-29.
+    // Position-indépendant par construction : aucun cas particulier sur
+    // l'index, c'est précisément l'hypothèse que la tranche T1 a fait tomber.
+    const maskGuideView = imageSourceView ?? sourceView;
+    if (applyMask) entries.push({ binding: 3, resource: this.resolveMask(layer, encoder, maskGuideView, pendingDestroy, guideEpoch).createView() });
     if (prevPassView) entries.push({ binding: 4, resource: prevPassView });
     if (applyMask && compositingBuffer) entries.push({ binding: 5, resource: { buffer: compositingBuffer } });
     if (applyMask && coverageView) entries.push({ binding: 6, resource: coverageView });

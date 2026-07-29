@@ -41,6 +41,12 @@ const ATTENDU = {
   "photo-double-exposure.png": { valeurs: null },
   "masque-pinceau-degrade.png": { valeurs: null },
   "masque-edge-aware.png": { valeurs: null },
+  // Meme chaine edge-aware, mais sur le calque le PLUS BAS (le calque photo de
+  // fond). Le scenario ci-dessus la posait sur un calque d'effet en position 1,
+  // dont le guide etait deja le composite en dessous : il ne pouvait pas voir
+  // que le guide du calque du bas etait la toile VIDE. Voir
+  // docs/adr/0004-image-de-guide-du-masque-edge-aware.md.
+  "masque-edge-aware-calque-du-bas.png": { valeurs: null },
 };
 
 /** Meme plancher que `MIN_COULEURS` dans `scripts/render-check.mjs`. */

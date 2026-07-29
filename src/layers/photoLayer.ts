@@ -71,6 +71,31 @@ export function bottomPhotoSourceId(layers: LayerState[]): string | null {
 }
 
 /**
+ * Description EXACTE de l'image que la pré-passe photo (`render/photoLayerInput.ts`)
+ * rendra pour ce calque : sa source et sa transformation, rien d'autre.
+ * `null` pour un calque qui ne porte pas de photo.
+ *
+ * Sert de clé d'invalidation à l'epoch du guide edge-aware d'un calque photo
+ * (`FramePipelineExecutor.computeGuideEpochs`), depuis que ce guide est la
+ * photo du calque et non plus le composite en dessous. Deux valeurs égales
+ * signifient « la pré-passe rendra les mêmes pixels », donc « le guide n'a pas
+ * changé » — la seule chose que le cache SAT a besoin de savoir.
+ *
+ * Chaîne et non objet : l'identité d'objet ne convient pas ici. `imageSource`
+ * et `transform` sont DEUX champs, et une mise à jour immuable de l'un laisse
+ * l'autre inchangé — une clé d'identité manquerait donc la moitié des
+ * changements. Comparer les VALEURS est ce qui rend la clé exacte.
+ *
+ * Fonction PURE, ici et pas dans `render/` : c'est une lecture du modèle de
+ * calques, vérifiable sans GPU — même raison que `bottomPhotoSourceId`.
+ */
+export function photoGuideKey(layer: LayerState | undefined): string | null {
+  if (!layer?.imageSource || !layer.transform) return null;
+  const t = layer.transform;
+  return `${layer.imageSource.sourceId}|${t.x}|${t.y}|${t.scale}|${t.rotation}`;
+}
+
+/**
  * Prédicat pur : le document contient-il une photo AUTRE que sa photo
  * d'ouverture ? Désactive le round-trip Lightroom pour cet export
  * (ARCHITECTURE.md §4.6, PRD "Double exposure"). Vit ici (pas dans

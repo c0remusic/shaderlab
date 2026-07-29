@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { LayerStack } from "../../src/layers/layerStack";
-import { MAX_PHOTO_LAYERS, bottomPhotoSourceId, countPhotoLayers, canAddPhotoLayer, hasImportedPhotoLayer } from "../../src/layers/photoLayer";
+import { MAX_PHOTO_LAYERS, bottomPhotoSourceId, countPhotoLayers, canAddPhotoLayer, hasImportedPhotoLayer, photoGuideKey } from "../../src/layers/photoLayer";
+import { defaultLayerMask } from "../../src/mask/types";
+import type { LayerState } from "../../src/layers/types";
 
 describe("photoLayer guards", () => {
   // Arbitrage n°3 du design 2026-07-28 (§7) : 5 = 4 imports + le FOND, qui est
@@ -124,5 +126,55 @@ describe("bottomPhotoSourceId — l'image que les masques paramétriques échant
     stack.addLayer("glow");
     expect(bottomPhotoSourceId(stack.layers)).toBeNull();
     expect(bottomPhotoSourceId([])).toBeNull();
+  });
+});
+
+/**
+ * `photoGuideKey` — la clé d'invalidation du guide edge-aware d'un calque
+ * photo. Ce qu'elle doit garantir tient en une phrase : deux clés égales
+ * signifient que la pré-passe photo rendra les MÊMES pixels. Une clé trop
+ * large invaliderait un cache coûteux pour rien ; une clé trop étroite
+ * servirait un guide périmé — c'est ce second défaut qui ne se voit pas.
+ */
+describe("photoGuideKey — ce dont le guide d'un calque photo dépend", () => {
+  const photo = (over: Partial<LayerState> = {}): LayerState => ({
+    id: "P",
+    effectId: "passthrough",
+    params: {},
+    enabled: true,
+    opacity: 1,
+    blendMode: "normal",
+    mask: defaultLayerMask(),
+    imageSource: { sourceId: "s1" },
+    transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+    ...over,
+  });
+
+  it("rend null pour un calque sans photo, et pour l'absence de calque", () => {
+    expect(photoGuideKey(photo({ imageSource: undefined, transform: undefined }))).toBeNull();
+    expect(photoGuideKey(undefined)).toBeNull();
+  });
+
+  it("est stable quand rien de ce que la pré-passe lit ne change", () => {
+    // Opacité, fusion, masque : rien de tout cela n'entre dans la pré-passe.
+    // Une clé qui bougerait ici reconstruirait la SAT du guide à chaque
+    // glissement de curseur d'opacité.
+    expect(photoGuideKey(photo({ opacity: 0.3, blendMode: "screen" }))).toBe(photoGuideKey(photo()));
+  });
+
+  it("change dès que la source change", () => {
+    expect(photoGuideKey(photo({ imageSource: { sourceId: "s2" } }))).not.toBe(photoGuideKey(photo()));
+  });
+
+  it("change sur CHACUN des quatre champs de transformation", () => {
+    const base = photoGuideKey(photo());
+    for (const t of [
+      { x: 1, y: 0, scale: 1, rotation: 0 },
+      { x: 0, y: 1, scale: 1, rotation: 0 },
+      { x: 0, y: 0, scale: 1.5, rotation: 0 },
+      { x: 0, y: 0, scale: 1, rotation: 0.2 },
+    ]) {
+      expect(photoGuideKey(photo({ transform: t }))).not.toBe(base);
+    }
   });
 });

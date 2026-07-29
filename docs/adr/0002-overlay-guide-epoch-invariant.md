@@ -69,3 +69,15 @@ dont le guide dépend réellement — identité de la toile, puis de chaque
 bord sur l'invariant : il n'est plus tenu par la RÉPÉTITION d'une formule sur
 deux sites, mais par la lecture de la MÊME case du tableau d'epochs de la frame
 — une divergence entre les deux sites n'est plus représentable.
+
+**Amendement 2026-07-29 (tranche T4, [ADR-0004](0004-image-de-guide-du-masque-edge-aware.md)).**
+La DÉCISION reste inchangée, et l'invariant aussi : les deux sites lisent
+toujours la même case du tableau d'epochs. Ce qui change est le CONTENU de
+certaines cases — un calque portant `imageSource` a désormais pour guide sa
+propre photo résolue, et non plus le composite en dessous, donc son epoch
+dérive de `photoGuideKey(layer)` (source + transformation) et non de la chaîne.
+La phrase « Preuve à l'appui du choix `sourceTexture` pour le cas calque-du-bas
+(index 0) » ci-dessus est **périmée** : le spike de 2026-07-24 comparait
+source vs composite sur un document dont la toile PORTAIT ENCORE la photo. Depuis
+T1 la toile est vide, et le « guide = source » de l'époque n'existe plus sous ce
+nom. Voir l'ADR-0004 pour la mesure qui l'a établi.

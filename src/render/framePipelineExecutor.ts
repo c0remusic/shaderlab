@@ -1,5 +1,6 @@
 import type { LayerState } from "../layers/types";
 import { resolveClipping, type ClipResolution } from "../layers/clipping";
+import { photoGuideKey } from "../layers/photoLayer";
 import { defaultLayerMask } from "../mask/types";
 import { getEffect } from "./effects/registry";
 import { PASSTHROUGH_EFFECT } from "./effectPassRunner";
@@ -141,6 +142,13 @@ export class FramePipelineExecutor {
    *  tronqués à la taille de la pile activée courante. */
   private lastGuideKeys: unknown[] = [];
   private lastGuideEpochs: number[] = [];
+  /** Même mécanique, pour les positions dont le guide n'est PAS la chaîne en
+   *  dessous mais la photo du calque lui-même (voir `computeGuideEpochs`).
+   *  Tableau séparé parce que ces deux dépendances n'ont rien à voir : une
+   *  seule case ne peut pas mémoriser les deux sans confondre leurs
+   *  invalidations. */
+  private lastOwnGuideKeys: (string | null)[] = [];
+  private lastOwnGuideEpochs: number[] = [];
 
   constructor(
     private readonly device: GPUDevice,
@@ -208,7 +216,16 @@ export class FramePipelineExecutor {
    *  une chaîne d'identités inchangée signifie un guide inchangé. Dès qu'une
    *  position diverge, toutes les positions AU-DESSUS reçoivent une epoch
    *  neuve : un guide dépend de tout son préfixe, pas seulement du calque qui
-   *  le précède. */
+   *  le précède.
+   *
+   *  EXCEPTION, et elle est structurelle : un calque PHOTO ne prend pas la
+   *  chaîne pour guide, mais sa propre photo résolue
+   *  (`effectPassRunner.ts`, `maskGuideView`). Son epoch doit donc suivre
+   *  CETTE dépendance-là — sinon deux défauts symétriques : déplacer la photo
+   *  ne rebâtirait pas la SAT du guide (cache périmé servi en silence, le
+   *  défaut le plus grave), et modifier un calque en dessous la rebâtirait
+   *  pour rien. La clé est la description exacte de ce que la pré-passe rend :
+   *  source + transformation. */
   private computeGuideEpochs(
     canvasTexture: GPUTexture,
     enabledLayers: LayerState[],
@@ -231,13 +248,27 @@ export class FramePipelineExecutor {
       if (!stale && this.lastGuideKeys[i] !== key) stale = true;
       if (stale) this.lastGuideEpochs[i] = ++this.guideGeneration;
       this.lastGuideKeys[i] = key;
-      epochs.push(this.lastGuideEpochs[i]);
+
+      // La chaîne continue d'être suivie pour TOUTE position (les calques
+      // au-dessus en dépendent, photo ou pas) ; seule l'epoch SERVIE change.
+      const ownKey = photoGuideKey(enabledLayers[i]);
+      if (ownKey === null) {
+        this.lastOwnGuideKeys[i] = null;
+        epochs.push(this.lastGuideEpochs[i]);
+      } else {
+        if (this.lastOwnGuideKeys[i] !== ownKey)
+          this.lastOwnGuideEpochs[i] = ++this.guideGeneration;
+        this.lastOwnGuideKeys[i] = ownKey;
+        epochs.push(this.lastOwnGuideEpochs[i]);
+      }
     }
     // Pile raccourcie : les positions disparues sont oubliées. Si elles
     // reviennent, leur clé mémorisée sera `undefined` — donc divergente, donc
     // epoch neuve. Conservateur dans le bon sens (jamais un guide périmé).
     this.lastGuideKeys.length = epochs.length;
     this.lastGuideEpochs.length = epochs.length;
+    this.lastOwnGuideKeys.length = epochs.length;
+    this.lastOwnGuideEpochs.length = epochs.length;
     return epochs;
   }
 
@@ -444,10 +475,12 @@ export class FramePipelineExecutor {
           // compositing, sans toucher à l'entrée d'effet (qui reste le
           // composite en dessous) — voir shaderCompose §clipToCoverage.
           clipCoverageView: clipView,
-          // Fraîcheur du guide edge-aware de CE calque = celle de la chaîne
-          // toile + calques en dessous (voir `computeGuideEpochs`). Une
-          // position dans la pile ne dit plus rien à elle seule : depuis la
-          // tranche T1, l'index 0 est le calque photo de fond.
+          // Fraîcheur du guide edge-aware de CE calque : chaîne toile +
+          // calques en dessous pour un calque ordinaire, sa propre photo pour
+          // un calque photo (voir `computeGuideEpochs` — l'epoch suit ce dont
+          // le guide dépend, pas la position). Une position dans la pile ne
+          // dit plus rien à elle seule : depuis la tranche T1, l'index 0 est
+          // le calque photo de fond.
           guideEpoch: guideEpochs[index],
         },
         pendingDestroy,
@@ -478,6 +511,15 @@ export class FramePipelineExecutor {
       // donc la position 0. Sans cette égalité, un calque édité avec
       // overlay actif invaliderait son cache SAT à CHAQUE appel au lieu
       // d'aucun (voir docs/adr/0002-overlay-guide-epoch-invariant.md).
+      //
+      // Corollaire, depuis que le guide d'un calque PHOTO est sa propre photo
+      // et non le composite : la vue passée ici n'est pas celle-là, et n'a
+      // pas à l'être. L'égalité d'epoch garantit que cet appel est un
+      // cache-hit — le CONTENU du guide vient de l'appel de la boucle
+      // principale, le seul à disposer de la cible photo avant qu'un calque
+      // photo suivant ne la re-`clear` (cible partagée, invariant d'ordre des
+      // passes). Passer une vue qui pourrait porter les pixels d'une AUTRE
+      // photo serait le vrai danger ; ne pas la passer du tout n'en est pas un.
       const overlayIndex = enabledLayers.findIndex((l) => l.id === overlayLayer.id);
       overlayMaskTexture = this.masks.resolve(
         overlayLayer,

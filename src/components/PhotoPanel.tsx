@@ -36,6 +36,9 @@ interface Props {
   onReset: (id: string) => void;
   onFitToCanvas: (id: string) => void;
   onCenter: (id: string) => void;
+  /** Remplace l'image du calque (tranche T2) : ouvre le sélecteur de fichier,
+   *  puis change la source SANS toucher au reste du calque. */
+  onReplaceImage: (id: string) => void;
 }
 
 /**
@@ -56,7 +59,7 @@ interface Props {
  * sans `<h1>` ni `<h2>` — un saut de niveau, donc un défaut d'accessibilité.
  * Le titre d'une section est le libellé du bouton qui la replie.
  */
-export function PhotoPanel({ layer, thumbnailUrl, onTransformChange, onTransformCommit, onReset, onFitToCanvas, onCenter }: Props) {
+export function PhotoPanel({ layer, thumbnailUrl, onTransformChange, onTransformCommit, onReset, onFitToCanvas, onCenter, onReplaceImage }: Props) {
   // Liaisons LOCALES (`const`) avant la garde : le paramètre `layer` n'est
   // pas `const` pour TypeScript, son affinement ne survivrait pas dans les
   // callbacks ci-dessous.
@@ -81,15 +84,29 @@ export function PhotoPanel({ layer, thumbnailUrl, onTransformChange, onTransform
   return (
     <div className="photo-panel">
       <Disclosure title="Source" defaultOpen>
-        <div className="photo-panel__source">
-          {thumbnail ? (
-            <img className="photo-panel__thumbnail" src={thumbnail} alt="" aria-hidden="true" />
-          ) : (
-            <span className="photo-panel__thumbnail photo-panel__thumbnail--empty" aria-hidden="true" />
-          )}
-          <span className="photo-panel__source-name" title={layerName ?? undefined}>
-            {layerName ?? "Photo importée"}
-          </span>
+        <div className="photo-panel__source-group">
+          <div className="photo-panel__source">
+            {thumbnail ? (
+              <img className="photo-panel__thumbnail" src={thumbnail} alt="" aria-hidden="true" />
+            ) : (
+              <span className="photo-panel__thumbnail photo-panel__thumbnail--empty" aria-hidden="true" />
+            )}
+            <span className="photo-panel__source-name" title={layerName ?? undefined}>
+              {layerName ?? "Photo importée"}
+            </span>
+          </div>
+          {/* Remplacer l'image (T2) : la pile, les masques, les effets et
+              l'historique du calque survivent — seule la source change. UN
+              contrôle, dans la section qu'il concerne, agissant sur le calque
+              SÉLECTIONNÉ (ADR-0001) ; il ne se répète sur aucune ligne.
+              Désactivé sur un calque verrouillé, au même titre que « Ajouter
+              une source » de MaskPanel — le refus du modèle
+              (`LayerStack.setLayerImageSource`) reste la garde réelle. */}
+          <div className="photo-panel__actions">
+            <Button size="sm" variant="secondary" disabled={layer.locked === true} onClick={() => onReplaceImage(layerId)}>
+              Remplacer l'image…
+            </Button>
+          </div>
         </div>
       </Disclosure>
 

@@ -29,6 +29,15 @@
   color: var(--text-tertiary);
 }
 
+/* Section « Source » : la ligne vignette+nom, puis l'action de remplacement.
+   Colonne au rang --space-3, le même que .photo-panel__fields — deux blocs
+   d'une même section, pas deux sections. */
+.photo-panel__source-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
 .photo-panel__source {
   display: flex;
   align-items: center;

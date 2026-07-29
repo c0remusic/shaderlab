@@ -255,5 +255,37 @@ describe("PhotoSourceStore", () => {
       store.dispose();
       await expect(store.register(bitmap)).resolves.not.toBe(before);
     });
+
+    /**
+     * REMPLACEMENT D'IMAGE (tranche T2). Remplacer l'image d'un calque
+     * enregistre une source de PLUS et n'en libère AUCUNE — c'est voulu :
+     * sans cette rétention, annuler le remplacement ne retrouverait plus
+     * l'image précédente. Le plafond est donc atteignable par simple
+     * répétition du geste, et le nombre est ici MESURÉ, pas supposé :
+     * un document ouvert a déjà 1 source (sa photo de fond), il reste donc
+     * `MAX_REGISTERED_PHOTO_SOURCES - 1` = 19 remplacements possibles, et le
+     * 20ᵉ est REFUSÉ — bruyamment, avec la sortie (rouvrir le document)
+     * nommée dans le message. Un refus silencieux serait un défaut.
+     */
+    it("un document ouvert autorise 19 remplacements successifs, le 20ᵉ est refusé bruyamment", async () => {
+      const { store } = createStore();
+      await store.register(bitmap); // photo de fond du document ouvert
+
+      let replacements = 0;
+      for (;;) {
+        try {
+          await store.register(bitmap);
+          replacements += 1;
+        } catch (e) {
+          expect((e as Error).message).toMatch(/Trop de photos importées dans cette session/);
+          break;
+        }
+        if (replacements > MAX_REGISTERED_PHOTO_SOURCES) throw new Error("plafond jamais atteint");
+      }
+
+      expect(replacements).toBe(MAX_REGISTERED_PHOTO_SOURCES - 1);
+      expect(replacements).toBe(19);
+      expect(store.registeredCount).toBe(MAX_REGISTERED_PHOTO_SOURCES);
+    });
   });
 });

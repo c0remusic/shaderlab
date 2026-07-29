@@ -48,6 +48,27 @@
 // pose, ce que ce harnais ne fait jamais), et la resolution est celle de
 // l'image source, fixee par le scenario.
 //
+// Un scenario peut aussi declarer `surface: "canvas"` : il relit alors la
+// SURFACE DE PRESENTATION, par la meme lecture GPU->CPU (`FrameReadback`) et
+// jamais par une capture d'ecran — donc sans encodeur, sans compositeur et
+// sans mise en page. Les trois termes de bruit ci-dessus disparaissent tous
+// les trois : la geometrie est fixee (canvas detache, dimensions du document),
+// l'horloge n'entre en jeu que si l'overlay est arme (aucun scenario ne
+// l'arme), et il n'y a plus d'encodage. C'est ce qui rend le DAMIER
+// verrouillable — le damier n'existe que sur cette surface
+// (`presentBackgroundFor`), aucun scenario d'export ne peut le voir.
+//
+// ─────────────────────────────────────────────────────────────────────────
+// Ce qu'un scenario doit poser lui-meme (tranche T1)
+// ─────────────────────────────────────────────────────────────────────────
+// La toile n'est PLUS la photo. `Renderer.loadImage()` alloue une toile vide
+// et enregistre la photo comme SOURCE ; c'est `App.tsx` qui en fait le calque
+// du bas. Un scenario qui se contente d'un `new LayerStack()` nu rend donc du
+// NOIR — c'est arrive, six references sur six sont devenues fausses en une
+// tranche. Chaque scenario pose maintenant ce calque de fond comme
+// l'application le fait (`fond: false` pour les deux qui veulent la toile
+// vide, et qui sont la exactement pour ca).
+//
 // ─────────────────────────────────────────────────────────────────────────
 // Ou tourne le code
 // ─────────────────────────────────────────────────────────────────────────
@@ -61,6 +82,15 @@
 //   Terminal A :  npx vite --port 1421
 //   Terminal B :  npm run test:render
 //
+// `--origin` N'EST PAS UN CONFORT. Le Vite interroge doit servir LE worktree
+// dont on veut le verdict, et avoir demarre APRES les modifications a
+// verifier. Un Vite d'une session voisine, ou celui de l'app sur 1420, rend un
+// vert sur le code de quelqu'un d'autre — deux agents s'y sont fait prendre le
+// 2026-07-29, dont un qui a annonce une non-regression fausse. La parade est
+// mecanique et coute une minute : planter un temoin visible dans un shader,
+// verifier que le harnais ROUGIT, le retirer, verifier qu'il redevient vert.
+// Sans ce temoin, aucun verdict de ce script ne vaut.
+//
 // ─────────────────────────────────────────────────────────────────────────
 // Auto-validation (la lecon de l'echec precedent)
 // ─────────────────────────────────────────────────────────────────────────
@@ -71,13 +101,19 @@
 // et ne rend AUCUN verdict de non-regression — un protocole instable ne peut
 // pas rassurer sur quoi que ce soit.
 //
+// Deuxieme etage, ajoute le 2026-07-29 : la GATE DE SIGNAL (`verifierSignal`).
+// La reproductibilite ne dit rien de la sensibilite — une image noire se
+// repete parfaitement. Chaque scenario doit donc aussi montrer ce qu'il
+// pretend montrer avant qu'une reference soit comparee OU ecrite. Voir le
+// commentaire de cette fonction pour ce qui a rendu cette etape necessaire.
+//
 // ─────────────────────────────────────────────────────────────────────────
 // Tolerance
 // ─────────────────────────────────────────────────────────────────────────
 // La tolerance par defaut est ZERO : tout ecart non nul fait echouer. Ce n'est
 // pas de la severite gratuite, c'est ce que la MESURE autorise — deux
 // executions completes, sur deux `GPUDevice` distincts, rendent la meme image
-// a l'octet pres, sur les six scenarios. Aucun ecart n'a jamais ete observe
+// a l'octet pres, sur les huit scenarios. Aucun ecart n'a jamais ete observe
 // sur cette machine, donc aucun ecart n'a besoin d'etre pardonne.
 //
 // L'ecart d'arrondi d'un aller-retour `-srgb` (1 LSB par canal) existe bien en
@@ -224,6 +260,11 @@ const INSTALL = `(async () => {
   const { initGpu } = await import(O + "/src/render/gpuContext.ts");
   const { Renderer } = await import(O + "/src/render/renderer.ts");
   const { LayerStack } = await import(O + "/src/layers/layerStack.ts");
+  const { FrameReadback } = await import(O + "/src/render/frameReadback.ts");
+  // La MEME fonction que \`App.tsx\` utilise pour poser le calque de fond a
+  // l'ouverture d'un document : le scenario ne reimplemente pas la transform
+  // d'identite, il tire celle du produit.
+  const { resetTransform } = await import(O + "/src/ui/transform.ts");
 
   const W = 256, H = 256;
 
@@ -284,71 +325,120 @@ const INSTALL = `(async () => {
     return stack.layers;
   };
 
+  /** Acces a un calque par l'id rendu par \`addLayer\`/\`addPhotoLayer\`, jamais
+   *  par indice : depuis que chaque scenario commence par un calque photo de
+   *  fond, \`layers[0]\` n'est plus le calque que le scenario vient de creer. */
+  const at = (stack, id) => {
+    const layer = stack.layers.find((l) => l.id === id);
+    if (!layer) throw new Error("calque introuvable: " + id);
+    return layer;
+  };
+
+  // Chaque scenario est un OBJET, plus une fonction : deux axes n'existaient
+  // pas avant la tranche T1.
+  //  - \`fond\` (defaut true) : le scenario pose-t-il le calque photo de fond,
+  //    comme \`App.tsx\` a l'ouverture d'un document ? Depuis T1 la toile est
+  //    allouee, effacee en alpha 0 et JAMAIS uploadee — un scenario sans ce
+  //    calque ne rend pas la mire, il rend le vide. Les cinq scenarios d'effet
+  //    l'ont appris a leurs depens : leurs references d'avant T1 verrouillaient
+  //    la mire, le rendu d'apres T1 sortait une image noire uniforme.
+  //  - \`surface\` (defaut "export") : \`exportFrame()\` (octets du fichier) ou
+  //    "canvas" (surface de presentation, damier compris). Le damier n'existe
+  //    QUE sur le canvas (\`presentBackgroundFor\`) : aucun scenario d'export ne
+  //    peut le voir, donc aucun ne peut le verrouiller.
   const scenarios = {
-    // Document nu : court-circuit « 0 calque actif », copie stricte de la
-    // source par la passe passthrough puis aplatissement.
-    "base": async () => ({ layers: [] }),
+    // LA TOILE, VIDE, DANS UN FICHIER. Zero calque : c'est le court-circuit
+    // « 0 calque active » de \`framePipelineExecutor\` (copie neutre) puis
+    // l'aplatissement d'un alpha 0 sur le fond d'EXPORT. Attendu : noir
+    // opaque. Ce scenario est l'heritier direct de l'ancien « base » — meme
+    // chemin de code exactement, mais « 0 calque » ne veut plus dire « la
+    // photo telle quelle », il veut dire « rien ». Il verrouille surtout ce
+    // qu'un JPEG ne pardonne pas : l'alpha sortant vaut 1 partout.
+    "toile-vide": { fond: false, valeurs: 1, build: async () => {} },
+
+    // LA MEME TOILE VIDE, A L'ECRAN. Le damier — le seul rendu que T1 a rendu
+    // observable et que rien ne verrouillait. Le facteur d'echelle
+    // d'affichage reste a son defaut (1), donc une case fait
+    // \`CHECKER_CELL_SCREEN_PX\` pixels de destination.
+    "toile-damier": { fond: false, surface: "canvas", valeurs: 2, build: async () => {} },
+
+    // LE DOCUMENT TEL QUE L'APPLICATION L'OUVRE : la photo est un calque
+    // ordinaire pose sur la toile (T1). Couvre la pre-passe photo, la
+    // couverture de calque, le compositing d'un seul calque et
+    // l'aplatissement. C'est l'autre moitie de l'ancien « base » : ce que
+    // « document nu » designe depuis T1.
+    "photo-de-fond-seule": { build: async () => {} },
 
     // Multi-passes (glow = 5 passes internes) + effet simple, avec opacite et
     // mode de fusion non triviaux.
-    "effets-glow-posterize": async (r, stack) => {
-      const a = stack.addLayer("glow");
-      stack.updateParams(a, { threshold: 0.55, intensity: 1.6 });
-      const b = stack.addLayer("posterize");
-      stack.updateParams(b, { levels: 4 });
-      stack.layers[0].opacity = 0.8;
-      stack.layers[0].blendMode = "screen";
-      stack.layers[1].opacity = 0.9;
-      stack.layers[1].blendMode = "overlay";
-      return {};
+    "effets-glow-posterize": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("glow");
+        stack.updateParams(a, { threshold: 0.55, intensity: 1.6 });
+        const b = stack.addLayer("posterize");
+        stack.updateParams(b, { levels: 4 });
+        at(stack, a).opacity = 0.8;
+        at(stack, a).blendMode = "screen";
+        at(stack, b).opacity = 0.9;
+        at(stack, b).blendMode = "overlay";
+      },
     },
 
     // Grain : le seul effet dont le nom evoque de l'aleatoire. Il n'en
     // contient pas — son bruit vient d'un \`hash()\` de la position, module par
     // un parametre \`seed\` EXPLICITE (render/effects/grain.ts). Fixer la graine
     // suffit ; il n'y a rien a exclure. Ce scenario est la pour le prouver.
-    "grain-graine-fixe": async (r, stack) => {
-      const a = stack.addLayer("grain");
-      stack.updateParams(a, { intensity: 0.3, size: 3, seed: 7 });
-      return {};
+    "grain-graine-fixe": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("grain");
+        stack.updateParams(a, { intensity: 0.3, size: 3, seed: 7 });
+      },
     },
 
     // Double exposure : une photo importee (autre source GPU, pre-passe
     // d'entree + transformation) sous un effet.
-    "photo-double-exposure": async (r, stack) => {
-      const photo = await mire(128, 96, 60);
-      const sourceId = await r.photoSources.register(photo);
-      const p = stack.addPhotoLayer(sourceId, { x: 150, y: 110, scale: 1.4, rotation: 0.35 }, "mire");
-      stack.layers[0].opacity = 0.75;
-      stack.layers[0].blendMode = "multiply";
-      const c = stack.addLayer("chromaticBleed", p);
-      stack.updateParams(c, { amount: 0.05, centerFalloff: 1.5 });
-      return {};
+    "photo-double-exposure": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const photo = await mire(128, 96, 60);
+        const sourceId = await r.photoSources.register(photo);
+        const p = stack.addPhotoLayer(sourceId, { x: 150, y: 110, scale: 1.4, rotation: 0.35 }, "mire");
+        at(stack, p).opacity = 0.75;
+        at(stack, p).blendMode = "multiply";
+        const c = stack.addLayer("chromaticBleed", p);
+        stack.updateParams(c, { amount: 0.05, centerFalloff: 1.5 });
+      },
     },
 
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,
     // donc les passes de morphologie separees H/V).
-    "masque-pinceau-degrade": async (r, stack) => {
-      const a = stack.addLayer("warp");
-      stack.updateParams(a, { scale: 4, amplitude: 0.08, octaves: 4, seed: 2 });
-      stack.updateBrushMask(a, brushRaster(W, H));
-      const g = stack.addMaskSource(a, "gradient");
-      stack.updateMaskSourceParams(a, g, { angle: 0, startX: 0, startY: 0, endX: 1, endY: 1, feather: 0.8, invert: 0 });
-      stack.setMaskSourceCombineMode(a, g, "intersect");
-      stack.updateRefineEdge(a, { feather: 6, contract: -3, smooth: 2 });
-      return {};
+    "masque-pinceau-degrade": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("warp");
+        stack.updateParams(a, { scale: 4, amplitude: 0.08, octaves: 4, seed: 2 });
+        stack.updateBrushMask(a, brushRaster(W, H));
+        const g = stack.addMaskSource(a, "gradient");
+        stack.updateMaskSourceParams(a, g, { angle: 0, startX: 0, startY: 0, endX: 1, endY: 1, feather: 0.8, invert: 0 });
+        stack.setMaskSourceCombineMode(a, g, "intersect");
+        stack.updateRefineEdge(a, { feather: 6, contract: -3, smooth: 2 });
+      },
     },
 
     // Chaine edge-aware (guided filter + SAT) : une dizaine de passes WGSL qui
     // ne s'executent que si la case est cochee, et qui portent leur propre
     // cache invalide par epoque — exactement le genre de chemin ou une
     // regression dort longtemps.
-    "masque-edge-aware": async (r, stack) => {
-      const a = stack.addLayer("duotone");
-      stack.updateBrushMask(a, brushRaster(W, H));
-      stack.updateRefineEdge(a, { feather: 2, edgeAware: true, edgeRadius: 8, edgeStrength: 0.8 });
-      return {};
+    "masque-edge-aware": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("duotone");
+        stack.updateBrushMask(a, brushRaster(W, H));
+        stack.updateRefineEdge(a, { feather: 2, edgeAware: true, edgeRadius: 8, edgeStrength: 0.8 });
+      },
     },
   };
 
@@ -361,30 +451,65 @@ const INSTALL = `(async () => {
 
   let pass = null;
 
+  /** Relit la SURFACE DE PRESENTATION (le canvas), la ou \`exportFrame\` relit
+   *  la texture d'export. Meme reswizzle bgra->rgba que l'export
+   *  (\`FrameReadback\`, lecon du 2026-07-24) : sans lui la reference aurait le
+   *  rouge et le bleu inverses, ce qui ne se voit pas sur un damier gris. */
+  const readCanvas = async (ctx) => {
+    const rb = new FrameReadback(ctx.device, W, H, ctx.srgbFormat.startsWith("bgra"));
+    const stripped = rb.stripRowPadding(await rb.readTextureBytes(ctx.context.getCurrentTexture()));
+    return rb.swapRedBlueChannels(stripped);
+  };
+
   window.__renderCheck = {
     ids: Object.keys(scenarios),
     width: W,
     height: H,
     async openPass() {
       const cv = document.createElement("canvas");
-      cv.width = 4; cv.height = 4;
+      // Le canvas est a la taille du DOCUMENT, plus 4x4 : un scenario de
+      // surface "canvas" relit ce que la passe de presentation y ecrit, donc
+      // la destination doit avoir les dimensions de la reference.
+      cv.width = W; cv.height = H;
       const ctx = await initGpu(cv);
+      // \`initGpu\` configure sans COPY_SRC (l'app ne relit jamais son canvas).
+      ctx.context.configure({
+        device: ctx.device,
+        format: ctx.canvasFormat,
+        viewFormats: [ctx.srgbFormat],
+        alphaMode: "opaque",
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+      });
       pass = { ctx, format: ctx.srgbFormat };
       return ctx.srgbFormat;
     },
     closePass() { pass = null; },
     async run(id) {
+      const scenario = scenarios[id];
       const r = new Renderer(pass.ctx);
       try {
         await r.loadImage(await mire(W, H, 0));
         const stack = new LayerStack();
-        await scenarios[id](r, stack);
+        if (scenario.fond !== false) {
+          // CE QUE FAIT \`App.tsx\` A L'OUVERTURE (openFile, tranche T1) : la
+          // photo qui ouvre le document n'est pas la toile, c'est le calque du
+          // bas. Sans cette ligne le scenario rend une toile vide — et une
+          // reference verrouillee sur une image noire ne peut plus rien
+          // detecter.
+          const bg = r.backgroundSourceId;
+          if (bg === null) throw new Error("loadImage n'a pas enregistre la photo d'ouverture (invariant T1 rompu)");
+          stack.addPhotoLayer(bg, resetTransform({ width: W, height: H }), "fond");
+        }
+        await scenario.build(r, stack);
         const layers = normalize(stack);
-        const first = await r.exportFrame(layers);
+        const read = scenario.surface === "canvas"
+          ? async () => { r.render(layers); return readCanvas(pass.ctx); }
+          : () => r.exportFrame(layers);
+        const first = await read();
         // Deuxieme lecture sur le MEME renderer : separe une instabilite de
         // frame (cache de pipeline, epoque de masque) d'une instabilite de
         // mise en place (device, upload de texture).
-        const second = await r.exportFrame(layers);
+        const second = await read();
         let intra = 0;
         for (let i = 0; i < first.length; i++) if (first[i] !== second[i]) intra++;
         return JSON.stringify({ ok: true, intra, nLayers: layers.length, pixels: b64(first) });
@@ -411,14 +536,12 @@ const INSTALL = `(async () => {
         alphaMode: "opaque",
         usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
       });
-      const { FrameReadback } = await import(O + "/src/render/frameReadback.ts");
-      const readCanvas = async () => {
-        const rb = new FrameReadback(ctx.device, W, H, ctx.srgbFormat.startsWith("bgra"));
-        return rb.stripRowPadding(await rb.readTextureBytes(ctx.context.getCurrentTexture()));
-      };
       const r = new Renderer(ctx);
       await r.loadImage(await mire(W, H, 0));
       const stack = new LayerStack();
+      // Calque photo de fond, comme les scenarios : sans lui le diagnostic
+      // mesurerait la dependance a l'horloge d'une image noire.
+      stack.addPhotoLayer(r.backgroundSourceId, resetTransform({ width: W, height: H }), "fond");
       const a = stack.addLayer("posterize");
       stack.updateBrushMask(a, brushRaster(W, H));
       const layers = normalize(stack);
@@ -430,20 +553,20 @@ const INSTALL = `(async () => {
       const exportA = await r.exportFrame(layers);
       await wait();
       const exportB = await r.exportFrame(layers);
-      r.render(layers); const canvasA = await readCanvas();
+      r.render(layers); const canvasA = await readCanvas(ctx);
       await wait();
-      r.render(layers); const canvasB = await readCanvas();
+      r.render(layers); const canvasB = await readCanvas(ctx);
 
       // (2) OVERLAY ARME — \`framePipelineExecutor.run\` injecte
       // performance.now() dans la passe d'overlay (framePipelineExecutor.ts:147).
-      r.setMaskOverlay("L0");
-      r.render(layers); const ovCanvasA = await readCanvas();
+      r.setMaskOverlay("L1"); // le calque a masque est le SECOND depuis que le fond est un calque
+      r.render(layers); const ovCanvasA = await readCanvas(ctx);
       await wait();
-      r.render(layers); const ovCanvasB = await readCanvas();
+      r.render(layers); const ovCanvasB = await readCanvas(ctx);
 
       // (3) la boucle rAF rejoue la meme passe a un autre instant d'horloge.
-      r.tickOverlayAnimation(1000); const tickA = await readCanvas();
-      r.tickOverlayAnimation(1600); const tickB = await readCanvas();
+      r.tickOverlayAnimation(1000); const tickA = await readCanvas(ctx);
+      r.tickOverlayAnimation(1600); const tickB = await readCanvas(ctx);
 
       // (4) \`exportFrame\` passe par le MEME \`runPipeline\`, donc par le meme
       // \`maskOverlayLayerId\` : l'overlay ne s'arrete pas au canvas.
@@ -466,7 +589,16 @@ const INSTALL = `(async () => {
       return JSON.stringify(out);
     },
   };
-  return JSON.stringify({ ids: Object.keys(scenarios), width: W, height: H });
+  return JSON.stringify({
+    ids: Object.keys(scenarios),
+    width: W,
+    height: H,
+    // Ce que chaque scenario PROMET de montrer — consomme par la gate de
+    // signal cote Node (voir \`verifierSignal\`).
+    attentes: Object.fromEntries(
+      Object.entries(scenarios).map(([id, s]) => [id, { valeurs: s.valeurs ?? null, contre: s.contre ?? null }]),
+    ),
+  });
 })()`;
 
 /* ── Deroule ────────────────────────────────────────────────────────────── */
@@ -474,6 +606,107 @@ const INSTALL = `(async () => {
 function fail(message) {
   console.error("\nECHEC — " + message);
   process.exitCode = 1;
+}
+
+/** Nombre de valeurs RGBA distinctes d'une image. Mesure d'ecrasement, pas de
+ *  qualite : une image que le pipeline a videe n'en a qu'une. */
+function couleursDistinctes(pixels) {
+  const vues = new Set();
+  for (let i = 0; i < pixels.length; i += 4) {
+    vues.add((pixels[i] << 24) | (pixels[i + 1] << 16) | (pixels[i + 2] << 8) | pixels[i + 3]);
+    if (vues.size > 4096) break;
+  }
+  return vues.size;
+}
+
+/** Plancher de richesse d'un scenario NON declare `aplat`. Volontairement bas :
+ *  la gate vise l'image ECRASEE (1 a 2 valeurs), pas la pauvreté relative. */
+const MIN_COULEURS = 64;
+/** Part minimale de canaux qu'un scenario doit changer par rapport a son
+ *  scenario `contre`. Cale sur la mesure : le plus discret des cinq effets
+ *  (masque-pinceau-degrade, effet confine a un masque) en deplace 7,8 % ; la
+ *  frange de bord d'un pixel, elle, n'en fait que 1,6 % — et ne compte meme
+ *  pas ici, les deux images la portant. 3 % separe les deux sans etre un
+ *  seuil ajuste au dernier chiffre. */
+const MIN_PART_SIGNAL = 0.03;
+
+/**
+ * ETAGE MANQUANT LE 2026-07-29, ET RAISON D'ETRE DE CETTE FONCTION.
+ *
+ * La tranche T1 a vide la toile ; les scenarios, qui posaient leur mire dedans,
+ * se sont mis a rendre du NOIR UNIFORME. Le harnais l'a signale — mais
+ * seulement parce que les references dataient d'avant. Un `--update` de bonne
+ * foi aurait fige six images noires en references, et le harnais serait
+ * redevenu VERT : vert, muet, et incapable de detecter quoi que ce soit. Un
+ * autre agent l'a mesure le meme jour : cinq des six scenarios ne bougeaient
+ * plus d'un canal quand on perturbait volontairement la passe passthrough.
+ *
+ * Cette gate est le garde-fou correspondant, et elle tourne AVANT la
+ * comparaison comme avant l'ecriture des references — donc `--update` ne peut
+ * pas verrouiller une image sans signal. Deux exigences seulement :
+ *  1. une image non `aplat` porte au moins `MIN_COULEURS` valeurs distinctes ;
+ *  2. un scenario qui declare `contre` (l'effet est cense TRANSFORMER l'image)
+ *     s'ecarte reellement de ce scenario de reference.
+ * Ni l'une ni l'autre ne remplace la lecture a l'oeil des references : elles
+ * rendent seulement l'ecrasement IMPOSSIBLE A COMMITTER EN SILENCE.
+ */
+function verifierSignal(results, ids, meta) {
+  console.log("Signal (une reference qu'on ne peut plus faire rougir ne prouve rien) :");
+  let ok = true;
+  for (const id of ids) {
+    const attente = meta.attentes[id] ?? { valeurs: null, contre: null };
+    const pixels = results[id].pixels;
+    const couleurs = couleursDistinctes(pixels);
+    const notes = [];
+    let bon = true;
+
+    if (attente.valeurs !== null) {
+      // Un scenario a palette FINIE (aplat, damier) annonce son compte exact :
+      // « au moins N valeurs » n'y voudrait rien dire, et le compte exact est
+      // l'assertion la plus forte disponible sur ces images-la.
+      if (couleurs !== attente.valeurs) {
+        bon = false;
+        notes.push(`${attente.valeurs} valeur(s) annoncee(s), ${couleurs} mesuree(s)`);
+      } else {
+        notes.push(`${couleurs} valeur(s) distincte(s), conforme a sa declaration`);
+      }
+    } else if (couleurs < MIN_COULEURS) {
+      bon = false;
+      notes.push(`${couleurs} valeurs distinctes < ${MIN_COULEURS} — image ecrasee`);
+    } else {
+      notes.push(`${couleurs > 4096 ? ">4096" : couleurs} valeurs distinctes`);
+    }
+
+    if (attente.contre) {
+      const ref = results[attente.contre];
+      if (!ref) {
+        notes.push(`ecart vs ${attente.contre} non mesure (hors de ce --scenario)`);
+      } else {
+        const stats = comparePixels(pixels, ref.pixels);
+        const part = stats.differing / pixels.length;
+        if (part < MIN_PART_SIGNAL) {
+          bon = false;
+          notes.push(`ne s'ecarte de ${attente.contre} que sur ${(part * 100).toFixed(3)} % des canaux`);
+        } else {
+          notes.push(`s'ecarte de ${attente.contre} sur ${(part * 100).toFixed(1)} % des canaux`);
+        }
+      }
+    }
+
+    if (!bon) ok = false;
+    console.log(`  ${bon ? "OK  " : "FAIL"}  ${id.padEnd(26)} ${notes.join(", ")}`);
+  }
+  if (!ok) {
+    fail(
+      "un scenario au moins ne porte plus de signal : son image est ecrasee, ou son effet\n" +
+        "n'agit plus sur l'image. Aucune reference n'a ete comparee ni ecrite — figer une\n" +
+        "image morte en reference rendrait le harnais vert et aveugle (vecu le 2026-07-29,\n" +
+        "tranche T1 : la toile videe, les scenarios rendaient du noir).",
+    );
+    return false;
+  }
+  console.log("  -> chaque scenario montre ce qu'il pretend montrer.\n");
+  return true;
 }
 
 const cdp = await connect(PORT, ORIGIN);
@@ -542,6 +775,9 @@ async function main(cdp) {
     return;
   }
   console.log("  -> protocole reproductible, la comparaison peut avoir un sens.\n");
+
+  // ── Etape 1 bis : chaque scenario PORTE-T-IL UN SIGNAL ?
+  if (!verifierSignal(passes[0], ids, meta)) return;
 
   // ── Etape 2 : comparaison aux references.
   if (UPDATE) {

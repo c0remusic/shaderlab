@@ -628,6 +628,121 @@ export const RailTouchesParentRow: Story = {
   },
 };
 
+// LE test qui manquait, n°3 (2026-07-29). Constat d'Antoine à l'écran : « le
+// calque actif bouffe l'espace du lien » — le filet d'imbrication disparaissait
+// là où il croise une ligne SÉLECTIONNÉE.
+//
+// CE QUE LA MESURE A ÉCARTÉ. La première hypothèse — le lavis de sélection
+// PEINT PAR-DESSUS le filet — est FAUSSE, et le `z-index` posé pour la corriger
+// était un no-op. Relevé au hit-test (`elementFromPoint`, que la spécification
+// dérive de l'ordre de peinture), AVEC puis SANS ce `z-index` : le filet
+// ressort dans les deux cas, sur toute la portion qui recouvre la ligne
+// sélectionnée. Il est l'enfant d'une ligne qui peint après ses voisines — il
+// était déjà au-dessus.
+//
+// LA CAUSE RÉELLE est le CONTRASTE. `--border-default` est un blanc à 11 %
+// d'opacité (relevé : `color(srgb 0.949 0.949 0.949 / 0.11)`) ; le lavis de
+// sélection est bien plus clair que la surface du panneau (relevé :
+// `color(srgb 0.2318 0.2667 0.3711)`), et 11 % de blanc par-dessus n'y produit
+// presque aucun écart. Le filet ne disparaît pas SOUS le lavis : il se dissout
+// DEDANS.
+//
+// La mesure porte donc sur le rapport de contraste entre le filet COMPOSÉ sur
+// son fond et ce fond, au seuil WCAG des éléments d'interface non textuels
+// (3:1). C'est ce que l'œil constate, et c'est ce qui retombe au rouge si le
+// correctif est retiré.
+const RAIL_MIN_CONTRAST = 3;
+
+/** `color(srgb r g b / a)` ou `rgb(...)`/`rgba(...)` -> canaux en 0..255 et
+ *  alpha en 0..1. Le navigateur rend l'une ou l'autre forme selon que la valeur
+ *  vient d'un `color-mix()` ou d'un littéral. */
+function parseColor(value: string): [number, number, number, number] {
+  const numbers = value.match(/-?\d*\.?\d+/g);
+  if (!numbers || numbers.length < 3) throw new Error(`couleur illisible: ${value}`);
+  const [a, b, c, d] = numbers.map(Number);
+  const scale = value.startsWith("color(") ? 255 : 1;
+  return [a * scale, b * scale, c * scale, d === undefined ? 1 : d];
+}
+
+/** Source-over d'une couleur translucide sur un fond opaque. */
+function composite(front: [number, number, number, number], back: [number, number, number, number]): number[] {
+  return [0, 1, 2].map((i) => front[i] * front[3] + back[i] * (1 - front[3]));
+}
+
+/** Contraste WCAG entre deux couleurs opaques. */
+function contrastRatio(x: number[], y: number[]): number {
+  const luminance = (c: number[]) => {
+    const [r, g, b] = c.map((channel) => {
+      const v = channel / 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const [hi, lo] = [luminance(x), luminance(y)].sort((p, q) => q - p);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+export const RailStaysVisibleUnderSelection: Story = {
+  // La ligne SÉLECTIONNÉE est la photo de FOND, et le filet de l'effet juste en
+  // dessous remonte dans son padding bas (`--first`, 8 px sur le lavis) : c'est
+  // le croisement filet/sélection le plus courant à l'écran, le fond étant la
+  // ligne qu'on sélectionne en ouvrant un document.
+  args: { layers: twoParentKinds, selectedId: "layer-background" },
+  decorators: [dockWidthDecorator],
+  play: async ({ canvasElement }) => {
+    const rows = Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__row"));
+    await expect(rows).toHaveLength(4);
+    const selected = rows[0];
+    await expect(selected.className).toContain("layer-panel__row--selected");
+
+    const rail = rows[1].querySelector<HTMLElement>(".layer-panel__rail--first");
+    if (!rail) throw new Error("la ligne sous la sélection devrait porter un filet de tête");
+
+    // ---- LE CROISEMENT EXISTE BIEN ----
+    // Sans ce bloc, la mesure de contraste porterait peut-être sur un filet qui
+    // ne touche jamais le lavis, et ne prouverait rien.
+    const railBox = rail.getBoundingClientRect();
+    const selectedBox = selected.getBoundingClientRect();
+    const overlap = Math.min(railBox.bottom, selectedBox.bottom) - Math.max(railBox.top, selectedBox.top);
+    await expect(overlap).toBeGreaterThan(0);
+
+    // ---- ET LE FILET Y RESTE LISIBLE ----
+    const railColor = parseColor(getComputedStyle(rail).backgroundColor);
+    const washColor = parseColor(getComputedStyle(selected).backgroundColor);
+    const ratio = contrastRatio(composite(railColor, washColor), washColor.slice(0, 3));
+    await expect(ratio).toBeGreaterThanOrEqual(RAIL_MIN_CONTRAST);
+
+    // ---- ET LE DÉBORDEMENT VERS LE BAS NE CROISE RIEN ----
+    // C'est ce qui justifie de ne traiter que DEUX cas en CSS plutôt que
+    // d'essayer d'exprimer « la ligne suivante est sélectionnée », que CSS ne
+    // sait pas dire : le bas d'un filet s'arrête dans la gouttière de liste.
+    await expect(railBox.bottom).toBeLessThanOrEqual(rows[2].getBoundingClientRect().top);
+  },
+};
+
+// L'ALLURE AU REPOS NE BOUGE PAS. Le correctif est scopé à la sélection : sans
+// cette story, relever le filet PARTOUT passerait au vert — et un connecteur
+// décoratif au rang d'un texte serait un bruit visuel sur toute la liste.
+export const RailKeepsItsRestingRank: Story = {
+  args: { layers: twoParentKinds, selectedId: null },
+  decorators: [dockWidthDecorator],
+  play: async ({ canvasElement }) => {
+    const rails = Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__rail"));
+    await expect(rails.length).toBeGreaterThan(0);
+    // Résolution du token par le navigateur lui-même : comparer à une chaîne
+    // écrite en dur ici ferait passer le test au vert si `--border-default`
+    // changeait de valeur sans que le filet suive.
+    const probe = document.createElement("div");
+    probe.style.backgroundColor = "var(--border-default)";
+    canvasElement.appendChild(probe);
+    const expected = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    for (const rail of rails) {
+      await expect(getComputedStyle(rail).backgroundColor).toBe(expected);
+    }
+  },
+};
+
 // --- Verrou (arbitrage n°2 du design du 2026-07-28) ---
 
 // Le CADENAS de la ligne n'est plus un contrôle depuis le 2026-07-29 : c'est un

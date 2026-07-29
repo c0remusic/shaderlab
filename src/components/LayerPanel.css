@@ -213,6 +213,45 @@
   pointer-events: none;
 }
 
+/* LE FILET RESTE VISIBLE SUR UNE LIGNE SÉLECTIONNÉE (2026-07-29). Constat
+   d'Antoine à l'écran : « le calque actif bouffe l'espace du lien » — le filet
+   s'interrompt là où il croise la ligne sélectionnée.
+
+   CE N'EST PAS UN PROBLÈME D'ORDRE DE PEINTURE, contrairement à ce qu'on
+   suppose d'abord. Mesuré au hit-test (`elementFromPoint`, que la spécification
+   dérive de l'ordre de peinture) : le filet est DÉJÀ au-dessus du lavis, avec
+   ou sans `z-index` — une ligne peint après celles qui la précèdent dans le
+   DOM, et le filet est un enfant de cette ligne-là. Un `z-index` posé ici
+   serait un no-op, et le test qui l'accompagnerait serait vert des deux côtés
+   du correctif.
+
+   LA CAUSE EST LE CONTRASTE. `--border-default` est un BLANC À 11 % D'OPACITÉ :
+   sur la surface sombre du panneau il compose un filet lisible, mais le lavis
+   de sélection (`--surface-selected-accent`) est nettement plus CLAIR — 11 % de
+   blanc par-dessus n'y produit presque aucun écart. Mesuré : filet composé et
+   lavis à 1,35:1, très en dessous du 3:1 exigé d'un élément d'interface non
+   textuel.
+
+   Le rang est donc relevé UNIQUEMENT là où le filet croise la sélection, pour
+   ne rien changer à son allure au repos. `--text-tertiary` : le rang des autres
+   marques décoratives de la ligne (poignée, icône de nature), qui restent
+   lisibles sur le lavis dans les mêmes conditions.
+
+   Deux cas, et seulement deux — c'est de la géométrie, pas une précaution :
+    1. la ligne du filet est elle-même sélectionnée (tout le segment est sur le
+       lavis) ;
+    2. le segment de TÊTE déborde vers le haut, dans le padding bas de sa ligne
+       parente (`--first`, `top: -2 × --space-4`) : si CETTE ligne est
+       sélectionnée, 8 px de filet tombent sur son lavis.
+   Le débordement vers le BAS (`bottom: -0,5 × --space-4`) ne pose pas la
+   question : il s'arrête dans la gouttière de liste, qui vaut le double, et
+   n'atteint donc jamais la boîte de la ligne suivante (mesuré dans
+   `RailStaysVisibleUnderSelection`). */
+.layer-panel__row--selected .layer-panel__rail,
+.layer-panel__row--selected + .layer-panel__row .layer-panel__rail--first {
+  background: var(--text-tertiary);
+}
+
 /* PREMIÈRE ligne enfant (la plus HAUTE du groupe) : depuis l'ADR-0004 la photo
    parente est la ligne juste AU-DESSUS — le filet doit la TOUCHER. Les deux
    règles ci-dessous ont été ÉCHANGÉES le 2026-07-28 avec le sens d'affichage :

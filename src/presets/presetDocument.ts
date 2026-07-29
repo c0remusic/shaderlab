@@ -1,4 +1,5 @@
 import type { LayerState } from "../layers/types";
+import { hasImportedPhotoLayer } from "../layers/photoLayer";
 import { defaultLayerMask } from "../mask/types";
 import type { EffectParam } from "../render/effects/types";
 import { PRESET_SCHEMA_VERSION, type PresetDocument, type PresetLayer, type SkipNotice, type ApplyWarning } from "./presetTypes";
@@ -6,16 +7,36 @@ import { PRESET_SCHEMA_VERSION, type PresetDocument, type PresetLayer, type Skip
 export { PRESET_SCHEMA_VERSION };
 
 /** Captures the current layer stack into a PresetDocument, in stack order.
- *  A photo layer (imageSource present, double exposure) is excluded and
- *  reported via SkipNotice — a preset never captures a source-specific
- *  photo reference (design.md §3.1). */
+ *  A photo layer (imageSource present, double exposure) is ALWAYS excluded —
+ *  a preset never captures a source-specific photo reference (design.md §3.1).
+ *  Ce contrat-là ne bouge pas.
+ *
+ *  Ce qui bouge (T5, design 2026-07-28 §2.3) : QUAND cette exclusion mérite
+ *  d'être SIGNALÉE. Depuis la tranche T1, la photo d'ouverture est un calque
+ *  ordinaire — l'avis « photo-layer » se déclenchait donc sur tout document
+ *  ouvert, y compris le cas nominal « juste ma photo ». Un avertissement qui
+ *  apparaît toujours n'avertit plus de rien : il apprend à cliquer sans lire.
+ *
+ *  Frontière retenue : on signale dès que le document contient une photo
+ *  AUTRE que sa photo d'ouverture — c'est-à-dire exactement quand
+ *  `hasImportedPhotoLayer` est vrai. Ce prédicat est réutilisé plutôt que
+ *  redéfini ici : il porte DÉJÀ la définition de « ce document est encore la
+ *  retouche de CETTE photo-là » (elle décide du round-trip, layers/
+ *  photoLayer.ts §2.8). En écrire une seconde version, c'est se garantir
+ *  qu'elles divergeront.
+ *
+ *  Quand l'avis se déclenche, il énumère TOUTES les photos exclues, fond
+ *  compris : le dialogue les liste par nom, en taire une rendrait
+ *  l'énumération fausse. La frontière porte sur le déclenchement, pas sur un
+ *  filtrage de la liste. */
 export function capture(layers: LayerState[], name: string): { preset: PresetDocument; skipped: SkipNotice[] } {
   const skipped: SkipNotice[] = [];
   const presetLayers: PresetLayer[] = [];
+  const worthReporting = hasImportedPhotoLayer(layers);
 
   layers.forEach((layer, layerIndex) => {
     if (layer.imageSource) {
-      skipped.push({ reason: "photo-layer", layerIndex });
+      if (worthReporting) skipped.push({ reason: "photo-layer", layerIndex });
       return;
     }
     presetLayers.push({

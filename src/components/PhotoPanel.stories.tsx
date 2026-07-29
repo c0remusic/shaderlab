@@ -33,6 +33,7 @@ const meta: Meta<typeof PhotoPanel> = {
     onReset: () => {},
     onFitToCanvas: () => {},
     onCenter: () => {},
+    onReplaceImage: () => {},
   },
 };
 
@@ -96,6 +97,8 @@ export const TabOrderFollowsVisualOrder: Story = {
     await userEvent.tab();
     await expect(document.activeElement).toBe(canvas.getByRole("button", { name: "Source" }));
     await userEvent.tab();
+    await expect(document.activeElement).toBe(canvas.getByRole("button", { name: "Remplacer l'image…" }));
+    await userEvent.tab();
     await expect(document.activeElement).toBe(canvas.getByRole("button", { name: "Placement" }));
     for (const label of ["X", "Y", "Échelle", "Angle"]) {
       await userEvent.tab();
@@ -118,5 +121,33 @@ export const ActionsFireTheirHandler: Story = {
     await expect(args.onCenter).toHaveBeenCalledWith("layer-photo");
     await userEvent.click(canvas.getByRole("button", { name: "Réinitialiser" }));
     await expect(args.onReset).toHaveBeenCalledWith("layer-photo");
+  },
+};
+
+/** T2 — remplacer l'image du calque sélectionné. Le bouton vit dans la
+ *  section « Source » : c'est la source qu'il change, rien d'autre. */
+export const ReplaceImageFiresItsHandler: Story = {
+  args: { onReplaceImage: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Remplacer l'image…" }));
+    await expect(args.onReplaceImage).toHaveBeenCalledWith("layer-photo");
+  },
+};
+
+/** Un calque VERROUILLÉ ne peut pas changer d'image (`LayerStack.isLocked`) :
+ *  l'UI le montre au lieu de laisser cliquer puis refuser en silence. */
+export const ReplaceImageDisabledWhenLocked: Story = {
+  args: { layer: makePhotoLayer({ locked: true }), onReplaceImage: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const button = canvas.getByRole("button", { name: "Remplacer l'image…" });
+    await expect(button).toBeDisabled();
+    // `pointerEventsCheck: 0` : le bouton désactivé porte `pointer-events:
+    // none`, donc un clic réel ne l'atteint même pas. On force quand même
+    // l'événement pour vérifier le second garde — que le handler ne parte pas
+    // si le clic passait.
+    await userEvent.click(button, { pointerEventsCheck: 0 });
+    await expect(args.onReplaceImage).not.toHaveBeenCalled();
   },
 };

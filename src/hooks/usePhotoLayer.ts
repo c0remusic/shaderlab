@@ -122,6 +122,66 @@ export function usePhotoLayer({
     }
   }, [rendererRef, sessionRef, setError, commit, currentStack, imageSize.width, imageSize.height, selectLayer, selectedId]);
 
+  /** Remplace l'IMAGE du calque photo `id` par celle du fichier `path`
+   *  (tranche T2). Séparé du dialogue natif pour la même raison
+   *  qu'`importPhotoFromPath` : c'est le seul point d'entrée pilotable depuis
+   *  CDP sur la vraie fenêtre.
+   *
+   *  Le VERROU est consulté AVANT toute lecture de fichier et tout
+   *  enregistrement de source. `LayerStack.setLayerImageSource` le refuserait
+   *  de toute façon, mais après coup : une source aurait déjà été enregistrée,
+   *  et comme rien n'est jamais libéré (`PhotoSourceStore`, pas de refcount),
+   *  un clic sur un calque verrouillé consommerait un jeton
+   *  `MAX_REGISTERED_PHOTO_SOURCES` pour rien.
+   *
+   *  N'INCRÉMENTE PAS le nombre de calques photo : `canAddPhotoLayer` n'a donc
+   *  rien à dire ici, contrairement à l'import. Le plafond qui s'applique est
+   *  celui des SOURCES enregistrées, et il est tenu par `register` lui-même —
+   *  qui lève, message et sortie compris ; la levée atterrit dans le `catch`
+   *  ci-dessous et donc dans la bannière d'erreur, jamais dans le silence. */
+  const replacePhotoImageFromPath = useCallback(async (id: string, path: string) => {
+    if (!rendererRef.current?.photoSources) return;
+    const layer = sessionRef.current.layers().find((l) => l.id === id);
+    if (!layer?.imageSource) return;
+    if (layer.locked === true) {
+      setError("Calque verrouillé : déverrouille-le pour remplacer son image.");
+      return;
+    }
+    try {
+      const bytes = await readImageFile(path);
+      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
+      const bitmap = await createImageBitmap(blob);
+      const sourceId = await rendererRef.current.photoSources.register(bitmap);
+      const stack = currentStack();
+      // Le nom du calque suit l'image, dans le MÊME appel donc la MÊME entrée
+      // d'historique (voir `setLayerImageSource`). `basename` peut rendre
+      // `null` sur un chemin dégénéré : le nom reste alors inchangé plutôt que
+      // de devenir vide.
+      if (!stack.setLayerImageSource(id, sourceId, basename(path) ?? undefined)) {
+        // `sourceId` est frais à chaque appel : un refus ici ne peut venir que
+        // d'une cible devenue invalide pendant les `await` (calque supprimé,
+        // undo, verrouillage). On le DIT — sans quoi le clic resterait sans
+        // effet ni explication.
+        setError("Remplacement impossible : le calque photo visé n'est plus disponible.");
+        return;
+      }
+      commit(stack);
+      setError(null);
+    } catch (e) {
+      setError(messageFromUnknown(e));
+    }
+  }, [rendererRef, sessionRef, setError, commit, currentStack]);
+
+  const handleReplacePhotoImage = useCallback(async (id: string) => {
+    try {
+      const path = await pickImageFile();
+      if (!path) return;
+      await replacePhotoImageFromPath(id, path);
+    } catch (e) {
+      setError(messageFromUnknown(e));
+    }
+  }, [replacePhotoImageFromPath, setError]);
+
   const handleImportPhotoLayer = useCallback(async () => {
     try {
       const path = await pickImageFile();
@@ -221,6 +281,8 @@ export function usePhotoLayer({
     stopMaskPaintMode,
     handleImportPhotoLayer,
     importPhotoFromPath,
+    handleReplacePhotoImage,
+    replacePhotoImageFromPath,
     handleTransformChange,
     handleTransformCommit,
     handlePhotoReset,

@@ -381,6 +381,7 @@ export default function App() {
   // de parité pixel. Gardé par `import.meta.env.DEV` : Vite élimine ce bloc du
   // bundle de production, il ne peut pas fuiter.
   const importPhotoFromPath = photoLayer.importPhotoFromPath;
+  const replacePhotoImageFromPath = photoLayer.replacePhotoImageFromPath;
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     (window as unknown as Record<string, unknown>).__shaderlabDebug = {
@@ -390,11 +391,17 @@ export default function App() {
         await openFile(new File([blob], path, { type: "image/jpeg" }), path, false);
       },
       importPhotoByPath: (path: string) => importPhotoFromPath(path),
+      // Même raison que `importPhotoByPath` : le remplacement d'image passe
+      // par le dialogue natif, donc sans ce point d'entrée aucun scénario de
+      // remplacement n'est exécutable sur la vraie fenêtre (T2).
+      replacePhotoImageByPath: (id: string, path: string) => replacePhotoImageFromPath(id, path),
       state: () => ({
         layers: sessionRef.current.layers().map((l) => ({
           id: l.id,
           effectId: l.effectId,
           hasImageSource: l.imageSource !== undefined,
+          sourceId: l.imageSource?.sourceId ?? null,
+          name: l.name ?? null,
           enabled: l.enabled,
         })),
       }),
@@ -402,7 +409,7 @@ export default function App() {
     return () => {
       delete (window as unknown as Record<string, unknown>).__shaderlabDebug;
     };
-  }, [openFile, importPhotoFromPath]);
+  }, [openFile, importPhotoFromPath, replacePhotoImageFromPath]);
 
   function handleAdd(effectId: string) {
     presets.clearActive();
@@ -1403,6 +1410,7 @@ export default function App() {
                   onReset={photoLayer.handlePhotoReset}
                   onFitToCanvas={photoLayer.handlePhotoFitToCanvas}
                   onCenter={photoLayer.handlePhotoCenter}
+                  onReplaceImage={photoLayer.handleReplacePhotoImage}
                 />
             },
             {

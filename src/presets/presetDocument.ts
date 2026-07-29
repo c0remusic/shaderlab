@@ -21,9 +21,12 @@ export { PRESET_SCHEMA_VERSION };
  *  AUTRE que sa photo d'ouverture — c'est-à-dire exactement quand
  *  `hasImportedPhotoLayer` est vrai. Ce prédicat est réutilisé plutôt que
  *  redéfini ici : il porte DÉJÀ la définition de « ce document est encore la
- *  retouche de CETTE photo-là » (elle décide du round-trip, layers/
- *  photoLayer.ts §2.8). En écrire une seconde version, c'est se garantir
- *  qu'elles divergeront.
+ *  retouche de CETTE photo-là » (layers/photoLayer.ts, §2.8 du même design).
+ *  En écrire une seconde version, c'est se garantir qu'elles divergeront.
+ *
+ *  Ce prédicat gouvernait aussi le round-trip Lightroom ; celui-ci est déposé
+ *  (ADR-0002) et `capture` est désormais son SEUL appelant. Le prédicat n'est
+ *  donc pas du code mort resté derrière la dépose : il vit ici.
  *
  *  Quand l'avis se déclenche, il énumère TOUTES les photos exclues, fond
  *  compris : le dialogue les liste par nom, en taire une rendrait

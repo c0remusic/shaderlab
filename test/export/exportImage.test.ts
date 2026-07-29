@@ -156,25 +156,34 @@ function fakeAvailability(existingPaths: Iterable<string>): PathAvailability {
 }
 
 describe("resolveExportTargetAsync", () => {
-  it("returns a fresh copy path for a manual (non-launch) export, never the original path", async () => {
-    const target = await resolveExportTargetAsync("C:\\photos\\sunset.jpg", false, fakeAvailability([]));
+  it("returns a fresh copy path, never the original path", async () => {
+    const target = await resolveExportTargetAsync("C:\\photos\\sunset.jpg", fakeAvailability([]));
     expect(target).toBe("C:\\photos\\sunset-edited.jpg");
     expect(target).not.toBe("C:\\photos\\sunset.jpg");
   });
 
-  it("overwrites the exact launch path for a Lightroom round-trip export, without probing disk", async () => {
-    const availability: PathAvailability = {
-      exists: vi.fn().mockResolvedValue(true), // would report "occupied" for anything probed
-    };
-    const target = await resolveExportTargetAsync("C:\\Temp\\lr-abc123.jpg", true, availability);
-    expect(target).toBe("C:\\Temp\\lr-abc123.jpg");
-    expect(availability.exists).not.toHaveBeenCalled();
+  // Remplace « overwrites the exact launch path for a Lightroom round-trip
+  // export » : depuis l'ADR-0002, cet écrasement n'existe plus, et le
+  // paramètre `isLaunchFile` qui le demandait non plus. Ce test vérifie
+  // l'inverse, qui est la garantie qu'on veut désormais tenir — même sur le
+  // chemin qui l'obtenait avant, et même à disque saturé.
+  it("ne rend JAMAIS le chemin source, même quand tous les candidats sont occupés", async () => {
+    const source = "C:\\Temp\\lr-abc123.jpg";
+    const target = await resolveExportTargetAsync(
+      source,
+      fakeAvailability([
+        "C:\\Temp\\lr-abc123-edited.jpg",
+        "C:\\Temp\\lr-abc123-edited-2.jpg",
+        "C:\\Temp\\lr-abc123-edited-3.jpg",
+      ])
+    );
+    expect(target).not.toBe(source);
+    expect(target).toBe("C:\\Temp\\lr-abc123-edited-4.jpg");
   });
 
   it("probes disk and skips the first occupied candidate", async () => {
     const target = await resolveExportTargetAsync(
       "C:\\photos\\sunset.jpg",
-      false,
       fakeAvailability(["C:\\photos\\sunset-edited.jpg"])
     );
     expect(target).toBe("C:\\photos\\sunset-edited-2.jpg");
@@ -183,7 +192,6 @@ describe("resolveExportTargetAsync", () => {
   it("skips both -edited.jpg and -edited-2.jpg when both are occupied on disk", async () => {
     const target = await resolveExportTargetAsync(
       "C:\\photos\\sunset.jpg",
-      false,
       fakeAvailability(["C:\\photos\\sunset-edited.jpg", "C:\\photos\\sunset-edited-2.jpg"])
     );
     expect(target).toBe("C:\\photos\\sunset-edited-3.jpg");

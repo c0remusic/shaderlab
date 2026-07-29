@@ -3,7 +3,7 @@ import { initGpu, type GpuContext } from "./render/gpuContext";
 import { Renderer } from "./render/renderer";
 import { LayerStack } from "./layers/layerStack";
 import type { LayerState } from "./layers/types";
-import { canAddPhotoLayer, countPhotoLayers, hasImportedPhotoLayer } from "./layers/photoLayer";
+import { canAddPhotoLayer, countPhotoLayers } from "./layers/photoLayer";
 import { changeLayerEffect } from "./layers/changeLayerEffect";
 import { documentDisplayName } from "./layers/documentName";
 import { duplicateLayer } from "./layers/duplicateLayer";
@@ -94,11 +94,6 @@ export default function App() {
   // chemin d'ouverture le plus courant. `documentDisplayName` rend toujours une
   // chaîne, jamais `null` — voir src/layers/documentName.ts.
   const [documentName, setDocumentName] = useState<string | null>(null);
-  // Tracks whether `sourcePath` came from `getLaunchPath()` (Lightroom
-  // round-trip) as opposed to a manual drag&drop open. This flag — not a
-  // string comparison on the path — is what decides overwrite-vs-copy in
-  // handleExport, per the project's copy-only safety rule.
-  const [isLaunchFile, setIsLaunchFile] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const maskPaintersRef = useRef<Map<string, MaskPainterEntry>>(new Map());
   // True for the first sample of a stroke: forces a full live-preview
@@ -253,7 +248,7 @@ export default function App() {
     return true;
   }, []);
 
-  const openFile = useCallback(async (file: File, path: string | null, fromLaunch: boolean) => {
+  const openFile = useCallback(async (file: File, path: string | null) => {
     if (!canvasRef.current) return;
     const generation = ++openGenerationRef.current;
     try {
@@ -301,7 +296,6 @@ export default function App() {
       // d'outils, et il NOMME le calque de fond créé juste en dessous.
       const name = documentDisplayName(path, file.name);
       setDocumentName(name);
-      setIsLaunchFile(fromLaunch);
 
       // LE CALQUE DE FOND (tranche T1). La photo d'ouverture n'est plus la
       // texture d'entrée du pipeline : c'est un `LayerState` ordinaire portant
@@ -386,13 +380,20 @@ export default function App() {
     return () => observer.disconnect();
   }, [syncDisplayScale]);
 
+  // Ouverture par argument de ligne de commande — « Ouvrir avec » de Windows,
+  // double-clic sur un JPEG associé. CE CHEMIN SURVIT À LA DÉPOSE DU
+  // ROUND-TRIP (ADR-0002) : ce que l'ADR retire est la sémantique
+  // d'ÉCRASEMENT du fichier reçu, pas la capacité d'ouvrir un fichier passé
+  // au lancement, qui est une affordance de n'importe quelle app de bureau.
+  // Le document ouvert ainsi est désormais un document comme un autre — son
+  // export part dans le dossier d'export, jamais par-dessus la source.
   useEffect(() => {
     getLaunchPath().then(async (path) => {
       if (!path) return;
       try {
         const bytes = await readImageFile(path);
         const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
-        await openFile(new File([blob], path, { type: "image/jpeg" }), path, true);
+        await openFile(new File([blob], path, { type: "image/jpeg" }), path);
       } catch (e) {
         setError(messageFromUnknown(e));
       }
@@ -413,13 +414,14 @@ export default function App() {
     try {
       const path = await pickImageFile();
       if (!path) return;
-      // Manual "Ouvrir" dialog path: a real absolute path is now known, but
-      // this is still NOT the Lightroom launch path — isLaunchFile stays
-      // false so handleExport keeps exporting via buildCopyPath (copy),
-      // never overwriting the manually-opened source file in place.
+      // Dialogue "Ouvrir" : un vrai chemin absolu est maintenant connu, donc
+      // l'export saura nommer le fichier de sortie. Il n'écrasera jamais
+      // celui-ci pour autant — depuis la dépose du round-trip (ADR-0002),
+      // `resolveExportTargetAsync` n'a plus aucun moyen de rendre le chemin
+      // source, quel que soit le chemin d'ouverture.
       const bytes = await readImageFile(path);
       const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
-      await openFile(new File([blob], path, { type: "image/jpeg" }), path, false);
+      await openFile(new File([blob], path, { type: "image/jpeg" }), path);
     } catch (e) {
       setError(messageFromUnknown(e));
     }
@@ -483,7 +485,7 @@ export default function App() {
       openByPath: async (path: string) => {
         const bytes = await readImageFile(path);
         const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
-        await openFile(new File([blob], path, { type: "image/jpeg" }), path, false);
+        await openFile(new File([blob], path, { type: "image/jpeg" }), path);
       },
       importPhotoByPath: (path: string) => importPhotoFromPath(path),
       // Même raison que `importPhotoByPath` : le remplacement d'image passe
@@ -939,25 +941,17 @@ export default function App() {
     if (!rendererRef.current) return;
     if (!sourcePath) {
       setError(
-        "Impossible d'exporter : ouvre le fichier via un vrai chemin (lancement depuis Lightroom, ou une future boîte de dialogue \"Ouvrir\") plutôt que par glisser-déposer."
+        "Impossible d'exporter : ouvre le fichier via la boîte de dialogue \"Ouvrir\" plutôt que par glisser-déposer — l'export a besoin d'un vrai chemin sur le disque."
       );
       return;
     }
     try {
-      let target: string;
-      if (roundTripActive) {
-        // Contrat round-trip Lightroom : écrase toujours le launch path
-        // exact, quel que soit le dossier demandé par l'appelant — voir
-        // resolveExportTargetAsync's doc comment pour le contrat complet.
-        target = await resolveExportTargetAsync(sourcePath, true, { exists: pathExists });
-      } else {
-        const dir = await resolveDir();
-        if (dir === null) return; // "Exporter sous..." annulé par l'utilisateur
-        const base = await joinExportTarget(sourcePath, dir);
-        target = bareFirst
-          ? await resolveDefaultExportTarget(base, { exists: pathExists })
-          : await resolveExportTargetAsync(base, false, { exists: pathExists });
-      }
+      const dir = await resolveDir();
+      if (dir === null) return; // "Exporter sous..." annulé par l'utilisateur
+      const base = await joinExportTarget(sourcePath, dir);
+      const target = bareFirst
+        ? await resolveDefaultExportTarget(base, { exists: pathExists })
+        : await resolveExportTargetAsync(base, { exists: pathExists });
       await exportImage(
         rendererRef.current,
         { write: writeImageFile },
@@ -1197,25 +1191,13 @@ export default function App() {
   }
 
   // Bouton "Exporter" : dossier fixe Images/shaderlab-export, nom nu tant
-  // qu'il n'y a pas de collision réelle (resolveDefaultExportTarget) —
-  // SAUF si le round-trip est bloqué par un calque photo malgré
-  // isLaunchFile vrai : bascule alors explicitement vers le comportement
-  // "Exporter sous..." (PRD : jamais un silence qui laisse croire que le
-  // round-trip a eu lieu).
+  // qu'il n'y a pas de collision réelle (resolveDefaultExportTarget).
   async function handleExport() {
-    if (isLaunchFile && !roundTripActive) {
-      setError(
-        "Round-trip Lightroom désactivé : ce document contient un calque de double exposure. Choisis un dossier d'export ci-dessous."
-      );
-      await handleExportAs();
-      return;
-    }
     await performExport(defaultExportDir, true);
   }
 
   // Bouton "Exporter sous..." : dossier choisi par l'utilisateur, toujours
-  // -edited en premier (comportement conservateur) — Toolbar le désactive
-  // quand isLaunchFile est vrai, donc jamais atteint dans ce cas.
+  // -edited en premier (comportement conservateur).
   async function handleExportAs() {
     await performExport(pickExportFolder, false);
   }
@@ -1310,17 +1292,6 @@ export default function App() {
 
   const showOverlay = !overlayForceHidden && graceVisible;
 
-  // Round-trip Lightroom désactivé dès que le document contient une photo
-  // AUTRE que celle qui l'a ouvert — même si isLaunchFile est vrai. Depuis la
-  // tranche T1, la photo d'ouverture est elle-même un calque : le prédicat
-  // compte donc « exactement une photo, en bas de pile » (voir
-  // `hasImportedPhotoLayer`), pas « aucune ». `roundTripActive`
-  // gouverne à la fois l'état du bouton "Exporter sous..." (Toolbar) et le
-  // comportement RÉEL du bouton "Exporter" (performExport ci-dessous) — un
-  // seul point de vérité, comme l'exige ARCHITECTURE.md §4.6 ("ET logique
-  // au même endroit, pas une nouvelle branche disséminée").
-  const roundTripActive = isLaunchFile && !hasImportedPhotoLayer(layers);
-
   useEffect(() => {
     const r = rendererRef.current;
     if (!r) return;
@@ -1344,7 +1315,6 @@ export default function App() {
         canRedo={sessionRef.current.canRedo()}
         hasImage={imageSize.width > 0 && imageSize.height > 0}
         fileName={documentName}
-        hasLaunchFile={roundTripActive}
         onUndo={handleUndo}
         onRedo={handleRedo}
         onExport={handleExport}
@@ -1386,7 +1356,7 @@ export default function App() {
       >
         <Canvas
           ref={canvasRef}
-          onFileDropped={(file) => openFile(file, null, false)}
+          onFileDropped={(file) => openFile(file, null)}
           hasImage={imageSize.width > 0 && imageSize.height > 0}
           onOpenFile={handleOpenFile}
           maskPaintMode={maskPaintMode}

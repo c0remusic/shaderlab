@@ -23,15 +23,21 @@ comme **éditeur externe Lightroom** (round-trip type Dehancer : Lightroom
 exporte une copie → lance l'app avec le chemin en argument → l'app écrase ce
 même fichier → Lightroom réimporte).
 
-⚠️ **Ce positionnement est abandonné en DÉCISION mais pas encore en CODE**
-([ADR-0002](.claude/decisions/ADR-0002-abandon-round-trip-lightroom.md), active
-depuis le 2026-07-27 : shaderlab devient un éditeur autonome). Le mécanisme est
-toujours vivant et toujours entretenu — `roundTripActive` / `isLaunchFile`
-(`src/App.tsx:99`, `:1294`), `get_launch_path` (`src/launch.ts`,
-`src-tauri/src/lib.rs`), et le prédicat a même été mis à jour pour T1
-(`App.tsx:1286-1294`). Ne pas se fier à l'ADR seul pour conclure que le code
-est propre, et ne pas « nettoyer » ce chemin au passage : sa dépose est un
-chantier à part entière, pas un effet de bord.
+**Ce positionnement est abandonné** ([ADR-0002](.claude/decisions/ADR-0002-abandon-round-trip-lightroom.md),
+2026-07-27) : shaderlab est un **éditeur autonome**. Décision exécutée en code le
+2026-07-30 — `isLaunchFile` et `roundTripActive` n'existent plus, et
+`resolveExportTargetAsync` n'a plus de paramètre pour demander un écrasement
+(`src/export/exportImage.ts`). Tout export est une copie.
+
+Deux pièces survivent, et ni l'une ni l'autre n'est le round-trip :
+- `get_launch_path` (`src/launch.ts`, `src-tauri/src/lib.rs`) ouvre un fichier
+  passé en argument de lancement — « Ouvrir avec » de Windows. Ouvrir reste
+  ouvrir ; c'est écraser qui est parti.
+- `hasImportedPhotoLayer` (`src/layers/photoLayer.ts`) : né en garde du
+  round-trip, il a depuis un SECOND appelant sans rapport avec l'export —
+  `presets/presetDocument.ts:capture` s'en sert comme frontière de l'avis
+  « calque photo exclu » d'un preset (T5). Ne pas le supprimer en croyant
+  finir la dépose.
 
 Née d'une frustration : aucun plugin Lightroom natif ne peut faire d'effets
 shader GPU (pipeline RAW fermé). C'est cette origine qui explique la barre de
@@ -236,10 +242,8 @@ seulement pour un futur écran web pur sans canvas GPU.
 - VRAM : ~96 Mo par texture RGBA 24MP, multiplié par ping-pong + masques —
   à mesurer à l'usage réel, pas de budget théorique figé.
 
-- **Dépose du round-trip Lightroom** : décidée (ADR-0002, 2026-07-27), pas
-  faite. Le code le porte toujours et l'entretient — voir l'avertissement du
-  § Quoi. Tant que la dépose n'est pas planifiée, ce chemin reste du code
-  vivant à ne pas casser.
+La dépose du round-trip Lightroom figurait ici comme dette ouverte ; elle a été
+faite le 2026-07-30 (voir § Quoi).
 
 Deux gates de la phase MVP ont été retirées d'ici le 2026-07-29 : le go/no-go
 WebGPU dans WebView2 (Task 2) est levé depuis longtemps — le pipeline rend, les

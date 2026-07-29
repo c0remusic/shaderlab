@@ -5,8 +5,11 @@ use tauri::Manager;
 
 #[tauri::command]
 fn get_launch_path() -> Option<String> {
-    // args[0] est l'exécutable ; le chemin de lancement (External Editing de
-    // Lightroom, ou "Ouvrir avec" Windows) est args[1] s'il existe.
+    // args[0] est l'exécutable ; le chemin de lancement ("Ouvrir avec" de
+    // Windows, double-clic sur un JPEG associé) est args[1] s'il existe.
+    // Ce chemin servait aussi l'External Editing de Lightroom, dont le
+    // round-trip a été abandonné (ADR-0002) : ouvrir un fichier passé en
+    // argument reste supporté, l'écraser à l'export ne l'est plus.
     // args_os + to_string_lossy : std::env::args() PANIQUE sur un argument
     // Windows non-UTF16 valide — args_os ne panique jamais.
     std::env::args_os()

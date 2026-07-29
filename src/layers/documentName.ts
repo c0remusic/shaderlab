@@ -38,8 +38,8 @@ export const UNTITLED_DOCUMENT_NAME = "Document sans titre";
  * chaîne : jamais `null`, donc jamais un calque de fond au nom escamoté.
  *
  * Les trois chemins d'ouverture ne fournissent pas la même chose :
- *  - lancement Lightroom (`getLaunchPath`) et dialogue Ouvrir (`pick_image_file`)
- *    donnent un CHEMIN disque complet ;
+ *  - lancement par argument (`getLaunchPath`, « Ouvrir avec » de Windows) et
+ *    dialogue Ouvrir (`pick_image_file`) donnent un CHEMIN disque complet ;
  *  - le GLISSER-DÉPOSER sur le canvas ne donne qu'un `File`, dont seul `name`
  *    est exploitable — le navigateur ne divulgue jamais le chemin. C'est ce
  *    chemin d'ouverture qui faisait disparaître le nom affiché, alors que

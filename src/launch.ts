@@ -1,5 +1,16 @@
 import { invoke } from "@tauri-apps/api/core";
 
+/**
+ * Chemin passé en argument de lancement — « Ouvrir avec » de Windows, double-clic
+ * sur un JPEG associé. `null` si l'app a été lancée sans argument.
+ *
+ * Ce n'était PAS son seul rôle : jusqu'à l'abandon du round-trip Lightroom
+ * ([ADR-0002](../.claude/decisions/ADR-0002-abandon-round-trip-lightroom.md)),
+ * un document ouvert par ce chemin était marqué `isLaunchFile` et son export
+ * ÉCRASAIT ce fichier précis. Cette sémantique-là est déposée ; ouvrir reste
+ * ouvrir, et l'export d'un tel document suit la règle copie-seulement comme
+ * tous les autres.
+ */
 export async function getLaunchPath(): Promise<string | null> {
   return invoke<string | null>("get_launch_path");
 }

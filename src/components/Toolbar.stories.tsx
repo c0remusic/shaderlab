@@ -9,7 +9,6 @@ const meta: Meta<typeof Toolbar> = {
     canUndo: true,
     canRedo: false,
     hasImage: true,
-    hasLaunchFile: false,
     onUndo: () => {},
     onRedo: () => {},
     onExport: () => {},
@@ -85,7 +84,7 @@ export const FileMenuExportDisabledWhenNoImage: Story = {
 };
 
 export const FileMenuExportAsWhenImage: Story = {
-  args: { hasImage: true, hasLaunchFile: false, onExportAs: fn(), onOpenFile: fn() },
+  args: { hasImage: true, onExportAs: fn(), onOpenFile: fn() },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Menu Fichier" }));
@@ -95,8 +94,12 @@ export const FileMenuExportAsWhenImage: Story = {
   },
 };
 
-export const FileMenuExportAsDisabledDuringRoundTrip: Story = {
-  args: { hasImage: true, hasLaunchFile: true, onExportAs: fn() },
+// Depuis la dépose du round-trip Lightroom (ADR-0002), « Exporter sous... » n'a
+// plus qu'une seule raison d'être désactivé : aucun document ouvert. Cette
+// story remplace `FileMenuExportAsDisabledDuringRoundTrip`, qui couvrait la
+// seconde raison, disparue avec le mécanisme.
+export const FileMenuExportAsDisabledWhenNoImage: Story = {
+  args: { hasImage: false, onExportAs: fn() },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Menu Fichier" }));

@@ -2,8 +2,9 @@
 
 App desktop **Windows** (Tauri v2 + React/TS + WebGPU/WGSL brut) d'effets visuels
 "shader" temps réel sur photos JPEG : effets empilables en calques, masque au
-pinceau par calque, undo/redo en session. Fait aussi office d'**éditeur externe
-Lightroom** (round-trip). Domaine = édition d'image en calques non destructive.
+pinceau par calque, undo/redo en session. **Éditeur autonome** — le round-trip
+Lightroom d'origine est déposé (ADR-0002, code retiré le 2026-07-30). Domaine =
+édition d'image en calques non destructive.
 Sources : `CLAUDE.md`, `AGENTS.md`, `docs/INDEX.json`, `docs/design-system/*`, `src/`.
 
 > Glossaire de langage partagé. Chaque terme est ancré sur une source réelle du
@@ -67,18 +68,29 @@ l'image : feather / contracter-dilater / lisser, + variante **edge-aware**
 persistance disque), bornée à 512 Mo. Une interaction de slider = une entrée.
 Source : `src/layers/history.ts`, `docs/superpowers/specs/2026-07-13-shaderlab-standalone-v1-design.md`.
 
-**Éditeur externe Lightroom / Round-trip** — Lightroom exporte une copie → lance
-l'app avec le chemin en argument → l'app **écrase ce même fichier** → Lightroom
-réimporte (modèle type Dehancer). Phase 2, gate empirique propre. Source :
-`CLAUDE.md:37-39`, `AGENTS.md`.
+**Éditeur externe Lightroom / Round-trip** — TERME HISTORIQUE, ne plus employer
+au présent. Lightroom exportait une copie → lançait l'app avec le chemin en
+argument → l'app **écrasait ce même fichier** → Lightroom réimportait (modèle
+type Dehancer). Déposé : décision [ADR-0002](.claude/decisions/ADR-0002-abandon-round-trip-lightroom.md)
+(2026-07-27), code retiré le 2026-07-30. _Avoid_ : « le round-trip » au présent,
+« éditeur externe » pour décrire shaderlab.
+
+**Ouverture par argument de lancement** — l'app reçoit un chemin en `args[1]`
+et ouvre ce fichier (« Ouvrir avec » de Windows, double-clic sur un JPEG
+associé). C'est le RESTE vivant de l'ancien round-trip, et il ne faut pas
+confondre les deux : ouvrir un fichier passé au lancement est supporté,
+l'écraser à l'export ne l'est plus — un tel document s'exporte en copie comme
+tous les autres. Source : `src/launch.ts` (`getLaunchPath`),
+`src-tauri/src/lib.rs` (`get_launch_path`).
 
 **Export / Exporter sous** — écriture du rendu vers un fichier JPEG (écriture
 atomique tmp+rename). Source : `src/export/exportImage.ts`, `docs/design-system/patterns.md`.
 
 **Dossier d'export dédié** (design cible, pas encore livré) — dossier fixe
 (`Images/shaderlab-export`) où atterrit l'export manuel par défaut, au lieu
-d'à côté de la photo source. Distinct du round-trip Lightroom (qui, lui,
-écrase toujours le fichier de lancement au même endroit — non concerné).
+d'à côté de la photo source. Depuis la dépose du round-trip (ADR-0002), c'est
+le SEUL comportement d'export : plus aucun chemin n'écrit par-dessus un
+fichier existant.
 Override ponctuel via un bouton séparé "Exporter sous..." pour choisir un
 autre dossier au cas par cas, sans changer le défaut. Source :
 `PRD-export-folder.md`.
@@ -98,8 +110,8 @@ d'export, distinct de l'« Exporter sous » JPEG existant : produit un fichier
 TIFF 16-bit/canal, Adobe RGB (1998), profil ICC embarqué, résolution native
 (jamais d'upscale). Destiné à un tirage physique réalisé par un labo externe
 — pas de soft-proofing dans l'app. Source : `PRD-print-export.md`. _Avoid_ :
-confondre avec "Export / Exporter sous" (JPEG, round-trip Lightroom) — les
-deux coexistent, aucun ne remplace l'autre.
+confondre avec "Export / Exporter sous" (JPEG) — les deux coexistent, aucun ne
+remplace l'autre.
 
 **Pipeline 16-bit (print)** — mode de calcul dédié à l'export print :
 textures internes en `rgba16float` au lieu du `bgra8unorm-srgb` du rendu
@@ -154,12 +166,13 @@ Le masque peint sur un calque de photo vit dans l'espace de coordonnées de
 la photo de FOND, pas de la photo importée elle-même — déplacer le calque
 après avoir peint ne fait PAS suivre le masque (comportement assumé v1, pas
 un bug ; poser le transform avant de peindre). Source : ARCHITECTURE.md §4.5.
-Le round-trip Lightroom (photo de lancement = le fond) est **coupé dès qu'un
-calque photo est présent** : l'export bascule sur « Exporter sous » (copie) au
-lieu d'écraser le fichier de lancement — prédicat `hasPhotoLayer`
-(`src/layers/photoLayer.ts`), consommé par `App.tsx` (`roundTripActive =
-isLaunchFile && !hasPhotoLayer(layers)`). Retirer tous les calques photo
-rétablit le round-trip. Source : ARCHITECTURE.md §4.6.
+Le round-trip Lightroom coupait l'écrasement en place dès qu'un calque photo
+était présent (prédicat `hasImportedPhotoLayer`) : ce croisement n'existe plus,
+le round-trip a été retiré le 2026-07-30 (ADR-0002). Tout export est une copie,
+quel que soit le contenu de la pile. **Le prédicat, lui, reste** — il sert
+désormais de frontière à l'avis « calque photo exclu » d'un preset
+(`presets/presetDocument.ts`), un usage sans rapport avec l'export. Source :
+ARCHITECTURE.md §4.6.
 **Limite dure : `MAX_PHOTO_LAYERS` calques photo par document, valeur 4 depuis
 T5** (`src/layers/photoLayer.ts`) — soit au plus 5 photos sources à l'écran
 (le fond + 4). La photo de FOND n'est pas un calque et ne compte pas dans ce

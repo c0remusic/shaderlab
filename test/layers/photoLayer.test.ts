@@ -39,11 +39,14 @@ describe("photoLayer guards", () => {
     expect(countPhotoLayers(stack.layers)).toBe(2);
   });
 
-  // `hasImportedPhotoLayer` (ex-`hasPhotoLayer`) gouverne le round-trip
-  // Lightroom : écraser le fichier exporté par Lightroom n'est légitime que si
-  // le document est encore une retouche de CETTE photo-là. Depuis la tranche
-  // T1, « aucun calque photo » ne veut plus rien dire — la photo d'ouverture en
-  // est un — d'où la redéfinition « exactement une photo, et c'est layers[0] ».
+  // `hasImportedPhotoLayer` répond à « ce document est-il encore la retouche de
+  // CETTE photo-là ? » — exactement une photo, et c'est layers[0]. Il gouvernait
+  // le round-trip Lightroom ; ce round-trip est déposé (ADR-0002) et l'export
+  // n'a plus de cas particulier. Le prédicat reste parce qu'un SECOND appelant
+  // s'en sert, arrivé après lui : la frontière de l'avis « calque photo exclu »
+  // d'un preset (`presets/presetDocument.ts:capture`, T5). Les quatre cas
+  // ci-dessous décrivent le prédicat lui-même, pas l'écrasement disparu — ils
+  // sont donc conservés tels quels, seule leur justification change.
   it("est FAUX sur le document nominal : la seule photo est celle d'ouverture, en bas de pile", () => {
     const stack = new LayerStack();
     stack.addPhotoLayer("photo-fond", { x: 0, y: 0, scale: 1, rotation: 0 });
@@ -62,9 +65,9 @@ describe("photoLayer guards", () => {
     expect(hasImportedPhotoLayer(stack.layers)).toBe(true);
   });
 
-  // Le fond est supprimable et déplaçable depuis T1 : les deux gestes sortent
-  // du round-trip, et c'est voulu — l'export n'est plus une retouche de la
-  // photo que Lightroom a fournie.
+  // Le fond est supprimable et déplaçable depuis T1 : les deux gestes sortent du
+  // cas nominal, et c'est voulu — le document n'est plus la seule retouche de la
+  // photo qui l'a ouvert.
   it("devient VRAI si le fond est supprimé, ou s'il n'est plus en bas de pile", () => {
     const removed = new LayerStack();
     removed.addPhotoLayer("photo-fond", { x: 0, y: 0, scale: 1, rotation: 0 });
@@ -79,9 +82,7 @@ describe("photoLayer guards", () => {
     expect(hasImportedPhotoLayer(moved.layers)).toBe(true);
   });
 
-  // Pile entièrement vidée : plus de photo d'ouverture identifiable, donc plus
-  // de round-trip. Rendre `false` ici autoriserait un écrasement sur un
-  // document qui ne contient plus rien de la photo de départ.
+  // Pile entièrement vidée : plus de photo d'ouverture identifiable.
   it("est VRAI sur une pile vide", () => {
     expect(hasImportedPhotoLayer([])).toBe(true);
   });

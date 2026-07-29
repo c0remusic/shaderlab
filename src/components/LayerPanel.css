@@ -66,6 +66,25 @@
   flex: 0 0 auto;
 }
 
+/* ACTIONS du calque sélectionné (2026-07-29) : verrou, dupliquer, supprimer.
+   Elles arrivent des lignes de la liste (ADR-0001) et se logent dans la place
+   libre de la ligne « Effet », qui l'occupait seule — une TROISIÈME ligne de
+   zone de contrôles aurait ajouté 36 px au pied et fait déborder la carte de
+   2 px sur le document à deux photos, soit une ligne de liste hors champ
+   (mesuré, voir LayerPanel.tsx et PanelColumn.stories.tsx).
+
+   `flex: 0 0 auto` ÉCRASE le `flex: 1 1 0` du sélecteur générique : le groupe
+   prend la largeur de ses trois icônes et rend TOUT le reste au Select, dont
+   les libellés sont les plus longs de la zone (« Aberration chromatique »).
+   --space-2 = rang « interne à un composant », comme partout ailleurs pour un
+   groupe de boutons solidaires. */
+.layer-controls__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+
 .layer-controls__opacity-field {
   display: flex;
   align-items: center;
@@ -132,49 +151,17 @@
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
 
+/* La ligne n'a plus qu'UN seul enfant depuis le 2026-07-29 : la grille
+   d'identité. Le groupe d'actions de fin de ligne (opacité en lecture,
+   dupliquer, supprimer) a migré dans la zone de contrôles de la carte
+   (ADR-0001) — avec lui ont disparu `.layer-panel__row-actions`,
+   `.layer-panel__row-opacity` et le `justify-content: space-between` qui les
+   séparait de l'identité. Ne pas les réintroduire sur la ligne : c'est
+   exactement ce qui avait réduit le nom à 52 px au dock par défaut. */
 .layer-panel__row-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  /* GOUTTIÈRE INTER-GROUPES (2026-07-28) : cette ligne n'a que deux enfants —
-     l'identité (poignée/œil/nature/vignette/nom) et les actions (opacité en
-     lecture, dupliquer, supprimer). Ce `gap` est donc EXACTEMENT l'écart entre
-     la fin du nom et le « 100 % ». Il valait --space-2 (4px), le même rang que
-     les gouttières INTERNES à chaque groupe : un nom long venait alors coller
-     le pourcentage sans qu'aucune séparation ne se lise. --space-4 (8px) rend
-     l'écart entre groupes au double de l'écart à l'intérieur d'un groupe,
-     ce qui est ce qui fait lire deux groupes plutôt qu'une bouillie. */
-  gap: var(--space-4);
   min-height: var(--layer-row-height);
-}
-
-/* Groupe des actions de fin de ligne (dupliquer, supprimer) : sans ce
-   conteneur, `justify-content: space-between` de .layer-panel__row-top
-   écarterait les deux boutons l'un de l'autre au lieu de les garder
-   solidaires à droite. --space-2 = rang "interne à un composant". */
-.layer-panel__row-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  /* Le groupe d'actions ne CÈDE JAMAIS de largeur (2026-07-28) : sans ce
-     `flex-shrink: 0`, la pression d'un nom long se répartit entre les deux
-     groupes au prorata de leur taille, et le « 100 % » (nowrap) se retrouve à
-     rogner ses propres marges avant que le nom ne consente à s'ellipser. Le
-     nom est le SEUL contenu élastique de la ligne — il porte déjà l'ellipse et
-     un `title` qui rend la valeur entière lisible. */
-  flex-shrink: 0;
-}
-
-/* Opacité en LECTURE SEULE (2026-07-27) : le slider est parti dans la zone de contrôles,
-   mais la valeur reste lisible sur chaque ligne pour comparer la pile d'un
-   coup d'œil. Chiffres tabulaires : les valeurs s'alignent verticalement d'une
-   ligne à l'autre, ce qui est tout l'intérêt de la comparaison. */
-.layer-panel__row-opacity {
-  font-family: var(--font-ui);
-  font-size: var(--font-size-xs);
-  font-variant-numeric: tabular-nums;
-  color: var(--text-tertiary);
-  white-space: nowrap;
 }
 
 .layer-panel__row:hover {
@@ -341,24 +328,56 @@
   grid-template-columns:
     var(--icon-size-sm)          /* 1 poignée de réordonnancement */
     var(--control-height-sm)     /* 2 œil (visibilité) */
-    var(--control-height-sm)     /* 3 verrou */
-    var(--icon-size-sm)          /* 4 nature (effet ou photo) */
-    var(--icon-size-sm)          /* 5 flèche d'écrêtage */
-    var(--layer-thumbnail-size)  /* 6 vignette */
-    minmax(0, 1fr);              /* 7 nom */
+    var(--icon-size-sm)          /* 3 nature (effet ou photo) */
+    var(--layer-thumbnail-size)  /* 4 marque : vignette OU flèche d'écrêtage */
+    minmax(0, 1fr)               /* 5 nom */
+    var(--control-height-sm);    /* 6 verrou, marqueur seul (voir plus bas) */
   align-items: center;
   column-gap: var(--space-2);
   flex: 1 1 auto;
   min-width: 0;
 }
 
+/* UNE SEULE RANGÉE, toujours (2026-07-29). Le placement automatique de la
+   grille ne REVIENT jamais en arrière : un élément dont la colonne est
+   inférieure à celle du précédent dans l'ORDRE DU DOM est renvoyé à la rangée
+   suivante. Sans cette ligne, la ligne d'arrière-plan — qui rendait son cadenas
+   (colonne 6) avant la nature (3), la vignette (4) et le nom (5) — faisait
+   silencieusement DEUX rangées : 14 px + 24 px = 38 px au lieu de 36, mesuré,
+   soit 2 px de trop par ligne. Deux pixels suffisaient à faire déborder la
+   carte Effets et à renvoyer une ligne hors champ
+   (PanelColumn.stories.tsx > FiveRowDocumentHidesNoRow).
+   L'ordre du DOM est correct par ailleurs — cette règle est là pour que la
+   grille ne dépende PAS de lui : la position d'un élément est déclarée par sa
+   colonne, un point c'est tout. */
+.layer-panel__row-main > * {
+  grid-row: 1;
+}
+
 .layer-panel__col--grip { grid-column: 1; }
 .layer-panel__col--eye { grid-column: 2; }
-.layer-panel__col--lock { grid-column: 3; }
-.layer-panel__col--nature { grid-column: 4; }
-.layer-panel__col--clip { grid-column: 5; }
-.layer-panel__col--thumbnail { grid-column: 6; }
-.layer-panel__col--name { grid-column: 7; }
+.layer-panel__col--nature { grid-column: 3; }
+/* MARQUE — vignette et flèche d'écrêtage PARTAGENT cette piste (2026-07-29).
+   Elles sont mutuellement exclusives par invariant du modèle
+   (`LayerStack.setLayerClip` refuse un calque portant `imageSource`), donc
+   aucune ligne ne peut en porter deux. Deux pistes distinctes coûtaient
+   --icon-size-sm + une gouttière, soit 18 px prélevés sur le NOM, sur un dock
+   où le nom était tombé à 52 px. La piste garde la largeur de la vignette, le
+   plus large des deux contenus ; la flèche s'y centre.
+   Si l'invariant tombe, la fusion devient un bug d'affichage silencieux — il
+   est verrouillé par test (test/layers/layerStack.test.ts). */
+.layer-panel__col--mark {
+  grid-column: 4;
+  justify-self: center;
+}
+.layer-panel__col--name { grid-column: 5; }
+/* VERROU — piste RÉSERVÉE en permanence, en FIN de ligne, alors que le cadenas
+   n'est rendu que sur les lignes verrouillées (et sur l'arrière-plan). C'est
+   tout l'intérêt de la grille : la présence ou l'absence du cadenas ne peut pas
+   décaler le nom d'une ligne à l'autre. En fin de ligne parce que c'est un
+   ÉTAT, pas une étape de lecture de l'identité — le nom reste le dernier
+   élément lu de gauche à droite. */
+.layer-panel__col--lock { grid-column: 6; }
 
 /* Le cadenas de la ligne d'ARRIÈRE-PLAN n'est pas un bouton (voir le bloc de
    commentaire de la ligne dans LayerPanel.tsx) : il lui faut donc son propre

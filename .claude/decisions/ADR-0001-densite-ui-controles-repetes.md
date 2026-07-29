@@ -92,6 +92,7 @@ dans le rapport de la tranche, pas supposée.
   impossible. Aujourd'hui un `stopPropagation` sur le slider d'opacité permet de
   régler le calque B en gardant A sélectionné. Ce cas disparaît. Atténuation
   retenue : la valeur reste affichée en lecture seule sur la ligne.
+  **Atténuation RETIRÉE le 2026-07-29** — voir l'entrée datée en fin de document.
 - **Prérequis technique** : changer de sélection périme l'ouverture manuelle d'un
   panneau (`selectedId` sert de `triggerKey` à `useContextualPanel`) — un panneau
   fermé au rail se rouvrirait à chaque sélection. À corriger avant, sinon le
@@ -144,3 +145,39 @@ dans le rapport de la tranche, pas supposée.
   `CollapsedHidesControls` (`src/components/dockedPanel/DockedPanelCard.stories.tsx`),
   qui vérifient l'unicité de la zone et le fait qu'elle n'est jamais enfant du
   conteneur défilant.
+
+- **2026-07-29** — Croyance : « la décision a été appliquée à la ligne de calque
+  le 2026-07-27 ; il ne reste que l'opacité, la fusion et l'effet à déporter ».
+  Réfutée par : mesure de la LARGEUR laissée au nom sur la vraie carte, à la
+  largeur de dock par défaut — **32 px**. Trois contrôles étaient partis, mais
+  la ligne portait encore sept colonnes plus un groupe d'actions (opacité en
+  lecture, dupliquer, supprimer) et un verrou toujours rendu : « Chromatic
+  bleed » s'affichait « C… », « DSCF5160-edited.JPG » « DSC… ». Aucune assertion
+  ne mesurait cette largeur — la checklist en cinq points porte sur la HAUTEUR
+  (points 3 et 4) et sur la lisibilité d'une valeur déportée (point 5), jamais
+  sur ce qu'il RESTE au contenu élastique de la ligne.
+  Ce que ça change, en trois points :
+  1. Verrouiller/dupliquer/supprimer descendent dans la zone de contrôles et
+     agissent sur la sélection, comme les trois précédents. Le nom passe à
+     **152 px** sur la même carte.
+  2. **L'atténuation du § Conséquences est retirée** : l'opacité en lecture seule
+     quitte la ligne. Elle doublait exactement le champ de la zone de contrôles
+     — même unité, même valeur — et le point 5 ne l'exigeait que parce que la
+     valeur était *déportée hors de vue* ; elle ne l'est pas, elle est juste
+     ailleurs sur la même carte. Le verrou, lui, RESTE sur la ligne au titre du
+     point 5, mais **uniquement quand il est posé** : un verrou fermé est un état
+     à balayer sur toute la pile, un verrou ouvert n'est rien à voir. Il y
+     devient un MARQUEUR (`role="img"`) ; le contrôle vit dans la zone.
+  3. **La checklist gagne un sixième point** : *le contenu élastique de la ligne
+     (le nom) garde-t-il une largeur lisible à la largeur de dock par défaut ?
+     Le mesurer sur la carte réelle, pas sur le composant monté nu — le chrome
+     de `DockedPanelCard` vaut 24 px de différence (176 px contre 152 px sur la
+     même pile).* Assertions : `PanelColumn.stories.tsx >
+     FiveRowDocumentHidesNoRow` (carte réelle) et `LayerPanel.stories.tsx >
+     AllRowFormsShareOneGrid` (panneau nu).
+  Corollaire mesuré au passage : le budget de hauteur de la carte est si serré
+  qu'une TROISIÈME ligne de zone de contrôles (+36 px) renvoyait aussitôt une
+  ligne de liste hors champ. Les trois actions se logent donc dans la place
+  libre de la ligne « Effet ». La mise en garde du § « Une LIGNE de la zone de
+  contrôles » (`LayerPanel.css`) tient toujours : cette zone existe pour RENDRE
+  de la hauteur à la liste, pas pour la lui prendre.

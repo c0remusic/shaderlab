@@ -1346,6 +1346,12 @@ export default function App() {
                   onOpacityCommit={handleParamCommit}
                   onBlendModeChange={handleBlendModeChange}
                   onEffectChange={handleEffectChange}
+                  // Verrou/duplication/suppression : migrés des lignes vers
+                  // cette zone le 2026-07-29 (ADR-0001). Ils agissent sur le
+                  // calque sélectionné ; les callbacks sont inchangés.
+                  onToggleLock={handleToggleLock}
+                  onDuplicate={handleDuplicate}
+                  onRemove={handleRemove}
                 />,
               content: <LayerPanel
                   layers={layers}
@@ -1355,10 +1361,7 @@ export default function App() {
                   onToggle={isolation.handleEyeClick}
                   isolatedLayerId={isolation.isolatedLayerId}
                   onAdd={handleAdd}
-                  onDuplicate={handleDuplicate}
-                  onRemove={handleRemove}
                   onReorder={handleReorder}
-                  onToggleLock={handleToggleLock}
                   thumbnailUrl={photoLayer.thumbnailUrl}
                   // Le document est `sourceTexture`, pas un `LayerState` : la
                   // liste ne pouvait pas le montrer, et l'utilisateur voyait

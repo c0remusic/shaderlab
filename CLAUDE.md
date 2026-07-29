@@ -81,7 +81,8 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
 - Build frontend seul : `npm run build` (tsc + vite build)
 - Tests unitaires : `npm run test` (Vitest, projet `unit` uniquement)
 - Tests de stories : `npm run test-storybook` (Vitest + Playwright chromium, projet `storybook`) · `npm run test:all` pour les deux
-- Shaders GPU : `npm run test:gpu-shaders` (`scripts/gpu-shader-check.mjs`)
+- Shaders GPU : `npm run test:gpu-shaders` (`scripts/gpu-shader-check.mjs`) — prouve que les shaders COMPILENT
+- Non-régression du **rendu** : `npm run test:render` (`scripts/render-check.mjs`) — prouve que le pipeline produit les MÊMES PIXELS qu'avant. Prérequis : l'app tourne avec le port CDP 9222, ET un Vite du worktree courant sur 1421 (`npx vite --port 1421`). Références versionnées dans `test/render-refs/` ; `--update` les réécrit (les relire à l'œil avant de committer), `--diagnostic` mesure la dépendance à l'horloge de la surface de présentation. Lit les pixels de `Renderer.exportFrame()`, jamais une capture d'écran — voir l'en-tête du script pour pourquoi.
 - Type-check : `npx tsc --noEmit`
 - Lint tokens design : `npm run lint:tokens` (détecte couleurs/z-index/spacing en dur qui contournent un token existant, `scripts/lint-tokens.mjs`)
 - Rust : `cd src-tauri && cargo check`

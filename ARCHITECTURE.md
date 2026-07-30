@@ -4,14 +4,20 @@
 > frontières de modules visées** pour les deux features cadrées au `PRD.md` :
 > **Presets** et **Double exposure**.
 >
-> ⚠️ **Le corps de ce document a été vérifié sur disque le 2026-07-25 ; seuls
-> le § 4.6 (2026-07-30, dépose du round-trip) et R6 (2026-07-30, compte de
-> lignes réel) ont été revus depuis.** Tout autre chiffre ou chemin cité ici
-> peut avoir dérivé — R6 annonçait 727 lignes pour un fichier qui en faisait
-> 1953, soit un facteur 2,7, et rien ne le signalait. Avant de fonder une
-> décision sur une valeur de ce document, la recompter (§ 9
-> AUTO-VÉRIFICATION), et rejouer le § 9 EN ENTIER à la prochaine passe qui
-> touche ce fichier — pas seulement le paragraphe édité.
+> ⚠️ **Le § 9 AUTO-VÉRIFICATION a été RÉ-EXÉCUTÉ EN ENTIER le 2026-07-31** sur
+> l'arbre de `ba81271` : chaque fichier qu'il cite est recompté, chaque plage de
+> lignes rouverte, et trois de ses affirmations sont tombées (§ 9.3). Le § 4.6
+> (2026-07-30, dépose du round-trip) et R6 (2026-07-30, compte de lignes réel)
+> avaient été revus avant.
+>
+> **Tout le reste du corps date encore du 2026-07-25 et n'a PAS été
+> revérifié** — en particulier la table de bindings du § 1.3 et les défauts (a)
+> et (b) du § 4.3, que le § 9 signale désormais comme périmés. Un chiffre ou un
+> chemin cité hors du § 9 peut avoir dérivé : R6 annonçait 727 lignes pour un
+> fichier qui en faisait 1953, soit un facteur 2,7, et rien ne le signalait.
+> Avant de fonder une décision sur une valeur de ce document, la recompter, et
+> rejouer le § 9 EN ENTIER à la prochaine passe qui touche ce fichier — pas
+> seulement le paragraphe édité.
 >
 > Ce n'est PAS un plan d'implémentation (tranches, ordre, tâches → étape
 > suivante `superpowers:writing-plans`, après validation humaine de ce document).
@@ -52,7 +58,7 @@ Six couches, dépendances **strictement descendantes** (aucun cycle observé) :
 
 ```
                       ┌─────────────────────────────────────┐
-      Coquille Rust   │ src-tauri/src/lib.rs                │  IPC : 9 commandes
+      Coquille Rust   │ src-tauri/src/lib.rs                │  IPC : 17 commandes
       (Tauri v2)      │ get_launch_path, read/write_image_  │  (aucun plugin fs/
                       │ file, pick_image_file, path_exists, │   dialog — commandes
                       │ default_export_dir, pick_export_    │   maison, cf. §7)
@@ -64,7 +70,7 @@ Six couches, dépendances **strictement descendantes** (aucun cycle observé) :
                       └──────────────▲──────────────────────┘  fonction = une cmd
                                      │
    ┌─────────────────────────────────┴───────────────────────────────────┐
-   │  src/App.tsx  — COMPOSITION ROOT (727 lignes, cf. §7 dette)          │
+   │  src/App.tsx  — COMPOSITION ROOT (compte de lignes : §7 R6)          │
    │  détient : refs GPU/renderer/session, state UI, tous les handlers    │
    └───┬───────────────┬──────────────────┬───────────────┬──────────────┘
        │               │                  │               │
@@ -133,7 +139,12 @@ frame est testable en isolation avec des doubles
 (`test/render/framePipelineExecutor.test.ts` existe). C'est la frontière de test
 la plus utile de la couche rendu — toute extension du pipeline doit la préserver.
 
-**Contrat de bindings du groupe 0** (état actuel, `shaderCompose.ts:79-84`) :
+**Contrat de bindings du groupe 0** — ⚠️ **table de l'état du 2026-07-25,
+PÉRIMÉE.** Recomptée le 2026-07-31 (§ 9.2) : un **binding 6** (`coverageTexture`,
+calque photo ou écrêtage) existe depuis, et la formule de compositing ne se
+contente plus de mélanger le RGB. Lire `shaderCompose.ts:77-107` et `:166-172`
+avant de s'appuyer sur ce qui suit ; la table n'a pas été réécrite ici, cette
+passe ne couvrait que le § 9.
 
 | binding | ressource | conditionnel ? |
 |---|---|---|
@@ -567,29 +578,118 @@ de merge trivial, pas un couplage architectural.
 
 ## 9. AUTO-VÉRIFICATION
 
-Affirmations de ce document et leur preuve (état lu sur disque le 2026-07-25) :
+**Ré-exécuté EN ENTIER le 2026-07-31**, sur l'arbre de travail du commit
+`ba81271` (`git log -1 --format=%H` → `ba8127128dbea82fb341ab1190a9c231b2ef1d29` ;
+`git status --short` vide au moment de la mesure, donc les fichiers mesurés sont
+bien ceux de ce commit — le commit qui porte ce texte ne touche que ce fichier-ci).
 
-| Affirmation | Preuve |
+La passe précédente datait du 2026-07-25. **Aucune de ses plages de lignes n'a
+survécu intacte** et trois de ses affirmations sont tombées (§ 9.3). Chaque plage
+ci-dessous a été ROUVERTE, pas seulement décalée.
+
+### 9.1 Taille réelle des fichiers cités par ce paragraphe
+
+```
+$ wc -l src/render/renderer.ts src/render/framePipelineExecutor.ts \
+        src/render/shaderCompose.ts src/render/effectPassRunner.ts \
+        src/render/effects/glow.ts src/render/imageFrameResources.ts \
+        src/mask/maskPainter.ts src/layers/displayProjection.ts \
+        src/layers/layerStack.ts src/application/documentSession.ts \
+        src/export/exportImage.ts src/App.tsx \
+        src-tauri/src/lib.rs src-tauri/Cargo.toml \
+        docs/superpowers/specs/2026-07-24-shaderlab-contextual-panels-design.md \
+        docs/superpowers/specs/2026-07-25-shaderlab-double-exposure-design.md
+  585 src/render/renderer.ts
+  573 src/render/framePipelineExecutor.ts
+  185 src/render/shaderCompose.ts
+  238 src/render/effectPassRunner.ts
+   99 src/render/effects/glow.ts
+  130 src/render/imageFrameResources.ts
+  119 src/mask/maskPainter.ts
+   74 src/layers/displayProjection.ts
+  581 src/layers/layerStack.ts
+   83 src/application/documentSession.ts
+  201 src/export/exportImage.ts
+ 1823 src/App.tsx
+  499 src-tauri/src/lib.rs
+   24 src-tauri/Cargo.toml
+  220 docs/…/2026-07-24-shaderlab-contextual-panels-design.md
+  175 docs/…/2026-07-25-shaderlab-double-exposure-design.md
+ 5609 total
+```
+
+Deux comptes de lignes seulement sont écrits ailleurs dans ce document, et les
+deux sont justes : `DocumentSession` = **83 lignes** (§ 1.2) et `App.tsx` =
+**1823** (R6, § 7). Le schéma du § 1 ne porte plus de compte du tout — il renvoie
+à R6, pour qu'il n'existe qu'un seul endroit à mettre à jour. C'est la
+duplication, pas la mesure, qui avait laissé « 727 » vivre cinq jours de trop.
+
+### 9.2 Affirmations et preuves recomptées
+
+| Affirmation | Preuve, rouverte le 2026-07-31 |
 |---|---|
-| `Renderer` est une façade sur 5+ collaborateurs | `src/render/renderer.ts:1-12` (imports), `:148-183` (assemblage) |
-| Le pipeline par calque vit dans `FramePipelineExecutor`, pas dans `Renderer` | `src/render/framePipelineExecutor.ts:132-263` |
-| Bindings 0-5 déjà attribués, 3/4/5 conditionnels | `src/render/shaderCompose.ts:79-84` |
-| La chaîne WGSL est la clé du cache de pipelines | `src/render/shaderCompose.ts:47-52`, `src/render/effectPassRunner.ts:173-192` |
-| Le compositing ignore l'alpha de l'effet | `src/render/shaderCompose.ts:66-74` (commentaire explicite) |
-| `glow` est multi-passe | `src/render/effects/glow.ts:62` |
-| Les passes internes prennent le composite du dessous en entrée | `src/render/framePipelineExecutor.ts:198-206`, `src/render/effectPassRunner.ts:83-107` |
-| `MaskPainter` est dimensionné à l'image de base | `src/mask/maskPainter.ts:29-32` |
-| `toDisplayLayers` vide les rasters avant le state React | `src/layers/displayProjection.ts:25-39` |
-| `clone()` partage les rasters (immuables par convention) | `src/layers/layerStack.ts:223-241` |
-| `DocumentSession` sépare `layers()` (complet) et `displayLayers()` (projection) | `src/application/documentSession.ts:17-24` |
-| `exportImage` définit déjà des ports testables | `src/export/exportImage.ts:4-11`, `:41-46` |
-| `write_image_file` refuse tout chemin non-JPEG | `src-tauri/src/lib.rs:17-25`, `:59-60` |
-| Aucun plugin `fs`/`dialog` en dépendance Rust | `src-tauri/Cargo.toml:15-20` |
-| `pick_image_file` filtre jpg/jpeg | `src-tauri/src/lib.rs:114-120` |
-| `App.tsx` fait 727 lignes et porte tout le câblage | `src/App.tsx:40-727` |
-| Le design contextual-panels ne touche pas `PanelColumn`/`dockLayout` | `docs/superpowers/specs/2026-07-24-shaderlab-contextual-panels-design.md` § Hors scope + § Fichiers touchés |
-| Approche (C) validée pour la double exposure | `docs/superpowers/specs/2026-07-25-shaderlab-double-exposure-design.md` § Architecture |
+| `Renderer` est une façade sur 5+ collaborateurs | `src/render/renderer.ts:1-19` (imports — 19, pas 12). Assemblage en DEUX endroits, plus un seul : `:147-181` (constructeur → `ImageFrameResources`, `PresentPass`) et `:287-344` (`allocateDocument` → `EffectPassRunner`, `MaskTextureResolver`, `PhotoSourceStore`, `PhotoLayerInputResolver`, `FramePipelineExecutor`) |
+| Le pipeline par calque vit dans `FramePipelineExecutor`, pas dans `Renderer` | `src/render/framePipelineExecutor.ts:275-553` (`runFrame`) ; la boucle par calque elle-même est `:362-493` |
+| Le groupe 0 va jusqu'au binding **6**, 3/4/5/6 conditionnels | `src/render/shaderCompose.ts:166-172` (header émis), `:77-107` (construction conditionnelle, dont `coverageBinding` `:105-107`) ; côté layout GPU `src/render/effectPassRunner.ts:189-197` |
+| La chaîne WGSL est la clé du cache de pipelines | `src/render/shaderCompose.ts:70-75` (contrat, en toutes lettres), `src/render/effectPassRunner.ts:177` (composition) et `:186-206` (get/set du cache sur cette chaîne) |
+| `glow` est multi-passe | `src/render/effects/glow.ts:63` (`passes:`) |
+| `MaskPainter` est dimensionné à l'image de base | `src/mask/maskPainter.ts:29-32` (plage inchangée). Unique site de construction : `src/mask/maskPainterSync.ts:43` — ce n'est plus `App.tsx`, contrairement à ce qu'écrit le § 1.4 |
+| `toDisplayLayers` vide les rasters avant le state React | `src/layers/displayProjection.ts:46-62` (`stripRasters`) et `:64-74` (`toDisplayLayers`). Mémoïsé par `WeakMap` depuis le 2026-07-30 : la projection est stable PAR IDENTITÉ, ce que le § 1.1 ne dit pas |
+| `clone()` partage les rasters (immuables par convention) | `src/layers/layerStack.ts:562-580` |
+| `DocumentSession` sépare `layers()` (complet) et `displayLayers()` (projection) | `src/application/documentSession.ts:17-23` |
+| `exportImage` définit déjà des ports testables | `src/export/exportImage.ts:19-33` (`ExportedFrame`, `FrameRenderer`, `ImageWriter`), `:66-68` (`PathAvailability`) |
+| `write_image_file` refuse tout chemin non-JPEG | `src-tauri/src/lib.rs:20-23` (`is_jpeg_path`), `:74-78` (le refus lui-même) |
+| Aucun plugin `fs`/`dialog` en dépendance Rust | `src-tauri/Cargo.toml:15-20` (plage inchangée : `serde_json`, `serde`, `tauri` sans features, `rfd`, `percent-encoding`) |
+| `pick_image_file` filtre jpg/jpeg | `src-tauri/src/lib.rs:117-123` |
+| `App.tsx` = **1823 lignes** et porte tout le câblage | `src/App.tsx:76-1823` — `export default function App()` ouvre en 76 et le fichier se ferme sur son accolade |
+| La surface IPC compte **17** commandes, pas 9 | `src-tauri/src/lib.rs:327-345` (`generate_handler!`) ; 17 occurrences de `#[tauri::command]` dans le fichier |
+| Le design contextual-panels ne touche pas `PanelColumn`/`dockLayout` | `docs/…/2026-07-24-shaderlab-contextual-panels-design.md:48-54` (§ Périmètre, « Hors scope ») et `:193-194` (§ Fichiers touchés, « Non touchés »). Le titre « § Hors scope » cité en 2026-07-25 n'existe pas comme section : c'est un intertitre DANS § Périmètre |
+| Approche (C) validée pour la double exposure | `docs/…/2026-07-25-shaderlab-double-exposure-design.md:19-54` (§ Architecture) |
 
-Non vérifié / assumé, explicitement : forensics de co-changement git (§0),
-consommation VRAM réelle (R1), comportement visuel de la couverture hors-bornes
-(R3) — aucun de ces trois points n'est affirmé comme un fait dans ce document.
+### 9.3 Affirmations du 2026-07-25 qui NE TIENNENT PLUS
+
+Elles ne sont pas corrigées en silence : elles sont écrites comme tombées, avec
+ce qui les a démenties.
+
+1. **« Le compositing ignore l'alpha de l'effet »** (preuve d'alors :
+   `shaderCompose.ts:66-74`, « commentaire explicite »). **Faux depuis.** Le
+   compositing fait un source-over Porter-Duff complet — `srcAlpha` = opacité ×
+   masque peint × couverture, puis `outAlpha = srcAlpha + backdropAlpha × (1 −
+   srcAlpha)` (`shaderCompose.ts:130-160`). Le commentaire `:137-141` déclare en
+   toutes lettres que le court-circuit précédent est retiré. Conséquence :
+   **R3** (§ 7) est traité, plus seulement identifié, et le raisonnement du
+   § 4.3 (b) ne porte plus sur le code courant.
+
+2. **« Les passes internes prennent le composite du dessous en entrée »**
+   (preuve d'alors : `framePipelineExecutor.ts:198-206`). **Vrai uniquement pour
+   un calque SANS `imageSource`.** La variante (C2) recommandée au § 4.3 a été
+   implémentée : un calque photo reçoit la texture de la pré-passe
+   (`PhotoLayerInputResolver`) comme entrée d'effet et de passes internes —
+   `framePipelineExecutor.ts:411-433` puis `:450-458` — tandis que l'entrée du
+   composite reste le composite du dessous (`:460-468`, commentaire explicite).
+   Conséquence : **R4** est tranché en faveur de (C2), et le § 4.3 continue de
+   présenter ses défauts (a) et (b) comme « prouvés sur le code actuel » alors
+   qu'ils ne le sont plus.
+
+3. **« Bindings 0-5, 3/4/5 conditionnels »**. Un **binding 6**
+   (`coverageTexture`) existe, partagé par le calque photo et l'écrêtage
+   (`shaderCompose.ts:102-107`, exclusion mutuelle levée en erreur `:92-96`). La
+   table du § 1.3 n'a PAS été réécrite : cette passe ne couvrait que le § 9, donc
+   la table porte un avertissement de péremption et renvoie ici.
+
+Un quatrième point, hors table mais découvert par le recompte de `lib.rs` : le
+§ 3.3 affirme « aucun mécanisme existant ne permet d'écrire un fichier texte ».
+**C'était vrai le 2026-07-25 et ne l'est plus** — `write_preset`, `read_preset`,
+`export_preset`, `import_preset` existent (`src-tauri/src/lib.rs:220-292`,
+confinement d'id `:180-196`). La décision du § 3.3 a donc été exécutée ; sa
+justification, elle, se lit maintenant au passé.
+
+### 9.4 Ce que cette passe n'a PAS vérifié
+
+- Le corps des §§ 0 à 8, en dehors des seules plages citées par ce paragraphe.
+  Le § 1.3 et le § 4.3 sont explicitement signalés comme périmés ci-dessus ; les
+  autres n'ont été ni confirmés ni infirmés.
+- Forensics de co-changement git (§ 0) — toujours non réalisée.
+- Consommation VRAM réelle (R1) — toujours non mesurée.
+- Comportement visuel de la couverture hors-bornes (R3) : le CODE a changé
+  (point 1 ci-dessus), la vérification à l'œil sur GPU n'a pas été refaite ici.

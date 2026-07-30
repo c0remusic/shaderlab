@@ -1,0 +1,279 @@
+# Remédiation des deux audits — backlog exécutable
+
+État de départ mesuré le 2026-07-31, sur `master@8494b78`. Source des findings :
+`docs/superpowers/specs/2026-07-30-audit-prerelease.md` (perf, architecture,
+robustesse, React/UI) et `docs/superpowers/specs/2026-07-31-audit-effets.md`
+(les six effets de rendu).
+
+Ce fichier est l'état durable de la boucle de remédiation. Chaque item porte son
+type (**AFK** = spécifiable sans jugement humain ; **HITL** = demande l'œil ou
+l'arbitrage d'Antoine), son `bloqué_par`, et son moyen de preuve. Un item ne se
+coche que sur preuve produite dans le même tour.
+
+---
+
+## Barrière — LEVÉE le 2026-07-31 à 00:40, par réfutation
+
+### B0 — CLOS — le verrou de rendu n'était pas rouge
+
+**La barrière n'existait pas.** Elle reposait sur « `npm run test:render` est
+rouge 6/6 sur master depuis T1 », affirmation présente dans le rapport d'audit,
+dans `docs/INDEX.json`, dans le message du commit `8494b78` et dans
+`.claude/learning-log.md` — et jamais mesurée. L'entrée du learning-log qui la
+« reconfirme » l'écrit elle-même : « vérifié cette session en lisant le harnais
+et son en-tête, **non en le relançant** ».
+
+**Mesure, sur `master@e0b6cd4`**, app en CDP 9222 et Vite du worktree courant
+sur 1421 :
+
+```
+npm run test:render
+  -> 10 scenarios, reproductibilite inter-passes 0 canal, gate de signal OK
+  -> Non-regression : 10/10 « aucun ecart »
+  -> « Aucune regression de rendu. »   sortie 0
+```
+
+**Témoin de discrimination** — exigé par `scripts/render-check.mjs:89-96`, sans
+lequel aucun verdict de ce script ne vaut :
+
+```
+grain.ts:39   0.2126 -> 0.2500
+npm run test:render
+  -> FAIL   grain-graine-fixe   ecart max 18 > 1 LSB  [moyenne 0.1655, 1er pixel 5]
+  -> ECHEC — 1 scenario(s) dont le rendu a change.    sortie 1
+temoin retire
+npm run test:render
+  -> Aucune regression de rendu.   sortie 0
+git status --short src/render/effects/grain.ts  ->  (vide)
+```
+
+Le harnais rougit sur le seul scénario concerné, puis redevient vert, arbre
+propre. L'instrument attrape ce qu'il prétend garder.
+
+**Ce que ça change** : la ligne PIXELS n'est bloquée par rien. Ce qui reste vrai
+de la prescription d'origine, c'est **l'exigence de témoin** — un verrou vert ne
+vaut que planté / rougi / retiré, à refaire à chaque correctif de pixels.
+
+**Contrainte de montage inchangée** : l'app tourne avec CDP 9222 **et** un Vite
+du worktree courant sur 1421 ; `scripts/dev.ps1` tue **tout** process
+`shaderlab` de la machine, donc un seul agent à la fois sur cette ligne.
+
+---
+
+## Ligne PIXELS — sérialisée, une seule instance de l'app à la fois
+
+`bloqué_par: []` depuis la levée de B0. Chaque correctif de cette ligne se clôt
+par le cycle témoin planté / rougi / retiré décrit en B0, jamais par un vert nu.
+
+## Avertissement — une session concurrente écrit sur ce dépôt
+
+`C:\dev\shaderlab` n'est pas isolé par worktree et une autre session y commite :
+`e0b6cd4` a été posé à 00:28 pendant cette session. Le learning-log du jour
+documente la direction du risque : une session voisine a **poussé** des commits
+qu'elle n'avait pas écrits, en poussant les siens. Conséquence à tenir ici : un
+commit local n'est pas réversible, et rien ne se commite qu'on ne serait pas prêt
+à voir public. Pathspec explicite obligatoire (`git commit -m "msg" -- <fichiers>`).
+
+### E1 — HITL — un effet posé sur le calque photo rend l'image NOIRE
+
+`warp.ts:64` et `chromaticBleed.ts:29-31` rechargent `srcTexture` là où le
+contrat impose de lire le paramètre `color` (`shaderCompose.ts:179-181`).
+Mesuré sur GPU réel : luminance 0, 100 % de pixels noirs.
+
+**Ne pas implémenter en boucle.** L'audit tranche : « le correctif demande une
+décision d'architecture, il ne s'improvise pas », et il a mesuré puis REFUSÉ les
+deux correctifs évidents (liséré noir d'environ 55 px sur chaque bord de photo ;
+poids de compositing pris à un UV non déplacé, `shaderCompose.ts:115`).
+
+**Ce que la boucle produit** : deux ou trois options d'architecture du contrat
+`fs_main`, chacune avec son coût et ce qu'elle casse, à trancher par Antoine.
+Aucun shader modifié tant que l'option n'est pas choisie.
+
+### E2 — AFK — la graine du warp détruit le bruit
+
+`hash2` sature en f32 (`warp.ts:53`, `:16-20`) : au-delà de 2²³ l'ulp vaut 1,
+`fract()` rend 0, le gradient devient constant et le FBM dégénère en grille
+régulière. 89 graines sur 101 ont au moins une octave morte ; à partir de
+seed=47 les trois le sont.
+
+Correctif : **remplacer `hash2`**. Le palliatif consistant à borner le décalage
+est explicitement refusé par l'audit (il produirait des quasi-doublons, panne
+moins spectaculaire donc plus durable).
+
+Attention : la référence versionnée `masque-pinceau-degrade` tourne à seed=2,
+donc déjà dans la zone dégradée — sa référence changera, et c'est voulu.
+
+**Preuve** : distribution des octaves mortes recomptée sur les 101 graines,
+avant et après.
+
+### E3 — AFK — le grain culmine dans les ombres, pas dans les demi-tons
+
+`grain.ts:46-48` : pondération perceptuelle, addition restée linéaire. Écart-type
+mesuré à intensité par défaut — ton 0,10 → 15,2/255 ; ton 0,50 → 7,1/255 ;
+ton 0,90 → 1,2/255. Le commentaire `grain.ts:38` promet exactement l'inverse.
+
+Le correctif proposé par l'audit fait bien ce qu'il annonce (argmax ramené à
+0,498, écrêtage noir de 17,5 % à 0 %) **mais inline une troisième formule de
+transfert sRGB**, ce que `srgbTransfer.ts:19-21` interdit en toutes lettres.
+À réécrire en passant par la fonction partagée.
+
+**Preuve** : les trois écarts-types recomptés après correctif, et
+`grep` prouvant qu'aucune formule sRGB n'a été ajoutée.
+
+### E5 — AFK — le noyau d'upsample du glow est une coquille sans tap central
+
+À l'upsample, l'offset vaut 4× le canonique : environ 1 % du poids au centre.
+Et la chaîne s'arrête à 1/8, donc le rayon est un nombre constant de pixels
+image au lieu de suivre la taille de la photo.
+
+**Piège nommé par l'audit** : l'offset de bright-pass proposé (±0,25 texel) est
+faux arithmétiquement — le centre du pixel destination tombe déjà sur le coin
+des quatre texels, **l'offset correct est ±0,5**. Appliqué tel quel, le shader
+compile, rend, change la référence pixel et ne fait PAS ce qu'il annonce.
+
+### E4 — HITL — le placement des paliers de posterize
+
+Les paliers sont répartis uniformément sur l'axe linéaire. Le seul correctif
+proposé (quantifier sur l'axe perceptuel) est **mesuré dangereux** : il éclaircit
+l'image de 27 points sRGB à levels=2 et multiplie par dix l'erreur de
+préservation de moyenne.
+
+La question qui commande le correctif n'est pas dans le code : l'aplat noir
+massif sous 39 % de clarté perçue est-il le look voulu d'un posterize graphique,
+ou un défaut ? À regarder à levels=2 et sur un aplat coloré saturé (le dither est
+achromatique). **Aucun correctif avant cet arbitrage.**
+
+---
+
+## Ligne ARCHITECTURE — parallélisable, worktree propre, aucune instance de l'app
+
+### A1 — AFK — `App.tsx` porte encore 1823 lignes
+
+`wc -l src/App.tsx` → **1823** (contre 1951 à l'audit ; `usePresetWorkflow` en a
+retiré environ 130). L'extraction faite est documentée comme volontairement
+partielle dans `src/hooks/usePresetWorkflow.ts:25-29` : restent dans `App.tsx` le
+JSX des `Dialog`, l'application d'un preset (`applyPreset`/`requestApplyPreset`),
+le renommage, l'import/export de fichier preset.
+
+Prochains candidats nommés par R6 (`ARCHITECTURE.md:549`), par volume : les cinq
+`<Dialog>`, l'échantillonnage colorimétrique (`App.tsx:870-899`), l'application
+de preset.
+
+**Preuve** : `wc -l src/App.tsx` avant/après, et `npm run test` + `npx tsc
+--noEmit` verts, avec la liste des tests réellement exécutés (un code de sortie
+0 ne prouve pas que le fichier modifié a été touché).
+
+### A3 — AFK — le bloc AUTO-VÉRIFICATION d'`ARCHITECTURE.md` est périmé
+
+R6 (`ARCHITECTURE.md:549`) est à jour (1823, daté). Deux occurrences du chiffre
+mort de 727 survivent : le schéma `ARCHITECTURE.md:67` et le bloc
+AUTO-VÉRIFICATION `ARCHITECTURE.md:589`.
+
+Le fix prescrit est de **ré-exécuter le § 9 en entier** : recompter les lignes
+réelles de TOUS les fichiers cités, pas seulement les deux repérées ici.
+
+**Preuve** : chaque chiffre du § 9 accompagné de la commande qui l'a produit.
+
+---
+
+## Ligne ROBUSTESSE & UI — parallélisable, worktree propre
+
+### U1-bis — AFK — ESLint est posé mais n'est branché à rien
+
+Posé le 2026-07-30 : `eslint.config.js` à la racine, `eslint@^9.39.5`,
+`eslint-plugin-react-hooks`, `eslint-plugin-jsx-a11y`, script `"lint": "eslint ."`.
+Ni `.husky/` ni `.git/hooks/pre-commit` n'existent : le fix U1 demandait
+« branché au pré-commit », cette moitié n'est pas faite.
+
+**Preuve** : `npm run lint` exécuté, sa sortie citée (0 erreur, ou la liste), et
+le pré-commit déclenché sur un commit témoin.
+
+### R2 — AFK — rejet flottant sur « Ouvrir avec »
+
+`App.tsx:446-457` — le `try/catch` couvre le corps du `.then`, pas la promesse
+`getLaunchPath()`. Fix d'une ligne, sans piège :
+`.catch((e) => setError(messageFromUnknown(e)))`.
+
+### R3 — AFK — le chemin « Ouvrir avec » n'a aucun filet
+
+Extraire la résolution du chemin de lancement en **fonction pure**, et la tester
+sur trois cas : `null`, chemin valide, rejet. C'est exactement ce que
+`test/App.test.ts:3-10` dit avoir déjà fait pour le resync du painter de masque.
+
+### R1 — AFK — erreurs GPU récupérables muettes en production
+
+`gpuContext.ts:57-59` n'appelle que `diagnosticLogger`, et `launch.ts:94-97`
+coupe tout hors DEV. Le commentaire `gpuContext.ts:56` renvoie à des
+`pushErrorScope` « ciblés dans renderer.ts » : **cette contre-mesure n'existe
+pas** (un seul match sur 147 fichiers, ce commentaire lui-même).
+
+**Piège nommé** : ne PAS router `onuncapturederror` vers `onFatalError` — une
+erreur récupérable afficherait « le GPU a redémarré » à tort, et le handler peut
+partir en rafale à chaque frame. Le fix correct est un canal séparé et débouncé
+(compteur borné + journal persistant hors `import.meta.env.DEV`).
+
+### U2 — AFK — la ligne de calque n'est pas atteignable au clavier
+
+`LayerPanel.tsx:191-195` — `<li onClick>` sans `tabIndex`, `role` ni `onKeyDown`.
+Conséquence : au clavier seul, la zone de contrôles centralisée par l'ADR-0001
+devient inatteignable, puisqu'elle dépend de la sélection.
+
+Fix : `role="button"` + `tabIndex={0}` + `onKeyDown` (Entrée/Espace) sur le
+`<li>`, ou un `<button>` englobant `layer-panel__row-main`.
+
+### U3 — AFK — le sélecteur SV et la bande de teinte ne sont pas atteignables au clavier
+
+`ColorPickerPanel.tsx:142-162` (canvas SV) et `:171-186` (teinte) :
+`onPointerDown`/`onPointerMove` uniquement. Fix : `tabIndex={0}` +
+`role="slider"` + `aria-valuenow/min/max` + flèches, à l'image de
+`LabeledSlider`.
+
+### U5 — AFK — `eslint-disable` nu sans justification
+
+`Canvas.tsx:78` porte un disable nu, là où `App.tsx:466` suit la convention du
+projet. Le justifier en une ligne, ou le retirer si ESLint ne le réclame plus.
+
+### U4 — HITL léger — dérive à l'ADR-0001 dans `MaskPanel`
+
+`MaskPanel.tsx:241-301` : chaque `<li>` de source porte quatre contrôles répétés,
+là où `LayerPanel` a été migré le 2026-07-29. L'audit accepte **les deux issues**
+— centraliser sur la source sélectionnée, OU écrire dans le fichier pourquoi
+≤4 sources reste sous le seuil de gain. Le silence, lui, n'est pas acceptable.
+
+Défaut proposé si Antoine ne tranche pas : **documenter l'exemption**, moins
+cher et réversible.
+
+---
+
+## Gelés — ne pas toucher dans cette boucle
+
+- **P-A et P-B** (churn d'allocations SAT, `maskTextureResolver.ts:842-866` et
+  `:935-947`). L'audit l'écrit : « à ne pas corriger avant d'avoir mesuré le
+  régime edge-aware », chemin désactivé par défaut (`src/mask/types.ts:18`),
+  aucune fuite. Un correctif ici serait précisément l'« optimisation non fondée »
+  que `rules/audit/performance.md` classe CRITIQUE. Piège de fix documenté en
+  prime.
+- **R4** (frontière fichier Rust non confinée). BASSE, aucun vecteur d'injection
+  (CSP réelle, 0 correspondance d'injection sur `src/`), et le seul confinement
+  correct est un modèle de jetons — un chantier, pas un `if`. Confiner
+  naïvement casserait « Ouvrir avec » de Windows.
+
+---
+
+## Fait, vérifié le 2026-07-31 (ne pas rouvrir)
+
+- **A2** — la formule sRGB dupliquée est déposée : `App.tsx:891-893` appelle
+  `srgbToLinear(pixel[i] / 255)`. Le piège du `/255` n'est pas tombé.
+- **U1** — ESLint est installé et configuré (voir U1-bis pour ce qui manque).
+
+## Introuvable — à décider
+
+L'audit effets annonce **vingt-cinq findings survivants**, mais seuls les
+**cinq HAUTE** sont écrits. `git show --stat 8494b78` ne contient que
+`docs/INDEX.json` et le rapport ; les vingt MOYENNE/BASSE n'existent nulle part
+sur disque, ni dans `.superpowers/sdd/`. Ils sont morts avec le contexte des
+douze agents.
+
+Deux issues : relancer l'audit des effets pour les régénérer (coût d'une passe
+complète), ou acter que le périmètre réel est de cinq findings. À trancher par
+Antoine — la boucle ne peut pas remédier ce qu'elle ne peut pas lire.

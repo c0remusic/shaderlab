@@ -153,8 +153,33 @@ qu'il annonce.
 
 ## 5. Angle mort de l'outillage, à traiter avant tout correctif de pixels
 
-`npm run test:render` est **rouge 6/6 sur master depuis T1**, références jamais
-régénérées (`.claude/learning-log.md:1259`, revérifié). Le seul verrou qui
-regarde l'image PRODUITE ne garde donc rien aujourd'hui : tout correctif touchant
-les pixels partirait sans filet. C'est à réparer AVANT de toucher à un shader,
-pas après.
+> **RECTIFICATION du 2026-07-31, 00:40 — cette section était fausse.** Elle
+> affirmait : « `npm run test:render` est **rouge 6/6 sur master depuis T1**,
+> références jamais régénérées (`.claude/learning-log.md:1259`, revérifié). Le
+> seul verrou qui regarde l'image PRODUITE ne garde donc rien aujourd'hui : tout
+> correctif touchant les pixels partirait sans filet. C'est à réparer AVANT de
+> toucher à un shader, pas après. »
+>
+> **Mesure.** Le harnais a été LANCÉ, sur `master@e0b6cd4`, app en CDP 9222 et
+> Vite du worktree courant sur 1421 : **vert 10/10**, « Aucune régression de
+> rendu », sortie 0. Les dix scénarios passent les trois étages (reproductibilité
+> inter-passes à 0 canal, gate de signal, non-régression).
+>
+> **Témoin de discrimination**, exigé par `scripts/render-check.mjs:89-96` et
+> sans lequel aucun verdict de ce script ne vaut : poids de luminance de
+> `grain.ts:39` porté de `0.2126` à `0.2500`, harnais relancé → **FAIL sur
+> `grain-graine-fixe` et lui seul** (écart max 18 > 1 LSB, sortie 1) ; témoin
+> retiré → vert 10/10, arbre de travail propre. L'instrument attrape donc bien
+> ce qu'il prétend garder, et le vert n'est pas un vert de panne.
+>
+> **Racine de l'erreur.** L'affirmation n'a jamais été mesurée : l'entrée de
+> `.claude/learning-log.md` du 2026-07-31 qui la « reconfirme » l'écrit
+> elle-même — « vérifié cette session en lisant le harnais et son en-tête, non
+> en le relançant ». Une lecture d'en-tête a été prise pour une exécution, puis
+> propagée dans ce rapport, dans `docs/INDEX.json` et dans le message du commit
+> `8494b78`.
+>
+> **Ce que ça change.** Il n'y a pas de barrière : les correctifs de pixels
+> (warp, grain, glow, posterize) ont leur filet dès maintenant. Ce qui reste
+> vrai de la section d'origine, c'est l'exigence de témoin — un verrou vert ne
+> vaut que planté-rougi-retiré, à refaire à chaque correctif.

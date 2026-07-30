@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent, within } from "storybook/test";
 import { MaskPanel } from "./MaskPanel";
+import { assertAccessibleNames } from "./ui/accessible-name.test-support";
 import { defaultLayerMask, createParametricSource } from "../mask/types";
 import type { LayerState } from "../layers/types";
 
@@ -91,6 +92,34 @@ export default meta;
 type Story = StoryObj<typeof MaskPanel>;
 
 export const Default: Story = {};
+
+/** GARDE D'ACCESSIBILITÉ — balayage MESURÉ du panneau Masque, le plus dense en
+ *  contrôles (pistes de source paramétrique, seuil, contour, affinage). Voir
+ *  `ui/accessible-name.test-support.ts`. */
+export const EveryFieldHasAnAccessibleName: Story = {
+  play: async ({ canvasElement }) => {
+    const report = assertAccessibleNames(canvasElement);
+    // Quatorze contrôles : la case d'activation du masque, la source
+    // paramétrique (angle, deux points, adoucissement — piste + champ chacun) et
+    // la case d'inversion de la source.
+    await expect(report.map((entry) => entry.name)).toEqual([
+      "Inverser",
+      "Angle",
+      "Angle (valeur)",
+      "Départ X",
+      "Départ X (valeur)",
+      "Départ Y",
+      "Départ Y (valeur)",
+      "Arrivée X",
+      "Arrivée X (valeur)",
+      "Arrivée Y",
+      "Arrivée Y (valeur)",
+      "Adoucissement",
+      "Adoucissement (valeur)",
+      "Inverser",
+    ]);
+  },
+};
 
 export const NoSources: Story = {
   args: {

@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { PresetPanel } from "./PresetPanel";
+import { assertAccessibleNames } from "./ui/accessible-name.test-support";
 import type { PresetSummary } from "../presets/presetStore";
 
 const threePresets: PresetSummary[] = [
@@ -25,6 +26,16 @@ export default meta;
 type Story = StoryObj<typeof PresetPanel>;
 
 export const Default: Story = {};
+
+/** GARDE D'ACCESSIBILITÉ — balayage MESURÉ du champ de nom de preset, dont le
+ *  nom accessible vient d'un `aria-label` (pas d'étiquette visible dans la
+ *  ligne de sauvegarde). Voir `ui/accessible-name.test-support.ts`. */
+export const EveryFieldHasAnAccessibleName: Story = {
+  play: async ({ canvasElement }) => {
+    const report = assertAccessibleNames(canvasElement);
+    await expect(report.map((entry) => entry.name)).toEqual(["Nom du nouveau preset"]);
+  },
+};
 
 export const EmptyList: Story = {
   args: { summaries: [] },

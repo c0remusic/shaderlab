@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { LabeledSlider } from "./labeled-slider";
+import { assertAccessibleNames } from "./accessible-name.test-support";
 
 const meta: Meta<typeof LabeledSlider> = {
   title: "Components/ui/LabeledSlider",
@@ -80,6 +81,19 @@ export const ArrowKeyChangesValue: Story = {
     // The value readout (text input) reflects the new stepped value (1.20 -> 1.25).
     const readout = canvas.getByLabelText("Intensité (valeur)");
     await expect(readout).not.toHaveValue("1.20");
+  },
+};
+
+/** GARDE D'ACCESSIBILITÉ à la SOURCE — les deux contrôles du composant (la
+ *  piste et son champ de valeur) portent un nom accessible distinct et
+ *  CALCULÉ. La piste tient le sien d'un `aria-labelledby` vers l'étiquette
+ *  visible, le champ d'un `aria-label` suffixé « (valeur) » : deux mécanismes
+ *  différents, donc deux régressions possibles. Voir
+ *  `accessible-name.test-support.ts`. */
+export const BothControlsHaveAnAccessibleName: Story = {
+  play: async ({ canvasElement }) => {
+    const report = assertAccessibleNames(canvasElement);
+    await expect(report.map((entry) => entry.name)).toEqual(["Intensité", "Intensité (valeur)"]);
   },
 };
 

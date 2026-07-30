@@ -1404,3 +1404,82 @@ les deux voies éprouvées sont le DragEvent HTML5 synthétique avec un `File`
 construit sur `read_image_file` via `__TAURI_INTERNALS__`, et le pilotage du
 dialogue natif `#32770` par `WM_SETTEXT` + `BM_CLICK` (surtout pas `SendKeys`,
 qui vise la fenêtre au focus). Protocole complet : ligne de base perf § P0.
+
+## 2026-07-30 — Un audit sans passe de RÉFUTATION produit surtout des faux HAUTE
+
+**Découverte (TTL 6 mois)** : audit pré-release à quatre dimensions (perf,
+architecture, robustesse, React/UI) suivi d'une passe adverse dont la seule
+consigne était de RÉFUTER les findings, biais par défaut « c'est faux ou
+surévalué ». Résultat : **aucun des cinq findings sortis en HAUTE n'a survécu
+à HAUTE** — un descendu à MOYENNE, trois à BASSE, et le cinquième requalifié.
+Motifs récurrents des surévaluations, tous vérifiables en ouvrant un fichier
+de plus : une garde en amont rendait le chemin inatteignable par défaut
+(`edgeAware: false`, `maskTextureResolver.ts:671,680`), une décision
+contradictoire était déjà documentée sur place (`gpuContext.ts:44-47` tranche
+que seul `device.lost` doit atteindre l'utilisateur), une commande Rust ne
+pouvait pas produire le rejet supposé (`get_launch_path` rend `Option<String>`,
+jamais `Result`), ou une erreur de catégorie (les capabilities Tauri v2 ne
+filtrent pas les `#[tauri::command]` maison).
+
+**Plus important que les sévérités** : la passe adverse a rattrapé **deux fix
+activement dangereux** que la première passe recommandait. Importer
+`srgbToLinear` à la place de la copie locale d'`App.tsx` supprimait un `/255`
+en silence — `Math.max(c, 0)` ne l'attrape pas, le pipeline WGSL reste intact,
+aucun test ne rougit, et les échantillons `colorRange` saturent. Et mutualiser
+les buffers uniformes du SAT écrase la valeur d'une passe déjà encodée dans le
+même `GPUCommandEncoder`.
+
+**How to apply** : sur ce repo, un audit ne se rapporte pas après la passe qui
+trouve — il se rapporte après la passe qui réfute. Le prompt de réfutation doit
+exiger que le vérificateur rouvre lui-même chaque fichier cité, et poser
+explicitement la question « le fix proposé est-il correct, ou introduit-il un
+bug ? ». C'est cette dernière question qui a produit les deux prises les plus
+utiles. Corollaire : un finding de performance sur ce projet se vérifie
+D'ABORD contre les gardes d'activation et contre la § « ce qui est propre, à
+ne pas toucher » de la ligne de base — un coût non mesuré sur un chemin
+désactivé par défaut n'est pas un finding.
+
+## 2026-07-30 — ESLint n'a jamais existé dans ce repo, alors que le code écrivait déjà pour lui
+
+**Découverte (TTL 6 mois)** : `src/App.tsx` et `src/components/Canvas.tsx`
+portaient des `// eslint-disable-next-line react-hooks/exhaustive-deps` — dont
+un avec justification rédigée — alors qu'aucun `.eslintrc*`, aucun
+`eslint.config.*` et aucune dépendance `eslint` n'existaient. Les directives
+étaient écrites pour un outil absent, donc sans effet et sans vérification.
+Posé le 2026-07-30 (`eslint.config.js`, commit e18a940) : flat config,
+`eslint@9` + `typescript-eslint` + `react-hooks@7` + `jsx-a11y`, script
+`npm run lint`. **`eslint@10` est impossible aujourd'hui** :
+`eslint-plugin-jsx-a11y` plafonne à 6.10.2 dont le peer est `^9` — épinglé
+`^9` plutôt que forcé en `--legacy-peer-deps`, à rouvrir quand jsx-a11y
+publiera.
+
+État de départ mesuré : **32 erreurs, 11 avertissements sur 155 fichiers**, le
+gros du volume venant des règles récentes de `react-hooks@7` (`refs`,
+`set-state-in-effect`, `immutability`) bien plus sévères que la v4/v5 que ces
+disables visaient. Une exception posée sur `src/**/*.stories.tsx` : les trois
+`rules-of-hooks` qu'ESLint y lève sont des `useState` dans une propriété
+`render:` de Storybook — la fonction EST le composant, elle a juste un nom en
+minuscule. **How to apply** : un linter qui démarre avec des erreurs fausses
+s'apprend à être ignoré ; vérifier chaque famille d'erreurs du premier run
+avant de la traiter comme de la dette, et ne jamais faire baisser le compte en
+désactivant une règle qui mord vraiment.
+
+## 2026-07-30 — Le carré saturation/luminosité n'a pas de rôle ARIA, il a deux contrôles natifs
+
+**Découverte (TTL 6 mois)** : rendre le sélecteur de couleur pilotable au
+clavier (`ColorPickerPanel.tsx`) a échoué sur trois approches avant la bonne,
+chacune refusée pour une raison différente et vérifiable. `role="slider"` sur
+le carré MENT : il pilote deux valeurs (saturation ET luminosité) et un seul
+`aria-valuenow` en cacherait une. `role="application"` est classé non
+interactif par `jsx-a11y`, donc invalide avec `tabIndex`. Et un `<canvas>`
+rendu focusable DEVIENT interactif — lui coller un rôle non interactif est
+refusé pour la même raison (`no-interactive-element-to-noninteractive-role`).
+
+Solution retenue : **deux `<input type="range">` natifs en `sr-only`** dans
+l'enveloppe, plus un `:focus-within` sur celle-ci pour que le focus reste
+visible (un focus invisible est pire qu'un focus absent). Le navigateur
+fournit nom, valeur, pas et flèches — aucun ARIA inventé. La bande de teinte,
+elle, est unidimensionnelle : `role="slider"` s'y applique sans compromis.
+**How to apply** : sur ce repo, avant d'inventer un rôle ARIA pour un contrôle
+graphique, chercher le contrôle natif équivalent — `sr-only` est déjà en usage
+dans le projet (`number-field.tsx`, `select.tsx`), la voie est établie.

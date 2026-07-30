@@ -14,6 +14,7 @@ import {
   type CanvasFormatRequest,
 } from "./layers/canvasFormat";
 import { MAX_CANVAS_PIXELS } from "./render/limits";
+import { FrameScheduler } from "./render/frameScheduler";
 import { changeLayerEffect } from "./layers/changeLayerEffect";
 import { documentDisplayName } from "./layers/documentName";
 import { duplicateLayer } from "./layers/duplicateLayer";
@@ -212,6 +213,39 @@ export default function App() {
     setLayers(sessionRef.current.displayLayers());
     setSelectedId(sessionRef.current.selectedId());
   }, []);
+
+  // COALESCING DE LA SYNCHRONISATION REACT (2026-07-30, profil CPU sur la vraie
+  // fenêtre). Les chemins vivants d'un geste (drag d'image, drag de slider)
+  // appelaient `syncSession()` sur CHAQUE `pointermove` brut, là où la ligne
+  // voisine — `requestRender` — était déjà coalescée par son propre
+  // `FrameScheduler` : le GPU se protégeait, React non. Mesuré : 21,9 ms de CPU
+  // par move au drag d'image, 34,2 ms au drag de slider, un rendu de l'arbre
+  // entier par échantillon, aucun coalescing d'événements (200 événements
+  // absorbés en 3562 ms là où la souris les produit en 1600 ms — la file
+  // grossit 2,2x plus vite que le temps réel).
+  //
+  // Le motif est celui de `Canvas.schedulePaint`/`endStroke` (peindre coûte
+  // 7,9 ms/move précisément parce qu'il l'applique déjà), exprimé avec la
+  // classe que le repo a pour ça plutôt qu'un second rAF manuel.
+  //
+  // Ce qui reste SYNCHRONE, délibérément : `syncSession` lui-même (sélection,
+  // commit, ouverture de document, undo/redo) — un clic, une sélection ou un
+  // panneau qui s'ouvre ne doit pas attendre une frame. Seuls les chemins de
+  // GESTE passent par `scheduleSync`.
+  //
+  // Aucune valeur ne peut être perdue : on ne `cancel()` JAMAIS en cours de
+  // session (seul le démontage annule), donc une frame en attente finit
+  // toujours par s'exécuter, et elle relit l'état FRAIS de `sessionRef` au
+  // moment où elle s'exécute. `flushSync` en fin de geste ne fait qu'avancer
+  // cette exécution avant le commit, pour que les deux `setState` tombent dans
+  // le même lot React.
+  const syncSchedulerRef = useRef<FrameScheduler<void> | null>(null);
+  if (syncSchedulerRef.current === null) {
+    syncSchedulerRef.current = new FrameScheduler<void>(() => syncSession());
+  }
+  const scheduleSync = useCallback(() => syncSchedulerRef.current!.request(undefined), []);
+  const flushSync = useCallback(() => syncSchedulerRef.current!.flush(), []);
+  useEffect(() => () => syncSchedulerRef.current?.cancel(), []);
 
   const selectLayer = useCallback((id: string | null) => {
     sessionRef.current.select(id);
@@ -474,7 +508,8 @@ export default function App() {
     commit,
     currentStack,
     selectLayer,
-    syncSession,
+    scheduleSync,
+    flushSync,
     setError,
     selectedId,
     layers,
@@ -648,15 +683,25 @@ export default function App() {
     }
     const full = sessionRef.current.layers().map((l) => (l.id === id ? { ...l, params: { ...l.params, ...params } } : l));
     sessionRef.current.replaceLiveLayers(full);
-    syncSession();
+    // Coalescé sur rAF — voir `syncSchedulerRef`. Geste le plus cher mesuré
+    // (34,2 ms de CPU par `pointermove`, 13 tâches longues pour un seul
+    // glissement de curseur).
+    scheduleSync();
     rendererRef.current?.requestRender(full);
   }
 
+  /** Fin d'interaction pour TOUS les curseurs vivants de ce fichier (params
+   *  d'effet, opacité, params de source de masque, affinage de bord, picker de
+   *  couleur) : ils commitent tous ici. C'est donc le seul point où le flush
+   *  doit être posé. */
   const handleParamCommit = useCallback(() => {
+    // AVANT la garde : même raison que `handleTransformCommit` — la dernière
+    // valeur du geste ne doit jamais rester en attente derrière un commit.
+    flushSync();
     if (!paramDirtyRef.current) return;
     paramDirtyRef.current = false;
     commit(currentStack());
-  }, [commit, currentStack]);
+  }, [flushSync, commit, currentStack]);
 
   const handleOpacityChange = useCallback(
     (id: string, opacity: number) => {
@@ -668,10 +713,10 @@ export default function App() {
       if (previous && hasValueChanged(previous.opacity, opacity)) paramDirtyRef.current = true;
       const full = sessionRef.current.layers().map((l) => (l.id === id ? { ...l, opacity } : l));
       sessionRef.current.replaceLiveLayers(full);
-      syncSession();
+      scheduleSync(); // curseur vivant -> coalescé, voir `syncSchedulerRef`
       rendererRef.current?.requestRender(full);
     },
-    [syncSession]
+    [scheduleSync]
   );
 
   const handleBlendModeChange = useCallback(
@@ -748,7 +793,7 @@ export default function App() {
     const stack = currentStack();
     stack.updateMaskSourceParams(layerId, sourceId, params);
     sessionRef.current.replaceLiveLayers(stack.layers);
-    syncSession();
+    scheduleSync(); // curseur vivant -> coalescé, voir `syncSchedulerRef`
     rendererRef.current?.requestRender(stack.layers);
   }
 
@@ -796,7 +841,7 @@ export default function App() {
     const stack = currentStack();
     stack.updateRefineEdge(layerId, refineEdge);
     sessionRef.current.replaceLiveLayers(stack.layers);
-    syncSession();
+    scheduleSync(); // curseur vivant -> coalescé, voir `syncSchedulerRef`
     rendererRef.current?.requestRender(stack.layers);
   }
 

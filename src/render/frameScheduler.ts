@@ -27,6 +27,26 @@ export class FrameScheduler<T> {
     });
   }
 
+  /**
+   * Exécute IMMÉDIATEMENT le payload en attente, et annule la frame qui était
+   * programmée pour lui. No-op quand rien n'attend.
+   *
+   * C'est la sortie de geste : `cancel()` JETTE le dernier payload, donc
+   * l'appeler sur un `pointerup` perdrait la dernière position du pointeur —
+   * l'état coalescé resterait sur l'avant-dernier échantillon pendant que le
+   * reste du monde (rendu GPU, session) a déjà vu le dernier. Même distinction
+   * que `Canvas.endStroke` (flush volontaire en fin de trait) vs son cleanup de
+   * démontage (annulation sans flush).
+   */
+  flush(): void {
+    if (this.rafId === null) return;
+    this.caf(this.rafId);
+    this.rafId = null;
+    const latest = this.pending as T;
+    this.pending = null;
+    this.run(latest);
+  }
+
   cancel(): void {
     if (this.rafId === null) return;
     this.caf(this.rafId);

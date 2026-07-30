@@ -28,4 +28,44 @@ describe("toDisplayLayers", () => {
     // original untouched
     expect(stack.layers[0].mask.sources[0].raster!.length).toBe(3);
   });
+
+  // Identité du TABLEAU (2026-07-30). Avant le fix, `layers.map(...)` rendait un
+  // tableau neuf à chaque appel : `setLayers()` voyait toujours une valeur
+  // différente, donc React re-rendait l'arbre entier même quand rien n'avait
+  // bougé, et toute mémoïsation en aval était inopérante par construction.
+  it("rend le MÊME tableau sur deux appels successifs sans changement (sans raster)", () => {
+    const stack = new LayerStack();
+    stack.addLayer("glow");
+    expect(toDisplayLayers(stack.layers)).toBe(toDisplayLayers(stack.layers));
+  });
+
+  it("rend le MÊME tableau sur deux appels successifs sans changement (avec raster)", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    stack.updateBrushMask(id, new Uint8Array([1, 2, 3]));
+    const first = toDisplayLayers(stack.layers);
+    const second = toDisplayLayers(stack.layers);
+    expect(second).toBe(first);
+    // et le vidage reste bien fait (la stabilité ne doit pas se payer en
+    // laissant entrer le raster dans le state React — invariant e3c7584)
+    expect(second[0].mask.sources[0].raster!.length).toBe(0);
+  });
+
+  it("rend un tableau NEUF quand un seul calque change d'identité, en préservant celle des autres", () => {
+    const stack = new LayerStack();
+    const first = stack.addLayer("glow");
+    stack.addLayer("grain");
+    stack.updateBrushMask(first, new Uint8Array([1, 2, 3]));
+    const before = toDisplayLayers(stack.layers);
+
+    // Exactement ce que fait un chemin vivant de drag (App.handleParamChange) :
+    // un objet frais pour le seul calque touché, les autres par référence.
+    const next = stack.layers.map((l) => (l.id === first ? { ...l, opacity: 0.5 } : l));
+    const after = toDisplayLayers(next);
+
+    expect(after).not.toBe(before);
+    expect(after[0]).not.toBe(before[0]);
+    expect(after[0].opacity).toBe(0.5);
+    expect(after[1]).toBe(before[1]); // le calque intact garde son identité
+  });
 });

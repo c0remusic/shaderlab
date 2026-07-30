@@ -87,37 +87,27 @@ async function encodeJpeg(pixels: Uint8Array, width: number, height: number): Pr
 }
 
 /**
- * Decides the write target for an export, enforcing the project's
- * copy-vs-overwrite safety rule:
+ * Decides the write target for an export, enforcing the project's copy-only
+ * safety rule : ALWAYS returns a fresh non-colliding path derived from
+ * `sourcePath`. Le fichier d'origine n'est JAMAIS écrasé.
  *
- * - Normal manual export (image opened via drag&drop or a file picker,
- *   `isLaunchFile: false`): ALWAYS returns a fresh non-colliding path via
- *   `buildCopyPath`. The original file is never touched.
- * - Lightroom round-trip (app launched with a CLI arg, `isLaunchFile: true`
- *   because the open image's path came from `getLaunchPath()`): returns
- *   `sourcePath` unchanged, overwriting it in place. This is intentional —
- *   Lightroom already created its own temp copy upstream before invoking
- *   this app, so overwriting that copy is the correct round-trip contract,
- *   not a violation of the copy-only rule.
- *
- * Callers must derive `isLaunchFile` from whether the currently open image's
- * path came from `getLaunchPath()`, not by comparing strings — a drag&dropped
- * file could coincidentally share a path with a prior launch file across
- * separate opens, so the flag must be tracked alongside the open, not
- * recomputed from the path itself.
+ * Il exista une exception — le round-trip Lightroom, où l'app écrasait en
+ * place le fichier reçu en argument de lancement, parce que Lightroom en avait
+ * déjà fait une copie temporaire en amont. Elle est déposée
+ * ([ADR-0002](../../.claude/decisions/ADR-0002-abandon-round-trip-lightroom.md))
+ * et avec elle le paramètre `isLaunchFile` qui la portait : la règle
+ * copie-seulement n'a plus de cas particulier, donc plus rien à passer pour
+ * l'obtenir.
  *
  * Checks real disk state via `availability`, not an in-memory set the caller
  * has to keep synced — a candidate that looked free a moment ago (or that no
  * caller ever recorded) is exactly the "manual export overwrites an existing
- * file" bug this replaces. Never probes disk for a launch-file export: the
- * round-trip contract overwrites `sourcePath` unconditionally.
+ * file" bug this replaces.
  */
 export async function resolveExportTargetAsync(
   sourcePath: string,
-  isLaunchFile: boolean,
   availability: PathAvailability
 ): Promise<string> {
-  if (isLaunchFile) return sourcePath;
   for (const candidate of candidateCopyPaths(sourcePath)) {
     if (!(await availability.exists(candidate))) return candidate;
   }
@@ -141,9 +131,10 @@ function* candidateDefaultExportPaths(basePath: string): Generator<string> {
  * `resolveExportTargetAsync`, essaie le nom nu en premier — sûr ici car le
  * dossier dédié est distinct du dossier de la photo source : une collision
  * ne peut survenir qu'avec un export précédent, jamais avec l'original.
- * `resolveExportTargetAsync` reste le résolveur du round-trip Lightroom ET
- * du bouton "Exporter sous..." (comportement conservateur pour un dossier
- * arbitraire, y compris potentiellement le dossier source lui-même).
+ * `resolveExportTargetAsync` reste le résolveur du bouton "Exporter sous..."
+ * (comportement conservateur pour un dossier arbitraire, y compris
+ * potentiellement le dossier source lui-même). Il servait AUSSI le round-trip
+ * Lightroom, déposé — voir son commentaire.
  */
 export async function resolveDefaultExportTarget(
   basePath: string,
@@ -159,9 +150,10 @@ export async function resolveDefaultExportTarget(
 
 /**
  * Renders the current layer stack and writes the result to `targetPath`.
- * Caller decides `targetPath`: a fresh copy path (manual export, via
- * buildCopyPath) or the exact Lightroom launch path (round-trip export,
- * per the design doc's contract — overwrite in place).
+ * Caller decides `targetPath`, and since the Lightroom round-trip was dropped
+ * (ADR-0002) there is only one kind left: a fresh, non-colliding path derived
+ * from the source (`resolveExportTargetAsync` / `resolveDefaultExportTarget`).
+ * No caller can ask for an in-place overwrite any more.
  *
  * Uses `renderer.exportFrame()`, NOT `render()` + a raw ping-pong readback.
  * `render()` writes its final pass straight to the canvas, never into the

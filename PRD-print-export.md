@@ -6,8 +6,15 @@
 
 ## Contexte
 
-shaderlab a un pipeline de rendu 8-bit sRGB et un seul export (JPEG écrasé,
-usage round-trip Lightroom). Antoine veut à terme vendre des tirages physiques
+> **Mise à jour 2026-07-30.** Ce PRD a été écrit quand l'export JPEG servait le
+> round-trip Lightroom. Celui-ci est déposé (ADR-0002, code retiré) : l'export
+> JPEG existe toujours et reste inchangé, mais il écrit désormais TOUJOURS une
+> copie, jamais par-dessus la source. Les contraintes de non-régression
+> ci-dessous portent donc sur « l'export JPEG existant », pas sur un contrat
+> d'écrasement — elles restent valables, leur justification change.
+
+shaderlab a un pipeline de rendu 8-bit sRGB et un seul export (JPEG, copie dans
+un dossier d'export). Antoine veut à terme vendre des tirages physiques
 de ses œuvres. Le tirage est réalisé par un **labo/imprimeur externe**, pas par
 Antoine lui-même. Le pipeline 8-bit actuel n'est pas armé pour ça : les effets
 qualité (bloom, halation, courbes de contraste) produisent des dégradés larges
@@ -63,8 +70,8 @@ vente en tirage physique.
   rouvrir si Antoine passe un jour à l'impression perso.
 - **Motion blur / color grade** (nouveaux effets créatifs) — différés,
   cadrage séparé prévu.
-- **Modification du flow round-trip Lightroom existant** — l'export JPEG
-  actuel n'est ni remplacé ni touché.
+- **Modification du flow d'export JPEG existant** — il n'est ni remplacé ni
+  touché.
 
 ## Contraintes d'inacceptable
 
@@ -72,7 +79,7 @@ vente en tirage physique.
 - Rupture du pipeline linéaire strict / conversion sRGB↔linéaire automatique
   par le format (`CLAUDE.md` § Stack) — le nouveau chemin 16-bit reste sur ce
   principe, il ne le contourne pas.
-- Régression du round-trip Lightroom existant (chemin JPEG inchangé).
+- Régression de l'export JPEG existant (chemin JPEG inchangé).
 
 **Inacceptable (feature print)** :
 - **Banding visible** sur un dégradé produit par bloom/halation/courbe sur le
@@ -110,8 +117,8 @@ vente en tirage physique.
   valeur sRGB brute mal étiquetée).
 - Avant de lancer l'export, en saisissant une taille de tirage cible (ex.
   A3), le DPI résultant s'affiche immédiatement.
-- L'export JPEG existant (« Exporter sous », round-trip Lightroom) continue
-  de fonctionner sans changement de comportement observable.
+- L'export JPEG existant (« Exporter » et « Exporter sous ») continue de
+  fonctionner sans changement de comportement observable.
 
 ## Annexe — Choix techniques déduits (à valider)
 
@@ -133,8 +140,9 @@ vente en tirage physique.
   est une donnée dérivée (résolution ÷ taille physique visée), jamais un
   paramètre d'export qui déclencherait un upscale.
 - **Second point d'entrée d'export** plutôt qu'un flag sur l'export existant
-  — isole tout risque de régression sur le round-trip Lightroom, qui dépend
-  d'un comportement JPEG précis.
+  — isole tout risque de régression sur le chemin JPEG, dont le comportement
+  (copie vers le dossier d'export, jamais d'écrasement) est déjà verrouillé
+  par des tests.
 
 ---
 

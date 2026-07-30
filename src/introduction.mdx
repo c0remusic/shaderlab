@@ -5,14 +5,14 @@ import { Meta, Title, Subtitle } from '@storybook/addon-docs/blocks';
 
 <Title>shaderlab</Title>
 
-<Subtitle>Effets shader temps réel en calques pour photos JPEG, avec round-trip Lightroom</Subtitle>
+<Subtitle>Effets shader temps réel en calques pour photos JPEG</Subtitle>
 
 App desktop Windows (Tauri v2 + React 19 + WebGPU/WGSL brut) pour appliquer des
 effets visuels type "shader" empilables en calques (glow, chromatic bleed, warp,
 grain) sur des photos JPEG, avec masque au pinceau par calque et undo/redo en
-session. Fait aussi office d'éditeur externe Lightroom (round-trip type Dehancer :
-Lightroom exporte une copie, lance l'app avec le chemin en argument, l'app écrase
-ce même fichier, Lightroom réimporte).
+session. Éditeur autonome : le round-trip Lightroom d'origine est déposé
+(ADR-0002) — un fichier peut toujours être ouvert par argument de lancement
+(« Ouvrir avec » de Windows), mais l'export écrit toujours une copie.
 
 ## Explorer cette Storybook
 

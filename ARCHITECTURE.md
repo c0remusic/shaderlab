@@ -428,13 +428,33 @@ resté immobile). Deux réponses possibles :
 À trancher au PRD/`brainstorming`, pas ici — mais **ne pas le découvrir en
 implémentation**.
 
-### 4.6 Round-trip Lightroom
+### 4.6 Round-trip Lightroom — DÉPOSÉ (2026-07-30)
 
-Prédicat pur sur `LayerState[]` (« au moins un calque porte `imageSource` ») qui
-bascule l'export vers « Exporter sous », **avec message explicite**. Le point de
-décision existe déjà et est centralisé (le drapeau `isLaunchFile` gouverne seul
-écrasement vs copie, cf. `exportImage.ts:57-82`) : l'ajout est un ET logique au
-même endroit, pas une nouvelle branche disséminée.
+Cette section décrivait le point de bascule écrasement-vs-copie de l'export : un
+drapeau `isLaunchFile`, posé quand le document venait d'un argument de
+lancement, croisé avec un prédicat sur `LayerState[]` pour désactiver le
+round-trip sur un composite.
+
+Le mécanisme est **retiré**, décision [ADR-0002](.claude/decisions/ADR-0002-abandon-round-trip-lightroom.md).
+Ce qu'il faut en retenir aujourd'hui :
+
+- **L'export n'a plus qu'un seul mode.** `resolveExportTargetAsync` rend
+  TOUJOURS un chemin libre dérivé de la source (`export/exportImage.ts`) ; il
+  n'a plus de paramètre pour demander autre chose. La règle copie-seulement n'a
+  plus de cas particulier, donc plus de point de bascule à centraliser.
+- **Ouvrir un fichier passé en argument survit** (`get_launch_path`,
+  `src/launch.ts`) — c'est « Ouvrir avec » de Windows, une affordance de
+  n'importe quelle app de bureau. Ce qui est déposé est la sémantique
+  d'ÉCRASEMENT de ce fichier, pas la capacité de l'ouvrir. Un document ouvert
+  ainsi est un document comme un autre.
+- **`hasImportedPhotoLayer` (`src/layers/photoLayer.ts`) NE part pas avec.** Il
+  est né pour ce croisement, mais il a acquis un second appelant depuis, et
+  celui-ci n'a rien à voir avec l'export : `presets/presetDocument.ts:capture`
+  décide par ce prédicat quand l'exclusion des calques photo d'un preset mérite
+  d'être signalée (T5, design 2026-07-28 §2.3). Le prédicat porte la définition
+  « ce document est-il encore la retouche de CETTE photo-là ? », qui survit à
+  l'export ; ses tests aussi. Le supprimer en croyant achever la dépose
+  casserait la frontière de l'avis des presets.
 
 ### 4.7 UI transform
 

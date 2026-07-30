@@ -1309,3 +1309,39 @@ sœurs dans `presentPass.ts`, pour que « cette aide, dans le fichier exporté �
 reste inexprimable. Et vérifier au passage ce que le résultat de frame alimente
 en aval : le correctif a dû garder `lastOverlayFrame` réservé au chemin canvas,
 sinon un export figeait l'animation du contour jusqu'au rendu d'écran suivant.
+
+## 2026-07-30 — le round-trip Lightroom portait deux capacités sous un seul nom
+
+**Correction (projet)** : « le round-trip » désignait deux choses distinctes
+dans le code, et une seule a été retirée. Ce qui est parti : la sémantique
+d'ÉCRASEMENT du fichier de lancement (`isLaunchFile`, `roundTripActive`, la
+bascule à deux modes de `performExport`, le paramètre `isLaunchFile` de
+`resolveExportTargetAsync`). Ce qui RESTE : `get_launch_path`
+(`src/launch.ts`, `src-tauri/src/lib.rs`) et l'ouverture d'un fichier passé en
+argument de lancement — « Ouvrir avec » de Windows, double-clic sur un JPEG
+associé.
+**Why** : le commentaire du code Rust nommait les deux usages
+(« External Editing de Lightroom, ou "Ouvrir avec" Windows ») là où l'ADR-0002
+n'en retire qu'un. Tout supprimer aurait retiré en silence une affordance de
+n'importe quelle app de bureau, sous couvert d'un ADR qui n'en parle pas.
+**How to apply** : ne pas « finir le nettoyage » en voyant survivre
+`get_launch_path` — sa survie est une décision, pas un oubli. Elle est écrite
+dans `CLAUDE.md`/`AGENTS.md` § Quoi, dans `ARCHITECTURE.md` §4.6, et dans
+`CONTEXT.md` sous une entrée dédiée (« Ouverture par argument de lancement »)
+précisément pour que la question ne se repose pas.
+
+Corollaire, et c'est la vraie leçon de la tranche : `hasImportedPhotoLayer` a
+failli partir avec. Le premier passage l'a supprimé sur la foi d'un « son seul
+appelant était `roundTripActive` » qui était EXACT sur sa base de branche
+(`94c2a6a`) et FAUX au moment de le rebaser — `presets/presetDocument.ts:35`
+l'avait repris entre-temps (T5) pour décider si l'exclusion des calques photo
+d'un preset mérite d'être signalée. Le prédicat est donc VIVANT, avec ses
+quatre tests. Ne pas le supprimer en croyant achever la dépose : il ne sert
+plus l'export, il sert les presets, et son commentaire le dit.
+
+**Règle qui en sort, plus large que ce prédicat** : dans une dépose, la phrase
+« X n'a plus d'appelant, il part avec » est une mesure DATÉE, pas un fait. Elle
+se remesure sur la base réelle du rebase (`git grep` du symbole), jamais
+recopiée depuis le raisonnement d'origine — un symbole qui n'avait qu'un
+appelant hier peut en avoir gagné un depuis, et le second n'a aucune raison
+d'avoir un rapport avec le premier.

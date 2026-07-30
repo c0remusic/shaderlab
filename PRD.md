@@ -9,14 +9,25 @@
 > double exposure). Prochaine étape : `superpowers:brainstorming` (le COMMENT)
 > puis l'agent `architect` (`ARCHITECTURE.md`), à lancer quand ce document est
 > validé.
+>
+> **Mise à jour 2026-07-30 — round-trip Lightroom déposé.** Ce PRD a été cadré
+> quand shaderlab servait d'éditeur externe Lightroom. Le round-trip est
+> abandonné ([ADR-0002](.claude/decisions/ADR-0002-abandon-round-trip-lightroom.md),
+> code retiré le 2026-07-30) : shaderlab est un éditeur autonome et tout export
+> écrit une copie. Ce qui SURVIT est l'ouverture d'un fichier passé en argument
+> de lancement (« Ouvrir avec » de Windows) — ouvrir, pas écraser. Les passages
+> ci-dessous qui nommaient le round-trip sont corrigés sur place ; les
+> contraintes qu'il imposait (« pas de round-trip avec un double exposure »)
+> tombent d'elles-mêmes, sans rien changer aux exigences des features.
 
 ## Contexte
 
 shaderlab est une app desktop Windows (Tauri v2 + React/TS + WebGPU/WGSL brut)
 d'effets visuels shader temps réel sur photos JPEG, éditée en calques
-non-destructifs avec masque au pinceau par calque. Elle sert aussi d'éditeur
-externe Lightroom (round-trip : Lightroom exporte une copie → shaderlab
-l'écrase → Lightroom réimporte). Née d'une frustration : aucun plugin
+non-destructifs avec masque au pinceau par calque. Elle a été cadrée comme
+éditeur externe Lightroom (round-trip : Lightroom exporte une copie → shaderlab
+l'écrase → Lightroom réimporte) ; ce positionnement est abandonné (ADR-0002,
+voir le bandeau) et shaderlab est un éditeur autonome. Née d'une frustration : aucun plugin
 Lightroom natif ne peut faire d'effets shader GPU (pipeline RAW fermé).
 Positionnement outil perso vs produit partageable : pas encore tranché,
 faisabilité d'abord (voir `CLAUDE.md`).
@@ -45,9 +56,10 @@ non-destructif existant.
 - Quand un calque a un masque → celui-ci dose l'effet pixel par pixel
   (`opacity * maskValue`), peint au pinceau à falloff radial, jamais une
   modification de l'image elle-même.
-- Quand la photo de lancement provient de Lightroom → shaderlab écrase ce même
-  fichier à l'export (round-trip, hypothèse à valider empiriquement en usage
-  réel).
+- Quand une photo est ouverte par argument de lancement (« Ouvrir avec » de
+  Windows) → shaderlab l'ouvre comme n'importe quel autre document, et son
+  export écrit une copie dans le dossier d'export. Il n'écrase JAMAIS le
+  fichier reçu (l'écrasement était le round-trip Lightroom, déposé — ADR-0002).
 - Quand un mode de fusion est appliqué → il combine la sortie du calque avec
   le résultat des calques du dessous (11 modes réels, pipeline linéaire strict
   sRGB, jamais de gamma manuel).
@@ -111,8 +123,10 @@ non-destructif existant.
   > sécurité VRAM non encore mesurée, critère de révision écrit sur la
   > constante. Les mentions « 2 photos » ci-dessous (hors-scope, risques,
   > critères de fin) se lisent avec cet amendement.
-- Le round-trip Lightroom n'est PAS supporté en présence d'un double exposure
-  en v1 — utilisable seulement en mode libre (sans fichier de lancement).
+- ~~Le round-trip Lightroom n'est PAS supporté en présence d'un double
+  exposure en v1~~ — contrainte SANS OBJET depuis la dépose du round-trip
+  (ADR-0002) : tout export est une copie, quel que soit le contenu de la pile.
+  Le double exposure n'a plus rien à désactiver.
 
 ## Hors-scope explicite
 
@@ -120,8 +134,9 @@ non-destructif existant.
   bibliothèque de presets fournis par défaut avec l'app (seulement ceux créés
   par l'utilisateur).
 - **Double exposure** : plus de 2 photos sources ; segmentation automatique du
-  sujet (voir différé nommé dans `CONTEXT.md` — fast-follow, pas ce PRD) ;
-  round-trip Lightroom en présence d'un double exposure.
+  sujet (voir différé nommé dans `CONTEXT.md` — fast-follow, pas ce PRD).
+  L'exclusion « round-trip Lightroom en présence d'un double exposure » qui
+  figurait ici est sans objet depuis la dépose du round-trip (ADR-0002).
 - Unifier visuellement shaderlab avec Sift ou Tuple, migrer Sift, toucher
   Tuple — inchangé depuis `docs/prd-shadcn-migration.md`, toujours hors-scope.
 
@@ -158,8 +173,9 @@ vérifié visuellement (Storybook + app réelle) et par tests sur la logique pur
 
 **Double exposure** : import d'une 2e photo, transform manuel fonctionnel,
 masque peint isolant le sujet, effets/blend applicables sur le calque de
-photo, limite 2 photos respectée, absence de round-trip Lightroom confirmée
-en présence de la feature — vérifié visuellement (fenêtre réelle, CDP —
+photo, limite 2 photos respectée (le critère « absence de round-trip Lightroom
+en présence de la feature » est tombé avec la dépose du round-trip, ADR-0002 :
+il n'y a plus d'écrasement à constater absent) — vérifié visuellement (fenêtre réelle, CDP —
 canvas WebGPU non capturable par Playwright, cf. `CLAUDE.md` § Moyen de
 preuve) sur au moins une composition réelle bout en bout.
 

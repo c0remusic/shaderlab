@@ -105,24 +105,35 @@ export function photoGuideKey(layer: LayerState | undefined): string | null {
 
 /**
  * Prédicat pur : le document contient-il une photo AUTRE que sa photo
- * d'ouverture ? Désactive le round-trip Lightroom pour cet export
- * (ARCHITECTURE.md §4.6, PRD "Double exposure"). Vit ici (pas dans
- * export/exportImage.ts) pour rester une seule source de vérité réutilisée par
- * la limite d'import ET par la bascule d'export.
+ * d'ouverture ? Autrement dit : « ce document est-il encore la retouche de
+ * CETTE photo-là ? ». Forme retenue : exactement une photo, et c'est
+ * `layers[0]`.
+ *
+ * SON PREMIER APPELANT A DISPARU. Il est né en garde du round-trip Lightroom
+ * (ARCHITECTURE.md §4.6, PRD "Double exposure") : écraser en place le fichier
+ * reçu de Lightroom n'était légitime que sur un document non composite. Le
+ * round-trip est déposé
+ * ([ADR-0002](../../.claude/decisions/ADR-0002-abandon-round-trip-lightroom.md)),
+ * `roundTripActive` avec lui, et l'export n'a plus aucun cas particulier.
+ *
+ * IL SURVIT PARCE QU'UN SECOND APPELANT S'EN SERT, arrivé après lui et sans
+ * rapport avec l'export : `presets/presetDocument.ts:capture` (T5, design
+ * 2026-07-28 §2.3) décide par ce prédicat QUAND l'exclusion des calques photo
+ * d'un preset mérite d'être signalée. Depuis que la photo d'ouverture est un
+ * calque, un avis déclenché sur « le document contient une photo » se
+ * déclencherait toujours ; la frontière voulue est « une photo AUTRE que celle
+ * d'ouverture », ce que ce prédicat dit déjà. Ce n'est donc pas du code mort
+ * laissé derrière la dépose : le supprimer casserait la frontière de l'avis.
  *
  * REDÉFINI en tranche T1 (design 2026-07-28 §2.8). Il s'écrivait
  * `countPhotoLayers(layers) > 0` et s'appelait `hasPhotoLayer` : depuis que la
  * photo de fond est un calque, cette forme est TOUJOURS vraie sur un document
- * ouvert, donc `roundTripActive` serait toujours faux — le prédicat serait
- * devenu un mensonge silencieux plutôt qu'une décision.
+ * ouvert — le prédicat serait devenu un mensonge silencieux plutôt qu'une
+ * décision.
  *
- * La forme retenue — « exactement une photo, et c'est `layers[0]` » — est ce
- * que le garde protégeait réellement : écraser le fichier exporté par
- * Lightroom n'est légitime que si le document est encore une retouche de CETTE
- * photo-là. Dès qu'une photo est importée, que le fond est supprimé, ou qu'un
- * autre calque photo est passé sous lui, l'export est un composite : copie,
- * jamais écrasement. Un document sans aucun calque (pile vidée à la main) n'a
- * plus de photo d'ouverture identifiable — donc plus de round-trip non plus.
+ * Cas limites, inchangés par la dépose : une photo importée, un fond supprimé,
+ * ou un autre calque photo passé sous lui rendent VRAI. Une pile entièrement
+ * vidée aussi — il n'y a plus de photo d'ouverture identifiable.
  */
 export function hasImportedPhotoLayer(layers: LayerState[]): boolean {
   if (layers.length === 0) return true;

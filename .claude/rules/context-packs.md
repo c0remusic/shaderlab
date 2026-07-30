@@ -15,9 +15,11 @@ Référencé par `CLAUDE.md` § Méthode.
 - `design.md` (section UI).
 - `src/components/*` · `src/App.tsx` · `src/layers/*`.
 
-## Pack intégration Lightroom / export
-- `design.md` (section Contrat de round-trip).
+## Pack export / IPC fichier
 - `src/launch.ts` · `src-tauri/src/lib.rs` · `src/export/*`.
+- Le round-trip Lightroom que ce pack servait est déposé (ADR-0002, code retiré
+  le 2026-07-30) : ne plus charger la section « Contrat de round-trip » de
+  `design.md`, elle décrit un mécanisme qui n'existe plus.
 
 ## Reprise de session
 - `.superpowers/sdd/progress.md` (ledger) + ce fichier + `docs/INDEX.json`.

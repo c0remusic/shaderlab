@@ -89,7 +89,54 @@ poids de compositing pris à un UV non déplacé, `shaderCompose.ts:115`).
 `fs_main`, chacune avec son coût et ce qu'elle casse, à trancher par Antoine.
 Aucun shader modifié tant que l'option n'est pas choisie.
 
-### E2 — AFK — la graine du warp détruit le bruit
+### E2 — CLOS le 2026-07-31 à 00:54 — la graine du warp détruisait le bruit
+
+`hash2` est remplacé par un hachage ENTIER de la maille (`warp.ts:16-40`).
+`gnoise` n'appelle `hash2` que sur des points de grille, donc la conversion en
+`i32` est exacte et le hachage ne repasse plus par un produit de flottants.
+
+**Mesure avant / après**, même protocole (101 graines, `scale=3`, 3 octaves,
+16×16 cellules échantillonnées, `hash2` émulé en f32 exact par `Math.fround`) :
+
+```
+AVANT  graines avec >=1 octave morte : 89/101
+       graines entierement mortes    : 54/101
+       premiere graine entierement morte : 47
+APRES  graines avec >=1 octave morte : 0/101
+       graines entierement mortes    : 0/101
+```
+
+Les deux chiffres d'avant (89/101 et première graine morte à 47) sont ceux de
+l'audit, retrouvés **indépendamment** par cette émulation — elle est donc
+fidèle. Aux paramètres réels du scénario versionné (`scale=4`, 4 octaves), toute
+graine rend désormais `[25, 81, 289, 576]` gradients distincts, soit la
+saturation de la grille d'échantillonnage.
+
+**Rectification d'un point de l'audit.** Il écrivait que la référence
+`masque-pinceau-degrade` « tourne à seed=2, donc déjà dans la zone dégradée ».
+Mesuré aux paramètres réels du scénario (`render-check.mjs:458-459` —
+`scale: 4, amplitude: 0.08, octaves: 4, seed: 2`) : **0 octave morte sur 4**.
+La dégradation est réelle mais partielle — l'octave la plus fine tombait à 32
+gradients distincts contre 574 à seed=0. « Zone dégradée » oui, « octave morte »
+non.
+
+**Preuve de non-régression** :
+
+```
+npx tsc --noEmit                -> No errors found
+npm run test:gpu-shaders        -> tous OK, garde hasImageSource+clipToCoverage incluse
+npm run test:render             -> FAIL masque-pinceau-degrade et lui SEUL
+                                   ecart max 142, moyenne 1.3642 ; 9 autres inchanges
+node render-check.mjs --update --scenario masque-pinceau-degrade
+npm run test:render             -> Aucune regression de rendu.  sortie 0
+```
+
+Le fait que le verrou rougisse sur le seul des dix scénarios qui utilise warp
+est la discrimination de ce correctif : il n'a rien touché d'autre. Les deux
+images de référence, avant et après, ont été relues à l'œil — même lecture,
+écart confiné au masque, aucune casse structurelle.
+
+<details><summary>Énoncé d'origine</summary>
 
 `hash2` sature en f32 (`warp.ts:53`, `:16-20`) : au-delà de 2²³ l'ulp vaut 1,
 `fract()` rend 0, le gradient devient constant et le FBM dégénère en grille
@@ -105,6 +152,8 @@ donc déjà dans la zone dégradée — sa référence changera, et c'est voulu.
 
 **Preuve** : distribution des octaves mortes recomptée sur les 101 graines,
 avant et après.
+
+</details>
 
 ### E3 — AFK — le grain culmine dans les ombres, pas dans les demi-tons
 

@@ -13,10 +13,35 @@ export const warp: EffectModule = {
   wgsl: `
 ${UV_SPACE_WGSL}
 // 2D simplex-style gradient noise (self-contained WGSL).
+//
+// Hachage ENTIER de la maille. gnoise n'appelle hash2 que sur des points de
+// grille (floor(p) décalé de 0 ou 1), donc la conversion en i32 est exacte
+// et le hachage porte sur la cellule elle-même, pas sur un produit de flottants.
+//
+// La version précédente hachait en f32 : fract(x.x * x.y * (x.x + x.y)). Dès
+// que la graine décale la maille de quelques centaines de cellules, cet argument
+// dépasse 2**23 — l'ulp d'un f32 y vaut 1, fract() rend exactement 0, et
+// hash2 rend (-1, -1) sur TOUTE la maille. Le gradient devient constant et le
+// FBM dégénère en grille régulière, précisément ce que la barre de qualité
+// interdit. Mesuré avant correctif, sur les 101 graines du paramètre : 89
+// avaient au moins une octave morte, et les trois l'étaient à partir de seed=47.
+//
+// Borner le décalage aurait été le palliatif tentant : il est refusé, il
+// remplacerait des grilles visibles par des quasi-doublons silencieux entre
+// graines voisines — une panne moins spectaculaire, donc plus durable.
 fn hash2(p: vec2<f32>) -> vec2<f32> {
-  let k = vec2<f32>(0.3183099, 0.3678794);
-  let x = p * k + k.yx;
-  return -1.0 + 2.0 * fract(16.0 * k * fract(x.x * x.y * (x.x + x.y)));
+  var h: u32 = (bitcast<u32>(i32(p.x)) * 1597334673u) ^ (bitcast<u32>(i32(p.y)) * 3812015801u);
+  h = h ^ (h >> 15u);
+  h = h * 2246822519u;
+  h = h ^ (h >> 13u);
+  let a: u32 = h * 2654435761u;
+  let b: u32 = (h ^ 0x9E3779B9u) * 1597334673u;
+  // 24 bits de poids fort : exactement représentables en f32, donc pas de
+  // nouvelle perte de précision à la sortie du hachage.
+  return vec2<f32>(
+    f32(a >> 8u) * (2.0 / 16777216.0) - 1.0,
+    f32(b >> 8u) * (2.0 / 16777216.0) - 1.0
+  );
 }
 
 fn gnoise(p: vec2<f32>) -> f32 {

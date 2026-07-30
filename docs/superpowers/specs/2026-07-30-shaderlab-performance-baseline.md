@@ -278,3 +278,163 @@ Lightroom réserve netteté et réduction de bruit aux aperçus 1:1. **Adopter c
 compromis se paierait en fidélité de l'aperçu — ce que le projet a explicitement
 refusé (un seul pipeline, résolution native).** À ne rouvrir qu'avec un chiffre :
 « il manque X ms, les voilà ».
+
+## P0 — mesure en build de PRODUCTION (2026-07-30, après-midi)
+
+> Les chiffres des §1 à §7 ci-dessus ne bougent pas : ils sont la ligne de base,
+> mesurée sur le serveur de dev. Cette section les complète, elle ne les corrige
+> pas. Aucun fichier de `src/` n'a été modifié pour l'obtenir.
+
+### P0.1 Verdict
+
+**La cible est tenue en production. Oui, sans réserve.** Condition de sortie §7 :
+médian < 16,7 ms, p95 < 33 ms. Le pire des trois gestes coûte **6,9 ms de CPU par
+événement souris**, soit **2,4× sous la cible**, et **aucune tâche longue > 50 ms
+n'a été observée** sur les six mesures de geste en production.
+
+La limite §6 — « une mesure en build de production reste à faire » — est levée.
+
+**Conséquence pour le plan** : la boucle d'optimisation P1-P5 n'a plus de
+justification par la cible. Les gaspillages de §3 restent réels et prouvés, mais
+ce sont désormais des gaspillages, pas un problème de fluidité. À rouvrir
+seulement si Antoine ressent encore la lenteur — et alors avec la condition
+manquante nommée (§0), pas en optimisant à l'aveugle.
+
+### P0.2 Montage — comment la production a été rendue mesurable
+
+**Build** : `npm run tauri build -- --no-bundle` → `src-tauri/target/release/shaderlab.exe`
+(profil `release`, 2 min 14 s ; `--no-bundle` évite les installeurs, sans effet
+sur le binaire). C'est le vrai produit, pas un `dist/` servi en statique : les
+commandes Rust restent jointes par leur chemin normal. Lancé avec
+`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` — cet argument
+va à la WebView2 elle-même, il ne dépend d'aucune option Tauri et fonctionne donc
+en `release`.
+
+**Preuve que c'est bien une production** : `typeof window.__shaderlabDebug` rend
+`"undefined"` (il rend `"object"` en dev) et l'URL est `http://tauri.localhost/`
+et non `http://localhost:1420/`. Ce pont est gardé par `import.meta.env.DEV`
+(`src/App.tsx:567`) : son absence prouve que le drapeau valait `false` à la
+compilation — le même drapeau qui sélectionne React de production, donc ni
+`jsxDEV`, ni double rendu de `StrictMode`.
+
+**Le point dur, et sa solution.** Sans ce pont, ni `openByPath` ni
+`importPhotoByPath`. Deux chemins ont été trouvés, tous deux hors `src/` :
+
+1. **Ouvrir un document** — `DragEvent` HTML5 synthétique sur `.canvas-stage`
+   (`src/components/Canvas.tsx:166`), avec un `File` construit à partir des octets
+   rendus par la commande Rust `read_image_file`, appelée directement via
+   `window.__TAURI_INTERNALS__.invoke` — présente en production, ce n'est pas du
+   code de debug. Les photos sont donc les VRAIES, pas des images de synthèse.
+2. **Importer les calques photo 2 à 5** — menu Fichier → « Importer une 2e photo »,
+   qui ouvre le dialogue natif `rfd`. Ce dialogue est une fenêtre `#32770` du
+   process `shaderlab.exe` : on y écrit par `WM_SETTEXT` dans son champ `Edit`,
+   puis on valide par `BM_CLICK` sur `IDOK`. Script :
+   `scratchpad/p0-type.ps1`.
+
+⚠️ **Deux instruments cassés rencontrés en chemin, notés pour ne pas les refaire**
+(cas d'école de NG90 — vérifier l'instrument avant le sujet) :
+- `SendKeys` a échoué **deux fois** : les frappes partent dans l'application qui a
+  le focus (elles sont parties dans Chrome, puis dans la fenêtre de l'agent), et
+  même focus obtenu elles n'atterrissaient pas dans le champ « Nom du fichier ».
+  `WM_SETTEXT` ne dépend d'aucun focus et n'a pas cette course.
+- `GetWindowText` rend une chaîne **vide** pour un contrôle appartenant à un AUTRE
+  process (comportement documenté) : le témoin « le champ est-il rempli ? » a
+  déclaré échouée une écriture parfaitement réussie. Le bon appel est
+  `SendMessage(WM_GETTEXT)`, qui est marshallé entre processus.
+- Trajectoire de drag en multiple ENTIER de 2π : l'image revient exactement à son
+  point de départ et le témoin « la box a-t-elle bougé ? » déclare « SANS EFFET »
+  un drag qui a bel et bien eu lieu. Utiliser 1,75π ou 5,75π.
+
+**Protocole** : identique à §2.2 (`Profiler` CDP à 100 µs, `PerformanceObserver`
+longtask, 60 `pointermove` injectés à ~16 ms), 5 calques photo, 5 photos
+DISTINCTES vérifiées par MD5 (`DSCF5152` à `5156`, empreintes toutes différentes),
+toile 6240×4160 = 26,0 Mpx, même machine, même session, `Page.reload` avant chaque
+run pour partir d'un état identique. Script : `scratchpad/p0-mesure.mjs`.
+
+### P0.3 Résultats — dev contre production
+
+Le **contrôle dev** est une reprise des trois gestes avec le harnais ci-dessus
+(donc le MÊME instrument que la colonne production), tourné dans la même session,
+juste avant/après les runs de production.
+
+| geste | dev, §2.2 après correctifs | dev, contrôle même harnais | **prod, run 1** | **prod, run 2** |
+|---|---|---|---|---|
+| déplacer une image | 20,4 ms · 0 longue | 30,8 ms · 3 longues | **6,9 ms · 0** | **7,6 ms · 0** |
+| curseur de paramètre | 21,3 ms · 0 à 1 | 28,4 ms · 4 longues | **5,8 ms · 0** | **6,0 ms · 0** |
+| peindre un masque | 6,0 à 6,7 ms · 1 | 10,5 ms · 2 longues | **4,9 ms · 0** | **4,5 ms · 0** |
+| témoin au repos, JS actif sur 2 s | — | 145,8 ms | **48,5 ms** | **27,4 ms** |
+
+Sorties brutes : `scratchpad/p0-PROD.log`, `p0-PROD2.log`, `p0-DEV5.log`.
+
+**Facteur 4,2× sur le drag, 4,7× sur le curseur, 2,3× sur la peinture** contre le
+contrôle dev. Contre la ligne de base publiée (colonne 1), le facteur est de 3,0×
+et 3,6× — le verdict ne dépend pas de laquelle des deux colonnes dev on retient.
+
+⚠️ **Le contrôle dev est plus lourd que la ligne de base publiée** (30,8 contre
+20,4 sur le drag). Les deux sont du dev et le harnais diffère sur la mise en place
+(dialogue natif au lieu du pont de debug, calque photo du HAUT sélectionné par le
+clic au centre). Cet écart n'est pas expliqué et n'a pas été poursuivi : il ne
+change rien à la conclusion, qui tient des deux côtés.
+
+**Le rapport 3 à 4× est cohérent avec la cause attendue.** §2.2 attribuait 75 % du
+JS actif à React ; §6 estimait les fonctions dev-only et le double rendu de
+`StrictMode` à 20-30 % du JS actif. Le profil de production le confirme par
+absence : `jsxDEV` (187 à 222 ms) et `createElement` (71 à 79 ms) dominaient le
+top 6 de chaque geste en dev, et **aucun des deux n'apparaît en production**, où
+le premier poste est `(program)` puis, pour la peinture, `paintStroke` et
+`writeTexture` — c'est-à-dire du travail réel.
+
+**Le défaut structurel de §3.4 n'a pas disparu**, conformément à ce que §6
+annonçait : un rendu React de l'arbre entier par `pointermove` existe toujours.
+Il ne coûte simplement plus assez pour menacer la cible.
+
+### P0.4 GPU en production
+
+Même instrument que §2.1 (timestamp queries, `instrument.js` injecté avant le code
+de l'app par `Page.addScriptToEvaluateOnNewDocument`, `src/` non modifié), drag de
+220 échantillons à 5 calques photo :
+
+| | ligne de base dev §2.1 | **production** |
+|---|---|---|
+| passes par frame | 11 | **11** (médiane, 221 frames actives) |
+| GPU p50 | 6,82 ms | **6,82 ms** |
+| GPU p95 | 9,11 ms | **7,60 ms** |
+| occupation GPU au repos | 2,4 % | **2,0 %** (moy., min 1,7 max 2,2, 14 échantillons) |
+
+**Le GPU est inchangé, et c'était attendu** : le WGSL et la structure `2N+1` sont
+les mêmes binaires de shader des deux côtés — seul le bundle JS diffère. Ce
+tableau vaut comme contrôle de non-régression du montage, pas comme un gain.
+Intervalle rAF mesuré p50 19,3 ms / p95 31,0 ms — même réserve qu'en §2.1 : c'est
+la cadence d'injection du pilote, pas un plafond de l'app.
+
+### P0.5 Ce qui n'a PAS pu être mesuré, et pourquoi
+
+- **Comptage de rendus React par composant.** `Profiler.startPreciseCoverage` rend
+  des noms minifiés (`Nf`, `wT` apparaissent dans les tops de production) : la
+  correspondance avec `LayerRow`, `IconButton`, `DockedPanelCard` est perdue. Cette
+  difficulté était nommée d'avance par le plan ; le comptage n'a pas été forcé.
+  Le temps CPU par événement et les tâches longues suffisent à trancher, et ils
+  tranchent largement.
+- **Distribution p95 du CPU par événement.** L'instrument rend le JS actif TOTAL
+  divisé par le nombre d'événements, donc une moyenne, pas une distribution. Le
+  compteur de tâches longues en est le substitut : **0 tâche > 50 ms** sur les six
+  mesures de production, contre 2 à 4 par geste en dev. C'est un p95 par le haut,
+  pas un p95 chiffré.
+- **Latence entrée→pixel.** Toujours non mesurée (limite §6, inchangée) — et
+  c'est peut-être toujours ce que « super lente » décrit.
+- **Souris synthétique.** Les événements CDP ne sont jamais coalescés et sont
+  injectés à ~16 ms, donc un événement par frame. Cette limite est IDENTIQUE des
+  deux côtés du tableau ; c'est le coût PAR événement qui décide, et il est
+  comparable.
+- **L'anomalie mémoire de §2.3** (+477 Mo natifs pendant une peinture) n'a pas été
+  réinstruite : hors du périmètre de P0.
+
+### P0.6 Validité des gestes
+
+Chaque geste retenu a été validé DANS SON PROPRE TOUR, la sortie collée dans les
+logs : drag prouvé par déplacement de `.transform-handles__box` (213 → 180),
+curseur prouvé par changement de valeur (0,12 → 0,34), peinture prouvée par cible
+vérifiée `CANVAS[canvas-stage__canvas--paint]` et mode peinture actif. La pile de
+départ est affichée avant chaque mesure — 5 calques nommés `DSCF5152` à `DSCF5156`.
+Un run de mise au point où les imports avaient échoué (1 calque au lieu de 5) a été
+JETÉ et n'apparaît pas dans le tableau.

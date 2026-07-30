@@ -38,7 +38,14 @@ tranche qui aurait besoin de ça s'arrête et remonte la question.
 
 ---
 
-## P0 — Mesurer en build de PRODUCTION (aucun code modifié)
+## P0 — Mesurer en build de PRODUCTION (aucun code modifié) — **FAIT, 2026-07-30**
+
+> **Résultat : la cible EST tenue en production, et la boucle s'arrête ici.**
+> 6,9 ms de CPU par événement souris au pire des trois gestes contre 16,7 visés,
+> **zéro tâche longue > 50 ms**, GPU p50 6,82 / p95 7,60 ms à 5 calques photo.
+> Mesures, montage et limites : baseline §P0. **P1 à P5 deviennent du confort**,
+> à rouvrir seulement si Antoine ressent encore la lenteur — et alors en nommant
+> la condition manquante (baseline §0), pas en optimisant à l'aveugle.
 
 **Pourquoi en premier** : toute la ligne de base est mesurée sur le serveur de
 dev. Les fonctions dev-only de React (`jsxDEV`, `createElement` de développement)

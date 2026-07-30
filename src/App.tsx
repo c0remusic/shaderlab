@@ -30,6 +30,7 @@ import { exportImage, resolveExportTargetAsync, resolveDefaultExportTarget } fro
 import { messageFromUnknown } from "./lib/errors";
 import {
   getLaunchPath,
+  resolveLaunchFile,
   readImageFile,
   pickImageFile,
   logDiagnostic,
@@ -438,21 +439,18 @@ export default function App() {
   // au lancement, qui est une affordance de n'importe quelle app de bureau.
   // Le document ouvert ainsi est désormais un document comme un autre — son
   // export part dans le dossier d'export, jamais par-dessus la source.
+  // La résolution elle-même vit dans `launch.ts` (`resolveLaunchFile`) et y est
+  // testée sur ses trois issues — pas d'argument, chemin lisible, rejet — audit
+  // pré-release 2026-07-30, finding R3. Ne reste ici que le branchement React.
+  // Un SEUL canal d'erreur : `resolveLaunchFile` ne rend `null` que dans le cas
+  // non exceptionnel (aucun argument de lancement) et rejette pour tout le
+  // reste, donc ce `.catch` couvre le transport IPC, la lecture du fichier et
+  // l'ouverture — là où le `try/catch` d'avant laissait filer le rejet de
+  // `getLaunchPath()` elle-même (finding R2, corrigé le 2026-07-30).
   useEffect(() => {
-    getLaunchPath().then(async (path) => {
-      if (!path) return;
-      try {
-        const bytes = await readImageFile(path);
-        const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
-        await openFile(new File([blob], path, { type: "image/jpeg" }), path);
-      } catch (e) {
-        setError(messageFromUnknown(e));
-      }
-      // Le `try` ci-dessus ne couvre que le corps du callback : un rejet de
-      // `getLaunchPath()` elle-même (transport IPC cassé) passait à côté.
-      // Même discipline que `presets.refresh()` plus bas — audit pré-release
-      // 2026-07-30, finding R2.
-    }).catch((e) => setError(messageFromUnknown(e)));
+    resolveLaunchFile({ getPath: getLaunchPath, readFile: readImageFile })
+      .then((launch) => (launch ? openFile(launch.file, launch.path) : undefined))
+      .catch((e) => setError(messageFromUnknown(e)));
   }, [openFile]);
 
   useEffect(() => {

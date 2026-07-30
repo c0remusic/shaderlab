@@ -15,6 +15,42 @@ export async function getLaunchPath(): Promise<string | null> {
   return invoke<string | null>("get_launch_path");
 }
 
+/** Fichier prêt à ouvrir, résolu depuis l'argument de lancement. */
+export type LaunchFile = { file: File; path: string };
+
+/**
+ * Les deux commandes IPC dont `resolveLaunchFile` a besoin, injectées plutôt
+ * qu'importées : c'est ce qui rend la résolution testable hors WebView (aucun
+ * `invoke` disponible sous Vitest). Le câblage réel est fait par l'appelant
+ * (`App.tsx`) avec `getLaunchPath`/`readImageFile` juste au-dessus.
+ */
+export type LaunchFileDeps = {
+  getPath: () => Promise<string | null>;
+  readFile: (path: string) => Promise<Uint8Array>;
+};
+
+/**
+ * Résolution du chemin « Ouvrir avec » en fichier ouvrable, extraite de
+ * `App.tsx` pour être couverte par des tests — audit pré-release 2026-07-30,
+ * finding R3 : ce chemin n'avait aucun filet automatisé, la convention du
+ * projet (pas de rendu de composant, vérification visuelle par CDP) laissant
+ * tout `App.tsx` hors tests. Même remède que le resync du painter de masque
+ * (`mask/maskPainterSync.ts`, finding 3 de l'audit 2026-07-17) : sortir la
+ * logique du composant, pas assouplir la convention.
+ *
+ * Rend `null` quand l'app a été lancée sans argument — le seul cas non
+ * exceptionnel où il n'y a rien à ouvrir. Tout le reste (transport IPC cassé,
+ * fichier illisible) REJETTE : l'appelant a un unique canal d'erreur à
+ * brancher, et aucun rejet ne peut lui échapper.
+ */
+export async function resolveLaunchFile(deps: LaunchFileDeps): Promise<LaunchFile | null> {
+  const path = await deps.getPath();
+  if (!path) return null;
+  const bytes = await deps.readFile(path);
+  const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
+  return { file: new File([blob], path, { type: "image/jpeg" }), path };
+}
+
 export async function writeImageFile(path: string, bytes: Uint8Array): Promise<void> {
   // Corps binaire brut (InvokeBody::Raw côté Rust) ; le chemin passe en
   // header percent-encodé — les headers IPC sont ASCII-only et les chemins

@@ -265,10 +265,15 @@ const INSTALL = `(async () => {
   const { Renderer } = await import(O + "/src/render/renderer.ts");
   const { LayerStack } = await import(O + "/src/layers/layerStack.ts");
   const { FrameReadback } = await import(O + "/src/render/frameReadback.ts");
-  // La MEME fonction que \`App.tsx\` utilise pour poser le calque de fond a
-  // l'ouverture d'un document : le scenario ne reimplemente pas la transform
-  // d'identite, il tire celle du produit.
-  const { resetTransform } = await import(O + "/src/ui/transform.ts");
+  // LE MEME CHEMIN QUE \`App.tsx\`, pas une copie (reserve R4 du 2026-07-30).
+  // Avant, ce harnais REIMPLEMENTAIT l'ouverture — \`new LayerStack()\` +
+  // \`addPhotoLayer(bg, resetTransform(toile))\` sous un commentaire « ce que fait
+  // App.tsx ». Deux copies dont une seule etait exercee : rebrancher
+  // \`bitmap.width\` a la place de \`canvasSize\` dans \`App.tsx\` ne faisait rougir
+  // personne. \`openDocument\` prend le RENDERER, donc ni App ni ce harnais ne
+  // peut choisir de quoi le calque de fond herite ses dimensions — et un temoin
+  // plante dans ce module fait maintenant rougir le harnais.
+  const { openDocument } = await import(O + "/src/layers/openedDocument.ts");
 
   const W = 256, H = 256;
 
@@ -554,20 +559,13 @@ const INSTALL = `(async () => {
         // T2, donc les neuf references existantes ne peuvent pas bouger de ce
         // fait.
         await r.loadImage(await mire(W, H, 0), toile);
-        const stack = new LayerStack();
-        if (scenario.fond !== false) {
-          // CE QUE FAIT \`App.tsx\` A L'OUVERTURE (openFile, tranche T1) : la
-          // photo qui ouvre le document n'est pas la toile, c'est le calque du
-          // bas. Sans cette ligne le scenario rend une toile vide — et une
-          // reference verrouillee sur une image noire ne peut plus rien
-          // detecter.
-          const bg = r.backgroundSourceId;
-          if (bg === null) throw new Error("loadImage n'a pas enregistre la photo d'ouverture (invariant T1 rompu)");
-          // \`resetTransform(toile)\` et non \`{W, H}\` : la photo est centree sur
-          // LA TOILE, exactement comme \`App.tsx\` a l'ouverture. Sur une toile
-          // plus grande, elle reste a l'echelle 1 et laisse du vide autour.
-          stack.addPhotoLayer(bg, resetTransform(toile), "fond");
-        }
+        // CE QUE FAIT \`App.tsx\` A L'OUVERTURE, en l'APPELANT : \`openDocument\`
+        // est le module que \`openFile\` utilise, et il lit les dimensions du
+        // calque de fond DANS le renderer. Sans calque de fond le scenario rend
+        // une toile vide — et une reference verrouillee sur une image noire ne
+        // peut plus rien detecter ; les deux scenarios qui veulent la toile nue
+        // le demandent explicitement par \`fond: false\`.
+        const stack = scenario.fond === false ? new LayerStack() : openDocument(r, "fond").stack;
         await scenario.build(r, stack);
         const layers = normalize(stack);
         const read = scenario.surface === "canvas"
@@ -616,10 +614,10 @@ const INSTALL = `(async () => {
       });
       const r = new Renderer(ctx);
       await r.loadImage(await mire(W, H, 0));
-      const stack = new LayerStack();
-      // Calque photo de fond, comme les scenarios : sans lui le diagnostic
-      // mesurerait la dependance a l'horloge d'une image noire.
-      stack.addPhotoLayer(r.backgroundSourceId, resetTransform({ width: W, height: H }), "fond");
+      // Calque photo de fond, comme les scenarios et par le MEME chemin que
+      // \`App.tsx\` : sans lui le diagnostic mesurerait la dependance a l'horloge
+      // d'une image noire.
+      const stack = openDocument(r, "fond").stack;
       const a = stack.addLayer("posterize");
       stack.updateBrushMask(a, brushRaster(W, H));
       const layers = normalize(stack);

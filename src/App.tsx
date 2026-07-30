@@ -37,7 +37,7 @@ import {
   joinExportTarget,
 } from "./launch";
 import { useGlobalControlWheel } from "./ui/activeControl";
-import { resetTransform } from "./ui/transform";
+import { openDocument } from "./layers/openedDocument";
 import { hitTestPhotoLayer } from "./ui/hitTest";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 import { getBrushRaster } from "./mask/brushSource";
@@ -310,13 +310,18 @@ export default function App() {
         return;
       }
 
-      // TOUT ce qui suit lit `candidate.canvasSize`, jamais `bitmap` ni
-      // `requestedCanvas` : les dimensions du document descendent de la SEULE
-      // source qui les détient réellement, `ImageFrameResources` (design §4.3).
-      // `requestedCanvas` est ce qu'on a demandé ; `canvasSize` est ce qui a été
-      // alloué. Les faire coïncider par confiance était exactement le risque
-      // que la tranche T2 introduisait.
-      const documentSize = candidate.canvasSize;
+      // Posé AVANT le document : le nom ne dépend que du chemin et du fichier,
+      // et il NOMME le calque de fond construit juste en dessous.
+      const name = documentDisplayName(path, file.name);
+
+      // L'OUVERTURE PROPREMENT DITE, dans un module unique que le harnais de
+      // rendu APPELLE au lieu de le reproduire (`layers/openedDocument.ts`,
+      // réserve R4). `openDocument` prend le RENDERER, donc App ne peut PAS
+      // choisir de quoi le document hérite ses dimensions : ni `bitmap`, ni
+      // `requestedCanvas` (ce qu'on a demandé), seulement `canvasSize` (ce qui a
+      // été alloué). Les faire coïncider par confiance était exactement le
+      // risque que la tranche T2 introduisait.
+      const { stack, size: documentSize } = openDocument(candidate, name);
       canvasRef.current.width = documentSize.width;
       canvasRef.current.height = documentSize.height;
       rendererRef.current?.dispose();
@@ -327,29 +332,8 @@ export default function App() {
       // Posé au MÊME instant que `imageSize` et `sourcePath` : un document
       // chargé a toujours un nom affichable. Il ne pilote plus la ligne
       // d'arrière-plan (supprimée en T1) mais reste le titre de la barre
-      // d'outils, et il NOMME le calque de fond créé juste en dessous.
-      const name = documentDisplayName(path, file.name);
+      // d'outils, et il NOMME le calque de fond posé par `openDocument`.
       setDocumentName(name);
-
-      // LE CALQUE DE FOND (tranche T1). La photo d'ouverture n'est plus la
-      // texture d'entrée du pipeline : c'est un `LayerState` ordinaire portant
-      // `imageSource`, donc masquable, déplaçable, supprimable et duplicable
-      // comme tout autre calque. Son `sourceId` vient du renderer, qui l'a
-      // enregistrée dans `PhotoSourceStore` pendant `createLoaded` — un échec
-      // d'enregistrement aurait déjà fait échouer l'ouverture entière, donc
-      // arriver ici sans id serait un invariant rompu, pas un cas à absorber.
-      const backgroundSourceId = candidate.backgroundSourceId;
-      if (backgroundSourceId === null) {
-        throw new Error("Document chargé sans source de fond enregistrée — invariant rompu (render/renderer.ts).");
-      }
-      const stack = new LayerStack();
-      // Transform d'ouverture : la photo est CENTRÉE sur la toile, à l'échelle 1
-      // — jamais rééchelonnée. Sur une toile ≡ photo (le défaut) c'est la
-      // transform identité, donc un rendu identique au pixel près à celui
-      // d'avant la tranche T2. Sur une toile plus grande, la photo est centrée
-      // et le reste de la toile n'est couvert par personne : damier à l'écran,
-      // blanc dans le fichier exporté (ADR-0006).
-      stack.addPhotoLayer(backgroundSourceId, resetTransform(documentSize), name);
       sessionRef.current.replaceDocument(stack);
       presets.clearActive();
       // Important 6 (final-review fix): a new document has no relationship

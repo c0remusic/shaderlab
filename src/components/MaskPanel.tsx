@@ -153,6 +153,16 @@ export const MaskPanel = memo(function MaskPanel({
               {overlayForceHidden ? "Overlay masqué" : "Overlay visible"}
             </span>
           </div>
+          {/* ANNONCE D'ÉTAT — montée EN PERMANENCE, hors flux visuel.
+              Poser `role="status"` sur le paragraphe conditionnel ci-dessous
+              ne suffirait pas : une région live créée dans le même rendu que
+              son texte n'est pas annoncée de façon fiable, le lecteur d'écran
+              doit déjà observer la région quand le contenu y apparaît. Le
+              texte VISIBLE reste le paragraphe, qui a le droit d'aller et
+              venir ; seule cette région-ci ne bouge jamais. */}
+          <span className="sr-only" role="status">
+            {maskPaintMode ? "Mode peinture actif." : ""}
+          </span>
           {maskPaintMode ? (
             <p className="param-panel__hint">
               Mode peinture actif — les poignées de la photo sont masquées. Pour la déplacer ou la

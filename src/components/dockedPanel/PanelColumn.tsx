@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { DockedPanelCard, dockedPanelControlsClass } from "./DockedPanelCard";
 import { getDockDropTarget, isNoOpDockDrop, resolveDockDragCommit, type DockDropTarget, type DockLayout } from "../../ui/dockLayout";
 import { clampDockWidth, DOCK_WIDTH_MIN, DOCK_WIDTH_MAX } from "./dockWidth";
+import { hasExceededDragThreshold } from "./dockDrag";
 import "../../ui/dragReorder.css";
 import "./PanelColumn.css";
 
@@ -63,8 +64,32 @@ interface DockDragState {
   dockOrigin: { left: number; top: number } | null;
 }
 
+/** Appui enregistré qui n'est PAS encore un glissement. Le `DockDragState`
+ *  complet n'est construit qu'une fois le seuil de `dockDrag.ts` franchi ;
+ *  jusque-là on ne retient que de quoi le construire, sans afficher ni
+ *  fantôme ni guide. `grabOffset` et `origin` sont capturés à l'APPUI et non
+ *  au franchissement : sinon le fantôme naîtrait décalé de la distance
+ *  parcourue pendant le seuil. */
+interface PendingDockDrag {
+  draggedId: string;
+  pointerId: number;
+  grabOffset: { x: number; y: number };
+  origin: { x: number; y: number };
+}
+
 export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: PanelColumnProps) {
   const [dragState, setDragStateRaw] = useState<DockDragState | null>(null);
+  // `pendingDrag` est un ÉTAT et pas seulement une ref : les handlers de
+  // mouvement du conteneur ne sont attachés que lorsqu'il y a quelque chose à
+  // suivre (voir le JSX), donc leur attache doit provoquer un rendu. La ref
+  // miroir sert aux handlers eux-mêmes, qui doivent lire la valeur courante
+  // sans dépendre du rendu déjà commité — même raison que `dragStateRef`.
+  const [pendingDrag, setPendingDragRaw] = useState<PendingDockDrag | null>(null);
+  const pendingDragRef = useRef<PendingDockDrag | null>(null);
+  const setPendingDrag = useCallback((next: PendingDockDrag | null) => {
+    pendingDragRef.current = next;
+    setPendingDragRaw(next);
+  }, []);
   // Miroir de `dragState` tenu à jour de façon SYNCHRONE par le setter
   // fonctionnel ci-dessous, lu par `finishDrag` au relâchement/annulation —
   // évite de commiter une cible de drop périmée si un pointerup arrive avant
@@ -205,20 +230,42 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
   const handlePointerDown = useCallback((id: string, event: React.PointerEvent<HTMLDivElement>) => {
     const card = event.currentTarget.closest<HTMLElement>(".panel-column__item");
     if (!card) return;
+    if (dragStateRef.current || pendingDragRef.current) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     const rect = card.getBoundingClientRect();
-    setDragState((current) => current ?? {
+    // L'appui n'ouvre PLUS le glissement : il enregistre seulement de quoi
+    // l'ouvrir. Auparavant le `DockDragState` complet naissait ici, si bien
+    // qu'un simple clic sur la barre de titre affichait déjà le fantôme et
+    // calculait une cible de dépôt — un frisson de souris pendant le clic
+    // suffisait à réordonner le dock.
+    setPendingDrag({
       draggedId: id,
       pointerId: event.pointerId,
       grabOffset: { x: event.clientX - rect.left, y: event.clientY - rect.top },
-      pointerPosition: { x: event.clientX, y: event.clientY },
-      target: null,
-      targetBounds: null,
-      dockOrigin: null,
+      origin: { x: event.clientX, y: event.clientY },
     });
-  }, []);
+  }, [setPendingDrag]);
 
   const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    // PROMOTION — un appui en attente ne devient un glissement qu'au-delà du
+    // seuil. Ce frame-ci ne fait qu'ouvrir le glissement ; la cible de dépôt
+    // se calcule au mouvement suivant, quand le pointeur survole une carte.
+    const pending = pendingDragRef.current;
+    if (pending && !dragStateRef.current) {
+      if (event.pointerId !== pending.pointerId) return;
+      if (!hasExceededDragThreshold(pending.origin, { x: event.clientX, y: event.clientY })) return;
+      setPendingDrag(null);
+      setDragState({
+        draggedId: pending.draggedId,
+        pointerId: pending.pointerId,
+        grabOffset: pending.grabOffset,
+        pointerPosition: { x: event.clientX, y: event.clientY },
+        target: null,
+        targetBounds: null,
+        dockOrigin: null,
+      });
+      return;
+    }
     setDragState((current) => {
       if (!current || event.pointerId !== current.pointerId) return current;
       const card = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-dock-column]");
@@ -244,10 +291,15 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
   }, [layout]);
 
   const finishDrag = useCallback((event: React.PointerEvent<HTMLDivElement>, commit: boolean) => {
+    // Un appui relâché sous le seuil n'a jamais produit de `DockDragState` :
+    // `resolveDockDragCommit(null, …)` rend `null` (ui/dockLayout.ts:78), donc
+    // aucun `onMove` ne part. C'est exactement le clic simple qu'on voulait
+    // cesser de confondre avec un glissement.
+    if (pendingDragRef.current?.pointerId === event.pointerId) setPendingDrag(null);
     const resolved = resolveDockDragCommit(dragStateRef.current, event.pointerId, commit);
     if (resolved) onMove(resolved.draggedId, resolved.target);
     setDragState(null);
-  }, [onMove, setDragState]);
+  }, [onMove, setDragState, setPendingDrag]);
 
   let guideStyle: React.CSSProperties | null = null;
   let guideClassName = "drag-reorder__alignment-guide";
@@ -271,13 +323,17 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
     }
   }
 
+  // Les handlers de mouvement s'attachent aussi pendant l'ATTENTE (appui sans
+  // glissement) : sans ça, aucun `pointermove` ne remonterait tant que le
+  // `dragState` n'existe pas, le seuil ne serait jamais franchi, et le
+  // glisser-déposer du dock serait purement et simplement mort.
   return (
     <div
       ref={dockRef}
       className="panel-column"
-      onPointerMove={dragState ? handlePointerMove : undefined}
-      onPointerUp={dragState ? (event) => finishDrag(event, true) : undefined}
-      onPointerCancel={dragState ? (event) => finishDrag(event, false) : undefined}
+      onPointerMove={dragState || pendingDrag ? handlePointerMove : undefined}
+      onPointerUp={dragState || pendingDrag ? (event) => finishDrag(event, true) : undefined}
+      onPointerCancel={dragState || pendingDrag ? (event) => finishDrag(event, false) : undefined}
     >
       {/* `ref={gridRef}` : SANS lui, `useLayoutEffect` sort au premier `if
           (!grid) return` et AUCUNE hauteur n'est mesurée — les trois variables

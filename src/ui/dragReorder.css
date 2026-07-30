@@ -8,5 +8,10 @@
   opacity: var(--drag-guide-opacity);
   pointer-events: none;
   transform: translate(-50%, -50%);
-  z-index: var(--z-popover);
+  /* AU-DESSUS du fantôme de glisser-déposer, jamais au même niveau.
+     `.panel-column__ghost` porte `--z-popover` (PanelColumn.css:174) et est
+     rendu APRÈS ce guide dans le DOM (PanelColumn.tsx:336 puis :337) : à
+     z-index égal l'ordre DOM tranche, et le fantôme recouvrait la cible
+     d'insertion au moment précis où on la vise. */
+  z-index: var(--z-tooltip);
 }

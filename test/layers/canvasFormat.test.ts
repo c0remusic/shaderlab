@@ -28,6 +28,54 @@ describe("canvasSizeFor — le défaut ne change rien", () => {
   });
 });
 
+// LE BUDGET NE BORNE QUE CE QUI A ÉTÉ CHOISI (correctif du 2026-07-30).
+//
+// La tranche T2 appliquait `assertCanvasWithinBudget` au chemin par défaut, si
+// bien qu'une photo de plus de 64 Mpx cessait de s'ouvrir — une régression non
+// déclarée, et le message parlait de « Toile » et de « budget » à quelqu'un qui
+// n'avait choisi aucune toile. Ces tests fixent l'asymétrie DANS LES DEUX SENS :
+// sans le second bloc, l'exemption serait devenue « plus de budget du tout ».
+describe("canvasSizeFor — le budget borne une demande, pas un fichier", () => {
+  /** 9000 × 7300 = 65,7 Mpx : au-delà du budget, sous la dimension maximale de
+   *  texture d'un GPU courant (16384 mesuré sur la machine du projet). Cette
+   *  photo s'ouvrait avant la tranche T2. */
+  const PHOTO_66MP = { width: 9000, height: 7300 };
+  /** Fujifilm GFX100 : 11648 × 8736 = 101,7 Mpx. */
+  const PHOTO_GFX100 = { width: 11648, height: 8736 };
+
+  it("une photo au-delà du budget s'ouvre quand même — c'est un fait, pas une demande", () => {
+    expect(PHOTO_66MP.width * PHOTO_66MP.height).toBeGreaterThan(MAX_CANVAS_PIXELS);
+    expect(canvasSizeFor(PHOTO_CANVAS_FORMAT, PHOTO_66MP)).toEqual(PHOTO_66MP);
+    expect(canvasSizeFor(PHOTO_CANVAS_FORMAT, PHOTO_GFX100)).toEqual(PHOTO_GFX100);
+  });
+
+  it("la MÊME dimension demandée à la main est refusée", () => {
+    // C'est l'asymétrie voulue : ce que le fichier impose passe, ce que
+    // l'utilisateur réclame est borné. Le chèque en blanc que le design §5.2
+    // refusait reste refusé.
+    expect(() =>
+      canvasSizeFor({ kind: "libre", width: PHOTO_66MP.width, height: PHOTO_66MP.height }, PHOTO_26MP),
+    ).toThrow(/au-delà du budget/);
+  });
+
+  it("un format NOMMÉ dérivé d'une photo énorme reste borné", () => {
+    // Le carré d'une photo de 101,7 Mpx ferait 11648² = 135,7 Mpx : la photo
+    // s'ouvre, mais demander une toile carrée dessus est refusé. L'exemption ne
+    // se propage pas au format dérivé de cette même photo.
+    expect(() => canvasSizeFor({ kind: "nomme", format: "carre" }, PHOTO_GFX100)).toThrow(
+      /au-delà du budget/,
+    );
+  });
+
+  it("les trois formats nommés restent bornés sur la photo de référence... et donc passent", () => {
+    // Garde-fou contre l'exemption trop large : si le budget avait été retiré
+    // partout, ce test passerait toujours — c'est le test ci-dessus qui rougit.
+    for (const format of ["carre", "quatre-cinq", "a3"] as const) {
+      expect(() => canvasSizeFor({ kind: "nomme", format }, PHOTO_26MP)).not.toThrow();
+    }
+  });
+});
+
 describe("canvasSizeFor — formats nommés dérivés par CONTENANCE", () => {
   it("« carré » prend le plus grand côté de la photo : la photo tient entière, à 100 %", () => {
     expect(canvasSizeFor({ kind: "nomme", format: "carre" }, PHOTO_26MP)).toEqual({

@@ -87,12 +87,28 @@ function a3Pixels(photo: CanvasPixelSize): CanvasPixelSize {
  * UNIQUE dérivation « format demandé + photo → dimensions de toile ». Tout site
  * d'ouverture passe par ici, donc aucun ne peut inventer sa propre arithmétique
  * de format, et la borne de budget est appliquée une seule fois, ici.
+ *
+ * LE BUDGET NE BORNE QUE CE QUI A ÉTÉ CHOISI (correctif du 2026-07-30, voir
+ * ADR-0007 § Conséquences et § Croyances révisées). `MAX_CANVAS_PIXELS` a été
+ * calibrée pour qu'une toile RÉGLABLE ne soit pas un chèque en blanc : elle
+ * borne une DEMANDE. Les dimensions d'une photo ne sont pas une demande, c'est
+ * un fait sur le fichier de l'utilisateur — et le seul recours qu'un refus lui
+ * laisserait serait de ne pas ouvrir sa photo, puisque le projet interdit le
+ * downscale. Le cas `photo` est donc exempt, et il reste borné par ce qui le
+ * bornait avant la tranche T2 : `assertImageFitsGpu` (dimension maximale d'une
+ * texture), et rien d'autre.
+ *
+ * Conséquence assumée de l'asymétrie : une PHOTO de 101 Mpx s'ouvre, une toile
+ * de 101 Mpx demandée à la main est refusée. C'est voulu — la première était
+ * déjà possible avant T2 et le rester est une non-régression, la seconde n'a
+ * jamais existé et l'autoriser serait le chèque en blanc que le design §5.2
+ * refusait.
  */
 export function canvasSizeFor(request: CanvasFormatRequest, photo: CanvasPixelSize): CanvasPixelSize {
   const size = resolve(request, photo);
   assertUsableDimension(size.width, "largeur");
   assertUsableDimension(size.height, "hauteur");
-  assertCanvasWithinBudget(size.width, size.height);
+  if (request.kind !== "photo") assertCanvasWithinBudget(size.width, size.height);
   return size;
 }
 

@@ -68,17 +68,32 @@ describe("Renderer.loadImage — la toile n'a plus forcément la taille de la ph
     ).rejects.toThrow(/999×999/);
   });
 
-  it("une toile au-delà du budget VRAM est refusée avant toute allocation de texture", async () => {
+  // Correctif du 2026-07-30 : le BUDGET (`MAX_CANVAS_PIXELS`) n'est PLUS vérifié
+  // à cet étage. Il l'était en T2 « pour qu'aucun chemin d'allocation ne le
+  // contourne », mais un paramètre de dimension ne dit pas qui l'a choisie :
+  // le garde refusait donc aussi les PHOTOS de plus de 64 Mpx, qui s'ouvraient
+  // avant T2. Le budget vit désormais uniquement dans `canvasSizeFor`, seul
+  // étage qui sache si le chiffre est une demande ou un fait (ADR-0007).
+  it("le budget VRAM n'est PAS appliqué ici — seule la dimension de texture l'est", async () => {
     const ctx = fakeCtx(20000);
-    await expect(
-      Renderer.createLoaded(ctx, { width: 50, height: 50 } as ImageBitmap, undefined, {
+    // 10000 × 10000 = 100 Mpx, très au-delà du budget, mais sous la dimension
+    // maximale de texture déclarée : l'allocation est tentée.
+    let message = "";
+    try {
+      await Renderer.createLoaded(ctx, { width: 50, height: 50 } as ImageBitmap, undefined, {
         width: 10000,
         height: 10000,
-      }),
-    ).rejects.toThrow(/Mpx/);
-    expect(
-      (ctx.device as unknown as { createTexture: ReturnType<typeof vi.fn> }).createTexture,
-    ).not.toHaveBeenCalled();
+      });
+    } catch (e) {
+      message = e instanceof Error ? e.message : String(e);
+    }
+    // L'échec observé est `GPUTextureUsage is not defined` : l'environnement Node
+    // de Vitest n'a pas les constantes WebGPU, et cette erreur ne peut survenir
+    // que dans le DESCRIPTEUR de texture d'`allocateCanvas` — donc APRÈS les deux
+    // gardes. C'est la preuve positive que ni la dimension ni le budget n'ont
+    // refusé 10000 × 10000 (100 Mpx) à cet étage.
+    expect(message).toMatch(/GPUTextureUsage/);
+    expect(message).not.toMatch(/Mpx/);
   });
 });
 

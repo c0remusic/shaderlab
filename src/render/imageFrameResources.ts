@@ -1,4 +1,4 @@
-import { assertCanvasWithinBudget, assertImageFitsGpu } from "./limits";
+import { assertImageFitsGpu } from "./limits";
 
 /**
  * Textures persistantes d'un document : la TOILE et les cibles de rendu.
@@ -33,12 +33,23 @@ export class ImageFrameResources {
    *  uploadé. Prend des DIMENSIONS et non un `ImageBitmap` : c'est la trace
    *  dans la signature que cette classe ne connaît plus d'image du tout. */
   allocateCanvas(width: number, height: number): void {
+    // SEULE borne posée ici : la dimension maximale d'une texture. Le BUDGET
+    // (`MAX_CANVAS_PIXELS`) n'est PAS vérifié à cet étage, et ce n'est pas un
+    // oubli — c'est ce que le correctif du 2026-07-30 a tranché (ADR-0007
+    // § Conséquences).
+    //
+    // La tranche T2 l'avait posé aux deux bouts « pour qu'aucun chemin
+    // d'allocation ne puisse le contourner ». Mais le budget borne une TOILE
+    // DEMANDÉE, jamais les dimensions que la photo de l'utilisateur impose — et
+    // ce paramètre-ci ne porte qu'une dimension, qui ne dit rien de qui l'a
+    // choisie. Un garde incapable de distinguer une demande d'un fait ne peut
+    // pas appliquer une règle qui repose sur cette distinction : il refusait
+    // donc AUSSI les photos au-delà de 64 Mpx, qui s'ouvraient avant T2.
+    //
+    // Le budget vit maintenant à un seul endroit, `layers/canvasFormat.ts`
+    // (`canvasSizeFor`), qui est la seule dérivation de dimension de toile du
+    // produit et le seul étage qui sache d'où vient le chiffre.
     assertImageFitsGpu(width, height, this.maxTextureDimension2D);
-    // Borne de BUDGET, en plus de la borne de dimension : depuis la tranche T2
-    // la toile n'a plus la taille d'une photo décodée, donc plus rien ne la
-    // borne implicitement. Vérifiée ICI et pas seulement à la dérivation du
-    // format, pour qu'aucun chemin d'allocation ne puisse la contourner.
-    assertCanvasWithinBudget(width, height);
     this.dispose();
     this.imageWidth = width;
     this.imageHeight = height;

@@ -51,11 +51,17 @@ export const MAX_CANVAS_PIXELS = 64_000_000;
  *  rogner : une toile silencieusement réduite ferait un export aux mauvaises
  *  dimensions, et l'utilisateur ne l'apprendrait qu'en ouvrant le fichier.
  *
- *  Appelée aux DEUX bouts, volontairement : à la dérivation d'un format
- *  (`layers/canvasFormat.ts`, pour refuser avant toute allocation) et dans
- *  `ImageFrameResources.allocateCanvas` (pour qu'aucun chemin d'allocation, y
- *  compris un futur appelant qui contournerait la dérivation, ne puisse
- *  dépasser le budget). */
+ *  UN SEUL SITE D'APPEL, et c'est une contrainte : `canvasSizeFor`
+ *  (`layers/canvasFormat.ts`), pour les formats que l'utilisateur a CHOISIS.
+ *  Le message parle de « Toile » et de « budget » — il n'est donc adressable
+ *  qu'à quelqu'un qui a choisi une toile.
+ *
+ *  Le second site d'appel qu'avait la tranche T2 (`allocateCanvas`) a été
+ *  RETIRÉ le 2026-07-30 : il ne voyait qu'une dimension, donc il refusait
+ *  aussi les photos de plus de 64 Mpx, qui s'ouvraient avant T2. Ne pas le
+ *  remettre « pour verrouiller tous les chemins » sans avoir d'abord résolu
+ *  comment il distinguerait une toile demandée d'une photo décodée : c'est
+ *  précisément ce que cet étage ne peut pas savoir (ADR-0007). */
 export function assertCanvasWithinBudget(width: number, height: number): void {
   const pixels = width * height;
   if (pixels > MAX_CANVAS_PIXELS) {

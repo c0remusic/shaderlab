@@ -88,9 +88,14 @@ pire cas mesuré 67,8 % de 6 Go (4,07 Go) à toile ≡ photo de 26 Mpx ⇒ 1,33 
 marge sous un plafond de sécurité de 90 % ; au moins cinq textures pleine toile à
 4 octets = 20 o/px, facteur de sûreté ×1,5 pour les résidents non dénombrés de
 `MaskTextureResolver` ⇒ 30 o/px ⇒ ~44 Mpx de toile en plus des 26 déjà mesurés,
-soit ~70 Mpx calculés, arrondis à la baisse à 64 Mpx. Vérifiée aux deux bouts : à la
-dérivation d'un format et dans `ImageFrameResources.allocateCanvas`, pour qu'aucun
-chemin d'allocation ne la contourne.
+soit ~70 Mpx calculés, arrondis à la baisse à 64 Mpx.
+
+**Elle ne borne QUE les dimensions que l'utilisateur a CHOISIES** (amendement du
+2026-07-30, avant merge — voir « Croyances révisées »). Un seul site
+d'application : `canvasSizeFor` (`src/layers/canvasFormat.ts`), et il saute le
+cas `{ kind: "photo" }`. Les dimensions d'une photo ouverte ne sont pas une
+demande mais un fait sur le fichier ; elles restent bornées par ce qui les
+bornait avant cette tranche, `assertImageFitsGpu`, et rien d'autre.
 
 ## Conséquences
 
@@ -99,6 +104,25 @@ chemin d'allocation ne la contourne.
 - Un format refusé (budget dépassé) échoue **avant** toute allocation de texture et
   remonte au bandeau d'erreur ; le document précédent n'est jamais touché
   (l'ouverture reste transactionnelle).
+- **Le budget est ASYMÉTRIQUE, et c'est voulu** : une photo de 101 Mpx s'ouvre,
+  une toile de 101 Mpx demandée à la main est refusée. Ouvrir une photo, quelle
+  que soit sa taille, reste exactement ce que l'app faisait avant cette tranche —
+  y compris le risque VRAM que ça portait déjà, qui n'a jamais été mesuré et que
+  cette tranche n'avait pas mandat de trancher. Refuser aurait retiré une
+  capacité existante sans recours possible pour l'utilisateur : le projet
+  interdit le downscale (`CLAUDE.md`, « résolution native, toujours »), donc le
+  seul « choix » offert serait de ne pas ouvrir son fichier. À l'inverse, une
+  toile réclamée à la main est bornée, parce qu'un refus y est actionnable —
+  demander plus petit.
+- **Choisir « A3 » sur une photo plus grande que 17,4 Mpx ampute la photo dans le
+  fichier exporté.** Ce n'est pas un effet de bord : c'est la conséquence directe
+  du §3 (A3 est absolu). Aucun avertissement n'est possible dans le menu, qui est
+  ouvert AVANT que la photo soit choisie et ne connaît donc aucune dimension à
+  comparer ; le menu affiche à la place les pixels du format
+  (« A3 300 dpi — 3508 × 4961 px »), le seul fait qu'il détienne réellement.
+  Rattrapable en un clic par « Ajuster à la toile ». Distinct du débordement déjà
+  assumé par `PhotoPanel` — celui-là suit un geste de l'utilisateur, celui-ci est
+  l'état par défaut à l'ouverture.
 - Le harnais de rendu porte un axe `toile` et un scénario
   `toile-plus-grande-que-la-photo` (toile 320 × 320, mire 256 × 256). Les références
   n'ont plus toutes les mêmes dimensions : elles voyagent avec chaque résultat.
@@ -156,3 +180,24 @@ chemin d'allocation ne la contourne.
   partagée sur changement de dimensions de toile.
   Ce que ça change : le coût réel de cette tranche était dans l'unicité de la source
   de dimension et dans la borne de budget, pas dans le moteur de rendu.
+
+- Croyance : « ouvrir sans rien choisir rend exactement le comportement
+  d'aujourd'hui, au pixel près — c'est le même chemin de code, donc il n'y a rien
+  à surveiller. »
+  Réfutée par : une mesure de la revue adverse du 2026-07-30, rejouée avant merge
+  sur le code rebasé, sur la vraie fenêtre WebView2 —
+  `canvasSizeFor(PHOTO_CANVAS_FORMAT, { width: 9000, height: 7300 })` levait
+  « Toile 9000×7300 px = 65.7 Mpx, au-delà du budget de 64 Mpx », idem sur
+  11648 × 8736 (Fujifilm GFX100, 101,8 Mpx). Ces deux photos s'ouvraient avant la
+  tranche : `maxTextureDimension2D` vaut 16384 sur la machine du projet (mesuré au
+  même moment), donc `assertImageFitsGpu` les acceptait toutes les deux. L'égalité
+  était vraie AU PIXEL et fausse AU DOMAINE — le chemin par défaut avait gagné un
+  refus que personne n'avait demandé, avec un message parlant de « Toile » et de
+  « budget » à quelqu'un qui n'avait choisi aucune toile.
+  Ce que ça change : le budget ne s'applique plus qu'aux formats explicitement
+  choisis (voir § Conséquences), et il n'a plus qu'un seul site d'application. Le
+  second site (`allocateCanvas`) est retiré : il ne voit qu'une dimension, donc il
+  ne peut pas distinguer une demande d'un fait, donc il ne peut pas appliquer
+  cette règle. Leçon plus générale : « c'est le même chemin de code » prouve
+  l'identité du calcul, pas l'identité du COMPORTEMENT — une garde ajoutée en
+  amont du chemin partagé change les deux appelants.

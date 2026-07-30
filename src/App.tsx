@@ -1728,9 +1728,16 @@ export default function App() {
             </>
           }
         >
+          {/* `aria-label` et pas seulement le `placeholder` : un placeholder
+              n'est qu'un nom accessible de DERNIER recours (HTML-AAM), et son
+              jumeau de `PresetPanel` porte déjà l'attribut. Deux champs du même
+              rôle nommés par deux mécanismes différents est une dérive, pas un
+              choix. Relevé le 2026-07-30 en balayant les noms accessibles des
+              contrôles du dock. */}
           <input
             type="text"
             className="preset-panel__name-input"
+            aria-label="Nom de la copie du preset"
             placeholder="Nom du nouveau preset"
             value={pendingPresetCopyName ?? ""}
             onChange={(e) => setPendingPresetCopyName(e.target.value)}

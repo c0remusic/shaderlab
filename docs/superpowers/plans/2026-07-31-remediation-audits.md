@@ -215,7 +215,53 @@ transfert sRGB**, ce que `srgbTransfer.ts:19-21` interdit en toutes lettres.
 
 </details>
 
-### E5 — AFK — le noyau d'upsample du glow est une coquille sans tap central
+### E5 — CLOS EN PARTIE le 2026-07-31 à 01:15 — la coquille est rebouchée
+
+`UPSAMPLE_WGSL` échantillonnait à un texel entier (`glow.ts:33`). Les huit taps
+forment un anneau, aucun n'est au centre : à un texel entier, les taps diagonaux
+tombent exactement sur des centres de texels voisins et la bilinéaire ne ramène
+presque rien du texel courant. Corrigé à un **demi-texel**.
+
+**Mesure**, simulation du noyau sur une impulsion unité, échantillonnage
+bilinéaire, sortie à 2× la résolution d'entrée :
+
+```
+o = 1.0 texel   energie au centre =  1.0 %   pixel central / maximum = 0.105
+o = 0.5 texel   energie au centre = 19.8 %   pixel central / maximum = 1.000
+```
+
+Le « environ 1 % du poids au centre » de l'audit est retrouvé indépendamment.
+
+**Preuve de non-régression** :
+
+```
+npx tsc --noEmit         -> aucune sortie
+npm run test:gpu-shaders -> 64 shaders composes compiles, 0 en echec
+npm run test:render      -> FAIL effets-glow-posterize et lui SEUL
+                            ecart max 140, moyenne 2.5969 ; 9 autres inchanges
+node render-check.mjs --update --scenario effets-glow-posterize
+npm run test:render      -> Aucune regression de rendu.
+```
+
+**⚠️ CHANGEMENT DE LOOK À VALIDER À L'ŒIL.** Les deux références relues : le
+halo est nettement plus **resserré** après correctif, la bavure large a reculé
+et le damier redevient lisible près du disque. C'est le comportement correct du
+noyau documenté, mais c'est un changement esthétique — à confirmer sur une vraie
+photo avant release.
+
+**RESTE OUVERT, reclassé HITL** : la chaîne s'arrête à 1/8, donc le rayon du
+bloom est un nombre constant de pixels image au lieu de suivre la taille de la
+photo. Allonger la chaîne changerait le rayon perçu sur toutes les images
+existantes — c'est une décision produit, pas une correction, et elle se combine
+au resserrement ci-dessus. Ne pas la trancher en boucle.
+
+**NON FAIT, et volontairement** : l'audit signale qu'un offset de bright-pass
+« ±0,25 texel » avait été proposé et qu'il est faux arithmétiquement (le bon
+serait ±0,5). C'est un avertissement sur un correctif proposé, pas une demande.
+La passe de bright-pass n'a aujourd'hui aucun offset (`glow.ts:69-85`) et n'a
+pas été touchée.
+
+<details><summary>Énoncé d'origine</summary>
 
 À l'upsample, l'offset vaut 4× le canonique : environ 1 % du poids au centre.
 Et la chaîne s'arrête à 1/8, donc le rayon est un nombre constant de pixels
@@ -225,6 +271,8 @@ image au lieu de suivre la taille de la photo.
 faux arithmétiquement — le centre du pixel destination tombe déjà sur le coin
 des quatre texels, **l'offset correct est ±0,5**. Appliqué tel quel, le shader
 compile, rend, change la référence pixel et ne fait PAS ce qu'il annonce.
+
+</details>
 
 ### E4 — HITL — le placement des paliers de posterize
 

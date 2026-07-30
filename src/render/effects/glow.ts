@@ -30,7 +30,16 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
 const UPSAMPLE_WGSL = `
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let texel = 1.0 / vec2<f32>(textureDimensions(srcTexture));
-  let o = texel * 1.0;
+  // DEMI-texel, pas un texel entier. Les huit taps forment un anneau : aucun
+  // n'est au centre. À un texel entier, les taps diagonaux tombent exactement
+  // sur des centres de texels voisins et l'interpolation bilinéaire ne ramène
+  // presque rien du texel courant — le noyau devient une coquille trouée.
+  // Simulé sur une impulsion unité : 1,0 % de l'énergie seulement restait sur
+  // le texel d'origine, et le pixel central ne valait que 0,105 du maximum du
+  // noyau. À un demi-texel, les taps diagonaux tombent ENTRE les texels, la
+  // bilinéaire ramène le centre, qui remonte à 19,8 % de l'énergie et redevient
+  // le maximum du noyau.
+  let o = texel * 0.5;
   var sum = vec3<f32>(0.0);
   sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x * 2.0, 0.0)).rgb;
   sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x,  o.y)).rgb * 2.0;

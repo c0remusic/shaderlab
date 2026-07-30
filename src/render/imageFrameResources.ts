@@ -1,4 +1,4 @@
-import { assertImageFitsGpu } from "./limits";
+import { assertCanvasWithinBudget, assertImageFitsGpu } from "./limits";
 
 /**
  * Textures persistantes d'un document : la TOILE et les cibles de rendu.
@@ -34,6 +34,11 @@ export class ImageFrameResources {
    *  dans la signature que cette classe ne connaît plus d'image du tout. */
   allocateCanvas(width: number, height: number): void {
     assertImageFitsGpu(width, height, this.maxTextureDimension2D);
+    // Borne de BUDGET, en plus de la borne de dimension : depuis la tranche T2
+    // la toile n'a plus la taille d'une photo décodée, donc plus rien ne la
+    // borne implicitement. Vérifiée ICI et pas seulement à la dérivation du
+    // format, pour qu'aucun chemin d'allocation ne puisse la contourner.
+    assertCanvasWithinBudget(width, height);
     this.dispose();
     this.imageWidth = width;
     this.imageHeight = height;
@@ -78,7 +83,8 @@ export class ImageFrameResources {
    * DEPUIS LA TRANCHE T1 cet effacement est le contenu DÉFINITIF de la toile :
    * plus aucun upload ne le recouvre. Une zone que ne couvre aucun calque
    * arrive donc à alpha 0 jusqu'à la passe de présentation, qui l'aplatit sur
-   * un damier à l'écran et sur du noir à l'export (`render/presentPass.ts`).
+   * un damier à l'écran et sur du BLANC à l'export (ADR-0006,
+   * `render/presentPass.ts`).
    * Masquer le calque de fond fait apparaître le damier : c'est la preuve
    * observable de toute cette chaîne.
    */

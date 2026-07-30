@@ -103,6 +103,23 @@ export function centerTransform(transform: LayerTransform, bgSize: PixelSize): L
  * bgWidth × bgHeight, donc tout ce qui dépasse est perdu par construction.
  * Une photo de taille dégénérée (0) laisse l'échelle inchangée plutôt que de
  * produire un `Infinity`/`NaN` silencieux.
+ *
+ * ARBITRAGE OUVERT, SIGNALÉ ET NON TRANCHÉ (design 2026-07-29 §11.5, §4.6).
+ * Depuis la tranche T2, la toile peut être PLUS GRANDE que la photo. Sur une
+ * telle toile, ce *contain* AGRANDIT la photo au-delà de sa résolution native —
+ * un upscale, contraire à la barre de qualité du projet. Jusqu'à T2 le cas
+ * n'existait pas : la toile valait la photo, donc l'échelle rendue valait au
+ * plus 1.
+ *
+ * Le comportement est laissé INCHANGÉ, délibérément : le borner à 100 % ferait
+ * de « Ajuster à la toile » un bouton sans effet sur une toile plus grande,
+ * c'est-à-dire une autre décision produit, et personne ne l'a tranchée. Les deux
+ * options sont réelles :
+ *   - borner à `Math.min(1, ...)` : jamais d'upscale, le bouton ne fait rien
+ *     quand la photo est déjà plus petite que la toile ;
+ *   - laisser tel quel : le bouton tient son nom, au prix d'un upscale.
+ * À reposer à Antoine avec un rendu (une photo agrandie 1,5× sur une toile
+ * carrée) — c'est une question de goût autant que de règle.
  */
 export function fitToCanvas(transform: LayerTransform, bgSize: PixelSize, photoSize: PixelSize): LayerTransform {
   if (photoSize.width <= 0 || photoSize.height <= 0) return { ...transform };

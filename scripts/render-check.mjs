@@ -61,6 +61,10 @@
 // ─────────────────────────────────────────────────────────────────────────
 // Ce qu'un scenario doit poser lui-meme (tranche T1)
 // ─────────────────────────────────────────────────────────────────────────
+// Depuis la tranche T2, `Renderer.loadImage()` prend un SECOND argument
+// optionnel : les dimensions de la toile. Omis, elles valent celles du bitmap —
+// le chemin d'avant T2. Un scenario declare `toile` pour s'en ecarter.
+//
 // La toile n'est PLUS la photo. `Renderer.loadImage()` alloue une toile vide
 // et enregistre la photo comme SOURCE ; c'est `App.tsx` qui en fait le calque
 // du bas. Un scenario qui se contente d'un `new LayerStack()` nu rend donc du
@@ -346,6 +350,12 @@ const INSTALL = `(async () => {
   //    "canvas" (surface de presentation, damier compris). Le damier n'existe
   //    QUE sur le canvas (\`presentBackgroundFor\`) : aucun scenario d'export ne
   //    peut le voir, donc aucun ne peut le verrouiller.
+  //  - \`toile\` (defaut W x H, c'est-a-dire exactement la taille de la mire) :
+  //    dimensions du DOCUMENT, ajoute par la tranche T2. Jusque-la tous les
+  //    scenarios posaient toile == photo, si bien que rien ne verrouillait le
+  //    seul cas que T2 introduit — une toile dont les dimensions ne sont celles
+  //    d'aucune photo. Une reference n'a donc plus la meme taille que les
+  //    autres : les dimensions voyagent avec chaque resultat (voir \`run\`).
   const scenarios = {
     // LA TOILE, VIDE, DANS UN FICHIER. Zero calque : c'est le court-circuit
     // « 0 calque active » de \`framePipelineExecutor\` (copie neutre) puis
@@ -368,6 +378,28 @@ const INSTALL = `(async () => {
     // l'aplatissement. C'est l'autre moitie de l'ancien « base » : ce que
     // « document nu » designe depuis T1.
     "photo-de-fond-seule": { build: async () => {} },
+
+    // LA TOILE N'EST PLUS LA TAILLE DE LA PHOTO (tranche T2). Toile carree
+    // 320 x 320, mire 256 x 256 : la photo est centree, a l'echelle 1, et une
+    // bande de 32 px reste non couverte sur les quatre cotes. Dans le FICHIER
+    // exporte cette bande est BLANCHE (ADR-0006, arbitrage du 2026-07-30) ; a
+    // l'ecran ce serait le damier, que ce scenario ne peut pas voir puisqu'il
+    // lit \`exportFrame\`.
+    //
+    // C'est le seul scenario qui verrouille ce que T2 introduit. Ce qu'il
+    // attrape et qu'aucun autre ne pouvait attraper : une dimension d'export
+    // reprise d'une autre source que la toile, une pre-passe photo qui ne
+    // realloue pas sa cible sur un changement de dimensions, une transform
+    // d'ouverture centree sur la photo au lieu de la toile, et le fond d'export
+    // lui-meme.
+    //
+    // Pas de \`contre\` : la comparaison d'ecart suppose deux images de MEME
+    // taille. Son signal est celui de la mire (des milliers de valeurs), plus
+    // le blanc du passe-partout.
+    "toile-plus-grande-que-la-photo": {
+      toile: { width: 320, height: 320 },
+      build: async () => {},
+    },
 
     // Multi-passes (glow = 5 passes internes) + effet simple, avec opacite et
     // mode de fusion non triviaux.
@@ -476,8 +508,8 @@ const INSTALL = `(async () => {
    *  la texture d'export. Meme reswizzle bgra->rgba que l'export
    *  (\`FrameReadback\`, lecon du 2026-07-24) : sans lui la reference aurait le
    *  rouge et le bleu inverses, ce qui ne se voit pas sur un damier gris. */
-  const readCanvas = async (ctx) => {
-    const rb = new FrameReadback(ctx.device, W, H, ctx.srgbFormat.startsWith("bgra"));
+  const readCanvas = async (ctx, w, h) => {
+    const rb = new FrameReadback(ctx.device, w, h, ctx.srgbFormat.startsWith("bgra"));
     const stripped = rb.stripRowPadding(await rb.readTextureBytes(ctx.context.getCurrentTexture()));
     return rb.swapRedBlueChannels(stripped);
   };
@@ -507,9 +539,21 @@ const INSTALL = `(async () => {
     closePass() { pass = null; },
     async run(id) {
       const scenario = scenarios[id];
+      const toile = scenario.toile ?? { width: W, height: H };
+      // Un scenario de surface "canvas" relit la texture de presentation du
+      // canvas de la passe, cree en W x H : une toile differente y lirait autre
+      // chose que ce qu'elle a rendu. Refus explicite plutot qu'une image
+      // silencieusement fausse.
+      if (scenario.surface === "canvas" && (toile.width !== W || toile.height !== H)) {
+        throw new Error("scenario " + id + " : une toile != " + W + "x" + H + " exige la surface export");
+      }
       const r = new Renderer(pass.ctx);
       try {
-        await r.loadImage(await mire(W, H, 0));
+        // Deuxieme argument = LA TOILE (tranche T2). Omis, \`loadImage\` retombe
+        // sur les dimensions du bitmap : c'est le meme chemin de code qu'avant
+        // T2, donc les neuf references existantes ne peuvent pas bouger de ce
+        // fait.
+        await r.loadImage(await mire(W, H, 0), toile);
         const stack = new LayerStack();
         if (scenario.fond !== false) {
           // CE QUE FAIT \`App.tsx\` A L'OUVERTURE (openFile, tranche T1) : la
@@ -519,13 +563,16 @@ const INSTALL = `(async () => {
           // detecter.
           const bg = r.backgroundSourceId;
           if (bg === null) throw new Error("loadImage n'a pas enregistre la photo d'ouverture (invariant T1 rompu)");
-          stack.addPhotoLayer(bg, resetTransform({ width: W, height: H }), "fond");
+          // \`resetTransform(toile)\` et non \`{W, H}\` : la photo est centree sur
+          // LA TOILE, exactement comme \`App.tsx\` a l'ouverture. Sur une toile
+          // plus grande, elle reste a l'echelle 1 et laisse du vide autour.
+          stack.addPhotoLayer(bg, resetTransform(toile), "fond");
         }
         await scenario.build(r, stack);
         const layers = normalize(stack);
         const read = scenario.surface === "canvas"
-          ? async () => { r.render(layers); return readCanvas(pass.ctx); }
-          : () => r.exportFrame(layers);
+          ? async () => { r.render(layers); return readCanvas(pass.ctx, W, H); }
+          : async () => (await r.exportFrame(layers)).pixels;
         const first = await read();
         // Deuxieme lecture sur le MEME renderer : separe une instabilite de
         // frame (cache de pipeline, epoque de masque) d'une instabilite de
@@ -533,7 +580,17 @@ const INSTALL = `(async () => {
         const second = await read();
         let intra = 0;
         for (let i = 0; i < first.length; i++) if (first[i] !== second[i]) intra++;
-        return JSON.stringify({ ok: true, intra, nLayers: layers.length, pixels: b64(first) });
+        return JSON.stringify({
+          ok: true,
+          intra,
+          nLayers: layers.length,
+          // Les dimensions repartent AVEC les pixels : cote Node, la reference
+          // est encodee et comparee a la taille du scenario, pas a une taille
+          // globale. Meme principe que \`ExportedFrame\` dans le produit.
+          width: toile.width,
+          height: toile.height,
+          pixels: b64(first),
+        });
       } catch (e) {
         return JSON.stringify({ ok: false, error: String(e && e.stack ? e.stack : e) });
       } finally {
@@ -571,29 +628,29 @@ const INSTALL = `(async () => {
 
       // (1) OVERLAY ETEINT — ce que lit le harnais.
       r.setMaskOverlay(null);
-      const exportA = await r.exportFrame(layers);
+      const exportA = (await r.exportFrame(layers)).pixels;
       await wait();
-      const exportB = await r.exportFrame(layers);
-      r.render(layers); const canvasA = await readCanvas(ctx);
+      const exportB = (await r.exportFrame(layers)).pixels;
+      r.render(layers); const canvasA = await readCanvas(ctx, W, H);
       await wait();
-      r.render(layers); const canvasB = await readCanvas(ctx);
+      r.render(layers); const canvasB = await readCanvas(ctx, W, H);
 
       // (2) OVERLAY ARME — \`framePipelineExecutor.run\` injecte
       // performance.now() dans la passe d'overlay (framePipelineExecutor.ts:147).
       r.setMaskOverlay("L1"); // le calque a masque est le SECOND depuis que le fond est un calque
-      r.render(layers); const ovCanvasA = await readCanvas(ctx);
+      r.render(layers); const ovCanvasA = await readCanvas(ctx, W, H);
       await wait();
-      r.render(layers); const ovCanvasB = await readCanvas(ctx);
+      r.render(layers); const ovCanvasB = await readCanvas(ctx, W, H);
 
       // (3) la boucle rAF rejoue la meme passe a un autre instant d'horloge.
-      r.tickOverlayAnimation(1000); const tickA = await readCanvas(ctx);
-      r.tickOverlayAnimation(1600); const tickB = await readCanvas(ctx);
+      r.tickOverlayAnimation(1000); const tickA = await readCanvas(ctx, W, H);
+      r.tickOverlayAnimation(1600); const tickB = await readCanvas(ctx, W, H);
 
       // (4) \`exportFrame\` passe par le MEME \`runPipeline\`, donc par le meme
       // \`maskOverlayLayerId\` : l'overlay ne s'arrete pas au canvas.
-      const ovExportA = await r.exportFrame(layers);
+      const ovExportA = (await r.exportFrame(layers)).pixels;
       await wait();
-      const ovExportB = await r.exportFrame(layers);
+      const ovExportB = (await r.exportFrame(layers)).pixels;
 
       const diff = (x, y) => { let n = 0; for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) n++; return n; };
       const out = {
@@ -715,7 +772,7 @@ function verifierSignal(results, ids, meta) {
     }
 
     if (!bon) ok = false;
-    console.log(`  ${bon ? "OK  " : "FAIL"}  ${id.padEnd(26)} ${notes.join(", ")}`);
+    console.log(`  ${bon ? "OK  " : "FAIL"}  ${id.padEnd(30)} ${notes.join(", ")}`);
   }
   if (!ok) {
     fail(
@@ -754,7 +811,10 @@ async function main(cdp) {
     return;
   }
 
-  console.log(`Rendu ${meta.width}x${meta.height}, ${ids.length} scenario(s), 2 passes independantes.\n`);
+  console.log(
+    `Mire ${meta.width}x${meta.height}, ${ids.length} scenario(s), 2 passes independantes ` +
+      "(la toile d'un scenario peut differer — axe `toile`).\n",
+  );
 
   // Passe 1 et passe 2 : deux GPUDevice, deux Renderer, deux chargements.
   const passes = [];
@@ -765,7 +825,13 @@ async function main(cdp) {
     for (const id of ids) {
       const raw = JSON.parse(await cdp.evaluate(`window.__renderCheck.run(${JSON.stringify(id)})`));
       if (!raw.ok) throw new Error(`scenario ${id} : ${raw.error}`);
-      results[id] = { pixels: new Uint8Array(Buffer.from(raw.pixels, "base64")), intra: raw.intra, nLayers: raw.nLayers };
+      results[id] = {
+        pixels: new Uint8Array(Buffer.from(raw.pixels, "base64")),
+        intra: raw.intra,
+        nLayers: raw.nLayers,
+        width: raw.width,
+        height: raw.height,
+      };
     }
     await cdp.evaluate("window.__renderCheck.closePass()");
     passes.push(results);
@@ -783,7 +849,7 @@ async function main(cdp) {
     const ok = inter.differing === 0 && a.intra === 0 && b.intra === 0;
     if (!ok) stable = false;
     console.log(
-      `  ${ok ? "OK  " : "FAIL"}  ${id.padEnd(26)} ${a.nLayers} calque(s)` +
+      `  ${ok ? "OK  " : "FAIL"}  ${id.padEnd(30)} toile ${a.width}x${a.height}  ${a.nLayers} calque(s)` +
         `  intra-passe: ${a.intra}/${b.intra}  inter-passes: ${inter.differing} canaux` +
         (inter.differing ? ` (max ${inter.maxAbs})` : ""),
     );
@@ -805,7 +871,8 @@ async function main(cdp) {
     mkdirSync(REF_DIR, { recursive: true });
     for (const id of ids) {
       const file = path.join(REF_DIR, `${id}.png`);
-      const png = encodePng(passes[0][id].pixels, meta.width, meta.height);
+      const res = passes[0][id];
+      const png = encodePng(res.pixels, res.width, res.height);
       writeFileSync(file, png);
       console.log(`  ecrit  ${path.relative(process.cwd(), file)}  (${png.length} octets)`);
     }
@@ -820,13 +887,16 @@ async function main(cdp) {
     const file = path.join(REF_DIR, `${id}.png`);
     if (!existsSync(file)) {
       manquantes++;
-      console.log(`  ABSENT ${id.padEnd(26)} pas de reference — \`node scripts/render-check.mjs --update\``);
+      console.log(`  ABSENT ${id.padEnd(30)} pas de reference — \`node scripts/render-check.mjs --update\``);
       continue;
     }
     const ref = decodePng(readFileSync(file));
-    if (ref.width !== meta.width || ref.height !== meta.height) {
+    const res = passes[0][id];
+    // Dimensions ATTENDUES = celles du scenario, plus celles du harnais : depuis
+    // T2 un scenario peut avoir une toile qui n'est pas W x H.
+    if (ref.width !== res.width || ref.height !== res.height) {
       regressions++;
-      console.log(`  FAIL   ${id.padEnd(26)} dimensions ${ref.width}x${ref.height} vs ${meta.width}x${meta.height}`);
+      console.log(`  FAIL   ${id.padEnd(30)} dimensions ${ref.width}x${ref.height} vs ${res.width}x${res.height}`);
       continue;
     }
     const stats = comparePixels(passes[0][id].pixels, ref.pixels);
@@ -835,7 +905,7 @@ async function main(cdp) {
     if (!accepte) regressions++;
     const tag = accepte ? (verdict === "identique" ? "OK    " : "TOLERE") : "FAIL  ";
     console.log(
-      `  ${tag} ${id.padEnd(26)} ${raison}` +
+      `  ${tag} ${id.padEnd(30)} ${raison}` +
         (stats.differing
           ? `  [max ${stats.maxAbs}, moyenne ${stats.meanAbs.toFixed(4)}, 1er pixel ${stats.firstIndex >> 2}]`
           : ""),

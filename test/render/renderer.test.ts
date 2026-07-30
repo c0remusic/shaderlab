@@ -43,6 +43,45 @@ describe("Renderer.createLoaded", () => {
   });
 });
 
+// Tranche T2 : « allouer une toile W×H » est séparé de « charger une photo ».
+// Ce qui est vérifiable sans GPU réel, c'est QUELLES dimensions partent vers
+// l'allocateur — et que le défaut reste celles du bitmap.
+describe("Renderer.loadImage — la toile n'a plus forcément la taille de la photo", () => {
+  it("sans format demandé, la toile prend les dimensions du bitmap (comportement d'avant T2)", async () => {
+    const ctx = fakeCtx(100);
+    // Bitmap 999×999 > limite 100 : le refus prouve que ce sont bien les
+    // dimensions du BITMAP qui sont parties à l'allocateur.
+    await expect(Renderer.createLoaded(ctx, { width: 999, height: 999 } as ImageBitmap)).rejects.toThrow(
+      /999×999/,
+    );
+  });
+
+  it("avec un format demandé, ce sont les dimensions de la TOILE qui sont validées, pas celles de la photo", async () => {
+    const ctx = fakeCtx(100);
+    // La photo tient (50×50 < 100), la toile demandée non : c'est la toile qui
+    // doit être refusée, et le message doit la nommer.
+    await expect(
+      Renderer.createLoaded(ctx, { width: 50, height: 50 } as ImageBitmap, undefined, {
+        width: 999,
+        height: 999,
+      }),
+    ).rejects.toThrow(/999×999/);
+  });
+
+  it("une toile au-delà du budget VRAM est refusée avant toute allocation de texture", async () => {
+    const ctx = fakeCtx(20000);
+    await expect(
+      Renderer.createLoaded(ctx, { width: 50, height: 50 } as ImageBitmap, undefined, {
+        width: 10000,
+        height: 10000,
+      }),
+    ).rejects.toThrow(/Mpx/);
+    expect(
+      (ctx.device as unknown as { createTexture: ReturnType<typeof vi.fn> }).createTexture,
+    ).not.toHaveBeenCalled();
+  });
+});
+
 function createRenderer() {
   const ctx = {
     device: { createSampler: vi.fn(() => ({})), limits: { maxTextureDimension2D: 8192 } },
@@ -139,6 +178,25 @@ describe("Renderer.exportFrame — l'overlay de masque ne sort jamais dans un fi
     // Sinon `tickOverlayAnimation` deviendrait un no-op après chaque export :
     // le contour animé se figerait jusqu'au rendu d'écran suivant.
     expect(priv.lastOverlayFrame).toBe(screenFrame);
+  });
+});
+
+// SOURCE UNIQUE DE LA DIMENSION DU DOCUMENT (design §4.3). Le second témoin de
+// la même divergence, pris à l'autre bout : ici on vérifie que ce que le
+// renderer PUBLIE vient bien de `ImageFrameResources`, pas d'une copie posée à
+// l'ouverture.
+describe("Renderer.canvasSize", () => {
+  it("descend de ImageFrameResources — la même source que la relecture d'export", () => {
+    const renderer = createRenderer();
+    const resources = (renderer as unknown as { imageResources: object }).imageResources;
+    vi.spyOn(resources as { width: number }, "width", "get").mockReturnValue(320);
+    vi.spyOn(resources as { height: number }, "height", "get").mockReturnValue(224);
+
+    expect(renderer.canvasSize).toEqual({ width: 320, height: 224 });
+  });
+
+  it("vaut 0×0 tant qu'aucun document n'est alloué (jamais une valeur inventée)", () => {
+    expect(createRenderer().canvasSize).toEqual({ width: 0, height: 0 });
   });
 });
 

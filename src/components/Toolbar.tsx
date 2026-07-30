@@ -1,11 +1,23 @@
-import { Download, FolderOpen, ImagePlus, Menu, Redo2, Undo2 } from "lucide-react";
+import { Download, FolderOpen, Frame, ImagePlus, Menu, Redo2, Undo2 } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import {
+  NAMED_CANVAS_FORMAT_LABELS,
+  type NamedCanvasFormat,
+} from "../layers/canvasFormat";
+
+/** Ordre d'affichage des formats nommés — le plus proche d'une photo d'abord,
+ *  le format d'impression en dernier. Explicite plutôt que l'ordre des clés
+ *  d'un objet. */
+const NAMED_FORMAT_ORDER: NamedCanvasFormat[] = ["carre", "quatre-cinq", "a3"];
 
 interface Props {
   canUndo: boolean;
@@ -16,7 +28,14 @@ interface Props {
   onRedo: () => void;
   onExport: () => void;
   onExportAs: () => void;
+  /** « Ouvrir » nu : la toile prend les dimensions de la photo, comme avant la
+   *  tranche T2. C'est le chemin par défaut et il ne demande rien. */
   onOpenFile: () => void;
+  /** « Ouvrir dans un format… » : un format nommé, dérivé de la photo ouverte. */
+  onOpenFileWithFormat: (format: NamedCanvasFormat) => void;
+  /** « Ouvrir dans une taille libre… » : ouvre la saisie des dimensions AVANT le
+   *  sélecteur de fichier. */
+  onOpenFileWithFreeSize: () => void;
   onImportPhotoLayer: () => void;
   canImportPhotoLayer: boolean;
 }
@@ -31,6 +50,8 @@ export function Toolbar({
   onExport,
   onExportAs,
   onOpenFile,
+  onOpenFileWithFormat,
+  onOpenFileWithFreeSize,
   onImportPhotoLayer,
   canImportPhotoLayer,
 }: Props) {
@@ -49,10 +70,28 @@ export function Toolbar({
           }
         />
         <DropdownMenuContent align="start">
+          {/* « Ouvrir » reste NU et premier : ouvrir sans rien choisir donne la
+              toile aux dimensions de la photo, exactement comme avant la tranche
+              T2. Le choix de format est une entrée SÉPARÉE, jamais un dialogue
+              interposé sur ce chemin-là. */}
           <DropdownMenuItem onClick={onOpenFile}>
             <FolderOpen className="icon-md icon-stroke" aria-hidden="true" />
             Ouvrir
           </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Frame className="icon-md icon-stroke" aria-hidden="true" />
+              Ouvrir dans un format de toile
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {NAMED_FORMAT_ORDER.map((format) => (
+                <DropdownMenuItem key={format} onClick={() => onOpenFileWithFormat(format)}>
+                  {NAMED_CANVAS_FORMAT_LABELS[format]}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuItem onClick={onOpenFileWithFreeSize}>Taille libre...</DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
           <DropdownMenuItem onClick={onImportPhotoLayer} disabled={!hasImage || !canImportPhotoLayer}>
             <ImagePlus className="icon-md icon-stroke" aria-hidden="true" />
             Importer une 2e photo (double exposure)

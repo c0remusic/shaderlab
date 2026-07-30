@@ -216,7 +216,7 @@ describe("PhotoLayerInputResolver", () => {
       expect(second).toBe(first);
     });
 
-    // MAX_PHOTO_LAYERS vaut 4 : deux calques photo de la MÊME frame appellent
+    // MAX_PHOTO_LAYERS vaut 5 (fond compris) : deux calques photo de la MÊME frame appellent
     // resolve() sur le MÊME encoder, avec la même taille de fond. Le resolver
     // doit leur rendre le même objet texture (une seule cible pleine taille,
     // pas +96 Mo par calque à 24 MP) — la correction de ce partage tient à

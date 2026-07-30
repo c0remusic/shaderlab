@@ -59,6 +59,20 @@ async function buildThumbnailUrl(bitmap: ImageBitmap): Promise<string | null> {
  *  dont ce plafond dérive (6 calques ⇒ 24 sources ≈ 5 Go). Détail :
  *  `docs/superpowers/specs/2026-07-28-shaderlab-fond-comme-calque-design.md`
  *  §4.4.
+ *
+ *  ✅ RE-MESURÉ le 2026-07-30 (T3), toile 8000 × 8000 = 64 Mpx cette fois (T4
+ *  mesurait toile ≡ photo). La garde lève TOUJOURS exactement à 20/20, au 16ᵉ
+ *  remplacement, sans crash et sans `device.lost` — reproduit à l'identique sur
+ *  deux passes. Mais le coût de ce pire cas a **presque doublé** avec la toile :
+ *  **4108 Mo, soit ~84 % de la VRAM** ligne de base comprise, contre 67,8 % à
+ *  toile ≡ photo. Toujours sous 80 % pour la part de l'application seule, mais
+ *  la marge annoncée en T4 a disparu — et « ≈ 5 Go à 24 sources » n'était pas
+ *  pessimiste : mesuré à 23 sources sur 24, on est à 4386 Mo (~89 %).
+ *  Conséquence, écrite ici parce que c'est cette constante qui la porte : la
+ *  hausse de `MAX_PHOTO_LAYERS` que T4 laissait ouverte est FERMÉE par la
+ *  mesure, tant que `MAX_CANVAS_PIXELS` vaut 64 Mpx. Détail : design 2026-07-28
+ *  §4.5.
+ *
  *  Posé ICI et pas dans l'UI : `PhotoSourceStore` est le point unique
  *  d'allocation (ARCHITECTURE.md R1 : « si un garde arrive, il se pose dans
  *  `PhotoSourceStore`, pas dispersé »). */

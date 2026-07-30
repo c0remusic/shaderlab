@@ -35,11 +35,34 @@ import type { LayerState } from "./types";
  *  `docs/superpowers/specs/2026-07-28-shaderlab-fond-comme-calque-design.md`
  *  §4.4. La valeur 5 n'est donc PAS une estimation.
  *
+ *  ✅ RE-MESURÉ le 2026-07-30 (tranche T3, même machine) AVEC UNE TOILE PLUS
+ *  GRANDE QUE LES PHOTOS — 8000 × 8000 = 64 Mpx, le plafond de
+ *  `MAX_CANVAS_PIXELS`, contre toile ≡ photo en T4. **Le plafond reste à 5, et
+ *  6 a été essayé pour de vrai avant d'être écarté** :
+ *   - À 6 calques photo, le cas NOMINAL est bon marché : +82 Mo seulement sur le
+ *     cas à 5, aucun `device.lost`, la fenêtre rend. Ce n'est PAS ce cas qui
+ *     décide, et c'est le piège de ce plafond.
+ *   - Ce qui décide est le pire cas des sources, parce que
+ *     `MAX_REGISTERED_PHOTO_SOURCES` DÉRIVE de cette valeur : 6 calques ⇒ 24
+ *     sources. Mesuré à 23 sources sur 24 (le vivier de photos réellement
+ *     distinctes de la machine est épuisé à 23) : **4386 Mo, soit ~89 % de la
+ *     VRAM** ligne de base comprise — au-delà du seuil de 80 %. À 5 calques le
+ *     même pire cas vaut 4108 Mo, ~84 %.
+ *   - Donc monter à 6 franchirait le seuil, alors que rien ne se voit dans le
+ *     cas nominal. Mesure = verdict : la valeur reste 5.
+ *  Détail des passes : design 2026-07-28 §4.5.
+ *
  *  ⚠️ CRITÈRE DE RÉVISION — cette valeur, ET `MAX_REGISTERED_PHOTO_SOURCES`
  *  qui en dérive, se révisent sur une NOUVELLE mesure au NOUVEAU plafond,
  *  jamais par extrapolation, ou si un `device.lost` est observé sous ce
  *  plafond. La mesure exige une vraie fenêtre WebView2 avec GPU (impossible
- *  en session headless / test Node). */
+ *  en session headless / test Node).
+ *  PRÉCISION ACQUISE LE 2026-07-30, à ne pas reperdre : une mesure de révision
+ *  qui ne fait qu'atteindre le nouveau plafond de CALQUES ne prouve rien —
+ *  elle doit aussi saturer les SOURCES au nouveau plafond dérivé, sinon elle
+ *  mesure le cas qui ne décide pas. Et le plafond ne peut monter qu'en même
+ *  temps que `MAX_CANVAS_PIXELS` descend : les deux sont couplées par ce même
+ *  pire cas. */
 export const MAX_PHOTO_LAYERS = 5;
 
 export function countPhotoLayers(layers: LayerState[]): number {

@@ -519,10 +519,17 @@ export default function App() {
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     (window as unknown as Record<string, unknown>).__shaderlabDebug = {
-      openByPath: async (path: string) => {
+      // `canvasFormat` OMIS = « comme la photo », donc exactement le chemin
+      // qu'empruntait ce pont avant T2. Il est exposé parce que la mesure VRAM
+      // de T3 (2026-07-30) exige une toile STRICTEMENT plus grande que les
+      // photos : sans lui, aucun scénario toile ≠ photo n'est atteignable sur
+      // la vraie fenêtre — le choix de format vit dans le menu « Ouvrir », dont
+      // le sélecteur de fichier natif n'est pilotable ni par CDP ni par
+      // computer-use.
+      openByPath: async (path: string, canvasFormat: CanvasFormatRequest = PHOTO_CANVAS_FORMAT) => {
         const bytes = await readImageFile(path);
         const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
-        await openFile(new File([blob], path, { type: "image/jpeg" }), path);
+        await openFile(new File([blob], path, { type: "image/jpeg" }), path, canvasFormat);
       },
       importPhotoByPath: (path: string) => importPhotoFromPath(path),
       // Même raison que `importPhotoByPath` : le remplacement d'image passe

@@ -384,6 +384,139 @@ sûre et gratuite mais retire une capacité existante : non recommandée.
 > Scripts : `scratchpad/mesure-vram-t4.mjs` et `mesure-vram-t4-vmax.mjs` (hors
 > dépôt, jetables — le pont de debug, lui, est dans le dépôt et réutilisable).
 
+### 4.5 Mesure VRAM à TOILE ≠ PHOTO — FAITE le 2026-07-30 (tranche T3 du design 2026-07-29)
+
+> **Statut : MESURÉE. Aucune constante ne bouge — `MAX_PHOTO_LAYERS = 5`,
+> `MAX_REGISTERED_PHOTO_SOURCES = 20`, `MAX_CANVAS_PIXELS = 64 Mpx.** Mais ce
+> n'est pas le même « rien ne bouge » qu'en §4.4 : là, la marge était large ;
+> ici, elle est presque épuisée, et la hausse que §4.4 laissait ouverte est
+> **réfutée**, pas seulement non prouvée.
+>
+> **Pourquoi une mesure de plus.** §4.4 mesurait toile ≡ photo. Depuis la tranche
+> T2 du design 2026-07-29, la toile peut être plus grande que la photo, et c'est
+> elle qui porte la majorité des textures pleine taille (§5.1 de ce design-là).
+> Toutes les mesures antérieures mesuraient donc un autre produit.
+>
+> **Machine, scénario, photos.** Même machine que §4.4 — **NVIDIA GeForce
+> RTX 2060, 6144 Mo** (`nvidia-smi --query-gpu=name,memory.total`). Toile
+> **libre 8000 × 8000 = 64,0 Mpx**, le plafond nommé, donc strictement plus
+> grande que les photos ; la dimension de toile est relevée à chaque étape sur le
+> vrai `<canvas>` du document, elle ne fait pas partie des hypothèses. Photos
+> **6240 × 4160 = 26,0 Mpx**, toutes **distinctes vérifiées par MD5 du contenu**
+> (le script dédoublonne et journalise ce qu'il écarte) : `DSCF5152…5160` de
+> `~/Pictures/2018/2018-01-22`, `DSCF5161…5172` de `…/2018-01-25`, plus
+> `vram-test/photo-1.jpg`. Écartés parce que doublons : `DSCF5169-edited.JPG`
+> (= `-edited-2`), et `photo-2/3/4.jpg` (tous `B99088A6…`, cf. l'avertissement de
+> §4.4). **Le vivier de contenus réellement distincts de la machine est de 24,
+> pas plus** — cette limite a une conséquence, dite plus bas.
+>
+> **⚠️ L'INSTRUMENT A DÛ CHANGER, et c'est le fait le plus important de cette
+> mesure.** `nvidia-smi --query-gpu=memory.used` compte le GPU entier. Pendant
+> cette session, d'autres applications d'Antoine en tenaient 1,6 à 3,5 Go
+> (Chrome seul : 1710 Mo, relevé par `\GPU Process Memory(*)\Dedicated Usage`) —
+> contre ~1250 Mo de ligne de base en §4.4. La première passe l'a rendu visible
+> au lieu de le cacher : elle a mesuré **V4 = 4123 Mo contre V3 = 4379 Mo, en
+> AJOUTANT une photo**. Un document qui grossit ne peut pas consommer moins ;
+> c'était l'instrument, pas le produit — WDDM évinçait sous la pression.
+> Instrument retenu à la place, pour la part de l'application :
+> `\GPU Process Memory(pid_<gpu-process WebView2>)\Total Committed`, qui compte
+> ce que le process a alloué, résident ou paginé. `Dedicated Usage` a été essayé
+> et **rejeté** : il ne compte que le résident, et il a rendu 1203 puis 2348 Mo
+> pour le MÊME document à quatre minutes d'intervalle. `Total Committed`, lui,
+> rend 2644 à 2648 Mo sur cinq relevés d'un état figé (± 3 Mo).
+>
+> **L'instrument neuf est raccordé à l'ancien, sinon les deux mesures ne seraient
+> pas comparables.** Passe de contrôle exécutée le même jour, même script, seule
+> la toile changée pour la ramener à ≡ photo (6240 × 4160) : coût du document à
+> 5 calques = **1275 Mo**. §4.4 mesurait **1300 Mo ± 50** pour cette même
+> configuration, à `nvidia-smi`. Les deux instruments concordent ; les tableaux
+> ci-dessous sont donc lisibles avec le seuil de §4.4.
+>
+> | Scénario | toile | calques photo | sources | app `Total Committed` | coût du document (− V0) |
+> |---|---|---|---|---|---|
+> | Contrôle (raccord à §4.4) | 26,0 Mpx | 5 | 5 | 1452 | **1275** |
+> | A, passe 3 | 64,0 Mpx | 5 | 5 | 2723 | 2597 |
+> | A, passe 4 | 64,0 Mpx | 5 | 5 | 2475 | 2393 |
+> | B, passe 1 — pire cas | 64,0 Mpx | 5 | **20/20** | 4108 | 4004 |
+> | B, passe 2 — pire cas | 64,0 Mpx | 5 | **20/20** | 4108 | 4000 |
+> | C, nominal à 6 calques | 64,0 Mpx | **6** | 6 | 2576 | 2475 |
+> | C, pire cas à 6 calques | 64,0 Mpx | **6** | 23/24 | 4386 | 4285 |
+>
+> **Ce que ça dit, dans l'ordre d'importance.**
+> 1. **La toile double le coût du document.** 1275 Mo à 26 Mpx, 2393 à 2597 Mo à
+>    64 Mpx (2,5× la surface). Le facteur de sûreté ×1,5 du calibrage de
+>    `MAX_CANVAS_PIXELS` n'était ni de trop ni excessif.
+> 2. **Le pire cas des sources est reproductible au mégaoctet** : 4108 Mo sur les
+>    deux passes B, garde levée **exactement à 20/20**, au 16ᵉ remplacement, par
+>    le bandeau « Trop de photos importées dans cette session (20/20)… ». Même
+>    comportement qu'en §4.4, coût presque doublé (4004 contre ~2900 Mo).
+> 3. **Le cas nominal à 6 calques ne coûte presque rien : +82 Mo.** C'est le
+>    piège de ce plafond, et la raison pour laquelle une mesure qui s'arrête au
+>    plafond de CALQUES ne prouve rien.
+> 4. **C'est le pire cas des sources qui décide**, parce que
+>    `MAX_REGISTERED_PHOTO_SOURCES` dérive du plafond de calques : 6 calques ⇒ 24
+>    sources ⇒ **4386 Mo**, mesuré à 23 sources sur 24.
+>
+> **Rapporté au seuil de §4.4** (V5 en % de la VRAM totale). La ligne de base
+> système de §4.4 vaut ~1170 Mo (son V0 de 1229–1316 Mo, moins ~100 Mo
+> d'application au repos, mesurés ici) :
+> - A, nominal 5 calques : 1170 + 2495 ≈ 3665 Mo ≈ **60 %**.
+> - **B, pire cas 5 calques : 1170 + 4002 ≈ 5172 Mo ≈ 84 %** — contre 67,8 % à
+>   toile ≡ photo.
+> - C, nominal 6 calques : ≈ 3645 Mo ≈ **59 %**.
+> - **C, pire cas 6 calques : 1170 + 4285 ≈ 5455 Mo ≈ 89 %.**
+>
+> **Les quatre seuils de révision, un par un.**
+> 1. `device.lost` ou fenêtre qui cesse de rendre → **NON franchi**, sur aucune
+>    des sept passes, ni à 6 calques, ni sources saturées. Guetté par le handler
+>    de `gpuContext.ts:48`, console lue par CDP sur toute la durée ; aucune
+>    exception WebView2 non plus.
+> 2. > 80 % de la VRAM → **NON franchi dans le cas nominal** (60 %),
+>    **FRANCHI dans le pire cas des sources** : ~84 % à 5 calques, ~89 % à 6.
+> 3. Delta par photo > 150 Mo → **FRANCHI à 64 Mpx** : (V5 − V1) / 4 vaut 162 à
+>    223 Mo/photo selon la passe, contre 96 à 128 Mo à toile ≡ photo. La bosse à
+>    V4 se reproduit sur toutes les passes, comme en §4.4.
+> 4. < 60 % et aucun incident → le cas nominal y est tout juste (60 %), mais le
+>    pire cas ne l'est pas. **« Le plafond pourrait encore monter », que §4.4
+>    laissait ouvert, est donc RÉFUTÉ** — et il l'est par une mesure à 6, pas par
+>    un raisonnement.
+>
+> **Décision.** `MAX_PHOTO_LAYERS` **reste 5** — décidé par le pire cas à 6
+> calques (~89 %), pas par le cas nominal, qui passait.
+> `MAX_REGISTERED_PHOTO_SOURCES` **reste 20**, il dérive. `MAX_CANVAS_PIXELS`
+> **reste 64 Mpx** : son critère écrit dit « descend au-delà de 90 %, peut monter
+> sous 70 % » et le pire cas mesuré vaut ~84 % — ni l'un ni l'autre.
+> **Corollaire acquis, qui est le vrai gain de cette tranche** : les deux
+> plafonds sont désormais COUPLÉS par le pire cas des sources. Aucun des deux ne
+> peut monter sans que l'autre descende, et ça se mesure, ça ne se calcule pas.
+>
+> **Ce que la mesure NE couvre PAS, dit franchement.**
+> - **Le pire cas absolu à 6 calques n'a pas été atteint** : 23 sources sur 24,
+>   parce que la machine ne contient que 24 contenus JPEG distincts et que 6
+>   servaient déjà de calques. La 24ᵉ source aurait ajouté ~99 Mo (une texture
+>   26 Mpx), soit ~90 % au lieu de ~89 % — mais **c'est un calcul, pas une
+>   mesure**, et le verdict ne repose pas sur lui : 89 % dépasse déjà 80 %.
+> - **Les pourcentages sont DÉRIVÉS, pas relevés.** La part de l'application est
+>   mesurée ; la ligne de base système est celle de §4.4, reprise parce que la
+>   machine était trop chargée ce jour-là pour en produire une comparable. Aucune
+>   passe n'a été faite sur une machine au repos, et ça n'a pas été tenté : les
+>   applications qui tenaient la VRAM étaient celles d'Antoine (Blender, Chrome,
+>   Photos), tuer un process qu'on n'a pas lancé n'est pas à la main de l'agent.
+>   **À refaire sur une machine au repos si un jour la décision se joue à
+>   quelques points** — ici elle se joue à quatre points au-dessus d'un seuil,
+>   dans le sens qui ne change pas la conclusion.
+> - **Aucun masque n'a été peint** pendant ces mesures, comme en §4.4 : les
+>   allocations résidentes de `MaskTextureResolver` restent non dénombrées, et
+>   elles sont proportionnelles à la TOILE, donc 2,5× plus grosses qu'avant T2.
+>   C'est le premier endroit où chercher si un incident VRAM apparaît à l'usage.
+> - Le pont de debug ouvre et importe par les MÊMES handlers que l'interface,
+>   mais il n'exerce ni l'export, ni l'undo, ni un enchaînement de documents.
+>
+> Script : `scratchpad/mesure-vram-t3.mjs` (hors dépôt, jetable). Il porte le
+> `openByPath(path, canvasFormat)` du pont de debug, qui est la seule pièce de
+> ce dispositif à vivre dans le dépôt (`src/App.tsx`) : sans le paramètre de
+> format, aucun scénario toile ≠ photo n'est atteignable sur la vraie fenêtre.
+
 ---
 
 ## 5. Migration

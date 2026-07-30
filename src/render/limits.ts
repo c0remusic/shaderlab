@@ -19,7 +19,8 @@ export function assertImageFitsGpu(width: number, height: number, maxDimension: 
  * `docs/superpowers/specs/2026-07-29-shaderlab-toile-de-montage-design.md`
  * (§5.2), qui exigeait qu'une toile réglable ne soit pas un chèque en blanc.
  *
- * CALIBRAGE (mesures du projet, 2026-07-28/29) :
+ * CALIBRAGE D'ORIGINE (mesures du projet, 2026-07-28/29) — conservé parce que
+ * c'est lui que la mesure de T3 est venue vérifier :
  *  - À 5 photos de 26 Mpx, toile ≡ photo : 42,2 % de la VRAM.
  *  - Pire cas des sources mesuré : 67,8 % sur une carte de 6 Go, soit 4,07 Go.
  *  - Marge jusqu'à un plafond de sécurité de 90 % : 22,2 % ≈ 1,33 Go.
@@ -32,15 +33,37 @@ export function assertImageFitsGpu(width: number, height: number, maxDimension: 
  *    un plafond calculé de ~70 Mpx. Arrondi À LA BAISSE à 64 Mpx (8000 × 8000) :
  *    mémorable, et ~10 % de marge sous le calcul.
  *
+ * ✅ MESURÉ À 64 Mpx le 2026-07-30 (tranche T3, RTX 2060 6144 Mo, toile libre
+ * 8000 × 8000 = 64,0 Mpx, photos 6240 × 4160 toutes distinctes par MD5) :
+ *  - Nominal, 5 calques photo : coût du document **2393 à 2597 Mo** sur quatre
+ *    passes. C'est **~2× le coût à toile ≡ photo** (1275 Mo, mesuré le même jour
+ *    au même instrument), pour 2,5× la surface de toile — le facteur de sûreté
+ *    ×1,5 du calcul ci-dessus n'était donc pas de trop, mais il n'était pas
+ *    excessif non plus.
+ *  - **Pire cas des sources (le cas qui décide) : 4108 Mo, reproduit à
+ *    l'identique sur deux passes**, garde levée exactement à 20/20. Rapporté à
+ *    la ligne de base système du protocole (~1170 Mo), cela fait **~84 % de la
+ *    VRAM** — contre 67,8 % à toile ≡ photo. Aucun `device.lost`.
+ *  - Conclusion : la borne de 64 Mpx TIENT, et elle ne peut plus monter. Le
+ *    couple (toile 64 Mpx, plafond de 5 calques) consomme désormais presque
+ *    toute la marge d'une carte de 6 Go dans son pire cas.
+ * Détail chiffré, passes, et ce que la mesure ne couvre pas :
+ * `docs/superpowers/specs/2026-07-28-shaderlab-fond-comme-calque-design.md`
+ * §4.5.
+ *
  * Ce que la borne autorise sur la photo de référence (6240 × 4160) : carré
  * 38,9 Mpx, 4:5 orienté 31,2 Mpx, A3 à 300 dpi 17,4 Mpx. Les trois formats
  * proposés à l'ouverture passent — c'est cette contrainte qui a fixé l'arrondi.
  *
- * CRITÈRE DE RÉVISION (écrit ici, pas ailleurs) : re-mesurer la VRAM avec une
- * toile STRICTEMENT plus grande que les photos. Le protocole existant mesure
- * toile ≡ photo, donc un autre produit (voir T3 du design). Si la mesure dépasse
- * 90 % à 64 Mpx, cette borne DESCEND ; si elle reste sous 70 %, elle peut
- * monter. Jamais extrapolée : toujours re-mesurée.
+ * CRITÈRE DE RÉVISION (écrit ici, pas ailleurs) : la mesure toile ≠ photo qu'il
+ * réclamait A ÉTÉ FAITE (T3, ci-dessus). Le critère lui-même ne change pas et
+ * reste la règle pour la prochaine fois : si une mesure dépasse 90 % à 64 Mpx,
+ * cette borne DESCEND ; si elle reste sous 70 %, elle peut monter. Le pire cas
+ * mesuré vaut ~84 % : ni l'un ni l'autre, donc **la borne reste à 64 Mpx**, et
+ * « elle peut monter » est désormais RÉFUTÉ, pas seulement non prouvé.
+ * Corollaire mesuré, à ne pas perdre : cette borne et `MAX_PHOTO_LAYERS` sont
+ * COUPLÉES par le pire cas des sources — aucune des deux ne peut monter sans
+ * que l'autre descende. Jamais extrapolée : toujours re-mesurée.
  *
  * INDÉPENDANTE de `assertImageFitsGpu`, qui borne la dimension maximale d'une
  * texture et non le budget. Les deux s'appliquent, aucune ne remplace l'autre.

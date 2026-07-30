@@ -8,7 +8,14 @@ describe("photoLayer guards", () => {
   // Arbitrage n°3 du design 2026-07-28 (§7) : 5 = 4 imports + le FOND, qui est
   // désormais un calque photo compté comme les autres. Laisser 4 aurait
   // silencieusement ramené l'utilisateur de 4 imports à 3.
-  it("MAX_PHOTO_LAYERS vaut 5 (4 imports + la photo de fond, devenue un calque)", () => {
+  //
+  // Ce test verrouille un CHIFFRE, donc il porte la date de la mesure qui le
+  // justifie, sinon il n'est qu'une tautologie qui recopie le code. La valeur 5
+  // est mesurée deux fois : le 2026-07-29 (T4, toile ≡ photo) et le 2026-07-30
+  // (T3, toile 64 Mpx, où 6 a été essayé puis écarté — le pire cas des sources
+  // à 6 calques monte à ~89 % de la VRAM). Le faire échouer est le rappel voulu :
+  // changer ce plafond exige une NOUVELLE mesure, pas une modification de test.
+  it("MAX_PHOTO_LAYERS vaut 5 — 4 imports + la photo de fond (mesuré 2026-07-29 et 2026-07-30)", () => {
     expect(MAX_PHOTO_LAYERS).toBe(5);
   });
 

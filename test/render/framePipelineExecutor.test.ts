@@ -251,8 +251,8 @@ describe("FramePipelineExecutor", () => {
 
   // I4 — la cible de résolution de PhotoLayerInputResolver est UNE texture
   // persistante partagée par tous les calques photo. Ce qui rend ce partage
-  // correct n'est plus « au plus un calque photo » (MAX_PHOTO_LAYERS vaut 4
-  // depuis T5) mais l'ORDRE DES PASSES encodées ici : resolve(A) → passes(A)
+  // correct n'est plus « au plus un calque photo » (MAX_PHOTO_LAYERS vaut 5,
+  // fond compris, depuis le 2026-07-28) mais l'ORDRE DES PASSES encodées ici : resolve(A) → passes(A)
   // → resolve(B) → passes(B). Les passes d'un même GPUCommandEncoder
   // s'exécutent dans l'ordre de soumission, donc A a fini de lire la cible
   // avant que le resolve de B ne la re-clear. Propriété structurelle, donc

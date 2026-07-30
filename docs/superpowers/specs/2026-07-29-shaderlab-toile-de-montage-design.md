@@ -474,6 +474,41 @@ produit.
 grande que les photos ; plafond fixé ou descendu selon la mesure ; message de
 refus toujours exact.
 
+> **FAITE le 2026-07-30. Résultat : aucune constante ne bouge, et la hausse est
+> désormais RÉFUTÉE.** Encadré de mesure complet — sept passes, tableau, seuils
+> un par un, et ce que la mesure ne couvre pas — au §4.5 du design
+> `2026-07-28-shaderlab-fond-comme-calque-design.md`.
+>
+> Le nécessaire, en clair :
+> - Toile mesurée : **libre 8000 × 8000 = 64,0 Mpx**, photos 6240 × 4160
+>   distinctes par MD5. La toile est relevée sur le vrai `<canvas>` à chaque
+>   étape, donc « toile ≠ photo » est prouvé, pas supposé.
+> - **`MAX_PHOTO_LAYERS` reste 5.** 6 a été essayé pour de vrai : le cas nominal
+>   à 6 calques ne coûte que **+82 Mo** et ne montre rien, mais le pire cas des
+>   sources — celui qui décide, puisque `MAX_REGISTERED_PHOTO_SOURCES` dérive du
+>   plafond — atteint **4386 Mo ≈ 89 % de la VRAM**, au-delà du seuil de 80 %.
+> - **`MAX_REGISTERED_PHOTO_SOURCES` reste 20.** La garde lève **exactement à
+>   20/20**, sans crash, reproduit à l'identique sur deux passes. Son coût a
+>   presque doublé avec la toile : **4108 Mo ≈ 84 %**, contre 67,8 % à toile
+>   ≡ photo.
+> - **`MAX_CANVAS_PIXELS` reste 64 Mpx.** Son critère écrit (descendre au-delà de
+>   90 %, monter sous 70 %) tombe entre les deux à ~84 %.
+> - **Message de refus : exact, vérifié sur la vraie fenêtre** dans les deux sens
+>   — « Limite atteinte : au plus 5 photos importées (double exposure) par
+>   document. » et, à 6, « … au plus 6 photos … » (les deux chaînes sont dérivées
+>   de la constante, pas recopiées).
+> - Ce que la tranche APPREND, au-delà de « rien ne bouge » : les deux plafonds
+>   sont **couplés** par le pire cas des sources — aucun ne peut monter sans que
+>   l'autre descende. Et l'instrument de §4.4 (`nvidia-smi`, GPU entier) n'était
+>   plus exploitable sur une machine chargée ; il a fallu isoler l'application
+>   (`\GPU Process Memory\Total Committed`) puis **raccorder le nouvel instrument
+>   à l'ancien par une passe de contrôle** à toile ≡ photo (1275 Mo mesuré contre
+>   1300 ± 50 en §4.4) pour que les deux mesures restent comparables.
+> - Réserve assumée : le pire cas à 6 calques est mesuré à **23 sources sur 24**
+>   (la machine ne contient que 24 contenus JPEG distincts), et les pourcentages
+>   sont dérivés d'une ligne de base système reprise de §4.4. Détail et raison au
+>   §4.5.
+
 ### Vagues
 
 - **Vague 0** : T1, T2 en parallèle (aucune dépendance réelle entre elles ;

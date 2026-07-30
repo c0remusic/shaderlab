@@ -146,11 +146,30 @@ export function parseFreeCanvasRequest(
   widthText: string,
   heightText: string,
 ): { kind: "ok"; request: CanvasFormatRequest } | { kind: "erreur"; message: string } {
-  const width = Number(widthText.trim());
-  const height = Number(heightText.trim());
-  if (widthText.trim() === "" || heightText.trim() === "") {
+  const w = widthText.trim();
+  const h = heightText.trim();
+  if (w === "" || h === "") {
     return { kind: "erreur", message: "Largeur et hauteur en pixels, toutes les deux." };
   }
+  // ENTIER DÉCIMAL, littéralement (correctif R5 du 2026-07-30). `Number()` seul
+  // acceptait des écritures qui ne sont pas des entiers décimaux et les
+  // convertissait en silence : « 0x2000 » devenait 8192, « 1e4 » 10000, et
+  // « 0b1010 » 10. Sans conséquence pratique — un `input type=number` ne les
+  // laisse pas passer — mais ce module documente une validation d'entier
+  // décimal, et ce n'était pas celle qu'il faisait. La validation d'une
+  // fonction pure ne se repose pas sur le filtre d'un composant : c'est
+  // précisément ce qu'un module pur ne peut pas savoir.
+  //
+  // Un signe « + » ou « - » est refusé aussi : une dimension négative n'existe
+  // pas, et « +800 » n'est pas une saisie de dimension, c'est une expression.
+  if (!/^\d+$/.test(w) || !/^\d+$/.test(h)) {
+    return {
+      kind: "erreur",
+      message: "Largeur et hauteur en pixels : un entier, en chiffres, sans signe ni décimale.",
+    };
+  }
+  const width = Number(w);
+  const height = Number(h);
   const request: CanvasFormatRequest = { kind: "libre", width, height };
   try {
     canvasSizeFor(request, { width: 1, height: 1 });

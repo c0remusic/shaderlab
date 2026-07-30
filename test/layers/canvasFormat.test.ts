@@ -210,6 +210,32 @@ describe("parseFreeCanvasRequest — validation de la saisie libre", () => {
     expect(parseFreeCanvasRequest("abc", "100").kind).toBe("erreur");
   });
 
+  // R5 du 2026-07-30 : `Number()` seul acceptait des écritures qui ne sont pas
+  // des entiers décimaux et les convertissait en silence. Le module documente
+  // une validation d'entier décimal ; ces cas fixent qu'il la fait vraiment.
+  it("refuse une écriture qui n'est pas un entier DÉCIMAL, même si Number() la convertirait", () => {
+    // Avant le correctif : "0x2000" -> 8192, "1e4" -> 10000, "0b1010" -> 10,
+    // "0o20" -> 16 — tous acceptés en silence.
+    for (const bad of ["0x2000", "1e4", "0b1010", "0o20", "1_000", " 8e2 ", "Infinity"]) {
+      const r = parseFreeCanvasRequest(bad, "800");
+      expect(r.kind, `« ${bad} » aurait dû être refusé`).toBe("erreur");
+      expect(r.kind === "erreur" && r.message).toMatch(/entier/);
+    }
+  });
+
+  it("refuse un signe explicite — « +800 » est une expression, pas une dimension", () => {
+    expect(parseFreeCanvasRequest("+800", "800").kind).toBe("erreur");
+    expect(parseFreeCanvasRequest("-800", "800").kind).toBe("erreur");
+  });
+
+  it("« 0 » passe la forme mais est refusé sur le fond, par le même message qu'avant", () => {
+    // La forme est bien un entier décimal : c'est `canvasSizeFor` qui refuse,
+    // sur « strictement positif ». Le correctif R5 n'a pas déplacé ce refus.
+    const r = parseFreeCanvasRequest("0", "800");
+    expect(r.kind).toBe("erreur");
+    expect(r.kind === "erreur" && r.message).toMatch(/strictement positif/);
+  });
+
   it("refuse au-delà du budget, en reprenant le message de la borne", () => {
     const r = parseFreeCanvasRequest("20000", "20000");
     expect(r.kind).toBe("erreur");

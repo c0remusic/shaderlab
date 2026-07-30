@@ -39,7 +39,14 @@ interface Deps {
   commit: (stack: LayerStack) => void;
   currentStack: () => LayerStack;
   selectLayer: (id: string | null) => void;
-  syncSession: () => void;
+  /** Synchronisation React COALESCÉE sur rAF (voir `App.syncScheduler`) : le
+   *  chemin vivant d'un drag l'appelle par échantillon de pointeur, elle ne
+   *  coûte qu'un `setLayers` par frame. */
+  scheduleSync: () => void;
+  /** Force l'exécution immédiate d'une synchronisation coalescée en attente.
+   *  Appelée en FIN DE GESTE — sans elle, la dernière position d'un drag
+   *  n'atteindrait l'état React qu'à la frame suivante, après le commit. */
+  flushSync: () => void;
   setError: (message: string | null) => void;
   /** Lus pour la réconciliation du mode canvas (retour forcé en `idle`). */
   selectedId: string | null;
@@ -66,7 +73,8 @@ export function usePhotoLayer({
   commit,
   currentStack,
   selectLayer,
-  syncSession,
+  scheduleSync,
+  flushSync,
   setError,
   selectedId,
   layers,
@@ -200,17 +208,27 @@ export function usePhotoLayer({
       }
       const full = sessionRef.current.layers().map((l) => (l.id === id ? { ...l, transform } : l));
       sessionRef.current.replaceLiveLayers(full);
-      syncSession();
+      // COALESCÉ (mesure CPU 2026-07-30 : 21,9 ms de CPU par `pointermove`
+      // brut, un rendu de l'arbre React entier par échantillon). La session et
+      // le rendu GPU restent, eux, sur le chemin brut : `requestRender` a son
+      // propre `FrameScheduler` depuis toujours — c'est l'asymétrie que ce
+      // coalescing supprime. Même motif que `Canvas.schedulePaint`.
+      scheduleSync();
       rendererRef.current?.requestRender(full);
     },
-    [sessionRef, rendererRef, paramDirtyRef, syncSession],
+    [sessionRef, rendererRef, paramDirtyRef, scheduleSync],
   );
 
   const handleTransformCommit = useCallback(() => {
+    // AVANT la garde `paramDirtyRef` : la dernière position du geste peut
+    // encore être en attente dans le scheduler, et elle doit atteindre l'état
+    // React quoi qu'il arrive — y compris quand le geste n'a rien sali (clic
+    // sans mouvement) et qu'on sort sans committer.
+    flushSync();
     if (!paramDirtyRef.current) return;
     paramDirtyRef.current = false;
     commit(currentStack());
-  }, [paramDirtyRef, commit, currentStack]);
+  }, [flushSync, paramDirtyRef, commit, currentStack]);
 
   /** Applique une transformation PURE (`src/ui/transform.ts`) au calque photo
    *  `id` et committe en UNE seule entrée d'historique. Les trois actions du

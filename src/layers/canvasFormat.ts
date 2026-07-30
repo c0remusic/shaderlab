@@ -179,11 +179,31 @@ export function parseFreeCanvasRequest(
   return { kind: "ok", request };
 }
 
-/** Libellé d'un format nommé, pour le menu d'ouverture. Vit ici et non dans le
- *  composant : le libellé de « A3 » DOIT porter le dpi, sinon le format ne veut
- *  rien dire — et cette obligation est une propriété du format, pas de l'UI. */
+/**
+ * Libellé d'un format nommé, pour le menu d'ouverture. Vit ici et non dans le
+ * composant : le libellé de « A3 » DOIT porter le dpi, sinon le format ne veut
+ * rien dire — et cette obligation est une propriété du format, pas de l'UI.
+ *
+ * « A3 » PORTE AUSSI SES PIXELS (correctif R2 du 2026-07-30). Choisir A3 sur une
+ * photo de plus de 17,4 Mpx la fait déborder de la toile, donc l'export en rend
+ * un recadrage — conséquence directe du caractère ABSOLU du format (ADR-0007
+ * §3), et le seul des trois formats à qui ça arrive. Le menu ne peut pas
+ * avertir : il est ouvert AVANT que la photo soit choisie, il ne détient aucune
+ * dimension à comparer. Il affiche donc le seul fait qu'il connaisse — les
+ * pixels du format — pour que la comparaison soit possible avant le clic plutôt
+ * qu'en découvrant le fichier exporté.
+ *
+ * Les deux formats relatifs n'en ont pas besoin : dérivés par contenance, ils
+ * contiennent toujours la photo entière, quelle qu'elle soit.
+ *
+ * Les pixels sont DÉRIVÉS de `a3Pixels`, jamais recopiés : changer le dpi change
+ * le libellé du même geste. L'ordre est celui du format en portrait (orientation
+ * canonique) — l'orientation réelle suit la photo, ce qui ne change pas la paire.
+ */
+const A3_CANONICAL = a3Pixels({ width: 1, height: 2 });
+
 export const NAMED_CANVAS_FORMAT_LABELS: Record<NamedCanvasFormat, string> = {
   carre: "Carré",
   "quatre-cinq": "4:5",
-  a3: `A3 (${A3_PRINT_DPI} dpi)`,
+  a3: `A3 ${A3_PRINT_DPI} dpi — ${A3_CANONICAL.width} × ${A3_CANONICAL.height} px`,
 };

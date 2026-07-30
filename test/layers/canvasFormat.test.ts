@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   A3_MM,
   A3_PRINT_DPI,
+  NAMED_CANVAS_FORMAT_LABELS,
   PHOTO_CANVAS_FORMAT,
   canvasSizeFor,
   parseFreeCanvasRequest,
@@ -137,12 +138,45 @@ describe("canvasSizeFor — formats nommés dérivés par CONTENANCE", () => {
     expect(portrait).toEqual({ width: 3508, height: 4961 });
   });
 
-  it("« A3 » peut être PLUS PETIT que la photo — le débordement est assumé", () => {
-    // 17,4 Mpx contre 26 Mpx : la photo dépasse. C'est le comportement voulu
-    // (`PhotoPanel` : « une photo peut légitimement être positionnée hors du
-    // fond ») et la seule alternative serait de trahir le format d'impression.
+  it("« A3 » peut être PLUS PETIT que la photo — le débordement est assumé, et il AMPUTE", () => {
+    // 17,4 Mpx contre 26 Mpx : la photo dépasse la toile, donc l'export en rend
+    // un recadrage. Assumé et écrit dans les Conséquences d'ADR-0007 depuis le
+    // 2026-07-30 (R2) — distinct du débordement de `PhotoPanel`, qui suit un
+    // geste de l'utilisateur là où celui-ci est l'état par DÉFAUT à l'ouverture.
+    // La seule alternative aurait été de trahir le format d'impression.
     const toile = canvasSizeFor({ kind: "nomme", format: "a3" }, PHOTO_26MP);
     expect(toile.width * toile.height).toBeLessThan(PHOTO_26MP.width * PHOTO_26MP.height);
+    // La photo dépasse sur les DEUX axes, pas seulement en surface : c'est ce
+    // qui rend le recadrage visible sur les quatre bords.
+    expect(toile.width).toBeLessThan(PHOTO_26MP.width);
+    expect(toile.height).toBeLessThan(PHOTO_26MP.height);
+  });
+
+  it("les deux formats RELATIFS ne peuvent jamais amputer, eux — c'est ce qui isole A3", () => {
+    // La contrepartie du test ci-dessus : si un jour « carré » ou « 4:5 » se
+    // mettait à rogner, ce serait un défaut et non un arbitrage assumé.
+    for (const format of ["carre", "quatre-cinq"] as const) {
+      for (const photo of [PHOTO_26MP, { width: 3000, height: 4000 }, { width: 512, height: 512 }]) {
+        const toile = canvasSizeFor({ kind: "nomme", format }, photo);
+        expect(toile.width).toBeGreaterThanOrEqual(photo.width);
+        expect(toile.height).toBeGreaterThanOrEqual(photo.height);
+      }
+    }
+  });
+
+  it("le libellé d'A3 annonce ses pixels, DÉRIVÉS et non recopiés (R2)", () => {
+    // Le menu s'ouvre AVANT que la photo soit choisie : il ne peut pas avertir
+    // d'un recadrage, il ne détient aucune dimension à comparer. Il expose donc
+    // les pixels du format, seul fait qu'il connaisse. Le test vérifie que le
+    // libellé porte le dpi ET la paire de pixels, et que celle-ci vient du même
+    // calcul que le format — changer `A3_PRINT_DPI` doit changer les deux.
+    const label = NAMED_CANVAS_FORMAT_LABELS.a3;
+    const portrait = canvasSizeFor({ kind: "nomme", format: "a3" }, { width: 3000, height: 4000 });
+    expect(label).toContain(String(A3_PRINT_DPI));
+    expect(label).toContain(`${portrait.width} × ${portrait.height} px`);
+    // Les formats relatifs n'annoncent pas de pixels : ils dépendent de la photo.
+    expect(NAMED_CANVAS_FORMAT_LABELS.carre).not.toMatch(/px/);
+    expect(NAMED_CANVAS_FORMAT_LABELS["quatre-cinq"]).not.toMatch(/px/);
   });
 
   it("A3 est dérivé des millimètres et du dpi, pas d'un couple de pixels recopié", () => {

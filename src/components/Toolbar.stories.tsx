@@ -131,9 +131,15 @@ export const FileMenuOpenWithFreeSize: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Menu Fichier" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Ouvrir dans un format de toile" }));
-    // Le libellé de A3 PORTE son dpi : un format papier sans résolution ne veut
-    // rien dire (voir `NAMED_CANVAS_FORMAT_LABELS`).
-    await expect(await screen.findByRole("menuitem", { name: "A3 (300 dpi)" })).toBeInTheDocument();
+    // Le libellé de A3 PORTE son dpi ET ses pixels : un format papier sans
+    // résolution ne veut rien dire, et A3 est le seul des trois qui puisse être
+    // PLUS PETIT que la photo — donc l'amputer. Le menu ne peut pas avertir (il
+    // s'ouvre avant que la photo soit choisie), il expose donc le seul fait
+    // qu'il détienne, pour que la comparaison soit possible avant le clic.
+    // R2 du 2026-07-30, voir `NAMED_CANVAS_FORMAT_LABELS` et ADR-0007.
+    await expect(
+      await screen.findByRole("menuitem", { name: "A3 300 dpi — 3508 × 4961 px" }),
+    ).toBeInTheDocument();
     await userEvent.click(await screen.findByRole("menuitem", { name: "Taille libre..." }));
     await expect(args.onOpenFileWithFreeSize).toHaveBeenCalledTimes(1);
     await expect(args.onOpenFileWithFormat).not.toHaveBeenCalled();

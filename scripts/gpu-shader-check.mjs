@@ -43,7 +43,7 @@
 //       channels 1|2)
 //   + 1 overlay de masque (MASK_OVERLAY_WGSL)
 //   + 1 pre-passe d'entree d'un calque photo (PHOTO_LAYER_INPUT_WGSL)
-//   + 2 passes de presentation (buildPresentWgsl : damier / noir) — l'unique
+//   + 2 passes de presentation (buildPresentWgsl : damier / blanc) — l'unique
 //       ecrivain du canvas et de la cible d'export depuis T0 (2026-07-28)
 //   = 26
 //
@@ -291,7 +291,7 @@ const script = `(async () => {
     // WGSL ici ne casse pas un effet : elle casse tout affichage ET tout
     // export d'un coup.
     const present = await import("/src/render/presentPass.ts");
-    for (const bg of ["checker", "black"])
+    for (const bg of ["checker", "white"])
       await compile("presentation:" + bg, present.buildPresentWgsl(bg));
 
     // 6) garde : un calque photo ne peut pas etre ecrete. Les deux drapeaux

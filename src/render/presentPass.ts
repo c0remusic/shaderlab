@@ -15,8 +15,8 @@ import { FULLSCREEN_VERTEX_WGSL, SRGB_HELPERS_WGSL } from "./shaderCompose";
  *
  * Cette passe est le SEUL endroit qui écrit l'une ou l'autre de ces surfaces
  * (voir `Renderer.runPipeline`) : elle aplatit le composite sur un fond opaque
- * et sort toujours `alpha = 1`. Le fond diffère — damier à l'écran, noir à
- * l'export — et ce choix n'est pas un paramètre laissé à l'appelant : il est
+ * et sort toujours `alpha = 1`. Le fond diffère — damier à l'écran, BLANC à
+ * l'export (ADR-0006) — et ce choix n'est pas un paramètre laissé à l'appelant : il est
  * dérivé de la DESTINATION par `presentBackgroundFor`, si bien qu'aucun site
  * d'appel ne peut demander « le damier, dans le fichier exporté ».
  *
@@ -25,16 +25,16 @@ import { FULLSCREEN_VERTEX_WGSL, SRGB_HELPERS_WGSL } from "./shaderCompose";
  * court-circuite un jour cette passe sur le chemin d'export, il obtient une
  * exception nommée, jamais un JPEG noir.
  */
-export type PresentBackgroundKind = "checker" | "black";
+export type PresentBackgroundKind = "checker" | "white";
 
 /** Fond d'aplatissement, avec ce qu'il faut pour le dessiner. La taille de case
- *  vit DANS le cas `checker` : le cas `black` — le seul que l'export puisse
+ *  vit DANS le cas `checker` : le cas `white` — le seul que l'export puisse
  *  obtenir — n'a aucun champ où la loger, donc « une taille de case, à
  *  l'export » n'est pas exprimable. Même garde par construction que
  *  `PresentDestination` lui-même. */
 export type PresentBackground =
   | { kind: "checker"; cellPx: number }
-  | { kind: "black" };
+  | { kind: "white" };
 
 /** Surface finale d'un rendu. Le type existe pour que le fond d'aplatissement
  *  ne soit JAMAIS choisi à la main par un appelant — voir
@@ -52,11 +52,19 @@ export type PresentDestination =
   | { kind: "export" };
 
 /** Unique mapping destination → fond d'aplatissement. Le damier est un rendu
- *  d'ÉCRAN, jamais un contenu de fichier (design 2026-07-28 §3.2). */
+ *  d'ÉCRAN, jamais un contenu de fichier (design 2026-07-28 §3.2).
+ *
+ *  LE FOND D'EXPORT EST BLANC depuis le 2026-07-30 (ADR-0006, tranché par
+ *  Antoine avec un rendu de collage en face : noir / blanc / gris moyen —
+ *  « lecture planche contact, le blanc cadre les images au lieu de les
+ *  avaler »). Il était noir jusque-là, par défaut hérité de l'époque où la
+ *  zone non couverte était un cas dégénéré ; dans un montage, elle est le
+ *  passe-partout de l'image finale. Le rendu exporté a donc CHANGÉ : les
+ *  références du harnais qui montraient du noir ont été régénérées. */
 export function presentBackgroundFor(destination: PresentDestination): PresentBackground {
   return destination.kind === "canvas"
     ? { kind: "checker", cellPx: checkerCellPx(destination.displayScale) }
-    : { kind: "black" };
+    : { kind: "white" };
 }
 
 /**
@@ -142,7 +150,12 @@ export function buildPresentWgsl(background: PresentBackgroundKind): string {
   // --primitive-neutral-1000 = #1b1b1b), pour que le vide se lise comme le
   // châssis de l'app derrière la toile.
   let bg = srgb2lin(mix(vec3<f32>(0.196078), vec3<f32>(0.105882), odd));`
-    : `let bg = vec3<f32>(0.0);`;
+    // BLANC PUR (ADR-0006). Pas de `srgb2lin` ici, et ce n'est PAS un oubli :
+    // 1.0 est le point fixe de la conversion sRGB↔linéaire — la seule valeur
+    // qui vaille exactement la même chose dans les deux espaces. Les deux gris
+    // du damier, eux, doivent être décodés. Règle projet respectée (aucun gamma
+    // manuel sur les couleurs du pipeline) parce qu'il n'y a rien à convertir.
+    : `let bg = vec3<f32>(1.0);`;
 
   const checkerUniform = background === "checker"
     ? `@group(0) @binding(2) var<uniform> checkerParams: vec4<f32>;`

@@ -101,8 +101,12 @@ export class PhotoLayerInputResolver {
    *  `resolve()` entre deux calques, ou différer/réordonner les passes d'un
    *  calque après le `resolve` d'un suivant. Le premier calque photo verrait
    *  alors les pixels du dernier. L'ordre est assuré en Node par
-   *  `test/render/framePipelineExecutor.test.ts` (« shares one resolver
-   *  target across two photo layers »), pas seulement par ce commentaire. */
+   *  `test/render/framePipelineExecutor.test.ts`, pas seulement par ce
+   *  commentaire — trois tests, à ne pas chercher sous un nom unique :
+   *  « calls the port once per photo layer… » (qui assère surtout que les deux
+   *  calques partagent LE MÊME encoder), « feeds every photo layer a view of
+   *  the SAME shared target texture », et « (e) l'ordre resolve(A) → passes(A)
+   *  → passes(écrêtés de A) → resolve(B) est préservé ». */
   private cachedTarget: GPUTexture | null = null;
   private cachedWidth = 0;
   private cachedHeight = 0;

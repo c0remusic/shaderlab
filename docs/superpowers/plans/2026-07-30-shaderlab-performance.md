@@ -90,8 +90,22 @@ photo transformée directement dans la passe de composite (`shaderCompose.ts`
 sait déjà produire `effectInput` depuis un binding dédié).
 **Bénéfice secondaire, qui vaut le détour** : le chemin nominal cesse de dépendre
 de l'invariant d'ordre des passes le plus dangereux du projet.
-**Fait =** passes par frame passées de `2N+1` à `N+1` dans le cas nominal, temps
-de frame re-mesuré, rendu identique au pixel (`test:render` avec témoin).
+
+⚠️ **Le gain dépend de ce que l'utilisateur empile, et la tranche doit mesurer LES
+DEUX régimes.** Direction produit rappelée par Antoine le 2026-07-30 : on veut des
+effets **par photo** (attachement par proximité, ADR-0005). Or **un seul effet du
+registre est à passes multiples — le glow** (vérifié : `grep -l "passes:"
+src/render/effects/*.ts` → `glow.ts` seul, sur 11 effets). Donc :
+- photo sans effet, ou avec un effet à passe unique → la passe d'effet EST la
+  passe de composite, la pré-passe disparaît : **2 passes → 1 par photo** ;
+- photo portant un glow, ou un masque edge-aware actif → la pré-passe reste
+  nécessaire, régime inchangé.
+Mesurer une pile « une photo = un effet simple » ET une pile « une photo = un
+glow ». Annoncer un gain moyen sur la seule pile favorable serait un chiffre vrai
+et trompeur.
+**Fait =** passes par frame passées de `2N+1` à `N+1` **dans le régime à effets
+simples**, régime glow mesuré et annoncé séparément, temps de frame re-mesuré,
+rendu identique au pixel (`test:render` avec témoin).
 
 ## P3 — Cache de préfixe : la chaîne repart du dernier calque inchangé
 

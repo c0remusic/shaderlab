@@ -1345,3 +1345,62 @@ se remesure sur la base réelle du rebase (`git grep` du symbole), jamais
 recopiée depuis le raisonnement d'origine — un symbole qui n'avait qu'un
 appelant hier peut en avoir gagné un depuis, et le second n'a aucune raison
 d'avoir un rapport avec le premier.
+
+## 2026-07-30 — Un Vite orphelin survit à la suppression de son worktree
+
+**Fait, daté (TTL 6 mois).** Après `git worktree remove` d'un worktree d'agent,
+son serveur Vite peut CONTINUER d'écouter sur 1421 — process vivant, dossier
+disparu, `git worktree list` propre. Constaté ce jour : `Get-NetTCPConnection
+-LocalPort 1421` rendait un PID dont la ligne de commande pointait vers
+`.claude/worktrees/agent-<id>/node_modules/.bin/vite`, worktree déjà retiré.
+
+**Why** : `npm run test:render` s'adosse à un Vite sur 1421 pour importer le
+code à tester. Un orphelin le fait donc comparer le rendu d'UN AUTRE worktree
+aux références versionnées — sans rien signaler, et avec un résultat plausible.
+C'est le même piège que celui qui a coûté une annonce fausse (« T1 ne change pas
+un pixel ») avant l'ajout de `--origin`.
+
+**How to apply** : avant tout `test:render`/`test:gpu-shaders`, vérifier QUI
+sert 1420/1421 — `Get-CimInstance Win32_Process -Filter "ProcessId=<pid>"` puis
+lire la `CommandLine`, pas seulement constater qu'un port répond. Un port qui
+répond n'est pas un port qui sert le bon code.
+
+## 2026-07-30 — La souris synthétique CDP ne peut pas mesurer un gain de coalescing
+
+**Fait, daté (TTL 6 mois).** `Input.dispatchMouseEvent` injecté à ~16 ms produit
+UN événement par frame, et `getCoalescedEvents()` en rend toujours 1. Un
+correctif qui regroupe N événements par frame n'a donc rien à regrouper sous cet
+instrument : mesuré avant/après, le gain est nul, alors que le correctif est
+correct. Vérifié ce jour sur le coalescing rAF de `syncSession` — 31 rendus pour
+30 `pointermove` avant comme après.
+
+**Why** : une vraie souris à 500-1000 Hz produit plusieurs événements par frame ;
+c'est le seul régime où ce type de correctif paie. Aucun instrument dont on
+dispose ne le reproduit.
+
+**How to apply** : pour un correctif de coalescing, annoncer un **plafond
+garanti** (« jamais plus d'un cycle React par frame ») et non un gain chiffré, et
+dire que la mesure ne peut pas le voir. Ne pas relayer l'estimation de gain de
+l'implémenteur comme une attente — c'est une hypothèse, pas une prévision : celle
+de ce jour (« ×2 à 3 ») a été réfutée par la mesure du lendemain immédiat.
+
+## 2026-07-30 — Mesurer en build de PRODUCTION avant d'optimiser React
+
+**Fait, daté (TTL 6 mois).** Le surcoût dev-only de React vaut **3 à 4×** sur ce
+projet, pas les 20-30 % supposés : mêmes gestes, même machine, même session —
+20,4 ms/événement en dev contre 6,9 en production ; `jsxDEV` et `createElement`
+dominaient le profil en dev et **n'apparaissent pas** en production. Les tâches
+longues > 50 ms passent de 2-4 par geste à **zéro**.
+
+**Why** : trois tranches d'optimisation ont été menées sur des chiffres de dev,
+et la cible était en réalité déjà tenue dans le produit. Le défaut structurel
+(un rendu de l'arbre entier par `pointermove`) reste vrai — il ne coûte
+simplement plus assez.
+
+**How to apply** : toute plainte de lenteur sur ce projet se mesure D'ABORD en
+`npm run tauri build -- --no-bundle`, avant d'ouvrir une tranche. Le pont de
+debug `window.__shaderlabDebug` n'existe pas en production (`import.meta.env.DEV`) :
+les deux voies éprouvées sont le DragEvent HTML5 synthétique avec un `File`
+construit sur `read_image_file` via `__TAURI_INTERNALS__`, et le pilotage du
+dialogue natif `#32770` par `WM_SETTEXT` + `BM_CLICK` (surtout pas `SendKeys`,
+qui vise la fenêtre au focus). Protocole complet : ligne de base perf § P0.

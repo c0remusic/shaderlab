@@ -568,26 +568,41 @@ const INSTALL = `(async () => {
         const stack = scenario.fond === false ? new LayerStack() : openDocument(r, "fond").stack;
         await scenario.build(r, stack);
         const layers = normalize(stack);
+        // \`read\` rend un \`{ pixels, width, height }\` — les dimensions du frame
+        // REELLEMENT rendu, pas celles que le scenario a declarees. Sur le
+        // chemin d'export elles viennent d'\`ExportedFrame\` (le renderer les
+        // prend au meme endroit que la relecture GPU) ; sur le chemin canvas
+        // elles sont W x H par construction, puisque la surface de presentation
+        // est le canvas de la passe, et un scenario de toile differente y est
+        // refuse plus haut.
+        //
+        // C'EST LA CORRECTION DE R3 (2026-07-30). Le harnais reportait
+        // \`toile.width/height\`, c'est-a-dire la DECLARATION du scenario : la
+        // garde de dimensions comparait donc la reference a ce qu'on avait
+        // demande, jamais a ce qui etait sorti. Sur un temoin faisant ignorer
+        // \`canvasSize\` a \`loadImage\`, les deux etaient egales (320 = 320), la
+        // garde passait, et le script mourait plus loin sur
+        // « comparePixels: longueurs differentes (262144 vs 409600) » — bruyant,
+        // donc rien de masque, mais ce n'etait pas la garde documentee qui
+        // tirait. Meme principe qu'\`ExportedFrame\` dans le produit : les
+        // dimensions voyagent AVEC les octets.
         const read = scenario.surface === "canvas"
-          ? async () => { r.render(layers); return readCanvas(pass.ctx, W, H); }
-          : async () => (await r.exportFrame(layers)).pixels;
+          ? async () => ({ pixels: (r.render(layers), await readCanvas(pass.ctx, W, H)), width: W, height: H })
+          : () => r.exportFrame(layers);
         const first = await read();
         // Deuxieme lecture sur le MEME renderer : separe une instabilite de
         // frame (cache de pipeline, epoque de masque) d'une instabilite de
         // mise en place (device, upload de texture).
         const second = await read();
         let intra = 0;
-        for (let i = 0; i < first.length; i++) if (first[i] !== second[i]) intra++;
+        for (let i = 0; i < first.pixels.length; i++) if (first.pixels[i] !== second.pixels[i]) intra++;
         return JSON.stringify({
           ok: true,
           intra,
           nLayers: layers.length,
-          // Les dimensions repartent AVEC les pixels : cote Node, la reference
-          // est encodee et comparee a la taille du scenario, pas a une taille
-          // globale. Meme principe que \`ExportedFrame\` dans le produit.
-          width: toile.width,
-          height: toile.height,
-          pixels: b64(first),
+          width: first.width,
+          height: first.height,
+          pixels: b64(first.pixels),
         });
       } catch (e) {
         return JSON.stringify({ ok: false, error: String(e && e.stack ? e.stack : e) });
@@ -823,13 +838,19 @@ async function main(cdp) {
     for (const id of ids) {
       const raw = JSON.parse(await cdp.evaluate(`window.__renderCheck.run(${JSON.stringify(id)})`));
       if (!raw.ok) throw new Error(`scenario ${id} : ${raw.error}`);
-      results[id] = {
-        pixels: new Uint8Array(Buffer.from(raw.pixels, "base64")),
-        intra: raw.intra,
-        nLayers: raw.nLayers,
-        width: raw.width,
-        height: raw.height,
-      };
+      const pixels = new Uint8Array(Buffer.from(raw.pixels, "base64"));
+      // AUTO-CONTROLE de l'instrument, pas du sujet : les dimensions rendues
+      // doivent rendre compte des octets recus, sinon c'est le harnais qui est
+      // casse et tout verdict aval est du bruit. Sans ce controle, une
+      // dimension fausse ne se manifesterait que par une exception dans
+      // `comparePixels`, plus loin et sous un autre nom (defaut R3).
+      if (pixels.length !== raw.width * raw.height * 4) {
+        throw new Error(
+          `scenario ${id} : le harnais rend ${raw.width}x${raw.height} (= ${raw.width * raw.height * 4} octets) ` +
+            `mais ${pixels.length} octets de pixels — l'instrument est incoherent, pas le rendu.`,
+        );
+      }
+      results[id] = { pixels, intra: raw.intra, nLayers: raw.nLayers, width: raw.width, height: raw.height };
     }
     await cdp.evaluate("window.__renderCheck.closePass()");
     passes.push(results);
@@ -890,8 +911,13 @@ async function main(cdp) {
     }
     const ref = decodePng(readFileSync(file));
     const res = passes[0][id];
-    // Dimensions ATTENDUES = celles du scenario, plus celles du harnais : depuis
-    // T2 un scenario peut avoir une toile qui n'est pas W x H.
+    // Dimensions du FRAME REELLEMENT RENDU contre celles de la reference. Elles
+    // viennent d'`ExportedFrame` (ou de la surface de la passe), jamais de la
+    // declaration du scenario : c'est la correction de R3 — comparer la
+    // declaration a elle-meme laissait cette garde muette et l'echec sortait
+    // plus loin, en exception de `comparePixels`. Verifie contre le nombre
+    // d'octets recus a la collecte (ci-dessus), donc cette ligne ne peut plus
+    // mentir dans un sens ni dans l'autre.
     if (ref.width !== res.width || ref.height !== res.height) {
       regressions++;
       console.log(`  FAIL   ${id.padEnd(30)} dimensions ${ref.width}x${ref.height} vs ${res.width}x${res.height}`);

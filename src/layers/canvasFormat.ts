@@ -112,6 +112,20 @@ export function canvasSizeFor(request: CanvasFormatRequest, photo: CanvasPixelSi
   return size;
 }
 
+/** Ce que rend un `switch` non exhaustif : une erreur NOMMÉE, pas un `undefined`
+ *  qui explose trois lignes plus loin. Ajouté le 2026-07-30 après un cas réel —
+ *  un `SyntheticEvent` React arrivait ici en guise de format (une prop
+ *  `onOpenFile={handleOpenFile}` branchée sur un `onClick`), `resolve` rendait
+ *  `undefined`, et l'utilisateur voyait « Cannot read properties of undefined
+ *  (reading 'width') » APRÈS avoir choisi son fichier. Le typage seul ne
+ *  protège pas d'une frontière non typée (DOM, IPC, JSON). */
+function requeteInconnue(request: never): never {
+  throw new Error(
+    `Format de toile inconnu : ${JSON.stringify(request)}. Attendu { kind: "photo" | "nomme" | "libre" } ` +
+      "(voir CanvasFormatRequest dans layers/canvasFormat.ts).",
+  );
+}
+
 function resolve(request: CanvasFormatRequest, photo: CanvasPixelSize): CanvasPixelSize {
   switch (request.kind) {
     case "photo":
@@ -126,7 +140,11 @@ function resolve(request: CanvasFormatRequest, photo: CanvasPixelSize): CanvasPi
           return smallestContaining(photo, 4, 5);
         case "a3":
           return a3Pixels(photo);
+        default:
+          return requeteInconnue(request.format);
       }
+    default:
+      return requeteInconnue(request);
   }
 }
 

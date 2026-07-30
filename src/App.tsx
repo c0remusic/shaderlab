@@ -1395,7 +1395,17 @@ export default function App() {
           ref={canvasRef}
           onFileDropped={(file) => openFile(file, null)}
           hasImage={imageSize.width > 0 && imageSize.height > 0}
-          onOpenFile={handleOpenFile}
+          // FERMÉ SUR ZÉRO ARGUMENT, jamais `onOpenFile={handleOpenFile}`.
+          // `EmptyWorkspace` branche cette prop sur un `onClick`, donc React lui
+          // passe un SyntheticEvent en premier argument — qui atterrissait dans
+          // le paramètre `canvasFormat` de `handleOpenFile` (ajouté par la
+          // tranche T2) et le faisait échouer sur un TypeError nu après que
+          // l'utilisateur avait déjà choisi son fichier. Mesuré sur la vraie
+          // fenêtre le 2026-07-30 : `canvasSizeFor(<event>, photo)` ->
+          // « TypeError: Cannot read properties of undefined (reading 'width') ».
+          // Le paramètre par défaut ne protège de rien ici : un événement n'est
+          // pas `undefined`.
+          onOpenFile={() => void handleOpenFile()}
           maskPaintMode={maskPaintMode}
           onMaskStroke={handleMaskStroke}
           onStrokeEnd={handleMaskStrokeEnd}

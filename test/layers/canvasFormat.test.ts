@@ -6,6 +6,7 @@ import {
   PHOTO_CANVAS_FORMAT,
   canvasSizeFor,
   parseFreeCanvasRequest,
+  type CanvasFormatRequest,
 } from "../../src/layers/canvasFormat";
 import { MAX_CANVAS_PIXELS, assertCanvasWithinBudget } from "../../src/render/limits";
 
@@ -182,6 +183,27 @@ describe("canvasSizeFor — formats nommés dérivés par CONTENANCE", () => {
   it("A3 est dérivé des millimètres et du dpi, pas d'un couple de pixels recopié", () => {
     expect(A3_PRINT_DPI).toBe(300);
     expect(A3_MM).toEqual({ short: 297, long: 420 });
+  });
+});
+
+// Cas réel du 2026-07-30, trouvé au rebasage : `Canvas.onOpenFile` était branché
+// directement sur `handleOpenFile`, et `EmptyWorkspace` branche cette prop sur un
+// `onClick` — React passait donc un SyntheticEvent dans le paramètre
+// `canvasFormat` ajouté par la tranche T2. Le paramètre par défaut ne protège de
+// rien : un événement n'est pas `undefined`. Mesuré sur la vraie fenêtre avant
+// correctif : « TypeError: Cannot read properties of undefined (reading 'width') »,
+// affiché APRÈS que l'utilisateur ait choisi son fichier.
+describe("canvasSizeFor — une requête malformée échoue en se nommant", () => {
+  it("un objet qui n'est pas une demande de format lève une erreur NOMMÉE", () => {
+    const fauxEvent = { type: "click", nativeEvent: {} } as unknown as CanvasFormatRequest;
+    expect(() => canvasSizeFor(fauxEvent, PHOTO_26MP)).toThrow(/Format de toile inconnu/);
+    // Et surtout PAS un TypeError sur une lecture de propriété.
+    expect(() => canvasSizeFor(fauxEvent, PHOTO_26MP)).not.toThrow(TypeError);
+  });
+
+  it("un format nommé inconnu lève aussi, plutôt que de rendre undefined", () => {
+    const inconnu = { kind: "nomme", format: "a2" } as unknown as CanvasFormatRequest;
+    expect(() => canvasSizeFor(inconnu, PHOTO_26MP)).toThrow(/Format de toile inconnu/);
   });
 });
 

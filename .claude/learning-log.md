@@ -1483,3 +1483,66 @@ elle, est unidimensionnelle : `role="slider"` s'y applique sans compromis.
 **How to apply** : sur ce repo, avant d'inventer un rôle ARIA pour un contrôle
 graphique, chercher le contrôle natif équivalent — `sr-only` est déjà en usage
 dans le projet (`number-field.tsx`, `select.tsx`), la voie est établie.
+
+## 2026-07-31 — le contrat `fs_main(uv, color)` ne sait pas échantillonner ailleurs qu'au pixel courant
+
+**Découverte (TTL 6 mois), mesurée sur GPU réel.** `shaderCompose.ts:179-181`
+distingue deux valeurs : `color` = `srcTexture` (le composite EN DESSOUS) et
+`effectInput` = `coverageTexture` dès que `hasImageSource`, ce dernier étant
+passé à `fs_main(in.uv, effectInput)`. Un effet doit donc lire son PARAMÈTRE,
+jamais `srcTexture`. `glow.ts:96` le respecte ; `warp.ts:64` et
+`chromaticBleed.ts:29-31` ne le respectent pas.
+
+Conséquence mesurée par `Renderer.exportFrame()` en CDP, mire 256×256, effet
+posé sur le calque photo de fond : luminance moyenne 0 et 100 % de pixels
+noirs pour warp et chromaticBleed, contre 142 sans changement et 170 avec
+glow sur le MÊME montage. Ouvrir un JPEG et choisir « Warp » dans le sélecteur
+suffit — `openDocument` pose un calque photo comme fond de TOUT document.
+
+**Why** : ce n'est pas une étourderie de deux shaders, c'est un trou de
+contrat. Ces deux effets doivent échantillonner à des **UV décalés**, ce
+qu'un paramètre `color` — échantillon unique à `in.uv` — ne peut pas fournir.
+C'est aussi pourquoi la pré-passe photo (`framePipelineExecutor.ts:404-410`),
+écrite pour glow, n'a jamais couvert la passe finale.
+
+**How to apply** : tout nouvel effet qui échantillonne à un UV autre que
+`in.uv` est concerné par ce trou — le vérifier AVANT de l'écrire. Et ne pas
+appliquer les correctifs évidents : les deux ont été mesurés et refusés
+(liséré noir d'environ 55 px sur chaque bord de photo pour le premier ; poids
+de compositing pris à un UV non déplacé pour le second, `shaderCompose.ts:115`).
+Le correctif demande une décision d'architecture. Détail complet :
+`docs/superpowers/specs/2026-07-31-audit-effets.md`.
+
+## 2026-07-31 — une session concurrente peut pousser MES commits sans que je pousse
+
+**Fait, daté (TTL 6 mois).** Trois commits posés cette session sur `master` ;
+je n'ai jamais lancé `git push`. Pourtant `git merge-base --is-ancestor` montre
+les deux premiers (`a31eb2c`, `566afd5`) présents sur `origin/master`, et le
+reflog explique pourquoi : `dd2d256` (« ci: jeton en lecture seule… »), qui
+n'est pas de moi, a été commité dans CE working tree entre mon deuxième et mon
+troisième commit, puis poussé — emportant les miens au passage.
+
+**Why** : `C:\dev\shaderlab` n'est pas isolé par worktree, et le CLAUDE.md du
+projet documente déjà des collisions de sessions concurrentes. La nouveauté
+n'est pas la collision, c'est sa DIRECTION : d'habitude on craint qu'une autre
+session écrase notre travail ; ici elle l'a PUBLIÉ. Un commit local n'est donc
+pas une décision réversible sur ce repo — il peut devenir public sans geste de
+ma part.
+
+**How to apply** : le pathspec explicite (règle C9) reste ce qui a sauvé la
+mise — `dd2d256` ne touche qu'un fichier CI, aucun des miens. Corollaire à
+tenir : ne rien committer ici qu'on ne serait pas prêt à voir poussé, et
+mesurer `git rev-list --left-right --count origin/master...HEAD` au wrap-up
+plutôt que de supposer que « non poussé » veut dire « local ».
+
+## 2026-07-31 — `npm run test:render` toujours rouge 6/6 (reconfirmation)
+
+**Reconfirmation** de l'entrée du 2026-07-29 : les références de rendu n'ont
+toujours pas été régénérées depuis T1. Vérifié cette session en lisant le
+harnais et son en-tête, non en le relançant.
+
+**Pourquoi ça compte maintenant** : l'audit des effets du 2026-07-31 ouvre une
+série de correctifs qui touchent des PIXELS (warp, grain, posterize, glow).
+Le seul verrou qui regarde l'image produite ne garde rien aujourd'hui. À
+réparer AVANT de toucher un shader, pas après — sinon chaque correctif partira
+sans filet et on ne saura pas distinguer le gain voulu de la régression subie.

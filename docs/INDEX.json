@@ -154,6 +154,12 @@
       "date": "2026-07-12",
       "topic": "design MVP shaderlab (historique, remplacé le 2026-07-13)",
       "summary": "App desktop Windows Tauri v2 + React/TS + WebGPU/WGSL : effets shader empilables en calques (glow/chromatic bleed/warp/grain) sur JPEG, masque au pinceau, éditeur externe Lightroom (round-trip type Dehancer). Décisions actées : temps réel obligatoire, pas de preview basse résolution, undo/redo session seulement, export = copie. Audité par agent adverse le 2026-07-12 : 3 trous corrigés (espace colorimétrique sRGB/linéaire obligatoire via rgba8unorm-srgb, contrat round-trip Lightroom précisé écrasement-même-chemin, chiffre VRAM requalifié coût-par-texture). Barre de qualité visuelle ajoutée en exigence explicite (dual-filter bloom, aberration radiale, warp FBM, grain luminance-dépendant) + ressources open source vérifiées (LYGIA ok, webgpu-image-filter SANS licence = pas de copie, TypeGPU à évaluer, BitMappery MIT référence modèle de données)."
+    },
+    {
+      "path": "docs/superpowers/specs/2026-07-30-shaderlab-performance-baseline.md",
+      "date": "2026-07-30",
+      "topic": "ligne de base performance mesurée (CPU/GPU/RAM/VRAM) + verdict P0 en build de production",
+      "summary": "Référence contre laquelle tout gain de performance se juge — chaque chiffre vient d'un instrument nommé sur la vraie fenêtre WebView2 (timestamp queries WebGPU, compteurs perf GPU, CDP Profiler). Consigne d'abord ce que la mesure N'A PAS reproduit : le déplacement d'image à 5 calques ne sature jamais la machine. Deux seuls chemins saturés — la boucle d'overlay au repos (~253 ms GPU/s pour zéro action, corrigée depuis : 20,9 % → 2,4 % d'occupation) et la peinture de masque (~93 %, 3,1 Go/s de téléversement). Cinq gaspillages prouvés avec fichier:ligne, plus une section « ce qui est propre, à ne pas toucher ». § P0 ajouté le même jour : en build de PRODUCTION la cible est tenue avec 2,4× de marge (6,9 ms CPU par événement souris contre 16,7 visés, zéro tâche longue) — la lenteur ressentie était le surcoût dev-only de React, pas le produit."
     }
   ],
   "design_system": [
@@ -325,6 +331,12 @@
       "date": "2026-07-12",
       "topic": "plan d'implémentation MVP (16 tâches)",
       "summary": "16 tâches séquencées risque-d'abord (+ Task 11b ajoutée en cours de route pour combler un trou réel : masquage jamais câblé à l'UI). Exécutées et revues via subagent-driven-development, ledger complet dans .superpowers/sdd/progress.md. Mergé sur master (feature/mvp-implementation). Revue finale (agent le plus capable) : 4 bugs cross-tâches trouvés et corrigés (export mort pour fichiers glissés-déposés, chargement Lightroom avec URL file:// cassée, fuite GPU non bornée, drag-reorder jamais câblé). Post-merge, 2 bugs réels supplémentaires trouvés et corrigés en testant l'app en conditions réelles (technique de debug CDP reprise de Sift — voir CLAUDE.md) : (1) @tauri-apps/plugin-dialog restait bloqué indéfiniment sans jamais ouvrir de fenêtre (bug connu de l'écosystème Tauri) — remplacé par rfd directement ; (2) layout:\"auto\" de WebGPU élaguait le binding params des passes internes du Glow (jamais utilisé par leur WGSL), invalidant silencieusement toute la frame → canvas noir — remplacé par un bind group layout explicite. Passe de design tokens ajoutée (voir .interface-design/system.md). Round-trip réel Lightroom toujours pas testé par un humain — reste ouvert."
+    },
+    {
+      "path": "docs/superpowers/plans/2026-07-30-shaderlab-performance.md",
+      "date": "2026-07-30",
+      "topic": "plan performance en six tranches (P0 fait, P1-P5 devenues du confort)",
+      "summary": "Règle d'exécution en trois temps par tranche (mesurer avant, implémenter en worktree isolé, review adverse qui rejoue les commandes elle-même), témoin planté obligatoire sur test:render, exécution séquentielle assumée — deux agents qui mesurent sur la même fenêtre se perturbent. P0 (mesure en build de production, aucun code touché) a FERMÉ la boucle : la cible est tenue. P1 morphologie de masque sur-invalidée, P2 pré-passe photo conditionnelle, P3 cache de préfixe de pile, P4 téléversement incrémental du masque, P5 nettoyages — toutes restent des gaspillages réels mais ne sont plus un problème de fluidité. À rouvrir seulement si la lenteur est de nouveau ressentie, en nommant la condition manquante."
     }
   ]
 }

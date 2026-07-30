@@ -4,9 +4,16 @@ on:
   push:
   pull_request:
 
+# Jeton en LECTURE SEULE par defaut. Un job qui doit ecrire (publication)
+# redeclare ses propres permissions a son niveau, ou il herite de celles-ci.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Sans plafond, un job bloque consomme jusqu'a la limite du fournisseur (6 h).
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4

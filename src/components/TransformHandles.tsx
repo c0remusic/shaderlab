@@ -10,6 +10,21 @@ interface Props {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   onTransformChange: (transform: LayerTransform) => void;
   onTransformCommit: () => void;
+  /**
+   * Consulté AVANT de démarrer un déplacement (toile de montage T1) : rend
+   * `true` si le clic appartenait à une AUTRE image, auquel cas la sélection
+   * lui a été cédée et AUCUN drag ne démarre.
+   *
+   * Existe parce que la box de déplacement couvre toute la bounding box du
+   * calque sélectionné en `pointerEvents: "auto"` et se superpose au canvas :
+   * sans ce relais, un clic sur une image posée PAR-DESSUS la sélection
+   * n'atteindrait jamais le canvas et déplacerait la sélection courante — soit
+   * exactement le cas du collage à images qui se recouvrent que T1 vise.
+   *
+   * Ne concerne QUE le corps de la box : les poignées de coin et de rotation
+   * sont des cibles explicites et petites, elles gardent la priorité absolue.
+   */
+  onPickThrough?: (x: number, y: number) => boolean;
 }
 
 type DragKind = { kind: "corner" } | { kind: "rotate" } | { kind: "move"; startX: number; startY: number; originTransform: LayerTransform };
@@ -23,7 +38,7 @@ type DragKind = { kind: "corner" } | { kind: "rotate" } | { kind: "move"; startX
  * `ui/transform.ts`, ce composant ne fait que traduire écran<->pixels du
  * fond et déléguer.
  */
-export function TransformHandles({ transform, photoSize, bgSize, canvasRef, onTransformChange, onTransformCommit }: Props) {
+export function TransformHandles({ transform, photoSize, bgSize, canvasRef, onTransformChange, onTransformCommit, onPickThrough }: Props) {
   const dragRef = useRef<DragKind | null>(null);
 
   const screenToImagePixels = useCallback(
@@ -116,7 +131,16 @@ export function TransformHandles({ transform, photoSize, bgSize, canvasRef, onTr
           pointerEvents: "auto",
           cursor: "move",
         }}
-        onPointerDown={(e) => handlePointerDown(e, { kind: "move", startX: screenToImagePixels(e.clientX, e.clientY)?.x ?? 0, startY: screenToImagePixels(e.clientX, e.clientY)?.y ?? 0, originTransform: transform })}
+        onPointerDown={(e) => {
+          const origin = screenToImagePixels(e.clientX, e.clientY);
+          // Une image posée par-dessus reprend la sélection au lieu de laisser
+          // la box déplacer le calque courant (voir `onPickThrough`).
+          if (origin && onPickThrough?.(origin.x, origin.y)) {
+            e.stopPropagation();
+            return;
+          }
+          handlePointerDown(e, { kind: "move", startX: origin?.x ?? 0, startY: origin?.y ?? 0, originTransform: transform });
+        }}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}

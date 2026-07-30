@@ -201,6 +201,18 @@ const LayerRow = memo(function LayerRow({
       tabIndex={0}
       onClick={() => onSelect(layer.id)}
       onKeyDown={(e) => {
+        // NE RÉAGIR QU'AUX TOUCHES REÇUES PAR LA LIGNE ELLE-MÊME. Sans ce
+        // garde, le `preventDefault` ci-dessous ANNULE l'activation clavier du
+        // bouton œil imbriqué : son keydown remonte jusqu'ici, et l'action par
+        // défaut d'un `<button>` (le clic que produisent Entrée et Espace) est
+        // décidée APRÈS la phase de bulle. Le `stopPropagation` posé sur le
+        // `onClick` de l'œil ne protège rien dans ce cas — ce clic n'a jamais
+        // lieu. Mesuré au navigateur avant le garde : œil focalisé + Entrée
+        // (comme + Espace) donnait toggle=0, select=1, c'est-à-dire l'œil muet
+        // et la ligne sélectionnée à sa place ; avec le garde, toggle=1,
+        // select=0. Le clavier retrouve ainsi la parité avec la souris, où
+        // cliquer l'œil ne sélectionne pas la ligne.
+        if (e.target !== e.currentTarget) return;
         if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
         onSelect(layer.id);

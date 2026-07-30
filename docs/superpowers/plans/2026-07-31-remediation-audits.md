@@ -155,7 +155,51 @@ avant et après.
 
 </details>
 
-### E3 — AFK — le grain culmine dans les ombres, pas dans les demi-tons
+### E3 — CLOS le 2026-07-31 à 01:05 — le grain culminait dans les ombres
+
+Le décalage se pose désormais sur le ton PERCEPTUEL, et c'est la fonction de
+transfert **partagée** qui le ramène en linéaire (`grain.ts:46-60`). Les deux
+propriétés du projet sont tenues : le mélange reste linéaire (on ajoute un delta
+linéaire à une couleur linéaire, aucun gamma manuel sur la couleur), et **aucune
+seconde formule de transfert n'a été écrite** — c'était le piège nommé par
+l'audit, `srgbTransfer.ts` reste la source unique. `SRGB_TO_LINEAR_WGSL` est
+importé, pas recopié.
+
+**Mesure avant / après**, écart-type du grain en niveaux sur 255, intensité par
+défaut 0,12, les deux formules de transfert reprises verbatim de
+`srgbTransfer.ts` :
+
+```
+ton   actuel   propose
+0.10    18.0     3.2
+0.30    15.9     7.4
+0.50     9.6     8.8
+0.70     5.2     7.4
+0.90     1.6     3.2
+actuel   argmax = 0.19   ecretage noir au ton 0.10 = 26.8 %
+propose  argmax = 0.50   ecretage noir au ton 0.10 = 0.0 %
+```
+
+L'argmax passe de **0,19 (les ombres) à 0,50 (le demi-ton)**, et l'écrêtage noir
+disparaît. Le commentaire `grain.ts:38`, qui promettait « peak in midtones,
+fades in deep shadows and highlights » et que le code contredisait, est
+maintenant vrai.
+
+**Preuve de non-régression** :
+
+```
+npx tsc --noEmit         -> aucune sortie
+npm run test:gpu-shaders -> 64 shaders composes compiles, 0 en echec
+npm run test:render      -> FAIL grain-graine-fixe et lui SEUL
+                            ecart max 70, moyenne 3.3783 ; 9 autres inchanges
+node render-check.mjs --update --scenario grain-graine-fixe
+npm run test:render      -> Aucune regression de rendu.  sortie 0
+```
+
+Références relues à l'œil, avant et après : le grain lourd des ombres a reculé
+et la répartition s'est recentrée, ce qui est exactement l'effet annoncé.
+
+<details><summary>Énoncé d'origine</summary>
 
 `grain.ts:46-48` : pondération perceptuelle, addition restée linéaire. Écart-type
 mesuré à intensité par défaut — ton 0,10 → 15,2/255 ; ton 0,50 → 7,1/255 ;
@@ -168,6 +212,8 @@ transfert sRGB**, ce que `srgbTransfer.ts:19-21` interdit en toutes lettres.
 
 **Preuve** : les trois écarts-types recomptés après correctif, et
 `grep` prouvant qu'aucune formule sRGB n'a été ajoutée.
+
+</details>
 
 ### E5 — AFK — le noyau d'upsample du glow est une coquille sans tap central
 

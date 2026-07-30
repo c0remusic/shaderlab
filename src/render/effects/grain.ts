@@ -1,5 +1,5 @@
 import type { EffectModule } from "./types";
-import { LINEAR_TO_SRGB_WGSL } from "./srgbTransfer";
+import { LINEAR_TO_SRGB_WGSL, SRGB_TO_LINEAR_WGSL } from "./srgbTransfer";
 
 export const grain: EffectModule = {
   id: "grain",
@@ -9,7 +9,7 @@ export const grain: EffectModule = {
     { name: "size", label: "Taille", unit: "pixels", min: 1, max: 8, default: 2, step: 0.5 },
     { name: "seed", label: "Graine", unit: "none", min: 0, max: 1000, default: 0, step: 1 },
   ],
-  wgsl: `${LINEAR_TO_SRGB_WGSL}
+  wgsl: `${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}
 fn hash(p: vec2<f32>) -> f32 {
   var p3 = fract(vec3<f32>(p.xyx) * 0.1031);
   p3 = p3 + dot(p3, p3.yzx + 33.33);
@@ -45,7 +45,20 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // est un scalaire de pondération, pas une valeur de couleur.
   let tone = linear_to_srgb(luma);
   let response = 4.0 * tone * (1.0 - tone);
-  return vec4<f32>(color.rgb + vec3<f32>(noise) * intensity * response, color.a);
+  // La courbe de réponse était posée sur l'axe perceptuel, mais l'addition
+  // restait linéaire — et une amplitude linéaire constante ne produit PAS un
+  // écart perceptuel constant : la compression sRGB l'amplifie dans les ombres
+  // et l'écrase dans les hautes lumières. Le grain culminait donc au ton 0.19
+  // et non 0.50, à rebours du contrat écrit deux lignes plus haut, avec 26,8 %
+  // de bruit écrêté à zéro au ton 0.10.
+  //
+  // Le décalage se pose maintenant sur le ton PERCEPTUEL, et c'est la fonction
+  // de transfert PARTAGÉE qui le ramène en linéaire. Deux propriétés tenues :
+  // le mélange reste linéaire (on ajoute un delta linéaire à une couleur
+  // linéaire, aucun gamma manuel sur la couleur), et aucune seconde formule de
+  // transfert n'apparaît ici — srgbTransfer.ts reste la source unique.
+  let perturbe = srgb_to_linear(tone + noise * intensity * response);
+  return vec4<f32>(color.rgb + vec3<f32>(perturbe - srgb_to_linear(tone)), color.a);
 }
 `,
 };

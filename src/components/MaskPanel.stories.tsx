@@ -71,7 +71,9 @@ const meta: Meta<typeof MaskPanel> = {
   title: "Components/MaskPanel",
   component: MaskPanel,
   args: {
-    layer: layerWithMask,
+    layerId: layerWithMask.id,
+    mask: layerWithMask.mask,
+    locked: false,
     maskPaintMode: false,
     onToggleMaskPaint: () => {},
     onAddMaskSource: () => {},
@@ -123,34 +125,25 @@ export const EveryFieldHasAnAccessibleName: Story = {
 
 export const NoSources: Story = {
   args: {
-    layer: { ...layerWithMask, mask: defaultLayerMask() },
+    mask: defaultLayerMask(),
   },
 };
 
 export const MultipleSources: Story = {
   args: {
-    layer: {
-      ...layerWithMask,
-      mask: { ...defaultLayerMask(), sources: [gradientSource, luminositySource, colorRangeSource] },
-    },
+    mask: { ...defaultLayerMask(), sources: [gradientSource, luminositySource, colorRangeSource] },
   },
 };
 
 export const MaskDisabled: Story = {
   args: {
-    layer: {
-      ...layerWithMask,
-      mask: { ...defaultLayerMask(), sources: [gradientSource], enabled: false },
-    },
+    mask: { ...defaultLayerMask(), sources: [gradientSource], enabled: false },
   },
 };
 
 export const Inverted: Story = {
   args: {
-    layer: {
-      ...layerWithMask,
-      mask: { ...defaultLayerMask(), sources: [gradientSource], invert: true },
-    },
+    mask: { ...defaultLayerMask(), sources: [gradientSource], invert: true },
   },
 };
 
@@ -159,7 +152,7 @@ export const PaintModeActive: Story = {
 };
 
 export const NoLayerSelected: Story = {
-  args: { layer: null },
+  args: { layerId: null, mask: null },
 };
 
 /** Calque VERROUILLÉ : chaque contrôle dont la mutation est refusée par
@@ -172,7 +165,8 @@ export const NoLayerSelected: Story = {
  *  ligne de texte — la hauteur des cartes est sous budget (ADR-0001). */
 export const LockedLayer: Story = {
   args: {
-    layer: { ...layerWithMask, id: "layer-locked", locked: true },
+    layerId: "layer-locked",
+    locked: true,
     onMaskEnabledChange: fn(),
     onMaskInvertChange: fn(),
     onMaskSourceParamsChange: fn(),
@@ -236,7 +230,7 @@ export const LockedLayer: Story = {
  *  ses contrôles actifs. Sans elle, `LockedLayer` passerait aussi si le panneau
  *  désactivait tout en permanence. */
 export const UnlockedLayerKeepsControlsActive: Story = {
-  args: { layer: { ...layerWithMask, id: "layer-unlocked" } },
+  args: { layerId: "layer-unlocked" },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.queryByTitle("Calque verrouillé")).toBeNull();

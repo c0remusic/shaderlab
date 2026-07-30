@@ -12,6 +12,7 @@ import {
   canvasSizeFor,
   parseFreeCanvasRequest,
   type CanvasFormatRequest,
+  type NamedCanvasFormat,
 } from "./layers/canvasFormat";
 import { MAX_CANVAS_PIXELS } from "./render/limits";
 import { FrameScheduler } from "./render/frameScheduler";
@@ -482,6 +483,17 @@ export default function App() {
     }
   }, [openFile]);
 
+  // Fermetures STABLES pour la barre d'outils (mémoïsée) : une arrow inline
+  // dans le JSX y était recréée à chaque rendu et aurait suffi à rendre la
+  // mémoïsation inopérante. `onOpenFile` reste fermée sur ZERO argument — voir
+  // la note du même nom sur `Canvas` plus bas, c'est le même piège.
+  const handleToolbarOpenFile = useCallback(() => void handleOpenFile(), [handleOpenFile]);
+  const handleToolbarOpenFileWithFormat = useCallback(
+    (format: NamedCanvasFormat) => void handleOpenFile({ kind: "nomme", format }),
+    [handleOpenFile],
+  );
+  const handleToolbarOpenFileWithFreeSize = useCallback(() => setPendingFreeCanvas({ width: "", height: "" }), []);
+
   // Saisie libre de la toile : dimensions en attente de confirmation. Non nul
   // seulement pendant que le dialogue est ouvert. Le sélecteur de fichier
   // n'est ouvert QU'APRÈS la confirmation — l'ordre inverse (fichier puis
@@ -773,19 +785,22 @@ export default function App() {
     [currentStack, commit]
   );
 
-  function handleAddMaskSource(layerId: string, type: "gradient" | "luminosity" | "colorRange") {
+  // Les onze handlers de masque ci-dessous sont les props de `MaskPanel`,
+  // désormais mémoïsé (2026-07-30). Une seule d'entre elles recréée à chaque
+  // rendu suffirait à annuler la mémoïsation — sans aucun signe visible.
+  const handleAddMaskSource = useCallback((layerId: string, type: "gradient" | "luminosity" | "colorRange") => {
     const stack = currentStack();
     stack.addMaskSource(layerId, type);
     commit(stack); // ajout d'une source = action discrète, une entrée directe
-  }
+  }, [currentStack, commit]);
 
-  function handleRemoveMaskSource(layerId: string, sourceId: string) {
+  const handleRemoveMaskSource = useCallback((layerId: string, sourceId: string) => {
     const stack = currentStack();
     if (!stack.removeMaskSource(layerId, sourceId)) return;
     commit(stack);
-  }
+  }, [currentStack, commit]);
 
-  function handleMaskSourceParamsChange(layerId: string, sourceId: string, params: Record<string, number | number[]>) {
+  const handleMaskSourceParamsChange = useCallback((layerId: string, sourceId: string, params: Record<string, number | number[]>) => {
     const previousSource = sessionRef.current.layers().find((l) => l.id === layerId)?.mask.sources.find((s) => s.id === sourceId);
     if (previousSource && Object.entries(params).some(([key, value]) => hasValueChanged((previousSource.params?.[key] as number | number[] | undefined) ?? 0, value))) {
       paramDirtyRef.current = true;
@@ -795,36 +810,36 @@ export default function App() {
     sessionRef.current.replaceLiveLayers(stack.layers);
     scheduleSync(); // curseur vivant -> coalescé, voir `syncSchedulerRef`
     rendererRef.current?.requestRender(stack.layers);
-  }
+  }, [currentStack, scheduleSync]);
 
-  function handleMaskSourceCombineModeChange(layerId: string, sourceId: string, mode: "add" | "subtract" | "intersect") {
+  const handleMaskSourceCombineModeChange = useCallback((layerId: string, sourceId: string, mode: "add" | "subtract" | "intersect") => {
     const stack = currentStack();
     if (!stack.setMaskSourceCombineMode(layerId, sourceId, mode)) return;
     commit(stack);
-  }
+  }, [currentStack, commit]);
 
-  function handleMaskSourceEnabledChange(layerId: string, sourceId: string, enabled: boolean) {
+  const handleMaskSourceEnabledChange = useCallback((layerId: string, sourceId: string, enabled: boolean) => {
     const stack = currentStack();
     // setMaskSourceEnabled ne commite (une entrée d'historique) que si la
     // valeur a réellement changé — pas d'entrée vide sur un no-op (même
     // discipline que le reste des toggles discrets de ce fichier).
     if (!stack.setMaskSourceEnabled(layerId, sourceId, enabled)) return;
     commit(stack);
-  }
+  }, [currentStack, commit]);
 
-  function handleMaskInvertChange(layerId: string, invert: boolean) {
+  const handleMaskInvertChange = useCallback((layerId: string, invert: boolean) => {
     const stack = currentStack();
     if (!stack.setMaskInvert(layerId, invert)) return;
     commit(stack);
-  }
+  }, [currentStack, commit]);
 
-  function handleMaskEnabledChange(layerId: string, enabled: boolean) {
+  const handleMaskEnabledChange = useCallback((layerId: string, enabled: boolean) => {
     const stack = currentStack();
     if (!stack.setMaskEnabled(layerId, enabled)) return;
     commit(stack);
-  }
+  }, [currentStack, commit]);
 
-  function handleRefineEdgeChange(layerId: string, refineEdge: Partial<RefineEdgeParams>) {
+  const handleRefineEdgeChange = useCallback((layerId: string, refineEdge: Partial<RefineEdgeParams>) => {
     const previousLayer = sessionRef.current.layers().find((l) => l.id === layerId);
     if (
       previousLayer &&
@@ -843,7 +858,7 @@ export default function App() {
     sessionRef.current.replaceLiveLayers(stack.layers);
     scheduleSync(); // curseur vivant -> coalescé, voir `syncSchedulerRef`
     rendererRef.current?.requestRender(stack.layers);
-  }
+  }, [currentStack, scheduleSync]);
 
   // Limitation documentée Tranche 3 (brief Task 6 Step 10) : pas de picker
   // interactif au clic sur le canvas (hors scope, Tranche 4/panneau
@@ -852,7 +867,7 @@ export default function App() {
   // contexte 2D dessus) : on le redessine sur un canvas 2D hors-écran de
   // 1x1 via drawImage pour lire un seul pixel, plutôt qu'un readback GPU
   // dédié — suffisant pour un échantillon de test, pas pour un vrai picker.
-  function handleAddColorSample(layerId: string, sourceId: string) {
+  const handleAddColorSample = useCallback((layerId: string, sourceId: string) => {
     const source = sessionRef.current.layers().find((l) => l.id === layerId)?.mask.sources.find((s) => s.id === sourceId);
     if (!source || !canvasRef.current || canvasRef.current.width === 0) return;
     const existing = (source.params?.samples as number[] | undefined) ?? [];
@@ -881,7 +896,9 @@ export default function App() {
     // la mutation a effectivement changé quelque chose.
     if (!stack.updateMaskSourceParams(layerId, sourceId, params)) return;
     commit(stack); // ajout d'un échantillon = action discrète, une entrée directe
-  }
+  }, [currentStack, commit]);
+
+  const handleToggleOverlayForceHidden = useCallback(() => setOverlayForceHidden((v) => !v), []);
 
   function handleMaskStroke(x: number, y: number) {
     if (!selectedId || imageSize.width === 0) return;
@@ -948,7 +965,11 @@ export default function App() {
     entry.syncedFrom = committedLayer ? getBrushRaster(committedLayer) : null;
   }
 
-  function handleUndo() {
+  // `useCallback` sur undo/redo/export/ouverture : ce sont les props de
+  // `Toolbar`, désormais mémoïsée (2026-07-30). Une seule de ces fonctions
+  // recréée à chaque rendu suffirait à annuler la mémoïsation en silence — la
+  // barre d'outils se rendrait alors à chaque `pointermove` comme avant.
+  const handleUndo = useCallback(() => {
     if (sessionRef.current.undo()) {
       syncSession();
       // Critique 1 (final-review fix): undo doesn't touch `activePresetId`
@@ -963,15 +984,15 @@ export default function App() {
       presets.reconcileActiveAfterHistoryChange(sessionRef.current.layers());
       rendererRef.current?.requestRender(sessionRef.current.layers());
     }
-  }
+  }, [syncSession, presets.reconcileActiveAfterHistoryChange]);
 
-  function handleRedo() {
+  const handleRedo = useCallback(() => {
     if (sessionRef.current.redo()) {
       syncSession();
       presets.reconcileActiveAfterHistoryChange(sessionRef.current.layers());
       rendererRef.current?.requestRender(sessionRef.current.layers());
     }
-  }
+  }, [syncSession, presets.reconcileActiveAfterHistoryChange]);
 
   // Raccourcis globaux Ctrl+Z/Ctrl+Y (undo/redo) et Ctrl+I (isoler le calque
   // sélectionné — le pendant clavier de l'Alt+clic sur l'œil, sans lequel
@@ -1026,7 +1047,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleWindowKeyDown);
   }, []);
 
-  async function performExport(resolveDir: () => Promise<string | null>, bareFirst: boolean) {
+  const performExport = useCallback(async (resolveDir: () => Promise<string | null>, bareFirst: boolean) => {
     if (!rendererRef.current) return;
     if (!sourcePath) {
       setError(
@@ -1054,21 +1075,7 @@ export default function App() {
     } catch (e) {
       setError(messageFromUnknown(e));
     }
-  }
-
-  // Mineur 4 (revue tâche 3) : rend une Promise<boolean> résolue à `true`
-  // SEULEMENT si l'écriture a réellement abouti (aucune confirmation
-  // annulée, aucune exception) — PresetPanel n'efface son champ de saisie
-  // que sur `true`, jamais sur la seule demande d'enregistrement.
-  async function requestSavePreset(name: string): Promise<boolean> {
-    const existing = presets.summaries.find((s) => s.name === name);
-    if (existing) {
-      return new Promise<boolean>((resolve) => {
-        setPendingOverwrite({ id: existing.id, name, resolve });
-      });
-    }
-    return gateOnPhotoLayers(name, () => commitSavePreset(name, null));
-  }
+  }, [sourcePath]);
 
   /** Runs `capture(sessionRef.current.layers(), name)` purely to inspect
    *  `skipped` — if it reports any excluded photo layer, blocks on the
@@ -1080,7 +1087,7 @@ export default function App() {
    *  preset's existing name, which is what would be recaptured anyway.
    *  Rend `false` si l'utilisateur annule la porte (Mineur 4), sinon le
    *  résultat de `onConfirmed` (issue réelle de l'écriture). */
-  function gateOnPhotoLayers(name: string, onConfirmed: () => Promise<boolean>): Promise<boolean> {
+  const gateOnPhotoLayers = useCallback((name: string, onConfirmed: () => Promise<boolean>): Promise<boolean> => {
     const { skipped } = capture(sessionRef.current.layers(), name);
     const excludedLayerIndexes = skipped.filter((s) => s.reason === "photo-layer").map((s) => s.layerIndex);
     if (excludedLayerIndexes.length > 0) {
@@ -1095,9 +1102,9 @@ export default function App() {
       });
     }
     return onConfirmed();
-  }
+  }, []);
 
-  async function commitSavePreset(name: string, overwriteId: string | null): Promise<boolean> {
+  const commitSavePreset = useCallback(async (name: string, overwriteId: string | null): Promise<boolean> => {
     try {
       if (overwriteId) {
         await presets.overwrite(overwriteId, sessionRef.current.layers(), name);
@@ -1109,7 +1116,26 @@ export default function App() {
       setError(messageFromUnknown(e));
       return false;
     }
-  }
+  }, [presets.overwrite, presets.save]);
+
+  // ORDRE : `requestSavePreset` vient APRÈS les deux fonctions qu'elle appelle.
+  // C'étaient des déclarations de fonction (hissées) ; en `useCallback` ce sont
+  // des `const`, qui ne le sont pas — d'où ce déplacement, seul changement de
+  // forme apporté à ce bloc.
+  //
+  // Mineur 4 (revue tâche 3) : rend une Promise<boolean> résolue à `true`
+  // SEULEMENT si l'écriture a réellement abouti (aucune confirmation
+  // annulée, aucune exception) — PresetPanel n'efface son champ de saisie
+  // que sur `true`, jamais sur la seule demande d'enregistrement.
+  const requestSavePreset = useCallback(async (name: string): Promise<boolean> => {
+    const existing = presets.summaries.find((s) => s.name === name);
+    if (existing) {
+      return new Promise<boolean>((resolve) => {
+        setPendingOverwrite({ id: existing.id, name, resolve });
+      });
+    }
+    return gateOnPhotoLayers(name, () => commitSavePreset(name, null));
+  }, [presets.summaries, gateOnPhotoLayers, commitSavePreset]);
 
   /** "Mettre à jour" (dirty banner). Reuses the active preset's own current
    *  name — `updateActive` keeps the name unchanged, `capture()` only needs
@@ -1182,13 +1208,13 @@ export default function App() {
     });
   }
 
-  async function handleRenamePreset(id: string, name: string) {
+  const handleRenamePreset = useCallback(async (id: string, name: string) => {
     try {
       await presets.rename(id, name);
     } catch (e) {
       setError(messageFromUnknown(e));
     }
-  }
+  }, [presets.rename]);
 
   /** Applies preset `id` immediately — goes through the shared `commit`
    *  helper (`sessionRef.current.commit` + `syncSession` + `requestRender`),
@@ -1199,7 +1225,7 @@ export default function App() {
    *  `requestRender` entirely (canvas wouldn't redraw). The confirmation gate
    *  lives in `requestApplyPreset` below, not here — this function always
    *  applies, it never asks. */
-  async function applyPreset(id: string) {
+  const applyPreset = useCallback(async (id: string) => {
     try {
       // (Mineur, final-review fix) The `if (presets.activePresetId !== id)
       // presets.clearActive();` line that used to be here was dead code:
@@ -1237,7 +1263,7 @@ export default function App() {
     } catch (e) {
       setError(messageFromUnknown(e));
     }
-  }
+  }, [presets.applyTo, commit]);
 
   /** Hard confirmation floor (PRD) : appliquer un preset sur une pile non
    *  vide écraserait des masques déjà peints — jamais sans confirmation
@@ -1247,16 +1273,16 @@ export default function App() {
    *  destruction au moins aussi coûteuse qu'un masque peint, mais que
    *  l'ancien dialogue ne mentionnait jamais alors que la CAPTURE d'un
    *  preset, elle, énumère nommément les calques photo exclus. */
-  function requestApplyPreset(id: string) {
+  const requestApplyPreset = useCallback((id: string) => {
     const currentLayers = sessionRef.current.layers();
     if (currentLayers.length > 0) {
       setPendingPresetApply({ id, photoLayerCount: countPhotoLayers(currentLayers) });
       return;
     }
     applyPreset(id);
-  }
+  }, [applyPreset]);
 
-  async function exportPresetFile(id: string) {
+  const exportPresetFile = useCallback(async (id: string) => {
     try {
       const doc = await presetStoreRef.current.load(id);
       const sanitized = doc.name.replace(/[\\/:*?"<>|]/g, "_");
@@ -1264,9 +1290,9 @@ export default function App() {
     } catch (e) {
       setError(messageFromUnknown(e));
     }
-  }
+  }, []);
 
-  async function importPresetFile() {
+  const importPresetFile = useCallback(async () => {
     try {
       const doc = await presetStoreRef.current.importFrom();
       if (!doc) return; // annulé par l'utilisateur
@@ -1275,19 +1301,19 @@ export default function App() {
     } catch (e) {
       setError(messageFromUnknown(e));
     }
-  }
+  }, [presets.refresh]);
 
   // Bouton "Exporter" : dossier fixe Images/shaderlab-export, nom nu tant
   // qu'il n'y a pas de collision réelle (resolveDefaultExportTarget).
-  async function handleExport() {
+  const handleExport = useCallback(async () => {
     await performExport(defaultExportDir, true);
-  }
+  }, [performExport]);
 
   // Bouton "Exporter sous..." : dossier choisi par l'utilisateur, toujours
   // -edited en premier (comportement conservateur).
-  async function handleExportAs() {
+  const handleExportAs = useCallback(async () => {
     await performExport(pickExportFolder, false);
-  }
+  }, [performExport]);
 
   const selectedLayer = layers.find((l) => l.id === selectedId) ?? null;
   const paramsPanelTitle = selectedLayer ? `Réglages · ${getEffect(selectedLayer.effectId).name}` : "Réglages";
@@ -1379,6 +1405,28 @@ export default function App() {
 
   const showOverlay = !overlayForceHidden && graceVisible;
 
+  // Tableau d'items d'identité STABLE : `PanelRail` est mémoïsé (2026-07-30) et
+  // un littéral recréé dans le JSX à chaque rendu aurait annulé la mémoïsation
+  // sans rien signaler. Les dépendances sont exactement ce que le rail affiche :
+  // la visibilité de chaque panneau et son basculeur.
+  const railItems = useMemo(
+    () =>
+      [
+        { id: "presets", icon: PackagePlus, label: "Presets", active: presetsPanel.visible, onClick: presetsPanel.toggleRail },
+        { id: "layers", icon: Layers, label: "Effets", active: layersPanel.visible, onClick: layersPanel.toggleRail },
+        { id: "photo", icon: PhotoRailIcon, label: "Photo", active: photoPanel.visible, onClick: photoPanel.toggleRail },
+        { id: "params", icon: SlidersHorizontal, label: "Réglages", active: paramsPanel.visible, onClick: paramsPanel.toggleRail },
+        { id: "mask", icon: BrushRailIcon, label: "Masque", active: maskPanel.visible, onClick: maskPanel.toggleRail },
+      ] satisfies PanelRailItem[],
+    [
+      presetsPanel.visible, presetsPanel.toggleRail,
+      layersPanel.visible, layersPanel.toggleRail,
+      photoPanel.visible, photoPanel.toggleRail,
+      paramsPanel.visible, paramsPanel.toggleRail,
+      maskPanel.visible, maskPanel.toggleRail,
+    ],
+  );
+
   useEffect(() => {
     const r = rendererRef.current;
     if (!r) return;
@@ -1406,9 +1454,9 @@ export default function App() {
         onRedo={handleRedo}
         onExport={handleExport}
         onExportAs={handleExportAs}
-        onOpenFile={() => void handleOpenFile()}
-        onOpenFileWithFormat={(format) => void handleOpenFile({ kind: "nomme", format })}
-        onOpenFileWithFreeSize={() => setPendingFreeCanvas({ width: "", height: "" })}
+        onOpenFile={handleToolbarOpenFile}
+        onOpenFileWithFormat={handleToolbarOpenFileWithFormat}
+        onOpenFileWithFreeSize={handleToolbarOpenFileWithFreeSize}
         onImportPhotoLayer={photoLayer.handleImportPhotoLayer}
         canImportPhotoLayer={canAddPhotoLayer(layers)}
       />
@@ -1624,11 +1672,17 @@ export default function App() {
               // Liste des sources de masque : longueur variable elle aussi.
               variableLength: true,
               content: <MaskPanel
-                  layer={selectedLayer}
+                  // Props RESSERRÉES (2026-07-30) : le panneau ne reçoit plus
+                  // le calque entier, dont l'identité change à chaque frame de
+                  // tout geste vivant, mais les trois champs qu'il lit. Voir
+                  // l'en-tête de `MaskPanel.tsx`.
+                  layerId={selectedLayer?.id ?? null}
+                  mask={selectedLayer?.mask ?? null}
+                  locked={selectedLayer?.locked === true}
                   maskPaintMode={maskPaintMode}
                   onToggleMaskPaint={photoLayer.toggleMaskPaintMode}
                   overlayForceHidden={overlayForceHidden}
-                  onToggleOverlayForceHidden={() => setOverlayForceHidden((v) => !v)}
+                  onToggleOverlayForceHidden={handleToggleOverlayForceHidden}
                   onAddMaskSource={handleAddMaskSource}
                   onRemoveMaskSource={handleRemoveMaskSource}
                   onMaskSourceParamsChange={handleMaskSourceParamsChange}
@@ -1648,15 +1702,7 @@ export default function App() {
           width={dockWidth}
           onWidthChange={handleDockWidthChange}
         />
-        <PanelRail
-          items={[
-            { id: "presets", icon: PackagePlus, label: "Presets", active: presetsPanel.visible, onClick: presetsPanel.toggleRail },
-            { id: "layers", icon: Layers, label: "Effets", active: layersPanel.visible, onClick: layersPanel.toggleRail },
-            { id: "photo", icon: PhotoRailIcon, label: "Photo", active: photoPanel.visible, onClick: photoPanel.toggleRail },
-            { id: "params", icon: SlidersHorizontal, label: "Réglages", active: paramsPanel.visible, onClick: paramsPanel.toggleRail },
-            { id: "mask", icon: BrushRailIcon, label: "Masque", active: maskPanel.visible, onClick: maskPanel.toggleRail },
-          ] satisfies PanelRailItem[]}
-        />
+        <PanelRail items={railItems} />
         {colorPicker && selectedLayer?.id === colorPicker.layerId && selectedLayer.effectId === colorPicker.effectId && (
           <ColorPickerPanel
             key={colorPicker.key}

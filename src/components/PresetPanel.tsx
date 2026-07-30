@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import type { PresetSummary } from "../presets/presetStore";
 import { Button } from "./ui/button";
 import "./PresetPanel.css";
@@ -28,7 +28,14 @@ export interface PresetPanelProps {
 // double-clic de l'OS sans faire manquer un double-clic délibéré.
 const APPLY_CLICK_DELAY_MS = 200;
 
-export function PresetPanel({ summaries, hasLayers, onSave, onRename, onApply, onExport, onImport }: PresetPanelProps) {
+/** MÉMOÏSÉ (2026-07-30, profil CPU). Rien de ce panneau ne dépend de ce qui
+ *  bouge pendant un geste : la bibliothèque de presets et `hasLayers` ne
+ *  changent ni en glissant une image ni en glissant un curseur. Il se rendait
+ *  pourtant à chaque `pointermove` (31 rendus pour 30 échantillons, mesuré).
+ *  La mémoïsation ne tient QUE si `App` passe des callbacks stables — les six
+ *  handlers preset y sont en `useCallback` pour cette raison, comme ceux de
+ *  `LayerRow` avant eux. */
+export const PresetPanel = memo(function PresetPanel({ summaries, hasLayers, onSave, onRename, onApply, onExport, onImport }: PresetPanelProps) {
   const [nameInput, setNameInput] = useState("");
   // C2 (PRD.md:64-65), decided by Antoine 2026-07-26 (no interaction spec
   // existed in design.md — double-click-to-edit is this plan's own decision,
@@ -175,4 +182,4 @@ export function PresetPanel({ summaries, hasLayers, onSave, onRename, onApply, o
       )}
     </div>
   );
-}
+});

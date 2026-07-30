@@ -1,6 +1,5 @@
-import { useState } from "react";
-import type { LayerState } from "../layers/types";
-import type { RefineEdgeParams } from "../mask/types";
+import { memo, useState } from "react";
+import type { LayerMask, RefineEdgeParams } from "../mask/types";
 import { isParametricMaskSource } from "../mask/types";
 import { maskSourceRegistry, getMaskSourceModule } from "../mask/sources/registry";
 import { angleToEndpoints } from "../mask/sources/gradient";
@@ -15,7 +14,16 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Trash2, Eye, EyeOff } from "lucide-react";
 
 interface Props {
-  layer: LayerState | null;
+  /* PROPS RESSERRÉES (2026-07-30, profil CPU). Ce panneau recevait le
+     `LayerState` ENTIER, dont l'identité change à chaque frame de n'importe
+     quel geste vivant (`{...layer, transform}` au déplacement d'une image,
+     `{...layer, params}` au glissement d'un curseur d'effet) : il se rendait
+     donc à chaque `pointermove` d'un geste qui ne touche PAS le masque. Il ne
+     lisait pourtant que trois choses, et `mask` GARDE son identité à travers
+     ces deux gestes. En ne recevant que ce qu'il lit, sa mémoïsation tient. */
+  layerId: string | null;
+  mask: LayerMask | null;
+  locked: boolean;
   maskPaintMode: boolean;
   onToggleMaskPaint: () => void;
   overlayForceHidden: boolean;
@@ -68,8 +76,10 @@ function paramRange(key: string): { min: number; max: number; step: number } {
   return { min: 0, max: 1, step: 0.01 };
 }
 
-export function MaskPanel({
-  layer,
+export const MaskPanel = memo(function MaskPanel({
+  layerId,
+  mask,
+  locked,
   maskPaintMode,
   onToggleMaskPaint,
   overlayForceHidden,
@@ -88,7 +98,7 @@ export function MaskPanel({
 }: Props) {
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
 
-  if (!layer) {
+  if (layerId === null || mask === null) {
     return <p className="param-panel__empty">Sélectionne un calque.</p>;
   }
   // Seules les sources PARAMÉTRIQUES sont éditées ici — une source "brush"
@@ -111,13 +121,12 @@ export function MaskPanel({
   // équivalente dans ParamPanel.tsx — un fieldset n'émet pas le `data-disabled`
   // des primitives Base UI (rendu inerte mais d'apparence vive) et emporterait
   // ces trois exceptions avec le reste.
-  const locked = layer.locked === true;
-  const sources = layer.mask.sources.filter(isParametricMaskSource);
+  const sources = mask.sources.filter(isParametricMaskSource);
   const activeSourceId = selectedSourceId && sources.some((s) => s.id === selectedSourceId)
     ? selectedSourceId
     : (sources[0]?.id ?? null);
   const activeSource = sources.find((s) => s.id === activeSourceId) ?? null;
-  const refineEdge = layer.mask.refineEdge;
+  const refineEdge = mask.refineEdge;
 
   return (
     // `title` plutôt qu'une ligne de texte pour DIRE pourquoi les contrôles
@@ -170,14 +179,14 @@ export function MaskPanel({
           <div className="param-panel__mask-toggles">
             <div className="param-panel__visibility-row">
               <IconButton
-                label={layer.mask.enabled ? "Désactiver le masque" : "Activer le masque"}
+                label={mask.enabled ? "Désactiver le masque" : "Activer le masque"}
                 tooltip="Masque actif"
                 size="compact"
-                aria-pressed={layer.mask.enabled}
+                aria-pressed={mask.enabled}
                 disabled={locked}
-                onClick={() => onMaskEnabledChange(layer.id, !layer.mask.enabled)}
+                onClick={() => onMaskEnabledChange(layerId, !mask.enabled)}
               >
-                {layer.mask.enabled ? (
+                {mask.enabled ? (
                   <Eye className="icon-sm icon-stroke" aria-hidden="true" />
                 ) : (
                   <EyeOff className="icon-sm icon-stroke" aria-hidden="true" />
@@ -187,9 +196,9 @@ export function MaskPanel({
             </div>
             <Checkbox
               label="Inverser"
-              checked={layer.mask.invert}
+              checked={mask.invert}
               disabled={locked}
-              onChange={(invert) => onMaskInvertChange(layer.id, invert)}
+              onChange={(invert) => onMaskInvertChange(layerId, invert)}
             />
           </div>
 
@@ -205,7 +214,7 @@ export function MaskPanel({
             <DropdownMenuTrigger render={<Button variant="secondary" disabled={locked}>Ajouter une source</Button>} />
             <DropdownMenuContent align="start">
               {maskSourceRegistry.map((m) => (
-                <DropdownMenuItem key={m.id} onClick={() => onAddMaskSource(layer.id, m.id)}>
+                <DropdownMenuItem key={m.id} onClick={() => onAddMaskSource(layerId, m.id)}>
                   {m.name}
                 </DropdownMenuItem>
               ))}
@@ -236,7 +245,7 @@ export function MaskPanel({
                         size="compact"
                         aria-pressed={source.enabled}
                         disabled={locked}
-                        onClick={() => onMaskSourceEnabledChange(layer.id, source.id, !source.enabled)}
+                        onClick={() => onMaskSourceEnabledChange(layerId, source.id, !source.enabled)}
                       >
                         {source.enabled ? (
                           <Eye className="icon-sm icon-stroke" aria-hidden="true" />
@@ -260,7 +269,7 @@ export function MaskPanel({
                         size="compact"
                         variant="danger"
                         disabled={locked}
-                        onClick={() => onRemoveMaskSource(layer.id, source.id)}
+                        onClick={() => onRemoveMaskSource(layerId, source.id)}
                       >
                         <Trash2 className="icon-sm icon-stroke" aria-hidden="true" />
                       </IconButton>
@@ -278,7 +287,7 @@ export function MaskPanel({
                             onPressedChange={(pressed) => {
                               if (pressed) {
                                 onMaskSourceCombineModeChange(
-                                  layer.id,
+                                  layerId,
                                   source.id,
                                   option.value as "add" | "subtract" | "intersect",
                                 );
@@ -312,7 +321,7 @@ export function MaskPanel({
                         canvas hors scope de cette tranche (Tranche 4) ; ce bouton prend la couleur du CENTRE du
                         canvas comme valeur de test minimale.
                       </p>
-                      <Button variant="secondary" disabled={locked} onClick={() => onAddColorSample(layer.id, activeSource.id)}>
+                      <Button variant="secondary" disabled={locked} onClick={() => onAddColorSample(layerId, activeSource.id)}>
                         Ajouter un échantillon (centre canvas)
                       </Button>
                     </div>
@@ -322,7 +331,7 @@ export function MaskPanel({
                   // Binaire (0/1 côté wgsl, voir gradient.ts/luminosity.ts) —
                   // un LabeledSlider 0..1 pas-0.01 le rendait comme un
                   // continu alors qu'il ne prend que deux états, incohérent
-                  // avec le Checkbox déjà utilisé pour layer.mask.invert
+                  // avec le Checkbox déjà utilisé pour mask.invert
                   // juste au-dessus (ligne ~159).
                   return (
                     <Checkbox
@@ -331,7 +340,7 @@ export function MaskPanel({
                       checked={value === 1}
                       disabled={locked}
                       onChange={(checked) => {
-                        onMaskSourceParamsChange(layer.id, activeSource.id, {
+                        onMaskSourceParamsChange(layerId, activeSource.id, {
                           ...activeSource.params,
                           invert: checked ? 1 : 0,
                         });
@@ -348,12 +357,12 @@ export function MaskPanel({
                 const onAngleChange =
                   key === "angle" && activeSource.type === "gradient"
                     ? (v: number) =>
-                        onMaskSourceParamsChange(layer.id, activeSource.id, {
+                        onMaskSourceParamsChange(layerId, activeSource.id, {
                           ...activeSource.params,
                           angle: v,
                           ...angleToEndpoints(activeSource.params as { startX: number; startY: number; endX: number; endY: number }, v),
                         })
-                    : (v: number) => onMaskSourceParamsChange(layer.id, activeSource.id, { ...activeSource.params, [key]: v });
+                    : (v: number) => onMaskSourceParamsChange(layerId, activeSource.id, { ...activeSource.params, [key]: v });
                 return (
                   <LabeledSlider
                     key={key}
@@ -382,7 +391,7 @@ export function MaskPanel({
             max={50}
             step={1}
             disabled={locked}
-            onChange={(v) => onRefineEdgeChange(layer.id, { feather: v })}
+            onChange={(v) => onRefineEdgeChange(layerId, { feather: v })}
             onCommit={onRefineEdgeCommit}
           />
           <LabeledSlider
@@ -392,7 +401,7 @@ export function MaskPanel({
             max={50}
             step={1}
             disabled={locked}
-            onChange={(v) => onRefineEdgeChange(layer.id, { contract: v })}
+            onChange={(v) => onRefineEdgeChange(layerId, { contract: v })}
             onCommit={onRefineEdgeCommit}
           />
           <LabeledSlider
@@ -402,7 +411,7 @@ export function MaskPanel({
             max={10}
             step={1}
             disabled={locked}
-            onChange={(v) => onRefineEdgeChange(layer.id, { smooth: v })}
+            onChange={(v) => onRefineEdgeChange(layerId, { smooth: v })}
             onCommit={onRefineEdgeCommit}
           />
           <Checkbox
@@ -410,7 +419,7 @@ export function MaskPanel({
             checked={refineEdge.edgeAware}
             disabled={locked}
             onChange={(edgeAware) => {
-              onRefineEdgeChange(layer.id, { edgeAware });
+              onRefineEdgeChange(layerId, { edgeAware });
               onRefineEdgeCommit();
             }}
           />
@@ -423,7 +432,7 @@ export function MaskPanel({
                 max={50}
                 step={1}
                 disabled={locked}
-                onChange={(v) => onRefineEdgeChange(layer.id, { edgeRadius: v })}
+                onChange={(v) => onRefineEdgeChange(layerId, { edgeRadius: v })}
                 onCommit={onRefineEdgeCommit}
               />
               <LabeledSlider
@@ -433,7 +442,7 @@ export function MaskPanel({
                 max={2}
                 step={0.05}
                 disabled={locked}
-                onChange={(v) => onRefineEdgeChange(layer.id, { edgeStrength: v })}
+                onChange={(v) => onRefineEdgeChange(layerId, { edgeStrength: v })}
                 onCommit={onRefineEdgeCommit}
               />
             </>
@@ -443,4 +452,4 @@ export function MaskPanel({
       )}
     </div>
   );
-}
+});

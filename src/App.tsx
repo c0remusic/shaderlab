@@ -28,6 +28,7 @@ import {
 } from "./launch";
 import { useGlobalControlWheel } from "./ui/activeControl";
 import { resetTransform } from "./ui/transform";
+import { hitTestPhotoLayer } from "./ui/hitTest";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 import { getBrushRaster } from "./mask/brushSource";
 import { PanelColumn } from "./components/dockedPanel/PanelColumn";
@@ -440,6 +441,31 @@ export default function App() {
     layers,
   });
   const { maskPaintMode, showTransformHandles, handleTransformChange, handleTransformCommit } = photoLayer;
+
+  // Désignation directe d'une image au clic sur la toile (T1 du design
+  // 2026-07-29). La taille des photos SOURCES vit dans le renderer
+  // (`PhotoSourceStore`), hors state React — elle est passée en LOOKUP au
+  // module pur, qui n'importe rien de `render/` et reste testable en Node.
+  const photoSizeOf = useCallback(
+    (sourceId: string) => rendererRef.current?.photoSources?.dimensions(sourceId) ?? null,
+    [],
+  );
+
+  // `layers` (projection d'affichage) et non `sessionRef.current.layers()` :
+  // le hit-test ne lit que des scalaires (transform, enabled, imageSource),
+  // jamais un raster — aucun gros buffer n'entre ici.
+  const pickPhotoLayerAt = useCallback(
+    (x: number, y: number) => hitTestPhotoLayer(layers, { x, y }, imageSize, photoSizeOf),
+    [layers, imageSize, photoSizeOf],
+  );
+
+  // Clic dans le vide = DÉSÉLECTION (arbitrage n°4 de la tranche) : geste
+  // standard, seule sortie évidente de la sélection, et cohérent avec « ce que
+  // je clique est ce que je sélectionne ».
+  const handleCanvasPick = useCallback(
+    (x: number, y: number) => selectLayer(pickPhotoLayerAt(x, y)),
+    [pickPhotoLayerAt, selectLayer],
+  );
 
   // Pont de debug DEV-ONLY. Raison d'être : le dialogue natif de sélection de
   // fichier (`pick_image_file`, rfd côté Rust) n'est pilotable NI par CDP NI
@@ -1368,6 +1394,10 @@ export default function App() {
           onStrokeEnd={handleMaskStrokeEnd}
           brushSize={brushSize}
           brushHardness={brushHardness}
+          // Sélection directe en mode `idle` UNIQUEMENT : jamais en `maskPaint`
+          // (le pinceau garde la main), jamais en `crop` (les poignées de crop
+          // prennent la place) — `src/ui/canvasMode.ts`.
+          onPick={photoLayer.canvasMode.kind === "idle" ? handleCanvasPick : undefined}
         />
         {/* `showTransformHandles` = mode canvas `idle` (usePhotoLayer/CanvasMode).
             Avant T1, les poignées se montaient sur la seule SÉLECTION : un calque
@@ -1382,6 +1412,18 @@ export default function App() {
             canvasRef={canvasRef}
             onTransformChange={(t) => handleTransformChange(selectedLayer.id, t)}
             onTransformCommit={handleTransformCommit}
+            // La box de déplacement couvre toute la bounding box du calque
+            // sélectionné et masque le canvas : un clic sur une image posée
+            // par-dessus lui cède la sélection au lieu de déplacer la sélection
+            // courante. Un clic qui ne touche AUCUNE autre image (y compris le
+            // vide entre la box et la photo tournée) garde le déplacement — la
+            // box reste une surface de drag, la désélection appartient au canvas.
+            onPickThrough={(x, y) => {
+              const hit = pickPhotoLayerAt(x, y);
+              if (hit === null || hit === selectedLayer.id) return false;
+              selectLayer(hit);
+              return true;
+            }}
           />
         )}
         <PanelColumn

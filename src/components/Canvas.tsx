@@ -13,10 +13,16 @@ interface Props {
   brushSize: number;
   /** Dureté 0..1 : fraction du rayon à pleine force (anneau interne du curseur). */
   brushHardness: number;
+  /** Désignation directe d'une image au clic (toile de montage T1) : appelée
+   *  avec le point en pixels IMAGE. `undefined` = sélection désactivée pour ce
+   *  mode de canvas — l'appelant ne la passe QU'en mode `idle`, jamais en
+   *  `maskPaint` ni en `crop`. Le pinceau garde la main sans exception : la
+   *  branche peinture sort avant, inchangée. */
+  onPick?: (x: number, y: number) => void;
 }
 
 export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
-  { onFileDropped, hasImage, onOpenFile, maskPaintMode, onMaskStroke, onStrokeEnd, brushSize, brushHardness },
+  { onFileDropped, hasImage, onOpenFile, maskPaintMode, onMaskStroke, onStrokeEnd, brushSize, brushHardness, onPick },
   ref
 ) {
   const isPaintingRef = useRef(false);
@@ -170,7 +176,17 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
         aria-label="Zone de travail image"
         className={`canvas-stage__canvas ${maskPaintMode ? "canvas-stage__canvas--paint" : ""}`.trim()}
         onPointerDown={(e) => {
-          if (!maskPaintMode) return;
+          if (!maskPaintMode) {
+            // Désignation directe (T1). Hors mode peinture UNIQUEMENT, et
+            // seulement si l'appelant l'a autorisée pour le mode courant : le
+            // pinceau n'est jamais intercepté, la branche ci-dessous est
+            // inchangée et prioritaire.
+            if (onPick) {
+              const pickPt = toImageCoords(e);
+              if (pickPt) onPick(pickPt.x, pickPt.y);
+            }
+            return;
+          }
           isPaintingRef.current = true;
           // Capture le pointeur : pointermove/pointerup continuent de cibler
           // le canvas même quand le curseur sort de ses bornes pendant qu'on

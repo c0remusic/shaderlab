@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Download, FolderOpen, Frame, ImagePlus, Menu, Redo2, Undo2 } from "lucide-react";
 import { Button } from "./ui/button";
 import {
@@ -40,7 +41,12 @@ interface Props {
   canImportPhotoLayer: boolean;
 }
 
-export function Toolbar({
+/** MÉMOÏSÉ (2026-07-30, profil CPU). Aucune de ses props ne bouge pendant un
+ *  geste — ni l'historique (aucun commit avant la fin du geste), ni le nom du
+ *  document, ni la présence d'image — et il se rendait pourtant à chaque
+ *  `pointermove` (31 rendus pour 30 échantillons, mesuré). Tient uniquement
+ *  parce que les huit callbacks passés par `App` sont en `useCallback`. */
+export const Toolbar = memo(function Toolbar({
   canUndo,
   canRedo,
   hasImage,
@@ -138,4 +144,4 @@ export function Toolbar({
       <div className="flex-1" />
     </div>
   );
-}
+});

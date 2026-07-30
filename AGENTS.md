@@ -41,11 +41,18 @@
 > basé sur la section Interfaces du brief Task 6 sans relire le corps du
 > Step 10) : le plan
 > (`docs/superpowers/plans/2026-07-20-shaderlab-masking-tranche3.md:1616`,
-> Step 10 point 2) exige une checkbox `enabled` par source de masque dans
-> l'UI — jamais livrée, `LayerStack` n'expose que `setMaskEnabled` au
-> niveau du masque entier, pas de setter par source. À trancher : ajouter
-> `setMaskSourceEnabled`, ou documenter formellement ce point comme différé
-> dans le plan lui-même (pas encore fait). Le checkpoint visuel
+> Step 10 point 2) exigeait une checkbox `enabled` par source de masque dans
+> l'UI. **Ce gap est COMBLÉ depuis le 2026-07-21** (`e53ac65`, plan
+> `docs/superpowers/plans/2026-07-21-audit-mask-integrity.md`) — mesuré sur
+> pièce le 2026-07-30 : `LayerStack.setMaskSourceEnabled(layerId, sourceId,
+> enabled): boolean` existe (`src/layers/layerStack.ts:550`, ne commite que
+> sur changement réel), `MaskSource` est l'union discriminée
+> `BrushMaskSource | ParametricMaskSource` (`src/mask/types.ts:27`, `:41`,
+> `:55`), la checkbox est câblée (`src/components/MaskPanel.tsx:249`
+> `onMaskSourceEnabledChange`, `src/App.tsx:825`), et six tests la gardent
+> (`test/layers/layerStack.test.ts:185-226`, plus la garde de verrou
+> `test/layers/layerLock.test.ts:148-153`). Ne pas rouvrir « à trancher » :
+> c'est tranché et livré. Le checkpoint visuel
 > final (8 points, Task 6 Step 13) est BLOQUÉ : problèmes
 > pré-existants sur `FloatingPanel` (thème incohérent, canvas mal centré,
 > imbrication panneaux cassée) découverts en tentant ce checkpoint. 2 bugs

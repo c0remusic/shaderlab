@@ -16,10 +16,89 @@ export interface GpuContext {
   srgbFormat: GPUTextureFormat;
 }
 
+/** Hard ceiling on the number of recoverable-GPU-error lines a single session
+ *  may emit. `onuncapturederror` can fire once per frame; without a ceiling a
+ *  single broken pass would fill the journal with the same line at 60 Hz. */
+export const GPU_ERROR_MAX_REPORTS = 20;
+/** Two identical messages closer together than this only bump a counter; the
+ *  count is folded into the next line that does get through. */
+export const GPU_ERROR_REPEAT_WINDOW_MS = 5_000;
+
+export interface GpuErrorReporterOptions {
+  maxReports?: number;
+  repeatWindowMs?: number;
+  /** Injectable clock — the debounce is time-based, so tests drive it here
+   *  rather than waiting on a real one. */
+  now?: () => number;
+}
+
+/**
+ * Bounded, de-duplicating channel for RECOVERABLE GPU errors.
+ *
+ * Separate from the fatal channel on purpose (see `device.lost` below): an
+ * uncaptured validation error does not mean the device is gone, so routing it
+ * to `onFatalError` would tell the user "the GPU restarted" for something it
+ * survived. It also fires from the render loop, so the sink must be protected
+ * from a per-frame burst.
+ *
+ * Contract: the first occurrence of a given message is always emitted;
+ * identical repeats inside `repeatWindowMs` are counted, not emitted, and the
+ * count rides along on the next emission for that message. After
+ * `maxReports` emitted lines the reporter emits one final "stopped" line and
+ * goes permanently silent — which also bounds its own memory, since a new map
+ * entry is only ever created while under the ceiling.
+ */
+export function createGpuErrorReporter(
+  sink: DiagnosticLogger,
+  {
+    maxReports = GPU_ERROR_MAX_REPORTS,
+    repeatWindowMs = GPU_ERROR_REPEAT_WINDOW_MS,
+    now = () => Date.now(),
+  }: GpuErrorReporterOptions = {}
+): (message: string) => void {
+  const seen = new Map<string, { windowStart: number; suppressed: number }>();
+  let emitted = 0;
+  let stopped = false;
+
+  const emit = (line: string): void => {
+    if (emitted >= maxReports) {
+      stopped = true;
+      sink(
+        `GPU error reporting stopped after ${maxReports} entries — further recoverable errors are not logged.`
+      );
+      return;
+    }
+    emitted += 1;
+    sink(line);
+  };
+
+  return (message: string): void => {
+    if (stopped) return;
+    const entry = seen.get(message);
+    if (!entry) {
+      seen.set(message, { windowStart: now(), suppressed: 0 });
+      emit(message);
+      return;
+    }
+    entry.suppressed += 1;
+    const elapsed = now() - entry.windowStart;
+    if (elapsed < repeatWindowMs) return;
+    emit(`${message} (repeated ${entry.suppressed} times in ${elapsed} ms)`);
+    entry.windowStart = now();
+    entry.suppressed = 0;
+  };
+}
+
 export async function initGpu(
   canvas: HTMLCanvasElement,
   onFatalError?: (message: string) => void,
-  diagnosticLogger: DiagnosticLogger = noopDiagnosticLogger
+  diagnosticLogger: DiagnosticLogger = noopDiagnosticLogger,
+  /** Sink for recoverable GPU errors. Distinct from `diagnosticLogger`, which
+   *  is expected to be debugging-only (it no-ops outside dev builds, see
+   *  `logDiagnostic` in launch.ts): this one must still record in a shipped
+   *  build. Falls back to `diagnosticLogger` when the caller has no durable
+   *  channel to offer. */
+  gpuErrorLogger?: DiagnosticLogger
 ): Promise<GpuContext> {
   if (!navigator.gpu) {
     throw new Error("WebGPU non disponible sur ce navigateur/GPU.");
@@ -49,13 +128,24 @@ export async function initGpu(
     diagnosticLogger(`GPU device lost: reason=${info.reason} message=${info.message}`);
     onFatalError?.("Le GPU a redémarré ou a manqué de mémoire — rouvre l'image.");
   });
-  // Debugging-only (see log_diagnostic in lib.rs): no uncaptured-error
-  // handler existed before this — any GPU validation/OOM error the browser
-  // itself surfaces (as opposed to a hard renderer-process abort) was going
-  // completely unlogged. Added 2026-07-15 to investigate the mask-paint
-  // freeze/crash alongside targeted pushErrorScope calls in renderer.ts.
+  // Recoverable GPU errors — any validation/OOM error the browser surfaces
+  // itself, as opposed to a hard renderer-process abort. Added 2026-07-15 to
+  // investigate the mask-paint freeze/crash.
+  //
+  // These take a channel of their OWN (`gpuErrorLogger`, bounded + debounced
+  // by createGpuErrorReporter) rather than `diagnosticLogger`, which no-ops
+  // outside dev builds — so before 2026-07-31 every one of these errors was
+  // silent in a shipped build. They deliberately do NOT reach `onFatalError`:
+  // the device survived, and claiming otherwise to the user would be false.
+  //
+  // An earlier version of this comment claimed these were logged "alongside
+  // targeted pushErrorScope calls in renderer.ts". No such calls ever
+  // existed: `grep -rn 'pushErrorScope|popErrorScope' src/` matches this file
+  // only (the two other hits in the repo are in scripts/gpu-shader-check.mjs,
+  // the offline shader compiler check, not the app).
+  const reportGpuError = createGpuErrorReporter(gpuErrorLogger ?? diagnosticLogger);
   device.onuncapturederror = (event) => {
-    diagnosticLogger(`GPU uncaptured error: ${event.error.constructor.name}: ${event.error.message}`);
+    reportGpuError(`GPU uncaptured error: ${event.error.constructor.name}: ${event.error.message}`);
   };
   diagnosticLogger(`GPU limits: maxTextureDimension2D=${adapter.limits.maxTextureDimension2D} maxBufferSize=${adapter.limits.maxBufferSize}`);
   const context = canvas.getContext("webgpu") as GPUCanvasContext;

@@ -33,6 +33,7 @@ import {
   readImageFile,
   pickImageFile,
   logDiagnostic,
+  logGpuError,
   writeImageFile,
   pathExists,
   defaultExportDir,
@@ -305,7 +306,7 @@ export default function App() {
     const generation = ++openGenerationRef.current;
     try {
       if (!gpuRef.current) {
-        gpuRef.current = await initGpu(canvasRef.current, (message) => setError(message), logDiagnostic);
+        gpuRef.current = await initGpu(canvasRef.current, (message) => setError(message), logDiagnostic, logGpuError);
       }
       let bitmap: ImageBitmap;
       try {

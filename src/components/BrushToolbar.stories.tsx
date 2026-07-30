@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { BrushToolbar } from "./BrushToolbar";
+import { assertAccessibleNames } from "./ui/accessible-name.test-support";
 
 const meta: Meta<typeof BrushToolbar> = {
   title: "Components/BrushToolbar",
@@ -20,6 +21,17 @@ export default meta;
 type Story = StoryObj<typeof BrushToolbar>;
 
 export const Default: Story = {};
+
+/** GARDE D'ACCESSIBILITÉ — balayage MESURÉ (taille et dureté de pinceau : une
+ *  piste + son champ de valeur chacune). Voir
+ *  `ui/accessible-name.test-support.ts`. */
+export const EveryFieldHasAnAccessibleName: Story = {
+  play: async ({ canvasElement }) => {
+    const report = assertAccessibleNames(canvasElement);
+    // Deux `LabeledSlider` = quatre contrôles nommés (piste + champ de valeur).
+    await expect(report.map((entry) => entry.name)).toEqual(["Taille", "Taille (valeur)", "Dureté", "Dureté (valeur)"]);
+  },
+};
 
 export const EraseMode: Story = {
   args: { erase: true },

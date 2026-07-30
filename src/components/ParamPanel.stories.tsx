@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { ParamPanel } from "./ParamPanel";
+import { assertAccessibleNames } from "./ui/accessible-name.test-support";
 import { defaultLayerMask } from "../mask/types";
 import type { LayerState } from "../layers/types";
 
@@ -63,6 +64,18 @@ export const Default: Story = {};
 
 export const NoLayerSelected: Story = {
   args: { layer: null },
+};
+
+/** GARDE D'ACCESSIBILITÉ — balayage MESURÉ des contrôles de paramètres
+ *  (`LabeledSlider` : une piste + son champ de valeur par paramètre). Le
+ *  balayage doit trouver au moins un contrôle par paramètre de l'effet, sinon
+ *  il est vert pour la mauvaise raison — voir
+ *  `ui/accessible-name.test-support.ts`. */
+export const EveryFieldHasAnAccessibleName: Story = {
+  play: async ({ canvasElement }) => {
+    const report = assertAccessibleNames(canvasElement);
+    await expect(report.map((entry) => entry.name)).toEqual(["Écrêter sur la photo du dessus", "Seuil", "Seuil (valeur)", "Intensité", "Intensité (valeur)"]);
+  },
 };
 
 /** Calque photo (`passthrough`) : état vide EXPLICITE, plus un `Disclosure`

@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { LayerControls } from "./LayerPanel";
+import { assertAccessibleNames } from "./ui/accessible-name.test-support";
 import { defaultLayerMask } from "../mask/types";
 import type { LayerState } from "../layers/types";
 
@@ -142,6 +143,20 @@ export const OpacityFieldIsNamedAndShowsPercent: Story = {
     const field = canvas.getByRole("textbox", { name: "Opacité" });
     await expect(field).toHaveValue("35");
     await expect(canvas.getByText("%")).toBeVisible();
+  },
+};
+
+/** GARDE D'ACCESSIBILITÉ — balayage MESURÉ de la zone de contrôles de calque.
+ *  Le champ d'opacité y porte `labelPlacement="hidden"` : son étiquette est
+ *  hors écran, donc c'est exactement le cas où un nom accessible se perd sans
+ *  que rien ne se voie. Voir `ui/accessible-name.test-support.ts`. */
+export const EveryFieldHasAnAccessibleName: Story = {
+  args: { selectedId: "layer-2" },
+  play: async ({ canvasElement }) => {
+    const report = assertAccessibleNames(canvasElement);
+    // Les trois contrôles de la zone : les deux listes déroulantes Base UI
+    // (`role="combobox"`) et le champ d'opacité à l'étiquette hors écran.
+    await expect(report.map((entry) => entry.name).sort()).toEqual(["Effet", "Fusion", "Opacité"]);
   },
 };
 

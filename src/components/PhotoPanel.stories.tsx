@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { PhotoPanel } from "./PhotoPanel";
+import { assertAccessibleNames } from "./ui/accessible-name.test-support";
 import { defaultLayerMask } from "../mask/types";
 import type { LayerState } from "../layers/types";
 
@@ -108,6 +109,20 @@ export const TabOrderFollowsVisualOrder: Story = {
     await expect(document.activeElement).toBe(canvas.getByRole("button", { name: "Actions" }));
     await userEvent.tab();
     await expect(document.activeElement).toBe(canvas.getByRole("button", { name: "Réinitialiser" }));
+  },
+};
+
+/**
+ * GARDE D'ACCESSIBILITÉ — chaque champ du panneau porte un nom accessible
+ * CALCULÉ (accname), non vide et non réduit à un identifiant généré. Voir
+ * `ui/accessible-name.test-support.ts` pour pourquoi la seconde condition est
+ * celle qui donne sa valeur au test.
+ */
+export const EveryFieldHasAnAccessibleName: Story = {
+  play: async ({ canvasElement }) => {
+    const report = assertAccessibleNames(canvasElement);
+    // Le balayage doit avoir vu les QUATRE champs de placement, pas un seul.
+    await expect(report.map((entry) => entry.name).sort()).toEqual(["Angle", "X", "Y", "Échelle"]);
   },
 };
 

@@ -51,6 +51,7 @@
     "@vitest/browser-playwright": "^4.1.10",
     "@vitest/coverage-v8": "^4.1.10",
     "@webgpu/types": "^0.1.71",
+    "dom-accessibility-api": "^0.6.3",
     "playwright": "^1.61.1",
     "shadcn": "^4.13.1",
     "storybook": "^10.5.2",

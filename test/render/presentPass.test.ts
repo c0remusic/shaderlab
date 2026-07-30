@@ -18,8 +18,11 @@ describe("presentBackgroundFor", () => {
     });
   });
 
-  it("l'export reçoit du noir opaque, JAMAIS le damier", () => {
-    expect(presentBackgroundFor({ kind: "export" })).toEqual({ kind: "black" });
+  it("l'export reçoit du BLANC opaque, JAMAIS le damier", () => {
+    // Arbitrage d'Antoine du 2026-07-30, tranché avec un rendu en face
+    // (ADR-0006) : « lecture planche contact, le blanc cadre les images au lieu
+    // de les avaler ». Le fond d'export était noir jusque-là.
+    expect(presentBackgroundFor({ kind: "export" })).toEqual({ kind: "white" });
   });
 
   it("aucune destination ne peut demander autre chose que ces deux fonds", () => {
@@ -30,7 +33,7 @@ describe("presentBackgroundFor", () => {
       presentBackgroundFor({ kind: "canvas", displayScale: 0.25 }).kind,
       presentBackgroundFor({ kind: "export" }).kind,
     ];
-    expect(new Set(kinds)).toEqual(new Set(["checker", "black"]));
+    expect(new Set(kinds)).toEqual(new Set(["checker", "white"]));
   });
 
   it("le fond d'export ne porte AUCUNE taille de case — le champ n'existe pas", () => {
@@ -109,16 +112,20 @@ describe("maskOverlayFor", () => {
 
 describe("buildPresentWgsl", () => {
   it("sort toujours un alpha de 1 — la surface finale est opaque par construction", () => {
-    for (const bg of ["checker", "black"] as const) {
+    for (const bg of ["checker", "white"] as const) {
       expect(buildPresentWgsl(bg)).toContain(
         "return vec4<f32>(src.rgb * src.a + bg * (1.0 - src.a), 1.0);",
       );
     }
   });
 
-  it("le fond d'export est du noir pur (donc identité quand src.a = 1)", () => {
-    const code = buildPresentWgsl("black");
-    expect(code).toContain("let bg = vec3<f32>(0.0);");
+  it("le fond d'export est du blanc pur (donc identité quand src.a = 1)", () => {
+    const code = buildPresentWgsl("white");
+    // 1.0 est la MÊME valeur en sRGB et en linéaire : aucune conversion de gamma
+    // ici, contrairement aux deux gris du damier. La cible reste une texture
+    // `-srgb` et la règle projet « jamais de gamma manuel » est respectée parce
+    // qu'il n'y a rien à convertir, pas parce qu'on l'a omis.
+    expect(code).toContain("let bg = vec3<f32>(1.0);");
     // Aucune trace de damier dans la source destinée au fichier — ni la grille,
     // ni l'uniforme qui en porte la taille.
     expect(code).not.toContain("fract");
@@ -148,12 +155,12 @@ describe("buildPresentWgsl", () => {
   });
 
   it("embarque le vertex plein écran et un point d'entrée fragment unique", () => {
-    const code = buildPresentWgsl("black");
+    const code = buildPresentWgsl("white");
     expect(code).toContain("fn vs_main");
     expect(code).toContain("fn fs_present");
   });
 
   it("produit deux sources distinctes (le choix du fond reste du code, pas un uniforme)", () => {
-    expect(buildPresentWgsl("checker")).not.toBe(buildPresentWgsl("black"));
+    expect(buildPresentWgsl("checker")).not.toBe(buildPresentWgsl("white"));
   });
 });

@@ -14,6 +14,8 @@ const meta: Meta<typeof Toolbar> = {
     onExport: () => {},
     onExportAs: () => {},
     onOpenFile: () => {},
+    onOpenFileWithFormat: () => {},
+    onOpenFileWithFreeSize: () => {},
   },
 };
 
@@ -91,6 +93,56 @@ export const FileMenuExportAsWhenImage: Story = {
     const exportAsItem = await screen.findByRole("menuitem", { name: "Exporter sous..." });
     await userEvent.click(exportAsItem);
     await expect(args.onExportAs).toHaveBeenCalled();
+  },
+};
+
+// Tranche T2 : « Ouvrir » nu ne demande RIEN — c'est le chemin par défaut, et
+// il doit rester à un seul clic. Ce test est la garde contre un futur dialogue
+// interposé sur ce chemin-là.
+export const FileMenuOpenAsksNothing: Story = {
+  args: { onOpenFile: fn(), onOpenFileWithFormat: fn(), onOpenFileWithFreeSize: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Menu Fichier" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Ouvrir" }));
+    await expect(args.onOpenFile).toHaveBeenCalledTimes(1);
+    // Aucun format n'a été demandé : le défaut « comme la photo » est porté par
+    // l'absence d'argument, pas par une valeur choisie dans l'interface.
+    await expect(args.onOpenFileWithFormat).not.toHaveBeenCalled();
+    await expect(args.onOpenFileWithFreeSize).not.toHaveBeenCalled();
+  },
+};
+
+export const FileMenuOpenWithSquareCanvas: Story = {
+  args: { onOpenFile: fn(), onOpenFileWithFormat: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Menu Fichier" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Ouvrir dans un format de toile" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Carré" }));
+    await expect(args.onOpenFileWithFormat).toHaveBeenCalledWith("carre");
+    await expect(args.onOpenFile).not.toHaveBeenCalled();
+  },
+};
+
+export const FileMenuOpenWithFreeSize: Story = {
+  args: { onOpenFileWithFreeSize: fn(), onOpenFileWithFormat: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Menu Fichier" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Ouvrir dans un format de toile" }));
+    // Le libellé de A3 PORTE son dpi ET ses pixels : un format papier sans
+    // résolution ne veut rien dire, et A3 est le seul des trois qui puisse être
+    // PLUS PETIT que la photo — donc l'amputer. Le menu ne peut pas avertir (il
+    // s'ouvre avant que la photo soit choisie), il expose donc le seul fait
+    // qu'il détienne, pour que la comparaison soit possible avant le clic.
+    // R2 du 2026-07-30, voir `NAMED_CANVAS_FORMAT_LABELS` et ADR-0007.
+    await expect(
+      await screen.findByRole("menuitem", { name: "A3 300 dpi — 3508 × 4961 px" }),
+    ).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Taille libre..." }));
+    await expect(args.onOpenFileWithFreeSize).toHaveBeenCalledTimes(1);
+    await expect(args.onOpenFileWithFormat).not.toHaveBeenCalled();
   },
 };
 

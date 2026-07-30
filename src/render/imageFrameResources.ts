@@ -33,6 +33,22 @@ export class ImageFrameResources {
    *  uploadé. Prend des DIMENSIONS et non un `ImageBitmap` : c'est la trace
    *  dans la signature que cette classe ne connaît plus d'image du tout. */
   allocateCanvas(width: number, height: number): void {
+    // SEULE borne posée ici : la dimension maximale d'une texture. Le BUDGET
+    // (`MAX_CANVAS_PIXELS`) n'est PAS vérifié à cet étage, et ce n'est pas un
+    // oubli — c'est ce que le correctif du 2026-07-30 a tranché (ADR-0007
+    // § Conséquences).
+    //
+    // La tranche T2 l'avait posé aux deux bouts « pour qu'aucun chemin
+    // d'allocation ne puisse le contourner ». Mais le budget borne une TOILE
+    // DEMANDÉE, jamais les dimensions que la photo de l'utilisateur impose — et
+    // ce paramètre-ci ne porte qu'une dimension, qui ne dit rien de qui l'a
+    // choisie. Un garde incapable de distinguer une demande d'un fait ne peut
+    // pas appliquer une règle qui repose sur cette distinction : il refusait
+    // donc AUSSI les photos au-delà de 64 Mpx, qui s'ouvraient avant T2.
+    //
+    // Le budget vit maintenant à un seul endroit, `layers/canvasFormat.ts`
+    // (`canvasSizeFor`), qui est la seule dérivation de dimension de toile du
+    // produit et le seul étage qui sache d'où vient le chiffre.
     assertImageFitsGpu(width, height, this.maxTextureDimension2D);
     this.dispose();
     this.imageWidth = width;
@@ -78,7 +94,8 @@ export class ImageFrameResources {
    * DEPUIS LA TRANCHE T1 cet effacement est le contenu DÉFINITIF de la toile :
    * plus aucun upload ne le recouvre. Une zone que ne couvre aucun calque
    * arrive donc à alpha 0 jusqu'à la passe de présentation, qui l'aplatit sur
-   * un damier à l'écran et sur du noir à l'export (`render/presentPass.ts`).
+   * un damier à l'écran et sur du BLANC à l'export (ADR-0006,
+   * `render/presentPass.ts`).
    * Masquer le calque de fond fait apparaître le damier : c'est la preuve
    * observable de toute cette chaîne.
    */

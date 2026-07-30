@@ -3,7 +3,17 @@ import { initGpu, type GpuContext } from "./render/gpuContext";
 import { Renderer } from "./render/renderer";
 import { LayerStack } from "./layers/layerStack";
 import type { LayerState } from "./layers/types";
+// `hasImportedPhotoLayer` n'est PLUS importé ici : il gardait le round-trip
+// Lightroom, déposé (ADR-0002). Il vit toujours dans `layers/photoLayer.ts`
+// pour `presets/presetDocument.ts` — ne pas le réintroduire ici.
 import { canAddPhotoLayer, countPhotoLayers } from "./layers/photoLayer";
+import {
+  PHOTO_CANVAS_FORMAT,
+  canvasSizeFor,
+  parseFreeCanvasRequest,
+  type CanvasFormatRequest,
+} from "./layers/canvasFormat";
+import { MAX_CANVAS_PIXELS } from "./render/limits";
 import { changeLayerEffect } from "./layers/changeLayerEffect";
 import { documentDisplayName } from "./layers/documentName";
 import { duplicateLayer } from "./layers/duplicateLayer";
@@ -27,7 +37,7 @@ import {
   joinExportTarget,
 } from "./launch";
 import { useGlobalControlWheel } from "./ui/activeControl";
-import { resetTransform } from "./ui/transform";
+import { openDocument } from "./layers/openedDocument";
 import { hitTestPhotoLayer } from "./ui/hitTest";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 import { getBrushRaster } from "./mask/brushSource";
@@ -248,7 +258,19 @@ export default function App() {
     return true;
   }, []);
 
-  const openFile = useCallback(async (file: File, path: string | null) => {
+  const openFile = useCallback(async (
+    file: File,
+    path: string | null,
+    // FORMAT DE TOILE demandé (tranche T2). Le défaut est « comme la photo » :
+    // les trois autres points d'entrée d'un document (lancement en argument,
+    // glisser-déposer, « Ouvrir ») ne le passent pas et retombent donc sur le
+    // chemin d'avant T2, sans y penser — voir `PHOTO_CANVAS_FORMAT`.
+    //
+    // Le paramètre `fromLaunch` que portait cette signature a disparu avec la
+    // dépose du round-trip (ADR-0002) : ouvrir par argument de lancement reste
+    // possible, mais ne change plus rien à ce que fait l'export.
+    canvasFormat: CanvasFormatRequest = PHOTO_CANVAS_FORMAT,
+  ) => {
     if (!canvasRef.current) return;
     const generation = ++openGenerationRef.current;
     try {
@@ -272,7 +294,12 @@ export default function App() {
       // `imageSize` state still pointing at it. Only once loading succeeds
       // do we touch the canvas, dispose the outgoing renderer, and commit
       // the new document's state.
-      const candidate = await Renderer.createLoaded(gpuRef.current, bitmap, logDiagnostic);
+      // UNE SEULE dérivation « format demandé + photo → dimensions de toile »,
+      // et elle refuse (plutôt que de rogner) au-delà du budget VRAM nommé
+      // `MAX_CANVAS_PIXELS`. Le rejet remonte au bandeau d'erreur par le
+      // `catch` de cette fonction, avant qu'aucune texture ne soit allouée.
+      const requestedCanvas = canvasSizeFor(canvasFormat, { width: bitmap.width, height: bitmap.height });
+      const candidate = await Renderer.createLoaded(gpuRef.current, bitmap, logDiagnostic, requestedCanvas);
 
       if (generation !== openGenerationRef.current) {
         // A newer openFile() call already committed while we were still
@@ -283,36 +310,30 @@ export default function App() {
         return;
       }
 
-      canvasRef.current.width = bitmap.width;
-      canvasRef.current.height = bitmap.height;
+      // Posé AVANT le document : le nom ne dépend que du chemin et du fichier,
+      // et il NOMME le calque de fond construit juste en dessous.
+      const name = documentDisplayName(path, file.name);
+
+      // L'OUVERTURE PROPREMENT DITE, dans un module unique que le harnais de
+      // rendu APPELLE au lieu de le reproduire (`layers/openedDocument.ts`,
+      // réserve R4). `openDocument` prend le RENDERER, donc App ne peut PAS
+      // choisir de quoi le document hérite ses dimensions : ni `bitmap`, ni
+      // `requestedCanvas` (ce qu'on a demandé), seulement `canvasSize` (ce qui a
+      // été alloué). Les faire coïncider par confiance était exactement le
+      // risque que la tranche T2 introduisait.
+      const { stack, size: documentSize } = openDocument(candidate, name);
+      canvasRef.current.width = documentSize.width;
+      canvasRef.current.height = documentSize.height;
       rendererRef.current?.dispose();
       rendererRef.current = candidate;
 
-      setImageSize({ width: bitmap.width, height: bitmap.height });
+      setImageSize(documentSize);
       setSourcePath(path);
       // Posé au MÊME instant que `imageSize` et `sourcePath` : un document
       // chargé a toujours un nom affichable. Il ne pilote plus la ligne
       // d'arrière-plan (supprimée en T1) mais reste le titre de la barre
-      // d'outils, et il NOMME le calque de fond créé juste en dessous.
-      const name = documentDisplayName(path, file.name);
+      // d'outils, et il NOMME le calque de fond posé par `openDocument`.
       setDocumentName(name);
-
-      // LE CALQUE DE FOND (tranche T1). La photo d'ouverture n'est plus la
-      // texture d'entrée du pipeline : c'est un `LayerState` ordinaire portant
-      // `imageSource`, donc masquable, déplaçable, supprimable et duplicable
-      // comme tout autre calque. Son `sourceId` vient du renderer, qui l'a
-      // enregistrée dans `PhotoSourceStore` pendant `createLoaded` — un échec
-      // d'enregistrement aurait déjà fait échouer l'ouverture entière, donc
-      // arriver ici sans id serait un invariant rompu, pas un cas à absorber.
-      const backgroundSourceId = candidate.backgroundSourceId;
-      if (backgroundSourceId === null) {
-        throw new Error("Document chargé sans source de fond enregistrée — invariant rompu (render/renderer.ts).");
-      }
-      const stack = new LayerStack();
-      // Transform IDENTITÉ : la photo est centrée sur une toile de ses propres
-      // dimensions, à l'échelle 1 — sa couverture vaut donc 1 partout et le
-      // rendu est identique au pixel près à celui d'avant cette tranche.
-      stack.addPhotoLayer(backgroundSourceId, resetTransform({ width: bitmap.width, height: bitmap.height }), name);
       sessionRef.current.replaceDocument(stack);
       presets.clearActive();
       // Important 6 (final-review fix): a new document has no relationship
@@ -410,7 +431,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh is stable (useCallback), run once on mount only.
   }, []);
 
-  const handleOpenFile = useCallback(async () => {
+  const handleOpenFile = useCallback(async (canvasFormat: CanvasFormatRequest = PHOTO_CANVAS_FORMAT) => {
     try {
       const path = await pickImageFile();
       if (!path) return;
@@ -421,11 +442,27 @@ export default function App() {
       // source, quel que soit le chemin d'ouverture.
       const bytes = await readImageFile(path);
       const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
-      await openFile(new File([blob], path, { type: "image/jpeg" }), path);
+      await openFile(new File([blob], path, { type: "image/jpeg" }), path, canvasFormat);
     } catch (e) {
       setError(messageFromUnknown(e));
     }
   }, [openFile]);
+
+  // Saisie libre de la toile : dimensions en attente de confirmation. Non nul
+  // seulement pendant que le dialogue est ouvert. Le sélecteur de fichier
+  // n'est ouvert QU'APRÈS la confirmation — l'ordre inverse (fichier puis
+  // dimensions) obligerait à décoder l'image avant de savoir quoi en faire.
+  const [pendingFreeCanvas, setPendingFreeCanvas] = useState<{ width: string; height: string } | null>(null);
+  const freeCanvas =
+    pendingFreeCanvas === null
+      ? null
+      : parseFreeCanvasRequest(pendingFreeCanvas.width, pendingFreeCanvas.height);
+
+  const confirmFreeCanvas = useCallback(() => {
+    if (freeCanvas?.kind !== "ok") return;
+    setPendingFreeCanvas(null);
+    void handleOpenFile(freeCanvas.request);
+  }, [freeCanvas, handleOpenFile]);
 
   // Tout ce qui est propre au calque photo (mode canvas, import, transform)
   // vit dans usePhotoLayer — App n'en garde que le câblage.
@@ -956,9 +993,7 @@ export default function App() {
         rendererRef.current,
         { write: writeImageFile },
         sessionRef.current.layers(),
-        target,
-        imageSize.width,
-        imageSize.height
+        target
       );
       // Même discipline que openFile : un export réussi efface une erreur
       // laissée par une tentative précédente, plutôt que de laisser un
@@ -1319,7 +1354,9 @@ export default function App() {
         onRedo={handleRedo}
         onExport={handleExport}
         onExportAs={handleExportAs}
-        onOpenFile={handleOpenFile}
+        onOpenFile={() => void handleOpenFile()}
+        onOpenFileWithFormat={(format) => void handleOpenFile({ kind: "nomme", format })}
+        onOpenFileWithFreeSize={() => setPendingFreeCanvas({ width: "", height: "" })}
         onImportPhotoLayer={photoLayer.handleImportPhotoLayer}
         canImportPhotoLayer={canAddPhotoLayer(layers)}
       />
@@ -1358,7 +1395,17 @@ export default function App() {
           ref={canvasRef}
           onFileDropped={(file) => openFile(file, null)}
           hasImage={imageSize.width > 0 && imageSize.height > 0}
-          onOpenFile={handleOpenFile}
+          // FERMÉ SUR ZÉRO ARGUMENT, jamais `onOpenFile={handleOpenFile}`.
+          // `EmptyWorkspace` branche cette prop sur un `onClick`, donc React lui
+          // passe un SyntheticEvent en premier argument — qui atterrissait dans
+          // le paramètre `canvasFormat` de `handleOpenFile` (ajouté par la
+          // tranche T2) et le faisait échouer sur un TypeError nu après que
+          // l'utilisateur avait déjà choisi son fichier. Mesuré sur la vraie
+          // fenêtre le 2026-07-30 : `canvasSizeFor(<event>, photo)` ->
+          // « TypeError: Cannot read properties of undefined (reading 'width') ».
+          // Le paramètre par défaut ne protège de rien ici : un événement n'est
+          // pas `undefined`.
+          onOpenFile={() => void handleOpenFile()}
           maskPaintMode={maskPaintMode}
           onMaskStroke={handleMaskStroke}
           onStrokeEnd={handleMaskStrokeEnd}
@@ -1675,6 +1722,63 @@ export default function App() {
               ))}
             </ul>
           )}
+        </Dialog>
+        {/* Saisie libre des dimensions de la toile (tranche T2). Vient AVANT le
+            sélecteur de fichier : rien ici ne dépend de la photo, et l'ordre
+            inverse obligerait à décoder l'image pour poser un défaut. */}
+        <Dialog
+          open={pendingFreeCanvas !== null}
+          title="Taille de la toile"
+          description={`En pixels. La photo sera centrée sur cette toile, sans être redimensionnée. Budget maximal : ${(MAX_CANVAS_PIXELS / 1e6).toFixed(0)} Mpx.`}
+          onClose={() => setPendingFreeCanvas(null)}
+          actions={
+            <>
+              <Button variant="secondary" autoFocus onClick={() => setPendingFreeCanvas(null)}>
+                Annuler
+              </Button>
+              <Button
+                variant="default"
+                disabled={freeCanvas?.kind !== "ok"}
+                onClick={confirmFreeCanvas}
+              >
+                Choisir une photo...
+              </Button>
+            </>
+          }
+        >
+          <div className="canvas-size-dialog">
+            <label className="canvas-size-dialog__field">
+              Largeur
+              <input
+                type="number"
+                min={1}
+                className="preset-panel__name-input"
+                value={pendingFreeCanvas?.width ?? ""}
+                onChange={(e) =>
+                  setPendingFreeCanvas((current) => (current ? { ...current, width: e.target.value } : current))
+                }
+              />
+            </label>
+            <label className="canvas-size-dialog__field">
+              Hauteur
+              <input
+                type="number"
+                min={1}
+                className="preset-panel__name-input"
+                value={pendingFreeCanvas?.height ?? ""}
+                onChange={(e) =>
+                  setPendingFreeCanvas((current) => (current ? { ...current, height: e.target.value } : current))
+                }
+              />
+            </label>
+            {/* Le message de refus est visible AVANT le clic, jamais après :
+                le bouton est désactivé tant que la saisie n'est pas valide. */}
+            {freeCanvas?.kind === "erreur" && (
+              <p className="canvas-size-dialog__error" role="status">
+                {freeCanvas.message}
+              </p>
+            )}
+          </div>
         </Dialog>
         <Dialog
           open={pendingPresetCopyName !== null}

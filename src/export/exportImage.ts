@@ -1,8 +1,30 @@
 import type { LayerState } from "../layers/types";
 
+/**
+ * Un frame relu, AVEC les dimensions auxquelles il a été rendu.
+ *
+ * SOURCE UNIQUE DE LA DIMENSION D'EXPORT (design §4.3, tranche T2). Avant, la
+ * largeur et la hauteur étaient deux PARAMÈTRES de `exportImage`, que `App.tsx`
+ * remplissait depuis son state React (`imageSize`) tandis que les octets, eux,
+ * venaient d'une relecture dimensionnée par `ImageFrameResources`. Deux sources
+ * que rien ne réconciliait : un pixel d'écart et le constructeur `ImageData`
+ * levait sur une incohérence de longueur. L'invariant ne tenait que parce qu'un
+ * seul site posait les deux au même instant — et une toile de format choisi crée
+ * un second site.
+ *
+ * Le correctif n'est pas un test, c'est ce type : les dimensions voyagent AVEC
+ * les octets, depuis le seul objet qui les connaisse toutes les deux. « Encoder
+ * à d'autres dimensions que celles du frame relu » n'est plus exprimable.
+ */
+export interface ExportedFrame {
+  pixels: Uint8Array;
+  width: number;
+  height: number;
+}
+
 /** Input boundary for the application export use case. */
 export interface FrameRenderer {
-  exportFrame(layers: LayerState[]): Promise<Uint8Array>;
+  exportFrame(layers: LayerState[]): Promise<ExportedFrame>;
 }
 
 /** Output boundary for the application export use case. */
@@ -168,11 +190,12 @@ export async function exportImage(
   frameRenderer: FrameRenderer,
   imageWriter: ImageWriter,
   layers: LayerState[],
-  targetPath: string,
-  width: number,
-  height: number
+  targetPath: string
 ): Promise<void> {
-  const pixels = await frameRenderer.exportFrame(layers);
-  const jpegBytes = await encodeJpeg(pixels, width, height);
+  // Aucun paramètre de dimension : elles arrivent avec les octets — voir
+  // `ExportedFrame`. C'est ce qui interdit d'encoder aux dimensions d'une
+  // autre source (le state React, avant la tranche T2).
+  const frame = await frameRenderer.exportFrame(layers);
+  const jpegBytes = await encodeJpeg(frame.pixels, frame.width, frame.height);
   await imageWriter.write(targetPath, jpegBytes);
 }

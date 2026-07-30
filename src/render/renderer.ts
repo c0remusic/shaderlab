@@ -15,6 +15,8 @@ import { noopDiagnosticLogger, type DiagnosticLogger } from "./diagnostics";
 import { ImageFrameResources } from "./imageFrameResources";
 import { FrameDiagnostics } from "./frameDiagnostics";
 import type { DirtyRect } from "../mask/maskPainter";
+import type { CanvasPixelSize } from "../layers/canvasFormat";
+import type { ExportedFrame } from "../export/exportImage";
 
 /** Which part of the live-preview mask texture a `MaskPreviewOverride` needs
  *  uploaded this frame. `"full"` re-uploads the whole image — required the
@@ -236,10 +238,11 @@ export class Renderer {
     ctx: GpuContext,
     bitmap: ImageBitmap,
     diagnosticLogger: DiagnosticLogger = noopDiagnosticLogger,
+    canvasSize?: CanvasPixelSize,
   ): Promise<Renderer> {
     const candidate = new Renderer(ctx, diagnosticLogger);
     try {
-      await candidate.loadImage(bitmap);
+      await candidate.loadImage(bitmap, canvasSize);
     } catch (e) {
       candidate.dispose();
       throw e;
@@ -247,12 +250,42 @@ export class Renderer {
     return candidate;
   }
 
-  /** Alloue la toile aux dimensions de `bitmap` puis enregistre `bitmap`
-   *  comme SOURCE PHOTO — la photo d'ouverture est un calque comme un autre
-   *  (§1.1) et la toile n'est plus jamais uploadée (§1.2). L'appelant
-   *  construit le calque de fond à partir de `backgroundSourceId`. */
-  async loadImage(bitmap: ImageBitmap): Promise<void> {
-    this.imageResources.allocateCanvas(bitmap.width, bitmap.height);
+  /**
+   * Ouvre un document : ALLOUE la toile, puis enregistre `bitmap` comme SOURCE
+   * PHOTO — la photo d'ouverture est un calque comme un autre (§1.1) et la toile
+   * n'est plus jamais uploadée (§1.2). L'appelant construit le calque de fond à
+   * partir de `backgroundSourceId`.
+   *
+   * `canvasSize` OMIS = toile aux dimensions de `bitmap`, c'est-à-dire
+   * exactement le comportement d'avant la tranche T2. Ce n'est pas une
+   * politesse : c'est le mécanisme qui rend « ouvrir sans rien choisir » et
+   * « le comportement d'aujourd'hui » le MÊME chemin de code, donc identique au
+   * pixel près sans qu'aucun test n'ait à le surveiller.
+   *
+   * Les deux moitiés sont séparées (`allocateDocument` / enregistrement de la
+   * photo) parce que la tranche T2 avait besoin d'allouer une toile dont les
+   * dimensions ne viennent d'aucune image : avant, « allouer une toile » et
+   * « charger une photo » étaient fondues ici et `allocateCanvas` commence par
+   * tout détruire.
+   */
+  async loadImage(bitmap: ImageBitmap, canvasSize?: CanvasPixelSize): Promise<void> {
+    this.allocateDocument(canvasSize ?? { width: bitmap.width, height: bitmap.height });
+    // EN DERNIER, et dans la même méthode : le document n'est utilisable que si
+    // sa photo d'ouverture est une source enregistrée. Un rejet ici (limite GPU,
+    // plafond de sources) remonte à `createLoaded`, qui dispose le candidat —
+    // aucun document sans fond ne peut être committé (§2.4).
+    this.backgroundSource = await this.photoSourceStore!.register(bitmap);
+  }
+
+  /**
+   * Alloue la TOILE aux dimensions données et (re)construit tout ce qui est
+   * dimensionné au document : cibles d'effets, textures de masque, store de
+   * sources photo, pré-passe photo, exécuteur de frame. Ne connaît AUCUNE image
+   * — c'est la trace dans la signature que la géométrie du document est
+   * découplée de celle des photos qu'il contient.
+   */
+  private allocateDocument(canvasSize: CanvasPixelSize): void {
+    this.imageResources.allocateCanvas(canvasSize.width, canvasSize.height);
     const { device, srgbFormat } = this.ctx;
     const { width, height } = this.imageResources;
     this.effectPassRunner?.clearPipelines();
@@ -308,12 +341,19 @@ export class Renderer {
       this.maskTextureResolver,
       photoInputsAdapter,
     );
+  }
 
-    // EN DERNIER, et dans la même méthode : le document n'est utilisable que si
-    // sa photo d'ouverture est une source enregistrée. Un rejet ici (limite GPU,
-    // plafond de sources) remonte à `createLoaded`, qui dispose le candidat —
-    // aucun document sans fond ne peut être committé (§2.4).
-    this.backgroundSource = await this.photoSourceStore.register(bitmap);
+  /**
+   * DIMENSIONS DU DOCUMENT, source unique (design §4.3). Le state React les
+   * COPIE d'ici à l'ouverture ; l'export ne les lit plus du tout (il les reçoit
+   * avec les octets, voir `exportFrame`). Avant la tranche T2, `imageSize`
+   * (React) et `ImageFrameResources.width/height` (GPU) étaient deux sources
+   * séparées que rien ne réconciliait : l'invariant ne tenait que parce qu'un
+   * seul site posait les deux au même instant, et une toile réglable crée un
+   * second site.
+   */
+  get canvasSize(): CanvasPixelSize {
+    return { width: this.imageResources.width, height: this.imageResources.height };
   }
 
   /** `sourceId` de la photo qui a ouvert le document, à partir duquel
@@ -440,18 +480,22 @@ export class Renderer {
    * including the last one, so the readback always reflects the true final
    * frame.
    */
-  async exportFrame(layers: LayerState[]): Promise<Uint8Array> {
+  async exportFrame(layers: LayerState[]): Promise<ExportedFrame> {
     const exportTexture = this.imageResources.getExportTexture();
     this.runPipeline(layers, { kind: "export" });
+    const { width, height } = this.imageResources;
     const readback = new FrameReadback(
       this.ctx.device,
-      this.imageResources.width,
-      this.imageResources.height,
+      width,
+      height,
       this.ctx.srgbFormat.startsWith("bgra"),
     );
     const padded = await readback.readTextureBytes(exportTexture);
     const stripped = readback.stripRowPadding(padded);
-    return readback.swapRedBlueChannels(stripped);
+    // Les dimensions repartent AVEC les octets, prises au même endroit que
+    // celles qui ont dimensionné la relecture : l'encodeur JPEG n'a donc aucune
+    // autre source à consulter (design §4.3, `ExportedFrame`).
+    return { pixels: readback.swapRedBlueChannels(stripped), width, height };
   }
 
   /** Encode la frame puis l'APLATIT dans `destination`. `destination` est un

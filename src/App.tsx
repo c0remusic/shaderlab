@@ -15,6 +15,7 @@ import {
   type NamedCanvasFormat,
 } from "./layers/canvasFormat";
 import { MAX_CANVAS_PIXELS } from "./render/limits";
+import { srgbToLinear } from "./render/effects/srgbTransfer";
 import { FrameScheduler } from "./render/frameScheduler";
 import { changeLayerEffect } from "./layers/changeLayerEffect";
 import { documentDisplayName } from "./layers/documentName";
@@ -63,10 +64,10 @@ import { ColorPickerPanel } from "./components/ColorPickerPanel";
 import type { EffectParam } from "./render/effects/types";
 import { usePresets } from "./hooks/usePresets";
 import { usePhotoLayer } from "./hooks/usePhotoLayer";
+import { usePresetWorkflow } from "./hooks/usePresetWorkflow";
 import { useLayerIsolation } from "./hooks/useLayerIsolation";
 import { PresetPanel } from "./components/PresetPanel";
 import { TauriPresetStore } from "./presets/presetStore";
-import { capture } from "./presets/presetDocument";
 import { withPhotoLayersPreserved } from "./presets/preservePhotoLayers";
 import { applyPresetImpactMessage } from "./presets/applyPresetImpact";
 import { Dialog } from "./ui/Dialog";
@@ -165,30 +166,24 @@ export default function App() {
   // `presets/applyPresetImpact.ts`.
   const [pendingPresetApply, setPendingPresetApply] = useState<{ id: string; photoLayerCount: number } | null>(null);
 
-  // Task 5 : nom en attente de saisie pour "Créer une copie" depuis la
-  // bannière de dérive — non nul tant que le dialogue de nommage est ouvert.
-  const [pendingPresetCopyName, setPendingPresetCopyName] = useState<string | null>(null);
-
-  // Deux confirmations peuvent s'enchaîner sur un même enregistrement (C1
-  // overwrite-by-name, puis exclusion de calque photo) — voir
-  // requestSavePreset/gateOnPhotoLayers plus bas. `pendingPhotoLayerSave`
-  // porte un `onConfirm` CALLBACK plutôt qu'un flag figé "overwrite ou pas" :
-  // le Task 5 réutilise cette même porte pour "Mettre à jour"/"Créer une
-  // copie", qui ne rentrent pas dans une forme overwrite-id mais ont besoin
-  // du même contrat "confirmer, puis lancer cette écriture précise".
-  // `resolve`/`onCancel` portent la résolution de la promesse rendue par
-  // `requestSavePreset` (Mineur 4, revue tâche 3) : PresetPanel n'efface son
-  // champ de saisie qu'une fois l'écriture réellement aboutie, jamais sur la
-  // seule demande — donc chaque porte de confirmation doit savoir dire "annulé"
-  // (false) aussi bien que "confirmé puis écrit" (true/false selon l'issue).
-  const [pendingOverwrite, setPendingOverwrite] = useState<{ id: string; name: string; resolve: (written: boolean) => void } | null>(
-    null
-  );
-  const [pendingPhotoLayerSave, setPendingPhotoLayerSave] = useState<{
-    excludedLayerIndexes: number[];
-    onConfirm: () => void;
-    onCancel: () => void;
-  } | null>(null);
+  // Workflow d'ÉCRITURE des presets (portes de confirmation + les trois points
+  // d'entrée qui les traversent) : extrait dans son propre hook, sur le modèle
+  // de `usePresets`/`usePhotoLayer`. Seul le JSX de ses dialogues reste ici —
+  // d'où l'état des dialogues rendu par le hook.
+  const presetWorkflow = usePresetWorkflow({ sessionRef, presets, setError });
+  const {
+    gateOnPhotoLayers,
+    commitSavePreset,
+    requestSavePreset,
+    requestUpdateActive,
+    requestCopyActiveAsNew,
+    pendingOverwrite,
+    setPendingOverwrite,
+    pendingPhotoLayerSave,
+    setPendingPhotoLayerSave,
+    pendingPresetCopyName,
+    setPendingPresetCopyName,
+  } = presetWorkflow;
 
   // Largeur du dock — état session, partagée par toutes les colonnes,
   // pas d'entrée d'historique (disposition d'interface, pas donnée de
@@ -453,7 +448,11 @@ export default function App() {
       } catch (e) {
         setError(messageFromUnknown(e));
       }
-    });
+      // Le `try` ci-dessus ne couvre que le corps du callback : un rejet de
+      // `getLaunchPath()` elle-même (transport IPC cassé) passait à côté.
+      // Même discipline que `presets.refresh()` plus bas — audit pré-release
+      // 2026-07-30, finding R2.
+    }).catch((e) => setError(messageFromUnknown(e)));
   }, [openFile]);
 
   useEffect(() => {
@@ -881,14 +880,18 @@ export default function App() {
     const cy = canvasRef.current.height / 2;
     ctx2d.drawImage(canvasRef.current, cx, cy, 1, 1, 0, 0, 1, 1);
     const pixel = ctx2d.getImageData(0, 0, 1, 1).data;
-    // sRGB -> linéaire (cohérent "linéaire strict", même conversion que le
-    // reste du pipeline couleur du projet) — le canvas affiché est déjà en
-    // sortie sRGB, la source colorRange compare en `colorLinear`.
-    const toLinear = (c: number) => {
-      const s = c / 255;
-      return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
-    };
-    const rgbLinear = [toLinear(pixel[0]), toLinear(pixel[1]), toLinear(pixel[2])];
+    // sRGB -> linéaire via la fonction CANONIQUE du projet (`srgbTransfer.ts`,
+    // verrouillée par test) — le canvas affiché est déjà en sortie sRGB, la
+    // source colorRange compare en `colorLinear`. La normalisation /255 reste
+    // ICI : `srgbToLinear` attend un canal 0..1, alors que `getImageData` rend
+    // des octets 0..255. L'oublier ne lève AUCUNE erreur (`Math.max(c, 0)` ne
+    // l'attrape pas, le pipeline WGSL reste intact) et sature silencieusement
+    // les échantillons — audit pré-release 2026-07-30, finding A2.
+    const rgbLinear = [
+      srgbToLinear(pixel[0] / 255),
+      srgbToLinear(pixel[1] / 255),
+      srgbToLinear(pixel[2] / 255),
+    ];
     const params = { ...source.params, samples: [...existing, ...rgbLinear] };
     const stack = currentStack();
     // Toujours un ajout réel (echantillons.length croît strictement), mais
@@ -1076,137 +1079,6 @@ export default function App() {
       setError(messageFromUnknown(e));
     }
   }, [sourcePath]);
-
-  /** Runs `capture(sessionRef.current.layers(), name)` purely to inspect
-   *  `skipped` — if it reports any excluded photo layer, blocks on the
-   *  `pendingPhotoLayerSave` Dialog and defers `onConfirmed` to its
-   *  "Enregistrer quand même" button; otherwise runs `onConfirmed`
-   *  immediately. `name` is only used to compute `skipped` (a photo-layer
-   *  exclusion doesn't depend on the target name) — callers that don't have
-   *  a natural "new name" yet (Task 5's `updateActive`) pass the CURRENT
-   *  preset's existing name, which is what would be recaptured anyway.
-   *  Rend `false` si l'utilisateur annule la porte (Mineur 4), sinon le
-   *  résultat de `onConfirmed` (issue réelle de l'écriture). */
-  const gateOnPhotoLayers = useCallback((name: string, onConfirmed: () => Promise<boolean>): Promise<boolean> => {
-    const { skipped } = capture(sessionRef.current.layers(), name);
-    const excludedLayerIndexes = skipped.filter((s) => s.reason === "photo-layer").map((s) => s.layerIndex);
-    if (excludedLayerIndexes.length > 0) {
-      return new Promise<boolean>((resolve) => {
-        setPendingPhotoLayerSave({
-          excludedLayerIndexes,
-          onConfirm: () => {
-            onConfirmed().then(resolve);
-          },
-          onCancel: () => resolve(false),
-        });
-      });
-    }
-    return onConfirmed();
-  }, []);
-
-  const commitSavePreset = useCallback(async (name: string, overwriteId: string | null): Promise<boolean> => {
-    try {
-      if (overwriteId) {
-        await presets.overwrite(overwriteId, sessionRef.current.layers(), name);
-      } else {
-        await presets.save(sessionRef.current.layers(), name);
-      }
-      return true;
-    } catch (e) {
-      setError(messageFromUnknown(e));
-      return false;
-    }
-  }, [presets.overwrite, presets.save]);
-
-  // ORDRE : `requestSavePreset` vient APRÈS les deux fonctions qu'elle appelle.
-  // C'étaient des déclarations de fonction (hissées) ; en `useCallback` ce sont
-  // des `const`, qui ne le sont pas — d'où ce déplacement, seul changement de
-  // forme apporté à ce bloc.
-  //
-  // Mineur 4 (revue tâche 3) : rend une Promise<boolean> résolue à `true`
-  // SEULEMENT si l'écriture a réellement abouti (aucune confirmation
-  // annulée, aucune exception) — PresetPanel n'efface son champ de saisie
-  // que sur `true`, jamais sur la seule demande d'enregistrement.
-  const requestSavePreset = useCallback(async (name: string): Promise<boolean> => {
-    const existing = presets.summaries.find((s) => s.name === name);
-    if (existing) {
-      return new Promise<boolean>((resolve) => {
-        setPendingOverwrite({ id: existing.id, name, resolve });
-      });
-    }
-    return gateOnPhotoLayers(name, () => commitSavePreset(name, null));
-  }, [presets.summaries, gateOnPhotoLayers, commitSavePreset]);
-
-  /** "Mettre à jour" (dirty banner). Reuses the active preset's own current
-   *  name — `updateActive` keeps the name unchanged, `capture()` only needs
-   *  SOME name to run its exclusion check. Routes through the SAME
-   *  `gateOnPhotoLayers` gate as `requestSavePreset` (a photo layer must
-   *  never be silently dropped from a written preset file). */
-  function requestUpdateActive() {
-    if (!presets.activePresetId) return;
-    const layers = sessionRef.current.layers();
-    // Critique 1 (final-review fix): never write an EMPTY stack over a
-    // preset file. Reachable via undo (see handleUndo/reconcileActive...)
-    // only through a race between the reconciliation and this click — kept
-    // as a second, independent guard rather than relying solely on
-    // `reconcileActiveAfterHistoryChange` clearing `activePresetId` in time.
-    // The banner itself is also gated on `layers.length > 0` below (JSX), so
-    // this button should already be unreachable when the stack is empty —
-    // this is the belt to that suspenders.
-    if (layers.length === 0) return;
-    const activeSummary = presets.summaries.find((s) => s.id === presets.activePresetId);
-    if (!activeSummary) {
-      // Mineur (final-review fix): the old `?.name ?? ""` fallback let this
-      // dialog open with an empty preset name on a lookup miss instead of
-      // reporting the anomaly (activePresetId pointing at a preset removed
-      // from the library, or summaries not yet refreshed) — fail loudly
-      // rather than silently proceeding with a blank name.
-      setError(`Preset actif introuvable dans la bibliothèque (id ${presets.activePresetId}) — impossible de le mettre à jour.`);
-      return;
-    }
-    gateOnPhotoLayers(activeSummary.name, async () => {
-      try {
-        await presets.updateActive(layers);
-        return true;
-      } catch (e) {
-        setError(messageFromUnknown(e));
-        return false;
-      }
-    });
-  }
-
-  /** "Créer une copie" (dirty banner). Same photo-layer gate as
-   *  `requestSavePreset`, AND now the same name-collision gate too
-   *  (Important 3, final-review fix): before this fix, typing an
-   *  already-taken name here created a silent duplicate — `requestSavePreset`
-   *  asked to confirm an overwrite for the same event, `importFrom` instead
-   *  auto-renamed to "(copie N)`, so the same feature had THREE different
-   *  collision policies. Chosen here: reuse the SAME "Remplacer ?" dialog as
-   *  `requestSavePreset` (not `resolveImportName`'s silent auto-rename) —
-   *  unlike an import, the name here is something the user just TYPED
-   *  themselves into a visible field, so a collision is very likely
-   *  deliberate ("overwrite that one") and deserves the same explicit
-   *  confirm/cancel as manual save, not a surprise "(copie 2)" they didn't
-   *  ask for. */
-  function requestCopyActiveAsNew(name: string): Promise<boolean> {
-    const layers = sessionRef.current.layers();
-    if (layers.length === 0) return Promise.resolve(false); // Critique 1 : jamais de preset vide
-    const existing = presets.summaries.find((s) => s.name === name);
-    if (existing) {
-      return new Promise<boolean>((resolve) => {
-        setPendingOverwrite({ id: existing.id, name, resolve });
-      });
-    }
-    return gateOnPhotoLayers(name, async () => {
-      try {
-        await presets.copyActiveAsNew(layers, name);
-        return true;
-      } catch (e) {
-        setError(messageFromUnknown(e));
-        return false;
-      }
-    });
-  }
 
   const handleRenamePreset = useCallback(async (id: string, name: string) => {
     try {

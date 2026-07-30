@@ -1,8 +1,17 @@
 # ARCHITECTURE — shaderlab
 
-> Document d'architecture racine. Décrit **l'état réel du système** (vérifié sur
-> disque le 2026-07-25) et **les frontières de modules visées** pour les deux
-> features cadrées au `PRD.md` : **Presets** et **Double exposure**.
+> Document d'architecture racine. Décrit **l'état réel du système** et **les
+> frontières de modules visées** pour les deux features cadrées au `PRD.md` :
+> **Presets** et **Double exposure**.
+>
+> ⚠️ **Le corps de ce document a été vérifié sur disque le 2026-07-25 ; seuls
+> le § 4.6 (2026-07-30, dépose du round-trip) et R6 (2026-07-30, compte de
+> lignes réel) ont été revus depuis.** Tout autre chiffre ou chemin cité ici
+> peut avoir dérivé — R6 annonçait 727 lignes pour un fichier qui en faisait
+> 1953, soit un facteur 2,7, et rien ne le signalait. Avant de fonder une
+> décision sur une valeur de ce document, la recompter (§ 9
+> AUTO-VÉRIFICATION), et rejouer le § 9 EN ENTIER à la prochaine passe qui
+> touche ce fichier — pas seulement le paragraphe édité.
 >
 > Ce n'est PAS un plan d'implémentation (tranches, ordre, tâches → étape
 > suivante `superpowers:writing-plans`, après validation humaine de ce document).
@@ -537,7 +546,7 @@ de merge trivial, pas un couplage architectural.
 | R3 | **Alpha / couverture du calque photo.** La formule de compositing actuelle ignore l'alpha de l'effet — « hors bornes = transparent » rendrait du noir si on s'appuie sur l'alpha. | Identifié, non traité. | Le terme de couverture doit être **explicite dans le poids du mix**. À valider visuellement (CDP) sur une silhouette plus petite que le fond. |
 | R4 | **Effets multi-passes sur calque photo** (§4.3a). | Identifié, non traité. | Tranché par le choix (C1) + cas particulier vs (C2). À confirmer avec Antoine. |
 | R5 | **Espace de coordonnées du masque d'un calque photo** (§4.5). | Non documenté au PRD ni au design. | Décision produit à poser avant implémentation (assumer, ou hors-scope explicite). |
-| R6 | **`App.tsx` = composition root de 727 lignes** portant ~25 handlers, tous les états UI et tout le câblage. Les deux features y ajoutent chacune un lot de handlers (import 2ᵉ photo, transform, save/apply/rename/export/import de preset) + des entrées de panneau. | Dette réelle, non bloquante aujourd'hui. | **Chaque feature apporte son propre hook module** (ex. `usePhotoLayer`, `usePresets`) qui possède ses handlers et parle à `DocumentSession`, pour qu'`App.tsx` gagne quelques lignes de câblage et non ~150. Aucun refactor préalable exigé. |
+| R6 | **`App.tsx` = composition root de 1823 lignes** (mesuré `wc -l` le 2026-07-30 ; **727 au moment où cette ligne a été écrite le 2026-07-25** — la dette a été multipliée par 2,7 en cinq jours, ce que le chiffre périmé masquait), portant ~25 handlers, tous les états UI et tout le câblage. | **Dette réelle, aggravée, partiellement traitée.** L'audit pré-release du 2026-07-30 l'a mesurée à 1953 lignes ; l'extraction de `usePresetWorkflow` en a retiré 130. Le fichier n'a AUCUNE couverture unitaire (`test/App.test.ts` = placeholder, par convention projet), donc ces ~1800 lignes n'ont pour filet que le checkpoint visuel humain. | **Chaque feature apporte son propre hook module** (`usePhotoLayer`, `usePresets`, `usePresetWorkflow`) qui possède ses handlers et parle à `DocumentSession`, pour qu'`App.tsx` gagne quelques lignes de câblage et non ~150. **Le remède n'a pas suffi seul** : il ne s'applique qu'aux features neuves et ne rembourse pas l'existant. Prochains candidats à l'extraction, par volume : les cinq `<Dialog>`, l'échantillonnage colorimétrique, l'application de preset (`applyPreset`/`requestApplyPreset`). |
 | R7 | **Nouvelle surface IPC pour les presets** (lecture/écriture de fichiers non-image). | Nécessaire (§3.3, vérifié : rien d'existant ne le permet). | Commandes maison confinées au dossier de config app (résolution + vérification de préfixe), dialogues natifs pour les chemins choisis par l'humain. Ne pas réintroduire `tauri-plugin-dialog`. |
 | R8 | **Fichier de preset = entrée non fiable** (partagé par email/USB, éditable à la main). | À traiter dans `presetDocument.apply`. | Validation de schéma + version + bornes de params, dégradation gracieuse avec avertissement visible. Jamais de parse permissif, jamais d'échec silencieux. |
 

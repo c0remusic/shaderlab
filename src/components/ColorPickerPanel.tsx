@@ -114,6 +114,33 @@ export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, 
     [onChange]
   );
 
+  // Pas de souris = pas de couleur : le carré SV et la bande de teinte
+  // n'étaient pilotables qu'au pointeur, le champ Hex étant le seul repli
+  // clavier — et il exige de taper une valeur complète, sans réglage fin
+  // (audit pré-release 2026-07-30, finding U3).
+  // Le commit vit sur `keyup`, pas sur `keydown` : une flèche maintenue répète
+  // l'événement, et committer à chaque répétition remplirait l'historique
+  // d'undo d'un pas par frame. Même découpage que pointerdown/pointerup.
+  const handleHueKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      const step = event.shiftKey ? 10 : 1;
+      // La teinte est cyclique : on enroule au lieu de buter à 0/360.
+      if (event.key === "ArrowLeft") onChange({ hue: (hue - step + 360) % 360 });
+      else if (event.key === "ArrowRight") onChange({ hue: (hue + step) % 360 });
+      else return;
+      event.preventDefault();
+    },
+    [onChange, hue]
+  );
+
+  const commitOnArrowKeyUp = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (!event.key.startsWith("Arrow")) return;
+      onCommit();
+    },
+    [onCommit]
+  );
+
   const commitHexInput = useCallback(() => {
     if (draft === null) return;
     const match = /^#?[0-9a-fA-F]{6}$/.test(draft);
@@ -139,6 +166,41 @@ export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, 
       </div>
       <div className="color-picker-panel__body">
         <div className="color-picker-panel__sv-wrap">
+          {/* CLAVIER — deux `<input type="range">` natifs en `sr-only` plutôt
+              qu'un rôle ARIA sur le carré. Trois tentatives ont été écartées :
+              `role="slider"` sur le carré ment (il pilote DEUX valeurs, un seul
+              `aria-valuenow` en cacherait une), `role="application"` est classé
+              non interactif par `jsx-a11y` donc invalide avec `tabIndex`, et un
+              canvas rendu focusable devient interactif — un rôle non interactif
+              dessus est refusé pour la même raison. Les contrôles natifs
+              n'inventent rien : nom, valeur, pas et flèches viennent du
+              navigateur. Le focus reste visible parce que l'enveloppe porte un
+              `:focus-within` (ColorPickerPanel.css).
+              Audit pré-release 2026-07-30, finding U3. */}
+          <input
+            type="range"
+            className="sr-only"
+            aria-label="Saturation"
+            min={0}
+            max={100}
+            step={1}
+            value={Math.round(saturation * 100)}
+            onChange={(e) => onChange({ saturation: Number(e.target.value) / 100 })}
+            onKeyUp={commitOnArrowKeyUp}
+            onBlur={onCommit}
+          />
+          <input
+            type="range"
+            className="sr-only"
+            aria-label="Luminosité"
+            min={0}
+            max={100}
+            step={1}
+            value={Math.round(lightness * 100)}
+            onChange={(e) => onChange({ lightness: Number(e.target.value) / 100 })}
+            onKeyUp={commitOnArrowKeyUp}
+            onBlur={onCommit}
+          />
           <canvas
             ref={svCanvasRef}
             width={SV_SIZE}
@@ -168,8 +230,19 @@ export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, 
             style={{ left: `${saturation * 100}%`, top: `${(1 - lightness) * 100}%` }}
           />
         </div>
+        {/* La teinte, elle, EST unidimensionnelle : `role="slider"` s'applique
+            sans compromis, avec sa valeur réelle en degrés. */}
         <div
           className="color-picker-panel__hue-band"
+          role="slider"
+          tabIndex={0}
+          aria-label="Teinte"
+          aria-valuemin={0}
+          aria-valuemax={360}
+          aria-valuenow={Math.round(hue)}
+          aria-valuetext={`${Math.round(hue)} degrés`}
+          onKeyDown={handleHueKeyDown}
+          onKeyUp={commitOnArrowKeyUp}
           onPointerDown={(e) => {
             e.currentTarget.setPointerCapture(e.pointerId);
             handleHuePointer(e);

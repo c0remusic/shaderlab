@@ -67,6 +67,15 @@
   height: var(--color-picker-sv-size);
 }
 
+/* Les deux contrôles de saturation/luminosité sont en `sr-only` : sans ceci,
+   les prendre au clavier n'afficherait RIEN à l'écran — un focus invisible est
+   pire qu'un focus absent, l'utilisateur ne sait plus où il est. L'enveloppe
+   porte donc la marque de focus à leur place. */
+.color-picker-panel__sv-wrap:focus-within {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
 .color-picker-panel__sv {
   display: block;
   width: 100%;

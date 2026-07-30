@@ -188,8 +188,23 @@ const LayerRow = memo(function LayerRow({
     .filter(Boolean)
     .join(" ");
   return (
+    // `role="option"` + `tabIndex` : la ligne EST le contrôle de sélection, et
+    // l'ADR-0001 a centralisé opacité/fusion/effet dans une zone qui agit sur
+    // la ligne sélectionnée — sans focus clavier ici, toute cette zone devenait
+    // inatteignable au clavier (audit pré-release 2026-07-30, finding U2). La
+    // liste porte `role="listbox"` en regard, sans quoi `option` serait de
+    // l'ARIA invalide. Espace est intercepté (`preventDefault`) : sur un
+    // élément focusable, il ferait défiler le panneau.
     <li
+      role="option"
+      aria-selected={selected}
+      tabIndex={0}
       onClick={() => onSelect(layer.id)}
+      onKeyDown={(e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        onSelect(layer.id);
+      }}
       data-layer-row-index={index}
       className={rowClass}
     >
@@ -585,6 +600,11 @@ export function LayerPanel({
         // lignes et ce qui vit à côté d'elles — ici le sélecteur
         // « Ajouter un effet ». Voir PanelColumn.tsx § COÛT DU HORS-LISTE.
         data-dock-list=""
+        // `listbox` : contrepartie obligatoire du `role="option"` porté par
+        // chaque ligne (voir LayerRow). Un `option` hors d'un `listbox` est de
+        // l'ARIA invalide, donc pire que pas d'ARIA du tout.
+        role="listbox"
+        aria-label="Calques"
         className="layer-panel__list"
         onPointerMove={dragState ? handlePointerMove : undefined}
         onPointerUp={dragState ? handlePointerUp : undefined}

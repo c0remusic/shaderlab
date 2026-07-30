@@ -75,7 +75,7 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
   useEffect(() => {
     const last = lastPointerScreenRef.current;
     if (last) updateCursorGeometry(last.clientX, last.clientY);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- updateCursorGeometry est redéfinie à chaque render ; l'inclure rejouerait l'effet en continu au lieu de le déclencher sur les seuls réglages de pinceau.
   }, [brushSize, brushHardness, maskPaintMode]);
 
   // Coalesce mask painting to one paint+render per animation frame.

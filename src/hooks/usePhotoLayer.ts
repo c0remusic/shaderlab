@@ -298,6 +298,11 @@ export function usePhotoLayer({
     showTransformHandles: showsTransformHandles(canvasMode),
     toggleMaskPaintMode,
     stopMaskPaintMode,
+    /** Pose un mode ARBITRAIRE. Exposé pour la palette d'outils
+     *  (`src/ui/tools.ts`), qui calcule l'état complet — mode, effacement,
+     *  main — en une fois : la bascule et l'arrêt ci-dessus ne savent
+     *  exprimer que deux des transitions dont elle a besoin. */
+    setCanvasMode,
     handleImportPhotoLayer,
     importPhotoFromPath,
     handleReplacePhotoImage,

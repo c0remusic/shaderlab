@@ -1,0 +1,32 @@
+/* Palette d'outils du canvas (src/components/ToolPalette.tsx).
+
+   Symétrique du rail de panneaux (dockedPanel/PanelRail.css) : même surface,
+   même rayon, même largeur d'item — les deux sont des colonnes d'icônes posées
+   sur les bords de l'espace de travail, elles ne doivent pas se ressembler « à
+   peu près ». Le rail des panneaux tient le bord DROIT, la palette le bord
+   GAUCHE, là où elle ne dispute aucune place au dock.
+
+   Positionnée sur `.workspace` et non dans la zone visible du viewport : elle
+   ne doit ni défiler, ni être clippée, ni bouger quand on zoome. */
+.tool-palette {
+  position: absolute;
+  top: var(--space-6);
+  left: var(--space-6);
+  z-index: var(--z-popover);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: var(--rail-width);
+  padding: var(--space-2);
+  background: var(--panel-bg);
+  border-radius: var(--radius-panel);
+}
+
+/* Les items remplissent la largeur de la palette, au-dessus de la taille par
+   défaut du Toggle : règle non layerisée, elle l'emporte sur l'utilitaire
+   Tailwind `size-*`. Même mécanique que `.panel-rail__item`. */
+.tool-palette > * {
+  width: var(--rail-item-size);
+  height: var(--rail-item-size);
+  padding: var(--space-0);
+}

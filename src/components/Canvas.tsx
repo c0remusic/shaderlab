@@ -22,6 +22,10 @@ interface Props {
    *  l'appelant qui détient la taille PRÉCÉDENTE, dont `reconcileViewport` a
    *  besoin pour conserver le point regardé. */
   onViewResize: (size: Size) => void;
+  /** Outil Main actif dans la palette : le clic gauche déplace la vue, de façon
+   *  PERSISTANTE. Le geste Espace maintenu (géré ici) fait la même chose de
+   *  façon transitoire, depuis n'importe quel outil — les deux se cumulent. */
+  panTool?: boolean;
   /** Calques d'overlay posés DANS la zone visible (poignées de transform).
    *  Ils y sont pour être CLIPPÉS avec elle : zoomé, le canvas déborde de la
    *  vue, et un overlay posé plus haut dans l'arbre dessinerait ses poignées
@@ -56,6 +60,7 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
     contentSize,
     onViewportChange,
     onViewResize,
+    panTool,
     children,
   },
   ref
@@ -69,6 +74,10 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
   // ref : le curseur de préhension et la neutralisation du pinceau sont des
   // rendus, pas des effets de bord.
   const [spaceHeld, setSpaceHeld] = useState(false);
+  /** Le clic gauche déplace la vue : outil Main choisi, OU Espace maintenu.
+   *  Les deux sont équivalents pour tout ce qui suit — seule leur durée de vie
+   *  diffère, et elle est décidée ailleurs. */
+  const panning = spaceHeld || panTool === true;
   const panDragRef = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null);
 
   // Les handlers de molette et de déplacement lisent le viewport COURANT. Le
@@ -176,7 +185,7 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
    *  de l'outil courant : Espace maintenu, ou bouton du milieu (convention
    *  répandue, gratuite ici et utile quand les deux mains sont prises). */
   function isPanGesture(e: React.PointerEvent): boolean {
-    return spaceHeld || e.button === 1;
+    return panning || e.button === 1;
   }
 
   function beginPan(e: React.PointerEvent) {
@@ -353,11 +362,11 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
       }}
     >
       {!hasImage && <EmptyWorkspace onOpenFile={onOpenFile} />}
-      <div ref={viewRef} className={`canvas-stage__view ${spaceHeld ? "canvas-stage__view--pan" : ""}`.trim()}>
+      <div ref={viewRef} className={`canvas-stage__view ${panning ? "canvas-stage__view--pan" : ""}`.trim()}>
       <canvas
         ref={ref}
         aria-label="Zone de travail image"
-        className={`canvas-stage__canvas ${maskPaintMode && !spaceHeld ? "canvas-stage__canvas--paint" : ""}`.trim()}
+        className={`canvas-stage__canvas ${maskPaintMode && !panning ? "canvas-stage__canvas--paint" : ""}`.trim()}
         // Zoom/déplacement en TRANSFORM CSS, `transform-origin: 0 0` (posé en
         // CSS) : le coin haut-gauche du canvas atterrit exactement sur
         // `(offsetX, offsetY)` et sa taille affichée vaut `contentSize * scale`,
@@ -408,7 +417,7 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
         }}
         onPointerMove={(e) => {
           if (movePan(e)) return;
-          if (!maskPaintMode || spaceHeld) return;
+          if (!maskPaintMode || panning) return;
           updateCursor(e);
           if (!isPaintingRef.current) return;
           const pt = toImageCoords(e);
@@ -417,7 +426,7 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
           if (pt) schedulePaint(pt.x, pt.y);
         }}
         onPointerEnter={(e) => {
-          if (maskPaintMode && !spaceHeld) updateCursor(e);
+          if (maskPaintMode && !panning) updateCursor(e);
         }}
         onPointerUp={(e) => {
           if (endPan(e)) return;

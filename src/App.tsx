@@ -25,6 +25,9 @@ import { BrushToolbar } from "./components/BrushToolbar";
 import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
 import { TransformHandles } from "./components/TransformHandles";
+import { ToolPalette } from "./components/ToolPalette";
+import "./components/ToolPalette.css";
+import { activeTool as activeToolOf, isToolShortcutEvent, selectTool, toolFromShortcut, type ToolId } from "./ui/tools";
 import {
   ZOOM_STEP_FACTOR,
   fitViewport,
@@ -139,6 +142,10 @@ export default function App() {
   const [brushSize, setBrushSize] = useState(30);
   const [brushHardness, setBrushHardness] = useState(0.5);
   const [erase, setErase] = useState(false);
+  // Outil Main ACTIF (choisi dans la palette), à ne pas confondre avec le geste
+  // Espace maintenu, qui est transitoire et vit dans `Canvas` — les deux
+  // déplacent la vue, mais l'un est un choix et l'autre une parenthèse.
+  const [handTool, setHandTool] = useState(false);
   // Vrai pendant un drag de slider dont la valeur a bougé : le commit de fin
   // d'interaction ne pousse une entrée d'historique que si quelque chose a
   // réellement changé (un simple clic sans mouvement ne crée pas d'entrée).
@@ -614,6 +621,46 @@ export default function App() {
     layers,
   });
   const { maskPaintMode, showTransformHandles, handleTransformChange, handleTransformCommit } = photoLayer;
+
+  // Palette d'outils (`src/ui/tools.ts`). L'outil actif est DÉDUIT de l'état
+  // existant plutôt que stocké à côté : un `activeTool` en state se serait
+  // désynchronisé de `canvasMode` à la première bascule faite ailleurs (la
+  // carte Masque en a une, `BrushToolbar` aussi).
+  const { setCanvasMode } = photoLayer;
+  const currentTool = activeToolOf({ mode: photoLayer.canvasMode, erase, handTool });
+
+  const handleSelectTool = useCallback(
+    (tool: ToolId) => {
+      const next = selectTool(tool, { mode: photoLayer.canvasMode, erase, handTool });
+      setCanvasMode(next.mode);
+      setErase(next.erase);
+      setHandTool(next.handTool);
+    },
+    [photoLayer.canvasMode, erase, handTool, setCanvasMode],
+  );
+
+  // Raccourcis d'outil. Écouteur sur `window` et non sur le canvas : un outil
+  // se change depuis n'importe où dans la fenêtre, y compris quand le focus est
+  // sur un panneau du dock. Les gardes (modificateurs, répétition, champ de
+  // saisie) sont dans `isToolShortcutEvent` et ici — sans la seconde, taper le
+  // nom d'un preset changerait d'outil à chaque lettre.
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      const target = event.target;
+      if (target instanceof HTMLElement) {
+        if (target.isContentEditable) return;
+        const tag = target.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      }
+      if (!isToolShortcutEvent(event)) return;
+      const tool = toolFromShortcut(event.code);
+      if (!tool) return;
+      event.preventDefault();
+      handleSelectTool(tool);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleSelectTool]);
 
   // Désignation directe d'une image au clic sur la toile (T1 du design
   // 2026-07-29). La taille des photos SOURCES vit dans le renderer
@@ -1515,6 +1562,7 @@ export default function App() {
           contentSize={imageSize}
           onViewportChange={setViewport}
           onViewResize={handleViewResize}
+          panTool={handTool}
         >
         {/* `showTransformHandles` = mode canvas `idle` (usePhotoLayer/CanvasMode).
             Avant T1, les poignées se montaient sur la seule SÉLECTION : un calque
@@ -1548,6 +1596,11 @@ export default function App() {
           />
         )}
         </Canvas>
+        <ToolPalette
+          activeTool={currentTool}
+          onSelectTool={handleSelectTool}
+          disabled={imageSize.width === 0 || imageSize.height === 0}
+        />
         <PanelColumn
           panels={[
             {

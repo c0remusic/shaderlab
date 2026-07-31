@@ -1,4 +1,6 @@
-# shaderlab — CLAUDE.md
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 > Nom provisoire (placeholder, jamais tranché). Repo local `C:\dev\shaderlab`,
 > remote origin : `github.com/c0remusic/shaderlab`. Branche de dev active : `feature/design-system`.
@@ -52,8 +54,8 @@ luminance-dépendant) — un effet qui marche mais rend cheap n'est pas terminé
 ## Stack
 
 Tauri v2 (coquille Rust minimale, lib = `shaderlab_lib`) · React 19 + TS ·
-Vite · **WebGPU/WGSL brut** (pas de lib de rendu) · Vitest (Node env, aucun
-test ne rend de composant React — même convention que track-finder).
+Vite · **WebGPU/WGSL brut** (pas de lib de rendu) · Vitest (deux projets :
+`unit` en env Node, `storybook` en navigateur Playwright).
 
 **UI** : Tailwind v4 (`@tailwindcss/vite`) + `shadcn/ui` (style `base-nova`,
 PAS Radix — `components.json`). Tokens de marque = `src/design/{primitives,
@@ -73,13 +75,14 @@ composant existant ou à migrer, le dossier n'existe plus. Voir aussi
 `docs/superpowers/specs/2026-07-20-shadcn-migration-design.md`.
 
 Décisions techniques verrouillées (voir design.md pour les preuves) :
-- **Toutes les textures couleur au format sRGB préféré de la plateforme**
-  (`${navigator.gpu.getPreferredCanvasFormat()}-srgb` — donc `bgra8unorm-srgb`
-  sur Windows/D3D12, `rgba8unorm-srgb` ailleurs ; voir `gpuContext.ts:68-69`) —
-  conversion sRGB↔linéaire automatique par le format, JAMAIS de gamma manuel en
-  WGSL. Sans ça, glow/grain/blur sont mathématiquement faux (constat d'audit).
-  (Le canal ordre bgra vs rgba est transparent en WGSL via `textureSample` ;
-  ne jamais coder `rgba8unorm-srgb` en dur — c'est faux sur Windows.)
+- **Chaîne de couleur en sRGB par le FORMAT, jamais par un gamma manuel en
+  WGSL.** Sans ça, glow/grain/blur sont mathématiquement faux (constat
+  d'audit). Détail d'implémentation à ne pas approximer : `context.configure()`
+  n'accepte PAS de variante `-srgb` — on configure le canvas avec
+  `navigator.gpu.getPreferredCanvasFormat()` et on déclare la variante srgb en
+  `viewFormats`, la vue srgb servant à la passe finale (`gpuContext.ts:64-78`).
+  Ne jamais coder `rgba8unorm-srgb` en dur : c'est `bgra8unorm` sur
+  Windows/D3D12. L'ordre des canaux est transparent en WGSL via `textureSample`.
 - **Pas de distinction preview/export** — un seul pipeline, résolution
   native, toujours (décision utilisateur explicite, pas de downscale).
 - JPEG traité comme sRGB, pas de lecture de profil ICC en v1 (limitation
@@ -87,7 +90,15 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
 - Effets = modules autonomes enregistrés dans `src/render/effects/registry.ts`
   — en ajouter un = un nouveau fichier ; un effet à paramètres groupés (voir
   `EffectParam.colorGroup`) touche aussi `ParamPanel.tsx` et peut élargir
-  `MAX_EFFECT_PARAMS` (`shaderCompose.ts`) si nécessaire.
+  `MAX_EFFECT_PARAMS` (`shaderCompose.ts`, **16** aujourd'hui) si nécessaire.
+  Registre réel au 2026-07-31 : `glow`, `chromaticBleed`, `warp`, `grain`,
+  `duotone`, `posterize`, `gooeyMerge`, `channelMixer`, `outlines` — **neuf**.
+  Les autres fichiers de `effects/` sont des helpers (`bayer`, `hsl`,
+  `srgbTransfer`, `uvSpace`, `validate`, `types`) : la présence d'un fichier
+  n'est pas la présence d'un effet, vérifier `registry.ts`.
+  `passthrough` (`PASSTHROUGH_EFFECT`) est résolu par `getEffect` mais
+  volontairement HORS du registre — c'est l'effectId par défaut d'un calque
+  photo, pas un effet choisissable.
 - Modes de fusion = modules autonomes dans `src/render/blend/registry.ts`
   (même principe, Tranche 1 2026-07-19) — chaque calque a `opacity`/
   `blendMode` sur `LayerState`.
@@ -97,35 +108,89 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
 - Dev : `npm run tauri dev` (lance Vite + la fenêtre native, tout-en-un)
 - Build frontend seul : `npm run build` (tsc + vite build)
 - Tests unitaires : `npm run test` (Vitest, projet `unit` uniquement)
-- Tests de stories : `npm run test-storybook` (Vitest + Playwright chromium, projet `storybook`) · `npm run test:all` pour les deux
+- **Un seul fichier / un seul test** : `npx vitest run --project=unit test/ui/transform.test.ts`
+  · filtrer par nom : `npx vitest run --project=unit -t "nom du test"`.
+  Toujours passer `--project=unit` (sinon les deux projets démarrent, dont le
+  navigateur Playwright).
+- Tests de stories : `npm run test-storybook` (Vitest + Playwright chromium, projet `storybook`) · `npm run test:all` pour les deux · `npm run coverage` (v8, projet storybook)
 - Shaders GPU : `npm run test:gpu-shaders` (`scripts/gpu-shader-check.mjs`) — prouve que les shaders COMPILENT
 - Non-régression du **rendu** : `npm run test:render` (`scripts/render-check.mjs`) — prouve que le pipeline produit les MÊMES PIXELS qu'avant. Prérequis : l'app tourne avec le port CDP 9222, ET un Vite du worktree courant sur 1421 (`npx vite --port 1421`). Références versionnées dans `test/render-refs/` ; `--update` les réécrit (les relire à l'œil avant de committer), `--diagnostic` mesure la dépendance à l'horloge de la surface de présentation. Lit les pixels de `Renderer.exportFrame()`, jamais une capture d'écran — voir l'en-tête du script pour pourquoi.
 - Type-check : `npx tsc --noEmit`
+- Lint : `npm run lint` (eslint, couvre `src/**/*.{ts,tsx}`)
 - Lint tokens design : `npm run lint:tokens` (détecte couleurs/z-index/spacing en dur qui contournent un token existant, `scripts/lint-tokens.mjs`)
 - Rust : `cd src-tauri && cargo check`
 - Storybook (composants React isolés, tokens réels via `src/design/index.css`) : `npm run storybook` (dev, port 6006) · `npm run build-storybook` (static)
 
-## Structure (état réel)
+**CI** (`.github/workflows/test.yml`, ubuntu) : `npm ci` → `npx playwright
+install --with-deps chromium` → `npm run test` → `npm run test-storybook`. Les
+tests GPU/rendu ne tournent PAS en CI (pas de GPU) — ce sont des gates locales.
+
+**Hook pre-commit** : source versionnée dans `scripts/hooks/pre-commit`, à
+installer à la main après un clone (`cp` vers `$(git rev-parse
+--git-common-dir)/hooks/`, instructions en tête du fichier). Aujourd'hui
+**non bloquant** (`BLOCKING=0`) : il affiche les erreurs ESLint et laisse
+passer. Les worktrees partagent `.git/hooks`, une seule installation couvre
+tout le dépôt.
+
+## Architecture
+
+**`ARCHITECTURE.md` (racine, ~745 lignes, passe du 2026-07-31) est la carte
+détaillée** — couches réelles, module maps Presets et Double exposure, ports de
+test, risques ouverts. La lire avant toute modification structurelle plutôt que
+de redécouvrir depuis les fichiers. Elle signale elle-même ses sections
+périmées (ex. la table des bindings du groupe 0, à recompter dans
+`shaderCompose.ts`).
+
+Six couches, dépendances strictement descendantes :
 
 ```
-src/
-  render/
-    gpuContext.ts       — init WebGPU (device/context/format srgb)
-    effects/            — (Task 5+) registry + un fichier par effet
-    blend/              — (Tranche 1, 2026-07-19) registry de modes de fusion
-  layers/               — (Task 4+) LayerStack, History (logique pure, testée)
-  mask/                 — (Task 9+) MaskPainter (pinceau à falloff radial)
-  export/               — (Task 10+) buildCopyPath, exportImage
-  components/           — (Task 11+) LayerPanel/ParamPanel/Canvas/Toolbar
-  launch.ts             — (Task 3+) wrappers get_launch_path/write_image_file
-src-tauri/              — coquille Rust (main.rs shim → lib.rs run())
-test/                   — miroir de src/, fixtures réelles
-docs/superpowers/
-  changes/2026-07-12-shaderlab-mvp/design.md   — spec (source de vérité)
-  plans/2026-07-12-shaderlab-mvp.md            — plan 16 tâches
-.superpowers/sdd/       — ledger subagent-driven-dev (progress.md, briefs,
-                          reports, diffs de review) — scratch git-ignoré
+src-tauri/src/lib.rs      coquille Rust, ~17 commandes IPC maison
+        ▲                 (aucun plugin fs/dialog — voir bug plugin-dialog)
+src/launch.ts             wrappers typés, une fonction = une commande
+        ▲
+src/App.tsx               COMPOSITION ROOT — refs GPU/renderer/session,
+        │                 state UI, tous les handlers
+   ┌────┴────┬──────────┬──────────┐
+application/  render/    mask/      export/
+DocumentSession Renderer MaskPainter exportImage
+   └────┬────┴──────────┴──────────┘
+src/layers/               MODÈLE PARTAGÉ — LayerStack · History ·
+                          displayProjection · types
 ```
+
+Points structurants qu'on ne devine pas en lisant un fichier isolé :
+- **`LayerState` (`src/layers/types.ts`) est le type pivot** : consommé par
+  `render/`, `mask/`, `export/`, `components/`, `application/`. Il ne dépend que
+  de `mask/types`.
+- **`Renderer` n'encode plus le rendu** — c'est un assembleur de cycle de vie.
+  Le travail réel est chez `FramePipelineExecutor` (boucle par calque,
+  ping-pong), `EffectPassRunner` (une passe), `shaderCompose` (la chaîne WGSL
+  **est** la clé de cache), `ImageFrameResources`, `MaskTextureResolver`. Les
+  trois ports de `framePipelineExecutor.ts` sont la frontière de test la plus
+  utile de la couche rendu — toute extension du pipeline doit la préserver.
+- **`DocumentSession`** (`src/application/`) est le bon point d'entrée pour
+  toute opération document-level, y compris presets et calque photo. Il expose
+  deux vues : `layers()` (complet, pour le GPU) et `displayLayers()`
+  (projection sans raster, pour React — c'est l'invariant anti-OOM).
+- **L'espace de coordonnées du masque est celui de la photo de fond**
+  (`MaskPainter` alloue aux dimensions de l'image de base), jamais celui d'une
+  source d'image transformée.
+- **`components/` ne contient aucune logique métier** : aucun composant ne
+  connaît `LayerStack` ni le renderer, tous les handlers viennent d'`App.tsx`.
+  Cette frontière ne doit pas bouger pour ajouter une carte au dock.
+- `exportImage.ts` définit ses propres ports d'IO et se teste avec des doubles :
+  **c'est le patron à reproduire** pour toute nouvelle persistance, pas à
+  réinventer.
+
+## Décisions (ADR)
+
+`.claude/decisions/INDEX.md` — une ligne par ADR avec son statut. Un ADR
+`superseded` (ADR-0003, renversé par ADR-0004) n'est PAS une contrainte active.
+Actifs au 2026-07-31 : densité UI (0001), abandon round-trip (0002), sens causal
+de la pile (0004), rattachement par proximité (0005), fond d'export blanc
+(0006), format de toile à la création + `MAX_CANVAS_PIXELS = 64 Mpx` (0007),
+un effet ne se pose jamais sur un calque photo (0008). Les décisions du projet
+vivent là, pas dans les docs de design.
 
 ## Méthode
 
@@ -211,7 +276,7 @@ docs/superpowers/
   `Runtime.consoleAPICalled`/`Runtime.exceptionThrown`. A servi à diagnostiquer
   précisément un invoke qui restait bloqué sans throw ni log (voir bug
   `@tauri-apps/plugin-dialog` ci-dessous) — bien plus fiable que deviner
-  depuis des captures d'écran.
+  depuis des captures d'écran. Outil prêt : `scripts/cdp-console.mjs`.
   ⚠️ Limite connue (2026-07-13) : `Input.dispatchMouseEvent` (CDP) ne peut
   PAS déclencher un vrai drag HTML5 natif — `dragstart` ne se lève que sur
   un vrai geste OS de drag, pas sur des événements souris synthétiques.
@@ -235,12 +300,16 @@ docs/superpowers/
 en headless (aucun rendu GPU) — un screenshot Playwright serait un œil aveugle qui
 dit « vu ». **Preuve UI = CDP sur la vraie fenêtre WebView2** (`--remote-debugging-port=9222`,
 voir Méthode ci-dessus) + checkpoint visuel humain. Le screenshot Playwright vaut
-seulement pour un futur écran web pur sans canvas GPU.
+seulement pour les stories sans canvas GPU (projet `storybook`, qui lui tourne
+bien en headless chromium).
 
 ## Risques ouverts / gates
 
 - VRAM : ~96 Mo par texture RGBA 24MP, multiplié par ping-pong + masques —
-  à mesurer à l'usage réel, pas de budget théorique figé.
+  à mesurer à l'usage réel, pas de budget théorique figé. Instrument : mesurer
+  le *Total Committed* du process GPU de WebView2, pas `nvidia-smi` (qui compte
+  tout le GPU). `MAX_CANVAS_PIXELS = 64 Mpx` (ADR-0007) est calibré sur ces
+  mesures.
 
 La dépose du round-trip Lightroom figurait ici comme dette ouverte ; elle a été
 faite le 2026-07-30 (voir § Quoi).
@@ -257,6 +326,14 @@ Lightroom » (Task 3) est sans objet, puisqu'on le retire au lieu de le valider.
 quand tu cherches le statut d'un chantier/plan spécifique, PAS importé
 automatiquement : un `@import` charge le fichier entier à chaque session,
 quel que soit le besoin réel du tour (doublait le poids de ce CLAUDE.md).
+⚠️ `docs/INDEX.json` et `.superpowers/sdd/progress.md` ont déjà été pris en
+défaut (statuts optimistes vs état réel du code) : vérifier sur disque avant
+de conclure qu'une tranche est faite.
+
+`AGENTS.md` (racine) est le document frère, plus long, à destination des agents
+en général : il porte l'historique détaillé des tranches et des bugs. Ce
+CLAUDE.md est l'entrée courte ; en cas de contradiction, c'est le CODE qui
+tranche, puis `ARCHITECTURE.md`.
 
 ## Densité de l'UI — règle permanente (ADR-0001)
 
@@ -274,8 +351,7 @@ sélection = à justifier par écrit ou à réduire.
 
 Cette règle existe parce qu'elle a été enfreinte le jour même où elle a été
 posée : le panneau Photo a été livré avant le lot de densité, portant la colonne
-à 1613 px pour 1345 px disponibles avec **deux** calques. Les décisions du
-projet vivent dans `.claude/decisions/` (INDEX.md), pas dans les docs de design.
+à 1613 px pour 1345 px disponibles avec **deux** calques.
 
 ## Wireframe & tokens
 Source de tokens canonique (à viser pour tout wireframe `interface-design`) :

@@ -44,14 +44,27 @@ interface Props {
   onPickThrough?: (x: number, y: number) => boolean;
 }
 
+/** Écart entre le point SAISI et le centre de la poignée, en pixels du fond.
+ *
+ *  Sans lui, le premier `pointermove` traitait la position du pointeur comme si
+ *  elle ÉTAIT le coin : saisir la poignée à trois pixels de son centre — ce qui
+ *  est le cas normal, elle fait une quinzaine de pixels — téléportait le coin
+ *  sous le curseur avant même que la main ait bougé. La photo sautait donc au
+ *  démarrage de chaque redimensionnement (signalé à l'usage le 2026-07-31).
+ *
+ *  Mesuré une fois au `pointerdown` et retranché à chaque déplacement : le
+ *  premier mouvement devient un no-op exact, quel que soit l'endroit de la
+ *  poignée qu'on a attrapé. */
+type GrabOffset = { grabDx: number; grabDy: number };
+
 type DragKind =
   // L'index du coin tiré est indispensable : c'est lui qui désigne le coin
   // OPPOSÉ, qui doit rester immobile pendant l'échelle (`transformFromCornerDrag`).
-  | { kind: "corner"; index: CornerIndex }
+  | ({ kind: "corner"; index: CornerIndex } & GrabOffset)
   // Même forme que `corner` et pas un booléen sur celui-ci : un côté et un coin
   // n'ont ni la même table de normales ni le même nombre d'axes touchés, les
   // confondre rendrait l'index ambigu.
-  | { kind: "edge"; index: EdgeIndex }
+  | ({ kind: "edge"; index: EdgeIndex } & GrabOffset)
   | { kind: "rotate" }
   | { kind: "move"; startX: number; startY: number; originTransform: LayerTransform };
 
@@ -147,11 +160,34 @@ export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayer
     dragRef.current = kind;
   }
 
+  /** `pointerdown` sur une poignée d'échelle : mesure l'écart de saisie avant
+   *  d'ouvrir le drag. Le centre de la poignée vient de la MÊME géométrie que
+   *  celle qui la dessine, donc l'écart est exact et pas une approximation. */
+  function handleScaleHandleDown(
+    e: React.PointerEvent,
+    kind: { kind: "corner"; index: CornerIndex } | { kind: "edge"; index: EdgeIndex },
+  ) {
+    const center = kind.kind === "corner" ? corners[kind.index] : edges[kind.index];
+    const pointer = screenToImagePixels(e.clientX, e.clientY);
+    handlePointerDown(e, {
+      ...kind,
+      grabDx: pointer ? pointer.x - center.x : 0,
+      grabDy: pointer ? pointer.y - center.y : 0,
+    });
+  }
+
   function handlePointerMove(e: React.PointerEvent) {
     const drag = dragRef.current;
     if (!drag) return;
     const pointer = screenToImagePixels(e.clientX, e.clientY);
     if (!pointer) return;
+    // L'ÉCART DE SAISIE est retranché ici, une seule fois, pour les deux
+    // gestes d'échelle : la suite du calcul reçoit le point où serait le
+    // pointeur s'il avait attrapé la poignée pile en son centre.
+    const aimed =
+      drag.kind === "corner" || drag.kind === "edge"
+        ? { x: pointer.x - drag.grabDx, y: pointer.y - drag.grabDy }
+        : pointer;
     if (drag.kind === "corner") {
       // `Alt` maintenu = ancrage sur le CENTRE (l'ancien comportement, qui
       // faisait grossir la photo dans les 4 directions) ; sans `Alt`, le coin
@@ -165,7 +201,7 @@ export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayer
           transformFromCornerDrag(
             transform,
             photoSize,
-            pointer,
+            aimed,
             drag.index,
             e.altKey ? "center" : "oppositeCorner",
             e.shiftKey,
@@ -176,7 +212,7 @@ export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayer
     } else if (drag.kind === "edge") {
       onTransformChange(
         withScaleSnap(
-          transformFromEdgeDrag(transform, photoSize, pointer, drag.index, e.altKey ? "center" : "oppositeCorner"),
+          transformFromEdgeDrag(transform, photoSize, aimed, drag.index, e.altKey ? "center" : "oppositeCorner"),
           e.ctrlKey,
         ),
       );
@@ -323,9 +359,14 @@ export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayer
           {CORNER_INDICES.map((index) => (
             <div
               key={index}
-              className="transform-handles__corner"
+              // Les quatre coins ne partagent PAS la même diagonale. 0 (haut-gauche)
+              // et 2 (bas-droit) sont sur l'axe ↖↘ ; 1 (haut-droit) et 3
+              // (bas-gauche) sur l'axe ↗↙. Une seule règle CSS pour les quatre
+              // affichait donc une flèche à l'envers sur deux d'entre eux —
+              // elle annonçait un geste et le contrôle en faisait un autre.
+              className={`transform-handles__corner transform-handles__corner--${index % 2 === 0 ? "nwse" : "nesw"}`}
               style={toScreenStyle(corners[index])}
-              onPointerDown={(e) => handlePointerDown(e, { kind: "corner", index })}
+              onPointerDown={(e) => handleScaleHandleDown(e, { kind: "corner", index })}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerCancel}
@@ -341,7 +382,7 @@ export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayer
               key={`edge-${index}`}
               className={`transform-handles__edge transform-handles__edge--${index % 2 === 0 ? "vertical" : "horizontal"}`}
               style={toScreenStyle(edges[index])}
-              onPointerDown={(e) => handlePointerDown(e, { kind: "edge", index })}
+              onPointerDown={(e) => handleScaleHandleDown(e, { kind: "edge", index })}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerCancel}

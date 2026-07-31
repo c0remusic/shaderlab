@@ -56,7 +56,18 @@
   background: var(--text-value);
   border: 1px solid var(--outline-contrast);
   pointer-events: auto;
+}
+
+/* La diagonale du curseur suit celle du coin. Une règle unique `nwse-resize`
+   sur les quatre montrait une flèche à l'envers sur le haut-droit et le
+   bas-gauche : le curseur annonçait un axe de redimensionnement et la poignée
+   en faisait un autre. */
+.transform-handles__corner--nwse {
   cursor: nwse-resize;
+}
+
+.transform-handles__corner--nesw {
+  cursor: nesw-resize;
 }
 
 /* Guide d'accroche : ligne fine, couleur de focus, jamais une cible. Elle

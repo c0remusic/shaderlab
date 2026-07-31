@@ -420,3 +420,34 @@ describe("échelle NON HOMOTHÉTIQUE — les deux axes bougent séparément", ()
     expect(fitted.rotation).toBe(0.2);
   });
 });
+
+describe("écart de saisie — pas de saut au démarrage d'un redimensionnement", () => {
+  const photoSize = { width: 400, height: 200 };
+
+  it("un pointeur DÉCALÉ dans la poignée ne bouge rien tant que la main n'a pas bougé", () => {
+    // Le bug : la poignée fait une quinzaine de pixels, on l'attrape donc
+    // presque toujours à côté de son centre. Traiter la position du pointeur
+    // comme si elle ÉTAIT le coin téléportait le coin sous le curseur avant
+    // tout mouvement. `TransformHandles` retranche l'écart de saisie mesuré au
+    // `pointerdown` ; ce témoin verrouille la propriété que ce retranchement
+    // doit produire — un pointeur RAMENÉ sur le centre de la poignée est un
+    // no-op exact.
+    const transform: LayerTransform = { x: 500, y: 500, scaleX: 1.3, scaleY: 0.8, rotation: 0.4 };
+    const corner = computeHandleGeometry(transform, photoSize).corners[2];
+    const next = transformFromCornerDrag(transform, photoSize, corner, 2);
+    expect(next.scaleX).toBeCloseTo(transform.scaleX, 6);
+    expect(next.scaleY).toBeCloseTo(transform.scaleY, 6);
+    expect(next.x).toBeCloseTo(transform.x, 6);
+    expect(next.y).toBeCloseTo(transform.y, 6);
+  });
+
+  it("même propriété sur une poignée de CÔTÉ", () => {
+    const transform: LayerTransform = { x: 500, y: 500, scaleX: 1.3, scaleY: 0.8, rotation: 0.4 };
+    const edge = computeHandleGeometry(transform, photoSize).edges[1];
+    const next = transformFromEdgeDrag(transform, photoSize, edge, 1);
+    expect(next.scaleX).toBeCloseTo(transform.scaleX, 6);
+    expect(next.scaleY).toBeCloseTo(transform.scaleY, 6);
+    expect(next.x).toBeCloseTo(transform.x, 6);
+    expect(next.y).toBeCloseTo(transform.y, 6);
+  });
+});

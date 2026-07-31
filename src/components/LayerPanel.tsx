@@ -369,9 +369,11 @@ const LayerRow = memo(function LayerRow({
  * liste — modèle observé sur Photoshop web (voir
  * `docs/design-system/photoshop-web-observations-2026-07-27.md` §2 et §5bis).
  *
- * Le sélecteur d'effet reste disponible sur un calque PHOTO : appliquer des
- * effets différents selon la photo est un usage voulu, et « Aucun effet »
- * (passthrough) permet d'y revenir.
+ * Le sélecteur d'effet N'EST PAS proposé sur un calque PHOTO (décision produit
+ * du 2026-07-31) : un effet ne se pose jamais sur une photo, c'est un calque à
+ * part, écrêté à elle. `LayerStack.setLayerEffect` porte le refus côté modèle ;
+ * cette garde-ci retire l'affordance, sans quoi le contrôle resterait à l'écran
+ * en ne faisant plus rien.
  */
 export function LayerControls({
   layers,
@@ -400,15 +402,34 @@ export function LayerControls({
           (« Aberration chromatique »), et le partager à trois le réduirait à
           une poignée de caractères dans une colonne de 240 à 400 px. */}
       <div className="layer-controls__row">
-        <Select
-          label="Effet"
-          labelPlacement="inline"
-          value={model.effectId}
-          placeholder="Aucun calque sélectionné"
-          options={changeEffectOptions}
-          disabled={!model.enabled}
-          onChange={(v) => model.layerId !== null && onEffectChange(model.layerId, v)}
-        />
+        {model.effectSelectable ? (
+          <Select
+            label="Effet"
+            labelPlacement="inline"
+            value={model.effectId}
+            placeholder="Aucun calque sélectionné"
+            options={changeEffectOptions}
+            disabled={!model.enabled}
+            onChange={(v) => model.layerId !== null && onEffectChange(model.layerId, v)}
+          />
+        ) : (
+          /* CALQUE PHOTO — pas de sélecteur, une PHRASE à sa place. Deux
+             raisons de ne pas laisser le trou : le groupe d'actions est en
+             `flex: 0 0 auto`, donc sans occupant à sa gauche les trois icônes
+             sauteraient d'un bord à l'autre de la ligne au changement de
+             sélection ; et un contrôle qui disparaît sans rien dire se lit
+             comme un bug, pas comme une règle. Le texte porte la règle, le
+             `title` porte le geste de remplacement.
+             Aucune hauteur ajoutée : même ligne, même rangée (ADR-0001 — la
+             zone de contrôles rend de la hauteur à la liste, ne lui en prend
+             pas), et aucun contrôle répété par ligne n'est réintroduit. */
+          <p
+            className="layer-controls__effect-na"
+            title="Un effet ne se pose pas sur un calque photo. Ajoutez un calque d'effet au-dessus, puis écrêtez-le à la photo."
+          >
+            Aucun effet sur un calque photo
+          </p>
+        )}
         {/* ACTIONS du calque sélectionné (2026-07-29). Elles vivaient sur
             CHAQUE ligne de la liste ; l'ADR-0001 veut un contrôle unique
             agissant sur la sélection, et c'est ce qui rend au NOM la largeur

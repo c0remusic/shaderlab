@@ -524,14 +524,13 @@ describe("LayerStack — setLayerEffect (T6)", () => {
     expect(layer.params).toEqual({});
   });
 
-  it("préserve enabled/opacity/blendMode/mask et l'identité photo du calque", () => {
+  it("préserve enabled/opacity/blendMode/mask du calque", () => {
     const stack = new LayerStack();
-    const transform = { x: 3, y: 4, scale: 2, rotation: 0.5 };
-    const id = stack.addPhotoLayer("photo-1", transform);
+    const id = stack.addLayer("grain");
     stack.toggleLayer(id);
     stack.setMaskInvert(id, true);
     // Opacité et fusion posées à des valeurs NON-défaut avant l'appel :
-    // `addPhotoLayer` les initialise à 1 / "normal" (layerStack.ts:71-72), donc
+    // `addLayer` les initialise à 1 / "normal" (layerStack.ts:133-134), donc
     // les asserer telles quelles ne prouverait rien de la préservation. Mutation
     // directe du calque, comme le fait la production (App.handleOpacityChange /
     // handleBlendModeChange) — LayerStack n'expose pas de setter pour ces deux
@@ -542,20 +541,39 @@ describe("LayerStack — setLayerEffect (T6)", () => {
     expect(stack.setLayerEffect(id, "glow")).toBe(true);
     const layer = stack.layers.find((l) => l.id === id)!;
     expect(layer.effectId).toBe("glow");
-    expect(layer.imageSource).toEqual({ sourceId: "photo-1" });
-    expect(layer.transform).toEqual(transform);
     expect(layer.enabled).toBe(false);
     expect(layer.opacity).toBe(0.42);
     expect(layer.blendMode).toBe("screen");
     expect(layer.mask.invert).toBe(true);
   });
 
-  it("un calque photo peut revenir à passthrough", () => {
+  // GARDE STRUCTURANTE (décision produit du 2026-07-31, Antoine) : un effet ne
+  // se pose JAMAIS sur un calque photo. Un effet est un calque À PART, écrêté à
+  // la photo (`setLayerClip`). L'affordance inverse existait et rendait un
+  // ÉCRAN NOIR, constaté en usage réel. Ce test est le témoin de la garde :
+  // sans elle il rend `true` et l'effectId devient "glow".
+  it("REFUSE un calque portant imageSource, sans rien muter", () => {
+    const stack = new LayerStack();
+    const id = stack.addPhotoLayer("photo-1", { x: 3, y: 4, scale: 2, rotation: 0.5 });
+    expect(stack.updateParams(id, { radius: 7 })).toBe(true);
+    expect(stack.setLayerEffect(id, "glow")).toBe(false);
+    const layer = stack.layers.find((l) => l.id === id)!;
+    expect(layer.effectId).toBe("passthrough");
+    // Params INTACTS : le refus est un no-op COMPLET, il ne traverse pas le
+    // reset de params — sinon `App.tsx` verrait une pile mutée sans entrée
+    // d'historique pour revenir en arrière.
+    expect(layer.params).toEqual({ radius: 7 });
+  });
+
+  // `duplicateLayer` est la SECONDE naissance d'un calque portant `imageSource`
+  // (layerStack.ts:354) : la garde doit tenir sur le duplicata comme sur
+  // l'original, sinon il suffisait de dupliquer une photo pour la contourner.
+  it("REFUSE aussi le duplicata d'un calque photo", () => {
     const stack = new LayerStack();
     const id = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scale: 1, rotation: 0 });
-    expect(stack.setLayerEffect(id, "glow")).toBe(true);
-    expect(stack.setLayerEffect(id, "passthrough")).toBe(true);
-    expect(stack.layers[0].effectId).toBe("passthrough");
+    const copy = stack.duplicateLayer(id)!;
+    expect(stack.setLayerEffect(copy, "glow")).toBe(false);
+    expect(stack.layers.find((l) => l.id === copy)!.effectId).toBe("passthrough");
   });
 
   it("est un no-op (retourne false) si l'effectId est déjà celui du calque", () => {

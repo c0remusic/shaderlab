@@ -63,7 +63,10 @@ describe("setLayerImageSource", () => {
     const below = stack.addLayer("glow");
     const id = stack.addPhotoLayer("photo-1", { ...TRANSFORM }, "plage.jpg", below);
     stack.addLayer("grain", id);
-    stack.setLayerEffect(id, "grain");
+    // Pas de `setLayerEffect` ici : un calque photo est TOUJOURS `passthrough`
+    // depuis la décision du 2026-07-31 (un effet est un calque à part, écrêté),
+    // et le mutateur le refuse désormais. C'est donc `passthrough` que le
+    // remplacement d'image doit préserver.
     stack.updateParams(id, { amount: 0.7 });
     stack.layers[1].opacity = 0.4;
     stack.layers[1].blendMode = "multiply";
@@ -72,7 +75,7 @@ describe("setLayerImageSource", () => {
 
     const layer = stack.layers[1];
     expect(stack.layers.map((l) => l.id)).toEqual([below, id, stack.layers[2].id]);
-    expect(layer.effectId).toBe("grain");
+    expect(layer.effectId).toBe("passthrough");
     expect(layer.params).toEqual({ amount: 0.7 });
     expect(layer.opacity).toBe(0.4);
     expect(layer.blendMode).toBe("multiply");

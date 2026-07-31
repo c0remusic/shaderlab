@@ -35,6 +35,22 @@ export interface LayerControlsModel {
    *  empruntée à un calque qui n'est pas sélectionné. */
   blendMode: string | null;
   effectId: string | null;
+  /** Le SÉLECTEUR D'EFFET est-il proposé ? `false` sur un calque PHOTO, et là
+   *  seulement (décision produit du 2026-07-31 : un effet ne se pose jamais sur
+   *  un calque photo, c'est un calque à part écrêté à la photo).
+   *
+   *  Distinct d'`enabled`, qui dit « inerte » : ici le contrôle n'est pas
+   *  affiché du tout. `LayerStack.setLayerEffect` porte déjà le refus côté
+   *  modèle ; laisser le sélecteur affiché et actif au-dessus d'un mutateur qui
+   *  refuse serait l'échec silencieux que ce dépôt proscrit — et l'afficher
+   *  DÉSACTIVÉ le ferait passer pour un calque verrouillé, qui est un tout autre
+   *  état, réversible d'un clic.
+   *
+   *  `true` en l'absence de sélection : le sélecteur reste alors MONTÉ sur son
+   *  placeholder, désactivé par `enabled`. Le faire disparaître à chaque
+   *  désélection ferait sauter la zone de contrôles, exactement ce que le reste
+   *  de ce module évite. */
+  effectSelectable: boolean;
 }
 
 const EMPTY: LayerControlsModel = {
@@ -44,6 +60,7 @@ const EMPTY: LayerControlsModel = {
   opacity: 1,
   blendMode: null,
   effectId: null,
+  effectSelectable: true,
 };
 
 /**
@@ -66,6 +83,12 @@ export function layerControlsModel(layers: readonly LayerState[], selectedId: st
     opacity: layer.opacity,
     blendMode: layer.blendMode,
     effectId: layer.effectId,
+    // Lecture d'`imageSource` et non d'`effectId` : c'est la NATURE du calque
+    // qui décide, pas la valeur qu'il porte. Un calque photo est `passthrough`
+    // de bout en bout depuis la garde de `LayerStack.setLayerEffect` — tester
+    // `effectId === "passthrough"` retirerait aussi le sélecteur d'un calque
+    // d'effet réglé sur « Aucun effet », qui doit pouvoir en ressortir.
+    effectSelectable: layer.imageSource === undefined,
   };
 }
 

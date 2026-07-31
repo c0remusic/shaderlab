@@ -18,7 +18,7 @@ function layer(overrides: Partial<LayerState> & { id: string }): LayerState {
 describe("layerControlsModel", () => {
   it("sans sélection, l'en-tête est désactivé et n'emprunte aucune valeur à la pile", () => {
     const model = layerControlsModel([layer({ id: "a", opacity: 0.2, blendMode: "screen" })], null);
-    expect(model).toEqual({ enabled: false, locked: false, layerId: null, opacity: 1, blendMode: null, effectId: null });
+    expect(model).toEqual({ enabled: false, locked: false, layerId: null, opacity: 1, blendMode: null, effectId: null, effectSelectable: true });
   });
 
   it("sur pile vide, l'en-tête est désactivé", () => {
@@ -37,6 +37,7 @@ describe("layerControlsModel", () => {
       opacity: 0.4,
       blendMode: "screen",
       effectId: "grain",
+      effectSelectable: true,
     });
   });
 
@@ -55,6 +56,7 @@ describe("layerControlsModel", () => {
       opacity: 0.4,
       blendMode: "screen",
       effectId: "grain",
+      effectSelectable: true,
     });
   });
 
@@ -70,6 +72,33 @@ describe("layerControlsModel", () => {
     const model = layerControlsModel([layer({ id: "a" })], "disparu");
     expect(model.enabled).toBe(false);
     expect(model.layerId).toBeNull();
+  });
+
+  // GARDE D'INTERFACE de la décision du 2026-07-31 : un effet ne se pose jamais
+  // sur un calque photo. `LayerStack.setLayerEffect` refuse déjà côté modèle ;
+  // sans CETTE garde-ci, le sélecteur resterait affiché et actif en ne faisant
+  // plus rien — exactement l'échec silencieux que ce dépôt proscrit. Témoin :
+  // sans elle, `effectSelectable` vaut `true` sur un calque photo.
+  it("un calque PHOTO ne propose PAS de sélecteur d'effet", () => {
+    const layers = [layer({ id: "p", effectId: "passthrough", imageSource: { sourceId: "s1" } })];
+    expect(layerControlsModel(layers, "p").effectSelectable).toBe(false);
+  });
+
+  it("un calque d'effet le propose, et l'absence de sélection le garde monté", () => {
+    expect(layerControlsModel([layer({ id: "a" })], "a").effectSelectable).toBe(true);
+    // Sans sélection le sélecteur reste MONTÉ (désactivé, sur son placeholder) :
+    // le retirer ferait sauter la zone de contrôles à chaque désélection, le
+    // défaut que tout ce module évite déjà pour `enabled`.
+    expect(layerControlsModel([layer({ id: "a" })], null).effectSelectable).toBe(true);
+  });
+
+  // Un calque photo VERROUILLÉ n'a pas non plus de sélecteur : la garde photo
+  // ne dépend pas du verrou, et les deux se cumulent sans s'annuler.
+  it("un calque photo verrouillé n'en propose pas davantage", () => {
+    const layers = [layer({ id: "p", imageSource: { sourceId: "s1" }, locked: true })];
+    const model = layerControlsModel(layers, "p");
+    expect(model.effectSelectable).toBe(false);
+    expect(model.enabled).toBe(false);
   });
 });
 

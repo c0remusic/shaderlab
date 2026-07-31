@@ -85,6 +85,23 @@
   flex: 0 0 auto;
 }
 
+/* CALQUE PHOTO : la phrase qui remplace le sélecteur d'effet (décision produit
+   du 2026-07-31 — un effet est un calque à part, écrêté à la photo, jamais posé
+   sur elle). Elle hérite du `flex: 1 1 0; min-width: 0` de `.layer-controls__row
+   > *`, donc elle occupe exactement la place que prenait le Select et tient les
+   trois icônes d'action à droite de la ligne.
+   `--text-secondary` et non `--text-primary` : c'est un état, pas une valeur
+   réglable. Troncature plutôt que retour à la ligne — la zone de contrôles est
+   sous budget de hauteur (ADR-0001), et le texte complet reste lisible dans le
+   `title` posé sur l'élément. */
+.layer-controls__effect-na {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .layer-controls__opacity-field {
   display: flex;
   align-items: center;

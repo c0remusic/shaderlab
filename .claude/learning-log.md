@@ -1546,3 +1546,65 @@ série de correctifs qui touchent des PIXELS (warp, grain, posterize, glow).
 Le seul verrou qui regarde l'image produite ne garde rien aujourd'hui. À
 réparer AVANT de toucher un shader, pas après — sinon chaque correctif partira
 sans filet et on ne saura pas distinguer le gain voulu de la régression subie.
+
+## 2026-07-31 — RÉFUTATION de l'entrée ci-dessus : le verrou de rendu était VERT
+
+**L'entrée précédente est fausse, et elle porte en elle-même l'aveu de sa
+faiblesse** : « vérifié cette session en lisant le harnais et son en-tête, **non
+en le relançant** ». Lancé à 00:40 sur `master@e0b6cd4`, app en CDP 9222 et Vite
+du worktree sur 1421, `npm run test:render` rend **vert 10/10**, « Aucune
+régression de rendu », sortie 0, sur les trois étages du script.
+
+**Témoin de discrimination**, exigé par `scripts/render-check.mjs:89-96` :
+`grain.ts:39` basculé de `0.2126` à `0.2500` → FAIL sur `grain-graine-fixe` et
+lui seul, écart max 18 > 1 LSB, sortie 1 ; témoin retiré → vert, arbre propre.
+
+**Why** : l'affirmation « rouge 6/6 depuis T1 » s'était propagée dans QUATRE
+endroits — le rapport d'audit du 2026-07-31, `docs/INDEX.json`, le message du
+commit `8494b78`, et cette entrée de journal — sans jamais avoir été mesurée une
+seule fois. Chaque citation lui donnait du poids. C'est le mode d'échec propre
+aux journaux append-only : une entrée fausse n'est jamais corrigée par les
+suivantes, elle est *confirmée* par elles.
+
+**How to apply** : une entrée de ce journal qui affirme un ÉTAT (un test rouge,
+un fichier absent, un compteur) doit dire par quelle COMMANDE elle a été
+obtenue. Sans commande citée, l'entrée se relance avant d'être crue, surtout si
+elle sert à bloquer du travail. Ici elle a failli faire réparer un harnais qui
+n'avait rien.
+
+## 2026-07-31 — la condition du rendu noir est `layer.imageSource`, pas l'effet
+
+**Fait, mesuré (TTL 6 mois).** Un banc a rendu `warp` et `chromaticBleed` sur une
+photo avec ZÉRO pixel noir — luminance 42,83 et 42,60 contre 42,63 sans effet — et
+a failli faire conclure que le finding principal de l'audit était faux.
+
+L'effet y était posé comme calque **AU-DESSUS** de la photo. Là,
+`layer.imageSource` est indéfini, donc `framePipelineExecutor.ts:413` ne prend pas
+la branche photo, `imageSourceView` reste nul, `hasImageSource` est faux
+(`effectPassRunner.ts:171`), et `effectInput` retombe sur `color`
+(`shaderCompose.ts:113`) qui vaut `srcTexture`, lequel contient le composite avec
+la photo. Tout marche.
+
+Le noir exige que l'effet soit posé **SUR** le calque photo : là
+`framePipelineExecutor.ts:460-468` passe explicitement le composite-en-dessous
+comme `srcTexture`, et sur le calque de fond ce composite est la toile vide.
+
+**How to apply** : tout banc qui prétend reproduire ou infirmer un défaut de
+rendu de ce projet doit déclarer SUR QUEL CALQUE l'effet est posé. Un banc qui ne
+pose pas l'effet sur le calque photo ne peut pas voir ce défaut, et son vert ne
+prouve rien. Voir ADR-0008, qui tranche la question au niveau du modèle.
+
+## 2026-07-31 — `public/test-fixtures/sample.jpg` n'est pas une photo
+
+**Fait, daté (TTL 6 mois).** C'est une mire synthétique 512×384 : fond bleu-nuit
+uni `(20,20,30)` sur 84,06 % des pixels, un disque blanc pur, un carré vert, un
+carré rouge — 1 370 couleurs en tout. Ni dégradé continu, ni peau, ni ciel, ni
+détail fin.
+
+**How to apply** : aucun arbitrage de LOOK ne se tire de ce fichier — ni le
+placement des paliers d'un posterize, ni la douceur d'un halo. Un indicateur
+calibré dessus ment aussi : « % de pixels sous 39 % de clarté perçue » ne
+discrimine pas trois niveaux de posterize (87,86 / 87,72 / 82,30 %) parce que la
+mire est **déjà** à 87,75 % sous ce seuil avant tout effet — l'indicateur mesurait
+le fixture, pas l'effet. Pour un jugement de rendu, demander une vraie photo à
+Antoine.

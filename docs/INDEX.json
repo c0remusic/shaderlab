@@ -215,6 +215,13 @@
   ],
   "plans": [
     {
+      "path": "docs/superpowers/plans/2026-07-31-remediation-audits.md",
+      "status": "🔄 EN COURS — B0 clos par réfutation, E2/E3/E5 corrigés et fusionnés, A3/R3/U2 fusionnés après passe adverse, R1 et U3 réfutés et laissés hors de master, E1 tranché par ADR-0008.",
+      "date": "2026-07-31",
+      "topic": "backlog exécutable des deux audits (pré-release du 2026-07-30 et effets du 2026-07-31), classé AFK/HITL avec bloqueurs et pièges de fix",
+      "summary": "État durable de la remédiation. La barrière annoncée n'existait pas : `npm run test:render` était donné rouge 6/6 dans quatre endroits sans avoir jamais été lancé, il rend vert 10/10 — témoin de discrimination à l'appui (grain.ts:39 basculé de 0.2126 à 0.2500 fait rougir le seul scénario concerné, retiré il redevient vert). Corrigés côté pixels : la graine du warp ne dégénère plus (89 graines sur 101 avec au moins une octave morte → 0), le grain culmine au demi-ton et non dans les ombres (argmax 0.19 → 0.50, écrêtage noir 26,8 % → 0 %), le noyau d'upsample du glow n'a plus de trou au centre (1,0 % → 19,8 % de l'énergie). Chaque correctif n'a fait rougir que le scénario utilisant son effet, ce qui est sa discrimination. Consigne aussi le défaut de méthode du backlog lui-même : construit en lisant les rapports d'audit sans vérifier chaque item contre le code, il portait R2, U2 et U3 déjà corrigés par e18a940. Restent ouverts : E4 (posterize) et le resserrement du glow, deux arbitrages de goût qui demandent une vraie photo — le seul JPEG du dépôt est une mire synthétique."
+    },
+    {
       "path": "docs/superpowers/plans/2026-07-25-shaderlab-double-exposure.md",
       "status": "Tasks 1-7/8 complete, review-clean (Task 5 a nécessité 1 tour de fix pour 4 Important — clamp d'échelle, feather en espace écran, test de concordance WGSL/TS, texture persistante). Task 8 (VRAM + checkpoint bout-en-bout) exécutée le 2026-07-25, verdict visuel d'Antoine EN ATTENTE. Voir .superpowers/sdd/progress.md pour le détail par tâche.",
       "date": "2026-07-25",

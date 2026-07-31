@@ -36,6 +36,7 @@ export function useLayerIsolation({ sessionRef, rendererRef, layers, toggleLayer
   // `reconcileIsolation` rend la même valeur quand rien ne doit bouger, donc
   // c'est un no-op React dans le cas courant.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reconciliation d'un etat local sur une pile qui a change SOUS lui (suppression, undo, changement de document) : `reconcileIsolation` rend la meme reference quand rien ne bouge, donc aucun rendu en cascade dans le cas courant.
     setIsolatedLayerId((id) => reconcileIsolation(id, layers.map((l) => l.id)));
   }, [layers]);
 

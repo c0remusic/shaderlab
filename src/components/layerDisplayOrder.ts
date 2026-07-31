@@ -39,6 +39,7 @@ export function toDisplayOrder<T>(layers: readonly T[]): T[] {
  * dépend toute inversion, et la retirer ferait retoucher tous les appelants au
  * prochain changement de sens.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- `_length` est gardé A DESSEIN dans la signature (voir le bloc ci-dessus) ; le prefixe `_` est deja la convention exemptee par tsconfig `noUnusedParameters`.
 export function displayRowToModelIndex(displayRow: number, _length: number): number {
   return displayRow;
 }
@@ -56,6 +57,7 @@ export function displayRowToModelIndex(displayRow: number, _length: number): num
  * celui d'une LIGNE — d'où deux fonctions nommées séparément plutôt qu'une
  * seule que l'appelant pourrait appliquer au mauvais index.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- `_length` est gardé A DESSEIN dans la signature (voir le bloc ci-dessus) ; le prefixe `_` est deja la convention exemptee par tsconfig `noUnusedParameters`.
 export function displayInsertToModelInsert(displayInsert: number, _length: number): number {
   return displayInsert;
 }

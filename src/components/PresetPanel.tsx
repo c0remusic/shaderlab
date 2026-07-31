@@ -146,6 +146,7 @@ export const PresetPanel = memo(function PresetPanel({ summaries, hasLayers, onS
               <li key={summary.id} className="preset-panel__row">
                 <input
                   type="text"
+                  // eslint-disable-next-line jsx-a11y/no-autofocus -- champ de renommage EN LIGNE qui n'existe que pendant l'edition : il remplace le libelle sur lequel l'utilisateur vient d'agir, et sans focus automatique le geste demanderait une tabulation supplementaire vers un champ qu'il a lui-meme ouvert.
                   autoFocus
                   className="preset-panel__name-input"
                   aria-label="Renommer le preset"

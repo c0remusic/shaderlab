@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# shaderlab / pre-commit — ESLint en mode AVERTISSEMENT.
+#
+# ETAT : NON BLOQUANT. Il affiche, il ne refuse jamais un commit (`exit 0`
+# inconditionnel, tout en bas). C'est deliberé : la purge des 32 erreurs date du
+# 2026-07-31 et n'a pas encore vecu assez longtemps pour qu'un blocage dur soit
+# sans risque sur les autres lignes de travail en cours.
+#
+# ----------------------------------------------------------------------------
+# POUR LE PASSER EN BLOQUANT (une fois la purge stabilisee)
+#   1. Mettre BLOCKING=1 juste en dessous.
+#   2. C'est tout : le code lit deja le code de sortie d'ESLint et rend 1 quand
+#      BLOCKING=1 et qu'il reste au moins une ERREUR. Les avertissements ne
+#      bloquent jamais, quel que soit BLOCKING (`--max-warnings` n'est pas pose).
+#   3. Contournement ponctuel cote appelant : `git commit --no-verify`.
+# ----------------------------------------------------------------------------
+#
+# INSTALLATION (a refaire apres un clone frais ; les worktrees PARTAGENT
+# `.git/hooks`, donc une seule installation couvre le depot entier) :
+#   cp scripts/hooks/pre-commit "$(git rev-parse --git-common-dir)/hooks/pre-commit"
+#   chmod +x "$(git rev-parse --git-common-dir)/hooks/pre-commit"
+# Ce fichier-ci est la SOURCE versionnee ; la copie sous `.git/hooks` ne l'est
+# pas. Toute modification se fait ici, puis se reinstalle.
+# ----------------------------------------------------------------------------
+BLOCKING=0
+
+# Composition : ce hook n'est pas proprietaire de `pre-commit`. Si un autre
+# outillage veut s'y brancher (la gate `verify-gate`, par exemple, qui s'installe
+# quand un fichier `.claude-gate` est pose a la racine), qu'il depose son script
+# en `.git/hooks/pre-commit.local` — il sera lance ICI, EN PREMIER, et son code
+# de sortie est respecte tel quel : s'il bloque, on bloque avec lui.
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -f "$HOOK_DIR/pre-commit.local" ]; then
+  bash "$HOOK_DIR/pre-commit.local" "$@" || exit $?
+fi
+
+TOPLEVEL="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+ESLINT="$TOPLEVEL/node_modules/.bin/eslint"
+
+# Fail-safe, jamais fail-silent : si ESLint n'est pas installe dans CE worktree
+# (ex. worktree frais sans `npm install`), on le DIT et on laisse passer. Un
+# hook muet dans ce cas ferait croire que le lint est vert.
+if [ ! -x "$ESLINT" ]; then
+  echo "pre-commit/eslint: $ESLINT introuvable — lint saute (npm install manquant dans ce worktree ?)." >&2
+  exit 0
+fi
+
+# Ne linte QUE les fichiers stages que la config ESLint couvre (`src/**/*.ts,tsx`,
+# voir eslint.config.js) et qui existent encore apres le stage (`--diff-filter=d`
+# ecarte les suppressions ; un fichier renomme est vu sous son NOUVEAU nom).
+FILES="$(git diff --cached --name-only --diff-filter=d -- 'src/*.ts' 'src/*.tsx' 'src/**/*.ts' 'src/**/*.tsx' 2>/dev/null)"
+if [ -z "$FILES" ]; then
+  exit 0
+fi
+
+COUNT="$(printf '%s\n' "$FILES" | grep -c .)"
+echo "pre-commit/eslint: $COUNT fichier(s) stage(s) a linter..."
+
+# `--no-warn-ignored` : un fichier stage qui tombe dans les `ignores` de la
+# config ne doit pas produire un avertissement parasite.
+printf '%s\n' "$FILES" | xargs -d '\n' "$ESLINT" --no-warn-ignored
+STATUS=$?
+
+if [ "$STATUS" -ne 0 ]; then
+  if [ "$BLOCKING" = "1" ]; then
+    echo 'pre-commit/eslint: ERREURS ci-dessus — commit refuse (BLOCKING=1). `git commit --no-verify` pour passer outre.' >&2
+    exit 1
+  fi
+  echo "pre-commit/eslint: findings ci-dessus. Mode AVERTISSEMENT — le commit passe quand meme." >&2
+else
+  echo "pre-commit/eslint: propre."
+fi
+
+exit 0

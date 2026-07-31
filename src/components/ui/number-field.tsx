@@ -85,6 +85,7 @@ export function NumberField({
   const abandonRef = useRef(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronisation d'un BROUILLON local sur la valeur externe, uniquement hors edition : la retirer ferait ecraser la frappe en cours, et un `key` de reset perdrait le focus du champ (teste par les interactions Storybook, dont le cas « Echap »).
     if (!isEditing) setDraft(shown);
   }, [isEditing, shown]);
 

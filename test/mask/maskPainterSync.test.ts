@@ -77,6 +77,41 @@ describe("getSyncedMaskPainter", () => {
   });
 });
 
+describe("getSyncedMaskPainter — ancrage du plafond d'opacité", () => {
+  /** Rejoue le cycle réel d'App.tsx : un appel par échantillon, `lastPoint`
+   *  posé après chaque échantillon et remis à `null` en fin de trait. */
+  function stroke(entries: Map<string, MaskPainterEntry>, samples: number): void {
+    for (let i = 0; i < samples; i++) {
+      const entry = getSyncedMaskPainter(entries, "layer-1", null, 20, 20);
+      entry.painter.paintStroke(10, 10, { radius: 5, hardness: 1, erase: false, opacity: 0.5, flow: 1 });
+      entry.lastPoint = { x: 10, y: 10 };
+    }
+    entries.get("layer-1")!.lastPoint = null; // fin de trait (handleMaskStrokeEnd)
+  }
+
+  it("réancre le plafond à CHAQUE trait, sans que l'appelant ait à signaler le début du trait", () => {
+    const entries = new Map<string, MaskPainterEntry>();
+    stroke(entries, 5);
+    const painter = entries.get("layer-1")!.painter;
+    expect(painter.getMaskData()[10 * 20 + 10]).toBe(127); // plafond du 1er trait
+
+    stroke(entries, 5);
+    // Sans réancrage, le 2e trait resterait bloqué à 127 — le symptôme exact
+    // de « l'opacité ne remonte plus ».
+    expect(painter.getMaskData()[10 * 20 + 10]).toBe(191);
+  });
+
+  it("ne réancre PAS entre deux échantillons du même trait (sinon l'opacité ne plafonne plus)", () => {
+    const entries = new Map<string, MaskPainterEntry>();
+    for (let i = 0; i < 10; i++) {
+      const entry = getSyncedMaskPainter(entries, "layer-1", null, 20, 20);
+      entry.painter.paintStroke(10, 10, { radius: 5, hardness: 1, erase: false, opacity: 0.5, flow: 1 });
+      entry.lastPoint = { x: 10, y: 10 };
+    }
+    expect(entries.get("layer-1")!.painter.getMaskData()[10 * 20 + 10]).toBe(127);
+  });
+});
+
 describe("getSyncedMaskPainter fed from getBrushRaster (Tranche 2 wiring)", () => {
   it("seeds the painter from the layer's brush raster when one exists", () => {
     const raster = new Uint8Array(4).fill(200);

@@ -30,6 +30,14 @@ export interface MaskPainterEntry {
  * Extracted from `App.tsx`'s `handleMaskStroke` (audit 2026-07-17, finding
  * 3) so this resync logic has real test coverage instead of living
  * untested inside a component.
+ *
+ * Ouvre aussi le TRAIT du peintre (`MaskPainter.beginStroke`) quand
+ * `lastPoint` est nul, c'est-à-dire au tout premier échantillon d'un trait :
+ * cette fonction est déjà la seule à savoir où commence un trait, et le
+ * plafond d'opacité doit se réancrer exactement là — sinon tous les traits
+ * d'une session vivraient sous le plafond du premier. C'est ce qui rend
+ * l'opacité correcte SANS que l'appelant ait à ajouter un appel de cycle de
+ * vie ; `endStroke()` reste disponible pour le fermer explicitement.
  */
 export function getSyncedMaskPainter(
   entries: Map<string, MaskPainterEntry>,
@@ -44,6 +52,7 @@ export function getSyncedMaskPainter(
     if (currentMaskData) painter.loadFrom(currentMaskData);
     entry = { painter, syncedFrom: currentMaskData, lastPoint: null };
     entries.set(layerId, entry);
+    painter.beginStroke();
     return entry;
   }
   if (entry.syncedFrom !== currentMaskData) {
@@ -52,5 +61,6 @@ export function getSyncedMaskPainter(
     entry.syncedFrom = currentMaskData;
     entry.lastPoint = null;
   }
+  if (entry.lastPoint === null) entry.painter.beginStroke();
   return entry;
 }

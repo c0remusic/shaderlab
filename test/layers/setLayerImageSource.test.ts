@@ -13,7 +13,7 @@ import type { LayerTransform } from "../../src/layers/types";
  * d'historique pris avant garde l'ancienne source.
  */
 
-const TRANSFORM: LayerTransform = { x: 100, y: 80, scale: 0.5, rotation: 0.25 };
+const TRANSFORM: LayerTransform = { x: 100, y: 80, scaleX: 0.5, scaleY: 0.5, rotation: 0.25 };
 
 function photoStack(): { stack: LayerStack; id: string } {
   const stack = new LayerStack();

@@ -3,7 +3,7 @@ import { LayerStack } from "../../src/layers/layerStack";
 import { clipBaseId, resolveClipping } from "../../src/layers/clipping";
 import type { LayerTransform } from "../../src/layers/types";
 
-const TRANSFORM: LayerTransform = { x: 0, y: 0, scale: 1, rotation: 0 };
+const TRANSFORM: LayerTransform = { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
 
 /**
  * Insertion POSITIONNELLE des nouveaux calques (parité Photoshop) : un calque

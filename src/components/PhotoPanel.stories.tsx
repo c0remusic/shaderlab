@@ -15,7 +15,7 @@ function makePhotoLayer(overrides: Partial<LayerState> = {}): LayerState {
     blendMode: "normal",
     mask: defaultLayerMask(),
     imageSource: { sourceId: "src-1" },
-    transform: { x: 500, y: 400, scale: 1, rotation: 0 },
+    transform: { x: 500, y: 400, scaleX: 1, scaleY: 1, rotation: 0 },
     name: "IMG_1234.jpg",
     ...overrides,
   };
@@ -54,7 +54,7 @@ export const EffectLayerSelected: Story = {
 };
 
 export const RotatedAndScaled: Story = {
-  args: { layer: makePhotoLayer({ transform: { x: 120, y: 60, scale: 0.45, rotation: Math.PI / 4 } }) },
+  args: { layer: makePhotoLayer({ transform: { x: 120, y: 60, scaleX: 0.45, scaleY: 0.45, rotation: Math.PI / 4 } }) },
 };
 
 // --- Interaction tests (play) ---

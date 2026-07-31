@@ -2,13 +2,16 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type { LayerTransform } from "../layers/types";
 import {
   CORNER_INDICES,
+  EDGE_INDICES,
   computeHandleGeometry,
   overlayRectFromClientRects,
   sameOverlayRect,
   transformFromCornerDrag,
+  transformFromEdgeDrag,
   rotationFromPointer,
   snapAngle,
   type CornerIndex,
+  type EdgeIndex,
   type OverlayRect,
 } from "../ui/transform";
 import "./TransformHandles.css";
@@ -41,6 +44,10 @@ type DragKind =
   // L'index du coin tiré est indispensable : c'est lui qui désigne le coin
   // OPPOSÉ, qui doit rester immobile pendant l'échelle (`transformFromCornerDrag`).
   | { kind: "corner"; index: CornerIndex }
+  // Même forme que `corner` et pas un booléen sur celui-ci : un côté et un coin
+  // n'ont ni la même table de normales ni le même nombre d'axes touchés, les
+  // confondre rendrait l'index ambigu.
+  | { kind: "edge"; index: EdgeIndex }
   | { kind: "rotate" }
   | { kind: "move"; startX: number; startY: number; originTransform: LayerTransform };
 
@@ -106,7 +113,7 @@ export function TransformHandles({ transform, photoSize, bgSize, canvasRef, onTr
     [canvasRef],
   );
 
-  const { corners, rotationHandle } = computeHandleGeometry(transform, photoSize);
+  const { corners, edges, rotationHandle } = computeHandleGeometry(transform, photoSize);
 
   function toScreenStyle(point: { x: number; y: number }): React.CSSProperties {
     // Positionnement en % de l'overlay — qui coïncide maintenant exactement
@@ -134,8 +141,22 @@ export function TransformHandles({ transform, photoSize, bgSize, canvasRef, onTr
       // faisait grossir la photo dans les 4 directions) ; sans `Alt`, le coin
       // opposé reste fixe, comme Photoshop. Même famille de modificateur que le
       // `Shift` de la rotation : lu sur l'événement, aucun listener clavier.
+      // `Maj` CONTRAINT les proportions (convention Figma, choix utilisateur
+      // 2026-07-31) : le coin est LIBRE par défaut, ce qui est le geste qui
+      // manquait — jusqu'ici aucun geste ne pouvait étirer une photo.
       onTransformChange(
-        transformFromCornerDrag(transform, photoSize, pointer, drag.index, e.altKey ? "center" : "oppositeCorner"),
+        transformFromCornerDrag(
+          transform,
+          photoSize,
+          pointer,
+          drag.index,
+          e.altKey ? "center" : "oppositeCorner",
+          e.shiftKey,
+        ),
+      );
+    } else if (drag.kind === "edge") {
+      onTransformChange(
+        transformFromEdgeDrag(transform, photoSize, pointer, drag.index, e.altKey ? "center" : "oppositeCorner"),
       );
     } else if (drag.kind === "rotate") {
       // Snap d'angle à 15° (design 2026-07-26 §3.4) : déclencheur = `Shift`
@@ -238,6 +259,22 @@ export function TransformHandles({ transform, photoSize, bgSize, canvasRef, onTr
               className="transform-handles__corner"
               style={toScreenStyle(corners[index])}
               onPointerDown={(e) => handlePointerDown(e, { kind: "corner", index })}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerCancel}
+            />
+          ))}
+          {/* POIGNÉES DE CÔTÉ. Elles n'existaient pas tant que l'échelle était
+              unique : sans second axe, une poignée de côté aurait fait
+              exactement ce que fait un coin. Chacune ne touche QUE l'axe de sa
+              normale, en repère local — tirer la poignée droite d'une photo
+              tournée à 30° étire toujours sa largeur À ELLE. */}
+          {EDGE_INDICES.map((index) => (
+            <div
+              key={`edge-${index}`}
+              className={`transform-handles__edge transform-handles__edge--${index % 2 === 0 ? "vertical" : "horizontal"}`}
+              style={toScreenStyle(edges[index])}
+              onPointerDown={(e) => handlePointerDown(e, { kind: "edge", index })}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerCancel}

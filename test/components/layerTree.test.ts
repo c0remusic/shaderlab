@@ -22,7 +22,7 @@ function photo(id: string, overrides: Partial<LayerState> = {}): LayerState {
   return effect(id, {
     effectId: "passthrough",
     imageSource: { sourceId: `src-${id}` },
-    transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+    transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
     ...overrides,
   });
 }

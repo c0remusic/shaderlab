@@ -5,7 +5,7 @@ import { MaskPainter } from "../../src/mask/maskPainter";
 describe("Photo layer + MaskPainter integration", () => {
   it("updateBrushMask accepte un raster peint sur un calque portant imageSource, exactement comme un calque d'effet", () => {
     const stack = new LayerStack();
-    const id = stack.addPhotoLayer("photo-1", { x: 50, y: 50, scale: 1, rotation: 0 });
+    const id = stack.addPhotoLayer("photo-1", { x: 50, y: 50, scaleX: 1, scaleY: 1, rotation: 0 });
 
     const painter = new MaskPainter(100, 100);
     painter.paintStroke(50, 50, { radius: 20, hardness: 0.5, erase: false, opacity: 1, flow: 1 });
@@ -19,7 +19,7 @@ describe("Photo layer + MaskPainter integration", () => {
     // Le calque reste un calque photo à part entière : imageSource/transform
     // ne sont ni effacés ni altérés par une opération de masque.
     expect(layer.imageSource).toEqual({ sourceId: "photo-1" });
-    expect(layer.transform).toEqual({ x: 50, y: 50, scale: 1, rotation: 0 });
+    expect(layer.transform).toEqual({ x: 50, y: 50, scaleX: 1, scaleY: 1, rotation: 0 });
   });
 
   it("le masque d'un calque photo est dimensionné à la photo de FOND, pas à la photo importée (ARCHITECTURE.md §4.5)", () => {
@@ -32,7 +32,7 @@ describe("Photo layer + MaskPainter integration", () => {
     const stack = new LayerStack();
     const bgWidth = 300;
     const bgHeight = 200;
-    const id = stack.addPhotoLayer("photo-1", { x: 10, y: 10, scale: 1, rotation: 0 });
+    const id = stack.addPhotoLayer("photo-1", { x: 10, y: 10, scaleX: 1, scaleY: 1, rotation: 0 });
     const painter = new MaskPainter(bgWidth, bgHeight);
     stack.updateBrushMask(id, painter.getMaskData());
     const layer = stack.layers.find((l) => l.id === id)!;

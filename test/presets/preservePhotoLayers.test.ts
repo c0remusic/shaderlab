@@ -4,7 +4,7 @@ import { LayerStack } from "../../src/layers/layerStack";
 import { MAX_PHOTO_LAYERS, canAddPhotoLayer, countPhotoLayers } from "../../src/layers/photoLayer";
 import type { LayerState } from "../../src/layers/types";
 
-const IDENTITY = { x: 0, y: 0, scale: 1, rotation: 0 };
+const IDENTITY = { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
 
 /** Pile « document ouvert » : le fond, puis deux effets posés dessus. */
 function documentWithBackground(): LayerState[] {

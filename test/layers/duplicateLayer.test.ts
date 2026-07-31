@@ -12,7 +12,7 @@ function effects() {
   };
 }
 
-const TRANSFORM = { x: 0, y: 0, scale: 1, rotation: 0 };
+const TRANSFORM = { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
 
 describe("duplicateLayer", () => {
   it("duplique, sévère le preset actif, pousse une entrée d'historique et sélectionne le duplicata", () => {

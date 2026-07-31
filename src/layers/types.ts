@@ -23,11 +23,27 @@ export interface CropRect {
 
 /** Position/échelle/rotation d'un calque de photo, en coordonnées PIXELS
  *  de la photo de FOND (origine haut-gauche), pas de la photo elle-même —
- *  `(x, y)` est le centre de la photo transformée. `rotation` en radians. */
+ *  `(x, y)` est le centre de la photo transformée. `rotation` en radians.
+ *
+ *  **DEUX échelles et non une** (2026-07-31). Le champ unique `scale` rendait
+ *  le redimensionnement HOMOTHÉTIQUE par construction : aucun geste, aucun
+ *  champ de saisie ne pouvait étirer une photo sur un seul axe. Ce n'était pas
+ *  un choix de design tranché, seulement la forme la plus courte du modèle.
+ *
+ *  Les deux axes sont ceux de la photo AVANT rotation : `scaleX` étire toujours
+ *  la photo dans sa propre largeur, quelle que soit son orientation à l'écran.
+ *  C'est la seule convention qui rende les poignées de côté prévisibles sur une
+ *  photo tournée — un axe écran donnerait une poignée dont l'effet change selon
+ *  l'angle.
+ *
+ *  Aucune migration à prévoir : les presets excluent explicitement `transform`
+ *  (`presetTypes.ts`) et le projet n'a pas de format de document sur disque. Ce
+ *  type ne vit qu'en session. */
 export interface LayerTransform {
   x: number;
   y: number;
-  scale: number;
+  scaleX: number;
+  scaleY: number;
   rotation: number;
 }
 

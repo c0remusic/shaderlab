@@ -37,7 +37,7 @@ describe("isolationVisibleIds (écrêtage × isolation, §3.5)", () => {
       ...makeLayer(id, enabled),
       effectId: "passthrough",
       imageSource: { sourceId: `src-${id}` },
-      transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+      transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
     };
   }
   const clipped = (id: string, enabled = true): LayerState => ({ ...makeLayer(id, enabled), clipToBelow: true });

@@ -225,7 +225,7 @@ describe("FramePipelineExecutor", () => {
       id: "L1",
       effectId: "grain",
       imageSource: { sourceId: "photo-1" },
-      transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+      transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
     });
 
     executor.run([photoLayer], null);
@@ -263,7 +263,7 @@ describe("FramePipelineExecutor", () => {
         id,
         effectId: "glow", // effet réel à passes internes — voir registry
         imageSource: { sourceId },
-        transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+        transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
       });
     }
 
@@ -349,7 +349,7 @@ describe("FramePipelineExecutor", () => {
       id: "L1",
       effectId: "glow", // effet réel avec effect.passes — voir registry (Task 1)
       imageSource: { sourceId: "photo-1" },
-      transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+      transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
     });
 
     executor.run([photoLayer], null);
@@ -374,7 +374,7 @@ describe("FramePipelineExecutor — écrêtage", () => {
       id,
       effectId: "passthrough",
       imageSource: { sourceId },
-      transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+      transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
       ...overrides,
     });
   }
@@ -606,7 +606,7 @@ describe("FramePipelineExecutor — epochs de guide", () => {
   const background = layer({
     id: "BG",
     imageSource: { sourceId: "s1" },
-    transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+    transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
   });
   const above = layer({ id: "ABOVE" });
 
@@ -654,7 +654,7 @@ describe("FramePipelineExecutor — epochs de guide", () => {
     const rebuilds = trackGuideRebuilds(effects, masks);
 
     executor.run([background, above], null);
-    const deplacee = { ...background, transform: { x: 40, y: 0, scale: 1, rotation: 0 } };
+    const deplacee = { ...background, transform: { x: 40, y: 0, scaleX: 1, scaleY: 1, rotation: 0 } };
     executor.run([deplacee, above], null);
 
     expect(rebuilds("BG")).toBe(2);
@@ -669,7 +669,7 @@ describe("FramePipelineExecutor — epochs de guide", () => {
     const photoAuMilieu = layer({
       id: "MID",
       imageSource: { sourceId: "s2" },
-      transform: { x: 10, y: 10, scale: 1, rotation: 0 },
+      transform: { x: 10, y: 10, scaleX: 1, scaleY: 1, rotation: 0 },
     });
 
     executor.run([above, photoAuMilieu], null);

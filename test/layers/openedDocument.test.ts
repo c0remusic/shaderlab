@@ -27,7 +27,7 @@ describe("openDocument — les dimensions du calque de fond viennent du RENDERER
     const canvasSize = { width: 320, height: 240 };
     const { stack } = openDocument(fakeRenderer(canvasSize), "p");
     expect(stack.layers[0].transform).toEqual(resetTransform(canvasSize));
-    expect(stack.layers[0].transform).toEqual({ x: 160, y: 120, scale: 1, rotation: 0 });
+    expect(stack.layers[0].transform).toEqual({ x: 160, y: 120, scaleX: 1, scaleY: 1, rotation: 0 });
   });
 
   it("rend les dimensions de la toile, telles que le renderer les porte", () => {
@@ -45,7 +45,7 @@ describe("openDocument — les dimensions du calque de fond viennent du RENDERER
     // divergence que R4 nommait.
     const { stack, size } = openDocument(fakeRenderer({ width: 320, height: 320 }), "p");
     expect(size).toEqual({ width: 320, height: 320 });
-    expect(stack.layers[0].transform).toEqual({ x: 160, y: 160, scale: 1, rotation: 0 });
+    expect(stack.layers[0].transform).toEqual({ x: 160, y: 160, scaleX: 1, scaleY: 1, rotation: 0 });
     expect(stack.layers[0].transform).not.toEqual(resetTransform({ width: 256, height: 256 }));
   });
 

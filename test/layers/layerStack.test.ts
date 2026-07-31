@@ -444,7 +444,7 @@ describe("LayerStack — mutation outcomes (Task 3)", () => {
 describe("LayerStack photo layers", () => {
   it("addPhotoLayer crée un calque avec imageSource/transform et effectId=passthrough", () => {
     const stack = new LayerStack();
-    const transform = { x: 100, y: 50, scale: 1, rotation: 0 };
+    const transform = { x: 100, y: 50, scaleX: 1, scaleY: 1, rotation: 0 };
     const id = stack.addPhotoLayer("photo-1", transform);
     const layer = stack.layers.find((l) => l.id === id)!;
     expect(layer.effectId).toBe("passthrough");
@@ -456,13 +456,13 @@ describe("LayerStack photo layers", () => {
 
   it("addPhotoLayer pose le nom fourni sur le calque", () => {
     const stack = new LayerStack();
-    const id = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scale: 1, rotation: 0 }, "IMG_1234.jpg");
+    const id = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, "IMG_1234.jpg");
     expect(stack.layers.find((l) => l.id === id)!.name).toBe("IMG_1234.jpg");
   });
 
   it("addPhotoLayer sans nom laisse le champ name absent (pas de clé undefined)", () => {
     const stack = new LayerStack();
-    const id = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scale: 1, rotation: 0 });
+    const id = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
     const layer = stack.layers.find((l) => l.id === id)!;
     expect(layer.name).toBeUndefined();
     expect("name" in layer).toBe(false);
@@ -470,21 +470,21 @@ describe("LayerStack photo layers", () => {
 
   it("clone() préserve le nom d'un calque photo (survie à l'undo/redo)", () => {
     const stack = new LayerStack();
-    stack.addPhotoLayer("photo-1", { x: 0, y: 0, scale: 1, rotation: 0 }, "IMG_1234.jpg");
+    stack.addPhotoLayer("photo-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, "IMG_1234.jpg");
     expect(stack.clone().layers[0].name).toBe("IMG_1234.jpg");
   });
 
   it("updateLayerTransform remplace le transform d'un calque photo existant", () => {
     const stack = new LayerStack();
-    const id = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scale: 1, rotation: 0 });
-    const changed = stack.updateLayerTransform(id, { x: 10, y: 20, scale: 1.5, rotation: 0.2 });
+    const id = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
+    const changed = stack.updateLayerTransform(id, { x: 10, y: 20, scaleX: 1.5, scaleY: 1.5, rotation: 0.2 });
     expect(changed).toBe(true);
-    expect(stack.layers[0].transform).toEqual({ x: 10, y: 20, scale: 1.5, rotation: 0.2 });
+    expect(stack.layers[0].transform).toEqual({ x: 10, y: 20, scaleX: 1.5, scaleY: 1.5, rotation: 0.2 });
   });
 
   it("updateLayerTransform est un no-op (retourne false) si le transform n'a pas changé", () => {
     const stack = new LayerStack();
-    const t = { x: 0, y: 0, scale: 1, rotation: 0 };
+    const t = { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
     const id = stack.addPhotoLayer("photo-1", t);
     expect(stack.updateLayerTransform(id, { ...t })).toBe(false);
   });
@@ -492,20 +492,20 @@ describe("LayerStack photo layers", () => {
   it("updateLayerTransform retourne false pour un calque sans imageSource", () => {
     const stack = new LayerStack();
     const id = stack.addLayer("glow");
-    expect(stack.updateLayerTransform(id, { x: 0, y: 0, scale: 1, rotation: 0 })).toBe(false);
+    expect(stack.updateLayerTransform(id, { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 })).toBe(false);
   });
 
   it("updateLayerTransform retourne false pour un id absent", () => {
     const stack = new LayerStack();
-    expect(stack.updateLayerTransform("no-such-id", { x: 0, y: 0, scale: 1, rotation: 0 })).toBe(false);
+    expect(stack.updateLayerTransform("no-such-id", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 })).toBe(false);
   });
 
   it("clone() préserve imageSource/transform d'un calque photo", () => {
     const stack = new LayerStack();
-    stack.addPhotoLayer("photo-1", { x: 5, y: 5, scale: 2, rotation: 1 });
+    stack.addPhotoLayer("photo-1", { x: 5, y: 5, scaleX: 2, scaleY: 2, rotation: 1 });
     const copy = stack.clone();
     expect(copy.layers[0].imageSource).toEqual({ sourceId: "photo-1" });
-    expect(copy.layers[0].transform).toEqual({ x: 5, y: 5, scale: 2, rotation: 1 });
+    expect(copy.layers[0].transform).toEqual({ x: 5, y: 5, scaleX: 2, scaleY: 2, rotation: 1 });
   });
 });
 
@@ -554,7 +554,7 @@ describe("LayerStack — setLayerEffect (T6)", () => {
   // sans elle il rend `true` et l'effectId devient "glow".
   it("REFUSE un calque portant imageSource, sans rien muter", () => {
     const stack = new LayerStack();
-    const id = stack.addPhotoLayer("photo-1", { x: 3, y: 4, scale: 2, rotation: 0.5 });
+    const id = stack.addPhotoLayer("photo-1", { x: 3, y: 4, scaleX: 2, scaleY: 2, rotation: 0.5 });
     expect(stack.updateParams(id, { radius: 7 })).toBe(true);
     expect(stack.setLayerEffect(id, "glow")).toBe(false);
     const layer = stack.layers.find((l) => l.id === id)!;
@@ -570,7 +570,7 @@ describe("LayerStack — setLayerEffect (T6)", () => {
   // l'original, sinon il suffisait de dupliquer une photo pour la contourner.
   it("REFUSE aussi le duplicata d'un calque photo", () => {
     const stack = new LayerStack();
-    const id = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scale: 1, rotation: 0 });
+    const id = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
     const copy = stack.duplicateLayer(id)!;
     expect(stack.setLayerEffect(copy, "glow")).toBe(false);
     expect(stack.layers.find((l) => l.id === copy)!.effectId).toBe("passthrough");
@@ -681,7 +681,7 @@ describe("LayerStack.duplicateLayer", () => {
 
   it("un calque photo dupliqué partage le MÊME sourceId et copie sa transform", () => {
     const stack = new LayerStack();
-    const transform = { x: 10, y: 20, scale: 2, rotation: 0.5 };
+    const transform = { x: 10, y: 20, scaleX: 2, scaleY: 2, rotation: 0.5 };
     const id = stack.addPhotoLayer("photo-1", transform, "plage.jpg");
 
     stack.duplicateLayer(id);
@@ -695,7 +695,7 @@ describe("LayerStack.duplicateLayer", () => {
 
   it("nomme le duplicata « <nom> copie », et laisse un calque sans nom sans nom", () => {
     const stack = new LayerStack();
-    const named = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scale: 1, rotation: 0 }, "plage.jpg");
+    const named = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, "plage.jpg");
     stack.duplicateLayer(named);
     expect(stack.layers[1].name).toBe("plage.jpg copie");
 
@@ -727,7 +727,7 @@ describe("LayerStack — setLayerClip (écrêtage, 2026-07-27)", () => {
 
   it("REFUSE un calque photo — la garde vit dans le mutateur, pas au rendu", () => {
     const stack = new LayerStack();
-    const id = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scale: 1, rotation: 0 });
+    const id = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
     expect(stack.setLayerClip(id, true)).toBe(false);
     expect(stack.layers[0].clipToBelow).toBeUndefined();
   });
@@ -742,7 +742,7 @@ describe("LayerStack — setLayerClip (écrêtage, 2026-07-27)", () => {
   it("aucun calque ne peut porter À LA FOIS `imageSource` et `clipToBelow` (invariant dont dépend la fusion de colonnes)", () => {
     const stack = new LayerStack();
     // Sens 1 : une photo ne devient jamais écrêtée.
-    const photo = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scale: 1, rotation: 0 });
+    const photo = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
     stack.setLayerClip(photo, true);
     // Sens 2 : un calque écrêté ne devient jamais une photo — `imageSource`
     // n'est écrit qu'à la création et à la duplication, aucun mutateur ne

@@ -18,18 +18,22 @@ ${FULLSCREEN_VERTEX_WGSL}
 
 @group(0) @binding(0) var photoTexture: texture_2d<f32>;
 @group(0) @binding(1) var photoSampler: sampler;
-@group(0) @binding(2) var<uniform> params: array<f32, 8>;
+@group(0) @binding(2) var<uniform> params: array<f32, 10>;
 
 @fragment
 fn fs_photo_input(in: VertexOut) -> @location(0) vec4<f32> {
   let x = params[0];
   let y = params[1];
-  let scale = params[2];
+  let scaleX = params[2];
   let rotation = params[3];
   let bgWidth = params[4];
   let bgHeight = params[5];
   let photoWidth = params[6];
   let photoHeight = params[7];
+  // Ajouté en 9e slot plutôt qu'en remplaçant un existant : les huit premiers
+  // sont tous lus ci-dessous. Le 10e est un remplissage — garder un compte pair
+  // évite d'avoir à raisonner sur l'alignement du uniform à chaque ajout.
+  let scaleY = params[8];
 
   let px = in.uv.x * bgWidth;
   let py = in.uv.y * bgHeight;
@@ -39,8 +43,8 @@ fn fs_photo_input(in: VertexOut) -> @location(0) vec4<f32> {
   let s = sin(-rotation);
   let rx = dx * c - dy * s;
   let ry = dx * s + dy * c;
-  let lx = rx / scale;
-  let ly = ry / scale;
+  let lx = rx / scaleX;
+  let ly = ry / scaleY;
   let photoPx = lx + photoWidth * 0.5;
   let photoPy = ly + photoHeight * 0.5;
   let photoUv = vec2<f32>(photoPx / photoWidth, photoPy / photoHeight);
@@ -67,8 +71,17 @@ fn fs_photo_input(in: VertexOut) -> @location(0) vec4<f32> {
   // une photo reduite ou deplacee dont le bord tombe au milieu d'un pixel
   // rend toujours une valeur intermediaire, c'est ce qui lui donne un bord
   // propre. Seul le cas « la photo couvre exactement la toile » redevient 1.
-  let edgeDistPx = min(min(photoPx, photoWidth - photoPx), min(photoPy, photoHeight - photoPy));
-  let coverage = clamp(edgeDistPx * scale + 0.5, 0.0, 1.0);
+  // PAR AXE depuis que l'échelle en a deux. Une distance horizontale au bord
+  // se ramène en pixels écran par scaleX, une verticale par scaleY : prendre le
+  // minimum des distances PUIS multiplier par une échelle unique donnerait, sur
+  // une photo étirée, un bord antialiasé correctement sur un axe et faux sur
+  // l'autre — trop dur d'un côté, flou de l'autre. On ramène donc chaque
+  // distance en espace écran AVANT de prendre le minimum.
+  let edgeDistScreen = min(
+    min(photoPx, photoWidth - photoPx) * scaleX,
+    min(photoPy, photoHeight - photoPy) * scaleY
+  );
+  let coverage = clamp(edgeDistScreen + 0.5, 0.0, 1.0);
 
   let sample = textureSample(photoTexture, photoSampler, photoUv);
   return vec4<f32>(sample.rgb, coverage);
@@ -174,10 +187,15 @@ export class PhotoLayerInputResolver {
     // clamp dupliqué en WGSL. Sans ce clamp, un scale=0 (atteignable via un
     // futur import de preset, ARCHITECTURE.md R8) produirait `lx = rx /
     // scale` = division par zéro -> UV NaN côté GPU.
-    const safeScale = clampTransformScale(transform.scale);
+    const safeScaleX = clampTransformScale(transform.scaleX);
+    const safeScaleY = clampTransformScale(transform.scaleY);
+    // 10 valeurs pour `array<f32, 10>` : le 10e est un remplissage explicite,
+    // pas un oubli. Écrire moins que ce que le shader déclare laisserait le
+    // dernier slot indéterminé.
     const paramValues = new Float32Array([
-      transform.x, transform.y, safeScale, transform.rotation,
+      transform.x, transform.y, safeScaleX, transform.rotation,
       bgWidth, bgHeight, photoWidth, photoHeight,
+      safeScaleY, 0,
     ]);
     const paramBuffer = this.device.createBuffer({ size: paramValues.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     this.device.queue.writeBuffer(paramBuffer, 0, paramValues);

@@ -30,7 +30,7 @@ function backgroundLayer(name = "DSC_0042.jpg"): LayerState {
     effectId: "passthrough",
     name,
     imageSource: { sourceId: "s-background" },
-    transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+    transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
   });
 }
 
@@ -143,7 +143,7 @@ const clippedLayers: LayerState[] = [
     id: "layer-1",
     effectId: "passthrough",
     imageSource: { sourceId: "photo-1" },
-    transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+    transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
     name: "plage.jpg",
   }),
   makeLayer({ id: "layer-2", effectId: "glow", clipToBelow: true }),
@@ -187,9 +187,9 @@ export const ClippedWithoutBaseShowsNoArrow: Story = {
 // que l'ancienne règle ne faisait pas — B y restait racine parce que DEUX
 // photos étaient sous lui — et c'est le défaut qu'Antoine a constaté.
 const twoPhotoLayers: LayerState[] = [
-  makeLayer({ id: "photo-P", effectId: "passthrough", name: "plage.jpg", imageSource: { sourceId: "s-P" }, transform: { x: 0, y: 0, scale: 1, rotation: 0 } }),
+  makeLayer({ id: "photo-P", effectId: "passthrough", name: "plage.jpg", imageSource: { sourceId: "s-P" }, transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 } }),
   makeLayer({ id: "layer-A", effectId: "glow" }),
-  makeLayer({ id: "photo-Q", effectId: "passthrough", name: "ciel.jpg", imageSource: { sourceId: "s-Q" }, transform: { x: 0, y: 0, scale: 1, rotation: 0 } }),
+  makeLayer({ id: "photo-Q", effectId: "passthrough", name: "ciel.jpg", imageSource: { sourceId: "s-Q" }, transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 } }),
   makeLayer({ id: "layer-B", effectId: "grain" }),
 ];
 
@@ -250,7 +250,7 @@ const photoLayers: LayerState[] = [
     effectId: "passthrough",
     name: "IMG_1234.jpg",
     imageSource: { sourceId: "photo-1" },
-    transform: { x: 100, y: 100, scale: 1, rotation: 0 },
+    transform: { x: 100, y: 100, scaleX: 1, scaleY: 1, rotation: 0 },
   }),
   makeLayer({ id: "layer-2", effectId: "glow" }),
 ];
@@ -395,8 +395,8 @@ export const NoPerRowActions: Story = {
 //   5. effet simple   (rattaché par proximité à la photo qui le précède)
 const allRowForms: LayerState[] = [
   backgroundLayer(),
-  makeLayer({ id: "photo-P", effectId: "passthrough", name: "plage.jpg", imageSource: { sourceId: "s-P" }, transform: { x: 0, y: 0, scale: 1, rotation: 0 } }),
-  makeLayer({ id: "photo-Q", effectId: "passthrough", name: "ciel.jpg", imageSource: { sourceId: "s-Q" }, transform: { x: 0, y: 0, scale: 1, rotation: 0 } }),
+  makeLayer({ id: "photo-P", effectId: "passthrough", name: "plage.jpg", imageSource: { sourceId: "s-P" }, transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 } }),
+  makeLayer({ id: "photo-Q", effectId: "passthrough", name: "ciel.jpg", imageSource: { sourceId: "s-Q" }, transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 } }),
   makeLayer({ id: "effet-clip", effectId: "glow", clipToBelow: true }),
   makeLayer({ id: "effet-simple", effectId: "grain" }),
 ];
@@ -576,7 +576,7 @@ export const AllRowFormsShareOneGrid: Story = {
 const twoParentKinds: LayerState[] = [
   backgroundLayer(),
   makeLayer({ id: "layer-A", effectId: "glow" }),
-  makeLayer({ id: "photo-P", effectId: "passthrough", name: "plage.jpg", imageSource: { sourceId: "s-P" }, transform: { x: 0, y: 0, scale: 1, rotation: 0 } }),
+  makeLayer({ id: "photo-P", effectId: "passthrough", name: "plage.jpg", imageSource: { sourceId: "s-P" }, transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 } }),
   makeLayer({ id: "layer-B", effectId: "grain" }),
 ];
 

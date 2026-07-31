@@ -22,6 +22,9 @@ export interface TransformHandleGeometry {
    *  strictement plus grande que la photo, et l'overlay qui la dessinait
    *  affichait un cadre droit trop grand avec les pastilles flottant dedans. */
   corners: [PixelPoint, PixelPoint, PixelPoint, PixelPoint];
+  /** Milieux des 4 côtés (rotation comprise), ordre haut, droite, bas, gauche.
+   *  Ce sont les poignées d'échelle MONO-AXE. */
+  edges: [PixelPoint, PixelPoint, PixelPoint, PixelPoint];
   rotationHandle: PixelPoint;
 }
 
@@ -46,6 +49,22 @@ const CORNER_SIGNS: Record<CornerIndex, PixelPoint> = {
 /** Point d'ancrage d'un drag de coin. `oppositeCorner` = comportement
  *  Photoshop par défaut ; `center` = touche Alt maintenue. */
 export type ScaleAnchor = "oppositeCorner" | "center";
+
+/** Index des 4 poignées de CÔTÉ, dans l'ordre haut, droite, bas, gauche.
+ *  Elles n'existaient pas tant que l'échelle était unique : sans second axe,
+ *  une poignée de côté aurait fait exactement ce que fait un coin. */
+export const EDGE_INDICES = [0, 1, 2, 3] as const;
+export type EdgeIndex = (typeof EDGE_INDICES)[number];
+
+/** Normale sortante de chaque côté en repère LOCAL (avant rotation), même
+ *  ordre qu'`EDGE_INDICES`. Un seul des deux termes est non nul : c'est ce qui
+ *  fait qu'une poignée de côté ne touche QU'UN axe. */
+const EDGE_NORMALS: Record<EdgeIndex, PixelPoint> = {
+  0: { x: 0, y: -1 },
+  1: { x: 1, y: 0 },
+  2: { x: 0, y: 1 },
+  3: { x: -1, y: 0 },
+};
 
 /** Rectangle en pixels CSS, relatif à l'élément positionné qui porte l'overlay. */
 export interface OverlayRect {
@@ -130,9 +149,8 @@ export function compositeUvToPhotoUv(
   const sin = Math.sin(-transform.rotation);
   const rx = dx * cos - dy * sin;
   const ry = dx * sin + dy * cos;
-  const scale = clampTransformScale(transform.scale);
-  const lx = rx / scale;
-  const ly = ry / scale;
+  const lx = rx / clampTransformScale(transform.scaleX);
+  const ly = ry / clampTransformScale(transform.scaleY);
   const photoPx = lx + photoSize.width / 2;
   const photoPy = ly + photoSize.height / 2;
   if (photoPx < 0 || photoPx >= photoSize.width || photoPy < 0 || photoPy >= photoSize.height) {
@@ -161,7 +179,7 @@ export function snapAngle(rotation: number, stepDegrees: number = ANGLE_SNAP_DEG
  *  (`usePhotoLayer.handleImportPhotoLayer`) — « Réinitialiser » doit rendre
  *  exactement l'état initial, pas une approximation. */
 export function resetTransform(bgSize: PixelSize): LayerTransform {
-  return { x: bgSize.width / 2, y: bgSize.height / 2, scale: 1, rotation: 0 };
+  return { x: bgSize.width / 2, y: bgSize.height / 2, scaleX: 1, scaleY: 1, rotation: 0 };
 }
 
 /** Recentre sur le fond sans toucher à l'échelle ni à la rotation. */
@@ -199,8 +217,12 @@ export function centerTransform(transform: LayerTransform, bgSize: PixelSize): L
  */
 export function fitToCanvas(transform: LayerTransform, bgSize: PixelSize, photoSize: PixelSize): LayerTransform {
   if (photoSize.width <= 0 || photoSize.height <= 0) return { ...transform };
+  // « Ajuster » reste HOMOTHÉTIQUE, y compris depuis une photo étirée : le
+  // bouton dit qu'il fait tenir la photo dans la toile, pas qu'il la déforme
+  // pour la remplir. C'est aussi le seul geste qui redresse une photo étirée
+  // sans passer par la saisie au clavier.
   const scale = clampTransformScale(Math.min(bgSize.width / photoSize.width, bgSize.height / photoSize.height));
-  return { ...transform, x: bgSize.width / 2, y: bgSize.height / 2, scale };
+  return { ...transform, x: bgSize.width / 2, y: bgSize.height / 2, scaleX: scale, scaleY: scale };
 }
 
 function rotatePoint(local: PixelPoint, transform: LayerTransform): PixelPoint {
@@ -213,24 +235,54 @@ function rotatePoint(local: PixelPoint, transform: LayerTransform): PixelPoint {
 }
 
 /** Géométrie écran (coordonnées pixels du fond) des poignées de
- *  `TransformHandles` : 4 coins pour l'échelle uniforme, 1 poignée dédiée
- *  au-dessus de la box pour la rotation — jamais de déformation
- *  non-uniforme (hors-scope v1, design doc). */
+ *  `TransformHandles` : 4 coins (échelle des DEUX axes), 4 milieux de côté
+ *  (échelle d'UN axe), 1 poignée dédiée au-dessus de la box pour la rotation. */
 export function computeHandleGeometry(transform: LayerTransform, photoSize: PixelSize): TransformHandleGeometry {
-  const halfH = (photoSize.height * transform.scale) / 2;
+  const halfH = (photoSize.height * transform.scaleY) / 2;
   const corners = CORNER_INDICES.map((index) =>
-    rotatePoint(scaledCornerOffset(index, photoSize, transform.scale), transform),
+    rotatePoint(scaledCornerOffset(index, photoSize, transform), transform),
   ) as TransformHandleGeometry["corners"];
+  const edges = EDGE_INDICES.map((index) =>
+    rotatePoint(scaledEdgeOffset(index, photoSize, transform), transform),
+  ) as TransformHandleGeometry["edges"];
   const rotationHandle = rotatePoint({ x: 0, y: -halfH - ROTATION_HANDLE_OFFSET_PX }, transform);
-  return { corners, rotationHandle };
+  return { corners, edges, rotationHandle };
 }
 
-/** Décalage d'un coin par rapport au centre, AVANT rotation, à l'échelle
- *  donnée. Le coin opposé est exactement son opposé vectoriel — c'est cette
+/** Décalage d'un coin par rapport au centre, AVANT rotation, aux échelles
+ *  données. Le coin opposé est exactement son opposé vectoriel — c'est cette
  *  symétrie qui rend l'ancrage au coin opposé calculable en une ligne. */
-function scaledCornerOffset(index: CornerIndex, photoSize: PixelSize, scale: number): PixelPoint {
+function scaledCornerOffset(index: CornerIndex, photoSize: PixelSize, scale: AxisScale): PixelPoint {
   const sign = CORNER_SIGNS[index];
-  return { x: (sign.x * photoSize.width * scale) / 2, y: (sign.y * photoSize.height * scale) / 2 };
+  return { x: (sign.x * photoSize.width * scale.scaleX) / 2, y: (sign.y * photoSize.height * scale.scaleY) / 2 };
+}
+
+/** Décalage du MILIEU d'un côté par rapport au centre, avant rotation. */
+function scaledEdgeOffset(index: EdgeIndex, photoSize: PixelSize, scale: AxisScale): PixelPoint {
+  const n = EDGE_NORMALS[index];
+  return { x: (n.x * photoSize.width * scale.scaleX) / 2, y: (n.y * photoSize.height * scale.scaleY) / 2 };
+}
+
+/** Les deux facteurs d'échelle, seuls — assez pour toute la géométrie
+ *  ci-dessus, et acceptable depuis un `LayerTransform` entier par
+ *  structuralité. */
+export interface AxisScale {
+  scaleX: number;
+  scaleY: number;
+}
+
+/** Ramène un vecteur du repère du FOND vers le repère LOCAL de la photo
+ *  (rotation inverse).
+ *
+ *  C'est la pièce qui rend l'échelle par axe possible : tant qu'une seule
+ *  échelle existait, un simple RATIO DE DISTANCES suffisait et se moquait de
+ *  l'orientation. Deux axes obligent à savoir quelle part du déplacement va
+ *  dans la largeur de la photo et quelle part dans sa hauteur — ce que seule
+ *  la rotation inverse répond. */
+function toLocal(delta: PixelPoint, rotation: number): PixelPoint {
+  const cos = Math.cos(-rotation);
+  const sin = Math.sin(-rotation);
+  return { x: delta.x * cos - delta.y * sin, y: delta.x * sin + delta.y * cos };
 }
 
 /**
@@ -259,24 +311,35 @@ export function transformFromCornerDrag(
   pointer: PixelPoint,
   cornerIndex: CornerIndex,
   anchor: ScaleAnchor = "oppositeCorner",
+  proportional = false,
 ): LayerTransform {
-  const baseHalfDiagonal = Math.hypot(photoSize.width / 2, photoSize.height / 2);
-  if (baseHalfDiagonal === 0) return { ...transform };
+  if (photoSize.width <= 0 || photoSize.height <= 0) return { ...transform };
 
   if (anchor === "center") {
-    const distance = Math.hypot(pointer.x - transform.x, pointer.y - transform.y);
-    return { ...transform, scale: clampTransformScale(distance / baseHalfDiagonal) };
+    // Depuis le CENTRE, le coin est à une demi-largeur et une demi-hauteur.
+    const local = toLocal({ x: pointer.x - transform.x, y: pointer.y - transform.y }, transform.rotation);
+    const free = {
+      scaleX: clampTransformScale(Math.abs(local.x) / (photoSize.width / 2)),
+      scaleY: clampTransformScale(Math.abs(local.y) / (photoSize.height / 2)),
+    };
+    return { ...transform, ...constrainRatio(free, transform, proportional) };
   }
 
   // Ancre = position ÉCRAN du coin opposé à l'échelle courante, donc là où sa
   // pastille est dessinée — pas une position théorique recalculée autrement.
-  const draggedOffset = scaledCornerOffset(cornerIndex, photoSize, transform.scale);
+  const draggedOffset = scaledCornerOffset(cornerIndex, photoSize, transform);
   const anchorPoint = rotatePoint({ x: -draggedOffset.x, y: -draggedOffset.y }, transform);
 
-  // L'ancre et le coin tiré sont diamétralement opposés : leur écart vaut la
-  // DIAGONALE complète (2 × demi-diagonale), pas la demi-diagonale.
-  const distance = Math.hypot(pointer.x - anchorPoint.x, pointer.y - anchorPoint.y);
-  const scale = clampTransformScale(distance / (2 * baseHalfDiagonal));
+  // VALEUR ABSOLUE et non projection signée : traverser l'ancre pendant le drag
+  // ne peut donc ni retourner la box ni produire de discontinuité. C'est
+  // l'invariant que tenait déjà le ratio de distances de la version à échelle
+  // unique — il est conservé, axe par axe.
+  const local = toLocal({ x: pointer.x - anchorPoint.x, y: pointer.y - anchorPoint.y }, transform.rotation);
+  const free = {
+    scaleX: clampTransformScale(Math.abs(local.x) / photoSize.width),
+    scaleY: clampTransformScale(Math.abs(local.y) / photoSize.height),
+  };
+  const scale = constrainRatio(free, transform, proportional);
 
   const nextOffset = scaledCornerOffset(cornerIndex, photoSize, scale);
   const cos = Math.cos(transform.rotation);
@@ -285,7 +348,81 @@ export function transformFromCornerDrag(
     ...transform,
     x: anchorPoint.x + nextOffset.x * cos - nextOffset.y * sin,
     y: anchorPoint.y + nextOffset.x * sin + nextOffset.y * cos,
-    scale,
+    ...scale,
+  };
+}
+
+/**
+ * Contrainte de proportions (`Maj` maintenu) : garde le rapport d'axes COURANT
+ * plutôt que de forcer un carré.
+ *
+ * Une photo déjà étirée à 2:1 et qu'on redimensionne avec `Maj` doit rester à
+ * 2:1 — c'est ce que « contraindre les proportions » veut dire partout
+ * ailleurs. Forcer `scaleY = scaleX` réparerait la déformation sans qu'on l'ait
+ * demandé, et rendrait impossible d'agrandir une photo étirée sans la
+ * redresser.
+ *
+ * L'axe qui MÈNE est celui qui a le plus bougé en proportion : sans ce choix,
+ * un drag surtout horizontal serait piloté par le résidu vertical et la box
+ * suivrait mal le curseur.
+ */
+function constrainRatio(free: AxisScale, current: LayerTransform, proportional: boolean): AxisScale {
+  if (!proportional) return free;
+  const ratio = current.scaleX > 0 ? current.scaleY / current.scaleX : 1;
+  const changeX = current.scaleX > 0 ? Math.abs(free.scaleX / current.scaleX - 1) : 0;
+  const changeY = current.scaleY > 0 ? Math.abs(free.scaleY / current.scaleY - 1) : 0;
+  if (changeX >= changeY) {
+    return { scaleX: free.scaleX, scaleY: clampTransformScale(free.scaleX * ratio) };
+  }
+  const inverse = ratio > 0 ? 1 / ratio : 1;
+  return { scaleX: clampTransformScale(free.scaleY * inverse), scaleY: free.scaleY };
+}
+
+/**
+ * Drag d'une poignée de CÔTÉ : une seule échelle change, l'autre est intacte.
+ *
+ * Même contrat d'ancrage que le drag de coin — le côté OPPOSÉ reste
+ * rigoureusement immobile, `Alt` rebascule sur le centre — et même point fixe :
+ * réappliquer la fonction pendant le drag ne dérive pas.
+ *
+ * L'axe touché est celui de la NORMALE du côté, en repère local : tirer la
+ * poignée droite d'une photo tournée à 30° étire toujours sa largeur à elle, et
+ * jamais une largeur écran qui n'a aucun sens pour la photo.
+ */
+export function transformFromEdgeDrag(
+  transform: LayerTransform,
+  photoSize: PixelSize,
+  pointer: PixelPoint,
+  edgeIndex: EdgeIndex,
+  anchor: ScaleAnchor = "oppositeCorner",
+): LayerTransform {
+  if (photoSize.width <= 0 || photoSize.height <= 0) return { ...transform };
+  const normal = EDGE_NORMALS[edgeIndex];
+  const horizontal = normal.x !== 0;
+
+  if (anchor === "center") {
+    const local = toLocal({ x: pointer.x - transform.x, y: pointer.y - transform.y }, transform.rotation);
+    return horizontal
+      ? { ...transform, scaleX: clampTransformScale(Math.abs(local.x) / (photoSize.width / 2)) }
+      : { ...transform, scaleY: clampTransformScale(Math.abs(local.y) / (photoSize.height / 2)) };
+  }
+
+  const draggedOffset = scaledEdgeOffset(edgeIndex, photoSize, transform);
+  const anchorPoint = rotatePoint({ x: -draggedOffset.x, y: -draggedOffset.y }, transform);
+  const local = toLocal({ x: pointer.x - anchorPoint.x, y: pointer.y - anchorPoint.y }, transform.rotation);
+
+  const scale: AxisScale = horizontal
+    ? { scaleX: clampTransformScale(Math.abs(local.x) / photoSize.width), scaleY: transform.scaleY }
+    : { scaleX: transform.scaleX, scaleY: clampTransformScale(Math.abs(local.y) / photoSize.height) };
+
+  const nextOffset = scaledEdgeOffset(edgeIndex, photoSize, scale);
+  const cos = Math.cos(transform.rotation);
+  const sin = Math.sin(transform.rotation);
+  return {
+    ...transform,
+    x: anchorPoint.x + nextOffset.x * cos - nextOffset.y * sin,
+    y: anchorPoint.y + nextOffset.x * sin + nextOffset.y * cos,
+    ...scale,
   };
 }
 

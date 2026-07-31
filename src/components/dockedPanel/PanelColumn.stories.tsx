@@ -171,7 +171,7 @@ const twoPhotoDocument: LayerState[] = [
     effectId: "passthrough",
     name: "DSCF5160.JPG",
     imageSource: { sourceId: "s0" },
-    transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+    transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
   }),
   makeStoryLayer({ id: "glow", effectId: "glow" }),
   makeStoryLayer({ id: "grain", effectId: "grain" }),
@@ -183,7 +183,7 @@ const twoPhotoDocument: LayerState[] = [
     // nom court laisserait de la marge et la garde ne garderait rien.
     name: "DSCF5160-edited-panorama-final.JPG",
     imageSource: { sourceId: "s1" },
-    transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+    transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
   }),
   makeStoryLayer({ id: "bleed", effectId: "chromaticBleed", clipToBelow: true }),
 ];

@@ -25,7 +25,7 @@ function photo(sourceId: string, index: number): LayerState {
     id: `layer-${index}`,
     effectId: "passthrough",
     imageSource: { sourceId },
-    transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+    transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
   });
 }
 
@@ -77,9 +77,9 @@ describe("capture", () => {
   it("reports each excluded layer's index in `layers`, in original order (not the compacted output index)", () => {
     const layers = [
       layer({ id: "layer-1", effectId: "glow" }),
-      layer({ id: "layer-2", effectId: "passthrough", imageSource: { sourceId: "src-1" }, transform: { x: 0, y: 0, scale: 1, rotation: 0 } }),
+      layer({ id: "layer-2", effectId: "passthrough", imageSource: { sourceId: "src-1" }, transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 } }),
       layer({ id: "layer-3", effectId: "grain" }),
-      layer({ id: "layer-4", effectId: "passthrough", imageSource: { sourceId: "src-2" }, transform: { x: 0, y: 0, scale: 1, rotation: 0 } }),
+      layer({ id: "layer-4", effectId: "passthrough", imageSource: { sourceId: "src-2" }, transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 } }),
     ];
     const { skipped } = capture(layers, "Deux photos");
     expect(skipped).toEqual([
@@ -177,7 +177,7 @@ describe("apply", () => {
   it("ne produit JAMAIS de calque photo, même si le fichier en porte les champs", () => {
     const forged = {
       ...basePreset,
-      layers: [{ ...basePreset.layers[0], imageSource: { sourceId: "src-forge" }, transform: { x: 0, y: 0, scale: 1, rotation: 0 } }],
+      layers: [{ ...basePreset.layers[0], imageSource: { sourceId: "src-forge" }, transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 } }],
     } as PresetDocument;
     const { layers } = apply(forged, effectExists, effectParams, () => "fresh-1");
     expect(layers.every((l) => l.imageSource === undefined && l.transform === undefined)).toBe(true);

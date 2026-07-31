@@ -23,7 +23,7 @@ describe("photoLayer guards", () => {
     const stack = new LayerStack();
     stack.addLayer("glow");
     expect(countPhotoLayers(stack.layers)).toBe(0);
-    stack.addPhotoLayer("photo-1", { x: 0, y: 0, scale: 1, rotation: 0 });
+    stack.addPhotoLayer("photo-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
     expect(countPhotoLayers(stack.layers)).toBe(1);
   });
 
@@ -31,7 +31,7 @@ describe("photoLayer guards", () => {
     const stack = new LayerStack();
     for (let i = 0; i < MAX_PHOTO_LAYERS; i++) {
       expect(canAddPhotoLayer(stack.layers)).toBe(true);
-      stack.addPhotoLayer(`photo-${i + 1}`, { x: 0, y: 0, scale: 1, rotation: 0 });
+      stack.addPhotoLayer(`photo-${i + 1}`, { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
     }
     expect(countPhotoLayers(stack.layers)).toBe(MAX_PHOTO_LAYERS);
     expect(canAddPhotoLayer(stack.layers)).toBe(false);
@@ -39,9 +39,9 @@ describe("photoLayer guards", () => {
 
   it("countPhotoLayers ignore les calques d'effet intercalés entre les calques photo", () => {
     const stack = new LayerStack();
-    stack.addPhotoLayer("photo-1", { x: 0, y: 0, scale: 1, rotation: 0 });
+    stack.addPhotoLayer("photo-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
     stack.addLayer("glow");
-    stack.addPhotoLayer("photo-2", { x: 0, y: 0, scale: 1, rotation: 0 });
+    stack.addPhotoLayer("photo-2", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
     expect(stack.layers).toHaveLength(3);
     expect(countPhotoLayers(stack.layers)).toBe(2);
   });
@@ -56,7 +56,7 @@ describe("photoLayer guards", () => {
   // sont donc conservés tels quels, seule leur justification change.
   it("est FAUX sur le document nominal : la seule photo est celle d'ouverture, en bas de pile", () => {
     const stack = new LayerStack();
-    stack.addPhotoLayer("photo-fond", { x: 0, y: 0, scale: 1, rotation: 0 });
+    stack.addPhotoLayer("photo-fond", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
     expect(hasImportedPhotoLayer(stack.layers)).toBe(false);
     // Empiler des EFFETS par-dessus le fond ne change rien : le document reste
     // une retouche de la photo d'ouverture.
@@ -67,8 +67,8 @@ describe("photoLayer guards", () => {
 
   it("devient VRAI dès qu'une seconde photo est importée", () => {
     const stack = new LayerStack();
-    stack.addPhotoLayer("photo-fond", { x: 0, y: 0, scale: 1, rotation: 0 });
-    stack.addPhotoLayer("photo-2", { x: 0, y: 0, scale: 1, rotation: 0 });
+    stack.addPhotoLayer("photo-fond", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
+    stack.addPhotoLayer("photo-2", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
     expect(hasImportedPhotoLayer(stack.layers)).toBe(true);
   });
 
@@ -77,14 +77,14 @@ describe("photoLayer guards", () => {
   // photo qui l'a ouvert.
   it("devient VRAI si le fond est supprimé, ou s'il n'est plus en bas de pile", () => {
     const removed = new LayerStack();
-    removed.addPhotoLayer("photo-fond", { x: 0, y: 0, scale: 1, rotation: 0 });
+    removed.addPhotoLayer("photo-fond", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
     removed.addLayer("glow");
     removed.removeLayer(removed.layers[0].id);
     expect(hasImportedPhotoLayer(removed.layers)).toBe(true);
 
     const moved = new LayerStack();
     moved.addLayer("glow");
-    moved.addPhotoLayer("photo-fond", { x: 0, y: 0, scale: 1, rotation: 0 });
+    moved.addPhotoLayer("photo-fond", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
     expect(moved.layers[0].imageSource).toBeUndefined();
     expect(hasImportedPhotoLayer(moved.layers)).toBe(true);
   });
@@ -106,7 +106,7 @@ describe("photoLayer guards", () => {
 describe("bottomPhotoSourceId — l'image que les masques paramétriques échantillonnent", () => {
   it("rend la photo de FOND sur le document nominal, effets empilés compris", () => {
     const stack = new LayerStack();
-    stack.addPhotoLayer("src-fond", { x: 0, y: 0, scale: 1, rotation: 0 });
+    stack.addPhotoLayer("src-fond", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
     stack.addLayer("glow");
     stack.addLayer("grain");
     expect(bottomPhotoSourceId(stack.layers)).toBe("src-fond");
@@ -114,8 +114,8 @@ describe("bottomPhotoSourceId — l'image que les masques paramétriques échant
 
   it("rend la photo la PLUS BASSE, pas la dernière importée", () => {
     const stack = new LayerStack();
-    stack.addPhotoLayer("src-fond", { x: 0, y: 0, scale: 1, rotation: 0 });
-    stack.addPhotoLayer("src-import", { x: 0, y: 0, scale: 1, rotation: 0 });
+    stack.addPhotoLayer("src-fond", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
+    stack.addPhotoLayer("src-import", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
     expect(bottomPhotoSourceId(stack.layers)).toBe("src-fond");
   });
 
@@ -125,7 +125,7 @@ describe("bottomPhotoSourceId — l'image que les masques paramétriques échant
     // descendre jusqu'à la première vraie photo.
     const stack = new LayerStack();
     stack.addLayer("glow");
-    stack.addPhotoLayer("src-fond", { x: 0, y: 0, scale: 1, rotation: 0 });
+    stack.addPhotoLayer("src-fond", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
     expect(bottomPhotoSourceId(stack.layers)).toBe("src-fond");
   });
 
@@ -154,7 +154,7 @@ describe("photoGuideKey — ce dont le guide d'un calque photo dépend", () => {
     blendMode: "normal",
     mask: defaultLayerMask(),
     imageSource: { sourceId: "s1" },
-    transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+    transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
     ...over,
   });
 
@@ -177,10 +177,10 @@ describe("photoGuideKey — ce dont le guide d'un calque photo dépend", () => {
   it("change sur CHACUN des quatre champs de transformation", () => {
     const base = photoGuideKey(photo());
     for (const t of [
-      { x: 1, y: 0, scale: 1, rotation: 0 },
-      { x: 0, y: 1, scale: 1, rotation: 0 },
-      { x: 0, y: 0, scale: 1.5, rotation: 0 },
-      { x: 0, y: 0, scale: 1, rotation: 0.2 },
+      { x: 1, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
+      { x: 0, y: 1, scaleX: 1, scaleY: 1, rotation: 0 },
+      { x: 0, y: 0, scaleX: 1.5, scaleY: 1.5, rotation: 0 },
+      { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0.2 },
     ]) {
       expect(photoGuideKey(photo({ transform: t }))).not.toBe(base);
     }

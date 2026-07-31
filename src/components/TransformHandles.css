@@ -59,6 +59,33 @@
   cursor: nwse-resize;
 }
 
+/* Poignées de CÔTÉ (échelle mono-axe). Rectangulaires et non rondes : la forme
+   dit l'axe qu'elles touchent avant même le survol, là où quatre pastilles
+   identiques aux coins n'auraient rien annoncé. Même remplissage et même
+   contour que les coins — c'est la même famille de contrôle. */
+.transform-handles__edge {
+  position: absolute;
+  background: var(--text-value);
+  border: 1px solid var(--outline-contrast);
+  pointer-events: auto;
+}
+
+/* Côtés HAUT et BAS : la poignée est large et plate, et elle étire la HAUTEUR. */
+.transform-handles__edge--vertical {
+  width: calc(var(--slider-thumb-size) * 2);
+  height: var(--slider-thumb-size);
+  margin: calc(var(--slider-thumb-size) / -2) calc(var(--slider-thumb-size) * -1);
+  cursor: ns-resize;
+}
+
+/* Côtés GAUCHE et DROIT : haute et étroite, elle étire la LARGEUR. */
+.transform-handles__edge--horizontal {
+  width: var(--slider-thumb-size);
+  height: calc(var(--slider-thumb-size) * 2);
+  margin: calc(var(--slider-thumb-size) * -1) calc(var(--slider-thumb-size) / -2);
+  cursor: ew-resize;
+}
+
 .transform-handles__rotation {
   position: absolute;
   width: var(--slider-thumb-size);

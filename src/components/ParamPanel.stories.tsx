@@ -131,7 +131,7 @@ export const PhotoLayerHasNoClipToggle: Story = {
       id: "layer-5",
       effectId: "passthrough",
       imageSource: { sourceId: "photo-1" },
-      transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+      transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
     }),
   },
   play: async ({ canvasElement }) => {

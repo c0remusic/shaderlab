@@ -18,7 +18,7 @@ function photoLayer(id: string, transform: Partial<LayerTransform> = {}, extra: 
     blendMode: "normal",
     mask: { sources: [] } as unknown as LayerState["mask"],
     imageSource: { sourceId: `src-${id}` },
-    transform: { x: 500, y: 500, scale: 1, rotation: 0, ...transform },
+    transform: { x: 500, y: 500, scaleX: 1, scaleY: 1, rotation: 0, ...transform },
     ...extra,
   };
 }
@@ -60,7 +60,7 @@ describe("hitTestPhotoLayer — géométrie", () => {
 
   it("respecte l'échelle : un point hors de la photo à l'échelle 1 entre dedans à l'échelle 4", () => {
     expect(hitTestPhotoLayer([photoLayer("a")], { x: 850, y: 500 }, BG, sizeOf)).toBeNull();
-    expect(hitTestPhotoLayer([photoLayer("a", { scale: 4 })], { x: 850, y: 500 }, BG, sizeOf)).toBe("a");
+    expect(hitTestPhotoLayer([photoLayer("a", { scaleX: 4, scaleY: 4 })], { x: 850, y: 500 }, BG, sizeOf)).toBe("a");
   });
 
   it("respecte la rotation : un coin de la box non tournée sort de la box tournée à 90°", () => {

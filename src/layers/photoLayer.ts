@@ -123,7 +123,7 @@ export function bottomPhotoSourceId(layers: LayerState[]): string | null {
 export function photoGuideKey(layer: LayerState | undefined): string | null {
   if (!layer?.imageSource || !layer.transform) return null;
   const t = layer.transform;
-  return `${layer.imageSource.sourceId}|${t.x}|${t.y}|${t.scale}|${t.rotation}`;
+  return `${layer.imageSource.sourceId}|${t.x}|${t.y}|${t.scaleX}|${t.scaleY}|${t.rotation}`;
 }
 
 /**

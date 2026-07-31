@@ -132,15 +132,28 @@ export function PhotoPanel({ layer, thumbnailUrl, onTransformChange, onTransform
             step={1}
             onCommit={(y) => commitTransform({ ...transform, y })}
           />
+          {/* DEUX champs depuis que l'échelle a deux axes : le champ unique
+              d'avant ne pouvait pas exprimer une photo étirée, et aurait dû
+              choisir en silence lequel des deux axes il affichait. */}
           <NumberField
             classNames={PHOTO_FIELD_CLASSES}
-            label="Échelle"
+            label="Échelle X"
             unit="%"
-            value={Math.round(transform.scale * 100)}
+            value={Math.round(transform.scaleX * 100)}
             min={SCALE_MIN_PERCENT}
             max={SCALE_MAX_PERCENT}
             step={1}
-            onCommit={(percent) => commitTransform({ ...transform, scale: percent / 100 })}
+            onCommit={(percent) => commitTransform({ ...transform, scaleX: percent / 100 })}
+          />
+          <NumberField
+            classNames={PHOTO_FIELD_CLASSES}
+            label="Échelle Y"
+            unit="%"
+            value={Math.round(transform.scaleY * 100)}
+            min={SCALE_MIN_PERCENT}
+            max={SCALE_MAX_PERCENT}
+            step={1}
+            onCommit={(percent) => commitTransform({ ...transform, scaleY: percent / 100 })}
           />
           <NumberField
             classNames={PHOTO_FIELD_CLASSES}

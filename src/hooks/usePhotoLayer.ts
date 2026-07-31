@@ -117,7 +117,7 @@ export function usePhotoLayer({
       // pour que le re-render qui crée la ligne ait déjà sa vignette — sinon
       // elle n'apparaîtrait qu'au prochain re-render fortuit.
       const sourceId = await rendererRef.current.photoSources.register(bitmap);
-      const transform: LayerTransform = { x: imageSize.width / 2, y: imageSize.height / 2, scale: 1, rotation: 0 };
+      const transform: LayerTransform = { x: imageSize.width / 2, y: imageSize.height / 2, scaleX: 1, scaleY: 1, rotation: 0 };
       const stack = currentStack();
       // La photo s'insère JUSTE AU-DESSUS du calque sélectionné (parité
       // Photoshop, `LayerStack.insertIndexAfter`) ; sans sélection, en haut de
@@ -204,7 +204,7 @@ export function usePhotoLayer({
   const handleTransformChange = useCallback(
     (id: string, transform: LayerTransform) => {
       const previous = sessionRef.current.layers().find((l) => l.id === id);
-      if (previous?.transform && (previous.transform.x !== transform.x || previous.transform.y !== transform.y || previous.transform.scale !== transform.scale || previous.transform.rotation !== transform.rotation)) {
+      if (previous?.transform && (previous.transform.x !== transform.x || previous.transform.y !== transform.y || previous.transform.scaleX !== transform.scaleX || previous.transform.scaleY !== transform.scaleY || previous.transform.rotation !== transform.rotation)) {
         paramDirtyRef.current = true;
       }
       const full = sessionRef.current.layers().map((l) => (l.id === id ? { ...l, transform } : l));

@@ -23,7 +23,7 @@ function lockedStack(): { stack: LayerStack; id: string } {
 
 function lockedPhotoStack(): { stack: LayerStack; id: string } {
   const stack = new LayerStack();
-  const id = stack.addPhotoLayer("source-1", { x: 0, y: 0, scale: 1, rotation: 0 }, "plage.jpg");
+  const id = stack.addPhotoLayer("source-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, "plage.jpg");
   expect(stack.setLayerLocked(id, true)).toBe(true);
   return { stack, id };
 }
@@ -74,8 +74,8 @@ describe("opérations REFUSÉES sur un calque verrouillé", () => {
 
   it("updateLayerTransform", () => {
     const { stack, id } = lockedPhotoStack();
-    expect(stack.updateLayerTransform(id, { x: 50, y: 50, scale: 2, rotation: 1 })).toBe(false);
-    expect(stack.layers[0].transform).toEqual({ x: 0, y: 0, scale: 1, rotation: 0 });
+    expect(stack.updateLayerTransform(id, { x: 50, y: 50, scaleX: 2, scaleY: 2, rotation: 1 })).toBe(false);
+    expect(stack.layers[0].transform).toEqual({ x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
   });
 
   it("removeLayer", () => {

@@ -47,7 +47,7 @@ describe("PhotoLayerInputResolver", () => {
       100,
       1000,
       800,
-      { x: 500, y: 400, scale: 1, rotation: 0 },
+      { x: 500, y: 400, scaleX: 1, scaleY: 1, rotation: 0 },
       pendingDestroy,
     );
 
@@ -57,7 +57,8 @@ describe("PhotoLayerInputResolver", () => {
     expect(device.queue.writeBuffer).toHaveBeenCalledWith(
       expect.anything(),
       0,
-      new Float32Array([500, 400, 1, 0, 1000, 800, 200, 100]),
+      // 10 slots depuis que l'echelle a deux axes : scaleY en 9e, remplissage en 10e.
+      new Float32Array([500, 400, 1, 0, 1000, 800, 200, 100, 1, 0]),
     );
     expect(target).toBeDefined();
   });
@@ -67,7 +68,7 @@ describe("PhotoLayerInputResolver", () => {
     const resolver = new PhotoLayerInputResolver(device as unknown as GPUDevice, "bgra8unorm-srgb", {} as GPUSampler);
     const pendingDestroy: (GPUTexture | GPUBuffer)[] = [];
 
-    resolver.resolve(encoder as unknown as GPUCommandEncoder, texture() as unknown as GPUTexture, 10, 10, 100, 100, { x: 0, y: 0, scale: 1, rotation: 0 }, pendingDestroy);
+    resolver.resolve(encoder as unknown as GPUCommandEncoder, texture() as unknown as GPUTexture, 10, 10, 100, 100, { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, pendingDestroy);
 
     expect(pendingDestroy).toHaveLength(1); // le paramBuffer, pas la texture cible
   });
@@ -76,8 +77,8 @@ describe("PhotoLayerInputResolver", () => {
     const { device, encoder } = createDevice();
     const resolver = new PhotoLayerInputResolver(device as unknown as GPUDevice, "bgra8unorm-srgb", {} as GPUSampler);
 
-    resolver.resolve(encoder as unknown as GPUCommandEncoder, texture() as unknown as GPUTexture, 10, 10, 100, 100, { x: 0, y: 0, scale: 1, rotation: 0 }, []);
-    resolver.resolve(encoder as unknown as GPUCommandEncoder, texture() as unknown as GPUTexture, 10, 10, 100, 100, { x: 0, y: 0, scale: 1, rotation: 0 }, []);
+    resolver.resolve(encoder as unknown as GPUCommandEncoder, texture() as unknown as GPUTexture, 10, 10, 100, 100, { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, []);
+    resolver.resolve(encoder as unknown as GPUCommandEncoder, texture() as unknown as GPUTexture, 10, 10, 100, 100, { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, []);
 
     expect(device.createRenderPipeline).toHaveBeenCalledOnce();
   });
@@ -93,14 +94,14 @@ describe("PhotoLayerInputResolver", () => {
       encoder as unknown as GPUCommandEncoder,
       texture() as unknown as GPUTexture,
       200, 100, 1000, 800,
-      { x: 500, y: 400, scale: 0, rotation: 0 },
+      { x: 500, y: 400, scaleX: 0, scaleY: 0, rotation: 0 },
       [],
     );
 
     expect(device.queue.writeBuffer).toHaveBeenCalledWith(
       expect.anything(),
       0,
-      new Float32Array([500, 400, MIN_TRANSFORM_SCALE, 0, 1000, 800, 200, 100]),
+      new Float32Array([500, 400, MIN_TRANSFORM_SCALE, 0, 1000, 800, 200, 100, MIN_TRANSFORM_SCALE, 0]),
     );
   });
 
@@ -108,8 +109,14 @@ describe("PhotoLayerInputResolver", () => {
   // La largeur réelle du dégradé à l'écran doit valoir 1px quel que soit
   // `scale` — donc edgeDistPx (en pixels PHOTO) doit être multiplié par
   // `scale` avant le clamp, pas utilisé brut.
-  it("multiplies edgeDistPx by scale before clamping into coverage (I2 — feather in screen space, not photo space)", () => {
-    expect(PHOTO_LAYER_INPUT_WGSL).toContain("clamp(edgeDistPx * scale + 0.5, 0.0, 1.0)");
+  it("ramene la distance au bord en espace ECRAN, PAR AXE, avant le clamp de couverture (I2)", () => {
+    // Depuis l'echelle a deux axes, chaque distance est ramenee en espace ecran
+    // par SON echelle AVANT le minimum. Prendre le minimum des distances PHOTO
+    // puis multiplier par une echelle unique donnerait, sur une photo etiree,
+    // un bord juste sur un axe et faux sur l'autre.
+    expect(PHOTO_LAYER_INPUT_WGSL).toContain("min(photoPx, photoWidth - photoPx) * scaleX");
+    expect(PHOTO_LAYER_INPUT_WGSL).toContain("min(photoPy, photoHeight - photoPy) * scaleY");
+    expect(PHOTO_LAYER_INPUT_WGSL).toContain("clamp(edgeDistScreen + 0.5, 0.0, 1.0)");
     expect(PHOTO_LAYER_INPUT_WGSL).not.toContain("clamp(edgeDistPx, 0.0, 1.0)");
   });
 
@@ -176,8 +183,8 @@ describe("PhotoLayerInputResolver", () => {
       const s = Math.sin(-transform.rotation);
       const rx = dx * c - dy * s;
       const ry = dx * s + dy * c;
-      const lx = rx / transform.scale;
-      const ly = ry / transform.scale;
+      const lx = rx / transform.scaleX;
+      const ly = ry / transform.scaleY;
       const photoPx = lx + photo.width * 0.5;
       const photoPy = ly + photo.height * 0.5;
       if (photoPx < 0 || photoPx >= photo.width || photoPy < 0 || photoPy >= photo.height) return null;
@@ -188,11 +195,11 @@ describe("PhotoLayerInputResolver", () => {
     const photo = { width: 200, height: 100 };
 
     it.each([
-      { name: "identity", transform: { x: 500, y: 400, scale: 1, rotation: 0 }, uv: { u: 0.5, v: 0.5 } },
-      { name: "rotation 90deg", transform: { x: 500, y: 400, scale: 1, rotation: Math.PI / 2 }, uv: { u: 0.5, v: 0.5 } },
-      { name: "scale != 1", transform: { x: 500, y: 400, scale: 2.5, rotation: 0 }, uv: { u: 0.6, v: 0.45 } },
-      { name: "translation", transform: { x: 300, y: 250, scale: 1, rotation: 0 }, uv: { u: 0.35, v: 0.3 } },
-      { name: "combined", transform: { x: 620, y: 310, scale: 1.7, rotation: 0.9 }, uv: { u: 0.7, v: 0.2 } },
+      { name: "identity", transform: { x: 500, y: 400, scaleX: 1, scaleY: 1, rotation: 0 }, uv: { u: 0.5, v: 0.5 } },
+      { name: "rotation 90deg", transform: { x: 500, y: 400, scaleX: 1, scaleY: 1, rotation: Math.PI / 2 }, uv: { u: 0.5, v: 0.5 } },
+      { name: "scale != 1", transform: { x: 500, y: 400, scaleX: 2.5, scaleY: 2.5, rotation: 0 }, uv: { u: 0.6, v: 0.45 } },
+      { name: "translation", transform: { x: 300, y: 250, scaleX: 1, scaleY: 1, rotation: 0 }, uv: { u: 0.35, v: 0.3 } },
+      { name: "combined", transform: { x: 620, y: 310, scaleX: 1.7, scaleY: 1.7, rotation: 0.9 }, uv: { u: 0.7, v: 0.2 } },
     ])("matches compositeUvToPhotoUv for $name", ({ transform, uv }) => {
       const fromWgslReplica = replicateWgslFormula(uv, bg, transform, photo);
       const fromTs = compositeUvToPhotoUv(uv, bg, transform, photo);
@@ -209,8 +216,8 @@ describe("PhotoLayerInputResolver", () => {
       const resolver = new PhotoLayerInputResolver(device as unknown as GPUDevice, "bgra8unorm-srgb", {} as GPUSampler);
       const photoTexture = texture() as unknown as GPUTexture;
 
-      const first = resolver.resolve(encoder as unknown as GPUCommandEncoder, photoTexture, 10, 10, 500, 400, { x: 0, y: 0, scale: 1, rotation: 0 }, []);
-      const second = resolver.resolve(encoder as unknown as GPUCommandEncoder, photoTexture, 10, 10, 500, 400, { x: 0, y: 0, scale: 1, rotation: 0 }, []);
+      const first = resolver.resolve(encoder as unknown as GPUCommandEncoder, photoTexture, 10, 10, 500, 400, { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, []);
+      const second = resolver.resolve(encoder as unknown as GPUCommandEncoder, photoTexture, 10, 10, 500, 400, { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, []);
 
       expect(device.createTexture).toHaveBeenCalledOnce();
       expect(second).toBe(first);
@@ -226,8 +233,8 @@ describe("PhotoLayerInputResolver", () => {
       const resolver = new PhotoLayerInputResolver(device as unknown as GPUDevice, "bgra8unorm-srgb", {} as GPUSampler);
       const pendingDestroy: (GPUTexture | GPUBuffer)[] = [];
 
-      const forLayerA = resolver.resolve(encoder as unknown as GPUCommandEncoder, texture() as unknown as GPUTexture, 200, 100, 500, 400, { x: 10, y: 20, scale: 1, rotation: 0 }, pendingDestroy);
-      const forLayerB = resolver.resolve(encoder as unknown as GPUCommandEncoder, texture() as unknown as GPUTexture, 300, 150, 500, 400, { x: 90, y: 80, scale: 2, rotation: 0.5 }, pendingDestroy);
+      const forLayerA = resolver.resolve(encoder as unknown as GPUCommandEncoder, texture() as unknown as GPUTexture, 200, 100, 500, 400, { x: 10, y: 20, scaleX: 1, scaleY: 1, rotation: 0 }, pendingDestroy);
+      const forLayerB = resolver.resolve(encoder as unknown as GPUCommandEncoder, texture() as unknown as GPUTexture, 300, 150, 500, 400, { x: 90, y: 80, scaleX: 2, scaleY: 2, rotation: 0.5 }, pendingDestroy);
 
       expect(forLayerB).toBe(forLayerA);
       expect(device.createTexture).toHaveBeenCalledOnce();
@@ -243,8 +250,8 @@ describe("PhotoLayerInputResolver", () => {
       const resolver = new PhotoLayerInputResolver(device as unknown as GPUDevice, "bgra8unorm-srgb", {} as GPUSampler);
       const photoTexture = texture() as unknown as GPUTexture;
 
-      const first = resolver.resolve(encoder as unknown as GPUCommandEncoder, photoTexture, 10, 10, 500, 400, { x: 0, y: 0, scale: 1, rotation: 0 }, []);
-      const second = resolver.resolve(encoder as unknown as GPUCommandEncoder, photoTexture, 10, 10, 900, 700, { x: 0, y: 0, scale: 1, rotation: 0 }, []);
+      const first = resolver.resolve(encoder as unknown as GPUCommandEncoder, photoTexture, 10, 10, 500, 400, { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, []);
+      const second = resolver.resolve(encoder as unknown as GPUCommandEncoder, photoTexture, 10, 10, 900, 700, { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, []);
 
       expect(device.createTexture).toHaveBeenCalledTimes(2);
       expect((first as unknown as { destroy: ReturnType<typeof vi.fn> }).destroy).toHaveBeenCalledOnce();
@@ -256,7 +263,7 @@ describe("PhotoLayerInputResolver", () => {
       const resolver = new PhotoLayerInputResolver(device as unknown as GPUDevice, "bgra8unorm-srgb", {} as GPUSampler);
       const pendingDestroy: (GPUTexture | GPUBuffer)[] = [];
 
-      const target = resolver.resolve(encoder as unknown as GPUCommandEncoder, texture() as unknown as GPUTexture, 10, 10, 100, 100, { x: 0, y: 0, scale: 1, rotation: 0 }, pendingDestroy);
+      const target = resolver.resolve(encoder as unknown as GPUCommandEncoder, texture() as unknown as GPUTexture, 10, 10, 100, 100, { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, pendingDestroy);
 
       expect(pendingDestroy).not.toContain(target);
     });
@@ -264,7 +271,7 @@ describe("PhotoLayerInputResolver", () => {
     it("destroys the cached target texture on dispose()", () => {
       const { device, encoder } = createDevice();
       const resolver = new PhotoLayerInputResolver(device as unknown as GPUDevice, "bgra8unorm-srgb", {} as GPUSampler);
-      const target = resolver.resolve(encoder as unknown as GPUCommandEncoder, texture() as unknown as GPUTexture, 10, 10, 100, 100, { x: 0, y: 0, scale: 1, rotation: 0 }, []);
+      const target = resolver.resolve(encoder as unknown as GPUCommandEncoder, texture() as unknown as GPUTexture, 10, 10, 100, 100, { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, []);
 
       resolver.dispose();
 

@@ -101,7 +101,7 @@ export const TabOrderFollowsVisualOrder: Story = {
     await expect(document.activeElement).toBe(canvas.getByRole("button", { name: "Remplacer l'image…" }));
     await userEvent.tab();
     await expect(document.activeElement).toBe(canvas.getByRole("button", { name: "Placement" }));
-    for (const label of ["X", "Y", "Échelle", "Angle"]) {
+    for (const label of ["X", "Y", "Échelle X", "Échelle Y", "Angle"]) {
       await userEvent.tab();
       await expect(document.activeElement).toBe(canvas.getByLabelText(label));
     }
@@ -121,8 +121,11 @@ export const TabOrderFollowsVisualOrder: Story = {
 export const EveryFieldHasAnAccessibleName: Story = {
   play: async ({ canvasElement }) => {
     const report = assertAccessibleNames(canvasElement);
-    // Le balayage doit avoir vu les QUATRE champs de placement, pas un seul.
-    await expect(report.map((entry) => entry.name).sort()).toEqual(["Angle", "X", "Y", "Échelle"]);
+    // Le balayage doit avoir vu les CINQ champs de placement, pas un seul.
+    // Cinq depuis que l'échelle a deux axes : un champ unique ne pouvait pas
+    // exprimer une photo étirée et aurait dû choisir en silence lequel des deux
+    // il affichait.
+    await expect(report.map((entry) => entry.name).sort()).toEqual(["Angle", "X", "Y", "Échelle X", "Échelle Y"]);
   },
 };
 

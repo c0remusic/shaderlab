@@ -132,6 +132,82 @@ export function logDiagnostic(message: string): void {
   invoke("log_diagnostic", { message }).catch(() => {});
 }
 
+const GPU_ERROR_JOURNAL_KEY = "shaderlab.gpu-errors";
+/** Ring size. Bounded on purpose: this journal is written from a handler that
+ *  can fire per frame, and localStorage has a hard quota. */
+const GPU_ERROR_JOURNAL_MAX = 50;
+
+export interface GpuErrorJournalEntry {
+  /** `Date.now()` at write time. */
+  at: number;
+  message: string;
+}
+
+function isJournalEntry(value: unknown): value is GpuErrorJournalEntry {
+  if (typeof value !== "object" || value === null) return false;
+  const entry = value as Partial<GpuErrorJournalEntry>;
+  return typeof entry.at === "number" && typeof entry.message === "string";
+}
+
+/**
+ * Reads back the recoverable-GPU-error journal, oldest first. Returns `[]`
+ * where there is no web storage at all (Node — unit tests run in the `node`
+ * environment).
+ */
+export function readGpuErrorJournal(): GpuErrorJournalEntry[] {
+  if (typeof localStorage === "undefined") return [];
+  let raw: string | null;
+  try {
+    raw = localStorage.getItem(GPU_ERROR_JOURNAL_KEY);
+  } catch (e) {
+    console.warn(`[gpu] journal unreadable (storage denied): ${String(e)}`);
+    return [];
+  }
+  if (raw === null) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(isJournalEntry) : [];
+  } catch (e) {
+    // Corrupt entry: report it rather than silently starting over, the journal
+    // exists precisely to explain a crash nobody witnessed.
+    console.warn(`[gpu] journal corrupt, ignored: ${String(e)}`);
+    return [];
+  }
+}
+
+/**
+ * Durable sink for RECOVERABLE GPU errors — the channel `initGpu` feeds from
+ * `onuncapturederror` (see `createGpuErrorReporter`, which bounds and
+ * debounces before anything gets here).
+ *
+ * Deliberately NOT `logDiagnostic`: that one returns early outside dev builds,
+ * and `log_diagnostic` on the Rust side no-ops in release too
+ * (`src-tauri/src/lib.rs:294-297`), so a shipped build recorded nothing at
+ * all. Three destinations, none of them dev-gated:
+ * - `console.error`, readable in a shipped build over CDP;
+ * - `localStorage`, the only store the frontend can write to without a new
+ *   Rust command, and the only one that survives a reload;
+ * - `logDiagnostic`, which adds the durable `.dev-logs/gpu-diag.log` line
+ *   when we ARE in dev, and costs nothing when we are not.
+ */
+export function logGpuError(message: string): void {
+  console.error(`[gpu] ${message}`);
+  logDiagnostic(message);
+  if (typeof localStorage === "undefined") return;
+  try {
+    const entries = readGpuErrorJournal();
+    entries.push({ at: Date.now(), message });
+    localStorage.setItem(
+      GPU_ERROR_JOURNAL_KEY,
+      JSON.stringify(entries.slice(-GPU_ERROR_JOURNAL_MAX))
+    );
+  } catch (e) {
+    // Quota exceeded or storage disabled. The console line above already went
+    // out, so the error is not lost — only its persistence is.
+    console.warn(`[gpu] journal write failed: ${String(e)}`);
+  }
+}
+
 /** Bibliothèque locale de presets (design.md §4). `crypto.randomUUID()`
  *  côté TS génère l'id, jamais dérivé du nom affiché (renommer un preset ne
  *  renomme jamais son fichier). */

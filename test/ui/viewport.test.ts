@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   FIT_MARGIN,
+  MAX_ZOOM,
+  ZOOM_OUT_HEADROOM,
   ZOOM_STEP_FACTOR,
   clampOffset,
   clampScale,
@@ -43,19 +45,39 @@ describe("fitScale — ajustement contain", () => {
 });
 
 describe("scaleBounds — les deux valeurs remarquables restent atteignables", () => {
-  it("photo plus grande que la vue : de l'ajustement à 100 %", () => {
+  it("photo plus grande que la vue : l'ajustement et 100 % sont TOUS DEUX dans les bornes", () => {
     const { min, max } = scaleBounds(PHOTO, VIEW);
-    expect(min).toBeCloseTo(USABLE.width / PHOTO.width, 10);
-    expect(max).toBe(1);
+    const fit = USABLE.width / PHOTO.width;
+    // Ce qui compte n'est pas que les bornes VALENT ces deux valeurs (elles ne
+    // les valent plus depuis que le zoom a de la marge des deux côtés), c'est
+    // qu'aucune des deux ne soit hors d'atteinte.
+    expect(clampScale(fit, PHOTO, VIEW)).toBeCloseTo(fit, 10);
+    expect(clampScale(1, PHOTO, VIEW)).toBe(1);
+    expect(min).toBeLessThan(fit);
+    expect(max).toBeGreaterThan(1);
   });
 
   it("image plus petite que la vue : l'ajustement dépasse 100 % et reste atteignable", () => {
     const tiny = { width: 200, height: 100 };
-    const { min, max } = scaleBounds(tiny, VIEW);
-    expect(max).toBeCloseTo(USABLE.width / tiny.width, 10);
-    expect(min).toBe(1);
+    const fit = USABLE.width / tiny.width;
+    expect(clampScale(fit, tiny, VIEW)).toBeCloseTo(fit, 10);
     // Le zoom 100 % d'une petite image est un DÉZOOM par rapport à l'ajustement.
     expect(clampScale(1, tiny, VIEW)).toBe(1);
+  });
+
+  it("laisse reculer SOUS l'ajustement — sans quoi une photo à cheval sur le bord de la toile n'est pas visable", () => {
+    const { min } = scaleBounds(PHOTO, VIEW);
+    const fit = USABLE.width / PHOTO.width;
+    expect(min).toBeCloseTo(fit / ZOOM_OUT_HEADROOM, 10);
+    expect(clampScale(fit / 4, PHOTO, VIEW)).toBeCloseTo(fit / 4, 10);
+  });
+
+  it("laisse dépasser le pixel natif jusqu'au plafond — un bord de masque ne se juge pas à 100 %", () => {
+    const { max } = scaleBounds(PHOTO, VIEW);
+    expect(max).toBe(MAX_ZOOM);
+    expect(clampScale(8, PHOTO, VIEW)).toBe(8);
+    // Le plafond reste un plafond : au-delà, on est ramené dessus.
+    expect(clampScale(1000, PHOTO, VIEW)).toBe(MAX_ZOOM);
   });
 });
 
@@ -138,16 +160,25 @@ describe("zoomAt — le point sous le curseur reste sous le curseur", () => {
     const anchor = { x: 400, y: 300 };
     const imageBefore = viewToImage(before, anchor);
     const after = zoomAt(before, anchor, 1000, PHOTO, VIEW);
-    expect(after.scale).toBe(1);
+    expect(after.scale).toBe(MAX_ZOOM);
     const viewAfter = imageToView(after, imageBefore);
     expect(viewAfter.x).toBeCloseTo(anchor.x, 6);
     expect(viewAfter.y).toBeCloseTo(anchor.y, 6);
   });
 
-  it("ne descend jamais sous l'ajustement", () => {
+  it("descend jusqu'au plancher, et l'image y est CENTRÉE et non ancrée", () => {
+    // Ce témoin ne vérifie PAS l'ancrage, et c'est délibéré : sous
+    // l'ajustement la photo est plus petite que la vue, régime dans lequel
+    // `clampOffset` centre au lieu de borner (voir sa doc). Aucun point hors du
+    // centre ne peut donc rester sous le curseur — l'exiger décrirait un
+    // comportement que le module refuse par conception.
     const before = fitViewport(PHOTO, VIEW);
-    const after = zoomAt(before, { x: 400, y: 300 }, 0.000001, PHOTO, VIEW);
-    expect(after.scale).toBeCloseTo(fitScale(PHOTO, VIEW), 10);
+    const anchorHorsCentre = { x: 120, y: 90 };
+    const after = zoomAt(before, anchorHorsCentre, 0.000001, PHOTO, VIEW);
+    expect(after.scale).toBeCloseTo(fitScale(PHOTO, VIEW) / ZOOM_OUT_HEADROOM, 10);
+    const centre = imageToView(after, { x: PHOTO.width / 2, y: PHOTO.height / 2 });
+    expect(centre.x).toBeCloseTo(VIEW.width / 2, 6);
+    expect(centre.y).toBeCloseTo(VIEW.height / 2, 6);
   });
 });
 

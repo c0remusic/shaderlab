@@ -374,7 +374,19 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
         // `getBoundingClientRect()` reflète les transforms, toutes les
         // conversions écran→pixels image du projet restent justes SANS
         // modification (voir l'en-tête de `src/ui/viewport.ts`).
-        style={{ transform: `translate(${viewport.offsetX}px, ${viewport.offsetY}px) scale(${viewport.scale})` }}
+        style={{
+          transform: `translate(${viewport.offsetX}px, ${viewport.offsetY}px) scale(${viewport.scale})`,
+          // AU-DESSUS DU PIXEL NATIF, on montre les PIXELS et non leur
+          // interpolation. Le zoom monte désormais à 3200 % (`MAX_ZOOM`), et
+          // son seul usage est d'inspecter ce qui ne se juge pas à 100 % : un
+          // bord de masque pinceau, un liseré d'`outlines`, l'accroche d'un
+          // coin. Lissés par le navigateur, ces bords deviennent flous
+          // exactement là où on est venu les regarder — on aurait un zoom
+          // profond qui ne montre rien de plus qu'à 100 %.
+          // Sous 100 %, `auto` : la réduction DOIT rester lissée, sinon
+          // l'échantillonnage au plus proche crénelle toute l'image.
+          imageRendering: viewport.scale > 1 ? "pixelated" : "auto",
+        }}
         onPointerDown={(e) => {
           if (isPanGesture(e)) {
             beginPan(e);

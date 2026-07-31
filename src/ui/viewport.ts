@@ -94,19 +94,49 @@ export function fitScale(content: Size, view: Size): number {
 }
 
 /**
- * Bornes d'échelle. Le PRD borne le zoom « du fit-to-screen jusqu'à 100 %
- * maximum (1 pixel image = 1 pixel écran) — pas de zoom au-delà du pixel
- * natif ».
+ * Plafond de zoom, en pixels écran par pixel image. Valeur de Photoshop
+ * (3200 %).
  *
- * Le cas que cette formulation ne couvre pas : une image PLUS PETITE que la
- * vue, où l'ajustement agrandit déjà au-delà de 100 %. Prendre `1` comme
- * plafond dur rendrait alors « ajuster » inatteignable, et prendre `fit` comme
- * plancher dur rendrait 100 % inatteignable. Les bornes encadrent donc les
- * deux valeurs remarquables au lieu d'en sacrifier une.
+ * Le PRD posait « pas de zoom au-delà du pixel natif », soit un plafond à 1.
+ * Cette contrainte est LEVÉE (choix utilisateur, 2026-07-31) : elle rendait
+ * inspectable aucun des gestes fins que l'app propose — un bord de masque
+ * pinceau, un liseré d'`outlines`, l'accroche d'un coin de photo se jugent
+ * au-dessus du pixel natif ou pas du tout.
+ *
+ * Gratuit côté GPU : le zoom est un TRANSFORM CSS sur le canvas, dont la
+ * résolution reste native quoi qu'il arrive (`Canvas.tsx`). Zoomer à 3200 %
+ * n'alloue rien et ne relance aucune passe.
+ */
+export const MAX_ZOOM = 32;
+
+/**
+ * Marge de dézoom SOUS l'ajustement. À 8, on peut reculer jusqu'à voir la photo
+ * au huitième de sa taille ajustée.
+ *
+ * Le plancher était l'ajustement lui-même, ce qui interdisait de reculer. C'est
+ * exactement le geste qui manque quand on place une photo À CHEVAL sur le bord
+ * de la toile (double exposure) : la partie hors cadre était invisible, donc
+ * impossible à viser — on déplaçait à l'aveugle un objet dont on ne voyait
+ * qu'une moitié.
+ */
+export const ZOOM_OUT_HEADROOM = 8;
+
+/**
+ * Bornes d'échelle.
+ *
+ * Les deux valeurs REMARQUABLES restent atteignables par construction :
+ * l'ajustement (`fit`) et le pixel natif (`1`). C'est ce que les `Math.min` /
+ * `Math.max` garantissent — sur une image plus petite que la vue, l'ajustement
+ * dépasse déjà 100 %, et un plafond dur à 1 le rendrait inatteignable.
+ * Au-delà de ces deux valeurs, les bornes laissent maintenant de la place des
+ * deux côtés (voir `MAX_ZOOM` et `ZOOM_OUT_HEADROOM`).
  */
 export function scaleBounds(content: Size, view: Size): { min: number; max: number } {
   const fit = fitScale(content, view);
-  return { min: Math.min(fit, 1), max: Math.max(fit, 1) };
+  return {
+    min: Math.min(fit, 1) / ZOOM_OUT_HEADROOM,
+    max: Math.max(fit, MAX_ZOOM),
+  };
 }
 
 export function clampScale(scale: number, content: Size, view: Size): number {

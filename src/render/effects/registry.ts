@@ -9,11 +9,17 @@ import { posterize } from "./posterize";
 import { gooeyMerge } from "./gooeyMerge";
 import { channelMixer } from "./channelMixer";
 import { outlines } from "./outlines";
+import { pixelStretch } from "./pixelStretch";
+import { sliceShift } from "./sliceShift";
+import { gradientMap } from "./gradientMap";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 
-// Ordre d'ajout des trois derniers = ordre de priorité du backlog d'effets
-// confirmé par l'utilisateur (design.md du MVP) : Gooey merge, Channel mixer,
-// Outlines. Ce tableau alimente le sélecteur « ajouter un effet ».
+// Les six derniers suivent l'ordre de priorité du backlog d'effets confirmé par
+// l'utilisateur (design.md du MVP § « Backlog d'effets futurs ») : Gooey merge,
+// Channel mixer, Outlines, Pixel stretch, Slice shift, Gradient map. Ce backlog
+// est désormais ÉPUISÉ — les entrées suivantes viendraient du « backlog complet
+// de référence » du même document, qui n'est pas priorisé. Ce tableau alimente
+// le sélecteur « ajouter un effet ».
 export const effectRegistry: EffectModule[] = [
   glow,
   chromaticBleed,
@@ -24,6 +30,9 @@ export const effectRegistry: EffectModule[] = [
   gooeyMerge,
   channelMixer,
   outlines,
+  pixelStretch,
+  sliceShift,
+  gradientMap,
 ];
 effectRegistry.forEach(validateEffect);
 

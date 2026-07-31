@@ -1,4 +1,5 @@
 import type { EffectModule } from "./types";
+import { HASH_WGSL, VALUE_NOISE_WGSL } from "./hash";
 import { LINEAR_TO_SRGB_WGSL, SRGB_TO_LINEAR_WGSL } from "./srgbTransfer";
 
 export const grain: EffectModule = {
@@ -9,24 +10,7 @@ export const grain: EffectModule = {
     { name: "size", label: "Taille", unit: "pixels", min: 1, max: 8, default: 2, step: 0.5 },
     { name: "seed", label: "Graine", unit: "none", min: 0, max: 1000, default: 0, step: 1 },
   ],
-  wgsl: `${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}
-fn hash(p: vec2<f32>) -> f32 {
-  var p3 = fract(vec3<f32>(p.xyx) * 0.1031);
-  p3 = p3 + dot(p3, p3.yzx + 33.33);
-  return fract((p3.x + p3.y) * p3.z);
-}
-
-fn valueNoise(p: vec2<f32>) -> f32 {
-  let i = floor(p);
-  let f = fract(p);
-  let u = f * f * (3.0 - 2.0 * f);
-  return mix(
-    mix(hash(i), hash(i + vec2<f32>(1.0, 0.0)), u.x),
-    mix(hash(i + vec2<f32>(0.0, 1.0)), hash(i + vec2<f32>(1.0, 1.0)), u.x),
-    u.y
-  );
-}
-
+  wgsl: `${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${HASH_WGSL}${VALUE_NOISE_WGSL}
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let intensity = params[0];
   let size = params[1];

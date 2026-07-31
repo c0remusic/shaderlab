@@ -65,10 +65,16 @@ export const TOOLS: readonly ToolDefinition[] = [
   },
   {
     id: "hand",
+    // ESPACE et non `KeyH` (choix utilisateur, 2026-07-31). C'est la touche que
+    // la main droite trouve sans regarder, et celle qu'ont tous les outils de
+    // navigation d'image. Conséquence assumée : contrairement à avant, Espace
+    // SÉLECTIONNE la main et l'y laisse — le relâchement ne rend plus l'outil
+    // précédent. Le geste maintenu de `Canvas` reste en place et fait déjà la
+    // même chose pendant l'appui, donc les deux chemins ne se contredisent pas.
     label: "Main",
-    shortcut: "KeyH",
-    shortcutLabel: "H",
-    hint: "Déplacer la vue (Espace maintenu fait la même chose depuis n'importe quel outil)",
+    shortcut: "Space",
+    shortcutLabel: "Espace",
+    hint: "Déplacer la vue",
   },
 ] as const;
 

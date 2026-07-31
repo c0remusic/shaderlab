@@ -20,13 +20,28 @@
   overflow: visible;
 }
 
+/* CADRE EN DEUX TRAITS. Un cadre de recadrage se pose sur du contenu
+   quelconque : une seule couleur ne peut pas s'y lire partout, et c'est un
+   fait de contraste, pas un réglage à ajuster. Le halo sombre passe d'abord,
+   large ; le trait clair passe par-dessus, fin. Sur une photo claire on voit le
+   halo, sur une photo sombre on voit le trait, et sur une photo bruitée on voit
+   la paire. C'est la convention de tous les outils de recadrage, et l'inverse
+   de ce qu'il y avait ici : un unique trait `--outline-contrast` (encre sombre
+   à 55 %), invisible sur une image sombre. */
+.transform-handles__box-halo {
+  fill: none;
+  stroke: var(--outline-contrast);
+  stroke-width: 3;
+  pointer-events: none;
+}
+
 /* Contour ET corps de déplacement : le même quadrilatère, celui de la photo
    réellement transformée. `pointer-events: fill` restreint la prise à son
    INTÉRIEUR — c'était la contradiction d'avant, où la règle posait `none`
    pendant qu'un style inline imposait `auto` sur une englobante trop grande. */
 .transform-handles__box {
   fill: transparent;
-  stroke: var(--outline-contrast);
+  stroke: var(--text-value);
   stroke-width: 1;
   pointer-events: fill;
   cursor: move;

@@ -198,6 +198,21 @@ export function TransformHandles({ transform, photoSize, bgSize, canvasRef, onTr
             preserveAspectRatio="none"
             aria-hidden="true"
           >
+            {/* HALO. Le même quadrilatère, tracé d'abord en encre sombre et
+                plus large. Sans lui le cadre était un seul trait sombre
+                semi-transparent (`--outline-contrast`) : invisible sur une
+                photo sombre, c'est-à-dire précisément là où on recadre un ciel
+                de nuit ou une silhouette à contre-jour — signalé à l'usage le
+                2026-07-31. Un cadre doit se lire sur N'IMPORTE quel contenu, et
+                aucune couleur unique ne le peut : il faut le contraste d'une
+                paire. `pointer-events: none` — la prise reste sur le polygone
+                du dessus, un seul et même chemin, donc la zone cliquable ne
+                bouge pas d'un pixel. */}
+            <polygon
+              className="transform-handles__box-halo"
+              points={corners.map((corner) => `${corner.x},${corner.y}`).join(" ")}
+              vectorEffect="non-scaling-stroke"
+            />
             <polygon
               className="transform-handles__box"
               points={corners.map((corner) => `${corner.x},${corner.y}`).join(" ")}

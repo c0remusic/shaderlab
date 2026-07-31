@@ -29,7 +29,15 @@ describe("TOOLS — table de la palette", () => {
   it("désigne les touches par leur code physique, pas par le caractère produit", () => {
     // `key` dépend de la disposition clavier : sur AZERTY, la même touche sous
     // le doigt ne produit pas la même lettre. `code` reste stable.
-    for (const tool of TOOLS) expect(tool.shortcut).toMatch(/^Key[A-Z]$/);
+    //
+    // La liste énumère les FAMILLES de `code` que la palette a le droit
+    // d'utiliser, et pas seulement `Key[A-Z]` : la main est passée sur Espace
+    // le 2026-07-31, dont le `code` est « Space ». Une regex de la seule forme
+    // des lettres tombait au rouge sur un code parfaitement valide — elle
+    // vérifiait la forme d'un exemple, pas la propriété visée. Ce qui compte
+    // est qu'aucune valeur ne soit un CARACTÈRE (un `key`) ; les codes à un
+    // seul caractère sont donc ce que ce motif exclut.
+    for (const tool of TOOLS) expect(tool.shortcut).toMatch(/^(Key[A-Z]|Digit[0-9]|Space)$/);
   });
 
   it("n'expose PAS le recadrage — il n'a pas de géométrie derrière", () => {

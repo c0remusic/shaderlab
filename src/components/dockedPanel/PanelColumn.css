@@ -23,7 +23,26 @@
   display: flex;
   align-items: flex-start;
   gap: var(--space-4);
-  max-height: calc(100vh - (var(--space-6) * 2));
+  /* Bornée par l'ESPACE DE TRAVAIL, pas par la fenêtre. `100vh` comptait la
+     barre d'outils comme si le dock commençait au bord haut : la colonne
+     pouvait descendre 41 px sous le bas de l'écran — mesure identique à toutes
+     les tailles de fenêtre, donc une erreur d'arithmétique et pas un cas
+     limite. Ces 41 px étaient INATTEIGNABLES : c'est le conteneur de
+     défilement lui-même qui sortait de l'écran, sa barre ne les couvrait pas,
+     et la dernière carte se coupait sans recours (signalé à l'usage le
+     2026-07-31).
+     `--workspace-height` est MESURÉE (`App.tsx`, ResizeObserver) parce que le
+     décalage du haut n'est pas constant : la barre d'options du pinceau
+     s'insère au-dessus de l'espace de travail en mode masque. Le repli
+     `100vh - --toolbar-height` reste faux d'une barre dans ce mode-là, mais
+     il ne sert qu'au tout premier rendu, avant la première mesure.
+     La valeur reste en PIXELS et non en `%` : `.panel-column__stack` hérite ce
+     `max-height` et la chaîne de compression des cartes (voir plus bas) a
+     besoin d'une longueur définie — un pourcentage s'y résout en `none` et
+     les cartes cessent de se comprimer. */
+  max-height: calc(
+    var(--workspace-height, calc(100vh - var(--toolbar-height))) - (var(--space-6) * 2)
+  );
   overflow-x: auto;
   overflow-y: auto;
 }

@@ -553,6 +553,28 @@ export default function App() {
     return () => observer.disconnect();
   }, [syncDisplayScale]);
 
+  // Hauteur RÉELLEMENT disponible pour le dock, mesurée sur l'espace de travail.
+  //
+  // `PanelColumn.css` la déduisait de `100vh`, ce qui compte la barre d'outils
+  // comme si le dock commençait au bord haut de la fenêtre : la colonne pouvait
+  // descendre 41 px sous le bas de l'écran, mesurés identiques à toutes les
+  // tailles de fenêtre (CDP, 2026-07-31). Ces 41 px étaient INATTEIGNABLES —
+  // c'est le conteneur de défilement lui-même qui sortait de l'écran, donc sa
+  // barre ne les couvrait pas, et la dernière carte se coupait sans recours.
+  //
+  // Mesurée et non calculée, parce que le décalage du haut n'est pas une
+  // constante : la barre d'options du pinceau s'insère au-dessus de l'espace de
+  // travail en mode masque et le pousse d'autant. Une formule à base de
+  // `--toolbar-height` serait juste dans un mode et fausse dans l'autre.
+  const [workspaceHeight, setWorkspaceHeight] = useState(0);
+  useEffect(() => {
+    const workspace = workspaceRef.current;
+    if (!workspace) return;
+    const observer = new ResizeObserver(() => setWorkspaceHeight(workspace.clientHeight));
+    observer.observe(workspace);
+    return () => observer.disconnect();
+  }, []);
+
   // Ouverture par argument de ligne de commande — « Ouvrir avec » de Windows,
   // double-clic sur un JPEG associé. CE CHEMIN SURVIT À LA DÉPOSE DU
   // ROUND-TRIP (ADR-0002) : ce que l'ADR retire est la sémantique
@@ -1601,6 +1623,10 @@ export default function App() {
             visibleLayout.length === 0
               ? "0px"
               : `calc(${visibleLayout.length} * ${dockWidth}px + ${visibleLayout.length - 1} * var(--space-4))`,
+          // Omise tant que la première mesure n'a pas eu lieu : `PanelColumn.css`
+          // porte sa propre valeur de repli, et une hauteur de 0 px au premier
+          // rendu écraserait le dock avant de le rouvrir.
+          ...(workspaceHeight > 0 ? { "--workspace-height": `${workspaceHeight}px` } : {}),
         } as React.CSSProperties}
       >
         <Canvas

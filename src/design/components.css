@@ -37,6 +37,9 @@
   --filmstrip-thumb-width: 68px;
   --filmstrip-thumb-height: 50px;
   --toolbar-control-width: 168px;
+  /* Plancher de compression d'un réglage de barre d'outils : en dessous, la
+     piste du curseur devient trop courte pour être visée à la souris. */
+  --toolbar-control-min-width: 96px;
 
   --dialog-width-sm: 360px;
   --dialog-width-md: 480px;

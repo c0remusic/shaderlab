@@ -44,21 +44,6 @@ export interface BrushSettings {
   flow: number;
 }
 
-/** Adapte la forme POSITIONNELLE héritée (`radius, hardness, erase`) sur
- *  `BrushSettings`. Elle survit uniquement pour qu'`App.tsx` continue de
- *  compiler pendant que l'interface est câblée séparément ; `opacity`/`flow`
- *  à 1 y rendent le peintre byte-identique à sa version d'avant (témoin
- *  « équivalence historique » dans `test/mask/maskPainter.test.ts`). À retirer
- *  quand `App.tsx` sera passé à la forme objet. */
-function resolveBrush(
-  brushOrRadius: BrushSettings | number,
-  hardness: number | undefined,
-  erase: boolean | undefined
-): BrushSettings {
-  if (typeof brushOrRadius !== "number") return brushOrRadius;
-  return { radius: brushOrRadius, hardness: hardness ?? 1, erase: erase ?? false, opacity: 1, flow: 1 };
-}
-
 /** Bounding-box union of two dirty rects — used by `paintLine` to combine
  *  the touched region of every interpolated dab along a segment. */
 function unionRect(a: DirtyRect, b: DirtyRect): DirtyRect {
@@ -128,17 +113,7 @@ export class MaskPainter {
     this.strokeActive = false;
   }
 
-  paintStroke(x: number, y: number, brush: BrushSettings): DirtyRect;
-  /** Forme héritée — voir `resolveBrush`. */
-  paintStroke(x: number, y: number, radius: number, hardness: number, erase: boolean): DirtyRect;
-  paintStroke(
-    x: number,
-    y: number,
-    brushOrRadius: BrushSettings | number,
-    hardness?: number,
-    erase?: boolean
-  ): DirtyRect {
-    const brush = resolveBrush(brushOrRadius, hardness, erase);
+  paintStroke(x: number, y: number, brush: BrushSettings): DirtyRect {
     if (!this.strokeActive) this.beginStroke();
     const base = this.ensureStrokeBase();
     const radius = brush.radius;
@@ -214,27 +189,7 @@ export class MaskPainter {
    * débit faible, un trait lent (donc beaucoup de tampons superposés) monte
    * plus vite qu'un trait rapide, exactement comme un aérographe. C'est voulu.
    */
-  paintLine(fromX: number, fromY: number, toX: number, toY: number, brush: BrushSettings): DirtyRect;
-  /** Forme héritée — voir `resolveBrush`. */
-  paintLine(
-    fromX: number,
-    fromY: number,
-    toX: number,
-    toY: number,
-    radius: number,
-    hardness: number,
-    erase: boolean
-  ): DirtyRect;
-  paintLine(
-    fromX: number,
-    fromY: number,
-    toX: number,
-    toY: number,
-    brushOrRadius: BrushSettings | number,
-    hardness?: number,
-    erase?: boolean
-  ): DirtyRect {
-    const brush = resolveBrush(brushOrRadius, hardness, erase);
+  paintLine(fromX: number, fromY: number, toX: number, toY: number, brush: BrushSettings): DirtyRect {
     const dx = toX - fromX;
     const dy = toY - fromY;
     const distance = Math.hypot(dx, dy);

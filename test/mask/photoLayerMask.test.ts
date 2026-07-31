@@ -8,7 +8,7 @@ describe("Photo layer + MaskPainter integration", () => {
     const id = stack.addPhotoLayer("photo-1", { x: 50, y: 50, scale: 1, rotation: 0 });
 
     const painter = new MaskPainter(100, 100);
-    painter.paintStroke(50, 50, 20, 0.5, false);
+    painter.paintStroke(50, 50, { radius: 20, hardness: 0.5, erase: false, opacity: 1, flow: 1 });
     const changed = stack.updateBrushMask(id, painter.getMaskData());
 
     expect(changed).toBe(true);

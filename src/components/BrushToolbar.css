@@ -21,9 +21,24 @@
 }
 
 /* Largeur fixe pour chaque réglage : la barre reste stable quand la valeur
-   change et les sliders ne s'étirent pas sur toute la largeur. */
+   change et les sliders ne s'étirent pas sur toute la largeur.
+
+   `0 1` et non `none` : quatre réglages (taille, dureté, opacité, débit) plus
+   les actions tiennent large, et une fenêtre étroite les ferait déborder d'une
+   barre qui ne défile pas — les derniers contrôles sortiraient simplement de
+   l'écran. Ils ne GRANDISSENT toujours pas (grow 0, l'intention d'origine) ;
+   ils acceptent seulement de se serrer quand la place manque. */
 .brush-toolbar__control {
-  width: var(--toolbar-control-width);
+  flex: 0 1 var(--toolbar-control-width);
+  min-width: var(--toolbar-control-min-width);
+}
+
+/* Remplir/Vider agissent sur le masque ENTIER, pas sur le prochain trait :
+   groupés à part des réglages pour que la différence se voie. */
+.brush-toolbar__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
   flex: none;
 }
 

@@ -23,7 +23,7 @@ describe("MaskPainter", () => {
 
   it("paintStroke raises values at the brush center, tapering at the edge", () => {
     const painter = new MaskPainter(20, 20);
-    painter.paintStroke(10, 10, 5, 1.0, false);
+    painter.paintStroke(10, 10, fullBrush(5, 1.0));
     const data = painter.getMaskData();
     const center = data[10 * 20 + 10];
     const edge = data[10 * 20 + 19]; // far from the brush
@@ -34,20 +34,20 @@ describe("MaskPainter", () => {
   it("erase mode lowers values instead of raising them", () => {
     const painter = new MaskPainter(20, 20);
     painter.clear(255);
-    painter.paintStroke(10, 10, 5, 1.0, true);
+    painter.paintStroke(10, 10, fullBrush(5, 1.0, true));
     const data = painter.getMaskData();
     expect(data[10 * 20 + 10]).toBeLessThan(50);
   });
 
   it("paintStroke returns the touched region's bounding box, clamped to image bounds", () => {
     const painter = new MaskPainter(20, 20);
-    const rect = painter.paintStroke(10, 10, 5, 1.0, false);
+    const rect = painter.paintStroke(10, 10, fullBrush(5, 1.0));
     expect(rect).toEqual({ x: 5, y: 5, width: 11, height: 11 });
   });
 
   it("paintStroke clamps the returned rect when the brush extends past the image edge", () => {
     const painter = new MaskPainter(20, 20);
-    const rect = painter.paintStroke(0, 0, 5, 1.0, false);
+    const rect = painter.paintStroke(0, 0, fullBrush(5, 1.0));
     expect(rect.x).toBe(0);
     expect(rect.y).toBe(0);
     expect(rect.width).toBeLessThanOrEqual(6);
@@ -63,7 +63,7 @@ describe("MaskPainter", () => {
     // which WebGPU rejects — a validation error every such frame, causing
     // the reported flicker.
     const painter = new MaskPainter(100, 100);
-    const rect = painter.paintStroke(-500, 50, 10, 1.0, false); // way past the left edge
+    const rect = painter.paintStroke(-500, 50, fullBrush(10, 1.0)); // way past the left edge
     expect(rect.width).toBeGreaterThanOrEqual(0);
     expect(rect.height).toBeGreaterThanOrEqual(0);
   });
@@ -71,7 +71,7 @@ describe("MaskPainter", () => {
   it("paintLine's union stays non-negative when interpolating through fully-out-of-bounds points", () => {
     const painter = new MaskPainter(100, 100);
     // A drag that starts inside, sweeps far outside the image, and comes back.
-    const rect = painter.paintLine(10, 10, -400, 10, 10, 1.0, false);
+    const rect = painter.paintLine(10, 10, -400, 10, fullBrush(10, 1.0));
     expect(rect.width).toBeGreaterThanOrEqual(0);
     expect(rect.height).toBeGreaterThanOrEqual(0);
   });
@@ -81,7 +81,7 @@ describe("MaskPainter", () => {
     const seeded = new Uint8Array(20 * 20).fill(100);
     painter.loadFrom(seeded);
     expect(painter.getMaskData()[10 * 20 + 10]).toBe(100);
-    painter.paintStroke(10, 10, 5, 1.0, false);
+    painter.paintStroke(10, 10, fullBrush(5, 1.0));
     const data = painter.getMaskData();
     expect(data[10 * 20 + 10]).toBeGreaterThan(100);
     // unaffected area still reflects the loaded seed, not a zero-fill
@@ -93,7 +93,7 @@ describe("MaskPainter", () => {
       const painter = new MaskPainter(100, 20);
       // Small brush, endpoints 40px apart — a single dab at each end would
       // leave a large untouched gap in between (the reported bug).
-      painter.paintLine(10, 10, 50, 10, 5, 1.0, false);
+      painter.paintLine(10, 10, 50, 10, fullBrush(5, 1.0));
       const data = painter.getMaskData();
       const midpoint = data[10 * 100 + 30]; // halfway between 10 and 50
       expect(midpoint).toBeGreaterThan(200);
@@ -101,17 +101,17 @@ describe("MaskPainter", () => {
 
     it("with zero distance (same point twice) behaves like a single paintStroke dab", () => {
       const a = new MaskPainter(20, 20);
-      a.paintStroke(10, 10, 5, 1.0, false);
+      a.paintStroke(10, 10, fullBrush(5, 1.0));
       const b = new MaskPainter(20, 20);
-      b.paintLine(10, 10, 10, 10, 5, 1.0, false);
+      b.paintLine(10, 10, 10, 10, fullBrush(5, 1.0));
       expect(b.getMaskData()).toEqual(a.getMaskData());
     });
 
     it("does not double-stamp the FROM point (already painted by the previous call)", () => {
       const painter = new MaskPainter(30, 20);
-      painter.paintStroke(5, 10, 3, 1.0, false); // simulates the previous point already painted
+      painter.paintStroke(5, 10, fullBrush(3, 1.0)); // simulates the previous point already painted
       const afterFirstDab = painter.getMaskData()[10 * 30 + 5];
-      painter.paintLine(5, 10, 8, 10, 3, 1.0, false);
+      painter.paintLine(5, 10, 8, 10, fullBrush(3, 1.0));
       // The FROM point's value shouldn't jump past full saturation from a
       // redundant overlapping dab beyond what erase/paint clamping already allows.
       expect(painter.getMaskData()[10 * 30 + 5]).toBe(Math.min(255, afterFirstDab));
@@ -122,7 +122,7 @@ describe("MaskPainter", () => {
       // The exact FROM dab is deliberately excluded (see paintLine's doc
       // comment — the caller already painted it), so the rect starts near
       // fromX+spacing, not fromX itself.
-      const rect = painter.paintLine(10, 10, 50, 10, 5, 1.0, false);
+      const rect = painter.paintLine(10, 10, 50, 10, fullBrush(5, 1.0));
       expect(rect.x).toBeLessThanOrEqual(11);
       expect(rect.y).toBeLessThanOrEqual(5);
       expect(rect.x + rect.width).toBeGreaterThanOrEqual(55);
@@ -131,7 +131,7 @@ describe("MaskPainter", () => {
     it("erase mode propagates through interpolated dabs, not just the endpoints", () => {
       const painter = new MaskPainter(100, 20);
       painter.clear(255);
-      painter.paintLine(10, 10, 50, 10, 5, 1.0, true);
+      painter.paintLine(10, 10, 50, 10, fullBrush(5, 1.0, true));
       const data = painter.getMaskData();
       expect(data[10 * 100 + 30]).toBeLessThan(50);
     });
@@ -322,16 +322,25 @@ describe("MaskPainter — opacité (plafond du trait) et débit (dépôt par tam
       expect(painter.getMaskData()).toEqual(expected);
     });
 
-    it("la forme positionnelle héritée (5 arguments) équivaut à opacité 1 / débit 1", () => {
-      const positional = new MaskPainter(40, 40);
-      positional.loadFrom(new Uint8Array(40 * 40).fill(100));
-      positional.paintLine(10, 20, 30, 20, 7, 0.3, false);
+    it("un TRAIT interpolé à opacité 1 / débit 1 rend exactement les mêmes octets qu'avant", () => {
+      // `paintLine` pose ses tampons aux mêmes coordonnées quelle que soit la
+      // forme des réglages : ce qui doit rester byte-identique, c'est ce que
+      // chacun DÉPOSE. Le témoin recalcule donc la trajectoire d'espacement du
+      // peintre et rejoue la formule additive d'avant sur chaque tampon.
+      const painter = new MaskPainter(40, 40);
+      painter.loadFrom(new Uint8Array(40 * 40).fill(100));
+      painter.paintLine(10, 20, 30, 20, fullBrush(7, 0.3));
 
-      const settings = new MaskPainter(40, 40);
-      settings.loadFrom(new Uint8Array(40 * 40).fill(100));
-      settings.paintLine(10, 20, 30, 20, fullBrush(7, 0.3));
+      const expected = new Uint8Array(40 * 40).fill(100);
+      const [fromX, toX, y, radius] = [10, 30, 20, 7];
+      const distance = toX - fromX;
+      const steps = Math.max(1, Math.ceil(distance / Math.max(1, radius * 0.25)));
+      legacyStroke(expected, 40, 40, toX, y, radius, 0.3, false);
+      for (let i = 1; i < steps; i++) {
+        legacyStroke(expected, 40, 40, fromX + distance * (i / steps), y, radius, 0.3, false);
+      }
 
-      expect(positional.getMaskData()).toEqual(settings.getMaskData());
+      expect(painter.getMaskData()).toEqual(expected);
     });
   });
 });

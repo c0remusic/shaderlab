@@ -8,8 +8,21 @@ interface Props {
   onBrushSizeChange: (v: number) => void;
   brushHardness: number;
   onBrushHardnessChange: (v: number) => void;
+  /** Plafond du trait. Repasser au cours du MÊME trait ne le dépasse jamais. */
+  brushOpacity: number;
+  onBrushOpacityChange: (v: number) => void;
+  /** Dépôt par tampon. Bas = la valeur monte en repassant, façon aérographe. */
+  brushFlow: number;
+  onBrushFlowChange: (v: number) => void;
   erase: boolean;
   onEraseChange: (v: boolean) => void;
+  /** Remplit le masque du calque sélectionné — c'est le geste qui ouvre le
+   *  travail à la gomme sur un calque jamais peint. */
+  onFillMask: () => void;
+  /** Vide le masque SANS le supprimer : la source pinceau reste en place,
+   *  remplie de zéros. Supprimer le masque est une autre action, ailleurs
+   *  (panneau Masque), parce qu'elle rend le calque à l'ABSENCE de masque. */
+  onClearMask: () => void;
   /** Sort du mode peinture (bouton « Quitter la peinture »). Le libellé dit
    *  explicitement qu'on QUITTE un mode, et non qu'on « termine » le masque :
    *  peinture et poignées de transform s'excluent (design T1), donc déplacer
@@ -20,16 +33,29 @@ interface Props {
 /**
  * Barre d'options du pinceau (style barre d'outils Photoshop) — affichée
  * uniquement en mode masque. Regroupe les réglages du pinceau (taille, dureté,
- * gomme) dans une surface horizontale visible, au lieu de les enfouir dans
- * l'inspecteur.
+ * opacité, débit, gomme) et les deux actions de masque global dans une surface
+ * horizontale visible, au lieu de les enfouir dans l'inspecteur.
+ *
+ * **Pourquoi Remplir/Vider ici et pas dans le panneau Masque** (ADR-0001) :
+ * cette barre est déjà une zone de contrôles fixe, hors du conteneur défilant
+ * du dock, et n'existe qu'en mode peinture — soit exactement le moment où ces
+ * deux gestes ont un sens. Les poser dans la carte Masque ajouterait deux
+ * lignes à une colonne dont la hauteur est sous budget, pour des actions qui y
+ * seraient inertes la plupart du temps.
  */
 export function BrushToolbar({
   brushSize,
   onBrushSizeChange,
   brushHardness,
   onBrushHardnessChange,
+  brushOpacity,
+  onBrushOpacityChange,
+  brushFlow,
+  onBrushFlowChange,
   erase,
   onEraseChange,
+  onFillMask,
+  onClearMask,
   onStop,
 }: Props) {
   return (
@@ -59,10 +85,50 @@ export function BrushToolbar({
           onChange={onBrushHardnessChange}
         />
       </div>
+      <div className="brush-toolbar__control">
+        <LabeledSlider
+          label="Opacité"
+          displayValue={`${Math.round(brushOpacity * 100)} %`}
+          value={brushOpacity}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={onBrushOpacityChange}
+        />
+      </div>
+      <div className="brush-toolbar__control">
+        <LabeledSlider
+          label="Débit"
+          displayValue={`${Math.round(brushFlow * 100)} %`}
+          value={brushFlow}
+          min={0.01}
+          max={1}
+          step={0.01}
+          onChange={onBrushFlowChange}
+        />
+      </div>
       <Toggle size="sm" pressed={erase} onPressedChange={onEraseChange} aria-label="Gomme">
         <Eraser className="icon-md icon-stroke" aria-hidden="true" />
         Gomme
       </Toggle>
+      <div className="brush-toolbar__actions" role="group" aria-label="Masque entier">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onFillMask}
+          title="Remplir tout le masque — permet ensuite de travailler à la gomme"
+        >
+          Remplir
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onClearMask}
+          title="Vider tout le masque sans le supprimer (le calque garde son masque, vide)"
+        >
+          Vider
+        </Button>
+      </div>
       <div className="brush-toolbar__spacer" />
       <Button
         variant="secondary"

@@ -25,7 +25,7 @@ describe("getSyncedMaskPainter", () => {
     const entries = new Map<string, MaskPainterEntry>();
     const seed = new Uint8Array(4 * 4);
     const first = getSyncedMaskPainter(entries, "layer-1", seed, 4, 4);
-    first.painter.paintStroke(2, 2, 1, 1.0, false);
+    first.painter.paintStroke(2, 2, { radius: 1, hardness: 1, erase: false, opacity: 1, flow: 1 });
     const second = getSyncedMaskPainter(entries, "layer-1", seed, 4, 4);
     expect(second).toBe(first);
     expect(second.painter.getMaskData()[2 * 4 + 2]).toBeGreaterThan(0);
@@ -34,7 +34,7 @@ describe("getSyncedMaskPainter", () => {
   it("re-seeds the cached painter when the raster reference changes (undo/redo between strokes)", () => {
     const entries = new Map<string, MaskPainterEntry>();
     const before = getSyncedMaskPainter(entries, "layer-1", new Uint8Array(4 * 4), 4, 4);
-    before.painter.paintStroke(2, 2, 1, 1.0, false);
+    before.painter.paintStroke(2, 2, { radius: 1, hardness: 1, erase: false, opacity: 1, flow: 1 });
     expect(before.painter.getMaskData()[2 * 4 + 2]).toBeGreaterThan(0);
 
     // Simulates an undo/redo restoring a different mask snapshot for the

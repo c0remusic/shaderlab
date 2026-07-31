@@ -11,8 +11,14 @@ const meta: Meta<typeof BrushToolbar> = {
     onBrushSizeChange: () => {},
     brushHardness: 0.6,
     onBrushHardnessChange: () => {},
+    brushOpacity: 1,
+    onBrushOpacityChange: () => {},
+    brushFlow: 1,
+    onBrushFlowChange: () => {},
     erase: false,
     onEraseChange: () => {},
+    onFillMask: () => {},
+    onClearMask: () => {},
     onStop: () => {},
   },
 };
@@ -22,14 +28,23 @@ type Story = StoryObj<typeof BrushToolbar>;
 
 export const Default: Story = {};
 
-/** GARDE D'ACCESSIBILITÉ — balayage MESURÉ (taille et dureté de pinceau : une
- *  piste + son champ de valeur chacune). Voir
+/** GARDE D'ACCESSIBILITÉ — balayage MESURÉ (les quatre réglages du pinceau :
+ *  une piste + son champ de valeur chacun). Voir
  *  `ui/accessible-name.test-support.ts`. */
 export const EveryFieldHasAnAccessibleName: Story = {
   play: async ({ canvasElement }) => {
     const report = assertAccessibleNames(canvasElement);
-    // Deux `LabeledSlider` = quatre contrôles nommés (piste + champ de valeur).
-    await expect(report.map((entry) => entry.name)).toEqual(["Taille", "Taille (valeur)", "Dureté", "Dureté (valeur)"]);
+    // Quatre `LabeledSlider` = huit contrôles nommés (piste + champ de valeur).
+    await expect(report.map((entry) => entry.name)).toEqual([
+      "Taille",
+      "Taille (valeur)",
+      "Dureté",
+      "Dureté (valeur)",
+      "Opacité",
+      "Opacité (valeur)",
+      "Débit",
+      "Débit (valeur)",
+    ]);
   },
 };
 
@@ -71,6 +86,21 @@ export const ClickStopCallsHandler: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Quitter la peinture" }));
     await expect(args.onStop).toHaveBeenCalled();
+  },
+};
+
+export const FillAndClearCallTheirHandlers: Story = {
+  args: { onFillMask: fn(), onClearMask: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Remplir" }));
+    await expect(args.onFillMask).toHaveBeenCalledTimes(1);
+    // Vider n'est PAS Remplir : deux gestes distincts, deux rappels distincts.
+    // Un seul bouton qui bascule aurait rendu l'état courant indevinable sur un
+    // masque partiellement peint.
+    await userEvent.click(canvas.getByRole("button", { name: "Vider" }));
+    await expect(args.onClearMask).toHaveBeenCalledTimes(1);
+    await expect(args.onFillMask).toHaveBeenCalledTimes(1);
   },
 };
 

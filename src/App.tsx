@@ -56,6 +56,7 @@ import { useGlobalControlWheel } from "./ui/activeControl";
 import { openDocument } from "./layers/openedDocument";
 import { hitTestPhotoLayer } from "./ui/hitTest";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
+import type { BrushSettings } from "./mask/maskPainter";
 import { getBrushRaster } from "./mask/brushSource";
 import { PanelColumn } from "./components/dockedPanel/PanelColumn";
 import { movePanelInDock, toFullDockTarget, visibleDockLayout, type DockDropTarget, type DockLayout } from "./ui/dockLayout";
@@ -141,6 +142,11 @@ export default function App() {
   const maskStrokeIsFreshRef = useRef(true);
   const [brushSize, setBrushSize] = useState(30);
   const [brushHardness, setBrushHardness] = useState(0.5);
+  // Opacité (plafond du trait) et débit (dépôt par tampon) à 1 : c'est le seul
+  // couple pour lequel `MaskPainter` reste byte-identique à sa version d'avant
+  // ces réglages. Qui n'y touche pas retrouve exactement le pinceau d'hier.
+  const [brushOpacity, setBrushOpacity] = useState(1);
+  const [brushFlow, setBrushFlow] = useState(1);
   const [erase, setErase] = useState(false);
   // Outil Main ACTIF (choisi dans la palette), à ne pas confondre avec le geste
   // Espace maintenu, qui est transitoire et vit dans `Canvas` — les deux
@@ -998,6 +1004,30 @@ export default function App() {
     commit(stack);
   }, [currentStack, commit]);
 
+  /** Remplir (`255`) ou vider (`0`) le masque pinceau du calque sélectionné.
+   *
+   *  Action DISCRÈTE, donc une entrée d'historique directe, comme inverser ou
+   *  activer le masque — et pas comme un trait, qui n'en pose qu'une à sa fin.
+   *
+   *  Le peintre vivant (`maskPaintersRef`) n'est pas re-semé ici : il compare
+   *  déjà sa `syncedFrom` à la référence du raster courant et se recharge tout
+   *  seul au premier échantillon suivant (`getSyncedMaskPainter`). Le faire
+   *  aussi ici dupliquerait cette règle à un second endroit, où elle finirait
+   *  par diverger.
+   *
+   *  `pixelCount` en espace masque, c'est-à-dire les dimensions de la photo de
+   *  fond — le même espace que celui où `MaskPainter` est alloué (`imageSize`,
+   *  cf. `handleMaskStroke`), jamais celui d'une source d'image transformée. */
+  const handleFillMask = useCallback((value: 0 | 255) => {
+    if (!selectedId) return;
+    const stack = currentStack();
+    if (!stack.fillBrushMask(selectedId, value, imageSize.width * imageSize.height)) return;
+    commit(stack);
+  }, [selectedId, imageSize.width, imageSize.height, currentStack, commit]);
+
+  const handleFillMaskFull = useCallback(() => handleFillMask(255), [handleFillMask]);
+  const handleClearMask = useCallback(() => handleFillMask(0), [handleFillMask]);
+
   const handleRefineEdgeChange = useCallback((layerId: string, refineEdge: Partial<RefineEdgeParams>) => {
     const previousLayer = sessionRef.current.layers().find((l) => l.id === layerId);
     if (
@@ -1081,9 +1111,16 @@ export default function App() {
     // this, fast strokes leave visible gaps between isolated brush dabs,
     // reported live 2026-07-18). The stroke's very first point has no
     // anchor yet, so it paints a single dab like before.
+    const brush: BrushSettings = {
+      radius: brushSize,
+      hardness: brushHardness,
+      erase,
+      opacity: brushOpacity,
+      flow: brushFlow,
+    };
     const dirtyRect = entry.lastPoint
-      ? entry.painter.paintLine(entry.lastPoint.x, entry.lastPoint.y, x, y, brushSize, brushHardness, erase)
-      : entry.painter.paintStroke(x, y, brushSize, brushHardness, erase);
+      ? entry.painter.paintLine(entry.lastPoint.x, entry.lastPoint.y, x, y, brush)
+      : entry.painter.paintStroke(x, y, brush);
     entry.lastPoint = { x, y };
     // Live preview only: render straight from the painter's own buffer via
     // a GPU texture upload, WITHOUT going through LayerStack.updateBrushMask()'s
@@ -1535,8 +1572,14 @@ export default function App() {
           onBrushSizeChange={setBrushSize}
           brushHardness={brushHardness}
           onBrushHardnessChange={setBrushHardness}
+          brushOpacity={brushOpacity}
+          onBrushOpacityChange={setBrushOpacity}
+          brushFlow={brushFlow}
+          onBrushFlowChange={setBrushFlow}
           erase={erase}
           onEraseChange={setErase}
+          onFillMask={handleFillMaskFull}
+          onClearMask={handleClearMask}
           onStop={photoLayer.stopMaskPaintMode}
         />
       )}

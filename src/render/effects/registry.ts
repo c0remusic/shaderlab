@@ -6,9 +6,25 @@ import { warp } from "./warp";
 import { grain } from "./grain";
 import { duotone } from "./duotone";
 import { posterize } from "./posterize";
+import { gooeyMerge } from "./gooeyMerge";
+import { channelMixer } from "./channelMixer";
+import { outlines } from "./outlines";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 
-export const effectRegistry: EffectModule[] = [glow, chromaticBleed, warp, grain, duotone, posterize];
+// Ordre d'ajout des trois derniers = ordre de priorité du backlog d'effets
+// confirmé par l'utilisateur (design.md du MVP) : Gooey merge, Channel mixer,
+// Outlines. Ce tableau alimente le sélecteur « ajouter un effet ».
+export const effectRegistry: EffectModule[] = [
+  glow,
+  chromaticBleed,
+  warp,
+  grain,
+  duotone,
+  posterize,
+  gooeyMerge,
+  channelMixer,
+  outlines,
+];
 effectRegistry.forEach(validateEffect);
 
 /** `"passthrough"` résout vers `PASSTHROUGH_EFFECT` SANS apparaître dans

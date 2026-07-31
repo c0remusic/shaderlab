@@ -3,7 +3,8 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 > Nom provisoire (placeholder, jamais tranché). Repo local `C:\dev\shaderlab`,
-> remote origin : `github.com/c0remusic/shaderlab`. Branche de dev active : `feature/design-system`.
+> remote origin : `github.com/c0remusic/shaderlab`. Branche courante : se mesure
+> (`git rev-parse --abbrev-ref HEAD`), ne s'écrit pas ici.
 > Historique complet des chantiers/sessions (2026-07-12 → 2026-07-21) archivé
 > dans `docs/archive/claude-md-history-pre-2026-07-22.md` — statut courant des
 > tranches/checkpoints dans `docs/INDEX.json` (source de vérité, pas ce
@@ -92,7 +93,8 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `EffectParam.colorGroup`) touche aussi `ParamPanel.tsx` et peut élargir
   `MAX_EFFECT_PARAMS` (`shaderCompose.ts`, **16** aujourd'hui) si nécessaire.
   Registre réel au 2026-07-31 : `glow`, `chromaticBleed`, `warp`, `grain`,
-  `duotone`, `posterize`, `gooeyMerge`, `channelMixer`, `outlines` — **neuf**.
+  `duotone`, `posterize`, `gooeyMerge`, `channelMixer`, `outlines`,
+  `pixelStretch`, `sliceShift`, `gradientMap` — **douze**.
   Les autres fichiers de `effects/` sont des helpers (`bayer`, `hsl`,
   `srgbTransfer`, `uvSpace`, `validate`, `types`) : la présence d'un fichier
   n'est pas la présence d'un effet, vérifier `registry.ts`.
@@ -134,8 +136,7 @@ tout le dépôt.
 
 ## Architecture
 
-**`ARCHITECTURE.md` (racine, ~745 lignes, passe du 2026-07-31) est la carte
-détaillée** — couches réelles, module maps Presets et Double exposure, ports de
+**`ARCHITECTURE.md` (racine) est la carte détaillée** — couches réelles, module maps Presets et Double exposure, ports de
 test, risques ouverts. La lire avant toute modification structurelle plutôt que
 de redécouvrir depuis les fichiers. Elle signale elle-même ses sections
 périmées (ex. la table des bindings du groupe 0, à recompter dans
@@ -198,6 +199,13 @@ vivent là, pas dans les docs de design.
   sous-agent frais par tâche du plan, revue spec+qualité après chaque tâche,
   fixes puis re-revue, ledger dans `.superpowers/sdd/progress.md`. **Vérifier
   le ledger avant de (re)dispatcher quoi que ce soit.**
+  ⚠️ **Les skills `superpowers:*` ne sont PAS forcément installées** — elles
+  étaient absentes le 2026-07-31 (seuls `caveman` et `claude-plugins-official`
+  dans `~/.claude/plugins/cache`). Le ledger et `docs/superpowers/` restent
+  lisibles, mais la méthode n'est pas exécutable dans cet état : le vérifier
+  avant de s'y référer, plutôt que de découvrir l'absence en plein dispatch.
+  Sans elles, annoncer le découpage et le faire valider à la main — une tranche
+  qui touche le modèle jusqu'au shader mérite un plan, skill ou pas.
 - **Avant tout dispatch `subagent-driven-development`, lancer `git worktree
   list`** : plusieurs sessions concurrentes ont déjà collisionné sur ce repo
   (2026-07-13, Task 7 du plan design system — un implémenteur bloqué en

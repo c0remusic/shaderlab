@@ -66,9 +66,11 @@ if [ "$STATUS" -ne 0 ]; then
     echo 'pre-commit/eslint: ERREURS ci-dessus — commit refuse (BLOCKING=1). `git commit --no-verify` pour passer outre.' >&2
     exit 1
   fi
-  echo "pre-commit/eslint: findings ci-dessus. Mode AVERTISSEMENT — le commit passe quand meme." >&2
+  echo "pre-commit/eslint: ERREURS ci-dessus. Mode AVERTISSEMENT — le commit passe quand meme." >&2
 else
-  echo "pre-commit/eslint: propre."
+  # ESLint rend 0 des qu'il n'y a plus d'ERREUR : ne pas ecrire « propre » ici,
+  # des avertissements ont pu s'afficher juste au-dessus.
+  echo "pre-commit/eslint: 0 erreur (voir ci-dessus pour d'eventuels avertissements)."
 fi
 
 exit 0

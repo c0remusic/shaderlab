@@ -21,8 +21,8 @@ function makeLayer(overrides: Partial<LayerState>): LayerState {
 const layers: LayerState[] = [
   makeLayer({ id: "layer-1", effectId: "glow", opacity: 1 }),
   makeLayer({ id: "layer-2", effectId: "grain", opacity: 0.35, blendMode: "screen" }),
-  // Calque PHOTO : le sélecteur d'effet doit rester disponible dessus
-  // (appliquer un effet différent selon la photo est un usage voulu).
+  // Calque PHOTO : le sélecteur d'effet ne doit PAS être proposé dessus
+  // (décision produit du 2026-07-31 — un effet est un calque à part, écrêté).
   makeLayer({
     id: "photo-layer",
     effectId: "passthrough",
@@ -207,11 +207,18 @@ export const OpacityFieldEscapeAbandons: Story = {
   },
 };
 
-export const PhotoLayerKeepsEffectSelector: Story = {
+// Décision produit du 2026-07-31 : un effet ne se pose jamais sur un calque
+// photo. Le sélecteur n'est pas DÉSACTIVÉ (ce serait l'état d'un calque
+// verrouillé), il est ABSENT, remplacé par la phrase qui dit la règle.
+export const PhotoLayerHasNoEffectSelector: Story = {
   args: { selectedId: "photo-layer" },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("combobox", { name: "Effet" })).not.toBeDisabled();
+    await expect(canvas.queryByRole("combobox", { name: "Effet" })).toBeNull();
+    await expect(canvas.getByText("Aucun effet sur un calque photo")).toBeVisible();
+    // Les actions du calque restent, elles : le verrou, la duplication et la
+    // suppression n'ont rien à voir avec l'effet.
+    await expect(canvas.getByRole("button", { name: "Dupliquer le calque" })).toBeVisible();
   },
 };
 

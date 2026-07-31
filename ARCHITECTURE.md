@@ -4,6 +4,12 @@
 > frontières de modules visées** pour les deux features cadrées au `PRD.md` :
 > **Presets** et **Double exposure**.
 >
+> ⚠️ **DÉCISION PRODUIT DU 2026-07-31 (Antoine)** : *un effet ne se pose JAMAIS
+> sur un calque photo ; un effet est un calque à part, écrêté à la photo.* Elle
+> répond à la confirmation que le § 4.3 attendait, en sens inverse de ce qu'il
+> recommandait, et clôt **R4** (§ 7) et le **point 1 du § 8**. Encadré daté en
+> tête du § 4.3 — texte d'origine conservé. La pré-passe (C2) n'est PAS déposée.
+>
 > ⚠️ **Le § 9 AUTO-VÉRIFICATION a été RÉ-EXÉCUTÉ EN ENTIER le 2026-07-31** sur
 > l'arbre de `ba81271` : chaque fichier qu'il cite est recompté, chaque plage de
 > lignes rouverte, et trois de ses affirmations sont tombées (§ 9.3). Le § 4.6
@@ -380,6 +386,45 @@ placer dans `layers/`** — ce paquet ne doit jamais dépendre de WebGPU.
 
 ### 4.3 Où la photo A entre dans le pipeline — **point à confirmer**
 
+> ⚠️ **DÉPASSÉ SUR SON MOTIF par la décision produit du 2026-07-31 (Antoine).**
+> Rien n'est effacé ci-dessous : le texte d'origine (2026-07-25) reste lisible
+> tel quel, c'est l'ajout daté qui porte la correction.
+>
+> **La confirmation demandée par la dernière ligne de cette section est
+> arrivée, et elle va dans l'autre sens.** Ce que cette section cherchait à
+> rendre possible — « un effet appliqué à un calque photo » — est désormais
+> **interdit par le produit** : *un effet ne se pose JAMAIS sur un calque photo ;
+> un effet est un calque à part, écrêté à la photo.* L'affordance inverse
+> existait dans l'UI et rendait un **écran noir**, constaté en usage réel.
+>
+> **Ce que ça ne change PAS : la pré-passe (C2) reste nécessaire et reste en
+> place.** Elle ne sert pas seulement à « faire marcher un effet sur une
+> photo » : elle répond à la question « quelle est la texture d'ENTRÉE de ce
+> calque photo ? », et cette question se pose pour la fusion, le masque, et la
+> double exposition par empilement de calques photo. `PhotoLayerInputResolver`
+> alimente le compositing et la couverture par `imageSourceView`
+> (`render/framePipelineExecutor.ts` : `resolve()`, puis `imageSourceView`
+> passé à `runEffectPass`) — aucune ligne n'en est retirée.
+>
+> **La seule conséquence de code**, signalée et NON déposée : sur un calque
+> photo, `effect.passes?.length` est désormais toujours faux (`passthrough`
+> n'a pas de passes internes), donc la branche `runInternalPasses` n'est plus
+> atteignable par ce chemin et l'affectation
+> `effectInputSourceView = resolved.createView()` n'a plus de consommateur pour
+> un calque photo. Le défaut (a) ci-dessous — « un glow flouterait le fond au
+> lieu de la silhouette » — devient donc sans objet par le PRODUIT, après
+> l'avoir été par (C2). Rien n'est supprimé : l'invariant d'ordre des passes et
+> la variable elle-même restent utilisés par les calques d'effet.
+>
+> Où vit la décision, dans le code : `LayerStack.setLayerEffect` refuse un
+> calque portant `imageSource` (`src/layers/layerStack.ts`), en miroir exact de
+> `setLayerClip` qui refuse déjà le symétrique ; l'interface ne propose plus le
+> sélecteur (`layerControlsModel.effectSelectable`, `LayerControls`).
+>
+> Conséquence sur le reste de ce document : **R4** (§ 7) et le **point 1 du
+> § 8** sont clos par cette décision, dans un sens que ni l'un ni l'autre
+> n'anticipait.
+
 Le design doc propose (C1) : un binding conditionnel `hasImageSource` dans
 `composeShader`, l'échantillon de photo A remplaçant `color` en entrée de
 `fs_main`. Deux problèmes concrets, tous deux prouvés sur le code actuel :
@@ -555,7 +600,7 @@ de merge trivial, pas un couplage architectural.
 | R1 | **VRAM à N photos** (rédigé à 2 photos ; plafond porté à `MAX_PHOTO_LAYERS = 4` calques photo + le fond en T5, 2026-07-26 — le risque grandit d'autant et reste ouvert). Un document tient déjà 4 textures pleine taille persistantes (source + ping-pong ×2 + cible d'export paresseuse) ≈ 96 Mo/texture à 24MP, **plus** les textures de masque résidentes par calque. Une 2ᵉ photo ajoute sa propre texture, et la variante (C2) une texture transitoire par calque photo par frame. | **Non mesuré** (PRD : « à mesurer à l'usage réel, pas de budget théorique figé »). | Mesure sur cas réel 24MP + 24MP **avant** de déclarer la feature terminée. Pas de garde-fou numérique en dur en v1 (décision PRD). Si un garde arrive, il se pose dans `PhotoSourceStore` (point unique d'allocation), pas dispersé. |
 | R2 | **Invariant OOM étendu à `imageSource`.** Toute régression qui remettrait un handle GPU / un `ImageBitmap` dans `LayerState` ou dans un snapshot d'historique rouvre la classe de bug de `e3c7584`. | Traité par conception (§4.2). | Un test de la logique pure garantissant qu'un calque photo survit à un undo/redo **en ne transportant qu'un `sourceId`** est le meilleur filet (déjà listé au design doc). |
 | R3 | **Alpha / couverture du calque photo.** La formule de compositing actuelle ignore l'alpha de l'effet — « hors bornes = transparent » rendrait du noir si on s'appuie sur l'alpha. | Identifié, non traité. | Le terme de couverture doit être **explicite dans le poids du mix**. À valider visuellement (CDP) sur une silhouette plus petite que le fond. |
-| R4 | **Effets multi-passes sur calque photo** (§4.3a). | Identifié, non traité. | Tranché par le choix (C1) + cas particulier vs (C2). À confirmer avec Antoine. |
+| R4 | **Effets multi-passes sur calque photo** (§4.3a). | ~~Identifié, non traité.~~ **CLOS le 2026-07-31 — sans objet.** | ~~Tranché par le choix (C1) + cas particulier vs (C2). À confirmer avec Antoine.~~ La confirmation est arrivée et retire le cas d'usage : **un effet ne se pose jamais sur un calque photo** (décision produit, voir l'encadré du §4.3). Un calque photo est `passthrough` de bout en bout, garde posée dans `LayerStack.setLayerEffect`. Il n'y a donc plus d'effet multi-passe à faire tenir sur une photo. La pré-passe (C2) reste en place pour l'entrée du calque photo — elle n'était pas là que pour ce risque. |
 | R5 | **Espace de coordonnées du masque d'un calque photo** (§4.5). | Non documenté au PRD ni au design. | Décision produit à poser avant implémentation (assumer, ou hors-scope explicite). |
 | R6 | **`App.tsx` = composition root de 1823 lignes** (mesuré `wc -l` le 2026-07-30 ; **727 au moment où cette ligne a été écrite le 2026-07-25** — la dette a été multipliée par 2,7 en cinq jours, ce que le chiffre périmé masquait), portant ~25 handlers, tous les états UI et tout le câblage. | **Dette réelle, aggravée, partiellement traitée.** L'audit pré-release du 2026-07-30 l'a mesurée à 1953 lignes ; l'extraction de `usePresetWorkflow` en a retiré 130. Le fichier n'a AUCUNE couverture unitaire (`test/App.test.ts` = placeholder, par convention projet), donc ces ~1800 lignes n'ont pour filet que le checkpoint visuel humain. | **Chaque feature apporte son propre hook module** (`usePhotoLayer`, `usePresets`, `usePresetWorkflow`) qui possède ses handlers et parle à `DocumentSession`, pour qu'`App.tsx` gagne quelques lignes de câblage et non ~150. **Le remède n'a pas suffi seul** : il ne s'applique qu'aux features neuves et ne rembourse pas l'existant. Prochains candidats à l'extraction, par volume : les cinq `<Dialog>`, l'échantillonnage colorimétrique, l'application de preset (`applyPreset`/`requestApplyPreset`). |
 | R7 | **Nouvelle surface IPC pour les presets** (lecture/écriture de fichiers non-image). | Nécessaire (§3.3, vérifié : rien d'existant ne le permet). | Commandes maison confinées au dossier de config app (résolution + vérification de préfixe), dialogues natifs pour les chemins choisis par l'humain. Ne pas réintroduire `tauri-plugin-dialog`. |
@@ -565,8 +610,13 @@ de merge trivial, pas un couplage architectural.
 
 ## 8. Ce que ce document ne tranche pas (renvoi explicite)
 
-1. Variante **(C1) vs (C2)** pour l'entrée de la photo A dans le pipeline — §4.3,
-   recommandation (C2), **confirmation Antoine requise** (refine un design validé).
+1. ~~Variante **(C1) vs (C2)** pour l'entrée de la photo A dans le pipeline — §4.3,
+   recommandation (C2), **confirmation Antoine requise** (refine un design validé).~~
+   **CLOS le 2026-07-31.** (C2) était déjà implémentée (§ 9.3 point 2) ; la
+   confirmation demandée est arrivée et porte plus loin que la variante : *un
+   effet ne se pose jamais sur un calque photo, un effet est un calque à part
+   écrêté à la photo.* Voir l'encadré du § 4.3 pour ce que ça retire (le cas
+   d'usage) et ce que ça garde (la pré-passe de résolution d'entrée).
 2. Comportement du **masque d'un calque photo face au transform** — §4.5.
 3. **Presets × calques photo** : exclusion à la capture (recommandé) ou autre —
    §3.2, non couvert par le PRD.

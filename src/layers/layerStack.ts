@@ -173,12 +173,39 @@ export class LayerStack {
     return id;
   }
 
-  /** Remplace l'effet d'un calque DÉJÀ créé, en remettant ses params aux
-   *  défauts du nouvel effet. Sans ce mutateur, l'`effectId` posé à la
-   *  création était définitif : un calque photo (`addPhotoLayer`, ci-dessus)
-   *  restait `passthrough` à vie alors que le moteur sait déjà router la
-   *  photo transformée comme ENTRÉE d'effet du calque
-   *  (`render/framePipelineExecutor.ts`).
+  /** Remplace l'effet d'un calque d'effet DÉJÀ créé, en remettant ses params
+   *  aux défauts du nouvel effet.
+   *
+   *  **Garde structurante : un calque portant `imageSource` est REFUSÉ**
+   *  (décision produit du 2026-07-31). Un effet ne se pose JAMAIS sur un calque
+   *  photo : un effet est un calque À PART, écrêté à la photo (`setLayerClip`,
+   *  ci-dessous, qui porte la garde SYMÉTRIQUE — un calque photo ne peut pas
+   *  être écrêté). Cette méthode a été écrite en 2026-07-26 (T6) sur la
+   *  prémisse inverse, « le moteur sait router la photo transformée comme
+   *  entrée d'effet du calque » : c'est vrai du moteur, et faux du produit —
+   *  l'affordance rendait un ÉCRAN NOIR, constaté en usage réel.
+   *
+   *  La garde vit ICI, dans l'unique chemin d'écriture d'`effectId` sur un
+   *  calque existant, et pas seulement dans l'UI : un contrôle d'interface
+   *  qu'on retire est une affordance qui disparaît, pas un invariant. Sa
+   *  conséquence est qu'un calque photo est `passthrough` de sa naissance
+   *  (`addPhotoLayer`) à sa mort — aucun autre chemin n'écrit `effectId`, et
+   *  `duplicateLayer` recopie celui de sa source.
+   *
+   *  **AUCUNE normalisation au chargement n'accompagne cette garde, et c'est un
+   *  choix, pas un oubli.** Rien de persistable ne peut porter l'état interdit :
+   *  un document n'est enregistré NULLE PART (balayage du 2026-07-31 sur les
+   *  151 fichiers `.ts`/`.tsx`/`.rs` de `src/` + `src-tauri/src/` :
+   *  `localStorage`/`sessionStorage`/`indexedDB` n'apparaissent dans aucun
+   *  fichier de production, et `openDocument` reconstruit toujours une pile
+   *  neuve), et un preset ne contient JAMAIS de calque photo — `capture` les
+   *  exclut (`presets/presetDocument.ts`), `apply` ne pose aucun `imageSource`,
+   *  et `validatePresetDocument` n'accepte même pas le champ. Écrire un
+   *  « ramène à `passthrough` au chargement » serait donc du code qu'aucune
+   *  entrée ne peut atteindre, et qui se lirait pourtant comme la preuve qu'un
+   *  fichier utilisateur peut être muté en silence. Si un format de document
+   *  persistant arrive un jour, c'est SON chemin de lecture qui devra
+   *  normaliser, et le dire à l'utilisateur.
    *
    *  Params remis à `{}` — et pas fusionnés ni conservés : les params sont
    *  indexés par NOM côté state mais par POSITION dans l'uniform du shader
@@ -194,13 +221,15 @@ export class LayerStack {
    *  même contrat que `addLayer`, dont elle est le pendant sur un calque
    *  existant ; c'est `getEffect` qui échoue fail-fast à la résolution.
    *
-   *  Returns `true` iff `id` existe ET `effectId` diffère réellement de
-   *  l'actuel (même discipline no-op que le reste du fichier : pas d'entrée
-   *  d'historique vide, et pas de reset de params sur un faux changement). */
+   *  Returns `true` iff `id` existe, n'est PAS un calque photo, et `effectId`
+   *  diffère réellement de l'actuel (même discipline no-op que le reste du
+   *  fichier : pas d'entrée d'historique vide, et pas de reset de params sur un
+   *  faux changement). */
   setLayerEffect(id: string, effectId: string): boolean {
     const layer = this.layers.find((l) => l.id === id);
     if (!layer) return false;
     if (this.isLocked(id)) return false;
+    if (layer.imageSource !== undefined) return false;
     if (layer.effectId === effectId) return false;
     layer.effectId = effectId;
     layer.params = {};

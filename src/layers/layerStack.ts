@@ -76,7 +76,7 @@ export class LayerStack {
    *  d'historique vide côté `App.tsx`) : `setLayerEffect`, `setLayerClip`,
    *  `setLayerImageSource`, `updateLayerTransform`, `removeLayer`,
    *  `reorderLayer`, `updateParams`,
-   *  `updateBrushMask`, et toute la famille masque (`removeMaskSource`,
+   *  `updateBrushMask`, `fillBrushMask`, et toute la famille masque (`removeMaskSource`,
    *  `updateMaskSourceParams`, `setMaskSourceCombineMode`,
    *  `setMaskSourceEnabled`, `updateRefineEdge`, `setMaskInvert`,
    *  `setMaskEnabled`). `addMaskSource` refuse aussi, mais en LEVANT — il n'a
@@ -473,6 +473,66 @@ export class LayerStack {
     return true;
   }
 
+  /** REMPLIT (`255`) ou VIDE (`0`) le masque pinceau d'un calque, d'un seul
+   *  geste (gate v1 §Masquage : « peindre, gommer, remplir, vider, inverser et
+   *  supprimer »). Une entrée d'historique, au même titre qu'un trait.
+   *
+   *  **Remplir n'est pas inverser, et vider n'est pas supprimer.** La spec
+   *  distingue explicitement les quatre états : « un masque vide le masque
+   *  entièrement ; un masque plein permet de gommer depuis une application
+   *  globale ; Supprimer revient explicitement à l'absence de masque ». Vider
+   *  laisse donc la source pinceau EN PLACE, remplie de zéros — c'est
+   *  `removeMaskSource` qui rend le calque à l'absence de masque.
+   *
+   *  `pixelCount` = largeur × hauteur de l'espace de masque (celui de la photo
+   *  de fond, cf. `MaskPainter`). Il ne sert QUE lorsqu'aucune source pinceau
+   *  n'existe encore, cas très concret de « remplir » : c'est le geste qui
+   *  ouvre le travail à la gomme sur un calque jamais peint. Quand la source
+   *  existe, c'est la longueur de SON raster qui fait foi — la taille du
+   *  masque est une propriété du masque, pas un argument à refaire confiance à
+   *  chaque appel.
+   *
+   *  Raster FRAIS, jamais `raster.fill()` en place : `clone()` et l'historique
+   *  partagent ces références (`LayerState.mask`), muter en place réécrirait
+   *  rétroactivement chaque snapshot et l'annulation rendrait un calque intact
+   *  affichant le masque rempli. Même invariant qu'`updateBrushMask` et
+   *  `setLayerImageSource`, verrouillé par un témoin dédié.
+   *
+   *  Returns `true` iff `id` existe, n'est pas verrouillé, et le masque CHANGE
+   *  réellement (même discipline no-op que le reste du fichier). Vider un
+   *  calque jamais peint et remplir un masque déjà entièrement à 255 sont donc
+   *  des `false`. Le test d'uniformité parcourt le raster, mais s'arrête au
+   *  premier octet différent : sur le cas non-trivial il coûte une lecture, et
+   *  sur le cas dégénéré (masque déjà uniforme) c'est le prix d'une action
+   *  discrète, pas d'un échantillon de pointeur. */
+  fillBrushMask(id: string, value: 0 | 255, pixelCount: number): boolean {
+    const layer = this.layers.find((l) => l.id === id);
+    if (!layer) return false;
+    if (this.isLocked(id)) return false;
+    const idx = layer.mask.sources.findIndex((s) => s.type === "brush");
+    if (idx === -1) {
+      // Vider ce qui n'existe pas EST un no-op : l'absence de source pinceau
+      // est déjà, pour le moteur, un masque pinceau vide.
+      if (value === 0) return false;
+      // Levée et non no-op : un masque de zéro pixel n'est pas un état
+      // périmé (id supprimé, undo) que le reste du fichier traite en silence,
+      // c'est un appelant qui n'a pas de dimensions d'image — il produirait un
+      // masque muet dont personne ne verrait la cause. Même choix
+      // qu'`addMaskSource`, qui lève déjà sur une cible invalide.
+      if (pixelCount <= 0) throw new Error(`pixelCount invalide pour un masque: ${pixelCount}`);
+      const brush = createBrushSource(`${id}-brush`, new Uint8Array(pixelCount).fill(value));
+      layer.mask = { ...layer.mask, sources: [...layer.mask.sources, brush] };
+      return true;
+    }
+    const existing = layer.mask.sources[idx];
+    if (existing.type !== "brush") throw new Error("Invariant violé: source pinceau attendue");
+    if (existing.raster.every((v) => v === value)) return false;
+    const fresh = new Uint8Array(existing.raster.length).fill(value);
+    const nextSources = layer.mask.sources.map((s, i) => (i === idx ? { ...existing, raster: fresh } : s));
+    layer.mask = { ...layer.mask, sources: nextSources };
+    return true;
+  }
+
   addMaskSource(layerId: string, type: Exclude<MaskSourceType, "brush">): string {
     const layer = this.layers.find((l) => l.id === layerId);
     if (!layer) throw new Error(`Calque introuvable: ${layerId}`);
@@ -594,7 +654,8 @@ export class LayerStack {
       ...l,
       params: { ...l.params },
       // Chaque `raster` de source est IMMUABLE par convention (updateBrushMask
-      // remplace toujours la référence, jamais de mutation in place) — le
+      // et fillBrushMask remplacent toujours la référence, jamais de mutation
+      // in place) — le
       // partager rend clone() O(métadonnées) au lieu de O(pixels), comme
       // l'ancien champ unique de LayerState. Les conteneurs (LayerMask, MaskSource, le tableau
       // sources) sont eux toujours des objets FRAIS, pour que muter le clone

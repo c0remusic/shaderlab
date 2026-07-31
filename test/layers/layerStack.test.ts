@@ -779,3 +779,103 @@ describe("LayerStack — setLayerClip (écrêtage, 2026-07-27)", () => {
     expect(stack.clone().layers.find((l) => l.id === id)!.clipToBelow).toBe(true);
   });
 });
+
+describe("LayerStack — fillBrushMask (remplir / vider, gate v1 §Masquage)", () => {
+  it("remplir un calque JAMAIS peint crée la source pinceau, entièrement à 255", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    expect(stack.fillBrushMask(id, 255, 6)).toBe(true);
+    const layer = stack.layers.find((l) => l.id === id)!;
+    expect(layer.mask.sources).toHaveLength(1);
+    expect(layer.mask.sources[0].type).toBe("brush");
+    expect(layer.mask.sources[0].raster).toEqual(new Uint8Array(6).fill(255));
+  });
+
+  it("la source créée suit la convention d'id d'updateBrushMask (une seule source pinceau par calque)", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    stack.fillBrushMask(id, 255, 4);
+    const created = stack.layers.find((l) => l.id === id)!.mask.sources[0].id;
+    expect(created).toBe(`${id}-brush`);
+    // Peindre ensuite doit RÉUTILISER cette source, pas en ajouter une 2e.
+    stack.updateBrushMask(id, new Uint8Array([1, 2, 3, 4]));
+    const layer = stack.layers.find((l) => l.id === id)!;
+    expect(layer.mask.sources).toHaveLength(1);
+    expect(layer.mask.sources[0].id).toBe(created);
+  });
+
+  it("vider un calque jamais peint est un no-op — il n'y a rien à vider", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    expect(stack.fillBrushMask(id, 0, 6)).toBe(false);
+    expect(stack.layers.find((l) => l.id === id)!.mask.sources).toEqual([]);
+  });
+
+  it("vider un masque peint met tout à 0 sans supprimer la source (vider n'est pas supprimer)", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    stack.updateBrushMask(id, new Uint8Array([10, 200, 255, 3]));
+    expect(stack.fillBrushMask(id, 0, 4)).toBe(true);
+    const layer = stack.layers.find((l) => l.id === id)!;
+    expect(layer.mask.sources).toHaveLength(1);
+    expect(layer.mask.sources[0].raster).toEqual(new Uint8Array(4));
+  });
+
+  it("REMPLACE le raster, ne le mute jamais en place — les snapshots d'historique restent intacts", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    stack.updateBrushMask(id, new Uint8Array([10, 20, 30, 40]));
+    const snapshot = stack.clone(); // ce que fait History avant une mutation
+    const before = snapshot.layers.find((l) => l.id === id)!.mask.sources[0].raster!;
+
+    stack.fillBrushMask(id, 255, 4);
+
+    const after = stack.layers.find((l) => l.id === id)!.mask.sources[0].raster!;
+    expect(after).not.toBe(before); // référence remplacée
+    expect(before).toEqual(new Uint8Array([10, 20, 30, 40])); // snapshot pas réécrit rétroactivement
+  });
+
+  it("garde la longueur du raster existant plutôt que le pixelCount fourni", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    stack.updateBrushMask(id, new Uint8Array(4));
+    stack.fillBrushMask(id, 255, 9999);
+    expect(stack.layers.find((l) => l.id === id)!.mask.sources[0].raster).toHaveLength(4);
+  });
+
+  it("no-op quand le masque porte DÉJÀ uniformément la valeur demandée (pas d'entrée d'historique vide)", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    expect(stack.fillBrushMask(id, 255, 4)).toBe(true);
+    expect(stack.fillBrushMask(id, 255, 4)).toBe(false);
+    expect(stack.fillBrushMask(id, 0, 4)).toBe(true);
+    expect(stack.fillBrushMask(id, 0, 4)).toBe(false);
+  });
+
+  it("no-op sur un id absent", () => {
+    const stack = new LayerStack();
+    expect(stack.fillBrushMask("no-such-id", 255, 4)).toBe(false);
+  });
+
+  it("refuse un calque VERROUILLÉ, comme le reste de la famille masque", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    stack.setLayerLocked(id, true);
+    expect(stack.fillBrushMask(id, 255, 4)).toBe(false);
+    expect(stack.layers.find((l) => l.id === id)!.mask.sources).toEqual([]);
+  });
+
+  it("lève plutôt que de créer un masque de zéro pixel (pixelCount invalide = bug d'appelant)", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    expect(() => stack.fillBrushMask(id, 255, 0)).toThrow();
+  });
+
+  it("remplace le CONTENEUR de masque, jamais celui du clone (indépendance des snapshots)", () => {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    const snapshot = stack.clone();
+    stack.fillBrushMask(id, 255, 4);
+    expect(snapshot.layers.find((l) => l.id === id)!.mask.sources).toEqual([]);
+  });
+});

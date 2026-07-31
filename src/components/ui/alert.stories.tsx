@@ -86,6 +86,7 @@ export const WithLink: Story = {
         <Info aria-hidden="true" />
         <AlertTitle>Mise à jour disponible</AlertTitle>
         <AlertDescription>
+          {/* eslint-disable-next-line jsx-a11y/anchor-is-valid -- lien de DEMONSTRATION Storybook : la story montre le rendu d'une ancre dans une Alert, elle n'a aucune cible reelle. Lui donner un href navigable ferait quitter l'iframe de la story au clic. */}
           Une nouvelle version est prête. <a href="#">Voir les notes de version</a>.
         </AlertDescription>
       </>

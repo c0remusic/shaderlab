@@ -172,7 +172,12 @@ export class MaskTextureResolver {
   private bumpGuideRevision(id: string): void {
     this.guideRevisionByLayer.set(id, (this.guideRevisionByLayer.get(id) ?? 0) + 1);
   }
-  // @ts-ignore 6133 — used in tests via @ts-expect-error pattern, will be consumed by Task 3
+  /** Directive `@ts-ignore 6133` retiree le 2026-07-31 : elle etait PERIMEE.
+   *  `guideRevision` est bel et bien consommee dans ce fichier (`edgePipeline`,
+   *  `const guideRev = this.guideRevision(id)`), donc TS6133 ne se leve plus et
+   *  la directive ne supprimait plus rien. La convertir en `@ts-expect-error`
+   *  (ce que demande `@typescript-eslint/ban-ts-comment`) aurait au contraire
+   *  FAIT echouer `tsc` — « Unused '@ts-expect-error' directive ». */
   private guideRevision(id: string): number {
     return this.guideRevisionByLayer.get(id) ?? 0;
   }

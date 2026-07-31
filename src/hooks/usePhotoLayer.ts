@@ -89,6 +89,7 @@ export function usePhotoLayer({
   // identité quand rien ne doit bouger, donc ce `setState` est un no-op React
   // dans le cas courant.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reconciliation d'un etat local sur une pile/selection qui a change SOUS lui : `reconcileCanvasMode` rend le mode inchange par IDENTITE quand rien ne bouge, donc aucun rendu en cascade dans le cas courant.
     setCanvasMode((mode) => reconcileCanvasMode(mode, selectedId, layers.map((l) => l.id)));
   }, [selectedId, layers]);
 

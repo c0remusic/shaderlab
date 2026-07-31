@@ -239,6 +239,7 @@ const LayerRow = memo(function LayerRow({
       )}
       <div className="layer-panel__row-top">
         <span className="layer-panel__row-main">
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- poignee de GLISSEMENT au pointeur (`onPointerDown`) ; son `onClick` ne fait que `stopPropagation`. Le clavier a deja sa voie sur la LIGNE elle-meme (Enter/Espace -> `onSelect`, plus haut) ; il n'existe pas de reordonnancement au clavier a exposer ici, et poser un `role`/`tabIndex` sur cette poignee ajouterait un arret de tabulation qui ne fait rien. */}
           <span
             className="layer-panel__grip-handle layer-panel__col--grip"
             onPointerDown={(e) => {

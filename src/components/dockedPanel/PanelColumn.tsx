@@ -288,7 +288,7 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
       const dockOrigin = dockRect ? { left: dockRect.left, top: dockRect.top } : null;
       return { ...current, pointerPosition, target, targetBounds: rect, dockOrigin };
     });
-  }, [layout]);
+  }, [layout, setDragState, setPendingDrag]);
 
   const finishDrag = useCallback((event: React.PointerEvent<HTMLDivElement>, commit: boolean) => {
     // Un appui relâché sous le seuil n'a jamais produit de `DockDragState` :
@@ -358,6 +358,7 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
                 aria-valuenow={Math.round(clampDockWidth(width))}
                 aria-valuemin={DOCK_WIDTH_MIN}
                 aria-valuemax={DOCK_WIDTH_MAX}
+                // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- `role="separator"` PORTEUR de `aria-valuenow` est le « window splitter » ARIA, qui est focusable par definition ; la regle ne connait que le separateur decoratif, sans valeur.
                 tabIndex={0}
               />
             )}

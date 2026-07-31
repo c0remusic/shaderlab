@@ -85,7 +85,10 @@ export function usePresetWorkflow({ sessionRef, presets, setError }: Deps) {
       });
     }
     return onConfirmed();
-  }, []);
+    // `sessionRef` est un objet de ref (identite stable par construction) : le
+    // declarer ici satisfait la regle sans rien changer a la frequence de
+    // recreation de ce callback.
+  }, [sessionRef]);
 
   const commitSavePreset = useCallback(async (name: string, overwriteId: string | null): Promise<boolean> => {
     try {

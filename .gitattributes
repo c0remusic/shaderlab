@@ -1,0 +1,5 @@
+# `core.autocrlf=true` sur cette machine : sans cette ligne, les hooks git
+# versionnes seraient extraits en CRLF et git-bash refuserait de les executer
+# (« /usr/bin/env: 'bash\r': No such file or directory ») a chaque clone frais.
+# Ce fichier n'existe que pour ca — ne pas y ajouter de regle par confort.
+scripts/hooks/** text eol=lf

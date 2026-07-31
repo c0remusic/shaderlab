@@ -94,6 +94,7 @@ export default function App() {
   const overlayAnimationLoopRef = useRef(new OverlayAnimationLoop());
   const sessionRef = useRef(new DocumentSession());
   const presetStoreRef = useRef(new TauriPresetStore());
+  // eslint-disable-next-line react-hooks/refs -- le store n'est PAS un etat : c'est un singleton d'IO tenu par ref pour n'etre construit qu'une fois, et `usePresets` ne fait que le garder. Aucune valeur lue ici n'entre dans le rendu, donc rien a « manquer ».
   const presets = usePresets(presetStoreRef.current);
   const [layers, setLayers] = useState<LayerState[]>([]);
   const presetIsDirty = presets.isDirtyOf(layers);
@@ -238,6 +239,7 @@ export default function App() {
   // le même lot React.
   const syncSchedulerRef = useRef<FrameScheduler<void> | null>(null);
   if (syncSchedulerRef.current === null) {
+    // eslint-disable-next-line react-hooks/refs -- initialisation PARESSEUSE d'un objet non rendu (le pattern `if (ref.current === null)` documente par React) : elle ne s'execute qu'au tout premier rendu et n'introduit aucune lecture dependant du rendu.
     syncSchedulerRef.current = new FrameScheduler<void>(() => syncSession());
   }
   const scheduleSync = useCallback(() => syncSchedulerRef.current!.request(undefined), []);
@@ -480,6 +482,24 @@ export default function App() {
     }
   }, [openFile]);
 
+  // Saisie libre de la toile : dimensions en attente de confirmation. Non nul
+  // seulement pendant que le dialogue est ouvert. Le sélecteur de fichier
+  // n'est ouvert QU'APRÈS la confirmation — l'ordre inverse (fichier puis
+  // dimensions) obligerait à décoder l'image avant de savoir quoi en faire.
+  //
+  // Déclaré AVANT `handleToolbarOpenFileWithFreeSize`, qui l'appelle : la
+  // position inverse (2026-07-31) faisait lire `setPendingFreeCanvas` avant sa
+  // déclaration, ce que React Compiler traite comme une valeur susceptible de
+  // changer — d'où un `react-hooks/immutability` sur l'appelant ET un
+  // `preserve-manual-memoization` sur `confirmFreeCanvas`, dont la dépendance
+  // inférée devenait `setPendingFreeCanvas` au lieu des deux sources réelles.
+  // Simple remontée de la déclaration : aucun autre changement.
+  const [pendingFreeCanvas, setPendingFreeCanvas] = useState<{ width: string; height: string } | null>(null);
+  const freeCanvas =
+    pendingFreeCanvas === null
+      ? null
+      : parseFreeCanvasRequest(pendingFreeCanvas.width, pendingFreeCanvas.height);
+
   // Fermetures STABLES pour la barre d'outils (mémoïsée) : une arrow inline
   // dans le JSX y était recréée à chaque rendu et aurait suffi à rendre la
   // mémoïsation inopérante. `onOpenFile` reste fermée sur ZERO argument — voir
@@ -490,16 +510,6 @@ export default function App() {
     [handleOpenFile],
   );
   const handleToolbarOpenFileWithFreeSize = useCallback(() => setPendingFreeCanvas({ width: "", height: "" }), []);
-
-  // Saisie libre de la toile : dimensions en attente de confirmation. Non nul
-  // seulement pendant que le dialogue est ouvert. Le sélecteur de fichier
-  // n'est ouvert QU'APRÈS la confirmation — l'ordre inverse (fichier puis
-  // dimensions) obligerait à décoder l'image avant de savoir quoi en faire.
-  const [pendingFreeCanvas, setPendingFreeCanvas] = useState<{ width: string; height: string } | null>(null);
-  const freeCanvas =
-    pendingFreeCanvas === null
-      ? null
-      : parseFreeCanvasRequest(pendingFreeCanvas.width, pendingFreeCanvas.height);
 
   const confirmFreeCanvas = useCallback(() => {
     if (freeCanvas?.kind !== "ok") return;
@@ -1014,6 +1024,7 @@ export default function App() {
     redo: handleRedo,
     isolate: () => isolation.toggleIsolation(selectedId),
   });
+  // eslint-disable-next-line react-hooks/refs -- pattern « latest ref » assume et documente juste au-dessus : la ref n'est JAMAIS lue pendant le rendu, seulement dans le handler `keydown`. La deplacer dans un `useEffect` marcherait aussi, mais ferait dependre la fraicheur des raccourcis de l'ordonnancement des effets.
   shortcutsRef.current = {
     undo: handleUndo,
     redo: handleRedo,
@@ -1266,6 +1277,7 @@ export default function App() {
   const [graceVisible, setGraceVisible] = useState(wantsOverlay);
   useEffect(() => {
     if (wantsOverlay) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- `graceVisible` n'est PAS un etat derive : il suit `wantsOverlay` a la montee mais avec 750 ms de retard a la descente. Le delai est la raison d'etre du state ; le calculer pendant le rendu supprimerait le delai de grace.
       setGraceVisible(true);
       return;
     }
@@ -1303,21 +1315,51 @@ export default function App() {
     r.setMaskOverlay(showOverlay && selectedId ? selectedId : null);
     r.requestRender(sessionRef.current.layers());
 
+    // Capture LOCALE de la boucle : `overlayAnimationLoopRef` est construite une
+    // fois (`useRef(new OverlayAnimationLoop())`) et jamais réaffectée, donc
+    // `loop` est rigoureusement la même instance qu'un `.current` relu dans le
+    // nettoyage — mais le linter ne peut pas le prouver et avertissait que le
+    // nettoyage lirait une valeur périmée. Capture plutôt que `disable`.
+    const loop = overlayAnimationLoopRef.current;
     if (showOverlay && selectedId) {
-      overlayAnimationLoopRef.current.start((timeMs) => {
+      loop.start((timeMs) => {
         rendererRef.current?.tickOverlayAnimation(timeMs);
       });
     } else {
-      overlayAnimationLoopRef.current.stop();
+      loop.stop();
     }
-    return () => overlayAnimationLoopRef.current.stop();
+    return () => loop.stop();
   }, [showOverlay, selectedId]);
+
+  // `DocumentSession` est le modèle d'historique, tenu HORS du state React à
+  // dessein (invariant OOM, CLAUDE.md § bandeau). Son état undo/redo est donc
+  // relu à chaque rendu ; tout ce qui le fait bouger (commit, undo, redo,
+  // ouverture de document) pose aussi un `setState` dans le même tour, donc le
+  // rendu suivant lit toujours une valeur fraîche. Le dupliquer en state
+  // créerait une seconde source de vérité pour la même donnée.
+  // Extrait du JSX ici uniquement pour pouvoir PORTER cette justification : une
+  // annotation `eslint-disable-next-line` n'est pas exprimable en position
+  // d'attribut JSX.
+  // eslint-disable-next-line react-hooks/refs -- voir le paragraphe ci-dessus.
+  const canUndo = sessionRef.current.canUndo();
+  // eslint-disable-next-line react-hooks/refs -- voir le paragraphe ci-dessus.
+  const canRedo = sessionRef.current.canRedo();
+
+  // Dimensions natives de la photo du calque sélectionné, pour les poignées de
+  // transformation. Même situation que `canUndo`/`canRedo` : la mesure vit dans
+  // le `Renderer`, tenu hors du state React (invariant OOM), et le repli
+  // `{ width: 1, height: 1 }` couvre la fenêtre où le renderer n'a pas encore
+  // enregistré la source. Extrait du JSX pour porter la justification.
+  const selectedPhotoSourceId = selectedLayer?.imageSource?.sourceId;
+  // eslint-disable-next-line react-hooks/refs -- voir le paragraphe ci-dessus.
+  const measuredPhotoSize = selectedPhotoSourceId === undefined ? undefined : rendererRef.current?.photoSources?.dimensions(selectedPhotoSourceId);
+  const selectedPhotoSize = measuredPhotoSize ?? { width: 1, height: 1 };
 
   return (
     <div className="app-shell">
       <Toolbar
-        canUndo={sessionRef.current.canUndo()}
-        canRedo={sessionRef.current.canRedo()}
+        canUndo={canUndo}
+        canRedo={canRedo}
         hasImage={imageSize.width > 0 && imageSize.height > 0}
         fileName={documentName}
         onUndo={handleUndo}
@@ -1394,7 +1436,7 @@ export default function App() {
         {showTransformHandles && selectedLayer?.imageSource && selectedLayer.transform && (
           <TransformHandles
             transform={selectedLayer.transform}
-            photoSize={rendererRef.current?.photoSources?.dimensions(selectedLayer.imageSource.sourceId) ?? { width: 1, height: 1 }}
+            photoSize={selectedPhotoSize}
             bgSize={imageSize}
             canvasRef={canvasRef}
             onTransformChange={(t) => handleTransformChange(selectedLayer.id, t)}
@@ -1619,6 +1661,7 @@ export default function App() {
             <>
               <Button
                 variant="secondary"
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- dialogue MODAL : le focus doit entrer dans le dialogue a son ouverture, et il est pose sur l'action SANS effet (Annuler), jamais sur l'action destructrice. C'est le comportement attendu d'une boite de dialogue, pas un vol de focus sur une page.
                 autoFocus
                 onClick={() => {
                   pendingOverwrite?.resolve(false);
@@ -1663,6 +1706,7 @@ export default function App() {
             <>
               <Button
                 variant="secondary"
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- dialogue MODAL, focus sur l'action sans effet (Annuler) : voir la meme note sur le dialogue « Remplacer ? ».
                 autoFocus
                 onClick={() => {
                   pendingPhotoLayerSave?.onCancel();
@@ -1701,7 +1745,12 @@ export default function App() {
           onClose={() => setPendingFreeCanvas(null)}
           actions={
             <>
-              <Button variant="secondary" autoFocus onClick={() => setPendingFreeCanvas(null)}>
+              <Button
+                variant="secondary"
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- dialogue MODAL, focus sur l'action sans effet (Annuler) : voir la meme note sur le dialogue « Remplacer ? ».
+                autoFocus
+                onClick={() => setPendingFreeCanvas(null)}
+              >
                 Annuler
               </Button>
               <Button
@@ -1754,7 +1803,12 @@ export default function App() {
           onClose={() => setPendingPresetCopyName(null)}
           actions={
             <>
-              <Button variant="secondary" autoFocus onClick={() => setPendingPresetCopyName(null)}>
+              <Button
+                variant="secondary"
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- dialogue MODAL, focus sur l'action sans effet (Annuler) : voir la meme note sur le dialogue « Remplacer ? ».
+                autoFocus
+                onClick={() => setPendingPresetCopyName(null)}
+              >
                 Annuler
               </Button>
               <Button
@@ -1800,7 +1854,12 @@ export default function App() {
           onClose={() => setPendingPresetApply(null)}
           actions={
             <>
-              <Button variant="secondary" autoFocus onClick={() => setPendingPresetApply(null)}>
+              <Button
+                variant="secondary"
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- dialogue MODAL, focus sur l'action sans effet (Annuler) : voir la meme note sur le dialogue « Remplacer ? ».
+                autoFocus
+                onClick={() => setPendingPresetApply(null)}
+              >
                 Annuler
               </Button>
               <Button

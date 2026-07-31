@@ -45,8 +45,10 @@ describe("glow effect module", () => {
   it("defines threshold and intensity params with sane defaults", () => {
     const threshold = glow.params.find((p) => p.name === "threshold");
     const intensity = glow.params.find((p) => p.name === "intensity");
-    expect(threshold).toMatchObject({ min: 0, max: 1, default: 0.7, step: 0.01 });
-    expect(intensity).toMatchObject({ min: 0, max: 3, default: 1.0, step: 0.05 });
+    expect(threshold).toMatchObject({ min: 0, max: 1, default: 0.55, step: 0.01 });
+    // Plafond d'intensité monté de 3 à 6 et défaut de 1.0 à 1.6 : le halo
+    // plafonnait bien avant que le curseur ne bute, faute de course.
+    expect(intensity).toMatchObject({ min: 0, max: 6, default: 1.6, step: 0.05 });
   });
 
   it("declares an fs_main entry point in its WGSL", () => {

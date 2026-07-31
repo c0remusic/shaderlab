@@ -26,11 +26,16 @@ describe("glow — seuil de bright-pass décodé vers le linéaire", () => {
     expect(srgbToLinear(0.5)).toBeLessThan(0.5);
   });
 
-  it("ramène le seuil par défaut (0.7) sous la moitié de l'échelle linéaire", () => {
+  it("ramène le seuil par défaut sous la moitié de l'échelle linéaire", () => {
     const threshold = glow.params.find((p) => p.name === "threshold");
-    expect(threshold?.default).toBe(0.7);
-    // 0.7 perceptuel = 0.448 linéaire ; l'ancien comportement plaçait la
-    // bascule à 0.7 linéaire = ~0.87 perceptuel (inerte sur 85% de la course).
+    // Défaut redescendu de 0.7 à 0.55 : à 0.7 le bright-pass ne laissait
+    // entrer qu'une fraction du pixel (26 % à sRGB 0.80), et le halo par
+    // défaut était invisible sur une photo qui n'a pas de zone cramée.
+    expect(threshold?.default).toBe(0.55);
+    // Le seuil reste décodé vers le LINÉAIRE : l'ancien comportement plaçait
+    // la bascule à la valeur perceptuelle prise telle quelle, soit ~0.87
+    // perceptuel, inerte sur 85 % de la course.
+    expect(srgbToLinear(0.55)).toBeLessThan(0.5);
     expect(srgbToLinear(0.7)).toBeCloseTo(0.4480, 4);
   });
 });

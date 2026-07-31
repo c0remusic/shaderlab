@@ -1,9 +1,19 @@
 /** Taille du uniform `params: array<f32, N>` du header WGSL partagé.
  *  Un effet déclarant plus de paramètres est rejeté au chargement du
- *  registry (voir effects/validate.ts) — élargir cette constante et le
- *  header ensemble si le besoin apparaît. Élargi de 8 à 11 pour le duotone
- *  tritone (3 couleurs HSL + contraste + pivot = 11). */
-export const MAX_EFFECT_PARAMS = 11;
+ *  registry (voir effects/validate.ts).
+ *
+ *  Élargi de 8 à 11 pour le duotone tritone (3 couleurs HSL + contraste +
+ *  pivot = 11), puis de 11 à 16 (2026-07-31) : le plafond était SATURÉ —
+ *  duotone en consommait exactement 11 — et la campagne d'élargissement des
+ *  réglages d'effets (genou de seuil et teinte de halo sur le glow, présence
+ *  centrale / asymétrie / orientation sur le chromatic bleed) n'avait plus
+ *  aucun slot libre. 16 laisse 5 slots au-dessus de l'effet le plus gourmand.
+ *
+ *  Le header ci-dessous interpole cette constante (`array<f32, ${...}>`) : il
+ *  n'y a donc plus qu'UN endroit à modifier, et `MAX_EFFECT_PARAMS` reste la
+ *  seule source pour la taille du Float32Array côté CPU
+ *  (`effectPassRunner.ts`) comme pour la déclaration WGSL. */
+export const MAX_EFFECT_PARAMS = 16;
 
 export const FULLSCREEN_VERTEX_WGSL = `
 struct VertexOut {

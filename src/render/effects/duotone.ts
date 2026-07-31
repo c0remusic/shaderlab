@@ -1,4 +1,5 @@
 import type { EffectModule } from "./types";
+import { HSL_TO_RGB_WGSL } from "./hsl";
 import {
   LINEAR_TO_SRGB_WGSL,
   SRGB_TO_LINEAR_VEC3_WGSL,
@@ -22,26 +23,7 @@ export const duotone: EffectModule = {
     { name: "pivot", label: "Pivot (ton moyen)", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Position du ton moyen sur l'axe de luminosité — décale l'équilibre ombres/hautes lumières" },
   ],
   wgsl: `
-fn hue2rgb(p: f32, q: f32, tIn: f32) -> f32 {
-  var t = tIn;
-  if (t < 0.0) { t = t + 1.0; }
-  if (t > 1.0) { t = t - 1.0; }
-  if (t < 1.0 / 6.0) { return p + (q - p) * 6.0 * t; }
-  if (t < 1.0 / 2.0) { return q; }
-  if (t < 2.0 / 3.0) { return p + (q - p) * (2.0 / 3.0 - t) * 6.0; }
-  return p;
-}
-fn hsl2rgb(h: f32, s: f32, l: f32) -> vec3<f32> {
-  if (s == 0.0) { return vec3<f32>(l, l, l); }
-  let q = select(l + s - l * s, l * (1.0 + s), l < 0.5);
-  let p = 2.0 * l - q;
-  return vec3<f32>(
-    hue2rgb(p, q, h + 1.0 / 3.0),
-    hue2rgb(p, q, h),
-    hue2rgb(p, q, h - 1.0 / 3.0),
-  );
-}
-${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}
+${HSL_TO_RGB_WGSL}${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // Les trois couleurs sortent du picker HSL en sRGB (valeurs PERCEPTUELLES,
   // exactement ce qu'affiche la pastille CSS du sélecteur). Elles étaient

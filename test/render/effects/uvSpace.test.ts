@@ -107,8 +107,10 @@ describe("intégration WGSL", () => {
   it("chromaticBleed corrige l'aspect et replie ses taps hors cadre", () => {
     expect(chromaticBleed.wgsl).toContain("fn aspectScale(");
     expect(chromaticBleed.wgsl).toContain("aspectScale(vec2<f32>(textureDimensions(srcTexture)))");
-    expect(chromaticBleed.wgsl).toContain("mirrorUv(uv + shift)");
-    expect(chromaticBleed.wgsl).toContain("mirrorUv(uv - shift)");
+    // Taps R et B décalés SÉPARÉMENT depuis l'ajout de l'asymétrie : une vraie
+    // lentille ne décale pas les deux canaux de façon strictement opposée.
+    expect(chromaticBleed.wgsl).toContain("mirrorUv(uv + shiftR)");
+    expect(chromaticBleed.wgsl).toContain("mirrorUv(uv - shiftB)");
     // le tap vert n'est pas décalé : rien à replier.
     expect(chromaticBleed.wgsl).toContain("textureSample(srcTexture, srcSampler, uv).g");
   });

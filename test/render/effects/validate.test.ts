@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { validateEffect } from "../../../src/render/effects/validate";
 import { effectRegistry } from "../../../src/render/effects/registry";
+import { MAX_EFFECT_PARAMS } from "../../../src/render/shaderCompose";
 import type { EffectModule } from "../../../src/render/effects/types";
 
 function effectWithParams(count: number): EffectModule {
@@ -19,12 +20,19 @@ function effectWithParams(count: number): EffectModule {
 }
 
 describe("validateEffect", () => {
+  // Bornes dérivées de la constante et non recopiées : le plafond a déjà été
+  // relevé deux fois (8 -> 11 pour le duotone, 11 -> 16 pour les paramètres
+  // étendus), et chaque fois ces deux tests tombaient au rouge sans qu'aucune
+  // régression ne les motive.
   it("accepts an effect at exactly the param limit", () => {
-    expect(() => validateEffect(effectWithParams(11))).not.toThrow();
+    expect(() => validateEffect(effectWithParams(MAX_EFFECT_PARAMS))).not.toThrow();
   });
 
   it("rejects an effect over the limit with the effect id in the message", () => {
-    expect(() => validateEffect(effectWithParams(12))).toThrow(/test-effect.*12.*11/);
+    const over = MAX_EFFECT_PARAMS + 1;
+    expect(() => validateEffect(effectWithParams(over))).toThrow(
+      new RegExp(`test-effect.*${over}.*${MAX_EFFECT_PARAMS}`),
+    );
   });
 
   it("every registered effect is valid", () => {

@@ -6,8 +6,20 @@ export const warp: EffectModule = {
   name: "Warp",
   params: [
     { name: "scale", label: "Échelle", unit: "none", min: 0.5, max: 12, default: 3, step: 0.25 },
-    { name: "amplitude", label: "Amplitude", unit: "percent", min: 0, max: 0.08, default: 0.02, step: 0.002 },
+    // Défaut remonté de 0.02 à 0.045, plafond de 0.08 à 0.25 (2026-07-31) :
+    // 0.02/0.08 posait le curseur à 25 % de sa course, et le plafond lui-même
+    // bornait le warp à ~5 % de la largeur — trop peu pour autre chose qu'un
+    // frémissement. Le FBM culmine autour de ±0.5, donc à 0.045 sur 6240 px de
+    // large le déplacement crête est de l'ordre de 140 px (contre ~60 avant).
+    { name: "amplitude", label: "Amplitude", unit: "percent", min: 0, max: 0.25, default: 0.045, step: 0.002 },
     { name: "octaves", label: "Détails", unit: "none", min: 1, max: 4, default: 3, step: 1 },
+    // Persistance du FBM : elle était FIGÉE à 0.5 dans `fbm`. C'est le
+    // paramètre qui décide si le warp est une houle lisse (0.25) ou une
+    // turbulence granuleuse (0.8), à échelle et amplitude identiques — le seul
+    // réglage qui change la MATIÈRE du warp plutôt que sa taille.
+    { name: "roughness", label: "Rugosité", unit: "none", min: 0.25, max: 0.8, default: 0.5, step: 0.01, hint: "Poids des octaves fines — bas = houle lisse, haut = turbulence" },
+    { name: "anisotropy", label: "Anisotropie", unit: "none", min: -1, max: 1, default: 0, step: 0.01, hint: "Déséquilibre horizontal/vertical du déplacement — négatif = étire en vertical, positif = en horizontal" },
+    { name: "twist", label: "Torsion", unit: "degrees", min: 0, max: 180, default: 0, step: 1, hint: "Fait pivoter le champ de déplacement : 0 = pousse, 90° = cisaille le long des lignes de niveau du bruit" },
     { name: "seed", label: "Graine", unit: "none", min: 0, max: 100, default: 0, step: 1 },
   ],
   wgsl: `

@@ -123,6 +123,15 @@
   );
 }
 
+/* La bande porte `role="slider"` + `tabIndex=0` : elle se prend au clavier, et
+   c'était le SEUL contrôle focalisable du panneau à s'en remettre à l'anneau
+   par défaut du navigateur — le carré a son `:focus-within` ci-dessus, le champ
+   Hex son `:focus-visible` ci-dessous. Mêmes tokens que ces deux-là. */
+.color-picker-panel__hue-band:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
 /* Curseur rond, calqué sur le thumb de ui/slider.tsx (--slider-thumb-size,
    bordure --border-strong, fond --text-value) : c'est le même geste pour
    l'utilisateur, il doit avoir la même forme. */

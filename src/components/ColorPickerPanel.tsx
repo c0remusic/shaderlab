@@ -23,6 +23,15 @@ export interface ColorPickerPanelProps {
  *  <canvas> exige ses dimensions en attributs numériques, pas en CSS. */
 const SV_SIZE = 140;
 
+/** Pas large de la teinte (Maj+flèche, Page↑/Page↓), en degrés. */
+const COARSE_HUE_STEP = 10;
+
+/** Touches qui font BOUGER la valeur d'un curseur — donc celles dont le
+ *  relâchement clôt une interaction et mérite une entrée d'historique. C'est
+ *  le jeu que `<input type="range">` traite nativement, et que la bande de
+ *  teinte doit reproduire à la main faute d'élément natif dessous. */
+const VALUE_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"]);
+
 /** Saturation/lightness square for a FIXED hue — HSL's "S" axis maps to
  *  the square's X, and "L" to Y inverted (top = light, bottom = dark),
  *  matching the common SV-picker convention users already expect. */
@@ -118,24 +127,59 @@ export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, 
   // n'étaient pilotables qu'au pointeur, le champ Hex étant le seul repli
   // clavier — et il exige de taper une valeur complète, sans réglage fin
   // (audit pré-release 2026-07-30, finding U3).
-  // Le commit vit sur `keyup`, pas sur `keydown` : une flèche maintenue répète
+  // Le commit vit sur `keyup`, pas sur `keydown` : une touche maintenue répète
   // l'événement, et committer à chaque répétition remplirait l'historique
   // d'undo d'un pas par frame. Même découpage que pointerdown/pointerup.
+  //
+  // Le jeu de touches est celui que `LabeledSlider` annonce dans son contrat
+  // (labeled-slider.tsx:24-27 — « flèches/Home/End/PageUp/PageDown ») et que
+  // les deux `input type="range"` du carré tiennent nativement. La bande de
+  // teinte n'a pas d'élément natif dessous : elle doit le reproduire à la
+  // main, sinon elle est le seul contrôle du panneau à ignorer la moitié du
+  // jeu — et une touche ignorée n'est pas inerte, elle remonte au conteneur
+  // défilant, qui déroule la colonne du dock pendant que le focus est sur le
+  // curseur.
   const handleHueKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
-      const step = event.shiftKey ? 10 : 1;
+      const step = event.shiftKey ? COARSE_HUE_STEP : 1;
       // La teinte est cyclique : on enroule au lieu de buter à 0/360.
-      if (event.key === "ArrowLeft") onChange({ hue: (hue - step + 360) % 360 });
-      else if (event.key === "ArrowRight") onChange({ hue: (hue + step) % 360 });
-      else return;
+      const wrap = (next: number) => ((next % 360) + 360) % 360;
+      switch (event.key) {
+        case "ArrowLeft":
+        case "ArrowDown":
+          onChange({ hue: wrap(hue - step) });
+          break;
+        case "ArrowRight":
+        case "ArrowUp":
+          onChange({ hue: wrap(hue + step) });
+          break;
+        case "PageDown":
+          onChange({ hue: wrap(hue - COARSE_HUE_STEP) });
+          break;
+        case "PageUp":
+          onChange({ hue: wrap(hue + COARSE_HUE_STEP) });
+          break;
+        case "Home":
+          onChange({ hue: 0 });
+          break;
+        case "End":
+          // 360 et 0 sont le MÊME rouge : sur un axe cyclique, End ne mène pas
+          // à une autre couleur, il pose le curseur au bout droit de la bande.
+          // La valeur reste dans `aria-valuemin`..`aria-valuemax` et dans les
+          // bornes du paramètre (duotone.ts:12 — hue min 0, max 360).
+          onChange({ hue: 360 });
+          break;
+        default:
+          return;
+      }
       event.preventDefault();
     },
     [onChange, hue]
   );
 
-  const commitOnArrowKeyUp = useCallback(
+  const commitOnValueKeyUp = useCallback(
     (event: React.KeyboardEvent) => {
-      if (!event.key.startsWith("Arrow")) return;
+      if (!VALUE_KEYS.has(event.key)) return;
       onCommit();
     },
     [onCommit]
@@ -186,7 +230,7 @@ export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, 
             step={1}
             value={Math.round(saturation * 100)}
             onChange={(e) => onChange({ saturation: Number(e.target.value) / 100 })}
-            onKeyUp={commitOnArrowKeyUp}
+            onKeyUp={commitOnValueKeyUp}
             onBlur={onCommit}
           />
           <input
@@ -198,7 +242,7 @@ export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, 
             step={1}
             value={Math.round(lightness * 100)}
             onChange={(e) => onChange({ lightness: Number(e.target.value) / 100 })}
-            onKeyUp={commitOnArrowKeyUp}
+            onKeyUp={commitOnValueKeyUp}
             onBlur={onCommit}
           />
           <canvas
@@ -242,7 +286,13 @@ export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, 
           aria-valuenow={Math.round(hue)}
           aria-valuetext={`${Math.round(hue)} degrés`}
           onKeyDown={handleHueKeyDown}
-          onKeyUp={commitOnArrowKeyUp}
+          onKeyUp={commitOnValueKeyUp}
+          // Filet, comme sur les deux `input type="range"` du carré : si le
+          // focus part alors qu'une touche est encore enfoncée, le `keyup`
+          // n'arrive jamais ici et la dernière valeur resterait hors
+          // historique. `handleParamCommit` (App.tsx:708-715) est gardé par
+          // `paramDirtyRef` — un blur sans changement ne pose rien.
+          onBlur={onCommit}
           onPointerDown={(e) => {
             e.currentTarget.setPointerCapture(e.pointerId);
             handleHuePointer(e);

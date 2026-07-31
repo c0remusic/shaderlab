@@ -15,9 +15,9 @@ const PHOTO = { width: 400, height: 200 };
  *  en pixels du fond vaut exactement `SNAP_THRESHOLD_SCREEN_PX`. */
 const SCALE_1 = 1;
 
-/** `y: 250` et NON 400 : 400 est la mediane verticale de la toile, donc l'axe Y
- *  accrocherait dans chaque cas et masquerait ce que les temoins sur X
- *  mesurent. La fixture doit etre neutre sur l'axe qu'elle n'examine pas. */
+/** `y: 250` et NON 400 : 400 est la médiane verticale de la toile, donc l'axe Y
+ *  accrocherait dans chaque cas et masquerait ce que les témoins sur X
+ *  mesurent. La fixture doit être neutre sur l'axe qu'elle n'examine pas. */
 function tf(over: Partial<LayerTransform> = {}): LayerTransform {
   return { x: 500, y: 250, scaleX: 1, scaleY: 1, rotation: 0, ...over };
 }

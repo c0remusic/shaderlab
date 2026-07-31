@@ -14,12 +14,16 @@ import {
   type EdgeIndex,
   type OverlayRect,
 } from "../ui/transform";
+import { buildSnapTargets, snapBox, snapScales, type SnapGuide } from "../ui/snap";
 import "./TransformHandles.css";
 
 interface Props {
   transform: LayerTransform;
   photoSize: { width: number; height: number };
   bgSize: { width: number; height: number };
+  /** Les AUTRES calques photo, cibles d'accroche du magnétisme. Vide = seuls
+   *  les bords et médianes de la toile servent de cibles. */
+  otherPhotoLayers?: readonly { transform: LayerTransform; photoSize: { width: number; height: number } }[];
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   onTransformChange: (transform: LayerTransform) => void;
   onTransformCommit: () => void;
@@ -60,8 +64,12 @@ type DragKind =
  * `ui/transform.ts`, ce composant ne fait que traduire écran<->pixels du
  * fond et déléguer.
  */
-export function TransformHandles({ transform, photoSize, bgSize, canvasRef, onTransformChange, onTransformCommit, onPickThrough }: Props) {
+export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayers, canvasRef, onTransformChange, onTransformCommit, onPickThrough }: Props) {
   const dragRef = useRef<DragKind | null>(null);
+  /** Guides ACTIFS, montrés pendant le geste seulement. Un magnétisme sans
+   *  guide se lit comme une saccade : on voit la photo sauter sans savoir sur
+   *  quoi, donc sans pouvoir décider si c'est ce qu'on voulait. */
+  const [guides, setGuides] = useState<SnapGuide[]>([]);
   const overlayRef = useRef<HTMLDivElement>(null);
   const [overlayRect, setOverlayRect] = useState<OverlayRect | null>(null);
 
@@ -113,6 +121,14 @@ export function TransformHandles({ transform, photoSize, bgSize, canvasRef, onTr
     [canvasRef],
   );
 
+  /** Pixels ÉCRAN par pixel du FOND — ce qui convertit le seuil d'accroche.
+   *  Lu sur le rect mesuré du canvas, donc le zoom (transform CSS) y est déjà. */
+  const displayScale = useCallback((): number => {
+    const canvas = canvasRef.current;
+    if (!canvas || canvas.width === 0) return 0;
+    return canvas.getBoundingClientRect().width / canvas.width;
+  }, [canvasRef]);
+
   const { corners, edges, rotationHandle } = computeHandleGeometry(transform, photoSize);
 
   function toScreenStyle(point: { x: number; y: number }): React.CSSProperties {
@@ -145,18 +161,24 @@ export function TransformHandles({ transform, photoSize, bgSize, canvasRef, onTr
       // 2026-07-31) : le coin est LIBRE par défaut, ce qui est le geste qui
       // manquait — jusqu'ici aucun geste ne pouvait étirer une photo.
       onTransformChange(
-        transformFromCornerDrag(
-          transform,
-          photoSize,
-          pointer,
-          drag.index,
-          e.altKey ? "center" : "oppositeCorner",
-          e.shiftKey,
+        withScaleSnap(
+          transformFromCornerDrag(
+            transform,
+            photoSize,
+            pointer,
+            drag.index,
+            e.altKey ? "center" : "oppositeCorner",
+            e.shiftKey,
+          ),
+          e.ctrlKey,
         ),
       );
     } else if (drag.kind === "edge") {
       onTransformChange(
-        transformFromEdgeDrag(transform, photoSize, pointer, drag.index, e.altKey ? "center" : "oppositeCorner"),
+        withScaleSnap(
+          transformFromEdgeDrag(transform, photoSize, pointer, drag.index, e.altKey ? "center" : "oppositeCorner"),
+          e.ctrlKey,
+        ),
       );
     } else if (drag.kind === "rotate") {
       // Snap d'angle à 15° (design 2026-07-26 §3.4) : déclencheur = `Shift`
@@ -168,11 +190,38 @@ export function TransformHandles({ transform, photoSize, bgSize, canvasRef, onTr
     } else {
       const dx = pointer.x - drag.startX;
       const dy = pointer.y - drag.startY;
-      onTransformChange({ ...drag.originTransform, x: drag.originTransform.x + dx, y: drag.originTransform.y + dy });
+      const moved = { ...drag.originTransform, x: drag.originTransform.x + dx, y: drag.originTransform.y + dy };
+      // `Ctrl` DÉSACTIVE l'accroche. Un magnétisme sans échappatoire empêche le
+      // placement délibérément proche d'une ligne, qui est un besoin réel.
+      if (e.ctrlKey) {
+        setGuides([]);
+        onTransformChange(moved);
+        return;
+      }
+      const targets = buildSnapTargets(bgSize, otherPhotoLayers);
+      const snap = snapBox(moved, photoSize, targets, displayScale());
+      setGuides(snap.guides);
+      onTransformChange({ ...moved, x: moved.x + snap.dx, y: moved.y + snap.dy });
     }
   }
 
+  /** ACCROCHE D'ÉCHELLE seulement — pas d'accroche de position pendant un
+   *  redimensionnement. Déplacer la boîte pour coller un bord sur un guide
+   *  bougerait aussi l'ancre, et l'ancre immobile est l'invariant que tout
+   *  `transformFromCornerDrag`/`EdgeDrag` tient. La faire céder au magnétisme
+   *  échangerait un défaut visible (la photo ne colle pas au bord) contre un
+   *  défaut sournois (le coin opposé glisse pendant qu'on redimensionne). */
+  function withScaleSnap(next: LayerTransform, bypass: boolean): LayerTransform {
+    if (bypass) {
+      setGuides([]);
+      return next;
+    }
+    setGuides([]);
+    return { ...next, ...snapScales(next.scaleX, next.scaleY) };
+  }
+
   function handlePointerUp(e: React.PointerEvent) {
+    setGuides([]);
     if (!dragRef.current) return;
     if ((e.currentTarget as Element).hasPointerCapture(e.pointerId)) {
       (e.currentTarget as Element).releasePointerCapture(e.pointerId);
@@ -182,6 +231,7 @@ export function TransformHandles({ transform, photoSize, bgSize, canvasRef, onTr
   }
 
   function handlePointerCancel(e: React.PointerEvent) {
+    setGuides([]);
     // Perte de capture (alt-tab, interruption OS/tactile) : annule le drag
     // SANS committer, contrairement à pointerup — même sémantique que
     // dragReorder.ts (pointercancel n'est pas un dépôt valide). Évite un
@@ -219,6 +269,23 @@ export function TransformHandles({ transform, photoSize, bgSize, canvasRef, onTr
             preserveAspectRatio="none"
             aria-hidden="true"
           >
+            {/* GUIDES D'ACCROCHE. Tracés dans le MÊME svg que le cadre, donc
+                dans le même viewBox en pixels du fond : une ligne à `value`
+                tombe exactement là où l'accroche l'a calculée, sans seconde
+                conversion qui pourrait diverger. Ils traversent tout le cadre
+                parce qu'un guide qui s'arrêterait à la boîte ne montrerait pas
+                sur QUOI elle s'aligne. */}
+            {guides.map((guide) => (
+              <line
+                key={`${guide.axis}-${guide.value}`}
+                className="transform-handles__guide"
+                x1={guide.axis === "x" ? guide.value : 0}
+                x2={guide.axis === "x" ? guide.value : bgSize.width}
+                y1={guide.axis === "y" ? guide.value : 0}
+                y2={guide.axis === "y" ? guide.value : bgSize.height}
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
             {/* HALO. Le même quadrilatère, tracé d'abord en encre sombre et
                 plus large. Sans lui le cadre était un seul trait sombre
                 semi-transparent (`--outline-contrast`) : invisible sur une

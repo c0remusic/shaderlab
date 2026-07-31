@@ -59,6 +59,15 @@
   cursor: nwse-resize;
 }
 
+/* Guide d'accroche : ligne fine, couleur de focus, jamais une cible. Elle
+   n'apparaît QUE pendant le geste — un guide qui reste affiché après coup se
+   confond avec un élément du document. */
+.transform-handles__guide {
+  stroke: var(--focus-color);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
 /* Poignées de CÔTÉ (échelle mono-axe). Rectangulaires et non rondes : la forme
    dit l'axe qu'elles touchent avant même le survol, là où quatre pastilles
    identiques aux coins n'auraient rien annoncé. Même remplissage et même

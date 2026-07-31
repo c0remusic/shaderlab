@@ -1566,6 +1566,21 @@ export default function App() {
   // eslint-disable-next-line react-hooks/refs -- voir le paragraphe ci-dessus.
   const measuredPhotoSize = selectedPhotoSourceId === undefined ? undefined : rendererRef.current?.photoSources?.dimensions(selectedPhotoSourceId);
   const selectedPhotoSize = measuredPhotoSize ?? { width: 1, height: 1 };
+  // Les AUTRES calques photo, pour que le magnétisme puisse s'accrocher sur
+  // eux (choix utilisateur 2026-07-31). Même source de dimensions et même
+  // justification `react-hooks/refs` que `measuredPhotoSize` juste au-dessus :
+  // la mesure vit dans le `Renderer`, hors du state React (invariant OOM).
+  // Les calques dont la source n'est pas encore enregistrée sont ÉCARTÉS plutôt
+  // que repliés sur `{1,1}` — une cible d'accroche à une taille inventée
+  // collerait la photo sur une ligne qui ne correspond à rien de visible.
+  // eslint-disable-next-line react-hooks/refs -- voir le paragraphe ci-dessus.
+  const photoSources = rendererRef.current?.photoSources;
+  // eslint-disable-next-line react-hooks/refs -- `photoSources` vient du ref ci-dessus, lu ici pendant le rendu pour la MÊME raison ; la règle voit le rappel, pas la justification.
+  const otherPhotoLayers = layers.flatMap((l) => {
+    if (l.id === selectedLayer?.id || !l.imageSource || !l.transform) return [];
+    const size = photoSources?.dimensions(l.imageSource.sourceId);
+    return size ? [{ transform: l.transform, photoSize: size }] : [];
+  });
 
   return (
     <div className="app-shell">
@@ -1673,6 +1688,7 @@ export default function App() {
             transform={selectedLayer.transform}
             photoSize={selectedPhotoSize}
             bgSize={imageSize}
+            otherPhotoLayers={otherPhotoLayers}
             canvasRef={canvasRef}
             onTransformChange={(t) => handleTransformChange(selectedLayer.id, t)}
             onTransformCommit={handleTransformCommit}

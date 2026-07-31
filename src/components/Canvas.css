@@ -43,9 +43,54 @@
    bordure/fond n'est posé ici — voir la note dans Canvas.tsx toImageCoords/
    updateCursorGeometry : canvas.getBoundingClientRect() doit rester
    exactement la boîte de rendu de l'image. */
+/* Zone visible du viewport (zoom/déplacement, src/ui/viewport.ts). Enfant flex
+   de .canvas-stage, donc dimensionnée à sa BOÎTE DE CONTENU — la compensation
+   du dock (`padding-right` ci-dessus) est ainsi retirée de la vue, et le
+   viewport centre l'image dans l'espace réellement libre plutôt que sous les
+   panneaux.
+
+   `overflow: hidden` : le canvas y est positionné en absolu à sa taille
+   INTRINSÈQUE (6000x4000 px CSS pour une 24MP) puis ramené par transform ;
+   sans clipping il déborderait de la fenêtre.
+
+   `min-width/min-height: 0` : un enfant flex a `min-width: auto` par défaut et
+   refuse donc de devenir plus petit que son contenu — ici un canvas de 6000 px
+   de large, ce qui ferait grandir le workspace au lieu de clipper. */
+.canvas-stage__view {
+  position: relative;
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.canvas-stage__view--pan {
+  cursor: grab;
+}
+
+.canvas-stage__view--pan:active {
+  cursor: grabbing;
+}
+
+/* Le canvas n'est PLUS contraint par `max-width/max-height: 100%` : sa boîte de
+   mise en page vaut sa taille intrinsèque (ses attributs width/height, soit la
+   résolution native du document) et c'est la transform du viewport qui le
+   réduit. Le ratio est donc préservé PAR CONSTRUCTION — l'échelle du viewport
+   est uniforme, aucun contexte de mise en page ne peut plus l'étirer. C'est ce
+   qui rend caduque la classe de bug décrite au-dessus (ratio 3.48 au lieu de
+   1.5 sur fenêtre large, 2026-07-21), mais le checkpoint fenêtre large reste à
+   rejouer sur la vraie fenêtre : le mécanisme a changé, pas l'exigence.
+
+   `transform-origin: 0 0` : le coin haut-gauche est le point fixe, donc la
+   transform place littéralement le canvas à `(offsetX, offsetY)` à l'échelle
+   `scale`. Toute autre origine décalerait l'image d'une demi-taille et
+   fausserait `viewToImage`. */
 .canvas-stage__canvas {
-  max-width: 100%;
-  max-height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
   cursor: default;
 }
 

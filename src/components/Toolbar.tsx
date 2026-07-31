@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Download, FolderOpen, Frame, ImagePlus, Menu, Redo2, Undo2 } from "lucide-react";
+import { Download, FolderOpen, Frame, ImagePlus, Maximize2, Menu, Redo2, Undo2, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
@@ -39,6 +39,13 @@ interface Props {
   onOpenFileWithFreeSize: () => void;
   onImportPhotoLayer: () => void;
   canImportPhotoLayer: boolean;
+  /** Zoom courant en pourcentage (PRD pan/zoom : « le pourcentage courant est
+   *  visible »). */
+  zoomPercent: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  /** Ajuster à l'écran — l'état de repos du viewport. */
+  onZoomFit: () => void;
 }
 
 /** MÉMOÏSÉ (2026-07-30, profil CPU). Aucune de ses props ne bouge pendant un
@@ -60,6 +67,10 @@ export const Toolbar = memo(function Toolbar({
   onOpenFileWithFreeSize,
   onImportPhotoLayer,
   canImportPhotoLayer,
+  zoomPercent,
+  onZoomIn,
+  onZoomOut,
+  onZoomFit,
 }: Props) {
   return (
     <div
@@ -142,6 +153,36 @@ export const Toolbar = memo(function Toolbar({
         </span>
       )}
       <div className="flex-1" />
+      {/* Zone de zoom : UN jeu de contrôles unique agissant sur la vue courante,
+          dans une zone fixe hors de tout conteneur défilant — la forme imposée
+          par l'ADR-0001 de densité. Le pourcentage est en `tabular-nums` pour
+          que la largeur ne saute pas entre « 13 % » et « 100 % ». */}
+      {hasImage && (
+        <div className="flex items-center gap-1" role="group" aria-label="Zoom">
+          <Button variant="ghost" size="icon" aria-label="Dézoomer" title="Dézoomer" onClick={onZoomOut}>
+            <ZoomOut className="icon-md icon-stroke" aria-hidden="true" />
+          </Button>
+          <span
+            className="min-w-[5ch] text-center text-sm tabular-nums text-muted-foreground"
+            aria-live="polite"
+            aria-label={`Zoom ${zoomPercent} %`}
+          >
+            {zoomPercent} %
+          </span>
+          <Button variant="ghost" size="icon" aria-label="Zoomer" title="Zoomer" onClick={onZoomIn}>
+            <ZoomIn className="icon-md icon-stroke" aria-hidden="true" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Ajuster à l'écran"
+            title="Ajuster à l'écran"
+            onClick={onZoomFit}
+          >
+            <Maximize2 className="icon-md icon-stroke" aria-hidden="true" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 });

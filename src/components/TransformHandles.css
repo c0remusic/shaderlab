@@ -1,14 +1,35 @@
+/* Boîte de l'overlay pilotée en pixels par `TransformHandles.measureOverlay`
+   (pas d'`inset: 0` ici) : elle doit épouser le rectangle AFFICHÉ du canvas,
+   qui est plus petit que son conteneur (lettreboxage `max-width/height: 100%`)
+   et décalé (compensation du dock, `Canvas.css`). Poser une taille en CSS
+   remettrait le repère du conteneur, soit exactement le défaut corrigé. */
 .transform-handles {
   position: absolute;
-  inset: 0;
   pointer-events: none;
   z-index: var(--z-canvas-overlay);
 }
 
-.transform-handles__box {
+.transform-handles__outline {
   position: absolute;
-  border: 1px solid var(--outline-contrast);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* Seul le polygone est une cible ; le carré du SVG ne doit rien intercepter. */
   pointer-events: none;
+  /* Le trait de contour déborde d'un demi-pixel du viewBox sur les bords. */
+  overflow: visible;
+}
+
+/* Contour ET corps de déplacement : le même quadrilatère, celui de la photo
+   réellement transformée. `pointer-events: fill` restreint la prise à son
+   INTÉRIEUR — c'était la contradiction d'avant, où la règle posait `none`
+   pendant qu'un style inline imposait `auto` sur une englobante trop grande. */
+.transform-handles__box {
+  fill: transparent;
+  stroke: var(--outline-contrast);
+  stroke-width: 1;
+  pointer-events: fill;
+  cursor: move;
 }
 
 .transform-handles__corner {

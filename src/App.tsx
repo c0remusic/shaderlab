@@ -25,6 +25,15 @@ import { BrushToolbar } from "./components/BrushToolbar";
 import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
 import { TransformHandles } from "./components/TransformHandles";
+import {
+  ZOOM_STEP_FACTOR,
+  fitViewport,
+  reconcileViewport,
+  zoomByFactor,
+  zoomPercent,
+  type Size as ViewportSize,
+  type ViewportState,
+} from "./ui/viewport";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { exportImage, resolveExportTargetAsync, resolveDefaultExportTarget } from "./export/exportImage";
 import { messageFromUnknown } from "./lib/errors";
@@ -100,6 +109,14 @@ export default function App() {
   const presetIsDirty = presets.isDirtyOf(layers);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  // Zoom/déplacement du canvas (`src/ui/viewport.ts`). Le viewport est un état
+  // d'INTERFACE : il ne touche ni le document, ni l'historique, ni l'export —
+  // même frontière que l'isolation de calque (`src/layers/isolation.ts`).
+  const [viewport, setViewport] = useState<ViewportState>({ scale: 1, offsetX: 0, offsetY: 0 });
+  // Taille PRÉCÉDENTE de la zone visible. `reconcileViewport` en a besoin pour
+  // savoir quel point de l'image était au centre avant un redimensionnement ;
+  // c'est l'appelant qui la détient, jamais le module de viewport.
+  const viewSizeRef = useRef<ViewportSize>({ width: 0, height: 0 });
   const [sourcePath, setSourcePath] = useState<string | null>(null);
   // Nom AFFICHABLE du document, distinct de `sourcePath` — qui reste le chemin
   // disque, et lui seul, parce que c'est lui qui décide de l'écrasement à
@@ -291,6 +308,65 @@ export default function App() {
     return true;
   }, []);
 
+  // Le facteur de réduction du canvas est DEVENU l'échelle du viewport : la
+  // transform CSS remplace l'ancien `max-width: 100%`, donc la largeur affichée
+  // vaut exactement `canvas.width * viewport.scale`. Ce re-sync est nécessaire
+  // parce que l'observateur de taille plus bas ne peut plus le voir : la boîte
+  // de mise en page du canvas vaut désormais sa taille INTRINSÈQUE et ne bouge
+  // plus quand la fenêtre change — seule la transform bouge, et un
+  // `ResizeObserver` ne l'observe pas.
+  useEffect(() => {
+    if (!syncDisplayScale()) return;
+    rendererRef.current?.requestRender(sessionRef.current.layers());
+  }, [viewport.scale, syncDisplayScale]);
+
+  // Redimensionnement de la zone visible : l'échelle est conservée si elle
+  // reste dans les bornes, et c'est le point regardé au CENTRE qui survit —
+  // d'où la taille précédente, gardée ici et nulle part ailleurs.
+  // Taille du DOCUMENT, jamais `canvas.width` : hors document le canvas garde
+  // les 300x150 par défaut d'un `<canvas>` HTML, et le viewport ajustait donc
+  // ce rectangle vide à la fenêtre — un canvas agrandi 3x sous l'écran
+  // d'accueil (mesuré par CDP : `scale(3.02667)` avant toute ouverture).
+  // `imageSize` vaut `{0,0}` tant qu'aucun document n'est ouvert, ce que toute
+  // la géométrie du viewport traite déjà comme dégénéré.
+  //
+  // Dépendance FRANCHE à `imageSize` plutôt qu'une ref lue au vol : écrire une
+  // ref pendant le render est refusé par la règle React de l'ESLint du projet,
+  // et le coût réel est nul — ces callbacks ne sont recréés qu'à l'ouverture
+  // d'un document, pas pendant un geste.
+  const handleViewResize = useCallback(
+    (size: ViewportSize) => {
+      const previous = viewSizeRef.current;
+      viewSizeRef.current = size;
+      if (imageSize.width <= 0 || imageSize.height <= 0) return;
+      setViewport((current) => reconcileViewport(current, imageSize, previous, size));
+    },
+    [imageSize],
+  );
+
+  const contentSizeOf = useCallback((): ViewportSize => imageSize, [imageSize]);
+
+  // Les boutons +/- zooment « centrés sur le centre du canvas » (PRD pan/zoom),
+  // là où la molette s'ancre sur le curseur. Deux callbacks distincts plutôt
+  // qu'un `handleZoomStep(direction)` : `Toolbar` est mémoïsé et n'accepte que
+  // des `() => void` stables — une flèche inline à l'appel casserait le mémo.
+  const handleZoomStep = useCallback(
+    (direction: 1 | -1) => {
+      const view = viewSizeRef.current;
+      const center = { x: view.width / 2, y: view.height / 2 };
+      const factor = direction === 1 ? ZOOM_STEP_FACTOR : 1 / ZOOM_STEP_FACTOR;
+      setViewport((current) => zoomByFactor(current, center, factor, contentSizeOf(), view));
+    },
+    [contentSizeOf],
+  );
+
+  const handleZoomIn = useCallback(() => handleZoomStep(1), [handleZoomStep]);
+  const handleZoomOut = useCallback(() => handleZoomStep(-1), [handleZoomStep]);
+
+  const handleZoomFit = useCallback(() => {
+    setViewport(fitViewport(contentSizeOf(), viewSizeRef.current));
+  }, [contentSizeOf]);
+
   const openFile = useCallback(async (
     file: File,
     path: string | null,
@@ -361,6 +437,10 @@ export default function App() {
       rendererRef.current = candidate;
 
       setImageSize(documentSize);
+      // Nouveau document = nouvelle géométrie : le zoom du document précédent
+      // n'a aucun sens sur celui-ci (il pourrait même être hors bornes). On
+      // repart de l'ajustement, ce qui est aussi l'état d'avant le viewport.
+      setViewport(fitViewport(documentSize, viewSizeRef.current));
       setSourcePath(path);
       // Posé au MÊME instant que `imageSize` et `sourcePath` : un document
       // chargé a toujours un nom affichable. Il ne pilote plus la ligne
@@ -1371,6 +1451,10 @@ export default function App() {
         onOpenFileWithFreeSize={handleToolbarOpenFileWithFreeSize}
         onImportPhotoLayer={photoLayer.handleImportPhotoLayer}
         canImportPhotoLayer={canAddPhotoLayer(layers)}
+        zoomPercent={zoomPercent(viewport)}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onZoomFit={handleZoomFit}
       />
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
       {maskPaintMode && (
@@ -1427,12 +1511,20 @@ export default function App() {
           // (le pinceau garde la main), jamais en `crop` (les poignées de crop
           // prennent la place) — `src/ui/canvasMode.ts`.
           onPick={photoLayer.canvasMode.kind === "idle" ? handleCanvasPick : undefined}
-        />
+          viewport={viewport}
+          contentSize={imageSize}
+          onViewportChange={setViewport}
+          onViewResize={handleViewResize}
+        >
         {/* `showTransformHandles` = mode canvas `idle` (usePhotoLayer/CanvasMode).
             Avant T1, les poignées se montaient sur la seule SÉLECTION : un calque
             photo sélectionné en mode peinture superposait sa boîte de déplacement
             (pointerEvents: "auto" sur toute la boîte) au geste de pinceau. Les
-            deux modes sont maintenant mutuellement exclusifs. */}
+            deux modes sont maintenant mutuellement exclusifs.
+
+            EN ENFANT DU CANVAS depuis le zoom : la zone visible clippe, et
+            zoomé le canvas déborde d'elle — posées plus haut dans l'arbre, les
+            poignées se dessineraient par-dessus le dock. */}
         {showTransformHandles && selectedLayer?.imageSource && selectedLayer.transform && (
           <TransformHandles
             transform={selectedLayer.transform}
@@ -1455,6 +1547,7 @@ export default function App() {
             }}
           />
         )}
+        </Canvas>
         <PanelColumn
           panels={[
             {

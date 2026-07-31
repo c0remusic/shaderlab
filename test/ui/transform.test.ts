@@ -1,17 +1,22 @@
 import { describe, it, expect } from "vitest";
 import {
   MIN_TRANSFORM_SCALE,
+  CORNER_INDICES,
   clampTransformScale,
   compositeUvToPhotoUv,
   computeHandleGeometry,
-  scaleFromCornerDrag,
+  overlayRectFromClientRects,
+  sameOverlayRect,
+  transformFromCornerDrag,
   rotationFromPointer,
   snapAngle,
   ANGLE_SNAP_DEGREES,
   resetTransform,
   centerTransform,
   fitToCanvas,
+  type CornerIndex,
 } from "../../src/ui/transform";
+import type { LayerTransform } from "../../src/layers/types";
 
 describe("clampTransformScale", () => {
   it("laisse passer une échelle strictement positive", () => {
@@ -153,21 +158,171 @@ describe("resetTransform / centerTransform / fitToCanvas", () => {
   });
 });
 
-describe("scaleFromCornerDrag / rotationFromPointer", () => {
+describe("overlayRectFromClientRects", () => {
+  it("rend le rectangle du CANVAS, pas celui du conteneur qui porte l'overlay", () => {
+    // Conteneur 1200x800 ; canvas lettreboxé à 600x400 et décalé vers la
+    // gauche par la compensation du dock — c'est le cas réel de `.workspace`
+    // vs `.canvas-stage__canvas`. L'overlay doit valoir le canvas.
+    const parentRect = { left: 100, top: 50, width: 1200, height: 800 };
+    const canvasRect = { left: 250, top: 250, width: 600, height: 400 };
+    expect(overlayRectFromClientRects(canvasRect, parentRect)).toEqual({
+      left: 150,
+      top: 200,
+      width: 600,
+      height: 400,
+    });
+  });
+
+  it("un canvas qui remplit exactement son conteneur donne un overlay à l'origine", () => {
+    const rect = { left: 100, top: 50, width: 1200, height: 800 };
+    expect(overlayRectFromClientRects(rect, rect)).toEqual({ left: 0, top: 0, width: 1200, height: 800 });
+  });
+
+  it("suit un zoom : un canvas agrandi et débordant du conteneur garde ses vraies mesures", () => {
+    // `getBoundingClientRect()` reflète déjà les transforms CSS — un zoom 2x
+    // avec déplacement se lit tel quel, y compris en coordonnées négatives.
+    const parentRect = { left: 100, top: 50, width: 1200, height: 800 };
+    const zoomedCanvas = { left: -140, top: -30, width: 2400, height: 1600 };
+    expect(overlayRectFromClientRects(zoomedCanvas, parentRect)).toEqual({
+      left: -240,
+      top: -80,
+      width: 2400,
+      height: 1600,
+    });
+  });
+});
+
+describe("sameOverlayRect", () => {
+  const rect = { left: 1, top: 2, width: 3, height: 4 };
+
+  it("deux mesures identiques sont égales (pas de reprise d'état, pas de boucle de rendu)", () => {
+    expect(sameOverlayRect(rect, { ...rect })).toBe(true);
+  });
+
+  it("un seul champ qui bouge suffit à les distinguer", () => {
+    expect(sameOverlayRect(rect, { ...rect, left: 1.5 })).toBe(false);
+    expect(sameOverlayRect(rect, { ...rect, height: 5 })).toBe(false);
+  });
+});
+
+describe("transformFromCornerDrag", () => {
   const photoSize = { width: 200, height: 100 };
+  const OPPOSITE: Record<CornerIndex, CornerIndex> = { 0: 2, 1: 3, 2: 0, 3: 1 };
 
-  it("scaleFromCornerDrag retourne 1 quand le pointeur est exactement au coin de scale=1", () => {
-    const transform = { x: 500, y: 500, scale: 1, rotation: 0 };
-    const scale = scaleFromCornerDrag(transform, photoSize, { x: 600, y: 550 });
-    expect(scale).toBeCloseTo(1, 5);
+  const cornerAt = (transform: LayerTransform, index: CornerIndex) =>
+    computeHandleGeometry(transform, photoSize).corners[index];
+
+  /** Point sur la demi-droite centre→coin, `factor` fois plus loin que le coin. */
+  function alongDiagonal(transform: LayerTransform, index: CornerIndex, factor: number) {
+    const corner = cornerAt(transform, index);
+    return {
+      x: transform.x + (corner.x - transform.x) * factor,
+      y: transform.y + (corner.y - transform.y) * factor,
+    };
+  }
+
+  for (const index of CORNER_INDICES) {
+    it(`le coin opposé au coin ${index} tiré reste immobile — sans rotation`, () => {
+      const transform: LayerTransform = { x: 500, y: 500, scale: 1, rotation: 0 };
+      const before = cornerAt(transform, OPPOSITE[index]);
+      const next = transformFromCornerDrag(transform, photoSize, alongDiagonal(transform, index, 1.4), index);
+      const after = cornerAt(next, OPPOSITE[index]);
+      expect(after.x).toBeCloseTo(before.x, 6);
+      expect(after.y).toBeCloseTo(before.y, 6);
+    });
+
+    it(`le coin opposé au coin ${index} tiré reste immobile — avec rotation`, () => {
+      const transform: LayerTransform = { x: 420, y: 380, scale: 1.7, rotation: 0.63 };
+      const before = cornerAt(transform, OPPOSITE[index]);
+      const next = transformFromCornerDrag(transform, photoSize, alongDiagonal(transform, index, 1.4), index);
+      const after = cornerAt(next, OPPOSITE[index]);
+      expect(after.x).toBeCloseTo(before.x, 6);
+      expect(after.y).toBeCloseTo(before.y, 6);
+    });
+
+    it(`le coin ${index} tiré suit le pointeur (le drag n'ancre pas le centre)`, () => {
+      const transform: LayerTransform = { x: 420, y: 380, scale: 1.7, rotation: 0.63 };
+      const pointer = alongDiagonal(transform, index, 1.4);
+      const next = transformFromCornerDrag(transform, photoSize, pointer, index);
+      const dragged = cornerAt(next, index);
+      expect(dragged.x).toBeCloseTo(pointer.x, 6);
+      expect(dragged.y).toBeCloseTo(pointer.y, 6);
+      // Ancre au coin opposé : éloigner le pointeur de 40 % du centre
+      // n'agrandit que de 20 %, la moitié du gain d'un ancrage central.
+      expect(next.scale).toBeCloseTo(transform.scale * 1.2, 6);
+    });
+  }
+
+  it("un pointeur posé exactement sur le coin tiré ne bouge rien (pas de saut au début du drag)", () => {
+    const transform: LayerTransform = { x: 420, y: 380, scale: 1.7, rotation: 0.63 };
+    const next = transformFromCornerDrag(transform, photoSize, cornerAt(transform, 2), 2);
+    expect(next.scale).toBeCloseTo(transform.scale, 6);
+    expect(next.x).toBeCloseTo(transform.x, 6);
+    expect(next.y).toBeCloseTo(transform.y, 6);
+    expect(next.rotation).toBe(transform.rotation);
   });
 
-  it("scaleFromCornerDrag est clampé par MIN_TRANSFORM_SCALE quand le pointeur est sur le centre", () => {
-    const transform = { x: 500, y: 500, scale: 1, rotation: 0 };
-    const scale = scaleFromCornerDrag(transform, photoSize, { x: 500, y: 500 });
-    expect(scale).toBe(MIN_TRANSFORM_SCALE);
+  it("réappliquer le même pointeur au résultat est stable (l'ancre ne dérive pas pendant le drag)", () => {
+    const transform: LayerTransform = { x: 420, y: 380, scale: 1.7, rotation: 0.63 };
+    const pointer = alongDiagonal(transform, 2, 1.4);
+    const once = transformFromCornerDrag(transform, photoSize, pointer, 2);
+    const twice = transformFromCornerDrag(once, photoSize, pointer, 2);
+    expect(twice.scale).toBeCloseTo(once.scale, 6);
+    expect(twice.x).toBeCloseTo(once.x, 6);
+    expect(twice.y).toBeCloseTo(once.y, 6);
   });
 
+  it("traverser l'ancre n'inverse pas la box : deux pointeurs symétriques rendent la même échelle", () => {
+    const transform: LayerTransform = { x: 500, y: 500, scale: 1, rotation: 0 };
+    const anchor = cornerAt(transform, 0); // opposé du coin 2 (BR)
+    const outside = { x: anchor.x + 60, y: anchor.y + 30 };
+    const crossed = { x: anchor.x - 60, y: anchor.y - 30 };
+    const a = transformFromCornerDrag(transform, photoSize, outside, 2);
+    const b = transformFromCornerDrag(transform, photoSize, crossed, 2);
+    expect(b.scale).toBeCloseTo(a.scale, 6);
+    expect(a.scale).toBeGreaterThan(0);
+  });
+
+  it("un pointeur posé sur l'ancre clampe à MIN_TRANSFORM_SCALE sans déplacer l'ancre", () => {
+    const transform: LayerTransform = { x: 500, y: 500, scale: 1, rotation: 0.3 };
+    const anchor = cornerAt(transform, 0);
+    const next = transformFromCornerDrag(transform, photoSize, anchor, 2);
+    expect(next.scale).toBe(MIN_TRANSFORM_SCALE);
+    const after = cornerAt(next, 0);
+    expect(after.x).toBeCloseTo(anchor.x, 6);
+    expect(after.y).toBeCloseTo(anchor.y, 6);
+  });
+
+  it("l'ancrage « centre » (Alt) garde le centre fixe et grandit dans les 4 directions", () => {
+    const transform: LayerTransform = { x: 500, y: 500, scale: 1, rotation: 0 };
+    const next = transformFromCornerDrag(transform, photoSize, { x: 600, y: 550 }, 2, "center");
+    expect(next.scale).toBeCloseTo(1, 5);
+    expect(next.x).toBe(500);
+    expect(next.y).toBe(500);
+    const doubled = transformFromCornerDrag(transform, photoSize, { x: 700, y: 600 }, 2, "center");
+    expect(doubled.scale).toBeCloseTo(2, 5);
+    expect(doubled.x).toBe(500);
+  });
+
+  it("l'ancrage « centre » est clampé par MIN_TRANSFORM_SCALE quand le pointeur est sur le centre", () => {
+    const transform: LayerTransform = { x: 500, y: 500, scale: 1, rotation: 0 };
+    expect(transformFromCornerDrag(transform, photoSize, { x: 500, y: 500 }, 2, "center").scale).toBe(
+      MIN_TRANSFORM_SCALE,
+    );
+  });
+
+  it("une photo de taille dégénérée laisse la transform inchangée (jamais de NaN)", () => {
+    const transform: LayerTransform = { x: 500, y: 500, scale: 1, rotation: 0.2 };
+    expect(transformFromCornerDrag(transform, { width: 0, height: 0 }, { x: 700, y: 700 }, 2)).toEqual(transform);
+  });
+
+  it("la rotation n'est jamais touchée par un drag de coin", () => {
+    const transform: LayerTransform = { x: 420, y: 380, scale: 1.7, rotation: 0.63 };
+    expect(transformFromCornerDrag(transform, photoSize, { x: 800, y: 900 }, 1).rotation).toBe(0.63);
+  });
+});
+
+describe("rotationFromPointer", () => {
   it("rotationFromPointer retourne 0 quand le pointeur est directement au-dessus du centre", () => {
     const transform = { x: 500, y: 500, scale: 1, rotation: 0 };
     expect(rotationFromPointer(transform, { x: 500, y: 300 })).toBeCloseTo(0, 5);

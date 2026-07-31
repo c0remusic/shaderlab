@@ -1,5 +1,6 @@
-import { forwardRef, useRef, useEffect, useState } from "react";
+import { forwardRef, useRef, useEffect, useState, useCallback } from "react";
 import { EmptyWorkspace } from "./EmptyWorkspace";
+import { panBy, zoomByWheel, type Size, type ViewportState } from "../ui/viewport";
 
 interface Props {
   onFileDropped: (file: File) => void;
@@ -8,6 +9,25 @@ interface Props {
   maskPaintMode: boolean;
   onMaskStroke: (x: number, y: number) => void;
   onStrokeEnd: () => void;
+  /** Zoom/déplacement courants (`src/ui/viewport.ts`). Appliqués en TRANSFORM
+   *  CSS sur le canvas, jamais au pipeline de rendu : le canvas garde la
+   *  résolution native du document. */
+  viewport: ViewportState;
+  /** Taille du document en pixels image (= `canvas.width/height`). Passée en
+   *  prop plutôt que lue sur le ref : la géométrie du viewport doit se
+   *  recalculer au RENDER quand le document change, pas au prochain effet. */
+  contentSize: Size;
+  onViewportChange: (viewport: ViewportState) => void;
+  /** Remonte la taille de la zone visible à chaque redimensionnement. C'est
+   *  l'appelant qui détient la taille PRÉCÉDENTE, dont `reconcileViewport` a
+   *  besoin pour conserver le point regardé. */
+  onViewResize: (size: Size) => void;
+  /** Calques d'overlay posés DANS la zone visible (poignées de transform).
+   *  Ils y sont pour être CLIPPÉS avec elle : zoomé, le canvas déborde de la
+   *  vue, et un overlay posé plus haut dans l'arbre dessinerait ses poignées
+   *  par-dessus le dock. Ils héritent aussi de son repère, donc ils suivent le
+   *  zoom sans le connaître. */
+  children?: React.ReactNode;
   /** Rayon du pinceau en pixels IMAGE (= `radius` de paintStroke). Sert à
    *  dimensionner le curseur cercle custom. */
   brushSize: number;
@@ -22,13 +42,175 @@ interface Props {
 }
 
 export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
-  { onFileDropped, hasImage, onOpenFile, maskPaintMode, onMaskStroke, onStrokeEnd, brushSize, brushHardness, onPick },
+  {
+    onFileDropped,
+    hasImage,
+    onOpenFile,
+    maskPaintMode,
+    onMaskStroke,
+    onStrokeEnd,
+    brushSize,
+    brushHardness,
+    onPick,
+    viewport,
+    contentSize,
+    onViewportChange,
+    onViewResize,
+    children,
+  },
   ref
 ) {
   const isPaintingRef = useRef(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const stageRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<HTMLDivElement>(null);
   const cursorRef = useRef<HTMLDivElement>(null);
+  // Espace maintenu = geste de déplacement (PRD pan/zoom). En state et pas en
+  // ref : le curseur de préhension et la neutralisation du pinceau sont des
+  // rendus, pas des effets de bord.
+  const [spaceHeld, setSpaceHeld] = useState(false);
+  const panDragRef = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null);
+
+  // Les handlers de molette et de déplacement lisent le viewport COURANT. Le
+  // passer par une ref évite de réenregistrer l'écouteur natif de `wheel` à
+  // chaque changement de zoom — un `removeEventListener`/`addEventListener` par
+  // cran de molette, sur un écouteur non passif, est exactement le genre de
+  // chose qui rend un geste continu saccadé.
+  const viewportRef = useRef(viewport);
+  viewportRef.current = viewport;
+  const contentSizeRef = useRef(contentSize);
+  contentSizeRef.current = contentSize;
+  const onViewportChangeRef = useRef(onViewportChange);
+  onViewportChangeRef.current = onViewportChange;
+
+  const measureView = useCallback((): Size | null => {
+    const view = viewRef.current;
+    if (!view) return null;
+    const rect = view.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    return { width: rect.width, height: rect.height };
+  }, []);
+
+  // Taille de la zone visible remontée à l'appelant : c'est LUI qui garde la
+  // taille précédente, dont `reconcileViewport` a besoin pour conserver le
+  // point regardé au centre (voir la doc de cette fonction).
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    const observer = new ResizeObserver(() => {
+      const size = measureView();
+      if (size) onViewResize(size);
+    });
+    observer.observe(view);
+    const initial = measureView();
+    if (initial) onViewResize(initial);
+    return () => observer.disconnect();
+  }, [measureView, onViewResize]);
+
+  // Zoom molette. Écouteur DOM natif et non `onWheel` React : React 19
+  // enregistre `wheel` en PASSIF, où `preventDefault()` est ignoré — sans lui,
+  // la molette ferait défiler la page derrière le zoom (même raison et même
+  // patron que `components/ui/labeled-slider.tsx`).
+  //
+  // Ctrl+molette n'est PAS intercepté ici : ce geste appartient à
+  // `useGlobalControlWheel` (`src/ui/activeControl.ts`), qui ajuste le dernier
+  // contrôle modifié et bloque le zoom natif de WebView2. Zoom canvas = molette
+  // NUE, ce que demande le PRD.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    function handleWheel(event: WheelEvent) {
+      if (event.ctrlKey) return;
+      const size = measureView();
+      if (!size) return;
+      event.preventDefault();
+      const rect = view!.getBoundingClientRect();
+      const anchor = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      onViewportChangeRef.current(
+        zoomByWheel(viewportRef.current, anchor, event.deltaY, contentSizeRef.current, size),
+      );
+    }
+    view.addEventListener("wheel", handleWheel, { passive: false });
+    return () => view.removeEventListener("wheel", handleWheel);
+  }, [measureView]);
+
+  // Espace = déplacement, tant qu'il est maintenu. Garde sur la cible : dans un
+  // champ de saisie, Espace écrit une espace et n'a rien à voir avec le canvas.
+  // `repeat` est ignoré, sinon l'auto-répétition du clavier rejouerait un
+  // changement d'état à chaque tick.
+  useEffect(() => {
+    function isTypingTarget(target: EventTarget | null): boolean {
+      if (!(target instanceof HTMLElement)) return false;
+      if (target.isContentEditable) return true;
+      const tag = target.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.code !== "Space" || event.repeat) return;
+      if (isTypingTarget(event.target)) return;
+      // Sans ça, Espace active aussi le dernier bouton ayant le focus.
+      event.preventDefault();
+      setSpaceHeld(true);
+    }
+    function handleKeyUp(event: KeyboardEvent) {
+      if (event.code !== "Space") return;
+      setSpaceHeld(false);
+    }
+    // Une perte de focus fenêtre pendant qu'Espace est enfoncé ne produit
+    // jamais de `keyup` : sans ce filet, l'app resterait bloquée en mode
+    // déplacement au retour, clic gauche inerte pour peindre.
+    function handleBlur() {
+      setSpaceHeld(false);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleBlur);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, []);
+
+  /** Vrai ssi ce `pointerdown` doit démarrer un déplacement plutôt que l'action
+   *  de l'outil courant : Espace maintenu, ou bouton du milieu (convention
+   *  répandue, gratuite ici et utile quand les deux mains sont prises). */
+  function isPanGesture(e: React.PointerEvent): boolean {
+    return spaceHeld || e.button === 1;
+  }
+
+  function beginPan(e: React.PointerEvent) {
+    panDragRef.current = { pointerId: e.pointerId, lastX: e.clientX, lastY: e.clientY };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // best-effort, même raison que la capture du pinceau plus bas.
+    }
+  }
+
+  function movePan(e: React.PointerEvent): boolean {
+    const drag = panDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return false;
+    const size = measureView();
+    if (size) {
+      onViewportChangeRef.current(
+        panBy(viewportRef.current, e.clientX - drag.lastX, e.clientY - drag.lastY, contentSizeRef.current, size),
+      );
+    }
+    drag.lastX = e.clientX;
+    drag.lastY = e.clientY;
+    return true;
+  }
+
+  function endPan(e: React.PointerEvent): boolean {
+    const drag = panDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return false;
+    panDragRef.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    return true;
+  }
   // Dernière position souris connue (coordonnées écran), pour pouvoir
   // recalculer le curseur SANS bouger la souris — voir l'effet ci-dessous.
   const lastPointerScreenRef = useRef<{ clientX: number; clientY: number } | null>(null);
@@ -171,11 +353,24 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
       }}
     >
       {!hasImage && <EmptyWorkspace onOpenFile={onOpenFile} />}
+      <div ref={viewRef} className={`canvas-stage__view ${spaceHeld ? "canvas-stage__view--pan" : ""}`.trim()}>
       <canvas
         ref={ref}
         aria-label="Zone de travail image"
-        className={`canvas-stage__canvas ${maskPaintMode ? "canvas-stage__canvas--paint" : ""}`.trim()}
+        className={`canvas-stage__canvas ${maskPaintMode && !spaceHeld ? "canvas-stage__canvas--paint" : ""}`.trim()}
+        // Zoom/déplacement en TRANSFORM CSS, `transform-origin: 0 0` (posé en
+        // CSS) : le coin haut-gauche du canvas atterrit exactement sur
+        // `(offsetX, offsetY)` et sa taille affichée vaut `contentSize * scale`,
+        // ce qui est la définition littérale de `ViewportState`. Comme
+        // `getBoundingClientRect()` reflète les transforms, toutes les
+        // conversions écran→pixels image du projet restent justes SANS
+        // modification (voir l'en-tête de `src/ui/viewport.ts`).
+        style={{ transform: `translate(${viewport.offsetX}px, ${viewport.offsetY}px) scale(${viewport.scale})` }}
         onPointerDown={(e) => {
+          if (isPanGesture(e)) {
+            beginPan(e);
+            return;
+          }
           if (!maskPaintMode) {
             // Désignation directe (T1). Hors mode peinture UNIQUEMENT, et
             // seulement si l'appelant l'a autorisée pour le mode courant : le
@@ -212,7 +407,8 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
           if (pt) onMaskStroke(pt.x, pt.y);
         }}
         onPointerMove={(e) => {
-          if (!maskPaintMode) return;
+          if (movePan(e)) return;
+          if (!maskPaintMode || spaceHeld) return;
           updateCursor(e);
           if (!isPaintingRef.current) return;
           const pt = toImageCoords(e);
@@ -221,15 +417,19 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
           if (pt) schedulePaint(pt.x, pt.y);
         }}
         onPointerEnter={(e) => {
-          if (maskPaintMode) updateCursor(e);
+          if (maskPaintMode && !spaceHeld) updateCursor(e);
         }}
         onPointerUp={(e) => {
+          if (endPan(e)) return;
           endStroke();
           if (e.currentTarget.hasPointerCapture(e.pointerId)) {
             e.currentTarget.releasePointerCapture(e.pointerId);
           }
         }}
-        onPointerCancel={endStroke}
+        onPointerCancel={(e) => {
+          if (endPan(e)) return;
+          endStroke();
+        }}
         onPointerLeave={() => {
           // Ne termine PAS le trait : grâce au pointer capture, peindre
           // continue hors du canvas tant que le bouton est maintenu (voir
@@ -238,6 +438,8 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
           hideCursor();
         }}
       />
+        {children}
+      </div>
       <div ref={cursorRef} className="canvas-stage__brush-cursor" aria-hidden="true" />
     </div>
   );

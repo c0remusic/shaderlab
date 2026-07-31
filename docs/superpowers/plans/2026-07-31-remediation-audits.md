@@ -288,6 +288,26 @@ achromatique). **Aucun correctif avant cet arbitrage.**
 
 ---
 
+## Défaut de méthode de CE backlog, constaté le 2026-07-31 à 01:45
+
+**Ce backlog a été construit en lisant les rapports d'audit, sans vérifier chaque
+item contre le code courant.** Trois items s'en sont trouvés périmés d'emblée :
+
+- **R2** était déjà corrigé par `e18a940`. `git blame -L 441,456` rend la ligne
+  `.catch((e) => setError(messageFromUnknown(e)));` avec ce SHA, et
+  `docs/INDEX.json:175` liste « rejet flottant du Ouvrir avec capturé » parmi
+  ses corrections.
+- **U2** était déjà corrigé : `LayerPanel` avait déjà son `onKeyDown`. L'agent
+  n'a pas eu à l'écrire — il a trouvé et corrigé autre chose (voir plus bas).
+- **U3** était déjà corrigé au HEAD par `e18a940`, présent sur `master` et les
+  six worktrees (`git branch -a --contains`).
+
+C'est la même racine que la fausse barrière B0 : une affirmation d'un document
+prise pour l'état du disque. Le rapport d'audit décrivait le code du 2026-07-30,
+et la remédiation avait avancé entre-temps. **Un backlog se construit contre le
+code, pas contre le rapport qui l'a motivé** — le rapport dit seulement où
+regarder.
+
 ## Ligne ARCHITECTURE — parallélisable, worktree propre, aucune instance de l'app
 
 ### A1 — AFK — `App.tsx` porte encore 1823 lignes
@@ -387,6 +407,52 @@ Défaut proposé si Antoine ne tranche pas : **documenter l'exemption**, moins
 cher et réversible.
 
 ---
+
+## Résultat de la vague parallèle du 2026-07-31 (6 items, 12 agents)
+
+Chaque correctif est passé sous un vérificateur adverse chargé de le RÉFUTER.
+Deux ne survivent pas, et c'est le rendement de la passe adverse.
+
+### Fusionnés sur master, verdict « tient »
+
+| item | commit | ce qui a été fait |
+|---|---|---|
+| **A3** | `8b1a585` | § 9 ré-exécuté en entier : les 16 fichiers cités recomptés, total 5609 exact ; `#[tauri::command]` corrigé de 9 à 17 (vérifié contre `generate_handler!`). Les 3 occurrences restantes de « 727 » sont explicitement historiques et datées. |
+| **R2+R3** | `370cb0e` | R2 était déjà fait ; R3 réellement livré — résolution du chemin de lancement extraite en fonction pure dans `launch.ts`, couverte par 4 tests (`test/launch.test.ts`) dont deux cas de rejet. |
+| **U2** | `3538f95` | U2 était déjà fait. L'agent a trouvé et corrigé **autre chose** : le `preventDefault` de la ligne annulait l'activation clavier du bouton œil imbriqué, dont le `keydown` remontait jusqu'à elle. Mesuré avant/après : œil focalisé + Entrée donnait `toggle=0, select=1`, donne maintenant `toggle=1, select=0`. |
+
+### Réfutés, laissés hors de master
+
+**R1** (`d85e94b`, branche `worktree-wf_b2f6b8b2-313-3`) — les preuves mécaniques
+tiennent toutes, mais **l'objectif n'est atteint par aucune destination
+vérifiée**. Sur les trois annoncées : `logDiagnostic` no-ope en release (l'agent
+le dit lui-même), `console.error` est hors de portée dans un build livré — le
+port CDP n'existe que dans `scripts/dev.ps1:32`, un lanceur de dev, et l'audit
+source pose l'inverse en `:177` — et il ne reste que `localStorage`, dont la
+persistance en release n'est pas mesurée. Second défaut, plus grave :
+`gpuContext.ts:83-88` sort sans écrire tant que la fenêtre de 5 s n'est pas
+franchie, donc **une rafale qui s'arrête avant 5 s perd tout sauf sa première
+ligne** — précisément le régime pré-crash que le mécanisme existe pour capturer
+(`lib.rs:283-290`). Les 6 tests n'exercent que des rafales qui traversent la
+fenêtre : le cas perdant n'est pas couvert.
+
+**U3** (`b291136`, branche `worktree-wf_b2f6b8b2-313-5`) — deux des trois écarts
+revendiqués reposent sur des affirmations d'état fausses. La règle
+`:focus-visible` ajoutée est un **no-op** : `src/design/reset.css:15` pose déjà
+la même règle globalement, chargée par `index.css:5` puis `main.tsx:4`. Et la
+justification « une touche non traitée déroule la colonne du dock » est
+impossible : `ColorPickerPanel` est rendu en frère de `PanelColumn`
+(`App.tsx:1579` vs `:1418`), en `position: absolute` dans `.workspace` qui est
+`overflow: hidden`. **Reste réel et récupérable** : l'élargissement de
+`VALUE_KEYS` (Home/End/Page sur la bande de teinte) est un correctif correct.
+
+### Sans commit, à juste titre
+
+**U5+U1-bis** — `npm run lint` rend **32 erreurs, 11 avertissements, 12
+fichiers**. Brancher ESLint au pré-commit bloquerait tout commit du dépôt.
+L'agent s'est arrêté et a remonté l'arbitrage au lieu de forcer, ce qui était la
+consigne. **Décision à prendre** : purger les 32 erreurs d'abord, ou brancher le
+hook en mode avertissement.
 
 ## Gelés — ne pas toucher dans cette boucle
 

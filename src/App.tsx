@@ -341,15 +341,35 @@ export default function App() {
   // ref pendant le render est refusé par la règle React de l'ESLint du projet,
   // et le coût réel est nul — ces callbacks ne sont recréés qu'à l'ouverture
   // d'un document, pas pendant un geste.
+  // Le viewport SUIT l'ajustement tant que l'utilisateur n'a pas zoomé de
+  // lui-même. Sans ce drapeau, l'échelle posée à l'ouverture était figée pour
+  // toujours : `reconcileViewport` la conserve par conception, donc une
+  // première mesure de la zone visible faite avant que la mise en page ne soit
+  // stabilisée (dock pas encore posé, fenêtre pas encore à sa taille) laissait
+  // une image trop grande, butée en haut à gauche au lieu d'être centrée — et
+  // aucun redimensionnement ultérieur ne la rattrapait. C'est le défaut que
+  // montrait la fenêtre en mode fenêtré.
+  const viewportAutoFitRef = useRef(true);
+
   const handleViewResize = useCallback(
     (size: ViewportSize) => {
       const previous = viewSizeRef.current;
       viewSizeRef.current = size;
       if (imageSize.width <= 0 || imageSize.height <= 0) return;
-      setViewport((current) => reconcileViewport(current, imageSize, previous, size));
+      setViewport((current) =>
+        viewportAutoFitRef.current ? fitViewport(imageSize, size) : reconcileViewport(current, imageSize, previous, size),
+      );
     },
     [imageSize],
   );
+
+  /** Tout zoom/déplacement VOULU par l'utilisateur sort du suivi automatique :
+   *  à partir de là, redimensionner la fenêtre conserve son cadrage au lieu de
+   *  le réinitialiser sous ses doigts. */
+  const handleViewportChange = useCallback((next: ViewportState) => {
+    viewportAutoFitRef.current = false;
+    setViewport(next);
+  }, []);
 
   const contentSizeOf = useCallback((): ViewportSize => imageSize, [imageSize]);
 
@@ -359,6 +379,7 @@ export default function App() {
   // des `() => void` stables — une flèche inline à l'appel casserait le mémo.
   const handleZoomStep = useCallback(
     (direction: 1 | -1) => {
+      viewportAutoFitRef.current = false;
       const view = viewSizeRef.current;
       const center = { x: view.width / 2, y: view.height / 2 };
       const factor = direction === 1 ? ZOOM_STEP_FACTOR : 1 / ZOOM_STEP_FACTOR;
@@ -370,7 +391,10 @@ export default function App() {
   const handleZoomIn = useCallback(() => handleZoomStep(1), [handleZoomStep]);
   const handleZoomOut = useCallback(() => handleZoomStep(-1), [handleZoomStep]);
 
+  /** « Ajuster » REND le suivi automatique : c'est le geste par lequel on dit
+   *  qu'on veut revoir la photo entière, y compris après un redimensionnement. */
   const handleZoomFit = useCallback(() => {
+    viewportAutoFitRef.current = true;
     setViewport(fitViewport(contentSizeOf(), viewSizeRef.current));
   }, [contentSizeOf]);
 
@@ -447,6 +471,7 @@ export default function App() {
       // Nouveau document = nouvelle géométrie : le zoom du document précédent
       // n'a aucun sens sur celui-ci (il pourrait même être hors bornes). On
       // repart de l'ajustement, ce qui est aussi l'état d'avant le viewport.
+      viewportAutoFitRef.current = true;
       setViewport(fitViewport(documentSize, viewSizeRef.current));
       setSourcePath(path);
       // Posé au MÊME instant que `imageSize` et `sourcePath` : un document
@@ -1560,7 +1585,7 @@ export default function App() {
           onPick={photoLayer.canvasMode.kind === "idle" ? handleCanvasPick : undefined}
           viewport={viewport}
           contentSize={imageSize}
-          onViewportChange={setViewport}
+          onViewportChange={handleViewportChange}
           onViewResize={handleViewResize}
           panTool={handTool}
         >

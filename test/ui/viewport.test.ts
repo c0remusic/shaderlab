@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  FIT_MARGIN,
   ZOOM_STEP_FACTOR,
   clampOffset,
   clampScale,
@@ -23,12 +24,16 @@ import {
 const PHOTO = { width: 6000, height: 4000 };
 /** Vue 4:3 : les deux ratios diffèrent, donc l'ajustement laisse des bandes. */
 const VIEW = { width: 800, height: 600 };
+/** L'ajustement réserve `FIT_MARGIN` de chaque côté — la photo ne colle jamais
+ *  aux bords. Les attendus se calculent donc sur la zone UTILE, pas sur la vue. */
+const USABLE = { width: VIEW.width - FIT_MARGIN * 2, height: VIEW.height - FIT_MARGIN * 2 };
 
 describe("fitScale — ajustement contain", () => {
   it("prend l'axe le plus contraignant, jamais le plus permissif", () => {
-    // 800/6000 = 0.1333 ; 600/4000 = 0.15. Le contain retient 0.1333, sinon
-    // l'image déborderait en largeur.
-    expect(fitScale(PHOTO, VIEW)).toBeCloseTo(800 / 6000, 10);
+    // Sur la zone utile : 752/6000 = 0.1253 ; 552/4000 = 0.138. Le contain
+    // retient le plus petit, sinon l'image déborderait en largeur.
+    expect(fitScale(PHOTO, VIEW)).toBeCloseTo(USABLE.width / PHOTO.width, 10);
+    expect(fitScale(PHOTO, VIEW)).toBeLessThan(VIEW.width / PHOTO.width);
   });
 
   it("rend 1 sur une taille dégénérée plutôt qu'un Infinity", () => {
@@ -40,14 +45,14 @@ describe("fitScale — ajustement contain", () => {
 describe("scaleBounds — les deux valeurs remarquables restent atteignables", () => {
   it("photo plus grande que la vue : de l'ajustement à 100 %", () => {
     const { min, max } = scaleBounds(PHOTO, VIEW);
-    expect(min).toBeCloseTo(800 / 6000, 10);
+    expect(min).toBeCloseTo(USABLE.width / PHOTO.width, 10);
     expect(max).toBe(1);
   });
 
   it("image plus petite que la vue : l'ajustement dépasse 100 % et reste atteignable", () => {
     const tiny = { width: 200, height: 100 };
     const { min, max } = scaleBounds(tiny, VIEW);
-    expect(max).toBeCloseTo(4, 10); // 800/200
+    expect(max).toBeCloseTo(USABLE.width / tiny.width, 10);
     expect(min).toBe(1);
     // Le zoom 100 % d'une petite image est un DÉZOOM par rapport à l'ajustement.
     expect(clampScale(1, tiny, VIEW)).toBe(1);
@@ -58,9 +63,9 @@ describe("clampOffset — bornes de déplacement", () => {
   it("centre l'axe sur lequel le contenu ne déborde pas", () => {
     const state: ViewportState = { scale: fitScale(PHOTO, VIEW), offsetX: 0, offsetY: 0 };
     const clamped = clampOffset(state, PHOTO, VIEW);
-    // À l'ajustement, la largeur remplit exactement la vue…
-    expect(clamped.offsetX).toBeCloseTo(0, 6);
-    // …et la hauteur laisse des bandes, réparties de part et d'autre.
+    // À l'ajustement le contenu ne déborde sur AUCUN axe (la marge le garantit) :
+    // les deux sont donc centrés, et le décalage horizontal vaut la marge.
+    expect(clamped.offsetX).toBeCloseTo(FIT_MARGIN, 6);
     const displayedHeight = PHOTO.height * state.scale;
     expect(clamped.offsetY).toBeCloseTo((VIEW.height - displayedHeight) / 2, 6);
   });
@@ -85,8 +90,8 @@ describe("clampOffset — bornes de déplacement", () => {
 describe("fitViewport — état au repos", () => {
   it("ajuste et centre", () => {
     const vp = fitViewport(PHOTO, VIEW);
-    expect(vp.scale).toBeCloseTo(800 / 6000, 10);
-    expect(vp.offsetX).toBeCloseTo(0, 6);
+    expect(vp.scale).toBeCloseTo(USABLE.width / PHOTO.width, 10);
+    expect(vp.offsetX).toBeCloseTo(FIT_MARGIN, 6);
     expect(vp.offsetY).toBeCloseTo((VIEW.height - PHOTO.height * vp.scale) / 2, 6);
   });
 
@@ -94,6 +99,13 @@ describe("fitViewport — état au repos", () => {
     const vp = fitViewport(PHOTO, VIEW);
     expect(PHOTO.width * vp.scale).toBeLessThanOrEqual(VIEW.width + 1e-6);
     expect(PHOTO.height * vp.scale).toBeLessThanOrEqual(VIEW.height + 1e-6);
+  });
+
+  it("laisse une marge de respiration sur l'axe contraignant", () => {
+    // Régression : sans marge, « ajuster » collait la photo aux bords haut et
+    // bas en plein écran — une image entière qui se lit comme une image coupée.
+    const vp = fitViewport(PHOTO, VIEW);
+    expect(VIEW.width - PHOTO.width * vp.scale).toBeGreaterThanOrEqual(FIT_MARGIN * 2 - 1e-6);
   });
 });
 

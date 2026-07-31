@@ -27,6 +27,12 @@
      décalé pour un dock vide, et n'est compensé que d'une colonne quand le dock
      en affiche deux. */
   padding-right: calc(var(--dock-total-width, var(--inspector-width-default)) + var(--rail-width) + var(--space-4));
+  /* Symétrique à gauche pour la palette d'outils (ToolPalette.css), posée en
+     absolu sur ce même bord : sans cette réserve, la zone visible commence sous
+     elle et l'image se centre dans un espace dont une bande est masquée — donc
+     visuellement décalée vers la droite, du côté opposé au symptôme corrigé à
+     droite. La palette est hors flux, seul ce padding lui fait sa place. */
+  padding-left: calc(var(--rail-width) + var(--space-4));
 }
 
 /* Le <canvas> est un enfant flex DIRECT de .canvas-stage (retour à la

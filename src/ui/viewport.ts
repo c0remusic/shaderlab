@@ -54,6 +54,17 @@ export interface ViewportState {
 /** Pas multiplicatif des boutons zoom +/- de l'UI. */
 export const ZOOM_STEP_FACTOR = 1.25;
 
+/**
+ * Marge laissée autour de l'image à l'ajustement, en pixels CSS.
+ *
+ * Sans elle, « ajuster » colle la photo aux bords de la zone visible : en plein
+ * écran l'image touchait le haut et le bas sans un pixel de respiration, ce qui
+ * se lit comme une image coupée plutôt que comme une image entière. Tous les
+ * éditeurs posent ce liseré, et c'est aussi lui qui rend visible le fait qu'on
+ * voit bien la photo COMPLÈTE.
+ */
+export const FIT_MARGIN = 24;
+
 /** Sensibilité de la molette : `deltaY` d'un cran de molette standard vaut
  *  ~100, ce coefficient le convertit en un facteur d'échelle proche du pas des
  *  boutons pour que les deux gestes se ressemblent. */
@@ -75,7 +86,11 @@ function isDegenerate(size: Size): boolean {
  */
 export function fitScale(content: Size, view: Size): number {
   if (isDegenerate(content) || isDegenerate(view)) return 1;
-  return Math.min(view.width / content.width, view.height / content.height);
+  const usable = {
+    width: Math.max(1, view.width - FIT_MARGIN * 2),
+    height: Math.max(1, view.height - FIT_MARGIN * 2),
+  };
+  return Math.min(usable.width / content.width, usable.height / content.height);
 }
 
 /**

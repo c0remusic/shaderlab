@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { ParamPanel } from "./ParamPanel";
 import { assertAccessibleNames } from "./ui/accessible-name.test-support";
+import { getEffect } from "../render/effects/registry";
 import { defaultLayerMask } from "../mask/types";
 import type { LayerState } from "../layers/types";
 
@@ -74,7 +75,18 @@ export const NoLayerSelected: Story = {
 export const EveryFieldHasAnAccessibleName: Story = {
   play: async ({ canvasElement }) => {
     const report = assertAccessibleNames(canvasElement);
-    await expect(report.map((entry) => entry.name)).toEqual(["Écrêter sur la photo du dessus", "Seuil", "Seuil (valeur)", "Intensité", "Intensité (valeur)"]);
+    // DÉRIVÉE du module d'effet, pas recopiée. Une liste écrite à la main
+    // tombait au rouge à chaque paramètre ajouté à `glow` sans qu'aucune
+    // régression d'accessibilité ne la motive (c'est ce qui est arrivé le
+    // 2026-07-31 : quatre paramètres de plus, garde rouge, CI rouge). Dérivée,
+    // elle dit ce qu'elle veut vraiment dire — CHAQUE paramètre de l'effet a
+    // une piste nommée et un champ de valeur nommé — et elle le dira encore
+    // après le prochain paramètre.
+    const expected = [
+      "Écrêter sur la photo du dessus",
+      ...getEffect("glow").params.flatMap((p) => [p.label, `${p.label} (valeur)`]),
+    ];
+    await expect(report.map((entry) => entry.name)).toEqual(expected);
   },
 };
 

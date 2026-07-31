@@ -1,12 +1,17 @@
 import { useRef } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Canvas } from "./Canvas";
+import { fitViewport } from "../ui/viewport";
 
 // Canvas est un forwardRef<HTMLCanvasElement> PRÉSENTATIONNEL : tout le rendu
 // WebGPU vit dans App.tsx via le ref, pas ici. Un wrapper local fournit un ref
 // réel pour que le story monte sans crash (le canvas reste noir dans l'iframe
 // Storybook — aucun device WebGPU garanti). Aucun callback interactif à tester :
 // variantes d'état/layout uniquement, pas de play().
+/** Taille de document des stories, en pixels image. Fixe et petite : ces
+ *  stories testent la MISE EN PAGE du stage, pas le rendu d'une vraie photo. */
+const CONTENT_SIZE = { width: 400, height: 300 };
+
 function CanvasHarness({ width = 480, height = 320, ...props }: React.ComponentProps<typeof Canvas> & { width?: number; height?: number }) {
   const ref = useRef<HTMLCanvasElement>(null);
   return (
@@ -29,6 +34,16 @@ const meta: Meta<typeof Canvas> = {
     onStrokeEnd: () => {},
     brushSize: 40,
     brushHardness: 0.6,
+    // Zoom/déplacement (d417dd1) : `viewport` et `contentSize` sont REQUIS —
+    // `Canvas` lit `viewport.offsetX` dès son transform CSS, donc les omettre
+    // ne rendait pas une variante dégradée, ça faisait planter les sept
+    // stories sur `Cannot read properties of undefined`. Un ajustement calculé
+    // plutôt qu'un viewport neutre écrit à la main : c'est l'état réel dans
+    // lequel un document s'ouvre.
+    viewport: fitViewport(CONTENT_SIZE, { width: 480, height: 320 }),
+    contentSize: CONTENT_SIZE,
+    onViewportChange: () => {},
+    onViewResize: () => {},
   },
 };
 

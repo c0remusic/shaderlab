@@ -1,4 +1,17 @@
 import type { EffectModule } from "./types";
+import {
+  TRANSFER_SPACE_SRGB,
+  TRANSFER_SPACE_WGSL,
+  TRANSFER_SPACE_LINEAR,
+  transferSpaceParam,
+} from "./blendSpace";
+import { linearToSrgb, srgbToLinear } from "./srgbTransfer";
+import {
+  LINEAR_TO_SRGB_VEC3_WGSL,
+  LINEAR_TO_SRGB_WGSL,
+  SRGB_TO_LINEAR_VEC3_WGSL,
+  SRGB_TO_LINEAR_WGSL,
+} from "./srgbTransfer";
 
 /**
  * Channel mixer — matrice 3x3 de recombinaison des canaux, plus normalisation
@@ -13,13 +26,25 @@ import type { EffectModule } from "./types";
  *
  * TROIS ÉCARTS AVEC LA VERSION NAÏVE (3x3 sliders bruts) :
  *
- * 1. **Le mélange se fait en LUMIÈRE LINÉAIRE.** C'est l'invariant du projet
- *    (les textures sont au format `-srgb`, `textureSample` rend déjà du
- *    linéaire) et c'est aussi le modèle correct : un filtre optique est une
- *    opération linéaire sur le spectre. Le channel mixer de Photoshop, lui,
- *    travaille sur des valeurs encodées gamma — d'où les croisements de tons
- *    moyens boueux et les virages de teinte parasites quand un coefficient est
- *    négatif. Aucun gamma manuel n'est appliqué ici, dans aucun sens.
+ * 1. **Le mélange se fait en LUMIÈRE LINÉAIRE par défaut.** C'est le modèle
+ *    correct : un filtre optique est une opération linéaire sur le spectre. Le
+ *    channel mixer de Photoshop, lui, travaille sur des valeurs encodées
+ *    gamma — d'où les croisements de tons moyens boueux et les virages de
+ *    teinte parasites quand un coefficient est négatif.
+ *
+ *    AMENDEMENT DU 2026-08-01 (cahier de références §6bis) : Figma expose ce
+ *    choix, et l'appelle « vif » là où ce fichier écrivait « boueux ». Les deux
+ *    lectures sont vraies et ne parlent pas de la même chose — la matrice
+ *    appliquée sur des valeurs encodées SÉPARE davantage aux croisements, ce
+ *    qui est un défaut de modèle et un effet de look. Le choix est donc exposé
+ *    (`transferSpace`) plutôt qu'imposé dans un sens ou dans l'autre, et il
+ *    reste sur `Linéaire` par défaut : aucun rendu déjà produit ne bouge.
+ *
+ *    Ce n'est PAS le double gamma que le projet interdit : l'encodage et le
+ *    décodage encadrent la seule matrice, dans la même expression, et ce qui
+ *    sort est linéaire comme ce qui est entré (voir la seconde exception en
+ *    tête de `srgbTransfer`). Aucun gamma ne s'échappe vers la suite de la
+ *    chaîne.
  *
  * 2. **Normalisation de ligne (`preserveLuma`).** Sans elle, tout déplacement
  *    d'un curseur est AUSSI un déplacement d'exposition : on cherche une
@@ -43,7 +68,8 @@ import type { EffectModule } from "./types";
  */
 
 /** Spécification pure du shader (twin TS, même rôle que `uvSpace`/`bayer`) :
- *  `p` est le tableau de paramètres dans l'ORDRE du uniform.
+ *  `p` est le tableau de paramètres dans l'ORDRE du uniform, `rgb` une couleur
+ *  LINÉAIRE (ce que rend `textureSample`), le résultat aussi.
  *  Toute modification de la formule doit être faite des DEUX côtés. */
 export function channelMixSpec(
   rgb: readonly [number, number, number],
@@ -51,6 +77,7 @@ export function channelMixSpec(
 ): [number, number, number] {
   const preserve = Math.min(1, Math.max(0, p[9]));
   const mono = Math.min(1, Math.max(0, p[10]));
+  const space = Math.round(p[11] ?? TRANSFER_SPACE_LINEAR);
   const row = (a: number, b: number, c: number): [number, number, number] => {
     const sum = a + b + c;
     // Une ligne de somme nulle ou négative n'a pas de normalisation qui ait un
@@ -63,16 +90,22 @@ export function channelMixSpec(
       c + (c / sum - c) * preserve,
     ];
   };
+  // Aller-retour FERMÉ autour de la seule matrice : encoder, recombiner,
+  // décoder. En espace linéaire (défaut) les deux conversions sont l'identité,
+  // donc le résultat est celui d'avant ce paramètre, au bit près.
+  const src = space === TRANSFER_SPACE_SRGB ? (rgb.map(linearToSrgb) as [number, number, number]) : rgb;
   const dot3 = (r: readonly [number, number, number]) =>
-    r[0] * rgb[0] + r[1] * rgb[1] + r[2] * rgb[2];
+    r[0] * src[0] + r[1] * src[1] + r[2] * src[2];
   const rowR = row(p[0], p[1], p[2]);
   const mixed: [number, number, number] = [dot3(rowR), dot3(row(p[3], p[4], p[5])), dot3(row(p[6], p[7], p[8]))];
   const gray = dot3(rowR);
-  return [
-    Math.max(0, mixed[0] + (gray - mixed[0]) * mono),
-    Math.max(0, mixed[1] + (gray - mixed[1]) * mono),
-    Math.max(0, mixed[2] + (gray - mixed[2]) * mono),
+  const blended: [number, number, number] = [
+    mixed[0] + (gray - mixed[0]) * mono,
+    mixed[1] + (gray - mixed[1]) * mono,
+    mixed[2] + (gray - mixed[2]) * mono,
   ];
+  const decoded = space === TRANSFER_SPACE_SRGB ? (blended.map(srgbToLinear) as [number, number, number]) : blended;
+  return [Math.max(0, decoded[0]), Math.max(0, decoded[1]), Math.max(0, decoded[2])];
 }
 
 const RANGE = { min: -1, max: 2, step: 0.01 } as const;
@@ -111,8 +144,12 @@ export const channelMixer: EffectModule = {
       step: 0.01,
       hint: "Fait sortir les trois canaux de la SEULE ligne Rouge — c'est la conversion noir & blanc au filtre coloré",
     },
+    transferSpaceParam({
+      hint: "Sur quelle courbe la matrice recombine — Linéaire = modèle du filtre optique (croisements doux, défaut du projet) ; sRGB = celle de Photoshop et Figma, qui sépare davantage aux croisements",
+    }),
   ],
   wgsl: `
+${LINEAR_TO_SRGB_WGSL}${LINEAR_TO_SRGB_VEC3_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${TRANSFER_SPACE_WGSL}
 fn mixRow(row: vec3<f32>, preserve: f32) -> vec3<f32> {
   let sum = row.x + row.y + row.z;
   // Garde : somme nulle/négative -> aucune normalisation ne garde le signe.
@@ -124,23 +161,27 @@ fn mixRow(row: vec3<f32>, preserve: f32) -> vec3<f32> {
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let preserve = clamp(params[9], 0.0, 1.0);
   let mono = clamp(params[10], 0.0, 1.0);
+  let space = params[11];
   let rowR = mixRow(vec3<f32>(params[0], params[1], params[2]), preserve);
   let rowG = mixRow(vec3<f32>(params[3], params[4], params[5]), preserve);
   let rowB = mixRow(vec3<f32>(params[6], params[7], params[8]), preserve);
-  // color.rgb est DÉJÀ linéaire (format de texture -srgb) : la recombinaison
-  // se fait donc en lumière, comme un filtre optique. Aucune conversion ici —
-  // en ajouter une serait le double gamma que le projet interdit.
-  let mixed = vec3<f32>(dot(rowR, color.rgb), dot(rowG, color.rgb), dot(rowB, color.rgb));
+  // color.rgb est DÉJÀ linéaire (format de texture -srgb). \`to_transfer_space\`
+  // est l'IDENTITÉ sur le défaut (Linéaire) : la recombinaison se fait alors en
+  // lumière, comme un filtre optique, exactement comme avant ce paramètre. En
+  // sRGB, l'encodage et le décodage encadrent la SEULE matrice — aller-retour
+  // fermé, rien d'encodé ne quitte cette fonction.
+  let src = to_transfer_space(color.rgb, space);
+  let mixed = vec3<f32>(dot(rowR, src), dot(rowG, src), dot(rowB, src));
   // Monochrome : les trois sorties viennent de la MÊME ligne (la rouge), ce qui
   // est la définition du noir & blanc au filtre coloré. Interpolé plutôt que
   // binaire — un curseur donne aussi les désaturations partielles, qu'une case
   // à cocher rendrait inatteignables.
-  let gray = vec3<f32>(dot(rowR, color.rgb));
+  let gray = vec3<f32>(dot(rowR, src));
   // Plancher à 0 : une lumière négative n'existe pas, et un canal négatif
   // fausserait ensuite le mode de fusion du calque (qui, lui, n'écrête pas).
   // Pas de plafond : l'écrêtage des hautes lumières appartient à la cible, pas
   // à cet effet — l'aplatir ici tuerait la marge des calques du dessus.
-  return vec4<f32>(max(mix(mixed, gray, mono), vec3<f32>(0.0)), color.a);
+  return vec4<f32>(max(from_transfer_space(mix(mixed, gray, mono), space), vec3<f32>(0.0)), color.a);
 }
 `,
 };

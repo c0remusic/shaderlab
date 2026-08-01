@@ -1,6 +1,7 @@
 import type { EffectModule } from "./types";
 import { HSL_TO_RGB_WGSL } from "./hsl";
 import { UV_SPACE_WGSL } from "./uvSpace";
+import { INPUT_DRIVER_WGSL, inputSourceParam } from "./inputMode";
 import {
   LINEAR_TO_SRGB_WGSL,
   SRGB_TO_LINEAR_VEC3_WGSL,
@@ -49,6 +50,18 @@ import {
  *    indépendants de l'exposition). Sans tap supplémentaire : les mêmes neuf
  *    échantillons portent les deux mesures.
  *
+ * ENTRÉE (2026-08-01, cahier de références §6bis). Figma expose trois modes
+ * d'entrée sur son équivalent : Luma, Luma INVERSÉ, Alpha. Nous en exposons
+ * DEUX, et le troisième est écarté sur preuve : cet effet mesure un GRADIENT,
+ * or |∇(1−x)| = |∇x| — inverser la luminance laisse la magnitude rigoureusement
+ * inchangée, donc le trait tracé serait identique au pixel près. « Luma
+ * inversé » ici serait un contrôle inerte, l'échec silencieux que ce dépôt
+ * proscrit (voir `INPUT_SOURCE_CHOICES`). L'entrée Alpha, elle, mord sur du
+ * réel depuis que la toile porte une couverture (« le fond devient un calque »,
+ * 2026-07-28) : elle trace la SILHOUETTE d'un élément de montage, ce que le
+ * gradient de luminance ne sait pas voir quand l'élément et son fond ont des
+ * tons voisins.
+ *
  * COÛT : 8 taps (le tap central a des poids nuls dans les deux noyaux de
  * Scharr — l'échantillonner serait une lecture payée pour être multipliée par
  * zéro), une seule passe, aucune texture intermédiaire.
@@ -64,7 +77,7 @@ export const outlines: EffectModule = {
     { name: "thickness", label: "Épaisseur du trait", unit: "pixels", min: 0.5, max: 12, default: 2.5, step: 0.1, hint: "Écartement des taps — épaissit le trait et, du même geste, empêche le grain d'être dessiné" },
     { name: "threshold", label: "Seuil", unit: "percent", min: 0, max: 0.6, default: 0.09, step: 0.005, hint: "Contraste minimal (en tons perceptuels, sur l'épaisseur du trait) pour qu'un contour soit tracé" },
     { name: "softness", label: "Fondu du trait", unit: "percent", min: 0, max: 1, default: 0.35, step: 0.01, hint: "0 = trait franc (toujours antialiasé), 1 = trait fondu qui s'éteint progressivement sur les contours faibles" },
-    { name: "chroma", label: "Sensibilité couleur", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Fait aussi lever les contours entre deux couleurs de MÊME luminosité (rouge/vert), qu'un contour de luminance ne voit pas" },
+    { name: "chroma", label: "Sensibilité couleur", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Fait aussi lever les contours entre deux couleurs de MÊME luminosité (rouge/vert), qu'un contour de luminance ne voit pas. Sans objet en entrée Alpha : une couverture n'a pas de chromaticité." },
     { name: "inkHue", label: "Teinte", unit: "degrees", min: 0, max: 360, default: 210, step: 1, colorGroup: { key: "ink", role: "hue", label: "Encre" } },
     { name: "inkSaturation", label: "Saturation", unit: "percent", min: 0, max: 1, default: 0, step: 0.01, colorGroup: { key: "ink", role: "saturation", label: "Encre" } },
     { name: "inkLightness", label: "Luminosité", unit: "percent", min: 0, max: 1, default: 0.06, step: 0.01, colorGroup: { key: "ink", role: "lightness", label: "Encre" } },
@@ -75,25 +88,38 @@ export const outlines: EffectModule = {
     // ~0.48 à ~0.63 en perceptuel. Le curseur va jusqu'à 1 = papier blanc, donc
     // dessin au trait pur.
     { name: "wash", label: "Délavé du fond", unit: "percent", min: 0, max: 1, default: 0.2, step: 0.01, hint: "Éclaircit la photo sous le trait — 0 = contours sur la photo intacte, 1 = dessin au trait sur blanc" },
+    inputSourceParam(),
   ],
   wgsl: `
-${UV_SPACE_WGSL}${HSL_TO_RGB_WGSL}${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}
+${UV_SPACE_WGSL}${HSL_TO_RGB_WGSL}${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${INPUT_DRIVER_WGSL}
 // Un tap porte les DEUX mesures : le ton perceptuel (x) et la chromaticité
 // (y,z). Les deux gradients de Scharr se calculent donc sur les mêmes huit
 // lectures — la sensibilité couleur ne coûte que de l'ALU, pas de la bande
 // passante.
-fn edgeTap(uv: vec2<f32>, off: vec2<f32>) -> vec3<f32> {
+fn edgeTap(uv: vec2<f32>, off: vec2<f32>, source: f32) -> vec3<f32> {
   // mirrorUv : les taps de bord sortent du cadre. Sans repli, le sampler
   // clamp-to-edge rend le même texel des deux côtés du bord, ce qui annule le
   // gradient : le dessin s'ouvrirait pile sur le périmètre de l'image.
-  let c = textureSample(srcTexture, srcSampler, mirrorUv(uv + off)).rgb;
-  // c est déjà LINÉAIRE (format de texture -srgb).
-  let luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
+  let s = textureSample(srcTexture, srcSampler, mirrorUv(uv + off));
+  let c = s.rgb;
+  // input_source : ton PERCEPTUEL (défaut, identique à ce que cette ligne
+  // calculait avant le mode d'entrée) ou couverture alpha.
+  let driver = input_source(s, source);
   // Chromaticité : écarts de canaux normalisés par l'énergie totale du pixel,
   // donc invariants à l'exposition — deux verts d'éclairement différent ont la
   // même chromaticité et ne lèvent aucun contour.
   let energy = c.r + c.g + c.b + 0.0001;
-  return vec3<f32>(linear_to_srgb(luma), (c.r - c.g) / energy, (c.g - c.b) / energy);
+  // En entrée ALPHA, les deux composantes chromatiques sont mises à zéro : le
+  // champ suivi est une couverture, et lui adjoindre les contours de couleur de
+  // l'image ferait lever le trait sur un champ qu'on ne suit pas. Le curseur
+  // « Sensibilité couleur » est donc sans objet dans ce mode, ce que dit son
+  // libellé (même convention que les paramètres par mode de \`grain\`).
+  let chroma = select(
+    vec2<f32>((c.r - c.g) / energy, (c.g - c.b) / energy),
+    vec2<f32>(0.0),
+    source > 0.5
+  );
+  return vec3<f32>(driver, chroma.x, chroma.y);
 }
 
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
@@ -102,6 +128,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let softness = clamp(params[2], 0.0, 1.0);
   let chroma = clamp(params[3], 0.0, 1.0);
   let wash = clamp(params[7], 0.0, 1.0);
+  let source = params[8];
 
   // ISOTROPIE. Le décalage est exprimé en PIXELS puis divisé par les dimensions
   // de la texture, canal par canal : le tap tombe donc à la même distance
@@ -111,14 +138,14 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // anisotrope au lieu de le corriger.
   let h = vec2<f32>(thickness) / vec2<f32>(textureDimensions(srcTexture));
 
-  let tl = edgeTap(uv, vec2<f32>(-h.x, -h.y));
-  let tc = edgeTap(uv, vec2<f32>( 0.0, -h.y));
-  let tr = edgeTap(uv, vec2<f32>( h.x, -h.y));
-  let ml = edgeTap(uv, vec2<f32>(-h.x,  0.0));
-  let mr = edgeTap(uv, vec2<f32>( h.x,  0.0));
-  let bl = edgeTap(uv, vec2<f32>(-h.x,  h.y));
-  let bc = edgeTap(uv, vec2<f32>( 0.0,  h.y));
-  let br = edgeTap(uv, vec2<f32>( h.x,  h.y));
+  let tl = edgeTap(uv, vec2<f32>(-h.x, -h.y), source);
+  let tc = edgeTap(uv, vec2<f32>( 0.0, -h.y), source);
+  let tr = edgeTap(uv, vec2<f32>( h.x, -h.y), source);
+  let ml = edgeTap(uv, vec2<f32>(-h.x,  0.0), source);
+  let mr = edgeTap(uv, vec2<f32>( h.x,  0.0), source);
+  let bl = edgeTap(uv, vec2<f32>(-h.x,  h.y), source);
+  let bc = edgeTap(uv, vec2<f32>( 0.0,  h.y), source);
+  let br = edgeTap(uv, vec2<f32>( h.x,  h.y), source);
 
   // Scharr 3x3 (poids 3/10/3), appliqué simultanément aux trois mesures portées
   // par chaque tap. Le tap central n'apparaît pas : ses poids sont nuls dans

@@ -1,6 +1,7 @@
 import type { EffectModule } from "./types";
 import { LINEAR_TO_SRGB_WGSL } from "./srgbTransfer";
 import { UV_SPACE_WGSL } from "./uvSpace";
+import { INPUT_DRIVER_WGSL, inputModeParam } from "./inputMode";
 
 /**
  * Gooey merge — les zones claires de la photo se comportent comme un liquide :
@@ -10,14 +11,23 @@ import { UV_SPACE_WGSL } from "./uvSpace";
  *
  * SUR UNE PHOTO, ÇA VEUT DIRE QUOI. Le gooey merge d'origine (le vieux truc
  * SVG : flouter l'alpha, puis lui remettre un contraste violent) fusionne des
- * FORMES, et une photo n'a pas d'alpha à flouter. Le portage naïf n'existe donc
- * pas. Ce qu'une photo a, en revanche, ce sont des taches lumineuses séparées —
- * bokeh, reflets sur l'eau, lumières de ville, gouttes, peau grasse : le champ
- * scalaire dont on a besoin est là, c'est la LUMINANCE. Flouter la luminance
- * puis lui appliquer une iso-surface donne exactement la topologie métaball :
- * deux taches proches fusionnent par un col, une tache isolée trop petite se
- * dilue sous le seuil et disparaît. Le comportement n'est pas imité, il est
- * reproduit — c'est la même opération sur un autre champ.
+ * FORMES, et une photo n'a pas d'alpha à flouter. Ce qu'une photo a, en
+ * revanche, ce sont des taches lumineuses séparées — bokeh, reflets sur l'eau,
+ * lumières de ville, gouttes, peau grasse : le champ scalaire dont on a besoin
+ * est là, c'est la LUMINANCE. Flouter la luminance puis lui appliquer une
+ * iso-surface donne exactement la topologie métaball : deux taches proches
+ * fusionnent par un col, une tache isolée trop petite se dilue sous le seuil et
+ * disparaît. Le comportement n'est pas imité, il est reproduit — c'est la même
+ * opération sur un autre champ.
+ *
+ * CE PARAGRAPHE DISAIT « le portage naïf n'existe donc pas ». PÉRIMÉ depuis
+ * « le fond devient un calque » (2026-07-28) : `shaderCompose` compose un alpha
+ * DROIT en source-over, et une toile de montage a de vraies régions
+ * transparentes. Le mode d'entrée `Alpha` (2026-08-01, cahier de références
+ * §6bis) n'est donc PAS un emprunt à Figma — c'est le gooey merge d'origine,
+ * devenu atteignable parce que le substrat est arrivé. `Luminance inversée`
+ * vient avec, et n'est pas décoratif : il fait fusionner les zones SOMBRES, ce
+ * qu'aucun réglage des six autres curseurs ne sait produire.
  *
  * CE QUI EMPÊCHE QUE ÇA RENDE CHEAP. Le raccourci évident (seuiller, peindre
  * des aplats) donne un stencil : des taches plates, sans matière, qui ne
@@ -69,12 +79,17 @@ import { UV_SPACE_WGSL } from "./uvSpace";
 const GOOEY_DOWNSAMPLE_WGSL = `
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let o = 1.0 / vec2<f32>(textureDimensions(srcTexture));
-  var sum = textureSample(srcTexture, srcSampler, uv).rgb * 4.0;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x, -o.y)).rgb;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( o.x, -o.y)).rgb;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x,  o.y)).rgb;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( o.x,  o.y)).rgb;
-  return vec4<f32>(sum / 8.0, 1.0);
+  // L'ALPHA traverse la chaîne au même titre que la couleur (2026-08-01) :
+  // sans lui, le mode d'entrée Alpha lirait la constante 1.0 que ces passes
+  // écrivaient, c'est-à-dire un champ plat — l'iso-surface ne trouverait
+  // jamais aucun bord. Le chemin Luminance ne lit que \`.rgb\` : il est
+  // inchangé au bit près.
+  var sum = textureSample(srcTexture, srcSampler, uv) * 4.0;
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x, -o.y));
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( o.x, -o.y));
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x,  o.y));
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( o.x,  o.y));
+  return sum / 8.0;
 }
 `;
 
@@ -92,16 +107,17 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // Borné en dur en plus du min du paramètre : à 0 les neuf taps tomberaient
   // sur le même point, donc une copie — l'effet disparaîtrait sans rien dire.
   let o = max(params[0], 0.05) / vec2<f32>(textureDimensions(srcTexture));
-  var sum = textureSample(srcTexture, srcSampler, uv).rgb * 4.0;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x,  0.0)).rgb * 2.0;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( o.x,  0.0)).rgb * 2.0;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( 0.0, -o.y)).rgb * 2.0;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( 0.0,  o.y)).rgb * 2.0;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x, -o.y)).rgb;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( o.x, -o.y)).rgb;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x,  o.y)).rgb;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( o.x,  o.y)).rgb;
-  return vec4<f32>(sum / 16.0, 1.0);
+  // Alpha transporté, même raison qu'à la descente.
+  var sum = textureSample(srcTexture, srcSampler, uv) * 4.0;
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x,  0.0)) * 2.0;
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( o.x,  0.0)) * 2.0;
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( 0.0, -o.y)) * 2.0;
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( 0.0,  o.y)) * 2.0;
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x, -o.y));
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( o.x, -o.y));
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x,  o.y));
+  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( o.x,  o.y));
+  return sum / 16.0;
 }
 `;
 
@@ -125,6 +141,9 @@ export const gooeyMerge: EffectModule = {
     { name: "flow", label: "Réfraction", unit: "percent", min: -1, max: 1, default: 0.45, step: 0.01, hint: "Déplacement de l'image le long de la pente du champ, au bord des gouttes — positif = loupe, négatif = pincement" },
     { name: "rim", label: "Liseré spéculaire", unit: "none", min: 0, max: 2, default: 0.45, step: 0.01, hint: "Brillance sur la crête de l'iso-surface, éclairée depuis le haut-gauche — c'est ce qui fait lire un volume plutôt qu'un aplat détouré" },
     { name: "melt", label: "Fonte", unit: "percent", min: 0, max: 1, default: 0.35, step: 0.01, hint: "Part de l'image floutée reprise À L'INTÉRIEUR des gouttes — 0 = photo nette dans la goutte, 1 = matière entièrement fondue" },
+    inputModeParam({
+      hint: "Quel champ fusionne — Luminance : les zones claires (reflets, bokeh). Luminance inversée : les zones sombres. Alpha : les formes de la toile, le gooey merge d'origine (sans objet sur une toile entièrement opaque).",
+    }),
   ],
   passes: [
     { scale: 0.5, wgsl: GOOEY_DOWNSAMPLE_WGSL },
@@ -138,17 +157,18 @@ export const gooeyMerge: EffectModule = {
     { scale: 0.5, wgsl: GOOEY_UPSAMPLE_WGSL },
   ],
   wgsl: `
-${UV_SPACE_WGSL}${LINEAR_TO_SRGB_WGSL}
-// Le champ métaball : luminance du flou, lue sur l'axe PERCEPTUEL. Le seuil est
-// un curseur, donc une valeur perceptuelle ; le comparer à une luminance
-// linéaire poserait l'iso-surface à ~0.26 perceptuel pour un curseur à 0.55 —
-// l'erreur exacte qui rendait le bright-pass du glow inerte sur 85 % de sa
-// course. Ici on positionne une BASCULE sur l'axe perceptuel, on ne convertit
-// aucune valeur de couleur (précédent : duotone, grain).
-fn gooField(uv: vec2<f32>) -> f32 {
+${UV_SPACE_WGSL}${LINEAR_TO_SRGB_WGSL}${INPUT_DRIVER_WGSL}
+// Le champ métaball, lu sur le flou. En mode Luminance (défaut) il est lu sur
+// l'axe PERCEPTUEL : le seuil est un curseur, donc une valeur perceptuelle ; le
+// comparer à une luminance linéaire poserait l'iso-surface à ~0.26 perceptuel
+// pour un curseur à 0.55 — l'erreur exacte qui rendait le bright-pass du glow
+// inerte sur 85 % de sa course. On positionne une BASCULE sur l'axe perceptuel,
+// on ne convertit aucune valeur de couleur (précédent : duotone, grain).
+// En mode Alpha, aucune fonction de transfert n'est défaite : une couverture
+// n'est pas un ton (voir \`input_driver\`).
+fn gooField(uv: vec2<f32>, mode: f32) -> f32 {
   // mirrorUv : la différence centrale tape hors cadre près des bords.
-  let c = textureSample(prevPass, srcSampler, mirrorUv(uv)).rgb;
-  return linear_to_srgb(dot(c, vec3<f32>(0.2126, 0.7152, 0.0722)));
+  return input_driver(textureSample(prevPass, srcSampler, mirrorUv(uv)), mode);
 }
 
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
@@ -158,6 +178,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let flow = params[3];
   let rim = max(params[4], 0.0);
   let melt = clamp(params[5], 0.0, 1.0);
+  let mode = params[6];
 
   let ar = aspectScale(vec2<f32>(textureDimensions(srcTexture)));
   // Pas de la différence centrale, en texels du CHAMP (voir l'en-tête : sous
@@ -165,9 +186,9 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // quantification 8 bits de la cible de passe interne).
   let gs = (2.0 + merge) / vec2<f32>(textureDimensions(prevPass));
 
-  let field = gooField(uv);
-  let fx = gooField(uv + vec2<f32>(gs.x, 0.0)) - gooField(uv - vec2<f32>(gs.x, 0.0));
-  let fy = gooField(uv + vec2<f32>(0.0, gs.y)) - gooField(uv - vec2<f32>(0.0, gs.y));
+  let field = gooField(uv, mode);
+  let fx = gooField(uv + vec2<f32>(gs.x, 0.0), mode) - gooField(uv - vec2<f32>(gs.x, 0.0), mode);
+  let fy = gooField(uv + vec2<f32>(0.0, gs.y), mode) - gooField(uv - vec2<f32>(0.0, gs.y), mode);
   // Les deux pas valent le même nombre de texels sur chaque axe, donc la même
   // distance en PIXELS : \`grad\` vit déjà dans un espace isotrope, et \`gdir\`
   // est une direction unitaire en pixels. Le retour en UV se fait tout en bas,

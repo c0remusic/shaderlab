@@ -9,11 +9,17 @@
  *  centrale / asymétrie / orientation sur le chromatic bleed) n'avait plus
  *  aucun slot libre. 16 laisse 5 slots au-dessus de l'effet le plus gourmand.
  *
+ *  Puis de 16 à 24 (2026-08-01) : la remontée de `gradientMap` au niveau de sa
+ *  référence (cahier du 2026-08-01, §6) lui ajoute cinq réglages — espace de
+ *  mélange, décalage, répétition, type de répétition, dispersion — et le porte
+ *  à 18, au-dessus du plafond. 24 laisse 6 slots au-dessus du plus gourmand,
+ *  la même marge que celle visée au précédent élargissement.
+ *
  *  Le header ci-dessous interpole cette constante (`array<f32, ${...}>`) : il
  *  n'y a donc plus qu'UN endroit à modifier, et `MAX_EFFECT_PARAMS` reste la
  *  seule source pour la taille du Float32Array côté CPU
  *  (`effectPassRunner.ts`) comme pour la déclaration WGSL. */
-export const MAX_EFFECT_PARAMS = 16;
+export const MAX_EFFECT_PARAMS = 24;
 
 export const FULLSCREEN_VERTEX_WGSL = `
 struct VertexOut {

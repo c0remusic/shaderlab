@@ -640,6 +640,27 @@ const INSTALL = `(async () => {
       },
     },
 
+    // Motion blur, TEMOIN DE TRAJECTOIRE. Mode ROTATION et non Directionnel :
+    // c est le seul des trois dont une propriete se VERIFIE d un coup d oeil —
+    // la longueur de trainee est proportionnelle au rayon, donc le centre reste
+    // net sans qu aucun reglage ne le demande. Un file directionnel, lui, rend
+    // la meme chose partout et une reference posee dessus ne distinguerait pas
+    // un motion blur d un flou quelconque etire.
+    //
+    // Decentrage a 0.6 : l obturateur est franchement asymetrique, donc la
+    // trainee part d un seul cote et le bord net du sujet entre aussi dans le
+    // verrou.
+    "effet-motion-blur": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("motionBlur");
+        stack.updateParams(a, {
+          trajectory: 1, amount: 18, angle: 0,
+          centerX: 0.5, centerY: 0.5, bias: 0.6, falloff: 0.35,
+        });
+      },
+    },
+
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,
     // donc les passes de morphologie separees H/V).

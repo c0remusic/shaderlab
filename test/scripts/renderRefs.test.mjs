@@ -84,6 +84,13 @@ const ATTENDU = {
   // n aurait montre que quatre teintes (ses bords sont a 0 et 90 degres, dans
   // les deux sens) et n aurait pas prouve la continuite.
   "effet-colored-edges.png": { width: 256, height: 256, valeurs: null },
+  // MOTION BLUR (2026-08-01) : mode ROTATION et non Directionnel. C est le seul
+  // des trois dont une propriete se VERIFIE d un coup d oeil — la longueur de
+  // trainee est proportionnelle au rayon, donc le centre reste net sans qu
+  // aucun reglage ne le demande. Un file directionnel rend la meme chose
+  // partout, et une reference posee dessus ne distinguerait pas un motion blur
+  // d un flou quelconque etire.
+  "effet-motion-blur.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

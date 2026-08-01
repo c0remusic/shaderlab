@@ -16,6 +16,7 @@ import { halation } from "./halation";
 import { lensBlur } from "./lensBlur";
 import { hatching } from "./hatching";
 import { coloredEdges } from "./coloredEdges";
+import { motionBlur } from "./motionBlur";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 
 // Les six du milieu suivent l'ordre de priorité du backlog d'effets confirmé par
@@ -38,6 +39,12 @@ export const effectRegistry: EffectModule[] = [
   glow,
   halation,
   lensBlur,
+  // `motionBlur` (2026-08-01) suit `lensBlur` : les deux sont des intégrations,
+  // l'une sur la SURFACE de l'ouverture, l'autre le long d'une TRAJECTOIRE
+  // pendant une durée. Ils ne partagent aucun noyau — un disque de bokeh n'a
+  // rien à faire dans une traînée — mais c'est là qu'on cherche le second quand
+  // on vient de poser le premier.
+  motionBlur,
   chromaticBleed,
   warp,
   grain,

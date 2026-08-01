@@ -219,11 +219,12 @@ Points structurants qu'on ne devine pas en lisant un fichier isolé :
 
 `.claude/decisions/INDEX.md` — une ligne par ADR avec son statut. Un ADR
 `superseded` (ADR-0003, renversé par ADR-0004) n'est PAS une contrainte active.
-Actifs au 2026-07-31 : densité UI (0001), abandon round-trip (0002), sens causal
+Actifs au 2026-08-01 : densité UI (0001), abandon round-trip (0002), sens causal
 de la pile (0004), rattachement par proximité (0005), fond d'export blanc
 (0006), format de toile à la création + `MAX_CANVAS_PIXELS = 64 Mpx` (0007),
-un effet ne se pose jamais sur un calque photo (0008). Les décisions du projet
-vivent là, pas dans les docs de design.
+un effet ne se pose jamais sur un calque photo (0008), déplacement libre du
+viewport (0009), le gaussien reste hors du registre (0010). Les décisions du
+projet vivent là, pas dans les docs de design.
 
 ## Méthode
 
@@ -342,6 +343,28 @@ dit « vu ». **Preuve UI = CDP sur la vraie fenêtre WebView2** (`--remote-debu
 voir Méthode ci-dessus) + checkpoint visuel humain. Le screenshot Playwright vaut
 seulement pour les stories sans canvas GPU (projet `storybook`, qui lui tourne
 bien en headless chromium).
+
+## Moyen de preuve (EFFETS) — un verrou aveugle ne verrouille rien
+
+**Un verrou de pixels (`npm run test:render`) ne vaut que si sa mire peut
+MONTRER la propriété que l'effet prétend porter.** Avant d'écrire la référence
+d'un effet, se demander ce qui le distingue de sa version naïve, puis vérifier
+que la mire peut le montrer. Si elle ne le peut pas, **écrire la mire d'abord**.
+
+Cette règle a été payée le 2026-08-01 : `lensBlur` avait **dix-sept tests
+unitaires verts** en floutant au DOUBLE du rayon réglé et en rendant des nuées
+granuleuses au lieu d'hexagones. Son premier scénario était posé sur la mire
+commune, qui n'a aucun point lumineux isolé — or une tache de bokeh ne se lit
+que sur un petit point brillant contre du sombre. Sous un damier, un lens blur
+rend exactement ce que rendrait un gaussien : le verrou verrouillait du bruit.
+Trois mires ont dû être écrites dans la journée (`mireBokeh`, `mireRampe`,
+`mireBruit` — voir `scripts/render-check.mjs`), et les trois ont trouvé un
+défaut à leur première exécution.
+
+Corollaire : **le verrou sert aussi à rendre un refactor prouvable**. `outlines`
+n'avait aucune référence ; en poser une AVANT d'extraire son gradient de Scharr
+vers `effects/edgeGradient.ts` a transformé « ça devrait être neutre » en
+`aucun écart`. Poser la preuve avant le geste, pas après.
 
 ## Risques ouverts / gates
 

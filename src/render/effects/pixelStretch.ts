@@ -40,6 +40,20 @@ import { UV_SPACE_WGSL } from "./uvSpace";
  *    intacte, il ne floute rien. Sans ce couplage, l'effet floutait toute
  *    l'image dès que le curseur quittait zéro.
  *
+ * ASYMÉTRIE (2026-08-01, cahier de références §6bis). La référence Figma expose
+ * un paramètre `Offset` SIGNÉ que nous n'avions pas. Ce qui manquait n'était pas
+ * un décalage — `position` déplace déjà la ligne — mais la capacité d'étirer
+ * d'UN SEUL CÔTÉ : `ease` est bâti sur `abs(d)`, donc la traînée partait
+ * symétriquement de part et d'autre de la ligne, et aucun réglage des sept
+ * autres curseurs ne pouvait rompre cette symétrie.
+ *
+ * La portée devient donc side-dépendante : `reach * (1 + offset * signe(d))`.
+ * À 0 les deux côtés valent `reach` et le rendu est celui d'avant, au bit près.
+ * À +1 le côté positif porte le double et le côté négatif tombe à zéro — la
+ * portée nulle y rend `ease = 1`, donc `compress = 1`, donc l'image RIGOUREUSEMENT
+ * intacte, sans qu'aucune frontière ait à être testée. C'est la même propriété
+ * qui fait déjà que l'effet se rebranche proprement au bout de sa portée.
+ *
  * COÛT : 3 taps, une seule passe, aucune texture intermédiaire.
  *
  * Pas de curseur « mélange avec l'original » : chaque calque porte déjà son
@@ -57,6 +71,11 @@ export const pixelStretch: EffectModule = {
     { name: "wobble", label: "Ondulation", unit: "percent", min: 0, max: 1, default: 0.18, step: 0.01, hint: "Déforme la ligne source pour qu'elle ne se lise pas comme une règle — c'est ce qui distingue l'effet d'un copier-coller" },
     { name: "wobbleScale", label: "Échelle de l'ondulation", unit: "none", min: 1, max: 40, default: 7, step: 0.5, hint: "Bas = une grande vague sur toute la largeur ; haut = un froissement serré" },
     { name: "smooth", label: "Lissage de la source", unit: "percent", min: 0, max: 1, default: 0.35, step: 0.01, hint: "Empêche le grain de la ligne source de devenir une rayure sur toute la traînée. N'agit QUE dans la zone étirée" },
+    // L'`Offset` signé de la référence Figma. Nommé pour ce qu'il FAIT — rien
+    // n'est décalé, c'est la symétrie de la traînée qui se rompt — plutôt que
+    // pour son nom d'origine, sur le précédent de « Largeur et Hauteur » qui a
+    // remplacé « Échelle X et Échelle Y » (d54f91b).
+    { name: "offset", label: "Asymétrie", unit: "percent", min: -1, max: 1, default: 0, step: 0.01, hint: "Répartit la portée entre les deux côtés de la ligne. 0 = traînée symétrique ; ±1 = elle ne part que d'un seul côté, l'autre reste intact" },
   ],
   wgsl: `
 ${UV_SPACE_WGSL}${HASH_WGSL}${VALUE_NOISE_WGSL}
@@ -71,6 +90,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // (qualificatif d'interpolation), et le compilateur le refuse comme nom de
   // variable. Attrapé par \`npm run test:gpu-shaders\`, jamais par tsc.
   let sourceSmooth = clamp(params[6], 0.0, 1.0);
+  let offset = clamp(params[7], -1.0, 1.0);
 
   let dims = vec2<f32>(textureDimensions(srcTexture));
   let ar = aspectScale(dims);
@@ -97,10 +117,21 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let origin = (position * 2.0 - 1.0) * halfSpan + wob;
 
   let d = s - origin;
+  // ASYMÉTRIE : la portée n'est plus la même des deux côtés de la ligne. À
+  // \`offset\` = 0 les deux valent \`reach\` et tout ce qui suit est identique au
+  // bit près à ce que l'effet calculait avant ce paramètre.
+  //
+  // Un côté à portée NULLE ne demande aucun cas particulier : le quotient
+  // sature, \`ease\` vaut 1, donc \`compress\` vaut 1 et \`srcS == s\` — l'image y
+  // est rigoureusement intacte. C'est la propriété qui fait déjà se rebrancher
+  // la traînée au bout de sa portée, réutilisée telle quelle. Le plancher du
+  // dénominateur n'est là que pour interdire la division par zéro, pas pour
+  // rattraper un cas limite.
+  let reachSide = reach * max(1.0 + offset * sign(d), 0.0);
   // \`ease\` va de 0 SUR la ligne à 1 au bout de la portée. \`smoothstep\` et non
   // une rampe linéaire : une rampe laisse une cassure de dérivée au bout de la
   // portée, qui se lit comme une ligne fantôme sur les aplats (ciel, mur).
-  let ease = smoothstep(0.0, 1.0, clamp(abs(d) / reach, 0.0, 1.0));
+  let ease = smoothstep(0.0, 1.0, clamp(abs(d) / max(reachSide, 0.00001), 0.0, 1.0));
   // Facteur de COMPRESSION de la coordonnée source. À \`ease\` = 1 il vaut
   // exactement 1, donc \`srcS == s\` : au-delà de la portée l'image est
   // rigoureusement intacte, sans avoir à tester une frontière.

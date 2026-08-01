@@ -2,6 +2,8 @@ import type { EffectModule } from "./types";
 import { LINEAR_TO_SRGB_WGSL } from "./srgbTransfer";
 import { UV_SPACE_WGSL } from "./uvSpace";
 import { INPUT_DRIVER_WGSL, inputModeParam } from "./inputMode";
+import { HSL_TO_RGB_WGSL } from "./hsl";
+import { SRGB_TO_LINEAR_VEC3_WGSL, SRGB_TO_LINEAR_WGSL } from "./srgbTransfer";
 
 /**
  * Gooey merge — les zones claires de la photo se comportent comme un liquide :
@@ -28,6 +30,25 @@ import { INPUT_DRIVER_WGSL, inputModeParam } from "./inputMode";
  * devenu atteignable parce que le substrat est arrivé. `Luminance inversée`
  * vient avec, et n'est pas décoratif : il fait fusionner les zones SOMBRES, ce
  * qu'aucun réglage des six autres curseurs ne sait produire.
+ *
+ * TEINTE DES GOUTTES (2026-08-01, §6bis). La référence expose une couleur de
+ * PREMIER PLAN et une couleur de FOND. La première entre ici ; la seconde est
+ * REFUSÉE, et il vaut mieux écrire pourquoi que la livrer par parité :
+ *
+ * - Le premier plan est irremplaçable. Teinter les seules gouttes suppose de
+ *   savoir OÙ elles sont, et `coverage` est le seul endroit du dépôt qui le
+ *   sache. Aucun empilement de calques ne reproduit ce masque.
+ * - Le fond, lui, c'est tout le reste de la photo : le teinter est un cast
+ *   GLOBAL, et `duotone`, `gradientMap` et `channelMixer` le font déjà, mieux
+ *   et avec plus de réglages. L'ajouter ici serait la redondance exacte que
+ *   l'audit du 2026-07-31 avait relevée entre duotone et gradientMap — sans
+ *   même la circonstance atténuante d'un effet inachevé.
+ *
+ * La teinte est REMISE À L'ÉCHELLE de la luminance locale au lieu d'être posée
+ * à plat : une goutte peinte en aplat perdrait exactement le modelé que le
+ * point 1 ci-dessus existe pour préserver. Le facteur est borné à 4, même garde
+ * et même raison que `gradientMap` — sans borne, une teinte presque noire sous
+ * une haute lumière donne une division par presque zéro et un pixel cramé isolé.
  *
  * CE QUI EMPÊCHE QUE ÇA RENDE CHEAP. Le raccourci évident (seuiller, peindre
  * des aplats) donne un stencil : des taches plates, sans matière, qui ne
@@ -144,6 +165,12 @@ export const gooeyMerge: EffectModule = {
     inputModeParam({
       hint: "Quel champ fusionne — Luminance : les zones claires (reflets, bokeh). Luminance inversée : les zones sombres. Alpha : les formes de la toile, le gooey merge d'origine (sans objet sur une toile entièrement opaque).",
     }),
+    { name: "tintHue", label: "Teinte", unit: "degrees", min: 0, max: 360, default: 200, step: 1, colorGroup: { key: "tint", role: "hue", label: "Couleur des gouttes" } },
+    { name: "tintSaturation", label: "Saturation", unit: "percent", min: 0, max: 1, default: 0.7, step: 0.01, colorGroup: { key: "tint", role: "saturation", label: "Couleur des gouttes" } },
+    { name: "tintLightness", label: "Luminosité", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, colorGroup: { key: "tint", role: "lightness", label: "Couleur des gouttes" } },
+    // Défaut à 0 : la teinte est un AJOUT, et le comportement photographique
+    // décrit en tête reste celui qu'on obtient en posant le calque.
+    { name: "tint", label: "Colorisation", unit: "percent", min: 0, max: 1, default: 0, step: 0.01, hint: "Teinte les seules gouttes, en conservant leur modelé. Le FOND n'est volontairement pas colorisable : ce serait un cast global, que duotone, gradient map et channel mixer font déjà" },
   ],
   passes: [
     { scale: 0.5, wgsl: GOOEY_DOWNSAMPLE_WGSL },
@@ -157,7 +184,8 @@ export const gooeyMerge: EffectModule = {
     { scale: 0.5, wgsl: GOOEY_UPSAMPLE_WGSL },
   ],
   wgsl: `
-${UV_SPACE_WGSL}${LINEAR_TO_SRGB_WGSL}${INPUT_DRIVER_WGSL}
+${UV_SPACE_WGSL}${LINEAR_TO_SRGB_WGSL}${INPUT_DRIVER_WGSL}${HSL_TO_RGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}
+const GOOEY_LUMA = vec3<f32>(0.2126, 0.7152, 0.0722);
 // Le champ métaball, lu sur le flou. En mode Luminance (défaut) il est lu sur
 // l'axe PERCEPTUEL : le seuil est un curseur, donc une valeur perceptuelle ; le
 // comparer à une luminance linéaire poserait l'iso-surface à ~0.26 perceptuel
@@ -179,6 +207,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let rim = max(params[4], 0.0);
   let melt = clamp(params[5], 0.0, 1.0);
   let mode = params[6];
+  let tint = clamp(params[10], 0.0, 1.0);
 
   let ar = aspectScale(vec2<f32>(textureDimensions(srcTexture)));
   // Pas de la différence centrale, en texels du CHAMP (voir l'en-tête : sous
@@ -235,6 +264,17 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let crest = clamp(coverage * (1.0 - coverage) * 4.0, 0.0, 1.0);
   // Additif en LUMIÈRE LINÉAIRE : c'est ce qu'est un reflet spéculaire.
   result = result + vec3<f32>(pow(lit, 3.0) * crest * rim);
+
+  // TEINTE DES GOUTTES, bornée par \`coverage\` — donc le fond n'est jamais
+  // touché, quelle que soit la valeur du curseur. La couleur sort du picker en
+  // sRGB (valeur PERCEPTUELLE) et est décodée avant tout mélange, comme partout
+  // ailleurs dans ce dossier. Elle est ensuite REMISE À L'ÉCHELLE de la
+  // luminance locale : posée à plat, elle effacerait le modelé que la
+  // réfraction et le spéculaire viennent de construire.
+  let tintLin = srgb_to_linear3(hsl2rgb(params[7] / 360.0, params[8], params[9]));
+  let tintLuma = max(dot(tintLin, GOOEY_LUMA), 0.0001);
+  let relit = tintLin * clamp(dot(result, GOOEY_LUMA) / tintLuma, 0.0, 4.0);
+  result = mix(result, relit, tint * coverage);
 
   return vec4<f32>(result, color.a);
 }

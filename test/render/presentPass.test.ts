@@ -149,9 +149,25 @@ describe("buildPresentWgsl", () => {
   });
 
   it("les gris du damier sont décodés depuis sRGB (cible -srgb, sortie linéaire)", () => {
+    // Paire CLAIRE depuis le 2026-08-01 : #ffffff / #cccccc, la grille
+    // « moyenne » de Photoshop (décision Antoine sur référence visuelle). Elle
+    // était sombre (#323232 / #1b1b1b) et ne se lisait pas comme un damier de
+    // transparence — voir le commentaire de `buildPresentWgsl`.
     const code = buildPresentWgsl("checker");
-    expect(code).toContain("srgb2lin(mix(vec3<f32>(0.196078), vec3<f32>(0.105882), odd))");
+    expect(code).toContain("srgb2lin(mix(vec3<f32>(1.0), vec3<f32>(0.8), odd))");
     expect(code).toContain("fn srgb2lin");
+  });
+
+  it("le damier ne franchit jamais la frontière de l'export", () => {
+    // Le blanc d'export est le POINT FIXE de la conversion sRGB↔linéaire, donc
+    // il ne passe pas par `srgb2lin` — et les gris du damier, eux, n'ont
+    // aucune raison d'apparaître dans la source blanche. Éclaircir le damier
+    // rapproche ses valeurs de celles de l'export : ce témoin vérifie que les
+    // deux sources restent bien distinctes malgré ce rapprochement.
+    const blanc = buildPresentWgsl("white");
+    expect(blanc).toContain("let bg = vec3<f32>(1.0);");
+    expect(blanc).not.toContain("srgb2lin(mix(");
+    expect(blanc).not.toContain("checkerParams");
   });
 
   it("embarque le vertex plein écran et un point d'entrée fragment unique", () => {

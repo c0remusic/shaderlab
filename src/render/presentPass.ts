@@ -141,15 +141,27 @@ export function buildPresentWgsl(background: PresentBackgroundKind): string {
   // le fragment doit sortir du linéaire (aucun gamma manuel sur les couleurs
   // du pipeline, seulement sur ces deux constantes d'interface).
   //
-  // Paire SOMBRE, pas la paire claire de Photoshop : cette application est une
-  // surface sombre de jugement photographique, et un damier quasi blanc y
-  // serait l'objet le plus lumineux de l'écran — il fausserait l'adaptation de
-  // l'œil, donc la lecture d'exposition des photos elles-mêmes, et passerait
-  // devant les images en montage. Les deux gris reprennent des neutres réels
-  // de la palette (primitives.css : --primitive-neutral-850 = #323232 et
-  // --primitive-neutral-1000 = #1b1b1b), pour que le vide se lise comme le
-  // châssis de l'app derrière la toile.
-  let bg = srgb2lin(mix(vec3<f32>(0.196078), vec3<f32>(0.105882), odd));`
+  // PAIRE CLAIRE DE PHOTOSHOP — #ffffff / #cccccc, sa grille « moyenne »
+  // (décision Antoine, 2026-08-01, sur référence visuelle).
+  //
+  // Ce damier a été SOMBRE (#323232 / #1b1b1b) jusqu'à cette date, avec un
+  // argument qui n'était pas faux : sur une surface de jugement
+  // photographique, une zone quasi blanche est l'objet le plus lumineux de
+  // l'écran, elle tire l'adaptation de l'œil et passe devant les images. Ce
+  // que cet argument ratait, c'est que le damier ne dit pas « vide », il dit
+  // TRANSPARENT — et il ne le dit qu'à condition d'être reconnu au premier
+  // coup d'œil comme le damier de transparence que tout le monde connaît.
+  // Deux gris sombres et proches ressemblaient au châssis de l'app, donc à
+  // une zone morte, pas à un canal alpha. Un signal conventionnel qui n'est
+  // pas reconnu ne signale rien.
+  //
+  // Le compromis d'exposition reste réel : il est borné par le fait que ces
+  // pixels ne sont, par construction, jamais couverts par une image — et
+  // qu'ils ne partent JAMAIS a l'export, qui recoit du blanc opaque (ADR-0006,
+  // verrouille par presentBackgroundFor et assertOpaqueForJpeg). Aucun accent
+  // grave dans ce bloc : il vit DANS un template literal, un backtick le
+  // refermerait au milieu du shader.
+  let bg = srgb2lin(mix(vec3<f32>(1.0), vec3<f32>(0.8), odd));`
     // BLANC PUR (ADR-0006). Pas de `srgb2lin` ici, et ce n'est PAS un oubli :
     // 1.0 est le point fixe de la conversion sRGB↔linéaire — la seule valeur
     // qui vaille exactement la même chose dans les deux espaces. Les deux gris

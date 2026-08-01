@@ -329,6 +329,46 @@ de preset.
 --noEmit` verts, avec la liste des tests réellement exécutés (un code de sortie
 0 ne prouve pas que le fichier modifié a été touché).
 
+### PREMIÈRE PASSE FAITE le 2026-08-01 — 2167 → 2015
+
+Les cinq `<Dialog>` sont sortis, en **deux** composants et non un `AppDialogs`
+fourre-tout : `components/PresetDialogs.tsx` (les quatre du parcours preset) et
+`components/CanvasSizeDialog.tsx` (l'ouverture d'un document). Un composant dont
+la seule raison d'être serait « les modales qui restaient » n'aurait aucune
+frontière à tenir, et le prochain dialogue y serait tombé sans qu'on se demande
+où il va.
+
+**228 lignes de JSX sont parties, 76 sont revenues** — les décisions que le JSX
+portait en fermetures inline (`pendingOverwrite?.resolve(false)`,
+`gateOnPhotoLayers(...).then(resolve)`) sont remontées dans `App.tsx` au lieu de
+suivre le déménagement. C'est le point de l'opération, pas son coût : un
+composant de `components/` reçoit des rappels déjà fermés et ne décide de rien.
+Gain net de 152 lignes ; un gain de 228 aurait signifié que la logique avait
+traversé la frontière.
+
+**Vérification, faute de test qui rende du React.** Aucun test de ce dépôt ne
+monte un composant : le filet est `tsc`, le lint, et la vraie fenêtre. Pilotage
+CDP sur WebView2 — `CanvasSizeDialog` ouvert par le menu, titre et champs
+Largeur/Hauteur présents, bouton désactivé + message de refus sur saisie vide,
+bouton actif et refus effacé à 800x600, fermeture propre sans bandeau d'erreur.
+Les quatre dialogues de preset sont vérifiés PRÉSENTS avec leurs jeux de boutons
+exacts (Écraser / Enregistrer quand même / Créer / Remplacer) mais n'ont pas été
+pilotés : il y faut un document ouvert et une bibliothèque de presets.
+
+⚠️ **Deux sondes CDP ont menti dans le même relevé**, dans les deux sens —
+`[role=dialog]` rendait 0 alors que le dialogue était ouvert (ce dépôt utilise
+l'élément NATIF `<dialog class="ui-dialog">`, pas l'attribut ARIA), et un clic
+sur « Annuler » attrapait le premier des CINQ boutons de ce libellé, tous montés
+en permanence. Le seul sélecteur honnête est `dialog.ui-dialog[open]`.
+
+Écart assumé : l'ordre DOM du dialogue de toile passe de 3e à 5e. Sans effet —
+un seul dialogue peut être ouvert à la fois, et les deux enchaînements possibles
+(écrasement puis exclusion photo) sont séquentiels.
+
+**RESTE À FAIRE** : 2015 lignes, toujours le point d'ajout par défaut du dépôt.
+Prochains candidats nommés par R6, inchangés : l'échantillonnage colorimétrique
+et l'application de preset.
+
 ### A3 — AFK — le bloc AUTO-VÉRIFICATION d'`ARCHITECTURE.md` est périmé
 
 R6 (`ARCHITECTURE.md:549`) est à jour (1823, daté). Deux occurrences du chiffre

@@ -84,9 +84,9 @@ import { useLayerIsolation } from "./hooks/useLayerIsolation";
 import { PresetPanel } from "./components/PresetPanel";
 import { TauriPresetStore } from "./presets/presetStore";
 import { withPhotoLayersPreserved } from "./presets/preservePhotoLayers";
-import { applyPresetImpactMessage } from "./presets/applyPresetImpact";
-import { Dialog } from "./ui/Dialog";
 import { Button } from "./components/ui/button";
+import { PresetDialogs } from "./components/PresetDialogs";
+import { CanvasSizeDialog } from "./components/CanvasSizeDialog";
 
 export default function App() {
   useGlobalControlWheel();
@@ -1610,6 +1610,55 @@ export default function App() {
     return size ? [{ transform: l.transform, photoSize: size }] : [];
   });
 
+  // DÉCISIONS DES DIALOGUES MODAUX. Elles vivaient en fermetures inline dans le
+  // JSX des cinq `<Dialog>` ; l'extraction de ce JSX vers `PresetDialogs` et
+  // `CanvasSizeDialog` (2026-08-01, item A1) les a fait remonter ici, et c'est
+  // le point de l'opération : un composant de `components/` reçoit des rappels
+  // déjà fermés sur leur état, il ne décide de rien (CLAUDE.md § Architecture).
+  //
+  // Fonctions NUES et non `useCallback` : les deux composants ne sont pas
+  // `memo()`-isés, donc l'identité de ces rappels n'a aucun consommateur. Les
+  // mémoïser ne coûterait rien mais raconterait une stabilité que personne ne
+  // lit — le contraire du resserrement fait ce matin sur `LayerRow`, où la
+  // mémoïsation, elle, existe et se mesure.
+  const cancelPresetOverwrite = () => {
+    // Annuler (X / Échap / bouton) doit résoudre `requestSavePreset` à `false`,
+    // sinon la Promise reste en suspens et PresetPanel ne sait jamais que
+    // l'écriture n'a pas eu lieu.
+    pendingOverwrite?.resolve(false);
+    setPendingOverwrite(null);
+  };
+  const confirmPresetOverwrite = () => {
+    if (pendingOverwrite) {
+      const { name, id, resolve } = pendingOverwrite;
+      gateOnPhotoLayers(name, () => commitSavePreset(name, id)).then(resolve);
+    }
+    setPendingOverwrite(null);
+  };
+  const cancelPhotoLayerSave = () => {
+    pendingPhotoLayerSave?.onCancel();
+    setPendingPhotoLayerSave(null);
+  };
+  const confirmPhotoLayerSave = () => {
+    pendingPhotoLayerSave?.onConfirm();
+    setPendingPhotoLayerSave(null);
+  };
+  const cancelPresetCopy = () => setPendingPresetCopyName(null);
+  const confirmPresetCopy = () => {
+    if (pendingPresetCopyName) requestCopyActiveAsNew(pendingPresetCopyName.trim());
+    setPendingPresetCopyName(null);
+  };
+  const cancelPresetApply = () => setPendingPresetApply(null);
+  const confirmPresetApply = () => {
+    if (pendingPresetApply) applyPreset(pendingPresetApply.id);
+    setPendingPresetApply(null);
+  };
+  const cancelFreeCanvas = () => setPendingFreeCanvas(null);
+  const setFreeCanvasWidth = (width: string) =>
+    setPendingFreeCanvas((current) => (current ? { ...current, width } : current));
+  const setFreeCanvasHeight = (height: string) =>
+    setPendingFreeCanvas((current) => (current ? { ...current, height } : current));
+
   return (
     <div className="app-shell">
       <Toolbar
@@ -1933,233 +1982,32 @@ export default function App() {
             }}
           />
         )}
-        <Dialog
-          open={pendingOverwrite !== null}
-          title="Remplacer le preset existant ?"
-          description={pendingOverwrite ? `Un preset nommé "${pendingOverwrite.name}" existe déjà. L'enregistrement va écraser son contenu.` : undefined}
-          onClose={() => {
-            // Mineur 4 : annuler l'écrasement (X / Échap) doit résoudre
-            // `requestSavePreset` à `false` — sinon la Promise reste en
-            // suspens et PresetPanel ne sait jamais que l'écriture n'a pas eu lieu.
-            pendingOverwrite?.resolve(false);
-            setPendingOverwrite(null);
-          }}
-          actions={
-            <>
-              <Button
-                variant="secondary"
-                // eslint-disable-next-line jsx-a11y/no-autofocus -- dialogue MODAL : le focus doit entrer dans le dialogue a son ouverture, et il est pose sur l'action SANS effet (Annuler), jamais sur l'action destructrice. C'est le comportement attendu d'une boite de dialogue, pas un vol de focus sur une page.
-                autoFocus
-                onClick={() => {
-                  pendingOverwrite?.resolve(false);
-                  setPendingOverwrite(null);
-                }}
-              >
-                Annuler
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  if (pendingOverwrite) {
-                    const { name, id, resolve } = pendingOverwrite;
-                    gateOnPhotoLayers(name, () => commitSavePreset(name, id)).then(resolve);
-                  }
-                  setPendingOverwrite(null);
-                }}
-              >
-                Écraser
-              </Button>
-            </>
-          }
+        <PresetDialogs
+          pendingOverwrite={pendingOverwrite}
+          onOverwriteCancel={cancelPresetOverwrite}
+          onOverwriteConfirm={confirmPresetOverwrite}
+          pendingPhotoLayerSave={pendingPhotoLayerSave}
+          onPhotoLayerSaveCancel={cancelPhotoLayerSave}
+          onPhotoLayerSaveConfirm={confirmPhotoLayerSave}
+          pendingCopyName={pendingPresetCopyName}
+          onCopyNameChange={setPendingPresetCopyName}
+          onCopyCancel={cancelPresetCopy}
+          onCopyConfirm={confirmPresetCopy}
+          pendingApply={pendingPresetApply}
+          onApplyCancel={cancelPresetApply}
+          onApplyConfirm={confirmPresetApply}
         />
-        <Dialog
-          open={pendingPhotoLayerSave !== null}
-          title="Calque(s) photo exclu(s) du preset"
-          description={
-            pendingPhotoLayerSave
-              ? // « photo », plus « photo (double exposure) » : depuis T1 la
-                // photo d'ouverture est un calque photo comme un autre et peut
-                // figurer dans cette liste — la nommer « double exposure »
-                // serait faux. L'avis lui-même ne se déclenche plus que si le
-                // document contient une photo IMPORTÉE (presetDocument.ts).
-                `${pendingPhotoLayerSave.excludedLayerIndexes.length} calque${pendingPhotoLayerSave.excludedLayerIndexes.length > 1 ? "s" : ""} photo ne ${pendingPhotoLayerSave.excludedLayerIndexes.length > 1 ? "seront" : "sera"} pas inclus dans le preset — une source de photo n'a de sens que dans ce document.`
-              : undefined
-          }
-          onClose={() => {
-            pendingPhotoLayerSave?.onCancel();
-            setPendingPhotoLayerSave(null);
-          }}
-          actions={
-            <>
-              <Button
-                variant="secondary"
-                // eslint-disable-next-line jsx-a11y/no-autofocus -- dialogue MODAL, focus sur l'action sans effet (Annuler) : voir la meme note sur le dialogue « Remplacer ? ».
-                autoFocus
-                onClick={() => {
-                  pendingPhotoLayerSave?.onCancel();
-                  setPendingPhotoLayerSave(null);
-                }}
-              >
-                Annuler
-              </Button>
-              <Button
-                variant="default"
-                onClick={() => {
-                  pendingPhotoLayerSave?.onConfirm();
-                  setPendingPhotoLayerSave(null);
-                }}
-              >
-                Enregistrer quand même
-              </Button>
-            </>
-          }
-        >
-          {pendingPhotoLayerSave && (
-            <ul className="preset-panel__excluded-list">
-              {pendingPhotoLayerSave.excludedLayerIndexes.map((layerIndex) => (
-                <li key={layerIndex}>Calque {layerIndex + 1} — photo</li>
-              ))}
-            </ul>
-          )}
-        </Dialog>
         {/* Saisie libre des dimensions de la toile (tranche T2). Vient AVANT le
             sélecteur de fichier : rien ici ne dépend de la photo, et l'ordre
             inverse obligerait à décoder l'image pour poser un défaut. */}
-        <Dialog
-          open={pendingFreeCanvas !== null}
-          title="Taille de la toile"
-          description={`En pixels. La photo sera centrée sur cette toile, sans être redimensionnée. Budget maximal : ${(MAX_CANVAS_PIXELS / 1e6).toFixed(0)} Mpx.`}
-          onClose={() => setPendingFreeCanvas(null)}
-          actions={
-            <>
-              <Button
-                variant="secondary"
-                // eslint-disable-next-line jsx-a11y/no-autofocus -- dialogue MODAL, focus sur l'action sans effet (Annuler) : voir la meme note sur le dialogue « Remplacer ? ».
-                autoFocus
-                onClick={() => setPendingFreeCanvas(null)}
-              >
-                Annuler
-              </Button>
-              <Button
-                variant="default"
-                disabled={freeCanvas?.kind !== "ok"}
-                onClick={confirmFreeCanvas}
-              >
-                Choisir une photo...
-              </Button>
-            </>
-          }
-        >
-          <div className="canvas-size-dialog">
-            <label className="canvas-size-dialog__field">
-              Largeur
-              <input
-                type="number"
-                min={1}
-                className="preset-panel__name-input"
-                value={pendingFreeCanvas?.width ?? ""}
-                onChange={(e) =>
-                  setPendingFreeCanvas((current) => (current ? { ...current, width: e.target.value } : current))
-                }
-              />
-            </label>
-            <label className="canvas-size-dialog__field">
-              Hauteur
-              <input
-                type="number"
-                min={1}
-                className="preset-panel__name-input"
-                value={pendingFreeCanvas?.height ?? ""}
-                onChange={(e) =>
-                  setPendingFreeCanvas((current) => (current ? { ...current, height: e.target.value } : current))
-                }
-              />
-            </label>
-            {/* Le message de refus est visible AVANT le clic, jamais après :
-                le bouton est désactivé tant que la saisie n'est pas valide. */}
-            {freeCanvas?.kind === "erreur" && (
-              <p className="canvas-size-dialog__error" role="status">
-                {freeCanvas.message}
-              </p>
-            )}
-          </div>
-        </Dialog>
-        <Dialog
-          open={pendingPresetCopyName !== null}
-          title="Créer une copie du preset"
-          onClose={() => setPendingPresetCopyName(null)}
-          actions={
-            <>
-              <Button
-                variant="secondary"
-                // eslint-disable-next-line jsx-a11y/no-autofocus -- dialogue MODAL, focus sur l'action sans effet (Annuler) : voir la meme note sur le dialogue « Remplacer ? ».
-                autoFocus
-                onClick={() => setPendingPresetCopyName(null)}
-              >
-                Annuler
-              </Button>
-              <Button
-                variant="default"
-                disabled={!pendingPresetCopyName || pendingPresetCopyName.trim() === ""}
-                onClick={() => {
-                  if (pendingPresetCopyName) requestCopyActiveAsNew(pendingPresetCopyName.trim());
-                  setPendingPresetCopyName(null);
-                }}
-              >
-                Créer
-              </Button>
-            </>
-          }
-        >
-          {/* `aria-label` et pas seulement le `placeholder` : un placeholder
-              n'est qu'un nom accessible de DERNIER recours (HTML-AAM), et son
-              jumeau de `PresetPanel` porte déjà l'attribut. Deux champs du même
-              rôle nommés par deux mécanismes différents est une dérive, pas un
-              choix. Relevé le 2026-07-30 en balayant les noms accessibles des
-              contrôles du dock. */}
-          <input
-            type="text"
-            className="preset-panel__name-input"
-            aria-label="Nom de la copie du preset"
-            placeholder="Nom du nouveau preset"
-            value={pendingPresetCopyName ?? ""}
-            onChange={(e) => setPendingPresetCopyName(e.target.value)}
-          />
-        </Dialog>
-        <Dialog
-          open={pendingPresetApply !== null}
-          title="Remplacer la pile de calques ?"
-          description={
-            // T5 (2026-07-28) : cette phrase annonçait la perte des calques
-            // photo. C'était vrai quand `applyPreset` remplaçait la pile
-            // entière ; c'est FAUX depuis que T1 les préserve
-            // (`withPhotoLayersPreserved`). Elle vit maintenant dans une
-            // fonction testée — voir `presets/applyPresetImpact.ts` pour
-            // pourquoi une fausse menace est aussi grave qu'un avis parasite.
-            pendingPresetApply ? applyPresetImpactMessage(pendingPresetApply.photoLayerCount) : undefined
-          }
-          onClose={() => setPendingPresetApply(null)}
-          actions={
-            <>
-              <Button
-                variant="secondary"
-                // eslint-disable-next-line jsx-a11y/no-autofocus -- dialogue MODAL, focus sur l'action sans effet (Annuler) : voir la meme note sur le dialogue « Remplacer ? ».
-                autoFocus
-                onClick={() => setPendingPresetApply(null)}
-              >
-                Annuler
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  if (pendingPresetApply) applyPreset(pendingPresetApply.id);
-                  setPendingPresetApply(null);
-                }}
-              >
-                Remplacer
-              </Button>
-            </>
-          }
+        <CanvasSizeDialog
+          pending={pendingFreeCanvas}
+          onWidthChange={setFreeCanvasWidth}
+          onHeightChange={setFreeCanvasHeight}
+          validation={freeCanvas}
+          maxCanvasPixels={MAX_CANVAS_PIXELS}
+          onCancel={cancelFreeCanvas}
+          onConfirm={confirmFreeCanvas}
         />
       </main>
     </div>

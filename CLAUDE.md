@@ -91,18 +91,32 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
 - Effets = modules autonomes enregistrés dans `src/render/effects/registry.ts`
   — en ajouter un = un nouveau fichier ; un effet à paramètres groupés (voir
   `EffectParam.colorGroup`) touche aussi `ParamPanel.tsx` et peut élargir
-  `MAX_EFFECT_PARAMS` (`shaderCompose.ts`, **16** aujourd'hui) si nécessaire.
-  Registre réel au 2026-08-01 : `glow`, `halation`, `chromaticBleed`, `warp`, `grain`,
-  `duotone`, `posterize`, `gooeyMerge`, `channelMixer`, `outlines`,
-  `pixelStretch`, `sliceShift`, `gradientMap` — **treize**.
-  `halation` (2026-08-01) ne vient pas du backlog Figma mais du cahier de
-  références `docs/superpowers/specs/2026-08-01-references-effets.md` : `glow`
-  confondait bloom et halation, sa teinte de halo a été retirée et le phénomène
-  argentique est devenu un effet à part. Les deux s'empilent.
-  Noyaux de flou pyramidal partagés par les deux : `effects/blurChain.ts`.
-  Les autres fichiers de `effects/` sont des helpers (`bayer`, `hsl`,
-  `srgbTransfer`, `uvSpace`, `validate`, `types`) : la présence d'un fichier
-  n'est pas la présence d'un effet, vérifier `registry.ts`.
+  `MAX_EFFECT_PARAMS` (`shaderCompose.ts`, **24** depuis le 2026-08-01) si
+  nécessaire.
+  Registre réel au 2026-08-01 : `glow`, `halation`, `lensBlur`, `chromaticBleed`,
+  `warp`, `grain`, `duotone`, `posterize`, `gooeyMerge`, `channelMixer`,
+  `outlines`, `pixelStretch`, `sliceShift`, `gradientMap` — **quatorze**.
+  `halation` et `lensBlur` (2026-08-01) ne viennent pas du backlog Figma mais du
+  cahier de références `docs/superpowers/specs/2026-08-01-references-effets.md` :
+  `glow` confondait bloom et halation (sa teinte de halo a été retirée, le
+  phénomène argentique est devenu un effet à part, les deux s'empilent), et
+  aucun flou n'existait au registre (§6ter).
+  Noyaux de flou pyramidal partagés par glow/halation : `effects/blurChain.ts`.
+  `lensBlur` n'en est PAS : un noyau pyramidal ne sait produire ni bord franc ni
+  polygone, il lui faut une collecte explicite sur l'ouverture.
+  Les autres fichiers de `effects/` sont des helpers (`bayer`, `hsl`, `hash`,
+  `oklab`, `blendSpace`, `inputMode`, `srgbTransfer`, `uvSpace`, `validate`,
+  `types`) : la présence d'un fichier n'est pas la présence d'un effet, vérifier
+  `registry.ts`.
+- **Deux contrôles TRANSVERSAUX**, posés le 2026-08-01 d'après le §6bis du
+  cahier de références (ils sont récurrents chez Figma et étaient absents
+  partout ici) : `effects/blendSpace.ts` (espace de mélange — sRGB, Linéaire,
+  OKLab, OKLCH ; plus un vocabulaire restreint aux deux courbes de transfert
+  pour les opérateurs qui ne sont pas une interpolation, comme la matrice de
+  `channelMixer`) et `effects/inputMode.ts` (mode d'entrée — Luminance,
+  Luminance inversée, Alpha). Un effet qui les adopte garde son rendu au bit
+  près sur son défaut. ⚠️ L'index d'un choix est PERSISTÉ dans les presets :
+  on ajoute une entrée à la FIN de la liste, jamais au milieu.
   `passthrough` (`PASSTHROUGH_EFFECT`) est résolu par `getEffect` mais
   volontairement HORS du registre — c'est l'effectId par défaut d'un calque
   photo, pas un effet choisissable.

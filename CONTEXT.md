@@ -21,11 +21,12 @@ Sources : `CLAUDE.md`, `AGENTS.md`, `docs/INDEX.json`, `docs/design-system/*`, `
 Les calques forment une pile ordonnée (bas = sous, haut = dessus). Source :
 `src/layers/types.ts`, `src/layers/layerStack.ts`. _Avoid_ : "filtre", "layer".
 
-**Effet** (`EffectModule`) — traitement shader appliqué par un calque. Quatre
-effets réels au 2026-08-01 : **glow**, **halation**, **chromatic bleed**, **warp**,
-**grain**, **duotone**, **posterize**, **gooey merge**, **channel mixer**,
-**outlines**, **pixel stretch**, **slice shift**, **gradient map** — treize (la
-liste disait « quatre » jusqu'au 2026-08-01, périmée depuis le 2026-07-26 ;
+**Effet** (`EffectModule`) — traitement shader appliqué par un calque. Effets
+réels au 2026-08-01 : **glow**, **halation**, **lens blur**, **chromatic bleed**,
+**warp**, **grain**, **duotone**, **posterize**, **gooey merge**,
+**channel mixer**, **outlines**, **pixel stretch**, **slice shift**,
+**gradient map** — quatorze (la liste disait « quatre » jusqu'au 2026-08-01,
+périmée depuis le 2026-07-26, et « treize » pendant une demi-journée ;
 `registry.ts` tranche, pas ce fichier). Un effet est un
 module autonome ; en ajouter un = un nouveau fichier dans `src/render/effects/`,
 zéro modif moteur/UI. Source : `src/render/effects/registry.ts`,
@@ -54,6 +55,29 @@ n'est un réglage de l'autre. `glow` a porté une teinte de halo jusqu'au
 2026-08-01 : elle est retirée, elle promettait une physique qu'elle ne tenait pas.
 Source : `src/render/effects/halation.ts`,
 `docs/superpowers/specs/2026-08-01-references-effets.md` §1.
+
+**Bokeh** — la forme que prend une haute lumière ponctuelle HORS mise au point.
+Ce n'est pas « du flou » : sa signature est qu'un point plus petit donne une
+tache de MÊME diamètre, seulement plus transparente et à bords plus nets. Un
+flou gaussien n'en produit aucun — il moyenne, donc il dilue. Deux propriétés le
+font exister : la pondération des hautes lumières et la forme du diaphragme
+(polygone à N lames). Porté par **lens blur**. Source :
+`src/render/effects/lensBlur.ts`, référence §6ter. _Avoid_ : "flou d'arrière-plan".
+
+**Espace de mélange** (`blendSpace`) — la COURBE le long de laquelle une
+interpolation de couleur chemine : sRGB, Linéaire, OKLab, OKLCH. Contrôle
+transversal, pas propriété d'un effet. Mesure qui commande le choix : seul
+OKLCH tient la saturation au milieu d'un dégradé entre complémentaires (la
+teinte tourne au lieu de traverser le gris) ; OKLab, lui, pose la clarté du
+milieu à la moyenne perceptuelle exacte. Source :
+`src/render/effects/blendSpace.ts`. _Avoid_ : "espace colorimétrique" (qui
+désigne le gamut, autre chose).
+
+**Mode d'entrée** (`inputMode`) — quel champ scalaire de l'image PILOTE un
+effet : luminance, luminance inversée, ou couverture alpha. Second contrôle
+transversal. L'entrée alpha n'a de substrat que depuis « le fond devient un
+calque » (2026-07-28) : avant, la toile était toujours opaque. Source :
+`src/render/effects/inputMode.ts`.
 _Avoid_ : « glow orangé », « bloom chaud » pour désigner une halation.
 
 **Grain analogique / numérique** (paramètre `mode` de `grain`, 2026-08-01) — deux

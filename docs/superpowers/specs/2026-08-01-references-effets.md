@@ -311,11 +311,80 @@ rampe à trois arrêts.
 référence — la redondance se dissout d'elle-même. `duotone` reste libre de
 devenir, plus tard, le vrai modèle deux encres à courbes décrit plus haut.
 
+### LIVRÉ le 2026-08-01 (`6da8041`) — quatre lignes sur six
+
+La description publiée par Figma nomme exactement trois contrôles : *« custom
+gradients — control pattern repetition, offset, and color space »*.
+
+| contrôle Figma | chez nous |
+|---|---|
+| *pattern repetition* | ✅ `Répétition` (1→12) + `Type de répétition` (Miroir / Répétition) |
+| *offset* | ✅ `Décalage` (−1→1) |
+| *color space* | ✅ `Espace de mélange` : sRGB, Linéaire, **OKLab, OKLCH** |
+| scatter (visible sur leur aperçu) | ✅ `Dispersion` |
+| *custom gradients* — arrêts libres | ❌ **reste** |
+| espace de mélange sur les autres effets | ✅ module partagé `blendSpace` |
+
+Le seul trou est l'éditeur d'arrêts libres, et il n'est pas de nature shader :
+`array<f32, N>` est de taille fixe et `ParamPanel` ne sait rendre qu'un curseur,
+un groupe de couleur ou une liste de choix. C'est un **nouveau genre de
+contrôle**, donc un chantier d'interface.
+
+Deux mesures faites en chemin, qui contredisent l'intuition et sont verrouillées
+par `test/render/effects/blendSpace.test.ts` :
+- **OKLab ne répare PAS le creux de saturation** entre deux complémentaires — il
+  est même légèrement sous le linéaire (.058 contre .114 sur bleu→orange). Une
+  DROITE dans le plan a/b passe près de l'origine quand les bouts sont opposés.
+  C'est correct, et un test le verrouille contre une « correction » future.
+- **Seul OKLCH tient le chroma** (×6,6 sur magenta→vert) : la teinte tourne au
+  lieu de traverser l'axe achromatique. Ce qu'OKLab apporte est ailleurs — sa
+  clarté de milieu est la moyenne perceptuelle exacte des bouts, là où le
+  linéaire la surélève et le sRGB l'enfonce.
+
+Réserve de look, à trancher : l'aperçu Figma porte un grain FRANC, qui fait le
+rendu. Notre `Dispersion` est bornée à ±1/8 de rampe pour qu'un pixel ne
+traverse pas un arrêt. Si c'est ce look qui est visé, c'est ce plafond qu'il
+faut monter.
+
 La leçon de méthode vaut d'être notée : « ces deux effets font la même chose »
 était une conclusion tirée du CODE seul. Confrontée à la référence externe, elle
 s'inverse — ce n'est pas un doublon, c'est un effet inachevé.
 
 ---
+
+## 6quater. L'inventaire Figma de ce cahier était INCOMPLET — relevé le 2026-08-01
+
+Corrigé après lecture directe de `figma.com/community/shaders`. Le catalogue
+tient **dix-neuf** entrées, pas la poignée que ce document cite :
+
+> Colored edges · Slice shift · Channel mixer · Outlines · Halftone · Hatching ·
+> Bokeh blur · Bloom · Pixel stretch · Filter presets · Pattern refraction ·
+> Gradient map · Lens distortion · Color adjust · Dither · Warp · Pixelate ·
+> Chromatic metal · Gooey merge
+
+**Sept n'apparaissent nulle part ailleurs dans ce cahier** : Colored edges,
+Hatching, Filter presets, Pattern refraction, Color adjust, Chromatic metal,
+Pixelate. Le §7 « effets candidats » a donc été écrit sur un inventaire partiel,
+et sa dernière ligne (« Bokeh blur / Lens distortion / Dither restent au backlog
+Figma ») sous-estime ce qui reste.
+
+Deux descriptions obtenues de la page elle-même, à verser au dossier :
+- **Pattern refraction** — « Simulate refracting light to create distortions
+  like waves, zigzags, and lenticular patterns. » Proche de `warp` par le
+  moyen, très loin par l'intention : ce sont des distorsions PÉRIODIQUES et
+  optiques (lenticulaire), pas un bruit fractal.
+- **Moire** (un remplissage, pas un effet) — « customizable line distortion,
+  RGB separation, and optical interference effects. »
+
+⚠️ **Limite de méthode, à ne pas oublier au prochain passage** : la page ne
+publie la description que des QUATRE vedettes de son carrousel. La surface de
+contrôle des quinze autres n'est lisible qu'en ouvrant chaque shader dans Figma,
+donc avec un compte. Les écarts du §6bis ci-dessous viennent d'une lecture
+antérieure et n'ont PAS été revérifiés contre les fiches ; `warp` en particulier
+est jugé « sans écart de référence » au §4 sans que le shader Figma du même nom
+ait jamais été regardé (auteur : Miggi from Figgi). C'est un trou franc.
+
+Demandés par Antoine le 2026-08-01, à faire : **Hatching** et **Colored edges**.
 
 ## 6bis. Les cinq autres effets Figma — écarts relevés au passage
 
@@ -375,6 +444,28 @@ chemin — c'est un flou de mouvement), Spin (flou radial circulaire).
 
 Path Blur et Spin Blur relèvent du **motion blur** déjà nommé en différé dans
 `CONTEXT.md` — même famille, à cadrer avec lui.
+
+### LIVRÉ le 2026-08-01 (`942568b`) — le noyau, pas les cinq géométries
+
+`lensBlur` est au registre. Les deux propriétés que ce paragraphe désigne comme
+« toute la qualité » sont là : pondération des hautes lumières (le disque garde
+son bord au lieu de se dissoudre) et forme de diaphragme réglable (polygone
+inscrit, 3 à 12 lames, orientation). Quatre géométries de champ : Uniforme,
+Linéaire (tilt-shift), Iris, Radial. Field n'est pas repris — le masque au
+pinceau par calque fait déjà ce travail.
+
+**Ce que le chantier a appris, et qui vaut au-delà de cet effet.** Le premier
+scénario de rendu posait l'effet sur la mire commune du harnais. Il était
+STRUCTURELLEMENT incapable de voir la propriété principale : une tache de bokeh
+ne se lit que sur un petit point brillant contre du sombre, et sous un damier
+couleur un lens blur rend exactement ce que rendrait un gaussien. Dix-sept tests
+unitaires étaient verts sur un effet qui rendait des nuées granuleuses au double
+du rayon réglé.
+
+Un second scénario a été écrit pour ça — `effet-lens-blur-bokeh`, seize points
+isolés sur du noir, quatre tailles × quatre teintes. Il a trouvé les deux
+défauts à sa première exécution. La règle à retenir : **un verrou de pixels ne
+vaut que si sa mire peut montrer ce que l'effet prétend faire.**
 
 ## 7. Effets candidats, par force de référence
 

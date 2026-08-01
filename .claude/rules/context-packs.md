@@ -1,7 +1,10 @@
 # Packs de contexte (sizing) — shaderlab
 
 Menus de 3-8 fichiers par type de tâche (l'orchestrateur choisit, ne colle pas
-tout). Concept de sizing dans `~/.claude/CLAUDE.md` § Sizing. Migré depuis
+tout). ⚠️ La définition du sizing vivait dans `~/.claude/CLAUDE.md` § Sizing :
+**fichier supprimé** par le reset vanilla du 2026-07-31 (récupérable au tag
+`pre-reset-vanilla`). Les packs ci-dessous restent valables tels quels.
+Migré depuis
 l'ex-`docs/skills-registre.md` (supprimé 2026-07-16). Chemins vérifiés sur disque.
 Référencé par `CLAUDE.md` § Méthode.
 

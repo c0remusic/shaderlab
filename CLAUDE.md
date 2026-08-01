@@ -371,9 +371,11 @@ semantic.css mais pas dans tokens.md). Wireframes de feature → `docs/wireframe
 
 ## Outillage / routage skills
 
-Même règle impérative que tous les projets (`~/.claude/CLAUDE.md`, section
-routage skills). Inventaire = la vue générée `~/.claude/skills-view.md`
-(remplace l'ex-`docs/skills-registre.md`, supprimé). Packs de contexte (sizing) :
+⚠️ La règle de routage skills (`~/.claude/CLAUDE.md`) et l'inventaire généré
+(`~/.claude/skills-view.md`) ont **tous deux été supprimés** par le reset vanilla
+du 2026-07-31 (récupérables au tag `pre-reset-vanilla`). Plus de règle globale
+opposable ni d'inventaire : s'en tenir aux skills réellement listées par le
+harnais. Packs de contexte (sizing) :
 `.claude/rules/context-packs.md`. Décisions d'outillage : cycle complet
 `superpowers:brainstorming` → `writing-plans` → `subagent-driven-development` ;
 audits de spec via sous-agent `general-purpose` adverse ; recherches

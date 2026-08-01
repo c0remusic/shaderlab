@@ -134,10 +134,17 @@ export function PhotoPanel({ layer, thumbnailUrl, onTransformChange, onTransform
           />
           {/* DEUX champs depuis que l'échelle a deux axes : le champ unique
               d'avant ne pouvait pas exprimer une photo étirée, et aurait dû
-              choisir en silence lequel des deux axes il affichait. */}
+              choisir en silence lequel des deux axes il affichait.
+
+              « Largeur »/« Hauteur » et non « Échelle X »/« Échelle Y »
+              (2026-08-01) : ces derniers étaient la transposition littérale de
+              `scaleX`/`scaleY` (`LayerTransform`), c'est-à-dire le nom du
+              MODÈLE. Un photographe étire une largeur et une hauteur ; il ne
+              pense pas en axes. L'unité reste le pourcentage, donc le champ
+              continue de dire ce qu'il fait — une proportion, pas des pixels. */}
           <NumberField
             classNames={PHOTO_FIELD_CLASSES}
-            label="Échelle X"
+            label="Largeur"
             unit="%"
             value={Math.round(transform.scaleX * 100)}
             min={SCALE_MIN_PERCENT}
@@ -147,7 +154,7 @@ export function PhotoPanel({ layer, thumbnailUrl, onTransformChange, onTransform
           />
           <NumberField
             classNames={PHOTO_FIELD_CLASSES}
-            label="Échelle Y"
+            label="Hauteur"
             unit="%"
             value={Math.round(transform.scaleY * 100)}
             min={SCALE_MIN_PERCENT}

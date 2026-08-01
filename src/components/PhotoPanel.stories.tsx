@@ -101,7 +101,7 @@ export const TabOrderFollowsVisualOrder: Story = {
     await expect(document.activeElement).toBe(canvas.getByRole("button", { name: "Remplacer l'image…" }));
     await userEvent.tab();
     await expect(document.activeElement).toBe(canvas.getByRole("button", { name: "Placement" }));
-    for (const label of ["X", "Y", "Échelle X", "Échelle Y", "Angle"]) {
+    for (const label of ["X", "Y", "Largeur", "Hauteur", "Angle"]) {
       await userEvent.tab();
       await expect(document.activeElement).toBe(canvas.getByLabelText(label));
     }
@@ -124,8 +124,9 @@ export const EveryFieldHasAnAccessibleName: Story = {
     // Le balayage doit avoir vu les CINQ champs de placement, pas un seul.
     // Cinq depuis que l'échelle a deux axes : un champ unique ne pouvait pas
     // exprimer une photo étirée et aurait dû choisir en silence lequel des deux
-    // il affichait.
-    await expect(report.map((entry) => entry.name).sort()).toEqual(["Angle", "X", "Y", "Échelle X", "Échelle Y"]);
+    // il affichait. Nommés « Largeur »/« Hauteur » depuis le 2026-08-01 — le
+    // geste, pas le champ de `LayerTransform` (voir `PhotoPanel.tsx`).
+    await expect(report.map((entry) => entry.name).sort()).toEqual(["Angle", "Hauteur", "Largeur", "X", "Y"]);
   },
 };
 

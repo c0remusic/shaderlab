@@ -22,7 +22,11 @@ Les calques forment une pile ordonnée (bas = sous, haut = dessus). Source :
 `src/layers/types.ts`, `src/layers/layerStack.ts`. _Avoid_ : "filtre", "layer".
 
 **Effet** (`EffectModule`) — traitement shader appliqué par un calque. Quatre
-effets réels : **glow**, **chromatic bleed**, **warp**, **grain**. Un effet est un
+effets réels au 2026-08-01 : **glow**, **halation**, **chromatic bleed**, **warp**,
+**grain**, **duotone**, **posterize**, **gooey merge**, **channel mixer**,
+**outlines**, **pixel stretch**, **slice shift**, **gradient map** — treize (la
+liste disait « quatre » jusqu'au 2026-08-01, périmée depuis le 2026-07-26 ;
+`registry.ts` tranche, pas ce fichier). Un effet est un
 module autonome ; en ajouter un = un nouveau fichier dans `src/render/effects/`,
 zéro modif moteur/UI. Source : `src/render/effects/registry.ts`,
 `src/render/effects/types.ts`. _Avoid_ : "filtre".
@@ -31,6 +35,37 @@ zéro modif moteur/UI. Source : `src/render/effects/registry.ts`,
 Chaque effet a une version pipeline (naïve) PUIS un upgrade qualité obligatoire
 (dual-filter bloom, aberration radiale, warp FBM, grain luminance-dépendant). Un
 effet qui rend cheap n'est pas terminé. Source : `CLAUDE.md:45-48`.
+
+**Bloom** (effet `glow`) — DIFFUSION : la lumière des hautes lumières s'étale
+dans le voisinage **sans changer de couleur**. Référence = filtres physiques
+Pro-Mist / Black Pro-Mist / Glimmerglass. Distinct de l'**effet Orton**, qui agit
+sur toute l'image, clairs comme sombres. Source : `src/render/effects/glow.ts`.
+_Avoid_ : appeler « glow » un halo coloré — c'est une halation (ci-dessous).
+
+**Halation** (effet `halation`, livré 2026-08-01) — RÉ-EXPOSITION chimique : sur
+un film couleur, la lumière traverse l'émulsion, se réfléchit sur les surfaces
+internes de l'appareil, revient filtrée de ses composantes bleues et vertes, et
+ré-expose surtout la couche **rouge** (la plus profonde). D'où un halo
+rouge-orangé. Trois propriétés qui la séparent d'un bloom teinté : sa couleur
+**remplace** celle de la source, sa teinte suit un dégradé **orange au cœur vers
+rouge au loin**, et elle ne se lit que **sur fond sombre**.
+Les deux effets s'empilent — un rendu film en porte souvent les deux — mais aucun
+n'est un réglage de l'autre. `glow` a porté une teinte de halo jusqu'au
+2026-08-01 : elle est retirée, elle promettait une physique qu'elle ne tenait pas.
+Source : `src/render/effects/halation.ts`,
+`docs/superpowers/specs/2026-08-01-references-effets.md` §1.
+_Avoid_ : « glow orangé », « bloom chaud » pour désigner une halation.
+
+**Grain analogique / numérique** (paramètre `mode` de `grain`, 2026-08-01) — deux
+phénomènes distincts, pas deux dosages. **Analogique** (argentique) : cellules
+corrélées spatialement, maille indépendante de la définition (le grain est dans
+le film), maximal au demi-ton, nul sur noir et blanc purs. **Numérique**
+(capteur) : bruit blanc par photosite, maille liée au pixel (la grille est dans
+le capteur), maximal dans les **ombres** et jamais nul (bruit de lecture).
+Leurs réponses tonales étant opposées, le réglage est un CHOIX et non un curseur
+— interpoler donnerait une courbe qui ne modélise ni un film ni un capteur.
+Source : `src/render/effects/grain.ts`. _Avoid_ : « bruit » pour l'analogique,
+« grain » pour le numérique — l'inversion est précisément ce que le mode nomme.
 
 **Mode de fusion** (`BlendMode`, `blendMode`) — façon dont la sortie d'effet d'un
 calque se combine avec le calque du dessous. `"normal"` = remplacement. Onze modes

@@ -39,3 +39,63 @@ describe("glow — seuil de bright-pass décodé vers le linéaire", () => {
     expect(srgbToLinear(0.7)).toBeCloseTo(0.4480, 4);
   });
 });
+
+describe("glow — bloom NEUTRE depuis le retrait de la teinte (2026-08-01)", () => {
+  it("n'expose plus aucun paramètre de teinte", () => {
+    const noms = glow.params.map((p) => p.name);
+    expect(noms).toEqual(["threshold", "knee", "intensity", "spread"]);
+    // Aucun groupe de couleur : la pastille du panneau disparaît avec la teinte.
+    expect(glow.params.some((p) => p.colorGroup)).toBe(false);
+  });
+
+  it("compose le halo SANS le recolorer", () => {
+    // Un bloom étale la lumière présente, il ne la teinte pas. Une recoloration
+    // relève de la halation, qui est un autre effet depuis le 2026-08-01.
+    expect(glow.wgsl).toContain("return vec4<f32>(color.rgb + bloom * intensity, color.a);");
+    expect(glow.wgsl).not.toMatch(/hsl2rgb|tint|gain/);
+  });
+});
+
+describe("glow — moyenne de Karis sur le PREMIER downsample seulement", () => {
+  const passes = glow.passes ?? [];
+
+  it("pondère exactement un niveau", () => {
+    // L'invariant qui compte. La pondération de Karis n'est PAS conservatrice en
+    // énergie : elle sous-pondère délibérément les hautes lumières pour écraser
+    // les fireflies. Posée à tous les niveaux, elle assombrirait tout le halo.
+    const pondérés = passes.filter((p) => p.wgsl.includes("karisWeight"));
+    expect(pondérés).toHaveLength(1);
+  });
+
+  it("le pose sur le premier downsample, pas sur le bright-pass", () => {
+    // Le bright-pass (passe 0) n'échantillonne qu'un point : il n'a rien à
+    // moyenner, donc rien à pondérer. Le premier VRAI downsample est la passe 1.
+    expect(passes[0]?.wgsl).not.toContain("karisWeight");
+    expect(passes[1]?.wgsl).toContain("karisWeight");
+    expect(passes[1]?.scale).toBe(0.25);
+  });
+
+  it("divise par la somme des poids appliqués, pas par la constante du noyau", () => {
+    // Diviser par 8 (la somme du noyau non pondéré) ferait fuir l'énergie
+    // proportionnellement à la luminosité locale : une zone claire
+    // s'assombrirait deux fois.
+    expect(passes[1]?.wgsl).toContain("w0 + w1 + w2 + w3 + w4");
+    expect(passes[1]?.wgsl).not.toMatch(/sum\s*\/\s*8\.0/);
+  });
+});
+
+describe("glow — l'index de portée passé au noyau partagé pointe le bon curseur", () => {
+  it("lit params[3], qui est bien `spread`", () => {
+    // Panne SILENCIEUSE possible : `upsampleWgsl(n)` reçoit un index en dur. Le
+    // shader compile quel que soit `n` — il lirait simplement le mauvais
+    // curseur. Un réordonnancement des paramètres passerait donc inaperçu sans
+    // cette garde.
+    const index = glow.params.findIndex((p) => p.name === "spread");
+    expect(index).toBe(3);
+    const remontées = (glow.passes ?? []).filter((p) => p.wgsl.includes("sum / 16.0"));
+    expect(remontées.length).toBeGreaterThan(0);
+    for (const passe of remontées) {
+      expect(passe.wgsl).toContain(`max(params[${index}], 0.05)`);
+    }
+  });
+});

@@ -1,91 +1,35 @@
 import type { EffectModule } from "./types";
-import { HSL_TO_RGB_WGSL } from "./hsl";
-import { SRGB_TO_LINEAR_VEC3_WGSL, SRGB_TO_LINEAR_WGSL } from "./srgbTransfer";
-
-/**
- * Dual-filter downsample kernel (ARM/Marius Bjørge, "Bandwidth-Efficient
- * Rendering", SIGGRAPH 2015) — a 4-tap box average of the texel's diagonal
- * neighbors plus itself, weighted so it stays energy-preserving across the
- * resolution halving. Reused at every downsample step of the bloom chain.
- *
- * L'écartement des taps reste FIXE à un texel, et n'est PAS piloté par le
- * paramètre de portée : une réduction de résolution doit rester échantillonnée
- * serré, sinon elle crépite (aliasing) au lieu de flouter. La portée agit
- * uniquement sur la remontée (voir UPSAMPLE_WGSL), exactement comme le
- * `sampleScale` d'un bloom de moteur.
- */
-const DOWNSAMPLE_WGSL = `
-fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
-  let texel = 1.0 / vec2<f32>(textureDimensions(srcTexture));
-  let o = texel * 1.0;
-  var sum = textureSample(srcTexture, srcSampler, uv).rgb * 4.0;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x, -o.y)).rgb;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( o.x, -o.y)).rgb;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x,  o.y)).rgb;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( o.x,  o.y)).rgb;
-  return vec4<f32>(sum / 8.0, 1.0);
-}
-`;
-
-/**
- * Noyau de remontée : TENTE 3x3 canonique (1-2-1 / 2-4-2 / 1-2-1, somme 16),
- * échantillonnée sur la texture PLUS PETITE (l'entrée) à la résolution PLUS
- * GRANDE (la sortie) — c'est cette relecture élargie qui produit la chute
- * douce et large, au lieu d'un simple agrandissement net.
- *
- * ÉCART AVEC LA VERSION PRÉCÉDENTE, et pourquoi. L'ancien noyau était un
- * anneau de 8 taps SANS tap central (poids 1/2/1/2/… , somme 12), à un
- * demi-texel. Ce demi-texel n'était pas un choix esthétique : il compensait
- * l'absence de tap central. Mesuré à l'époque sur une impulsion unité, un
- * anneau posé à un texel entier ne laissait que 1,0 % de l'énergie sur le
- * texel d'origine (les taps diagonaux tombant pile sur des centres de texels
- * voisins, la bilinéaire ne ramenait presque rien du centre) ; à un demi-texel
- * il en gardait 19,8 %.
- *
- * Ce montage a une conséquence qui bloquait tout : l'écartement des taps
- * n'était PAS réglable. Le multiplier par une portée utilisateur ramenait
- * l'anneau sur des centres de texels et rouvrait exactement le trou mesuré.
- * Le tap central explicite (poids 4/16 = 25 %) supprime la dépendance : quelle
- * que soit la portée, un quart de l'énergie reste au centre par construction,
- * et il n'y a plus de « coquille trouée » possible. C'est ce qui rend le
- * paramètre `spread` (params[3]) sûr à exposer.
- */
-const UPSAMPLE_WGSL = `
-fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
-  let texel = 1.0 / vec2<f32>(textureDimensions(srcTexture));
-  // Portée : écartement des taps EN TEXELS de l'entrée. Bornée en dur en plus
-  // du min du paramètre — un 0 laisserait les neuf taps sur le même point,
-  // c'est-à-dire une copie, et l'effet disparaîtrait sans rien dire.
-  let o = texel * max(params[3], 0.05);
-  var sum = textureSample(srcTexture, srcSampler, uv).rgb * 4.0;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x,  0.0)).rgb * 2.0;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( o.x,  0.0)).rgb * 2.0;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( 0.0, -o.y)).rgb * 2.0;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( 0.0,  o.y)).rgb * 2.0;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x, -o.y)).rgb;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( o.x, -o.y)).rgb;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-o.x,  o.y)).rgb;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( o.x,  o.y)).rgb;
-  return vec4<f32>(sum / 16.0, 1.0);
-}
-`;
+import { SRGB_TO_LINEAR_WGSL } from "./srgbTransfer";
+import { DOWNSAMPLE_KARIS_WGSL, DOWNSAMPLE_WGSL, upsampleWgsl } from "./blurChain";
 
 /**
  * Glow : bloom dual-filter.
  *
- * CHAÎNE (2026-07-31) — descend jusqu'à 1/64 de l'image, remonte
- * symétriquement :
+ * CE QUE C'EST, et ce que ce n'est plus. Un bloom est une DIFFUSION — la lumière
+ * des hautes lumières s'étale dans le voisinage sans changer de couleur. C'est
+ * le domaine des filtres physiques Pro-Mist / Black Pro-Mist / Glimmerglass, qui
+ * ne relèvent que les zones brillantes (là où l'effet Orton, lui, agit sur toute
+ * l'image, clairs comme sombres — deux looks distincts, pas deux dosages).
+ *
+ * Jusqu'au 2026-08-01 cet effet portait aussi une TEINTE de halo, orange par
+ * défaut, qui imitait la halation argentique. Elle est partie : une halation
+ * n'est pas un bloom coloré, c'est la ré-exposition de la couche rouge du film
+ * par la lumière réfléchie sur les surfaces internes, et sa signature (dégradé
+ * orange au bord vers rouge au loin, visible seulement sur fond sombre) est hors
+ * de portée d'un gain de teinte uniforme. Voir `halation.ts`.
+ *
+ * CHAÎNE — descend jusqu'à 1/64 de l'image, remonte symétriquement :
  *   bright-pass 1/2 -> 1/4 -> 1/8 -> 1/16 -> 1/32 -> 1/64
  *               -> 1/32 -> 1/16 -> 1/8 -> 1/4 -> 1/2 -> composite pleine taille
  *
- * POURQUOI PLUS PROFOND. La chaîne précédente s'arrêtait à 1/8. Chaque noyau
- * lit `textureDimensions` de son ENTRÉE, donc son rayon en pixels pleine
- * résolution vaut 1/échelle-d'entrée. L'ancienne chaîne totalisait
- * 2 + 4 + 8 + 4 = ~18 px de halo, soit 0,3 % de la largeur d'une photo de
- * 6240 px — quelle que soit la position des deux curseurs. Un « bloom » qui
- * ne dépasse pas 18 px sur 6240 n'est pas un halo, c'est un contour.
+ * POURQUOI SI PROFOND. La chaîne précédente s'arrêtait à 1/8. Chaque noyau lit
+ * `textureDimensions` de son ENTRÉE, donc son rayon en pixels pleine résolution
+ * vaut 1/échelle-d'entrée. L'ancienne chaîne totalisait 2 + 4 + 8 + 4 = ~18 px
+ * de halo, soit 0,3 % de la largeur d'une photo de 6240 px — quelle que soit la
+ * position des deux curseurs. Un « bloom » qui ne dépasse pas 18 px sur 6240
+ * n'est pas un halo, c'est un contour.
  *
- * RAYON DE LA NOUVELLE CHAÎNE, en pixels pleine résolution :
+ * RAYON DE LA CHAÎNE ACTUELLE, en pixels pleine résolution :
  *   descentes (écartement fixe) : 2 + 4 + 8 + 16 + 32          = 62
  *   remontées (x portée s)      : (64 + 32 + 16 + 8 + 4) * s   = 124 * s
  *   total = 62 + 124 * s  ->  s=0.4 : ~112 px | s=1.2 (défaut) : ~211 px
@@ -95,19 +39,19 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
  *
  * COÛT. Les cinq niveaux ajoutés pèsent 1/16, 1/64, 1/256… de la surface du
  * premier : sur une photo 6240x4160 ils ajoutent ~1 Mo de textures
- * intermédiaires à des ~67 Mo déjà alloués par la chaîne d'avant, et une
- * fraction de pour-cent des pixels traités. La profondeur est quasi gratuite ;
- * c'est son absence qui coûtait.
+ * intermédiaires à des ~67 Mo déjà alloués, et une fraction de pour-cent des
+ * pixels traités. La profondeur est quasi gratuite ; c'est son absence qui
+ * coûtait.
  *
  * POURQUOI LA PORTÉE AGIT SUR LE NOYAU ET NON SUR LE NOMBRE DE PASSES.
  * `passes` est un tableau STATIQUE du module d'effet, lu tel quel par
- * `EffectPassRunner.runInternalPasses` : le nombre de passes ne peut pas
- * dépendre d'un paramètre sans changer le moteur. Une pondération par niveau
- * n'est pas non plus accessible — la chaîne est strictement séquentielle et
- * seule la DERNIÈRE passe est exposée au composite (`prevPass`), les niveaux
- * intermédiaires sont détruits au fil de l'eau. Reste l'écartement des taps,
- * qui est exactement le `sampleScale` d'un bloom de moteur, et qui a le mérite
- * d'être continu plutôt que par paliers de puissance de deux.
+ * `EffectPassRunner.runInternalPasses` : le nombre de passes ne peut pas dépendre
+ * d'un paramètre sans changer le moteur. Une pondération par niveau n'est pas non
+ * plus accessible — la chaîne est strictement séquentielle et seule la DERNIÈRE
+ * passe est exposée au composite (`prevPass`), les niveaux intermédiaires étant
+ * détruits au fil de l'eau. Reste l'écartement des taps, qui est exactement le
+ * `sampleScale` d'un bloom de moteur, et qui a le mérite d'être continu plutôt
+ * que par paliers de puissance de deux.
  */
 export const glow: EffectModule = {
   id: "glow",
@@ -125,16 +69,21 @@ export const glow: EffectModule = {
     // avant que l'utilisateur ne le juge trop fort.
     { name: "intensity", label: "Intensité", unit: "none", min: 0, max: 6, default: 1.6, step: 0.05 },
     { name: "spread", label: "Portée du halo", unit: "none", min: 0.4, max: 3, default: 1.2, step: 0.05, hint: "Écartement des taps de remontée — rayon ≈ 62 + 124 x portée, en pixels pleine résolution" },
-    { name: "tintHue", label: "Teinte", unit: "degrees", min: 0, max: 360, default: 35, step: 1, colorGroup: { key: "tint", role: "hue", label: "Teinte du halo" } },
-    { name: "tintSaturation", label: "Saturation", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, colorGroup: { key: "tint", role: "saturation", label: "Teinte du halo" } },
-    { name: "tintLightness", label: "Luminosité", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, colorGroup: { key: "tint", role: "lightness", label: "Teinte du halo" } },
-    { name: "tintStrength", label: "Force de la teinte", unit: "percent", min: 0, max: 1, default: 0.15, step: 0.01, hint: "0 = halo neutre (couleur de la source) ; 1 = halo entièrement recoloré" },
+    // TEINTE DU HALO RETIRÉE le 2026-08-01 (quatre paramètres : tintHue,
+    // tintSaturation, tintLightness, tintStrength) — voir l'en-tête du module.
+    //
+    // Rupture assumée sur les presets. Un preset portant ces quatre clés les
+    // garde en mémoire mais elles ne sont plus jamais lues : `effectPassRunner`
+    // itère `effect.params` (donc n'y trouve rien), et `presetDocument` conserve
+    // les clés inconnues sans les résoudre. Aucun crash — et surtout aucun
+    // contrôle inerte, ce qui aurait été l'échec silencieux que ce dépôt
+    // proscrit. Un halo teinté se refait en empilant `halation.ts`.
   ],
   passes: [
     {
-      // Bright-pass extract at half resolution: keep only the part of each
-      // channel above `threshold`, scaled back onto the original color so
-      // hue is preserved in the bloom.
+      // Bright-pass à demi-résolution : ne garder que la part de chaque canal
+      // au-dessus du seuil, remise à l'échelle sur la couleur d'origine pour
+      // que la teinte de la source soit préservée dans le bloom.
       scale: 0.5,
       wgsl: `${SRGB_TO_LINEAR_WGSL}
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
@@ -142,11 +91,10 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // que \`brightness\` est LINÉAIRE (le format -srgb décode déjà à
   // l'échantillonnage). Comparés tels quels, le défaut 0.7 posait la bascule
   // à 0.7 LINÉAIRE, soit ~0.87 perceptuel : le slider n'entamait l'image que
-  // sur ses zones cramées, donc
-  // inerte sur ~85% de sa course. On décode la CONSTANTE vers le linéaire —
-  // l'échantillon d'image, lui, n'est jamais converti. À 0.5 le seuil tombe
-  // désormais à ~0.214 linéaire : le bloom prend les nuages et les peaux
-  // claires.
+  // sur ses zones cramées, donc inerte sur ~85 % de sa course. On décode la
+  // CONSTANTE vers le linéaire — l'échantillon d'image, lui, n'est jamais
+  // converti. À 0.5 le seuil tombe désormais à ~0.214 linéaire : le bloom prend
+  // les nuages et les peaux claires.
   let threshold = srgb_to_linear(params[0]);
   let brightness = max(color.r, max(color.g, color.b));
   // GENOU (soft knee, 2026-07-31). La bascule était SÈCHE :
@@ -175,37 +123,30 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
 }
 `,
     },
-    { scale: 0.25, wgsl: DOWNSAMPLE_WGSL },
+    // PREMIER downsample : pondéré par la moyenne de Karis. C'est le seul niveau
+    // où un firefly est encore un point ISOLÉ, donc le seul où l'écraser sert à
+    // quelque chose — et le seul où une pondération non conservatrice ne coûte
+    // pas l'éclat de tout le halo. Voir DOWNSAMPLE_KARIS_WGSL.
+    { scale: 0.25, wgsl: DOWNSAMPLE_KARIS_WGSL },
     { scale: 0.125, wgsl: DOWNSAMPLE_WGSL },
     { scale: 0.0625, wgsl: DOWNSAMPLE_WGSL },
     { scale: 0.03125, wgsl: DOWNSAMPLE_WGSL },
     { scale: 0.015625, wgsl: DOWNSAMPLE_WGSL },
-    { scale: 0.03125, wgsl: UPSAMPLE_WGSL },
-    { scale: 0.0625, wgsl: UPSAMPLE_WGSL },
-    { scale: 0.125, wgsl: UPSAMPLE_WGSL },
-    { scale: 0.25, wgsl: UPSAMPLE_WGSL },
-    { scale: 0.5, wgsl: UPSAMPLE_WGSL },
+    { scale: 0.03125, wgsl: upsampleWgsl(3) },
+    { scale: 0.0625, wgsl: upsampleWgsl(3) },
+    { scale: 0.125, wgsl: upsampleWgsl(3) },
+    { scale: 0.25, wgsl: upsampleWgsl(3) },
+    { scale: 0.5, wgsl: upsampleWgsl(3) },
   ],
+  // Composite ADDITIF et NEUTRE. Le halo garde la couleur de sa source — c'est
+  // ce que fait une diffusion : elle étale la lumière présente, elle ne la
+  // colore pas. Toute recoloration relève de `halation.ts`, qui est un autre
+  // phénomène et désormais un autre effet.
   wgsl: `
-${HSL_TO_RGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let intensity = params[2];
   let bloom = textureSample(prevPass, srcSampler, uv).rgb;
-  // TEINTE DU HALO : gain PAR CANAL, pas un mélange vers une couleur. Un
-  // mélange écraserait le modelé du halo (toutes les zones tireraient vers la
-  // même teinte quelle que soit leur couleur d'origine) ; un gain le conserve
-  // et ne fait que déplacer sa balance — c'est ce que fait un verre d'objectif.
-  //
-  // La couleur sort du picker en sRGB (valeur PERCEPTUELLE, exactement ce
-  // qu'affiche la pastille) : on la décode vers le linéaire avant tout usage,
-  // comme le duotone. Normalisée par srgb_to_linear(0.5) pour que le réglage
-  // NEUTRE (saturation 0, luminosité 0.5) donne exactement (1,1,1) — la
-  // luminosité reste donc un vrai gain d'ensemble, et la force à 0 rend le
-  // halo strictement identique à celui d'avant la teinte.
-  let tintLinear = srgb_to_linear3(hsl2rgb(params[4] / 360.0, params[5], params[6]));
-  let neutral = srgb_to_linear(0.5);
-  let gain = mix(vec3<f32>(1.0), tintLinear / neutral, params[7]);
-  return vec4<f32>(color.rgb + bloom * intensity * gain, color.a);
+  return vec4<f32>(color.rgb + bloom * intensity, color.a);
 }
 `,
 };

@@ -12,16 +12,23 @@ import { outlines } from "./outlines";
 import { pixelStretch } from "./pixelStretch";
 import { sliceShift } from "./sliceShift";
 import { gradientMap } from "./gradientMap";
+import { halation } from "./halation";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 
-// Les six derniers suivent l'ordre de priorité du backlog d'effets confirmé par
+// Les six du milieu suivent l'ordre de priorité du backlog d'effets confirmé par
 // l'utilisateur (design.md du MVP § « Backlog d'effets futurs ») : Gooey merge,
 // Channel mixer, Outlines, Pixel stretch, Slice shift, Gradient map. Ce backlog
-// est désormais ÉPUISÉ — les entrées suivantes viendraient du « backlog complet
-// de référence » du même document, qui n'est pas priorisé. Ce tableau alimente
-// le sélecteur « ajouter un effet ».
+// est ÉPUISÉ depuis le 2026-07-31.
+//
+// `halation` (2026-08-01) ne vient PAS de ce backlog : il naît du cahier de
+// références (`docs/superpowers/specs/2026-08-01-references-effets.md`), qui a
+// montré que `glow` confondait deux phénomènes distincts. Posé juste après glow
+// parce que c'est là qu'on le cherche — les deux s'empilent sur un rendu film.
+//
+// Ce tableau alimente le sélecteur « ajouter un effet ».
 export const effectRegistry: EffectModule[] = [
   glow,
+  halation,
   chromaticBleed,
   warp,
   grain,

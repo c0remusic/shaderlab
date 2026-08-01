@@ -116,6 +116,13 @@ const ATTENDU = {
   // partout donne un moire, pas une rosette : c est donc ce que cette reference
   // verrouille, et rien d autre ne pourrait le voir.
   "effet-halftone.png": { width: 256, height: 256, valeurs: null },
+  // ANAMORPHIC STREAK (2026-08-01) : sur la mire a POINTS LUMINEUX ISOLES, la
+  // meme que le temoin de bokeh. Une trainee ne se lit que sur une source
+  // ponctuelle contre du sombre ; sur un damier, l etalement directionnel se
+  // confondrait avec un flou de mouvement. La reference a paye son cout des sa
+  // premiere execution : elle a montre que la trainee PERLAIT en chapelet, un
+  // trou structurel entre le nombre de taps et la croissance du pas.
+  "effet-anamorphic-streak.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

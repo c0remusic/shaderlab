@@ -778,6 +778,30 @@ const INSTALL = `(async () => {
       },
     },
 
+    // Anamorphic streak, sur la mire a POINTS LUMINEUX ISOLES — la meme que le
+    // temoin de bokeh, et pour une raison voisine : une trainee ne se lit que
+    // sur une source ponctuelle contre du sombre. Sur un damier, l etalement
+    // directionnel se confondrait avec un flou de mouvement.
+    //
+    // Ce qu on doit voir : des traits HORIZONTAUX bleus partant de chaque
+    // point, de longueur egale quelle que soit la taille du point (c est une
+    // lumiere parasite, pas un flou), et de la MEME couleur pour les quatre
+    // teintes de la mire — la trainee prend sa teinte du traitement de l
+    // objectif, pas de la source.
+    "effet-anamorphic-streak": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const points = await mireBokeh(W, H);
+        const sourceId = await r.photoSources.register(points);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "points");
+        const a = stack.addLayer("anamorphicStreak", p);
+        stack.updateParams(a, {
+          threshold: 0.5, length: 70, intensity: 1.4, angle: 0,
+          tintHue: 210, tintSaturation: 0.8, tintLightness: 0.6, dispersion: 0.25,
+        });
+      },
+    },
+
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,
     // donc les passes de morphologie separees H/V).

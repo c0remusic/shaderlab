@@ -17,6 +17,7 @@ import { lensBlur } from "./lensBlur";
 import { hatching } from "./hatching";
 import { coloredEdges } from "./coloredEdges";
 import { halftone } from "./halftone";
+import { anamorphicStreak } from "./anamorphicStreak";
 import { motionBlur } from "./motionBlur";
 import { surfaceBlur } from "./surfaceBlur";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
@@ -40,6 +41,11 @@ import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 export const effectRegistry: EffectModule[] = [
   glow,
   halation,
+  // `anamorphicStreak` (2026-08-01) complete la famille des halos, et les trois
+  // ne se doublent pas : `glow` etale la lumiere SANS la colorer (diffusion),
+  // `halation` la reexpose en rouge sur fond sombre (film), celui-ci la tire en
+  // trait bleu sur un seul axe (optique cylindrique). Ils s'empilent.
+  anamorphicStreak,
   lensBlur,
   // `motionBlur` (2026-08-01) suit `lensBlur` : les deux sont des intégrations,
   // l'une sur la SURFACE de l'ouverture, l'autre le long d'une TRAJECTOIRE

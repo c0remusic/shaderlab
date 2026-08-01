@@ -105,6 +105,11 @@ const ATTENDU = {
   // REGION : ecart de 6,4 % des canaux contre 43,1 % sans elle, c est-a-dire
   // une mire intacte tout autour de la coulure.
   "effet-pixel-stretch.png": { width: 256, height: 256, valeurs: null },
+  // WARP, TYPE ANALYTIQUE (2026-08-01). Le scenario masque-pinceau-degrade
+  // couvre deja le chemin du BRUIT fractal ; celui-ci couvre l autre famille,
+  // les huit formes centrees venues de la fiche Figma. Tourbillon plutot qu un
+  // autre des huit : sa decroissance gaussienne se verifie d un coup d oeil.
+  "effet-warp-tourbillon.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

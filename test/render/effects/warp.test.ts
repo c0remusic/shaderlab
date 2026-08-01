@@ -91,3 +91,47 @@ describe("warp — la graine, seule réparation qui CHANGE un rendu", () => {
     expect(warp.wgsl).not.toContain("let seed = params[3];");
   });
 });
+
+describe("warp — les huit types analytiques", () => {
+  it("garde le bruit fractal à l'index 0, donc en défaut", () => {
+    // C'est ce qui permet d'ajouter huit rendus à un effet déjà présent dans
+    // des presets sans en bouger aucun. `test:render` le confirme : le seul
+    // scénario qui pose un warp n'a pas bougé après cet ajout.
+    const type = warp.params.find((p) => p.name === "type");
+    expect(type?.choices?.[0]).toBe("Bruit fractal");
+    expect(type?.default).toBe(0);
+    expect(type?.choices).toHaveLength(9);
+  });
+
+  it("branche sur un UNIFORME, donc une seule famille s'exécute", () => {
+    expect(warp.wgsl).toContain("let kind = i32(params[7] + 0.5);");
+    expect(warp.wgsl).toContain("if (kind == 0) {");
+  });
+
+  it("rend les huit formes, et rien au-delà", () => {
+    for (const k of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      expect(warp.wgsl).toContain(`if (kind == ${k}) {`);
+    }
+    // Repli explicite : un index inconnu ne déforme pas, il ne bricole pas.
+    expect(warp.wgsl).toContain("return vec2<f32>(0.0);");
+  });
+
+  it("écrit la torsion comme une DIFFÉRENCE, pas comme une tangente", () => {
+    // Une tangente donnerait une spirale qui s'ouvre au lieu de se refermer :
+    // le déplacement doit être l'écart entre le point tourné et le point
+    // d'origine, sinon la rotation n'est plus une rotation.
+    expect(warp.wgsl).toContain("return vec2<f32>(q.x * c2 - q.y * s2, q.x * s2 + q.y * c2) - q;");
+  });
+
+  it("décroît par une gaussienne, sans borne de rayon", () => {
+    // Une borne poserait un cercle visible à sa limite. Le revers, mesuré et
+    // écrit : la déformation ne s'annule pas non plus — à échelle 3 le facteur
+    // vaut encore ~0.23 dans les coins.
+    expect(warp.wgsl).toContain("let decay = exp(-r * r * freq);");
+    expect(Math.exp(-(0.7 ** 2) * 3)).toBeCloseTo(0.23, 2);
+  });
+
+  it("protège la direction radiale au centre exact", () => {
+    expect(warp.wgsl).toContain("let dir = q / max(r, 0.0001);");
+  });
+});

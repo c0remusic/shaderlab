@@ -736,6 +736,27 @@ const INSTALL = `(async () => {
       },
     },
 
+    // Warp, TYPE ANALYTIQUE. Le scenario masque-pinceau-degrade couvre deja le
+    // chemin du BRUIT fractal ; celui-ci couvre l autre famille, ajoutee le
+    // 2026-08-01 d apres la fiche Figma. Tourbillon plutot qu un autre des huit :
+    // c est celui dont la propriete se verifie d un coup d oeil — la
+    // decroissance est gaussienne, donc la spirale mord fort au centre et
+    // s attenue vers les bords SANS jamais poser de cercle visible a sa limite.
+    // Mesure a l appui, et contre l intuition : elle ne s annule pas non plus —
+    // a scale=3 le facteur vaut encore ~0.23 dans les coins, et ils tournent.
+    // Une gaussienne n a pas de bord ; c est ce qui evite la marque, et c est
+    // aussi ce qui interdit d annoncer des coins intacts.
+    "effet-warp-tourbillon": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("warp");
+        stack.updateParams(a, {
+          type: 8, scale: 3, amplitude: 0.12, octaves: 3, roughness: 0.5,
+          anisotropy: 0, twist: 0, seed: 0, centerX: 0.5, centerY: 0.5,
+        });
+      },
+    },
+
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,
     // donc les passes de morphologie separees H/V).

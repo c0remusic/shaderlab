@@ -47,6 +47,43 @@
   cursor: move;
 }
 
+/* INDICATEUR DE FOCUS (WCAG 2.4.7). Porté par le TRAIT du cadre et non par un
+   `outline` : sur une forme SVG le rendu de l'outline n'est pas fiable d'un
+   moteur à l'autre, et de toute façon ce qui reçoit le focus ici EST le cadre —
+   le montrer ailleurs qu'à sa place aurait désigné autre chose que lui. Le halo
+   sombre passe toujours dessous, donc l'anneau se lit sur une photo claire
+   comme sur une sombre, exactement comme le cadre au repos.
+   `:focus-visible` et non `:focus` : un clic pose bien le focus (voulu — les
+   flèches déplacent ensuite, comme Photoshop) mais n'a rien à annoncer. */
+.transform-handles__box:focus {
+  outline: none;
+}
+
+.transform-handles__box:focus-visible {
+  stroke: var(--focus-color);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+
+/* L'OVERLAY REND LA MAIN PENDANT UN DÉPLACEMENT DE LA VUE (Espace maintenu).
+   Ses cibles sont posées AU-DESSUS du canvas et sont ses FRÈRES dans le DOM :
+   un `pointerdown` qui commence sur la photo sélectionnée atteint donc le
+   polygone, jamais la branche `isPanGesture` du canvas. Sans cette règle,
+   Espace+glisser sur la photo la déplaçait ELLE au lieu de déplacer la vue —
+   et comme le cadre couvre toute la photo, le geste était inatteignable dès
+   qu'on visait l'image (signalé à l'usage le 2026-07-31).
+   La classe vient de `Canvas.tsx` (`pasteboard__view--pan`), qui détient
+   l'état du geste : la lire en CSS évite de faire remonter cet état jusqu'à
+   `App` pour le redescendre en prop à travers deux composants. Effet de bord
+   voulu : les curseurs `move`/`resize` des pastilles s'effacent aussi, donc le
+   `grab` de la vue se lit sur toute la surface. */
+.pasteboard__view--pan .transform-handles__box,
+.pasteboard__view--pan .transform-handles__corner,
+.pasteboard__view--pan .transform-handles__edge,
+.pasteboard__view--pan .transform-handles__rotation {
+  pointer-events: none;
+}
+
 .transform-handles__corner {
   position: absolute;
   width: var(--slider-thumb-size);

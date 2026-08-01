@@ -42,7 +42,26 @@ interface Props {
    * sont des cibles explicites et petites, elles gardent la priorité absolue.
    */
   onPickThrough?: (x: number, y: number) => boolean;
+  /** Nom du calque, pour que le nom accessible du cadre dise DE QUELLE photo
+   *  il s'agit. Deux photos superposées produisent sinon deux cadres portant
+   *  le même nom, ce qui ne distingue rien au lecteur d'écran. */
+  layerName?: string | null;
 }
+
+/** Pas de déplacement au clavier, en pixels du FOND — la même unité que les
+ *  champs X/Y du panneau Photo, et la même convention que Photoshop, dont le
+ *  décalage aux flèches vaut 1 pixel du DOCUMENT quel que soit le zoom (et non
+ *  1 pixel d'écran, qui changerait de sens à chaque changement de zoom). */
+const NUDGE_STEP_PX = 1;
+const NUDGE_STEP_LARGE_PX = 10;
+
+/** Y en BAS positif : c'est le repère de `LayerTransform`, celui du fond. */
+const NUDGE_BY_KEY: Readonly<Record<string, { dx: number; dy: number }>> = {
+  ArrowLeft: { dx: -1, dy: 0 },
+  ArrowRight: { dx: 1, dy: 0 },
+  ArrowUp: { dx: 0, dy: -1 },
+  ArrowDown: { dx: 0, dy: 1 },
+};
 
 /** Écart entre le point SAISI et le centre de la poignée, en pixels du fond.
  *
@@ -77,8 +96,14 @@ type DragKind =
  * `ui/transform.ts`, ce composant ne fait que traduire écran<->pixels du
  * fond et déléguer.
  */
-export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayers, canvasRef, onTransformChange, onTransformCommit, onPickThrough }: Props) {
+export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayers, canvasRef, onTransformChange, onTransformCommit, onPickThrough, layerName }: Props) {
   const dragRef = useRef<DragKind | null>(null);
+  /** Vrai entre le premier `keydown` de flèche et le `keyup` qui le relâche.
+   *  L'appui MAINTENU répète le `keydown` mais n'émet qu'un seul `keyup` :
+   *  committer sur le relâchement fait donc UNE entrée d'historique par appui,
+   *  là où committer sur chaque `keydown` en aurait fait une par répétition —
+   *  soit une dizaine par seconde, et un `Ctrl+Z` devenu inutilisable. */
+  const nudgingRef = useRef(false);
   /** Guides ACTIFS, montrés pendant le geste seulement. Un magnétisme sans
    *  guide se lit comme une saccade : on voit la photo sauter sans savoir sur
    *  quoi, donc sans pouvoir décider si c'est ce qu'on voulait. */
@@ -155,6 +180,14 @@ export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayer
   }
 
   function handlePointerDown(e: React.PointerEvent, kind: DragKind) {
+    // BOUTON PRINCIPAL SEULEMENT. Le bouton du milieu est un geste de
+    // déplacement de la VUE (`Canvas.isPanGesture`) : sans cette garde, un
+    // clic du milieu sur la photo sélectionnée la déplaçait, elle, puisque le
+    // cadre est au-dessus du canvas et intercepte avant lui. Il ne déplace
+    // toujours pas la vue au-dessus du cadre — le geste appartient au canvas,
+    // qui ne reçoit pas l'évènement — mais il ne fait plus le contraire de ce
+    // qu'il annonce.
+    if (e.button !== 0) return;
     e.stopPropagation();
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
     dragRef.current = kind;
@@ -266,6 +299,47 @@ export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayer
     onTransformCommit();
   }
 
+  /**
+   * DÉPLACEMENT AU CLAVIER — le seul geste du cadre qui n'avait aucun
+   * équivalent hors souris. L'échelle et la rotation, elles, sont déjà
+   * atteignables au clavier par les champs Largeur/Hauteur et Angle du panneau
+   * Photo : c'est ce qui satisfait WCAG 2.1.1 sans avoir à rendre les dix
+   * pastilles focusables une à une (voir le commentaire du polygone).
+   *
+   * AUCUNE accroche ici, délibérément, et c'est aussi le choix de Photoshop :
+   * le magnétisme sert à poser vite à la souris. Au clavier on demande
+   * exactement un pixel — un pas qui se ferait avaler par une accroche serait
+   * un pas qui ne fait rien, sans que rien ne le dise.
+   */
+  function handleKeyDown(e: React.KeyboardEvent) {
+    // Un geste souris en cours a la priorité : deux sources de mouvement
+    // simultanées écriraient chacune par-dessus l'autre.
+    if (dragRef.current) return;
+    if (e.key === "Escape") {
+      // Rendre le focus, rien de plus. « Annuler la transformation » au sens
+      // de Photoshop demanderait une session modale avec un instantané
+      // d'avant, que cet overlay n'a pas : il est affiché en permanence et
+      // chaque geste committe déjà dans l'historique. L'annulation, c'est
+      // Ctrl+Z (App.tsx). Quitter l'OUTIL, c'est le Échap global du même
+      // fichier, qui reçoit cet évènement par bouillonnement.
+      (e.currentTarget as SVGElement).blur();
+      return;
+    }
+    const nudge = NUDGE_BY_KEY[e.key];
+    if (!nudge) return;
+    // Sans ça, les flèches font défiler la zone de travail sous le cadre.
+    e.preventDefault();
+    const step = e.shiftKey ? NUDGE_STEP_LARGE_PX : NUDGE_STEP_PX;
+    nudgingRef.current = true;
+    onTransformChange({ ...transform, x: transform.x + nudge.dx * step, y: transform.y + nudge.dy * step });
+  }
+
+  function handleKeyUp(e: React.KeyboardEvent) {
+    if (!(e.key in NUDGE_BY_KEY) || !nudgingRef.current) return;
+    nudgingRef.current = false;
+    onTransformCommit();
+  }
+
   function handlePointerCancel(e: React.PointerEvent) {
     setGuides([]);
     // Perte de capture (alt-tab, interruption OS/tactile) : annule le drag
@@ -303,7 +377,13 @@ export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayer
             className="transform-handles__outline"
             viewBox={`0 0 ${bgSize.width} ${bgSize.height}`}
             preserveAspectRatio="none"
-            aria-hidden="true"
+            // `presentation` et NON `aria-hidden="true"`, qui était posé ici :
+            // `aria-hidden` retire tout le SOUS-ARBRE de l'arbre
+            // d'accessibilité, donc le polygone de déplacement ci-dessous
+            // aurait été focusable au clavier tout en restant invisible pour un
+            // lecteur d'écran — le pire des deux états. `presentation` ne retire
+            // que la sémantique propre du `<svg>` ; ses enfants gardent la leur.
+            role="presentation"
           >
             {/* GUIDES D'ACCROCHE. Tracés dans le MÊME svg que le cadre, donc
                 dans le même viewBox en pixels du fond : une ligne à `value`
@@ -320,6 +400,7 @@ export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayer
                 y1={guide.axis === "y" ? guide.value : 0}
                 y2={guide.axis === "y" ? guide.value : bgSize.height}
                 vectorEffect="non-scaling-stroke"
+                aria-hidden="true"
               />
             ))}
             {/* HALO. Le même quadrilatère, tracé d'abord en encre sombre et
@@ -336,12 +417,36 @@ export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayer
               className="transform-handles__box-halo"
               points={corners.map((corner) => `${corner.x},${corner.y}`).join(" ")}
               vectorEffect="non-scaling-stroke"
+              aria-hidden="true"
             />
+            {/* SEULE CIBLE CLAVIER de l'overlay, et le nom accessible de tout
+                le cadre. Le choix de n'en avoir qu'une est celui de Photoshop,
+                dont les poignées sont souris-seulement : ce que WCAG 2.1.1
+                exige est que chaque FONCTION soit atteignable au clavier, pas
+                chaque pastille. Déplacer l'est ici (flèches) ; redimensionner
+                et tourner le sont par les champs Largeur/Hauteur et Angle du
+                panneau Photo. Un anneau à dix poignées aurait construit un
+                second chemin, à deux modes, pour des fonctions déjà couvertes.
+
+                `role="application"` et non `group` : en mode navigation, un
+                lecteur d'écran s'approprie les flèches pour parcourir la page.
+                C'est le rôle qui les laisse arriver jusqu'ici — sans lui, le
+                déplacement au clavier ne marcherait que pour les utilisateurs
+                sans lecteur d'écran, c'est-à-dire pas pour ceux qu'il vise. */}
             <polygon
               className="transform-handles__box"
               points={corners.map((corner) => `${corner.x},${corner.y}`).join(" ")}
               vectorEffect="non-scaling-stroke"
+              tabIndex={0}
+              role="application"
+              aria-label={`Cadre de transformation${layerName ? ` de ${layerName}` : ""} — flèches pour déplacer, Maj+flèches par pas de ${NUDGE_STEP_LARGE_PX} px`}
+              onKeyDown={handleKeyDown}
+              onKeyUp={handleKeyUp}
               onPointerDown={(e) => {
+                // Même garde que `handlePointerDown`, mais AVANT la désignation :
+                // un clic du milieu ne doit pas non plus céder la sélection à
+                // l'image du dessous, c'est un geste de vue, pas de document.
+                if (e.button !== 0) return;
                 const origin = screenToImagePixels(e.clientX, e.clientY);
                 // Une image posée par-dessus reprend la sélection au lieu de laisser
                 // la box déplacer le calque courant (voir `onPickThrough`).
@@ -356,9 +461,18 @@ export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayer
               onPointerCancel={handlePointerCancel}
             />
           </svg>
+          {/* LES NEUF PASTILLES qui suivent (4 coins, 4 côtés, rotation) sont
+              `aria-hidden` : ce sont des affordances de SOURIS, et leurs
+              fonctions ont chacune un équivalent clavier ailleurs (champs
+              Largeur/Hauteur et Angle du panneau Photo). Les exposer sans les
+              rendre actionnables au clavier annoncerait à un lecteur d'écran
+              neuf contrôles dont aucun ne répondrait — une promesse en creux,
+              pire que le silence. La divergence est assumée et documentée,
+              pas subie. */}
           {CORNER_INDICES.map((index) => (
             <div
               key={index}
+              aria-hidden="true"
               // Les quatre coins ne partagent PAS la même diagonale. 0 (haut-gauche)
               // et 2 (bas-droit) sont sur l'axe ↖↘ ; 1 (haut-droit) et 3
               // (bas-gauche) sur l'axe ↗↙. Une seule règle CSS pour les quatre
@@ -380,6 +494,7 @@ export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayer
           {EDGE_INDICES.map((index) => (
             <div
               key={`edge-${index}`}
+              aria-hidden="true"
               className={`transform-handles__edge transform-handles__edge--${index % 2 === 0 ? "vertical" : "horizontal"}`}
               style={toScreenStyle(edges[index])}
               onPointerDown={(e) => handleScaleHandleDown(e, { kind: "edge", index })}
@@ -390,6 +505,7 @@ export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayer
           ))}
           <div
             className="transform-handles__rotation"
+            aria-hidden="true"
             style={toScreenStyle(rotationHandle)}
             onPointerDown={(e) => handlePointerDown(e, { kind: "rotate" })}
             onPointerMove={handlePointerMove}

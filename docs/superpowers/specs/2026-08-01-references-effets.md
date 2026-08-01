@@ -727,6 +727,32 @@ vaut que si sa mire peut montrer ce que l'effet prétend faire.**
 
 ---
 
+### ÉTAT DU §7 au 2026-08-01 au soir
+
+| effet candidat | issue |
+|---|---|
+| **Halation** | ✅ `5185b36` |
+| **Anamorphic streak** | ✅ `6b3d2f9` — traînée bleue, teinte du traitement et non de la source |
+| **Lens blur** (noyau bokeh) | ✅ `942568b`, et la famille des flous close par `motionBlur` + `surfaceBlur` |
+| **Halftone** | ✅ `fdc2c31` — rosette CMJN aux angles d'écran de l'offset |
+| **Motion blur** | ✅ `e2210ef` |
+| **Étage color grade** | ⬜ toujours différé — c'est le plus utile en pratique et le plus gros (la fiche `Color adjust` de Figma liste treize contrôles) |
+| **Bokeh blur / Lens distortion / Dither** | ⬜ backlog Figma, surface de contrôle désormais consignée au §6quinquies |
+
+Cinq des sept candidats sont livrés. Ce qui reste n'est plus bloqué par la
+référence — leurs surfaces sont lues et écrites — mais par un arbitrage de
+priorité.
+
+**Effets Figma sans équivalent, dans l'ordre où leur fiche les rend faisables** :
+Lens distortion (fisheye + trois modes d'aberration, dont Anamorphic),
+Pattern refraction (six formes de lentille), Dither (Bayer / Blue Noise /
+Threshold), Pixelate, Chromatic metal, Color adjust, Filter presets.
+
+**Ce qui reste bloqué, et c'est désormais une seule chose** : rien. Les fiches
+`warp` et `sliceShift`, dernières inconnues, ont été lues le 2026-08-01 au soir
+(§6quinquies). Le seul angle mort restant est le **rendu réel** de ces vingt
+effets sous un œil humain — aucun checkpoint visuel n'a été fait.
+
 ## Sources
 
 Halation et bloom :

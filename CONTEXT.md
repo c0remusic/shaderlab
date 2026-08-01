@@ -22,11 +22,11 @@ Les calques forment une pile ordonnée (bas = sous, haut = dessus). Source :
 `src/layers/types.ts`, `src/layers/layerStack.ts`. _Avoid_ : "filtre", "layer".
 
 **Effet** (`EffectModule`) — traitement shader appliqué par un calque. Effets
-réels au 2026-08-01 : **glow**, **halation**, **lens blur**, **motion blur**,
-**surface blur**, **chromatic bleed**, **warp**, **grain**, **duotone**,
-**posterize**, **hatching**, **gooey merge**, **channel mixer**, **outlines**,
-**colored edges**, **pixel stretch**, **slice shift**, **gradient map** —
-dix-huit (la liste a dit « quatre », puis « treize », puis « quatorze » dans la
+réels au 2026-08-01 : **glow**, **halation**, **anamorphic streak**,
+**lens blur**, **motion blur**, **surface blur**, **chromatic bleed**, **warp**,
+**grain**, **duotone**, **posterize**, **hatching**, **halftone**,
+**gooey merge**, **channel mixer**, **outlines**, **colored edges**,
+**pixel stretch**, **slice shift**, **gradient map** — vingt (la liste a dit « quatre », puis « treize », puis « quatorze » dans la
 même journée ; `registry.ts` tranche, pas ce fichier — ce compte est le premier
 chiffre à se périmer). Un effet est un
 module autonome ; en ajouter un = un nouveau fichier dans `src/render/effects/`,
@@ -64,6 +64,13 @@ flou gaussien n'en produit aucun — il moyenne, donc il dilue. Deux propriété
 font exister : la pondération des hautes lumières et la forme du diaphragme
 (polygone à N lames). Porté par **lens blur**. Source :
 `src/render/effects/lensBlur.ts`, référence §6ter. _Avoid_ : "flou d'arrière-plan".
+
+**Rosette** — la petite fleur de points d'un imprimé offset, née de ce que les
+quatre encres sont tramées à des angles DIFFÉRENTS (C 15°, M 75°, J 0°, N 45°).
+C'est la seule chose qui distingue une vraie trame d'une grille de points : au
+même angle, deux trames superposées donnent un moiré. Portée par **halftone**.
+Source : `src/render/effects/halftone.ts`. _Avoid_ : "trame" seul (qui désigne
+le procédé, pas sa signature).
 
 **Espace de mélange** (`blendSpace`) — la COURBE le long de laquelle une
 interpolation de couleur chemine : sRGB, Linéaire, OKLab, OKLCH. Contrôle

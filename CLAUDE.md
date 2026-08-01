@@ -93,10 +93,11 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `EffectParam.colorGroup`) touche aussi `ParamPanel.tsx` et peut élargir
   `MAX_EFFECT_PARAMS` (`shaderCompose.ts`, **24** depuis le 2026-08-01) si
   nécessaire.
-  Registre réel au 2026-08-01, dans l'ordre : `glow`, `halation`, `lensBlur`,
-  `motionBlur`, `surfaceBlur`, `chromaticBleed`, `warp`, `grain`, `duotone`,
-  `posterize`, `hatching`, `gooeyMerge`, `channelMixer`, `outlines`,
-  `coloredEdges`, `pixelStretch`, `sliceShift`, `gradientMap` — **dix-huit**.
+  Registre réel au 2026-08-01, dans l'ordre : `glow`, `halation`,
+  `anamorphicStreak`, `lensBlur`, `motionBlur`, `surfaceBlur`, `chromaticBleed`,
+  `warp`, `grain`, `duotone`, `posterize`, `hatching`, `halftone`, `gooeyMerge`,
+  `channelMixer`, `outlines`, `coloredEdges`, `pixelStretch`, `sliceShift`,
+  `gradientMap` — **vingt**.
   Six sont arrivés le 2026-08-01 et AUCUN ne vient du backlog Figma d'origine
   (épuisé le 2026-07-31) : ils sortent du cahier de références
   `docs/superpowers/specs/2026-08-01-references-effets.md` et de demandes
@@ -112,6 +113,18 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Noyaux de flou pyramidal partagés par glow/halation : `effects/blurChain.ts`.
   Les trois flous ci-dessus n'en sont PAS : un noyau pyramidal ne sait produire
   ni bord franc, ni polygone, ni poids de valeur.
+- **Trois familles closes**, chacune par un découpage qui ne se devine pas
+  depuis les noms. **Halos** : `glow` étale sans colorer (diffusion),
+  `halation` réexpose en rouge sur fond sombre (film), `anamorphicStreak` tire
+  un trait bleu sur un seul axe (optique cylindrique) — ils s'empilent.
+  **Impression** : `posterize` (aplats), `hatching` (taille-douce), `halftone`
+  (trame CMJN et sa rosette). **Flous** : voir ci-dessus.
+- **Garde de câblage** : `test/render/effects/parametresCables.test.ts` vérifie
+  que chaque paramètre déclaré est lu à SON index par le shader, sur les vingt
+  effets. Elle naît d'un défaut réel — `warp` avait quatre contrôles sur sept
+  morts ou décalés, invisibles pour le compilateur comme pour le verrou de
+  pixels (un curseur mort ne bouge aucun pixel, précisément parce qu'il est
+  mort).
 - **Détecteur de contours partagé** : `effects/edgeGradient.ts` (Scharr 3x3,
   huit taps, ton perceptuel + chromaticité), utilisé par `outlines` et
   `coloredEdges`. Les deux ne diffèrent que par ce qu'ils font de la mesure —

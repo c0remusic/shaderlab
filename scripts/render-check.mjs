@@ -620,6 +620,26 @@ const INSTALL = `(async () => {
       },
     },
 
+    // Colored edges, TEMOIN D ORIENTATION. La mire commune suffit ici, et c est
+    // rare assez pour etre dit : son disque en hautes lumieres est un contour
+    // FERME, donc il parcourt tout le cercle des orientations, donc toute la
+    // roue chromatique. Un damier seul n aurait montre que deux teintes (les
+    // bords y sont a 0 et 90 degres) et n aurait rien prouve.
+    //
+    // Delave a 0.85 : les contours dominent. C est la teinte qu on verrouille
+    // ici, pas le rapport a la photo.
+    "effet-colored-edges": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("coloredEdges");
+        stack.updateParams(a, {
+          thickness: 2, threshold: 0.07, softness: 0.3, chroma: 0.5,
+          hueOffset: 0, hueSpread: 1, saturation: 0.85, lightness: 0.55,
+          wash: 0.85, inputSource: 0,
+        });
+      },
+    },
+
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,
     // donc les passes de morphologie separees H/V).

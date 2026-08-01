@@ -77,6 +77,13 @@ const ATTENDU = {
   // 0.8 : la mire porte des damiers colores de meme luminance, donc le second
   // gradient est reellement sollicite.
   "effet-outlines.png": { width: 256, height: 256, valeurs: null },
+  // COLORED EDGES (2026-08-01) : la mire COMMUNE suffit, et c est assez rare
+  // pour etre dit. Son disque en hautes lumieres est un contour FERME, donc il
+  // parcourt tout le cercle des orientations, donc toute la roue chromatique —
+  // exactement la propriete que cet effet pretend porter. Un damier seul
+  // n aurait montre que quatre teintes (ses bords sont a 0 et 90 degres, dans
+  // les deux sens) et n aurait pas prouve la continuite.
+  "effet-colored-edges.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

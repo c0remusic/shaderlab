@@ -15,6 +15,7 @@ import { gradientMap } from "./gradientMap";
 import { halation } from "./halation";
 import { lensBlur } from "./lensBlur";
 import { hatching } from "./hatching";
+import { coloredEdges } from "./coloredEdges";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 
 // Les six du milieu suivent l'ordre de priorité du backlog d'effets confirmé par
@@ -49,6 +50,10 @@ export const effectRegistry: EffectModule[] = [
   gooeyMerge,
   channelMixer,
   outlines,
+  // `coloredEdges` (2026-08-01) est posé juste après `outlines` parce qu'ils
+  // partagent leur détecteur (`edgeGradient.ts`) et se choisissent l'un contre
+  // l'autre : encre unique, ou teinte donnée par l'orientation du bord.
+  coloredEdges,
   pixelStretch,
   sliceShift,
   gradientMap,

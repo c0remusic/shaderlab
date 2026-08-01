@@ -2,6 +2,7 @@ import type { EffectModule } from "./types";
 import { HSL_TO_RGB_WGSL } from "./hsl";
 import { UV_SPACE_WGSL } from "./uvSpace";
 import { INPUT_DRIVER_WGSL, inputSourceParam } from "./inputMode";
+import { EDGE_GRADIENT_WGSL, EDGE_SPACING_WGSL, SCHARR_NORM } from "./edgeGradient";
 import {
   LINEAR_TO_SRGB_WGSL,
   SRGB_TO_LINEAR_VEC3_WGSL,
@@ -91,73 +92,29 @@ export const outlines: EffectModule = {
     inputSourceParam(),
   ],
   wgsl: `
-${UV_SPACE_WGSL}${HSL_TO_RGB_WGSL}${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${INPUT_DRIVER_WGSL}
-// Un tap porte les DEUX mesures : le ton perceptuel (x) et la chromaticité
-// (y,z). Les deux gradients de Scharr se calculent donc sur les mêmes huit
-// lectures — la sensibilité couleur ne coûte que de l'ALU, pas de la bande
-// passante.
-fn edgeTap(uv: vec2<f32>, off: vec2<f32>, source: f32) -> vec3<f32> {
-  // mirrorUv : les taps de bord sortent du cadre. Sans repli, le sampler
-  // clamp-to-edge rend le même texel des deux côtés du bord, ce qui annule le
-  // gradient : le dessin s'ouvrirait pile sur le périmètre de l'image.
-  let s = textureSample(srcTexture, srcSampler, mirrorUv(uv + off));
-  let c = s.rgb;
-  // input_source : ton PERCEPTUEL (défaut, identique à ce que cette ligne
-  // calculait avant le mode d'entrée) ou couverture alpha.
-  let driver = input_source(s, source);
-  // Chromaticité : écarts de canaux normalisés par l'énergie totale du pixel,
-  // donc invariants à l'exposition — deux verts d'éclairement différent ont la
-  // même chromaticité et ne lèvent aucun contour.
-  let energy = c.r + c.g + c.b + 0.0001;
-  // En entrée ALPHA, les deux composantes chromatiques sont mises à zéro : le
-  // champ suivi est une couverture, et lui adjoindre les contours de couleur de
-  // l'image ferait lever le trait sur un champ qu'on ne suit pas. Le curseur
-  // « Sensibilité couleur » est donc sans objet dans ce mode, ce que dit son
-  // libellé (même convention que les paramètres par mode de \`grain\`).
-  let chroma = select(
-    vec2<f32>((c.r - c.g) / energy, (c.g - c.b) / energy),
-    vec2<f32>(0.0),
-    source > 0.5
-  );
-  return vec3<f32>(driver, chroma.x, chroma.y);
-}
+${UV_SPACE_WGSL}${HSL_TO_RGB_WGSL}${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${INPUT_DRIVER_WGSL}${EDGE_GRADIENT_WGSL}${EDGE_SPACING_WGSL}
 
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
-  let thickness = max(params[0], 0.25);
   let threshold = params[1];
   let softness = clamp(params[2], 0.0, 1.0);
   let chroma = clamp(params[3], 0.0, 1.0);
   let wash = clamp(params[7], 0.0, 1.0);
   let source = params[8];
 
-  // ISOTROPIE. Le décalage est exprimé en PIXELS puis divisé par les dimensions
-  // de la texture, canal par canal : le tap tombe donc à la même distance
-  // physique sur les deux axes par construction. C'est la même convention que
-  // \`grain\` (qui travaille aussi en espace pixel). Passer EN PLUS par
-  // \`aspectScale\` serait une DOUBLE correction — elle rendrait l'écartement
-  // anisotrope au lieu de le corriger.
-  let h = vec2<f32>(thickness) / vec2<f32>(textureDimensions(srcTexture));
-
-  let tl = edgeTap(uv, vec2<f32>(-h.x, -h.y), source);
-  let tc = edgeTap(uv, vec2<f32>( 0.0, -h.y), source);
-  let tr = edgeTap(uv, vec2<f32>( h.x, -h.y), source);
-  let ml = edgeTap(uv, vec2<f32>(-h.x,  0.0), source);
-  let mr = edgeTap(uv, vec2<f32>( h.x,  0.0), source);
-  let bl = edgeTap(uv, vec2<f32>(-h.x,  h.y), source);
-  let bc = edgeTap(uv, vec2<f32>( 0.0,  h.y), source);
-  let br = edgeTap(uv, vec2<f32>( h.x,  h.y), source);
-
-  // Scharr 3x3 (poids 3/10/3), appliqué simultanément aux trois mesures portées
-  // par chaque tap. Le tap central n'apparaît pas : ses poids sont nuls dans
-  // les deux noyaux.
-  let gx = (tr * 3.0 + mr * 10.0 + br * 3.0) - (tl * 3.0 + ml * 10.0 + bl * 3.0);
-  let gy = (bl * 3.0 + bc * 10.0 + br * 3.0) - (tl * 3.0 + tc * 10.0 + tr * 3.0);
+  // Ecartement des taps et noyau de Scharr : voir effects/edgeGradient.ts,
+  // partage avec coloredEdges. Deux copies auraient derive, et deux effets de
+  // contour poses sur la meme photo auraient dessine des bords a des endroits
+  // DIFFERENTS — ce qui ressemble a un choix esthetique et n'est qu'un
+  // copier-coller qui a vieilli.
+  let g = edge_scharr(uv, edge_spacing(params[0]), source);
+  let gx = g.gx;
+  let gy = g.gy;
 
   // /32 : réponse du noyau à une rampe unité sur un écartement de tap. \`mag\`
   // se lit donc directement comme « écart de ton perceptuel sur l'épaisseur du
   // trait », et le seuil garde le même sens quand on change l'épaisseur.
-  let toneMag = sqrt(gx.x * gx.x + gy.x * gy.x) / 32.0;
-  let chromaMag = sqrt(gx.y * gx.y + gy.y * gy.y + gx.z * gx.z + gy.z * gy.z) / 32.0;
+  let toneMag = sqrt(gx.x * gx.x + gy.x * gy.x) / ${SCHARR_NORM}.0;
+  let chromaMag = sqrt(gx.y * gx.y + gy.y * gy.y + gx.z * gx.z + gy.z * gy.z) / ${SCHARR_NORM}.0;
   // max, pas somme : un contour de luminance NET ne doit pas être renforcé
   // parce qu'il est accessoirement coloré (le trait s'épaissirait sur les
   // contours colorés et nulle part ailleurs). Les deux mesures sont deux

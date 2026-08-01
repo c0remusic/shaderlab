@@ -597,6 +597,29 @@ const INSTALL = `(async () => {
       },
     },
 
+    // Outlines, pose AVANT l extraction du gradient de Scharr vers un module
+    // partage (2026-08-01). Cet effet n avait aucun verrou de pixels : sa
+    // sortie depend d un noyau 3x3 sur huit taps, d une mesure de chromaticite
+    // et d un plancher fwidth, et rien n aurait vu une derive de l un des
+    // trois. Le scenario existe donc d abord pour rendre l extraction PROUVABLE
+    // — il reste ensuite comme verrou permanent.
+    //
+    // Sensibilite couleur a 0.8 : la mire porte des damiers colores de meme
+    // luminance, donc le second gradient (celui de la chromaticite) est
+    // reellement sollicite. A 0 il ne le serait pas et la moitie de l effet
+    // sortirait du verrou.
+    "effet-outlines": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("outlines");
+        stack.updateParams(a, {
+          thickness: 2.5, threshold: 0.09, softness: 0.35, chroma: 0.8,
+          inkHue: 210, inkSaturation: 0.2, inkLightness: 0.06, wash: 0.35,
+          inputSource: 0,
+        });
+      },
+    },
+
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,
     // donc les passes de morphologie separees H/V).

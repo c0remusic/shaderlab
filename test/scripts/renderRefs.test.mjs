@@ -68,6 +68,15 @@ const ATTENDU = {
   // illisible. Une reference qui ne peut pas voir ce que l'effet pretend faire
   // ne verrouille que son bruit.
   "effet-hatching.png": { width: 256, height: 256, valeurs: null },
+  // OUTLINES (2026-08-01) : cette reference a ete posee AVANT l extraction du
+  // gradient de Scharr vers `effects/edgeGradient.ts`, precisement pour rendre
+  // cette extraction prouvable. L effet n avait aucun verrou de pixels alors
+  // que sa sortie depend d un noyau 3x3 sur huit taps, d une mesure de
+  // chromaticite et d un plancher fwidth — rien n aurait vu une derive de l un
+  // des trois. Elle reste ensuite comme verrou permanent. Sensibilite couleur a
+  // 0.8 : la mire porte des damiers colores de meme luminance, donc le second
+  // gradient est reellement sollicite.
+  "effet-outlines.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

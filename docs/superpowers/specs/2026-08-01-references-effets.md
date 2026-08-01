@@ -384,7 +384,33 @@ antérieure et n'ont PAS été revérifiés contre les fiches ; `warp` en partic
 est jugé « sans écart de référence » au §4 sans que le shader Figma du même nom
 ait jamais été regardé (auteur : Miggi from Figgi). C'est un trou franc.
 
-Demandés par Antoine le 2026-08-01, à faire : **Hatching** et **Colored edges**.
+Demandés par Antoine le 2026-08-01 : **Hatching** (`5bb4ee2`) et
+**Colored edges** (`65d34fb`) — LIVRÉS, conçus d'après leurs références de
+domaine (gravure ; détection de contours) faute d'avoir pu lire leurs fiches.
+L'écart avec la surface de contrôle de Figma est donc INCONNU pour ces deux-là,
+et c'est écrit dans les deux fichiers.
+
+### La famille des flous — CLOSE le 2026-08-01
+
+Demandée par Antoine le même jour. Trois effets, et le découpage vient du §6ter :
+le clivage n'est pas entre les cinq outils de la Blur Gallery mais entre le
+NOYAU et ce qu'on en fait.
+
+| outil Photoshop | chez nous |
+|---|---|
+| Lens Blur (noyau bokeh) | `lensBlur` (`942568b`) |
+| Iris Blur, Tilt-Shift | `lensBlur` → géométries `Iris` et `Linéaire` |
+| Field Blur | couvert autrement — le masque au pinceau par calque |
+| Path Blur, Spin Blur, Radial (zoom) | `motionBlur` (`e2210ef`), trois trajectoires |
+| Surface Blur / Smart Blur | `surfaceBlur` (`3f53b0d`) |
+| **Gaussian, Box, Average** | **REFUSÉS**, et pas oubliés |
+
+Le refus du gaussien mérite d'être écrit ici plutôt que découvert plus tard par
+souci de parité : ce paragraphe même dit qu'il ne sert qu'à réduire le détail et
+qu'il LAVE une photo. Le poser au registre serait livrer sciemment le rendu que
+la barre de qualité du projet interdit. Un flou doux s'obtient déjà par
+`lensBlur` à intensité de bokeh nulle. Un test du registre vérifie qu'aucun
+`gaussianBlur` ni `boxBlur` n'y entre.
 
 ## 6bis. Les cinq autres effets Figma — écarts relevés au passage
 

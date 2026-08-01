@@ -93,17 +93,30 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `EffectParam.colorGroup`) touche aussi `ParamPanel.tsx` et peut élargir
   `MAX_EFFECT_PARAMS` (`shaderCompose.ts`, **24** depuis le 2026-08-01) si
   nécessaire.
-  Registre réel au 2026-08-01 : `glow`, `halation`, `lensBlur`, `chromaticBleed`,
-  `warp`, `grain`, `duotone`, `posterize`, `gooeyMerge`, `channelMixer`,
-  `outlines`, `pixelStretch`, `sliceShift`, `gradientMap` — **quatorze**.
-  `halation` et `lensBlur` (2026-08-01) ne viennent pas du backlog Figma mais du
-  cahier de références `docs/superpowers/specs/2026-08-01-references-effets.md` :
-  `glow` confondait bloom et halation (sa teinte de halo a été retirée, le
-  phénomène argentique est devenu un effet à part, les deux s'empilent), et
-  aucun flou n'existait au registre (§6ter).
+  Registre réel au 2026-08-01, dans l'ordre : `glow`, `halation`, `lensBlur`,
+  `motionBlur`, `surfaceBlur`, `chromaticBleed`, `warp`, `grain`, `duotone`,
+  `posterize`, `hatching`, `gooeyMerge`, `channelMixer`, `outlines`,
+  `coloredEdges`, `pixelStretch`, `sliceShift`, `gradientMap` — **dix-huit**.
+  Six sont arrivés le 2026-08-01 et AUCUN ne vient du backlog Figma d'origine
+  (épuisé le 2026-07-31) : ils sortent du cahier de références
+  `docs/superpowers/specs/2026-08-01-references-effets.md` et de demandes
+  directes d'Antoine.
+- **La famille des flous est CLOSE**, et son découpage ne se devine pas depuis
+  les noms : `lensBlur` est un noyau d'OBJECTIF (intégration sur la surface de
+  l'ouverture — pondération des hautes lumières + diaphragme à N lames, plus
+  quatre géométries de champ qui couvrent Iris et Tilt-Shift) ; `motionBlur`
+  intègre le long d'une TRAJECTOIRE (directionnelle, rotation, zoom — Path et
+  Spin de la galerie) ; `surfaceBlur` est un BILATÉRAL qui ne traverse pas les
+  contours. Le **gaussien reste volontairement dehors** : la référence dit qu'il
+  lave l'image, et un test du registre vérifie qu'il n'y entre pas.
   Noyaux de flou pyramidal partagés par glow/halation : `effects/blurChain.ts`.
-  `lensBlur` n'en est PAS : un noyau pyramidal ne sait produire ni bord franc ni
-  polygone, il lui faut une collecte explicite sur l'ouverture.
+  Les trois flous ci-dessus n'en sont PAS : un noyau pyramidal ne sait produire
+  ni bord franc, ni polygone, ni poids de valeur.
+- **Détecteur de contours partagé** : `effects/edgeGradient.ts` (Scharr 3x3,
+  huit taps, ton perceptuel + chromaticité), utilisé par `outlines` et
+  `coloredEdges`. Les deux ne diffèrent que par ce qu'ils font de la mesure —
+  l'un jette la DIRECTION du gradient et trace une encre unique, l'autre la
+  garde et en fait une teinte.
   Les autres fichiers de `effects/` sont des helpers (`bayer`, `hsl`, `hash`,
   `oklab`, `blendSpace`, `inputMode`, `srgbTransfer`, `uvSpace`, `validate`,
   `types`) : la présence d'un fichier n'est pas la présence d'un effet, vérifier

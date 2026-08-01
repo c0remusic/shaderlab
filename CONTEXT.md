@@ -22,12 +22,13 @@ Les calques forment une pile ordonnée (bas = sous, haut = dessus). Source :
 `src/layers/types.ts`, `src/layers/layerStack.ts`. _Avoid_ : "filtre", "layer".
 
 **Effet** (`EffectModule`) — traitement shader appliqué par un calque. Effets
-réels au 2026-08-01 : **glow**, **halation**, **lens blur**, **chromatic bleed**,
-**warp**, **grain**, **duotone**, **posterize**, **gooey merge**,
-**channel mixer**, **outlines**, **pixel stretch**, **slice shift**,
-**gradient map** — quatorze (la liste disait « quatre » jusqu'au 2026-08-01,
-périmée depuis le 2026-07-26, et « treize » pendant une demi-journée ;
-`registry.ts` tranche, pas ce fichier). Un effet est un
+réels au 2026-08-01 : **glow**, **halation**, **lens blur**, **motion blur**,
+**surface blur**, **chromatic bleed**, **warp**, **grain**, **duotone**,
+**posterize**, **hatching**, **gooey merge**, **channel mixer**, **outlines**,
+**colored edges**, **pixel stretch**, **slice shift**, **gradient map** —
+dix-huit (la liste a dit « quatre », puis « treize », puis « quatorze » dans la
+même journée ; `registry.ts` tranche, pas ce fichier — ce compte est le premier
+chiffre à se périmer). Un effet est un
 module autonome ; en ajouter un = un nouveau fichier dans `src/render/effects/`,
 zéro modif moteur/UI. Source : `src/render/effects/registry.ts`,
 `src/render/effects/types.ts`. _Avoid_ : "filtre".

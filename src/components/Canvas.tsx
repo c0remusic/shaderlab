@@ -376,11 +376,29 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
       // handlers — sans cette garde, chaque geste serait traité deux fois par
       // bouillonnement.
       onPointerDown={(e) => {
-        if (e.target !== e.currentTarget && e.target !== viewRef.current) return;
+        // LE DÉPLACEMENT DE LA VUE A UN SEUL PROPRIÉTAIRE, et c'est cet
+        // élément — le plus extérieur, donc celui qui reçoit tout par
+        // bouillonnement, y compris ce qui a commencé sur la toile.
+        //
+        // Il en a fallu deux pendant une heure, et ça ne marchait pas : quand
+        // le geste démarrait sur la toile, la capture allait à la toile, donc
+        // `movePan` tournait DEUX fois par `pointermove` — une fois sur la
+        // toile, une fois ici par bouillonnement. Le second appel lisait
+        // `viewportRef.current` encore périmé (le `setState` du premier n'avait
+        // pas eu lieu) et réécrivait l'ancienne valeur par-dessus la nouvelle.
+        // Chaque déplacement s'annulait lui-même, et seulement au-dessus de la
+        // toile — depuis le pourtour, la capture restait ici et il n'y avait
+        // qu'un appel.
+        //
+        // AVANT la garde de cible, donc : un geste de vue commence où il veut.
         if (isPanGesture(e)) {
           beginPan(e);
           return;
         }
+        // La DÉSIGNATION, elle, reste locale : la toile et l'overlay de
+        // transformation ont les leurs. Ici on ne traite que le pourtour
+        // lui-même et la zone visible autour de la toile.
+        if (e.target !== e.currentTarget && e.target !== viewRef.current) return;
         if (maskPaintMode || !onPick) return;
         const point = toImageCoords(e);
         // Coordonnées hors bornes attendues : le hit-test n'y trouve aucune
@@ -418,10 +436,11 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
           imageRendering: viewport.scale > 1 ? "pixelated" : "auto",
         }}
         onPointerDown={(e) => {
-          if (isPanGesture(e)) {
-            beginPan(e);
-            return;
-          }
+          // Le déplacement de la vue ne s'ouvre PAS ici : il appartient au
+          // pasteboard, qui reçoit cet évènement juste après par
+          // bouillonnement (voir son handler pour ce que coûtaient deux
+          // propriétaires). On sort sans rien faire, et surtout sans peindre.
+          if (isPanGesture(e)) return;
           if (!maskPaintMode) {
             // Désignation directe (T1). Hors mode peinture UNIQUEMENT, et
             // seulement si l'appelant l'a autorisée pour le mode courant : le
@@ -458,7 +477,11 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
           if (pt) onMaskStroke(pt.x, pt.y);
         }}
         onPointerMove={(e) => {
-          if (movePan(e)) return;
+          // `movePan` N'EST PLUS APPELÉ ICI : le déplacement de la vue est
+          // capturé par le pasteboard, donc pendant un geste de vue cet
+          // élément ne reçoit même plus les mouvements. On sort quand même sur
+          // un geste en cours, pour le cas d'un pointeur secondaire.
+          if (panDragRef.current) return;
           if (!maskPaintMode || panning) return;
           updateCursor(e);
           if (!isPaintingRef.current) return;
@@ -470,15 +493,17 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
         onPointerEnter={(e) => {
           if (maskPaintMode && !panning) updateCursor(e);
         }}
+        // `endPan` a disparu de ces deux handlers pour la même raison que
+        // `movePan` : la fin d'un geste de vue arrive au pasteboard, qui
+        // détient la capture. L'appeler ici aussi aurait relâché le geste
+        // depuis le mauvais élément.
         onPointerUp={(e) => {
-          if (endPan(e)) return;
           endStroke();
           if (e.currentTarget.hasPointerCapture(e.pointerId)) {
             e.currentTarget.releasePointerCapture(e.pointerId);
           }
         }}
-        onPointerCancel={(e) => {
-          if (endPan(e)) return;
+        onPointerCancel={() => {
           endStroke();
         }}
         onPointerLeave={() => {

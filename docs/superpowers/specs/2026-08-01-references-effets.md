@@ -452,6 +452,32 @@ chantiers de §7, mais consigné pour ne pas le redécouvrir :
   Le nôtre a angle + position + portée, sans manipulateur direct.
 - **Slice shift** — angle, écartement, aléa : aligné.
 
+### DEMANDE D'ANTOINE, 2026-08-01 au soir — fondu des bords de tranche
+
+> « Je voudrais pouvoir flouter les bords pour un effet dégradé dans slice
+> shift. »
+
+Aujourd'hui, la limite entre une tranche décalée et sa voisine est une COUPURE
+FRANCHE. C'est la signature de l'effet — un décrochage, une déchirure — et
+l'adoucir doit donc être un **paramètre à défaut 0**, comme tout ce qui a été
+ajouté ce jour-là sur des effets déjà livrés. Sept paramètres aujourd'hui :
+`angle`, `sliceSize`, `displace`, `density`, `irregular`, `chromaSplit`, `seed`.
+Aucun ne touche au bord.
+
+**Le piège à ne pas rater en l'implémentant.** Flouter la SORTIE ne donnera pas
+ça : ça étalerait toute la tranche, alors que seul son BORD doit fondre. Ce
+qu'il faut, c'est faire varier continûment le DÉCALAGE de part et d'autre de la
+frontière — mélanger les deux coordonnées d'échantillonnage (celle de la tranche
+et celle de sa voisine) sur une bande étroite, plutôt que mélanger leurs
+couleurs. C'est la même distinction que celle qui fait qu'un `pixelStretch`
+COMPRIME sa coordonnée au lieu de recopier des pixels : on déplace la lecture,
+on ne floute pas le résultat.
+
+Corollaire : le fondu doit se mesurer en pixels et non en fraction de tranche,
+sinon une tranche fine se retrouverait entièrement fondue quand une épaisse ne
+le serait qu'au bord.
+
+
 Un motif se dégage : **le choix d'espace de mélange et le mode d'entrée sont des
 contrôles récurrents chez Figma**, et absents partout chez nous. À traiter comme
 une famille plutôt qu'effet par effet.

@@ -26,9 +26,23 @@ export class History {
   private totalBytes = 0;
 
   constructor(initial: LayerStack, budgetBytes: number = DEFAULT_BUDGET_BYTES) {
-    this.current = initial;
+    // CLONE DÉFENSIF, symétrique de celui de `push()`. Il manquait, et son
+    // absence coûtait le premier undo de chaque document.
+    //
+    // `DocumentSession` construit `new History(this.current)` en passant
+    // l'objet qu'il détient lui-même, puis mute cet objet en place à chaque
+    // frame d'un geste vivant (`replaceLiveLayers` fait `this.current.layers =
+    // layers`, pour ne pas recloner tous les calques à 100 Hz). Sans ce clone,
+    // l'entrée initiale de l'historique EST cet objet : le geste la réécrit au
+    // fur et à mesure, et le `push()` de fin de geste empile un « avant » qui
+    // vaut déjà l'« après ». Le premier Ctrl+Z ne rendait donc rien.
+    //
+    // Le symptôme paraissait aléatoire parce qu'il ne survient qu'UNE fois par
+    // document : dès le premier commit, `push()` et `commit()` reclonent
+    // chacun de leur côté et les deux objets divergent pour de bon.
+    this.current = initial.clone();
     this.budgetBytes = budgetBytes;
-    this.retain(initial);
+    this.retain(this.current);
   }
 
   private retain(stack: LayerStack): void {

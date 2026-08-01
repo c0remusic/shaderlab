@@ -3,6 +3,36 @@ import { LayerStack } from "../../src/layers/layerStack";
 import { History } from "../../src/layers/history";
 
 describe("History", () => {
+  /**
+   * L'ÉTAT INITIAL EST CLONÉ À LA CONSTRUCTION, comme il l'est déjà au `push`.
+   *
+   * Sans ce clone, l'appelant qui garde une référence sur la pile qu'il a
+   * passée écrit directement dans l'entrée initiale de l'historique. C'est
+   * exactement ce que fait `DocumentSession` : il passe l'objet qu'il détient,
+   * puis le mute en place à chaque frame d'un geste vivant
+   * (`replaceLiveLayers`, qui évite de recloner tous les calques à 100 Hz). Le
+   * « avant » empilé en fin de geste valait donc déjà le « après », et le
+   * PREMIER Ctrl+Z de chaque document ne rendait rien (signalé à l'usage le
+   * 2026-08-01).
+   *
+   * Le symptôme se lisait comme aléatoire parce qu'il ne survient qu'une fois
+   * par document : dès le premier commit, les deux objets divergent.
+   */
+  it("isole l'état initial d'une mutation en place par l'appelant", () => {
+    const initial = new LayerStack();
+    initial.addLayer("glow");
+    const history = new History(initial);
+
+    // La mutation EN PLACE que fait `DocumentSession.replaceLiveLayers`.
+    initial.layers = initial.layers.map((layer) => ({ ...layer, opacity: 0.1 }));
+
+    const apres = initial.clone();
+    history.push(apres);
+    const undone = history.undo();
+    // L'opacité d'origine, pas celle écrite pendant le geste.
+    expect(undone?.layers[0].opacity).toBe(1);
+  });
+
   it("undo returns the previous state", () => {
     const initial = new LayerStack();
     const history = new History(initial);

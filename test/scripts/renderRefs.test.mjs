@@ -47,6 +47,19 @@ const ATTENDU = {
   // que le guide du calque du bas etait la toile VIDE. Voir
   // docs/adr/0004-image-de-guide-du-masque-edge-aware.md.
   "masque-edge-aware-calque-du-bas.png": { width: 256, height: 256, valeurs: null },
+  // LENS BLUR (2026-08-01), et DEUX references pour un seul effet — ce n'est
+  // pas une redondance. La premiere pose l'effet sur la mire commune : elle
+  // verrouille la geometrie de champ (iris) et le raccord net/flou. La seconde
+  // est un TEMOIN DE BOKEH sur des points lumineux isoles, et elle existe
+  // parce que la premiere ne peut PAS voir la propriete principale de l'effet :
+  // une tache de bokeh ne se lit que sur un petit point brillant contre du
+  // sombre, et sous un damier un lens blur rend la meme chose qu'un gaussien.
+  // Elle a paye son cout des sa premiere execution, en attrapant deux defauts
+  // qu'aucun des dix-sept tests unitaires de l'effet ne voyait : un rayon
+  // applique au double de sa valeur, et une collecte trop clairsemee qui
+  // rendait des nuees granuleuses au lieu d'hexagones.
+  "effet-lens-blur.png": { width: 256, height: 256, valeurs: null },
+  "effet-lens-blur-bokeh.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

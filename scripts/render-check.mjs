@@ -300,6 +300,44 @@ const INSTALL = `(async () => {
     return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
   };
 
+  // Mire A BOKEH : des points lumineux ISOLES sur du noir, de quatre tailles.
+  //
+  // La mire principale ne peut pas temoigner du bokeh, et ce n'est pas un
+  // detail : une tache de bokeh ne se lit que sur un PETIT point brillant
+  // contre du sombre. Un damier et un grand disque creme donnent, sous un lens
+  // blur, exactement ce que donnerait un gaussien — donc un verrou pose dessus
+  // ne saurait pas distinguer les deux.
+  //
+  // Les quatre tailles (1, 2, 3, 5 px de rayon) sont la pour verifier la
+  // propriete que la reference cite comme signature de l'objectif : quand un
+  // point lumineux retrecit, sa tache NE RETRECIT PAS — elle devient plus
+  // transparente et ses bords plus nets. Quatre colonnes de taches de meme
+  // diametre et d'intensites decroissantes, c'est ce qu'on doit voir.
+  const mireBokeh = (w, h) => {
+    const d = new Uint8ClampedArray(w * h * 4);
+    for (let i = 3; i < d.length; i += 4) d[i] = 255; // opaque, RGB reste a 0
+    const rayons = [1, 2, 3, 5];
+    for (let col = 0; col < 4; col++) {
+      for (let row = 0; row < 4; row++) {
+        const cx = ((col + 0.5) * w) / 4, cy = ((row + 0.5) * h) / 4;
+        const rr = rayons[col];
+        for (let y = Math.floor(cy - rr); y <= cy + rr; y++) {
+          for (let x = Math.floor(cx - rr); x <= cx + rr; x++) {
+            if (x < 0 || y < 0 || x >= w || y >= h) continue;
+            if ((x - cx) ** 2 + (y - cy) ** 2 > rr * rr) continue;
+            const i = (y * w + x) * 4;
+            // Teintes differentes par ligne : une tache de bokeh doit garder la
+            // COULEUR de son point, pas la moyenner avec ses voisines.
+            d[i] = row === 0 || row === 3 ? 255 : 90;
+            d[i + 1] = row === 1 || row === 3 ? 255 : 90;
+            d[i + 2] = row === 2 || row === 3 ? 255 : 90;
+          }
+        }
+      }
+    }
+    return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
+  };
+
   // Raster de pinceau DETERMINISTE : un disque a bord adouci, calcule, jamais
   // peint par un geste. Meme format que celui que produit MaskPainter (r8,
   // tightement pack, taille de l'image).
@@ -441,11 +479,73 @@ const INSTALL = `(async () => {
       build: async (r, stack) => {
         const photo = await mire(128, 96, 60);
         const sourceId = await r.photoSources.register(photo);
-        const p = stack.addPhotoLayer(sourceId, { x: 150, y: 110, scale: 1.4, rotation: 0.35 }, "mire");
+        // scaleX/scaleY et non scale : le champ unique a ete remplace par DEUX
+        // axes le 2026-07-31 (LayerTransform, src/layers/types.ts). Ce fixture
+        // a garde "scale: 1.4" pendant un jour — un champ que plus personne ne
+        // lit, donc un scenario qui declarait un agrandissement de 40 % et n'en
+        // rendait aucun. Ce fichier est en .mjs ET ce bloc vit dans un template
+        // literal envoye a la page : TypeScript ne pouvait pas le dire, et un
+        // backtick dans un commentaire d'ici casse le parsing du script entier.
+        // C'est la chute d'entropie du PNG de reference (40 Ko -> 15 Ko) qui a
+        // trahi le champ mort. Toute evolution de LayerTransform doit repasser
+        // ici A LA MAIN.
+        const p = stack.addPhotoLayer(sourceId, { x: 150, y: 110, scaleX: 1.4, scaleY: 1.4, rotation: 0.35 }, "mire");
         at(stack, p).opacity = 0.75;
         at(stack, p).blendMode = "multiply";
         const c = stack.addLayer("chromaticBleed", p);
         stack.updateParams(c, { amount: 0.05, centerFalloff: 1.5 });
+      },
+    },
+
+    // Lens blur : le seul effet dont la sortie depend d'une COLLECTE sur une
+    // ouverture (48 taps en spirale d'angle d'or, tournee par un tirage par
+    // pixel) et d'une geometrie de champ lue par DEUX passes a des resolutions
+    // differentes. Les deux endroits ou une regression serait la plus sournoise
+    // sont couverts ici et nulle part ailleurs : un desaccord entre les deux
+    // lectures du champ (frange au raccord net/flou) et une derive du tirage
+    // par pixel (le grain du bokeh change sans que rien d'autre ne bouge).
+    // Iris + 6 lames : la geometrie de champ ET la forme du diaphragme sont
+    // toutes deux hors de leur valeur neutre, donc toutes deux verrouillees.
+    "effet-lens-blur": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("lensBlur");
+        stack.updateParams(a, {
+          radius: 28,
+          blades: 6,
+          bladeRotation: 15,
+          highlightThreshold: 0.5,
+          highlightBoost: 8,
+          fieldShape: 2,
+          fieldCenterX: 0.42,
+          fieldCenterY: 0.55,
+          fieldRange: 0.3,
+          fieldFeather: 0.4,
+        });
+      },
+    },
+
+    // Lens blur, TEMOIN DE BOKEH : points lumineux isoles sur du noir, quatre
+    // tailles. C'est le seul scenario qui puisse distinguer ce flou d'un
+    // gaussien — champ Uniforme (donc pas de zone nette qui masquerait le
+    // resultat), diaphragme a 6 lames, pas de flou de champ pour brouiller la
+    // lecture. Ce qu'on doit voir : quatre colonnes d'hexagones de MEME
+    // diametre, d'intensite decroissante de droite a gauche.
+    "effet-lens-blur-bokeh": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const points = await mireBokeh(W, H);
+        const sourceId = await r.photoSources.register(points);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "points");
+        const a = stack.addLayer("lensBlur", p);
+        stack.updateParams(a, {
+          radius: 22,
+          blades: 6,
+          bladeRotation: 0,
+          highlightThreshold: 0.35,
+          highlightBoost: 14,
+          fieldShape: 0,
+        });
       },
     },
 

@@ -13,6 +13,7 @@ import { pixelStretch } from "./pixelStretch";
 import { sliceShift } from "./sliceShift";
 import { gradientMap } from "./gradientMap";
 import { halation } from "./halation";
+import { lensBlur } from "./lensBlur";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 
 // Les six du milieu suivent l'ordre de priorité du backlog d'effets confirmé par
@@ -25,10 +26,16 @@ import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 // montré que `glow` confondait deux phénomènes distincts. Posé juste après glow
 // parce que c'est là qu'on le cherche — les deux s'empilent sur un rendu film.
 //
+// `lensBlur` (2026-08-01) vient du même cahier, §6ter : aucun flou n'existait
+// ici, et c'était l'absence la plus voyante face à la référence. Posé après les
+// deux halos parce qu'il appartient à la même famille — ce que fait l'objectif
+// avec la lumière qu'il ne met pas au point.
+//
 // Ce tableau alimente le sélecteur « ajouter un effet ».
 export const effectRegistry: EffectModule[] = [
   glow,
   halation,
+  lensBlur,
   chromaticBleed,
   warp,
   grain,

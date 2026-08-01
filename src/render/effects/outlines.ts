@@ -101,10 +101,10 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let wash = clamp(params[7], 0.0, 1.0);
   let source = params[8];
 
-  // Ecartement des taps et noyau de Scharr : voir effects/edgeGradient.ts,
-  // partage avec coloredEdges. Deux copies auraient derive, et deux effets de
-  // contour poses sur la meme photo auraient dessine des bords a des endroits
-  // DIFFERENTS — ce qui ressemble a un choix esthetique et n'est qu'un
+  // Écartement des taps et noyau de Scharr : voir effects/edgeGradient.ts,
+  // partagé avec coloredEdges. Deux copies auraient dérivé, et deux effets de
+  // contour posés sur la même photo auraient dessiné des bords à des endroits
+  // DIFFÉRENTS — ce qui ressemble à un choix esthétique et n'est qu'un
   // copier-coller qui a vieilli.
   let g = edge_scharr(uv, edge_spacing(params[0]), source);
   let gx = g.gx;

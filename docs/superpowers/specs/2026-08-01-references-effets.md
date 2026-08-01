@@ -434,6 +434,59 @@ Un motif se dégage : **le choix d'espace de mélange et le mode d'entrée sont 
 contrôles récurrents chez Figma**, et absents partout chez nous. À traiter comme
 une famille plutôt qu'effet par effet.
 
+### LIVRÉ le 2026-08-01 — et DEUX de ces « écarts » n'en étaient pas
+
+La famille est traitée comme famille, ainsi que ce paragraphe le demandait :
+`effects/blendSpace.ts` et `effects/inputMode.ts` (`6da8041`).
+
+| écart relevé | issue |
+|---|---|
+| Outlines — mode d'entrée | ✅ **deux** choix, pas trois (voir ci-dessous) |
+| Gooey merge — mode d'entrée | ✅ trois modes |
+| Gooey merge — couleur de premier plan | ✅ `93747d8` |
+| Channel mixer — espace de mélange | ✅ `transferSpace`, défaut inchangé |
+| Pixel stretch — `Offset` signé | ✅ `93747d8`, sous le nom `Asymétrie` |
+| Gooey merge — couleur de FOND | ❌ **refusée**, voir plus bas |
+| Gooey merge — *Source Mix* | ❌ **refusé**, voir plus bas |
+| Gooey merge — inversion | ❌ **sans objet**, déjà atteignable |
+| Pixel stretch — pilotage par cercle | ⬜ chantier d'interface, pas de shader |
+| Slice shift — « aligné » | ⚠️ **jamais revérifié** contre la fiche |
+
+**Le troisième mode d'entrée d'`outlines` est écarté SUR PREUVE.** Cet effet
+mesure un gradient, et |∇(1−x)| = |∇x| : inverser la luminance laisse la
+magnitude rigoureusement inchangée, donc le trait tracé serait identique au
+pixel près. « Luma inversé » y serait un contrôle inerte — l'échec silencieux
+que ce dépôt proscrit, et la même raison qui a fait retirer les quatre
+paramètres de teinte du glow plutôt que de les laisser sans effet. D'où un
+vocabulaire restreint (`INPUT_SOURCE_CHOICES`) qui n'est pas un sous-ensemble
+arbitraire : c'est la même question posée à un opérateur pour lequel la
+troisième réponse n'existe pas.
+
+**La couleur de FOND de gooey merge est refusée.** Teinter les gouttes suppose
+de savoir où elles sont, et `coverage` est le seul endroit du dépôt qui le
+sache : irremplaçable. Le fond, lui, c'est tout le reste de la photo — le
+teinter est un cast GLOBAL, que `duotone`, `gradientMap` et `channelMixer` font
+déjà mieux et avec plus de réglages. L'ajouter aurait été la redondance exacte
+que l'audit du 2026-07-31 avait relevée entre duotone et gradientMap, sans même
+la circonstance atténuante d'un effet inachevé.
+
+**Le *Source Mix* est refusé par une décision de projet antérieure** : « Pas de
+curseur mélange avec l'original — le calque porte déjà son `opacity`, son
+`blendMode` et son masque » (`gradientMap.ts`, et le même paragraphe dans
+`pixelStretch.ts`).
+
+**L'inversion est sans objet** : atteignable depuis `6da8041` par
+`Mode d'entrée → Luminance inversée`. L'ajouter ferait deux chemins pour un
+seul geste.
+
+Les trois refus sont couverts par des tests (`ecartsFigma.test.ts`), pour que
+l'absence se lise comme un choix et non comme un oubli qu'un futur passage
+« parité Figma » comblerait de bonne foi.
+
+⚠️ **`slice shift` reste le seul de la liste qui n'ait pas été vérifié.** Le
+« aligné » ci-dessus vient d'une lecture antérieure, jamais recoupée avec la
+fiche — qui n'est pas lisible sans compte Figma (voir §6quater).
+
 ## 6ter. La famille des flous — référence Photoshop
 
 Ajoutée au chantier par Antoine le 2026-08-01. Aucun flou n'existe au registre

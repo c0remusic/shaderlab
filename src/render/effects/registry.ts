@@ -14,6 +14,7 @@ import { sliceShift } from "./sliceShift";
 import { gradientMap } from "./gradientMap";
 import { halation } from "./halation";
 import { lensBlur } from "./lensBlur";
+import { hatching } from "./hatching";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 
 // Les six du milieu suivent l'ordre de priorité du backlog d'effets confirmé par
@@ -41,6 +42,10 @@ export const effectRegistry: EffectModule[] = [
   grain,
   duotone,
   posterize,
+  // `hatching` (2026-08-01) est posé auprès de `posterize` et non à la suite du
+  // backlog : les deux appartiennent à la référence d'IMPRESSION, et c'est
+  // là qu'on cherche l'un quand on vient de poser l'autre.
+  hatching,
   gooeyMerge,
   channelMixer,
   outlines,

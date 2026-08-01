@@ -60,6 +60,14 @@ const ATTENDU = {
   // rendait des nuees granuleuses au lieu d'hexagones.
   "effet-lens-blur.png": { width: 256, height: 256, valeurs: null },
   "effet-lens-blur-bokeh.png": { width: 256, height: 256, valeurs: null },
+  // HATCHING (2026-08-01) : pose sur une rampe de gris NEUTRE et non sur la
+  // mire commune, pour la meme raison que le temoin de bokeh a sa propre mire.
+  // Le sujet de cet effet est sa REPONSE TONALE — trois couches de tailles qui
+  // se relaient quand la precedente sature — et le damier de la mire commune
+  // ferait sauter la luminance d'un texel a l'autre, rendant la progression
+  // illisible. Une reference qui ne peut pas voir ce que l'effet pretend faire
+  // ne verrouille que son bruit.
+  "effet-hatching.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

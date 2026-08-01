@@ -338,6 +338,30 @@ const INSTALL = `(async () => {
     return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
   };
 
+  // Mire A RAMPE : un degrade de gris NEUTRE, du noir au blanc, horizontal.
+  //
+  // La mire principale ne peut pas temoigner d'un effet dont le sujet est la
+  // REPONSE TONALE : sa luminance saute d'un texel a l'autre a cause du damier,
+  // donc une progression continue y devient illisible. Une rampe montre d'un
+  // coup d'oeil ce qu'un hachurage pretend faire — les couches qui se relaient
+  // l'une apres l'autre a mesure que le ton descend, et une gamme continue
+  // obtenue avec une encre unique.
+  //
+  // Neutre (r = g = b) A DESSEIN : une rampe coloree ferait varier la luminance
+  // ET la chromaticite en meme temps, et on ne saurait plus laquelle des deux
+  // pilote la trame.
+  const mireRampe = (w, h) => {
+    const d = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const v = ((x * 255) / (w - 1)) | 0;
+        d[i] = v; d[i + 1] = v; d[i + 2] = v; d[i + 3] = 255;
+      }
+    }
+    return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
+  };
+
   // Raster de pinceau DETERMINISTE : un disque a bord adouci, calcule, jamais
   // peint par un geste. Meme format que celui que produit MaskPainter (r8,
   // tightement pack, taille de l'image).
@@ -545,6 +569,30 @@ const INSTALL = `(async () => {
           highlightThreshold: 0.35,
           highlightBoost: 14,
           fieldShape: 0,
+        });
+      },
+    },
+
+    // Hatching, TEMOIN DE PROGRESSION TONALE : une rampe de gris neutre du noir
+    // au blanc. C'est le seul scenario capable de montrer ce que cet effet
+    // pretend faire — trois couches de tailles qui se relaient quand la
+    // precedente sature, donc une gamme continue avec une encre unique. Sur la
+    // mire commune, le damier ferait sauter la luminance d'un texel a l'autre
+    // et la progression serait illisible.
+    //
+    // Delave du fond a 0 : la photo reste sous la trame. A 0.75 (le defaut) le
+    // fond est delave et la reference ne verrouillerait plus que le trace, pas
+    // son rapport au ton.
+    "effet-hatching": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("hatching", p);
+        stack.updateParams(a, {
+          angle: 45, spacing: 9, weight: 0.62, crossAngle: 65, layers: 3,
+          blackPoint: 0.05, whitePoint: 0.95, wash: 0,
         });
       },
     },

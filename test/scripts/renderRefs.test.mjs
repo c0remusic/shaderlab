@@ -98,6 +98,13 @@ const ATTENDU = {
   // l autre, un bilateral et un gaussien rendraient la meme chose et la
   // reference ne prouverait rien.
   "effet-surface-blur.png": { width: 256, height: 256, valeurs: null },
+  // PIXEL STRETCH (2026-08-01) : premier verrou de cet effet, pose le jour ou
+  // Antoine a releve qu il ne rendait pas celui de Figma. La comparaison sur
+  // image a montre pourquoi — le notre etait GLOBAL et mangeait la photo en
+  // bandes, le leur se place sur la toile. Le scenario verrouille donc la
+  // REGION : ecart de 6,4 % des canaux contre 43,1 % sans elle, c est-a-dire
+  // une mire intacte tout autour de la coulure.
+  "effet-pixel-stretch.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

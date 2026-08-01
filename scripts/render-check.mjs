@@ -713,6 +713,29 @@ const INSTALL = `(async () => {
       },
     },
 
+    // Pixel stretch, avec une REGION. Antoine a releve que notre effet ne rendait
+    // pas celui de Figma ; la comparaison sur image a montre pourquoi — le notre
+    // etait GLOBAL et mangeait la photo en bandes, le leur se place sur la toile
+    // (« place the on-canvas circle over the area you want to stretch »).
+    //
+    // Le scenario est donc pose sur le cas qui compte : etirement horizontal
+    // franc (force 1) mais borne a un disque, avec l asymetrie a fond pour que
+    // la coulure ne parte que d un cote. Ce qu on doit voir : une coulure qui
+    // sort du disque, et la mire INTACTE tout autour. Un rayon au maximum
+    // redonnerait l ancien comportement, donc c est bien la region qu on
+    // verrouille ici et pas seulement l etirement.
+    "effet-pixel-stretch": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("pixelStretch");
+        stack.updateParams(a, {
+          angle: 0, position: 0.42, reach: 1.2, strength: 1,
+          wobble: 0.15, wobbleScale: 7, smooth: 0.2, offset: 0.9,
+          regionRadius: 0.34, regionX: 0.5, regionY: 0.5, regionFeather: 0.45,
+        });
+      },
+    },
+
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,
     // donc les passes de morphologie separees H/V).

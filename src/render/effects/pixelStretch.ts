@@ -76,6 +76,13 @@ export const pixelStretch: EffectModule = {
     // pour son nom d'origine, sur le précédent de « Largeur et Hauteur » qui a
     // remplacé « Échelle X et Échelle Y » (d54f91b).
     { name: "offset", label: "Asymétrie", unit: "percent", min: -1, max: 1, default: 0, step: 0.01, hint: "Répartit la portée entre les deux côtés de la ligne. 0 = traînée symétrique ; ±1 = elle ne part que d'un seul côté, l'autre reste intact" },
+    // RÉGION. Défaut à 1.5, c'est-à-dire plus grand que la demi-diagonale de
+    // n'importe quel cadre : le masque vaut 1 partout et l'effet reste GLOBAL,
+    // comme avant ce paramètre. Le réduire est ce qui le rend local.
+    { name: "regionRadius", label: "Rayon de la zone", unit: "percent", min: 0.02, max: 1.5, default: 1.5, step: 0.01, hint: "Limite l'étirement à un disque. Au maximum la zone couvre tout le cadre et l'effet est global — c'est en la réduisant que la photo reste lisible autour de la coulure" },
+    { name: "regionX", label: "Centre X de la zone", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Position horizontale du disque d'étirement" },
+    { name: "regionY", label: "Centre Y de la zone", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Position verticale du disque d'étirement" },
+    { name: "regionFeather", label: "Fondu de la zone", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Adoucit la limite du disque — à 0 la coulure s'arrête net sur un cercle visible, ce qui trahit l'effet" },
   ],
   wgsl: `
 ${UV_SPACE_WGSL}${HASH_WGSL}${VALUE_NOISE_WGSL}
@@ -91,6 +98,9 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // variable. Attrapé par \`npm run test:gpu-shaders\`, jamais par tsc.
   let sourceSmooth = clamp(params[6], 0.0, 1.0);
   let offset = clamp(params[7], -1.0, 1.0);
+  let regionRadius = max(params[8], 0.001);
+  let regionCenter = vec2<f32>(params[9], params[10]);
+  let regionFeather = clamp(params[11], 0.0, 1.0);
 
   let dims = vec2<f32>(textureDimensions(srcTexture));
   let ar = aspectScale(dims);
@@ -127,6 +137,25 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // la traînée au bout de sa portée, réutilisée telle quelle. Le plancher du
   // dénominateur n'est là que pour interdire la division par zéro, pas pour
   // rattraper un cas limite.
+  // RÉGION (2026-08-01). L'écart le plus visible avec la référence Figma
+  // n'était ni un easing ni un mode : leur pixel stretch se place sur la toile
+  // (« place the on-canvas circle over the area you want to stretch »), le
+  // nôtre s'appliquait à TOUTE l'image. La portée borne bien la traînée
+  // PERPENDICULAIREMENT à la ligne source, mais LE LONG de cette ligne l'effet
+  // courait sur toute la largeur — d'où une photo mangée en bandes là où la
+  // leur reste lisible avec des coulures qui en sortent.
+  //
+  // Le masque agit sur la FORCE et non sur la couleur : hors du disque la force
+  // tombe à 0, donc la compression vaut 1, donc srcS égale s et l'image est
+  // rigoureusement intacte. Même propriété que le bout de la portée, et aucun
+  // mélange à faire en sortie.
+  //
+  // Distance mesurée dans l'espace ISOTROPE (le même q que plus haut) : le
+  // disque est un disque, pas une ellipse sur un panoramique.
+  let regionDist = length(q - (regionCenter - vec2<f32>(0.5)) * ar);
+  let region = 1.0 - smoothstep(regionRadius * (1.0 - regionFeather), regionRadius, regionDist);
+  let localStrength = strength * region;
+
   let reachSide = reach * max(1.0 + offset * sign(d), 0.0);
   // \`ease\` va de 0 SUR la ligne à 1 au bout de la portée. \`smoothstep\` et non
   // une rampe linéaire : une rampe laisse une cassure de dérivée au bout de la
@@ -135,7 +164,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // Facteur de COMPRESSION de la coordonnée source. À \`ease\` = 1 il vaut
   // exactement 1, donc \`srcS == s\` : au-delà de la portée l'image est
   // rigoureusement intacte, sans avoir à tester une frontière.
-  let compress = mix(1.0 - strength, 1.0, ease);
+  let compress = mix(1.0 - localStrength, 1.0, ease);
   let srcS = origin + d * compress;
 
   let uvSrc = (dir * srcS + perp * t) / ar + vec2<f32>(0.5);

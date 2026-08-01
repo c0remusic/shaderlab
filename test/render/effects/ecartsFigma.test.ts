@@ -24,6 +24,7 @@ describe("pixelStretch — l'Offset signé de la référence", () => {
     // juste le mauvais curseur).
     expect(pixelStretch.params.map((p) => p.name)).toEqual([
       "angle", "position", "reach", "strength", "wobble", "wobbleScale", "smooth", "offset",
+      "regionRadius", "regionX", "regionY", "regionFeather",
     ]);
     expect(pixelStretch.wgsl).toContain("let offset = clamp(params[7], -1.0, 1.0);");
   });
@@ -40,6 +41,35 @@ describe("pixelStretch — l'Offset signé de la référence", () => {
     // devenait une vraie borne (0.01 par exemple), le côté « éteint » se
     // remettrait à étirer sur une portée minuscule mais non nulle.
     expect(pixelStretch.wgsl).toContain("clamp(abs(d) / max(reachSide, 0.00001), 0.0, 1.0)");
+  });
+
+  it("borne l'étirement à une RÉGION, et laisse l'image intacte dehors", () => {
+    // L'écart le plus visible avec la référence, releve par Antoine sur leur
+    // apercu : leur pixel stretch se place sur la toile, le notre s appliquait
+    // a TOUTE l image. Mesure avant/apres sur la mire commune : 43,1 % des
+    // canaux touches sans region, 6,4 % avec.
+    //
+    // Le masque agit sur la FORCE et non sur la couleur : hors du disque la
+    // force tombe a 0, donc la compression vaut 1, donc l image est
+    // rigoureusement intacte — aucun melange en sortie, aucune frontiere a
+    // tester. Meme propriete que le bout de la portee.
+    expect(pixelStretch.wgsl).toContain("let region = 1.0 - smoothstep(regionRadius * (1.0 - regionFeather), regionRadius, regionDist);");
+    expect(pixelStretch.wgsl).toContain("let localStrength = strength * region;");
+    expect(pixelStretch.wgsl).toContain("let compress = mix(1.0 - localStrength, 1.0, ease);");
+  });
+
+  it("a un rayon de région NEUTRE par défaut", () => {
+    // 1.5 depasse la demi-diagonale de n importe quel cadre : le masque vaut 1
+    // partout et l effet reste global, comme avant ce parametre. C est la
+    // condition pour le poser sur un effet deja present dans des presets.
+    const rayon = pixelStretch.params.find((p) => p.name === "regionRadius");
+    expect(rayon).toMatchObject({ max: 1.5, default: 1.5 });
+  });
+
+  it("mesure la région dans l'espace ISOTROPE", () => {
+    // Sans quoi le disque serait une ellipse sur un panoramique — meme piege,
+    // et meme correctif, que l angle de la ligne source juste au-dessus.
+    expect(pixelStretch.wgsl).toContain("let regionDist = length(q - (regionCenter - vec2<f32>(0.5)) * ar);");
   });
 
   it("garde une traînée symétrique par défaut", () => {

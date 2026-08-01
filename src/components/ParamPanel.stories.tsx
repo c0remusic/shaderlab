@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, screen, userEvent, within } from "storybook/test";
 import { ParamPanel } from "./ParamPanel";
 import { assertAccessibleNames } from "./ui/accessible-name.test-support";
 import { getEffect } from "../render/effects/registry";
@@ -116,6 +116,38 @@ export const WarpLayer: Story = {
 
 export const GrainLayer: Story = {
   args: { layer: makeLayer({ id: "layer-3", effectId: "grain" }) },
+};
+
+/** Paramètre à CHOIX DISCRET (`EffectParam.choices`) — le mode du grain. Cette
+ *  story existe pour une raison précise : la valeur reste un NOMBRE côté modèle
+ *  (l'uniform est un `array<f32>`), et tout l'intérêt du type est que
+ *  l'utilisateur ne voie jamais ce nombre. Un curseur à pas 1 aurait fonctionné
+ *  mécaniquement en affichant « 0 » et « 1 ». */
+export const DiscreteChoiceParamShowsNames: Story = {
+  args: { layer: makeLayer({ id: "layer-mode", effectId: "grain" }) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // Base UI Select.Trigger expose le rôle "combobox".
+    const trigger = canvas.getByRole("combobox", { name: "Type" });
+    // Le défaut est l'index 0 : il doit se lire par son NOM, jamais « 0 ».
+    await expect(trigger).toHaveTextContent("Analogique (argentique)");
+    await expect(trigger).not.toHaveTextContent("0");
+  },
+};
+
+/** Choisir un mode remonte son INDEX, et valide immédiatement l'historique —
+ *  un choix est un geste atomique, pas un glissement : sans commit, il ne serait
+ *  jamais annulable seul et s'agrégerait au prochain relâchement de curseur. */
+export const DiscreteChoiceFiresIndexAndCommits: Story = {
+  args: { layer: makeLayer({ id: "layer-mode", effectId: "grain" }), onParamChange: fn(), onParamCommit: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("combobox", { name: "Type" }));
+    // Les options s'ouvrent dans un PORTAIL hors de canvasElement — `screen`.
+    await userEvent.click(await screen.findByRole("option", { name: "Numérique (capteur)" }));
+    await expect(args.onParamChange).toHaveBeenCalledWith("layer-mode", { mode: 1 });
+    await expect(args.onParamCommit).toHaveBeenCalledTimes(1);
+  },
 };
 
 /** Écrêtage déjà posé : la case d'en-tête est cochée. */

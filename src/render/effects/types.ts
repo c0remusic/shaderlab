@@ -12,6 +12,21 @@ export interface EffectParam {
    *  standalone slider. All three roles must be present for a given `key` —
    *  ParamPanel throws otherwise (see groupEffectParams). */
   colorGroup?: { key: string; role: "hue" | "saturation" | "lightness"; label: string };
+  /** Renders this param as a named CHOICE list instead of a slider. The param
+   *  value stays a number — the index into this array — because the uniform is
+   *  `array<f32, N>` and nothing else may cross that boundary.
+   *
+   *  Why a list and not a slider with `step: 1`. A slider labels its value with
+   *  the number itself: a mode param would read "0" or "1" and say nothing about
+   *  what either is. Distinct from `colorGroup`, which groups three CONTINUOUS
+   *  params under one control; here a single param has discrete named states.
+   *
+   *  Reserved for genuinely discrete states — two settings of the SAME operation
+   *  belong on a slider (see `channelMixer`'s `monochrome`, deliberately
+   *  continuous so partial desaturations stay reachable). Use this when the
+   *  intermediate values would model nothing. Validated by `validateEffect`:
+   *  `min` must be 0, `step` 1, and `max` exactly `choices.length - 1`. */
+  choices?: string[];
 }
 
 export interface EffectPass {

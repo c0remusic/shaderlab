@@ -5,6 +5,7 @@ import "./ParamPanel.css";
 import { LabeledSlider } from "./ui/labeled-slider";
 import { Disclosure } from "./ui/collapsible";
 import { Checkbox } from "./ui/checkbox";
+import { Select } from "./ui/select";
 import { ColorGroupControl } from "./ui/color-group-control";
 import { formatControlValue } from "../ui/formatValue";
 
@@ -145,7 +146,35 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
       <Disclosure title="Effet" defaultOpen>
         <div className="param-panel__group">
           {groupEffectParams(effect.params).map((item) =>
-            item.kind === "single" ? (
+            item.kind === "single" && item.param.choices ? (
+              // Paramètre à CHOIX DISCRET (voir EffectParam.choices) : la valeur
+              // reste un nombre — l'index du choix — parce que l'uniform est un
+              // array<f32> et que rien d'autre ne franchit cette frontière. Un
+              // curseur à pas 1 conviendrait mécaniquement mais afficherait « 0 »
+              // ou « 1 » sans dire lequel est lequel.
+              //
+              // `labelPlacement="inline"` : la colonne du dock est haute et
+              // étroite, une étiquette au-dessus coûterait une ligne entière
+              // (ADR-0001 — la carte Effets déborde déjà).
+              <div key={item.param.name} title={item.param.hint}>
+                <Select
+                  label={item.param.label}
+                  labelPlacement="inline"
+                  value={String(Math.round(layer.params[item.param.name] ?? item.param.default))}
+                  options={item.param.choices.map((label, index) => ({ value: String(index), label }))}
+                  disabled={locked}
+                  onChange={(v) => {
+                    onParamChange(layer.id, { [item.param.name]: Number(v) });
+                    // Un choix est un geste ATOMIQUE, pas un glissement : il
+                    // n'a pas de phase « en cours » comme un curseur, donc il
+                    // valide son entrée d'historique immédiatement. Sans ça, le
+                    // changement de mode ne serait jamais annulable seul — il
+                    // s'agrégerait au prochain relâchement de curseur.
+                    onParamCommit();
+                  }}
+                />
+              </div>
+            ) : item.kind === "single" ? (
               <div key={item.param.name} title={item.param.hint}>
                 <LabeledSlider
                   label={item.param.label}

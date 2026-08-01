@@ -69,14 +69,25 @@ fn gnoise(p: vec2<f32>) -> f32 {
   );
 }
 
-fn fbm(p: vec2<f32>, octaves: i32) -> f32 {
+// PERSISTANCE PASSÉE EN ARGUMENT (2026-08-01). Elle était figée à 0.5 dans ce
+// corps, alors qu'un paramètre « Rugosité » existait depuis \`5ffd6b3\` et
+// prétendait la régler. Le commentaire de ce paramètre annonçait même la
+// correction — au passé, comme si elle avait eu lieu.
+//
+// La somme des poids n'est PAS normalisée, à dessein : à persistance 0.5 la
+// suite vaut 0.5, 0.25, 0.125… soit exactement ce que ce corps calculait avant,
+// donc le défaut ne bouge pas d'un bit. Le revers est assumé et se lit dans le
+// libellé : monter la rugosité augmente aussi le déplacement TOTAL, parce que
+// c'est ce que fait une persistance dans un FBM — les octaves fines ne
+// remplacent pas les grosses, elles s'y ajoutent.
+fn fbm(p: vec2<f32>, octaves: i32, persistence: f32) -> f32 {
   var value = 0.0;
   var amplitude = 0.5;
   var freq = p;
   for (var i = 0; i < 4; i = i + 1) {
     if (i >= octaves) { break; }
     value = value + amplitude * gnoise(freq);
-    amplitude = amplitude * 0.5;
+    amplitude = amplitude * persistence;
     freq = freq * 2.0;
   }
   return value;
@@ -86,16 +97,35 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let scale = params[0];
   let amplitude = params[1];
   let octaves = i32(params[2]);
-  let seed = params[3];
+  let roughness = clamp(params[3], 0.05, 0.95);
+  let anisotropy = clamp(params[4], -1.0, 1.0);
+  let twist = radians(params[5]);
+  // params[6], et non params[3]. Ce shader lisait la GRAINE à l'index 3, qui
+  // est celui de la rugosité : bouger « Rugosité » changeait le motif du bruit,
+  // et le curseur « Graine » ne faisait rien du tout. Trois autres contrôles
+  // étaient purement morts — anisotropie, torsion, et la graine elle-même.
+  let seed = params[6];
   let p = uv * scale + vec2<f32>(seed * 13.7, seed * 7.3);
   // Isotropie (voir effects/uvSpace.ts) : le décalage nominal est divisé par le
   // facteur d'aspect, sinon la même amplitude déplace ~1.5x plus de pixels à
   // l'horizontale qu'à la verticale sur une photo 3:2 (étirement du warp).
   let ar = aspectScale(vec2<f32>(textureDimensions(srcTexture)));
-  let offset = vec2<f32>(
-    fbm(p, octaves),
-    fbm(p + vec2<f32>(5.2, 1.3), octaves)
-  ) * amplitude / ar;
+  var raw = vec2<f32>(
+    fbm(p, octaves, roughness),
+    fbm(p + vec2<f32>(5.2, 1.3), octaves, roughness)
+  );
+  // TORSION : fait pivoter le VECTEUR de déplacement, pas le champ de bruit. À
+  // 0 c'est l'identité (le rendu d'avant), à 90° le déplacement devient
+  // perpendiculaire à ce qu'il était — la matière cisaille le long des lignes
+  // de niveau du bruit au lieu de les traverser.
+  let c = cos(twist);
+  let s = sin(twist);
+  raw = vec2<f32>(raw.x * c - raw.y * s, raw.x * s + raw.y * c);
+  // ANISOTROPIE : déséquilibre les deux axes. À 0 le facteur vaut (1,1), donc
+  // neutre ; à +1 tout le déplacement passe à l'horizontale, à -1 à la
+  // verticale. Appliqué APRÈS la torsion, sinon les deux se combattraient.
+  raw = raw * vec2<f32>(1.0 + anisotropy, 1.0 - anisotropy);
+  let offset = raw * amplitude / ar;
   // mirrorUv : près du bord, uv + offset sort du cadre — sans repli, le
   // sampler clamp-to-edge étire le texel de bord en traînée.
   return textureSample(srcTexture, srcSampler, mirrorUv(uv + offset));

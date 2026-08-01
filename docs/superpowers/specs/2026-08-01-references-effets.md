@@ -509,6 +509,151 @@ l'absence se lise comme un choix et non comme un oubli qu'un futur passage
 « aligné » ci-dessus vient d'une lecture antérieure, jamais recoupée avec la
 fiche — qui n'est pas lisible sans compte Figma (voir §6quater).
 
+## 6quinquies. LES FICHES ONT ÉTÉ LUES — 2026-08-01 au soir
+
+Ce document a répété quatre fois que la surface de contrôle des shaders Figma
+n'était pas lisible sans compte. **C'était faux, et la source manquante était
+citée en bas de ce fichier depuis sa première rédaction** : l'article d'aide
+« Built by the Figma team: shaders and plugins » documente les réglages de
+presque tous, en HTML pur, sans authentification.
+
+Trois heures ont été passées à piloter l'éditeur Figma dans le navigateur
+d'Antoine — sélection de calque, popover de réglages, zoom — pour une
+information qui tenait dans une page d'aide déjà référencée. **Leçon** : avant
+de piloter une interface, épuiser la documentation que l'on cite déjà.
+
+Ce qui suit renverse plusieurs conclusions de ce cahier.
+
+### `warp` — le §4 est FAUX, et c'est l'écart le plus grand du registre
+
+Le §4 conclut « pas d'écart de référence ». Il jugeait notre warp contre des
+références FBM génériques, pas contre le shader Figma du même nom.
+
+| | Figma | nous |
+|---|---|---|
+| nature | **huit types ANALYTIQUES** au choix | **un** champ de bruit fractal |
+| types | Sine wave, Twist, Bulge, Pinch, Ripple, Flag, Squeeze, Swirl | — |
+| centre | poignée `Center`, le point d'où la distorsion irradie | absent (le bruit n'a pas de centre) |
+| réglages | Frequency, Amplitude | Échelle, Amplitude, Détails, Rugosité, Anisotropie, Torsion, Graine |
+
+**L'intersection est vide.** Aucun de leurs huit types n'est atteignable par un
+bruit fractal : une torsion, une bulle, un pincement, une ondulation
+concentrique sont des formules FERMÉES centrées sur un point, pas du bruit. Et
+notre houle organique n'est atteignable par aucun de leurs huit.
+
+Ce ne sont pas deux versions du même effet, ce sont deux effets qui partagent un
+nom. Leur note « Reset Frequency and Amplitude when you switch Type, since each
+formula responds differently » confirme qu'il s'agit bien de huit formules
+distinctes et non d'un continuum.
+
+### `outlines` — MÊME NOM, AUTRE EFFET
+
+> « This draws a series of evenly spaced outlines that echo your shape outward,
+> like ripples. »
+
+Le leur **n'est pas un détecteur de contours** : il empile des contours
+concentriques qui s'éloignent de la forme, avec espacement, épaisseur et dégradé
+de couleurs. Le nôtre mesure un gradient de Scharr et trace la ligne de crête.
+
+**Conséquence directe sur une décision de ce cahier.** Le §6bis écarte leur
+troisième mode d'entrée (`Inverse luma`) « sur preuve » : |∇(1−x)| = |∇x|. La
+preuve reste JUSTE — pour NOTRE opérateur. Elle ne dit rien du leur, qui cherche
+une forme par seuil et pour qui l'inversion change tout (leur propre texte :
+« Inverse luma uses darkness, for dark art or text on white »). La formulation
+« la référence expose un contrôle inerte » était donc abusive : c'est chez nous
+qu'il serait inerte, parce que nous ne faisons pas la même chose qu'eux.
+
+### `coloredEdges` — conçu à l'aveugle, et tombé juste
+
+> « Gradient: Colors of edge lines. **Wraps radially around the center, so edges
+> at different angles pick up different colors.** Up to eight stops. »
+
+C'est exactement le principe retenu sans avoir lu cette phrase : la teinte vient
+de l'ORIENTATION du bord. Deux écarts réels subsistent :
+- ils exposent un **dégradé à huit arrêts**, nous une roue HSL (teinte, rotation,
+  étendue) — moins libre, mais sans éditeur d'arrêts à construire ;
+- ils ont `Opacity` + `Background` (une **couleur** de fond derrière les
+  contours), nous un `Délavé` qui ne va que vers le blanc.
+
+Leur `Threshold` / `Thickness` / `Intensity` correspondent à nos Seuil /
+Épaisseur / (saturation+luminosité).
+
+### `hatching` — divergent, et l'un ne fait pas l'autre
+
+| | Figma | nous |
+|---|---|---|
+| motif | **Waves, Zigzag, Circles** | droites parallèles |
+| tonalité | `Density` = épaisseur des lignes dans les zones CLAIRES | charge par couche, avec relais |
+| croisement | absent | jusqu'à quatre couches croisées |
+| position | poignée `Transform` sur la toile (origine, rotation, espacement) | angle, espacement |
+
+Le leur est **décoratif** (ondulations, zigzags, cercles) ; le nôtre est une
+**taille-douce** (gravure, croisement pour atteindre le noir). Aucun des deux ne
+sait faire l'autre. À noter : leur `Density` agit sur les zones claires, le
+nôtre sur les sombres — logique inverse.
+
+### `channelMixer` — encore un nom partagé pour deux outils
+
+> « Channel mixer takes the red, green, and blue colors in an image and
+> **recolors each channel with your own selected color**. »
+
+Le leur assigne **une couleur par canal** : c'est un outil de fausse couleur et
+de duotone. Le nôtre est une **matrice 3×3 numérique**, le modèle du filtre
+optique. Leur `color space` sRGB/Linéaire correspond en revanche exactement au
+`transferSpace` livré ce matin — cette partie-là était juste.
+
+### `gooeyMerge` — leur contrôle PRINCIPAL nous manque
+
+> « **Threshold**: Sets where the edge of each shape sits. **Negative values grow
+> the shapes so nearby ones touch and merge. This is the main control.** »
+
+Notre `Seuil de fusion` est borné à [0, 1] et ne peut pas GROSSIR les formes.
+C'est, de leur propre aveu, le réglage central de l'effet. Les autres écarts
+sont confirmés : `Spread`, `Edge Softness`, `Foreground/Background Color`,
+`Invert`, `Source Mix` — et nos refus documentés du fond et du Source Mix
+restent valides comme choix de projet, mais le `Threshold` négatif, lui, est un
+manque et non un refus.
+
+### `gradientMap` — la correspondance ligne à ligne est CONFIRMÉE
+
+Leur fiche nomme : `Gradient` (arrêts), `Mix space` (sRGB / OKLab / OKLCH /
+Linear), `Offset`, `Repeat frequency`, `Repeat type` (Mirror / Repeat),
+`Scatter`. Livré : tout sauf les arrêts libres. Leur conseil « use OKLab, OKLCH
+or Linear **if transitions look muddy** » recoupe la mesure faite ici — sauf que
+notre mesure va plus loin et dit lequel : OKLCH.
+
+### `sliceShift` — « aligné » se confirme, à un manipulateur près
+
+Leur fiche : cercle sur la toile pour la direction, `Shift`, `Random`. Nous :
+Direction, Épaisseur, Décalage, Densité, Irrégularité, Écart des canaux, Graine.
+Nous en avons plus ; il manque le pilotage direct sur la toile.
+
+### Effets Figma sans équivalent chez nous, avec leur surface réelle
+
+- **Halftone** — Pattern (Dot/Blended), Dot Size, Dot Scale, **Color Mode
+  (CMYK aux angles d'écran d'imprimerie / RGB / BW Light / BW Dark)**, Rotation,
+  Center, Softness, Clip to Alpha. La rosette CMYK est le cœur.
+- **Lens distortion** — fisheye (`Distortion`) + aberration avec **trois modes**
+  (Lateral / Longitudinal / **Anamorphic**, « horizontal cinema-lens split »).
+  Notre `chromaticBleed` couvre l'aberration latérale seule, sans la déformation
+  géométrique.
+- **Pattern refraction** — Pattern (Lenticular / Zigzag / Waves / Circular /
+  Curved square / Flat square), Strength signé, Smoothness, Frost, Dispersion,
+  **Edge wrap** (Zero / Clamp / Repeat / Mirror).
+- **Dither** — Style (Bayer / Blue Noise / Threshold), Size, Levels, Mono.
+- **Pixelate**, **Chromatic metal**, **Color adjust**, **Filter presets**,
+  **Bloom**, **Bokeh blur**.
+
+### `pixelStretch` — notre lecture de l'`Offset` était une interprétation
+
+> « drag **Offset** to set **how far and which way** the pixels pull. Negative
+> and positive values go opposite directions. »
+
+Leur `Offset` est une distance SIGNÉE (portée + sens). Le nôtre a été livré
+comme une **asymétrie** de répartition de la portée entre les deux côtés. Les
+deux donnent « ça ne part que d'un côté » aux extrêmes, mais ce n'est pas la
+même grandeur. À revoir si la parité compte.
+
 ## 6ter. La famille des flous — référence Photoshop
 
 Ajoutée au chantier par Antoine le 2026-08-01. Aucun flou n'existe au registre

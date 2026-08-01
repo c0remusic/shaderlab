@@ -1809,3 +1809,62 @@ Corollaire de portée, à ne pas trancher trop vite : un *remplissage* GÉNÈRE 
 motif quand nos effets TRANSFORMENT une photo (`fs_main(uv, color)` reçoit le
 composite en dessous). Ce n'est pas le même contrat d'entrée, donc pas
 forcément le même chantier.
+
+## 2026-08-01 — trois heures à piloter une interface pour une page d'aide déjà citée
+
+**Correction (méthode), la plus chère de la session en temps.** Le cahier de
+références a répété QUATRE fois que la surface de contrôle des shaders Figma
+n'était « pas lisible sans compte ». Sur cette base : navigateur intégré, puis
+Chrome connecté d'Antoine, puis pilotage de l'éditeur Figma — sélection de
+calque, recherche dans Tools, clics sur les lignes d'effet, tentative de zoom,
+balayages DOM successifs. Une quinzaine d'appels d'outil, un fichier
+désélectionné, une vue rechargée, et zéro paramètre récupéré.
+
+La source était **citée en bas du cahier depuis sa première rédaction** :
+`help.figma.com/.../Built-by-the-Figma-team-shaders-and-plugins`. Une page
+d'aide en HTML pur, sans authentification, qui documente les réglages de presque
+tous les shaders — types, modes, tables de correspondance comprises. Un
+`get_page_text` a suffi.
+
+**Règle** : avant de piloter une interface pour en extraire de l'information,
+épuiser la documentation qu'on cite déjà. Une affirmation du type « ce n'est
+lisible que dans l'outil » est une hypothèse à vérifier, pas un fait — et elle
+s'auto-renforce à chaque fois qu'on la recopie sans la tester.
+
+Corollaire sur le diagnostic : j'ai aussi affirmé « la fenêtre est trop petite »
+puis mesuré qu'elle était DÉJÀ maximisée (3440x1400) et que les 611 px venaient
+d'un `devicePixelRatio` de 2. Deuxième affirmation posée avant la mesure dans la
+même heure.
+
+## 2026-08-01 — ce que la lecture des fiches a renversé
+
+Quatre conclusions du cahier tombent, et une tient :
+
+- **`warp`** : le §4 disait « pas d'écart de référence ». L'intersection est en
+  fait VIDE. Leur Warp propose huit types ANALYTIQUES centrés sur un point
+  (Sine, Twist, Bulge, Pinch, Ripple, Flag, Squeeze, Swirl) ; le nôtre est un
+  champ de bruit fractal. Aucun des huit n'est atteignable par du bruit, et
+  notre houle n'est atteignable par aucun des huit.
+- **`outlines`** : même nom, autre effet. Le leur empile des contours
+  CONCENTRIQUES qui s'éloignent de la forme ; le nôtre détecte des bords. Du
+  coup l'argument « leur troisième mode d'entrée est inerte » était abusif : la
+  preuve |grad(1-x)| = |grad(x)| vaut pour NOTRE opérateur, pas pour le leur,
+  qui seuille une forme et pour qui l'inversion change tout.
+- **`channelMixer`** : le leur recolore chaque canal avec une COULEUR choisie
+  (fausse couleur, duotone) ; le nôtre est une matrice numérique. Seul le
+  `color space` sRGB/Linéaire correspondait vraiment.
+- **`hatching`** : le leur fait des Waves / Zigzag / Circles décoratifs ; le
+  nôtre une taille-douce à croisement. Leur `Density` agit sur les zones
+  CLAIRES, le nôtre sur les sombres.
+- **`gradientMap`** : correspondance CONFIRMÉE ligne à ligne, arrêts libres mis
+  à part. La seule des cinq qui tienne.
+
+Et un manque franc découvert : le `Threshold` de leur gooey merge accepte des
+valeurs NÉGATIVES pour faire GROSSIR les formes jusqu'à ce qu'elles se touchent
+— « this is the main control », dit leur fiche. Le nôtre est borné à [0,1] et ne
+sait pas le faire.
+
+Bonne surprise : `coloredEdges` a été conçu sans la fiche et tombe juste. Leur
+texte dit « Gradient wraps radially around the center, so edges at different
+angles pick up different colors » — c'est exactement la teinte-par-orientation
+retenue à l'aveugle.

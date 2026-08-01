@@ -354,8 +354,29 @@ s'inverse — ce n'est pas un doublon, c'est un effet inachevé.
 
 ## 6quater. L'inventaire Figma de ce cahier était INCOMPLET — relevé le 2026-08-01
 
-Corrigé après lecture directe de `figma.com/community/shaders`. Le catalogue
-tient **dix-neuf** entrées, pas la poignée que ce document cite :
+Corrigé après lecture directe de `figma.com/community/shaders`. ⚠️ **Correction
+de la correction, le 2026-08-01 au soir** : la première rédaction de ce
+paragraphe disait « le catalogue tient dix-neuf entrées ». C'est FAUX, et
+l'erreur est instructive.
+
+La page s'intitule « Shader **Effects & Fills** » et porte **deux onglets** :
+`Effets` et `Remplissages`. Les dix-neuf ci-dessous sont la grille de l'onglet
+**Effets**, qui est celui par défaut — l'onglet **Remplissages n'a jamais été
+ouvert**, et son contenu reste inconnu.
+
+La preuve était déjà dans le relevé du carrousel fait le même jour, sans qu'on
+en tire la conséquence : il ÉTIQUETTE chaque vedette, et deux d'entre elles sont
+des **Remplissages** (`Pattern grid`, `Moire`) qui ne figurent pas dans les
+dix-neuf. La grille était donc bien filtrée. Une donnée qui contredisait
+l'affirmation se trouvait dans le même relevé qui a servi à l'écrire.
+
+Note de portée, à trancher avant d'aller y voir : un *remplissage* GÉNÈRE un
+motif, là où nos effets TRANSFORMENT une photo. Ce n'est pas le même contrat
+d'entrée (`fs_main(uv, color)` reçoit le composite en dessous), donc pas
+forcément le même chantier — mais `Moire` (« line distortion, RGB separation,
+optical interference ») décrit quelque chose qu'un calque d'effet saurait faire.
+
+Les dix-neuf **effets** :
 
 > Colored edges · Slice shift · Channel mixer · Outlines · Halftone · Hatching ·
 > Bokeh blur · Bloom · Pixel stretch · Filter presets · Pattern refraction ·
@@ -379,7 +400,8 @@ Deux descriptions obtenues de la page elle-même, à verser au dossier :
 ⚠️ **Limite de méthode, à ne pas oublier au prochain passage** : la page ne
 publie la description que des QUATRE vedettes de son carrousel. La surface de
 contrôle des quinze autres n'est lisible qu'en ouvrant chaque shader dans Figma,
-donc avec un compte. Les écarts du §6bis ci-dessous viennent d'une lecture
+donc avec un compte. **Et l'onglet `Remplissages` n'a pas été ouvert du tout** —
+tout inventaire tiré de ce paragraphe ne couvre que les Effets. Les écarts du §6bis ci-dessous viennent d'une lecture
 antérieure et n'ont PAS été revérifiés contre les fiches ; `warp` en particulier
 est jugé « sans écart de référence » au §4 sans que le shader Figma du même nom
 ait jamais été regardé (auteur : Miggi from Figgi). C'est un trou franc.

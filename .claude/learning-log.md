@@ -1784,3 +1784,28 @@ poussé (`8ac62f4`, reflog `update by push`). Ni le hook `post-commit`
 (claude-crosscheck, qui ne pousse pas) ni `git config` ne l'expliquent. Une
 autre session ou une autre fenêtre pousse sur ce dépôt : le vérifier avant de
 conclure quoi que ce soit sur l'état distant.
+
+## 2026-08-01 — la donnée qui réfutait l'affirmation était dans le relevé qui l'a produite
+
+**Correction (méthode).** Le cahier de références a affirmé « le catalogue Figma
+tient dix-neuf entrées » après lecture de `figma.com/community/shaders`. Faux :
+la page s'intitule « Shader Effects **& Fills** » et porte DEUX onglets. Les
+dix-neuf sont la grille de l'onglet `Effets`, celui par défaut. L'onglet
+`Remplissages` n'a jamais été ouvert.
+
+Ce qui rend l'erreur intéressante, c'est que la réfutation était **dans le même
+relevé**. Le carrousel de vedettes, lu quelques minutes plus tôt, ÉTIQUETTE
+chaque entrée `Effet` ou `Remplissage` — et deux de ses quatre vedettes
+(`Pattern grid`, `Moire`) sont des Remplissages ABSENTS des dix-neuf. La preuve
+que la grille était filtrée se trouvait dans les données qui ont servi à écrire
+qu'elle ne l'était pas.
+
+**Règle** : quand un relevé porte une taxonomie explicite (ici un libellé de
+catégorie par ligne), la recouper avec la liste qu'on en tire AVANT d'écrire un
+total. Un inventaire est une affirmation quantitative comme une autre — même
+règle que « l'affirmation vient après la mesure ».
+
+Corollaire de portée, à ne pas trancher trop vite : un *remplissage* GÉNÈRE un
+motif quand nos effets TRANSFORMENT une photo (`fs_main(uv, color)` reçoit le
+composite en dessous). Ce n'est pas le même contrat d'entrée, donc pas
+forcément le même chantier.

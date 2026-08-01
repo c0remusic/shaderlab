@@ -1660,3 +1660,127 @@ le nœud était bon et que c'était le clamp qui parlait) ; pour un style, passe
 par `document.elementFromPoint(x, y)` — l'élément réellement sous le pointeur —
 jamais par un parent choisi à la main ; pour un contrôle, lister les libellés
 réels avant de viser une regex.
+
+## 2026-08-01 — un verrou de pixels ne vaut que si sa mire peut MONTRER la propriété
+
+**Correction (méthode), et la plus coûteuse de la session.** Trois défauts sur
+quatre ont été trouvés par un témoin de rendu, aucun par un test unitaire.
+
+`lensBlur` avait **dix-sept tests verts** en floutant au DOUBLE du rayon réglé
+(`step = radiusPx / dims` avec `dims` en demi-résolution donne un décalage de
+`radiusPx` demi-texels ; le commentaire affirmait même que « le facteur 0.5 tombe
+tout seul ») et en rendant des nuées granuleuses au lieu d'hexagones (nombre de
+taps FIXE, donc densité qui s'effondre quand le rayon monte, sur une spirale
+tournée par un tirage par pixel qui décorrèle les voisins).
+
+Son premier scénario de rendu ne pouvait PAS le voir : posé sur la mire commune,
+qui n'a aucun point lumineux isolé. Or une tache de bokeh ne se lit que sur un
+petit point brillant contre du sombre — sous un damier, un lens blur rend
+exactement ce que rendrait un gaussien. Le verrou verrouillait du bruit.
+
+Trois mires ont dû être écrites pour trois effets, chacune conçue autour de la
+propriété à prouver :
+- `mireBokeh` — points isolés de quatre tailles : montre qu'un point plus petit
+  donne une tache de MÊME diamètre, seulement plus transparente. Elle a trouvé
+  les deux défauts ci-dessus à sa première exécution.
+- `mireRampe` — rampe de gris NEUTRE : montre la progression tonale de
+  `hatching`, illisible sur un damier dont la luminance saute d'un texel à
+  l'autre. Neutre à dessein, une rampe colorée ferait varier luminance et
+  chromaticité ensemble.
+- `mireBruit` — aplats bruités séparés par deux contours francs : un bilatéral
+  promet DEUX choses à la fois (le bruit part, le contour reste) et aucune mire
+  existante ne portait les deux. Sur un damier (que des contours) ou un dégradé
+  (que des aplats), un bilatéral et un gaussien rendent la même chose.
+
+**Règle** : avant d'écrire la référence d'un effet, se demander quelle propriété
+le distingue de sa version naïve, puis vérifier que la mire peut la montrer. Si
+elle ne le peut pas, la mire est à écrire d'abord.
+
+**Corollaire prouvé le même jour** : le verrou sert aussi à rendre un REFACTOR
+prouvable. `outlines` n'avait aucune référence ; en poser une AVANT d'extraire
+son gradient de Scharr vers un module partagé a transformé « ça devrait être
+neutre » en `aucun écart`.
+
+## 2026-08-01 — trois pièges d'outillage qui ont mordu plusieurs fois chacun
+
+**1. Le bloc de scénarios de `render-check.mjs` vit DANS un template literal.**
+Un backtick dans un commentaire de cette zone casse le parsing du fichier
+entier — `SyntaxError` à des dizaines de lignes de l'endroit fautif. Rencontré
+DEUX fois dans la même session, la seconde après avoir écrit l'avertissement
+soi-même trois heures plus tôt. Écrire les noms de paramètres sans backticks
+dans cette zone.
+
+**2. Une assertion NÉGATIVE sur du texte WGSL se déclenche sur les commentaires
+du shader.** Trois occurrences : `not.toMatch(/round\(d\)/)`,
+`not.toMatch(/smoothstep\([^)]*dist\)/)`. Les sources de `effects/` NOMMENT
+l'écriture qu'elles écartent, pour dire pourquoi elles ne l'emploient pas — donc
+une recherche naïve trouve sa propre mise en garde. Filtrer les lignes commençant
+par `//` avant toute assertion négative (helper `codeSeul()` dans
+`test/render/effects/hatching.test.ts` et `coloredEdges.test.ts`).
+
+**3. Les fichiers sont en CRLF sur disque alors que le dépôt stocke du LF.**
+Toute chirurgie par bornes de texte (`indexOf("\n}\n")`) échoue silencieusement.
+Normaliser en lecture (`.replace(/\r\n/g, "\n")`), réécrire en LF.
+
+## 2026-08-01 — les cinq dialogues sont TOUJOURS montés, et ce dépôt n'a pas de `role="dialog"`
+
+**Correction (sonde CDP), suite directe de l'entrée du 2026-07-31.** Deux relevés
+faux dans le même run, dans les deux sens :
+
+- `document.querySelectorAll('[role=dialog]')` rendait **0** alors que le
+  dialogue était ouvert. `src/ui/Dialog.tsx` utilise l'élément NATIF
+  `<dialog class="ui-dialog">` avec `showModal()`, pas l'attribut ARIA. Le seul
+  sélecteur honnête est `dialog.ui-dialog[open]`.
+- Un clic sur le premier bouton « Annuler » du document fermait un dialogue
+  DÉJÀ fermé : les cinq dialogues sont montés en permanence et portent chacun
+  un « Annuler » et un « Fermer ». Toujours viser depuis le dialogue ouvert
+  (`dialog.ui-dialog[open] button`), jamais depuis `document`.
+
+Corollaire utile : lister `[...document.querySelectorAll('button')]` avec leurs
+libellés donne d'un coup la carte des dialogues montés — c'est ce qui a permis
+de vérifier que les cinq étaient bien là après leur extraction hors d'`App.tsx`.
+
+## 2026-08-01 — écrire l'affirmation avant la mesure, trois fois dans la journée
+
+**Correction (méthode).** Trois commentaires ont affirmé une propriété que
+personne n'avait vérifiée, et les trois étaient faux :
+
+1. « le facteur 0.5 tombe tout seul » (`lensBlur`, écartement des taps en
+   demi-résolution) — il ne tombe pas, l'effet floutait au double du rayon.
+2. « 48 est le point où la spirale cesse de se lire comme des anneaux » — chiffre
+   posé au jugé, démenti par le premier rendu : ce n'était pas des anneaux mais
+   une granulation, et il en fallait quatre fois plus.
+3. L'en-tête de `blendSpace` annonçait qu'OKLab répare le creux de saturation
+   des complémentaires. La mesure dit l'inverse — il est légèrement SOUS le
+   linéaire (.058 contre .114), parce qu'une droite dans le plan a/b passe près
+   de l'origine quand les bouts sont opposés. Seul OKLCH tient le chroma.
+
+Les trois se ressemblent : une propriété quantitative écrite au présent de
+l'indicatif, dans un fichier dont la culture est justement de tout justifier. Le
+ton assuré du dépôt rend ces phrases INDISTINGUABLES des affirmations
+réellement mesurées, et c'est ce qui les rend coûteuses.
+
+**Règle** : une propriété chiffrée s'écrit APRÈS la mesure, et la mesure entre
+dans le texte. Le tableau de `blendSpace` et le « 40 Ko -> 15 Ko » de
+`photo-double-exposure` sont la bonne forme ; « le facteur tombe tout seul » ne
+l'est pas.
+
+## 2026-08-01 — deux frictions de conduite de session
+
+**1. « moi je voulais le gradient map des shaders ».** Question posée sur la
+différence entre duotone, channel mixer et gradient map ; réponse donnée sur NOS
+trois effets, alors qu'Antoine parlait du shader du catalogue Figma. Les deux
+lectures étaient possibles et le contexte de la session (deux heures dans le
+code) a fait pencher du mauvais côté. Quand un nom existe à la fois au registre
+et dans une référence externe activement discutée, traiter les deux ou demander.
+
+**2. « il est pas dans la sauvegarde github ? ».** L'état de poussée avait été
+signalé une fois en début de session, puis trois commits se sont accumulés sans
+que ce soit redit. Sur une session longue, l'écart local/distant se redit à
+chaque jalon — ou se règle une fois pour toutes.
+
+Note connexe : `origin/master` portait un commit que cette session n'avait PAS
+poussé (`8ac62f4`, reflog `update by push`). Ni le hook `post-commit`
+(claude-crosscheck, qui ne pousse pas) ni `git config` ne l'expliquent. Une
+autre session ou une autre fenêtre pousse sur ce dépôt : le vérifier avant de
+conclure quoi que ce soit sur l'état distant.

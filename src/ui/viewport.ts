@@ -146,34 +146,81 @@ export function clampScale(scale: number, content: Size, view: Size): number {
 }
 
 /**
- * Borne le déplacement (PRD : « impossible de faire sortir l'image entièrement
- * de la vue »).
+ * Fraction de l'image qui doit rester dans la vue, quoi qu'on fasse.
  *
- * Deux régimes, et le second n'est pas un clamp mais un CENTRAGE : quand le
- * contenu affiché est plus petit que la vue sur un axe, il n'y a rien à
- * explorer sur cet axe. Le laisser libre entre 0 et `view - displayed`
- * autoriserait une image collée en haut de la zone après un dézoom, ce qui se
- * lit comme un bug d'alignement et non comme un déplacement voulu.
+ * C'est le garde-fou qui remplace l'ancien clamp « l'image ne sort jamais » :
+ * on peut la pousser de côté autant qu'on veut, il en reste toujours de quoi
+ * la rattraper à la souris. Sans lui, un déplacement un peu franc laisse une
+ * vue vide, sans aucun indice de la direction où l'image est partie.
+ */
+export const MIN_VISIBLE_FRACTION = 0.25;
+
+/**
+ * Combien de pixels d'image doivent rester visibles sur un axe.
+ *
+ * Deux bornes, chacune pour un cas dégénéré réel :
+ * - jamais PLUS que l'image elle-même, sinon une image plus petite que le
+ *   minimum deviendrait immobile (le clamp exigerait l'impossible) ;
+ * - jamais MOINS que `FIT_MARGIN`, sinon un dézoom fort réduit la prise à une
+ *   lichette de quelques pixels — visible en théorie, invisible en pratique.
+ */
+function minVisible(displayed: number, viewExtent: number): number {
+  return Math.min(displayed, Math.max(FIT_MARGIN, MIN_VISIBLE_FRACTION * Math.min(displayed, viewExtent)));
+}
+
+/**
+ * Borne le déplacement.
+ *
+ * UN SEUL RÉGIME depuis le 2026-08-01 (choix utilisateur) : l'image peut se
+ * poser où on veut dans la vue, à tous les zooms, tant qu'il en reste
+ * `minVisible` sur chaque axe.
+ *
+ * Ce que ça remplace, et pourquoi. Il y avait deux régimes, dont le second
+ * n'était pas un clamp mais un CENTRAGE : dès que le contenu affiché tenait
+ * dans la vue, l'offset était écrasé par le centre. Conséquence non voulue —
+ * au zoom d'ajustement, qui est le zoom par défaut, le geste de déplacement ne
+ * pouvait RIEN faire, et rien ne le disait. Arbitrage d'Antoine : « ajuster à
+ * l'écran, c'est pour la position par défaut, pas pour un geste délibéré de
+ * déplacement ». Le centrage reste donc, mais là où il appartient — dans
+ * `fitViewport`, qui est cette position par défaut.
+ *
+ * Le MUST du PRD (`2026-07-18-shaderlab-canvas-pan-zoom-prd.md`) disait
+ * « impossible de faire sortir l'image entièrement de la vue ». Il est tenu à
+ * la lettre : `MIN_VISIBLE_FRACTION` garantit qu'elle n'en sort jamais
+ * entièrement. C'est le clamp qui allait au-delà de ce que le PRD demandait.
  */
 export function clampOffset(state: ViewportState, content: Size, view: Size): ViewportState {
   if (isDegenerate(content) || isDegenerate(view)) return state;
-  const displayedWidth = content.width * state.scale;
-  const displayedHeight = content.height * state.scale;
   const axis = (offset: number, displayed: number, viewExtent: number): number => {
-    if (displayed <= viewExtent) return (viewExtent - displayed) / 2;
-    return Math.min(0, Math.max(viewExtent - displayed, offset));
+    const keep = minVisible(displayed, viewExtent);
+    // Bord DROIT au moins à `keep` du bord gauche de la vue, et bord GAUCHE au
+    // plus à `keep` du bord droit : les deux inégalités du même garde-fou.
+    return Math.min(viewExtent - keep, Math.max(keep - displayed, offset));
   };
   return {
     scale: state.scale,
-    offsetX: axis(state.offsetX, displayedWidth, view.width),
-    offsetY: axis(state.offsetY, displayedHeight, view.height),
+    offsetX: axis(state.offsetX, content.width * state.scale, view.width),
+    offsetY: axis(state.offsetY, content.height * state.scale, view.height),
   };
 }
 
-/** État au repos : ajusté à la vue et centré. */
+/**
+ * État au repos : ajusté à la vue et centré.
+ *
+ * Le centrage est CALCULÉ ICI, explicitement. Il venait avant du second régime
+ * de `clampOffset`, qui recentrait toute image tenant dans la vue — un effet
+ * de bord dont dépendait cette fonction sans le dire. En le rapatriant, le
+ * centrage devient ce qu'il est : la position de DÉPART du document, et non
+ * une contrainte permanente sur tous les déplacements ultérieurs.
+ */
 export function fitViewport(content: Size, view: Size): ViewportState {
   const scale = fitScale(content, view);
-  return clampOffset({ scale, offsetX: 0, offsetY: 0 }, content, view);
+  if (isDegenerate(content) || isDegenerate(view)) return { scale, offsetX: 0, offsetY: 0 };
+  return {
+    scale,
+    offsetX: (view.width - content.width * scale) / 2,
+    offsetY: (view.height - content.height * scale) / 2,
+  };
 }
 
 /** Point du repère IMAGE sous un point du repère VUE. */
@@ -308,10 +355,10 @@ export function zoomPercent(state: ViewportState): number {
   return Math.round(state.scale * 100);
 }
 
-/** Vrai ssi le contenu déborde de la vue sur au moins un axe — c'est-à-dire
- *  s'il y a quelque chose à explorer au déplacement. Sert à ne pas afficher un
- *  curseur de préhension là où le geste ne ferait rien. */
-export function isPannable(state: ViewportState, content: Size, view: Size): boolean {
-  if (isDegenerate(content) || isDegenerate(view)) return false;
-  return content.width * state.scale > view.width + 0.5 || content.height * state.scale > view.height + 0.5;
-}
+// `isPannable` a été RETIRÉ le 2026-08-01. Il répondait « y a-t-il quelque
+// chose à explorer au déplacement ? » en testant si le contenu débordait de la
+// vue — une question qui n'a plus de réponse négative depuis que le
+// déplacement est libre à tous les zooms (voir `clampOffset`). Il n'avait
+// aucun appelant de production : le curseur de préhension est posé en CSS par
+// `Canvas.tsx` sur la seule foi du geste, jamais de cette fonction. Le garder
+// aurait laissé traîner un prédicat qui ment.

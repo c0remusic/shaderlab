@@ -9,7 +9,6 @@ import {
   fitScale,
   fitViewport,
   imageToView,
-  isPannable,
   panBy,
   reconcileViewport,
   scaleBounds,
@@ -82,30 +81,58 @@ describe("scaleBounds — les deux valeurs remarquables restent atteignables", (
 });
 
 describe("clampOffset — bornes de déplacement", () => {
-  it("centre l'axe sur lequel le contenu ne déborde pas", () => {
-    const state: ViewportState = { scale: fitScale(PHOTO, VIEW), offsetX: 0, offsetY: 0 };
-    const clamped = clampOffset(state, PHOTO, VIEW);
-    // À l'ajustement le contenu ne déborde sur AUCUN axe (la marge le garantit) :
-    // les deux sont donc centrés, et le décalage horizontal vaut la marge.
-    expect(clamped.offsetX).toBeCloseTo(FIT_MARGIN, 6);
-    const displayedHeight = PHOTO.height * state.scale;
-    expect(clamped.offsetY).toBeCloseTo((VIEW.height - displayedHeight) / 2, 6);
-  });
-
-  it("empêche de faire sortir l'image de la vue quand elle déborde", () => {
-    const state: ViewportState = { scale: 1, offsetX: 5000, offsetY: 5000 };
-    const clamped = clampOffset(state, PHOTO, VIEW);
-    // Un décalage positif laisserait un vide à gauche : le bord gauche du
-    // contenu ne peut pas dépasser le bord gauche de la vue.
+  it("NE recentre PLUS une image qui tient dans la vue", () => {
+    // Régime retiré le 2026-08-01. C'est lui qui rendait le geste de
+    // déplacement inopérant au zoom d'ajustement — donc au zoom par défaut,
+    // donc à peu près toujours — sans que rien ne le signale.
+    const scale = fitScale(PHOTO, VIEW);
+    const pousse: ViewportState = { scale, offsetX: 0, offsetY: 0 };
+    const clamped = clampOffset(pousse, PHOTO, VIEW);
     expect(clamped.offsetX).toBe(0);
     expect(clamped.offsetY).toBe(0);
+    // Et le centre n'est PAS un point fixe imposé : on peut s'en écarter.
+    const ecarte = clampOffset({ scale, offsetX: 12, offsetY: 34 }, PHOTO, VIEW);
+    expect(ecarte.offsetX).toBe(12);
+    expect(ecarte.offsetY).toBe(34);
   });
 
-  it("empêche symétriquement de dépasser par le bord opposé", () => {
-    const state: ViewportState = { scale: 1, offsetX: -99999, offsetY: -99999 };
+  it("laisse pousser l'image bien au-delà des bords, dans les deux sens", () => {
+    const state: ViewportState = { scale: 1, offsetX: 5000, offsetY: 5000 };
     const clamped = clampOffset(state, PHOTO, VIEW);
-    expect(clamped.offsetX).toBe(VIEW.width - PHOTO.width);
-    expect(clamped.offsetY).toBe(VIEW.height - PHOTO.height);
+    // L'ancien clamp ramenait à 0 (bord collé au bord). Le nouveau autorise un
+    // décalage positif : c'est exactement le geste « pousser l'image de côté
+    // pour travailler contre le dock ».
+    expect(clamped.offsetX).toBeGreaterThan(0);
+    expect(clamped.offsetY).toBeGreaterThan(0);
+  });
+
+  it("garde TOUJOURS une prise visible — le MUST du PRD, et rien de plus", () => {
+    // « Impossible de faire sortir l'image entièrement de la vue » : la borne
+    // se calcule sur l'intersection réelle image ∩ vue, pas sur une croyance.
+    const visible = (state: ViewportState, taille: Size, vue: Size) => {
+      const c = clampOffset(state, taille, vue);
+      const largeur = Math.min(vue.width, c.offsetX + taille.width * c.scale) - Math.max(0, c.offsetX);
+      const hauteur = Math.min(vue.height, c.offsetY + taille.height * c.scale) - Math.max(0, c.offsetY);
+      return { largeur, hauteur };
+    };
+    for (const scale of [fitScale(PHOTO, VIEW) / 4, fitScale(PHOTO, VIEW), 1, MAX_ZOOM]) {
+      for (const signe of [-1, 1]) {
+        const { largeur, hauteur } = visible({ scale, offsetX: signe * 1e6, offsetY: signe * 1e6 }, PHOTO, VIEW);
+        expect(largeur).toBeGreaterThan(0);
+        expect(hauteur).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("immobilise une image plus petite que la prise minimale au lieu de l'exiger", () => {
+    // Cas dégénéré réel : au dézoom maximal l'image peut être plus petite que
+    // `FIT_MARGIN`. Exiger d'en garder autant visible qu'elle ne mesure serait
+    // une contrainte insatisfiable — le clamp la garde alors entièrement dans
+    // la vue plutôt que de produire des bornes croisées.
+    const minuscule = { width: 20, height: 16 };
+    const c = clampOffset({ scale: 1, offsetX: -1e6, offsetY: -1e6 }, minuscule, VIEW);
+    expect(c.offsetX).toBe(0);
+    expect(c.offsetY).toBe(0);
   });
 });
 
@@ -166,19 +193,20 @@ describe("zoomAt — le point sous le curseur reste sous le curseur", () => {
     expect(viewAfter.y).toBeCloseTo(anchor.y, 6);
   });
 
-  it("descend jusqu'au plancher, et l'image y est CENTRÉE et non ancrée", () => {
-    // Ce témoin ne vérifie PAS l'ancrage, et c'est délibéré : sous
-    // l'ajustement la photo est plus petite que la vue, régime dans lequel
-    // `clampOffset` centre au lieu de borner (voir sa doc). Aucun point hors du
-    // centre ne peut donc rester sous le curseur — l'exiger décrirait un
-    // comportement que le module refuse par conception.
+  it("tient l'ancrage JUSQU'AU PLANCHER de dézoom", () => {
+    // Ce témoin disait l'inverse jusqu'au 2026-08-01 : sous l'ajustement,
+    // `clampOffset` recentrait, donc aucun point hors du centre ne pouvait
+    // rester sous le curseur, et le test l'avait acté comme une propriété
+    // voulue. Le régime de centrage retiré, l'ancrage vaut maintenant à TOUTES
+    // les échelles — le dézoom molette sur un coin y reste.
     const before = fitViewport(PHOTO, VIEW);
     const anchorHorsCentre = { x: 120, y: 90 };
+    const imageBefore = viewToImage(before, anchorHorsCentre);
     const after = zoomAt(before, anchorHorsCentre, 0.000001, PHOTO, VIEW);
     expect(after.scale).toBeCloseTo(fitScale(PHOTO, VIEW) / ZOOM_OUT_HEADROOM, 10);
-    const centre = imageToView(after, { x: PHOTO.width / 2, y: PHOTO.height / 2 });
-    expect(centre.x).toBeCloseTo(VIEW.width / 2, 6);
-    expect(centre.y).toBeCloseTo(VIEW.height / 2, 6);
+    const viewAfter = imageToView(after, imageBefore);
+    expect(viewAfter.x).toBeCloseTo(anchorHorsCentre.x, 6);
+    expect(viewAfter.y).toBeCloseTo(anchorHorsCentre.y, 6);
   });
 });
 
@@ -214,19 +242,20 @@ describe("zoomByFactor / zoomToActualSize", () => {
 });
 
 describe("panBy", () => {
-  it("déplace puis reborne", () => {
+  it("suit le geste au pixel tant que la prise minimale est respectée", () => {
     const zoomed = zoomToActualSize(fitViewport(PHOTO, VIEW), PHOTO, VIEW);
     const moved = panBy(zoomed, 40, 0, PHOTO, VIEW);
-    // Le contenu débordait à droite et à gauche : un déplacement vers la
-    // droite est absorbé jusqu'à ce que le bord gauche touche la vue.
-    expect(moved.offsetX).toBeLessThanOrEqual(0);
-    expect(moved.offsetX).toBeGreaterThanOrEqual(VIEW.width - PHOTO.width);
+    expect(moved.offsetX).toBeCloseTo(zoomed.offsetX + 40, 6);
   });
 
-  it("ne bouge pas sur un axe où le contenu tient dans la vue", () => {
+  it("bouge AUSSI sur un axe où le contenu tient dans la vue", () => {
+    // Ce témoin affirmait l'inverse jusqu'au 2026-08-01 (« ne bouge pas »), et
+    // il verrouillait donc précisément le défaut signalé à l'usage : au zoom
+    // d'ajustement, l'axe non débordant était figé. Un test peut protéger un
+    // bug quand il décrit le code au lieu de décrire l'intention.
     const fitted = fitViewport(PHOTO, VIEW);
     const moved = panBy(fitted, 0, 200, PHOTO, VIEW);
-    expect(moved.offsetY).toBeCloseTo(fitted.offsetY, 6);
+    expect(moved.offsetY).toBeCloseTo(fitted.offsetY + 200, 6);
   });
 });
 
@@ -270,12 +299,23 @@ describe("reconcileViewport — redimensionnement de la vue", () => {
   });
 });
 
-describe("isPannable", () => {
-  it("est faux à l'ajustement (rien à explorer)", () => {
-    expect(isPannable(fitViewport(PHOTO, VIEW), PHOTO, VIEW)).toBe(false);
+describe("déplacement au zoom d'ajustement", () => {
+  it("répond, alors que c'est précisément là qu'il ne faisait rien", () => {
+    // LE témoin du défaut signalé le 2026-07-31 : « ça ne marche que quand on
+    // est zoomé ». Au zoom d'ajustement l'image tient dans la vue, et l'ancien
+    // régime de centrage écrasait tout déplacement.
+    const ajuste = fitViewport(PHOTO, VIEW);
+    const deplace = panBy(ajuste, -60, -30, PHOTO, VIEW);
+    expect(deplace.offsetX).toBeCloseTo(ajuste.offsetX - 60, 6);
+    expect(deplace.offsetY).toBeCloseTo(ajuste.offsetY - 30, 6);
   });
 
-  it("est vrai dès que le contenu déborde", () => {
-    expect(isPannable(zoomToActualSize(fitViewport(PHOTO, VIEW), PHOTO, VIEW), PHOTO, VIEW)).toBe(true);
+  it("un déplacement puis son inverse revient au point de départ", () => {
+    // Propriété de RÉVERSIBILITÉ : sans elle, un geste tâtonnant dérive petit
+    // à petit et l'image ne retrouve jamais sa place à la main.
+    const ajuste = fitViewport(PHOTO, VIEW);
+    const retour = panBy(panBy(ajuste, 120, 80, PHOTO, VIEW), -120, -80, PHOTO, VIEW);
+    expect(retour.offsetX).toBeCloseTo(ajuste.offsetX, 6);
+    expect(retour.offsetY).toBeCloseTo(ajuste.offsetY, 6);
   });
 });

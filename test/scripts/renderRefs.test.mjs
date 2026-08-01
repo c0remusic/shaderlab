@@ -91,6 +91,13 @@ const ATTENDU = {
   // partout, et une reference posee dessus ne distinguerait pas un motion blur
   // d un flou quelconque etire.
   "effet-motion-blur.png": { width: 256, height: 256, valeurs: null },
+  // SURFACE BLUR (2026-08-01) : mire propre, parce qu un bilateral promet DEUX
+  // choses a la fois — le bruit disparait, le contour survit — et qu aucune
+  // mire existante ne porte les deux. Le damier n a que des contours (rien a
+  // lisser), le degrade que des aplats (rien a preserver) : sur l un comme sur
+  // l autre, un bilateral et un gaussien rendraient la meme chose et la
+  // reference ne prouverait rien.
+  "effet-surface-blur.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

@@ -37,12 +37,16 @@ Tout NOUVEL effet doit en plus :
 
 | # | chantier | état |
 |---|---|---|
-| 1 | `pixelStretch` — `Offset` signé (§6bis) | à faire |
-| 2 | `gooeyMerge` — couleurs de premier plan / de fond (§6bis) | à faire |
-| 3 | **Hatching** — nouvel effet (gravure : angles de trame, densité par le ton, croisement) | à faire |
-| 4 | **Colored edges** — nouvel effet (contours colorés) | à faire |
-| 5 | **Motion blur** — directionnel, radial (spin), zoom | à faire |
-| 6 | **Surface blur** — lissage qui ne traverse pas les contours | à faire |
+| 1 | `pixelStretch` — `Offset` signé (§6bis) | ✅ `93747d8` |
+| 2 | `gooeyMerge` — couleur de premier plan (§6bis) | ✅ `93747d8` — couleur de FOND refusée avec raison |
+| 3 | **Hatching** | ✅ `5bb4ee2` |
+| 4 | **Colored edges** | ✅ `65d34fb` — précédé de `82527b9`, extraction du gradient de Scharr |
+| 5 | **Motion blur** | ✅ `e2210ef` |
+| 6 | **Surface blur** | ✅ ce commit |
+
+**Les six chantiers actionnables sont livrés.** La condition d'arrêt de la
+boucle est atteinte : ce qui reste au tableau ci-dessous est BLOQUÉ faute de
+référence lisible, et le deviner serait l'erreur que le cahier documente.
 
 ### La famille des flous de Photoshop — état, demandé par Antoine le 2026-08-01
 

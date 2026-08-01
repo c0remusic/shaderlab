@@ -362,6 +362,41 @@ const INSTALL = `(async () => {
     return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
   };
 
+  // Mire A BRUIT : deux aplats separes par un contour FRANC, chacun couvert
+  // d un bruit de faible amplitude.
+  //
+  // Un filtre bilateral promet DEUX choses en meme temps — le bruit disparait,
+  // le contour survit — et aucune mire existante ne porte les deux. Le damier
+  // n a que des contours (rien a lisser), le degrade n a que des aplats (rien a
+  // preserver) : sur l un comme sur l autre, un bilateral et un gaussien
+  // rendraient la meme chose, et la reference ne prouverait rien.
+  //
+  // Amplitude du bruit choisie SOUS le seuil d ecart du scenario, marche entre
+  // les aplats choisie tres au-dessus : c est ce rapport qui rend le resultat
+  // lisible. Bruit deterministe (generateur congruentiel a graine fixe), comme
+  // tout ce qui entre dans une reference.
+  const mireBruit = (w, h) => {
+    const d = new Uint8ClampedArray(w * h * 4);
+    let graine = 12345;
+    const suivant = () => {
+      graine = (graine * 1103515245 + 12345) & 0x7fffffff;
+      return graine / 0x7fffffff;
+    };
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        // Marche verticale au tiers, et une seconde horizontale a mi-hauteur :
+        // deux orientations de contour, donc un biais d orientation du filtre
+        // se verrait.
+        let base = x < w / 3 ? 0.30 : 0.62;
+        if (y > h / 2) base = base + 0.14;
+        const v = Math.round(Math.min(1, Math.max(0, base + (suivant() - 0.5) * 0.06)) * 255);
+        d[i] = v; d[i + 1] = v; d[i + 2] = v; d[i + 3] = 255;
+      }
+    }
+    return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
+  };
+
   // Raster de pinceau DETERMINISTE : un disque a bord adouci, calcule, jamais
   // peint par un geste. Meme format que celui que produit MaskPainter (r8,
   // tightement pack, taille de l'image).
@@ -658,6 +693,23 @@ const INSTALL = `(async () => {
           trajectory: 1, amount: 18, angle: 0,
           centerX: 0.5, centerY: 0.5, bias: 0.6, falloff: 0.35,
         });
+      },
+    },
+
+    // Surface blur, TEMOIN DE PRESERVATION. Seuil d ecart a 0.09 : au-dessus de
+    // l amplitude du bruit de la mire, tres en dessous des marches entre
+    // aplats. Ce qu on doit voir : les quatre aplats devenus lisses, et les
+    // deux contours — un vertical, un horizontal — aussi francs qu avant.
+    // C est la seule configuration ou un bilateral et un gaussien ne rendent
+    // PAS la meme chose.
+    "effet-surface-blur": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const bruit = await mireBruit(W, H);
+        const sourceId = await r.photoSources.register(bruit);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bruit");
+        const a = stack.addLayer("surfaceBlur", p);
+        stack.updateParams(a, { radius: 20, threshold: 0.09, stiffness: 0.45 });
       },
     },
 

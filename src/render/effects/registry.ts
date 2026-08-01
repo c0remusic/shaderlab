@@ -17,6 +17,7 @@ import { lensBlur } from "./lensBlur";
 import { hatching } from "./hatching";
 import { coloredEdges } from "./coloredEdges";
 import { motionBlur } from "./motionBlur";
+import { surfaceBlur } from "./surfaceBlur";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 
 // Les six du milieu suivent l'ordre de priorité du backlog d'effets confirmé par
@@ -45,6 +46,12 @@ export const effectRegistry: EffectModule[] = [
   // rien à faire dans une traînée — mais c'est là qu'on cherche le second quand
   // on vient de poser le premier.
   motionBlur,
+  // `surfaceBlur` (2026-08-01) ferme la famille des flous. C'est le seul qui ne
+  // simule aucun objectif : il RÉPARE (grain de capteur, peau, aplats sales) en
+  // n'agissant que là où il n'y a rien à préserver. Le gaussien, lui, reste
+  // dehors — la référence §6ter dit qu'il lave l'image, et c'est justement ce
+  // qu'un poids de valeur empêche.
+  surfaceBlur,
   chromaticBleed,
   warp,
   grain,

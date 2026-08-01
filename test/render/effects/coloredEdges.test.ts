@@ -101,9 +101,22 @@ describe("coloredEdges — registre et paramètres", () => {
   it("lit ses paramètres dans l'ordre exact où il les déclare", () => {
     expect(coloredEdges.params.map((p) => p.name)).toEqual([
       "thickness", "threshold", "softness", "chroma",
-      "hueOffset", "hueSpread", "saturation", "lightness", "wash", "inputSource",
+      "hueOffset", "hueSpread", "saturation", "lightness", "wash",
+      "backgroundHue", "backgroundSaturation", "backgroundLightness", "inputSource",
     ]);
     expect(coloredEdges.wgsl).toContain("edge_spacing(params[0])");
-    expect(coloredEdges.wgsl).toContain("let source = params[9];");
+    expect(coloredEdges.wgsl).toContain("let source = params[12];");
+  });
+
+  it("a pour fond par défaut le BLANC — le rendu d'avant, au bit près", () => {
+    // La couleur de fond remplace un blanc imposé (réf. Figma `Background`).
+    // Teinte 0, saturation 0, luminosité 1 = blanc : aucun preset existant ne
+    // bouge, et c'est la condition pour poser ce paramètre sur un effet déjà
+    // livré.
+    const fond = Object.fromEntries(
+      coloredEdges.params.filter((p) => p.colorGroup?.key === "background").map((p) => [p.colorGroup!.role, p.default])
+    );
+    expect(fond).toEqual({ hue: 0, saturation: 0, lightness: 1 });
+    expect(coloredEdges.wgsl).toContain("let paper = mix(color.rgb, background, wash);");
   });
 });

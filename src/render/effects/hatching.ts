@@ -68,6 +68,19 @@ import {
  *  matière. C'est aussi la borne où une estampe réelle s'arrête. */
 const MAX_LAYERS = 4;
 
+/** Formes de la ligne de taille. L'index EST la valeur du paramètre.
+ *
+ *  `Droites` est en tête, donc à l'index 0, donc le défaut : c'est ce que cet
+ *  effet faisait avant ce paramètre, et l'ajout ne bouge aucun rendu existant.
+ *
+ *  Les trois autres viennent de la fiche Figma du shader `Hatching` (Waves,
+ *  Zigzag, Circles), lue le 2026-08-01. Leur trame est DÉCORATIVE là où la
+ *  nôtre est une taille-douce ; les deux lectures cohabitent ici sans se gêner,
+ *  puisque le croisement par couches reste actif quelle que soit la forme. */
+const PATTERNS = ["Droites", "Ondulations", "Zigzag", "Cercles"] as const;
+const PATTERN_STRAIGHT = 0;
+const PATTERN_CIRCLES = 3;
+
 export const hatching: EffectModule = {
   id: "hatching",
   name: "Hatching",
@@ -86,6 +99,11 @@ export const hatching: EffectModule = {
     // ADDITIF en linéaire, physiquement une lumière parasite, pas un fondu vers
     // du blanc en perceptuel (qui demanderait un gamma manuel, interdit ici).
     { name: "wash", label: "Délavé du fond", unit: "percent", min: 0, max: 1, default: 0.75, step: 0.01, hint: "Éclaircit la photo sous la trame — 0 = tailles sur la photo intacte, 1 = estampe sur papier blanc" },
+    { name: "pattern", label: "Forme des tailles", unit: "none", min: 0, max: PATTERNS.length - 1, default: PATTERN_STRAIGHT, step: 1, choices: [...PATTERNS], hint: "Droites : la taille-douce classique. Ondulations et Zigzag font serpenter les tailles. Cercles les enroule autour d'un point, et l'orientation n'a alors plus d'objet." },
+    { name: "waveAmplitude", label: "Amplitude de l'onde", unit: "pixels", min: 0, max: 60, default: 12, step: 0.5, hint: "De combien les tailles s'écartent de la ligne droite. Sans objet en Droites et en Cercles." },
+    { name: "waveFrequency", label: "Fréquence de l'onde", unit: "none", min: 0.2, max: 40, default: 6, step: 0.2, hint: "Nombre d'oscillations sur la plus petite dimension de la toile. Sans objet en Droites et en Cercles." },
+    { name: "centerX", label: "Centre X", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Point autour duquel les tailles s'enroulent. Ne sert qu'en Cercles." },
+    { name: "centerY", label: "Centre Y", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Voir Centre X." },
   ],
   wgsl: `
 ${HSL_TO_RGB_WGSL}${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}
@@ -105,6 +123,44 @@ fn hatch_stripe(dist: f32, h: f32, aa: f32) -> f32 {
   return dedans - dehors;
 }
 
+// Coordonnée de la taille, ET la norme de son gradient, selon la forme.
+// Renvoie vec2(phase en pixels, |gradient|).
+//
+// LE GRADIENT N'EST PAS DÉCORATIF. L'antialiasing de cet effet repose sur le
+// fait que la dérivée écran de la phase est connue : pour des droites elle vaut
+// exactement 1, donc un pixel de déplacement change la phase d'un pixel. Dès
+// que la ligne ONDULE, la phase varie plus vite là où l'onde est raide — et une
+// largeur de transition calculée pour des droites y crénellerait la taille,
+// précisément aux endroits les plus visibles. Chaque forme rend donc sa propre
+// norme, analytiquement.
+fn hatch_coord(px: vec2<f32>, dir: vec2<f32>, motif: i32, amp: f32, waveK: f32, center: vec2<f32>) -> vec2<f32> {
+  if (motif == ${PATTERN_CIRCLES}) {
+    // Cercles concentriques : la phase EST la distance au centre, dont le
+    // gradient est unitaire partout (sauf au centre exact, où la garde évite
+    // une division par zéro dans la normalisation implicite).
+    return vec2<f32>(length(px - center), 1.0);
+  }
+  let perp = vec2<f32>(-dir.y, dir.x);
+  let base = dot(px, dir);
+  if (motif == 0) {
+    return vec2<f32>(base, 1.0);
+  }
+  let u = dot(px, perp) * waveK;
+  if (motif == 1) {
+    // ONDULATIONS : sinusoïde. d(amp*sin(k*u))/du = amp*k*cos(k*u), et la
+    // composante le long de dir reste 1 — d'où la norme euclidienne des deux.
+    let d = amp * waveK * cos(u);
+    return vec2<f32>(base + amp * sin(u), sqrt(1.0 + d * d));
+  }
+  // ZIGZAG : onde triangulaire de même période et même amplitude. Sa pente est
+  // CONSTANTE en valeur absolue (4/TAU par unité de u), donc la norme ne dépend
+  // pas de la position — contrairement à la sinusoïde.
+  let t = fract(u / 6.283185307179586);
+  let tri = abs(t * 4.0 - 2.0) - 1.0;
+  let pente = amp * waveK * 4.0 / 6.283185307179586;
+  return vec2<f32>(base + amp * tri, sqrt(1.0 + pente * pente));
+}
+
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let angle = radians(params[0]);
   let spacing = max(params[1], 1.0);
@@ -117,11 +173,26 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // échangeant les deux curseurs, là où elle se voit.
   let whitePoint = max(params[6], blackPoint + 0.001);
   let wash = clamp(params[10], 0.0, 1.0);
+  let motif = i32(params[11] + 0.5);
+  let waveAmp = max(params[12], 0.0);
+  let waveFreq = max(params[13], 0.01);
+  let center = vec2<f32>(params[14], params[15]);
 
   // Espace PIXEL : l'angle demandé est l'angle obtenu, et l'espacement vaut la
   // même distance sur les deux axes. En UV, une trame à 45° sortirait à ~34°
   // sur une photo 3:2.
-  let px = uv * vec2<f32>(textureDimensions(srcTexture));
+  let dims = vec2<f32>(textureDimensions(srcTexture));
+  let px = uv * dims;
+  // Fréquence exprimée en cycles sur la PLUS PETITE dimension : le réglage
+  // garde le même sens sur une photo carrée et sur un panoramique, là où une
+  // fréquence par axe changerait de densité avec le cadrage.
+  // \`waveK\` et non \`k\` : la boucle sur les couches, plus bas, declare deja
+  // un compteur nomme \`k\`, qui masquerait celui-ci. Le shader COMPILE quand
+  // meme dans certains cas — ici il a rate sur un type, mais un i32 la ou on
+  // attend un f32 est le genre de collision qui passe silencieusement quand
+  // les types coincident. Attrape par npm run test:gpu-shaders, jamais par tsc.
+  let waveK = 6.283185307179586 * waveFreq / min(dims.x, dims.y);
+  let centerPx = center * dims;
 
   // \`color.rgb\` est LINÉAIRE (format de texture -srgb) ; la charge des tailles
   // se POSITIONNE sur l'axe perceptuel, sans qu'aucune valeur de couleur ne
@@ -129,10 +200,11 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let tone = linear_to_srgb(dot(color.rgb, HATCH_LUMA));
   let t = clamp((tone - blackPoint) / (whitePoint - blackPoint), 0.0, 1.0);
 
-  // Dérivée écran ANALYTIQUE : un pixel perpendiculaire à la taille change la
-  // phase de 1/espacement, exactement. La transition court donc sur un pixel de
-  // part et d'autre du bord, quelle que soit la finesse de la trame.
-  let aa = 1.0 / spacing;
+  // Dérivée écran ANALYTIQUE. Sur des droites, un pixel perpendiculaire à la
+  // taille change la phase d'exactement un pixel ; sur une onde, il la change
+  // d'autant plus que l'onde est raide. La norme du gradient est donc rendue
+  // par \`hatch_coord\` et multiplie la largeur de transition — sans quoi une
+  // trame ondulée crénellerait là où elle serpente le plus.
 
   let steps = f32(layers);
   // Union des couches : \`1 - produit(1 - c)\`. Une SOMME ferait dépasser 1 aux
@@ -151,9 +223,12 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
 
     let a = angle + fk * crossAngle;
     let dir = vec2<f32>(cos(a), sin(a));
+    // Coordonnée de la taille ET norme de son gradient, selon la forme.
+    let c = hatch_coord(px, dir, motif, waveAmp, waveK, centerPx);
     // Distance à la taille la PLUS PROCHE, en unités de phase.
-    let ph = dot(px, dir) / spacing;
+    let ph = c.x / spacing;
     let dist = abs(ph - round(ph));
+    let aa = c.y / spacing;
     clair = clair * (1.0 - hatch_stripe(dist, 0.5 * charge, aa));
   }
   let encre = 1.0 - clair;

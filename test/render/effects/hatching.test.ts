@@ -123,16 +123,36 @@ describe("hatching — écriture et registre", () => {
   });
 
   it("calcule l'antialiasing ANALYTIQUEMENT, sans fwidth", () => {
-    // La phase vaut p/espacement et p est une distance en pixels : un pixel de
-    // déplacement change la phase de 1/espacement, exactement. `fwidth`
-    // n'apporterait rien — et l'interdirait, puisque les dérivées implicites
-    // exigent un flux de contrôle uniforme que la boucle ne garantit pas.
-    expect(hatching.wgsl).toContain("let aa = 1.0 / spacing;");
+    // `fwidth` n'apporterait rien — et l'interdirait, puisque les dérivées
+    // implicites exigent un flux de contrôle uniforme que la boucle sur les
+    // couches ne garantit pas. La largeur de transition vient donc de la NORME
+    // du gradient, rendue par `hatch_coord` avec la phase.
+    expect(hatching.wgsl).toContain("let aa = c.y / spacing;");
     expect(hatching.wgsl).not.toContain("fwidth");
   });
 
+  it("fait suivre l'antialiasing à la PENTE de l'onde", () => {
+    // Sur des droites la norme vaut 1 ; sur une sinusoïde elle dépend de la
+    // position, sur un zigzag elle est constante mais supérieure à 1. Sans ce
+    // suivi, une trame ondulée crénellerait là où elle serpente le plus —
+    // exactement aux endroits qu'on regarde.
+    expect(hatching.wgsl).toContain("return vec2<f32>(base, 1.0);");
+    expect(hatching.wgsl).toContain("return vec2<f32>(base + amp * sin(u), sqrt(1.0 + d * d));");
+    expect(hatching.wgsl).toContain("sqrt(1.0 + pente * pente)");
+  });
+
+  it("nomme la fréquence waveK pour ne pas être masquée par le compteur de couches", () => {
+    // La boucle declare `k`. Une frequence nommee `k` aussi serait masquee, et
+    // le shader lirait un ENTIER de couche la ou on attend une frequence. Ici
+    // le compilateur a refuse sur un type ; avec des types compatibles, la
+    // meme collision passerait en silence.
+    expect(hatching.wgsl).toContain("let waveK = 6.283185307179586 * waveFreq / min(dims.x, dims.y);");
+    expect(hatching.wgsl).toContain("for (var k = 0; k < layers; k = k + 1) {");
+  });
+
   it("travaille en espace PIXEL, pas en UV", () => {
-    expect(hatching.wgsl).toContain("let px = uv * vec2<f32>(textureDimensions(srcTexture));");
+    expect(hatching.wgsl).toContain("let px = uv * dims;");
+    expect(hatching.wgsl).toContain("let dims = vec2<f32>(textureDimensions(srcTexture));");
   });
 
   it("est enregistré et lit ses paramètres dans l'ordre déclaré", () => {
@@ -141,6 +161,7 @@ describe("hatching — écriture et registre", () => {
     expect(hatching.params.map((p) => p.name)).toEqual([
       "angle", "spacing", "weight", "crossAngle", "layers",
       "blackPoint", "whitePoint", "inkHue", "inkSaturation", "inkLightness", "wash",
+      "pattern", "waveAmplitude", "waveFrequency", "centerX", "centerY",
     ]);
     expect(hatching.wgsl).toContain("let layers = clamp(i32(params[4] + 0.5), 1, 4);");
     expect(hatching.wgsl).toContain("let wash = clamp(params[10], 0.0, 1.0);");

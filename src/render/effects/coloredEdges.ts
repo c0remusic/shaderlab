@@ -66,7 +66,10 @@ export const coloredEdges: EffectModule = {
     { name: "hueSpread", label: "Étendue des teintes", unit: "percent", min: 0.05, max: 1, default: 1, step: 0.01, hint: "Part du cercle chromatique parcourue par un tour complet d'orientation. 1 = toutes les teintes ; bas = une gamme resserrée autour de la rotation" },
     { name: "saturation", label: "Saturation", unit: "percent", min: 0, max: 1, default: 0.85, step: 0.01, hint: "Vivacité des contours colorés" },
     { name: "lightness", label: "Luminosité", unit: "percent", min: 0, max: 1, default: 0.55, step: 0.01, hint: "Clarté des contours colorés" },
-    { name: "wash", label: "Délavé du fond", unit: "percent", min: 0, max: 1, default: 0.45, step: 0.01, hint: "Éclaircit la photo sous les contours — 0 = contours sur la photo intacte, 1 = contours seuls sur blanc" },
+    { name: "wash", label: "Effacement du fond", unit: "percent", min: 0, max: 1, default: 0.45, step: 0.01, hint: "Fait disparaître la photo sous les contours au profit de la couleur de fond — 0 = contours sur la photo intacte, 1 = contours seuls sur la couleur de fond" },
+    { name: "backgroundHue", label: "Teinte", unit: "degrees", min: 0, max: 360, default: 0, step: 1, colorGroup: { key: "background", role: "hue", label: "Couleur de fond" } },
+    { name: "backgroundSaturation", label: "Saturation", unit: "percent", min: 0, max: 1, default: 0, step: 0.01, colorGroup: { key: "background", role: "saturation", label: "Couleur de fond" } },
+    { name: "backgroundLightness", label: "Luminosité", unit: "percent", min: 0, max: 1, default: 1, step: 0.01, colorGroup: { key: "background", role: "lightness", label: "Couleur de fond" } },
     inputSourceParam(),
   ],
   wgsl: `
@@ -80,7 +83,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let saturation = clamp(params[6], 0.0, 1.0);
   let lightness = clamp(params[7], 0.0, 1.0);
   let wash = clamp(params[8], 0.0, 1.0);
-  let source = params[9];
+  let source = params[12];
 
   // Détecteur PARTAGÉ avec \`outlines\` (effects/edgeGradient.ts) : mêmes huit
   // taps, mêmes poids de Scharr, même écartement isotrope. Ce qui diffère
@@ -123,7 +126,14 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // sélecteur), puis décodée vers le linéaire avant tout mélange — même contrat
   // que l'encre d'\`outlines\` et les arrêts de \`duotone\`.
   let edgeColor = srgb_to_linear3(hsl2rgb(hue, saturation, lightness));
-  let paper = mix(color.rgb, vec3<f32>(1.0), wash);
+  // FOND. Une COULEUR, pas un blanc imposé — la référence Figma expose un
+  // Background et une Opacity là où cette ligne ne savait fondre que vers le
+  // blanc. Le défaut (teinte 0, saturation 0, luminosité 1) EST le blanc, donc
+  // le rendu d'avant ce paramètre est conservé au bit près ; ce qui change,
+  // c'est qu'un fond noir ou coloré devient atteignable, et avec lui le rendu
+  // d'affiche que le blanc seul interdisait.
+  let background = srgb_to_linear3(hsl2rgb(params[9] / 360.0, params[10], params[11]));
+  let paper = mix(color.rgb, background, wash);
   return vec4<f32>(mix(paper, edgeColor, line), color.a);
 }
 `,

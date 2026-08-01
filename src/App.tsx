@@ -110,6 +110,27 @@ export default function App() {
   const presetStoreRef = useRef(new TauriPresetStore());
   // eslint-disable-next-line react-hooks/refs -- le store n'est PAS un etat : c'est un singleton d'IO tenu par ref pour n'etre construit qu'une fois, et `usePresets` ne fait que le garder. Aucune valeur lue ici n'entre dans le rendu, donc rien a « manquer ».
   const presets = usePresets(presetStoreRef.current);
+  // MEMBRES EXTRAITS, et pas l'objet `presets`. `usePresets` rend un littéral
+  // NEUF à chaque rendu ; chacun de ses membres, lui, est un `useCallback`
+  // stable. Un `useCallback` d'ici qui dépendrait de `presets` serait donc
+  // recréé à chaque rendu — ce qui casse la mémoïsation de `LayerRow`
+  // (`memo()` dans LayerPanel.tsx, posé exprès pour qu'un glissement
+  // d'opacité sur un calque ne redessine pas les autres) à chaque frappe d'un
+  // réglage.
+  //
+  // Les dépendances étaient donc déjà resserrées sur le MEMBRE
+  // (`presets.clearActive`), plus fin que ce que `react-hooks/exhaustive-deps`
+  // sait vérifier : la règle ne lit pas les expressions de membre et réclamait
+  // l'objet entier, en 8 avertissements. Les extraire ici donne à la règle des
+  // identifiants simples — même granularité, plus aucune exemption, et le
+  // renommage dit à quoi ils servent une fois sortis de leur objet.
+  const {
+    clearActive: clearActivePreset,
+    reconcileActiveAfterHistoryChange: reconcileActivePreset,
+    rename: renamePreset,
+    applyTo: applyPresetTo,
+    refresh: refreshPresets,
+  } = presets;
   const [layers, setLayers] = useState<LayerState[]>([]);
   const presetIsDirty = presets.isDirtyOf(layers);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -486,7 +507,7 @@ export default function App() {
       // d'outils, et il NOMME le calque de fond posé par `openDocument`.
       setDocumentName(name);
       sessionRef.current.replaceDocument(stack);
-      presets.clearActive();
+      clearActivePreset();
       // Important 6 (final-review fix): a new document has no relationship
       // to the previous one's layer ids — any entry left in
       // maskPaintersRef from the outgoing document is an orphaned ~24Mo
@@ -509,7 +530,7 @@ export default function App() {
       if (generation !== openGenerationRef.current) return;
       setError(messageFromUnknown(e));
     }
-  }, [syncSession, presets.clearActive, syncDisplayScale]);
+  }, [syncSession, clearActivePreset, syncDisplayScale]);
 
   // Le facteur de réduction CSS du canvas, mesuré et poussé dans le renderer.
   //
@@ -601,7 +622,7 @@ export default function App() {
     // `.catch` ici le rejet restait non géré : aucun bandeau d'erreur, le
     // panneau affichait juste "Aucun preset enregistré" comme si la
     // bibliothèque était vide. Fail-fast comme les trois autres chemins preset.
-    presets.refresh().catch((e) => setError(messageFromUnknown(e)));
+    refreshPresets().catch((e) => setError(messageFromUnknown(e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh is stable (useCallback), run once on mount only.
   }, []);
 
@@ -805,7 +826,7 @@ export default function App() {
   }, [openFile, importPhotoFromPath, replacePhotoImageFromPath]);
 
   function handleAdd(effectId: string) {
-    presets.clearActive();
+    clearActivePreset();
     const stack = currentStack();
     // Même parité Photoshop que l'import photo : le calque d'effet se place
     // juste AU-DESSUS du calque sélectionné (`LayerStack.insertIndexAfter`),
@@ -837,21 +858,17 @@ export default function App() {
 
   const handleRemove = useCallback(
     (id: string) => {
-      presets.clearActive();
+      clearActivePreset();
       const stack = currentStack();
       if (!stack.removeLayer(id)) return;
       maskPaintersRef.current.delete(id);
       commit(stack);
     },
-    // presets.clearActive (not the whole `presets` object, which usePresets
-    // returns as a fresh literal every render) — same narrowing already used
-    // by openFile above. clearActive is `useCallback(..., [])` in
-    // usePresets.ts, so it is referentially stable; the whole `presets`
-    // object is not, and this callback is passed as onRemove to LayerRow
-    // (memo()-ised in LayerPanel.tsx specifically so an opacity drag on one
-    // layer doesn't re-render the others) — an unstable dependency here
-    // defeated that memoization on every keystroke of any param drag.
-    [currentStack, commit, presets.clearActive]
+    // `clearActivePreset` et non l'objet `presets` : voir la note à
+    // l'extraction des membres, en tête de composant. Ce callback-ci est celui
+    // par lequel le coût se voyait — il part en `onRemove` vers LayerRow,
+    // `memo()`-isée exprès.
+    [currentStack, commit, clearActivePreset]
   );
 
   const handleDuplicate = useCallback(
@@ -861,16 +878,13 @@ export default function App() {
       // handleEffectChange — la logique vit dans le module pur testé, ce
       // handler ne fait que l'alimenter en effets de bord d'App.
       duplicateLayer(currentStack(), id, {
-        clearActivePreset: presets.clearActive,
+        clearActivePreset,
         commit,
         selectLayer,
         setError,
       });
     },
-    // presets.clearActive et non `presets` : même resserrement que
-    // handleRemove, dont le commentaire explique pourquoi la mémoïsation de
-    // LayerRow en dépend.
-    [currentStack, commit, selectLayer, presets.clearActive]
+    [currentStack, commit, selectLayer, clearActivePreset]
   );
 
   const handleReorder = useCallback(
@@ -953,14 +967,11 @@ export default function App() {
       // parce que l'effectId fait partie de la projection capturée par un
       // preset (usePresets.toPresetLayers), comme handleAdd/handleRemove.
       changeLayerEffect(currentStack(), id, effectId, {
-        clearActivePreset: presets.clearActive,
+        clearActivePreset,
         commit, // changement discret → une entrée d'historique directe
       });
     },
-    // presets.clearActive et non `presets` (littéral frais à chaque render) :
-    // même resserrement que handleRemove, dont le commentaire explique
-    // pourquoi la mémoïsation de LayerRow en dépend.
-    [currentStack, commit, presets.clearActive]
+    [currentStack, commit, clearActivePreset]
   );
 
   const handleClipChange = useCallback(
@@ -1221,18 +1232,18 @@ export default function App() {
       // `usePresets.reconcileActiveAfterHistoryChange`'s doc comment for why
       // this is a STRUCTURAL check, not the full-value one that drives the
       // dirty banner.
-      presets.reconcileActiveAfterHistoryChange(sessionRef.current.layers());
+      reconcileActivePreset(sessionRef.current.layers());
       rendererRef.current?.requestRender(sessionRef.current.layers());
     }
-  }, [syncSession, presets.reconcileActiveAfterHistoryChange]);
+  }, [syncSession, reconcileActivePreset]);
 
   const handleRedo = useCallback(() => {
     if (sessionRef.current.redo()) {
       syncSession();
-      presets.reconcileActiveAfterHistoryChange(sessionRef.current.layers());
+      reconcileActivePreset(sessionRef.current.layers());
       rendererRef.current?.requestRender(sessionRef.current.layers());
     }
-  }, [syncSession, presets.reconcileActiveAfterHistoryChange]);
+  }, [syncSession, reconcileActivePreset]);
 
   // Raccourcis globaux Ctrl+Z/Ctrl+Y (undo/redo) et Ctrl+I (isoler le calque
   // sélectionné — le pendant clavier de l'Alt+clic sur l'œil, sans lequel
@@ -1320,11 +1331,11 @@ export default function App() {
 
   const handleRenamePreset = useCallback(async (id: string, name: string) => {
     try {
-      await presets.rename(id, name);
+      await renamePreset(id, name);
     } catch (e) {
       setError(messageFromUnknown(e));
     }
-  }, [presets.rename]);
+  }, [renamePreset]);
 
   /** Applies preset `id` immediately — goes through the shared `commit`
    *  helper (`sessionRef.current.commit` + `syncSession` + `requestRender`),
@@ -1343,7 +1354,7 @@ export default function App() {
       // `setActive({ id, snapshot: ... })`, so this conditional clear could
       // never have any observable effect — removed rather than left as a
       // no-op suggesting an intention it didn't have.
-      await presets.applyTo(
+      await applyPresetTo(
         id,
         sessionRef.current.layers(),
         (newLayers) => {
@@ -1373,7 +1384,7 @@ export default function App() {
     } catch (e) {
       setError(messageFromUnknown(e));
     }
-  }, [presets.applyTo, commit]);
+  }, [applyPresetTo, commit]);
 
   /** Hard confirmation floor (PRD) : appliquer un preset sur une pile non
    *  vide écraserait des masques déjà peints — jamais sans confirmation
@@ -1407,11 +1418,11 @@ export default function App() {
       const doc = await presetStoreRef.current.importFrom();
       if (!doc) return; // annulé par l'utilisateur
       await presetStoreRef.current.save(doc.id, doc);
-      await presets.refresh();
+      await refreshPresets();
     } catch (e) {
       setError(messageFromUnknown(e));
     }
-  }, [presets.refresh]);
+  }, [refreshPresets]);
 
   // Bouton "Exporter" : dossier fixe Images/shaderlab-export, nom nu tant
   // qu'il n'y a pas de collision réelle (resolveDefaultExportTarget).

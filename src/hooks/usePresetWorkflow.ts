@@ -8,9 +8,12 @@ interface Deps {
   sessionRef: RefObject<DocumentSession>;
   /** L'API rendue par `usePresets` — passée en BLOC, mais jamais utilisée
    *  comme dépendance en bloc : chaque `useCallback` ci-dessous dépend des
-   *  membres qu'il appelle (`presets.overwrite`, `presets.save`, ...), pas de
-   *  l'objet lui-même, qui est un littéral frais à chaque render. Même
-   *  resserrement que celui déjà appliqué dans `App.tsx`. */
+   *  membres qu'il appelle, pas de l'objet lui-même, qui est un littéral frais
+   *  à chaque render. Les membres appelés dans un callback MÉMOÏSÉ sont
+   *  extraits en constantes locales (`overwritePreset`, `savePreset`) — une
+   *  expression de membre en dépendance est correcte mais invérifiable par
+   *  `react-hooks/exhaustive-deps`, qui réclame alors l'objet entier. Même
+   *  resserrement, et même forme, que dans `App.tsx`. */
   presets: ReturnType<typeof usePresets>;
   setError: (message: string | null) => void;
 }
@@ -90,19 +93,24 @@ export function usePresetWorkflow({ sessionRef, presets, setError }: Deps) {
     // recreation de ce callback.
   }, [sessionRef]);
 
+  // Membres EXTRAITS et non l'objet : `react-hooks/exhaustive-deps` ne lit pas
+  // les expressions de membre et réclamait `presets` en entier — ce qui
+  // recréerait ce callback à chaque changement de `summaries`, sans rapport.
+  // Mêmes raison et forme qu'en tête d'`App.tsx`.
+  const { overwrite: overwritePreset, save: savePreset } = presets;
   const commitSavePreset = useCallback(async (name: string, overwriteId: string | null): Promise<boolean> => {
     try {
       if (overwriteId) {
-        await presets.overwrite(overwriteId, sessionRef.current.layers(), name);
+        await overwritePreset(overwriteId, sessionRef.current.layers(), name);
       } else {
-        await presets.save(sessionRef.current.layers(), name);
+        await savePreset(sessionRef.current.layers(), name);
       }
       return true;
     } catch (e) {
       setError(messageFromUnknown(e));
       return false;
     }
-  }, [presets.overwrite, presets.save]);
+  }, [overwritePreset, savePreset, sessionRef, setError]);
 
   // ORDRE : `requestSavePreset` vient APRÈS les deux fonctions qu'elle appelle.
   // C'étaient des déclarations de fonction (hissées) ; en `useCallback` ce sont

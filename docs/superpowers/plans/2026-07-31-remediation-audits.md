@@ -313,7 +313,10 @@ regarder.
 ### A1 — AFK — `App.tsx` porte encore 1823 lignes
 
 `wc -l src/App.tsx` → **1823** (contre 1951 à l'audit ; `usePresetWorkflow` en a
-retiré environ 130). L'extraction faite est documentée comme volontairement
+retiré environ 130). ⚠️ **Re-mesuré le 2026-08-01 : 2156 lignes** — le fichier a
+repris 333 lignes en un jour (toile de montage, calque photo, dialogues). Ce
+n'est pas une dérive lente : c'est le point d'ajout par défaut du dépôt, et
+l'extraction ne tiendra que si elle vise ce qui grossit. L'extraction faite est documentée comme volontairement
 partielle dans `src/hooks/usePresetWorkflow.ts:25-29` : restent dans `App.tsx` le
 JSX des `Dialog`, l'application d'un preset (`applyPreset`/`requestApplyPreset`),
 le renommage, l'import/export de fichier preset.
@@ -341,15 +344,25 @@ réelles de TOUS les fichiers cités, pas seulement les deux repérées ici.
 
 ## Ligne ROBUSTESSE & UI — parallélisable, worktree propre
 
-### U1-bis — AFK — ESLint est posé mais n'est branché à rien
+### U1-bis — CLOS le 2026-08-01 — l'énoncé était périmé quand on l'a relu
 
 Posé le 2026-07-30 : `eslint.config.js` à la racine, `eslint@^9.39.5`,
 `eslint-plugin-react-hooks`, `eslint-plugin-jsx-a11y`, script `"lint": "eslint ."`.
-Ni `.husky/` ni `.git/hooks/pre-commit` n'existent : le fix U1 demandait
-« branché au pré-commit », cette moitié n'est pas faite.
 
-**Preuve** : `npm run lint` exécuté, sa sortie citée (0 erreur, ou la liste), et
-le pré-commit déclenché sur un commit témoin.
+L'énoncé disait « Ni `.husky/` ni `.git/hooks/pre-commit` n'existent ». **Faux au
+2026-08-01, et sans doute déjà faux à la rédaction** : `scripts/hooks/pre-commit`
+est versionné (source, daté du 2026-07-31 03:11) ET installé dans
+`.git/hooks/pre-commit`. Il lint les seuls fichiers `src/**` stagés, en mode
+AVERTISSEMENT assumé (`BLOCKING=0`, passage en bloquant documenté en tête du
+fichier), avec un fail-safe parlant si ESLint manque dans le worktree.
+
+Reste de vrai : `npm run lint` rendait **8 avertissements**, tous
+`react-hooks/exhaustive-deps` sur `presets`. Corrigés le 2026-08-01 — voir la
+note d'extraction des membres en tête d'`App.tsx`. `npm run lint` : 0 problème.
+
+C'est le troisième item de ce backlog démenti par le disque (après R2 et U2). La
+règle vaut d'être reposée : **un item de backlog n'est vrai qu'à la date de sa
+mesure**.
 
 ### R2 — AFK — rejet flottant sur « Ouvrir avec »
 
@@ -391,10 +404,13 @@ Fix : `role="button"` + `tabIndex={0}` + `onKeyDown` (Entrée/Espace) sur le
 `role="slider"` + `aria-valuenow/min/max` + flèches, à l'image de
 `LabeledSlider`.
 
-### U5 — AFK — `eslint-disable` nu sans justification
+### U5 — CLOS le 2026-08-01 — plus aucun disable nu
 
-`Canvas.tsx:78` porte un disable nu, là où `App.tsx:466` suit la convention du
-projet. Le justifier en une ligne, ou le retirer si ESLint ne le réclame plus.
+L'énoncé visait `Canvas.tsx:78`. Au 2026-08-01, cette ligne est
+`const viewportRef = useRef(viewport);` — le disable n'y est plus, et le balayage
+complet de `src/` rend **14 `eslint-disable`, tous suivis de `--` et d'une
+justification** (dont 4 dans `Canvas.tsx`/`labeled-slider.tsx`/`number-field.tsx`
+qui expliquent chacun ce que la règle ne peut pas voir). Rien à faire.
 
 ### U4 — HITL léger — dérive à l'ADR-0001 dans `MaskPanel`
 

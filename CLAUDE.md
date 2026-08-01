@@ -92,9 +92,14 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   — en ajouter un = un nouveau fichier ; un effet à paramètres groupés (voir
   `EffectParam.colorGroup`) touche aussi `ParamPanel.tsx` et peut élargir
   `MAX_EFFECT_PARAMS` (`shaderCompose.ts`, **16** aujourd'hui) si nécessaire.
-  Registre réel au 2026-07-31 : `glow`, `chromaticBleed`, `warp`, `grain`,
+  Registre réel au 2026-08-01 : `glow`, `halation`, `chromaticBleed`, `warp`, `grain`,
   `duotone`, `posterize`, `gooeyMerge`, `channelMixer`, `outlines`,
-  `pixelStretch`, `sliceShift`, `gradientMap` — **douze**.
+  `pixelStretch`, `sliceShift`, `gradientMap` — **treize**.
+  `halation` (2026-08-01) ne vient pas du backlog Figma mais du cahier de
+  références `docs/superpowers/specs/2026-08-01-references-effets.md` : `glow`
+  confondait bloom et halation, sa teinte de halo a été retirée et le phénomène
+  argentique est devenu un effet à part. Les deux s'empilent.
+  Noyaux de flou pyramidal partagés par les deux : `effects/blurChain.ts`.
   Les autres fichiers de `effects/` sont des helpers (`bayer`, `hsl`,
   `srgbTransfer`, `uvSpace`, `validate`, `types`) : la présence d'un fichier
   n'est pas la présence d'un effet, vérifier `registry.ts`.

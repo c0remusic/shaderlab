@@ -22,10 +22,6 @@ interface Props {
    *  l'appelant qui détient la taille PRÉCÉDENTE, dont `reconcileViewport` a
    *  besoin pour conserver le point regardé. */
   onViewResize: (size: Size) => void;
-  /** Outil Main actif dans la palette : le clic gauche déplace la vue, de façon
-   *  PERSISTANTE. Le geste Espace maintenu (géré ici) fait la même chose de
-   *  façon transitoire, depuis n'importe quel outil — les deux se cumulent. */
-  panTool?: boolean;
   /** Calques d'overlay posés DANS la zone visible (poignées de transform).
    *  Ils y sont pour être CLIPPÉS avec elle : zoomé, le canvas déborde de la
    *  vue, et un overlay posé plus haut dans l'arbre dessinerait ses poignées
@@ -60,7 +56,6 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
     contentSize,
     onViewportChange,
     onViewResize,
-    panTool,
     children,
   },
   ref
@@ -74,10 +69,11 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
   // ref : le curseur de préhension et la neutralisation du pinceau sont des
   // rendus, pas des effets de bord.
   const [spaceHeld, setSpaceHeld] = useState(false);
-  /** Le clic gauche déplace la vue : outil Main choisi, OU Espace maintenu.
-   *  Les deux sont équivalents pour tout ce qui suit — seule leur durée de vie
-   *  diffère, et elle est décidée ailleurs. */
-  const panning = spaceHeld || panTool === true;
+  /** Le clic gauche déplace la vue. UNE seule source depuis le 2026-07-31 soir :
+   *  Espace maintenu. L'outil Main de la palette, qui posait la même chose de
+   *  façon persistante, a été retiré — déplacer la vue est une parenthèse au
+   *  milieu d'un autre geste, pas un outil qu'on choisit (voir `ui/tools.ts`). */
+  const panning = spaceHeld;
   const panDragRef = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null);
 
   // Les handlers de molette et de déplacement lisent le viewport COURANT. Le
@@ -290,7 +286,12 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
   const pendingPointRef = useRef<{ x: number; y: number } | null>(null);
   const rafHandleRef = useRef<number | null>(null);
 
-  function toImageCoords(e: React.PointerEvent<HTMLCanvasElement>): { x: number; y: number } | null {
+  /** Point écran → pixels de l'image. Prend un simple porteur de `clientX/Y` et
+   *  non un `PointerEvent<HTMLCanvasElement>` : le pasteboard émet les siens
+   *  depuis un `<div>`, et le calcul ne lit de toute façon que ces deux
+   *  nombres. Rend des coordonnées HORS bornes pour un point hors de l'image,
+   *  volontairement — c'est ce qui permet au hit-test d'y répondre « rien ». */
+  function toImageCoords(e: { clientX: number; clientY: number }): { x: number; y: number } | null {
     const canvas = (ref as React.RefObject<HTMLCanvasElement>).current;
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
@@ -344,7 +345,7 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
   return (
     <div
       ref={stageRef}
-      className={`canvas-stage ${isDragActive ? "canvas-stage--drag-active" : ""}`.trim()}
+      className={`pasteboard ${isDragActive ? "pasteboard--drag-active" : ""}`.trim()}
       onDragEnter={(e) => {
         e.preventDefault();
         setIsDragActive(true);
@@ -360,13 +361,42 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
         const file = e.dataTransfer.files[0];
         if (file) onFileDropped(file);
       }}
+      // LE POURTOUR EST UNE SURFACE DE GESTE, pas un décor (décision Antoine,
+      // 2026-08-01). Deux gestes y répondent, et ce sont les deux qu'on y
+      // tente naturellement :
+      //  — cliquer dedans DÉSÉLECTIONNE. C'était déjà le geste sur la toile
+      //    (`handleCanvasPick`), mais il s'arrêtait au bord du `<canvas>` : dès
+      //    qu'une photo couvrait la toile, il n'y avait plus un pixel de vide à
+      //    viser et la sélection devenait inquittable à la souris.
+      //  — Espace maintenu + glisser DÉPLACE LA VUE depuis n'importe où, pas
+      //    seulement au-dessus de l'image.
+      // Garde sur la cible : on ne traite ICI que le pourtour lui-même (ce
+      // `<div>`) et la zone visible autour de la toile. La toile, l'overlay de
+      // transformation et l'espace de travail vide gardent leurs propres
+      // handlers — sans cette garde, chaque geste serait traité deux fois par
+      // bouillonnement.
+      onPointerDown={(e) => {
+        if (e.target !== e.currentTarget && e.target !== viewRef.current) return;
+        if (isPanGesture(e)) {
+          beginPan(e);
+          return;
+        }
+        if (maskPaintMode || !onPick) return;
+        const point = toImageCoords(e);
+        // Coordonnées hors bornes attendues : le hit-test n'y trouve aucune
+        // photo et rend `null`, ce que l'appelant traduit en désélection.
+        if (point) onPick(point.x, point.y);
+      }}
+      onPointerMove={movePan}
+      onPointerUp={endPan}
+      onPointerCancel={endPan}
     >
       {!hasImage && <EmptyWorkspace onOpenFile={onOpenFile} />}
-      <div ref={viewRef} className={`canvas-stage__view ${panning ? "canvas-stage__view--pan" : ""}`.trim()}>
+      <div ref={viewRef} className={`pasteboard__view ${panning ? "pasteboard__view--pan" : ""}`.trim()}>
       <canvas
         ref={ref}
         aria-label="Zone de travail image"
-        className={`canvas-stage__canvas ${maskPaintMode && !panning ? "canvas-stage__canvas--paint" : ""}`.trim()}
+        className={`pasteboard__canvas ${maskPaintMode && !panning ? "pasteboard__canvas--paint" : ""}`.trim()}
         // Zoom/déplacement en TRANSFORM CSS, `transform-origin: 0 0` (posé en
         // CSS) : le coin haut-gauche du canvas atterrit exactement sur
         // `(offsetX, offsetY)` et sa taille affichée vaut `contentSize * scale`,
@@ -461,7 +491,7 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
       />
         {children}
       </div>
-      <div ref={cursorRef} className="canvas-stage__brush-cursor" aria-hidden="true" />
+      <div ref={cursorRef} className="pasteboard__brush-cursor" aria-hidden="true" />
     </div>
   );
 });

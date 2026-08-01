@@ -1,4 +1,4 @@
-.canvas-stage {
+.pasteboard {
   position: relative;
   width: 100%;
   height: 100%;
@@ -49,9 +49,9 @@
   padding-left: calc(var(--space-6) + var(--rail-width));
 }
 
-/* Le <canvas> est un enfant flex DIRECT de .canvas-stage (retour à la
+/* Le <canvas> est un enfant flex DIRECT de .pasteboard (retour à la
    structure d'avant le commit de fusion 0f3010d, 2026-07-21) : le wrapper
-   .canvas-stage__frame introduit par ce commit (pour porter un cadre
+   .pasteboard__frame introduit par ce commit (pour porter un cadre
    padding/bordure/fond, retiré depuis — esprit Photoshop web, décision
    Antoine 2026-07-21) créait un contexte flex imbriqué qui étirait le
    canvas hors de son ratio intrinsèque sur les fenêtres larges (mesuré :
@@ -64,7 +64,7 @@
    updateCursorGeometry : canvas.getBoundingClientRect() doit rester
    exactement la boîte de rendu de l'image. */
 /* Zone visible du viewport (zoom/déplacement, src/ui/viewport.ts). Enfant flex
-   de .canvas-stage, donc dimensionnée à sa BOÎTE DE CONTENU — la compensation
+   de .pasteboard, donc dimensionnée à sa BOÎTE DE CONTENU — la compensation
    du dock (`padding-right` ci-dessus) est ainsi retirée de la vue, et le
    viewport centre l'image dans l'espace réellement libre plutôt que sous les
    panneaux.
@@ -76,7 +76,7 @@
    `min-width/min-height: 0` : un enfant flex a `min-width: auto` par défaut et
    refuse donc de devenir plus petit que son contenu — ici un canvas de 6000 px
    de large, ce qui ferait grandir le workspace au lieu de clipper. */
-.canvas-stage__view {
+.pasteboard__view {
   position: relative;
   flex: 1 1 auto;
   align-self: stretch;
@@ -85,11 +85,29 @@
   overflow: hidden;
 }
 
-.canvas-stage__view--pan {
+.pasteboard__view--pan {
   cursor: grab;
 }
 
-.canvas-stage__view--pan:active {
+.pasteboard__view--pan:active {
+  cursor: grabbing;
+}
+
+/* LE CANVAS AUSSI, explicitement. `cursor` est une propriété héritée, mais
+   `.pasteboard__canvas` pose son PROPRE `cursor: default` (plus bas) : il
+   gagne donc sur le `grab` hérité de la vue, et la main ne s'affichait que dans
+   la marge autour de l'image — jamais dessus, c'est-à-dire jamais là où on
+   regarde. Le geste marchait, son seul retour visuel était invisible (signalé
+   à l'usage le 2026-07-31).
+   Même remarque pour les pastilles du cadre de transformation : pendant le
+   geste elles passent en `pointer-events: none` (`TransformHandles.css`), et un
+   élément qui ne reçoit pas l'évènement n'impose pas son curseur — leurs
+   `move`/`resize` s'effacent donc tout seuls. */
+.pasteboard__view--pan .pasteboard__canvas {
+  cursor: grab;
+}
+
+.pasteboard__view--pan:active .pasteboard__canvas {
   cursor: grabbing;
 }
 
@@ -106,7 +124,7 @@
    transform place littéralement le canvas à `(offsetX, offsetY)` à l'échelle
    `scale`. Toute autre origine décalerait l'image d'une demi-taille et
    fausserait `viewToImage`. */
-.canvas-stage__canvas {
+.pasteboard__canvas {
   position: absolute;
   top: 0;
   left: 0;
@@ -114,7 +132,7 @@
   cursor: default;
 }
 
-.canvas-stage__empty-workspace {
+.pasteboard__empty-workspace {
   position: absolute;
   inset: var(--space-0);
   display: flex;
@@ -127,37 +145,37 @@
   z-index: var(--z-canvas-overlay);
 }
 
-.canvas-stage__empty-copy {
+.pasteboard__empty-copy {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
-.canvas-stage__empty-heading,
-.canvas-stage__empty-description {
+.pasteboard__empty-heading,
+.pasteboard__empty-description {
   margin: var(--space-0);
 }
 
-.canvas-stage__empty-heading {
+.pasteboard__empty-heading {
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-tight);
 }
 
-.canvas-stage__empty-description {
+.pasteboard__empty-description {
   color: var(--text-secondary);
   font-size: var(--font-size-md);
   line-height: var(--line-height-body);
 }
 
-.canvas-stage--drag-active {
+.pasteboard--drag-active {
   outline: var(--focus-width) solid var(--focus-color);
   outline-offset: calc(var(--focus-offset) * -1);
 }
 
 /* En mode masque, le curseur système est masqué : le cercle custom
-   (.canvas-stage__brush-cursor) le remplace pour montrer rayon + dureté. */
-.canvas-stage__canvas--paint {
+   (.pasteboard__brush-cursor) le remplace pour montrer rayon + dureté. */
+.pasteboard__canvas--paint {
   cursor: none;
 }
 
@@ -165,7 +183,7 @@
    Position/taille pilotées en JS (Canvas.tsx updateCursor). Double contour
    (rouge safelight + ombre sombre) pour rester visible sur zones claires ET
    sombres de l'image. Anneau interne = fraction à pleine force (dureté). */
-.canvas-stage__brush-cursor {
+.pasteboard__brush-cursor {
   position: absolute;
   top: 0;
   left: 0;
@@ -178,7 +196,7 @@
   z-index: var(--z-canvas-overlay);
 }
 
-.canvas-stage__brush-cursor::before {
+.pasteboard__brush-cursor::before {
   content: "";
   position: absolute;
   top: 50%;
@@ -192,7 +210,7 @@
 
 /* Point central : vise précisément même quand l'anneau est petit à
    fit-to-screen (un pinceau fin sur une grande image = anneau minuscule). */
-.canvas-stage__brush-cursor::after {
+.pasteboard__brush-cursor::after {
   content: "";
   position: absolute;
   top: 50%;

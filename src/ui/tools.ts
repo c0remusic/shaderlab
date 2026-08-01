@@ -25,8 +25,27 @@ import { IDLE_CANVAS_MODE, type CanvasMode } from "./canvasMode";
  * n'a aucun appelant de production. Un bouton qui ferait entrer dans un mode
  * sans géométrie derrière serait un bouton qui ment. Il arrivera avec la
  * tranche qui implémente le recadrage, pas avant.
+ *
+ * ## La MAIN n'est pas un outil (décision utilisateur, 2026-07-31 soir)
+ *
+ * Elle l'a été une journée, avec Espace pour la sélectionner et l'y laisser.
+ * Ce n'en est pas un : un outil est une chose qu'on choisit et qui reste
+ * choisie *parce qu'on va s'en servir plusieurs fois*. Déplacer la vue est une
+ * parenthèse au milieu d'autre chose — on la ferme et on reprend où on en
+ * était. En faire un outil forçait donc à revenir au précédent à la main,
+ * c'est-à-dire à payer une sortie pour un geste qui n'a pas d'entrée.
+ *
+ * Le geste vit ENTIÈREMENT dans `Canvas` (`spaceHeld`) : Espace maintenu
+ * déplace la vue depuis n'importe quel outil, le relâchement rend l'outil
+ * précédent puisqu'on ne l'a jamais quitté. C'est la convention de Photoshop,
+ * de Figma et de Blender.
  */
-export type ToolId = "move" | "brush" | "eraser" | "hand";
+export type ToolId = "move" | "brush" | "eraser";
+
+/** L'outil de repos, celui sur lequel `Échap` ramène. « Déplacer » et non
+ *  « aucun » : la palette ne doit jamais afficher zéro outil actif (cf.
+ *  `activeTool`), et c'est déjà l'outil que `IDLE_CANVAS_MODE` produit. */
+export const DEFAULT_TOOL: ToolId = "move";
 
 export interface ToolDefinition {
   id: ToolId;
@@ -63,42 +82,30 @@ export const TOOLS: readonly ToolDefinition[] = [
     shortcutLabel: "E",
     hint: "Effacer le masque du calque sélectionné",
   },
-  {
-    id: "hand",
-    // ESPACE et non `KeyH` (choix utilisateur, 2026-07-31). C'est la touche que
-    // la main droite trouve sans regarder, et celle qu'ont tous les outils de
-    // navigation d'image. Conséquence assumée : contrairement à avant, Espace
-    // SÉLECTIONNE la main et l'y laisse — le relâchement ne rend plus l'outil
-    // précédent. Le geste maintenu de `Canvas` reste en place et fait déjà la
-    // même chose pendant l'appui, donc les deux chemins ne se contredisent pas.
-    label: "Main",
-    shortcut: "Space",
-    shortcutLabel: "Espace",
-    hint: "Déplacer la vue",
-  },
 ] as const;
 
-/** État que la palette pilote. Regroupé en UN objet parce que ces trois
- *  champs ne sont pas indépendants : les poser séparément laisse passer des
- *  combinaisons qu'aucun outil ne produit (main + peinture, par exemple). */
+/** État que la palette pilote. Regroupé en UN objet parce que ces deux champs
+ *  ne sont pas indépendants : `erase` n'a de sens qu'en mode peinture, et les
+ *  poser séparément laisserait exprimer une gomme hors du pinceau.
+ *
+ *  Le déplacement de la vue N'EST PAS ici : c'est un geste transitoire de
+ *  `Canvas` (Espace maintenu), pas un état d'outil — voir l'en-tête du module. */
 export interface ToolState {
   mode: CanvasMode;
   /** Le pinceau efface au lieu de peindre. */
   erase: boolean;
-  /** L'outil Main est actif : le clic gauche déplace la vue. Distinct du geste
-   *  Espace, qui est TRANSITOIRE et disponible depuis n'importe quel outil. */
-  handTool: boolean;
 }
 
 /**
- * Outil actif déduit de l'état courant. L'ordre des tests n'est pas anodin :
- * la main l'emporte sur le pinceau parce qu'elle neutralise réellement le
- * geste de peinture, et un mode `crop` retombe sur « Déplacer » plutôt que sur
- * un cinquième état sans bouton — la palette ne doit jamais afficher zéro
- * outil actif.
+ * Outil actif déduit de l'état courant. Un mode `crop` retombe sur
+ * « Déplacer » plutôt que sur un quatrième état sans bouton — la palette ne
+ * doit jamais afficher zéro outil actif.
+ *
+ * Espace maintenu ne change RIEN ici, et c'est le point : pendant la
+ * parenthèse de déplacement, la palette continue de montrer l'outil auquel on
+ * va revenir.
  */
 export function activeTool(state: ToolState): ToolId {
-  if (state.handTool) return "hand";
   if (state.mode.kind === "maskPaint") return state.erase ? "eraser" : "brush";
   return "move";
 }
@@ -106,21 +113,18 @@ export function activeTool(state: ToolState): ToolId {
 /**
  * État produit par le choix d'un outil.
  *
- * Choisir la main REMET le mode à `idle` au lieu de le conserver : garder
- * `maskPaint` sous la main laisserait le curseur de pinceau affiché et le
- * canvas en `cursor: none` pendant un geste qui ne peint pas. Sortir du mode
- * est la seule lecture qui ne ment pas sur ce que fait le clic gauche.
+ * « Déplacer » PRÉSERVE le sens d'effacement (`current.erase`) au lieu de le
+ * remettre à faux : c'est ce qui fait qu'un aller-retour vers la palette rend
+ * la gomme et non le pinceau.
  */
 export function selectTool(tool: ToolId, current: ToolState): ToolState {
   switch (tool) {
     case "move":
-      return { mode: IDLE_CANVAS_MODE, erase: current.erase, handTool: false };
+      return { mode: IDLE_CANVAS_MODE, erase: current.erase };
     case "brush":
-      return { mode: { kind: "maskPaint" }, erase: false, handTool: false };
+      return { mode: { kind: "maskPaint" }, erase: false };
     case "eraser":
-      return { mode: { kind: "maskPaint" }, erase: true, handTool: false };
-    case "hand":
-      return { mode: IDLE_CANVAS_MODE, erase: current.erase, handTool: true };
+      return { mode: { kind: "maskPaint" }, erase: true };
   }
 }
 
@@ -147,4 +151,51 @@ export function isToolShortcutEvent(event: {
 }): boolean {
   if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return false;
   return toolFromShortcut(event.code) !== null;
+}
+
+/**
+ * Vrai ssi un évènement clavier doit QUITTER l'outil courant pour revenir à
+ * `DEFAULT_TOOL`.
+ *
+ * `Échap` est l'équivalent clavier du bouton « Quitter » de `BrushToolbar`,
+ * qui n'existait qu'à la souris : entrer dans le pinceau avait un raccourci
+ * (`B`), en sortir n'en avait aucun. Il ne vit PAS dans `TOOLS` parce qu'il ne
+ * désigne pas un outil — sinon la palette afficherait un cinquième bouton
+ * « Échap » qui ne sélectionne rien.
+ *
+ * Mêmes gardes de modificateur que `isToolShortcutEvent`, et pour la même
+ * raison : `Ctrl+Échap` ouvre le menu Démarrer de Windows, ce n'est pas à nous.
+ * L'auto-répétition est écartée aussi — revenir vingt fois de suite au même
+ * outil n'a aucun sens.
+ */
+export function isQuitToolEvent(event: {
+  code: string;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  altKey: boolean;
+  repeat: boolean;
+}): boolean {
+  if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return false;
+  return event.code === "Escape";
+}
+
+/** Ce qu'un `Échap` doit faire, selon ce qu'il y a à quitter. */
+export type EscapeAction = "quitTool" | "deselect" | "none";
+
+/**
+ * `Échap` défait UNE couche à la fois, de la plus superficielle à la plus
+ * profonde : d'abord l'outil courant, ensuite la sélection.
+ *
+ * L'ordre n'est pas arbitraire. Peindre un masque suppose un calque
+ * sélectionné : désélectionner d'abord viderait le panneau sous les yeux de
+ * quelqu'un qui voulait seulement ranger son pinceau, et il devrait re-choisir
+ * son calque pour reprendre. L'inverse ne coûte rien — un second `Échap` est
+ * juste là.
+ *
+ * Cette fonction existe séparément d'`App.tsx` pour être testable : la cascade
+ * est une règle, pas un détail de câblage.
+ */
+export function escapeAction(currentTool: ToolId, hasSelection: boolean): EscapeAction {
+  if (currentTool !== DEFAULT_TOOL) return "quitTool";
+  return hasSelection ? "deselect" : "none";
 }

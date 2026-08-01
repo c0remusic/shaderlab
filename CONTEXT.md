@@ -228,7 +228,26 @@ Source : sessions 2026-07-24 et 2026-07-26.
 - **Historique** partage par référence les masques immuables des calques (copie au
   remplacement, jamais de mutation en place). (`src/layers/types.ts:10-14`)
 
-- **Panneau flottant** (`FloatingPanel`) — module UI déplaçable/repliable, pas dockée
+- **Pasteboard** (`.pasteboard`, `src/components/Canvas.tsx`) — la surface sur
+  laquelle repose la **toile**, et tout ce qui l'entoure : le pourtour sombre
+  visible autour de l'image. Nommé le 2026-08-01 (avant, il n'avait aucun nom —
+  on disait « la zone autour du canvas »). Terme repris d'InDesign/Photoshop,
+  où il désigne la même chose (**table de montage** en français, mais on garde
+  l'anglais : « table de montage » se confondrait avec la **toile de montage**,
+  qui est le document lui-même).
+  Ce n'est PAS un décor : deux gestes lui appartiennent en propre — cliquer
+  dedans **désélectionne** (seule sortie de sélection quand une photo couvre
+  toute la toile), et `Espace` maintenu + glisser **déplace la vue** depuis
+  n'importe où, pas seulement au-dessus de l'image.
+  Ne pas confondre avec la **zone visible** (`.pasteboard__view`), qui est la
+  fenêtre de clipping du viewport à l'intérieur du pasteboard, ni avec la
+  **toile** (`.pasteboard__canvas`), qui est le document.
+- **Panneau flottant** (`FloatingPanel`) — ⚠️ **N'EXISTE PLUS** : supprimé le
+  2026-07-20/21, remplacé par `PanelColumn`/`DockedPanelCard`
+  (`src/components/dockedPanel/`). Les trois entrées qui suivent (rail d'icônes,
+  dock virtuel, magnétisme de panneau) décrivent ce chantier abandonné et sont
+  conservées comme HISTORIQUE, pas comme vocabulaire courant — voir CLAUDE.md
+  § Stack pour l'état réel. Description d'époque : module UI déplaçable/repliable, pas dockée
   dans une barre latérale FIXE au sens de l'ancien `Inspector.tsx` (remplacé).
   Trois instances prévues : Calques, Réglages, Masques (Tranche 4). Peut être
   **docké** dans le **rail d'icônes** (voir ci-dessous, PRD cadré 2026-07-20,

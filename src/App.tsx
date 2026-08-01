@@ -27,7 +27,7 @@ import { Toolbar } from "./components/Toolbar";
 import { TransformHandles } from "./components/TransformHandles";
 import { ToolPalette } from "./components/ToolPalette";
 import "./components/ToolPalette.css";
-import { activeTool as activeToolOf, isToolShortcutEvent, selectTool, toolFromShortcut, type ToolId } from "./ui/tools";
+import { DEFAULT_TOOL, activeTool as activeToolOf, escapeAction, isQuitToolEvent, isToolShortcutEvent, selectTool, toolFromShortcut, type ToolId } from "./ui/tools";
 import {
   ZOOM_STEP_FACTOR,
   fitViewport,
@@ -149,10 +149,9 @@ export default function App() {
   const [brushOpacity, setBrushOpacity] = useState(1);
   const [brushFlow, setBrushFlow] = useState(1);
   const [erase, setErase] = useState(false);
-  // Outil Main ACTIF (choisi dans la palette), à ne pas confondre avec le geste
-  // Espace maintenu, qui est transitoire et vit dans `Canvas` — les deux
-  // déplacent la vue, mais l'un est un choix et l'autre une parenthèse.
-  const [handTool, setHandTool] = useState(false);
+  // Il n'y a PLUS d'état « outil Main » ici (retiré le 2026-07-31 soir) :
+  // déplacer la vue est une parenthèse, pas un outil. Le geste vit entièrement
+  // dans `Canvas` (Espace maintenu) et ne remonte pas — voir `ui/tools.ts`.
   // Vrai pendant un drag de slider dont la valeur a bougé : le commit de fin
   // d'interaction ne pousse une entrée d'historique que si quelque chose a
   // réellement changé (un simple clic sans mouvement ne crée pas d'entrée).
@@ -681,16 +680,15 @@ export default function App() {
   // désynchronisé de `canvasMode` à la première bascule faite ailleurs (la
   // carte Masque en a une, `BrushToolbar` aussi).
   const { setCanvasMode } = photoLayer;
-  const currentTool = activeToolOf({ mode: photoLayer.canvasMode, erase, handTool });
+  const currentTool = activeToolOf({ mode: photoLayer.canvasMode, erase });
 
   const handleSelectTool = useCallback(
     (tool: ToolId) => {
-      const next = selectTool(tool, { mode: photoLayer.canvasMode, erase, handTool });
+      const next = selectTool(tool, { mode: photoLayer.canvasMode, erase });
       setCanvasMode(next.mode);
       setErase(next.erase);
-      setHandTool(next.handTool);
     },
-    [photoLayer.canvasMode, erase, handTool, setCanvasMode],
+    [photoLayer.canvasMode, erase, setCanvasMode],
   );
 
   // Raccourcis d'outil. Écouteur sur `window` et non sur le canvas : un outil
@@ -706,6 +704,25 @@ export default function App() {
         const tag = target.tagName;
         if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       }
+      // ÉCHAP DÉFAIT UNE COUCHE : l'outil courant d'abord, la sélection
+      // ensuite (`escapeAction`, où l'ordre est justifié). C'est à la fois
+      // l'équivalent clavier du bouton « Quitter » de `BrushToolbar` — qui
+      // n'existait qu'à la souris — et la SEULE sortie de sélection quand la
+      // photo sélectionnée couvre toute la toile : le clic dans le vide
+      // (`handleCanvasPick`) n'a alors aucun vide à viser, puisque le cadre de
+      // transformation recouvre l'image entière.
+      // Passe par le MÊME écouteur que les raccourcis d'outil pour hériter de
+      // sa garde champ-de-saisie : sans elle, Échap dans un champ numérique
+      // aurait à la fois abandonné la saisie (`number-field.tsx`) et changé
+      // d'outil.
+      // N'annule PAS un geste de transformation : ça reste Ctrl+Z (cet overlay
+      // n'a pas de session modale à restaurer, cf. `TransformHandles`).
+      if (isQuitToolEvent(event)) {
+        const action = escapeAction(currentTool, selectedId !== null);
+        if (action === "quitTool") handleSelectTool(DEFAULT_TOOL);
+        else if (action === "deselect") selectLayer(null);
+        return;
+      }
       if (!isToolShortcutEvent(event)) return;
       const tool = toolFromShortcut(event.code);
       if (!tool) return;
@@ -714,7 +731,7 @@ export default function App() {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleSelectTool]);
+  }, [handleSelectTool, currentTool, selectedId, selectLayer]);
 
   // Désignation directe d'une image au clic sur la toile (T1 du design
   // 2026-07-29). La taille des photos SOURCES vit dans le renderer
@@ -1672,7 +1689,6 @@ export default function App() {
           contentSize={imageSize}
           onViewportChange={handleViewportChange}
           onViewResize={handleViewResize}
-          panTool={handTool}
         >
         {/* `showTransformHandles` = mode canvas `idle` (usePhotoLayer/CanvasMode).
             Avant T1, les poignées se montaient sur la seule SÉLECTION : un calque
@@ -1690,6 +1706,9 @@ export default function App() {
             bgSize={imageSize}
             otherPhotoLayers={otherPhotoLayers}
             canvasRef={canvasRef}
+            // Deux photos superposées donnent deux cadres : sans le nom, le
+            // lecteur d'écran annoncerait deux fois la même chose.
+            layerName={selectedLayer.name}
             onTransformChange={(t) => handleTransformChange(selectedLayer.id, t)}
             onTransformCommit={handleTransformCommit}
             // La box de déplacement couvre toute la bounding box du calque

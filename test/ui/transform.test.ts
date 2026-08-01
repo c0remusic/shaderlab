@@ -163,7 +163,7 @@ describe("overlayRectFromClientRects", () => {
   it("rend le rectangle du CANVAS, pas celui du conteneur qui porte l'overlay", () => {
     // Conteneur 1200x800 ; canvas lettreboxé à 600x400 et décalé vers la
     // gauche par la compensation du dock — c'est le cas réel de `.workspace`
-    // vs `.canvas-stage__canvas`. L'overlay doit valoir le canvas.
+    // vs `.pasteboard__canvas`. L'overlay doit valoir le canvas.
     const parentRect = { left: 100, top: 50, width: 1200, height: 800 };
     const canvasRect = { left: 250, top: 250, width: 600, height: 400 };
     expect(overlayRectFromClientRects(canvasRect, parentRect)).toEqual({

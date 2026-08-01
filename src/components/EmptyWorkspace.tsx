@@ -7,10 +7,10 @@ interface EmptyWorkspaceProps {
 
 export function EmptyWorkspace({ onOpenFile }: EmptyWorkspaceProps) {
   return (
-    <div className="canvas-stage__empty-workspace">
-      <div className="canvas-stage__empty-copy">
-        <h1 className="canvas-stage__empty-heading">Ouvrir une photo</h1>
-        <p className="canvas-stage__empty-description">Dépose un JPEG ici ou choisis un fichier pour commencer.</p>
+    <div className="pasteboard__empty-workspace">
+      <div className="pasteboard__empty-copy">
+        <h1 className="pasteboard__empty-heading">Ouvrir une photo</h1>
+        <p className="pasteboard__empty-description">Dépose un JPEG ici ou choisis un fichier pour commencer.</p>
       </div>
       <Button variant="default" onClick={onOpenFile}>
         <FolderOpen aria-hidden="true" />

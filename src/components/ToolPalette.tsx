@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Brush, Eraser, Hand, MousePointer2, type LucideIcon } from "lucide-react";
+import { Brush, Eraser, MousePointer2, type LucideIcon } from "lucide-react";
 import { Toggle } from "./ui/toggle";
 import { TOOLS, type ToolId } from "../ui/tools";
 
@@ -10,7 +10,6 @@ const TOOL_ICONS: Record<ToolId, LucideIcon> = {
   move: MousePointer2,
   brush: Brush,
   eraser: Eraser,
-  hand: Hand,
 };
 
 interface Props {

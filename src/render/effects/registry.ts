@@ -16,6 +16,7 @@ import { halation } from "./halation";
 import { lensBlur } from "./lensBlur";
 import { hatching } from "./hatching";
 import { coloredEdges } from "./coloredEdges";
+import { halftone } from "./halftone";
 import { motionBlur } from "./motionBlur";
 import { surfaceBlur } from "./surfaceBlur";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
@@ -57,10 +58,12 @@ export const effectRegistry: EffectModule[] = [
   grain,
   duotone,
   posterize,
-  // `hatching` (2026-08-01) est posé auprès de `posterize` et non à la suite du
-  // backlog : les deux appartiennent à la référence d'IMPRESSION, et c'est
-  // là qu'on cherche l'un quand on vient de poser l'autre.
+  // `hatching` et `halftone` (2026-08-01) sont posés auprès de `posterize` et
+  // non à la suite du backlog : tous trois appartiennent à la référence
+  // d'IMPRESSION, et c'est là qu'on cherche l'un quand on vient de poser
+  // l'autre. `halftone` ferme cette famille — trame, taille-douce, aplats.
   hatching,
+  halftone,
   gooeyMerge,
   channelMixer,
   outlines,

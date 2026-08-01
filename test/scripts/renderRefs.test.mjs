@@ -110,6 +110,12 @@ const ATTENDU = {
   // les huit formes centrees venues de la fiche Figma. Tourbillon plutot qu un
   // autre des huit : sa decroissance gaussienne se verifie d un coup d oeil.
   "effet-warp-tourbillon.png": { width: 256, height: 256, valeurs: null },
+  // HALFTONE (2026-08-01) : la ROSETTE est la seule propriete qui distingue une
+  // vraie trame d une grille de points, et elle n apparait qu en CMJN — les
+  // quatre encres tramees a 15, 75, 0 et 45 degres. Une trame au meme angle
+  // partout donne un moire, pas une rosette : c est donc ce que cette reference
+  // verrouille, et rien d autre ne pourrait le voir.
+  "effet-halftone.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

@@ -757,6 +757,27 @@ const INSTALL = `(async () => {
       },
     },
 
+    // Halftone, TEMOIN DE ROSETTE. C est la seule propriete qui distingue une
+    // vraie trame d une grille de points, et elle n apparait qu en CMJN : les
+    // quatre encres sont tramees a 15, 75, 0 et 45 degres, et ce sont ces
+    // ecarts qui font la petite fleur de points de l offset. Trame au meme
+    // angle partout = moire, pas rosette.
+    //
+    // Pas de trame a 10 px sur une toile de 256 : assez gros pour que la
+    // rosette se lise, assez fin pour que la gamme se voie. La mire commune
+    // convient — ses aplats colores de ton moyen sont exactement l endroit ou
+    // les quatre encres se superposent.
+    "effet-halftone": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("halftone");
+        stack.updateParams(a, {
+          dotSize: 10, dotScale: 1.05, colorMode: 0, rotation: 0,
+          centerX: 0.5, centerY: 0.5, softness: 0.12, blackPoint: 0, whitePoint: 1,
+        });
+      },
+    },
+
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,
     // donc les passes de morphologie separees H/V).

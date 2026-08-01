@@ -1608,3 +1608,55 @@ discrimine pas trois niveaux de posterize (87,86 / 87,72 / 82,30 %) parce que la
 mire est **déjà** à 87,75 % sous ce seuil avant tout effet — l'indicateur mesurait
 le fixture, pas l'effet. Pour un jugement de rendu, demander une vraie photo à
 Antoine.
+
+## 2026-08-01 — une garantie posée sur un chemin et pas sur son jumeau
+
+**Correction (projet).** Deux bugs de cette session sont le même bug : deux
+références croyaient posséder une chose, et la protection existait déjà — mais
+sur un seul des deux chemins.
+
+1. `History` clonait défensivement dans `push()`, avec un commentaire annonçant
+   la garantie (« une mutation ultérieure de `state` par l'appelant ne corrompt
+   pas l'entrée stockée »), mais PAS dans son constructeur. `DocumentSession`
+   lui passe l'objet qu'il détient puis le mute en place à chaque frame
+   (`replaceLiveLayers`) : l'entrée initiale se faisait réécrire pendant le
+   geste, et le premier `Ctrl+Z` de chaque document ne rendait rien.
+2. Le déplacement de la vue a eu deux propriétaires pendant une heure — la
+   toile et le pasteboard. Quand le geste démarrait sur la toile, `movePan`
+   tournait deux fois par `pointermove` (une fois sur la cible, une fois par
+   bouillonnement), et le second appel lisait `viewportRef.current` encore
+   périmé : il réécrivait l'ancienne valeur par-dessus la nouvelle. Le
+   déplacement s'annulait lui-même, et seulement au-dessus de l'image.
+
+**Why** : dans les deux cas le code AVAIT L'AIR défensif, ce qui rend le trou
+plus difficile à voir qu'une absence franche de protection.
+
+**How to apply** : quand une classe se protège d'une mutation externe, vérifier
+que TOUS ses points d'entrée d'état le font (constructeur compris, pas seulement
+les mutateurs). Quand un geste pointeur est câblé sur plus d'un élément d'une
+même chaîne de bouillonnement, en désigner UN propriétaire — celui qui prend la
+capture — et retirer les handlers des autres, plutôt que de les garder « au cas
+où ».
+
+## 2026-08-01 — une sonde CDP qui mesure un proxy ment autant qu'un test vert
+
+**Correction (méthode).** Cinq relevés CDP faux dans une seule session, tous du
+même motif : la sonde mesurait un PROXY de la propriété, pas la propriété.
+Chercher `role="application"` dans le TSX servi par Vite (le JSX est déjà
+compilé) ; lire le `transform` du viewport sur `canvas.parentElement` (il est sur
+le `<canvas>`) ; mesurer un `Échap` depuis un état où l'outil cible était déjà
+actif ; cliquer un bouton « zoom avant » qui s'appelle « Zoomer » ; lire
+`getComputedStyle(vue).cursor` alors que le pointeur est sur le `<canvas>`, qui
+pose son propre `cursor: default` — ce dernier a déclaré ABSENT le bug réel que
+signalait Antoine.
+
+**Why** : c'est le pendant exact de « tests verts pour la mauvaise raison ». Un
+relevé ROUGE mérite la même méfiance qu'un vert, et la même question : est-ce
+que ce que je mesure peut bouger ?
+
+**How to apply** : imprimer l'état AVANT toute action et vérifier qu'il est non
+trivial (lire `matrix(1.99568, …)` avant de glisser aurait dit tout de suite que
+le nœud était bon et que c'était le clamp qui parlait) ; pour un style, passer
+par `document.elementFromPoint(x, y)` — l'élément réellement sous le pointeur —
+jamais par un parent choisi à la main ; pour un contrôle, lister les libellés
+réels avant de viser une regex.

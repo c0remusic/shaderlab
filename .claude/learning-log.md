@@ -1868,3 +1868,70 @@ Bonne surprise : `coloredEdges` a été conçu sans la fiche et tombe juste. Leu
 texte dit « Gradient wraps radially around the center, so edges at different
 angles pick up different colors » — c'est exactement la teinte-par-orientation
 retenue à l'aveugle.
+
+## 2026-08-01 (soir) — un paramètre déclaré mais jamais lu ne casse RIEN, et c'est le problème
+
+**Correction (méthode), trouvée par hasard.** En ouvrant `warp.ts` pour y
+ajouter les huit types de la référence, découvert que son shader ne lisait que
+`params[0..3]` alors que sa liste en déclarait SEPT. Bilan : « Graine »,
+« Anisotropie » et « Torsion » lus nulle part, et `params[3]` — l'index de
+« Rugosité » — servant de graine. **Quatre contrôles sur sept**, chacun avec un
+`hint` décrivant précisément un comportement inexistant. Introduit par
+`5ffd6b3`, un commit intitulé « parametres etendus » qui a ajouté les
+déclarations sans câbler le corps.
+
+**Pourquoi les trois filets du dépôt l'ont laissé passer**, et c'est ça qui
+vaut d'être retenu :
+- Les tests d'effet vérifient la présence TEXTUELLE d'appels dans le WGSL. Ils
+  constatent ce qui EST écrit ; un `params[N]` ABSENT ne se remarque pas.
+- Le compilateur ne dit rien : le uniform est un tableau de taille fixe, lire 4
+  slots sur 24 est parfaitement légal.
+- Le verrou de pixels encore moins : **un curseur mort ne déplace aucun pixel,
+  précisément parce qu'il est mort**. Il ne peut pas faire rougir un test de
+  non-régression.
+
+Un défaut qui n'a aucune signature observable ne sera jamais trouvé par un
+filet qui observe. Il faut un filet qui compare deux DÉCLARATIONS entre elles —
+ici la position d'un paramètre dans `params` et l'index que le shader lit.
+`test/render/effects/parametresCables.test.ts` le fait pour les vingt effets,
+dans les deux sens (aucun index déclaré non lu, aucun index lu au-delà de la
+liste — celui-là serait pire, il lirait un zéro stable et donc indétectable).
+
+Balayage du registre après coup : `warp` était le seul. Le garde reste pour le
+prochain ajout, pas pour celui-là.
+
+## 2026-08-01 (soir) — le nombre de taps est LIÉ au pas, dans toute chaîne à pas croissant
+
+**Correction (technique), attrapée par le témoin de rendu.** La traînée
+d'`anamorphicStreak` PERLAIT en chapelet de billes au lieu d'être continue.
+
+La cause est arithmétique, pas esthétique : une passe dont les taps vont
+jusqu'à ±N pas n'étale chaque point que sur ±N pas. Si la passe suivante
+multiplie le pas par plus de N, elle échantillonne AU-DELÀ de ce qui a été
+couvert, et laisse un trou de période égale au nouveau pas. La première version
+avait ±2 taps pour un facteur 4 — le trou était structurel.
+
+À ±4 taps, une passe couvre ±4 pas et le facteur 4 devient exactement continu.
+**Les deux nombres ne se changent pas l'un sans l'autre**, et c'est écrit dans
+les deux constantes concernées plus un test.
+
+Le commentaire du fichier affirmait pourtant que la première passe serrée
+« remplit les trous que les suivantes creusent ». Elle ne les remplissait pas :
+elle étale sur ±2 pas de rang 1, quand la passe suivante saute à ±4 et ±8 pas de
+rang 1. Cinquième affirmation non mesurée de la journée.
+
+## 2026-08-01 (soir) — le backtick dans un template WGSL, sept fois
+
+**Friction, la plus répétée de la session.** Les corps WGSL des effets sont des
+template literals : tout backtick dans un COMMENTAIRE doit y être échappé
+(`` \` ``), et les fichiers existants le font. Dans `scripts/render-check.mjs`,
+le bloc de scénarios vit lui aussi dans un template literal, et là il faut
+simplement ne pas en mettre.
+
+Sept occurrences dans la journée, dont une trois heures après avoir écrit
+l'avertissement soi-même dans le fichier fautif. Le coût unitaire est faible
+(TypeScript refuse immédiatement) mais l'aller-retour se paie à chaque fois.
+
+Réflexe à prendre : en écrivant un commentaire DANS un `wgsl:` ou dans le bloc
+de scénarios, citer les identifiants **sans** backticks. Le reste du dossier
+utilise les deux conventions ; c'est celle-là qui ne coûte rien.

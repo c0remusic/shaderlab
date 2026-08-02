@@ -17,6 +17,7 @@ import { lensBlur } from "./lensBlur";
 import { hatching } from "./hatching";
 import { coloredEdges } from "./coloredEdges";
 import { echoOutlines } from "./echoOutlines";
+import { dither } from "./dither";
 import { halftone } from "./halftone";
 import { anamorphicStreak } from "./anamorphicStreak";
 import { motionBlur } from "./motionBlur";
@@ -71,6 +72,13 @@ export const effectRegistry: EffectModule[] = [
   // l'autre. `halftone` ferme cette famille — trame, taille-douce, aplats.
   hatching,
   halftone,
+  // `dither` (2026-08-03) ferme la famille d'IMPRESSION, et n'est pas le
+  // tramage de `posterize`. Le sien est un CORRECTIF — un demi-palier de
+  // décalage pour cacher une frontière, sans taille ni style — et il est au
+  // service de la quantification. Ici le motif EST le sujet : sa taille se
+  // règle, il descend à deux niveaux, il peut réduire l'image à deux encres.
+  // Aucun réglage de posterize n'atteint ça.
+  dither,
   gooeyMerge,
   channelMixer,
   outlines,

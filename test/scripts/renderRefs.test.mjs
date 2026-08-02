@@ -255,6 +255,16 @@ const ATTENDU = {
   // le nom `Outlines`, et qui n'est PAS un detecteur de contours — « evenly
   // spaced outlines that echo your shape outward, like ripples ».
   "effet-echo-outlines.png": { width: 256, height: 256, valeurs: null },
+  // DITHER (2026-08-03), et DEUX references pour un seul effet : c'est le seul
+  // moyen de dire que Bayer et le bruit bleu ne sont pas le meme code. Tout est
+  // identique par ailleurs — meme mire, meme taille, memes deux niveaux, memes
+  // encres — donc ce qui separe les deux images ne peut venir que du motif.
+  //
+  // `valeurs: 2` est une ASSERTION et non un contournement du plancher : a deux
+  // niveaux, encre noire et papier blanc, une image correcte ne PEUT contenir
+  // que deux valeurs. Trois signaleraient une quantification qui fuit.
+  "effet-dither.png": { width: 256, height: 256, valeurs: 2 },
+  "effet-dither-bruit-bleu.png": { width: 256, height: 256, valeurs: 2 },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus
@@ -729,6 +739,53 @@ describe("references de rendu committees", () => {
     // l'estimation affine (32 %) et à deux fois au-dessus de celle mesurée
     // (8 %) — elle aurait rougi sur les deux implémentations précédentes.
     expect(ecartType / moyenne).toBeLessThan(0.15);
+  });
+
+  /* ── DITHER : les deux styles rendent la rampe, et ne sont PAS le même code ──
+   *
+   * Un tramage existe pour rendre un dégradé avec peu de niveaux. À deux
+   * niveaux, la seule information qui reste est la DENSITÉ locale de points —
+   * c'est elle, et rien d'autre, qui doit suivre la rampe.
+   */
+  const densiteParColonne = (fichier, bandes = 8) => {
+    const img = decodePng(readFileSync(path.join(REF_DIR, fichier)));
+    const { width: w, height: h, pixels } = img;
+    const out = [];
+    for (let b = 0; b < bandes; b++) {
+      let sombres = 0, total = 0;
+      for (let y = 0; y < h; y++) {
+        for (let x = Math.floor((b * w) / bandes); x < Math.floor(((b + 1) * w) / bandes); x++) {
+          if (pixels[(y * w + x) * 4] < 128) sombres++;
+          total++;
+        }
+      }
+      out.push(sombres / total);
+    }
+    return out;
+  };
+
+  for (const fichier of ["effet-dither.png", "effet-dither-bruit-bleu.png"]) {
+    it(`${fichier} : la densité d'encre suit la rampe, de façon monotone`, () => {
+      const d = densiteParColonne(fichier);
+      // La mire va du sombre (gauche) au clair (droite) : la densité d'encre
+      // doit DÉCROÎTRE, bande après bande, sans jamais remonter. Un motif qui
+      // ne suivrait pas le ton — une trame posée à densité fixe — donnerait une
+      // suite plate, et une erreur de signe la donnerait croissante.
+      for (let i = 1; i < d.length; i++) expect(d[i]).toBeLessThan(d[i - 1]);
+      // Et la course est réellement parcourue, d'un quasi-plein à un quasi-vide.
+      expect(d[0]).toBeGreaterThan(0.8);
+      expect(d[d.length - 1]).toBeLessThan(0.2);
+    });
+  }
+
+  it("dither : Bayer et le bruit bleu ne rendent PAS la même image", () => {
+    // Le test qui empêche qu'un style soit branché sur la fonction de l'autre —
+    // panne qu'aucun test unitaire ne verrait, les deux shaders compilant.
+    const a = decodePng(readFileSync(path.join(REF_DIR, "effet-dither.png")));
+    const b = decodePng(readFileSync(path.join(REF_DIR, "effet-dither-bruit-bleu.png")));
+    let differents = 0;
+    for (let i = 0; i < a.pixels.length; i += 4) if (a.pixels[i] !== b.pixels[i]) differents++;
+    expect(differents / (a.pixels.length / 4)).toBeGreaterThan(0.1);
   });
 
   it("gooey-merge : le liseré spéculaire couvre plus d'un pixel", () => {

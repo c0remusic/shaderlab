@@ -46,3 +46,46 @@ fn bayerThreshold(px: vec2<u32>) -> f32 {
   return (BAYER4[idx] + 0.5) / 16.0 - 0.5;
 }
 `;
+
+/**
+ * Matrice de Bayer 8x8, CONSTRUITE et non recopiée.
+ *
+ * D'où le besoin : la 4x4 n'offre que seize seuils. C'est assez pour casser la
+ * frontière entre deux paliers de `posterize` — son seul usage jusqu'ici — et
+ * nettement trop peu pour un tramage à DEUX niveaux, où ces seize seuils sont
+ * toute l'information disponible et où la trame se lit en blocs de 4x4. Or le
+ * 1 bit est précisément ce que la fiche `Dither` expose (`Levels` descend à 2).
+ *
+ * La récurrence est celle de la construction classique :
+ *
+ *     M(2n) = [ 4·M(n) + 0   4·M(n) + 2 ]
+ *             [ 4·M(n) + 3   4·M(n) + 1 ]
+ *
+ * Écrite plutôt que la table recopiée : soixante-quatre nombres saisis à la main
+ * sont soixante-quatre occasions de faute, et une seule faute ne se verrait que
+ * comme un pixel qui bascule au mauvais moment — invisible en relecture. Un test
+ * vérifie que le résultat est bien une permutation de 0..63.
+ */
+function expandBayer(base: readonly number[], n: number): number[] {
+  const taille = n * 2;
+  const out = new Array<number>(taille * taille);
+  for (let y = 0; y < taille; y++) {
+    for (let x = 0; x < taille; x++) {
+      // Quadrant : haut-gauche 0, haut-droite 2, bas-gauche 3, bas-droite 1.
+      const quadrant = y < n ? (x < n ? 0 : 2) : x < n ? 3 : 1;
+      out[y * taille + x] = 4 * base[(y % n) * n + (x % n)] + quadrant;
+    }
+  }
+  return out;
+}
+
+export const BAYER_8X8: readonly number[] = expandBayer(BAYER_4X4, 4);
+
+export const BAYER8_WGSL = `
+var<private> BAYER8: array<f32, 64> = array<f32, 64>(${BAYER_8X8.map((v) => v.toFixed(1)).join(", ")});
+
+fn bayerThreshold8(px: vec2<u32>) -> f32 {
+  let idx = (px.y % 8u) * 8u + (px.x % 8u);
+  return (BAYER8[idx] + 0.5) / 64.0 - 0.5;
+}
+`;

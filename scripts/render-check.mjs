@@ -669,6 +669,58 @@ const INSTALL = `(async () => {
       },
     },
 
+    // DITHER, SUR LA RAMPE — et la mire est le test. Un tramage existe pour
+    // rendre un DEGRADE avec peu de niveaux : c est la seule chose qu il sait
+    // faire mieux qu une quantification nue, donc la seule sur laquelle il
+    // faille le juger. Sur le damier, ses aplats seraient quantifies sans qu on
+    // voie jamais le motif travailler.
+    //
+    // Deux niveaux (1 bit) DELIBEREMENT : c est le regime ou le motif porte
+    // toute l information, donc le pire cas et le plus lisible.
+    // Le compte de valeurs declare n est pas un contournement du garde de
+    // signal, c est une ASSERTION : a deux niveaux, avec une encre noire et un
+    // papier blanc, une image correcte ne PEUT contenir que deux valeurs. Trois
+    // signaleraient une quantification qui fuit.
+    "effet-dither": {
+      contre: "photo-de-fond-seule",
+      valeurs: 2,
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("dither", p);
+        stack.updateParams(a, {
+          style: 0, size: 2, levels: 2, mono: 1,
+          blackPoint: 0, whitePoint: 1,
+          inkHue: 0, inkSaturation: 0, inkLightness: 0,
+          paperHue: 0, paperSaturation: 0, paperLightness: 1,
+        });
+      },
+    },
+
+    // LE MEME, EN BRUIT BLEU. Ce scenario existe pour une raison precise : il
+    // est le SEUL a pouvoir dire que les deux styles ne sont pas le meme code.
+    // Tout le reste est identique — meme mire, meme taille, memes deux niveaux,
+    // memes encres — donc ce qui separe les deux images ne peut venir que du
+    // motif. Un style branche sur la mauvaise fonction rendrait deux images
+    // identiques, et aucun test unitaire ne le verrait.
+    "effet-dither-bruit-bleu": {
+      contre: "effet-dither",
+      valeurs: 2,
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("dither", p);
+        stack.updateParams(a, {
+          style: 1, size: 2, levels: 2, mono: 1,
+          blackPoint: 0, whitePoint: 1,
+          inkHue: 0, inkSaturation: 0, inkLightness: 0,
+          paperHue: 0, paperSaturation: 0, paperLightness: 1,
+        });
+      },
+    },
+
     // ECHO OUTLINES — l effet neuf du 2026-08-03, celui que la fiche de
     // reference decrit sous le nom Outlines : « a series of evenly spaced
     // outlines that echo your shape outward, like ripples ».

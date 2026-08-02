@@ -758,9 +758,14 @@ Leur `Threshold` / `Thickness` / `Intensity` correspondent à nos Seuil /
 
 ### `hatching` — divergent, et l'un ne fait pas l'autre
 
+⚠️ **Ce tableau a été écrit AVANT `0574caf` (2026-08-01, 20 h 39) et sa première
+ligne est périmée depuis.** Elle a survécu à sa péremption assez longtemps pour
+être recopiée telle quelle dans le triage du lendemain — voir le point 7. Corrigée
+le 2026-08-02.
+
 | | Figma | nous |
 |---|---|---|
-| motif | **Waves, Zigzag, Circles** | droites parallèles |
+| motif | **Waves, Zigzag, Circles** | droites parallèles, **plus Ondulations / Zigzag / Cercles depuis `0574caf`** |
 | tonalité | `Density` = épaisseur des lignes dans les zones CLAIRES | charge par couche, avec relais |
 | croisement | absent | jusqu'à quatre couches croisées |
 | position | poignée `Transform` sur la toile (origine, rotation, espacement) | angle, espacement |
@@ -1089,8 +1094,20 @@ LISIBLE — défauts, noms, et peut-être un mot dans l'interface.
    L'effet n'avait ni test unitaire ni verrou de pixels ; les deux ont été posés,
    celui des DÉFAUTS avant le changement — c'est lui qui prouve que les dix
    paramètres ajoutés laissent le rendu identique au bit.
-7. `hatching` — les motifs de Figma (Waves / Zigzag / Circles) restent absents ;
-   nos `waveAmplitude`/`waveFrequency` ne couvrent qu'une partie de « Waves ».
+7. ~~`hatching` — les motifs de Figma (Waves / Zigzag / Circles) restent absents ;
+   nos `waveAmplitude`/`waveFrequency` ne couvrent qu'une partie de « Waves ».~~
+   **CETTE LIGNE ÉTAIT FAUSSE LE JOUR OÙ ELLE A ÉTÉ ÉCRITE.** Les trois formes
+   sont livrées depuis `0574caf`, le **2026-08-01 à 20 h 39** — la revue les
+   listait encore absentes le **2026-08-02 à 12 h 16**, seize heures plus tard.
+   Le triage recopiait le tableau du §6quinquies, rédigé avant la livraison et
+   jamais relu contre le code.
+   Reste ce qui, lui, manquait vraiment et n'était écrit nulle part : **aucune
+   des trois n'était verrouillée**. Le scénario `effet-hatching` tourne au défaut
+   (`Droites`), donc il ne traverse aucune des trois autres branches de
+   `hatch_coord`. Trois références posées le 2026-08-02 ; mesurées, les formes
+   sont bien distinctes — ondulations s'écarte de droites sur 60,4 % des canaux,
+   et **zigzag s'écarte d'ondulations sur 61,4 %**, ce qui est la mesure qui
+   comptait : elle exclut que les deux ondes retombent sur la même branche.
 
 **C. ERGONOMIE — l'effet est bon, on ne sait pas le viser.**
 8. `pixelStretch` — « difficile à positionner correctement ». La région existe

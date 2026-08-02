@@ -669,6 +669,77 @@ const INSTALL = `(async () => {
       },
     },
 
+    // LES TROIS FORMES DE TAILLE, verrouillees le 2026-08-02 — et elles ne l
+    // etaient PAS, alors qu elles sont livrees depuis le 2026-08-01 (0574caf).
+    // Le scenario effet-hatching ci-dessus tourne en Droites, c est-a-dire au
+    // defaut : il ne traverse aucune des trois branches de hatch_coord. Elles
+    // compilaient (npm run test:gpu-shaders) et leurs parametres etaient cables
+    // (parametresCables), ce qui ne dit rien du rendu — meme configuration
+    // exacte que lensBlur, qui avait dix-sept tests verts en floutant au double
+    // du rayon regle.
+    //
+    // MEME MIRE que effet-hatching (la rampe) et memes reglages de trame, a la
+    // forme pres : ce qui separe ces images de la premiere est donc la forme et
+    // rien d autre. Chacune se compare a la version Droites, pas a la mire nue.
+    //
+    // AMPLITUDE VOLONTAIREMENT GRANDE (24 px pour un espacement de 9) : sous
+    // l espacement, une ondulation ne deplace la taille que d une fraction d
+    // interligne et se confondrait avec du bruit. Il faut que l onde traverse
+    // plusieurs interlignes pour qu une erreur de phase se voie.
+    "effet-hatching-ondulations": {
+      contre: "effet-hatching",
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("hatching", p);
+        stack.updateParams(a, {
+          angle: 45, spacing: 9, weight: 0.62, crossAngle: 65, layers: 3,
+          blackPoint: 0.05, whitePoint: 0.95, wash: 0,
+          pattern: 1, waveAmplitude: 24, waveFrequency: 6,
+        });
+      },
+    },
+
+    // ZIGZAG : meme onde, meme amplitude, meme frequence — seule la FORME de l
+    // onde change (triangulaire au lieu de sinusoidale). C est la paire qui rend
+    // les deux distinguables ; si les deux branches rendaient la meme image, ce
+    // couple de references le dirait, et aucun test unitaire ne le pourrait.
+    "effet-hatching-zigzag": {
+      contre: "effet-hatching-ondulations",
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("hatching", p);
+        stack.updateParams(a, {
+          angle: 45, spacing: 9, weight: 0.62, crossAngle: 65, layers: 3,
+          blackPoint: 0.05, whitePoint: 0.95, wash: 0,
+          pattern: 2, waveAmplitude: 24, waveFrequency: 6,
+        });
+      },
+    },
+
+    // CERCLES : la seule forme dont la phase n est pas une projection sur une
+    // direction, donc la seule ou l angle et le croisement n ont plus d objet.
+    // Centre decale hors du milieu (0.35, 0.4) exprès : centre, les anneaux
+    // seraient symetriques sur les deux axes et une inversion de x et y passerait
+    // inapercue.
+    "effet-hatching-cercles": {
+      contre: "effet-hatching",
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("hatching", p);
+        stack.updateParams(a, {
+          angle: 45, spacing: 9, weight: 0.62, crossAngle: 65, layers: 3,
+          blackPoint: 0.05, whitePoint: 0.95, wash: 0,
+          pattern: 3, centerX: 0.35, centerY: 0.4,
+        });
+      },
+    },
+
     // Outlines, pose AVANT l extraction du gradient de Scharr vers un module
     // partage (2026-08-01). Cet effet n avait aucun verrou de pixels : sa
     // sortie depend d un noyau 3x3 sur huit taps, d une mesure de chromaticite

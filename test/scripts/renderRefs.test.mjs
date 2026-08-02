@@ -231,6 +231,15 @@ const ATTENDU = {
   // si la reference etait nee apres le changement.
   "effet-channel-mixer.png": { width: 256, height: 256, valeurs: null },
   "effet-channel-mixer-encres.png": { width: 256, height: 256, valeurs: null },
+  // LES TROIS FORMES DE TAILLE de hatching (2026-08-02). Elles etaient livrees
+  // depuis le 2026-08-01 et VERROUILLEES PAR RIEN : le scenario effet-hatching
+  // tourne au defaut (Droites), donc il ne traverse aucune des trois autres
+  // branches de hatch_coord. Elles compilaient et leurs parametres etaient
+  // cables — la meme configuration exacte que lensBlur, qui avait dix-sept
+  // tests verts en floutant au double du rayon regle.
+  "effet-hatching-ondulations.png": { width: 256, height: 256, valeurs: null },
+  "effet-hatching-zigzag.png": { width: 256, height: 256, valeurs: null },
+  "effet-hatching-cercles.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

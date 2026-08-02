@@ -1935,3 +1935,102 @@ l'avertissement soi-même dans le fichier fautif. Le coût unitaire est faible
 Réflexe à prendre : en écrivant un commentaire DANS un `wgsl:` ou dans le bloc
 de scénarios, citer les identifiants **sans** backticks. Le reste du dossier
 utilise les deux conventions ; c'est celle-là qui ne coûte rien.
+
+## 2026-08-02 — une mire peut être ALGÉBRIQUEMENT aveugle, pas seulement mal choisie
+
+**Coût : une revue adverse, et trois affirmations fausses committées entre-temps.**
+
+`sliceShift` reçoit un fondu des bords. La demande venait avec son piège écrit :
+flouter la SORTIE étalerait toute la tranche, il faut faire varier le DÉCALAGE
+de part et d'autre de la frontière — mélanger les coordonnées, pas les couleurs.
+Le piège a été correctement évité dans le code. **C'est la preuve qui était
+fausse**, et elle a passé un verrou de pixels, une écriture de référence et une
+relecture.
+
+Ce qui était affirmé : « le cœur des tranches reste identique au canal près
+(18432/18432), donc on a bien mélangé des coordonnées — un flou de la sortie
+aurait bougé ces pixels-là aussi ». Deux trous, et le second est le vrai
+enseignement.
+
+**Un cœur intact n'exclut qu'un flou GLOBAL.** Le piège nommé est une opération
+LOCALE au bord, et toute opération locale au bord laisse le cœur intact par
+construction. La mesure réfutait une implémentation que personne n'écrirait.
+
+**Et surtout : sur un signal AFFINE, mélanger deux coordonnées et mélanger deux
+couleurs sont la MÊME opération.** `mix` commute avec un échantillonneur affine :
+`mix(f(a), f(b), w) = f(mix(a, b, w))` dès que `f` est affine. La mire choisie
+était une rampe, `v = x*255/(w-1)`, exactement affine. Seule la courbure du
+transfert sRGB sépare les deux implémentations, et pour **0,03 niveau moyen** sur
+tout l'intérieur. La référence ne pouvait pas voir la propriété qu'on lui faisait
+attester — pas parce qu'elle était mal choisie, parce qu'elle rendait les deux
+hypothèses **littéralement égales**.
+
+C'est un cran au-delà de la leçon `lensBlur` de la veille (« la mire doit pouvoir
+MONTRER la propriété »). Là, la mire ne pouvait pas montrer la tache de bokeh.
+Ici, il n'y avait rien à montrer : les deux implémentations produisaient le même
+signal. **Avant d'écrire une mire, se demander si les deux hypothèses qu'on veut
+séparer sont seulement DISTINCTES sur ce signal.**
+
+**Deuxième tentative ratée, instructive elle aussi.** Compter un CONTRASTE sur
+des rayures fines. Un décalage fractionnaire passe par une interpolation
+bilinéaire, qui atténue déjà les hautes fréquences — période 3 px à une fraction
+de 0,5 : transfert exactement 0,5. Dans la bande de fondu le décalage balaie,
+donc la fraction balaie, donc l'atténuation moyenne chute. Mesuré : **-25 %**,
+contre **-29 %** attendus d'un mélange de couleurs. Indiscernable. L'implémentation
+correcte perd du contraste elle aussi.
+
+**Ce qui a fini par trancher est STRUCTUREL et non quantitatif.** Un mélange de
+coordonnées ressort toujours une valeur de la source ; un mélange de couleurs en
+FABRIQUE une intermédiaire partout où les deux copies diffèrent. Sur une mire
+BINAIRE (barres de 16 px, deux niveaux, uniformes sur toute la largeur), on
+compte une POPULATION et non une amplitude : 3,67 % de pixels intermédiaires
+dans la bande de fondu, contre 17,56 % pour l'image fabriquée du mélange fautif.
+
+Règle qui en sort, réutilisable : **quand une propriété est structurelle (« la
+sortie est-elle une valeur de la source ? »), la mesurer par une population sur
+un signal BINAIRE, pas par une amplitude sur un signal continu.** Une amplitude
+se fait bouger par le rééchantillonnage, l'arrondi, le transfert. Une population
+sur deux niveaux, non.
+
+**Et le seuil a été calibré contre la mauvaise implémentation, pas choisi.**
+Celle-ci a été fabriquée depuis la référence elle-même (deux copies décalées,
+même profil de poids) et passée dans la métrique. Le seuil est la moyenne
+géométrique des deux réponses. Le verrou a donc été **vu rouge avant d'être
+committé vert** — ce qui devrait être le minimum pour tout nouveau seuil.
+
+**Corollaire de rangement, relevé par la même revue :** les trois mesures du
+couple de références vivaient en PROSE dans un commentaire. Un `--update` de
+bonne foi les aurait effacées sans rien faire rougir — exactement le scénario
+que `test/scripts/renderRefs.test.mjs` dit en tête vouloir empêcher. Un chiffre
+qui compte va dans une assertion, jamais dans une phrase.
+
+Sixième affirmation non mesurée consignée en deux jours. Les cinq précédentes
+étaient des commentaires qui décrivaient un code qu'ils ne lisaient plus.
+Celle-ci est différente et plus dangereuse : **le code était juste, et c'est la
+mesure qui mentait.**
+
+## 2026-08-02 — un harnais à iframe reste pendu après un run tué
+
+**Friction, ~20 minutes.** `gpu-shader-check.mjs` et `render-check.mjs` créent
+une iframe nommée dans la page de l'app et attendent son
+`executionContextCreated`. Tuer un run en cours laisse l'iframe
+(`__gpuShaderCheckFrame`, `__renderCheckFrame`) dans le DOM : le run suivant ne
+reçoit jamais l'événement et **pend indéfiniment sans écrire une ligne**.
+
+Le symptôme trompe, parce que la page a l'air vivante : `Runtime.evaluate` de
+`1+1` répond `2` instantanément pendant que `Page.reload` ne rend jamais la main.
+Ne pas conclure « fenêtre figée » depuis une évaluation qui répond.
+
+Ordre de diagnostic qui marche : compter les iframes
+(`document.querySelectorAll('iframe')`), vérifier que les deux Vite répondent
+(1420 ET 1421), puis n'essayer qu'après de relancer. Retirer l'iframe à la main
+n'a PAS suffi une fois que le domaine `Page` était coincé — il a fallu relancer
+l'exe.
+
+⚠️ `npm run dev:debug` peut échouer sur ce chemin : `Set-Content` sur
+`.dev-logs/tauri.stdout.log` refuse si une session précédente tient encore le
+fichier. Voie de secours qui ne touche pas aux processus des autres sessions :
+lancer `npx vite --port 1420` puis `src-tauri/target/debug/shaderlab.exe`
+directement, avec
+`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` et
+`-RedirectStandardOutput`/`-RedirectStandardError`.

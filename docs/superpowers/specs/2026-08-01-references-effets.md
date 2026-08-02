@@ -477,6 +477,44 @@ Corollaire : le fondu doit se mesurer en pixels et non en fraction de tranche,
 sinon une tranche fine se retrouverait entièrement fondue quand une épaisse ne
 le serait qu'au bord.
 
+#### LIVRÉ le 2026-08-02 (`3b7b56f` puis `221de0a`) — et le piège se mesure
+
+Huitième paramètre `edgeFeather`, défaut 0, en pixels, borné à l'épaisseur d'une
+tranche. `sliceAmount()` a été extraite en fonction pure de l'index de tranche
+pour que le fondu puisse demander le décalage de la VOISINE sans dupliquer la
+règle d'adoption — la dupliquer aurait rendu le fondu faux exactement aux
+frontières fusionnées, là où il doit être invisible.
+
+**Le verrou a été posé AVANT le geste**, et c'est ce qui rend la suite lisible :
+`sliceShift` n'avait aucune référence de pixels, donc « le défaut à 0 ne change
+rien » serait resté une affirmation. La référence a été écrite sur le code
+d'avant, sur une RAMPE et non sur la mire commune — la propriété à montrer est
+la marche de valeur à la frontière, et un damier saute déjà d'un texel à l'autre.
+
+Les trois mesures, sur le couple de références (même graine, mêmes tranches, seul
+le fondu diffère — c'est un A/B, pas deux images qui se ressemblent) :
+
+| | coupure franche | fondu 16 px |
+|---|---|---|
+| largeur de transition, colonne x=128 | **1 ligne** aux 4 frontières | **13 à 15 lignes**, mêmes y |
+| monotonie sur la bande de fondu | — | **oui** aux 4 |
+| cœur des tranches (hors bande) | — | **18432/18432 canaux identiques, écart max 0** |
+
+La troisième ligne est la preuve que le piège est évité : loin des bords, les
+deux images sont identiques au canal près. Un flou de la sortie aurait bougé ces
+pixels-là aussi.
+
+**Un choix que la demande ne tranchait pas : `smoothstep` plutôt qu'une rampe
+linéaire.** Une rampe a une dérivée qui casse aux deux bords du fondu et y pose
+deux plis fins — on aurait remplacé une coupure par deux marques. Smoothstep est
+de pente nulle en 1, donc raccordé tangent au décalage constant de chaque
+tranche. Le profil mesuré le confirme : deltas `1 1 2 2 2 3 3 3 2 3 3 2 2 1 1` à
+la frontière y=128, lents aux extrémités et rapides au centre, là où une rampe
+aurait donné 2 partout avec un angle à chaque bout.
+
+Et le clamp à `sliceSize` n'est pas cosmétique : la bande de fondu est large de
+`f/2` de chaque côté, donc au-delà les deux frontières d'une même tranche se
+recouvriraient et il faudrait mélanger trois tranches à la fois.
 
 Un motif se dégage : **le choix d'espace de mélange et le mode d'entrée sont des
 contrôles récurrents chez Figma**, et absents partout chez nous. À traiter comme

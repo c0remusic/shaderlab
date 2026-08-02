@@ -802,6 +802,47 @@ const INSTALL = `(async () => {
       },
     },
 
+    // Slice shift, TEMOIN DE COUPURE — pose le 2026-08-02 AVANT d ajouter le
+    // fondu des bords demande par Antoine, pour la meme raison qu outlines :
+    // cet effet n avait aucun verrou, et « le defaut a 0 ne change rien »
+    // resterait une affirmation sans une reference d avant le geste.
+    //
+    // Sur la RAMPE, pas sur la mire commune, et c est le point qui decide de
+    // tout : la propriete a montrer est la MARCHE de valeur a la frontiere
+    // entre une tranche decalee et sa voisine. Un damier saute deja d un texel
+    // a l autre — la marche s y noierait dans les sauts du motif, exactement le
+    // piege paye par lensBlur. Une rampe neutre monte continument en x : un
+    // decalage horizontal y devient un DECALAGE DE VALEUR pur, et la frontiere
+    // se lit comme une marche franche en scannant une colonne.
+    //
+    // angle 0 : \`along\` = x (glissement horizontal, donc le long de la rampe),
+    // \`normal\` = y (bandes horizontales). Tranches de 32 px sur 256 = huit
+    // bandes, assez pour que l irregularite fusionne visiblement sans que le
+    // motif devienne illisible.
+    //
+    // Densite 0.5 et non 1 : il FAUT des tranches immobiles: une frontiere
+    // decalee/intacte est le contraste maximal, et c est celle-la que le fondu
+    // devra adoucir. A densite 1 toutes les tranches bougent et les frontieres
+    // les plus franches disparaissent du verrou.
+    //
+    // Ecart des canaux 0.3 sur une rampe NEUTRE (r = g = b) : la moindre frange
+    // coloree dans la reference vient forcement de cet ecart, puisque la source
+    // n a aucune chromaticite. Un verrou qui, en plus, sait d ou vient sa
+    // couleur.
+    "effet-slice-shift": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("sliceShift", p);
+        stack.updateParams(a, {
+          angle: 0, sliceSize: 32, displace: 0.12, density: 0.5,
+          irregular: 0.35, chromaSplit: 0.3, seed: 0,
+        });
+      },
+    },
+
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,
     // donc les passes de morphologie separees H/V).

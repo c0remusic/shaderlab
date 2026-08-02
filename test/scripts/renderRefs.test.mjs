@@ -455,4 +455,82 @@ describe("references de rendu committees", () => {
     // fondrait toute l'image passerait aussi.
     expect(dehors / dehorsTot).toBeLessThan(0.05);
   });
+
+  /* ── GOOEY MERGE : le liseré ne doit pas être un fil d'UN pixel (2026-08-02) ──
+   *
+   * D'où vient la question : « très aliasé, effet métal avec des artefacts, c'est
+   * le but ? » (revue d'usage d'Antoine). Le verrou posé le matin même avait
+   * répondu « non, et ce n'est pas l'empilement » — sur une mesure de part
+   * d'arêtes franches donnée à 74,3 % contre 50,0 % pour la mire nue.
+   *
+   * ⚠️ CE COUPLE DE CHIFFRES NE SE REPRODUIT PAS. Cinq définitions de « transition
+   * franche » ont été essayées sur les références committées ; aucune ne les rend,
+   * et toutes classent gooey SOUS la mire nue au lieu d'au-dessus. Le relevé était
+   * juste sur le diagnostic (il y a un défaut) et faux sur sa nature. Il n'a donc
+   * pas été repris comme seuil : la mesure ci-dessous le remplace.
+   *
+   * CE QUE LE PROFIL MONTRE, LUI, ET QUI DÉCIDE. En travers du contour, avant
+   * correctif : `60 61 62 62 | 180 | 140 96 97`. Ce n'est pas un bord crénelé —
+   * c'est un PIC D'UN SEUL PIXEL au-dessus de la base, c'est-à-dire le liseré
+   * spéculaire réduit à un fil. Un fil d'un pixel n'est pas un liseré fin : il
+   * s'allume ou s'éteint selon l'endroit où la frontière tombe dans la grille,
+   * donc il se lit comme un escalier de points brillants. Le « métal ».
+   *
+   * POURQUOI CETTE MÉTRIQUE PLUTÔT QU'UNE PART D'ARÊTES. Elle a une LIGNE DE BASE
+   * EXACTEMENT NULLE : la mire nue ne contient aucun pixel isolé de ce genre (son
+   * damier est fait de blocs de 16 px). Tout filament compté ici a donc été
+   * FABRIQUÉ par l'effet, et aucun damier ne peut gonfler le chiffre — c'est
+   * précisément ce qui manquait au premier relevé de la veille.
+   *
+   * ELLE N'EST PAS UNIVERSELLE, ET C'EST VOULU : `halftone` en compte 2488 et
+   * `outlines` 1171 sur la même mire, sans que ce soit un défaut — leur sujet EST
+   * une structure fine. Elle ne s'applique qu'à un effet dont le fichier promet
+   * une iso-surface « toujours antialiasée analytiquement ».
+   */
+
+  /** Pixels qui dépassent leurs DEUX voisins d'au moins `seuil` sur un axe : ni
+   *  montée ni descente, donc aucun pixel de couverture partielle. */
+  const filaments = (fichier, seuil) => {
+    const img = decodePng(readFileSync(path.join(REF_DIR, fichier)));
+    const { width: w, height: h, pixels } = img;
+    const L = new Int32Array(w * h);
+    for (let i = 0; i < w * h; i++) {
+      L[i] = Math.round(0.2126 * pixels[i * 4] + 0.7152 * pixels[i * 4 + 1] + 0.0722 * pixels[i * 4 + 2]);
+    }
+    let n = 0;
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const c = L[y * w + x];
+        if (
+          c - Math.max(L[(y - 1) * w + x], L[(y + 1) * w + x]) >= seuil ||
+          c - Math.max(L[y * w + x - 1], L[y * w + x + 1]) >= seuil
+        ) n++;
+      }
+    }
+    return n;
+  };
+
+  it("la mire nue ne contient AUCUN filament — c'est ce qui rend le compte lisible", () => {
+    // Sans cette ligne, le nombre du test suivant ne veut rien dire. Elle est la
+    // correction de méthode que la veille avait manquée : un chiffre d'artefact
+    // relevé sans sa ligne de base ne mesure pas l'artefact.
+    for (const seuil of [16, 24, 32, 48]) {
+      expect(filaments("photo-de-fond-seule.png", seuil)).toBe(0);
+    }
+  });
+
+  it("gooey-merge : le liseré spéculaire couvre plus d'un pixel", () => {
+    // AVANT correctif (`crest` dérivé de `coverage`, donc culminant sur un seul
+    // pixel dès que la tension monte — et le scénario est à tension 1, le pire
+    // cas) : 103 / 95 / 85 / 60 filaments aux quatre seuils. APRÈS : 0 partout.
+    // Ce test aurait donc rougi sur l'implémentation précédente à n'importe
+    // lequel des quatre seuils, ce qui en fait une mesure et pas une décoration.
+    //
+    // La borne est à 5 et non à 0 : elle doit tenir un changement de pilote ou
+    // d'arrondi sans devenir une alarme, tout en restant à vingt fois sous le
+    // chiffre qu'elle a attrapé.
+    for (const seuil of [16, 24, 32, 48]) {
+      expect(filaments("effet-gooey-merge.png", seuil)).toBeLessThanOrEqual(5);
+    }
+  });
 });

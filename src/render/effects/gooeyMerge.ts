@@ -227,11 +227,29 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // produire un NaN qui se propagerait dans toute la suite.
   let gdir = grad / max(length(grad), 0.00001);
 
+  // CHANGEMENT DE CHAMP PAR PIXEL ÉCRAN, mesuré sur la base large de \`grad\`.
+  // \`fwidth\` ne suffit pas à le donner : il lit le champ tel qu'il est STOCKÉ,
+  // c'est-à-dire en 8 bits et en demi-résolution (\`effectPassRunner\` alloue ses
+  // cibles internes au format \`-srgb\`). Sur une plage lissée, deux texels
+  // voisins sont IDENTIQUES et \`fwidth\` rend exactement 0 — le plancher censé
+  // garantir l'antialiasing vaut alors zéro. La différence centrale, elle, est
+  // prise sur \`2 * (2 + merge)\` texels : elle reste au-dessus du bruit de
+  // quantification, pour la raison déjà écrite en tête de ce fichier.
+  let pixUv = 1.0 / vec2<f32>(textureDimensions(srcTexture));
+  let perPixel = length(vec2<f32>(fx * pixUv.x / (2.0 * gs.x), fy * pixUv.y / (2.0 * gs.y)));
+
   // ISO-SURFACE. Plancher fwidth : à tension 1 la bascule est aussi étroite que
   // possible SANS descendre sous un pixel écran — le champ vit en demi-résolution
   // et en 8 bits, une bascule plus étroite que ça n'ajouterait aucune netteté et
   // ne ferait que révéler sa grille en escalier.
-  let band = max((1.0 - tension) * 0.25, fwidth(field) * 0.75);
+  //
+  // TROISIÈME TERME, ajouté le 2026-08-02 : un pas de QUANTIFICATION du champ.
+  // En dessous, il n'y a plus d'information à antialiaser — une bascule plus
+  // étroite qu'un pas ne suit plus le champ, elle suit sa GRILLE. C'est ce qui
+  // dessine un contour en escalier là où le champ est presque plat, cas
+  // fréquent : un champ très flouté passe l'essentiel de sa surface plat.
+  let quant = 1.0 / 255.0;
+  let band = max((1.0 - tension) * 0.25, max(max(fwidth(field), perPixel), quant) * 0.75);
   let coverage = smoothstep(threshold - band, threshold + max(band, 0.00001), field);
 
   // MÉNISQUE : bande de largeur FIXE (±0.15 de champ) autour de l'iso-surface,
@@ -259,9 +277,28 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // s'éteindrait nulle part et se lirait comme un contour dessiné.
   let lightDir = normalize(vec2<f32>(-0.55, -0.83));
   let lit = max(dot(-gdir, lightDir), 0.0);
-  // La crête suit la dérivée de la couverture : elle hérite donc du plancher
-  // fwidth, et reste antialiasée à toute tension.
-  let crest = clamp(coverage * (1.0 - coverage) * 4.0, 0.0, 1.0);
+  // LARGEUR DE LA CRÊTE — une bande de CHAMP, plus la dérivée de \`coverage\`.
+  //
+  // Ce qui suit est mot pour mot l'argument déjà écrit vingt lignes plus haut
+  // pour le ménisque, et qui n'avait jamais été appliqué ICI : indexer la crête
+  // sur \`coverage\` la réduit à un anneau d'un pixel dès que la tension monte.
+  // La ligne d'avant croyait s'en protéger par le plancher fwidth — sauf qu'un
+  // liseré d'UN pixel n'est pas un liseré fin : c'est un fil qui s'allume ou
+  // s'éteint selon l'endroit où la frontière tombe dans la grille de pixels,
+  // donc qui se lit comme un escalier de points brillants. C'est le « très
+  // aliasé, effet métal avec des artefacts » d'Antoine (2026-08-02).
+  //
+  // MESURE, sur la mire commune à tension 1 : 95 pixels dépassant leurs deux
+  // voisins de 24 niveaux ou plus, contre 0 sur la mire nue.
+  //
+  // \`band\` reste le premier terme : la tension continue de piloter la largeur
+  // du liseré, ce n'est pas ce contrôle qui était en cause. Ne s'y ajoutent que
+  // deux planchers — un en unités de champ pour les zones peu pentues, un en
+  // PIXELS pour que la crête couvre au moins trois pixels quelle que soit la
+  // pente locale.
+  let rimBand = max(band, max(0.05, perPixel * 1.5));
+  let rimField = smoothstep(threshold - rimBand, threshold + rimBand, field);
+  let crest = clamp(rimField * (1.0 - rimField) * 4.0, 0.0, 1.0);
   // Additif en LUMIÈRE LINÉAIRE : c'est ce qu'est un reflet spéculaire.
   result = result + vec3<f32>(pow(lit, 3.0) * crest * rim);
 

@@ -123,6 +123,27 @@ const ATTENDU = {
   // premiere execution : elle a montre que la trainee PERLAIT en chapelet, un
   // trou structurel entre le nombre de taps et la croissance du pas.
   "effet-anamorphic-streak.png": { width: 256, height: 256, valeurs: null },
+  // SLICE SHIFT (2026-08-02) : posee AVANT d ajouter le fondu des bords, pour
+  // la meme raison qu outlines — l effet n avait aucun verrou, et « le nouveau
+  // parametre a 0 ne change rien » serait reste une affirmation sans une
+  // reference d avant le geste. Sur la RAMPE et non sur la mire commune : la
+  // propriete a montrer est la MARCHE de valeur a la frontiere entre deux
+  // tranches, et un damier saute deja d un texel a l autre, donc la marche s y
+  // noierait. Mesure a l ecriture, colonne x=128 : quatre marches (y = 32, 128,
+  // 192, 224, toutes multiples de l epaisseur de 32), transition sur UNE ligne
+  // aux quatre. C est ce 1 que le fondu fait bouger.
+  "effet-slice-shift.png": { width: 256, height: 256, valeurs: null },
+  // SLICE SHIFT, FONDU A 16 PX (2026-08-02) : le SEUL couple de references du
+  // dossier a ne differer que par un parametre, et c est deliberé — meme mire,
+  // meme graine, donc exactement les memes tranches aux memes endroits. Ce
+  // couple est un A/B, pas deux images qui se ressemblent, et il verrouille
+  // trois mesures que ni l une ni l autre ne porterait seule : la transition
+  // passe de 1 ligne a 13-15 aux memes y, elle est monotone aux quatre
+  // frontieres, et le COEUR des tranches reste identique au canal pres
+  // (18432/18432, ecart max 0). Cette derniere est celle qui compte : elle
+  // prouve qu on a mélangé des COORDONNEES et non des couleurs, puisqu un flou
+  // de la sortie aurait bouge les pixels du milieu aussi.
+  "effet-slice-shift-fondu.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

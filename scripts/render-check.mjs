@@ -843,6 +843,34 @@ const INSTALL = `(async () => {
       },
     },
 
+    // MEME SCENARIO, FONDU A 16 PX. Tout est identique au precedent — meme
+    // mire, meme graine, donc EXACTEMENT les memes tranches aux memes endroits.
+    // Le seul ecart entre les deux references est le profil de la frontiere, et
+    // c est ce qui en fait un A/B et pas deux images qui se ressemblent.
+    //
+    // 16 px sur des tranches de 32 : la moitie de l epaisseur, donc 8 px de
+    // part et d autre de chaque frontiere, et la moitie centrale de chaque
+    // tranche garde son decalage plein. Au maximum (16 = sliceSize / 2 * 2, soit
+    // le clamp a 32) les deux bandes de fondu d une meme tranche se toucheraient
+    // pile au milieu — la moitie de cette valeur laisse voir les deux regimes
+    // sur la meme image.
+    //
+    // Ce que la reference doit montrer, et qui se mesure au lieu de se juger :
+    // la transition passe de UNE ligne a une quinzaine, aux memes y.
+    "effet-slice-shift-fondu": {
+      contre: "effet-slice-shift",
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("sliceShift", p);
+        stack.updateParams(a, {
+          angle: 0, sliceSize: 32, displace: 0.12, density: 0.5,
+          irregular: 0.35, chromaSplit: 0.3, seed: 0, edgeFeather: 16,
+        });
+      },
+    },
+
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,
     // donc les passes de morphologie separees H/V).

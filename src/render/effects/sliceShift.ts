@@ -37,7 +37,25 @@ import { UV_SPACE_WGSL } from "./uvSpace";
  *    nul là où la bande ne bouge pas, jamais un liseré coloré posé sur une zone
  *    immobile.
  *
+ * 5. **La frontière entre deux tranches est une COUPURE FRANCHE**, et c'est la
+ *    signature de l'effet — un décrochage, pas un flou. « Fondu des bords »
+ *    (défaut 0, donc rien ne change sans le demander) l'adoucit, et le piège
+ *    est de croire qu'il s'agit de flouter. Flouter la SORTIE étalerait toute
+ *    la tranche alors que seul son BORD doit fondre. Ce qu'on fait ici, c'est
+ *    faire varier continûment le DÉCALAGE de part et d'autre de la frontière :
+ *    on mélange les deux coordonnées d'échantillonnage, jamais les deux
+ *    couleurs. Même distinction que celle qui fait qu'un `pixelStretch`
+ *    COMPRIME sa coordonnée au lieu de recopier des pixels — on déplace la
+ *    lecture, on ne floute pas le résultat.
+ *
+ *    Le fondu se mesure en PIXELS et non en fraction de tranche : sinon une
+ *    tranche fine serait entièrement fondue quand une épaisse ne le serait
+ *    qu'au bord.
+ *
  * COÛT : 3 taps (un par canal), une seule passe, aucune texture intermédiaire.
+ * Le fondu n'en ajoute aucun — il coûte un second tirage de hachage, pas un
+ * échantillon de plus. C'est précisément parce qu'il agit sur la coordonnée et
+ * non sur la couleur.
  *
  * `seed` rend le tirage REPRODUCTIBLE : deux ouvertures du même document
  * donnent les mêmes tranches. C'est le même choix que `grain`, et ce qui permet
@@ -54,34 +72,15 @@ export const sliceShift: EffectModule = {
     { name: "irregular", label: "Irrégularité", unit: "percent", min: 0, max: 1, default: 0.45, step: 0.01, hint: "Probabilité qu'une tranche fusionne avec sa voisine — sans elle, les bandes forment un peigne à période visible" },
     { name: "chromaSplit", label: "Écart des canaux", unit: "percent", min: 0, max: 1, default: 0.3, step: 0.01, hint: "Désynchronise rouge et bleu par rapport au vert, proportionnellement au décalage de la tranche" },
     { name: "seed", label: "Graine", unit: "none", min: 0, max: 1000, default: 0, step: 1, hint: "Change le tirage sans changer les réglages. Reproductible : la même graine redonne les mêmes tranches" },
+    { name: "edgeFeather", label: "Fondu des bords", unit: "pixels", min: 0, max: 200, default: 0, step: 1, hint: "Adoucit la frontière entre deux tranches, en pixels pleine résolution. À 0 la coupure est franche — c'est la signature de l'effet. Borné à l'épaisseur d'une tranche" },
   ],
   wgsl: `
 ${UV_SPACE_WGSL}${HASH_WGSL}
-fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
-  let angle = radians(params[0]);
-  let sliceSize = max(params[1], 1.0);
-  let displace = params[2];
-  let density = clamp(params[3], 0.0, 1.0);
-  let irregular = clamp(params[4], 0.0, 1.0);
-  let chromaSplit = clamp(params[5], 0.0, 1.0);
-  let seed = params[6];
-
-  let dims = vec2<f32>(textureDimensions(srcTexture));
-  let ar = aspectScale(dims);
-  let q = (uv - vec2<f32>(0.5)) * ar;
-  // \`along\` est la direction DANS laquelle une tranche glisse ; \`normal\` est
-  // l'axe le long duquel on les compte. Les deux sortent du même angle, donc
-  // tourner l'effet fait tourner bandes ET glissement ensemble — les découpler
-  // donnerait un cisaillement, pas des tranches.
-  let along = vec2<f32>(cos(angle), sin(angle));
-  let normal = vec2<f32>(-along.y, along.x);
-
-  // Index de tranche. \`q\` est en pixels/sqrt(W*H) : on remultiplie pour que
-  // « épaisseur » soit lisible en PIXELS pleine résolution, comme le rayon du
-  // pinceau et l'épaisseur de trait d'\`outlines\`.
-  let n = dot(q, normal) * sqrt(dims.x * dims.y);
-  let band = floor(n / sliceSize);
-
+// Décalage d'une tranche, fonction PURE de son index — extraite pour que le
+// fondu puisse demander celui de la tranche VOISINE sans dupliquer la règle
+// d'adoption. Toute divergence entre les deux appels rendrait le fondu faux
+// aux frontières fusionnées, précisément là où il doit être invisible.
+fn sliceAmount(band: f32, seed: f32, irregular: f32, density: f32, displace: f32) -> f32 {
   // ADOPTION : une bande sur \`irregular\` prend l'identité de sa voisine
   // précédente, donc son décalage. Deux bandes adjacentes qui partagent une
   // identité forment une bande deux fois plus épaisse, trois en forment une
@@ -100,7 +99,70 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // compilateur le refuse comme nom de variable. Attrapé par
   // \`npm run test:gpu-shaders\`, jamais par tsc.
   let moved = step(1.0 - density, hash(vec2<f32>(id, seed + 17.0)));
-  let amount = (hash(vec2<f32>(id, seed)) * 2.0 - 1.0) * displace * moved;
+  return (hash(vec2<f32>(id, seed)) * 2.0 - 1.0) * displace * moved;
+}
+
+fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
+  let angle = radians(params[0]);
+  let sliceSize = max(params[1], 1.0);
+  let displace = params[2];
+  let density = clamp(params[3], 0.0, 1.0);
+  let irregular = clamp(params[4], 0.0, 1.0);
+  let chromaSplit = clamp(params[5], 0.0, 1.0);
+  let seed = params[6];
+  // BORNÉ À L'ÉPAISSEUR D'UNE TRANCHE, et ce n'est pas un garde-fou cosmétique.
+  // La bande de fondu est centrée sur la frontière, donc large de \`f/2\` de
+  // chaque côté. Pour que les DEUX frontières d'une même tranche ne se
+  // recouvrent pas au milieu, il faut \`f/2 <= sliceSize - f/2\`, soit
+  // \`f <= sliceSize\`. Au-delà il faudrait mélanger trois tranches à la fois ;
+  // le clamp interdit ce cas au lieu de le rendre faux en silence.
+  let edgeFeather = clamp(params[7], 0.0, sliceSize);
+
+  let dims = vec2<f32>(textureDimensions(srcTexture));
+  let ar = aspectScale(dims);
+  let q = (uv - vec2<f32>(0.5)) * ar;
+  // \`along\` est la direction DANS laquelle une tranche glisse ; \`normal\` est
+  // l'axe le long duquel on les compte. Les deux sortent du même angle, donc
+  // tourner l'effet fait tourner bandes ET glissement ensemble — les découpler
+  // donnerait un cisaillement, pas des tranches.
+  let along = vec2<f32>(cos(angle), sin(angle));
+  let normal = vec2<f32>(-along.y, along.x);
+
+  // Index de tranche. \`q\` est en pixels/sqrt(W*H) : on remultiplie pour que
+  // « épaisseur » soit lisible en PIXELS pleine résolution, comme le rayon du
+  // pinceau et l'épaisseur de trait d'\`outlines\`.
+  let n = dot(q, normal) * sqrt(dims.x * dims.y);
+  let band = floor(n / sliceSize);
+  // Position DANS la tranche, en pixels : 0 au bord bas, \`sliceSize\` au bord
+  // haut. C'est la seule mesure dont le fondu a besoin, et elle est déjà en
+  // pixels — d'où le choix de l'unité du paramètre.
+  let local = n - band * sliceSize;
+
+  var amount = sliceAmount(band, seed, irregular, density, displace);
+
+  // LE FONDU. On mélange deux DÉCALAGES, pas deux couleurs : le résultat part
+  // dans \`baseUv\` et ne sera échantillonné qu'une fois, plus bas. À
+  // \`edgeFeather\` = 0 cette branche entière est sautée et il reste exactement
+  // l'arithmétique d'avant ce paramètre — c'est ce qui rend la neutralité du
+  // défaut structurelle et pas seulement numérique.
+  if (edgeFeather > 0.0) {
+    // Distance à la frontière la PLUS PROCHE, et de quel côté elle tombe.
+    let d = min(local, sliceSize - local);
+    let voisin = select(band + 1.0, band - 1.0, local < sliceSize - local);
+
+    // \`w\` = poids de la tranche courante. Vaut 0.5 pile SUR la frontière (les
+    // deux tranches à parts égales, donc continu quand on la traverse) et
+    // remonte à 1 au bord de la bande de fondu.
+    //
+    // SMOOTHSTEP ET NON UNE RAMPE LINÉAIRE, et la différence se voit : une
+    // rampe a une dérivée qui casse aux deux bords du fondu, ce qui pose deux
+    // plis fins de part et d'autre — on aurait remplacé une coupure par deux
+    // marques. Smoothstep est de pente nulle en 1, donc raccordé tangent au
+    // décalage constant de chaque tranche : aucune marque. Son point milieu
+    // reste 0.5, donc la frontière elle-même est toujours le partage exact.
+    let w = smoothstep(0.0, 1.0, clamp(0.5 + d / edgeFeather, 0.5, 1.0));
+    amount = mix(sliceAmount(voisin, seed, irregular, density, displace), amount, w);
+  }
 
   // Écart des canaux PROPORTIONNEL au décalage : nul sur une tranche immobile,
   // donc jamais de frange colorée sur une zone que l'utilisateur voit comme

@@ -495,7 +495,18 @@ export class FramePipelineExecutor {
         },
         pendingDestroy,
       );
-      if (previousPass) pendingDestroy.push(previousPass.texture);
+      // ⚠️ NE PAS DÉTRUIRE `previousPass.texture` ICI. Elle est PRÊTÉE par le
+      // pool de `EffectPassRunner` depuis le 2026-08-02, et `releaseFrameTargets()`
+      // la rendra après la soumission. La détruire la remettait au pool morte,
+      // et la frame suivante la réutilisait : « Destroyed texture used in a
+      // submit », une erreur de validation ASYNCHRONE — donc qui ne lève pas, et
+      // qui laisse simplement le canvas figé sur l'image précédente.
+      //
+      // Ce défaut a échappé aux 26 scénarios de `npm run test:render`, et c'est
+      // instructif : le harnais rend chaque scénario sur un renderer NEUF, donc
+      // il n'exerce jamais la réutilisation d'une trame à la suivante — la seule
+      // situation où le bug existe. Un verrou de pixels ne voit que ce que son
+      // protocole rejoue.
       if (!isLast) {
         readTexture = pingPong[writeIndex];
         writeIndex = 1 - writeIndex;

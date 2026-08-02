@@ -1054,6 +1054,26 @@ const INSTALL = `(async () => {
       },
     },
 
+    // MOTION BLUR DIRECTIONNEL — et ce scenario comble un trou releve le
+    // 2026-08-02 par Antoine (« le motion blur ne semble rien faire ») : les
+    // DEUX scenarios existants sont en Rotation. Le mode DIRECTIONNEL, qui est
+    // le defaut de l effet et donc celui qu on essaie en premier, n avait aucun
+    // verrou. Un refactor pouvait le casser sans faire rougir quoi que ce soit.
+    //
+    // Amplitude 60 px : au-dessus du seuil de reprise du net, en dessous du
+    // decoupage en segments (192 px). Il verrouille donc le chemin a UN segment,
+    // celui de tous les reglages courants.
+    "effet-motion-blur-directionnel": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("motionBlur");
+        stack.updateParams(a, {
+          trajectory: 0, amount: 60, angle: 30,
+          centerX: 0.5, centerY: 0.5, bias: 0, falloff: 0.35,
+        });
+      },
+    },
+
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,
     // donc les passes de morphologie separees H/V).

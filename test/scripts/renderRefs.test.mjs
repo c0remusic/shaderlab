@@ -182,6 +182,14 @@ const ATTENDU = {
   // en hautes lumieres de la mire — diffusion de reechantillonnage contre une
   // arete radiale, inherente a toute rotation multi-taps sur une grille.
   "effet-motion-blur-long.png": { width: 256, height: 256, valeurs: null },
+  // MOTION BLUR DIRECTIONNEL (2026-08-02) : comble un trou que le retour
+  // d Antoine (« le motion blur ne semble rien faire ») a rendu visible. Les
+  // deux autres scenarios de cet effet sont en ROTATION ; le mode DIRECTIONNEL,
+  // qui est son defaut et donc le premier qu on essaie, n avait aucun verrou.
+  // Amplitude 60 px : au-dessus du seuil de reprise du net, sous le decoupage en
+  // segments (192 px), donc il verrouille le chemin a UN segment — celui de tous
+  // les reglages courants.
+  "effet-motion-blur-directionnel.png": { width: 256, height: 256, valeurs: null },
   // POSTERIZE EN SERIGRAPHIE (2026-08-02) : les quatre controles ajoutes sur un
   // retour d Antoine (« posterize a tres peu de controles » — il en avait UN),
   // tous mis HORS de leur defaut, sans quoi la reference ne verrouillerait que

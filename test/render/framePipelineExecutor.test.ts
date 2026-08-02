@@ -121,6 +121,38 @@ describe("FramePipelineExecutor", () => {
     expect(rendu).toBeGreaterThan(submit.mock.invocationCallOrder[0]);
   });
 
+  it("NE DÉTRUIT PAS la cible de la dernière passe interne — elle est prêtée", () => {
+    /* CE TEST NAIT D UN BUG LIVRE, et de la façon dont il a échappé à tout.
+     *
+     * L'exécuteur poussait `previousPass.texture` dans `pendingDestroy`. C'était
+     * juste tant que `runInternalPasses` créait ses cibles ; depuis qu'elles
+     * viennent d'un POOL, ça les y remettait MORTES, et la frame suivante les
+     * réutilisait : « Destroyed texture used in a submit ».
+     *
+     * Pourquoi rien ne l'a vu : une erreur de validation WebGPU est ASYNCHRONE.
+     * Elle ne lève pas, elle n'échoue aucun test — le GPU jette simplement le
+     * travail et le canvas reste figé sur l'image d'avant. Les 26 scénarios de
+     * `npm run test:render` sont passés au vert pendant que l'app ne redessinait
+     * plus, parce que le harnais rend chaque scénario sur un renderer NEUF : il
+     * n'exerce jamais la réutilisation d'une frame à la suivante, la seule
+     * situation où le bug existe.
+     *
+     * D'où un test sur la MÉCANIQUE (qui détruit quoi) et non sur le rendu. */
+    const { executor, effects } = createExecutor();
+    const interne = texture();
+    effects.runInternalPasses = vi.fn(() => ({
+      view: {} as GPUTextureView,
+      texture: interne as unknown as GPUTexture,
+    }));
+
+    executor.run([layer({ effectId: "glow" })], null);
+
+    expect(effects.runInternalPasses).toHaveBeenCalled();
+    expect(interne.destroy).not.toHaveBeenCalled();
+    // Et elle repart bien par le pool, pas dans le vide.
+    expect(effects.releaseFrameTargets).toHaveBeenCalledOnce();
+  });
+
   it("rend les cibles de passe MÊME si la frame lance", () => {
     const { executor, effects } = createExecutor();
     effects.runEffectPass = vi.fn(() => {

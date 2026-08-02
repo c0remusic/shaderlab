@@ -1076,7 +1076,19 @@ LISIBLE — défauts, noms, et peut-être un mot dans l'interface.
    de la TANGENTE, une approximation au premier ordre dont le rayon croît en
    `√(1+θ²)`. Écart-type angulaire à 360°, où l'intégration d'un tour complet
    doit donner des anneaux constants : **16 à 20 % avant, 0,3 % après**.
-6. `channelMixer` — recoloration par canal (fiche Figma) absente.
+6. ~~`channelMixer` — recoloration par canal (fiche Figma) absente.~~ **LIVRÉ le
+   2026-08-02** : trois encres (une par canal) plus un curseur `Recoloration`,
+   neutre à son défaut. **Et le §6quinquies avait tort sur un point** — il donnait
+   « deux outils sous un même nom ». C'est la MÊME algèbre : assigner une couleur
+   au canal rouge, c'est poser cette couleur en COLONNE 0 de notre matrice, dont
+   les neuf curseurs sont les LIGNES. Leur outil était donc déjà atteignable
+   ici, en réglant trois curseurs répartis dans trois groupes — ce qui manquait
+   n'était pas une capacité mais une prise. Les encres se composent avec la
+   matrice au lieu de la remplacer : on peut séparer les canaux au filtre optique
+   PUIS les colorer, ce que la fiche de référence ne permet pas.
+   L'effet n'avait ni test unitaire ni verrou de pixels ; les deux ont été posés,
+   celui des DÉFAUTS avant le changement — c'est lui qui prouve que les dix
+   paramètres ajoutés laissent le rendu identique au bit.
 7. `hatching` — les motifs de Figma (Waves / Zigzag / Circles) restent absents ;
    nos `waveAmplitude`/`waveFrequency` ne couvrent qu'une partie de « Waves ».
 

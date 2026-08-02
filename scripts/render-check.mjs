@@ -815,6 +815,48 @@ const INSTALL = `(async () => {
       },
     },
 
+    // CHANNEL MIXER, A SES DEFAUTS — et ce scenario est pose le 2026-08-02
+    // AVANT de toucher a l effet, pas apres. L effet n avait alors NI test
+    // unitaire NI reference : rien ne pouvait dire si l ajout des encres le
+    // laissait intact a son defaut. Meme geste que pour outlines avant l
+    // extraction de son gradient — poser la preuve avant le geste.
+    //
+    // La mire commune convient sans reserve ici : un channel mixer est une
+    // recombinaison LINEAIRE des canaux, donc ce qu il faut lui montrer, ce
+    // sont des couleurs saturees et variees. Le damier teinte en donne sur
+    // toute la roue, et les aplats du disque donnent le cas neutre.
+    "effet-channel-mixer": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        stack.addLayer("channelMixer");
+        // AUCUN updateParams : c est le point du scenario. Il verrouille les
+        // DEFAUTS, donc exactement ce qu on voit en posant le calque.
+      },
+    },
+
+    // LE MEME EFFET, ENCRES ENGAGEES — la recoloration par canal du cahier
+    // (§6quinquies : « Channel mixer takes the red, green, and blue colors in
+    // an image and recolors each channel with your own selected color »).
+    //
+    // CE QUE CETTE REFERENCE PEUT MONTRER, et que la precedente ne peut pas :
+    // les trois encres sont posees sur des teintes ECARTEES (orange, vert,
+    // turquoise), donc un canal qui partirait dans la mauvaise colonne se
+    // verrait comme un virage de teinte franc. La matrice est laissee a l
+    // identite pour que ce qu on lit vienne des encres SEULES.
+    "effet-channel-mixer-encres": {
+      contre: "effet-channel-mixer",
+      build: async (r, stack) => {
+        const a = stack.addLayer("channelMixer");
+        stack.updateParams(a, {
+          redFromRed: 1, redFromGreen: 0, redFromBlue: 0,
+          greenFromRed: 0, greenFromGreen: 1, greenFromBlue: 0,
+          blueFromRed: 0, blueFromGreen: 0, blueFromBlue: 1,
+          preserveLuma: 1, monochrome: 0,
+          colorize: 1,
+        });
+      },
+    },
+
     // Anamorphic streak, sur la mire a POINTS LUMINEUX ISOLES — la meme que le
     // temoin de bokeh, et pour une raison voisine : une trainee ne se lit que
     // sur une source ponctuelle contre du sombre. Sur un damier, l etalement

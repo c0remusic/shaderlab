@@ -222,6 +222,15 @@ const ATTENDU = {
   // donc tout tombe du meme cote du seuil — un effet de seuil a besoin d un
   // champ qui TRAVERSE le seuil, pas de taches isolees.
   "effet-gooey-merge.png": { width: 256, height: 256, valeurs: null },
+  // CHANNEL MIXER (2026-08-02), et DEUX references dont la premiere existe pour
+  // une raison de METHODE. L'effet n'avait ni test unitaire ni reference ; celle
+  // de ses DEFAUTS a ete posee AVANT de lui ajouter les encres par canal, pas
+  // apres. C'est elle qui a prouve que les dix nouveaux parametres laissent le
+  // rendu identique AU BIT a leur defaut — une affirmation qu'aucune relecture
+  // de diff ne peut faire, et que ce fichier aurait ete incapable de verifier
+  // si la reference etait nee apres le changement.
+  "effet-channel-mixer.png": { width: 256, height: 256, valeurs: null },
+  "effet-channel-mixer-encres.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

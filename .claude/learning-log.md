@@ -2009,6 +2009,92 @@ Sixième affirmation non mesurée consignée en deux jours. Les cinq précédent
 Celle-ci est différente et plus dangereuse : **le code était juste, et c'est la
 mesure qui mentait.**
 
+## 2026-08-02 — deux affirmations de spec renversées par l'œil, dans la même heure
+
+**Le fondu de bords de `sliceShift` a été écrit TROIS fois en un jour.** Pas
+parce que le code était faux à chaque fois — il était correct à chaque fois.
+Parce que la SPEC l'était.
+
+La demande d'Antoine tenait en une phrase : « je voudrais pouvoir flouter les
+bords ». La note qui l'accompagnait, écrite la veille au soir, requalifiait le
+flou en **piège** et prescrivait de faire varier le décalage de part et d'autre
+de la frontière. C'est ce qui a été livré. Verdict à l'écran, le lendemain :
+« ça ressemble plus à du warping ». Puis, en trois messages : « pour que les
+bords deviennent moins nets », « sans être flous », « juste que la limite soit
+moins franche ».
+
+Les deux refus ne laissent qu'une lecture — ni cisaillement, ni flou, donc un
+**fondu enchaîné** : les deux tranches restent nettes, c'est leur passage qui
+devient progressif. C'est-à-dire exactement ce que la note appelait le piège.
+
+Ce qu'il faut en retenir n'est pas « demander plus tôt ». C'est que **la revue
+adverse avait vu le trou et l'avait nommé** : « the spec reinterpreted that as
+coordinate-mixing and declared blurring the trap. That reinterpretation may well
+be right, but it is a visual judgement, no human checkpoint is recorded. » Le
+finding était classé Important, pas Critical, et le travail a continué. Un
+finding qui dit « ceci est un jugement visuel non vérifié » sur un effet
+VISUEL devrait bloquer, pas informer.
+
+**Ce qui a sauvé le coup : l'instrument, pas l'intuition.** La mire à barres
+binaires écrite le matin mesure la part de valeurs intermédiaires fabriquées.
+Elle servait à prouver qu'on ne mélangeait PAS les couleurs (3,67 %). Le même
+instrument, inversé, a permis de vérifier le revirement au lieu de le croire :
+26,25 % après. Un test qui aurait été écrit pour décrire l'implémentation aurait
+dû être jeté ; celui-là décrivait une PROPRIÉTÉ OBSERVABLE, il a juste changé de
+signe. Même chose pour le bloc de tests du profil de poids, qui n'a pas bougé
+d'une ligne entre les deux mécanismes.
+
+Règle : un test dont l'énoncé cite le mécanisme (« mélange les coordonnées »)
+est à jeter au premier changement de mécanisme. Un test dont l'énoncé cite une
+mesure (« fabrique moins de N % de valeurs intermédiaires ») survit et sert
+d'arbitre. Écrire le second.
+
+## 2026-08-02 — une clé React dupliquée n'est signalée par personne
+
+**Bug signalé par Antoine :** « couleur des gouttes qui reste persistant même
+après avoir changé d'effet ».
+
+`gooeyMerge` déclare un paramètre nommé `tint` ET un `colorGroup` de clé
+`"tint"`. `ParamPanel` donnait `key={item.param.name}` aux paramètres et
+`key={item.key}` aux groupes : deux enfants de la même liste, même clé. La
+réconciliation de liste casse, et au démontage le bloc de couleur reste dans le
+DOM — un fantôme de plus à chaque passage, insensible au clic puisque React ne
+le possède plus.
+
+**Ce qui rend ce défaut intéressant, c'est que rien ne pouvait l'attraper.** Le
+compilateur l'accepte (deux chaînes). ESLint ne le voit pas. Et React
+n'avertit que sur les clés **manquantes** — jamais sur les doublons, en
+production. Aucun test ne pouvait le voir non plus, puisqu'il ne se manifeste
+qu'au DÉMONTAGE d'une liste, après une interaction.
+
+C'est la même famille que le contrôle mort du 2026-08-01 : **deux
+DÉCLARATIONS qui se contredisent, sans signature observable ailleurs**. Un
+filet qui observe le comportement ne trouve rien ; il faut comparer les
+déclarations entre elles. D'où une garde de la même forme que
+`parametresCables.test.ts`, sur les vingt effets.
+
+Correctif : préfixer les clés par espace de noms (`param:` / `groupe:`), ce qui
+rend la collision impossible par construction au lieu de compter sur le fait
+qu'aucun auteur d'effet ne nommera jamais un paramètre comme un groupe.
+
+Et la garde vérifie qu'elle peut **rougir** : elle reconstruit le schéma de clés
+naïf sur `gooeyMerge` et exige qu'il produise bien la collision. Sans cette
+ligne, elle passerait aussi sur un schéma qui ne protège de rien.
+
+**Note de méthode, et c'est peut-être le plus utile ici :** trois lectures
+successives du code ont conclu « la garde existe, ça devrait marcher ». C'est la
+REPRODUCTION par CDP — photo synthétique déposée, effets changés par le vrai
+sélecteur, libellés relevés dans le temps — qui a montré l'accumulation, puis
+l'écart entre ce que React croyait rendre (12 enfants) et ce que le DOM portait
+(13). Sur un bug d'interface, arrêter de lire plus tôt.
+
+⚠️ Deux sondes intermédiaires ont menti avant celle-là, et de la manière que
+la mémoire projet `sondes-cdp-mesurent-un-proxy` décrit : compter les enfants
+d'un fiber donne 1 quand React représente un tableau par un fiber de fragment,
+et remonter une chaîne de `return` « rejoint » le conteneur courant même en
+passant par son `alternate`. Ne relever que ce qui est VISIBLE — ici, les
+libellés affichés contre les paramètres déclarés.
+
 ## 2026-08-02 — un harnais à iframe reste pendu après un run tué
 
 **Friction, ~20 minutes.** `gpu-shader-check.mjs` et `render-check.mjs` créent

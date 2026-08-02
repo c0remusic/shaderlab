@@ -1019,6 +1019,41 @@ const INSTALL = `(async () => {
       },
     },
 
+    // POSTERIZE EN SERIGRAPHIE — les quatre controles ajoutes le 2026-08-02 sur
+    // un retour d Antoine (« posterize a tres peu de controles » : il en avait
+    // UN). Le scenario les met tous les quatre HORS de leur defaut, sans quoi la
+    // reference ne verrouillerait que le chemin d avant.
+    //
+    // TRAMAGE A ZERO, et c est le reglage qui compte. Le dither existe pour
+    // casser la bande sur un degrade doux ; un aplat d affiche veut au contraire
+    // la frontiere FRANCHE, et l effet ne savait pas la faire. La propriete se
+    // mesure sur la LONGUEUR DES PLAGES le long d une ligne : sans tramage, de
+    // longues plages constantes ; avec, elles sont hachees en motif fin. Ce n est
+    // PAS le nombre de couleurs qui distingue les deux — le dither decale avant
+    // de quantifier, donc la sortie n a de toute facon que \`levels\` valeurs par
+    // canal.
+    //
+    // Repartition PERCEPTUELLE : l autre moitie du retour, et une question que
+    // le cahier laissait explicitement ouverte au paragraphe 5.
+    // Compte de valeurs DECLARE au lieu du plancher generique, et ce n est pas
+    // un contournement : 4 paliers par canal ne peuvent produire que 4³ = 64
+    // couleurs au plus, et la mire n en exerce que 32. Le plancher de 64 protege
+    // contre une image MORTE ; ici l image est vivante et volontairement pauvre,
+    // c est la propriete meme de l effet. Declarer le compte exact est plus fort
+    // que le plancher — il verrouille que posterize quantifie REELLEMENT, ce
+    // qu un plancher ne saurait pas dire. Meme idiome que la toile vide, qui
+    // declare 1.
+    "effet-posterize-serigraphie": {
+      contre: "photo-de-fond-seule",
+      valeurs: 32,
+      build: async (r, stack) => {
+        const a = stack.addLayer("posterize");
+        stack.updateParams(a, {
+          levels: 4, dither: 0, blackPoint: 0.1, whitePoint: 0.9, distribution: 1,
+        });
+      },
+    },
+
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,
     // donc les passes de morphologie separees H/V).

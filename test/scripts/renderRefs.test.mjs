@@ -182,6 +182,23 @@ const ATTENDU = {
   // en hautes lumieres de la mire — diffusion de reechantillonnage contre une
   // arete radiale, inherente a toute rotation multi-taps sur une grille.
   "effet-motion-blur-long.png": { width: 256, height: 256, valeurs: null },
+  // POSTERIZE EN SERIGRAPHIE (2026-08-02) : les quatre controles ajoutes sur un
+  // retour d Antoine (« posterize a tres peu de controles » — il en avait UN),
+  // tous mis HORS de leur defaut, sans quoi la reference ne verrouillerait que
+  // le chemin d avant.
+  //
+  // 32 valeurs DECLAREES et non le plancher generique de 64, et c est plus fort
+  // que lui : 4 paliers par canal ne peuvent produire que 4³ couleurs au plus,
+  // donc un compte bas EST la propriete de l effet. Le plancher protege contre
+  // une image morte ; ici l image est vivante et volontairement pauvre.
+  //
+  // Ce que le tramage change est SPATIAL et non chromatique — il decale avant de
+  // quantifier, donc la sortie n a de toute facon que `levels` valeurs par
+  // canal. Mesure sur la longueur des plages constantes : 20,51 px sans tramage
+  // (exactement celle de la mire nue, les aplats en suivent la structure) contre
+  // 2,40 px sur la reference tramee, ou le motif hache tout. Et 4 niveaux de
+  // vert exactement, le nombre de paliers demande.
+  "effet-posterize-serigraphie.png": { width: 256, height: 256, valeurs: 32 },
   // GOOEY MERGE (2026-08-02) : posee pour repondre a une question d Antoine —
   // « tres aliasé effet metal avec des artefacts, c est le but ? » — et la
   // reponse est NON, mesuree. Part de transitions fortes qui se font en UN seul

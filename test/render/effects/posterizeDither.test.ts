@@ -101,7 +101,12 @@ describe("WGSL posterize", () => {
 
   it("dithère avant de quantifier, en coordonnées pixel", () => {
     expect(posterize.wgsl).toContain("vec2<u32>(uv * vec2<f32>(textureDimensions(srcTexture)))");
-    expect(posterize.wgsl).toContain("color.rgb + vec3<f32>(bayerThreshold(px) * stepSize)");
+    // Le dither porte sur `v` et non plus sur `color.rgb` depuis le 2026-08-02 :
+    // la couleur passe d'abord par l'axe de répartition et la plage d'entrée.
+    // Son amplitude reste UN DEMI-PALIER au maximum, modulée par `dither` —
+    // c'est ça, la propriété ; le nom de la variable ne l'est pas.
+    expect(posterize.wgsl).toContain("v + vec3<f32>(bayerThreshold(px) * stepSize * dither)");
+    expect(posterize.wgsl).toContain("let quantized = floor(dithered / stepSize + 0.5) * stepSize;");
     expect(posterize.wgsl).toContain("floor(dithered / stepSize + 0.5) * stepSize");
     expect(posterize.wgsl).toContain("clamp(quantized");
   });
@@ -110,11 +115,60 @@ describe("WGSL posterize", () => {
     // commentaires retirés : ils PARLENT de frames, le code ne doit pas en lire.
     const code = posterize.wgsl.replace(/\/\/[^\n]*/g, "");
     expect(code).not.toMatch(/time|frame|random|rand\(/i);
-    expect(posterize.params.map((p) => p.name)).toEqual(["levels"]);
+    // Cinq paramètres depuis le 2026-08-02 (Antoine : « posterize a très peu de
+    // contrôles » — il en avait UN). L'ordre est verrouillé parce que l'index
+    // d'un paramètre est PERSISTÉ dans les presets : les nouveaux s'ajoutent à
+    // la FIN, jamais au milieu.
+    expect(posterize.params.map((p) => p.name)).toEqual([
+      "levels", "dither", "blackPoint", "whitePoint", "distribution",
+    ]);
   });
 
   it("laisse intacte la répartition des paliers (stepSize inchangé)", () => {
     expect(posterize.wgsl).toContain("let levels = max(params[0], 2.0);");
     expect(posterize.wgsl).toContain("let stepSize = 1.0 / (levels - 1.0);");
+  });
+});
+
+describe("posterize — les quatre contrôles du 2026-08-02", () => {
+  it("garde son rendu d'avant sur ses défauts", () => {
+    // La référence de pixels `effets-glow-posterize` date d'avant ces
+    // paramètres et doit rester valable : chaque défaut est donc l'identité.
+    const par = Object.fromEntries(posterize.params.map((p) => [p.name, p.default]));
+    expect(par.dither).toBe(1); // l'amplitude d'avant, toujours pleine
+    expect(par.blackPoint).toBe(0);
+    expect(par.whitePoint).toBe(1); // 0/1 = remise à l'échelle identité
+    expect(par.distribution).toBe(0); // Linéaire = l'axe d'avant
+  });
+
+  it("sait ÉTEINDRE le tramage — c'est le rendu sérigraphie", () => {
+    // Le dither existe pour casser la bande sur un dégradé doux ; un aplat
+    // d'affiche veut au contraire la frontière FRANCHE. Ne pas pouvoir le
+    // couper interdisait le rendu que la référence §5 décrit.
+    const dither = posterize.params.find((p) => p.name === "dither");
+    expect(dither?.min).toBe(0);
+    // Multiplié dans le shader, donc à 0 le décalage est nul : la quantification
+    // redevient exactement `floor(v / pas + 0.5) * pas`.
+    expect(posterize.wgsl).toContain("bayerThreshold(px) * stepSize * dither");
+  });
+
+  it("expose l'axe de répartition que le cahier laissait OUVERT", () => {
+    // §5 : « les paliers doivent-ils se répartir sur l'axe linéaire ou
+    // perceptuel ? n'est pas tranchée par les sources […] Reste une décision de
+    // look, à prendre à l'œil. » Une décision que les sources ne tranchent pas
+    // devient un contrôle, elle ne se fige pas dans le code.
+    const d = posterize.params.find((p) => p.name === "distribution");
+    expect(d?.choices).toEqual(["Linéaire", "Perceptuel"]);
+    // Aller ET retour : quantifier sur l'axe perceptuel sans revenir écrirait
+    // des valeurs perceptuelles dans une cible linéaire, donc une image deux
+    // fois encodée — le défaut exact que `duotone` a déjà payé.
+    expect(posterize.wgsl).toContain("select(color.rgb, linear_to_srgb3(color.rgb), perceptual)");
+    expect(posterize.wgsl).toContain("select(plat, srgb_to_linear3(plat), perceptual)");
+  });
+
+  it("ne divise jamais par zéro sur la plage d'entrée", () => {
+    // Point blanc et point noir confondus produiraient du NaN, qui se propage
+    // en pixels noirs — un échec silencieux, pas une erreur.
+    expect(posterize.wgsl).toContain("let whitePoint = max(params[3], blackPoint + 0.001);");
   });
 });

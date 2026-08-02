@@ -134,16 +134,39 @@ const ATTENDU = {
   // aux quatre. C est ce 1 que le fondu fait bouger.
   "effet-slice-shift.png": { width: 256, height: 256, valeurs: null },
   // SLICE SHIFT, FONDU A 16 PX (2026-08-02) : le SEUL couple de references du
-  // dossier a ne differer que par un parametre, et c est deliberé — meme mire,
+  // dossier a ne differer que par un parametre, et c est delibere — meme mire,
   // meme graine, donc exactement les memes tranches aux memes endroits. Ce
-  // couple est un A/B, pas deux images qui se ressemblent, et il verrouille
-  // trois mesures que ni l une ni l autre ne porterait seule : la transition
-  // passe de 1 ligne a 13-15 aux memes y, elle est monotone aux quatre
-  // frontieres, et le COEUR des tranches reste identique au canal pres
-  // (18432/18432, ecart max 0). Cette derniere est celle qui compte : elle
-  // prouve qu on a mélangé des COORDONNEES et non des couleurs, puisqu un flou
-  // de la sortie aurait bouge les pixels du milieu aussi.
+  // couple est un A/B et pas deux images qui se ressemblent. Il porte le PROFIL
+  // du fondu, et rien d autre : transition de 1 ligne a 13-15 aux memes y,
+  // monotone aux quatre frontieres, coeur des tranches intact. Les trois sont
+  // ASSERTEES plus bas, pas seulement decrites ici — sans quoi un `--update` de
+  // bonne foi les effacerait en silence, ce que ce fichier existe pour empecher.
+  //
+  // ⚠️ CE QUE CE COUPLE NE PEUT PAS DIRE, et l avoir cru une premiere fois a
+  // coute une revue : il ne decide PAS si le fondu melange des coordonnees ou
+  // des couleurs. Sur une rampe AFFINE les deux sont algebriquement identiques
+  // (`mix` commute avec un echantillonneur affine) ; seule la courbure du
+  // transfert sRGB les separe, pour 0,03 niveau moyen. Le coeur intact n exclut
+  // qu un flou GLOBAL, alors que le piege nomme dans la demande est une
+  // operation LOCALE au bord — qui laisserait le coeur intact elle aussi.
+  // C est `effet-slice-shift-fondu-barres.png` qui tranche ce point.
   "effet-slice-shift-fondu.png": { width: 256, height: 256, valeurs: null },
+  // SLICE SHIFT SUR BARRES BINAIRES (2026-08-02) : la reference qui decide de la
+  // NATURE du melange, et la seule qui le puisse. Barres de 16 px, deux niveaux,
+  // uniformes en y et sur toute la largeur — donc deux lignes de decalages
+  // differents echantillonnent un contenu statistiquement identique, et toute
+  // valeur intermediaire est FABRIQUEE. Un melange de coordonnees ressort
+  // toujours une valeur de la source (seuls les bords de barre sont
+  // intermediaires) ; un melange de couleurs en fabrique partout ou les deux
+  // copies different, soit des dizaines de pour cent. Mesure assertee plus bas.
+  //
+  // Le contraste, lui, ne discrimine PAS : un decalage fractionnaire passe par
+  // une interpolation bilineaire qui attenue deja les hautes frequences, donc un
+  // melange de coordonnees perd du contraste lui aussi (-25 % mesure sur les
+  // rayures de 3 px de la mire commune, contre -29 % attendus d un melange de
+  // couleurs — indiscernable). D ou une mire BINAIRE, ou l on compte une
+  // population et pas une amplitude.
+  "effet-slice-shift-fondu-barres.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus
@@ -255,5 +278,122 @@ describe("references de rendu committees", () => {
       }
     }
     expect(differents).toBe(0);
+  });
+
+  /* ── SLICE SHIFT : le fondu des bords (2026-08-02) ──────────────────────────
+   *
+   * Les trois mesures ci-dessous vivaient en PROSE dans les commentaires
+   * d'ATTENDU, et la revue adverse a eu raison de le relever : un `--update` de
+   * bonne foi les aurait effacées sans rien faire rougir, ce qui est exactement
+   * le scénario que l'en-tête de ce fichier dit vouloir empêcher. Elles sont
+   * maintenant des assertions.
+   */
+
+  /** Canal vert de la colonne `x` d'une référence. Le vert est le seul canal que
+   *  `chromaSplit` ne décale pas : ce qu'on y lit vient du décalage de tranche
+   *  et de rien d'autre. */
+  const colonneVerte = (fichier, x) => {
+    const img = decodePng(readFileSync(path.join(REF_DIR, fichier)));
+    return Array.from({ length: img.height }, (_, y) => img.pixels[(y * img.width + x) * 4 + 1]);
+  };
+
+  /** Nombre de lignes consécutives qui varient autour de `y0`. Une coupure
+   *  franche en donne UNE, un fondu en donne autant que sa largeur. */
+  const largeurTransition = (col, y0, rayon = 12) => {
+    let n = 0;
+    for (let y = y0 - rayon; y < y0 + rayon; y++) if (col[y] !== col[y + 1]) n++;
+    return n;
+  };
+
+  // sliceSize 32 sur une toile de 256 : les frontières tombent aux multiples de
+  // 32. Quatre d'entre elles portent une marche — les autres séparent deux
+  // tranches immobiles (densité 0,5) ou fusionnées (irrégularité).
+  const FRONTIERES = [32, 128, 192, 224];
+
+  it("slice-shift : sans fondu, la frontière est une coupure d'UNE ligne", () => {
+    const col = colonneVerte("effet-slice-shift.png", 128);
+    for (const y0 of FRONTIERES) {
+      expect(Math.abs(col[y0] - col[y0 - 1])).toBeGreaterThanOrEqual(4);
+      expect(largeurTransition(col, y0)).toBe(1);
+    }
+  });
+
+  it("slice-shift : avec un fondu de 16 px, la transition s'étale et reste monotone", () => {
+    const col = colonneVerte("effet-slice-shift-fondu.png", 128);
+    for (const y0 of FRONTIERES) {
+      // Étalée : plus une coupure. La borne haute est celle de la bande de
+      // fondu elle-même (16 px), pas un chiffre choisi après coup.
+      const n = largeurTransition(col, y0);
+      expect(n).toBeGreaterThanOrEqual(10);
+      expect(n).toBeLessThanOrEqual(16);
+
+      // Monotone : un fondu, pas une oscillation. Un profil non monotone
+      // signalerait un pli — précisément ce que le choix de smoothstep évite.
+      const signes = new Set();
+      for (let y = y0 - 8; y < y0 + 8; y++) {
+        const d = col[y + 1] - col[y];
+        if (d !== 0) signes.add(Math.sign(d));
+      }
+      expect(signes.size).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("slice-shift : le fondu ne touche QUE le bord — le cœur des tranches est intact", () => {
+    const franc = decodePng(readFileSync(path.join(REF_DIR, "effet-slice-shift.png")));
+    const fondu = decodePng(readFileSync(path.join(REF_DIR, "effet-slice-shift-fondu.png")));
+    let compares = 0, differents = 0;
+    for (let y = 0; y < 256; y++) {
+      const local = y % 32;
+      if (local < 12 || local > 20) continue; // cœur seul, hors bande de fondu
+      for (let x = 0; x < 256; x++) {
+        const i = (y * 256 + x) * 4 + 1;
+        compares++;
+        if (franc.pixels[i] !== fondu.pixels[i]) differents++;
+      }
+    }
+    expect(compares).toBe(18432);
+    expect(differents).toBe(0);
+  });
+
+  it("slice-shift : le fondu mélange des COORDONNÉES et non des couleurs", () => {
+    // La seule mesure qui sépare les deux implémentations, et elle exige la
+    // mire BINAIRE : sur des barres à deux niveaux, toute valeur intermédiaire
+    // est fabriquée. Un mélange de coordonnées ressort toujours une valeur de
+    // la source, donc n'en fabrique qu'aux bords de barre. Un mélange de
+    // couleurs en fabrique partout où les deux copies décalées diffèrent —
+    // des dizaines de pour cent, le décalage entre tranches voisines valant des
+    // dizaines de pixels.
+    const img = decodePng(readFileSync(path.join(REF_DIR, "effet-slice-shift-fondu-barres.png")));
+    const MARGE = 12;
+    const intermediaire = (v) => Math.abs(v - 32) > MARGE && Math.abs(v - 224) > MARGE;
+
+    let dedans = 0, dedansTot = 0, dehors = 0, dehorsTot = 0;
+    for (let y = 0; y < img.height; y++) {
+      // Bande de fondu : ±8 px autour des frontières. `n = y + 0.5 - 128`,
+      // parce que l'axe des tranches est compté depuis le CENTRE de l'image.
+      const n = y + 0.5 - img.height / 2;
+      const l = ((n % 32) + 32) % 32;
+      const bande = Math.min(l, 32 - l) < 8;
+      for (let x = 0; x < img.width; x++) {
+        const v = img.pixels[(y * img.width + x) * 4 + 1];
+        if (bande) { dedansTot++; if (intermediaire(v)) dedans++; }
+        else { dehorsTot++; if (intermediaire(v)) dehors++; }
+      }
+    }
+
+    // LE SEUIL A ÉTÉ CALIBRÉ CONTRE LA MAUVAISE IMPLÉMENTATION, pas choisi.
+    // L'image qu'un mélange de couleurs aurait produite a été fabriquée depuis
+    // cette même référence (deux copies décalées de 30 px, même profil de poids)
+    // et passée dans cette métrique : elle donne 17,56 %, contre 3,67 % pour la
+    // vraie. Le seuil est leur moyenne géométrique — 8 % — donc la même marge
+    // de 2,2× de chaque côté. Un test qui ne peut pas rougir ne verrouille rien ;
+    // celui-ci a été vu rouge avant d'être committé vert.
+    expect(dedans / dedansTot).toBeLessThan(0.08);
+
+    // Et la bande de fondu ne doit pas non plus être IDENTIQUE au reste : elle
+    // fabrique un peu plus d'intermédiaires (l'interpolation bilinéaire des
+    // décalages fractionnaires balaie toute sa plage). Sans ça, la référence
+    // pourrait être une image où le fondu n'a rien fait du tout.
+    expect(dedans / dedansTot).toBeGreaterThan(dehors / dehorsTot);
   });
 });

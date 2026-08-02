@@ -12,12 +12,30 @@ import { UV_SPACE_WGSL } from "./uvSpace";
  *
  * 1. **Des bandes toutes de la même épaisseur font un PEIGNE.** L'œil trouve la
  *    période en une seconde et l'image se lit comme un store vénitien, pas comme
- *    un accident. « Irrégularité » fait fusionner une bande sur N avec sa
- *    voisine : les épaisseurs deviennent 1x, 2x, 3x sans aucune période. La
+ *    un accident. « Irrégularité » fait fusionner une bande avec sa voisine : la
  *    fusion se fait par ADOPTION de l'identité du voisin (une bande prend
  *    l'index de celle d'avant), jamais en déformant l'axe avant de le
  *    quantifier — un axe déformé n'est plus monotone et les bandes se
  *    chevaucheraient, ce qui produit des doublons de contenu.
+ *
+ *    ⚠️ **Deux propriétés de ce mécanisme sont contre-intuitives, et le
+ *    commentaire d'origine affirmait le contraire des deux.** Mesurées le
+ *    2026-08-02, à la relecture adverse du fondu.
+ *
+ *    L'adoption est d'un seul niveau et NON TRANSITIVE : `id(B) ∈ {B-1, B}`.
+ *    Deux bandes ne partagent une identité que si `B` adopte et que `B-1`
+ *    n'adopte PAS — car si `B-1` adopte aussi, elle descend en `B-2` et les
+ *    deux se manquent. Les épaisseurs sont donc **1x et 2x uniquement, jamais
+ *    3x**. Sur la graine 0 du scénario verrouillé, les bandes 1, 2 et 3 adoptent
+ *    toutes les trois et une SEULE frontière fusionne.
+ *
+ *    Corollaire, et c'est un vrai défaut de contrôle : `P(fusion) = irrégularité
+ *    × (1 - irrégularité)`, donc la courbe **culmine à 0,5 et retombe à ZÉRO à
+ *    1,0**. Pousser le curseur à fond redonne exactement le peigne qu'il devait
+ *    détruire — toutes les bandes adoptent, donc aucune ne partage. Le haut du
+ *    curseur dégrade l'effet. Non corrigé ici : le corriger déplace des pixels
+ *    sur un effet déjà livré, c'est un arbitrage d'Antoine et pas un effet de
+ *    bord du fondu.
  *
  * 2. **Le rebouclage par l'autre bord recolle deux bords étrangers.** Une bande
  *    décalée montrerait le bord droit de l'image collé à son bord gauche : une
@@ -52,9 +70,18 @@ import { UV_SPACE_WGSL } from "./uvSpace";
  *    tranche fine serait entièrement fondue quand une épaisse ne le serait
  *    qu'au bord.
  *
+ *    **Ce que « mélanger les coordonnées » PRODUIT, et qui n'est pas un flou :
+ *    un CISAILLEMENT.** Dans la bande de fondu, chaque ligne reste une copie
+ *    nette de la source, seulement décalée — c'est l'empilement de ces lignes
+ *    aux décalages voisins qui penche le contenu. Aux réglages du scénario
+ *    verrouillé la pente atteint ~2,9 px tangentiels par pixel normal, soit
+ *    ~71°. La demande d'Antoine disait « flouter les bords » ; la réponse posée
+ *    ici incline au lieu de flouter, et c'est un choix visuel qui lui revient.
+ *
  * COÛT : 3 taps (un par canal), une seule passe, aucune texture intermédiaire.
- * Le fondu n'en ajoute aucun — il coûte un second tirage de hachage, pas un
- * échantillon de plus. C'est précisément parce qu'il agit sur la coordonnée et
+ * Le fondu n'ajoute AUCUN tap. En revanche il DOUBLE le nombre de tirages de
+ * hachage — `sliceAmount` en fait trois, et le fondu l'appelle une seconde fois
+ * pour la tranche voisine : 3 → 6. C'est précisément parce qu'il agit sur la coordonnée et
  * non sur la couleur.
  *
  * `seed` rend le tirage REPRODUCTIBLE : deux ouvertures du même document
@@ -116,6 +143,15 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // recouvrent pas au milieu, il faut \`f/2 <= sliceSize - f/2\`, soit
   // \`f <= sliceSize\`. Au-delà il faudrait mélanger trois tranches à la fois ;
   // le clamp interdit ce cas au lieu de le rendre faux en silence.
+  //
+  // ⚠️ COURSE MORTE CONNUE, et elle se voit au curseur : le maximum déclaré est
+  // 200 px, l'effectif est \`sliceSize\` (48 par défaut). Les trois quarts du
+  // curseur ne font donc rien à l'épaisseur par défaut, sans aucun retour dans
+  // le panneau. Le vrai correctif serait un maximum DYNAMIQUE lié à
+  // \`sliceSize\`, que le système de paramètres ne sait pas exprimer
+  // aujourd'hui — et le rendre relatif à la tranche est exclu par la demande
+  // elle-même (une tranche fine serait entièrement fondue). Laissé en l'état,
+  // signalé plutôt que masqué.
   let edgeFeather = clamp(params[7], 0.0, sliceSize);
 
   let dims = vec2<f32>(textureDimensions(srcTexture));
@@ -160,6 +196,14 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     // marques. Smoothstep est de pente nulle en 1, donc raccordé tangent au
     // décalage constant de chaque tranche : aucune marque. Son point milieu
     // reste 0.5, donc la frontière elle-même est toujours le partage exact.
+    //
+    // SUR LA FRONTIÈRE ELLE-MÊME, le raccord est C¹ et pas seulement C⁰, et ce
+    // n'est pas évident : \`d\` a un coude en valeur absolue là, mais l'ordre des
+    // arguments de \`mix\` s'inverse en même temps (le voisin passe de \`band+1\`
+    // à \`band-1\`), et les deux inversions se compensent exactement — les deux
+    // côtés donnent la même dérivée \`(A_band - A_voisin) * w'(0)\`. C'est ce qui
+    // fait qu'aucune marque n'apparaît AU MILIEU du fondu non plus, et pas
+    // seulement à ses bords.
     let w = smoothstep(0.0, 1.0, clamp(0.5 + d / edgeFeather, 0.5, 1.0));
     amount = mix(sliceAmount(voisin, seed, irregular, density, displace), amount, w);
   }

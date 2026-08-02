@@ -362,6 +362,43 @@ const INSTALL = `(async () => {
     return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
   };
 
+  // Mire A BARRES : barres verticales BINAIRES, periode 32 px (16 sombres, 16
+  // claires), sur toute la toile et uniformes en y.
+  //
+  // Elle repond a une question qu AUCUNE autre mire ne peut trancher : un effet
+  // qui deplace une lecture melange-t-il des COORDONNEES ou des COULEURS ? La
+  // difference est structurelle et pas quantitative — un melange de coordonnees
+  // ressort TOUJOURS une valeur de la source, un melange de couleurs FABRIQUE
+  // des valeurs intermediaires partout ou les deux copies different.
+  //
+  // Deux proprietes rendent cette mesure incorruptible, et les deux ont ete
+  // payees par une mesure ratee sur la mire commune (contraste -25 % qui ne
+  // prouvait rien) :
+  //  - BINAIRE : l interieur des barres n a que deux valeurs, donc toute valeur
+  //    intermediaire est FABRIQUEE et se compte. Un contraste, lui, baisse aussi
+  //    par interpolation bilineaire des decalages fractionnaires — il ne
+  //    distingue pas les deux implementations.
+  //  - UNIFORME EN Y ET SUR TOUTE LA LARGEUR : deux lignes de decalages
+  //    differents echantillonnent un contenu statistiquement identique. Sur la
+  //    mire commune, les rayures fines n occupent qu un quart de l image et un
+  //    decalage de 30 px fait sortir certaines lignes de la zone — le contenu
+  //    change, pas le melange.
+  //
+  // Barres LARGES (16 px) a dessein : le decalage entre deux tranches voisines
+  // se compte en dizaines de pixels, donc les deux copies d un melange de
+  // couleurs tomberaient en desaccord sur une grande part de la largeur.
+  const mireBarres = (w, h) => {
+    const d = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const v = ((x >> 4) & 1) ? 224 : 32;
+        d[i] = v; d[i + 1] = v; d[i + 2] = v; d[i + 3] = 255;
+      }
+    }
+    return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
+  };
+
   // Mire A BRUIT : deux aplats separes par un contour FRANC, chacun couvert
   // d un bruit de faible amplitude.
   //
@@ -850,10 +887,10 @@ const INSTALL = `(async () => {
     //
     // 16 px sur des tranches de 32 : la moitie de l epaisseur, donc 8 px de
     // part et d autre de chaque frontiere, et la moitie centrale de chaque
-    // tranche garde son decalage plein. Au maximum (16 = sliceSize / 2 * 2, soit
-    // le clamp a 32) les deux bandes de fondu d une meme tranche se toucheraient
-    // pile au milieu — la moitie de cette valeur laisse voir les deux regimes
-    // sur la meme image.
+    // tranche garde son decalage plein. A la valeur maximale permise par le
+    // clamp (32, soit sliceSize) les deux bandes de fondu d une meme tranche se
+    // toucheraient pile au milieu et il ne resterait aucun decalage plein a
+    // voir ; la moitie laisse les deux regimes sur la meme image.
     //
     // Ce que la reference doit montrer, et qui se mesure au lieu de se juger :
     // la transition passe de UNE ligne a une quinzaine, aux memes y.
@@ -863,6 +900,53 @@ const INSTALL = `(async () => {
         const rampe = await mireRampe(W, H);
         const sourceId = await r.photoSources.register(rampe);
         const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("sliceShift", p);
+        stack.updateParams(a, {
+          angle: 0, sliceSize: 32, displace: 0.12, density: 0.5,
+          irregular: 0.35, chromaSplit: 0.3, seed: 0, edgeFeather: 16,
+        });
+      },
+    },
+
+    // LE MEME FONDU, SUR LES BARRES BINAIRES — et ce scenario existe parce que
+    // les deux precedents NE PEUVENT PAS decider ce qu on leur avait fait dire.
+    //
+    // L ERREUR, ecrite ici pour qu elle ne soit pas repayee : sur une rampe
+    // AFFINE, melanger deux COORDONNEES et melanger deux COULEURS sont
+    // algebriquement la MEME chose, parce que \`mix\` commute avec un
+    // echantillonneur affine. La rampe (\`v = x*255/(w-1)\`) est exactement
+    // affine ; seule la courbure du transfert sRGB les separe, et seulement aux
+    // extremes — 0,03 niveau d ecart moyen sur tout l interieur, mesure. Elle
+    // reste parfaite pour le PROFIL du decalage (largeur de transition,
+    // monotonie) et elle est structurellement AVEUGLE a la nature du melange.
+    // C est le piege de lensBlur, une journee plus tard.
+    //
+    // Deuxieme tentative ratee, elle aussi instructive : compter un CONTRASTE
+    // sur des rayures fines. Un decalage fractionnaire passe par une
+    // interpolation bilineaire, qui attenue deja les hautes frequences (pour une
+    // periode de 3 px a une fraction de 0,5, le transfert vaut exactement 0,5).
+    // Dans la bande de fondu le decalage balaie, donc la fraction balaie, donc
+    // l attenuation moyenne chute — un melange de COORDONNEES perd du contraste
+    // lui aussi. Mesure : -25 %, contre -29 % attendus d un melange de couleurs.
+    // Le contraste ne discrimine pas.
+    //
+    // CE QUI DISCRIMINE est structurel : un melange de coordonnees ressort
+    // TOUJOURS une valeur de la source ; un melange de couleurs FABRIQUE une
+    // valeur intermediaire partout ou les deux copies different. Sur des barres
+    // binaires, la part de pixels intermediaires se compte :
+    //   - coordonnees : seulement les bords de barre (~2 px par periode de 32),
+    //     soit quelques pour cent ;
+    //   - couleurs : la part de la largeur ou les deux copies sont en desaccord,
+    //     soit des dizaines de pour cent, le decalage entre tranches voisines se
+    //     comptant en dizaines de pixels.
+    // Deux ordres de grandeur separent les deux reponses. Mesure au canal VERT,
+    // le seul que \`chromaSplit\` ne decale pas.
+    "effet-slice-shift-fondu-barres": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const barres = await mireBarres(W, H);
+        const sourceId = await r.photoSources.register(barres);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "barres");
         const a = stack.addLayer("sliceShift", p);
         stack.updateParams(a, {
           angle: 0, sliceSize: 32, displace: 0.12, density: 0.5,

@@ -1,0 +1,196 @@
+import { describe, it, expect } from "vitest";
+import { sliceShift } from "../../../src/render/effects/sliceShift";
+import { getEffect } from "../../../src/render/effects/registry";
+
+/**
+ * SLICE SHIFT — et ce fichier naît d'un manque relevé en revue le 2026-08-02 :
+ * l'effet n'avait AUCUN test unitaire, alors qu'il venait de recevoir un
+ * paramètre. Les deux verrous de pixels couvrent son rendu ; ils ne couvrent
+ * pas ce que ses commentaires AFFIRMENT.
+ *
+ * C'est la distinction qui compte ici. Le défaut récurrent du dépôt, consigné
+ * cinq fois dans `.claude/learning-log.md`, est un commentaire qui affirme une
+ * propriété que le code n'a pas — et deux affirmations de cet effet étaient
+ * fausses depuis son écriture, jusqu'à cette revue. Un test de rendu ne les
+ * aurait jamais vues : elles portent sur la LOI du mécanisme, pas sur une
+ * image. D'où des tests qui vérifient la loi elle-même.
+ */
+
+const wgsl = sliceShift.wgsl;
+
+describe("sliceShift — le paramètre de fondu est réellement câblé", () => {
+  it("déclare huit paramètres, le fondu en dernier et à zéro", () => {
+    // EN DERNIER, et c'est une contrainte de format et pas un rangement :
+    // l'index d'un paramètre est PERSISTÉ dans les presets. Insérer au milieu
+    // décalerait silencieusement les réglages de tous les documents existants.
+    const noms = sliceShift.params.map((p) => p.name);
+    expect(noms).toEqual([
+      "angle", "sliceSize", "displace", "density", "irregular", "chromaSplit", "seed", "edgeFeather",
+    ]);
+    expect(sliceShift.params[7].default).toBe(0);
+    expect(sliceShift.params[7].unit).toBe("pixels");
+  });
+
+  it("lit le fondu à SON index, et l'annule au-delà de l'épaisseur d'une tranche", () => {
+    // Le clamp n'est pas cosmétique : la bande de fondu est large de f/2 de
+    // chaque côté d'une frontière, donc au-delà de `sliceSize` les deux
+    // frontières d'une même tranche se recouvriraient et il faudrait mélanger
+    // trois tranches à la fois.
+    expect(wgsl).toContain("let edgeFeather = clamp(params[7], 0.0, sliceSize);");
+  });
+
+  it("saute le fondu entier à zéro — la neutralité du défaut est STRUCTURELLE", () => {
+    // Une branche et non un `mix` à poids nul : à `edgeFeather` = 0 il reste
+    // exactement l'arithmétique d'avant ce paramètre, donc la référence de
+    // pixels écrite avant lui vaut preuve de non-régression.
+    expect(wgsl).toContain("if (edgeFeather > 0.0) {");
+  });
+
+  it("mélange des COORDONNÉES : un seul échantillonnage par canal, après le fondu", () => {
+    // Le piège nommé dans la demande d'Antoine. Trois `textureSample`, un par
+    // canal, tous sur des UV dérivés du MÊME `amount` déjà fondu — donc jamais
+    // deux couleurs mélangées entre elles.
+    expect(wgsl.match(/textureSample\(/g)?.length).toBe(3);
+    expect(wgsl).toContain("amount = mix(sliceAmount(voisin, seed, irregular, density, displace), amount, w);");
+    expect(wgsl.indexOf("amount = mix(")).toBeLessThan(wgsl.indexOf("let baseUv"));
+  });
+});
+
+describe("sliceShift — le profil de fondu, et pourquoi ce n'est pas une rampe", () => {
+  /** Le poids de la tranche courante, transcrit du shader. `d` est la distance
+   *  en pixels à la frontière la plus proche, `f` la largeur du fondu. */
+  const w = (d: number, f: number) => {
+    const t = Math.min(1, Math.max(0.5, 0.5 + d / f));
+    return t * t * (3 - 2 * t); // smoothstep(0, 1, t)
+  };
+
+  it("partage exactement la frontière en deux", () => {
+    // Sur la frontière (d = 0), les deux tranches pèsent pareil. C'est ce qui
+    // rend le décalage CONTINU quand on la traverse : les deux côtés calculent
+    // la même moyenne, chacun depuis son propre point de vue.
+    expect(w(0, 16)).toBeCloseTo(0.5, 12);
+  });
+
+  it("a une pente NULLE aux deux bords du fondu — c'est tout l'intérêt", () => {
+    // Une rampe linéaire aurait une pente constante jusqu'au bord, donc une
+    // dérivée qui casse en y arrivant : deux plis fins de part et d'autre, une
+    // coupure remplacée par deux marques. Ici la pente s'annule en douceur.
+    const f = 16, eps = 1e-4;
+    const penteAuBord = (w(f / 2, f) - w(f / 2 - eps, f)) / eps;
+    expect(Math.abs(penteAuBord)).toBeLessThan(1e-3);
+
+    // Et elle est MAXIMALE sur la frontière : le décrochage reste un
+    // décrochage, il n'est pas étalé uniformément.
+    const penteAuCentre = (w(eps, f) - w(0, f)) / eps;
+    expect(penteAuCentre).toBeGreaterThan(1.4 / f);
+  });
+
+  it("est C¹ à la traversée de la frontière, et pas seulement continu", () => {
+    // Le point non évident. `d = min(local, sliceSize - local)` a un coude en
+    // valeur absolue sur la frontière, MAIS l'ordre des arguments de `mix`
+    // s'inverse au même endroit (le voisin passe de `band+1` à `band-1`). Les
+    // deux inversions se compensent : la dérivée du décalage est la même des
+    // deux côtés. Sans cette compensation, une marque apparaîtrait au MILIEU du
+    // fondu — là précisément où on veut qu'il n'y ait rien à voir.
+    const f = 16, A = 0.1, B = -0.05; // décalages de deux tranches voisines
+    // `s` signé : négatif du côté de la tranche B, positif du côté de A.
+    const decalage = (s: number) =>
+      s >= 0 ? B + (A - B) * w(s, f) : A + (B - A) * w(-s, f);
+    const eps = 1e-5;
+    const penteDroite = (decalage(eps) - decalage(0)) / eps;
+    const penteGauche = (decalage(0) - decalage(-eps)) / eps;
+    expect(penteDroite).toBeCloseTo(penteGauche, 6);
+  });
+
+  it("laisse le cœur de la tranche à son décalage PLEIN tant que f < sliceSize", () => {
+    // Sinon le fondu ne serait plus un fondu de BORD : il mangerait la tranche
+    // entière, et le décrochage — la signature de l'effet — disparaîtrait.
+    const sliceSize = 32;
+    for (const f of [4, 8, 16, 31]) {
+      expect(w(sliceSize / 2, f)).toBe(1);
+    }
+    // À la borne haute du clamp, les deux bandes se touchent pile au milieu :
+    // il ne reste qu'une ligne de décalage plein. C'est la limite du domaine,
+    // atteinte et pas dépassée.
+    expect(w(sliceSize / 2, sliceSize)).toBe(1);
+  });
+});
+
+describe("sliceShift — la loi d'adoption, et les deux choses qu'elle NE fait pas", () => {
+  /* Ces deux tests corrigent des affirmations qui ont vécu dans le fichier
+   * depuis son écriture. Ils ne dépendent pas du hachage précis : la loi est
+   * `id(B) = B-1 si u(B) < irrégularité, sinon B`, pour n'importe quel tirage
+   * uniforme indépendant. Ce sont ses CONSÉQUENCES qui sont testées. */
+
+  const identites = (n: number, irregular: number, u: (i: number) => number) =>
+    Array.from({ length: n }, (_, i) => (u(i) < irregular ? i - 1 : i));
+
+  /** Générateur déterministe, uniforme et indépendant par bande. */
+  const tirage = (graine: number) => (i: number) => {
+    const x = Math.sin(i * 12.9898 + graine * 78.233) * 43758.5453;
+    return x - Math.floor(x);
+  };
+
+  it("l'adoption n'est PAS transitive : les épaisseurs sont 1x et 2x, jamais 3x", () => {
+    // `id(B) ∈ {B-1, B}`. Deux bandes ne partagent une identité que si B adopte
+    // ET que B-1 n'adopte pas — car si B-1 adopte aussi, elle descend en B-2 et
+    // les deux se manquent. Trois bandes consécutives ne peuvent donc jamais
+    // partager. Le commentaire d'origine promettait « 1x, 2x, 3x ».
+    for (const irregular of [0.2, 0.35, 0.5, 0.8]) {
+      const id = identites(5000, irregular, tirage(irregular * 100));
+      const epaisseurs = new Set<number>();
+      let courant = 1;
+      for (let i = 1; i < id.length; i++) {
+        if (id[i] === id[i - 1]) courant++;
+        else { epaisseurs.add(courant); courant = 1; }
+      }
+      expect([...epaisseurs].sort()).toEqual([1, 2]);
+    }
+  });
+
+  it("l'irrégularité est NON MONOTONE : elle culmine à 0,5 et retombe à zéro à 1", () => {
+    // `P(fusion) = irrégularité × (1 - irrégularité)`. Conséquence directe et
+    // contre-intuitive : pousser le curseur à fond redonne exactement le peigne
+    // qu'il devait détruire, puisque TOUTES les bandes adoptent et qu'aucune ne
+    // partage plus. Le haut du curseur dégrade l'effet.
+    const partFusionnee = (irregular: number) => {
+      const id = identites(20000, irregular, tirage(7));
+      let f = 0;
+      for (let i = 1; i < id.length; i++) if (id[i] === id[i - 1]) f++;
+      return f / (id.length - 1);
+    };
+
+    expect(partFusionnee(0)).toBe(0);
+    expect(partFusionnee(1)).toBe(0);
+    expect(partFusionnee(0.5)).toBeGreaterThan(0.2);
+    // Le pic est bien au milieu, pas au maximum du curseur.
+    expect(partFusionnee(0.5)).toBeGreaterThan(partFusionnee(0.9));
+    expect(partFusionnee(0.9)).toBeGreaterThan(partFusionnee(0.99));
+
+    // ⚠️ Ce test CONSTATE le défaut, il ne le valide pas. Le corriger déplace
+    // des pixels sur un effet déjà livré : c'est un arbitrage d'Antoine, pas un
+    // effet de bord du fondu des bords. Voir le bandeau de `sliceShift.ts`.
+  });
+
+  it("le shader implémente bien CETTE loi, d'un seul niveau", () => {
+    // Le pont entre la loi testée ci-dessus et le code réel : une seule
+    // soustraction d'un, sous un seul tirage comparé à `irregular`.
+    expect(wgsl).toContain("if (hash(vec2<f32>(band, seed + 101.0)) < irregular) {");
+    expect(wgsl).toContain("id = band - 1.0;");
+    expect(wgsl.match(/id = band - 1\.0;/g)?.length).toBe(1);
+  });
+});
+
+describe("sliceShift — la fonction extraite est partagée, pas dupliquée", () => {
+  it("déclare sliceAmount UNE fois et l'appelle pour les deux tranches", () => {
+    // Dupliquer la règle d'adoption ferait diverger la tranche courante de sa
+    // voisine, et le fondu serait faux EXACTEMENT aux frontières fusionnées —
+    // là où il doit être invisible, donc là où personne ne le verrait.
+    expect(wgsl.match(/fn sliceAmount\(/g)?.length).toBe(1);
+    expect(wgsl.match(/sliceAmount\(/g)?.length).toBe(3); // 1 déclaration + 2 appels
+  });
+
+  it("reste enregistré au registre sous son identifiant", () => {
+    expect(getEffect("sliceShift")).toBe(sliceShift);
+  });
+});

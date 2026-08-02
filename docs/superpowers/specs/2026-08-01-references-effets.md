@@ -500,9 +500,55 @@ le fondu diffère — c'est un A/B, pas deux images qui se ressemblent) :
 | monotonie sur la bande de fondu | — | **oui** aux 4 |
 | cœur des tranches (hors bande) | — | **18432/18432 canaux identiques, écart max 0** |
 
-La troisième ligne est la preuve que le piège est évité : loin des bords, les
-deux images sont identiques au canal près. Un flou de la sortie aurait bougé ces
-pixels-là aussi.
+#### La revue adverse a cassé la preuve du piège — et elle avait raison
+
+**Version d'abord publiée ici, et fausse :** « le cœur des tranches identique
+prouve qu'on a mélangé des coordonnées et non des couleurs, puisqu'un flou de la
+sortie aurait bougé ces pixels-là aussi ». Deux trous, tous deux relevés en revue
+le 2026-08-02 :
+
+1. Un cœur intact n'exclut qu'un flou **global**. Le piège nommé dans la demande
+   est une opération **locale au bord** — et n'importe quelle opération locale au
+   bord laisse le cœur intact par construction. On réfutait une implémentation
+   que personne n'écrirait.
+2. Plus grave : **sur une rampe affine, mélanger des coordonnées et mélanger des
+   couleurs sont algébriquement la même chose**, `mix` commutant avec un
+   échantillonneur affine. `mireRampe` est exactement affine ; seule la courbure
+   du transfert sRGB les sépare, pour **0,03 niveau d'écart moyen** sur tout
+   l'intérieur. La mire choisie était structurellement aveugle à la propriété
+   annoncée. C'est le piège `lensBlur`, reproduit une journée plus tard.
+
+**Deuxième tentative, ratée elle aussi** — et elle vaut d'être écrite parce que
+l'intuition y mène tout droit : compter un **contraste** sur des rayures fines.
+Un décalage fractionnaire passe par une interpolation bilinéaire, qui atténue
+déjà les hautes fréquences (période 3 px à une fraction de 0,5 : transfert
+exactement 0,5). Dans la bande de fondu le décalage balaie, donc la fraction
+balaie, donc l'atténuation moyenne chute. Mesure : **-25 %**, contre **-29 %**
+attendus d'un mélange de couleurs. Indiscernable. Un mélange de coordonnées perd
+du contraste lui aussi.
+
+**Ce qui tranche est structurel, pas quantitatif.** Un mélange de coordonnées
+ressort *toujours* une valeur de la source ; un mélange de couleurs *fabrique*
+une valeur intermédiaire partout où les deux copies diffèrent. Sur une mire de
+barres **binaires** (16 px, deux niveaux, uniformes en y et sur toute la largeur,
+`mireBarres`), la part de pixels intermédiaires se compte — au canal vert, le
+seul que `chromaSplit` ne décale pas :
+
+| | mesuré |
+|---|---|
+| bande de fondu | **3,67 %** |
+| hors bande | 2,93 % |
+| image fabriquée d'un mélange de couleurs | **17,56 %** |
+
+Le seuil du test est posé à **8 %**, moyenne géométrique des deux réponses, donc
+la même marge de 2,2× de chaque côté. La mauvaise implémentation a été fabriquée
+depuis la référence elle-même et passée dans la métrique : **le verrou a été vu
+rouge avant d'être committé vert.**
+
+Et les trois mesures du couple de rampes, qui vivaient en prose, sont devenues
+des assertions dans `test/scripts/renderRefs.test.mjs` — sans quoi un `--update`
+de bonne foi les aurait effacées en silence, ce que ce fichier existe pour
+empêcher.
 
 **Un choix que la demande ne tranchait pas : `smoothstep` plutôt qu'une rampe
 linéaire.** Une rampe a une dérivée qui casse aux deux bords du fondu et y pose
@@ -515,6 +561,34 @@ aurait donné 2 partout avec un angle à chaque bout.
 Et le clamp à `sliceSize` n'est pas cosmétique : la bande de fondu est large de
 `f/2` de chaque côté, donc au-delà les deux frontières d'une même tranche se
 recouvriraient et il faudrait mélanger trois tranches à la fois.
+
+#### Trois points restés OUVERTS, tous relevés par la même revue
+
+Aucun n'est un effet de bord du fondu ; tous demandent un arbitrage d'Antoine.
+
+1. **Ce qui est livré est un CISAILLEMENT, pas un flou.** Faire varier le
+   décalage continûment penche le contenu de la bande de fondu — aux réglages
+   verrouillés, une pente de ~2,9 px tangentiels par pixel normal, soit ~71°.
+   La demande disait « je voudrais pouvoir **flouter** les bords » ; la note qui
+   l'accompagnait a requalifié le flou en piège et prescrit le mélange de
+   coordonnées. La requalification est peut-être juste — mais c'est un jugement
+   visuel, et **aucun checkpoint humain n'a encore été fait**.
+2. **`irregular` est non monotone et se sabote à son maximum.** `P(fusion) =
+   irrégularité × (1 - irrégularité)` : le pic est à 0,5 et la valeur retombe à
+   **zéro à 1,0**, où toutes les bandes adoptent et où aucune ne partage plus
+   d'identité — donc le peigne que ce contrôle devait détruire revient intact.
+   Corollaire du même mécanisme : l'adoption n'étant pas transitive, les
+   épaisseurs sont **1x et 2x uniquement**, jamais 3x comme l'affirmait le
+   fichier depuis son écriture. Défaut ANTÉRIEUR au fondu ; le corriger déplace
+   des pixels sur un effet déjà livré. Les deux propriétés sont désormais
+   testées (`test/render/effects/sliceShift.test.ts`) — le test **constate** le
+   défaut, il ne le valide pas.
+3. **Course morte du curseur de fondu.** Maximum déclaré 200 px, effectif
+   `sliceSize` (48 par défaut) : les trois quarts de la course ne font rien, sans
+   retour dans le panneau. Le vrai correctif serait un maximum **dynamique**, que
+   le système de paramètres ne sait pas exprimer ; et le rendre relatif à la
+   tranche est exclu par la demande elle-même. Signalé dans le code plutôt que
+   masqué.
 
 Un motif se dégage : **le choix d'espace de mélange et le mode d'entrée sont des
 contrôles récurrents chez Figma**, et absents partout chez nous. À traiter comme

@@ -1048,10 +1048,24 @@ LISIBLE — défauts, noms, et peut-être un mot dans l'interface.
 ## Triage
 
 **A. DÉFAUTS — un effet livré qui ne tient pas sa promesse.**
-1. `coloredEdges` — « horrible, inutilisable ». Douze paramètres et un rendu
-   rejeté en bloc. Le §6quinquies le donnait pourtant « conçu à l'aveugle, et
-   tombé juste » : ce verdict était une comparaison de SURFACE DE CONTRÔLE, pas
-   de rendu. À reprendre depuis la référence visuelle, pas depuis la fiche.
+1. ~~`coloredEdges` — « horrible, inutilisable ».~~ **CAUSE TROUVÉE ET CORRIGÉE
+   le 2026-08-02 ; le verdict d'usage, lui, reste à rendre.** La roue de teintes
+   était construite en **HSL**, qui n'est pas perceptuel. Mesuré sur la référence
+   de rendu, sur les seuls pixels pleinement encrés : pour un unique curseur
+   `Luminosité`, la clarté RÉELLEMENT PERÇUE balayait **0,290** selon la seule
+   orientation du bord (bleu à 0,534, vert-jaune à 0,883). L'effet promettait
+   « la teinte vient de l'orientation » et livrait « la teinte ET la clarté ET le
+   chroma viennent de l'orientation » — deux des trois voulus par personne, et
+   qu'aucun réglage des douze paramètres ne pouvait corriger puisque la variation
+   était dans la conversion. Couleur reconstruite en **OKLCH** (même conclusion
+   que la mesure de `gradientMap` sur les rampes de teinte) : étendue **0,018**,
+   seize fois moins. Chroma borné à 0,30 — au-delà, l'écrêtage hors gamut
+   rendrait la roue irrégulière par un autre chemin.
+   ⚠️ **Ce qui est prouvé est la RÉGULARITÉ, pas l'agrément.** La mire est un
+   damier, donc chacune de ses cases porte un bord : ces images ne ressemblent
+   pas à ce que l'effet fait d'une photo. Une seconde référence
+   (`effet-colored-edges-defauts`) montre le calque POSÉ, puisque c'est sur lui
+   que portait le verdict — mais il reste à juger sur une vraie photo.
 2. `outlines` — même rejet, mais la cause est connue et écrite : ce n'est pas le
    même effet que celui de Figma. Le nôtre trace une encre unique sur les
    contours ; le leur empile des contours **concentriques** qui s'éloignent du

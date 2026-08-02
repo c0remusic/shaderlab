@@ -240,6 +240,11 @@ const ATTENDU = {
   "effet-hatching-ondulations.png": { width: 256, height: 256, valeurs: null },
   "effet-hatching-zigzag.png": { width: 256, height: 256, valeurs: null },
   "effet-hatching-cercles.png": { width: 256, height: 256, valeurs: null },
+  // COLORED EDGES A SES DEFAUTS (2026-08-02). Le scenario historique tourne a
+  // saturation 0,85 / wash 0,85 : il EXAGERE la roue, ce qu'il faut pour la
+  // mesurer et pas du tout pour juger l'effet. Le verdict d'usage « horrible,
+  // inutilisable » portait sur le calque POSE — d'ou une seconde image.
+  "effet-colored-edges-defauts.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus
@@ -535,6 +540,66 @@ describe("references de rendu committees", () => {
     for (const seuil of [16, 24, 32, 48]) {
       expect(filaments("photo-de-fond-seule.png", seuil)).toBe(0);
     }
+  });
+
+  /* ── COLORED EDGES : la roue doit être PERCEPTUELLEMENT régulière (2026-08-02)
+   *
+   * L'effet promet « la teinte vient de l'orientation du bord ». En HSL, il
+   * livrait « la teinte ET la clarté viennent de l'orientation » : un seul
+   * curseur Clarté, et la clarté réellement perçue balayait un tiers de
+   * l'échelle selon la direction du contour. C'est ce que le verdict d'usage
+   * appelait « horrible ».
+   *
+   * La mesure ne peut se faire que sur les pixels PLEINEMENT encrés. Un pixel
+   * de bord partiellement couvert est mélangé au papier : sa clarté parle de la
+   * COUVERTURE, pas de la couleur de l'encre. Sans cette restriction, la mesure
+   * répond à une autre question que celle qu'on pose — première version de ce
+   * relevé, qui donnait une étendue de chroma en hausse après le correctif alors
+   * que l'encre, elle, n'avait pas bougé.
+   */
+  const oklchDe = (r8, g8, b8) => {
+    const lin = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+    const r = lin(r8 / 255), g = lin(g8 / 255), b = lin(b8 / 255);
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    const L = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
+    const A = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
+    const B = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
+    const h = Math.atan2(B, A) / (2 * Math.PI);
+    return { L, C: Math.hypot(A, B), h: h - Math.floor(h) };
+  };
+
+  it("colored-edges : la clarté de l'encre ne dépend PAS de l'orientation du bord", () => {
+    const img = decodePng(readFileSync(path.join(REF_DIR, "effet-colored-edges.png")));
+    const tous = [];
+    for (let i = 0; i < img.pixels.length; i += 4) {
+      tous.push(oklchDe(img.pixels[i], img.pixels[i + 1], img.pixels[i + 2]));
+    }
+    // Pleine encre : à 90 % du chroma maximal observé. En dessous, le pixel est
+    // mélangé au papier et ne renseigne pas sur la couleur posée.
+    const cmax = tous.reduce((m, c) => Math.max(m, c.C), 0);
+    const seaux = new Map();
+    for (const c of tous) {
+      if (c.C < 0.9 * cmax) continue;
+      const k = Math.floor(c.h * 12);
+      if (!seaux.has(k)) seaux.set(k, []);
+      seaux.get(k).push(c.L);
+    }
+    const clartes = [...seaux.values()]
+      .filter((g) => g.length >= 30)
+      .map((g) => g.reduce((s, x) => s + x, 0) / g.length);
+
+    // Au moins quatre secteurs de teinte peuplés, sinon la mesure ne porte sur
+    // rien — une roue qui se serait effondrée sur une seule teinte passerait
+    // l'étendue haut la main.
+    expect(clartes.length).toBeGreaterThanOrEqual(4);
+
+    // AVANT la refonte OKLCH : 0,290. APRÈS : 0,018. La borne est à 0,05, donc
+    // à cinq fois sous l'ancienne valeur et au double de la nouvelle — ce test
+    // aurait rougi sur la construction HSL, ce qui en fait une mesure.
+    const etendue = Math.max(...clartes) - Math.min(...clartes);
+    expect(etendue).toBeLessThan(0.05);
   });
 
   it("gooey-merge : le liseré spéculaire couvre plus d'un pixel", () => {

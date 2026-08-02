@@ -78,8 +78,30 @@ describe("coloredEdges — la teinte vient de l'ORIENTATION", () => {
     expect(coloredEdges.wgsl).toContain("let band = max(max(softness * 0.5, fwidth(mag)), 0.0005);");
   });
 
-  it("décode la couleur du contour vers le linéaire avant de mélanger", () => {
-    expect(coloredEdges.wgsl).toContain("let edgeColor = srgb_to_linear3(hsl2rgb(hue, saturation, lightness));");
+  it("construit la couleur du contour en OKLCH, pas en HSL", () => {
+    // RENVERSÉ LE 2026-08-02, et c'est la SPEC qui a changé, pas la mesure.
+    // Cette ligne exigeait `srgb_to_linear3(hsl2rgb(hue, saturation, lightness))`
+    // — un décodage correct d'une couleur construite dans le mauvais espace.
+    // HSL n'est pas perceptuel : à saturation et clarté fixées, parcourir la
+    // teinte fait varier la clarté PERÇUE. Mesuré sur la référence de rendu,
+    // sur les seuls pixels pleinement encrés : étendue de 0,290 sur le tour,
+    // pour un unique curseur Clarté. C'est ce que le verdict d'usage appelait
+    // « horrible ». En OKLCH la même étendue tombe à 0,018.
+    //
+    // La garde de non-régression correspondante vit dans
+    // `test/scripts/renderRefs.test.mjs` : elle mesure la roue sur les pixels
+    // eux-mêmes, là où celle-ci ne peut que lire une chaîne.
+    expect(coloredEdges.wgsl).toContain(
+      "let edgeColor = oklab_to_linear_srgb(oklch_to_oklab(vec3<f32>(lightness, saturation * 0.3, hue)));",
+    );
+    expect(coloredEdges.wgsl).not.toContain("hsl2rgb(hue,");
+  });
+
+  it("borne le chroma au gamut sRGB — sinon l'écrêtage rendrait la roue irrégulière par le bas", () => {
+    // Sans borne, une teinte hors gamut est écrêtée par la cible, et l'écrêtage
+    // ne tombe pas au même endroit selon la teinte : la régularité qu'on vient
+    // d'obtenir se reperdrait, par un autre chemin.
+    expect(coloredEdges.wgsl).toContain("saturation * 0.3");
   });
 
   it("borne l'étendue des teintes au-dessus de zéro", () => {

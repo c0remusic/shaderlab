@@ -783,6 +783,20 @@ const INSTALL = `(async () => {
       },
     },
 
+    // LE MEME EFFET A SES DEFAUTS, pose le 2026-08-02 avec la refonte OKLCH.
+    // Le scenario ci-dessus tourne a saturation 0,85 et wash 0,85, c est-a-dire
+    // bien au-dela de ce que donne le calque pose : il est fait pour EXAGERER
+    // la roue, ce qui est ce qu il faut pour la mesurer, et pas du tout ce qu il
+    // faut pour juger l effet. Les deux questions sont distinctes et meritent
+    // deux images — le verdict « horrible, inutilisable » portait, lui, sur le
+    // calque pose.
+    "effet-colored-edges-defauts": {
+      contre: "effet-colored-edges",
+      build: async (r, stack) => {
+        stack.addLayer("coloredEdges");
+      },
+    },
+
     // Motion blur, TEMOIN DE TRAJECTOIRE. Mode ROTATION et non Directionnel :
     // c est le seul des trois dont une propriete se VERIFIE d un coup d oeil —
     // la longueur de trainee est proportionnelle au rayon, donc le centre reste

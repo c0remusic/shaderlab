@@ -1051,16 +1051,31 @@ LISIBLE — défauts, noms, et peut-être un mot dans l'interface.
    même effet que celui de Figma. Le nôtre trace une encre unique sur les
    contours ; le leur empile des contours **concentriques** qui s'éloignent du
    sujet. Ce n'est pas un réglage à corriger, c'est un effet à écrire.
-3. `gooeyMerge` — crénelage à isoler (voir ci-dessus) avant tout geste.
+3. `gooeyMerge` — crénelage **ISOLÉ le 2026-08-02, et réel** (`00b8e00`). Il ne
+   vient PAS de l'empilement sous halftone. Part de transitions fortes qui se
+   font en un seul pixel — donc sans aucun pixel de couverture partielle :
+   **50,0 %** sur la mire nue, **74,3 %** avec l'effet, contre 3,0 % pour
+   halftone et 30,6 % pour outlines sur la même mire. L'effet AJOUTE des arêtes
+   franches alors que son fichier annonce une iso-surface « toujours antialiasée
+   analytiquement ». Verrou posé (`effet-gooey-merge`), **correctif pas encore
+   fait**.
 
 **B. SURFACE DE CONTRÔLE TROP PAUVRE — l'effet est juste, la main manque.**
-4. `posterize` — un seul paramètre. La référence graphique du §5 en autorise
-   bien plus (seuils par canal, courbe de répartition, dithering — `posterize`
-   partage déjà `bayer.ts` avec la famille impression).
-5. `motionBlur` — plafond à 120 px, et pas de contrôle de forme de traînée.
-   Photoshop offre 2000 px, et distingue le flou directionnel du flou de
-   trajectoire. Seul flou qu'Antoine juge utile : c'est celui qui mérite
-   l'investissement.
+4. ~~`posterize` — un seul paramètre.~~ **LIVRÉ le 2026-08-02** (`bde32ba`) :
+   cinq paramètres, tous neutres à leur défaut. Le tramage se COUPE (c'est le
+   rendu sérigraphie du §5, que l'effet ne savait pas faire), plage d'entrée
+   point noir / point blanc, et l'axe de répartition — **la question que le §5
+   laissait explicitement ouverte**, rendue à l'œil au lieu d'être figée dans le
+   code. Mesure du tramage sur la longueur des plages constantes : 20,51 px sans
+   trame (celle de la mire nue) contre 2,40 px avec.
+5. ~~`motionBlur` — plafond à 120 px.~~ **LIVRÉ le 2026-08-02** (`a1438a9`) :
+   2000 px comme Photoshop, par une collecte en DEUX ÉTAGES — monter le maximum
+   seul aurait laissé un échantillon tous les cinq pixels, donc le chapelet de
+   fantômes que ce fichier dit vouloir éviter. Et la plage étendue a découvert un
+   défaut que le plafond cachait : la rotation appliquait son déplacement le long
+   de la TANGENTE, une approximation au premier ordre dont le rayon croît en
+   `√(1+θ²)`. Écart-type angulaire à 360°, où l'intégration d'un tour complet
+   doit donner des anneaux constants : **16 à 20 % avant, 0,3 % après**.
 6. `channelMixer` — recoloration par canal (fiche Figma) absente.
 7. `hatching` — les motifs de Figma (Waves / Zigzag / Circles) restent absents ;
    nos `waveAmplitude`/`waveFrequency` ne couvrent qu'une partie de « Waves ».

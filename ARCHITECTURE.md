@@ -135,7 +135,7 @@ travail réel est réparti :
 | `Renderer` | cycle de vie, ordonnancement (`FrameScheduler`), overlay tick, readback export | `renderer.ts:61-299` |
 | `ImageFrameResources` | textures persistantes de l'image (source, ping-pong ×2, export) | `imageFrameResources.ts:4-71` |
 | `FramePipelineExecutor` | **boucle par calque**, ping-pong, ordre des passes, destruction des ressources de frame | `framePipelineExecutor.ts:132-263` |
-| `EffectPassRunner` | encodage d'UNE passe : uniforms, bind group, cache de pipelines | `effectPassRunner.ts:147-208` |
+| `EffectPassRunner` | encodage d'UNE passe : uniforms, bind group, cache de pipelines — **et pool des cibles de passe interne** (2026-08-02) | `effectPassRunner.ts` (`runEffectPass`, `acquirePassTarget`, `releaseFrameTargets`) |
 | `shaderCompose` | composition de la chaîne WGSL — **la chaîne EST la clé de cache** | `shaderCompose.ts:47-96` |
 | `MaskTextureResolver` | résidence + résolution des textures de masque (fold, refine edge, edge-aware) | `renderer.ts:169-176` |
 
@@ -144,6 +144,21 @@ Les trois interfaces `FrameResourcesPort` / `EffectPassesPort` / `MaskTexturesPo
 frame est testable en isolation avec des doubles
 (`test/render/framePipelineExecutor.test.ts` existe). C'est la frontière de test
 la plus utile de la couche rendu — toute extension du pipeline doit la préserver.
+
+⚠️ **`EffectPassesPort` porte `releaseFrameTargets()` depuis le 2026-08-02**, et
+la propriété qu'il faut connaître avant d'y toucher : les cibles de passe interne
+sont **prêtées par un pool**, plus créées par frame. L'exécuteur ne doit donc
+JAMAIS détruire la texture que `runInternalPasses` lui rend — il la remettrait au
+pool morte, et la frame suivante la réutiliserait.
+
+Ce défaut a été livré puis corrigé le même jour, et la façon dont il a échappé
+aux 27 scénarios de `npm run test:render` est à retenir : une erreur de
+validation WebGPU est **asynchrone**, elle ne lève pas et n'échoue aucun test —
+le GPU jette le travail et le canvas reste figé. Surtout, **le harnais rend
+chaque scénario sur un renderer NEUF** : il n'exerce jamais la réutilisation
+d'une frame à la suivante, la seule situation où le bug existe. Toute mécanique
+de réutilisation inter-frame se teste donc sur le PORT (qui détruit quoi), pas
+sur les pixels.
 
 **Contrat de bindings du groupe 0** — ⚠️ **table de l'état du 2026-07-25,
 PÉRIMÉE.** Recomptée le 2026-07-31 (§ 9.2) : un **binding 6** (`coverageTexture`,

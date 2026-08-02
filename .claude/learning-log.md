@@ -2095,6 +2095,71 @@ et remonter une chaîne de `return` « rejoint » le conteneur courant même en
 passant par son `alternate`. Ne relever que ce qui est VISIBLE — ici, les
 libellés affichés contre les paramètres déclarés.
 
+## 2026-08-02 (soir) — un verrou de pixels ne voit que ce que son PROTOCOLE rejoue
+
+**Coût : un effet livré cassé, trouvé par Antoine et non par les 27 scénarios.**
+
+Les cibles de passe interne ont été mises en pool (elles étaient créées et
+détruites à chaque frame — ~121 Mo par image sur une pile Gooey merge + Motion
+blur à 26 Mpx). Le pool était incomplet : `framePipelineExecutor` continuait de
+détruire la cible de la DERNIÈRE passe, qui revenait donc au pool morte, et la
+frame suivante la réutilisait.
+
+`npm run test:render` est resté **vert sur ses 27 scénarios** pendant que l'app
+ne redessinait plus du tout. Deux raisons, et les deux valent pour la suite.
+
+**1. Une erreur de validation WebGPU est ASYNCHRONE.** Elle ne lève pas, elle
+n'échoue aucun test : le GPU jette silencieusement le travail et le canvas reste
+figé sur l'image précédente. Un `try/catch` autour du rendu ne peut rien en voir.
+Le seul moyen de la lire est l'écoute CDP de `Runtime.consoleAPICalled`
+(`GPU uncaptured error: ...`) — pas un test Node.
+
+**2. Et surtout : le harnais rend chaque scénario sur un renderer NEUF.** Il
+n'exerce donc JAMAIS la réutilisation d'une frame à la suivante, qui est la
+seule situation où ce bug existe. Le verrou de pixels ne prouve pas « le rendu
+est correct » ; il prouve « le rendu est correct DANS LE PROTOCOLE DU HARNAIS ».
+
+Règle qui en sort, et qui généralise la leçon des mires : **toute mécanique
+INTER-FRAME (pool, cache, invalidation, réutilisation) se teste sur la
+MÉCANIQUE — qui détruit quoi, qui rend quoi — et pas sur les pixels.** Le test
+ajouté vérifie que l'exécuteur ne détruit pas la texture qu'on lui rend ; il a
+été vu rouge sans le correctif. Aucun test de pixels n'aurait pu le remplacer.
+
+### Trois sondes menteuses dans la même heure, toutes du même genre
+
+Le diagnostic a pris quatre tentatives, et les trois premières mesuraient un
+proxy — le travers exact que décrit la mémoire projet
+`sondes-cdp-mesurent-un-proxy`, payé trois fois de plus.
+
+- **`(window.__erreurs||[]).length` a rendu « 0 erreur »** pour une variable que
+  personne n'installe. Un compteur qu'on ne pose pas compte toujours zéro. Il
+  faut écouter les ÉVÉNEMENTS CDP, pas interroger une variable qu'on espère.
+- **Un écart-type de crénelage relevé dans le vide** (74,3 %) allait conclure
+  « c'est crénelé » — alors que la mire commune porte un damier dont chaque arête
+  est déjà franche. Sans la ligne de base de la mire NUE (50,0 %), le chiffre ne
+  voulait rien dire. **Toute mesure d'artefact se lit contre l'image sans
+  l'effet.**
+- **Une comparaison de captures a donné « 0 % de pixels bougés »** à toutes les
+  amplitudes. La mesure était JUSTE ; c'est la conclusion que j'en ai tirée — « la
+  capture ne voit pas le canvas WebGPU » — qui était fausse. Ce qui l'a
+  renversée : une **expérience de contrôle**, posterize à 2 paliers, dont l'effet
+  est massif et immédiat. Elle a prouvé que l'instrument voyait, donc que le zéro
+  était le symptôme.
+
+Réflexe à garder : **quand une sonde rend zéro, faire d'abord l'expérience de
+contrôle qui doit rendre non-zéro.** Un instrument muet et un phénomène absent se
+ressemblent, et rien ne les distingue sans un cas positif connu.
+
+### Corollaire produit : un phénomène en PIXELS SOURCE se juge à l'échelle d'AFFICHAGE
+
+Les deux retours d'Antoine ce soir — « posterize semble juste faire un flou », « le
+motion blur ne semble rien faire » — ont une composante commune mesurée : sa
+photo de 26 Mpx est affichée à **30,6 %**. La trame Bayer de `posterize` fait 4 px
+source, donc **1,22 px écran** : sous la résolution de l'affichage, elle ne peut
+que se moyenner en bouillie. Un effet dont le paramètre est en pixels source doit
+être jugé en sachant ce que ça donne à l'écran, et son DÉFAUT devrait être
+calibré pour une vraie photo, pas pour une mire de 256 px.
+
 ## 2026-08-02 — un harnais à iframe reste pendu après un run tué
 
 **Friction, ~20 minutes.** `gpu-shader-check.mjs` et `render-check.mjs` créent

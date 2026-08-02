@@ -56,33 +56,44 @@ import { UV_SPACE_WGSL } from "./uvSpace";
  *    immobile.
  *
  * 5. **La frontière entre deux tranches est une COUPURE FRANCHE**, et c'est la
- *    signature de l'effet — un décrochage, pas un flou. « Fondu des bords »
- *    (défaut 0, donc rien ne change sans le demander) l'adoucit, et le piège
- *    est de croire qu'il s'agit de flouter. Flouter la SORTIE étalerait toute
- *    la tranche alors que seul son BORD doit fondre. Ce qu'on fait ici, c'est
- *    faire varier continûment le DÉCALAGE de part et d'autre de la frontière :
- *    on mélange les deux coordonnées d'échantillonnage, jamais les deux
- *    couleurs. Même distinction que celle qui fait qu'un `pixelStretch`
- *    COMPRIME sa coordonnée au lieu de recopier des pixels — on déplace la
- *    lecture, on ne floute pas le résultat.
+ *    signature de l'effet — un décrochage. « Fondu des bords » (défaut 0, donc
+ *    rien ne change sans le demander) rend cette limite progressive par un
+ *    FONDU ENCHAÎNÉ entre les deux tranches.
+ *
+ *    **Deux fausses pistes ont été essayées avant, dans cet ordre, et elles
+ *    valent d'être gardées écrites : l'une comme l'autre paraissent la bonne
+ *    réponse tant qu'on ne l'a pas vue à l'écran.**
+ *
+ *    *Faire varier le DÉCALAGE continûment* de part et d'autre de la frontière.
+ *    Séduisant — un seul tap de plus, aucune valeur inventée, et la ligne
+ *    disparaît bien. Livré le 2026-08-02, rejeté sur pièce par Antoine le jour
+ *    même : « ça ressemble plus à du warping ». Et il a raison ; la revue
+ *    adverse l'avait chiffré sans pouvoir en juger, un décalage qui varie
+ *    CISAILLE le contenu de la bande, jusqu'à ~71° de pente aux réglages
+ *    testés. On ne supprime pas la limite, on la remplace par une déformation.
+ *
+ *    *Flouter le bord.* Écarté dans la même passe : « pour que les bords
+ *    deviennent moins nets, sans être flous ». La demande porte sur la LIMITE,
+ *    pas sur le contenu.
+ *
+ *    **Ce qui est fait ici**, seule lecture compatible avec les deux refus :
+ *    chaque tranche est échantillonnée à SON propre décalage — donc reste
+ *    parfaitement nette — et c'est le passage de l'une à l'autre qui devient
+ *    progressif. Aucune coordonnée intermédiaire n'est fabriquée : le fondu
+ *    CHOISIT entre deux lectures franches au lieu d'en inventer une troisième.
+ *
+ *    Prix assumé, à connaître avant de pousser le curseur : dans la bande, on
+ *    voit les DEUX tranches à la fois. Étroite, ça se lit comme un bord adouci ;
+ *    large, comme une surimpression.
  *
  *    Le fondu se mesure en PIXELS et non en fraction de tranche : sinon une
  *    tranche fine serait entièrement fondue quand une épaisse ne le serait
  *    qu'au bord.
  *
- *    **Ce que « mélanger les coordonnées » PRODUIT, et qui n'est pas un flou :
- *    un CISAILLEMENT.** Dans la bande de fondu, chaque ligne reste une copie
- *    nette de la source, seulement décalée — c'est l'empilement de ces lignes
- *    aux décalages voisins qui penche le contenu. Aux réglages du scénario
- *    verrouillé la pente atteint ~2,9 px tangentiels par pixel normal, soit
- *    ~71°. La demande d'Antoine disait « flouter les bords » ; la réponse posée
- *    ici incline au lieu de flouter, et c'est un choix visuel qui lui revient.
- *
  * COÛT : 3 taps (un par canal), une seule passe, aucune texture intermédiaire.
- * Le fondu n'ajoute AUCUN tap. En revanche il DOUBLE le nombre de tirages de
- * hachage — `sliceAmount` en fait trois, et le fondu l'appelle une seconde fois
- * pour la tranche voisine : 3 → 6. C'est précisément parce qu'il agit sur la coordonnée et
- * non sur la couleur.
+ * Le fondu porte ça à 6 taps, et seulement quand il est actif — la branche est
+ * UNIFORME, les paramètres venant d'un buffer uniforme. Il double aussi les
+ * tirages de hachage (`sliceAmount` en fait trois, appelée deux fois : 3 → 6).
  *
  * `seed` rend le tirage REPRODUCTIBLE : deux ouvertures du même document
  * donnent les mêmes tranches. C'est le même choix que `grain`, et ce qui permet
@@ -127,6 +138,29 @@ fn sliceAmount(band: f32, seed: f32, irregular: f32, density: f32, displace: f32
   // \`npm run test:gpu-shaders\`, jamais par tsc.
   let moved = step(1.0 - density, hash(vec2<f32>(id, seed + 17.0)));
   return (hash(vec2<f32>(id, seed)) * 2.0 - 1.0) * displace * moved;
+}
+
+// Le contenu d'UNE tranche, lu à SON décalage — trois taps, un par canal.
+//
+// Extraite pour que le fondu enchaîné puisse demander la tranche voisine par le
+// même chemin exactement. C'est ce qui garantit que la tranche voisine est
+// échantillonnée aussi NETTEMENT que la courante : le fondu ne fabrique aucune
+// coordonnée intermédiaire, il choisit entre deux lectures franches.
+fn trancheEchantillonnee(
+  q: vec2<f32>, ar: vec2<f32>, along: vec2<f32>, amount: f32, chromaSplit: f32,
+) -> vec3<f32> {
+  // Écart des canaux PROPORTIONNEL au décalage : nul sur une tranche immobile,
+  // donc jamais de frange colorée sur une zone que l'utilisateur voit comme
+  // intacte.
+  let split = amount * chromaSplit * 0.18;
+  let baseUv = (q + along * amount) / ar + vec2<f32>(0.5);
+  let deltaUv = (along * split) / ar;
+
+  return vec3<f32>(
+    textureSample(srcTexture, srcSampler, mirrorUv(baseUv + deltaUv)).r,
+    textureSample(srcTexture, srcSampler, mirrorUv(baseUv)).g,
+    textureSample(srcTexture, srcSampler, mirrorUv(baseUv - deltaUv)).b,
+  );
 }
 
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
@@ -174,52 +208,54 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // pixels — d'où le choix de l'unité du paramètre.
   let local = n - band * sliceSize;
 
-  var amount = sliceAmount(band, seed, irregular, density, displace);
+  let amount = sliceAmount(band, seed, irregular, density, displace);
+  let couleur = trancheEchantillonnee(q, ar, along, amount, chromaSplit);
 
-  // LE FONDU. On mélange deux DÉCALAGES, pas deux couleurs : le résultat part
-  // dans \`baseUv\` et ne sera échantillonné qu'une fois, plus bas. À
-  // \`edgeFeather\` = 0 cette branche entière est sautée et il reste exactement
-  // l'arithmétique d'avant ce paramètre — c'est ce qui rend la neutralité du
-  // défaut structurelle et pas seulement numérique.
-  if (edgeFeather > 0.0) {
-    // Distance à la frontière la PLUS PROCHE, et de quel côté elle tombe.
-    let d = min(local, sliceSize - local);
-    let voisin = select(band + 1.0, band - 1.0, local < sliceSize - local);
-
-    // \`w\` = poids de la tranche courante. Vaut 0.5 pile SUR la frontière (les
-    // deux tranches à parts égales, donc continu quand on la traverse) et
-    // remonte à 1 au bord de la bande de fondu.
-    //
-    // SMOOTHSTEP ET NON UNE RAMPE LINÉAIRE, et la différence se voit : une
-    // rampe a une dérivée qui casse aux deux bords du fondu, ce qui pose deux
-    // plis fins de part et d'autre — on aurait remplacé une coupure par deux
-    // marques. Smoothstep est de pente nulle en 1, donc raccordé tangent au
-    // décalage constant de chaque tranche : aucune marque. Son point milieu
-    // reste 0.5, donc la frontière elle-même est toujours le partage exact.
-    //
-    // SUR LA FRONTIÈRE ELLE-MÊME, le raccord est C¹ et pas seulement C⁰, et ce
-    // n'est pas évident : \`d\` a un coude en valeur absolue là, mais l'ordre des
-    // arguments de \`mix\` s'inverse en même temps (le voisin passe de \`band+1\`
-    // à \`band-1\`), et les deux inversions se compensent exactement — les deux
-    // côtés donnent la même dérivée \`(A_band - A_voisin) * w'(0)\`. C'est ce qui
-    // fait qu'aucune marque n'apparaît AU MILIEU du fondu non plus, et pas
-    // seulement à ses bords.
-    let w = smoothstep(0.0, 1.0, clamp(0.5 + d / edgeFeather, 0.5, 1.0));
-    amount = mix(sliceAmount(voisin, seed, irregular, density, displace), amount, w);
+  // SANS FONDU, on s'arrête ici : trois taps, exactement le code d'avant que ce
+  // paramètre existe. La branche est UNIFORME (les paramètres viennent d'un
+  // buffer uniforme), donc ce n'est pas seulement un raccourci de performance —
+  // c'est ce qui rend la neutralité du défaut structurelle, et pas seulement
+  // numérique.
+  if (edgeFeather <= 0.0) {
+    return vec4<f32>(couleur, color.a);
   }
 
-  // Écart des canaux PROPORTIONNEL au décalage : nul sur une tranche immobile,
-  // donc jamais de frange colorée sur une zone que l'utilisateur voit comme
-  // intacte.
-  let split = amount * chromaSplit * 0.18;
-  let baseUv = (q + along * amount) / ar + vec2<f32>(0.5);
-  let deltaUv = (along * split) / ar;
+  // LE FONDU : un FONDU ENCHAÎNÉ entre les deux tranches, et surtout PAS un
+  // mélange de leurs décalages.
+  //
+  // La première version faisait varier le décalage continûment de part et
+  // d'autre de la frontière. C'était mathématiquement élégant — un seul tap de
+  // plus, aucune valeur inventée — mais Antoine l'a rejetée sur pièce le
+  // 2026-08-02 : « ça ressemble plus à du warping ». Il avait raison, et la
+  // revue l'avait chiffré sans pouvoir le juger : faire varier le décalage
+  // CISAILLE le contenu de la bande (pente ~71° aux réglages testés). Ce qui
+  // était demandé n'était ni un cisaillement ni un flou — « juste que la limite
+  // soit moins franche ».
+  //
+  // Un fondu enchaîné répond exactement à ça : les deux tranches restent NETTES
+  // (chacune est échantillonnée à son propre décalage, aucune coordonnée n'est
+  // inventée), et c'est le passage de l'une à l'autre qui devient progressif au
+  // lieu d'être une ligne. Le prix, assumé : dans la bande on voit les deux à la
+  // fois. Étroite, ça se lit comme un bord adouci ; large, comme une surimpression.
+  //
+  // Coût : 3 taps deviennent 6, et seulement quand le fondu est actif.
+  let d = min(local, sliceSize - local);
+  let voisin = select(band + 1.0, band - 1.0, local < sliceSize - local);
 
-  let r = textureSample(srcTexture, srcSampler, mirrorUv(baseUv + deltaUv)).r;
-  let g = textureSample(srcTexture, srcSampler, mirrorUv(baseUv)).g;
-  let b = textureSample(srcTexture, srcSampler, mirrorUv(baseUv - deltaUv)).b;
+  // \`w\` = poids de la tranche courante. Vaut 0.5 pile SUR la frontière — donc
+  // les deux côtés calculent la même moyenne et la traversée est continue — et
+  // remonte à 1 au bord de la bande de fondu.
+  //
+  // SMOOTHSTEP ET NON UNE RAMPE LINÉAIRE : une rampe a une dérivée qui casse
+  // aux deux bords du fondu, ce qui pose deux plis fins de part et d'autre — on
+  // aurait remplacé une coupure par deux marques. Smoothstep est de pente nulle
+  // en 1, donc raccordé tangent à la tranche pleine.
+  let w = smoothstep(0.0, 1.0, clamp(0.5 + d / edgeFeather, 0.5, 1.0));
 
-  return vec4<f32>(r, g, b, color.a);
+  let amountVoisin = sliceAmount(voisin, seed, irregular, density, displace);
+  let couleurVoisine = trancheEchantillonnee(q, ar, along, amountVoisin, chromaSplit);
+
+  return vec4<f32>(mix(couleurVoisine, couleur, w), color.a);
 }
 `,
 };

@@ -355,14 +355,20 @@ describe("references de rendu committees", () => {
     expect(differents).toBe(0);
   });
 
-  it("slice-shift : le fondu mélange des COORDONNÉES et non des couleurs", () => {
-    // La seule mesure qui sépare les deux implémentations, et elle exige la
-    // mire BINAIRE : sur des barres à deux niveaux, toute valeur intermédiaire
-    // est fabriquée. Un mélange de coordonnées ressort toujours une valeur de
-    // la source, donc n'en fabrique qu'aux bords de barre. Un mélange de
-    // couleurs en fabrique partout où les deux copies décalées diffèrent —
-    // des dizaines de pour cent, le décalage entre tranches voisines valant des
-    // dizaines de pixels.
+  it("slice-shift : le fondu est un FONDU ENCHAÎNÉ — les deux tranches coexistent dans la bande", () => {
+    // ⚠️ CETTE ASSERTION A ÉTÉ INVERSÉE LE 2026-08-02, ET C'EST VOULU. Elle
+    // exigeait d'abord le contraire (un mélange de COORDONNÉES, donc peu de
+    // valeurs fabriquées) parce que la note accompagnant la demande d'Antoine
+    // qualifiait le mélange de couleurs de piège. Antoine a jugé le résultat sur
+    // pièce — « ça ressemble plus à du warping » — et un décalage qui varie
+    // cisaille en effet le contenu au lieu d'adoucir la limite. C'est donc la
+    // SPEC qui a changé, pas la mesure : le même instrument, la même mire, le
+    // seuil retourné.
+    //
+    // La mire BINAIRE reste ce qui rend la question décidable : sur des barres
+    // à deux niveaux, toute valeur intermédiaire est FABRIQUÉE. Un fondu
+    // enchaîné en fabrique partout où les deux tranches décalées diffèrent ; un
+    // mélange de coordonnées n'en fabriquerait qu'aux bords de barre.
     const img = decodePng(readFileSync(path.join(REF_DIR, "effet-slice-shift-fondu-barres.png")));
     const MARGE = 12;
     const intermediaire = (v) => Math.abs(v - 32) > MARGE && Math.abs(v - 224) > MARGE;
@@ -381,19 +387,17 @@ describe("references de rendu committees", () => {
       }
     }
 
-    // LE SEUIL A ÉTÉ CALIBRÉ CONTRE LA MAUVAISE IMPLÉMENTATION, pas choisi.
-    // L'image qu'un mélange de couleurs aurait produite a été fabriquée depuis
-    // cette même référence (deux copies décalées de 30 px, même profil de poids)
-    // et passée dans cette métrique : elle donne 17,56 %, contre 3,67 % pour la
-    // vraie. Le seuil est leur moyenne géométrique — 8 % — donc la même marge
-    // de 2,2× de chaque côté. Un test qui ne peut pas rougir ne verrouille rien ;
-    // celui-ci a été vu rouge avant d'être committé vert.
-    expect(dedans / dedansTot).toBeLessThan(0.08);
+    // LE SEUIL EST CALIBRÉ CONTRE L'AUTRE IMPLÉMENTATION, pas choisi. Le
+    // mélange de coordonnées, mesuré sur cette même mire quand il était en
+    // place, donnait 3,67 % ; le fondu enchaîné donne 26,25 %. Le seuil est
+    // leur moyenne géométrique — 10 % — donc à peu près la même marge de
+    // chaque côté. Ce test aurait ROUGI sur l'implémentation précédente, et
+    // c'est ce qui en fait une mesure et pas une décoration.
+    expect(dedans / dedansTot).toBeGreaterThan(0.1);
 
-    // Et la bande de fondu ne doit pas non plus être IDENTIQUE au reste : elle
-    // fabrique un peu plus d'intermédiaires (l'interpolation bilinéaire des
-    // décalages fractionnaires balaie toute sa plage). Sans ça, la référence
-    // pourrait être une image où le fondu n'a rien fait du tout.
-    expect(dedans / dedansTot).toBeGreaterThan(dehors / dehorsTot);
+    // Et HORS de la bande, rien n'est fabriqué au-delà des bords de barre : le
+    // fondu ne touche que la limite. Sans cette seconde borne, un effet qui
+    // fondrait toute l'image passerait aussi.
+    expect(dehors / dehorsTot).toBeLessThan(0.05);
   });
 });

@@ -39,24 +39,43 @@ describe("sliceShift — le paramètre de fondu est réellement câblé", () => 
     expect(wgsl).toContain("let edgeFeather = clamp(params[7], 0.0, sliceSize);");
   });
 
-  it("saute le fondu entier à zéro — la neutralité du défaut est STRUCTURELLE", () => {
-    // Une branche et non un `mix` à poids nul : à `edgeFeather` = 0 il reste
-    // exactement l'arithmétique d'avant ce paramètre, donc la référence de
-    // pixels écrite avant lui vaut preuve de non-régression.
-    expect(wgsl).toContain("if (edgeFeather > 0.0) {");
+  it("sort avant le fondu à zéro — la neutralité du défaut est STRUCTURELLE", () => {
+    // Une sortie anticipée et non un `mix` à poids nul : à `edgeFeather` = 0 il
+    // reste exactement le code d'avant ce paramètre, trois taps compris, donc
+    // la référence de pixels écrite avant lui vaut preuve de non-régression.
+    // La branche est UNIFORME (les paramètres viennent d'un buffer uniforme),
+    // ce qui autorise `textureSample` de part et d'autre.
+    expect(wgsl).toContain("if (edgeFeather <= 0.0) {");
   });
 
-  it("mélange des COORDONNÉES : un seul échantillonnage par canal, après le fondu", () => {
-    // Le piège nommé dans la demande d'Antoine. Trois `textureSample`, un par
-    // canal, tous sur des UV dérivés du MÊME `amount` déjà fondu — donc jamais
-    // deux couleurs mélangées entre elles.
+  it("FONDU ENCHAÎNÉ : deux lectures franches, jamais une coordonnée inventée", () => {
+    // ⚠️ Test RETOURNÉ le 2026-08-02 après le verdict visuel d'Antoine. Il
+    // exigeait d'abord un mélange des COORDONNÉES ; celui-ci cisaillait le
+    // contenu de la bande (« ça ressemble plus à du warping ») au lieu
+    // d'adoucir la limite. Ce qui est demandé — « moins net, sans être flou,
+    // juste que la limite soit moins franche » — n'a qu'une lecture : garder
+    // les deux tranches NETTES et rendre leur passage progressif.
+    //
+    // Concrètement : `trancheEchantillonnee` est appelée deux fois, chacune
+    // avec le décalage ENTIER de sa tranche, et c'est le résultat qui est mêlé.
+    // Aucun `mix` ne porte sur un décalage.
+    expect(wgsl).toContain("return vec4<f32>(mix(couleurVoisine, couleur, w), color.a);");
+    expect(wgsl.match(/trancheEchantillonnee\(/g)?.length).toBe(3); // 1 déclaration + 2 appels
+    expect(wgsl).not.toContain("amount = mix(");
+
+    // Les trois taps vivent dans la fonction extraite, donc une seule fois dans
+    // le source — mais elle est appelée deux fois quand le fondu est actif.
     expect(wgsl.match(/textureSample\(/g)?.length).toBe(3);
-    expect(wgsl).toContain("amount = mix(sliceAmount(voisin, seed, irregular, density, displace), amount, w);");
-    expect(wgsl.indexOf("amount = mix(")).toBeLessThan(wgsl.indexOf("let baseUv"));
   });
 });
 
 describe("sliceShift — le profil de fondu, et pourquoi ce n'est pas une rampe", () => {
+  /* Ce bloc a survécu SANS MODIFICATION au changement d'implémentation du
+   * 2026-08-02 (mélange de décalages → fondu enchaîné), et c'est une propriété
+   * qu'on voulait : il décrit le PROFIL du poids, qui est le même quel que soit
+   * ce sur quoi ce poids s'applique. Un test qui doit être réécrit à chaque
+   * changement de mécanisme testait le mécanisme, pas l'intention. */
+
   /** Le poids de la tranche courante, transcrit du shader. `d` est la distance
    *  en pixels à la frontière la plus proche, `f` la largeur du fondu. */
   const w = (d: number, f: number) => {
@@ -89,16 +108,19 @@ describe("sliceShift — le profil de fondu, et pourquoi ce n'est pas une rampe"
     // Le point non évident. `d = min(local, sliceSize - local)` a un coude en
     // valeur absolue sur la frontière, MAIS l'ordre des arguments de `mix`
     // s'inverse au même endroit (le voisin passe de `band+1` à `band-1`). Les
-    // deux inversions se compensent : la dérivée du décalage est la même des
-    // deux côtés. Sans cette compensation, une marque apparaîtrait au MILIEU du
-    // fondu — là précisément où on veut qu'il n'y ait rien à voir.
-    const f = 16, A = 0.1, B = -0.05; // décalages de deux tranches voisines
+    // deux inversions se compensent : la pente est la même des deux côtés. Sans
+    // cette compensation, une marque apparaîtrait au MILIEU du fondu — là
+    // précisément où on veut qu'il n'y ait rien à voir.
+    //
+    // Vrai des deux mécanismes : la quantité mêlée était un décalage, elle est
+    // maintenant une couleur, et l'argument ne porte que sur le poids.
+    const f = 16, A = 0.1, B = -0.05; // les deux quantités mêlées
     // `s` signé : négatif du côté de la tranche B, positif du côté de A.
-    const decalage = (s: number) =>
+    const melange = (s: number) =>
       s >= 0 ? B + (A - B) * w(s, f) : A + (B - A) * w(-s, f);
     const eps = 1e-5;
-    const penteDroite = (decalage(eps) - decalage(0)) / eps;
-    const penteGauche = (decalage(0) - decalage(-eps)) / eps;
+    const penteDroite = (melange(eps) - melange(0)) / eps;
+    const penteGauche = (melange(0) - melange(-eps)) / eps;
     expect(penteDroite).toBeCloseTo(penteGauche, 6);
   });
 

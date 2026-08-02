@@ -72,10 +72,21 @@ describe("coloredEdges — la teinte vient de l'ORIENTATION", () => {
     expect(coloredEdges.wgsl).toContain("chroma * 3.0 * gChroma");
   });
 
-  it("garde le plancher fwidth d'antialiasing", () => {
-    // Un contour COLORÉ crénelé est deux fois plus visible qu'un contour noir :
-    // l'escalier y change aussi de teinte.
-    expect(coloredEdges.wgsl).toContain("let band = max(max(softness * 0.5, fwidth(mag)), 0.0005);");
+  it("garde le plancher fwidth, et rend la bascule RELATIVE au seuil", () => {
+    // Le plancher fwidth ne bouge pas, et pour sa raison d'origine : un contour
+    // COLORÉ crénelé est deux fois plus visible qu'un contour noir, l'escalier
+    // y change aussi de teinte.
+    //
+    // CE QUI A CHANGÉ le 2026-08-03 : la largeur valait `softness * 0.5`, une
+    // constante ABSOLUE de 0,175 au défaut — plus large que tout le signal utile
+    // (un contour franc rend `mag` ≈ 0,16). Aucun contour n'atteignait donc
+    // l'encre pleine et les secondaires disparaissaient. Mesuré sur `outlines`,
+    // qui partage cette ligne : 52 % d'encre pour un contour franc, 5 % pour un
+    // contour deux fois moins contrasté. Les deux effets portaient le défaut, ce
+    // qui explique qu'ils aient été rejetés ensemble à l'usage.
+    expect(coloredEdges.wgsl).toContain(
+      "let band = max(max(softness * max(threshold, 0.02), fwidth(mag)), 0.0005);",
+    );
   });
 
   it("construit la couleur du contour en OKLCH, pas en HSL", () => {

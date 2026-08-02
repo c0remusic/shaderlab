@@ -669,6 +669,35 @@ const INSTALL = `(async () => {
       },
     },
 
+    // OUTLINES SUR UNE MIRE BRUITEE — pose le 2026-08-03 apres un signalement
+    // d Antoine (« outlines semble bugge, l effet n est pas tres raffine »).
+    //
+    // CE QUE CETTE MIRE PEUT MONTRER, et que le damier ne peut pas : elle a des
+    // aplats BRUITES (+-3 %) et deux marches franches. Un detecteur de contours
+    // doit tracer les marches et NE RIEN tracer sur les aplats. Le damier, lui,
+    // n a aucun aplat bruite — donc aucun endroit ou l effet puisse se tromper,
+    // et c est pour ca qu il donnait un verrou vert sur un effet juge
+    // inutilisable a l usage.
+    //
+    // Seuil VOLONTAIREMENT BAS (0,04) : c est le regime ou l on cherche a
+    // dessiner les contours faibles d une photo, donc celui ou le defaut se
+    // manifeste. A seuil haut, l effet ne trace presque rien et la question ne
+    // se pose plus.
+    "effet-outlines-bruit": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const bruit = await mireBruit(W, H);
+        const sourceId = await r.photoSources.register(bruit);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bruit");
+        const a = stack.addLayer("outlines", p);
+        stack.updateParams(a, {
+          thickness: 2.5, threshold: 0.04, softness: 0.35, chroma: 0,
+          inkHue: 210, inkSaturation: 0, inkLightness: 0, wash: 1,
+          inputSource: 0,
+        });
+      },
+    },
+
     // LES TROIS FORMES DE TAILLE, verrouillees le 2026-08-02 — et elles ne l
     // etaient PAS, alors qu elles sont livrees depuis le 2026-08-01 (0574caf).
     // Le scenario effet-hatching ci-dessus tourne en Droites, c est-a-dire au

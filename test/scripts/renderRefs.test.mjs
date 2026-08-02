@@ -245,6 +245,12 @@ const ATTENDU = {
   // mesurer et pas du tout pour juger l'effet. Le verdict d'usage « horrible,
   // inutilisable » portait sur le calque POSE — d'ou une seconde image.
   "effet-colored-edges-defauts.png": { width: 256, height: 256, valeurs: null },
+  // OUTLINES SUR MIRE BRUITEE (2026-08-03), posee apres « outlines semble
+  // bugge, l'effet n'est pas tres raffine ». La mire commune ne pouvait PAS
+  // repondre : tous ses bords sont tres au-dessus du seuil, donc ils saturent
+  // avant comme apres le correctif. Il fallait des aplats BRUITES et des
+  // marches de contrastes DIFFERENTS pour que la reponse de l'effet se lise.
+  "effet-outlines-bruit.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus
@@ -600,6 +606,58 @@ describe("references de rendu committees", () => {
     // aurait rougi sur la construction HSL, ce qui en fait une mesure.
     const etendue = Math.max(...clartes) - Math.min(...clartes);
     expect(etendue).toBeLessThan(0.05);
+  });
+
+  /* ── OUTLINES : un contour réel doit sortir PLEIN, le bruit ne doit rien
+   * dessiner (2026-08-03)
+   *
+   * D'où : « outlines semble buggé, l'effet n'est pas très raffiné ». La mire
+   * commune ne pouvait pas répondre — tous ses bords sont très au-dessus du
+   * seuil, donc ils saturaient avant comme après. Il a fallu une mire à aplats
+   * BRUITÉS et à deux marches de contrastes différents (0,32 et 0,14).
+   *
+   * AVANT correctif, sur cette mire :
+   *   aplat bruité      0,0 % d'encre   (déjà bon)
+   *   marche de 0,32   52,2 %           jamais le noir, et granuleuse
+   *   marche de 0,14    4,9 %           invisible
+   *   soit un rapport de 10,6 pour un rapport de contraste de 2,3.
+   *
+   * La cause était une échelle : `band = softness * 0.5` valait 0,175 au défaut
+   * quand un contour franc de cette mire ne produit qu'un `mag` de 0,16. La
+   * rampe du smoothstep était plus large que tout le signal utile. Rendue
+   * proportionnelle au SEUIL, elle tranche de nouveau.
+   */
+  it("outlines : les deux contours sortent PLEINS, et le bruit ne dessine rien", () => {
+    const img = decodePng(readFileSync(path.join(REF_DIR, "effet-outlines-bruit.png")));
+    const { width: w, pixels } = img;
+    const L = (x, y) => pixels[(y * w + x) * 4];
+    /** Encre au plus fort, sur une fenêtre traversant le trait. 0 = noir plein. */
+    const creux = (fixe, de, a, vertical) => {
+      let m = 255;
+      for (let k = de; k <= a; k++) m = Math.min(m, vertical ? L(k, fixe) : L(fixe, k));
+      return m;
+    };
+
+    // Les deux marches, échantillonnées loin de leur croisement.
+    const vertical = [];
+    for (let y = 20; y < 110; y++) vertical.push(creux(y, 78, 92, true));
+    const horizontal = [];
+    for (let x = 140; x < 250; x++) horizontal.push(creux(x, 120, 136, false));
+
+    // PLEINS : le contour le plus faible des deux atteint quand même l'encre.
+    // Avant le correctif, la marche de 0,14 plafonnait à 4,9 %.
+    const encre = (a) => 100 * (255 - a.reduce((s, v) => s + v, 0) / a.length) / 255;
+    expect(encre(vertical)).toBeGreaterThan(95);
+    expect(encre(horizontal)).toBeGreaterThan(90);
+
+    // Et le bruit ne dessine RIEN. Sans cette seconde borne, un effet qui
+    // encrerait toute l'image passerait le test ci-dessus haut la main — c'est
+    // la moitié de la mesure qui empêche de « corriger » en baissant le seuil.
+    let aplat = 0, n = 0;
+    for (let y = 20; y < 100; y++) {
+      for (let x = 150; x < 240; x++) { aplat += 255 - L(x, y); n++; }
+    }
+    expect(100 * (aplat / n) / 255).toBeLessThan(1);
   });
 
   it("gooey-merge : le liseré spéculaire couvre plus d'un pixel", () => {

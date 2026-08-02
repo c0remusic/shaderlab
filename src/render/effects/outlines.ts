@@ -124,10 +124,33 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // dixième.
   let mag = max(toneMag, chroma * 3.0 * chromaMag);
 
-  // Plancher fwidth : la largeur de la bascule ne descend jamais sous la
-  // variation de \`mag\` d'un pixel écran à l'autre. C'est ce qui interdit
-  // structurellement le trait crénelé, même à \`softness\` = 0.
-  let band = max(max(softness * 0.5, fwidth(mag)), 0.0005);
+  // LARGEUR DE LA BASCULE, RELATIVE AU SEUIL (corrigé le 2026-08-03).
+  //
+  // Elle valait \`softness * 0.5\`, une constante ABSOLUE — et c'était l'erreur
+  // d'échelle qui rendait cet effet inutilisable. Mesure, sur une mire à aplats
+  // bruités et deux marches franches :
+  //
+  //   marche de 0,32 de contraste  ->  52 % d'encre, jamais le noir
+  //   marche de 0,14 de contraste  ->   5 % d'encre, invisible
+  //   rapport 10,6 pour un rapport de contraste de 2,3
+  //
+  // La raison tient en une ligne : au défaut, \`softness * 0.5\` vaut 0,175 quand
+  // un contour FRANC de cette mire ne produit qu'un \`mag\` de 0,16. La rampe du
+  // smoothstep était donc plus large que tout le signal utile — elle dépensait
+  // sa course entière sur les contours réels au lieu de trancher entre eux, si
+  // bien qu'aucun contour n'atteignait jamais l'encre pleine et que les
+  // secondaires disparaissaient.
+  //
+  // Rendue proportionnelle au SEUIL, la bascule a le même sens partout sur la
+  // course : à \`softness\` = 1, elle s'étale de \`threshold\` à \`2 * threshold\`,
+  // donc les contours au-delà du double du seuil sortent PLEINS quel que soit le
+  // réglage. Le plancher de 0,02 garde un fondu utilisable à seuil nul, où une
+  // largeur proportionnelle serait nulle.
+  //
+  // Plancher fwidth conservé, et pour sa raison d'origine : la largeur ne
+  // descend jamais sous la variation de \`mag\` d'un pixel écran à l'autre, ce
+  // qui interdit structurellement le trait crénelé même à \`softness\` = 0.
+  let band = max(max(softness * max(threshold, 0.02), fwidth(mag)), 0.0005);
   let line = smoothstep(threshold, threshold + band, mag);
 
   // L'encre sort du picker en sRGB (valeur PERCEPTUELLE, exactement ce

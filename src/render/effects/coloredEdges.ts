@@ -174,11 +174,18 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let turns = atan2(dirVec.y, dirVec.x) / 6.283185307179586;
   let hue = fract(hueOffset + turns * hueSpread);
 
-  // Plancher fwidth : la largeur de la bascule ne descend jamais sous la
-  // variation de \`mag\` d'un pixel écran à l'autre. Un contour COLORÉ crénelé
-  // serait deux fois plus visible qu'un contour noir — l'escalier y changerait
-  // aussi de teinte.
-  let band = max(max(softness * 0.5, fwidth(mag)), 0.0005);
+  // LARGEUR DE LA BASCULE, RELATIVE AU SEUIL — voir \`outlines\`, qui porte la
+  // mesure. Les deux effets partagent le détecteur ET partageaient ce défaut
+  // d'échelle : une constante absolue (\`softness * 0.5\` = 0,175 au défaut) plus
+  // large que tout le signal utile (un contour franc rend \`mag\` ≈ 0,16), donc
+  // aucun contour n'atteignait l'encre pleine et les secondaires disparaissaient.
+  // C'est la moitié de l'explication du « horrible, inutilisable » qui visait
+  // les deux effets ensemble — l'autre moitié était la roue HSL, corrigée la
+  // veille.
+  //
+  // Plancher fwidth conservé : un contour COLORÉ crénelé serait deux fois plus
+  // visible qu'un contour noir, puisque l'escalier y changerait aussi de teinte.
+  let band = max(max(softness * max(threshold, 0.02), fwidth(mag)), 0.0005);
   let line = smoothstep(threshold, threshold + band, mag);
 
   // COULEUR DU TRAIT, en OKLCH — et c'est tout le correctif du 2026-08-02.

@@ -994,6 +994,31 @@ const INSTALL = `(async () => {
       },
     },
 
+    // MOTION BLUR, TRAINEE LONGUE — le scenario qui verifie les DEUX etages de
+    // collecte, poses le 2026-08-02 quand la plage est passee de 120 a 2000 px.
+    //
+    // Rotation a 360 degres, et ce choix est TOUT le test : integrer un tour
+    // complet, c est prendre la moyenne autour de chaque cercle. Le resultat
+    // exact est donc fait d anneaux PARFAITEMENT CONSTANTS, et cette verite est
+    // analytique — elle ne depend d aucune implementation, donc rien ne peut la
+    // rendre complaisante. Toute variation residuelle le long d un cercle EST le
+    // fantome, par definition.
+    //
+    // A ce reglage, la trainee atteint ~800 px sur les bords (rayon 128 x 2pi),
+    // soit ~400 texels de demi-resolution : le decoupage vaut TROIS segments, et
+    // le second etage est donc reellement exerce. Sous 384 px il ne le serait
+    // pas, et la reference ne verrouillerait que le chemin d avant.
+    "effet-motion-blur-long": {
+      contre: "effet-motion-blur",
+      build: async (r, stack) => {
+        const a = stack.addLayer("motionBlur");
+        stack.updateParams(a, {
+          trajectory: 1, amount: 360, angle: 0,
+          centerX: 0.5, centerY: 0.5, bias: 0, falloff: 0,
+        });
+      },
+    },
+
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,
     // donc les passes de morphologie separees H/V).

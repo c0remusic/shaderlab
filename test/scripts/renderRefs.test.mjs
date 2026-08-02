@@ -167,6 +167,21 @@ const ATTENDU = {
   // couleurs — indiscernable). D ou une mire BINAIRE, ou l on compte une
   // population et pas une amplitude.
   "effet-slice-shift-fondu-barres.png": { width: 256, height: 256, valeurs: null },
+  // MOTION BLUR, TRAINEE LONGUE (2026-08-02) : la reference qui exerce les DEUX
+  // ETAGES de collecte, poses quand la plage est passee de 120 a 2000 px sur un
+  // retour d Antoine (« pas assez extremes »). Rotation a 360 degres, ~800 px de
+  // trainee au bord, donc CINQ segments — sous 192 px le second etage ne serait
+  // pas sollicite et la reference ne verrouillerait que le chemin d avant.
+  //
+  // Le scenario porte aussi la preuve de la ROTATION VRAIE, et cette preuve est
+  // analytique : integrer un tour complet, c est prendre la moyenne autour de
+  // chaque cercle, donc le resultat exact est fait d anneaux CONSTANTS. Ecart-
+  // type angulaire mesure, en part de la dynamique : 16 a 20 % avec l ancienne
+  // approximation au premier ordre, 0,3 % avec la rotation exacte. Le seul
+  // rayon qui depasse encore (5 % a r=60) est celui qui longe le bord du disque
+  // en hautes lumieres de la mire — diffusion de reechantillonnage contre une
+  // arete radiale, inherente a toute rotation multi-taps sur une grille.
+  "effet-motion-blur-long.png": { width: 256, height: 256, valeurs: null },
   // GOOEY MERGE (2026-08-02) : posee pour repondre a une question d Antoine —
   // « tres aliasé effet metal avec des artefacts, c est le but ? » — et la
   // reponse est NON, mesuree. Part de transitions fortes qui se font en UN seul

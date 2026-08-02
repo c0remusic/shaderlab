@@ -167,6 +167,21 @@ const ATTENDU = {
   // couleurs — indiscernable). D ou une mire BINAIRE, ou l on compte une
   // population et pas une amplitude.
   "effet-slice-shift-fondu-barres.png": { width: 256, height: 256, valeurs: null },
+  // GOOEY MERGE (2026-08-02) : posee pour repondre a une question d Antoine —
+  // « tres aliasé effet metal avec des artefacts, c est le but ? » — et la
+  // reponse est NON, mesuree. Part de transitions fortes qui se font en UN seul
+  // pixel (donc sans aucun pixel de couverture partielle) : 50,0 % sur la mire
+  // NUE, 74,3 % avec cet effet, contre 3,0 % pour halftone et 30,6 % pour
+  // outlines sur la meme mire. L effet AJOUTE donc des aretes franches, alors
+  // que son fichier annonce une iso-surface « antialiasee analytiquement a toute
+  // tension ». Tension a 1 dans le scenario, deliberement : c est le pire cas.
+  //
+  // Premier essai ECARTE, et garde en memoire : pose sur la mire a points
+  // lumineux isoles, l effet rendait 5 valeurs distinctes et le garde de signal
+  // a refuse d ecrire la reference. Cette mire est presque entierement noire,
+  // donc tout tombe du meme cote du seuil — un effet de seuil a besoin d un
+  // champ qui TRAVERSE le seuil, pas de taches isolees.
+  "effet-gooey-merge.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

@@ -955,6 +955,45 @@ const INSTALL = `(async () => {
       },
     },
 
+    // GOOEY MERGE, SEUL, et pose le 2026-08-02 pour repondre a une question
+    // d Antoine : « tres aliasé effet metal avec des artefacts, c est le but ? »
+    //
+    // La question ne peut pas se trancher sur sa capture : il y empilait gooey
+    // merge SOUS un halftone, donc l effet posait un seuil de metaballe sur une
+    // trame de points. Il fallait l isoler.
+    //
+    // SUR LA MIRE COMMUNE, apres un essai rate qui vaut d etre garde : pose
+    // d abord sur la mire a points lumineux isoles — des blobs a fusionner,
+    // apparemment le sujet meme de l effet — elle a rendu 5 valeurs distinctes
+    // et le garde de signal a refuse d ecrire la reference. La raison est
+    // instructive : cette mire est presque entierement NOIRE, donc tout tombe du
+    // meme cote du seuil et l iso-surface n a rien a longer. Un effet de seuil a
+    // besoin d un champ qui TRAVERSE le seuil, pas de taches isolees.
+    // La mire commune le donne — son disque en hautes lumieres est une goutte
+    // toute faite, a frontiere courbe, ce qui est exactement ce qu il faut pour
+    // juger un crenelage.
+    //
+    // CE QUE LA REFERENCE REND MESURABLE : l iso-surface se pretend antialiasee
+    // analytiquement (plancher fwidth sur la largeur de bascule). Si c est vrai,
+    // sa frontiere porte une bande MINCE de valeurs intermediaires ; si l effet
+    // crenelait, elle serait franche et il n y en aurait AUCUNE. Meme mesure de
+    // population que pour le fondu de sliceShift, et elle marche pour la meme
+    // raison : on compte des pixels au lieu de juger une amplitude.
+    "effet-gooey-merge": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("gooeyMerge");
+        // Tension a 1, DELIBEREMENT : c est la valeur ou la bascule est la plus
+        // etroite, donc le PIRE cas pour le crenelage. A 0.8 (le defaut) une
+        // transition molle masquerait la question au lieu d y repondre.
+        stack.updateParams(a, {
+          merge: 4, threshold: 0.5, tension: 1, flow: 0.45,
+          rim: 0.45, melt: 0.35, tintHue: 200, tintSaturation: 0.7,
+          tintLightness: 0.5, tint: 0.5,
+        });
+      },
+    },
+
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,
     // donc les passes de morphologie separees H/V).

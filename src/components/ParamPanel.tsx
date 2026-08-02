@@ -9,16 +9,29 @@ import { Select } from "./ui/select";
 import { ColorGroupControl } from "./ui/color-group-control";
 import { formatControlValue } from "../ui/formatValue";
 
-type ParamRenderItem =
-  | { kind: "single"; param: EffectParam }
-  | { kind: "group"; key: string; label: string; hue: EffectParam; saturation: EffectParam; lightness: EffectParam; isFirst: boolean };
+export type ParamRenderItem =
+  | { kind: "single"; reactKey: string; param: EffectParam }
+  | { kind: "group"; reactKey: string; key: string; label: string; hue: EffectParam; saturation: EffectParam; lightness: EffectParam; isFirst: boolean };
 
 /** Groups params sharing the same `colorGroup.key` (see EffectParam) into a
  *  single swatch+disclosure render item, in the order each group first
  *  appears. Ungrouped params pass through unchanged. Fails fast if a group is
  *  declared with fewer than its three required roles — a silent partial
- *  group would render a swatch that doesn't reflect an editable color. */
-function groupEffectParams(params: EffectParam[]): ParamRenderItem[] {
+ *  group would render a swatch that doesn't reflect an editable color.
+ *
+ *  `reactKey` EST PRÉFIXÉ PAR ESPACE DE NOMS, et ce n'est pas de la coquetterie
+ *  — c'est la correction d'un bug trouvé sur pièce le 2026-08-02. `gooeyMerge`
+ *  déclare un paramètre nommé `tint` ET un `colorGroup` de clé `"tint"` : les
+ *  deux items de rendu recevaient donc la MÊME clé React. Une clé dupliquée
+ *  casse la réconciliation de liste, et au démontage React laissait le bloc de
+ *  couleur derrière lui — un fantôme « Couleur des gouttes » qui survivait au
+ *  changement d'effet, s'accumulait à chaque passage, et ne répondait plus à
+ *  aucun clic puisque React ne le possédait plus.
+ *
+ *  Préfixer rend la collision IMPOSSIBLE par construction plutôt que de
+ *  demander aux auteurs d'effets de ne pas nommer un paramètre comme un groupe.
+ *  `test/components/paramRenderKeys.test.ts` le vérifie sur tout le registre. */
+export function groupEffectParams(params: EffectParam[]): ParamRenderItem[] {
   const firstIndexByKey = new Map<string, number>();
   const roleByKey = new Map<string, { label: string; hue?: EffectParam; saturation?: EffectParam; lightness?: EffectParam }>();
 
@@ -35,7 +48,7 @@ function groupEffectParams(params: EffectParam[]): ParamRenderItem[] {
   const items: ParamRenderItem[] = [];
   params.forEach((p, index) => {
     if (!p.colorGroup) {
-      items.push({ kind: "single", param: p });
+      items.push({ kind: "single", reactKey: `param:${p.name}`, param: p });
       return;
     }
     if (firstIndexByKey.get(p.colorGroup.key) !== index) return;
@@ -43,7 +56,7 @@ function groupEffectParams(params: EffectParam[]): ParamRenderItem[] {
     if (!entry.hue || !entry.saturation || !entry.lightness) {
       throw new Error(`Groupe de couleur "${p.colorGroup.key}" incomplet : hue/saturation/lightness requis.`);
     }
-    items.push({ kind: "group", key: p.colorGroup.key, label: entry.label, hue: entry.hue, saturation: entry.saturation, lightness: entry.lightness, isFirst: seenGroups === 0 });
+    items.push({ kind: "group", reactKey: `groupe:${p.colorGroup.key}`, key: p.colorGroup.key, label: entry.label, hue: entry.hue, saturation: entry.saturation, lightness: entry.lightness, isFirst: seenGroups === 0 });
     seenGroups += 1;
   });
   return items;
@@ -156,7 +169,7 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
               // `labelPlacement="inline"` : la colonne du dock est haute et
               // étroite, une étiquette au-dessus coûterait une ligne entière
               // (ADR-0001 — la carte Effets déborde déjà).
-              <div key={item.param.name} title={item.param.hint}>
+              <div key={item.reactKey} title={item.param.hint}>
                 <Select
                   label={item.param.label}
                   labelPlacement="inline"
@@ -175,7 +188,7 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
                 />
               </div>
             ) : item.kind === "single" ? (
-              <div key={item.param.name} title={item.param.hint}>
+              <div key={item.reactKey} title={item.param.hint}>
                 <LabeledSlider
                   label={item.param.label}
                   value={layer.params[item.param.name] ?? item.param.default}
@@ -190,7 +203,7 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
               </div>
             ) : (
               <ColorGroupControl
-                key={item.key}
+                key={item.reactKey}
                 label={item.label}
                 hueParam={item.hue}
                 saturationParam={item.saturation}

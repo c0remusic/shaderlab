@@ -669,6 +669,43 @@ const INSTALL = `(async () => {
       },
     },
 
+    // ECHO OUTLINES — l effet neuf du 2026-08-03, celui que la fiche de
+    // reference decrit sous le nom Outlines : « a series of evenly spaced
+    // outlines that echo your shape outward, like ripples ».
+    //
+    // LA MIRE COMMUNE, et pour son DISQUE. Cet effet ne mesure pas un gradient
+    // mais une DISTANCE a une forme : il lui faut donc une forme assez GRANDE
+    // pour survivre au lissage. Le disque en hautes lumieres de la mire commune
+    // en est une, franche et a frontiere courbe — donc des anneaux comptables,
+    // et une courbure qui distingue de vrais echos equidistants de simples
+    // lignes de niveau (celles-ci se resserreraient dans les concavites).
+    //
+    // PREMIER ESSAI ECARTE, garde parce qu il se redecouvrirait : pose sur la
+    // mire a POINTS LUMINEUX ISOLES — apparemment le sujet ideal d un effet de
+    // silhouette — il a rendu UNE SEULE valeur et le garde de signal a refuse
+    // d ecrire la reference. La raison est la limite n 2 ecrite en tete de l
+    // effet : un point de quelques pixels floute sur ~212 px ne fait jamais
+    // monter le champ jusqu au seuil, donc il n y a plus aucune forme. Une
+    // forme plus fine que le lissage disparait, et c est le comportement voulu
+    // — c est lui qui empeche le grain d engendrer des milliers d anneaux.
+    //
+    // Fond EFFACE en entier (wash 1) : ce qu on verifie ici est la GEOMETRIE
+    // des anneaux, et la photo dessous ne ferait que la masquer.
+    "effet-echo-outlines": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("echoOutlines");
+        stack.updateParams(a, {
+          threshold: 0.5, inputMode: 0, smoothing: 1.5,
+          spacing: 18, thickness: 3, count: 5, falloff: 0,
+          startHue: 210, startSaturation: 0, startLightness: 0,
+          endHue: 210, endSaturation: 0, endLightness: 0,
+          wash: 1, backgroundHue: 0, backgroundSaturation: 0, backgroundLightness: 1,
+          fill: 0,
+        });
+      },
+    },
+
     // OUTLINES SUR UNE MIRE BRUITEE — pose le 2026-08-03 apres un signalement
     // d Antoine (« outlines semble bugge, l effet n est pas tres raffine »).
     //

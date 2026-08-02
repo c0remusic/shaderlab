@@ -251,6 +251,10 @@ const ATTENDU = {
   // avant comme apres le correctif. Il fallait des aplats BRUITES et des
   // marches de contrastes DIFFERENTS pour que la reponse de l'effet se lise.
   "effet-outlines-bruit.png": { width: 256, height: 256, valeurs: null },
+  // ECHO OUTLINES (2026-08-03) : l'effet que la fiche de reference decrit sous
+  // le nom `Outlines`, et qui n'est PAS un detecteur de contours — « evenly
+  // spaced outlines that echo your shape outward, like ripples ».
+  "effet-echo-outlines.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus
@@ -658,6 +662,73 @@ describe("references de rendu committees", () => {
       for (let x = 150; x < 240; x++) { aplat += 255 - L(x, y); n++; }
     }
     expect(100 * (aplat / n) / 255).toBeLessThan(1);
+  });
+
+  /* ── ECHO OUTLINES : les échos sont ÉQUIDISTANTS (2026-08-03) ──────────────
+   *
+   * C'est LA propriété qui sépare cet effet d'un simple tracé de lignes de
+   * niveau — celles-ci se resserrent là où le champ est raide, donc leur
+   * espacement varierait le long de la coupe. La fiche de référence est
+   * explicite : « a series of EVENLY SPACED outlines ».
+   *
+   * ⚠️ LA MESURE DOIT ÊTRE PERPENDICULAIRE. Une coupe verticale à travers des
+   * anneaux diagonaux lit `espacement / cos θ`, pas l'espacement. La première
+   * version de ce relevé l'ignorait et accusait l'effet d'une dispersion qui
+   * était en partie la sienne — on estime donc la pente locale de chaque anneau
+   * sur une colonne voisine, et on projette.
+   *
+   * Historique des mesures, qui est aussi celui des trois correctifs :
+   *   estimation affine, pas d'un texel   moyenne 13,4 px   dispersion 32 %
+   *   + linéarisation logit               moyenne 18,6 px   dispersion 34 %
+   *   + zone de confiance élargie         moyenne 18,5 px   dispersion  8 %
+   * pour un espacement DEMANDÉ de 18 px.
+   */
+  it("echo-outlines : les anneaux sont équidistants, à l'espacement demandé", () => {
+    const img = decodePng(readFileSync(path.join(REF_DIR, "effet-echo-outlines.png")));
+    const { width: w, height: h, pixels } = img;
+    const L = (x, y) => pixels[(y * w + x) * 4];
+
+    /** Ordonnées des centres de trait sur une colonne. */
+    const centres = (x) => {
+      const out = [];
+      let debut = null;
+      for (let y = 0; y < h; y++) {
+        const sombre = L(x, y) < 128;
+        if (sombre && debut === null) debut = y;
+        if (!sombre && debut !== null) { out.push((debut + y - 1) / 2); debut = null; }
+      }
+      return out;
+    };
+
+    const DX = 6;
+    const ecarts = [];
+    for (const x of [30, 60, 90, 120, 150, 180]) {
+      const a = centres(x), b = centres(x + DX);
+      if (a.length !== b.length || a.length < 2) continue;
+      for (let i = 0; i < a.length - 1; i++) {
+        // Pente de l'anneau i (px de y par px de x) -> projection perpendiculaire.
+        const p = (b[i] - a[i]) / DX;
+        ecarts.push((a[i + 1] - a[i]) / Math.sqrt(1 + p * p));
+      }
+    }
+
+    // Assez d'anneaux appariés pour que la statistique veuille dire quelque
+    // chose. Un effet qui n'en tracerait qu'un passerait sinon sans rien dire.
+    expect(ecarts.length).toBeGreaterThanOrEqual(8);
+
+    const moyenne = ecarts.reduce((s, v) => s + v, 0) / ecarts.length;
+    const ecartType = Math.sqrt(ecarts.reduce((s, v) => s + (v - moyenne) ** 2, 0) / ecarts.length);
+
+    // L'espacement OBTENU est celui qu'on a DEMANDÉ (18 px dans le scénario).
+    // Sans cette borne, des anneaux régulièrement espacés à 40 px passeraient
+    // le test de dispersion en ne respectant aucun réglage.
+    expect(moyenne).toBeGreaterThan(16);
+    expect(moyenne).toBeLessThan(20);
+
+    // ÉQUIDISTANTS. La borne à 15 % est à deux fois sous la dispersion de
+    // l'estimation affine (32 %) et à deux fois au-dessus de celle mesurée
+    // (8 %) — elle aurait rougi sur les deux implémentations précédentes.
+    expect(ecartType / moyenne).toBeLessThan(0.15);
   });
 
   it("gooey-merge : le liseré spéculaire couvre plus d'un pixel", () => {

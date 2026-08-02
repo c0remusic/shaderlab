@@ -16,6 +16,7 @@ import { halation } from "./halation";
 import { lensBlur } from "./lensBlur";
 import { hatching } from "./hatching";
 import { coloredEdges } from "./coloredEdges";
+import { echoOutlines } from "./echoOutlines";
 import { halftone } from "./halftone";
 import { anamorphicStreak } from "./anamorphicStreak";
 import { motionBlur } from "./motionBlur";
@@ -77,6 +78,18 @@ export const effectRegistry: EffectModule[] = [
   // partagent leur détecteur (`edgeGradient.ts`) et se choisissent l'un contre
   // l'autre : encre unique, ou teinte donnée par l'orientation du bord.
   coloredEdges,
+  // `echoOutlines` (2026-08-03) ferme la famille des contours, et n'est PAS un
+  // troisième réglage des deux précédents. Les deux au-dessus répondent à « où
+  // l'image change-t-elle ? » (un gradient) ; celui-ci répond à « à quelle
+  // DISTANCE de la forme suis-je ? », ce qu'aucun gradient ne sait dire.
+  //
+  // Il naît d'un signalement d'Antoine (« ça ne ressemble pas du tout ») sur la
+  // fiche de référence, qui décrit sous le nom `Outlines` un effet d'échos
+  // concentriques — pas un détecteur. Le cahier l'avait écrit dès le 2026-08-01
+  // (§6quinquies, « MÊME NOM, AUTRE EFFET ») et ça n'était jamais devenu du
+  // travail. Notre `outlines` garde sa place et son id : il est bon à ce qu'il
+  // fait, il ne fait simplement pas ça.
+  echoOutlines,
   pixelStretch,
   sliceShift,
   gradientMap,

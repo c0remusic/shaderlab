@@ -1066,10 +1066,31 @@ LISIBLE — défauts, noms, et peut-être un mot dans l'interface.
    pas à ce que l'effet fait d'une photo. Une seconde référence
    (`effet-colored-edges-defauts`) montre le calque POSÉ, puisque c'est sur lui
    que portait le verdict — mais il reste à juger sur une vraie photo.
-2. `outlines` — même rejet, mais la cause est connue et écrite : ce n'est pas le
-   même effet que celui de Figma. Le nôtre trace une encre unique sur les
-   contours ; le leur empile des contours **concentriques** qui s'éloignent du
-   sujet. Ce n'est pas un réglage à corriger, c'est un effet à écrire.
+2. ~~`outlines` — même rejet, mais la cause est connue et écrite : ce n'est pas le
+   même effet que celui de Figma.~~ **DEUX CHOSES, ET LES DEUX FAITES le
+   2026-08-03**, dans cet ordre parce qu'elles n'ont rien à voir :
+   - **Un vrai défaut de `outlines`**, trouvé en le posant seul sur une mire à
+     aplats bruités : `band = softness * 0.5` valait 0,175 au défaut quand un
+     contour franc ne produit qu'un `mag` de 0,16 — la rampe du `smoothstep`
+     était plus large que tout le signal utile. Un contour franc sortait à
+     **52 %** d'encre et jamais plein, un contour deux fois moins contrasté à
+     **4,9 %**, soit un rapport de 10,6 pour un rapport de contraste de 2,3.
+     Rendue relative au seuil : **100,0 %** et **99,9 %**, l'aplat bruité restant
+     à 0,0 %. `coloredEdges` portait la même ligne — d'où le rejet conjoint.
+   - **L'effet manquant, écrit** : `echoOutlines`. La fiche dit « evenly spaced
+     outlines that echo your shape outward, like ripples » — ce n'est pas un
+     détecteur. Il mesure une DISTANCE à une forme, ce qu'aucun gradient ne sait
+     dire. Distance estimée au premier ordre sur un champ seuillé puis flouté
+     (pyramide partagée), **linéarisée en espace logit** parce qu'un échelon
+     flouté est un sigmoïde et non une droite. Mesuré sur la mire commune, pour
+     un espacement demandé de 18 px : estimation affine **13,4 px / 32 % de
+     dispersion** → logit **18,6 px / 34 %** → zone de confiance resserrée
+     **18,5 px / 8 %**.
+   `outlines` garde sa place et son id : il est bon à ce qu'il fait, il ne fait
+   simplement pas ça. ⚠️ **Reste une question de NOM** : la fiche appelle
+   `Outlines` l'effet à échos, et nous appelons `Outlines` le détecteur. Le nom
+   d'affichage se change sans casser aucun preset (l'id seul est persisté) —
+   arbitrage d'Antoine.
 3. `gooeyMerge` — crénelage **ISOLÉ le 2026-08-02, et réel** (`00b8e00`). Il ne
    vient PAS de l'empilement sous halftone. Part de transitions fortes qui se
    font en un seul pixel — donc sans aucun pixel de couverture partielle :

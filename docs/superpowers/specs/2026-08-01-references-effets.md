@@ -977,3 +977,130 @@ Anamorphique :
 [Bart Wronski — Anamorphic lens flares and visual effects](https://bartwronski.com/2015/03/09/anamorphic-lens-flares-and-visual-effects/) ·
 [Lindsey Optics — What is a Streak Filter](https://www.lindseyoptics.com/blog/what-is-a-streak-filter-how-to-get-anamorphic-lens-flare/) ·
 [StraySpark — The Anamorphic Look in UE5](https://www.strayspark.studio/blog/anamorphic-film-look-ue5)
+
+---
+
+# 8. REVUE D'USAGE D'ANTOINE — 2026-08-02
+
+**Le premier passage en main sur les vingt effets**, après la fenêtre de test du
+fondu de `sliceShift`. C'est le checkpoint visuel qui manquait depuis la clôture
+du §7 (« le seul angle mort restant est le RENDU RÉEL de ces vingt effets sous un
+œil humain »). Onze retours, transcrits d'abord, puis confrontés au code et au
+cahier — plusieurs étaient déjà écrits ici sans jamais avoir été traités.
+
+> « Pixel stretch est sympa mais difficile à positionner correctement. Goey merge
+> est sympa aussi mais très aliasé effet metal avec des artefacts, c'est le but ?
+> Tous les effets de flou sont un peu inutiles à part le motion blur me semblent
+> inutiles, et ses parametres ne sont pas assez extremes et on a pas assez de
+> controle dessus contrairement à photoshop. Posterize à très peu de controles.
+> Colored edges est horrible, inutilisable. Outlines pareil, ils ne font pas le
+> meme effet que sur l'exemple de figma. Pas trop compris la différence entre
+> l'effet duotone et Gradient map. Le channel mixer de figma fait aussi des
+> effets plus interesants hatching a d'autres patterns. Sympa l'anamorphic mais
+> c'est pas la lens distorsion de figma, on peut le garder en option dans lens
+> distorsion par contre. Slice shift pourrait aussi avoir des lignes verticales
+> ET horizontales. »
+
+## Ce que la mesure confirme, avant tout arbitrage
+
+| retour | vérification sur le code |
+|---|---|
+| Posterize a peu de contrôles | **UN seul paramètre** : `levels`, de 2 à 16. Rien d'autre. |
+| Motion blur pas assez extrême | `amount` plafonne à **120 px**. Photoshop va à 2000. |
+| Channel mixer de Figma plus intéressant | le nôtre est une matrice 3×3 (11 paramètres) ; le §6quinquies note que le leur **recolore chaque canal avec une couleur choisie** — autre construction, déjà relevée, jamais traitée. |
+| Outlines ≠ l'exemple Figma | déjà écrit au §6quinquies : « MÊME NOM, AUTRE EFFET », le leur empile des contours **concentriques**. |
+| Anamorphic ≠ lens distortion | le backlog du §7 liste « Lens distortion (fisheye + trois modes d'aberration, **dont Anamorphic**) ». La proposition d'Antoine colle à la fiche. |
+| Duotone vs Gradient map | 11 paramètres contre 17, et une distinction explicitement documentée en tête de `gradientMap.ts`. |
+
+## Les deux questions, répondues
+
+**« Gooey merge très aliasé, effet métal avec des artefacts, c'est le but ? »**
+**Non.** L'iso-surface est antialiasée analytiquement — `band = max((1 - tension)
+* 0.25, fwidth(field) * 0.75)` puis `smoothstep` — donc le crénelage n'est pas
+une intention. MAIS sur la capture, `Gooey merge` reçoit la sortie de
+`Halftone` : il applique un seuil de métaballe sur une **trame de points**. Le
+« métal à artefacts » vient très probablement de cet empilement et non de
+l'effet seul. À trancher par un essai d'une minute — gooey seul sur la photo —
+avant d'ouvrir un chantier. Ne pas corriger avant d'avoir isolé.
+
+**« Pas trop compris la différence entre duotone et gradient map. »**
+La différence EXISTE et est documentée en tête de `gradientMap.ts` : `duotone`
+ÉCRASE la matière (son curseur contraste durcit jusqu'aux aplats sérigraphiés),
+`gradientMap` GARDE la photo (arrêts positionnables — point noir, point blanc,
+position du ton moyen — plus « Conserver le modelé » qui réinjecte la luminosité
+d'origine). **C'est donc le PRODUIT qui échoue à la montrer, pas le code qui
+serait redondant.** Les défauts et les noms ne portent pas la distinction.
+
+Cette question a déjà tourné deux fois, et le noter évite un troisième tour :
+l'audit du 2026-07-31 avait conclu « duotone et gradientMap sont la même
+construction » ; Antoine l'avait **renversé** sur la fiche Figma (la redondance
+est le symptôme d'un `gradientMap` inachevé, pas un doublon à supprimer) ; il dit
+aujourd'hui ne pas les distinguer à l'usage. Les trois affirmations sont
+compatibles : les outils sont distincts SUR LE PAPIER et indistincts À L'ÉCRAN.
+Le travail n'est donc ni de fusionner ni de re-justifier, mais de rendre l'écart
+LISIBLE — défauts, noms, et peut-être un mot dans l'interface.
+
+## Triage
+
+**A. DÉFAUTS — un effet livré qui ne tient pas sa promesse.**
+1. `coloredEdges` — « horrible, inutilisable ». Douze paramètres et un rendu
+   rejeté en bloc. Le §6quinquies le donnait pourtant « conçu à l'aveugle, et
+   tombé juste » : ce verdict était une comparaison de SURFACE DE CONTRÔLE, pas
+   de rendu. À reprendre depuis la référence visuelle, pas depuis la fiche.
+2. `outlines` — même rejet, mais la cause est connue et écrite : ce n'est pas le
+   même effet que celui de Figma. Le nôtre trace une encre unique sur les
+   contours ; le leur empile des contours **concentriques** qui s'éloignent du
+   sujet. Ce n'est pas un réglage à corriger, c'est un effet à écrire.
+3. `gooeyMerge` — crénelage à isoler (voir ci-dessus) avant tout geste.
+
+**B. SURFACE DE CONTRÔLE TROP PAUVRE — l'effet est juste, la main manque.**
+4. `posterize` — un seul paramètre. La référence graphique du §5 en autorise
+   bien plus (seuils par canal, courbe de répartition, dithering — `posterize`
+   partage déjà `bayer.ts` avec la famille impression).
+5. `motionBlur` — plafond à 120 px, et pas de contrôle de forme de traînée.
+   Photoshop offre 2000 px, et distingue le flou directionnel du flou de
+   trajectoire. Seul flou qu'Antoine juge utile : c'est celui qui mérite
+   l'investissement.
+6. `channelMixer` — recoloration par canal (fiche Figma) absente.
+7. `hatching` — les motifs de Figma (Waves / Zigzag / Circles) restent absents ;
+   nos `waveAmplitude`/`waveFrequency` ne couvrent qu'une partie de « Waves ».
+
+**C. ERGONOMIE — l'effet est bon, on ne sait pas le viser.**
+8. `pixelStretch` — « difficile à positionner correctement ». La région existe
+   (`regionX`/`regionY`/`regionRadius`/`regionFeather`) mais se règle par
+   curseurs. Le §6bis le disait déjà : « Le nôtre a angle + position + portée,
+   **sans manipulateur direct** », là où Figma pose un cercle sur la toile.
+   C'est le même manque que celui qui a fait ajouter la région le 2026-08-01 —
+   traité à moitié.
+
+**D. DÉCISIONS PRODUIT — à trancher par Antoine, pas par le code.**
+9. **La famille des flous.** « Tous les effets de flou sont un peu inutiles à
+   part le motion blur ». La famille avait été déclarée CLOSE le 2026-08-01, sur
+   un découpage de référence (surface de l'ouverture / trajectoire / bilatéral)
+   qui tenait techniquement. Le verdict d'usage la rouvre : `lensBlur` (10
+   paramètres) et `surfaceBlur` (3) sont candidats au retrait ou à une refonte.
+   ⚠️ Retirer un effet du registre casse les presets qui le citent.
+10. **`anamorphicStreak` devient une option de `lensDistortion`.** Proposition
+    d'Antoine, conforme à la fiche Figma. Implique d'écrire `lensDistortion`
+    (fisheye + trois modes d'aberration) et d'y loger la traînée. Le §7 le
+    listait déjà en tête du backlog « dans l'ordre où leur fiche les rend
+    faisables ».
+11. **`sliceShift` en deux axes.** « pourrait aussi avoir des lignes verticales
+    ET horizontales ». Aujourd'hui un seul `angle` : les tranches et leur
+    glissement tournent ensemble. Deux familles de tranches simultanées est un
+    autre effet, pas un paramètre de plus — à cadrer avant d'écrire.
+
+## Ce que cette revue apprend sur la MÉTHODE
+
+Six des onze retours étaient **déjà écrits dans ce cahier** avant d'être
+ressentis à l'usage — outlines (autre effet), channel mixer (recoloration
+absente), hatching (motifs manquants), anamorphic/lens distortion, pixel stretch
+(pas de manipulateur), et la question duotone/gradientMap qui en est à son
+troisième tour. Ils ont été consignés comme des ÉCARTS DE RÉFÉRENCE, c'est-à-dire
+comme de la documentation, et jamais convertis en travail.
+
+L'écart de référence est un constat ; il ne devient un défaut que quand
+quelqu'un s'en sert. Le cahier a correctement identifié ce qui manquait, et
+n'avait aucun mécanisme pour le faire remonter. C'est le même trou que celui du
+§7 : « le seul angle mort restant est le rendu réel sous un œil humain » — écrit,
+puis laissé ouvert une journée pendant que six effets de plus étaient livrés.

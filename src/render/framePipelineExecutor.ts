@@ -67,6 +67,11 @@ export interface EffectPassesPort {
     targetView: GPUTextureView,
     time: number,
   ): void;
+  /** Rend au pool les cibles de passe interne prêtées à la frame. Appelée
+   *  APRÈS la soumission, et aussi sur le chemin d'erreur — une frame qui lance
+   *  en cours de route laisserait sinon ses cibles prêtées à jamais, donc hors
+   *  du pool ET jamais détruites. */
+  releaseFrameTargets(): void;
 }
 
 /** Persistent mask residency; it encodes mask work but never submits it. */
@@ -197,6 +202,11 @@ export class FramePipelineExecutor {
       );
     } catch (error) {
       for (const resource of pendingDestroy) resource.destroy();
+      // Sans ceci, une frame qui lance en cours de route laisserait ses cibles
+      // PRÊTÉES pour toujours : hors du pool, donc jamais réutilisées, et hors
+      // de `pendingDestroy`, donc jamais détruites. Exactement l'orphelinat que
+      // le garde ci-dessus existe pour empêcher.
+      this.effects.releaseFrameTargets();
       throw error;
     }
   }
@@ -562,6 +572,10 @@ export class FramePipelineExecutor {
   ): FramePipelineResult {
     this.device.queue.submit([encoder.finish()]);
     for (const resource of pendingDestroy) resource.destroy();
+    // Les cibles de passe interne ne sont PAS détruites : elles retournent au
+    // pool pour la frame suivante. Même point du cycle que la destruction —
+    // après la soumission, donc les commandes en vol tiennent la mémoire.
+    this.effects.releaseFrameTargets();
     return {
       enabledLayerCount,
       churnedResourceCount: pendingDestroy.length,

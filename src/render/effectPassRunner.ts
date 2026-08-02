@@ -68,6 +68,31 @@ export class EffectPassRunner {
    *  buffer jetable à 60fps). Détruit dans `clearPipelines()`. */
   private timeBuffer: GPUBuffer | null = null;
 
+  /** POOL DES CIBLES DE PASSE INTERNE, indexé par dimensions.
+   *
+   *  Avant le 2026-08-02, `runInternalPasses` créait une texture NEUVE par
+   *  passe et par frame, puis la détruisait. Le coût ne se voit pas sur une
+   *  petite image et devient dominant sur une vraie photo : à 26 Mpx, une cible
+   *  en demi-résolution pèse ~26 Mo, et `glow` en enchaîne onze, `gooeyMerge`
+   *  neuf. Sur une pile Gooey merge + Motion blur, ça faisait ~121 Mo alloués ET
+   *  détruits à CHAQUE image pendant un glissement de curseur — ce n'est pas le
+   *  calcul qui bloque à ce régime, c'est l'allocateur.
+   *
+   *  Le baseline de performance du 2026-07-30 avait relevé le churn des buffers
+   *  et des bind groups (15 + 11 par frame) sans voir celui-ci, qui est pourtant
+   *  trois ordres de grandeur au-dessus en octets. Une texture de passe pèse des
+   *  dizaines de Mo, un buffer d'uniform quelques dizaines d'octets.
+   *
+   *  Les textures sont PRÊTÉES pendant la frame et rendues après la soumission,
+   *  jamais détruites. `width`/`height` étant `readonly`, un redimensionnement
+   *  reconstruit le runner : le pool ne peut pas contenir de format périmé. */
+  private readonly passTargetPool = new Map<string, GPUTexture[]>();
+  /** Cibles prêtées à la frame en cours. Deux passes vivent simultanément (une
+   *  lue, une écrite), donc le pool doit pouvoir en distribuer plusieurs de la
+   *  MÊME taille sans jamais rendre deux fois la même — d'où une liste de
+   *  prêts, et non un simple compteur. */
+  private leasedPassTargets: GPUTexture[] = [];
+
   constructor(
     private readonly device: GPUDevice,
     private readonly srgbFormat: GPUTextureFormat,
@@ -85,6 +110,43 @@ export class EffectPassRunner {
     this.pipelineCache.clear();
     this.timeBuffer?.destroy();
     this.timeBuffer = null;
+    // Le pool meurt AVEC le runner : c'est le seul endroit qui puisse le
+    // libérer sans risquer de détruire une cible encore référencée par une
+    // frame en vol.
+    for (const textures of this.passTargetPool.values()) {
+      for (const texture of textures) texture.destroy();
+    }
+    this.passTargetPool.clear();
+    for (const texture of this.leasedPassTargets) texture.destroy();
+    this.leasedPassTargets = [];
+  }
+
+  /** Rend au pool les cibles prêtées à la frame. À appeler APRÈS
+   *  `queue.submit`, exactement là où les ressources jetables étaient
+   *  détruites — la garantie est la même : les commandes déjà soumises tiennent
+   *  la mémoire vivante côté pilote, et celles de la frame suivante sont
+   *  ordonnancées après. */
+  releaseFrameTargets(): void {
+    for (const texture of this.leasedPassTargets) {
+      const key = `${texture.width}x${texture.height}`;
+      const libres = this.passTargetPool.get(key);
+      if (libres) libres.push(texture);
+      else this.passTargetPool.set(key, [texture]);
+    }
+    this.leasedPassTargets = [];
+  }
+
+  /** Emprunte une cible aux dimensions demandées, ou en crée une. */
+  private acquirePassTarget(width: number, height: number): GPUTexture {
+    const libres = this.passTargetPool.get(`${width}x${height}`);
+    const recyclee = libres?.pop();
+    const texture = recyclee ?? this.device.createTexture({
+      size: [width, height],
+      format: this.srgbFormat,
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+    this.leasedPassTargets.push(texture);
+    return texture;
   }
 
   runInternalPasses(
@@ -95,19 +157,19 @@ export class EffectPassRunner {
     pendingDestroy: PendingDestroy
   ): { view: GPUTextureView; texture: GPUTexture } {
     let passInputView = sourceView;
-    let prevTexture: GPUTexture | null = null;
     let lastTexture: GPUTexture | null = null;
     for (const pass of effect.passes!) {
-      const passTarget = this.device.createTexture({
-        size: [Math.max(1, Math.round(this.width * pass.scale)), Math.max(1, Math.round(this.height * pass.scale))],
-        format: this.srgbFormat,
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
-      });
+      // EMPRUNTÉE au pool, plus créée : voir `passTargetPool`. Aucune cible
+      // n'est plus poussée dans `pendingDestroy` — elles restent prêtées jusqu'à
+      // `releaseFrameTargets()`, après la soumission. Détruire la précédente ici
+      // la rendrait inutilisable par la passe suivante, qui la lit encore.
+      const passTarget = this.acquirePassTarget(
+        Math.max(1, Math.round(this.width * pass.scale)),
+        Math.max(1, Math.round(this.height * pass.scale)),
+      );
       const passTargetView = passTarget.createView();
       this.runEffectPass(encoder, { ...effect, wgsl: pass.wgsl }, layer, passInputView, passTargetView, { applyMask: false }, pendingDestroy);
-      if (prevTexture) pendingDestroy.push(prevTexture);
       passInputView = passTargetView;
-      prevTexture = passTarget;
       lastTexture = passTarget;
     }
     return { view: passInputView, texture: lastTexture! };

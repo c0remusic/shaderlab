@@ -42,6 +42,7 @@ function createExecutor() {
     }),
     runInternalPasses: vi.fn(),
     runOverlayPass: vi.fn(),
+    releaseFrameTargets: vi.fn(),
   };
   const masks: MaskTexturesPort = {
     sweep: vi.fn(),
@@ -98,6 +99,36 @@ describe("FramePipelineExecutor", () => {
       overlayMaskTexture: null,
       presentTexture: firstTarget,
     });
+  });
+
+  /* POOL DES CIBLES DE PASSE (2026-08-02). Les cibles internes ne sont plus
+   * détruites par frame mais RENDUES à un pool : à 26 Mpx, une cible en
+   * demi-résolution pèse ~26 Mo, et `glow` en enchaîne onze. Ce qui pouvait
+   * mal tourner tient en une phrase — une cible prêtée et jamais rendue est
+   * perdue deux fois, hors du pool donc jamais réutilisée, hors de
+   * `pendingDestroy` donc jamais détruite. Les deux chemins de sortie de la
+   * frame doivent donc rendre. */
+  it("rend les cibles de passe au pool APRÈS la soumission", () => {
+    const { executor, effects, submit } = createExecutor();
+
+    executor.run([layer()], null);
+
+    expect(effects.releaseFrameTargets).toHaveBeenCalledOnce();
+    // APRÈS la soumission, jamais avant : les commandes en vol tiennent la
+    // mémoire côté pilote, et rendre trop tôt exposerait la cible à être
+    // réécrite pendant que le GPU la lit encore.
+    const rendu = (effects.releaseFrameTargets as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+    expect(rendu).toBeGreaterThan(submit.mock.invocationCallOrder[0]);
+  });
+
+  it("rend les cibles de passe MÊME si la frame lance", () => {
+    const { executor, effects } = createExecutor();
+    effects.runEffectPass = vi.fn(() => {
+      throw new Error("passe en échec");
+    });
+
+    expect(() => executor.run([layer()], null)).toThrow("passe en échec");
+    expect(effects.releaseFrameTargets).toHaveBeenCalledOnce();
   });
 
   it("returns null composedTexture/overlayMaskTexture when the overlay id matches no layer", () => {

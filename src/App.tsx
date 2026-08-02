@@ -25,6 +25,7 @@ import { BrushToolbar } from "./components/BrushToolbar";
 import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
 import { TransformHandles } from "./components/TransformHandles";
+import { RegionHandles } from "./components/RegionHandles";
 import { ToolPalette } from "./components/ToolPalette";
 import "./components/ToolPalette.css";
 import { DEFAULT_TOOL, activeTool as activeToolOf, escapeAction, isQuitToolEvent, isToolShortcutEvent, selectTool, toolFromShortcut, type ToolId } from "./ui/tools";
@@ -1437,7 +1438,28 @@ export default function App() {
   }, [performExport]);
 
   const selectedLayer = layers.find((l) => l.id === selectedId) ?? null;
-  const paramsPanelTitle = selectedLayer ? `Réglages · ${getEffect(selectedLayer.effectId).name}` : "Réglages";
+  const selectedEffect = selectedLayer ? getEffect(selectedLayer.effectId) : null;
+  const paramsPanelTitle = selectedLayer ? `Réglages · ${selectedEffect?.name}` : "Réglages";
+
+  /** Manipulateur de région : présent seulement si l'effet du calque
+   *  sélectionné en DÉCLARE un (`EffectModule.canvasRegion`). Rien n'est deviné
+   *  au nom de paramètre — voir la note sur `canvasRegion` dans
+   *  `render/effects/types.ts`. */
+  const regionManipulator = (() => {
+    const region = selectedEffect?.canvasRegion;
+    if (!region || !selectedLayer) return null;
+    const valeur = (nom: string) =>
+      selectedLayer.params[nom] ?? selectedEffect.params.find((p) => p.name === nom)?.default ?? 0;
+    const rayonParam = selectedEffect.params.find((p) => p.name === region.radius);
+    if (!rayonParam) return null;
+    return {
+      region,
+      center: { x: valeur(region.centerX), y: valeur(region.centerY) },
+      radius: valeur(region.radius),
+      radiusRange: { min: rayonParam.min, max: rayonParam.max },
+      effectName: selectedEffect.name,
+    };
+  })();
 
   const presetsPanel = useContextualPanel(true, "static");
   const layersPanel = useContextualPanel(true, "static");
@@ -1783,6 +1805,35 @@ export default function App() {
               selectLayer(hit);
               return true;
             }}
+          />
+        )}
+        {/* MANIPULATEUR DE RÉGION. Même place dans l'arbre que les poignées de
+            transformation, et pour la même raison : enfant du canvas, donc
+            clippé par la zone visible et jamais dessiné par-dessus le dock.
+
+            Même garde de mode aussi (`showTransformHandles` = mode canvas
+            `idle`) : en peinture, le pinceau garde la main, et une pastille
+            posée au-dessus du canvas volerait le geste.
+
+            Les deux overlays peuvent coexister — un calque photo sélectionné
+            n'a pas de région, un calque d'effet n'a pas de transform, donc les
+            conditions sont en pratique exclusives sans avoir à l'écrire. */}
+        {showTransformHandles && regionManipulator && selectedLayer && (
+          <RegionHandles
+            center={regionManipulator.center}
+            radius={regionManipulator.radius}
+            radiusRange={regionManipulator.radiusRange}
+            bgSize={imageSize}
+            canvasRef={canvasRef}
+            effectName={regionManipulator.effectName}
+            onRegionChange={(center, radius) =>
+              handleParamChange(selectedLayer.id, {
+                [regionManipulator.region.centerX]: center.x,
+                [regionManipulator.region.centerY]: center.y,
+                [regionManipulator.region.radius]: radius,
+              })
+            }
+            onRegionCommit={handleParamCommit}
           />
         )}
         </Canvas>

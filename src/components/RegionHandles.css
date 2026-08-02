@@ -1,0 +1,87 @@
+/* Boîte pilotée en pixels par `RegionHandles.measureOverlay` (pas d'`inset: 0`) :
+   elle doit épouser le rectangle AFFICHÉ du canvas, plus petit que son conteneur
+   (lettreboxage) et décalé (compensation du dock). Même raison, mot pour mot,
+   que `TransformHandles.css`. */
+.region-handles {
+  position: absolute;
+  pointer-events: none;
+  z-index: var(--z-canvas-overlay);
+}
+
+.region-handles__circle {
+  position: absolute;
+  inset: 0;
+  /* Le trait déborde du viewBox quand le cercle touche un bord. */
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* DEUX TRAITS. Un cercle de zone se pose sur du contenu quelconque : une seule
+   couleur ne peut pas s'y lire partout, et c'est un fait de contraste, pas un
+   réglage. Halo sombre large d'abord, trait clair fin par-dessus — sur une photo
+   claire on voit le halo, sur une sombre le trait, sur une bruitée la paire.
+   Convention reprise du cadre de transformation. */
+.region-handles__halo {
+  fill: none;
+  stroke: var(--outline-contrast);
+  stroke-width: 3;
+}
+
+.region-handles__ring {
+  fill: none;
+  stroke: var(--text-value);
+  stroke-width: 1;
+  /* Tireté : le cercle borne une ZONE D'ACTION, pas un objet du document. Le
+     cadre de transformation, lui, entoure une vraie image et reste plein — la
+     différence de trait est ce qui empêche de les confondre quand les deux sont
+     visibles. */
+  stroke-dasharray: 5 4;
+}
+
+/* L'OVERLAY REND LA MAIN PENDANT UN DÉPLACEMENT DE LA VUE (Espace maintenu),
+   même règle et même défaut que pour le cadre de transformation : les cibles
+   sont posées au-dessus du canvas et sont ses frères dans le DOM. */
+.pasteboard__view--pan .region-handles__center,
+.pasteboard__view--pan .region-handles__radius {
+  pointer-events: none;
+}
+
+.region-handles__center,
+.region-handles__radius {
+  position: absolute;
+  width: var(--slider-thumb-size);
+  height: var(--slider-thumb-size);
+  margin: calc(var(--slider-thumb-size) / -2);
+  padding: 0;
+  border-radius: var(--radius-round);
+  background: var(--text-value);
+  border: 1px solid var(--outline-contrast);
+  pointer-events: auto;
+}
+
+.region-handles__center {
+  cursor: move;
+}
+
+/* Le rayon se tire à l'horizontale depuis la poignée, qui est posée à droite du
+   centre : `ew-resize` annonce l'axe du geste. */
+.region-handles__radius {
+  cursor: ew-resize;
+  background: var(--focus-color);
+}
+
+/* RABATTUE : le cercle est plus grand que la vue, donc la poignée n'est plus
+   SUR l'anneau. Le creux dit qu'elle ne marque plus le rayon — sans quoi on
+   lirait un cercle qui n'est pas là. Elle reste une prise : c'est la distance
+   du pointeur au centre qui fixe le rayon, jamais la position du repère. */
+.region-handles__radius--rabattue {
+  background: transparent;
+  border-color: var(--focus-color);
+  border-width: 2px;
+}
+
+.region-handles__center:focus-visible,
+.region-handles__radius:focus-visible {
+  outline: 2px solid var(--focus-color);
+  outline-offset: 2px;
+}

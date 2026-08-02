@@ -83,7 +83,19 @@ export const pixelStretch: EffectModule = {
     { name: "regionX", label: "Centre X de la zone", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Position horizontale du disque d'étirement" },
     { name: "regionY", label: "Centre Y de la zone", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Position verticale du disque d'étirement" },
     { name: "regionFeather", label: "Fondu de la zone", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Adoucit la limite du disque — à 0 la coulure s'arrête net sur un cercle visible, ce qui trahit l'effet" },
+
   ],
+  // MANIPULATEUR SUR LA TOILE (2026-08-02). Verdict d'usage : « difficile à
+  // positionner correctement ». La région existait depuis la veille mais ne se
+  // réglait qu'aux curseurs, là où la référence dit « place the on-canvas circle
+  // over the area you want to stretch ». Le §6bis du cahier l'avait relevé
+  // (« sans manipulateur direct ») sans que ça devienne du travail — c'est le
+  // même manque qui avait fait ajouter la région, traité à moitié.
+  //
+  // Les curseurs RESTENT : le cercle vise, ils affinent. Retirer les uns pour
+  // l'autre échangerait un défaut d'ergonomie contre un autre — un réglage fin
+  // au pixel près ne se fait pas à la souris.
+  canvasRegion: { centerX: "regionX", centerY: "regionY", radius: "regionRadius" },
   wgsl: `
 ${UV_SPACE_WGSL}${HASH_WGSL}${VALUE_NOISE_WGSL}
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {

@@ -52,4 +52,22 @@ export interface EffectModule {
    *  first pass's input is the layer's normal source texture). Masking is NOT applied to internal
    *  passes — only to the final composite. */
   passes?: EffectPass[];
+  /**
+   * Déclare qu'un DISQUE de cet effet se manipule directement sur la toile,
+   * en nommant les paramètres qui le portent. `RegionHandles` en dessine alors
+   * un cercle déplaçable, et le panneau garde ses curseurs.
+   *
+   * DÉCLARATIF ET NON DEVINÉ. La tentation était de repérer les paramètres au
+   * nom (`regionX`/`centerX`…) : ça marche jusqu'au jour où un effet nomme
+   * autrement, et ça échoue alors SANS RIEN DIRE — le manipulateur ne s'affiche
+   * simplement pas. Ici, `validateEffect` vérifie que les trois noms existent
+   * vraiment dans `params`, donc une faute de frappe lève au chargement du
+   * registre.
+   *
+   * ⚠️ LES DEUX UNITÉS DIFFÈRENT, et `ui/regionHandles.ts` est le seul endroit
+   * qui les convertit : le centre est en UV (0..1 du cadre), le rayon est en
+   * espace ISOTROPE (pixels / sqrt(W*H)). Un effet qui exposerait un rayon en
+   * UV ne peut pas se déclarer ici sans changer cette convention.
+   */
+  canvasRegion?: { centerX: string; centerY: string; radius: string };
 }

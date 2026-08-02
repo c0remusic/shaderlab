@@ -52,4 +52,20 @@ export function validateEffect(effect: EffectModule): void {
       );
     }
   }
+
+  // MANIPULATEUR DE RÉGION (`canvasRegion`). Les trois noms doivent désigner de
+  // vrais paramètres : sans cette garde, une faute de frappe ne lèverait rien et
+  // le cercle ne s'afficherait simplement PAS sur la toile — un échec muet, et
+  // le plus difficile à relier à sa cause puisque rien n'a l'air cassé.
+  if (effect.canvasRegion) {
+    const connus = new Set(effect.params.map((p) => p.name));
+    for (const [role, nom] of Object.entries(effect.canvasRegion)) {
+      if (!connus.has(nom)) {
+        throw new Error(
+          `Effet "${effect.id}" : \`canvasRegion.${role}\` désigne "${nom}", ` +
+            `qui n'est pas un paramètre déclaré de cet effet.`
+        );
+      }
+    }
+  }
 }

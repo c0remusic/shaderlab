@@ -477,13 +477,36 @@ Corollaire : le fondu doit se mesurer en pixels et non en fraction de tranche,
 sinon une tranche fine se retrouverait entièrement fondue quand une épaisse ne
 le serait qu'au bord.
 
-#### LIVRÉ le 2026-08-02 (`3b7b56f` puis `221de0a`) — et le piège se mesure
+#### LIVRÉ le 2026-08-02 — et LA NOTE CI-DESSUS AVAIT TORT
 
 Huitième paramètre `edgeFeather`, défaut 0, en pixels, borné à l'épaisseur d'une
-tranche. `sliceAmount()` a été extraite en fonction pure de l'index de tranche
-pour que le fondu puisse demander le décalage de la VOISINE sans dupliquer la
-règle d'adoption — la dupliquer aurait rendu le fondu faux exactement aux
-frontières fusionnées, là où il doit être invisible.
+tranche. Mais **le mécanisme prescrit deux paragraphes plus haut a été essayé,
+livré, puis retiré le jour même** — et il faut lire la suite en le sachant.
+
+> **Verdict d'Antoine sur pièce, 2026-08-02 :** « l'effet est sympa mais c'est
+> pas ce que je voulais, ça ressemble plus à du warping ». Puis : « pour que les
+> bords deviennent moins nets », « sans être flous », « juste que la limite soit
+> moins franche ».
+
+Faire varier le DÉCALAGE continûment — ce que le paragraphe ci-dessus prescrit —
+ne supprime pas la limite : ça **cisaille** le contenu de la bande, jusqu'à ~71°
+de pente aux réglages testés. La revue adverse l'avait chiffré le matin même et
+avait écrit noir sur blanc que la requalification de « flouter » en piège était
+*un jugement visuel sans checkpoint humain*. Le finding était classé Important.
+Il aurait dû bloquer : sur un effet visuel, « propriété visuelle non vérifiée »
+n'est pas une remarque, c'est une porte fermée.
+
+Les deux refus d'Antoine (ni cisaillement, ni flou) ne laissent qu'une lecture,
+et c'est **exactement ce que la note appelait le piège** : un FONDU ENCHAÎNÉ.
+Chaque tranche est échantillonnée à son propre décalage — donc reste nette — et
+c'est le passage de l'une à l'autre qui devient progressif. Prix assumé : dans
+la bande, on voit les deux tranches à la fois ; étroite, ça se lit comme un bord
+adouci, large, comme une surimpression.
+
+`sliceAmount()` reste extraite en fonction pure de l'index de tranche, et
+`trancheEchantillonnee()` s'y ajoute pour que la tranche voisine passe par le
+même chemin exactement — le fondu CHOISIT entre deux lectures franches au lieu
+d'en inventer une troisième.
 
 **Le verrou a été posé AVANT le geste**, et c'est ce qui rend la suite lisible :
 `sliceShift` n'avait aucune référence de pixels, donc « le défaut à 0 ne change
@@ -540,10 +563,29 @@ seul que `chromaSplit` ne décale pas :
 | hors bande | 2,93 % |
 | image fabriquée d'un mélange de couleurs | **17,56 %** |
 
-Le seuil du test est posé à **8 %**, moyenne géométrique des deux réponses, donc
-la même marge de 2,2× de chaque côté. La mauvaise implémentation a été fabriquée
-depuis la référence elle-même et passée dans la métrique : **le verrou a été vu
-rouge avant d'être committé vert.**
+Le seuil du test était posé à **8 %**, moyenne géométrique des deux réponses,
+donc la même marge de 2,2× de chaque côté. La mauvaise implémentation a été
+fabriquée depuis la référence elle-même et passée dans la métrique : **le verrou
+a été vu rouge avant d'être committé vert.**
+
+**Puis le même instrument a servi à vérifier le revirement**, quelques heures
+plus tard, quand le verdict d'Antoine a fait du « mélange de couleurs » la bonne
+réponse. Même mire, même métrique, seuil retourné :
+
+| | mesuré |
+|---|---|
+| mélange de coordonnées (retiré) | 3,67 % |
+| **fondu enchaîné (livré)** | **26,25 %** |
+| hors bande, inchangé | 2,93 % |
+
+Le seuil du test est maintenant leur moyenne géométrique, 10 %, franchie dans
+l'autre sens. Ce test aurait donc rougi sur l'implémentation précédente.
+
+Leçon de forme qui vaut au-delà de cet effet : **un test dont l'énoncé cite le
+MÉCANISME est à jeter au premier changement de mécanisme ; un test dont l'énoncé
+cite une MESURE survit et sert d'arbitre.** Le bloc de tests du profil de poids
+(`test/render/effects/sliceShift.test.ts`) n'a pas bougé d'une ligne entre les
+deux implémentations, pour la même raison.
 
 Et les trois mesures du couple de rampes, qui vivaient en prose, sont devenues
 des assertions dans `test/scripts/renderRefs.test.mjs` — sans quoi un `--update`
@@ -566,13 +608,11 @@ recouvriraient et il faudrait mélanger trois tranches à la fois.
 
 Aucun n'est un effet de bord du fondu ; tous demandent un arbitrage d'Antoine.
 
-1. **Ce qui est livré est un CISAILLEMENT, pas un flou.** Faire varier le
-   décalage continûment penche le contenu de la bande de fondu — aux réglages
-   verrouillés, une pente de ~2,9 px tangentiels par pixel normal, soit ~71°.
-   La demande disait « je voudrais pouvoir **flouter** les bords » ; la note qui
-   l'accompagnait a requalifié le flou en piège et prescrit le mélange de
-   coordonnées. La requalification est peut-être juste — mais c'est un jugement
-   visuel, et **aucun checkpoint humain n'a encore été fait**.
+1. ~~**Ce qui est livré est un CISAILLEMENT, pas un flou.**~~ **CLOS le
+   2026-08-02 par le checkpoint d'Antoine**, et dans le sens que ce point
+   redoutait : le cisaillement a été rejeté, remplacé par un fondu enchaîné.
+   Le point était classé Important ; il aurait dû bloquer la livraison. Sur un
+   effet visuel, « propriété visuelle non vérifiée » ferme la porte.
 2. **`irregular` est non monotone et se sabote à son maximum.** `P(fusion) =
    irrégularité × (1 - irrégularité)` : le pic est à 0,5 et la valeur retombe à
    **zéro à 1,0**, où toutes les bandes adoptent et où aucune ne partage plus

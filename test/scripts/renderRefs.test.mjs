@@ -36,7 +36,12 @@ const ATTENDU = {
   "toile-vide.png": { width: 256, height: 256, valeurs: 1 },
   "toile-damier.png": { width: 256, height: 256, valeurs: 2 },
   "photo-de-fond-seule.png": { width: 256, height: 256, valeurs: null },
-  "effets-glow-posterize.png": { width: 256, height: 256, valeurs: null },
+  // Le second calque de ce scenario etait `posterize` jusqu au 2026-08-03 ;
+  // l effet est sorti du registre (ADR-0012) et `dither` a pris sa place, avec
+  // les trois reglages qui redonnent son comportement. Le scenario verrouille
+  // la COMPOSITION (cinq passes internes, deux opacites, deux modes de fusion),
+  // pas la quantification — d ou le renommage plutot que la suppression.
+  "effets-glow-dither.png": { width: 256, height: 256, valeurs: null },
   "grain-graine-fixe.png": { width: 256, height: 256, valeurs: null },
   "photo-double-exposure.png": { width: 256, height: 256, valeurs: null },
   "masque-pinceau-degrade.png": { width: 256, height: 256, valeurs: null },
@@ -91,13 +96,12 @@ const ATTENDU = {
   // partout, et une reference posee dessus ne distinguerait pas un motion blur
   // d un flou quelconque etire.
   "effet-motion-blur.png": { width: 256, height: 256, valeurs: null },
-  // SURFACE BLUR (2026-08-01) : mire propre, parce qu un bilateral promet DEUX
-  // choses a la fois — le bruit disparait, le contour survit — et qu aucune
-  // mire existante ne porte les deux. Le damier n a que des contours (rien a
-  // lisser), le degrade que des aplats (rien a preserver) : sur l un comme sur
-  // l autre, un bilateral et un gaussien rendraient la meme chose et la
-  // reference ne prouverait rien.
-  "effet-surface-blur.png": { width: 256, height: 256, valeurs: null },
+  // `effet-surface-blur.png` a figure ici du 2026-08-02 au 2026-08-03. L effet
+  // est sorti du registre sur verdict d usage (ADR-0011) et sa reference est
+  // supprimee : une image qu aucun scenario ne sait plus produire ne verrouille
+  // rien, et la garder ferait echouer le test de contenu exact du dossier — ce
+  // qui est precisement le comportement voulu, puisqu il force le geste a etre
+  // conscient des deux cotes.
   // PIXEL STRETCH (2026-08-01) : premier verrou de cet effet, pose le jour ou
   // Antoine a releve qu il ne rendait pas celui de Figma. La comparaison sur
   // image a montre pourquoi — le notre etait GLOBAL et mangeait la photo en
@@ -206,7 +210,12 @@ const ATTENDU = {
   // (exactement celle de la mire nue, les aplats en suivent la structure) contre
   // 2,40 px sur la reference tramee, ou le motif hache tout. Et 4 niveaux de
   // vert exactement, le nombre de paliers demande.
-  "effet-posterize-serigraphie.png": { width: 256, height: 256, valeurs: 32 },
+  //
+  // PORTEE DE `posterize` VERS `dither` le 2026-08-03 (ADR-0012), scenario et
+  // reglages identiques : le rendu serigraphie EST la propriete qui permettait
+  // de dire que dither couvre posterize, donc c est elle qu il fallait rendre
+  // opposable avant de retirer le second.
+  "effet-dither-serigraphie.png": { width: 256, height: 256, valeurs: 32 },
   // GOOEY MERGE (2026-08-02) : posee pour repondre a une question d Antoine —
   // « tres aliasé effet metal avec des artefacts, c est le but ? » — et la
   // reponse est NON, mesuree. Part de transitions fortes qui se font en UN seul

@@ -1,6 +1,12 @@
 /**
- * Matrice de Bayer 4x4 (dither ordonné) — utilisée par `posterize` pour casser
- * les bandes franches d'une quantification sèche sur un dégradé doux (ciel).
+ * Matrice de Bayer 4x4 (dither ordonné) — elle casse les bandes franches d'une
+ * quantification sèche sur un dégradé doux (ciel).
+ *
+ * Son appelant a changé le 2026-08-03 : elle a servi `posterize` de sa naissance
+ * au retrait de celui-ci (ADR-0012), et sert désormais le style « Bayer fin » de
+ * `dither`. Le fichier survit à l'effet parce que la matrice n'a jamais été une
+ * pièce de `posterize` — c'est une matrice de seuils, et ce qu'on en fait est
+ * une décision de l'appelant.
  *
  * Le seuil rendu par `bayerThreshold` vit dans [-0.5, 0.5) : multiplié par la
  * taille d'un palier et ajouté AVANT quantification, il décale chaque pixel
@@ -51,8 +57,9 @@ fn bayerThreshold(px: vec2<u32>) -> f32 {
  * Matrice de Bayer 8x8, CONSTRUITE et non recopiée.
  *
  * D'où le besoin : la 4x4 n'offre que seize seuils. C'est assez pour casser la
- * frontière entre deux paliers de `posterize` — son seul usage jusqu'ici — et
- * nettement trop peu pour un tramage à DEUX niveaux, où ces seize seuils sont
+ * frontière entre deux paliers d'une quantification à plusieurs niveaux — le
+ * seul usage de la 4x4 jusqu'à `dither` — et nettement trop peu pour un tramage
+ * à DEUX niveaux, où ces seize seuils sont
  * toute l'information disponible et où la trame se lit en blocs de 4x4. Or le
  * 1 bit est précisément ce que la fiche `Dither` expose (`Levels` descend à 2).
  *

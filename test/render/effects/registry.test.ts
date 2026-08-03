@@ -55,3 +55,32 @@ describe("glow effect module", () => {
     expect(glow.wgsl).toMatch(/fn fs_main\(/);
   });
 });
+
+describe("la famille des flous — ce qui en reste, et ce qui n'y entre pas", () => {
+  // CE BLOC A DEMENAGE DEPUIS `surfaceBlur.test.ts` le 2026-08-03, et le geste
+  // vaut d'etre explique : le garde d'ADR-0010 vivait dans le fichier de test
+  // de `surfaceBlur`. Retirer l'effet aurait donc supprime la DECISION avec
+  // lui, en silence et sans qu'aucun test ne rougisse — une decision active
+  // n'a rien a faire dans le fichier d'un effet qui peut disparaitre.
+  it("n'introduit PAS de gaussien au registre (ADR-0010)", () => {
+    // La reference du §6ter dit qu'un gaussien lave l'image : il efface les
+    // contours en meme temps que ce qu'on voulait attenuer. Un flou doux reste
+    // atteignable par `lensBlur` a bokeh nul.
+    expect(effectRegistry.some((e) => e.id === "gaussianBlur")).toBe(false);
+    expect(effectRegistry.some((e) => e.id === "boxBlur")).toBe(false);
+    expect(effectRegistry.some((e) => e.id === "averageBlur")).toBe(false);
+  });
+
+  it("ne contient plus surfaceBlur, retire sur verdict d'usage (ADR-0011)", () => {
+    // Le bilateral est sorti du registre le 2026-08-03. Ce test n'est pas une
+    // tautologie : il rend le retrait CONSCIENT. Le reintroduire demande de
+    // supprimer cette ligne, donc de relire l'ADR qui l'a decide.
+    expect(effectRegistry.some((e) => e.id === "surfaceBlur")).toBe(false);
+    expect(() => getEffect("surfaceBlur")).toThrow();
+  });
+
+  it("garde les deux flous qui restent, et eux seuls", () => {
+    const flous = effectRegistry.filter((e) => /blur/i.test(e.id)).map((e) => e.id);
+    expect(flous.sort()).toEqual(["lensBlur", "motionBlur"]);
+  });
+});

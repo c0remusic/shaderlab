@@ -93,39 +93,49 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `EffectParam.colorGroup`) touche aussi `ParamPanel.tsx` et peut élargir
   `MAX_EFFECT_PARAMS` (`shaderCompose.ts`, **24** depuis le 2026-08-01) si
   nécessaire.
-  Registre réel au 2026-08-03, dans l'ordre : `glow`, `halation`,
-  `anamorphicStreak`, `lensBlur`, `motionBlur`, `surfaceBlur`, `chromaticBleed`,
-  `warp`, `grain`, `duotone`, `posterize`, `hatching`, `halftone`, `gooeyMerge`,
-  `channelMixer`, `outlines`, `coloredEdges`, `pixelStretch`, `sliceShift`,
-  `gradientMap`, `echoOutlines`, `dither`, `isolines` — **vingt-trois**.
-  Les trois derniers sont arrivés le 2026-08-03 ; `echoOutlines` est l'effet que
-  la fiche Figma appelle `Outlines` et que notre `outlines` n'est pas (l'un
-  mesure une DISTANCE à une forme, l'autre détecte un gradient), `dither` est un
-  surensemble de `posterize`, `isolines` trace des courbes de niveau du ton.
+  Registre réel au 2026-08-03 (soir), dans l'ordre : `glow`, `halation`,
+  `anamorphicStreak`, `lensBlur`, `motionBlur`, `chromaticBleed`,
+  `warp`, `grain`, `duotone`, `hatching`, `halftone`, `dither`, `gooeyMerge`,
+  `channelMixer`, `outlines`, `coloredEdges`, `echoOutlines`, `isolines`,
+  `pixelStretch`, `sliceShift`, `gradientMap` — **vingt et un**.
+  **Deux retraits le 2026-08-03**, tous deux sur arbitrage d'Antoine et tous deux
+  avec leur ADR : `surfaceBlur` (ADR-0011, verdict d'usage sur la famille des
+  flous) et `posterize` (ADR-0012, couvert par `dither` — couverture PROUVÉE
+  avant le retrait, le scénario sérigraphie porté mot pour mot rend les mêmes 32
+  valeurs distinctes). Retirer un effet ne casse pas les presets qui le citent :
+  `presetDocument.ts` ignore le calque et pousse un avertissement, jamais une
+  exception.
+  `echoOutlines` (2026-08-03) est l'effet que la fiche Figma appelle `Outlines`
+  et que notre `outlines` n'est pas — l'un mesure une DISTANCE à une forme,
+  l'autre détecte un gradient. `isolines` trace des courbes de niveau du ton.
   Six sont arrivés le 2026-08-01 et AUCUN ne vient du backlog Figma d'origine
   (épuisé le 2026-07-31) : ils sortent du cahier de références
   `docs/superpowers/specs/2026-08-01-references-effets.md` et de demandes
   directes d'Antoine.
-- **La famille des flous est CLOSE**, et son découpage ne se devine pas depuis
-  les noms : `lensBlur` est un noyau d'OBJECTIF (intégration sur la surface de
-  l'ouverture — pondération des hautes lumières + diaphragme à N lames, plus
-  quatre géométries de champ qui couvrent Iris et Tilt-Shift) ; `motionBlur`
-  intègre le long d'une TRAJECTOIRE (directionnelle, rotation, zoom — Path et
-  Spin de la galerie) ; `surfaceBlur` est un BILATÉRAL qui ne traverse pas les
-  contours. Le **gaussien reste volontairement dehors** : la référence dit qu'il
-  lave l'image, et un test du registre vérifie qu'il n'y entre pas.
+- **La famille des flous est CLOSE, et RÉDUITE À DEUX** depuis le 2026-08-03 :
+  `lensBlur` est un noyau d'OBJECTIF (intégration sur la surface de l'ouverture —
+  pondération des hautes lumières + diaphragme à N lames, plus quatre géométries
+  de champ qui couvrent Iris et Tilt-Shift) ; `motionBlur` intègre le long d'une
+  TRAJECTOIRE (directionnelle, rotation, zoom — Path et Spin de la galerie).
+  `surfaceBlur` (bilatéral) a été **retiré** (ADR-0011) — ne pas le citer comme
+  existant. Le **gaussien reste volontairement dehors** : la référence dit qu'il
+  lave l'image, et un test du registre le vérifie — ce garde a déménagé dans
+  `registry.test.ts` le jour du retrait, précisément parce qu'il vivait dans le
+  fichier de test de l'effet retiré.
   Noyaux de flou pyramidal partagés par glow/halation : `effects/blurChain.ts`.
-  Les trois flous ci-dessus n'en sont PAS : un noyau pyramidal ne sait produire
+  Les deux flous ci-dessus n'en sont PAS : un noyau pyramidal ne sait produire
   ni bord franc, ni polygone, ni poids de valeur.
 - **Trois familles closes**, chacune par un découpage qui ne se devine pas
   depuis les noms. **Halos** : `glow` étale sans colorer (diffusion),
   `halation` réexpose en rouge sur fond sombre (film), `anamorphicStreak` tire
   un trait bleu sur un seul axe (optique cylindrique) — ils s'empilent.
-  **Impression** : `posterize` (aplats), `hatching` (taille-douce), `halftone`
-  (trame CMJN et sa rosette). **Flous** : voir ci-dessus.
+  **Impression** : `dither` (aplats ET trames — il a absorbé `posterize`,
+  ADR-0012 : sa `Force du tramage` à 0 EST le rendu sérigraphie), `hatching`
+  (taille-douce), `halftone` (trame CMJN et sa rosette). **Flous** : voir
+  ci-dessus.
 - **Garde de câblage** : `test/render/effects/parametresCables.test.ts` vérifie
-  que chaque paramètre déclaré est lu à SON index par le shader, sur les vingt
-  effets. Elle naît d'un défaut réel — `warp` avait quatre contrôles sur sept
+  que chaque paramètre déclaré est lu à SON index par le shader, sur tous les
+  effets du registre. Elle naît d'un défaut réel — `warp` avait quatre contrôles sur sept
   morts ou décalés, invisibles pour le compilateur comme pour le verrou de
   pixels (un curseur mort ne bouge aucun pixel, précisément parce qu'il est
   mort).
@@ -236,11 +246,13 @@ Points structurants qu'on ne devine pas en lisant un fichier isolé :
 
 `.claude/decisions/INDEX.md` — une ligne par ADR avec son statut. Un ADR
 `superseded` (ADR-0003, renversé par ADR-0004) n'est PAS une contrainte active.
-Actifs au 2026-08-01 : densité UI (0001), abandon round-trip (0002), sens causal
+Actifs au 2026-08-03 : densité UI (0001), abandon round-trip (0002), sens causal
 de la pile (0004), rattachement par proximité (0005), fond d'export blanc
 (0006), format de toile à la création + `MAX_CANVAS_PIXELS = 64 Mpx` (0007),
 un effet ne se pose jamais sur un calque photo (0008), déplacement libre du
-viewport (0009), le gaussien reste hors du registre (0010). Les décisions du
+viewport (0009), le gaussien reste hors du registre (0010, ⚠️ sa 3ᵉ conséquence
+est caduque), retrait de `surfaceBlur` (0011), retrait de `posterize` (0012).
+Les décisions du
 projet vivent là, pas dans les docs de design.
 
 ## Méthode

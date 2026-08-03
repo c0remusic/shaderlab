@@ -5,7 +5,6 @@ import { chromaticBleed } from "./chromaticBleed";
 import { warp } from "./warp";
 import { grain } from "./grain";
 import { duotone } from "./duotone";
-import { posterize } from "./posterize";
 import { gooeyMerge } from "./gooeyMerge";
 import { channelMixer } from "./channelMixer";
 import { outlines } from "./outlines";
@@ -22,7 +21,6 @@ import { isolines } from "./isolines";
 import { halftone } from "./halftone";
 import { anamorphicStreak } from "./anamorphicStreak";
 import { motionBlur } from "./motionBlur";
-import { surfaceBlur } from "./surfaceBlur";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 
 // Les six du milieu suivent l'ordre de priorité du backlog d'effets confirmé par
@@ -56,29 +54,29 @@ export const effectRegistry: EffectModule[] = [
   // rien à faire dans une traînée — mais c'est là qu'on cherche le second quand
   // on vient de poser le premier.
   motionBlur,
-  // `surfaceBlur` (2026-08-01) ferme la famille des flous. C'est le seul qui ne
-  // simule aucun objectif : il RÉPARE (grain de capteur, peau, aplats sales) en
-  // n'agissant que là où il n'y a rien à préserver. Le gaussien, lui, reste
-  // dehors — la référence §6ter dit qu'il lave l'image, et c'est justement ce
-  // qu'un poids de valeur empêche.
-  surfaceBlur,
+  // `surfaceBlur` (bilatéral) a occupé cette place du 2026-08-01 au 2026-08-03,
+  // puis a été RETIRÉ sur verdict d'usage (ADR-0011). La famille des flous ne
+  // compte donc plus que les deux intégrations ci-dessus. Le gaussien, lui, est
+  // toujours dehors et pour une autre raison — la référence §6ter dit qu'il lave
+  // l'image (ADR-0010) ; son garde vit désormais dans `registry.test.ts`, et non
+  // plus dans le fichier de test d'un effet qui pouvait disparaître.
   chromaticBleed,
   warp,
   grain,
   duotone,
-  posterize,
-  // `hatching` et `halftone` (2026-08-01) sont posés auprès de `posterize` et
-  // non à la suite du backlog : tous trois appartiennent à la référence
+  // `hatching` et `halftone` (2026-08-01) appartiennent à la référence
   // d'IMPRESSION, et c'est là qu'on cherche l'un quand on vient de poser
-  // l'autre. `halftone` ferme cette famille — trame, taille-douce, aplats.
+  // l'autre — trame, taille-douce, aplats.
   hatching,
   halftone,
-  // `dither` (2026-08-03) ferme la famille d'IMPRESSION, et n'est pas le
-  // tramage de `posterize`. Le sien est un CORRECTIF — un demi-palier de
-  // décalage pour cacher une frontière, sans taille ni style — et il est au
-  // service de la quantification. Ici le motif EST le sujet : sa taille se
-  // règle, il descend à deux niveaux, il peut réduire l'image à deux encres.
-  // Aucun réglage de posterize n'atteint ça.
+  // `dither` (2026-08-03) ferme la famille d'IMPRESSION et occupe désormais
+  // SEUL la place des aplats : `posterize` a tenu ce rôle jusqu'au 2026-08-03,
+  // puis a été retiré parce que celui-ci le couvre (ADR-0012). Le tramage de
+  // `posterize` était un CORRECTIF — un demi-palier de décalage pour cacher une
+  // frontière, sans taille ni style, au service de la quantification. Ici le
+  // motif EST le sujet : sa taille se règle, il descend à deux niveaux, il peut
+  // réduire l'image à deux encres, et sa force descend à zéro — ce dernier
+  // point étant exactement le rendu que faisait `posterize`.
   dither,
   gooeyMerge,
   channelMixer,

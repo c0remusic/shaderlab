@@ -628,13 +628,22 @@ const INSTALL = `(async () => {
 
     // Multi-passes (glow = 5 passes internes) + effet simple, avec opacite et
     // mode de fusion non triviaux.
-    "effets-glow-posterize": {
+    //
+    // Le second calque etait \`posterize\` jusqu au 2026-08-03 ; l effet est sorti
+    // du registre (ADR-0012) et c est \`dither\` qui prend sa place. Les trois
+    // reglages non par defaut ci-dessous ne sont pas une preference : ce sont
+    // ceux qui redonnent le comportement de \`posterize\` — trame eteinte
+    // (\`amount\` 0), quantification par CANAL et non deux encres (\`mono\` 0), axe
+    // LINEAIRE (\`distribution\` 0, la ou le defaut de dither est Perceptuel).
+    // Ce scenario ne verrouille de toute facon pas la quantification mais la
+    // COMPOSITION — cinq passes internes, deux opacites, deux modes de fusion.
+    "effets-glow-dither": {
       contre: "photo-de-fond-seule",
       build: async (r, stack) => {
         const a = stack.addLayer("glow");
         stack.updateParams(a, { threshold: 0.55, intensity: 1.6 });
-        const b = stack.addLayer("posterize");
-        stack.updateParams(b, { levels: 4 });
+        const b = stack.addLayer("dither");
+        stack.updateParams(b, { levels: 4, amount: 0, mono: 0, distribution: 0 });
         at(stack, a).opacity = 0.8;
         at(stack, a).blendMode = "screen";
         at(stack, b).opacity = 0.9;
@@ -1114,23 +1123,12 @@ const INSTALL = `(async () => {
       },
     },
 
-    // Surface blur, TEMOIN DE PRESERVATION. Seuil d ecart a 0.09 : au-dessus de
-    // l amplitude du bruit de la mire, tres en dessous des marches entre
-    // aplats. Ce qu on doit voir : les quatre aplats devenus lisses, et les
-    // deux contours — un vertical, un horizontal — aussi francs qu avant.
-    // C est la seule configuration ou un bilateral et un gaussien ne rendent
-    // PAS la meme chose.
-    "effet-surface-blur": {
-      contre: "photo-de-fond-seule",
-      build: async (r, stack) => {
-        const bruit = await mireBruit(W, H);
-        const sourceId = await r.photoSources.register(bruit);
-        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bruit");
-        const a = stack.addLayer("surfaceBlur", p);
-        stack.updateParams(a, { radius: 20, threshold: 0.09, stiffness: 0.45 });
-      },
-    },
-
+    // \`effet-surface-blur\` a occupe cette place du 2026-08-02 au 2026-08-03, sur
+    // \`mireBruit\`. L effet est sorti du registre (ADR-0011) et son scenario avec
+    // lui. \`mireBruit\` RESTE : elle sert aussi a \`effet-outlines-bruit\`, et ses
+    // deux aplats bruites separes par un contour franc sont la seule mire qui
+    // puisse dire d un operateur local s il preserve ce qu il pretend preserver.
+    //
     // Pixel stretch, avec une REGION. Antoine a releve que notre effet ne rendait
     // pas celui de Figma ; la comparaison sur image a montre pourquoi — le notre
     // etait GLOBAL et mangeait la photo en bandes, le leur se place sur la toile
@@ -1463,16 +1461,22 @@ const INSTALL = `(async () => {
     // couleurs au plus, et la mire n en exerce que 32. Le plancher de 64 protege
     // contre une image MORTE ; ici l image est vivante et volontairement pauvre,
     // c est la propriete meme de l effet. Declarer le compte exact est plus fort
-    // que le plancher — il verrouille que posterize quantifie REELLEMENT, ce
+    // que le plancher — il verrouille que l effet quantifie REELLEMENT, ce
     // qu un plancher ne saurait pas dire. Meme idiome que la toile vide, qui
     // declare 1.
-    "effet-posterize-serigraphie": {
+    //
+    // PORTE DE \`posterize\` VERS \`dither\` le 2026-08-03, quand le premier est
+    // sorti du registre (ADR-0012). Le scenario est le meme mot pour mot : c est
+    // le rendu serigraphie, et c est precisement la propriete qui justifiait de
+    // dire que dither est un surensemble. La porter ici, c est la rendre
+    // opposable plutot que declarative.
+    "effet-dither-serigraphie": {
       contre: "photo-de-fond-seule",
       valeurs: 32,
       build: async (r, stack) => {
-        const a = stack.addLayer("posterize");
+        const a = stack.addLayer("dither");
         stack.updateParams(a, {
-          levels: 4, dither: 0, blackPoint: 0.1, whitePoint: 0.9, distribution: 1,
+          levels: 4, amount: 0, mono: 0, blackPoint: 0.1, whitePoint: 0.9, distribution: 1,
         });
       },
     },

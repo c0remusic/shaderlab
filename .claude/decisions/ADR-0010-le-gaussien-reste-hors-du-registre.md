@@ -42,9 +42,13 @@ copier les défauts.
   ordinaire. Le paramètre le dit dans son libellé (« À 0 le flou est une
   moyenne — c'est-à-dire un gaussien, et il lave l'image »). La capacité existe
   donc ; ce qui est refusé, c'est de la présenter comme un outil à part entière.
-- **Le lissage sans perte de contour a son propre effet** : `surfaceBlur`, un
+- ~~**Le lissage sans perte de contour a son propre effet** : `surfaceBlur`, un
   bilatéral. C'est lui qu'on cherche quand on croit vouloir un gaussien pour
-  nettoyer un ciel ou une peau — et il fait le travail sans effacer les bords.
+  nettoyer un ciel ou une peau — et il fait le travail sans effacer les bords.~~
+  ⚠️ **CADUC depuis ADR-0011 (2026-08-03)** : `surfaceBlur` est sorti du registre
+  sur verdict d'usage. Le refus du gaussien tient toujours — il ne s'appuyait pas
+  sur cette conséquence — mais l'échappatoire qu'elle offrait n'existe plus. Voir
+  ADR-0011, qui prend cette perte en charge explicitement.
 - **Les flous de la chaîne interne ne sont pas concernés.** `blurChain.ts`
   (`glow`, `halation`) et les passes de `gooeyMerge` emploient des noyaux
   pyramidaux : ce sont des étages de calcul, pas des effets choisissables. La

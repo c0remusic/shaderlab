@@ -173,8 +173,21 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Noyaux de flou pyramidal partagés par glow/halation : `effects/blurChain.ts`.
   Les deux flous ci-dessus n'en sont PAS : un noyau pyramidal ne sait produire
   ni bord franc, ni polygone, ni poids de valeur.
-- **Trois familles**, chacune découpée d'une façon qui ne se devine pas depuis
-  les noms. **Halos, à TROIS** : `glow` étale sans colorer (diffusion),
+- **Un flare n'est pas UN phénomène mais TROIS**, et ils diffèrent par l'endroit
+  où la lumière se perd, pas par leur apparence : entre deux faces POLIES
+  (ghosting — des images nettes de l'ouverture), sur une surface SALE ou rayée
+  (diffusion — des stries radiales), par aller-retour avec le CAPTEUR (un
+  quadrillage régulier, le « red dot »). Aucun mécanisme unique ne les produit
+  toutes ; `lensFlare` porte les trois en blocs distincts (ADR-0017 §amendement).
+  ⚠️ **Un fantôme est une image de l'OUVERTURE, pas de la source** (Hullin & al.).
+  C'est pourquoi la source POSÉE a ses fantômes DESSINÉS — anneau polygonal,
+  liseré vif, découpe en croissant par intersection avec le disque du barillet —
+  là où la voie automatique, qui ne sait pas où sont les sources, ne peut que
+  PRÉLEVER et rend des taches molles. Tout ce qui part de la source posée est
+  analytique, donc valide **hors cadre** ; le prélèvement, lui, ne l'était pas —
+  défaut mesuré et corrigé le 2026-08-03.
+- **Trois familles d'effets**, chacune découpée d'une façon qui ne se devine pas
+  depuis les noms. **Halos, à TROIS** : `glow` étale sans colorer (diffusion),
   `halation` réexpose en rouge sur fond sombre (film), `lensFlare` RÉFLÉCHIT —
   il produit des copies déplacées de la source au lieu de l'étaler sur place
   (ADR-0017). Ils s'empilent. La famille a fait l'aller-retour dans la même

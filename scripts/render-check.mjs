@@ -1896,7 +1896,7 @@ const INSTALL = `(async () => {
           threshold: 1, spread: 1.2,
           sourceX: 0.16, sourceY: 0.14, sourceRadius: 0.09, sourceIntensity: 5,
           blades: 6, bladeRotation: 0,
-          ghostCount: 5, ghostSpacing: 0.8, ghostIntensity: 1.2, ghostDispersion: 0.5,
+          ghostCount: 5, ghostSpacing: 0.3, ghostIntensity: 1.2, ghostDispersion: 0.5,
           tintHue: 30, tintSaturation: 0.45, tintLightness: 0.6,
           haloIntensity: 0, haloRadius: 0.42, veil: 0,
         });
@@ -1920,7 +1920,7 @@ const INSTALL = `(async () => {
           threshold: 0.55, spread: 1.2,
           sourceIntensity: 0,
           blades: 6, bladeRotation: 0,
-          ghostCount: 5, ghostSpacing: 0.8, ghostIntensity: 1.2, ghostDispersion: 0.5,
+          ghostCount: 5, ghostSpacing: 0.3, ghostIntensity: 1.2, ghostDispersion: 0.5,
           tintHue: 30, tintSaturation: 0.45, tintLightness: 0.6,
           haloIntensity: 0, haloRadius: 0.42, veil: 0,
         });
@@ -1945,7 +1945,7 @@ const INSTALL = `(async () => {
           blades: 6, bladeRotation: 0,
           ghostCount: 0, ghostIntensity: 0,
           tintHue: 30, tintSaturation: 0.45, tintLightness: 0.6,
-          haloIntensity: 2.2, haloRadius: 0.42, veil: 0,
+          haloIntensity: 0.7, haloRadius: 0.42, veil: 0,
         });
       },
     },
@@ -1968,6 +1968,44 @@ const INSTALL = `(async () => {
           blades: 6, ghostCount: 0, ghostIntensity: 0,
           tintHue: 30, tintSaturation: 0.45, tintLightness: 0.6,
           haloIntensity: 0, veil: 1.6,
+        });
+      },
+    },
+
+    // LES TROIS AUTRES FAMILLES, ET LE HORS CADRE. Question d Antoine a la
+    // revue : « ca c est un flare quand le capteur regarde directement la
+    // source, et pour les autres types ? ». Ce scenario est la reponse, et il
+    // verrouille quatre choses d un coup :
+    //
+    //  · SOURCE HORS CADRE (x = 1.25). L anneau et le voile ne rendaient RIEN
+    //    dans ce cas — le lobe etait rasterise dans la passe de seuillage, qui
+    //    ne couvre que [0,1] — alors que le curseur va de -0.5 a 1.5 et que
+    //    l infobulle le promet. Mesure avant correction : fantomes presents,
+    //    voile a 1.6 absent. Ils sont analytiques depuis.
+    //  · les STRIES de diffusion (objectif sale), 2e famille
+    //  · le QUADRILLAGE capteur (red dot), 3e famille
+    //  · les ARCS de barillet
+    //
+    // Aucun des quatre ne lit la moindre texture : si ce scenario rougissait
+    // alors que les autres passent, c est la voie DESSINEE qui a bouge.
+    "effet-lens-flare-familles": {
+      contre: "effet-lens-flare-source-posee",
+      build: async (r, stack) => {
+        const points = await mireBokeh(W, H);
+        const sourceId = await r.photoSources.register(points);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bokeh");
+        const a = stack.addLayer("lensFlare", p);
+        stack.updateParams(a, {
+          threshold: 1, spread: 2,
+          sourceX: 1.25, sourceY: 0.3, sourceRadius: 0.09, sourceIntensity: 5,
+          blades: 6, bladeRotation: 0,
+          ghostCount: 4, ghostSpacing: 0.45, ghostIntensity: 0.8, ghostDispersion: 0.5,
+          ghostFill: 0.2, ghostClip: 0.55, ghostVariation: 0.6,
+          tintHue: 30, tintSaturation: 0.45, tintLightness: 0.6,
+          haloIntensity: 0.6, haloRadius: 0.5, veil: 0.28,
+          scatter: 0.6, scatterDetail: 70,
+          sensor: 1.2, sensorSpacing: 0.05,
+          arcs: 0.9,
         });
       },
     },

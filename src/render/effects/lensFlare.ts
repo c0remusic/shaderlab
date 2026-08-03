@@ -1,5 +1,6 @@
 import type { EffectModule } from "./types";
 import { HSL_TO_RGB_WGSL } from "./hsl";
+import { HASH_WGSL, VALUE_NOISE_WGSL } from "./hash";
 import { OKLAB_WGSL } from "./oklab";
 import { UV_SPACE_WGSL } from "./uvSpace";
 import { APERTURE_WGSL } from "./aperture";
@@ -34,37 +35,77 @@ import {
  * comme « ni bloom ni flare à fantômes ». Le flare à fantômes y était donc nommé
  * comme absent, et il l'est resté deux jours.
  *
- * ─── LES DEUX SOURCES SONT UNE SEULE MACHINERIE ─────────────────────────────
+ * ─── DEUX VOIES POUR LES FANTÔMES, ET C'EST LA LEÇON DE LA REVUE ────────────
  *
  * Demande d'Antoine : le flare doit pouvoir partir des hautes lumières de la
- * photo ET d'un point qu'on pose soi-même. Ça n'oblige pas à écrire deux fois.
+ * photo ET d'un point qu'on pose soi-même.
  *
- * Le point posé est INJECTÉ DANS LA PASSE DE SEUILLAGE, comme un lobe
- * synthétique ajouté aux hautes lumières réelles. Tout l'aval — fantômes,
- * anneau, voile — le traite ensuite comme n'importe quelle lumière de l'image,
- * sans savoir qu'il est artificiel.
+ * La première version faisait les deux par PRÉLÈVEMENT, à la façon du « pseudo
+ * lens flare » d'écran : un lobe synthétique injecté dans le champ de hautes
+ * lumières, puis toute la chaîne lue dedans. Verdict d'usage d'Antoine :
+ * « pas très raffiné ». Il avait raison, et la cause est structurelle plutôt
+ * qu'un réglage — l'auteur même de cette technique écrit que ses fantômes
+ * « gardent la forme de l'image SOURCE » au lieu des formes géométriques du
+ * réel, et conseille de ne pas s'y fier seule.
  *
- * Et ça rend gratuitement une propriété qu'un fantôme calculé après coup ne
- * pourrait pas avoir : **le lobe injecté porte la forme du diaphragme, donc ses
- * copies l'héritent**. Un fantôme est un polygone parce que la source vue à
- * travers le diaphragme en est un, pas parce qu'on a dessiné un polygone. La
- * chaîne le montre : ils rétrécissent en gardant leurs arêtes.
+ * Hullin & al. le disent par l'autre bout, et c'est la phrase qui a tout
+ * décidé : un fantôme est « a deformed image of the aperture opening ». **Une
+ * image de l'OUVERTURE, pas de la source.** Un prélèvement dans les hautes
+ * lumières ne peut donc PAS en produire : il rend des copies molles du soleil.
  *
- * ⚠️ Corollaire honnête : les fantômes issus d'une haute lumière RÉELLE de la
- * photo sont ronds et mous, parce que cette lumière-là n'a pas de forme connue.
- * C'est le prix de la voie automatique, et il est visible.
+ * D'où deux voies, et non deux machineries redondantes :
  *
- * ─── LA GÉOMÉTRIE DES FANTÔMES, EN LECTURE ET NON EN ÉCRITURE ───────────────
+ * - **Source POSÉE : les fantômes sont DESSINÉS** (`ghost_cover`). On connaît sa
+ *   position, donc celle et la taille de chaque fantôme sont connues en forme
+ *   close. Anneau polygonal à liseré vif, découpé en croissant. Zéro lecture de
+ *   texture, et tout l'écart de raffinement s'y joue.
+ * - **Hautes lumières RÉELLES : les fantômes sont PRÉLEVÉS.** C'est la seule
+ *   voie possible quand on ne sait pas où sont les sources, et elle garde son
+ *   défaut : des taches rondes et molles. Écrit plutôt que tu.
  *
- * Un fantôme est la source réfléchie deux fois entre deux faces : il tombe sur
- * la droite qui joint la source au CENTRE optique, de l'autre côté, à une
- * distance qui dépend du couple de faces. D'où une chaîne alignée.
+ * ⚠️ LE LOBE INJECTÉ A ÉTÉ DÉPOSÉ, et le chemin pour y arriver vaut d'être
+ * écrit parce qu'il s'est trompé trois fois. Tant que les fantômes, l'anneau et
+ * le voile étaient tous prélevés dans le même champ, il fallait y injecter la
+ * source posée. Une fois les fantômes dessinés, ce lobe produisait EN DOUBLE des
+ * fantômes prélevés, aux mêmes endroits, et les empâtait. On a cherché un
+ * dosage : à 0,3 ça empâtait encore, à 0,08 l'anneau et le voile s'effondraient.
+ * Aucune valeur ne réglait les deux — parce que ce n'était pas un problème de
+ * dosage mais de RÔLE.
  *
- * On ne peut pas la DESSINER — il faudrait connaître toutes les sources. On la
- * LIT : pour le pixel P, le fantôme d'indice i vaut la luminance seuillée au
- * point `C + (P − C) · s_i`, avec `s_i` négatif. À `s = −1` le fantôme est le
- * miroir exact de la source par le centre ; plus `s` s'éloigne, plus le fantôme
- * est petit et proche de l'axe. Une seule texture, un tap par fantôme.
+ * La sortie a été de passer l'anneau et le voile de la source posée en
+ * analytique eux aussi. Le champ redevient alors ce qu'il aurait toujours dû
+ * être — les hautes lumières RÉELLES et rien d'autre — les deux voies ne peuvent
+ * plus fabriquer le même artefact, et le hors-cadre marche par-dessus le marché.
+ *
+ * ─── LES TROIS FAMILLES, ET POURQUOI UN SEUL MÉCANISME NE SUFFIT PAS ────────
+ *
+ * Question d'Antoine à la revue : « ça c'est un flare quand le capteur regarde
+ * directement la source, et pour les autres types ? ». Elle était juste — la
+ * première version ne modélisait qu'UNE des trois familles reconnues, et
+ * plafonnait là. Elles ne diffèrent pas par leur apparence mais par l'ENDROIT
+ * où la lumière se perd :
+ *
+ * - entre deux faces POLIES → **ghosting**, des images nettes de l'ouverture ;
+ * - sur une surface SALE ou rayée → **diffusion**, des stries radiales ;
+ * - par aller-retour avec le CAPTEUR → un **quadrillage** régulier.
+ *
+ * Aucun mécanisme unique ne les produit toutes, et c'est pour ça qu'elles sont
+ * trois blocs distincts plus bas plutôt que trois réglages d'un même.
+ *
+ * ─── CE QUE LES PHOTOGRAPHIES ONT IMPOSÉ ────────────────────────────────────
+ *
+ * Quatre traits relevés sur photographies (Wikimedia Commons « Crescent Lens
+ * Flare » ; un recadrage de chaîne chez ishootshows.com), et AUCUN n'était rendu
+ * avant. Ils sont détaillés sur `ghost_cover` :
+ *
+ *   1. un fantôme est un ANNEAU, pas une tache pleine
+ *   2. il est DÉCOUPÉ EN CROISSANT dès qu'il s'éloigne de l'axe
+ *   3. son liseré est coloré, différemment d'un fantôme à l'autre
+ *   4. les tailles sont très inégales, souvent par paires grand/petit
+ *
+ * Et un cinquième, qui a fait revoir un réglage : les couleurs sont PASTEL, pas
+ * néon. Le premier essai saturait le liseré de 60 % ; la photographie montre des
+ * teintes à peine posées sur le fond.
  *
  * ─── CE QUI EMPÊCHE QUE ÇA RENDE CHEAP ──────────────────────────────────────
  *
@@ -88,15 +129,21 @@ import {
  *
  * ─── COÛT ───────────────────────────────────────────────────────────────────
  *
- * Sept passes internes (seuillage-injection, trois réductions, trois remontées),
- * puis `nombre de fantômes + 2` taps en passe finale.
+ * Cinq passes internes (seuillage, deux réductions, deux remontées), puis
+ * `nombre de fantômes + 10` taps en passe finale — dont huit pour la somme
+ * azimutale de l'anneau. **Tout ce qui part de la source posée ne coûte AUCUNE
+ * lecture** : chaîne dessinée, voile, anneau, stries, arcs et quadrillage sont
+ * de l'ALU pure. C'est aussi ce qui les rend nets, et ce qui les fait marcher
+ * hors cadre.
  *
- * ⚠️ **Les sept passes sautent quand les trois contributions sont à zéro**
- * (`EffectPass.enabled`). Et la passe finale porte le MÊME prédicat, en sortie
- * anticipée : sans lui, un effet posé et réglé à zéro lirait la texture SOURCE
- * en croyant lire son champ de hautes lumières, et ajouterait l'image à
- * elle-même. C'est l'avertissement écrit sur `EffectPass.enabled`, et c'est le
- * premier effet du dépôt où il mord.
+ * ⚠️ **Les cinq passes sautent quand les trois contributions de CHAMP sont à
+ * zéro** (`EffectPass.enabled`). La passe finale porte DEUX prédicats, et ils ne
+ * disent pas la même chose : `champActif` est le jumeau exact de celui des
+ * passes — sans lui, un effet réglé à zéro lirait la texture SOURCE en croyant
+ * lire son champ de hautes lumières — tandis que `dessinActif` laisse passer ce
+ * qui ne lit aucune texture. Un flare entièrement posé, sur une photo sans la
+ * moindre haute lumière, est un cas parfaitement légitime, et c'est le premier
+ * qui a cassé quand la sortie anticipée ne regardait que le champ.
  */
 
 /** Index du paramètre d'étalement, lu par la remontée pyramidale partagée. En
@@ -115,20 +162,27 @@ const GHOSTS_MAX = 8;
 const flareActif = (p: Record<string, number>) =>
   p.ghostIntensity > 0 || p.haloIntensity > 0 || p.veil > 0;
 
-/** SEUILLAGE + INJECTION DE LA SOURCE POSÉE, fondus dans la même passe.
+/** Vrai si QUELQUE CHOSE est dessiné depuis la source posée — chaîne, termes
+ *  diffus ou l'une des trois familles analytiques. Ne lit aucune texture, donc
+ *  reste valide même quand les passes sautent : un flare entièrement posé sur
+ *  une photo sans haute lumière est un cas légitime, et c'était le premier à
+ *  casser quand la sortie anticipée ne regardait que le champ. */
+export const dessinActif = (p: Record<string, number>) =>
+  p.sourceIntensity > 0 &&
+  (p.ghostIntensity > 0 || p.haloIntensity > 0 || p.veil > 0 ||
+    p.scatter > 0 || p.sensor > 0 || p.arcs > 0);
+
+/** SEUILLAGE DES HAUTES LUMIÈRES RÉELLES, et rien d'autre.
  *
- *  Fondus, et pas seulement par économie : une passe de plus coûterait une cible
- *  pleine résolution, mais surtout le lobe injecté DOIT traverser la même
- *  pyramide que les hautes lumières réelles. S'il était ajouté après, il aurait
- *  des bords nets là où les autres sont adoucies, et se lirait comme un
- *  autocollant. */
+ *  Cette passe a porté une INJECTION de la source posée tant que les fantômes,
+ *  l'anneau et le voile étaient tous prélevés dans ce champ. Ils ne le sont
+ *  plus : la source posée a sa propre chaîne dessinée et ses propres termes
+ *  diffus, calculés depuis sa POSITION. Le champ est donc redevenu ce qu'il
+ *  aurait toujours dû être, et les deux voies ne peuvent plus fabriquer le même
+ *  artefact. Voir l'en-tête pour les trois dosages essayés avant de comprendre
+ *  que le problème n'était pas un réglage mais un partage de rôle. */
 const FLARE_BRIGHT_WGSL = `
-${UV_SPACE_WGSL}${SRGB_TO_LINEAR_WGSL}
-// \`APERTURE_WGSL\` exige la constante \`TAU\`, que ses appelants déclarent
-// eux-mêmes : la poser dans le module partagé ferait un doublon chez
-// \`lensBlur\`, qui l'utilise déjà pour sa spirale d'angle d'or.
-const TAU = 6.283185307179586;
-${APERTURE_WGSL}
+${SRGB_TO_LINEAR_WGSL}
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // Seuil DÉCODÉ vers le linéaire : c'est une valeur de curseur, donc
   // perceptuelle, comparée à une luminance qui vient du format -srgb et est
@@ -143,25 +197,18 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // Couleur CONSERVÉE, pas seulement l'énergie : un fantôme issu d'un néon rouge
   // n'a pas la même dominante qu'un fantôme de ciel, et la teinte du réglage
   // vient TEINTER cette couleur au lieu de la remplacer.
-  var bright = color.rgb * (e * e);
-
-  // SOURCE POSÉE. Le lobe porte la forme du diaphragme — c'est ce qui donne
-  // leurs arêtes aux fantômes, sans qu'aucun polygone ne soit dessiné plus bas.
-  let intensite = max(params[5], 0.0);
-  if (intensite > 0.0) {
-    let ar = aspectScale(vec2<f32>(textureDimensions(srcTexture)));
-    // Écart mesuré dans l'espace ISOTROPE : sans ça le lobe serait un ovale sur
-    // une photo 3:2, et sa rotation un cisaillement.
-    let d = (uv - vec2<f32>(params[2], params[3])) * ar;
-    let theta = atan2(d.y, d.x);
-    let rayon = max(params[4], 0.001) * aperture_radius(theta, params[6], radians(params[7]));
-    // Bord adouci sur le dernier quart : un lobe à bord franc rendrait des
-    // fantômes crénelés, et l'escalier se verrait d'autant plus qu'ils sont
-    // petits.
-    let lobe = 1.0 - smoothstep(0.75, 1.0, length(d) / rayon);
-    bright = bright + vec3<f32>(intensite * lobe * lobe);
-  }
-  return vec4<f32>(bright, 1.0);
+  // ⚠️ PLUS AUCUNE INJECTION ICI, et c'est le nettoyage qui a suivi le passage
+  // des termes diffus en analytique. Cette passe a porté un lobe synthétique
+  // pour la source posée tant que les fantômes, l'anneau et le voile étaient
+  // tous PRÉLEVÉS dans ce champ. Ils ne le sont plus : la source posée a sa
+  // propre chaîne dessinée et ses propres termes diffus, calculés depuis sa
+  // POSITION — ce qui marche hors cadre, là où un lobe rastérisé n'existait pas.
+  //
+  // Le champ redevient donc ce qu'il aurait toujours dû être : les hautes
+  // lumières RÉELLES de la photo, et rien d'autre. Deux voies séparées, aucune
+  // qui empâte l'autre — trois dosages d'injection avaient été essayés avant de
+  // comprendre que le problème n'était pas un réglage mais un partage de rôle.
+  return vec4<f32>(color.rgb * (e * e), 1.0);
 }
 `;
 
@@ -200,6 +247,29 @@ export const lensFlare: EffectModule = {
     { name: "haloIntensity", label: "Intensité de l'anneau", unit: "none", min: 0, max: 4, default: 0.4, step: 0.05, hint: "Le cercle irisé autour de l'axe optique. Centré sur le CENTRE du cadre et non sur la source, parce que c'est l'axe de l'objectif qui le produit — c'est ce qui le distingue d'un halo de diffusion" },
     { name: "haloRadius", label: "Rayon de l'anneau", unit: "percent", min: 0.05, max: 0.9, default: 0.42, step: 0.01, hint: "Distance de l'anneau au centre du cadre, en fraction de la plus petite dimension" },
     { name: "veil", label: "Voile", unit: "none", min: 0, max: 2, default: 0.25, step: 0.01, hint: "Le lavage général du contraste quand une source forte entre dans le champ. Ajoute une lumière SCALAIRE teintée, pas une copie floutée de l'image — c'est ce qui remonte les noirs sans redessiner les formes, et ce qui sépare un voile d'un glow" },
+    // ── LA FORME DES FANTÔMES DESSINÉS (2026-08-03 soir) ─────────────────────
+    // Trois contrôles, et chacun sort d'un relevé sur PHOTOGRAPHIE. Ils ne
+    // concernent que la chaîne dessinée, c'est-à-dire la source posée : les
+    // fantômes prélevés dans les hautes lumières de la photo n'ont pas de forme
+    // connue, et c'est le prix annoncé de la voie automatique.
+    { name: "ghostFill", label: "Remplissage des fantômes", unit: "percent", min: 0, max: 1, default: 0.2, step: 0.01, hint: "0 = anneaux creux à bord vif, ce que montrent les photographies ; 1 = disques pleins, ce qu'on croit devoir dessiner et qui trahit la synthèse. Sans objet sur la voie automatique" },
+    { name: "ghostClip", label: "Découpe en croissant", unit: "percent", min: 0, max: 1, default: 0.55, step: 0.01, hint: "Le barillet mange une part de l'ouverture vue de biais, d'autant plus que le fantôme s'éloigne de l'axe — c'est le CROISSANT, la signature la plus reconnaissable d'un vrai flare. À 0, des polygones entiers partout, ce qu'aucun objectif ne fait" },
+    { name: "ghostVariation", label: "Inégalité des tailles", unit: "percent", min: 0, max: 1, default: 0.6, step: 0.01, hint: "Les photographies ne montrent jamais une progression régulière : les tailles sont très inégales, souvent par paires grand/petit voisines. À 0, une rangée de gommettes" },
+    // ── LES TROIS AUTRES FAMILLES DE FLARE (2026-08-03 soir) ─────────────────
+    // Un flare n'est pas UN phénomène mais TROIS, et ils diffèrent par l'endroit
+    // où la lumière se perd — pas par leur apparence :
+    //   · entre deux faces POLIES        -> ghosting, des images nettes de l'ouverture
+    //   · sur une surface SALE ou rayée  -> diffusion, des stries radiales
+    //   · par aller-retour avec le CAPTEUR -> un quadrillage régulier
+    // C'est pour ça qu'un seul mécanisme ne peut pas les produire toutes, et
+    // pourquoi la première version — qui ne modélisait que le premier —
+    // plafonnait là. Tous trois partent de la source POSÉE : ils n'ont pas
+    // d'équivalent sur la voie automatique, faute de savoir où sont les sources.
+    { name: "scatter", label: "Stries de diffusion", unit: "none", min: 0, max: 4, default: 0.35, step: 0.05, hint: "Poussière, rayures et gras sur la lentille frontale — la lumière n'y est plus réfléchie mais DIFFUSÉE, en stries radiales depuis la source. C'est ce qui fait qu'un flare a l'air filmé plutôt que calculé" },
+    { name: "scatterDetail", label: "Finesse des stries", unit: "none", min: 4, max: 220, default: 70, step: 1, hint: "Combien de stries sur le tour. Bas = quelques grosses coulures, comme une trace de doigt ; haut = une fine chevelure, comme de la poussière" },
+    { name: "sensor", label: "Quadrillage capteur", unit: "none", min: 0, max: 4, default: 0, step: 0.05, hint: "Le « red dot flare » : la lumière fait un aller-retour capteur → lentille arrière → capteur, et le pas des photosites en fait une grille régulière de points. Signature du numérique moderne à petite ouverture, pas d'un objectif — d'où sa couleur propre, qui ne suit pas la teinte du traitement" },
+    { name: "sensorSpacing", label: "Pas du quadrillage", unit: "percent", min: 0.01, max: 0.2, default: 0.05, step: 0.005, hint: "Écart entre deux points de la grille. Sans objet à quadrillage nul" },
+    { name: "arcs", label: "Arcs de barillet", unit: "none", min: 0, max: 4, default: 0.6, step: 0.05, hint: "Les grands arcs très faibles qui traversent le cadre, renvoyés par les bords internes du fût et la bague de retenue. Discrets, et c'est ce qui remplit le vide entre les fantômes sur les vraies photographies" },
   ],
   passes: [
     // Seuillage + injection de la source posée, fondus (voir FLARE_BRIGHT_WGSL).
@@ -220,9 +290,71 @@ export const lensFlare: EffectModule = {
   ],
   canvasRegion: { centerX: "sourceX", centerY: "sourceY", radius: "sourceRadius" },
   wgsl: `
-${UV_SPACE_WGSL}${HSL_TO_RGB_WGSL}${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${OKLAB_WGSL}
+${UV_SPACE_WGSL}${HSL_TO_RGB_WGSL}${HASH_WGSL}${VALUE_NOISE_WGSL}${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${OKLAB_WGSL}
 
 const FLARE_LUMA = vec3<f32>(0.2126, 0.7152, 0.0722);
+const TAU = 6.283185307179586;
+${APERTURE_WGSL}
+
+/** COUVERTURE ANALYTIQUE D'UN FANTÔME, et c'est le cœur du raffinement du
+ *  2026-08-03 (soir). Rend \`vec2(remplissage, liseré)\`.
+ *
+ *  ─── POURQUOI DESSINER PLUTÔT QUE PRÉLEVER ───────────────────────────────
+ *
+ *  La première version prélevait les fantômes dans le champ de hautes lumières
+ *  flouté, à la façon du « pseudo lens flare » d'écran. Son auteur écrit
+ *  lui-même que ses fantômes « gardent la forme de l'image SOURCE » au lieu des
+ *  formes géométriques du réel, et conseille de ne pas s'y fier seule. C'est
+ *  exactement ce qu'on obtenait : des copies molles du soleil.
+ *
+ *  Hullin & al. le disent par l'autre bout : un fantôme est « a deformed image
+ *  of the aperture opening ». **Une image de l'OUVERTURE, pas de la source.**
+ *  Quand la source est POSÉE on connaît sa position exacte, donc la position et
+ *  la taille de chaque fantôme sont connues en forme close — on peut le
+ *  DESSINER. Zéro lecture de texture, et tout l'écart de raffinement s'y joue.
+ *
+ *  ─── CE QUE LES PHOTOS DE RÉFÉRENCE IMPOSENT ─────────────────────────────
+ *
+ *  Relevé sur photographies (Wikimedia Commons, « Crescent Lens Flare » et
+ *  « Sunrise Lens Flare »), et aucun de ces quatre points n'était rendu avant :
+ *
+ *  1. **Un fantôme est un ANNEAU**, pas une tache pleine : bord vif et net,
+ *     intérieur nettement plus sombre. Sur la seconde photo les fantômes verts
+ *     montrent même plusieurs cercles concentriques à l'intérieur du polygone.
+ *  2. **Il est DÉCOUPÉ EN CROISSANT** dès qu'il s'éloigne de l'axe — le barillet
+ *     mange une part de l'ouverture, vue de biais. C'est la signature la plus
+ *     reconnaissable des trois, celle qui donne son nom à la photo de référence,
+ *     et un disque entier trahit immédiatement le rendu de synthèse.
+ *  3. **Son liseré est COLORÉ et saturé**, différemment d'un fantôme à l'autre
+ *     (magenta près de la source, vert-bleu loin).
+ *  4. **Les tailles sont très inégales**, souvent par paires grand/petit
+ *     voisines, jamais une progression régulière.
+ *
+ *  ─── LA DÉCOUPE, ET POURQUOI ELLE EST UNE INTERSECTION ───────────────────
+ *
+ *  Le croissant n'est pas une forme à dessiner : c'est ce qui RESTE du polygone
+ *  du diaphragme quand un second disque — le barillet — en recouvre une part. On
+ *  l'obtient donc en intersectant deux couvertures, et le décalage du second
+ *  disque croît avec la distance à l'axe. Le dessiner comme un croissant serait
+ *  juste au centre du cadre et faux partout ailleurs. */
+fn ghost_cover(p: vec2<f32>, rayon: f32, versAxe: vec2<f32>, decoupe: f32, douceur: f32) -> vec2<f32> {
+  let theta = atan2(p.y, p.x);
+  // Distance NORMALISÉE au bord du polygone : 1 sur l'arête, quel que soit
+  // l'angle. C'est \`aperture_radius\` qui porte la forme du diaphragme, et c'est
+  // le même que celui de \`lensBlur\` — un objectif n'a qu'un diaphragme.
+  let rPoly = length(p) / max(rayon * aperture_radius(theta, params[6], radians(params[7])), 1e-6);
+  // Le disque du barillet, décalé VERS l'axe optique. À découpe nulle il est
+  // concentrique et ne mord rien ; à découpe pleine il ne laisse qu'un fil.
+  let rClip = length(p - versAxe * decoupe * rayon) / max(rayon, 1e-6);
+  // L'intersection de deux couvertures est le MAX de leurs distances normalisées.
+  let e = max(rPoly, rClip);
+  let plein = 1.0 - smoothstep(1.0 - douceur, 1.0, e);
+  // LISERÉ : une bande étroite JUSTE À L'INTÉRIEUR du bord. C'est ce qui rend
+  // l'anneau, et sa largeur suit la douceur — un bord net a un liseré fin, un
+  // bord fondu n'en a presque plus, comme une ouverture ouverte en grand.
+  let liseré = plein * smoothstep(1.0 - douceur * 3.0 - 0.18, 1.0 - douceur, e);
+  return vec2<f32>(plein, liseré);
+}
 
 /** Une lecture du champ de hautes lumières, hors cadre comprise.
  *
@@ -248,7 +380,21 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // JUMEAU EXACT de celui des sept passes : quand elles sautent, \`prevPass\`
   // reçoit la texture SOURCE, et tout ce qui suit ajouterait l'image à
   // elle-même. Voir l'avertissement porté par \`EffectPass.enabled\`.
-  if (ghostIntensity <= 0.0 && haloIntensity <= 0.0 && veil <= 0.0) {
+  // ⚠️ DEUX CONDITIONS, ET ELLES NE DISENT PAS LA MÊME CHOSE.
+  //
+  // \`champActif\` est le JUMEAU EXACT du prédicat des passes : quand elles
+  // sautent, \`prevPass\` reçoit la texture SOURCE, et tout ce qui la lit
+  // ajouterait l'image à elle-même. Voir l'avertissement d'\`EffectPass.enabled\`.
+  //
+  // \`dessinActif\` couvre ce qui ne lit AUCUNE texture — la chaîne dessinée et
+  // les trois familles analytiques. Elles doivent pouvoir rendre même quand la
+  // pyramide ne tourne pas : un flare entièrement posé, sur une photo sans la
+  // moindre haute lumière, est un cas parfaitement légitime.
+  let champActif = ghostIntensity > 0.0 || haloIntensity > 0.0 || veil > 0.0;
+  let dessinActif = params[5] > 0.0
+    && (ghostIntensity > 0.0 || haloIntensity > 0.0 || veil > 0.0
+        || params[21] > 0.0 || params[23] > 0.0 || params[25] > 0.0);
+  if (!champActif && !dessinActif) {
     return color;
   }
 
@@ -281,6 +427,11 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   //
   // Borne de boucle CONSTANTE (\`GHOSTS_MAX\`) et compte lu d'un uniforme : WGSL
   // n'accepte pas une borne dynamique, et le curseur s'arrête au même chiffre.
+  //
+  // Elle tourne TOUJOURS, y compris quand une source est posée : le champ ne
+  // contient plus que les hautes lumières réelles, donc les deux voies ne
+  // peuvent plus fabriquer le même fantôme. C'est ce que la dépose de
+  // l'injection a acheté.
   if (ghostIntensity > 0.0) {
     let compte = i32(clamp(params[8], 0.0, ${GHOSTS_MAX}.0) + 0.5);
     let espacement = max(params[9], 0.01);
@@ -312,6 +463,75 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
       flare = flare + flare_lire(uvS) * teinteI * att;
     }
     flare = flare * ghostIntensity;
+  }
+
+  // ─── LES FANTÔMES DE LA SOURCE POSÉE, DESSINÉS ──────────────────────────
+  //
+  // Ceux du dessus sont PRÉLEVÉS dans le champ de hautes lumières : c'est la
+  // seule voie possible quand on ne sait pas où sont les sources, et elle rend
+  // des copies molles de ce qu'elle trouve. Quand la source est posée, on sait —
+  // donc on DESSINE, et on obtient l'anneau polygonal découpé en croissant que
+  // les photographies montrent et qu'aucun prélèvement ne peut fabriquer.
+  //
+  // Les deux coexistent sans se gêner : une photo peut porter à la fois ses
+  // propres hautes lumières et une source ajoutée, et chacune produit sa chaîne.
+  if (ghostIntensity > 0.0 && params[5] > 0.0) {
+    let compte = i32(clamp(params[8], 0.0, ${GHOSTS_MAX}.0) + 0.5);
+    let espacement = max(params[9], 0.01);
+    let remplissage = clamp(params[18], 0.0, 1.0);
+    let decoupe = clamp(params[19], 0.0, 1.0);
+    let variation = clamp(params[20], 0.0, 1.0);
+    // Douceur du bord DÉRIVÉE de l'étalement, pas d'un curseur de plus : c'est
+    // la même idée physique des deux côtés — une ouverture grande ouverte donne
+    // des fantômes gros et mous, fermée elle les rend petits et nets. Le
+    // paragraphe de PhotographyLife le dit dans ces termes.
+    let douceur = clamp(params[1] * 0.05, 0.02, 0.3);
+    // Source, en unités isotropes, mesurée depuis l'axe optique.
+    let sIso = (vec2<f32>(params[2], params[3]) - centre) * ar;
+
+    for (var i = 0; i < ${GHOSTS_MAX}; i = i + 1) {
+      if (i >= compte) { break; }
+      // ÉCHELLE LE LONG DE L'AXE. Le fantôme i est sur la droite source-axe, de
+      // l'AUTRE côté : d'où le signe négatif. À k = 1 il est le miroir exact de
+      // la source ; en deçà il se rapproche de l'axe, au-delà il le dépasse.
+      let k = f32(i + 1) * espacement;
+      let gIso = -sIso * k;
+      // TAILLES INÉGALES, tirées par indice. Les photographies ne montrent
+      // jamais une progression régulière — souvent des paires grand/petit
+      // voisines. Une chaîne régulière se lit comme une rangée de gommettes,
+      // exactement le défaut que l'atténuation seule ne corrigeait pas.
+      let jitter = mix(1.0, 0.45 + hash(vec2<f32>(f32(i), 4.7)) * 1.5, variation);
+      // Croissance MODÉRÉE avec l'éloignement (0,35 + 0,5·k et non 0,4 + 1,1·k) :
+      // au premier essai le fantôme le plus lointain occupait un tiers du cadre.
+      // Sur les photographies les grands fantômes sont larges mais très faibles,
+      // c'est l'atténuation qui les rend discrets, pas leur taille.
+      let rayon = max(params[4], 0.001) * (0.35 + 0.5 * k) * jitter;
+
+      let p = (uv - centre) * ar - gIso;
+      let dG = length(gIso);
+      // DÉCOUPE CROISSANTE AVEC L'ÉLOIGNEMENT. Au centre du cadre le barillet
+      // est vu de face et ne mange rien ; loin de l'axe il en mange une part
+      // franche. Dessiner un croissant de forme fixe serait juste en un point et
+      // faux partout ailleurs.
+      let versAxe = select(-gIso / max(dG, 1e-5), vec2<f32>(1.0, 0.0), dG < 1e-5);
+      let mordu = decoupe * clamp(dG / dMax, 0.0, 1.0) * 1.5;
+
+      let cover = ghost_cover(p, rayon, versAxe, mordu, douceur);
+      // ANNEAU : le liseré porte l'essentiel, le remplissage n'est qu'un fond.
+      // À remplissage nul on a l'anneau creux des photographies ; à 1, le disque
+      // plein qu'on croit devoir dessiner et qui trahit la synthèse.
+      let encre = cover.y + cover.x * remplissage * 0.35;
+
+      let att = clamp(1.0 - dG / dMax, 0.0, 1.0);
+      let t = f32(i) / max(f32(${GHOSTS_MAX} - 1), 1.0);
+      // TEINTE PROPRE À CHAQUE FANTÔME, et plus SATURÉE que le réglage : sur les
+      // photographies les liserés sont francs — magenta près de la source,
+      // vert-bleu loin — là où une teinte commune donnerait une chaîne fade.
+      let teinteI = oklab_to_linear_srgb(oklch_to_oklab(vec3<f32>(
+        teinteLch.x, teinteLch.y * 1.25, fract(teinteLch.z + derive * t)
+      )));
+      flare = flare + teinteI * encre * att * ghostIntensity * params[5] * 0.25;
+    }
   }
 
   // ─── L'ANNEAU ───────────────────────────────────────────────────────────
@@ -370,6 +590,131 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   if (veil > 0.0) {
     let energie = dot(flare_lire(uv), FLARE_LUMA);
     flare = flare + teinteRvb * energie * veil;
+  }
+
+  // ═══ CE QUI PART DE LA SOURCE POSÉE, ET QUI MARCHE HORS CADRE ═══════════
+  //
+  // ⚠️ TOUT CE BLOC EST ANALYTIQUE, et c'est une CORRECTION de défaut autant
+  // qu'un ajout. Le voile et l'anneau étaient prélevés dans le champ de hautes
+  // lumières, où le lobe de la source est rastérisé — donc **ils ne rendaient
+  // RIEN quand la source était hors cadre**, alors que le curseur va de −0,5 à
+  // 1,5 et que l'infobulle promet ce cas (« un soleil qui provoque un flare est
+  // rarement dans l'image »). Mesuré avant de le corriger : à \`sourceX = 1.25\`
+  // les fantômes dessinés entraient bien par le bord, le voile réglé à 1,6 était
+  // absent. Le curseur et l'infobulle mentaient tous les deux.
+  //
+  // Calculés depuis la POSITION, ils marchent à n'importe quelle distance hors
+  // champ — et le voile y devient DIRECTIONNEL sans qu'on ait rien demandé,
+  // c'est-à-dire le lavage qui entre par un bord, le cas le plus courant en
+  // photographie réelle.
+  if (params[5] > 0.0) {
+    let force = params[5];
+    let rayonSrc = max(params[4], 0.001);
+    let sIso = (vec2<f32>(params[2], params[3]) - centre) * ar;
+    let vers = (uv - centre) * ar - sIso;
+    let dSrc = length(vers);
+
+    // ── VOILE, en lobe large autour de la source ────────────────────────────
+    // Décroissance en 1/(1+r²) et non exponentielle : elle a une QUEUE longue,
+    // donc le lavage atteint encore le bord opposé du cadre. Une exponentielle
+    // s'éteindrait trop tôt et rendrait une tache, pas un voile.
+    if (veil > 0.0) {
+      let largeur = rayonSrc * 8.0 + 0.35;
+      let r = dSrc / largeur;
+      flare = flare + teinteRvb * (1.0 / (1.0 + r * r)) * veil * force * 0.12;
+    }
+
+    // ── ANNEAU ──────────────────────────────────────────────────────────────
+    // Il ne s'allume que si la source se trouve à peu près à la distance de
+    // l'axe qu'exige le rayon réglé : c'est la vérité optique — le rayon de
+    // l'anneau est fixé par le verre, pas par l'endroit où on met le soleil.
+    if (haloIntensity > 0.0) {
+      let rayonA = clamp(params[16], 0.05, 0.9);
+      let ecart = (length(sIso) - rayonA) / max(rayonA * 0.6, 1e-3);
+      let accord = exp(-ecart * ecart);
+      let ring = clamp(1.0 - abs(dCentre - rayonA) / max(rayonA * 0.5, 1e-3), 0.0, 1.0);
+      flare = flare + teinteRvb * ring * ring * accord * haloIntensity * force * 0.2;
+    }
+
+    // ── STRIES DE DIFFUSION (objectif sale) ─────────────────────────────────
+    //
+    // Deuxième famille : la lumière n'est plus RÉFLÉCHIE entre deux faces
+    // polies, elle est DIFFUSÉE par ce qui traîne sur la frontale. D'où des
+    // stries radiales et non des images de l'ouverture.
+    //
+    // Le bruit est échantillonné sur la DIRECTION unitaire, donc sur un cercle :
+    // il est périodique en angle par construction, et aucune couture n'apparaît
+    // à ±180°. L'échantillonner sur l'angle lui-même en poserait une, et elle se
+    // lirait comme une strie de plus — la pire des coutures, celle qui ressemble
+    // à ce qu'on voulait dessiner.
+    if (params[21] > 0.0) {
+      let dir = select(vers / max(dSrc, 1e-5), vec2<f32>(1.0, 0.0), dSrc < 1e-5);
+      let detail = max(params[22], 4.0);
+      let n = valueNoise(dir * detail) * 0.62
+            + valueNoise(dir * detail * 2.7 + vec2<f32>(11.3, 4.1)) * 0.38;
+      // SEUIL puis carré : sans lui le bruit couvre tout le tour d'un voile
+      // uniforme, et on obtient un halo de plus au lieu de stries. Ce qui fait
+      // la strie, c'est le VIDE entre deux.
+      // SEUIL HAUT (0,60) ET CUBE, corriges sur piece : a 0,46 et au carre,
+      // les stries sortaient en larges coins sombres au lieu d une chevelure.
+      // Ce qui fait la strie est le VIDE entre deux, donc il faut en garder peu.
+      let stries = pow(max(n - 0.60, 0.0) / 0.40, 3.0);
+      // Chute en 1/(1+r^1.6) : plus lente qu'un carré, parce que les stries
+      // d'un objectif sale courent loin — sur les photographies elles atteignent
+      // le bord du cadre.
+      let r = dSrc / max(rayonSrc * 3.0, 1e-4);
+      let chute = 1.0 / (1.0 + pow(r, 1.6));
+      flare = flare + teinteRvb * stries * chute * params[21] * force * 0.045;
+    }
+
+    // ── ARCS DE BARILLET ────────────────────────────────────────────────────
+    //
+    // De très grands anneaux, très minces et très faibles, fortement découpés :
+    // ce que renvoient les bords internes du fût et la bague de retenue. Ils ne
+    // sont pas un ornement — sur les photographies de référence, ce sont eux qui
+    // remplissent le vide entre les fantômes, et leur absence est ce qui fait
+    // « vide » dans un flare de synthèse.
+    if (params[25] > 0.0) {
+      for (var a = 0; a < 2; a = a + 1) {
+        let k = 2.2 + f32(a) * 1.4;
+        let gIso = -sIso * k;
+        let rayon = rayonSrc * (6.0 + 4.0 * f32(a));
+        let p = (uv - centre) * ar - gIso;
+        let dG = length(gIso);
+        let versAxe = select(-gIso / max(dG, 1e-5), vec2<f32>(1.0, 0.0), dG < 1e-5);
+        // Découpe TRÈS forte (0,85) : un arc, pas un anneau. C'est la même
+        // intersection que celle des fantômes, poussée à son extrême.
+        let e = max(length(p) / max(rayon, 1e-6), length(p - versAxe * 0.85 * rayon) / max(rayon, 1e-6));
+        // Bande étroite autour du bord : l'arc est un FIL, pas une couronne.
+        let bande = smoothstep(0.90, 1.0, e) * (1.0 - smoothstep(1.0, 1.04, e));
+        flare = flare + teinteRvb * bande * params[25] * force * 0.05;
+      }
+    }
+
+    // ── QUADRILLAGE CAPTEUR (« red dot flare ») ─────────────────────────────
+    //
+    // Troisième famille, et la seule qui ne vienne PAS de l'objectif : la
+    // lumière repart du capteur, rebondit sur la face arrière de la lentille et
+    // revient. Le pas des photosites en fait une grille RÉGULIÈRE, centrée sur
+    // le miroir de la source par l'axe.
+    //
+    // ⚠️ SA COULEUR NE SUIT PAS LA TEINTE DU TRAITEMENT, et c'est voulu : elle
+    // vient de la matrice de Bayer et des microlentilles, pas du revêtement
+    // anti-reflet. La lui faire suivre serait cohérent à l'œil et faux au fond —
+    // et le nom que les photographes lui donnent, « red dot », dit bien que la
+    // couleur est une propriété du phénomène et non un réglage.
+    if (params[23] > 0.0) {
+      let miroir = -sIso;
+      let pas = max(params[24], 0.005);
+      let g = ((uv - centre) * ar - miroir) / pas;
+      let cellule = fract(g) - vec2<f32>(0.5);
+      let point = 1.0 - smoothstep(0.10, 0.24, length(cellule));
+      // ENVELOPPE : la grille ne couvre qu'une zone autour du miroir. Sans elle
+      // elle pave tout le cadre, ce qui ne ressemble plus à un défaut optique
+      // mais à une texture posée.
+      let env = 1.0 - smoothstep(0.0, 0.55, length((uv - centre) * ar - miroir));
+      flare = flare + vec3<f32>(1.0, 0.22, 0.16) * point * env * env * params[23] * force * 0.05;
+    }
   }
 
   // ADDITIF. Une lumière parasite s'AJOUTE — elle ne remplace rien. Un flare

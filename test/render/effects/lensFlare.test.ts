@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { lensFlare } from "../../../src/render/effects/lensFlare";
+import { lensFlare, dessinActif } from "../../../src/render/effects/lensFlare";
 import { apertureRadiusSpec, APERTURE_WGSL } from "../../../src/render/effects/aperture";
 import { lensBlur } from "../../../src/render/effects/lensBlur";
 import { UV_SPACE_WGSL } from "../../../src/render/effects/uvSpace";
@@ -23,7 +23,11 @@ describe("lensFlare — le diaphragme est PARTAGÉ, pas recopié", () => {
     // la même photo qui rendraient un hexagone de bokeh et un heptagone de
     // fantôme ne seraient pas approximativement justes — un objectif n'a qu'un
     // diaphragme.
-    expect(lensFlare.passes?.[0].wgsl).toContain(APERTURE_WGSL.trim());
+    // ⚠️ Côté `lensFlare` le diaphragme vit dans le COMPOSITE et non dans une
+    // passe : depuis que les fantômes de la source posée sont DESSINÉS, c'est là
+    // que la forme de l'ouverture sert. Il a vécu dans la passe de seuillage
+    // tant qu'un lobe y était injecté ; ce lobe a été déposé.
+    expect(wgsl).toContain(APERTURE_WGSL.trim());
     // ⚠️ Côté `lensBlur`, le diaphragme vit dans une PASSE INTERNE (la collecte)
     // et pas dans son composite : c'est là que la spirale d'ouverture s'en sert.
     // Chercher dans `lensBlur.wgsl` ne trouve rien, et le test passerait pour un
@@ -101,13 +105,44 @@ describe("lensFlare — les trois géométries fausses, et pourquoi elles parais
 });
 
 describe("lensFlare — la source posée et la source automatique sont UNE machinerie", () => {
-  it("injecte le lobe DANS la passe de seuillage", () => {
-    // C'est ce qui évite d'écrire deux fois. Tout l'aval traite le lobe comme
-    // n'importe quelle haute lumière — et comme il porte la forme du diaphragme,
-    // ses copies l'héritent sans qu'aucun polygone ne soit dessiné plus bas.
+  it("N'INJECTE PLUS rien dans la passe de seuillage", () => {
+    // LE CHEMIN S'EST TROMPÉ TROIS FOIS AVANT D'ARRIVER LÀ, et c'est ce que ce
+    // test garde. Tant que fantômes, anneau et voile étaient tous PRÉLEVÉS dans
+    // le même champ, il fallait y injecter la source posée. Une fois les
+    // fantômes dessinés, ce lobe produisait EN DOUBLE des fantômes prélevés au
+    // même endroit et les empâtait. Trois dosages ont été essayés (pleine force,
+    // 0,3, 0,08) : aucun ne réglait à la fois l'empâtement et l'effondrement de
+    // l'anneau, parce que ce n'était pas un problème de dosage mais de RÔLE.
+    //
+    // La sortie a été de passer AUSSI l'anneau et le voile en analytique. Le
+    // champ ne contient donc plus que les hautes lumières réelles.
+    //
+    // ⚠️ On assère l'absence du CODE, pas du MOT : le commentaire de la passe
+    // explique justement la dépose, donc il contient « lobe ». Chercher le mot
+    // ferait rougir le test dès qu'on documente — deuxième fois que ce piège se
+    // pose dans ce fichier, après celui de `mirrorUv`.
     const bright = passes[0].wgsl;
-    expect(bright).toContain("aperture_radius(theta, params[6], radians(params[7]))");
-    expect(bright).toContain("bright = bright + vec3<f32>(intensite * lobe * lobe);");
+    expect(bright).not.toContain("aperture_radius(");
+    expect(bright).not.toMatch(/let lobe =/);
+    expect(bright).not.toMatch(/bright = bright \+/);
+    expect(bright).toContain("return vec4<f32>(color.rgb * (e * e), 1.0);");
+  });
+
+  it("dessine ses fantômes depuis la POSITION, donc sans lire de texture", () => {
+    // Hullin & al. : un fantôme est « a deformed image of the aperture opening ».
+    // Une image de l'OUVERTURE, pas de la source — un prélèvement dans les
+    // hautes lumières ne peut donc pas en produire.
+    expect(wgsl).toContain("fn ghost_cover(");
+    expect(wgsl).toContain("let cover = ghost_cover(p, rayon, versAxe, mordu, douceur);");
+  });
+
+  it("découpe le fantôme par INTERSECTION, jamais en dessinant un croissant", () => {
+    // Le croissant n'est pas une forme : c'est ce qui RESTE du polygone quand le
+    // barillet en recouvre une part, et la part croît avec l'éloignement de
+    // l'axe. Dessiner un croissant de forme fixe serait juste en un point du
+    // cadre et faux partout ailleurs.
+    expect(wgsl).toContain("let e = max(rPoly, rClip);");
+    expect(wgsl).toContain("let mordu = decoupe * clamp(dG / dMax, 0.0, 1.0) * 1.5;");
   });
 
   it("expose la source comme un MANIPULATEUR sur la toile", () => {
@@ -151,14 +186,67 @@ describe("lensFlare — le coût, et la garde qui va avec", () => {
     expect(passes.every((p) => p.enabled?.(eteint) === false)).toBe(true);
   });
 
-  it("porte le MÊME prédicat en sortie anticipée du composite", () => {
+  it("porte DEUX prédicats en sortie anticipée, qui ne disent pas la même chose", () => {
     // ⚠️ CONDITION DE CORRECTION, pas optimisation. Quand les passes sautent,
     // `prevPass` reçoit la texture SOURCE : sans cette sortie, l'effet lirait
     // l'image en croyant lire son champ de hautes lumières, et l'ajouterait à
     // elle-même. C'est l'avertissement porté par `EffectPass.enabled`, et c'est
     // le premier effet du dépôt où il mord.
-    expect(wgsl).toContain("if (ghostIntensity <= 0.0 && haloIntensity <= 0.0 && veil <= 0.0) {");
+    //
+    // Mais un SEUL prédicat ne suffit plus : tout ce qui part de la source posée
+    // est analytique et ne lit aucune texture, donc doit pouvoir rendre même
+    // quand la pyramide ne tourne pas. Un flare entièrement posé sur une photo
+    // sans la moindre haute lumière est un cas légitime, et c'est le premier qui
+    // a cassé quand la sortie ne regardait que le champ.
+    expect(wgsl).toContain("let champActif = ghostIntensity > 0.0 || haloIntensity > 0.0 || veil > 0.0;");
+    expect(wgsl).toContain("if (!champActif && !dessinActif) {");
     expect(wgsl).toContain("return color;");
+
+    // Le jumeau TS des passes, et celui du dessin, disent bien deux choses.
+    const zero: Record<string, number> = {};
+    for (const p of lensFlare.params) zero[p.name] = 0;
+    const posee = { ...zero, sourceIntensity: 5, scatter: 0.5 };
+    // Rien à prélever : les passes doivent sauter…
+    expect(passes.every((p) => p.enabled?.(posee) === false)).toBe(true);
+    // …et pourtant il y a quelque chose à dessiner.
+    expect(dessinActif(posee)).toBe(true);
+    expect(dessinActif(zero)).toBe(false);
+  });
+
+  it("fait marcher la source HORS CADRE, ce qui était un défaut mesuré", () => {
+    // L'anneau et le voile étaient PRÉLEVÉS dans le champ, où le lobe de la
+    // source est rastérisé — donc ils ne rendaient RIEN hors cadre, alors que le
+    // curseur va de −0,5 à 1,5 et que l'infobulle promet ce cas. Mesuré à
+    // `sourceX = 1.25` avant correction : fantômes présents, voile réglé à 1,6
+    // absent. Le curseur ET l'infobulle mentaient.
+    //
+    // Ce qui le corrige est la nature du calcul, pas une borne : une décroissance
+    // depuis la POSITION vaut à n'importe quelle distance hors champ.
+    expect(wgsl).toContain("let sIso = (vec2<f32>(params[2], params[3]) - centre) * ar;");
+    expect(wgsl).toContain("flare = flare + teinteRvb * (1.0 / (1.0 + r * r)) * veil * force * 0.12;");
+  });
+
+  it("porte les DEUX autres familles, et pas comme des réglages de la première", () => {
+    // Elles diffèrent par l'ENDROIT où la lumière se perd, pas par leur
+    // apparence : surface sale (stries radiales) et aller-retour capteur
+    // (quadrillage régulier). Aucun mécanisme unique ne les produit toutes.
+    expect(wgsl).toContain("let stries = pow(max(n - 0.60, 0.0) / 0.40, 3.0);");
+    expect(wgsl).toContain("let cellule = fract(g) - vec2<f32>(0.5);");
+    // ⚠️ Le quadrillage a sa PROPRE couleur : elle vient de la matrice de Bayer
+    // et des microlentilles, pas du revêtement anti-reflet. Lui faire suivre la
+    // teinte du traitement serait cohérent à l'œil et faux au fond — le nom que
+    // les photographes lui donnent, « red dot », dit que la couleur appartient
+    // au phénomène.
+    expect(wgsl).toContain("vec3<f32>(1.0, 0.22, 0.16) * point");
+    expect(wgsl).not.toContain("teinteRvb * point");
+  });
+
+  it("échantillonne le bruit des stries sur la DIRECTION, donc sans couture", () => {
+    // Sur l'angle lui-même il y aurait une couture à ±180°, et elle se lirait
+    // comme une strie de plus — la pire des coutures, celle qui ressemble à ce
+    // qu'on voulait dessiner. Sur la direction unitaire, le bruit est périodique
+    // par construction.
+    expect(wgsl).toContain("valueNoise(dir * detail)");
   });
 });
 

@@ -375,6 +375,11 @@ const ATTENDU = {
   "effet-lens-flare-automatique.png": { width: 256, height: 256, valeurs: null },
   "effet-lens-flare-anneau.png": { width: 256, height: 256, valeurs: null },
   "effet-lens-flare-voile.png": { width: 256, height: 256, valeurs: null },
+  // LES TROIS AUTRES FAMILLES + LE HORS CADRE (2026-08-03, seconde passe). La
+  // premiere version ne modelisait que le ghosting, et l anneau comme le voile
+  // ne rendaient RIEN avec une source hors champ — le lobe etait rasterise dans
+  // une passe qui ne couvre que [0,1]. Cette reference verrouille les quatre.
+  "effet-lens-flare-familles.png": { width: 256, height: 256, valeurs: null },
   "effet-verre-cannele.png": { width: 256, height: 256, valeurs: null },
   "effet-verre-bourrelet.png": { width: 256, height: 256, valeurs: null },
   "effet-verre-martele.png": { width: 256, height: 256, valeurs: null },

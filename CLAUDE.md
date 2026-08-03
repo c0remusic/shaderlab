@@ -88,6 +88,19 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   native, toujours (décision utilisateur explicite, pas de downscale).
 - JPEG traité comme sRGB, pas de lecture de profil ICC en v1 (limitation
   documentée, pas silencieuse).
+- **Un corps `wgsl:` est un template literal JS**, et un backtick dans un
+  commentaire le FERME. Écrire `` \` `` et jamais `` ` `` dans tout `wgsl:` /
+  `passes[].wgsl` ; même vigilance pour `${`. Lancer `npx tsc --noEmit` après
+  toute édition de shader, avant quoi que ce soit d'autre : l'erreur
+  (`TS1005: ',' expected`) désigne une ligne LOIN du commentaire fautif, et un
+  fichier qui ne parse pas fait échouer les tests pour une raison sans rapport
+  avec ce qu'ils testent. Erreur commise deux fois dans la même session
+  (2026-08-03) — le réflexe de citer un identifiant entre backticks vient de la
+  prose Markdown des ADR, où il est correct.
+  Corollaire du même jour : **préférer l'outil `Edit` à un script pour la prose
+  française**. Un bloc inséré via heredoc Python est ressorti désaccentué dans un
+  fichier qui, lui, est accentué — aucun linter ne regarde ça, seule une relecture
+  l'attrape.
 - Effets = modules autonomes enregistrés dans `src/render/effects/registry.ts`
   — en ajouter un = un nouveau fichier ; un effet à paramètres groupés (voir
   `EffectParam.colorGroup`) touche aussi `ParamPanel.tsx` et peut élargir
@@ -188,7 +201,7 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Toujours passer `--project=unit` (sinon les deux projets démarrent, dont le
   navigateur Playwright).
 - Tests de stories : `npm run test-storybook` (Vitest + Playwright chromium, projet `storybook`) · `npm run test:all` pour les deux · `npm run coverage` (v8, projet storybook)
-- Shaders GPU : `npm run test:gpu-shaders` (`scripts/gpu-shader-check.mjs`) — prouve que les shaders COMPILENT
+- Shaders GPU : `node scripts/gpu-shader-check.mjs --origin http://localhost:1421` — prouve que les shaders COMPILENT. ⚠️ **`npm run test:gpu-shaders` SANS `--origin` compile les modules FIGÉS en cache de la fenêtre, pas ton édition** : vert ET rouge faux (un `import()` d'une URL déjà évaluée rend l'instance en cache). Même prérequis Vite que `test:render` ci-dessous. Avec `--origin`, la page CDP n'est qu'un HÔTE DE GPU — n'importe laquelle fait l'affaire, y compris celle d'un autre projet.
 - Non-régression du **rendu** : `npm run test:render` (`scripts/render-check.mjs`) — prouve que le pipeline produit les MÊMES PIXELS qu'avant. Prérequis : l'app tourne avec le port CDP 9222, ET un Vite du worktree courant sur 1421 (`npx vite --port 1421`). Références versionnées dans `test/render-refs/` ; `--update` les réécrit (les relire à l'œil avant de committer), `--diagnostic` mesure la dépendance à l'horloge de la surface de présentation. Lit les pixels de `Renderer.exportFrame()`, jamais une capture d'écran — voir l'en-tête du script pour pourquoi.
 - Type-check : `npx tsc --noEmit`
 - Lint : `npm run lint` (eslint, couvre `src/**/*.{ts,tsx}`)

@@ -177,6 +177,17 @@ describe("lensFlare — la source posée et la source automatique sont UNE machi
     expect(wgsl).toContain("let coupe = smoothstep(0.0, 0.03 * longueur, le - clamp(params[29], 0.0, 1.0) * longueur);");
   });
 
+  it("laisse l'objectif PROPRE au défaut — les stries se demandent", () => {
+    // Arbitrage d'Antoine, le même jour et de la même famille que les lames :
+    // les stries disent « objectif sale », ce qui est une intention et pas un
+    // état de fait. Le défaut d'un effet doit rendre l'objectif propre.
+    //
+    // Comme pour les lames, le contrôle RESTE et la capacité reste verrouillée
+    // ailleurs — `effet-lens-flare-familles` allume les stries.
+    expect(lensFlare.params.find((p) => p.name === "scatter")?.default).toBe(0);
+    expect(wgsl).toContain("let stries = pow(max(n - 0.60, 0.0) / 0.40, 3.0);");
+  });
+
   it("a pour diaphragme par défaut le CERCLE, pas le polygone", () => {
     // Arbitrage d'Antoine (« je n'aime pas les lames de diaphragme »), et il est
     // conforme à ses références : un objectif moderne à lames arrondies rend des

@@ -270,8 +270,12 @@ export const lensFlare: EffectModule = {
     // pourquoi la première version — qui ne modélisait que le premier —
     // plafonnait là. Tous trois partent de la source POSÉE : ils n'ont pas
     // d'équivalent sur la voie automatique, faute de savoir où sont les sources.
-    { name: "scatter", label: "Stries de diffusion", unit: "none", min: 0, max: 4, default: 0.35, step: 0.05, hint: "Poussière, rayures et gras sur la lentille frontale — la lumière n'y est plus réfléchie mais DIFFUSÉE, en stries radiales depuis la source. C'est ce qui fait qu'un flare a l'air filmé plutôt que calculé" },
-    { name: "scatterDetail", label: "Finesse des stries", unit: "none", min: 4, max: 220, default: 70, step: 1, hint: "Combien de stries sur le tour. Bas = quelques grosses coulures, comme une trace de doigt ; haut = une fine chevelure, comme de la poussière" },
+    // DÉFAUT À 0 — arbitrage d'Antoine, le même jour et pour la même raison
+    // que les lames de diaphragme. Les stries sont un ORNEMENT : elles disent
+    // « objectif sale », ce qui est une intention et pas un état de fait. Le
+    // défaut d'un effet doit rendre l'objectif propre ; la saleté se demande.
+    { name: "scatter", label: "Stries de diffusion", unit: "none", min: 0, max: 4, default: 0, step: 0.05, hint: "Poussière, rayures et gras sur la lentille frontale — la lumière n'y est plus réfléchie mais DIFFUSÉE, en stries radiales depuis la source. C'est ce qui fait qu'un flare a l'air filmé plutôt que calculé" },
+    { name: "scatterDetail", label: "Finesse des stries", unit: "none", min: 4, max: 220, default: 70, step: 1, hint: "SANS OBJET au défaut, les stries étant éteintes. Combien de stries sur le tour. Bas = quelques grosses coulures, comme une trace de doigt ; haut = une fine chevelure, comme de la poussière" },
     { name: "sensor", label: "Quadrillage capteur", unit: "none", min: 0, max: 4, default: 0, step: 0.05, hint: "Le « red dot flare » : la lumière fait un aller-retour capteur → lentille arrière → capteur, et le pas des photosites en fait une grille régulière de points. Signature du numérique moderne à petite ouverture, pas d'un objectif — d'où sa couleur propre, qui ne suit pas la teinte du traitement" },
     { name: "sensorSpacing", label: "Pas du quadrillage", unit: "percent", min: 0.01, max: 0.2, default: 0.05, step: 0.005, hint: "Écart entre deux points de la grille. Sans objet à quadrillage nul" },
     { name: "arcs", label: "Arcs de barillet", unit: "none", min: 0, max: 4, default: 0.6, step: 0.05, hint: "Les grands arcs très faibles qui traversent le cadre, renvoyés par les bords internes du fût et la bague de retenue. Discrets, et c'est ce qui remplit le vide entre les fantômes sur les vraies photographies" },

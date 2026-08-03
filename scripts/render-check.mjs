@@ -1995,7 +1995,7 @@ const INSTALL = `(async () => {
           sourceX: 0.52, sourceY: -0.12, sourceRadius: 0.09, sourceIntensity: 5,
           ghostCount: 0, ghostIntensity: 0,
           tintHue: 262, tintSaturation: 0.62, tintLightness: 0.6,
-          haloIntensity: 0, veil: 0.35, scatter: 0.3, scatterDetail: 70,
+          haloIntensity: 0, veil: 0.35, scatter: 0, scatterDetail: 70,
           sensor: 0, arcs: 0,
           plume: 1.4, plumeLength: 0.9, plumeSpread: 0.6, plumeEdge: 0.28,
         });

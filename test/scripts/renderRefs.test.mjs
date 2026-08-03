@@ -355,6 +355,22 @@ const ATTENDU = {
   // regenerer les images plutot qu'a garder l'effet.
   "effet-lens-distortion-laterale-damier.png": { width: 256, height: 256, valeurs: null },
   "effet-lens-distortion-laterale-decentree.png": { width: 256, height: 256, valeurs: null },
+  // LE VERRE, TRANCHE 1 (2026-08-03). Six references, toutes sur `mireVerre` —
+  // une mire ECRITE POUR EUX, parce qu'aucune existante ne pouvait montrer les
+  // quatre proprietes en meme temps (deplacement, dispersion, periodicite,
+  // diffusion). Elle est entierement ACHROMATIQUE : la moindre couleur dans ces
+  // images EST la dispersion.
+  //
+  // Elles couvrent SIX branches sur quatorze. Restent non verrouillees les
+  // matieres Cannele croise, Gaufre et Ecorce, et les profils Arc plein, Prisme
+  // et Fond plat — ecrit ici plutot que tu, parce que c'est exactement la
+  // configuration qui a coute cher a `hatching`.
+  "effet-verre-cannele.png": { width: 256, height: 256, valeurs: null },
+  "effet-verre-bourrelet.png": { width: 256, height: 256, valeurs: null },
+  "effet-verre-martele.png": { width: 256, height: 256, valeurs: null },
+  "effet-verre-aluminium.png": { width: 256, height: 256, valeurs: null },
+  "effet-verre-cathedrale.png": { width: 256, height: 256, valeurs: null },
+  "effet-verre-depoli.png": { width: 256, height: 256, valeurs: null },
   // DUOTONE ET GRADIENT MAP SUR LA MEME RAMPE, a dessein : « sont-ils des
   // doublons » en est a son troisieme tour sans avoir jamais eu de mesure. Deux
   // references sur la meme mire, aux memes tons, la rendent chiffrable — et si

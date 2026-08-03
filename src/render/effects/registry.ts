@@ -18,6 +18,7 @@ import { isolines } from "./isolines";
 import { halftone } from "./halftone";
 import { lensDistortion } from "./lensDistortion";
 import { motionBlur } from "./motionBlur";
+import { glass } from "./glass";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 
 // Les six du milieu suivent l'ordre de priorité du backlog d'effets confirmé par
@@ -75,6 +76,19 @@ export const effectRegistry: EffectModule[] = [
   // décalage — ±45°, les franges tangentielles d'un objectif décentré — valait
   // 23,1 % et n'existait nulle part ailleurs. Elle a donc été portée
   // (`aberrationAngle`) AVANT le retrait, un paramètre pour tout un effet.
+  //
+  // `glass` (2026-08-03) suit les trois précédents parce qu'il pose la même
+  // question qu'eux — que fait un morceau de VERRE à l'image qui le traverse —
+  // et qu'il y répond par le seul bout qu'ils ne prennent pas. `lensDistortion`
+  // déforme par la forme d'une lentille POLIE, `lensBlur` par son ouverture ;
+  // celui-ci part d'une surface IMPRIMÉE, dont le relief se répète. C'est ce
+  // relief qui distingue ses neuf matières, et rien d'autre : l'optique en aval
+  // est commune aux neuf.
+  //
+  // TRANCHE 1 : la feuille. Les cinq matières de PAVÉ (grille de blocs,
+  // mortier, arête biseautée) sont la tranche 2 et viendront à la FIN de sa
+  // liste de matières, pas dans un second effet — plan validé le 2026-08-03.
+  glass,
   warp,
   grain,
   duotone,

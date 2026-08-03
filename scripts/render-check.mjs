@@ -520,6 +520,69 @@ const INSTALL = `(async () => {
     return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
   };
 
+  // MIRE DU VERRE (2026-08-03) — ecrite AVANT la premiere ligne du shader, et
+  // c est le point du plan de portage sur lequel tout le reste repose.
+  //
+  // POURQUOI AUCUNE MIRE EXISTANTE NE CONVIENT. Un verre imprime doit montrer
+  // QUATRE choses, et elles demandent des sujets contradictoires :
+  //   1. le DEPLACEMENT par refraction -> du contraste fin
+  //   2. la DISPERSION -> un bord ACHROMATIQUE (un lisere rouge sur du rouge ne
+  //      se voit pas, et la mire commune est coloree partout)
+  //   3. la PERIODICITE des stries -> un aplat uni traverse d un bord droit ;
+  //      sur un damier, la periode des cases BAT avec celle des stries et
+  //      produit un crenelage qu on prendrait pour un defaut du shader
+  //   4. la DIFFUSION du depoli -> du detail haute frequence qui DISPARAIT
+  //
+  // TOUTE LA MIRE EST ACHROMATIQUE, et ce n est pas une economie : r = g = b
+  // partout signifie que **la moindre couleur en sortie EST la dispersion**.
+  // La propriete devient mesurable au lieu d etre appreciee — c est la reponse
+  // exacte au probleme de lensBlur, dont dix-sept tests verts ne voyaient pas
+  // qu il floutait au double du rayon parce que sa mire ne pouvait pas le dire.
+  //
+  // Quatre quadrants, quatre lectures, une seule image.
+  const mireVerre = (w, h) => {
+    const d = new Uint8ClampedArray(w * h * 4);
+    // Hachage deterministe : \`Math.random\` briserait la reproductibilite que
+    // tout ce harnais existe pour prouver.
+    const hache = (x, y) => {
+      const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+      return s - Math.floor(s);
+    };
+    const demiW = w >> 1, demiH = h >> 1;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        let v;
+        if (y < demiH && x < demiW) {
+          // (1) Damier FIN, 4 px : le detail que la refraction deplace et que
+          // la diffusion efface. Pas 8 px comme mireDamierNeutre — on veut ici
+          // une frequence proche de celle des stries, pas loin d elle.
+          v = (((x >> 2) ^ (y >> 2)) & 1) ? 228 : 28;
+        } else if (y < demiH) {
+          // (2) APLAT UNI traverse d UN SEUL bord droit, oblique. Aucune
+          // periode, donc aucun battement possible avec la cannelure : ce qui
+          // ondule ici ondule a cause du verre, et de rien d autre. L oblique
+          // plutot que la verticale pour que le bord coupe les stries quel que
+          // soit leur axe.
+          const t = (x - demiW) * 0.6 + (y - 0) * 0.8;
+          v = t > demiW * 0.55 ? 236 : 120;
+        } else if (x < demiW) {
+          // (3) RAMPE horizontale lisse. Un deplacement s y lit comme une
+          // marche de ton la ou il n y en avait aucune — la lecture la plus
+          // sensible des quatre, et la seule qui chiffre l amplitude.
+          v = Math.round((x / (demiW - 1)) * 255);
+        } else {
+          // (4) HAUTE FREQUENCE, un texel sur deux tire. Le depoli n a aucun
+          // relief : il ne deplace rien, il DIFFUSE. Le seul endroit ou son
+          // action se voie est une zone dont le detail peut disparaitre.
+          v = 40 + Math.round(hache(x, y) * 200);
+        }
+        d[i] = v; d[i + 1] = v; d[i + 2] = v; d[i + 3] = 255;
+      }
+    }
+    return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
+  };
+
   // Raster de pinceau DETERMINISTE : un disque a bord adouci, calcule, jamais
   // peint par un geste. Meme format que celui que produit MaskPainter (r8,
   // tightement pack, taille de l'image).
@@ -1804,6 +1867,134 @@ const INSTALL = `(async () => {
           distortion: 0, aberration: 0.06, aberrationMode: 0,
           centerFalloff: 2, centerPresence: 0.1, asymmetry: 0.4,
           aberrationAngle: 45, streakIntensity: 0,
+        });
+      },
+    },
+
+    // ─── LE VERRE, TRANCHE 1 (2026-08-03) ─────────────────────────────────
+    //
+    // TOUS SUR mireVerre, et c est le point du plan de portage sur lequel le
+    // reste reposait : aucune mire existante ne pouvait montrer les quatre
+    // proprietes en meme temps. Elle est ENTIEREMENT ACHROMATIQUE, donc la
+    // moindre couleur dans ces references EST la dispersion — la propriete est
+    // mesurable au lieu d etre appreciee.
+    //
+    // CE QUI RESTE NON VERROUILLE, ecrit plutot que taise : sur neuf matieres et
+    // cinq profils, six references en couvrent SIX branches. Restent dehors les
+    // matieres Cannele croise, Gaufre et Ecorce (cette derniere partage sa
+    // primitive avec Martele, donc son risque est moindre), et les profils Arc
+    // plein, Prisme et Fond plat. C est exactement la configuration qui a coute
+    // cher a hatching — trois formes livrees et verrouillees par rien pendant
+    // seize heures. A completer avant de considerer la famille close.
+    "effet-verre-cannele": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const m = await mireVerre(W, H);
+        const sourceId = await r.photoSources.register(m);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
+        const a = stack.addLayer("glass", p);
+        stack.updateParams(a, {
+          material: 0, density: 28, depth: 0.55, profile: 0, flat: 0, fillet: 0.12,
+          orientation: 0, irregularity: 0, grain: 0.2, thickness: 0.16,
+          specular: 0.35, dispersion: 0.4, diffusion: 0.03, relief: 1,
+        });
+      },
+    },
+
+    // MEME MATIERE, AUTRE PROFIL. Tout est identique au precedent sauf la forme
+    // de la section : l ecart entre les deux images EST la contribution du
+    // profil, isolee. Bourrelet (4) et non un intermediaire, parce que c est le
+    // seul dont la derivee est nulle aux DEUX bords — il n a donc rien a faire
+    // du conge, et se distingue le plus de l arc.
+    "effet-verre-bourrelet": {
+      contre: "effet-verre-cannele",
+      build: async (r, stack) => {
+        const m = await mireVerre(W, H);
+        const sourceId = await r.photoSources.register(m);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
+        const a = stack.addLayer("glass", p);
+        stack.updateParams(a, {
+          material: 0, density: 28, depth: 0.55, profile: 4, flat: 0, fillet: 0.12,
+          orientation: 0, irregularity: 0, grain: 0.2, thickness: 0.16,
+          specular: 0.35, dispersion: 0.4, diffusion: 0.03, relief: 1,
+        });
+      },
+    },
+
+    // MARTELE : la primitive Voronoi lue par ses ARETES (F2 - F1), qui doit
+    // rendre des cellules POLYGONALES JOINTIVES de taille quasi constante. Si
+    // elle repassait un jour a une lecture par distance au germe, on verrait des
+    // domes ronds SEPARES de tailles tres inegales — un ecart massif, que cette
+    // reference attrape. C est la meme primitive qui porte Ecorce.
+    "effet-verre-martele": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const m = await mireVerre(W, H);
+        const sourceId = await r.photoSources.register(m);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
+        const a = stack.addLayer("glass", p);
+        stack.updateParams(a, {
+          material: 3, density: 90, depth: 0.6, flat: 0.3,
+          irregularity: 0.5, grain: 0.2, thickness: 0.8,
+          specular: 0.35, dispersion: 0.3, diffusion: 0.03, relief: 1,
+        });
+      },
+    },
+
+    // ALUMINIUM BROSSE : le seul dont la pente est CONSTANTE dans la cellule et
+    // SAUTE a la frontiere — aucune difference finie, aucun conge, l arete vive
+    // du metal. C est l inverse exact de toutes les autres matieres, donc la
+    // branche la plus facile a casser en croyant uniformiser.
+    "effet-verre-aluminium": {
+      contre: "effet-verre-martele",
+      build: async (r, stack) => {
+        const m = await mireVerre(W, H);
+        const sourceId = await r.photoSources.register(m);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
+        const a = stack.addLayer("glass", p);
+        stack.updateParams(a, {
+          material: 5, density: 120, depth: 0.5, flat: 0.35,
+          irregularity: 0.6, grain: 0.15, thickness: 1.6,
+          specular: 0.6, dispersion: 0.2, diffusion: 0.02, relief: 1,
+        });
+      },
+    },
+
+    // CATHEDRALE : bruit FORTEMENT anisotrope, etire d un facteur douze sur le
+    // second axe. Ce que cette reference protege est l ANISOTROPIE — un bruit
+    // isotrope compilerait, rendrait quelque chose de plausible, et ne
+    // correspondrait a aucun verre reel. C etait la premiere version de la
+    // source, corrigee depuis.
+    "effet-verre-cathedrale": {
+      contre: "effet-verre-martele",
+      build: async (r, stack) => {
+        const m = await mireVerre(W, H);
+        const sourceId = await r.photoSources.register(m);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
+        const a = stack.addLayer("glass", p);
+        stack.updateParams(a, {
+          material: 8, density: 40, depth: 0.65, orientation: 0,
+          irregularity: 0, grain: 0.2, thickness: 0.9,
+          specular: 0.3, dispersion: 0.35, diffusion: 0.03, relief: 1,
+        });
+      },
+    },
+
+    // DEPOLI : aucun deplacement par masses, QUE de la diffusion. Le quart
+    // haute frequence de la mire est le seul endroit ou son action se lise —
+    // c est lui qui doit disparaitre. Diffusion poussee a .35 et Creux a 0 :
+    // si un jour cette matiere se mettait a DEVIER l image, l ecart avec les
+    // autres references le dirait, et le quart en rampe le dirait le premier.
+    "effet-verre-depoli": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const m = await mireVerre(W, H);
+        const sourceId = await r.photoSources.register(m);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
+        const a = stack.addLayer("glass", p);
+        stack.updateParams(a, {
+          material: 7, depth: 0, grain: 0.8, thickness: 0.1,
+          specular: 0.2, dispersion: 0, diffusion: 0.35, relief: 1,
         });
       },
     },

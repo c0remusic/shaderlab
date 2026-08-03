@@ -115,9 +115,21 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   nécessaire.
   Registre réel au 2026-08-03 (soir), dans l'ordre : `glow`, `halation`,
   `lensDistortion`, `lensBlur`, `motionBlur`,
-  `warp`, `grain`, `duotone`, `hatching`, `halftone`, `dither`, `gooeyMerge`,
-  `channelMixer`, `outlines`, `isolines`,
-  `pixelStretch`, `sliceShift`, `gradientMap` — **dix-huit**.
+  `glass`, `warp`, `grain`, `duotone`, `hatching`, `halftone`, `dither`,
+  `gooeyMerge`, `channelMixer`, `outlines`, `isolines`,
+  `pixelStretch`, `sliceShift`, `gradientMap` — **dix-neuf**.
+  `glass` (2026-08-03) est le portage du système de réfraction d'Antoine
+  (`C:\dev\portfolio\src\shaders\verre\site.fs.glsl`), **tranche 1 = la
+  feuille**, neuf matières. Les cinq matières de PAVÉ sont la tranche 2 et iront
+  à la fin de sa liste de matières, PAS dans un second effet — plan validé,
+  `docs/superpowers/specs/2026-08-03-verre-plan-de-portage.md`. Un seul
+  mécanisme décliné neuf fois : chaque matière ne fait que fabriquer une PENTE
+  de surface, tout ce qui suit (réfraction, dispersion, diffusion, Fresnel,
+  absorption) est commun et ne sait rien d'elle.
+  ⚠️ **Six branches verrouillées sur quatorze** : restent dehors les matières
+  Cannelé croisé, Gaufré, Écorce, et les profils Arc plein, Prisme, Fond plat.
+  Sa mire est `mireVerre`, écrite pour lui et **entièrement achromatique** —
+  donc toute couleur dans ses références EST la dispersion.
   **Cinq départs le 2026-08-03**, tous sur arbitrage d'Antoine : `surfaceBlur`
   (ADR-0011, verdict d'usage sur la famille des flous), `posterize` (ADR-0012,
   couvert par `dither` — couverture PROUVÉE avant le retrait, le scénario

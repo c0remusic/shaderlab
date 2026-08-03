@@ -1,5 +1,6 @@
 import type { EffectModule } from "./types";
 import { BAYER4_WGSL, BAYER8_WGSL } from "./bayer";
+import { HASH_WGSL } from "./hash";
 import { HSL_TO_RGB_WGSL } from "./hsl";
 import {
   LINEAR_TO_SRGB_WGSL,
@@ -64,15 +65,40 @@ import {
  * COÛT : aucun tap supplémentaire, une seule passe.
  */
 
-const STYLES = ["Bayer", "Bruit bleu", "Seuil"] as const;
+/**
+ * L'ORDRE EST UN CONTRAT : l'index est persisté dans les presets et lu tel quel
+ * par le shader. Les quatre derniers ont été AJOUTÉS À LA FIN le 2026-08-03, ce
+ * qui donne une liste dont l'ordre n'est pas celui qu'on écrirait aujourd'hui
+ * — « Bayer fin » gagnerait à suivre « Bayer ». Le ranger serait décaler les
+ * index, donc changer le style de tout preset déjà enregistré : la lisibilité de
+ * la liste ne vaut pas ça.
+ */
+const STYLES = [
+  "Bayer",
+  "Bruit bleu",
+  "Seuil",
+  "Bayer fin",
+  "Bruit blanc",
+  "Lignes",
+  "Points groupés",
+] as const;
 const STYLE_BAYER = 0;
 const STYLE_BLUE = 1;
+const STYLE_BAYER_FIN = 3;
+const STYLE_BRUIT_BLANC = 4;
+const STYLE_LIGNES = 5;
+const STYLE_POINTS = 6;
+
+/** Étiquettes de l'axe de répartition — reprises de `posterize`, mot pour mot,
+ *  parce que c'est le même axe et la même question. */
+const DISTRIBUTIONS = ["Linéaire", "Perceptuel"] as const;
+const DISTRIB_PERCEPTUEL = 1;
 
 export const dither: EffectModule = {
   id: "dither",
   name: "Dither",
   params: [
-    { name: "style", label: "Style", unit: "none", min: 0, max: STYLES.length - 1, default: STYLE_BAYER, step: 1, choices: [...STYLES], hint: "Bayer : matrice ordonnée, on voit la grille (rendu 8 bits). Bruit bleu : grain fin sans grille (rendu impression). Seuil : aucun motif, la quantification nue — le témoin qui montre ce que font les deux autres" },
+    { name: "style", label: "Style", unit: "none", min: 0, max: STYLES.length - 1, default: STYLE_BAYER, step: 1, choices: [...STYLES], hint: "Bayer : matrice ordonnée 8×8, on voit la grille (rendu 8 bits). Bruit bleu : grain fin sans grille (rendu impression). Seuil : aucun motif, la quantification nue — le témoin. Bayer fin : la 4×4, sa grille est plus grosse à taille égale. Bruit blanc : granuleux, filmique. Lignes : trame de traits, la gravure. Points groupés : le point qui grossit, la presse" },
     { name: "size", label: "Taille du motif", unit: "pixels", min: 1, max: 32, default: 4, step: 1, hint: "Côté d'une cellule de trame, en pixels de l'image. Sur une grande photo affichée en réduction, une trame de 1 ou 2 px se moyenne en bouillie : c'est ici qu'on la remonte" },
     { name: "levels", label: "Niveaux", unit: "none", min: 2, max: 8, default: 3, step: 1, hint: "Nombre de valeurs conservées. 2 = un bit, le rendu photocopie ; au-delà de 6 le tramage cesse de se voir" },
     { name: "mono", label: "Deux encres", unit: "percent", min: 0, max: 1, default: 1, step: 0.01, hint: "0 = chaque canal est tramé séparément (rendu couleur rétro). 1 = l'image se réduit à l'encre et au papier ci-dessous, comme une risographie" },
@@ -84,9 +110,43 @@ export const dither: EffectModule = {
     { name: "paperHue", label: "Teinte", unit: "degrees", min: 0, max: 360, default: 40, step: 1, colorGroup: { key: "papier", role: "hue", label: "Papier" } },
     { name: "paperSaturation", label: "Saturation", unit: "percent", min: 0, max: 1, default: 0.18, step: 0.01, colorGroup: { key: "papier", role: "saturation", label: "Papier" } },
     { name: "paperLightness", label: "Luminosité", unit: "percent", min: 0, max: 1, default: 0.94, step: 0.01, colorGroup: { key: "papier", role: "lightness", label: "Papier" } },
+    // ── LES DEUX CONTRÔLES QUI FONT DE CET EFFET UN SURENSEMBLE DE `posterize`
+    //
+    // Ajoutés le 2026-08-03 sur demande d'Antoine (« ajouter Posterize à un
+    // effet global Dither »). Les deux effets se recouvraient déjà sur les
+    // niveaux et la plage d'entrée ; il manquait exactement ceci.
+    //
+    // Défauts choisis pour que le rendu d'avant soit conservé AU BIT : la
+    // référence `effet-dither` reste valable, et c'est elle qui le prouve.
+    {
+      name: "distribution",
+      label: "Répartition",
+      unit: "none",
+      min: 0,
+      max: DISTRIBUTIONS.length - 1,
+      default: DISTRIB_PERCEPTUEL,
+      step: 1,
+      choices: [...DISTRIBUTIONS],
+      // Le défaut DIVERGE de celui de `posterize` (Linéaire), et c'est
+      // délibéré : un tramage sert à rendre un dégradé, donc ses niveaux ont
+      // intérêt à être également espacés À L'ŒIL. Un posterize sert à faire des
+      // aplats, où le choix est une décision de look que le cahier §5 laissait
+      // explicitement ouverte.
+      hint: "Linéaire : les niveaux sont également espacés en lumière. Perceptuel : ils le sont à l'œil, donc plus nombreux dans les ombres — c'est ce qu'une presse fait, elle quantifie la densité d'encre",
+    },
+    {
+      name: "amount",
+      label: "Force du tramage",
+      unit: "percent",
+      min: 0,
+      max: 1,
+      default: 1,
+      step: 0.01,
+      hint: "À 0, le motif disparaît et les frontières entre niveaux redeviennent FRANCHES — c'est le rendu sérigraphie, celui que `posterize` fait. À 1, le motif est à pleine amplitude",
+    },
   ],
   wgsl: `
-${LINEAR_TO_SRGB_WGSL}${LINEAR_TO_SRGB_VEC3_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${HSL_TO_RGB_WGSL}${BAYER4_WGSL}${BAYER8_WGSL}
+${LINEAR_TO_SRGB_WGSL}${LINEAR_TO_SRGB_VEC3_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${HSL_TO_RGB_WGSL}${BAYER4_WGSL}${BAYER8_WGSL}${HASH_WGSL}
 const DITHER_LUMA = vec3<f32>(0.2126, 0.7152, 0.0722);
 
 /** Interleaved gradient noise (Jimenez, SIGGRAPH 2014) — approximation de bruit
@@ -98,14 +158,80 @@ fn ditherBlue(p: vec2<f32>) -> f32 {
 
 /** Seuil du pixel selon le style. Le \`if\` est sûr : le style vient d'un
  *  UNIFORME, donc le branchement est uniforme sur toute la passe — même
- *  raisonnement que \`input_driver\`. */
-fn ditherThreshold(cell: vec2<f32>, style: f32) -> f32 {
+ *  raisonnement que \`input_driver\`.
+ *
+ *  TOUS RENDENT DANS [-0,5, 0,5) ET DE MOYENNE NULLE. Ce n'est pas une
+ *  coquetterie d'échelle : un seuil de moyenne non nulle déplace TOUTE l'image
+ *  d'une fraction de niveau, donc changer de style changerait l'exposition. Les
+ *  constantes ci-dessous (1,307 pour le disque, 2,0 pour les lignes) sont
+ *  calculées pour ça, pas choisies. */
+fn ditherThreshold(cell: vec2<f32>, style: f32, size: f32) -> f32 {
   let s = i32(style + 0.5);
   if (s == ${STYLE_BAYER}) {
     return bayerThreshold8(vec2<u32>(vec2<i32>(floor(cell)) & vec2<i32>(7)));
   }
   if (s == ${STYLE_BLUE}) {
     return ditherBlue(floor(cell));
+  }
+  if (s == ${STYLE_BAYER_FIN}) {
+    // La 4x4 d'origine (celle de \`posterize\`). Seize seuils au lieu de
+    // soixante-quatre : sa grille est plus grosse à taille de cellule égale,
+    // ce qui est un LOOK et non une régression — c'est le dither d'un écran
+    // 8 bits, pas celui d'une presse.
+    return bayerThreshold(vec2<u32>(vec2<i32>(floor(cell)) & vec2<i32>(3)));
+  }
+  if (s == ${STYLE_BRUIT_BLANC}) {
+    // Bruit BLANC, à ne pas confondre avec le bleu au-dessus : son spectre est
+    // plat, donc il fait des paquets et l'œil y voit du grain plutôt qu'une
+    // trame. C'est le rendu filmique, et c'est exactement ce que le bruit bleu
+    // est conçu pour éviter — les deux sont là pour ça.
+    return hash(floor(cell)) - 0.5;
+  }
+  if (s == ${STYLE_LIGNES}) {
+    // Trame de LIGNES : le seuil ne dépend que d'un axe, donc le motif croît en
+    // épaisseur de trait au lieu de se disperser.
+    //
+    // ⚠️ LE PROFIL TRIANGULAIRE ÉVIDENT EST FAUX, et la mesure l'a dit. Avec
+    // \`abs(fract(y) - 0.5)\`, deux rangées SYMÉTRIQUES reçoivent le même seuil
+    // et s'allument donc ensemble : une cellule de quatre rangées ne rend que
+    // trois densités au lieu de quatre. Relevé sur la rampe, en huit bandes :
+    // 1 · 1 · 0,5 · 0,5 · 0,5 · 0,5 · 0 · 0 — un escalier à trois marches là où
+    // Bayer donnait une gradation continue.
+    //
+    // Ce qu'il faut est une BIJECTION rangée -> rang, qui grossisse quand même
+    // la ligne autour de son axe. La voici : on classe par distance au centre,
+    // et on départage les deux côtés par \`step\` — d'où des rangs tous
+    // distincts, et un ordre d'allumage qui alterne de part et d'autre.
+    //   4 rangées : rangs 3, 1, 0, 2   (le centre d'abord, puis en alternance)
+    //   5 rangées : rangs 4, 2, 0, 1, 3
+    let rangee = floor(fract(cell.y) * size);
+    let signe = rangee - (size - 1.0) * 0.5;
+    // clamp : à une seule rangée, \`step\` retirerait 1 à un rang déjà nul.
+    let rang = clamp(2.0 * abs(signe) - step(0.0, signe), 0.0, size - 1.0);
+    return (rang + 0.5) / size - 0.5;
+  }
+  if (s == ${STYLE_POINTS}) {
+    // POINTS GROUPÉS : le seuil croît avec la distance au centre de la cellule,
+    // donc le point apparaît au centre et grossit — c'est la trame de presse.
+    //
+    // 1,307 n'est pas un réglage : la distance moyenne au centre d'un carré
+    // unité vaut 0,3826, et 0,3826 x 1,307 = 0,5. C'est la valeur qui annule la
+    // moyenne du seuil, donc la seule qui ne déplace pas l'exposition.
+    //
+    // LE TERME D'INCLINAISON répond au même défaut que celui des lignes, en
+    // plus discret : un disque a une symétrie d'ordre quatre, donc quatre
+    // positions équidistantes du centre partagent leur seuil et s'allument
+    // ensemble. Un déplacement infime du centre, différent sur les deux axes,
+    // les départage sans que la forme du point change à l'œil — les
+    // coefficients sont petits devant un pas de cellule et premiers entre eux
+    // pour ne recréer aucune symétrie.
+    //
+    // À NE PAS CONFONDRE AVEC \`halftone\`, qui est un autre effet et le reste :
+    // celui-là porte la rosette CMJN, ses quatre angles d'écran et sa rotation.
+    // Ici c'est une matrice de seuil parmi d'autres, en monochrome ou par canal.
+    let f = fract(cell) - vec2<f32>(0.5);
+    let d = length(f + vec2<f32>(0.021, 0.013));
+    return clamp(d * 1.307 - 0.5, -0.5, 0.5);
   }
   // Seuil nu : aucun motif. Le témoin.
   return 0.0;
@@ -134,13 +260,25 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // la photo n'est pas carrée.
   let px = uv * vec2<f32>(textureDimensions(srcTexture));
   let cell = px / size;
-  let seuil = ditherThreshold(cell, style);
+  // \`amount\` à 0 annule le motif : la frontière entre deux niveaux redevient
+  // FRANCHE, ce qui est le rendu sérigraphie — celui de \`posterize\`. C'est le
+  // second des deux contrôles qui font de cet effet son surensemble.
+  // \`size\` est PASSÉE et non lue depuis fs_main : la trame de lignes en a
+  // besoin pour compter ses rangées. Elle avait d'abord été référencée
+  // directement dans \`ditherThreshold\`, hors de sa portée — le shader a échoué
+  // en SILENCE (une erreur de validation WebGPU est asynchrone, elle ne lève
+  // pas) et la référence est sortie uniforme. Même piège que le pool de cibles
+  // de \`gooeyMerge\`, et c'est le garde de signal qui l'a attrapé, pas le
+  // compilateur.
+  let seuil = ditherThreshold(cell, style, size) * clamp(params[13], 0.0, 1.0);
 
-  // \`color.rgb\` est LINÉAIRE (format de texture -srgb). On passe sur l'axe
-  // perceptuel pour quantifier, et on redescend : aucun gamma ne s'échappe, le
-  // couple encode/décode encadre la seule quantification (même contrat que le
-  // \`transferSpace\` de channelMixer).
-  let src = linear_to_srgb3(color.rgb);
+  // AXE DE RÉPARTITION. \`color.rgb\` est LINÉAIRE (format de texture -srgb).
+  // En Perceptuel (défaut) on quantifie sur l'axe perceptuel puis on redescend ;
+  // en Linéaire on quantifie la lumière telle quelle. Le couple encode/décode
+  // encadre la SEULE quantification — aucun gamma ne s'échappe vers la suite de
+  // la chaîne, même contrat que le \`transferSpace\` de channelMixer.
+  let perceptuel = f32(i32(params[12] + 0.5) == ${DISTRIB_PERCEPTUEL});
+  let src = mix(color.rgb, linear_to_srgb3(color.rgb), perceptuel);
   let etendue = whitePoint - blackPoint;
 
   // VOIE COULEUR : chaque canal tramé séparément, ce qui donne les teintes
@@ -156,13 +294,19 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // VOIE DEUX ENCRES : on trame la LUMINANCE, et le niveau obtenu choisit où
   // l'on se trouve entre le papier et l'encre. Le mélange se fait en LINÉAIRE
   // (les deux couleurs sont décodées d'abord), comme partout ailleurs ici.
-  let tone = clamp((linear_to_srgb(dot(color.rgb, DITHER_LUMA)) - blackPoint) / etendue, 0.0, 1.0);
+  // La luminance suit le MÊME axe de répartition que les canaux : les deux voies
+  // doivent quantifier sur la même échelle, sinon le curseur « Deux encres »
+  // changerait aussi la répartition en passant de l'une à l'autre.
+  let luma = dot(color.rgb, DITHER_LUMA);
+  let tone = clamp((mix(luma, linear_to_srgb(luma), perceptuel) - blackPoint) / etendue, 0.0, 1.0);
   let niveau = ditherQuantize(tone, levels, seuil);
   let encre = srgb_to_linear3(hsl2rgb(params[6] / 360.0, params[7], params[8]));
   let papier = srgb_to_linear3(hsl2rgb(params[9] / 360.0, params[10], params[11]));
   let deuxEncres = mix(encre, papier, niveau);
 
-  return vec4<f32>(mix(srgb_to_linear3(couleur), deuxEncres, mono), color.a);
+  // Retour en linéaire pour la voie couleur, symétrique de l'encodage ci-dessus.
+  let couleurLin = mix(couleur, srgb_to_linear3(couleur), perceptuel);
+  return vec4<f32>(mix(couleurLin, deuxEncres, mono), color.a);
 }
 `,
 };

@@ -265,6 +265,14 @@ const ATTENDU = {
   // que deux valeurs. Trois signaleraient une quantification qui fuit.
   "effet-dither.png": { width: 256, height: 256, valeurs: 2 },
   "effet-dither-bruit-bleu.png": { width: 256, height: 256, valeurs: 2 },
+  // LES QUATRE STYLES AJOUTES LE 2026-08-03. Un scenario chacun, et ce n'est pas
+  // du zele : les trois formes de `hatching` ont vecu une journee livrees et
+  // verrouillees PAR RIEN, parce que leur scenario tournait au defaut et ne
+  // traversait aucune des autres branches.
+  "effet-dither-bayer-fin.png": { width: 256, height: 256, valeurs: 2 },
+  "effet-dither-bruit-blanc.png": { width: 256, height: 256, valeurs: 2 },
+  "effet-dither-lignes.png": { width: 256, height: 256, valeurs: 2 },
+  "effet-dither-points.png": { width: 256, height: 256, valeurs: 2 },
   // ISOLINES (2026-08-03). Peu de valeurs, et c'est CONFORME : des traits noirs
   // antialiases sur un fond blanc uni n'en produisent qu'une par palier
   // d'antialiasing. Le compte declare devient une assertion de plus.
@@ -769,28 +777,62 @@ describe("references de rendu committees", () => {
     return out;
   };
 
-  for (const fichier of ["effet-dither.png", "effet-dither-bruit-bleu.png"]) {
+  /** Les six styles, dans l'ordre où la chaîne de scénarios les compare. */
+  const STYLES_DITHER = [
+    "effet-dither.png",
+    "effet-dither-bruit-bleu.png",
+    "effet-dither-bayer-fin.png",
+    "effet-dither-bruit-blanc.png",
+    "effet-dither-lignes.png",
+    "effet-dither-points.png",
+  ];
+
+  for (const fichier of STYLES_DITHER) {
     it(`${fichier} : la densité d'encre suit la rampe, de façon monotone`, () => {
       const d = densiteParColonne(fichier);
-      // La mire va du sombre (gauche) au clair (droite) : la densité d'encre
-      // doit DÉCROÎTRE, bande après bande, sans jamais remonter. Un motif qui
-      // ne suivrait pas le ton — une trame posée à densité fixe — donnerait une
-      // suite plate, et une erreur de signe la donnerait croissante.
-      for (let i = 1; i < d.length; i++) expect(d[i]).toBeLessThan(d[i - 1]);
-      // Et la course est réellement parcourue, d'un quasi-plein à un quasi-vide.
+      // La mire va du sombre (gauche) au clair (droite) : la densité d'encre ne
+      // doit JAMAIS remonter. Une erreur de signe la donnerait croissante.
+      //
+      // ⚠️ NON-CROISSANT et non strictement décroissant. Première version de ce
+      // test, qui exigeait le strict : elle échouait sur les styles à motif
+      // grossier (Lignes, Points groupés), dont les deux premières bandes sont
+      // toutes deux SATUREES en noir. Une saturation aux extrêmes est le
+      // comportement correct d'une quantification, pas un défaut — c'est
+      // l'assertion qui était fausse.
+      for (let i = 1; i < d.length; i++) expect(d[i]).toBeLessThanOrEqual(d[i - 1]);
+
+      // La course est réellement parcourue, d'un quasi-plein à un quasi-vide.
+      // C'est CETTE paire, et non la monotonie, qui interdit la suite plate
+      // qu'une trame posée à densité fixe produirait.
       expect(d[0]).toBeGreaterThan(0.8);
       expect(d[d.length - 1]).toBeLessThan(0.2);
+
+      // Et la décroissance est PROGRESSIVE : au moins la moitié des marches
+      // descendent vraiment. Sans ça, un effet qui basculerait d'un coup du
+      // plein au vide — un seuil unique déguisé en trame — passerait les trois
+      // bornes ci-dessus.
+      const marches = d.slice(1).filter((v, i) => v < d[i] - 0.001).length;
+      expect(marches).toBeGreaterThanOrEqual(Math.floor((d.length - 1) / 2));
     });
   }
 
-  it("dither : Bayer et le bruit bleu ne rendent PAS la même image", () => {
-    // Le test qui empêche qu'un style soit branché sur la fonction de l'autre —
-    // panne qu'aucun test unitaire ne verrait, les deux shaders compilant.
-    const a = decodePng(readFileSync(path.join(REF_DIR, "effet-dither.png")));
-    const b = decodePng(readFileSync(path.join(REF_DIR, "effet-dither-bruit-bleu.png")));
-    let differents = 0;
-    for (let i = 0; i < a.pixels.length; i += 4) if (a.pixels[i] !== b.pixels[i]) differents++;
-    expect(differents / (a.pixels.length / 4)).toBeGreaterThan(0.1);
+  it("dither : les six styles rendent six images DIFFÉRENTES, deux à deux", () => {
+    // Le test qui empêche qu'un style soit branché sur la fonction d'un autre —
+    // panne qu'aucun test unitaire ne verrait, tous les shaders compilant et
+    // tous les paramètres étant câblés. Comparaison DEUX À DEUX et pas
+    // seulement de proche en proche : une chaîne où seul le 3e et le 5e
+    // coïncideraient passerait une comparaison au voisin.
+    const images = STYLES_DITHER.map((f) => decodePng(readFileSync(path.join(REF_DIR, f))).pixels);
+    for (let i = 0; i < images.length; i++) {
+      for (let j = i + 1; j < images.length; j++) {
+        let differents = 0;
+        for (let k = 0; k < images[i].length; k += 4) {
+          if (images[i][k] !== images[j][k]) differents++;
+        }
+        const part = differents / (images[i].length / 4);
+        expect(part, `${STYLES_DITHER[i]} vs ${STYLES_DITHER[j]}`).toBeGreaterThan(0.02);
+      }
+    }
   });
 
   /* ── ISOLINES : la largeur du trait est celle DEMANDÉE, pas celle de la pente

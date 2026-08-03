@@ -780,6 +780,39 @@ const INSTALL = `(async () => {
       },
     },
 
+    // LES QUATRE STYLES AJOUTES LE 2026-08-03. Un scenario chacun, et ce n est
+    // pas du zele : les trois formes de hatching ont vecu une journee entiere
+    // livrees et verrouillees PAR RIEN, parce que le scenario tournait au
+    // defaut et ne traversait aucune des autres branches. Une branche de
+    // ditherThreshold qui rendrait la meme chose qu une autre compilerait, ses
+    // parametres seraient cables, et rien ne le dirait.
+    //
+    // Tout est identique par ailleurs — meme mire, meme taille, memes deux
+    // niveaux, memes encres — donc ce qui separe chaque image de la precedente
+    // ne peut venir que du motif. Chacune se compare a la PRECEDENTE et non a la
+    // mire nue : c est la chaine qui prouve que les six sont six.
+    ...Object.fromEntries([
+      ["effet-dither-bayer-fin", 3, "effet-dither"],
+      ["effet-dither-bruit-blanc", 4, "effet-dither-bayer-fin"],
+      ["effet-dither-lignes", 5, "effet-dither-bruit-blanc"],
+      ["effet-dither-points", 6, "effet-dither-lignes"],
+    ].map(([nom, style, contre]) => [nom, {
+      contre,
+      valeurs: 2,
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("dither", p);
+        stack.updateParams(a, {
+          style, size: 4, levels: 2, mono: 1,
+          blackPoint: 0, whitePoint: 1, distribution: 1, amount: 1,
+          inkHue: 0, inkSaturation: 0, inkLightness: 0,
+          paperHue: 0, paperSaturation: 0, paperLightness: 1,
+        });
+      },
+    }])),
+
     // ECHO OUTLINES — l effet neuf du 2026-08-03, celui que la fiche de
     // reference decrit sous le nom Outlines : « a series of evenly spaced
     // outlines that echo your shape outward, like ripples ».

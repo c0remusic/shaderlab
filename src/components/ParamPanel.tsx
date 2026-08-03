@@ -98,6 +98,13 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
   }
   const effect = getEffect(layer.effectId);
 
+  // Paramètres RÉSOLUS (défauts appliqués), pour les `maxFrom` d'en bas. Même
+  // forme que ce que `runInternalPasses` passe à `EffectPass.enabled` — un
+  // prédicat sur les réglages courants ne doit pas voir un `undefined` là où le
+  // shader verra un défaut.
+  const resolvedParams: Record<string, number> = {};
+  for (const p of effect.params) resolvedParams[p.name] = layer.params[p.name] ?? p.default;
+
   // Calque VERROUILLÉ. `LayerStack.isLocked` refuse `setLayerClip` et
   // `updateParams` : les DEUX seules mutations que ce panneau déclenche sont
   // donc mortes, et un contrôle qui bouge sans rien changer est exactement
@@ -188,19 +195,40 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
                 />
               </div>
             ) : item.kind === "single" ? (
-              <div key={item.reactKey} title={item.param.hint}>
-                <LabeledSlider
-                  label={item.param.label}
-                  value={layer.params[item.param.name] ?? item.param.default}
-                  min={item.param.min}
-                  max={item.param.max}
-                  step={item.param.step}
-                  displayValue={formatEffectParamValue(layer.params[item.param.name] ?? item.param.default, item.param)}
-                  disabled={locked}
-                  onChange={(v) => onParamChange(layer.id, { [item.param.name]: v })}
-                  onCommit={onParamCommit}
-                />
-              </div>
+              (() => {
+                // MAXIMUM EFFECTIF. Quand un paramètre en borne un autre
+                // (`EffectParam.maxFrom`), le curseur doit s'arrêter là où
+                // l'effet s'arrête — sinon le pouce avance, le nombre monte et
+                // l'image ne bouge plus. C'était le cas du fondu de `sliceShift`
+                // sur les trois quarts de sa course.
+                //
+                // La valeur AFFICHÉE est bornée elle aussi : elle doit dire ce
+                // que le shader utilise, pas ce que le document a stocké. Une
+                // valeur héritée au-dessus (preset, `updateParams`) reste dans le
+                // document — on n'écrase rien en silence — mais on ne prétend pas
+                // qu'elle agit. Le premier geste sur le curseur la ramène dans
+                // la course.
+                const brut = layer.params[item.param.name] ?? item.param.default;
+                const plafond = item.param.maxFrom
+                  ? Math.min(item.param.max, item.param.maxFrom(resolvedParams))
+                  : item.param.max;
+                const valeur = Math.min(brut, plafond);
+                return (
+                  <div key={item.reactKey} title={item.param.hint}>
+                    <LabeledSlider
+                      label={item.param.label}
+                      value={valeur}
+                      min={item.param.min}
+                      max={plafond}
+                      step={item.param.step}
+                      displayValue={formatEffectParamValue(valeur, item.param)}
+                      disabled={locked}
+                      onChange={(v) => onParamChange(layer.id, { [item.param.name]: v })}
+                      onCommit={onParamCommit}
+                    />
+                  </div>
+                );
+              })()
             ) : (
               <ColorGroupControl
                 key={item.reactKey}

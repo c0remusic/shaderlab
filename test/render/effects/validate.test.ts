@@ -40,4 +40,33 @@ describe("validateEffect", () => {
       expect(() => validateEffect(effect)).not.toThrow();
     }
   });
+
+  // MAXIMUM DYNAMIQUE (`EffectParam.maxFrom`, 2026-08-03). Il ne peut que
+  // RESSERRER la course : `max` reste la borne que le panneau, les presets et
+  // toute relecture prennent pour la vérité du paramètre. Un `maxFrom` au-dessus
+  // rendrait un curseur allant plus loin que ce que l'effet déclare — l'inverse
+  // exact du défaut qu'il vient corriger (voir `sliceShift.edgeFeather`).
+  function effectWithMaxFrom(maxFrom: (p: Record<string, number>) => number): EffectModule {
+    const base = effectWithParams(2);
+    base.params[1] = { ...base.params[1], name: "borne", max: 10, default: 4, maxFrom };
+    return base;
+  }
+
+  it("accepts a maxFrom that narrows the range", () => {
+    expect(() => validateEffect(effectWithMaxFrom((p) => p.p0 + 4))).not.toThrow();
+  });
+
+  it("rejects a maxFrom that widens past the declared max", () => {
+    expect(() => validateEffect(effectWithMaxFrom(() => 99))).toThrow(
+      /borne.*maxFrom.*99.*0\.\.10/s,
+    );
+  });
+
+  it("rejects a maxFrom that returns something not finite", () => {
+    // Une division par un paramètre à zéro est le cas réaliste, et elle rendrait
+    // un curseur sans borne haute plutôt qu'une erreur.
+    expect(() => validateEffect(effectWithMaxFrom(() => Number.POSITIVE_INFINITY))).toThrow(
+      /maxFrom/,
+    );
+  });
 });

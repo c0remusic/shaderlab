@@ -29,13 +29,20 @@ import { UV_SPACE_WGSL } from "./uvSpace";
  *    3x**. Sur la graine 0 du scénario verrouillé, les bandes 1, 2 et 3 adoptent
  *    toutes les trois et une SEULE frontière fusionne.
  *
- *    Corollaire, et c'est un vrai défaut de contrôle : `P(fusion) = irrégularité
- *    × (1 - irrégularité)`, donc la courbe **culmine à 0,5 et retombe à ZÉRO à
- *    1,0**. Pousser le curseur à fond redonne exactement le peigne qu'il devait
- *    détruire — toutes les bandes adoptent, donc aucune ne partage. Le haut du
- *    curseur dégrade l'effet. Non corrigé ici : le corriger déplace des pixels
- *    sur un effet déjà livré, c'est un arbitrage d'Antoine et pas un effet de
- *    bord du fondu.
+ *    Corollaire, et c'était un vrai défaut de contrôle : `P(fusion) = x·(1 − x)`
+ *    où `x` est la probabilité d'adoption, donc une courbe qui **culmine à 0,5
+ *    et retombe à ZÉRO à 1,0**. Pousser le curseur à fond redonnait exactement
+ *    le peigne qu'il devait détruire — toutes les bandes adoptent, donc aucune
+ *    ne partage.
+ *
+ *    **CORRIGÉ le 2026-08-03** (arbitrage d'Antoine, D11) : le curseur est
+ *    remappé sur `[0 ; 0,5]`, donc sa course entière est du côté croissant et
+ *    son maximum est le maximum du mécanisme — une frontière sur quatre. Une
+ *    ligne, aucun changement de mécanisme, et les références de rendu rejouées
+ *    puisque le défaut 0,45 rend désormais 0,225 d'adoption.
+ *
+ *    Ce que ça ne corrige PAS : les épaisseurs 1x/2x ci-dessus. Elles tiennent à
+ *    la non-transitivité de l'adoption, pas au curseur.
  *
  * 2. **Le rebouclage par l'autre bord recolle deux bords étrangers.** Une bande
  *    décalée montrerait le bord droit de l'image collé à son bord gauche : une
@@ -107,10 +114,16 @@ export const sliceShift: EffectModule = {
     { name: "sliceSize", label: "Épaisseur des tranches", unit: "pixels", min: 2, max: 400, default: 48, step: 1, hint: "Épaisseur de base, en pixels pleine résolution — l'irrégularité en fusionne certaines" },
     { name: "displace", label: "Décalage", unit: "percent", min: 0, max: 0.5, default: 0.08, step: 0.005, hint: "Amplitude maximale du glissement d'une tranche, en fraction de l'image" },
     { name: "density", label: "Densité", unit: "percent", min: 0, max: 1, default: 0.35, step: 0.01, hint: "Part des tranches réellement décalées — le reste de l'image reste intact, et c'est ce qui rend le décrochage lisible" },
-    { name: "irregular", label: "Irrégularité", unit: "percent", min: 0, max: 1, default: 0.45, step: 0.01, hint: "Probabilité qu'une tranche fusionne avec sa voisine — sans elle, les bandes forment un peigne à période visible" },
+    { name: "irregular", label: "Irrégularité", unit: "percent", min: 0, max: 1, default: 0.45, step: 0.01, hint: "Fait fusionner des tranches avec leur voisine — sans elle, les bandes forment un peigne à période visible. À fond, une frontière sur quatre fusionne : c'est le maximum que le mécanisme permet, et le curseur y monte désormais sans jamais redescendre" },
     { name: "chromaSplit", label: "Écart des canaux", unit: "percent", min: 0, max: 1, default: 0.3, step: 0.01, hint: "Désynchronise rouge et bleu par rapport au vert, proportionnellement au décalage de la tranche" },
     { name: "seed", label: "Graine", unit: "none", min: 0, max: 1000, default: 0, step: 1, hint: "Change le tirage sans changer les réglages. Reproductible : la même graine redonne les mêmes tranches" },
-    { name: "edgeFeather", label: "Fondu des bords", unit: "pixels", min: 0, max: 200, default: 0, step: 1, hint: "Adoucit la frontière entre deux tranches, en pixels pleine résolution. À 0 la coupure est franche — c'est la signature de l'effet. Borné à l'épaisseur d'une tranche" },
+    // `maxFrom` : la course s'arrête à l'épaisseur d'une tranche, parce que
+    // c'est là que le shader borne (voir le clamp dans `fs_main`, et le calcul
+    // de recouvrement qui l'explique). Sans ce champ, le curseur déclarait 200
+    // px et n'en servait que 48 par défaut — trois quarts de course morts,
+    // silencieux, relevés le 2026-08-02 et corrigés le 2026-08-03 le jour où le
+    // système de paramètres a su l'exprimer.
+    { name: "edgeFeather", label: "Fondu des bords", unit: "pixels", min: 0, max: 400, default: 0, step: 1, maxFrom: (p) => Math.max(2, Math.min(400, p.sliceSize)), hint: "Adoucit la frontière entre deux tranches, en pixels pleine résolution. À 0 la coupure est franche — c'est la signature de l'effet. Sa course suit l'épaisseur des tranches : au-delà, deux fondus se recouvriraient au milieu d'une tranche" },
   ],
   wgsl: `
 ${UV_SPACE_WGSL}${HASH_WGSL}
@@ -168,7 +181,27 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let sliceSize = max(params[1], 1.0);
   let displace = params[2];
   let density = clamp(params[3], 0.0, 1.0);
-  let irregular = clamp(params[4], 0.0, 1.0);
+  // CURSEUR REMAPPÉ SUR [0 ; 0,5], et c'est le correctif du 2026-08-03.
+  //
+  // La probabilité qu'une frontière fusionne vaut \`x·(1−x)\` où \`x\` est la
+  // probabilité d'adoption (voir \`sliceAmount\` : B et B−1 ne partagent une
+  // identité que si B adopte et que B−1 n'adopte PAS). Cette courbe culmine à
+  // x = 0,5 et **retombe à zéro en x = 1** — le curseur poussé à fond redonnait
+  // exactement le peigne qu'il devait détruire, parce que toutes les bandes
+  // adoptaient et qu'aucune ne partageait plus rien.
+  //
+  // En bornant \`x\` à 0,5, la course entière est du côté CROISSANT : le curseur
+  // va de 0 fusion à une frontière sur quatre, et rien au-dessus ne dégrade. Un
+  // remappage d'une ligne, pas une refonte du mécanisme — l'adoption d'un seul
+  // niveau reste monotone par construction, donc aucun chevauchement de bandes.
+  //
+  // ⚠️ CE QUE ÇA NE CORRIGE PAS, et qui reste écrit en tête de fichier : les
+  // épaisseurs valent 1x ou 2x, jamais 3x. C'est une propriété de l'adoption
+  // non transitive, pas du curseur. La corriger demanderait des identités par
+  // LONGUEUR DE SÉRIE, donc une remontée itérative bornée dont le plafond
+  // recréerait un peigne local aux fortes valeurs — un autre effet, pas un
+  // autre réglage.
+  let irregular = clamp(params[4], 0.0, 1.0) * 0.5;
   let chromaSplit = clamp(params[5], 0.0, 1.0);
   let seed = params[6];
   // BORNÉ À L'ÉPAISSEUR D'UNE TRANCHE, et ce n'est pas un garde-fou cosmétique.
@@ -178,14 +211,17 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // \`f <= sliceSize\`. Au-delà il faudrait mélanger trois tranches à la fois ;
   // le clamp interdit ce cas au lieu de le rendre faux en silence.
   //
-  // ⚠️ COURSE MORTE CONNUE, et elle se voit au curseur : le maximum déclaré est
-  // 200 px, l'effectif est \`sliceSize\` (48 par défaut). Les trois quarts du
-  // curseur ne font donc rien à l'épaisseur par défaut, sans aucun retour dans
-  // le panneau. Le vrai correctif serait un maximum DYNAMIQUE lié à
-  // \`sliceSize\`, que le système de paramètres ne sait pas exprimer
-  // aujourd'hui — et le rendre relatif à la tranche est exclu par la demande
-  // elle-même (une tranche fine serait entièrement fondue). Laissé en l'état,
-  // signalé plutôt que masqué.
+  // COURSE MORTE, CORRIGÉE le 2026-08-03. Le maximum déclaré était 200 px et
+  // l'effectif \`sliceSize\` (48 par défaut) : les trois quarts du curseur ne
+  // faisaient rien, sans aucun retour dans le panneau. Le correctif annoncé ici
+  // était « un maximum DYNAMIQUE lié à \`sliceSize\`, que le système de
+  // paramètres ne sait pas exprimer » — il sait, depuis \`EffectParam.maxFrom\`,
+  // posé ce jour-là précisément pour ce cas.
+  //
+  // Ce clamp RESTE, et ce n'est pas une redondance : \`maxFrom\` borne le
+  // CURSEUR, pas la valeur. Un preset écrit à la main ou un \`updateParams\`
+  // programmatique n'ont jamais vu le panneau, et \`LayerStack.updateParams\` ne
+  // borne rien.
   let edgeFeather = clamp(params[7], 0.0, sliceSize);
 
   let dims = vec2<f32>(textureDimensions(srcTexture));

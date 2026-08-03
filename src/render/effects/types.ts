@@ -5,6 +5,28 @@ export interface EffectParam {
   hint?: string;
   min: number;
   max: number;
+  /**
+   * Maximum EFFECTIF aux réglages courants, quand il dépend d'un autre
+   * paramètre. Absent = `max` tout court (le cas de tous les paramètres écrits
+   * jusqu'ici).
+   *
+   * D'OÙ ÇA VIENT. `sliceShift.edgeFeather` déclare 200 px et le shader le borne
+   * à `sliceSize` — 48 par défaut. **Les trois quarts du curseur ne faisaient
+   * donc rien**, sans aucun retour dans le panneau : le pouce avançait, le
+   * nombre montait, l'image ne bougeait plus. Défaut relevé et écrit dans le
+   * fichier de l'effet le 2026-08-02, laissé en l'état faute de pouvoir
+   * l'exprimer ; c'est ce trou que ce champ comble.
+   *
+   * ⚠️ CE N'EST PAS UNE VALIDATION, c'est un affichage. Le shader borne toujours
+   * de son côté — un preset écrit à la main, ou un `updateParams` programmatique,
+   * ne passent pas par le panneau (`LayerStack.updateParams` ne borne RIEN). Ce
+   * champ rend le curseur honnête ; il ne rend pas la valeur sûre.
+   *
+   * ⚠️ Reçoit les paramètres RÉSOLUS du calque (défauts appliqués), comme
+   * `EffectPass.enabled`. Doit rendre une valeur ≤ `max` : `validateEffect` le
+   * vérifie sur les défauts, seul jeu qu'il puisse connaître au chargement.
+   */
+  maxFrom?: (params: Record<string, number>) => number;
   default: number;
   step: number;
   /** Groups this param with its hue/saturation/lightness siblings (same `key`)

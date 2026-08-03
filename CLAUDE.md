@@ -178,6 +178,18 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   ADR-0012 : sa `Force du tramage` à 0 EST le rendu sérigraphie), `hatching`
   (taille-douce), `halftone` (trame CMJN et sa rosette). **Flous** : voir
   ci-dessus.
+- **Un curseur dont la course est morte est un échec silencieux**, au même titre
+  qu'un paramètre non câblé. Deux formes rencontrées sur `sliceShift`, corrigées
+  le 2026-08-03 (D11, arbitrage d'Antoine) : une course dont le HAUT dégrade
+  l'effet (`P(fusion) = x·(1−x)` retombait à zéro à fond de curseur — remappé sur
+  le flanc croissant), et une course dont le maximum déclaré dépasse le maximum
+  effectif (`edgeFeather` annonçait 200 px et le shader bornait à `sliceSize`,
+  48 par défaut — trois quarts morts). La seconde a produit
+  **`EffectParam.maxFrom`**, un maximum dynamique lu par `ParamPanel` sur les
+  paramètres résolus, même forme que `EffectPass.enabled`. ⚠️ `maxFrom` borne le
+  CURSEUR, jamais la valeur : le clamp du shader reste nécessaire, un preset ou
+  un `updateParams` ne passent pas par le panneau (`LayerStack.updateParams`
+  n'écrête rien).
 - **Garde de câblage** : `test/render/effects/parametresCables.test.ts` vérifie
   que chaque paramètre déclaré est lu à SON index par le shader, sur tous les
   effets du registre. Elle naît d'un défaut réel — `warp` avait quatre contrôles sur sept

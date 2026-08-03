@@ -53,6 +53,26 @@ export function validateEffect(effect: EffectModule): void {
     }
   }
 
+  // MAXIMUM DYNAMIQUE (`maxFrom`). Il ne peut que RESSERRER la course, jamais
+  // l'élargir : `max` reste la borne que le panneau, les presets et toute
+  // relecture prennent pour la vérité du paramètre. Un `maxFrom` au-dessus
+  // rendrait un curseur qui va plus loin que ce que l'effet déclare — l'inverse
+  // exact du défaut qu'il vient corriger. Vérifié sur les DÉFAUTS, seul jeu de
+  // valeurs connu au chargement ; les autres sont bornés à l'usage par `Math.min`.
+  const defauts: Record<string, number> = {};
+  for (const p of effect.params) defauts[p.name] = p.default;
+  for (const param of effect.params) {
+    if (!param.maxFrom) continue;
+    const effectif = param.maxFrom(defauts);
+    if (!Number.isFinite(effectif) || effectif > param.max || effectif < param.min) {
+      throw new Error(
+        `Effet "${effect.id}", paramètre "${param.name}" : \`maxFrom\` rend ${effectif} ` +
+          `aux valeurs par défaut, hors de l'intervalle déclaré ${param.min}..${param.max}. ` +
+          `Un maximum dynamique resserre la course, il ne l'élargit pas.`
+      );
+    }
+  }
+
   // MANIPULATEUR DE RÉGION (`canvasRegion`). Les trois noms doivent désigner de
   // vrais paramètres : sans cette garde, une faute de frappe ne lèverait rien et
   // le cercle ne s'afficherait simplement PAS sur la toile — un échec muet, et

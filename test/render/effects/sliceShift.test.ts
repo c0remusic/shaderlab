@@ -170,36 +170,86 @@ describe("sliceShift — la loi d'adoption, et les deux choses qu'elle NE fait p
     }
   });
 
-  it("l'irrégularité est NON MONOTONE : elle culmine à 0,5 et retombe à zéro à 1", () => {
-    // `P(fusion) = irrégularité × (1 - irrégularité)`. Conséquence directe et
-    // contre-intuitive : pousser le curseur à fond redonne exactement le peigne
-    // qu'il devait détruire, puisque TOUTES les bandes adoptent et qu'aucune ne
-    // partage plus. Le haut du curseur dégrade l'effet.
-    const partFusionnee = (irregular: number) => {
-      const id = identites(20000, irregular, tirage(7));
-      let f = 0;
-      for (let i = 1; i < id.length; i++) if (id[i] === id[i - 1]) f++;
-      return f / (id.length - 1);
-    };
+  /** Part des frontières qui fusionnent, pour une probabilité d'ADOPTION donnée
+   *  (et non pour une position de curseur — les deux ont cessé d'être la même
+   *  chose le 2026-08-03, voir le test suivant). */
+  const partFusionnee = (adoption: number) => {
+    const id = identites(20000, adoption, tirage(7));
+    let f = 0;
+    for (let i = 1; i < id.length; i++) if (id[i] === id[i - 1]) f++;
+    return f / (id.length - 1);
+  };
 
+  it("la LOI reste non monotone : elle culmine à 0,5 d'adoption et retombe à zéro à 1", () => {
+    // `P(fusion) = adoption × (1 - adoption)`. Conséquence directe et
+    // contre-intuitive : une adoption de 1 redonne exactement le peigne qu'elle
+    // devait détruire, puisque TOUTES les bandes adoptent et qu'aucune ne
+    // partage plus.
     expect(partFusionnee(0)).toBe(0);
     expect(partFusionnee(1)).toBe(0);
     expect(partFusionnee(0.5)).toBeGreaterThan(0.2);
-    // Le pic est bien au milieu, pas au maximum du curseur.
     expect(partFusionnee(0.5)).toBeGreaterThan(partFusionnee(0.9));
     expect(partFusionnee(0.9)).toBeGreaterThan(partFusionnee(0.99));
 
-    // ⚠️ Ce test CONSTATE le défaut, il ne le valide pas. Le corriger déplace
-    // des pixels sur un effet déjà livré : c'est un arbitrage d'Antoine, pas un
-    // effet de bord du fondu des bords. Voir le bandeau de `sliceShift.ts`.
+    // ⚠️ Ce test décrit le MÉCANISME, qui n'a pas changé. Ce qui a changé le
+    // 2026-08-03, c'est la portion du mécanisme que le curseur peut atteindre.
   });
 
-  it("le shader implémente bien CETTE loi, d'un seul niveau", () => {
+  it("mais le CURSEUR est désormais monotone sur toute sa course", () => {
+    // LE CORRECTIF (arbitrage d'Antoine, D11). Le curseur est remappé sur
+    // `[0 ; 0,5]`, c'est-à-dire exactement le flanc croissant de la loi
+    // ci-dessus. Pousser à fond ne peut donc plus dégrader l'effet, et le
+    // maximum du curseur EST le maximum du mécanisme.
+    const curseur = (position: number) => partFusionnee(position * 0.5);
+
+    let precedent = -1;
+    for (let i = 0; i <= 20; i++) {
+      const p = curseur(i / 20);
+      // Croissance stricte au bruit d'échantillonnage près : 20 000 bandes,
+      // donc une tolérance d'un demi-pour-cent suffit à écarter le hasard.
+      expect(p).toBeGreaterThan(precedent - 0.005);
+      precedent = p;
+    }
+    // Et le bout de la course vaut bien le sommet de la loi, pas zéro.
+    expect(curseur(1)).toBeGreaterThan(0.2);
+    expect(curseur(1)).toBeGreaterThan(curseur(0.5));
+  });
+
+  it("le shader implémente bien CETTE loi, d'un seul niveau, et remappe le curseur", () => {
     // Le pont entre la loi testée ci-dessus et le code réel : une seule
     // soustraction d'un, sous un seul tirage comparé à `irregular`.
     expect(wgsl).toContain("if (hash(vec2<f32>(band, seed + 101.0)) < irregular) {");
     expect(wgsl).toContain("id = band - 1.0;");
     expect(wgsl.match(/id = band - 1\.0;/g)?.length).toBe(1);
+    // Le remappage, à l'endroit unique où le paramètre est lu.
+    expect(wgsl).toContain("let irregular = clamp(params[4], 0.0, 1.0) * 0.5;");
+  });
+});
+
+describe("sliceShift — le fondu n'a plus de course morte", () => {
+  it("borne le CURSEUR à l'épaisseur d'une tranche, pas à une constante", () => {
+    // DÉFAUT RÉEL relevé le 2026-08-02 et corrigé le 2026-08-03 : le maximum
+    // déclaré était 200 px, l'effectif `sliceSize` — 48 par défaut. Les trois
+    // quarts du curseur ne faisaient rien, sans aucun retour dans le panneau.
+    const feather = sliceShift.params.find((p) => p.name === "edgeFeather")!;
+    const defauts: Record<string, number> = {};
+    for (const p of sliceShift.params) defauts[p.name] = p.default;
+
+    expect(feather.maxFrom).toBeDefined();
+    // À l'épaisseur par défaut, la course s'arrête à l'épaisseur.
+    expect(feather.maxFrom!(defauts)).toBe(48);
+    // Et elle SUIT l'épaisseur, c'est tout l'intérêt d'un maximum dynamique.
+    expect(feather.maxFrom!({ ...defauts, sliceSize: 120 })).toBe(120);
+    expect(feather.maxFrom!({ ...defauts, sliceSize: 4 })).toBe(4);
+    // Jamais au-dessus de la borne déclarée, que `validateEffect` impose.
+    expect(feather.maxFrom!({ ...defauts, sliceSize: 400 })).toBeLessThanOrEqual(feather.max);
+  });
+
+  it("garde son clamp DANS le shader — un preset ne passe pas par le panneau", () => {
+    // `maxFrom` borne un curseur ; il ne borne pas une valeur. `updateParams`
+    // n'écrête rien, et un preset écrit à la main n'a jamais vu l'interface.
+    // Les deux gardes sont nécessaires et ne font pas le même travail.
+    expect(wgsl).toContain("let edgeFeather = clamp(params[7], 0.0, sliceSize);");
   });
 });
 

@@ -41,11 +41,15 @@ export interface EffectPass {
    *
    * D'OÙ ÇA VIENT. `runInternalPasses` itérait `passes` sans condition, ce qui
    * allait tant qu'un effet multi-passes n'avait qu'un seul régime. Un effet à
-   * MODES casse ce présupposé : `outlines` doit absorber `echoOutlines` (ADR-0013),
-   * or celui-ci porte neuf passes de pyramide et le mode Contours n'en lit
-   * aucune. Sans ce prédicat, choisir « Contours » ferait quand même tourner la
-   * pyramide entière — sur 24 Mpx, la seule cible à l'échelle 0,5 pèse 24 Mo, et
-   * la VRAM est un risque ouvert.
+   * MODES casse ce présupposé : `outlines` devait absorber `echoOutlines`, or
+   * celui-ci portait neuf passes de pyramide et les modes locaux n'en lisent
+   * aucune. Sans ce prédicat, choisir « Crête de gradient » ferait quand même
+   * tourner la pyramide entière — sur 24 Mpx, la seule cible à l'échelle 0,5
+   * pèse 24 Mo, et la VRAM est un risque ouvert.
+   *
+   * Ce prédicat est arrivé AVANT le besoin qui l'a motivé, et l'absorption a
+   * suivi le jour même (ADR-0015) : `outlines` est aujourd'hui son unique
+   * utilisateur, et le seul effet du registre dont le coût dépende d'un choix.
    *
    * ⚠️ CE N'EST PAS UNE OPTIMISATION, c'est une condition de correction du
    * modèle : une passe inutile n'est pas seulement lente, elle ALLOUE. Le

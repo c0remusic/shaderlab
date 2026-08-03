@@ -14,7 +14,6 @@ import { gradientMap } from "./gradientMap";
 import { halation } from "./halation";
 import { lensBlur } from "./lensBlur";
 import { hatching } from "./hatching";
-import { echoOutlines } from "./echoOutlines";
 import { dither } from "./dither";
 import { isolines } from "./isolines";
 import { halftone } from "./halftone";
@@ -95,31 +94,26 @@ export const effectRegistry: EffectModule[] = [
   // en faire une teinte. Une décision n'est pas un effet, c'est un mode : voir
   // le paramètre `inkMode`. Les neuf premiers index sont ceux d'`outlines`,
   // inchangés, donc son rendu et ses références de pixels sont conservés au bit.
+  //
+  // SECONDE ABSORPTION LE MÊME JOUR : `echoOutlines` (ADR-0015). Il était né
+  // d'un signalement d'Antoine (« ça ne ressemble pas du tout ») sur la fiche
+  // de référence, qui décrit sous le nom `Outlines` un effet d'échos
+  // concentriques et non un détecteur. Sa fusion était décidée mais BLOQUÉE sur
+  // une capacité : il porte neuf passes de pyramide, `outlines` n'en avait
+  // aucune, et `runInternalPasses` les exécutait sans condition. Depuis
+  // `EffectPass.enabled` (posé le même jour, pour une autre raison), les neuf
+  // passes portent un prédicat sur `detectMode` et ne coûtent rien aux deux
+  // modes locaux.
+  //
+  // Effet de bord heureux : la question de NOM que le cahier laissait ouverte
+  // s'éteint. Elle venait de ce que « Outlines » désignait deux choses ; il n'y
+  // en a plus qu'une.
   outlines,
-  // `echoOutlines` (2026-08-03) ferme la famille des contours, et n'est PAS un
-  // troisième réglage du précédent. Celui du dessus répond à « où l'image
-  // change-t-elle ? » (un gradient) ; celui-ci répond à « à quelle DISTANCE de
-  // la forme suis-je ? », ce qu'aucun gradient ne sait dire.
-  //
-  // Il doit lui aussi être absorbé par `outlines` (même arbitrage), mais PAS
-  // avant que le pipeline sache sauter des passes : il porte neuf passes de
-  // pyramide, `outlines` une seule, et `effectPassRunner.runInternalPasses`
-  // les exécute sans condition. Fusionner aujourd'hui ferait payer la pyramide
-  // au mode Contours, qui n'en lit rien — sur 24 Mpx la seule cible à 0,5 pèse
-  // 24 Mo, et la VRAM est un risque ouvert.
-  //
-  // Il naît d'un signalement d'Antoine (« ça ne ressemble pas du tout ») sur la
-  // fiche de référence, qui décrit sous le nom `Outlines` un effet d'échos
-  // concentriques — pas un détecteur. Le cahier l'avait écrit dès le 2026-08-01
-  // (§6quinquies, « MÊME NOM, AUTRE EFFET ») et ça n'était jamais devenu du
-  // travail. Notre `outlines` garde sa place et son id : il est bon à ce qu'il
-  // fait, il ne fait simplement pas ça.
-  echoOutlines,
-  // `isolines` (2026-08-03) est le frère d'`echoOutlines`, et posé juste après
-  // lui : les deux tracent des lignes équidistantes en ramenant une grandeur EN
-  // PIXELS avant de décider. Ce qu'ils mesurent diffère — l'un une distance à
-  // une forme seuillée, l'autre les niveaux du ton lui-même, qui se referment
-  // sur les sommets comme sur une carte.
+  // `isolines` (2026-08-03) est le frère du mode Échos ci-dessus, et posé juste
+  // après lui : les deux tracent des lignes équidistantes en ramenant une
+  // grandeur EN PIXELS avant de décider. Ce qu'ils mesurent diffère — l'un une
+  // distance à une forme seuillée, l'autre les niveaux du ton lui-même, qui se
+  // referment sur les sommets comme sur une carte.
   //
   // Ce n'est pas `posterize` + `outlines` empilés : là-bas la largeur du trait
   // suit le gradient local (une bande dans un ciel doux, un cheveu sur une

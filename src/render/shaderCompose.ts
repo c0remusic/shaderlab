@@ -15,11 +15,26 @@
  *  à 18, au-dessus du plafond. 24 laisse 6 slots au-dessus du plus gourmand,
  *  la même marge que celle visée au précédent élargissement.
  *
+ *  Puis de 24 à 32 (2026-08-03) : `outlines` absorbe `echoOutlines` (ADR-0015)
+ *  et gagne un troisième mode de détection. Sept réglages n'ont aucun
+ *  équivalent dans les deux premiers — lissage de la forme, espacement,
+ *  nombre d'échos, atténuation, et les trois composantes du dernier écho — ce
+ *  qui le porte à 26. Les sept AUTRES paramètres de l'effet absorbé, eux, se
+ *  recouvrent (seuil, entrée, épaisseur, encre, effacement, fond,
+ *  remplissage) : le plafond ne paie que ce qui est réellement neuf. 32 laisse
+ *  6 slots au-dessus du plus gourmand, la même marge qu'aux deux
+ *  élargissements précédents.
+ *
+ *  Ce que ça coûte : le uniform passe de 96 à 128 octets par passe d'effet, et
+ *  `effectPassRunner` en alloue un par passe et par frame. À neuf passes de
+ *  pyramide, 288 octets de plus par calque — sans commune mesure avec les
+ *  cibles de rendu que la même pyramide emprunte au pool.
+ *
  *  Le header ci-dessous interpole cette constante (`array<f32, ${...}>`) : il
  *  n'y a donc plus qu'UN endroit à modifier, et `MAX_EFFECT_PARAMS` reste la
  *  seule source pour la taille du Float32Array côté CPU
  *  (`effectPassRunner.ts`) comme pour la déclaration WGSL. */
-export const MAX_EFFECT_PARAMS = 24;
+export const MAX_EFFECT_PARAMS = 32;
 
 export const FULLSCREEN_VERTEX_WGSL = `
 struct VertexOut {

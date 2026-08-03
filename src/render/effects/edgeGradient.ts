@@ -1,10 +1,18 @@
 /**
- * Gradient de contour de Scharr, partagé par les effets qui détectent des
- * bords : `outlines` (qui l'a vu naître, dans ses deux modes d'encre et ses deux
- * modes de détection) et `echoOutlines`. `coloredEdges` l'a utilisé du
- * 2026-08-01 au 2026-08-03, date à laquelle il est devenu un mode d'`outlines`
- * (ADR-0013) — l'extraction avait donc bien vu juste, elle avait seulement vu un
- * effet là où il y avait un paramètre.
+ * Gradient de contour de Scharr, aujourd'hui lu par un seul effet : `outlines`,
+ * qui l'a vu naître, dans ses deux modes d'encre et ses trois modes de
+ * détection.
+ *
+ * IL A EU DEUX AUTRES LECTEURS, et les deux sont revenus dans `outlines` le
+ * 2026-08-03 : `coloredEdges` (ADR-0013), devenu son paramètre `inkMode`, et
+ * `echoOutlines` (ADR-0015), devenu son troisième mode de détection.
+ * L'extraction avait donc bien vu juste — elle avait seulement vu des effets là
+ * où il y avait des paramètres.
+ *
+ * ⚠️ LE MODULE RESTE, malgré son unique lecteur. Le supprimer en le réinlinant
+ * remettrait le noyau, ses poids et la preuve d'isotropie ci-dessous dans un
+ * fichier de 500 lignes, où le prochain effet à bords ne les trouverait pas.
+ * C'est la copie qui coûte, pas le fichier.
  *
  * Extrait d'`outlines.ts` le 2026-08-01, pour la raison exacte qui avait fait
  * extraire `blurChain.ts` de `glow`/`halation` et `hsl.ts` de `duotone` : deux

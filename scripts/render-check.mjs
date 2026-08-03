@@ -908,9 +908,22 @@ const INSTALL = `(async () => {
       },
     }])),
 
-    // ECHO OUTLINES — l effet neuf du 2026-08-03, celui que la fiche de
-    // reference decrit sous le nom Outlines : « a series of evenly spaced
-    // outlines that echo your shape outward, like ripples ».
+    // OUTLINES, MODE ECHOS DE LA FORME — celui que la fiche de reference decrit
+    // sous le nom Outlines : « a series of evenly spaced outlines that echo your
+    // shape outward, like ripples ».
+    //
+    // CE SCENARIO A CHANGE D EFFET SANS CHANGER D IMAGE, le 2026-08-03 : il
+    // portait echoOutlines, il porte outlines en mode 2 depuis l absorption
+    // (ADR-0015). Les parametres ont ete transposes un a un et l image est
+    // sortie identique a l octet — git a d ailleurs detecte le renommage du
+    // fichier de reference a 100 %. C est ca, la preuve qu une fusion ne perd
+    // rien : pas « ca se ressemble », mais « aucun canal n a bouge ».
+    //
+    // PAS DE BACKTICK DANS CE BLOC, jamais : tout ce fichier de scenarios est
+    // injecte dans la page via un template literal, et un backtick de
+    // commentaire le FERME. Meme piege exactement que dans un corps wgsl, et il
+    // a ete retrouve ici le jour de cette absorption. L erreur rendue designe
+    // une ligne sans rapport (SyntaxError sur l identifiant qui suit).
     //
     // LA MIRE COMMUNE, et pour son DISQUE. Cet effet ne mesure pas un gradient
     // mais une DISTANCE a une forme : il lui faut donc une forme assez GRANDE
@@ -930,14 +943,15 @@ const INSTALL = `(async () => {
     //
     // Fond EFFACE en entier (wash 1) : ce qu on verifie ici est la GEOMETRIE
     // des anneaux, et la photo dessous ne ferait que la masquer.
-    "effet-echo-outlines": {
+    "effet-outlines-echos": {
       contre: "photo-de-fond-seule",
       build: async (r, stack) => {
-        const a = stack.addLayer("echoOutlines");
+        const a = stack.addLayer("outlines");
         stack.updateParams(a, {
-          threshold: 0.5, inputMode: 0, smoothing: 1.5,
-          spacing: 18, thickness: 3, count: 5, falloff: 0,
-          startHue: 210, startSaturation: 0, startLightness: 0,
+          detectMode: 2,
+          threshold: 0.5, inputSource: 0, smoothing: 1.5,
+          spacing: 18, thickness: 3, echoCount: 5, falloff: 0,
+          inkHue: 210, inkSaturation: 0, inkLightness: 0,
           endHue: 210, endSaturation: 0, endLightness: 0,
           wash: 1, backgroundHue: 0, backgroundSaturation: 0, backgroundLightness: 1,
           fill: 0,

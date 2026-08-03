@@ -16,7 +16,8 @@ import {
  * D'OÙ ÇA VIENT. Cahier de références, §6quinquies : `Dither` figure parmi les
  * effets Figma sans équivalent ici, avec sa surface — Style (Bayer / Blue Noise
  * / Threshold), Size, Levels, Mono. Demandé par Antoine le 2026-08-03 dans la
- * suite d'`echoOutlines`, « dans le genre, la même DA ».
+ * suite d'`echoOutlines` (devenu depuis le mode « Échos de la forme »
+ * d'`outlines`, ADR-0015), « dans le genre, la même DA ».
  *
  * CE N'EST PAS LE TRAMAGE DE `posterize`, et il vaut mieux écrire pourquoi que
  * de laisser croire à un doublon. Le sien est un correctif : un décalage d'au

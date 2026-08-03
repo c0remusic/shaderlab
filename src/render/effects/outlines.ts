@@ -4,6 +4,7 @@ import { UV_SPACE_WGSL } from "./uvSpace";
 import { INPUT_DRIVER_WGSL, inputSourceParam } from "./inputMode";
 import { EDGE_GRADIENT_WGSL, EDGE_SPACING_WGSL, SCHARR_NORM } from "./edgeGradient";
 import { OKLAB_WGSL } from "./oklab";
+import { DOWNSAMPLE_WGSL, upsampleWgsl } from "./blurChain";
 import {
   LINEAR_TO_SRGB_WGSL,
   SRGB_TO_LINEAR_VEC3_WGSL,
@@ -37,6 +38,48 @@ import {
  * atteignable au pixel près — ses deux scénarios de rendu ont été portés ici en
  * remappant leurs paramètres, et les images sont sorties identiques à l'octet.
  * C'est ce qui autorise à dire que la fusion ne perd rien, plutôt qu'à l'espérer.
+ *
+ * ─── SECONDE FUSION, LE 2026-08-03 : `echoOutlines` A ÉTÉ ABSORBÉ ICI ────────
+ *
+ * Même arbitrage d'Antoine, prononcé le même jour, et exécuté après parce qu'il
+ * était BLOQUÉ sur une capacité du pipeline : l'effet absorbé porte neuf passes
+ * de pyramide quand les deux modes d'ici n'en ont aucune, et `runInternalPasses`
+ * les exécutait sans condition. Fusionner avant `EffectPass.enabled` aurait fait
+ * payer la pyramide au mode Crête de gradient, qui n'en lit rien.
+ *
+ * La capacité est arrivée le jour même, par un autre chemin. Les neuf passes
+ * portent donc un prédicat sur `detectMode`, et deux propriétés du runner les
+ * rendent gratuites hors mode Échos : la passe sautée n'ALLOUE pas (elle est
+ * écartée avant d'emprunter sa cible), et `framePipelineExecutor` lie `prevPass`
+ * dès que l'effet DÉCLARE des passes, pas dès qu'il en exécute — quand elles
+ * sautent toutes, `prevPass` reçoit la texture source. Une seule variante de
+ * shader pour les trois modes, donc une seule entrée de cache de pipeline.
+ *
+ * CE QUE LES TROIS MODES ONT DE COMMUN, et qui justifie qu'ils cohabitent : ils
+ * répondent tous à « où passe le trait ? », et se distinguent par la question
+ * posée à l'image. Crête de gradient demande « où l'image CHANGE-t-elle ? ».
+ * Seuil de forme demande « où est la FRONTIÈRE du niveau demandé ? ». Échos de
+ * la forme demande « à quelle DISTANCE de cette frontière suis-je ? » — et c'est
+ * la seule des trois qu'aucun opérateur local ne sait calculer, d'où la pyramide.
+ *
+ * ⚠️ CE QUE LE MODE ÉCHOS PAIE EN TROP, écrit plutôt que découvert : les huit
+ * taps de Scharr sont calculés dans les TROIS modes, alors que lui n'en lit
+ * rien. Ce n'est pas un oubli — `fwidth(mag)` exige un flux de contrôle
+ * uniforme, donc le gradient et sa dérivée sont hoistés avant toute branche
+ * (voir le commentaire de `band`). Huit taps de plus sur la passe finale, à
+ * comparer aux neuf passes pleine chaîne que le mode vient d'allumer : le
+ * rapport ne justifiait pas de fragiliser l'antialiasing des deux autres modes.
+ *
+ * ⚠️ L'id `echoOutlines` disparaît, comme `coloredEdges` avant lui — même
+ * conséquence, même garde (`presetDocument.ts` avertit, ne lève pas). Et son
+ * rendu est atteignable AU BIT : son scénario de rendu a été porté ici en
+ * remappant ses paramètres, et l'image est sortie identique à l'octet.
+ *
+ * LA QUESTION DE NOM SE RÉSOUT D'ELLE-MÊME, et c'est un effet de bord heureux.
+ * Le cahier de références la laissait ouverte : la fiche Figma appelle
+ * `Outlines` l'effet à échos, et nous appelions `Outlines` le détecteur — deux
+ * choses sous un nom. Il n'y a plus deux choses. Le nom est désormais celui d'un
+ * effet qui contient les deux lectures, donc plus rien à arbitrer.
  *
  * ─── LA VERSION NAÏVE, et pourquoi elle rend « filtre Photoshop 2005 » ───────
  *
@@ -101,17 +144,21 @@ import {
  * gradient de luminance ne sait pas voir quand l'élément et son fond ont des
  * tons voisins.
  *
- * ⚠️ Cette preuve vaut pour un DÉTECTEUR DE GRADIENT et pour lui seul. Un mode
- * de détection par SEUIL DE FORME — celui de la fiche Figma, où l'inversion
- * change tout (« Inverse luma uses darkness, for dark art or text on white ») —
- * la rendrait caduque. Il est demandé et pas encore écrit ; voir `echoOutlines`,
- * qui seuille déjà une forme.
+ * ⚠️ Cette preuve vaut pour un DÉTECTEUR DE GRADIENT et pour lui seul. Les deux
+ * modes de détection par SEUIL DE FORME — celui de la fiche Figma, où
+ * l'inversion change tout (« Inverse luma uses darkness, for dark art or text
+ * on white ») — la rendent caduque, et c'est pourquoi le troisième choix a été
+ * ROUVERT le jour où le premier d'entre eux a été écrit (voir
+ * `INPUT_SOURCE_CHOICES`, qui porte les deux verdicts et leur ordre d'index).
  *
- * COÛT : 8 taps (le tap central a des poids nuls dans les deux noyaux de
- * Scharr — l'échantillonner serait une lecture payée pour être multipliée par
- * zéro), une seule passe, aucune texture intermédiaire. La fusion n'ajoute
- * AUCUN tap : les deux modes lisent la même mesure, ils n'en tirent pas la même
- * chose.
+ * COÛT. Crête de gradient et Seuil de forme : 8 taps (le tap central a des poids
+ * nuls dans les deux noyaux de Scharr — l'échantillonner serait une lecture
+ * payée pour être multipliée par zéro), une seule passe, aucune texture
+ * intermédiaire. Les deux modes d'ENCRE n'ajoutent aucun tap : ils lisent la
+ * même mesure et n'en tirent pas la même chose. Échos de la forme : les mêmes 8
+ * taps (hoistés, voir ci-dessus), plus 9 passes internes — une de
+ * seuillage-réduction, quatre réductions, quatre remontées — et 5 taps sur le
+ * champ en passe finale.
  */
 
 /** Chroma OKLab maximal du trait en mode Roue. Au-delà, la plupart des teintes
@@ -130,8 +177,61 @@ const INK_SINGLE = 0;
 /** Modes de DÉTECTION — comment le bord est trouvé, avant toute question
  *  d'encre. Même contrat d'index que ci-dessus : on ajoute à la FIN.
  *  `Crête de gradient` est en tête parce que c'est le comportement historique. */
-const DETECT_MODES = ["Crête de gradient", "Seuil de forme"] as const;
+const DETECT_MODES = ["Crête de gradient", "Seuil de forme", "Échos de la forme"] as const;
 const DETECT_RIDGE = 0;
+const DETECT_ECHO = 2;
+
+/** Index de `detectMode` dans la liste ci-dessous. Le prédicat des neuf passes
+ *  le lit PAR NOM (`runInternalPasses` résout les paramètres en dictionnaire),
+ *  mais le shader le lit par index — les deux doivent désigner le même
+ *  paramètre, et cette constante est là pour que le lien se relise. */
+const DETECT_MODE_PARAM = 17;
+
+/** Index du paramètre de lissage, lu par la remontée pyramidale partagée. En dur
+ *  dans l'appel serait une panne silencieuse au premier réordonnancement — le
+ *  shader compilerait et remonterait sur la mauvaise valeur. */
+const SMOOTHING_PARAM = 19;
+
+/** Seuillage de la forme FONDU DANS la première réduction, plutôt qu'en passe
+ *  séparée. Deux raisons, et la seconde est la vraie : une passe de plus coûte
+ *  une cible pleine résolution (~26 Mo sur une photo 26 Mpx) ; et seuiller les
+ *  cinq taps AVANT de les moyenner rend une couverture déjà antialiasée, là où
+ *  seuiller après aurait produit un masque binaire à recrénéler ensuite.
+ *
+ *  Le pilote passe par `input_source` et non `input_driver` : c'est le
+ *  vocabulaire d'`outlines` (Luminance / Alpha / Luminance inversée, dans CET
+ *  ordre), et l'absorption d'`echoOutlines` a dû traverser le remappage
+ *  d'index qu'il porte — son « Luminance inversée » était à 1, il est à 2 ici. */
+const SHAPE_DOWNSAMPLE_WGSL = `
+${LINEAR_TO_SRGB_WGSL}${INPUT_DRIVER_WGSL}
+fn shapeAt(uv: vec2<f32>) -> f32 {
+  // Bascule ÉTROITE et non binaire : la forme est une couverture, et une
+  // couverture binaire perdrait le demi-pixel de bord que toute la mesure de
+  // distance exploite ensuite.
+  let v = input_source(textureSample(srcTexture, srcSampler, uv), params[8]);
+  return smoothstep(params[1] - 0.02, params[1] + 0.02, v);
+}
+
+fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
+  let o = 1.0 / vec2<f32>(textureDimensions(srcTexture));
+  var sum = shapeAt(uv) * 4.0;
+  sum = sum + shapeAt(uv + vec2<f32>(-o.x, -o.y));
+  sum = sum + shapeAt(uv + vec2<f32>( o.x, -o.y));
+  sum = sum + shapeAt(uv + vec2<f32>(-o.x,  o.y));
+  sum = sum + shapeAt(uv + vec2<f32>( o.x,  o.y));
+  // La couverture voyage sur les TROIS canaux : la chaîne partagée
+  // (\`DOWNSAMPLE_WGSL\`, \`upsampleWgsl\`) travaille en \`.rgb\`, et n'écrire que
+  // le rouge ferait lire du noir aux deux autres à la remontée.
+  return vec4<f32>(vec3<f32>(sum / 8.0), 1.0);
+}
+`;
+
+/** Prédicat des neuf passes de pyramide. Sans lui, les deux modes locaux
+ *  paieraient une chaîne complète dont ils ne lisent pas un texel — c'est
+ *  exactement ce qui a retardé cette fusion jusqu'à l'arrivée d'
+ *  `EffectPass.enabled`. */
+const enEcho = (params: Record<string, number>) =>
+  Math.round(params.detectMode) === DETECT_ECHO;
 
 export const outlines: EffectModule = {
   id: "outlines",
@@ -141,8 +241,21 @@ export const outlines: EffectModule = {
     // voulu : il donne son épaisseur au trait ET il agit comme passe-bas (des
     // taps écartés ne voient plus le grain). Un noyau à écartement fixe aurait
     // exigé un second curseur « lissage » pour ne pas dessiner le bruit.
-    { name: "thickness", label: "Épaisseur du trait", unit: "pixels", min: 0.5, max: 12, default: 2.5, step: 0.1, hint: "Écartement des taps — épaissit le trait et, du même geste, empêche le grain d'être dessiné" },
-    { name: "threshold", label: "Seuil", unit: "percent", min: 0, max: 0.6, default: 0.09, step: 0.005, hint: "Contraste minimal (en tons perceptuels, sur l'épaisseur du trait) pour qu'un contour soit tracé" },
+    // MAXIMUM PORTÉ DE 12 À 40 PX par l'absorption d'`echoOutlines`, dont
+    // l'épaisseur de trait montait jusque-là. Aucune valeur existante ne change
+    // de rendu — seule la course du curseur s'allonge, et elle s'allonge dans
+    // les trois modes parce que le paramètre est le même. En Crête de gradient,
+    // un écartement de 40 px reste licite : le trait y devient très épais et
+    // très passe-bas, ce qui est la conséquence annoncée par l'infobulle.
+    { name: "thickness", label: "Épaisseur du trait", unit: "pixels", min: 0.5, max: 40, default: 2.5, step: 0.1, hint: "En Crête de gradient : écartement des taps — épaissit le trait et, du même geste, empêche le grain d'être dessiné. Dans les deux modes de forme : largeur du trait en pixels, indépendante de tout le reste" },
+    // MAXIMUM PORTÉ DE 0,6 À 1, et ce n'est pas qu'un besoin du mode Échos : les
+    // deux scénarios de rendu du Seuil de forme verrouillaient déjà `0,8`, une
+    // valeur que `updateParams` ne borne pas mais que le curseur ne pouvait pas
+    // atteindre (`ParamPanel` borne à `param.max`). Le verrou figeait donc un
+    // rendu INACCESSIBLE depuis l'interface. Un seuil de forme se pose sur toute
+    // l'échelle des tons par nature — un plafond calibré pour un CONTRASTE
+    // minimal n'avait plus de sens dès le second mode.
+    { name: "threshold", label: "Seuil", unit: "percent", min: 0, max: 1, default: 0.09, step: 0.005, hint: "En Crête de gradient : contraste minimal (en tons perceptuels, sur l'épaisseur du trait) pour qu'un contour soit tracé. Dans les deux modes de forme : le niveau où passe le bord du sujet" },
     { name: "softness", label: "Fondu du trait", unit: "percent", min: 0, max: 1, default: 0.35, step: 0.01, hint: "0 = trait franc (toujours antialiasé), 1 = trait fondu qui s'éteint progressivement sur les contours faibles" },
     { name: "chroma", label: "Sensibilité couleur", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Fait aussi lever les contours entre deux couleurs de MÊME luminosité (rouge/vert), qu'un contour de luminance ne voit pas. En Roue d'orientation, empêche en plus la teinte de scintiller faute d'orientation lisible. Sans objet en entrée Alpha : une couverture n'a pas de chromaticité." },
     { name: "inkHue", label: "Teinte", unit: "degrees", min: 0, max: 360, default: 210, step: 1, colorGroup: { key: "ink", role: "hue", label: "Encre" } },
@@ -164,7 +277,7 @@ export const outlines: EffectModule = {
     // Ajouté À LA SUITE et jamais au milieu : les huit index ci-dessus sont
     // persistés dans les presets d'`outlines`, et ses références de pixels
     // doivent rester valables au bit.
-    { name: "inkMode", label: "Encre", unit: "none", min: 0, max: INK_MODES.length - 1, default: INK_SINGLE, step: 1, choices: [...INK_MODES], hint: "Encre unique : tous les contours à la couleur choisie ci-dessus. Roue d'orientation : la teinte vient de l'ANGLE du bord, donc deux bords d'une même forme sortent de deux couleurs — c'est l'ancien effet `Colored edges`" },
+    { name: "inkMode", label: "Encre", unit: "none", min: 0, max: INK_MODES.length - 1, default: INK_SINGLE, step: 1, choices: [...INK_MODES], hint: "Encre unique : tous les contours à la couleur choisie ci-dessus. Roue d'orientation : la teinte vient de l'ANGLE du bord, donc deux bords d'une même forme sortent de deux couleurs — c'est l'ancien effet `Colored edges`. Sans objet en Échos de la forme, dont l'encre suit un dégradé indexé par le numéro de l'écho" },
     { name: "hueOffset", label: "Rotation des teintes", unit: "degrees", min: 0, max: 360, default: 0, step: 1, hint: "Fait tourner la roue chromatique : choisit quelle couleur reçoit un bord horizontal. Sans objet en Encre unique" },
     { name: "hueSpread", label: "Étendue des teintes", unit: "percent", min: 0.05, max: 1, default: 1, step: 0.01, hint: "Part du cercle chromatique parcourue par un tour complet d'orientation. 1 = toutes les teintes ; bas = une gamme resserrée autour de la rotation. Sans objet en Encre unique" },
     // Noms `wheelChroma` / `wheelLightness` et non `saturation` / `lightness` :
@@ -181,11 +294,96 @@ export const outlines: EffectModule = {
     // ── LE SECOND MODE DE DÉTECTION (2026-08-03) ─────────────────────────────
     // Demandé par Antoine, d'après la fiche Figma. Ajouté à la FIN pour la même
     // raison que tout le reste : l'index est persisté.
-    { name: "detectMode", label: "Détection", unit: "none", min: 0, max: DETECT_MODES.length - 1, default: DETECT_RIDGE, step: 1, choices: [...DETECT_MODES], hint: "Crête de gradient : le trait suit les endroits où l'image CHANGE, et son épaisseur suit le contraste local. Seuil de forme : le trait suit l'isoligne du niveau demandé, à épaisseur constante en pixels — c'est une silhouette, et le Seuil décide où elle passe" },
+    { name: "detectMode", label: "Détection", unit: "none", min: 0, max: DETECT_MODES.length - 1, default: DETECT_RIDGE, step: 1, choices: [...DETECT_MODES], hint: "Crête de gradient : le trait suit les endroits où l'image CHANGE, et son épaisseur suit le contraste local. Seuil de forme : le trait suit l'isoligne du niveau demandé, à épaisseur constante en pixels — c'est une silhouette, et le Seuil décide où elle passe. Échos de la forme : la même silhouette, RÉPÉTÉE vers l'extérieur à intervalles réguliers, comme des ondes à la surface de l'eau" },
     { name: "fill", label: "Remplir la forme", unit: "percent", min: 0, max: 1, default: 0, step: 0.01, hint: "Peint l'INTÉRIEUR de la forme à la couleur d'encre, sous le trait. Sans objet en Crête de gradient : une crête n'a pas d'intérieur. C'est ce contrôle qui rend l'entrée « Luminance inversée » porteuse — inverser change quel côté est peint, ce qu'aucun réglage du seuil ne fait" },
+
+    // ── CE QUI VIENT D'`echoOutlines` (fusion du 2026-08-03) ─────────────────
+    // À LA SUITE, pour la même raison que les deux lots précédents : les dix-neuf
+    // index au-dessus sont persistés, et sept références de pixels en dépendent.
+    //
+    // SEPT PARAMÈTRES SEULEMENT pour un effet qui en déclarait dix-huit : les
+    // onze autres se recouvrent avec ceux d'ici, et le recouvrement n'est pas
+    // une économie de façade — le seuil de la forme EST le seuil, l'épaisseur du
+    // trait EST l'épaisseur, la couleur du premier écho EST l'encre. Ne restent
+    // que les réglages qui n'ont aucun sens dans les deux autres modes.
+    { name: "smoothing", label: "Lissage de la forme", unit: "none", min: 0.5, max: 6, default: 2.5, step: 0.05, hint: "Simplifie la forme avant d'en tirer les échos — et fixe du même geste la portée : au-delà d'environ 62 + 60 × cette valeur pixels, il n'y a plus d'écho à tracer. Sans objet hors du mode Échos" },
+    { name: "spacing", label: "Espacement des échos", unit: "pixels", min: 2, max: 200, default: 22, step: 0.5, hint: "Distance entre deux échos successifs, en pixels — c'est la longueur d'onde des ondes. Sans objet hors du mode Échos" },
+    { name: "echoCount", label: "Nombre d'échos", unit: "none", min: 1, max: 24, default: 6, step: 1, hint: "Combien d'échos avant de s'arrêter. L'écho 0 est le bord de la forme lui-même. Sans objet hors du mode Échos" },
+    { name: "falloff", label: "Atténuation", unit: "percent", min: 0, max: 1, default: 0.35, step: 0.01, hint: "Fait pâlir les échos à mesure qu'ils s'éloignent — 0 = tous à la même force, 1 = le dernier s'éteint complètement. Sans objet hors du mode Échos" },
+    // Le dégradé va de l'ENCRE (ci-dessus) à cette couleur-ci. Trois paramètres
+    // et non six : le premier écho n'avait aucune raison d'avoir sa propre
+    // couleur à côté de celle du trait, qui est la même chose.
+    { name: "endHue", label: "Teinte", unit: "degrees", min: 0, max: 360, default: 320, step: 1, colorGroup: { key: "dernierEcho", role: "hue", label: "Dernier écho" } },
+    { name: "endSaturation", label: "Saturation", unit: "percent", min: 0, max: 1, default: 0.6, step: 0.01, colorGroup: { key: "dernierEcho", role: "saturation", label: "Dernier écho" } },
+    { name: "endLightness", label: "Luminosité", unit: "percent", min: 0, max: 1, default: 0.62, step: 0.01, colorGroup: { key: "dernierEcho", role: "lightness", label: "Dernier écho" } },
+  ],
+  // NEUF PASSES DE PYRAMIDE, toutes conditionnées au mode Échos. Hors de lui,
+  // elles sont écartées AVANT d'emprunter leur cible — donc zéro allocation,
+  // zéro draw, et `prevPass` reçoit la texture source (que la passe finale ne
+  // lit pas dans ces modes). Voir `EffectPass.enabled` et l'en-tête de ce
+  // fichier.
+  passes: [
+    // Seuillage + première réduction, fondus (voir SHAPE_DOWNSAMPLE_WGSL).
+    { scale: 0.5, wgsl: SHAPE_DOWNSAMPLE_WGSL, enabled: enEcho },
+    { scale: 0.25, wgsl: DOWNSAMPLE_WGSL, enabled: enEcho },
+    { scale: 0.125, wgsl: DOWNSAMPLE_WGSL, enabled: enEcho },
+    { scale: 0.0625, wgsl: DOWNSAMPLE_WGSL, enabled: enEcho },
+    { scale: 0.03125, wgsl: DOWNSAMPLE_WGSL, enabled: enEcho },
+    { scale: 0.0625, wgsl: upsampleWgsl(SMOOTHING_PARAM), enabled: enEcho },
+    { scale: 0.125, wgsl: upsampleWgsl(SMOOTHING_PARAM), enabled: enEcho },
+    { scale: 0.25, wgsl: upsampleWgsl(SMOOTHING_PARAM), enabled: enEcho },
+    { scale: 0.5, wgsl: upsampleWgsl(SMOOTHING_PARAM), enabled: enEcho },
   ],
   wgsl: `
 ${UV_SPACE_WGSL}${HSL_TO_RGB_WGSL}${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${INPUT_DRIVER_WGSL}${EDGE_GRADIENT_WGSL}${EDGE_SPACING_WGSL}${OKLAB_WGSL}
+
+/** Couverture d'un trait, comme DIFFÉRENCE DE DEUX BORDS. \`h\` est la
+ *  demi-largeur et \`aa\` la demi-largeur de transition, en unités de phase.
+ *
+ *  L'écriture évidente — \`smoothstep(h + aa, h - aa, d)\` — rend 0,5 au centre
+ *  quand h vaut 0, donc un voile gris là où rien ne doit être tracé. Ici les
+ *  deux termes deviennent égaux quand h s'annule, par construction. Repris de
+ *  \`hatching\`, où la même panne avait été évitée pour la même raison. */
+fn echo_stripe(d: f32, h: f32, aa: f32) -> f32 {
+  let dedans = clamp((h + aa - d) / (2.0 * aa), 0.0, 1.0);
+  let dehors = clamp((aa - h - d) / (2.0 * aa), 0.0, 1.0);
+  return dedans - dehors;
+}
+
+/** LINÉARISATION DU CHAMP, et c'est ce qui rend les échos ÉQUIDISTANTS.
+ *
+ *  La lecture naïve d'un champ lissé — \`(champ − 0,5) / pente\` — suppose le
+ *  champ localement LINÉAIRE. Un échelon flouté ne l'est pas : c'est un
+ *  sigmoïde, raide au centre et plat dans les queues. Loin du bord la pente
+ *  s'effondre, la distance est donc sur-estimée, et les anneaux d'indice entier
+ *  y tombent plus serrés qu'ils ne devraient.
+ *
+ *  MESURÉ, sur la mire commune à espacement demandé de 18 px : les écarts
+ *  allaient de 6 à 20 px, soit 31,9 % de dispersion — et l'écart rétrécissait
+ *  systématiquement avec l'éloignement, la signature exacte de ce biais.
+ *
+ *  Or un échelon logistique est EXACTEMENT une droite dans l'espace logit. Y
+ *  mesurer la pente la rend quasi constante d'un bout à l'autre du champ, donc
+ *  la distance quasi exacte. Le flou pyramidal n'est pas rigoureusement
+ *  logistique, mais il en est bien plus près que de l'affine.
+ *
+ *  LE CLAMP EST CALCULÉ, PAS CHOISI. Le logit amplifie le bruit d'entrée par
+ *  \`1 / (f (1 − f))\`, et le champ est en 8 bits — un LSB vaut 1/255 ≈ 0,004.
+ *  À f = 0,002 l'amplification vaut 500, donc un seul LSB déplace le logit de
+ *  2,0 : plus du DOUBLE d'un interligne d'anneau, c'est-à-dire du bruit pur.
+ *  À f = 0,02 elle vaut 51, soit 0,2 en logit — moins du quart d'un interligne.
+ *
+ *  Essayé à 0,002 et mesuré : les anneaux proches devenaient justes (moyenne
+ *  18,59 px pour 18 demandés, contre 13,42 avant le logit) mais les lointains
+ *  partaient de 5 à 31,5 px. C'était exactement cette amplification.
+ *
+ *  Hors de la plage, la pente logit tombe à zéro et la distance part à l'infini
+ *  — comportement voulu : l'effet s'éteint là où il ne mesure plus rien, plutôt
+ *  que de tracer des anneaux faux. */
+fn echo_logit(f: f32) -> f32 {
+  let c = clamp(f, 0.02, 0.98);
+  return log(c / (1.0 - c));
+}
 
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let threshold = params[1];
@@ -194,14 +392,14 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let wash = clamp(params[7], 0.0, 1.0);
   let source = params[8];
   let inkMode = i32(params[9] + 0.5);
-  let detectMode = i32(params[17] + 0.5);
+  let detectMode = i32(params[${DETECT_MODE_PARAM}] + 0.5);
   let fill = clamp(params[18], 0.0, 1.0);
 
   // Écartement des taps et noyau de Scharr : voir effects/edgeGradient.ts. Le
-  // module est resté partagé après la fusion — \`echoOutlines\` le lit aussi, et
-  // deux effets de contour posés sur la même photo doivent dessiner leurs bords
-  // AU MÊME ENDROIT. Deux copies auraient dérivé, ce qui ressemble à un choix
-  // esthétique et n'est qu'un copier-coller qui a vieilli.
+  // module est resté un FICHIER À PART après les deux fusions, bien qu'il n'ait
+  // plus qu'un lecteur : le prochain effet à bords doit trouver le noyau, ses
+  // poids et la preuve d'isotropie écrits ailleurs que dans ces 500 lignes.
+  // C'est la copie qui coûte, pas le fichier.
   let g = edge_scharr(uv, edge_spacing(params[0]), source);
   let gx = g.gx;
   let gy = g.gy;
@@ -271,9 +469,159 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let pilote = g.moyenne;
   let pentePx = max(toneMag / max(params[0], 0.5), 0.00001);
 
+  // RÉSERVÉS AU MODE ÉCHOS. Son encre vient d'un DÉGRADÉ indexé par le numéro
+  // de l'écho, donc ni de l'encre unique ni de la roue d'orientation — les deux
+  // modes d'encre plus bas sont sans objet pour lui, et il calcule la sienne.
+  var echoEncre = vec3<f32>(0.0);
+  var echoRemplissage = vec3<f32>(0.0);
+  var echoDedans = 0.0;
+
   var line: f32;
   if (detectMode == ${DETECT_RIDGE}) {
     line = smoothstep(threshold, threshold + band, mag);
+  } else if (detectMode == ${DETECT_ECHO}) {
+    // ÉCHOS DE LA FORME — corps porté verbatim d'\`echoOutlines\` lors de son
+    // absorption (2026-08-03). Seuls les index de paramètres ont bougé ; les
+    // expressions sont à l'identique, et c'est ce qui rend la fusion prouvable
+    // à l'octet plutôt que « visuellement proche ».
+    //
+    // ⚠️ \`textureSample\` DANS une branche, et c'est légal ici : \`detectMode\`
+    // vient d'un uniforme, donc le flux de contrôle reste UNIFORME au sens de
+    // l'analyse WGSL. Le mettre là plutôt que de le hoister est un choix de
+    // coût — hoisté, les cinq taps du champ seraient payés par les deux modes
+    // locaux, qui ne lisent pas \`prevPass\` (et qui n'y trouveraient d'ailleurs
+    // que la texture source, puisque leurs neuf passes sautent).
+    let spacing = max(params[20], 1.0);
+    let thickness = max(params[0], 0.1);
+    let count = max(params[21], 1.0);
+    let falloff = clamp(params[22], 0.0, 1.0);
+
+    let dims = vec2<f32>(textureDimensions(srcTexture));
+    let fieldDims = vec2<f32>(textureDimensions(prevPass));
+    // Un pixel ÉCRAN vaut cette fraction de texel du champ. Le champ vit en
+    // demi-résolution : le facteur est donc ~0,5, mais il est LU et non supposé —
+    // une passe finale posée à une autre échelle ne casserait rien.
+    let texelsParPixel = fieldDims / dims;
+
+    // Champ de couverture, flouté. La chaîne écrit la même valeur sur les trois
+    // canaux ; on en lit un seul.
+    let field = textureSample(prevPass, srcSampler, uv).r;
+
+    // PENTE, en unités de champ par PIXEL ÉCRAN, sur une base LARGE.
+    //
+    // Le pas d'un texel — le plus court qui ait un sens sur une texture
+    // bilinéaire — a été essayé et rend des anneaux FRAGMENTÉS. La raison est
+    // celle que \`gooeyMerge\` a déjà payée : les cibles de passe interne sont en
+    // 8 bits (\`effectPassRunner\`), et sur un champ très lissé deux texels voisins
+    // sont souvent IDENTIQUES. La différence rend alors zéro, la pente aussi, et
+    // l'anneau disparaît par plaques.
+    //
+    // ICI C'EST PIRE QUE POUR gooeyMerge, et le pas est donc élargi davantage :
+    // là-bas la pente ne servait qu'à donner une DIRECTION, ici elle passe au
+    // DÉNOMINATEUR d'une division. Une pente sous-estimée n'incline pas un
+    // liseré, elle envoie la distance à l'infini — et le contour avec.
+    //
+    // Base proportionnelle au lissage : plus le champ est lisse, plus il faut
+    // aller loin pour mesurer sa pente au-dessus du bruit de quantification.
+    let k = 2.0 + 4.0 * max(params[${SMOOTHING_PARAM}], 0.0);
+    let gs = k / fieldDims;
+    // Tout se mesure dans l'espace LOGIT (voir \`echo_logit\`) : c'est lui qui rend
+    // les anneaux équidistants, en redressant le sigmoïde du flou en droite.
+    let gCentre = echo_logit(field);
+    let dx = echo_logit(textureSample(prevPass, srcSampler, uv + vec2<f32>(gs.x, 0.0)).r)
+           - echo_logit(textureSample(prevPass, srcSampler, uv - vec2<f32>(gs.x, 0.0)).r);
+    let dy = echo_logit(textureSample(prevPass, srcSampler, uv + vec2<f32>(0.0, gs.y)).r)
+           - echo_logit(textureSample(prevPass, srcSampler, uv - vec2<f32>(0.0, gs.y)).r);
+    // Le pas vaut 2k texels du champ sur chaque axe, soit \`2k / texelsParPixel\`
+    // pixels écran — c'est par ça qu'il faut diviser pour obtenir une pente PAR
+    // PIXEL, la seule unité dans laquelle la distance qui suit ait un sens.
+    let pasPx = 2.0 * k / texelsParPixel;
+    let pente = length(vec2<f32>(dx / pasPx.x, dy / pasPx.y));
+
+    // DISTANCE SIGNÉE au bord. Positive DEDANS. \`gCentre\` s'annule exactement où
+    // le champ vaut 0,5, c'est-à-dire sur le bord de la forme.
+    //
+    // Le plancher n'est pas un garde-fou cosmétique : là où le champ est saturé
+    // (loin de la forme), la pente logit tend vers zéro et la distance part à
+    // l'infini. C'est le comportement VOULU — la phase dépasse alors le compte
+    // demandé et plus aucun contour n'est tracé, donc l'effet s'éteint exactement
+    // là où sa mesure cesse d'être fiable, sans qu'aucun anneau parasite ne
+    // s'accumule au bord de la zone utile.
+    let dist = gCentre / max(pente, 0.000001);
+
+    // PHASE : 0 sur le bord de la forme, 1 au premier écho, 2 au deuxième...
+    // Comptée vers l'EXTÉRIEUR (\`-dist\`), comme la référence : « echo your shape
+    // outward ».
+    let phase = -dist / spacing;
+    let anneau = round(phase);
+    // Distance au contour le plus proche, en unités de phase.
+    let ecart = abs(phase - anneau);
+
+    // Antialiasing ANALYTIQUE : un pixel écran change la phase de 1/espacement,
+    // exactement. Aucun \`fwidth\` — il n'apporterait rien, et c'est aussi ce qui
+    // autorise ce bloc à vivre DANS une branche.
+    let aa = 1.0 / spacing;
+    let demi = 0.5 * thickness / spacing;
+
+    // Les contours vont de 0 (le bord de la forme) à \`count\`. Au-delà, rien.
+    let dansLeCompte = step(-0.5, anneau) * step(anneau, count + 0.5);
+    // \`encrage\` et non \`trait\` : \`trait\` est un mot RÉSERVÉ de WGSL, et le
+    // compilateur le refuse comme nom de variable. Même piège exactement que le
+    // \`smooth\` de \`pixelStretch\` — attrapé par \`npm run test:gpu-shaders\`,
+    // jamais par tsc, qui ne voit qu'une chaîne de caractères.
+    let encrage = echo_stripe(ecart, demi, aa) * dansLeCompte;
+
+    // Atténuation avec l'éloignement : le dernier contour s'éteint à \`falloff\` = 1.
+    let t = clamp(anneau / max(count, 1.0), 0.0, 1.0);
+
+    // ZONE DE CONFIANCE. Aux abords du clamp de \`echo_logit\`, une des deux
+    // lectures de la différence centrale est bornée et l'autre non : la pente
+    // n'est alors pas NULLE, elle est FAUSSE, et les anneaux s'y entassent au lieu
+    // de disparaître. Mesuré : les deux plus externes tombaient à 5 et 10 px
+    // d'écart quand les suivants tenaient 18 à 20.
+    //
+    // L'encre s'éteint donc AVANT la borne, sur une bande étroite. C'est la
+    // différence entre « je ne sais plus mesurer, je me tais » et « je ne sais
+    // plus mesurer, je dessine quand même » — et c'est la deuxième qui produit un
+    // artefact qu'on prendrait pour une intention.
+    //
+    // La bande a dû être ÉLARGIE après mesure : à 0,02–0,07, les deux anneaux les
+    // plus externes tombaient encore à 5 et 10 px d'écart pour 18 demandés, et
+    // s'effilochaient visiblement dans le coin le plus saturé. À 0,06–0,16, ce qui
+    // reste tracé est ce qui est mesuré — le reste ne l'était pas.
+    let fiable = smoothstep(0.06, 0.16, field) * smoothstep(0.06, 0.16, 1.0 - field);
+    let force = encrage * (1.0 - falloff * t) * fiable;
+    line = clamp(force, 0.0, 1.0);
+
+    // DÉGRADÉ DU PREMIER AU DERNIER ÉCHO, en OKLCH. En HSL, il rejouerait le
+    // défaut mesuré sur \`coloredEdges\` la veille : à saturation et clarté
+    // fixées, parcourir la teinte fait varier la clarté PERÇUE de 0,290 sur le
+    // tour. Ici la teinte court d'un bout à l'autre du dégradé — c'est exactement
+    // le cas où l'espace compte.
+    //
+    // Le PREMIER écho est l'encre de l'effet (params 4-6), pas une couleur à
+    // lui : c'est le recouvrement qui a permis à l'absorption de ne coûter que
+    // trois slots de couleur au lieu de six.
+    //
+    // \`h - round(h)\` : le PLUS COURT chemin sur le cercle, en tours. Sans lui, un
+    // dégradé de 350° à 10° ferait tout le tour à l'envers au lieu des 20° qui
+    // séparent les deux.
+    let debut = oklab_to_oklch(linear_srgb_to_oklab(srgb_to_linear3(hsl2rgb(params[4] / 360.0, params[5], params[6]))));
+    let fin = oklab_to_oklch(linear_srgb_to_oklab(srgb_to_linear3(hsl2rgb(params[23] / 360.0, params[24], params[25]))));
+    let dh = fin.z - debut.z;
+    let teinte = debut.z + (dh - round(dh)) * t;
+    echoEncre = oklab_to_linear_srgb(oklch_to_oklab(vec3<f32>(
+      mix(debut.x, fin.x, t),
+      mix(debut.y, fin.y, t),
+      teinte
+    )));
+
+    // Remplissage de la forme, SOUS les traits. \`echoRemplissage\` passe par le
+    // même aller-retour OKLCH que \`echoEncre\` — et pas par la valeur linéaire
+    // directe, pourtant disponible : l'aller-retour n'est pas l'identité en
+    // flottant, et c'est lui que la référence a figé.
+    echoDedans = clamp(field * 2.0 - 1.0, 0.0, 1.0);
+    echoRemplissage = oklab_to_linear_srgb(oklch_to_oklab(debut));
   } else {
     // SEUIL DE FORME. Distance à l'isoligne, ramenée en PIXELS par la pente. La
     // demi-largeur ne descend pas sous 0,5 px : en deçà, le trait tomberait
@@ -340,6 +688,14 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   //
   // Bascule sur la même pente que le trait, donc antialiasée de la même façon :
   // un remplissage à bord franc trahirait le trait qui le borde.
+  //
+  // Le mode Échos sort ICI, avec son propre couple encre/remplissage : sa
+  // couverture d'intérieur vient du CHAMP (\`field * 2 - 1\`) et non de la pente
+  // locale, parce que loin du bord la pente ne dit plus de quel côté on est.
+  if (detectMode == ${DETECT_ECHO}) {
+    paper = mix(paper, echoRemplissage, fill * echoDedans);
+    return vec4<f32>(mix(paper, echoEncre, line), color.a);
+  }
   if (detectMode != ${DETECT_RIDGE}) {
     let dedans = smoothstep(-pentePx, pentePx, pilote - threshold);
     paper = mix(paper, edgeColor, fill * dedans);

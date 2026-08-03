@@ -305,7 +305,7 @@ const ATTENDU = {
   // ECHO OUTLINES (2026-08-03) : l'effet que la fiche de reference decrit sous
   // le nom `Outlines`, et qui n'est PAS un detecteur de contours — « evenly
   // spaced outlines that echo your shape outward, like ripples ».
-  "effet-echo-outlines.png": { width: 256, height: 256, valeurs: null },
+  "effet-outlines-echos.png": { width: 256, height: 256, valeurs: null },
   // DITHER (2026-08-03), et DEUX references pour un seul effet : c'est le seul
   // moyen de dire que Bayer et le bruit bleu ne sont pas le meme code. Tout est
   // identique par ailleurs — meme mire, meme taille, memes deux niveaux, memes
@@ -785,8 +785,13 @@ describe("references de rendu committees", () => {
    *   + zone de confiance élargie         moyenne 18,5 px   dispersion  8 %
    * pour un espacement DEMANDÉ de 18 px.
    */
-  it("echo-outlines : les anneaux sont équidistants, à l'espacement demandé", () => {
-    const img = decodePng(readFileSync(path.join(REF_DIR, "effet-echo-outlines.png")));
+  it("outlines-echos : les anneaux sont équidistants, à l'espacement demandé", () => {
+    // ⚠️ CETTE MESURE EST LA SEULE SURVIVANTE D'`echoOutlines`, absorbé par
+    // `outlines` le 2026-08-03 (ADR-0015) — l'effet n'avait pas de fichier de
+    // test unitaire, donc l'équidistance ne se vérifiait QUE d'ici. La renommer
+    // avec sa référence était le geste à ne pas rater : une propriété qu'un
+    // seul test porte disparaît avec le fichier qui le porte.
+    const img = decodePng(readFileSync(path.join(REF_DIR, "effet-outlines-echos.png")));
     const { width: w, height: h, pixels } = img;
     const L = (x, y) => pixels[(y * w + x) * 4];
 

@@ -97,6 +97,13 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   avec ce qu'ils testent. Erreur commise deux fois dans la même session
   (2026-08-03) — le réflexe de citer un identifiant entre backticks vient de la
   prose Markdown des ADR, où il est correct.
+  ⚠️ **Le piège n'est PAS limité aux corps `wgsl:`** : le bloc de scénarios de
+  `scripts/render-check.mjs` est lui aussi injecté dans la page via un template
+  literal, et un backtick de commentaire l'y ferme exactement pareil (3ᵉ
+  occurrence le 2026-08-03). Là, `tsc` ne voit rien — c'est le script qui meurt
+  au lancement sur un `SyntaxError: Unexpected identifier` désignant le mot qui
+  SUIT le backtick, pas le backtick. D'où la convention en vigueur dans ce
+  fichier : aucun backtick et pas d'accent dans les commentaires de scénarios.
   Corollaire du même jour : **préférer l'outil `Edit` à un script pour la prose
   française**. Un bloc inséré via heredoc Python est ressorti désaccentué dans un
   fichier qui, lui, est accentué — aucun linter ne regarde ça, seule une relecture
@@ -104,29 +111,31 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
 - Effets = modules autonomes enregistrés dans `src/render/effects/registry.ts`
   — en ajouter un = un nouveau fichier ; un effet à paramètres groupés (voir
   `EffectParam.colorGroup`) touche aussi `ParamPanel.tsx` et peut élargir
-  `MAX_EFFECT_PARAMS` (`shaderCompose.ts`, **24** depuis le 2026-08-01) si
+  `MAX_EFFECT_PARAMS` (`shaderCompose.ts`, **32** depuis le 2026-08-03) si
   nécessaire.
   Registre réel au 2026-08-03 (soir), dans l'ordre : `glow`, `halation`,
   `lensDistortion`, `lensBlur`, `motionBlur`, `chromaticBleed`,
   `warp`, `grain`, `duotone`, `hatching`, `halftone`, `dither`, `gooeyMerge`,
-  `channelMixer`, `outlines`, `echoOutlines`, `isolines`,
-  `pixelStretch`, `sliceShift`, `gradientMap` — **vingt**.
-  **Trois départs le 2026-08-03**, tous sur arbitrage d'Antoine : `surfaceBlur`
+  `channelMixer`, `outlines`, `isolines`,
+  `pixelStretch`, `sliceShift`, `gradientMap` — **dix-neuf**.
+  **Quatre départs le 2026-08-03**, tous sur arbitrage d'Antoine : `surfaceBlur`
   (ADR-0011, verdict d'usage sur la famille des flous), `posterize` (ADR-0012,
   couvert par `dither` — couverture PROUVÉE avant le retrait, le scénario
-  sérigraphie porté mot pour mot rend les mêmes 32 valeurs distinctes), et
+  sérigraphie porté mot pour mot rend les mêmes 32 valeurs distinctes),
   `coloredEdges` **absorbé par `outlines`** (ADR-0013, mode d'encre : Encre
-  unique ou Roue d'orientation). Retirer un effet ne casse pas les presets qui le
-  citent : `presetDocument.ts` ignore le calque et pousse un avertissement,
-  jamais une exception.
-  **`echoOutlines` doit lui aussi être absorbé par `outlines`** (même arbitrage),
-  mais c'est BLOQUÉ sur une capacité du pipeline : il porte neuf passes de
-  pyramide quand `outlines` n'en a aucune, et `effectPassRunner.runInternalPasses`
-  les exécute sans condition. Fusionner avant de savoir sauter des passes ferait
-  payer la pyramide au mode Contours, qui n'en lit rien.
-  `echoOutlines` (2026-08-03) est l'effet que la fiche Figma appelle `Outlines`
-  et que notre `outlines` n'est pas — l'un mesure une DISTANCE à une forme,
-  l'autre détecte un gradient. `isolines` trace des courbes de niveau du ton.
+  unique ou Roue d'orientation) et `echoOutlines` **absorbé par le même**
+  (ADR-0015, troisième mode de DÉTECTION : Échos de la forme). Retirer un effet
+  ne casse pas les presets qui le citent : `presetDocument.ts` ignore le calque
+  et pousse un avertissement, jamais une exception.
+  **`outlines` est donc l'effet le plus chargé du registre — 26 paramètres, deux
+  modes d'encre et trois modes de détection**, et le SEUL dont le coût dépende
+  d'un choix : ses neuf passes de pyramide ne tournent qu'en mode Échos
+  (`EffectPass.enabled`). Avant d'y toucher, lire son en-tête : les dix-neuf
+  premiers index sont gelés par sept références de pixels et par les presets.
+  La question de nom que le cahier laissait ouverte (la fiche Figma appelle
+  `Outlines` l'effet à échos, nous appelions `Outlines` le détecteur) est
+  ÉTEINTE par la fusion — plus rien à arbitrer.
+  `isolines` trace des courbes de niveau du ton.
   Six sont arrivés le 2026-08-01 et AUCUN ne vient du backlog Figma d'origine
   (épuisé le 2026-07-31) : ils sortent du cahier de références
   `docs/superpowers/specs/2026-08-01-references-effets.md` et de demandes
@@ -166,11 +175,15 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   morts ou décalés, invisibles pour le compilateur comme pour le verrou de
   pixels (un curseur mort ne bouge aucun pixel, précisément parce qu'il est
   mort).
-- **Détecteur de contours partagé** : `effects/edgeGradient.ts` (Scharr 3x3,
-  huit taps, ton perceptuel + chromaticité), utilisé par `outlines` et
-  `echoOutlines`. La différence « jeter la DIRECTION du gradient pour une encre
-  unique, ou la garder pour en faire une teinte » n'est plus celle de deux
-  effets : c'est le paramètre `inkMode` d'`outlines` depuis ADR-0013.
+- **Détecteur de contours** : `effects/edgeGradient.ts` (Scharr 3x3, huit taps,
+  ton perceptuel + chromaticité). Il n'a plus qu'UN lecteur, `outlines`, et le
+  garder en fichier à part est délibéré (c'est la copie qui coûte, pas le
+  fichier). Ses deux autres lecteurs sont revenus dans `outlines` le même jour :
+  « jeter la DIRECTION du gradient pour une encre unique, ou la garder pour en
+  faire une teinte » est le paramètre `inkMode` (ADR-0013), et « mesurer une
+  DISTANCE à la forme au lieu d'un gradient » est le mode `Échos de la forme`
+  (ADR-0015). Deux effets de moins, zéro capacité perdue, les deux prouvées à
+  l'octet.
   Les autres fichiers de `effects/` sont des helpers (`bayer`, `hsl`, `hash`,
   `oklab`, `blendSpace`, `inputMode`, `srgbTransfer`, `uvSpace`, `validate`,
   `types`) : la présence d'un fichier n'est pas la présence d'un effet, vérifier
@@ -280,7 +293,7 @@ un effet ne se pose jamais sur un calque photo (0008), déplacement libre du
 viewport (0009), le gaussien reste hors du registre (0010, ⚠️ sa 3ᵉ conséquence
 est caduque), retrait de `surfaceBlur` (0011), retrait de `posterize` (0012),
 `outlines` absorbe `coloredEdges` (0013), `lensDistortion` absorbe
-`anamorphicStreak` (0014).
+`anamorphicStreak` (0014), `outlines` absorbe `echoOutlines` (0015).
 Les décisions du
 projet vivent là, pas dans les docs de design.
 

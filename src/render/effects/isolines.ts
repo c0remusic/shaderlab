@@ -14,15 +14,17 @@ import {
  * niveau, et des niveaux également espacés.
  *
  * D'OÙ ÇA VIENT. Demandé par Antoine le 2026-08-03, « d'autres effets dans le
- * genre, la même DA », dans la suite d'`echoOutlines`. Il n'a PAS de fiche de
- * référence, et c'est écrit ici plutôt que sous-entendu : la conception vient de
- * la carte topographique et de la sérigraphie à niveaux, pas d'un catalogue.
+ * genre, la même DA », dans la suite d'`echoOutlines` — l'effet qui est devenu
+ * depuis le mode « Échos de la forme » d'`outlines` (ADR-0015). Il n'a PAS de
+ * fiche de référence, et c'est écrit ici plutôt que sous-entendu : la conception
+ * vient de la carte topographique et de la sérigraphie à niveaux, pas d'un
+ * catalogue.
  *
- * ─── LE FRÈRE D'`echoOutlines`, ET CE QUI LES SÉPARE ────────────────────────
+ * ─── LE FRÈRE DU MODE ÉCHOS, ET CE QUI LES SÉPARE ───────────────────────────
  *
  * Les deux tracent des lignes équidistantes, et les deux le font en RAMENANT une
- * grandeur en pixels avant de décider. Ce qu'ils mesurent diffère :
- * `echoOutlines` mesure une distance à UNE forme seuillée et répète cette forme
+ * grandeur en pixels avant de décider. Ce qu'ils mesurent diffère : le mode
+ * Échos mesure une distance à UNE forme seuillée et répète cette forme
  * vers l'extérieur ; ici il n'y a aucune forme, seulement le ton, et les lignes
  * suivent ses niveaux — donc elles se referment sur les sommets et se creusent
  * dans les vallées, comme sur une carte.
@@ -101,7 +103,7 @@ ${UV_SPACE_WGSL}${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC
 /** Couverture d'un trait, comme DIFFÉRENCE DE DEUX BORDS — jamais un
  *  \`smoothstep\` centré, qui rendrait 0,5 pour une largeur nulle, donc un voile
  *  gris là où rien ne doit être tracé. Même écriture, et même raison, que
- *  \`hatching\` et \`echoOutlines\`. */
+ *  \`hatching\` et le mode Échos d'\`outlines\` (\`echo_stripe\`). */
 fn iso_stripe(d: f32, demi: f32, aa: f32) -> f32 {
   let dedans = clamp((demi + aa - d) / (2.0 * aa), 0.0, 1.0);
   let dehors = clamp((aa - demi - d) / (2.0 * aa), 0.0, 1.0);

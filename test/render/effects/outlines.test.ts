@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { outlines } from "../../../src/render/effects/outlines";
-import { echoOutlines } from "../../../src/render/effects/echoOutlines";
 import { EDGE_GRADIENT_WGSL, SCHARR_NORM } from "../../../src/render/effects/edgeGradient";
 import { effectRegistry, getEffect } from "../../../src/render/effects/registry";
+import { MAX_EFFECT_PARAMS } from "../../../src/render/shaderCompose";
 
 /** CE FICHIER S'APPELAIT `coloredEdges.test.ts` jusqu'au 2026-08-03.
  *
@@ -12,14 +12,22 @@ import { effectRegistry, getEffect } from "../../../src/render/effects/registry"
  *  l'effet, elles ont été REPORTÉES sur le mode qui porte désormais la
  *  propriété. Même geste que pour `posterize` -> `dither` le même jour, et pour
  *  la même raison : une propriété rangée dans le fichier d'un effet disparaît
- *  avec lui, en silence. */
+ *  avec lui, en silence.
+ *
+ *  `echoOutlines` a suivi le même soir (ADR-0015) et il n'avait, lui, AUCUN
+ *  fichier de test — ses propriétés ne vivaient que dans son en-tête et dans sa
+ *  référence de pixels. Les deux ont donc été rapatriées ici plutôt que perdues
+ *  avec le fichier : le prédicat des neuf passes ci-dessous, et la mesure
+ *  d'équidistance des anneaux dans `test/scripts/renderRefs.test.mjs`. */
 
 describe("edgeGradient — le détecteur partagé", () => {
-  it("est inclus par les deux effets de contour qui restent", () => {
-    // `outlines` (les deux modes d'encre) et `echoOutlines`. Deux copies du
-    // noyau auraient dérivé, et deux effets de contour posés sur la même photo
-    // auraient dessiné des bords à des endroits DIFFÉRENTS — ce qui ressemble à
-    // un choix esthétique et n'est qu'un copier-coller qui a vieilli.
+  it("est inclus par le seul effet de contour qui reste", () => {
+    // Le module est resté PARTAGÉ jusqu'à ce qu'il n'y ait plus qu'un lecteur :
+    // deux copies du noyau auraient dérivé, et deux effets de contour posés sur
+    // la même photo auraient dessiné des bords à des endroits DIFFÉRENTS — ce
+    // qui ressemble à un choix esthétique et n'est qu'un copier-coller qui a
+    // vieilli. Il vaut d'être gardé tel quel : le prochain effet qui aura besoin
+    // d'un gradient isotrope le trouvera écrit et mesuré.
     expect(outlines.wgsl).toContain("fn edge_scharr(");
     expect(outlines.wgsl).toContain(EDGE_GRADIENT_WGSL.trim());
   });
@@ -81,7 +89,10 @@ describe("outlines — la fusion de coloredEdges n'a rien déplacé", () => {
     expect(par.backgroundLightness).toBe(1);
   });
 
-  it("lit ses dix-neuf paramètres dans l'ordre exact où il les déclare", () => {
+  it("lit ses vingt-six paramètres dans l'ordre exact où il les déclare", () => {
+    // Les DIX-NEUF premiers sont ceux d'avant l'absorption d'`echoOutlines`, et
+    // c'est la même garantie qu'au-dessus, une couche plus loin : sept
+    // références de pixels en dépendent, plus les presets.
     expect(outlines.params.map((p) => p.name)).toEqual([
       "thickness", "threshold", "softness", "chroma",
       "inkHue", "inkSaturation", "inkLightness",
@@ -90,6 +101,8 @@ describe("outlines — la fusion de coloredEdges n'a rien déplacé", () => {
       "wheelChroma", "wheelLightness",
       "backgroundHue", "backgroundSaturation", "backgroundLightness",
       "detectMode", "fill",
+      "smoothing", "spacing", "echoCount", "falloff",
+      "endHue", "endSaturation", "endLightness",
     ]);
     expect(outlines.wgsl).toContain("edge_spacing(params[0])");
     expect(outlines.wgsl).toContain("let source = params[8];");
@@ -97,6 +110,20 @@ describe("outlines — la fusion de coloredEdges n'a rien déplacé", () => {
     expect(outlines.wgsl).toContain("params[14] / 360.0, params[15], params[16]");
     expect(outlines.wgsl).toContain("let detectMode = i32(params[17] + 0.5);");
     expect(outlines.wgsl).toContain("let fill = clamp(params[18], 0.0, 1.0);");
+    // Le lissage est lu par la REMONTÉE pyramidale, pas par le corps final :
+    // c'est le seul index que le shader principal ne cite jamais, et c'est
+    // exactement pour ça qu'`upsampleWgsl` le reçoit en argument au lieu de le
+    // coder en dur.
+    expect(outlines.passes?.some((p) => p.wgsl.includes("params[19]"))).toBe(true);
+    expect(outlines.wgsl).toContain("params[23] / 360.0, params[24], params[25]");
+  });
+
+  it("laisse les seize slots du plafond au-dessus de lui inoccupés — mais six seulement", () => {
+    // Le plafond est passé de 24 à 32 pour cette absorption. La marge visée à
+    // chaque élargissement depuis 2026-07-31 est la même : ~6 slots au-dessus
+    // du plus gourmand. Ce test la rend visible plutôt que déclarative.
+    expect(outlines.params.length).toBe(26);
+    expect(MAX_EFFECT_PARAMS - outlines.params.length).toBe(6);
   });
 });
 
@@ -104,7 +131,7 @@ describe("outlines — le seuil de forme, et pourquoi il rouvre « Luminance inv
   it("a pour défaut la CRÊTE DE GRADIENT — le comportement historique", () => {
     const mode = outlines.params.find((p) => p.name === "detectMode");
     expect(mode?.default).toBe(0);
-    expect(mode?.choices).toEqual(["Crête de gradient", "Seuil de forme"]);
+    expect(mode?.choices).toEqual(["Crête de gradient", "Seuil de forme", "Échos de la forme"]);
   });
 
   it("convertit l'écart au seuil en PIXELS par la pente mesurée sur l'écartement des taps", () => {
@@ -260,15 +287,38 @@ describe("outlines — registre", () => {
     expect(() => getEffect("coloredEdges")).toThrow();
   });
 
-  it("précède `echoOutlines`, qui reste un effet à part", () => {
-    // Les deux répondent à des questions différentes — « où l'image
-    // change-t-elle ? » contre « à quelle DISTANCE de la forme suis-je ? ». La
-    // fusion des deux est décidée mais BLOQUÉE sur une capacité du pipeline :
-    // `echoOutlines` porte neuf passes de pyramide, `outlines` une seule, et
-    // `runInternalPasses` les exécute sans condition.
-    expect(echoOutlines.passes?.length).toBe(9);
-    expect(outlines.passes).toBeUndefined();
-    const ids = effectRegistry.map((e) => e.id);
-    expect(ids.indexOf("outlines")).toBeLessThan(ids.indexOf("echoOutlines"));
+  it("a absorbé `echoOutlines`, dont l'id ne résout plus", () => {
+    // Même garde que pour `coloredEdges` juste au-dessus, et pour la même
+    // raison : le retrait doit rester CONSCIENT. Réintroduire l'id demande de
+    // supprimer cette ligne, donc de relire ADR-0015.
+    expect(effectRegistry.some((e) => e.id === "echoOutlines")).toBe(false);
+    expect(() => getEffect("echoOutlines")).toThrow();
+  });
+
+  it("porte les neuf passes de pyramide, toutes conditionnées au mode Échos", () => {
+    // C'EST LA CONDITION QUI A DÉBLOQUÉ LA FUSION, donc la chose à verrouiller.
+    // Sans le prédicat, les deux modes locaux paieraient une chaîne complète
+    // dont ils ne lisent pas un texel — sur 24 Mpx la seule cible à 0,5 pèse
+    // 24 Mo, et la VRAM est un risque ouvert.
+    expect(outlines.passes).toHaveLength(9);
+    const defauts: Record<string, number> = {};
+    for (const p of outlines.params) defauts[p.name] = p.default;
+    // Au défaut (Crête de gradient), aucune passe ne tourne.
+    expect(outlines.passes!.every((p) => p.enabled?.(defauts) === false)).toBe(true);
+    // En Seuil de forme non plus : c'est un opérateur LOCAL, pas une pyramide.
+    expect(outlines.passes!.every((p) => p.enabled?.({ ...defauts, detectMode: 1 }) === false)).toBe(true);
+    // En Échos, les neuf.
+    expect(outlines.passes!.every((p) => p.enabled?.({ ...defauts, detectMode: 2 }) === true)).toBe(true);
+  });
+
+  it("borne son seuil sur toute l'échelle des tons, pas sur 0,6", () => {
+    // DÉFAUT RÉEL, trouvé en préparant l'absorption. Les deux scénarios de rendu
+    // du Seuil de forme verrouillaient `threshold: 0.8` — `updateParams` ne
+    // borne pas, mais `ParamPanel` borne le curseur à `param.max`, qui valait
+    // 0,6. Les références figeaient donc un rendu INACCESSIBLE depuis
+    // l'interface. Le plafond était calibré pour un CONTRASTE minimal ; il n'a
+    // plus de sens depuis qu'il sert aussi de NIVEAU de seuillage.
+    const seuil = outlines.params.find((p) => p.name === "threshold");
+    expect(seuil?.max).toBe(1);
   });
 });

@@ -79,9 +79,30 @@ const argvGsc = process.argv.slice(2);
 const iOrigin = argvGsc.indexOf("--origin");
 const ORIGIN = iOrigin === -1 ? null : argvGsc[iOrigin + 1];
 
+// QUELLE PAGE, ET POURQUOI CA DEPEND DE `--origin` (corrige le 2026-08-03).
+//
+// Sans `--origin`, le script evalue dans le document de l'APP : il lui faut donc
+// la fenetre shaderlab elle-meme, reconnue a son port Vite. Avec `--origin`, il
+// injecte un iframe servi par le Vite du worktree et tout le code vient de la ;
+// la page hote n'est plus qu'un HOTE DE GPU, et exiger que ce soit shaderlab n a
+// aucun sens — c'est ce que `render-check.mjs` fait depuis toujours
+// (`t.type === "page" && t.webSocketDebuggerUrl`, sans condition d'URL).
+//
+// Le defaut s'est vu le 2026-08-03 : le port 9222 etait tenu par la fenetre d un
+// AUTRE projet, la gate refusait de tourner, et le message accusait shaderlab
+// d etre absent alors que le script n avait besoin d aucune page shaderlab. Une
+// gate qui echoue pour une raison qui n est pas la sienne finit par etre ignoree.
 const targets = await (await fetch("http://localhost:9222/json")).json();
-const page = targets.find((t) => t.type === "page" && t.url.includes("1420"));
-if (!page) throw new Error("aucune page shaderlab sur le port 1420");
+const page = ORIGIN
+  ? targets.find((t) => t.type === "page" && t.webSocketDebuggerUrl)
+  : targets.find((t) => t.type === "page" && t.url.includes("1420"));
+if (!page) {
+  throw new Error(
+    ORIGIN
+      ? "aucune page CDP sur le port 9222 (l'iframe a besoin d'un hote de GPU, quel qu'il soit)"
+      : "aucune page shaderlab sur le port 1420 — ou passer --origin pour compiler le worktree dans un iframe",
+  );
+}
 
 const ws = new WebSocket(page.webSocketDebuggerUrl);
 let id = 0;

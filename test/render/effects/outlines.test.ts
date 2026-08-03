@@ -81,7 +81,7 @@ describe("outlines — la fusion de coloredEdges n'a rien déplacé", () => {
     expect(par.backgroundLightness).toBe(1);
   });
 
-  it("lit ses dix-sept paramètres dans l'ordre exact où il les déclare", () => {
+  it("lit ses dix-neuf paramètres dans l'ordre exact où il les déclare", () => {
     expect(outlines.params.map((p) => p.name)).toEqual([
       "thickness", "threshold", "softness", "chroma",
       "inkHue", "inkSaturation", "inkLightness",
@@ -89,11 +89,92 @@ describe("outlines — la fusion de coloredEdges n'a rien déplacé", () => {
       "inkMode", "hueOffset", "hueSpread",
       "wheelChroma", "wheelLightness",
       "backgroundHue", "backgroundSaturation", "backgroundLightness",
+      "detectMode", "fill",
     ]);
     expect(outlines.wgsl).toContain("edge_spacing(params[0])");
     expect(outlines.wgsl).toContain("let source = params[8];");
     expect(outlines.wgsl).toContain("let inkMode = i32(params[9] + 0.5);");
     expect(outlines.wgsl).toContain("params[14] / 360.0, params[15], params[16]");
+    expect(outlines.wgsl).toContain("let detectMode = i32(params[17] + 0.5);");
+    expect(outlines.wgsl).toContain("let fill = clamp(params[18], 0.0, 1.0);");
+  });
+});
+
+describe("outlines — le seuil de forme, et pourquoi il rouvre « Luminance inversée »", () => {
+  it("a pour défaut la CRÊTE DE GRADIENT — le comportement historique", () => {
+    const mode = outlines.params.find((p) => p.name === "detectMode");
+    expect(mode?.default).toBe(0);
+    expect(mode?.choices).toEqual(["Crête de gradient", "Seuil de forme"]);
+  });
+
+  it("convertit l'écart au seuil en PIXELS par la pente mesurée sur l'écartement des taps", () => {
+    // `toneMag` se lit comme « écart de pilote sur l'épaisseur du trait » (c'est
+    // le sens du /32) : divisé par cette épaisseur, il donne la pente PAR PIXEL.
+    // C'est ce qui donne un trait d'épaisseur constante — la doctrine
+    // d'`isolines`, et ce qui sépare ce mode d'un posterize suivi d'un
+    // détecteur, où la largeur suivrait la pente locale.
+    expect(outlines.wgsl).toContain("let pentePx = max(toneMag / max(params[0], 0.5), 0.00001);");
+    expect(outlines.wgsl).toContain("let distPx = abs(pilote - threshold) / pentePx;");
+    expect(outlines.wgsl).toContain("let demi = max(params[0] * 0.5, 0.5);");
+  });
+
+  it("trace sur le pilote LISSÉ, et pas sur le pilote brut", () => {
+    // CORRIGÉ LE JOUR MÊME, sur ce que la référence a montré à sa PREMIÈRE
+    // exécution : sur le pilote brut, un bord franc rendait un trait POINTILLÉ
+    // d'un pixel à 3 px demandés. Un échelon n'a aucune valeur intermédiaire,
+    // donc son isoligne n'a nulle part où s'épaissir. Le pilote lissé a une
+    // rampe large de l'écartement des taps.
+    expect(outlines.wgsl).toContain("let pilote = g.moyenne;");
+  });
+
+  it("ne coûte AUCUN tap de plus que la crête", () => {
+    // `g.moyenne` est la moyenne des huit taps déjà lus par `edge_scharr` :
+    // huit lectures dans les deux modes de détection.
+    expect(EDGE_GRADIENT_WGSL).toContain("g.moyenne = (tl.x + tc.x + tr.x + ml.x + mr.x + bl.x + bc.x + br.x) * 0.125;");
+    const taps = outlines.wgsl.match(/textureSample\(srcTexture/g) ?? [];
+    expect(taps.length).toBe(1); // celui d'`edgeTap`, dans le module partagé
+  });
+
+  it("n'utilise AUCUNE dérivée écran pour le seuil de forme", () => {
+    // C'est le cœur du correctif, et il mérite d'être opposable : `fwidth` sur
+    // un échelon ne mesure pas une pente, il explose — c'est ce qui écrasait la
+    // distance calculée et rendait le trait pointillé. La seule dérivée écran
+    // qui subsiste est celle de la CRÊTE (`fwidth(mag)`), où elle sert de
+    // plancher d'antialiasing et non de mesure.
+    const derivees = outlines.wgsl.match(/fwidth\(/g) ?? [];
+    expect(derivees.length).toBe(1);
+    expect(outlines.wgsl).toContain("fwidth(mag)");
+    expect(outlines.wgsl).not.toContain("fwidth(pilote)");
+  });
+
+  it("ne remplit QUE dans le mode qui a un intérieur", () => {
+    // Une crête n'a pas d'intérieur : le remplissage y serait un contrôle mort.
+    expect(outlines.wgsl).toContain("if (detectMode != 0) {");
+    // Même pente que le trait, donc même antialiasing : un remplissage à bord
+    // franc trahirait le trait qui le borde.
+    expect(outlines.wgsl).toContain("let dedans = smoothstep(-pentePx, pentePx, pilote - threshold);");
+  });
+
+  it("expose « Luminance inversée » en FIN de vocabulaire, pas au milieu", () => {
+    // L'index est persisté : l'insérer à sa place « logique » (entre Luminance
+    // et Alpha) aurait transformé tout calque réglé sur Alpha en Luminance
+    // inversée, en silence.
+    const src = outlines.params.find((p) => p.name === "inputSource");
+    expect(src?.choices).toEqual(["Luminance", "Alpha", "Luminance inversée"]);
+    expect(src?.max).toBe(2);
+  });
+
+  it("le remplissage est ce qui rend l'inversion PORTEUSE et non redondante", () => {
+    // Sur un tracé de frontière seul, inverser revient à chercher l'isoligne au
+    // niveau 1 − seuil : le contrôle serait redondant avec le curseur de seuil.
+    // C'est le remplissage — la seule opération qui distingue les deux côtés —
+    // qui le rend irremplaçable. Le lien est donc structurel, et ce test le
+    // fige : `fill` doit exister, et son infobulle doit le DIRE, sans quoi
+    // personne ne devinera pourquoi l'entrée a trois choix.
+    const fill = outlines.params.find((p) => p.name === "fill");
+    expect(fill).toBeDefined();
+    expect(fill?.default).toBe(0); // neutre : le rendu d'avant est conservé
+    expect(fill?.hint).toContain("Luminance inversée");
   });
 });
 

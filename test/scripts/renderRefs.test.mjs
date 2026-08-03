@@ -247,6 +247,19 @@ const ATTENDU = {
   // si la reference etait nee apres le changement.
   "effet-channel-mixer.png": { width: 256, height: 256, valeurs: null },
   "effet-channel-mixer-encres.png": { width: 256, height: 256, valeurs: null },
+  // LE SEUIL DE FORME (2026-08-03), et sa PAIRE. Le second mode de detection
+  // d outlines, verrouille le jour meme de sa livraison — la configuration
+  // exacte qui a coute cher a hatching (livre, compilant, cable, verrouille par
+  // rien pendant seize heures).
+  //
+  // La seconde image n est pas une illustration mais la PREUVE que « Luminance
+  // inversee » n est ni inerte ni redondante. Memes reglages au bit pres, seule
+  // l entree change, et ce qui bascule est QUEL COTE est peint — ce qu aucun
+  // reglage du seuil ne produit. Si le remplissage disparaissait, les deux
+  // references se rejoindraient : le verrou porte donc sur la JUSTIFICATION du
+  // controle, pas seulement sur son cablage.
+  "effet-outlines-seuil-de-forme.png": { width: 256, height: 256, valeurs: null },
+  "effet-outlines-seuil-de-forme-inverse.png": { width: 256, height: 256, valeurs: null },
   // LES TROIS FORMES DE TAILLE de hatching (2026-08-02). Elles etaient livrees
   // depuis le 2026-08-01 et VERROUILLEES PAR RIEN : le scenario effet-hatching
   // tourne au defaut (Droites), donc il ne traverse aucune des trois autres

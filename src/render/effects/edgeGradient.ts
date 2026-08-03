@@ -1,6 +1,10 @@
 /**
  * Gradient de contour de Scharr, partagé par les effets qui détectent des
- * bords : `outlines` (qui l'a vu naître) et `coloredEdges`.
+ * bords : `outlines` (qui l'a vu naître, dans ses deux modes d'encre et ses deux
+ * modes de détection) et `echoOutlines`. `coloredEdges` l'a utilisé du
+ * 2026-08-01 au 2026-08-03, date à laquelle il est devenu un mode d'`outlines`
+ * (ADR-0013) — l'extraction avait donc bien vu juste, elle avait seulement vu un
+ * effet là où il y avait un paramètre.
  *
  * Extrait d'`outlines.ts` le 2026-08-01, pour la raison exacte qui avait fait
  * extraire `blurChain.ts` de `glow`/`halation` et `hsl.ts` de `duotone` : deux
@@ -38,6 +42,26 @@ export const EDGE_GRADIENT_WGSL = `
 struct EdgeGradient {
   gx: vec3<f32>,
   gy: vec3<f32>,
+  /**
+   * Moyenne du PILOTE sur les huit taps — donc le pilote passé au filtre
+   * passe-bas que l'écartement des taps réalise déjà.
+   *
+   * Ajoutée le 2026-08-03 pour le mode « Seuil de forme » d'\`outlines\`, et elle
+   * corrige un défaut que la référence de ce mode a montré à sa PREMIÈRE
+   * exécution : sur un bord franc, tracer l'isoligne du pilote BRUT donne un
+   * trait d'un pixel quelle que soit l'épaisseur demandée. La raison est
+   * structurelle — un échelon n'a aucune valeur intermédiaire, donc l'isoligne
+   * n'a nulle part où s'épaissir, et \`fwidth\` y explose au lieu de mesurer une
+   * pente. Le trait sortait pointillé à 3 px demandés.
+   *
+   * Le pilote lissé, lui, a une rampe large de l'écartement des taps : son
+   * isoligne s'épaissit comme on le lui demande, et sa pente est exactement ce
+   * que mesure \`toneMag\`. Même remède que le liseré d'un pixel de \`gooeyMerge\`
+   * — donner une LARGEUR à ce qui n'en avait pas.
+   *
+   * Gratuite : les huit lectures sont déjà faites.
+   */
+  moyenne: f32,
 };
 
 // Un tap porte les DEUX mesures : le ton perceptuel (x) et la chromaticité
@@ -83,6 +107,10 @@ fn edge_scharr(uv: vec2<f32>, h: vec2<f32>, source: f32) -> EdgeGradient {
   var g: EdgeGradient;
   g.gx = (tr * 3.0 + mr * 10.0 + br * 3.0) - (tl * 3.0 + ml * 10.0 + bl * 3.0);
   g.gy = (bl * 3.0 + bc * 10.0 + br * 3.0) - (tl * 3.0 + tc * 10.0 + tr * 3.0);
+  // Moyenne NON PONDEREE des huit taps : c'est un passe-bas, pas un noyau
+  // directionnel, et le pondérer par les poids de Scharr en ferait un flou
+  // anisotrope — exactement ce que ces poids sont là pour éviter ailleurs.
+  g.moyenne = (tl.x + tc.x + tr.x + ml.x + mr.x + bl.x + bc.x + br.x) * 0.125;
   return g;
 }
 `;

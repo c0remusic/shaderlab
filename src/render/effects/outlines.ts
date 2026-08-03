@@ -127,6 +127,12 @@ const EDGE_CHROMA_MAX = 0.3;
 const INK_MODES = ["Encre unique", "Roue d'orientation"] as const;
 const INK_SINGLE = 0;
 
+/** Modes de DÉTECTION — comment le bord est trouvé, avant toute question
+ *  d'encre. Même contrat d'index que ci-dessus : on ajoute à la FIN.
+ *  `Crête de gradient` est en tête parce que c'est le comportement historique. */
+const DETECT_MODES = ["Crête de gradient", "Seuil de forme"] as const;
+const DETECT_RIDGE = 0;
+
 export const outlines: EffectModule = {
   id: "outlines",
   name: "Outlines",
@@ -171,6 +177,12 @@ export const outlines: EffectModule = {
     { name: "backgroundHue", label: "Teinte", unit: "degrees", min: 0, max: 360, default: 0, step: 1, colorGroup: { key: "background", role: "hue", label: "Couleur de fond" } },
     { name: "backgroundSaturation", label: "Saturation", unit: "percent", min: 0, max: 1, default: 0, step: 0.01, colorGroup: { key: "background", role: "saturation", label: "Couleur de fond" } },
     { name: "backgroundLightness", label: "Luminosité", unit: "percent", min: 0, max: 1, default: 1, step: 0.01, colorGroup: { key: "background", role: "lightness", label: "Couleur de fond" } },
+
+    // ── LE SECOND MODE DE DÉTECTION (2026-08-03) ─────────────────────────────
+    // Demandé par Antoine, d'après la fiche Figma. Ajouté à la FIN pour la même
+    // raison que tout le reste : l'index est persisté.
+    { name: "detectMode", label: "Détection", unit: "none", min: 0, max: DETECT_MODES.length - 1, default: DETECT_RIDGE, step: 1, choices: [...DETECT_MODES], hint: "Crête de gradient : le trait suit les endroits où l'image CHANGE, et son épaisseur suit le contraste local. Seuil de forme : le trait suit l'isoligne du niveau demandé, à épaisseur constante en pixels — c'est une silhouette, et le Seuil décide où elle passe" },
+    { name: "fill", label: "Remplir la forme", unit: "percent", min: 0, max: 1, default: 0, step: 0.01, hint: "Peint l'INTÉRIEUR de la forme à la couleur d'encre, sous le trait. Sans objet en Crête de gradient : une crête n'a pas d'intérieur. C'est ce contrôle qui rend l'entrée « Luminance inversée » porteuse — inverser change quel côté est peint, ce qu'aucun réglage du seuil ne fait" },
   ],
   wgsl: `
 ${UV_SPACE_WGSL}${HSL_TO_RGB_WGSL}${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${INPUT_DRIVER_WGSL}${EDGE_GRADIENT_WGSL}${EDGE_SPACING_WGSL}${OKLAB_WGSL}
@@ -182,6 +194,8 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let wash = clamp(params[7], 0.0, 1.0);
   let source = params[8];
   let inkMode = i32(params[9] + 0.5);
+  let detectMode = i32(params[17] + 0.5);
+  let fill = clamp(params[18], 0.0, 1.0);
 
   // Écartement des taps et noyau de Scharr : voir effects/edgeGradient.ts. Le
   // module est resté partagé après la fusion — \`echoOutlines\` le lit aussi, et
@@ -236,7 +250,43 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // COLORÉ crénelé serait deux fois plus visible qu'un noir, puisque l'escalier
   // y changerait aussi de teinte.
   let band = max(max(softness * max(threshold, 0.02), fwidth(mag)), 0.0005);
-  let line = smoothstep(threshold, threshold + band, mag);
+
+  // PILOTE LISSÉ, sans un seul tap de plus : \`g.moyenne\` est la moyenne des huit
+  // taps déjà lus. Le seuil de forme se paie donc zéro lecture supplémentaire.
+  //
+  // ⚠️ LE PILOTE BRUT NE MARCHE PAS, et la référence de ce mode l'a montré à sa
+  // PREMIÈRE exécution : sur un bord franc, l'isoligne du pilote brut sort en
+  // POINTILLÉ d'un pixel quelle que soit l'épaisseur demandée. Un échelon n'a
+  // aucune valeur intermédiaire, donc l'isoligne n'a nulle part où s'épaissir —
+  // et \`fwidth\` y explose au lieu de mesurer une pente, ce qui écrase la
+  // distance calculée. Le pilote lissé a, lui, une rampe large de l'écartement
+  // des taps.
+  //
+  // LA PENTE VIENT DONC DE \`toneMag\` ET NON DE \`fwidth\`. \`toneMag\` se lit comme
+  // « écart de pilote sur l'épaisseur du trait » (c'est le sens du /32) : divisé
+  // par cette épaisseur, il donne la pente PAR PIXEL, exactement l'unité qu'il
+  // faut pour convertir un écart de ton en une distance. C'est ce qui rend le
+  // trait d'épaisseur constante — la doctrine d'\`isolines\`, et ce qui sépare ce
+  // mode d'un posterize suivi d'un détecteur, où la largeur suivrait la pente.
+  let pilote = g.moyenne;
+  let pentePx = max(toneMag / max(params[0], 0.5), 0.00001);
+
+  var line: f32;
+  if (detectMode == ${DETECT_RIDGE}) {
+    line = smoothstep(threshold, threshold + band, mag);
+  } else {
+    // SEUIL DE FORME. Distance à l'isoligne, ramenée en PIXELS par la pente. La
+    // demi-largeur ne descend pas sous 0,5 px : en deçà, le trait tomberait
+    // entre deux pixels et clignoterait selon l'échantillonnage.
+    let distPx = abs(pilote - threshold) / pentePx;
+    let demi = max(params[0] * 0.5, 0.5);
+    // \`softness\` garde ici un sens, mais ce n'est plus le même : il élargit le
+    // FONDU des bords du trait, pas le domaine de contraste qui l'allume — un
+    // seuil de forme n'a pas de contraste à trancher, il a une frontière.
+    // Le plancher de 0,5 px est l'antialiasing minimal, jamais franchi.
+    let flou = 0.5 + softness * demi;
+    line = 1.0 - smoothstep(demi - flou, demi + flou, distPx);
+  }
 
   // COULEUR DU TRAIT. Le branchement est SÛR : \`inkMode\` vient d'un uniforme,
   // donc il est uniforme sur toute la passe — même raisonnement que
@@ -279,7 +329,21 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // (teinte 0, saturation 0, luminosité 1) EST le blanc, donc le rendu d'avant
   // la fusion est conservé au bit près.
   let background = srgb_to_linear3(hsl2rgb(params[14] / 360.0, params[15], params[16]));
-  let paper = mix(color.rgb, background, wash);
+  var paper = mix(color.rgb, background, wash);
+
+  // REMPLISSAGE, SOUS le trait — et c'est l'opération ASYMÉTRIQUE de cet effet,
+  // la seule qui distingue l'intérieur de l'extérieur. Sans elle, « Luminance
+  // inversée » serait redondante avec le curseur de seuil (inverser reviendrait
+  // à chercher l'isoligne au niveau 1 − seuil) ; avec elle, inverser change QUEL
+  // CÔTÉ est peint, et aucun réglage du seuil ne le fait. Voir l'en-tête
+  // d'\`INPUT_SOURCE_CHOICES\`, qui porte le raisonnement complet.
+  //
+  // Bascule sur la même pente que le trait, donc antialiasée de la même façon :
+  // un remplissage à bord franc trahirait le trait qui le borde.
+  if (detectMode != ${DETECT_RIDGE}) {
+    let dedans = smoothstep(-pentePx, pentePx, pilote - threshold);
+    paper = mix(paper, edgeColor, fill * dedans);
+  }
   return vec4<f32>(mix(paper, edgeColor, line), color.a);
 }
 `,

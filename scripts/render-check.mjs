@@ -974,6 +974,63 @@ const INSTALL = `(async () => {
       },
     },
 
+    // LE SEUIL DE FORME (2026-08-03), le second mode de detection. Verrouille le
+    // JOUR de sa livraison, et pas la semaine suivante : c est exactement la
+    // configuration qui a coute cher a hatching — trois formes livrees,
+    // compilant, aux parametres cables, et verrouillees par RIEN pendant seize
+    // heures parce que le scenario existant tournait au defaut.
+    //
+    // Sur la mire commune, et c est elle qui decide : son disque en hautes
+    // lumieres (250, 242, 208) est un CONTOUR FERME et le seul objet de la mire
+    // qui se separe par un seuil de ton. Seuil a 0,80, au-dessus du damier clair
+    // (224) et sous le disque : la silhouette tracee est donc celle du disque, et
+    // rien d autre. Un seuil plus bas attraperait le damier et rendrait un
+    // grillage, ce qui ne montrerait pas ce que ce mode pretend faire.
+    //
+    // Remplissage a 0,55 : ce n est pas un ornement, c est l operation
+    // ASYMETRIQUE de l effet — la seule qui distingue l interieur de
+    // l exterieur, donc la seule qui rende « Luminance inversee » porteuse. Le
+    // scenario suivant le prouve en inversant.
+    "effet-outlines-seuil-de-forme": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("outlines");
+        stack.updateParams(a, {
+          detectMode: 1, threshold: 0.8, thickness: 3, softness: 0.2,
+          inkHue: 350, inkSaturation: 0.7, inkLightness: 0.35,
+          fill: 0.55, wash: 0.7, inputSource: 0,
+        });
+      },
+    },
+
+    // LE MEME, EN LUMINANCE INVERSEE — et ce scenario EST la preuve, pas une
+    // illustration.
+    //
+    // L entree inversee avait ete ECARTEE SUR PREUVE le 2026-08-01 : outlines
+    // mesurait un gradient, et |grad(1-x)| = |grad(x)|, donc le controle aurait
+    // ete inerte. La preuve reste juste pour la crete ; elle ne dit rien du seuil
+    // de forme. Mais sur un trace de frontiere SEUL, inverser reviendrait a
+    // chercher l isoligne au niveau 1 - seuil : le controle serait alors
+    // REDONDANT avec le curseur de seuil, ce qui n est guere mieux qu inerte.
+    //
+    // C est le REMPLISSAGE qui tranche, et cette paire de references le mesure :
+    // memes reglages au bit pres, seule l entree change, et ce qui bascule est
+    // QUEL COTE est peint. Aucun reglage du seuil ne produit cette image-la.
+    // Si quelqu un retirait le remplissage, les deux scenarios se rejoindraient
+    // et le \`contre\` rougirait — c est-a-dire que le verrou tomberait sur la
+    // JUSTIFICATION du controle, et pas seulement sur son cablage.
+    "effet-outlines-seuil-de-forme-inverse": {
+      contre: "effet-outlines-seuil-de-forme",
+      build: async (r, stack) => {
+        const a = stack.addLayer("outlines");
+        stack.updateParams(a, {
+          detectMode: 1, threshold: 0.8, thickness: 3, softness: 0.2,
+          inkHue: 350, inkSaturation: 0.7, inkLightness: 0.35,
+          fill: 0.55, wash: 0.7, inputSource: 2,
+        });
+      },
+    },
+
     // LES TROIS FORMES DE TAILLE, verrouillees le 2026-08-02 — et elles ne l
     // etaient PAS, alors qu elles sont livrees depuis le 2026-08-01 (0574caf).
     // Le scenario effet-hatching ci-dessus tourne en Droites, c est-a-dire au

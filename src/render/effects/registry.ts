@@ -14,7 +14,6 @@ import { gradientMap } from "./gradientMap";
 import { halation } from "./halation";
 import { lensBlur } from "./lensBlur";
 import { hatching } from "./hatching";
-import { coloredEdges } from "./coloredEdges";
 import { echoOutlines } from "./echoOutlines";
 import { dither } from "./dither";
 import { isolines } from "./isolines";
@@ -80,15 +79,25 @@ export const effectRegistry: EffectModule[] = [
   dither,
   gooeyMerge,
   channelMixer,
+  // `outlines` a ABSORBÉ `coloredEdges` le 2026-08-03 (arbitrage d'Antoine).
+  // Les deux partageaient déjà leur détecteur (`edgeGradient.ts`) et cinq
+  // paramètres sur huit, écrits deux fois aux mêmes valeurs ; ce qui les
+  // séparait tenait en une seule décision — jeter la DIRECTION du gradient, ou
+  // en faire une teinte. Une décision n'est pas un effet, c'est un mode : voir
+  // le paramètre `inkMode`. Les neuf premiers index sont ceux d'`outlines`,
+  // inchangés, donc son rendu et ses références de pixels sont conservés au bit.
   outlines,
-  // `coloredEdges` (2026-08-01) est posé juste après `outlines` parce qu'ils
-  // partagent leur détecteur (`edgeGradient.ts`) et se choisissent l'un contre
-  // l'autre : encre unique, ou teinte donnée par l'orientation du bord.
-  coloredEdges,
   // `echoOutlines` (2026-08-03) ferme la famille des contours, et n'est PAS un
-  // troisième réglage des deux précédents. Les deux au-dessus répondent à « où
-  // l'image change-t-elle ? » (un gradient) ; celui-ci répond à « à quelle
-  // DISTANCE de la forme suis-je ? », ce qu'aucun gradient ne sait dire.
+  // troisième réglage du précédent. Celui du dessus répond à « où l'image
+  // change-t-elle ? » (un gradient) ; celui-ci répond à « à quelle DISTANCE de
+  // la forme suis-je ? », ce qu'aucun gradient ne sait dire.
+  //
+  // Il doit lui aussi être absorbé par `outlines` (même arbitrage), mais PAS
+  // avant que le pipeline sache sauter des passes : il porte neuf passes de
+  // pyramide, `outlines` une seule, et `effectPassRunner.runInternalPasses`
+  // les exécute sans condition. Fusionner aujourd'hui ferait payer la pyramide
+  // au mode Contours, qui n'en lit rien — sur 24 Mpx la seule cible à 0,5 pèse
+  // 24 Mo, et la VRAM est un risque ouvert.
   //
   // Il naît d'un signalement d'Antoine (« ça ne ressemble pas du tout ») sur la
   // fiche de référence, qui décrit sous le nom `Outlines` un effet d'échos

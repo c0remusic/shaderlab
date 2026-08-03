@@ -1076,29 +1076,50 @@ const INSTALL = `(async () => {
     //
     // Delave a 0.85 : les contours dominent. C est la teinte qu on verrouille
     // ici, pas le rapport a la photo.
-    "effet-colored-edges": {
+    //
+    // PORTE DE \`coloredEdges\` VERS \`outlines\` le 2026-08-03, quand le premier a
+    // ete absorbe par le second (mode d encre). Les reglages sont TRANSPOSES et
+    // non rejoues : \`saturation\` devient \`wheelChroma\`, \`lightness\` devient
+    // \`wheelLightness\`, et \`inkMode\` passe a la Roue. Tout le reste est
+    // identique au chiffre pres, et c est le point du geste — l image doit
+    // ressortir a l OCTET, sans quoi la fusion aurait perdu quelque chose. Elle
+    // est ressortie a l octet.
+    "effet-outlines-roue": {
       contre: "photo-de-fond-seule",
       build: async (r, stack) => {
-        const a = stack.addLayer("coloredEdges");
+        const a = stack.addLayer("outlines");
         stack.updateParams(a, {
           thickness: 2, threshold: 0.07, softness: 0.3, chroma: 0.5,
-          hueOffset: 0, hueSpread: 1, saturation: 0.85, lightness: 0.55,
+          inkMode: 1, hueOffset: 0, hueSpread: 1,
+          wheelChroma: 0.85, wheelLightness: 0.55,
           wash: 0.85, inputSource: 0,
         });
       },
     },
 
-    // LE MEME EFFET A SES DEFAUTS, pose le 2026-08-02 avec la refonte OKLCH.
-    // Le scenario ci-dessus tourne a saturation 0,85 et wash 0,85, c est-a-dire
-    // bien au-dela de ce que donne le calque pose : il est fait pour EXAGERER
-    // la roue, ce qui est ce qu il faut pour la mesurer, et pas du tout ce qu il
-    // faut pour juger l effet. Les deux questions sont distinctes et meritent
-    // deux images — le verdict « horrible, inutilisable » portait, lui, sur le
-    // calque pose.
-    "effet-colored-edges-defauts": {
-      contre: "effet-colored-edges",
+    // LE MEME, AU CALQUE POSE, pose le 2026-08-02 avec la refonte OKLCH.
+    // Le scenario ci-dessus tourne a chroma 0,85 et wash 0,85, c est-a-dire bien
+    // au-dela de ce que donne le calque pose : il est fait pour EXAGERER la roue,
+    // ce qui est ce qu il faut pour la mesurer, et pas du tout ce qu il faut pour
+    // juger l effet. Les deux questions sont distinctes et meritent deux images —
+    // le verdict « horrible, inutilisable » portait, lui, sur le calque pose.
+    //
+    // ⚠️ IL LISAIT LES DEFAUTS DE \`coloredEdges\`, QUI N EXISTENT PLUS. Depuis la
+    // fusion les defauts sont ceux d \`outlines\`, donc ce scenario doit ECRIRE les
+    // anciens s il veut verrouiller la meme image. Ils sont recopies ci-dessous
+    // tels qu ils etaient, et c est la seule facon de garder comparable un
+    // scenario dont le sujet est « ce que l effet donne quand on le pose ».
+    "effet-outlines-roue-calque-pose": {
+      contre: "effet-outlines-roue",
       build: async (r, stack) => {
-        stack.addLayer("coloredEdges");
+        const a = stack.addLayer("outlines");
+        stack.updateParams(a, {
+          thickness: 2, threshold: 0.07, softness: 0.3, chroma: 0.5,
+          inkMode: 1, hueOffset: 0, hueSpread: 1,
+          wheelChroma: 0.42, wheelLightness: 0.62,
+          wash: 0.45, inputSource: 0,
+          backgroundHue: 0, backgroundSaturation: 0, backgroundLightness: 1,
+        });
       },
     },
 

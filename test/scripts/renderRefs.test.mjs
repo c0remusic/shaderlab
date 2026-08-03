@@ -82,13 +82,20 @@ const ATTENDU = {
   // 0.8 : la mire porte des damiers colores de meme luminance, donc le second
   // gradient est reellement sollicite.
   "effet-outlines.png": { width: 256, height: 256, valeurs: null },
-  // COLORED EDGES (2026-08-01) : la mire COMMUNE suffit, et c est assez rare
-  // pour etre dit. Son disque en hautes lumieres est un contour FERME, donc il
-  // parcourt tout le cercle des orientations, donc toute la roue chromatique —
-  // exactement la propriete que cet effet pretend porter. Un damier seul
-  // n aurait montre que quatre teintes (ses bords sont a 0 et 90 degres, dans
-  // les deux sens) et n aurait pas prouve la continuite.
-  "effet-colored-edges.png": { width: 256, height: 256, valeurs: null },
+  // LA ROUE D ORIENTATION (2026-08-01, sous le nom `effet-colored-edges`) : la
+  // mire COMMUNE suffit, et c est assez rare pour etre dit. Son disque en hautes
+  // lumieres est un contour FERME, donc il parcourt tout le cercle des
+  // orientations, donc toute la roue chromatique — exactement la propriete que
+  // ce mode pretend porter. Un damier seul n aurait montre que quatre teintes
+  // (ses bords sont a 0 et 90 degres, dans les deux sens) et n aurait pas prouve
+  // la continuite.
+  //
+  // RENOMMEE LE 2026-08-03 : `coloredEdges` a ete absorbe par `outlines` en tant
+  // que mode d encre. Les reglages ont ete TRANSPOSES (`saturation` ->
+  // `wheelChroma`, `lightness` -> `wheelLightness`, plus `inkMode` a 1) et
+  // l image est ressortie IDENTIQUE A L OCTET — meme empreinte MD5 qu avant la
+  // fusion. C est ce qui autorise a dire que la fusion ne perd rien.
+  "effet-outlines-roue.png": { width: 256, height: 256, valeurs: null },
   // MOTION BLUR (2026-08-01) : mode ROTATION et non Directionnel. C est le seul
   // des trois dont une propriete se VERIFIE d un coup d oeil — la longueur de
   // trainee est proportionnelle au rayon, donc le centre reste net sans qu
@@ -249,11 +256,16 @@ const ATTENDU = {
   "effet-hatching-ondulations.png": { width: 256, height: 256, valeurs: null },
   "effet-hatching-zigzag.png": { width: 256, height: 256, valeurs: null },
   "effet-hatching-cercles.png": { width: 256, height: 256, valeurs: null },
-  // COLORED EDGES A SES DEFAUTS (2026-08-02). Le scenario historique tourne a
-  // saturation 0,85 / wash 0,85 : il EXAGERE la roue, ce qu'il faut pour la
-  // mesurer et pas du tout pour juger l'effet. Le verdict d'usage « horrible,
-  // inutilisable » portait sur le calque POSE — d'ou une seconde image.
-  "effet-colored-edges-defauts.png": { width: 256, height: 256, valeurs: null },
+  // LA ROUE AU CALQUE POSE (2026-08-02). Le scenario ci-dessus tourne a chroma
+  // 0,85 / wash 0,85 : il EXAGERE la roue, ce qu'il faut pour la mesurer et pas
+  // du tout pour juger l'effet. Le verdict d'usage « horrible, inutilisable »
+  // portait sur le calque POSE — d'ou une seconde image.
+  //
+  // ⚠️ IL LISAIT LES DEFAUTS DE `coloredEdges`, QUI N'EXISTENT PLUS depuis la
+  // fusion du 2026-08-03. Le scenario ECRIT donc desormais les anciens defauts,
+  // faute de quoi il verrouillerait ceux d'`outlines` et l'image changerait de
+  // sujet en silence. Meme empreinte MD5 qu'avant la fusion.
+  "effet-outlines-roue-calque-pose.png": { width: 256, height: 256, valeurs: null },
   // OUTLINES SUR MIRE BRUITEE (2026-08-03), posee apres « outlines semble
   // bugge, l'effet n'est pas tres raffine ». La mire commune ne pouvait PAS
   // repondre : tous ses bords sont tres au-dessus du seuil, donc ils saturent
@@ -641,7 +653,7 @@ describe("references de rendu committees", () => {
   };
 
   it("colored-edges : la clarté de l'encre ne dépend PAS de l'orientation du bord", () => {
-    const img = decodePng(readFileSync(path.join(REF_DIR, "effet-colored-edges.png")));
+    const img = decodePng(readFileSync(path.join(REF_DIR, "effet-outlines-roue.png")));
     const tous = [];
     for (let i = 0; i < img.pixels.length; i += 4) {
       tous.push(oklchDe(img.pixels[i], img.pixels[i + 1], img.pixels[i + 2]));

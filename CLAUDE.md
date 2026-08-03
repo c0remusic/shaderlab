@@ -96,15 +96,21 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Registre réel au 2026-08-03 (soir), dans l'ordre : `glow`, `halation`,
   `anamorphicStreak`, `lensBlur`, `motionBlur`, `chromaticBleed`,
   `warp`, `grain`, `duotone`, `hatching`, `halftone`, `dither`, `gooeyMerge`,
-  `channelMixer`, `outlines`, `coloredEdges`, `echoOutlines`, `isolines`,
-  `pixelStretch`, `sliceShift`, `gradientMap` — **vingt et un**.
-  **Deux retraits le 2026-08-03**, tous deux sur arbitrage d'Antoine et tous deux
-  avec leur ADR : `surfaceBlur` (ADR-0011, verdict d'usage sur la famille des
-  flous) et `posterize` (ADR-0012, couvert par `dither` — couverture PROUVÉE
-  avant le retrait, le scénario sérigraphie porté mot pour mot rend les mêmes 32
-  valeurs distinctes). Retirer un effet ne casse pas les presets qui le citent :
-  `presetDocument.ts` ignore le calque et pousse un avertissement, jamais une
-  exception.
+  `channelMixer`, `outlines`, `echoOutlines`, `isolines`,
+  `pixelStretch`, `sliceShift`, `gradientMap` — **vingt**.
+  **Trois départs le 2026-08-03**, tous sur arbitrage d'Antoine : `surfaceBlur`
+  (ADR-0011, verdict d'usage sur la famille des flous), `posterize` (ADR-0012,
+  couvert par `dither` — couverture PROUVÉE avant le retrait, le scénario
+  sérigraphie porté mot pour mot rend les mêmes 32 valeurs distinctes), et
+  `coloredEdges` **absorbé par `outlines`** (ADR-0013, mode d'encre : Encre
+  unique ou Roue d'orientation). Retirer un effet ne casse pas les presets qui le
+  citent : `presetDocument.ts` ignore le calque et pousse un avertissement,
+  jamais une exception.
+  **`echoOutlines` doit lui aussi être absorbé par `outlines`** (même arbitrage),
+  mais c'est BLOQUÉ sur une capacité du pipeline : il porte neuf passes de
+  pyramide quand `outlines` n'en a aucune, et `effectPassRunner.runInternalPasses`
+  les exécute sans condition. Fusionner avant de savoir sauter des passes ferait
+  payer la pyramide au mode Contours, qui n'en lit rien.
   `echoOutlines` (2026-08-03) est l'effet que la fiche Figma appelle `Outlines`
   et que notre `outlines` n'est pas — l'un mesure une DISTANCE à une forme,
   l'autre détecte un gradient. `isolines` trace des courbes de niveau du ton.
@@ -141,9 +147,9 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   mort).
 - **Détecteur de contours partagé** : `effects/edgeGradient.ts` (Scharr 3x3,
   huit taps, ton perceptuel + chromaticité), utilisé par `outlines` et
-  `coloredEdges`. Les deux ne diffèrent que par ce qu'ils font de la mesure —
-  l'un jette la DIRECTION du gradient et trace une encre unique, l'autre la
-  garde et en fait une teinte.
+  `echoOutlines`. La différence « jeter la DIRECTION du gradient pour une encre
+  unique, ou la garder pour en faire une teinte » n'est plus celle de deux
+  effets : c'est le paramètre `inkMode` d'`outlines` depuis ADR-0013.
   Les autres fichiers de `effects/` sont des helpers (`bayer`, `hsl`, `hash`,
   `oklab`, `blendSpace`, `inputMode`, `srgbTransfer`, `uvSpace`, `validate`,
   `types`) : la présence d'un fichier n'est pas la présence d'un effet, vérifier
@@ -251,7 +257,8 @@ de la pile (0004), rattachement par proximité (0005), fond d'export blanc
 (0006), format de toile à la création + `MAX_CANVAS_PIXELS = 64 Mpx` (0007),
 un effet ne se pose jamais sur un calque photo (0008), déplacement libre du
 viewport (0009), le gaussien reste hors du registre (0010, ⚠️ sa 3ᵉ conséquence
-est caduque), retrait de `surfaceBlur` (0011), retrait de `posterize` (0012).
+est caduque), retrait de `surfaceBlur` (0011), retrait de `posterize` (0012),
+`outlines` absorbe `coloredEdges` (0013).
 Les décisions du
 projet vivent là, pas dans les docs de design.
 

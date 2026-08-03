@@ -35,6 +35,32 @@ export interface EffectPass {
   /** WGSL body defining fs_main(uv, color) — `color` samples this pass's INPUT texture (bound as
    *  srcTexture, same as any single-pass effect). Internal passes never see the mask or `prevPass`. */
   wgsl: string;
+  /**
+   * Cette passe sert-elle, aux paramètres courants ? Absent = toujours (le
+   * comportement de tous les effets multi-passes écrits jusqu'ici).
+   *
+   * D'OÙ ÇA VIENT. `runInternalPasses` itérait `passes` sans condition, ce qui
+   * allait tant qu'un effet multi-passes n'avait qu'un seul régime. Un effet à
+   * MODES casse ce présupposé : `outlines` doit absorber `echoOutlines` (ADR-0013),
+   * or celui-ci porte neuf passes de pyramide et le mode Contours n'en lit
+   * aucune. Sans ce prédicat, choisir « Contours » ferait quand même tourner la
+   * pyramide entière — sur 24 Mpx, la seule cible à l'échelle 0,5 pèse 24 Mo, et
+   * la VRAM est un risque ouvert.
+   *
+   * ⚠️ CE N'EST PAS UNE OPTIMISATION, c'est une condition de correction du
+   * modèle : une passe inutile n'est pas seulement lente, elle ALLOUE. Le
+   * prédicat est donc évalué AVANT d'emprunter une cible au pool.
+   *
+   * ⚠️ SI TOUTES LES PASSES SAUTENT, la passe finale reçoit en `prevPass` la
+   * texture SOURCE et non la sortie d'une pyramide. C'est cohérent (le
+   * chaînage part de la source) mais le shader final doit être écrit en le
+   * sachant : il ne doit lire `prevPass` que dans les modes dont les passes
+   * tournent. Un mode qui lirait la source en croyant lire un champ flouté
+   * rendrait n'importe quoi, sans erreur de compilation.
+   *
+   * Reçoit les paramètres RÉSOLUS (défauts appliqués), par nom.
+   */
+  enabled?: (params: Record<string, number>) => boolean;
 }
 
 export interface EffectModule {

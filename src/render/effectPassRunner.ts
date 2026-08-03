@@ -155,10 +155,32 @@ export class EffectPassRunner {
     layer: LayerState,
     sourceView: GPUTextureView,
     pendingDestroy: PendingDestroy
-  ): { view: GPUTextureView; texture: GPUTexture } {
+  ): { view: GPUTextureView; texture: GPUTexture | null } {
     let passInputView = sourceView;
     let lastTexture: GPUTexture | null = null;
+
+    // PARAMÈTRES RÉSOLUS UNE FOIS pour tous les prédicats de la chaîne (défauts
+    // appliqués), plutôt que par passe : `enabled` est appelé jusqu'à neuf fois
+    // sur une pyramide, et une résolution par appel serait payée à chaque frame
+    // pour un résultat identique.
+    let resolved: Record<string, number> | null = null;
+    const paramsFor = () => {
+      if (!resolved) {
+        resolved = {};
+        for (const p of effect.params) resolved[p.name] = layer.params[p.name] ?? p.default;
+      }
+      return resolved;
+    };
+
     for (const pass of effect.passes!) {
+      // PASSE INUTILE AUX RÉGLAGES COURANTS : on la saute AVANT d'emprunter une
+      // cible. L'ordre compte — une passe inutile n'est pas seulement lente,
+      // elle ALLOUE, et c'est l'allocation qu'on vient éviter. Sauter laisse
+      // `passInputView` inchangé, donc la passe suivante (ou la composite finale
+      // via `prevPass`) lit ce que celle-ci aurait dû transformer. Voir
+      // l'avertissement sur `EffectPass.enabled` : un mode dont TOUTES les
+      // passes sautent reçoit la texture SOURCE en `prevPass`.
+      if (pass.enabled && !pass.enabled(paramsFor())) continue;
       // EMPRUNTÉE au pool, plus créée : voir `passTargetPool`. Aucune cible
       // n'est plus poussée dans `pendingDestroy` — elles restent prêtées jusqu'à
       // `releaseFrameTargets()`, après la soumission. Détruire la précédente ici
@@ -172,7 +194,11 @@ export class EffectPassRunner {
       passInputView = passTargetView;
       lastTexture = passTarget;
     }
-    return { view: passInputView, texture: lastTexture! };
+    // `lastTexture` reste NULL si toutes les passes ont été sautées : aucune
+    // cible n'a été empruntée, et `passInputView` est restée la vue source.
+    // Déclaré nullable plutôt que forcé par un `!` — l'appelant ne lit que
+    // `view`, et il ne détruit jamais `texture` (elle appartient au pool).
+    return { view: passInputView, texture: lastTexture };
   }
 
   runOverlayPass(encoder: GPUCommandEncoder, src: GPUTexture, mask: GPUTexture, targetView: GPUTextureView, time: number): void {

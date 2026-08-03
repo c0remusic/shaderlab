@@ -59,7 +59,12 @@ export interface EffectPassesPort {
     layer: LayerState,
     sourceView: GPUTextureView,
     pendingDestroy: FrameResource[],
-  ): { view: GPUTextureView; texture: GPUTexture };
+    // `texture` est NULL quand toutes les passes ont été sautées (voir
+    // `EffectPass.enabled`) : il n'y a alors aucune cible empruntée au pool, et
+    // `view` est la texture source elle-même. Ce port le déclare plutôt que de
+    // mentir avec un `!` — l'appelant ne lit que `view`, et cette signature dit
+    // pourquoi c'est suffisant.
+  ): { view: GPUTextureView; texture: GPUTexture | null };
   runOverlayPass(
     encoder: GPUCommandEncoder,
     source: GPUTexture,
@@ -457,7 +462,10 @@ export class FramePipelineExecutor {
       }
       clipCoverageView = layer.imageSource ? imageSourceView : clipView;
 
-      let previousPass: { view: GPUTextureView; texture: GPUTexture } | null = null;
+      // `texture` nullable : quand toutes les passes internes d'un effet sont
+      // sautées (voir `EffectPass.enabled`), aucune cible n'est empruntée au
+      // pool et `view` est la source elle-même. Seul `view` est lu ici.
+      let previousPass: { view: GPUTextureView; texture: GPUTexture | null } | null = null;
       if (effect.passes?.length) {
         previousPass = this.effects.runInternalPasses(
           encoder,

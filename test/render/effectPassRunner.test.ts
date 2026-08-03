@@ -10,6 +10,17 @@ beforeAll(() => {
       COMPUTE: 4,
     };
   }
+  // Ajouté le 2026-08-03 avec les passes conditionnelles : `acquirePassTarget`
+  // le lit, et aucun test ne descendait jusque-là avant.
+  if (typeof (globalThis as any).GPUTextureUsage === "undefined") {
+    (globalThis as any).GPUTextureUsage = {
+      COPY_SRC: 1,
+      COPY_DST: 2,
+      TEXTURE_BINDING: 4,
+      STORAGE_BINDING: 8,
+      RENDER_ATTACHMENT: 16,
+    };
+  }
   if (typeof (globalThis as any).GPUBufferUsage === "undefined") {
     (globalThis as any).GPUBufferUsage = {
       MAP_READ: 1,
@@ -279,5 +290,106 @@ describe("EffectPassRunner — image de guide du masque edge-aware", () => {
     runner.runEffectPass(encoder, PASSTHROUGH_MODULE, layer(), compositeEnDessous, {} as GPUTextureView, { applyMask: true, clipCoverageView: couverture }, []);
 
     expect(resolveMask.mock.calls[0][2]).toBe(compositeEnDessous);
+  });
+});
+
+/** Appareil factice qui COMPTE ce que la chaîne de passes alloue et encode.
+ *  C'est la seule mesure qui compte ici : une passe inutile n'est pas seulement
+ *  lente, elle EMPRUNTE une cible — et sur 24 Mpx la seule cible à l'échelle 0,5
+ *  pèse 24 Mo. */
+function createRunnerCountingPasses() {
+  const createTexture = vi.fn(() => ({ width: 2, height: 2, createView: vi.fn(() => ({})) }));
+  const beginRenderPass = vi.fn(() => ({
+    setPipeline: vi.fn(), setBindGroup: vi.fn(), draw: vi.fn(), end: vi.fn(),
+  }));
+  const device = {
+    createShaderModule: vi.fn(() => ({})),
+    createBindGroupLayout: vi.fn(() => ({})),
+    createPipelineLayout: vi.fn(() => ({})),
+    createRenderPipeline: vi.fn(() => ({})),
+    createBindGroup: vi.fn(() => ({})),
+    createBuffer: vi.fn(() => ({})),
+    createTexture,
+    queue: { writeBuffer: vi.fn() },
+  } as unknown as GPUDevice;
+  const runner = new EffectPassRunner(
+    device, "bgra8unorm-srgb", 4, 4, {} as GPUSampler, () => null as unknown as GPUTexture,
+  );
+  const encoder = { beginRenderPass } as unknown as GPUCommandEncoder;
+  const sourceView = { id: "source" } as unknown as GPUTextureView;
+  return { runner, encoder, sourceView, createTexture, beginRenderPass };
+}
+
+const PASS_WGSL = "fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> { return color; }";
+
+/** Trois passes dont la deuxième est conditionnée à `mode`. */
+function effetTroisPasses() {
+  return {
+    id: "test-passes",
+    name: "Test",
+    params: [{ name: "mode", label: "Mode", unit: "none" as const, min: 0, max: 1, default: 0, step: 1 }],
+    wgsl: PASS_WGSL,
+    passes: [
+      { scale: 0.5, wgsl: PASS_WGSL },
+      { scale: 0.25, wgsl: PASS_WGSL, enabled: (p: Record<string, number>) => p.mode > 0.5 },
+      { scale: 0.5, wgsl: PASS_WGSL, enabled: (p: Record<string, number>) => p.mode > 0.5 },
+    ],
+  };
+}
+
+describe("EffectPassRunner.runInternalPasses — passes conditionnelles", () => {
+  it("exécute toutes les passes quand aucune ne déclare de condition", () => {
+    const { runner, encoder, sourceView, createTexture } = createRunnerCountingPasses();
+    const effect = { ...effetTroisPasses(), passes: [
+      { scale: 0.5, wgsl: PASS_WGSL },
+      { scale: 0.25, wgsl: PASS_WGSL },
+    ] };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    runner.runInternalPasses(encoder, effect as any, { params: {} } as any, sourceView, []);
+    expect(createTexture).toHaveBeenCalledTimes(2);
+  });
+
+  it("SAUTE les passes inutiles, et ne leur emprunte aucune cible", () => {
+    const { runner, encoder, sourceView, createTexture, beginRenderPass } = createRunnerCountingPasses();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = runner.runInternalPasses(encoder, effetTroisPasses() as any, { params: { mode: 0 } } as any, sourceView, []);
+    // Une seule des trois : l'allocation est évitée, pas seulement le dessin.
+    expect(createTexture).toHaveBeenCalledTimes(1);
+    expect(beginRenderPass).toHaveBeenCalledTimes(1);
+    expect(res.texture).not.toBeNull();
+  });
+
+  it("exécute les mêmes passes quand les paramètres les rendent utiles", () => {
+    const { runner, encoder, sourceView, createTexture } = createRunnerCountingPasses();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    runner.runInternalPasses(encoder, effetTroisPasses() as any, { params: { mode: 1 } } as any, sourceView, []);
+    expect(createTexture).toHaveBeenCalledTimes(3);
+  });
+
+  it("applique le DÉFAUT du paramètre quand le calque ne le porte pas", () => {
+    // Le prédicat reçoit les paramètres RÉSOLUS. Sans ça, un calque qui n'a
+    // jamais touché le curseur verrait `undefined` et la comparaison rendrait
+    // false en silence — l'effet perdrait ses passes sans que rien ne le dise.
+    const { runner, encoder, sourceView, createTexture } = createRunnerCountingPasses();
+    const effect = effetTroisPasses();
+    effect.params[0].default = 1;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    runner.runInternalPasses(encoder, effect as any, { params: {} } as any, sourceView, []);
+    expect(createTexture).toHaveBeenCalledTimes(3);
+  });
+
+  it("rend une texture NULLE et la vue SOURCE quand toutes les passes sautent", () => {
+    // C'est le cas limite qui décide de la signature : il n'y a alors aucune
+    // cible empruntée au pool. La passe composite finale reçoit donc la source
+    // en `prevPass` — cohérent, mais le shader final doit être écrit en le
+    // sachant (voir l'avertissement sur `EffectPass.enabled`).
+    const { runner, encoder, sourceView, createTexture } = createRunnerCountingPasses();
+    const effect = effetTroisPasses();
+    effect.passes[0] = { scale: 0.5, wgsl: PASS_WGSL, enabled: (p: Record<string, number>) => p.mode > 0.5 };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = runner.runInternalPasses(encoder, effect as any, { params: { mode: 0 } } as any, sourceView, []);
+    expect(createTexture).not.toHaveBeenCalled();
+    expect(res.texture).toBeNull();
+    expect(res.view).toBe(sourceView);
   });
 });

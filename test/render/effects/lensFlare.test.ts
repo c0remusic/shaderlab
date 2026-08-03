@@ -136,13 +136,53 @@ describe("lensFlare — la source posée et la source automatique sont UNE machi
     expect(wgsl).toContain("let cover = ghost_cover(p, rayon, versAxe, mordu, douceur);");
   });
 
-  it("découpe le fantôme par INTERSECTION, jamais en dessinant un croissant", () => {
-    // Le croissant n'est pas une forme : c'est ce qui RESTE du polygone quand le
-    // barillet en recouvre une part, et la part croît avec l'éloignement de
-    // l'axe. Dessiner un croissant de forme fixe serait juste en un point du
-    // cadre et faux partout ailleurs.
-    expect(wgsl).toContain("let e = max(rPoly, rClip);");
+  it("coupe le fantôme par un DEMI-PLAN, jamais par un second disque", () => {
+    // VERDICT D'USAGE, ET IL EST GÉOMÉTRIQUEMENT IMPARABLE. La première écriture
+    // modélisait le fût par un second DISQUE décalé — or l'intersection de deux
+    // disques EST une ellipse. « J'aime les fantômes mais pas les ellipses »
+    // désignait exactement ça, et aucun réglage d'un disque n'y pouvait rien.
+    //
+    // Un demi-plan coupe par une DROITE : il reste un polygone à un côté de
+    // moins, ce que montrent les photographies de fantômes vignettés.
+    expect(wgsl).toContain("let t = dot(p, -versAxe) / max(rayon, 1e-6);");
+    expect(wgsl).toContain("let ligne = 1.0 - 2.0 * decoupe;");
+    expect(wgsl).toContain("let plein = dansPoly * dansCoupe;");
+    // La part mangée croît avec l'éloignement de l'axe : au centre le fût est vu
+    // de face et ne mange rien.
     expect(wgsl).toContain("let mordu = decoupe * clamp(dG / dMax, 0.0, 1.0) * 1.5;");
+  });
+
+  it("remplit ses fantômes par défaut — une chaîne d'anneaux est un MOTIF", () => {
+    // Second verdict d'usage : « l'anneau unique est sympa, c'est plutôt les
+    // anneaux en série que je n'aime pas ». La nuance est fine et juste — un
+    // anneau creux est le bon rendu pour UN artefact isolé (la famille
+    // « anneau » le garde), mais répété cinq fois le long d'un axe il devient un
+    // motif, et un motif trahit la synthèse.
+    expect(lensFlare.params.find((p) => p.name === "ghostFill")?.default).toBe(0.8);
+    expect(wgsl).toContain("let encre = mix(cover.y, cover.x + cover.y * 0.35, remplissage);");
+  });
+
+  it("porte la PLUME, et c'est le cœur de l'effet depuis les photos d'Antoine", () => {
+    // Cinq photographies prises avec son propre matériel ne montraient NI
+    // chapelet NI anneau — toutes la même plume large, fortement teintée et
+    // coupée droit. C'est de la diffusion rasante dans le fût, pas de la
+    // réflexion entre faces polies.
+    expect(lensFlare.params.find((p) => p.name === "plume")?.default).toBe(1);
+    // Un CÔNE : la largeur croît le long de l'axe. Un lobe rond ne peut pas.
+    expect(wgsl).toContain("let largeur = longueur * (0.08 + evase * clamp(le / longueur, 0.0, 2.0) * 0.6);");
+    // Chute latérale GAUSSIENNE : une bascule donnerait deux bords francs sur
+    // les côtés et la plume se lirait comme un faisceau de projecteur.
+    expect(wgsl).toContain("let lat = exp(-(tr / largeur) * (tr / largeur) * 2.5);");
+    // Le SEUL bord franc de l'effet est la coupe, et il est transversal.
+    expect(wgsl).toContain("let coupe = smoothstep(0.0, 0.03 * longueur, le - clamp(params[29], 0.0, 1.0) * longueur);");
+  });
+
+  it("a pour teinte par défaut le bleu-violet des revêtements modernes", () => {
+    // Trois des cinq photographies de référence sont franchement bleues, deux
+    // ambrées. Le défaut suit la majorité — et surtout ce n'est PAS une teinte
+    // choisie à l'œil : c'est la couleur que renvoie le traitement anti-reflet.
+    const teinte = lensFlare.params.find((p) => p.name === "tintHue");
+    expect(teinte?.default).toBe(262);
   });
 
   it("expose la source comme un MANIPULATEUR sur la toile", () => {

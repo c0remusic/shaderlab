@@ -170,7 +170,7 @@ const flareActif = (p: Record<string, number>) =>
 export const dessinActif = (p: Record<string, number>) =>
   p.sourceIntensity > 0 &&
   (p.ghostIntensity > 0 || p.haloIntensity > 0 || p.veil > 0 ||
-    p.scatter > 0 || p.sensor > 0 || p.arcs > 0);
+    p.scatter > 0 || p.sensor > 0 || p.arcs > 0 || p.plume > 0);
 
 /** SEUILLAGE DES HAUTES LUMIÈRES RÉELLES, et rien d'autre.
  *
@@ -240,8 +240,8 @@ export const lensFlare: EffectModule = {
     { name: "ghostSpacing", label: "Espacement", unit: "percent", min: 0.05, max: 1.2, default: 0.35, step: 0.01, hint: "Écart entre deux fantômes le long de l'axe source-centre. Bas = ils se serrent près du miroir de la source ; haut = la chaîne traverse tout le cadre" },
     { name: "ghostIntensity", label: "Intensité des fantômes", unit: "none", min: 0, max: 4, default: 0.7, step: 0.05, hint: "Force de la chaîne. À 0, avec l'anneau et le voile aussi à 0, les sept passes internes ne tournent PAS — l'effet ne coûte alors rien du tout" },
     { name: "ghostDispersion", label: "Dérive de teinte", unit: "percent", min: 0, max: 1, default: 0.45, step: 0.01, hint: "Fait tourner la teinte le long de la chaîne — le traitement anti-reflet ne renvoie pas la même couleur à chaque face. 0 = tous les fantômes de la même teinte, ce qu'aucun objectif ne fait" },
-    { name: "tintHue", label: "Teinte", unit: "degrees", min: 0, max: 360, default: 30, step: 1, colorGroup: { key: "tint", role: "hue", label: "Teinte du traitement" } },
-    { name: "tintSaturation", label: "Saturation", unit: "percent", min: 0, max: 1, default: 0.45, step: 0.01, colorGroup: { key: "tint", role: "saturation", label: "Teinte du traitement" } },
+    { name: "tintHue", label: "Teinte", unit: "degrees", min: 0, max: 360, default: 262, step: 1, colorGroup: { key: "tint", role: "hue", label: "Teinte du traitement" } },
+    { name: "tintSaturation", label: "Saturation", unit: "percent", min: 0, max: 1, default: 0.62, step: 0.01, colorGroup: { key: "tint", role: "saturation", label: "Teinte du traitement" } },
     { name: "tintLightness", label: "Luminosité", unit: "percent", min: 0, max: 1, default: 0.6, step: 0.01, colorGroup: { key: "tint", role: "lightness", label: "Teinte du traitement" } },
     // ── L'ANNEAU ET LE VOILE ─────────────────────────────────────────────────
     { name: "haloIntensity", label: "Intensité de l'anneau", unit: "none", min: 0, max: 4, default: 0.4, step: 0.05, hint: "Le cercle irisé autour de l'axe optique. Centré sur le CENTRE du cadre et non sur la source, parce que c'est l'axe de l'objectif qui le produit — c'est ce qui le distingue d'un halo de diffusion" },
@@ -252,8 +252,8 @@ export const lensFlare: EffectModule = {
     // concernent que la chaîne dessinée, c'est-à-dire la source posée : les
     // fantômes prélevés dans les hautes lumières de la photo n'ont pas de forme
     // connue, et c'est le prix annoncé de la voie automatique.
-    { name: "ghostFill", label: "Remplissage des fantômes", unit: "percent", min: 0, max: 1, default: 0.2, step: 0.01, hint: "0 = anneaux creux à bord vif, ce que montrent les photographies ; 1 = disques pleins, ce qu'on croit devoir dessiner et qui trahit la synthèse. Sans objet sur la voie automatique" },
-    { name: "ghostClip", label: "Découpe en croissant", unit: "percent", min: 0, max: 1, default: 0.55, step: 0.01, hint: "Le barillet mange une part de l'ouverture vue de biais, d'autant plus que le fantôme s'éloigne de l'axe — c'est le CROISSANT, la signature la plus reconnaissable d'un vrai flare. À 0, des polygones entiers partout, ce qu'aucun objectif ne fait" },
+    { name: "ghostFill", label: "Remplissage des fantômes", unit: "percent", min: 0, max: 1, default: 0.8, step: 0.01, hint: "1 = polygones PLEINS au contour souligné, le défaut. 0 = anneaux creux — juste pour UN artefact isolé : répétés le long de l'axe ils forment un motif de ronds qui trahit la synthèse. Sans objet sur la voie automatique" },
+    { name: "ghostClip", label: "Découpe du fût", unit: "percent", min: 0, max: 1, default: 0.4, step: 0.01, hint: "Le fût tranche une part du fantôme vu de biais, d'autant plus qu'il s'éloigne de l'axe. La coupe est DROITE : il en reste un polygone à un côté de moins, jamais une ellipse — une ellipse serait l'intersection de deux disques, et ce n'est pas ce que fait un barillet" },
     { name: "ghostVariation", label: "Inégalité des tailles", unit: "percent", min: 0, max: 1, default: 0.6, step: 0.01, hint: "Les photographies ne montrent jamais une progression régulière : les tailles sont très inégales, souvent par paires grand/petit voisines. À 0, une rangée de gommettes" },
     // ── LES TROIS AUTRES FAMILLES DE FLARE (2026-08-03 soir) ─────────────────
     // Un flare n'est pas UN phénomène mais TROIS, et ils diffèrent par l'endroit
@@ -270,6 +270,21 @@ export const lensFlare: EffectModule = {
     { name: "sensor", label: "Quadrillage capteur", unit: "none", min: 0, max: 4, default: 0, step: 0.05, hint: "Le « red dot flare » : la lumière fait un aller-retour capteur → lentille arrière → capteur, et le pas des photosites en fait une grille régulière de points. Signature du numérique moderne à petite ouverture, pas d'un objectif — d'où sa couleur propre, qui ne suit pas la teinte du traitement" },
     { name: "sensorSpacing", label: "Pas du quadrillage", unit: "percent", min: 0.01, max: 0.2, default: 0.05, step: 0.005, hint: "Écart entre deux points de la grille. Sans objet à quadrillage nul" },
     { name: "arcs", label: "Arcs de barillet", unit: "none", min: 0, max: 4, default: 0.6, step: 0.05, hint: "Les grands arcs très faibles qui traversent le cadre, renvoyés par les bords internes du fût et la bague de retenue. Discrets, et c'est ce qui remplit le vide entre les fantômes sur les vraies photographies" },
+    // ── LA PLUME (2026-08-03, troisième passe) ───────────────────────────────
+    // Ajoutée sur CINQ photographies d'Antoine, prises avec son propre matériel,
+    // et elle a renversé la hiérarchie de l'effet : aucune des cinq ne montre de
+    // chapelet ni d'anneau. Toutes montrent la MÊME chose — une plume large et
+    // molle, fortement teintée par le revêtement (bleu-violet sur trois, ambre
+    // sur deux), et coupée par un bord DROIT.
+    //
+    // C'est de la diffusion rasante dans le fût, pas de la réflexion entre
+    // faces : la lumière entre de biais, se disperse sur toute la longueur du
+    // barillet et ressort en cône. D'où un cône et non un lobe rond, et d'où le
+    // bord franc — l'ombre du parasoleil ou de la baïonnette le tranche net.
+    { name: "plume", label: "Plume de diffusion", unit: "none", min: 0, max: 4, default: 1, step: 0.05, hint: "Le cône de lumière diffusée qui part de la source et traverse l'image. C'est ce que rendent la plupart des objectifs modernes face au soleil, bien plus souvent qu'une chaîne de fantômes — et c'est ce que montrent les photographies de référence" },
+    { name: "plumeLength", label: "Longueur de la plume", unit: "percent", min: 0.05, max: 2, default: 0.7, step: 0.01, hint: "Jusqu'où le cône porte, en fraction de la plus petite dimension de l'image" },
+    { name: "plumeSpread", label: "Évasement", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "0 = un faisceau parallèle et étroit ; 1 = un large éventail qui s'ouvre en s'éloignant. C'est un CÔNE et non un cylindre parce que la lumière se disperse tout au long du fût" },
+    { name: "plumeEdge", label: "Bord franc", unit: "percent", min: 0, max: 1, default: 0.25, step: 0.01, hint: "Position de la coupe DROITE en travers de la plume — l'ombre du parasoleil ou de la baïonnette. C'est elle qui fait lire un BANDEAU plutôt qu'un halo, et aucun lobe rond ne sait la produire. À 0, pas de coupe" },
   ],
   passes: [
     // Seuillage + injection de la source posée, fondus (voir FLARE_BRIGHT_WGSL).
@@ -343,16 +358,37 @@ fn ghost_cover(p: vec2<f32>, rayon: f32, versAxe: vec2<f32>, decoupe: f32, douce
   // l'angle. C'est \`aperture_radius\` qui porte la forme du diaphragme, et c'est
   // le même que celui de \`lensBlur\` — un objectif n'a qu'un diaphragme.
   let rPoly = length(p) / max(rayon * aperture_radius(theta, params[6], radians(params[7])), 1e-6);
-  // Le disque du barillet, décalé VERS l'axe optique. À découpe nulle il est
-  // concentrique et ne mord rien ; à découpe pleine il ne laisse qu'un fil.
-  let rClip = length(p - versAxe * decoupe * rayon) / max(rayon, 1e-6);
-  // L'intersection de deux couvertures est le MAX de leurs distances normalisées.
-  let e = max(rPoly, rClip);
-  let plein = 1.0 - smoothstep(1.0 - douceur, 1.0, e);
-  // LISERÉ : une bande étroite JUSTE À L'INTÉRIEUR du bord. C'est ce qui rend
-  // l'anneau, et sa largeur suit la douceur — un bord net a un liseré fin, un
-  // bord fondu n'en a presque plus, comme une ouverture ouverte en grand.
-  let liseré = plein * smoothstep(1.0 - douceur * 3.0 - 0.18, 1.0 - douceur, e);
+  let dansPoly = 1.0 - smoothstep(1.0 - douceur, 1.0, rPoly);
+
+  // ─── LA COUPE EST UN DEMI-PLAN, PAS UN DISQUE ──────────────────────────
+  //
+  // Première écriture, et le verdict d'usage qui l'a renversée : le barillet
+  // était modélisé par un second DISQUE décalé, et l'intersection de deux
+  // disques **est une ellipse**. « J'aime les fantômes mais pas les ellipses »
+  // — la remarque désignait exactement ça, et elle est géométriquement
+  // imparable : aucun réglage d'un disque ne rend un polygone tranché.
+  //
+  // Un demi-plan, lui, coupe le polygone par une DROITE : il en reste un
+  // polygone à un côté de moins, ce que montrent les photographies de fantômes
+  // vignettés. Et la même primitive sert au bord franc de la plume plus bas —
+  // les deux viennent du même obstacle, le fût ou le parasoleil.
+  //
+  // \`t\` est l'avancée du point du côté OPPOSÉ à l'axe optique : c'est ce
+  // côté-là que le fût mange, jamais l'autre.
+  let t = dot(p, -versAxe) / max(rayon, 1e-6);
+  // Ligne de coupe : à découpe nulle elle est au-delà du bord (rien n'est
+  // mangé), à découpe pleine elle traverse au-delà du centre.
+  let ligne = 1.0 - 2.0 * decoupe;
+  let dansCoupe = 1.0 - smoothstep(ligne - douceur, ligne, t);
+
+  let plein = dansPoly * dansCoupe;
+  // LISERÉ sur les DEUX bords — l'arête du polygone ET la tranche. Sur les
+  // photographies la coupe est aussi lumineuse que le reste du contour ; ne
+  // l'allumer que sur le polygone donnerait un fantôme à un côté éteint, ce
+  // qui se lit comme un défaut de dessin.
+  let bordPoly = smoothstep(1.0 - douceur * 3.0 - 0.18, 1.0 - douceur, rPoly);
+  let bordCoupe = smoothstep(ligne - douceur * 3.0 - 0.18, ligne - douceur, t);
+  let liseré = plein * max(bordPoly, bordCoupe);
   return vec2<f32>(plein, liseré);
 }
 
@@ -393,7 +429,8 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let champActif = ghostIntensity > 0.0 || haloIntensity > 0.0 || veil > 0.0;
   let dessinActif = params[5] > 0.0
     && (ghostIntensity > 0.0 || haloIntensity > 0.0 || veil > 0.0
-        || params[21] > 0.0 || params[23] > 0.0 || params[25] > 0.0);
+        || params[21] > 0.0 || params[23] > 0.0 || params[25] > 0.0
+        || params[26] > 0.0);
   if (!champActif && !dessinActif) {
     return color;
   }
@@ -517,10 +554,19 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
       let mordu = decoupe * clamp(dG / dMax, 0.0, 1.0) * 1.5;
 
       let cover = ghost_cover(p, rayon, versAxe, mordu, douceur);
-      // ANNEAU : le liseré porte l'essentiel, le remplissage n'est qu'un fond.
-      // À remplissage nul on a l'anneau creux des photographies ; à 1, le disque
-      // plein qu'on croit devoir dessiner et qui trahit la synthèse.
-      let encre = cover.y + cover.x * remplissage * 0.35;
+      // ⚠️ PLEINS PAR DÉFAUT, ET C'EST UN VERDICT D'USAGE. Ils étaient creux —
+      // le liseré portait tout — parce que les photographies de fantômes
+      // vignettés montrent bien un anneau. Mais une CHAÎNE d'anneaux creux se
+      // lit comme une série de ronds, et c'est précisément ce qu'Antoine a
+      // rejeté (« l'anneau unique est sympa, c'est plutôt les anneaux en série
+      // que je n'aime pas »).
+      //
+      // La nuance compte : l'anneau reste le bon rendu pour UN artefact isolé —
+      // celui de la famille « anneau », plus bas, qui garde sa forme creuse.
+      // Répété cinq fois le long d'un axe, il devient un motif, et un motif
+      // trahit la synthèse. D'où un remplissage dominant ici, et un liseré qui
+      // ne fait plus que souligner le contour.
+      let encre = mix(cover.y, cover.x + cover.y * 0.35, remplissage);
 
       let att = clamp(1.0 - dG / dMax, 0.0, 1.0);
       let t = f32(i) / max(f32(${GHOSTS_MAX} - 1), 1.0);
@@ -614,12 +660,70 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     let vers = (uv - centre) * ar - sIso;
     let dSrc = length(vers);
 
+    // ── LA PLUME, et c'est désormais le cœur de l'effet ─────────────────────
+    //
+    // Cinq photographies d'Antoine, prises avec son propre matériel, ne
+    // montraient NI chapelet NI anneau — mais toutes la même plume large,
+    // fortement teintée et coupée droit. C'est de la diffusion rasante dans le
+    // fût, pas de la réflexion entre faces polies : la lumière entre de biais,
+    // se disperse sur toute la longueur du barillet et ressort en CÔNE.
+    //
+    // Un cône, donc, et pas un lobe rond — la largeur croît le long de l'axe.
+    // Et une coupe DROITE en travers, l'ombre du parasoleil, qui est ce qui
+    // fait lire un BANDEAU au lieu d'un halo. Aucun réglage d'un lobe isotrope
+    // ne produit ni l'un ni l'autre, et c'est pourquoi c'est un bloc à part
+    // plutôt qu'un curseur du voile.
+    if (params[26] > 0.0) {
+      // AXE : de la source vers le centre optique. C'est le trajet de la
+      // lumière rasante à travers le fût, donc la direction dans laquelle elle
+      // ressort. Repli sur le bas quand la source est pile sur l'axe — il n'y a
+      // alors plus de direction, et une normalisation de zéro rendrait NaN.
+      let dS0 = length(sIso);
+      let axe = select(-sIso / max(dS0, 1e-5), vec2<f32>(0.0, 1.0), dS0 < 1e-5);
+      let perp = vec2<f32>(-axe.y, axe.x);
+      let q = (uv - centre) * ar - sIso;
+      // Avancée LE LONG de l'axe, et écart LATÉRAL. Tout le reste s'exprime
+      // dans ce repère, ce qui rend la plume indépendante de l'orientation de
+      // l'image — elle suit la source, pas les bords du cadre.
+      let le = dot(q, axe);
+      let tr = dot(q, perp);
+
+      let longueur = max(params[27], 0.02);
+      let evase = clamp(params[28], 0.0, 1.0);
+      // Largeur croissante : c'est ce qui fait le cône. Le terme constant
+      // empêche la pointe de se fermer sur un fil à la source.
+      let largeur = longueur * (0.08 + evase * clamp(le / longueur, 0.0, 2.0) * 0.6);
+      // CHUTE LATÉRALE GAUSSIENNE et non \`smoothstep\`, corrigé sur pièce : une
+      // bascule, même adoucie, donne deux bords francs sur les côtés et la plume
+      // se lit comme un faisceau de PROJECTEUR — un trapèze découpé. Une
+      // gaussienne n'a de bord nulle part, ce qui est le propre d'une lumière
+      // diffusée. Le seul bord franc de cet effet est la COUPE, et il est
+      // transversal : c'est lui qui doit se voir, et lui seul.
+      let lat = exp(-(tr / largeur) * (tr / largeur) * 2.5);
+      // Décroissance en 1/(1+r²), à queue longue : la plume atteint encore le
+      // bord opposé du cadre, comme sur les photographies.
+      let r = max(le, 0.0) / longueur;
+      let lon = 1.0 / (1.0 + r * r * 3.0);
+      // LA COUPE DROITE. Bande de transition étroite et FIXE (3 % de la
+      // longueur) : ce bord est une ombre portée, donc net par nature — le
+      // rendre réglable inviterait à l'adoucir, et un bord adouci redonne
+      // exactement le halo qu'on essaie de ne pas faire.
+      let coupe = smoothstep(0.0, 0.03 * longueur, le - clamp(params[29], 0.0, 1.0) * longueur);
+      // En AVANT de la source seulement : derrière elle il n'y a pas de fût à
+      // traverser, donc rien à diffuser.
+      flare = flare + teinteRvb * lat * lon * coupe * step(0.0, le) * params[26] * force * 0.22;
+    }
+
     // ── VOILE, en lobe large autour de la source ────────────────────────────
     // Décroissance en 1/(1+r²) et non exponentielle : elle a une QUEUE longue,
     // donc le lavage atteint encore le bord opposé du cadre. Une exponentielle
     // s'éteindrait trop tôt et rendrait une tache, pas un voile.
     if (veil > 0.0) {
-      let largeur = rayonSrc * 8.0 + 0.35;
+      // Largeur ramenée de \`rayon*8 + 0,35\` à \`rayon*4 + 0,15\` : au premier
+      // essai le lobe valait plus d'une fois la diagonale, donc il teintait tout
+      // le cadre À PLAT — un voile n'est pas une dominante, c'est un gradient qui
+      // vient de quelque part.
+      let largeur = rayonSrc * 4.0 + 0.15;
       let r = dSrc / largeur;
       flare = flare + teinteRvb * (1.0 / (1.0 + r * r)) * veil * force * 0.12;
     }

@@ -380,6 +380,12 @@ const ATTENDU = {
   // ne rendaient RIEN avec une source hors champ — le lobe etait rasterise dans
   // une passe qui ne couvre que [0,1]. Cette reference verrouille les quatre.
   "effet-lens-flare-familles.png": { width: 256, height: 256, valeurs: null },
+  // LA PLUME (2026-08-03, troisieme revue). Cinq photographies d Antoine, prises
+  // avec son propre materiel, ne montraient NI chapelet NI anneau — toutes la
+  // meme plume large, teintee par le revetement et coupee par un bord DROIT.
+  // C est devenu le cœur de l effet ; cette reference l isole, source
+  // au-dessus du cadre comme sur ses images.
+  "effet-lens-flare-plume.png": { width: 256, height: 256, valeurs: null },
   "effet-verre-cannele.png": { width: 256, height: 256, valeurs: null },
   "effet-verre-bourrelet.png": { width: 256, height: 256, valeurs: null },
   "effet-verre-martele.png": { width: 256, height: 256, valeurs: null },

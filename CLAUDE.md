@@ -173,6 +173,14 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Noyaux de flou pyramidal partagés par glow/halation : `effects/blurChain.ts`.
   Les deux flous ci-dessus n'en sont PAS : un noyau pyramidal ne sait produire
   ni bord franc, ni polygone, ni poids de valeur.
+- ⚠️ **Demander les photos de l'utilisateur AVANT de raffiner sur des références
+  publiques.** Leçon la plus chère du 2026-08-03 : trois passes de raffinement de
+  `lensFlare` ont été faites sur des références générales, puis cinq photos
+  d'Antoine ont montré que son objectif ne produit ni chaîne de fantômes ni
+  anneau — mais une PLUME de diffusion rasante, teintée et coupée droit. Des
+  références générales disent ce qu'un effet PEUT être ; les photos de celui qui
+  va s'en servir disent ce qu'il DOIT être. Deux passes sur trois auraient été
+  économisées.
 - **Un flare n'est pas UN phénomène mais TROIS**, et ils diffèrent par l'endroit
   où la lumière se perd, pas par leur apparence : entre deux faces POLIES
   (ghosting — des images nettes de l'ouverture), sur une surface SALE ou rayée

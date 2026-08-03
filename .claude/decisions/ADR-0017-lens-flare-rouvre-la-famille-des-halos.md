@@ -181,6 +181,57 @@ cassait quand la sortie ne regardait que le champ.
 
 Effet à 26 paramètres, cinq références de pixels. Les aigrettes restent écartées.
 
+## Second amendement — cinq photographies d'Antoine, et un renversement
+
+Antoine a fourni **cinq flares obtenus avec son propre matériel**. Aucune des
+cinq ne montre de chaîne de fantômes ni d'anneau. Toutes montrent la même
+chose : une **plume large et molle**, fortement teintée par le revêtement
+(bleu-violet sur trois, ambre sur deux), **coupée par un bord droit**.
+
+C'est un renversement de hiérarchie, pas un ajout. J'avais raffiné la famille du
+manuel — le ghosting — pendant que son objectif produit de la **diffusion
+rasante dans le fût** : la lumière entre de biais, se disperse sur la longueur du
+barillet et ressort en CÔNE. D'où `plume`, désormais allumée par défaut, et
+quatre réglages (longueur, évasement, bord franc, plus la teinte partagée).
+
+Deux propriétés que rien d'existant ne pouvait produire, et deux erreurs faites
+avant de les trouver :
+
+- **C'est un cône, pas un lobe.** La largeur croît le long de l'axe. Le voile
+  isotrope en `1/(1+r²)` ne s'en approche à aucun réglage.
+- **La chute latérale est GAUSSIENNE.** Premier essai en `smoothstep` : deux
+  bords francs sur les côtés, et la plume se lit comme un faisceau de
+  projecteur. Le seul bord franc de cet effet est la coupe, et il est
+  transversal — c'est lui qui doit se voir, et lui seul.
+
+**Deux corrections d'usage sur les fantômes, toutes deux justes et précises :**
+
+1. *« J'aime les fantômes mais pas les ellipses. »* Géométriquement imparable :
+   la découpe modélisait le fût par un second DISQUE décalé, et **l'intersection
+   de deux disques est une ellipse**. Aucun réglage n'y pouvait rien. Remplacée
+   par un **demi-plan** : il reste un polygone à un côté de moins, ce que
+   montrent les photographies de fantômes vignettés. Et la même primitive sert au
+   bord franc de la plume — les deux viennent du même obstacle.
+2. *« L'anneau unique est sympa, c'est plutôt les anneaux en série que je n'aime
+   pas. »* La nuance est fine et exacte. Un anneau creux est le bon rendu pour UN
+   artefact isolé — la famille « anneau » le garde — mais répété cinq fois le
+   long d'un axe il devient un MOTIF, et un motif trahit la synthèse. Les
+   fantômes sont donc pleins par défaut (`ghostFill` 0,2 → 0,8), le liseré ne
+   fait plus que souligner le contour.
+
+**Teinte par défaut passée à 262° et 62 % de saturation** — le bleu-violet des
+revêtements modernes, majoritaire dans ses références. Ce n'est pas une couleur
+choisie à l'œil : c'est ce que renvoie le traitement anti-reflet.
+
+Effet à 30 paramètres, six références de pixels.
+
+⚠️ **Leçon de méthode, et c'est la plus chère de la journée.** Trois passes de
+raffinement ont été faites sur des références PUBLIQUES avant que les photos de
+l'utilisateur n'arrivent — et elles ont montré que je raffinais la mauvaise
+famille. Des références générales disent ce qu'un flare peut être ; les photos de
+celui qui va s'en servir disent ce qu'il doit être. Les demander en premier
+aurait économisé deux des trois passes.
+
 ## Alternatives écartées
 
 - **Un mode de `lensDistortion`.** Voir ci-dessus : ce n'est pas une déformation.

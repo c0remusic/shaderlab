@@ -1898,7 +1898,7 @@ const INSTALL = `(async () => {
           blades: 6, bladeRotation: 0,
           ghostCount: 5, ghostSpacing: 0.3, ghostIntensity: 1.2, ghostDispersion: 0.5,
           tintHue: 30, tintSaturation: 0.45, tintLightness: 0.6,
-          haloIntensity: 0, haloRadius: 0.42, veil: 0,
+          haloIntensity: 0, haloRadius: 0.42, veil: 0, plume: 0, scatter: 0, arcs: 0,
         });
       },
     },
@@ -1922,7 +1922,7 @@ const INSTALL = `(async () => {
           blades: 6, bladeRotation: 0,
           ghostCount: 5, ghostSpacing: 0.3, ghostIntensity: 1.2, ghostDispersion: 0.5,
           tintHue: 30, tintSaturation: 0.45, tintLightness: 0.6,
-          haloIntensity: 0, haloRadius: 0.42, veil: 0,
+          haloIntensity: 0, haloRadius: 0.42, veil: 0, plume: 0, scatter: 0, arcs: 0,
         });
       },
     },
@@ -1945,7 +1945,7 @@ const INSTALL = `(async () => {
           blades: 6, bladeRotation: 0,
           ghostCount: 0, ghostIntensity: 0,
           tintHue: 30, tintSaturation: 0.45, tintLightness: 0.6,
-          haloIntensity: 0.7, haloRadius: 0.42, veil: 0,
+          haloIntensity: 0.7, haloRadius: 0.42, veil: 0, plume: 0, scatter: 0, arcs: 0,
         });
       },
     },
@@ -1967,7 +1967,37 @@ const INSTALL = `(async () => {
           sourceX: 0.16, sourceY: 0.14, sourceRadius: 0.09, sourceIntensity: 5,
           blades: 6, ghostCount: 0, ghostIntensity: 0,
           tintHue: 30, tintSaturation: 0.45, tintLightness: 0.6,
-          haloIntensity: 0, veil: 1.6,
+          haloIntensity: 0, veil: 1.6, plume: 0, scatter: 0, arcs: 0,
+        });
+      },
+    },
+
+    // LA PLUME, ET C EST LE CŒUR DE L EFFET DEPUIS LA TROISIEME REVUE. Cinq
+    // photographies d Antoine, prises avec son propre materiel, ne montraient NI
+    // chapelet NI anneau — toutes la meme plume large, fortement teintee par le
+    // revetement et coupee par un bord DROIT.
+    //
+    // Source AU-DESSUS du cadre (y = -0.12), comme sur ses images : le soleil
+    // est hors champ et la plume descend dans l image. Fantomes et anneau
+    // eteints pour que ce verrou ne porte que sur elle.
+    //
+    // Ce que la reference doit montrer, et qu aucun lobe rond ne sait faire :
+    // un CONE qui s evase vers le bas, et une COUPE nette en travers.
+    "effet-lens-flare-plume": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const points = await mireBokeh(W, H);
+        const sourceId = await r.photoSources.register(points);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bokeh");
+        const a = stack.addLayer("lensFlare", p);
+        stack.updateParams(a, {
+          threshold: 1, spread: 2,
+          sourceX: 0.52, sourceY: -0.12, sourceRadius: 0.09, sourceIntensity: 5,
+          ghostCount: 0, ghostIntensity: 0,
+          tintHue: 262, tintSaturation: 0.62, tintLightness: 0.6,
+          haloIntensity: 0, veil: 0.35, scatter: 0.3, scatterDetail: 70,
+          sensor: 0, arcs: 0,
+          plume: 1.4, plumeLength: 0.9, plumeSpread: 0.6, plumeEdge: 0.28,
         });
       },
     },

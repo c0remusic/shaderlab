@@ -114,10 +114,10 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `MAX_EFFECT_PARAMS` (`shaderCompose.ts`, **32** depuis le 2026-08-03) si
   nécessaire.
   Registre réel au 2026-08-03 (soir), dans l'ordre : `glow`, `halation`,
-  `lensDistortion`, `lensBlur`, `motionBlur`,
+  `lensFlare`, `lensDistortion`, `lensBlur`, `motionBlur`,
   `glass`, `warp`, `grain`, `duotone`, `hatching`, `halftone`, `dither`,
   `gooeyMerge`, `channelMixer`, `outlines`, `isolines`,
-  `pixelStretch`, `sliceShift`, `gradientMap` — **dix-neuf**.
+  `pixelStretch`, `sliceShift`, `gradientMap` — **vingt**.
   `glass` (2026-08-03) est le portage du système de réfraction d'Antoine
   (`C:\dev\portfolio\src\shaders\verre\site.fs.glsl`), **tranche 1 = la
   feuille**, neuf matières. Les cinq matières de PAVÉ sont la tranche 2 et iront
@@ -173,12 +173,17 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Noyaux de flou pyramidal partagés par glow/halation : `effects/blurChain.ts`.
   Les deux flous ci-dessus n'en sont PAS : un noyau pyramidal ne sait produire
   ni bord franc, ni polygone, ni poids de valeur.
-- **Trois familles closes**, chacune par un découpage qui ne se devine pas
-  depuis les noms. **Halos** : `glow` étale sans colorer (diffusion) et
-  `halation` réexpose en rouge sur fond sombre (film) — ils s'empilent. La
-  famille est retombée à DEUX le 2026-08-03 : `anamorphicStreak` en est sorti,
-  absorbé par `lensDistortion` (ADR-0014), parce qu'une traînée sur un seul axe
-  n'est pas un halo mais ce que fait un verre CYLINDRIQUE. Ce qu'un objectif
+- **Trois familles**, chacune découpée d'une façon qui ne se devine pas depuis
+  les noms. **Halos, à TROIS** : `glow` étale sans colorer (diffusion),
+  `halation` réexpose en rouge sur fond sombre (film), `lensFlare` RÉFLÉCHIT —
+  il produit des copies déplacées de la source au lieu de l'étaler sur place
+  (ADR-0017). Ils s'empilent. La famille a fait l'aller-retour dans la même
+  journée : `anamorphicStreak` en est sorti le matin pour `lensDistortion`
+  (ADR-0014, une traînée sur un seul axe est ce que fait un verre CYLINDRIQUE),
+  et `lensFlare` l'a rouverte le soir. La règle qui décide est la même dans les
+  deux sens — **un halo AJOUTE de la lumière, il ne déforme pas l'image** ; une
+  famille close par un découpage se rouvre quand un mécanisme qui n'y entre pas
+  se présente, jamais pour une nuance. Ce qu'un objectif
   fait se range donc en trois questions : ce qu'il RENVOIE (halos), ce qu'il ne
   met pas au point (flous), ce que sa FORME déforme (`lensDistortion` — fisheye
   signé + trois modes d'aberration, dont la longitudinale qui défocalise au lieu
@@ -327,7 +332,8 @@ viewport (0009), le gaussien reste hors du registre (0010, ⚠️ sa 3ᵉ consé
 est caduque), retrait de `surfaceBlur` (0011), retrait de `posterize` (0012),
 `outlines` absorbe `coloredEdges` (0013), `lensDistortion` absorbe
 `anamorphicStreak` (0014), `outlines` absorbe `echoOutlines` (0015),
-`lensDistortion` absorbe `chromaticBleed` (0016).
+`lensDistortion` absorbe `chromaticBleed` (0016), `lensFlare` rouvre la famille
+des halos (0017).
 Les décisions du
 projet vivent là, pas dans les docs de design.
 

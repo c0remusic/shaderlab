@@ -365,6 +365,16 @@ const ATTENDU = {
   // matieres Cannele croise, Gaufre et Ecorce, et les profils Arc plein, Prisme
   // et Fond plat — ecrit ici plutot que tu, parce que c'est exactement la
   // configuration qui a coute cher a `hatching`.
+  // LENS FLARE (2026-08-03), quatre references sur `mireBokeh` — la seule mire
+  // du dossier qui porte des sources PONCTUELLES FRANCHES sur du sombre, et un
+  // flare ne part de rien d'autre. Une par contribution : la premiere isole les
+  // fantomes en excluant la photo (seuil a 1), les trois autres partent d'elle
+  // et n'allument qu'une chose de plus. Patron temoin de `halation` — l'ecart
+  // entre deux images EST la contribution du terme.
+  "effet-lens-flare-source-posee.png": { width: 256, height: 256, valeurs: null },
+  "effet-lens-flare-automatique.png": { width: 256, height: 256, valeurs: null },
+  "effet-lens-flare-anneau.png": { width: 256, height: 256, valeurs: null },
+  "effet-lens-flare-voile.png": { width: 256, height: 256, valeurs: null },
   "effet-verre-cannele.png": { width: 256, height: 256, valeurs: null },
   "effet-verre-bourrelet.png": { width: 256, height: 256, valeurs: null },
   "effet-verre-martele.png": { width: 256, height: 256, valeurs: null },

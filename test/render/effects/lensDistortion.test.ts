@@ -83,10 +83,19 @@ describe("lensDistortion — il ne double ni glow ni halation", () => {
     expect(lensDistortion.wgsl).toContain("let vire = (1.0 - clamp(energie * 4.0, 0.0, 1.0)) * clamp(params[14], 0.0, 1.0);");
   });
 
-  it("est posé entre halation et lensBlur", () => {
+  it("ouvre le bloc d'OPTIQUE, juste après la famille des halos", () => {
+    // Il suivait `halation` directement jusqu'au 2026-08-03, où `lensFlare` s'est
+    // intercalé : un flare est de la lumière AJOUTÉE par l'objectif, donc il
+    // appartient aux halos et pas à ce bloc-ci, qui traite ce que la FORME du
+    // verre déforme. L'assertion porte donc sur la frontière entre les deux
+    // familles, et non plus sur un voisin nommé — un voisin, ça se remplace.
     expect(getEffect("lensDistortion")).toBe(lensDistortion);
     const i = effectRegistry.indexOf(lensDistortion);
-    expect(effectRegistry[i - 1]).toBe(halation);
+    const halos = ["glow", "halation", "lensFlare"];
+    expect(halos).toContain(effectRegistry[i - 1].id);
+    // Tout ce qui précède est un halo, rien de ce qui suit ne l'est.
+    expect(effectRegistry.slice(0, i).map((e) => e.id)).toEqual(halos);
+    expect(effectRegistry.indexOf(halation)).toBeLessThan(i);
   });
 });
 

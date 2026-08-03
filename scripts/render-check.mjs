@@ -1871,6 +1871,107 @@ const INSTALL = `(async () => {
       },
     },
 
+    // ─── LENS FLARE (2026-08-03) ──────────────────────────────────────────
+    //
+    // TOUS SUR mireBokeh, et c est la seule mire du dossier qui convienne : un
+    // flare part d une SOURCE PONCTUELLE FRANCHE sur du sombre. Sur la mire
+    // commune, le damier clair passerait le seuil partout et la chaine de
+    // fantomes se lirait comme un voile general — exactement le piege qui a
+    // coute cher a lensBlur, dont le premier scenario etait pose sur une mire
+    // sans point lumineux isole.
+    //
+    // QUATRE SCENARIOS, UN PAR CONTRIBUTION. Le premier isole les fantomes en
+    // EXCLUANT la photo (seuil a 1) : ne reste que le lobe pose, donc la chaine
+    // est sans ambiguite hexagonale. Les trois autres partent de lui et
+    // n allument qu une chose de plus. C est le patron temoin de halation :
+    // l ecart entre deux images EST la contribution du terme.
+    "effet-lens-flare-source-posee": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const points = await mireBokeh(W, H);
+        const sourceId = await r.photoSources.register(points);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bokeh");
+        const a = stack.addLayer("lensFlare", p);
+        stack.updateParams(a, {
+          threshold: 1, spread: 1.2,
+          sourceX: 0.16, sourceY: 0.14, sourceRadius: 0.09, sourceIntensity: 5,
+          blades: 6, bladeRotation: 0,
+          ghostCount: 5, ghostSpacing: 0.8, ghostIntensity: 1.2, ghostDispersion: 0.5,
+          tintHue: 30, tintSaturation: 0.45, tintLightness: 0.6,
+          haloIntensity: 0, haloRadius: 0.42, veil: 0,
+        });
+      },
+    },
+
+    // LA VOIE AUTOMATIQUE. Meme reglage, mais la source posee est ETEINTE et le
+    // seuil descendu : le flare part alors des points lumineux de la photo.
+    // \`contre\` pointe sur le scenario pose, parce que ce qu on veut asserter
+    // n est pas « l effet fait quelque chose » mais « les deux voies ne rendent
+    // pas la meme image ». Les fantomes y sont ronds et mous, et c est le prix
+    // annonce : une haute lumiere reelle n a pas de forme de diaphragme connue.
+    "effet-lens-flare-automatique": {
+      contre: "effet-lens-flare-source-posee",
+      build: async (r, stack) => {
+        const points = await mireBokeh(W, H);
+        const sourceId = await r.photoSources.register(points);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bokeh");
+        const a = stack.addLayer("lensFlare", p);
+        stack.updateParams(a, {
+          threshold: 0.55, spread: 1.2,
+          sourceIntensity: 0,
+          blades: 6, bladeRotation: 0,
+          ghostCount: 5, ghostSpacing: 0.8, ghostIntensity: 1.2, ghostDispersion: 0.5,
+          tintHue: 30, tintSaturation: 0.45, tintLightness: 0.6,
+          haloIntensity: 0, haloRadius: 0.42, veil: 0,
+        });
+      },
+    },
+
+    // L ANNEAU SEUL. Fantomes eteints, anneau seul allume. Ce que ce temoin
+    // protege est sa POSITION : l anneau est centre sur le CENTRE DU CADRE et
+    // non sur la source, parce qu il vient d une face spherique donc de l axe
+    // optique. Le centrer sur la source en ferait un halo de diffusion, c est
+    // a dire un glow deguise — et rien d autre qu une reference ne le dirait.
+    "effet-lens-flare-anneau": {
+      contre: "effet-lens-flare-source-posee",
+      build: async (r, stack) => {
+        const points = await mireBokeh(W, H);
+        const sourceId = await r.photoSources.register(points);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bokeh");
+        const a = stack.addLayer("lensFlare", p);
+        stack.updateParams(a, {
+          threshold: 1, spread: 1.2,
+          sourceX: 0.16, sourceY: 0.14, sourceRadius: 0.09, sourceIntensity: 5,
+          blades: 6, bladeRotation: 0,
+          ghostCount: 0, ghostIntensity: 0,
+          tintHue: 30, tintSaturation: 0.45, tintLightness: 0.6,
+          haloIntensity: 2.2, haloRadius: 0.42, veil: 0,
+        });
+      },
+    },
+
+    // LE VOILE SEUL. Ce temoin protege la distinction qui separe cet effet d un
+    // glow : le voile ajoute une lumiere SCALAIRE teintee, donc il remonte les
+    // noirs SANS redessiner les formes. Un glow ajouterait la couleur locale et
+    // ferait reapparaitre les points lumineux en plus gros. L image doit donc
+    // etre lavee et plate, pas auréolée.
+    "effet-lens-flare-voile": {
+      contre: "effet-lens-flare-source-posee",
+      build: async (r, stack) => {
+        const points = await mireBokeh(W, H);
+        const sourceId = await r.photoSources.register(points);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bokeh");
+        const a = stack.addLayer("lensFlare", p);
+        stack.updateParams(a, {
+          threshold: 1, spread: 4,
+          sourceX: 0.16, sourceY: 0.14, sourceRadius: 0.09, sourceIntensity: 5,
+          blades: 6, ghostCount: 0, ghostIntensity: 0,
+          tintHue: 30, tintSaturation: 0.45, tintLightness: 0.6,
+          haloIntensity: 0, veil: 1.6,
+        });
+      },
+    },
+
     // ─── LE VERRE, TRANCHE 1 (2026-08-03) ─────────────────────────────────
     //
     // TOUS SUR mireVerre, et c est le point du plan de portage sur lequel le

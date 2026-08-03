@@ -2,6 +2,7 @@ import type { EffectModule } from "./types";
 import { HASH_WGSL } from "./hash";
 import { UV_SPACE_WGSL } from "./uvSpace";
 import { LINEAR_TO_SRGB_WGSL, SRGB_TO_LINEAR_WGSL } from "./srgbTransfer";
+import { APERTURE_WGSL } from "./aperture";
 
 /**
  * Lens blur — le flou d'un OBJECTIF, pas celui d'un filtre gaussien.
@@ -88,21 +89,12 @@ const FIELD_UNIFORM = 0;
  *  un effet propre sur toute sa course. */
 const TAPS_MAX = 256;
 
-/** Jumeau TS de `aperture_radius` (même rôle que `channelMixSpec` pour
- *  `channelMixer`) : rayon du polygone régulier inscrit dans le disque unité,
- *  dans la direction `theta`. Toute modification se fait des DEUX côtés.
- *
- *  C'est le cœur géométrique de l'effet, et le seul endroit où une erreur
- *  passerait pour un choix esthétique : un polygone circonscrit au lieu
- *  d'inscrit donnerait des taches plus grosses que le rayon réglé, sans que
- *  rien ne le signale. */
-export function apertureRadiusSpec(theta: number, blades: number, rotation: number): number {
-  if (blades < 2.5) return 1;
-  const seg = (2 * Math.PI) / blades;
-  const a = theta + rotation;
-  const k = a - seg * Math.floor(a / seg) - seg * 0.5;
-  return Math.cos(Math.PI / blades) / Math.cos(k);
-}
+/** Le rayon du diaphragme vit dans `effects/aperture.ts` depuis le 2026-08-03 :
+ *  `lensFlare` en a besoin pour la forme de son lobe injecté, et un objectif n'a
+ *  qu'UN diaphragme — deux copies rendraient un hexagone d'un côté et un
+ *  heptagone de l'autre. Réexporté ici parce que c'est cet effet qui l'a vu
+ *  naître et que ses tests l'importaient par ce chemin. */
+export { apertureRadiusSpec } from "./aperture";
 
 /** Champ de rayon, partagé par la collecte et la passe finale.
  *
@@ -170,22 +162,7 @@ ${UV_SPACE_WGSL}${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${HASH_WGSL}${FIELD_
 const LENS_LUMA = vec3<f32>(0.2126, 0.7152, 0.0722);
 const GOLDEN_ANGLE = 2.399963229728653;
 const TAU = 6.283185307179586;
-
-// Rayon du polygone régulier inscrit dans le disque unité, dans la direction
-// \`theta\`. Moins de 3 lames n'est pas un polygone : c'est le diaphragme
-// circulaire, et la fonction rend 1 partout.
-fn aperture_radius(theta: f32, blades: f32, rotation: f32) -> f32 {
-  if (blades < 2.5) {
-    return 1.0;
-  }
-  let seg = TAU / blades;
-  let a = theta + rotation;
-  // Repli dans un secteur, centré sur le milieu d'arête : le rayon y vaut
-  // cos(pi/n) et monte à 1 aux deux sommets qui le bordent.
-  let k = a - seg * floor(a / seg) - seg * 0.5;
-  return cos(3.141592653589793 / blades) / cos(k);
-}
-
+${APERTURE_WGSL}
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let dims = vec2<f32>(textureDimensions(srcTexture));
   let radiusPx = max(params[0], 0.0) * lens_field(uv, dims);

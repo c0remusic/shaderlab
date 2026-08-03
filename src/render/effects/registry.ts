@@ -19,6 +19,7 @@ import { halftone } from "./halftone";
 import { lensDistortion } from "./lensDistortion";
 import { motionBlur } from "./motionBlur";
 import { glass } from "./glass";
+import { lensFlare } from "./lensFlare";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 
 // Les six du milieu suivent l'ordre de priorité du backlog d'effets confirmé par
@@ -40,6 +41,22 @@ import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 export const effectRegistry: EffectModule[] = [
   glow,
   halation,
+  // `lensFlare` (2026-08-03) ROUVRE LA FAMILLE DES HALOS À TROIS, close à deux
+  // le matin même quand `anamorphicStreak` en est sorti pour `lensDistortion`.
+  //
+  // La clôture portait sur un découpage : `glow` étale sans colorer
+  // (diffusion), `halation` réexpose en rouge sur fond sombre (film). Celui-ci
+  // n'est variante ni de l'un ni de l'autre — c'est une RÉFLEXION entre les
+  // faces des lentilles, qui produit des copies DÉPLACÉES de la source au lieu
+  // de l'étaler sur place. Le cahier de références le disait déjà en creux en
+  // décrivant la traînée anamorphique comme « ni bloom ni flare à fantômes » :
+  // le flare à fantômes y était nommé comme absent.
+  //
+  // Et il reste dans cette famille plutôt que d'aller chez `lensDistortion`
+  // pour la raison qui structure tout ce bloc : un flare n'est pas une
+  // DÉFORMATION — l'image derrière ne bouge pas d'un pixel — c'est de la
+  // lumière AJOUTÉE. Première question de la famille, pas la troisième.
+  lensFlare,
   // `lensDistortion` (2026-08-03) a ABSORBÉ `anamorphicStreak` (ADR-0014), qui
   // occupait cette place depuis le 2026-08-01. La traînée bleue sur un seul axe
   // n'était pas un halo de plus : c'est ce que fait le VERRE cylindrique d'un

@@ -434,6 +434,92 @@ const INSTALL = `(async () => {
     return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
   };
 
+  // Mire A LAMPES : quatre sources vives de teintes franchement differentes,
+  // posees DEUX FOIS — une fois sur du presque noir, une fois sur un fond clair.
+  //
+  // Aucune mire existante ne pouvait temoigner d une halation, et le manque
+  // etait exactement celui que la famille des halos rend critique : glow,
+  // halation et anamorphicStreak partent tous du meme bright-pass, et ce qui les
+  // separe est ce qu ils FONT de l energie collectee. Deux proprietes distinguent
+  // la halation des deux autres, et cette mire porte les deux :
+  //  - LA COULEUR DE LA SOURCE EST JETEE. Le fichier de l effet le declare en
+  //    toutes lettres au bright-pass (« la garder aurait fait transparaitre la
+  //    teinte de la source dans le halo, ce qui est le comportement d un bloom »)
+  //    et rien ne le verrouillait. Quatre sources de teintes tres differentes le
+  //    rendent lisible d un coup d oeil : soit UN halo de la meme couleur autour
+  //    des quatre, soit quatre halos de couleurs differentes, et il n y a pas de
+  //    cas intermediaire ambigu.
+  //  - LE HALO S EFFACE SUR FOND CLAIR. C est le terme de film, et sur du noir il
+  //    est mathematiquement INERTE : \`poidsFond\` vaut 1 des que le fond est
+  //    sombre. Un fond clair est donc la seule facon d exercer ce parametre, et
+  //    il fallait les deux fonds dans la MEME image pour que la comparaison ne
+  //    depende pas d un reglage change entre deux rendus.
+  //
+  // Fond clair a 160 et pas plus, a dessein : au-dela il passe lui-meme le seuil
+  // du bright-pass et se met a halater sur toute sa surface, ce qui noierait les
+  // quatre sources qu on veut lire. La mire est calibree contre le seuil du
+  // scenario, pas choisie a l oeil.
+  const mireLampes = (w, h) => {
+    const d = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const v = x < (w >> 1) ? 10 : 160;
+        d[i] = v; d[i + 1] = v; d[i + 2] = v; d[i + 3] = 255;
+      }
+    }
+    // Les quatre teintes saturent AU MOINS un canal : le bright-pass lit
+    // \`max(r, g, b)\`, donc les quatre franchissent le seuil de la meme facon et
+    // la seule chose qui les separe est leur couleur. Sans cette precaution on
+    // comparerait des halos d energies differentes, et une teinte residuelle se
+    // confondrait avec un ecart d intensite.
+    const teintes = [[255, 255, 255], [255, 110, 40], [60, 255, 90], [70, 110, 255]];
+    const rr = 9;
+    for (let col = 0; col < 2; col++) {
+      for (let row = 0; row < 4; row++) {
+        const cx = col === 0 ? w >> 2 : (w * 3) >> 2;
+        const cy = ((row * 2 + 1) * h) >> 3;
+        const t = teintes[row];
+        for (let y = cy - rr; y <= cy + rr; y++) {
+          for (let x = cx - rr; x <= cx + rr; x++) {
+            if (x < 0 || y < 0 || x >= w || y >= h) continue;
+            if ((x - cx) * (x - cx) + (y - cy) * (y - cy) > rr * rr) continue;
+            const i = (y * w + x) * 4;
+            d[i] = t[0]; d[i + 1] = t[1]; d[i + 2] = t[2];
+          }
+        }
+      }
+    }
+    return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
+  };
+
+  // Mire A DAMIER NEUTRE : un damier fin, r = g = b partout, sur toute la toile.
+  //
+  // La mire commune a bien un damier, mais il est pose sur un degrade ou le
+  // rouge croit en x et le vert en y : elle porte DEJA de la chromaticite
+  // partout, et une frange coloree ne s y distingue pas de son fond. Ici la
+  // source n a aucune couleur, donc tout pixel colore de la sortie est FABRIQUE
+  // par la dispersion — c est le raisonnement des barres binaires de sliceShift,
+  // porte a deux dimensions parce qu une aberration radiale deplace en x ET en y
+  // (des barres uniformes en y rendraient la moitie du deplacement invisible).
+  //
+  // Cellule de 8 px et non 16 : une frange se lit contre une arete, donc plus il
+  // y a d aretes par unite de rayon, plus la croissance du decalage du centre
+  // vers les coins — la promesse meme du parametre \`centerFalloff\` — est
+  // lisible. Uniforme sur toute la toile pour que la comparaison centre/coins
+  // porte sur le meme contenu.
+  const mireDamierNeutre = (w, h) => {
+    const d = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const v = (((x >> 3) ^ (y >> 3)) & 1) ? 224 : 32;
+        d[i] = v; d[i + 1] = v; d[i + 2] = v; d[i + 3] = 255;
+      }
+    }
+    return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
+  };
+
   // Raster de pinceau DETERMINISTE : un disque a bord adouci, calcule, jamais
   // peint par un geste. Meme format que celui que produit MaskPainter (r8,
   // tightement pack, taille de l'image).
@@ -1407,6 +1493,218 @@ const INSTALL = `(async () => {
         stack.updateParams(a, {
           trajectory: 0, amount: 60, angle: 30,
           centerX: 0.5, centerY: 0.5, bias: 0, falloff: 0.35,
+        });
+      },
+    },
+
+    // HALATION — son PREMIER verrou, pose le 2026-08-03. L effet n en avait
+    // aucun : ni scenario dedie, ni meme un passage dans un scenario de
+    // composition. Neuf passes de pyramide et un composite recolorisant
+    // pouvaient donc changer sans faire rougir quoi que ce soit.
+    //
+    // Seuil a 0.70, et ce n est pas un reglage de gout : il tombe au-dessus du
+    // fond clair de la mire (160, soit 0.63 en perceptuel) et tres en dessous des
+    // quatre sources, qui saturent chacune un canal. C est ce qui garantit que
+    // les SEULS emetteurs de l image sont les huit disques — un fond qui halate
+    // noierait la mesure qu on vient chercher.
+    //
+    // Portee au MINIMUM (0.3, soit un rayon d environ 48 px) pour que les halos
+    // de la colonne sombre n atteignent pas la moitie claire : la comparaison
+    // fond sombre / fond clair EST le sujet du scenario, et elle ne vaut que si
+    // les deux moities restent independantes.
+    //
+    // Effacement sur fond clair laisse a son defaut (0.6) : c est le terme
+    // mesure. A ce reglage le poids vaut 0.97 a gauche contre 0.62 a droite, donc
+    // des sources identiques doivent rendre des halos visiblement inegaux — et
+    // si quelqu un retirait le terme, les huit halos deviendraient egaux.
+    "effet-halation": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const lampes = await mireLampes(W, H);
+        const sourceId = await r.photoSources.register(lampes);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "lampes");
+        const a = stack.addLayer("halation", p);
+        stack.updateParams(a, {
+          threshold: 0.7, spread: 0.3, intensity: 4,
+          hue: 0.7, transition: 8, background: 0.6,
+        });
+      },
+    },
+
+    // LE MEME, SANS L EFFACEMENT — et ce scenario existe parce que le precedent
+    // seul serait AVEUGLE au parametre qu il pretend temoigner.
+    //
+    // Sur la reference ci-dessus, la moitie claire ne porte aucun halo visible.
+    // C est la bonne image, mais elle ne prouve pas sa cause : un halo rouge
+    // AJOUTE a un gris moyen est de toute facon peu perceptible, donc on ne peut
+    // pas distinguer « le terme de fond l a efface » de « l addition ne se voyait
+    // pas ». Quelqu un pourrait retirer \`poidsFond\` du composite sans faire
+    // bouger grand-chose, et le verrou laisserait passer.
+    //
+    // Le temoin le rend impossible : meme mire, memes sources, effacement a 0.
+    // L ecart entre les deux references EST la contribution du terme, et il vaut
+    // 20,4 % des canaux — s il disparaissait, les deux scenarios convergeraient
+    // et le \`contre\` rougirait.
+    //
+    // ⚠️ A l oeil la difference est SUBTILE : la moitie claire du temoin vire au
+    // rose-chaud, celle de la reference reste grise, et c est tout. Elle est donc
+    // MESUREE plus que montree, et le dire vaut mieux que laisser croire que
+    // l image saute aux yeux. C est aussi pourquoi l intensite est poussee a son
+    // maximum (4) dans les deux scenarios : a 1,6 l ecart existait toujours
+    // (14,8 %) mais les deux images etaient rigoureusement indiscernables, et une
+    // reference qu on ne peut pas relire avant de la committer ne remplit que la
+    // moitie de son office.
+    "effet-halation-fond-clair": {
+      contre: "effet-halation",
+      build: async (r, stack) => {
+        const lampes = await mireLampes(W, H);
+        const sourceId = await r.photoSources.register(lampes);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "lampes");
+        const a = stack.addLayer("halation", p);
+        stack.updateParams(a, {
+          threshold: 0.7, spread: 0.3, intensity: 4,
+          hue: 0.7, transition: 8, background: 0,
+        });
+      },
+    },
+
+    // CHROMATIC BLEED, RADIAL — son premier verrou dedie. L effet passait bien
+    // dans \`photo-double-exposure\`, mais en PASSAGER : ce scenario est bati pour
+    // montrer une composition a deux photos, et l aberration n y est que ce qui
+    // rend la chose visible. Un verrou qui ne sait pas nommer ce qu il casse ne
+    // verrouille rien.
+    //
+    // Presence au centre a 0.1 (defaut 0.35) : c est le reglage qui rend la
+    // CROISSANCE lisible. A 0.35 le centre porte deja un tiers du decalage des
+    // coins et la progression se lit mal ; a 0.1 le centre est presque propre, et
+    // toute la promesse de \`centerFalloff\` devient une comparaison directe entre
+    // le milieu de l image et ses coins, sur un damier identique partout.
+    //
+    // Asymetrie a 0.4 (defaut 0.15) : le rouge et le bleu doivent parcourir des
+    // distances DIFFERENTES. A l equilibre les deux franges seraient
+    // symetriques et un bug qui echangerait les deux courses ne se verrait pas.
+    "effet-chromatic-bleed": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const damier = await mireDamierNeutre(W, H);
+        const sourceId = await r.photoSources.register(damier);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "damier");
+        const a = stack.addLayer("chromaticBleed", p);
+        stack.updateParams(a, {
+          amount: 0.06, centerFalloff: 2, centerPresence: 0.1,
+          asymmetry: 0.4, angle: 0,
+        });
+      },
+    },
+
+    // LE MEME, EN TANGENTIEL. \`angle\` n est pas un reglage de plus : a 45 degres
+    // le decalage n est plus radial mais perpendiculaire au rayon (decentrement
+    // d objectif), donc les franges tournent AUTOUR du centre au lieu d en
+    // partir. C est une seconde geometrie, et elle merite son verrou pour la
+    // meme raison que les geometries de champ de lensBlur ont le leur.
+    //
+    // \`contre\` pointe sur le scenario radial et non sur la photo nue : ce qu on
+    // veut asserter n est pas « l effet fait quelque chose » (deja acquis) mais
+    // « les deux orientations ne rendent pas la meme image ».
+    "effet-chromatic-bleed-tangentiel": {
+      contre: "effet-chromatic-bleed",
+      build: async (r, stack) => {
+        const damier = await mireDamierNeutre(W, H);
+        const sourceId = await r.photoSources.register(damier);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "damier");
+        const a = stack.addLayer("chromaticBleed", p);
+        stack.updateParams(a, {
+          amount: 0.06, centerFalloff: 2, centerPresence: 0.1,
+          asymmetry: 0.4, angle: 45,
+        });
+      },
+    },
+
+    // DUOTONE, SUR LA RAMPE, A SES DEFAUTS EXACTS. Deux choix, deux raisons.
+    //
+    // La rampe parce que cet effet est une REPONSE TONALE et rien d autre : il
+    // remplace chaque niveau de gris par une couleur. Le damier de la mire
+    // commune saute d un texel a l autre, donc la correspondance ton -> couleur y
+    // devient illisible ; une rampe neutre l etale sur toute la largeur, ou elle
+    // se lit d un coup d oeil et se mesure colonne par colonne.
+    //
+    // Les DEFAUTS parce que ce sont eux que tout le monde voit en premier et que
+    // rien ne verrouillait. L effet passait dans \`masque-edge-aware\`, mais en
+    // passager d un scenario bati pour le masque : si sa rampe de teintes
+    // derivait, cette reference-la changerait sans qu on sache laquelle des deux
+    // proprietes a bouge.
+    "effet-duotone": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("duotone", p);
+        stack.updateParams(a, {
+          shadowHue: 350, shadowSaturation: 0.65, shadowLightness: 0.25,
+          midtoneHue: 30, midtoneSaturation: 0.5, midtoneLightness: 0.5,
+          highlightHue: 220, highlightSaturation: 0.55, highlightLightness: 0.6,
+          contrast: 0.55, pivot: 0.5,
+        });
+      },
+    },
+
+    // GRADIENT MAP, SUR LA MEME RAMPE — et le \`contre\` est le point du scenario.
+    //
+    // « duotone et gradientMap sont-ils des doublons » en est a son troisieme
+    // tour, et la question n a jamais eu de MESURE. Poser les deux sur la meme
+    // mire, aux memes tons, avec un ecart mesure entre les deux images, la rend
+    // enfin chiffrable : si un jour les deux effets rendaient la meme chose, ce
+    // scenario rougirait de lui-meme.
+    //
+    // Conservation du modele a 0 (defaut 0.35) : a son defaut, l effet reinjecte
+    // la luminosite d origine sous la teinte, donc la reference verrouillerait un
+    // MELANGE de la rampe et de la source. A 0 c est la rampe seule — ce que
+    // l effet sait faire et que lui seul sait faire.
+    "effet-gradient-map": {
+      contre: "effet-duotone",
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("gradientMap", p);
+        stack.updateParams(a, {
+          shadowHue: 235, shadowSaturation: 0.55, shadowLightness: 0.14,
+          midHue: 320, midSaturation: 0.42, midLightness: 0.5,
+          highHue: 45, highSaturation: 0.6, highLightness: 0.88,
+          midPosition: 0.5, blackPoint: 0, whitePoint: 1,
+          preserveShading: 0, blendSpace: 1, offset: 0,
+          repeat: 1, repeatType: 0, scatter: 0,
+        });
+      },
+    },
+
+    // LA MEME RAMPE, REPLIEE QUATRE FOIS. C est la capacite que duotone n a pas
+    // et ne peut pas avoir — trois teintes fixes ne se repetent pas — donc c est
+    // elle qui repond a la question de fusion par autre chose qu un avis.
+    //
+    // Type MIROIR (le defaut) et non Repetition, parce que le miroir est celui
+    // qui PROMET quelque chose : « les bandes s enchainent en se refletant, sans
+    // arete ». Une arete qui apparaitrait a un repli est un defaut, et cette
+    // reference la verrait. Repetition, elle, promet l arete franche : la
+    // verrouiller reviendrait a verifier qu une coupure coupe.
+    // ⚠️ Le mode Repetition reste donc SANS VERROU, et c est assume plutot que
+    // tu — le declarer ici vaut mieux qu une reference qui laisserait croire que
+    // les deux branches sont couvertes.
+    "effet-gradient-map-repetition": {
+      contre: "effet-gradient-map",
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("gradientMap", p);
+        stack.updateParams(a, {
+          shadowHue: 235, shadowSaturation: 0.55, shadowLightness: 0.14,
+          midHue: 320, midSaturation: 0.42, midLightness: 0.5,
+          highHue: 45, highSaturation: 0.6, highLightness: 0.88,
+          midPosition: 0.5, blackPoint: 0, whitePoint: 1,
+          preserveShading: 0, blendSpace: 1, offset: 0,
+          repeat: 4, repeatType: 0, scatter: 0,
         });
       },
     },

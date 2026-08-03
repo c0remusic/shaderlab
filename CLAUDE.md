@@ -93,11 +93,15 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `EffectParam.colorGroup`) touche aussi `ParamPanel.tsx` et peut élargir
   `MAX_EFFECT_PARAMS` (`shaderCompose.ts`, **24** depuis le 2026-08-01) si
   nécessaire.
-  Registre réel au 2026-08-01, dans l'ordre : `glow`, `halation`,
+  Registre réel au 2026-08-03, dans l'ordre : `glow`, `halation`,
   `anamorphicStreak`, `lensBlur`, `motionBlur`, `surfaceBlur`, `chromaticBleed`,
   `warp`, `grain`, `duotone`, `posterize`, `hatching`, `halftone`, `gooeyMerge`,
   `channelMixer`, `outlines`, `coloredEdges`, `pixelStretch`, `sliceShift`,
-  `gradientMap` — **vingt**.
+  `gradientMap`, `echoOutlines`, `dither`, `isolines` — **vingt-trois**.
+  Les trois derniers sont arrivés le 2026-08-03 ; `echoOutlines` est l'effet que
+  la fiche Figma appelle `Outlines` et que notre `outlines` n'est pas (l'un
+  mesure une DISTANCE à une forme, l'autre détecte un gradient), `dither` est un
+  surensemble de `posterize`, `isolines` trace des courbes de niveau du ton.
   Six sont arrivés le 2026-08-01 et AUCUN ne vient du backlog Figma d'origine
   (épuisé le 2026-07-31) : ils sortent du cahier de références
   `docs/superpowers/specs/2026-08-01-references-effets.md` et de demandes

@@ -1045,6 +1045,52 @@ compatibles : les outils sont distincts SUR LE PAPIER et indistincts À L'ÉCRAN
 Le travail n'est donc ni de fusionner ni de re-justifier, mais de rendre l'écart
 LISIBLE — défauts, noms, et peut-être un mot dans l'interface.
 
+## Le registre n'était verrouillé qu'aux trois quarts — relevé le 2026-08-03
+
+Un audit de couverture des verrous de pixels, effet par effet contre
+`scripts/render-check.mjs`, a trouvé **quatre effets sur vingt-trois sans verrou
+propre** :
+
+- `halation` et `gradientMap` : **aucun scénario**, pas une ligne. Neuf passes de
+  pyramide et un composite recolorisant d'un côté, une rampe à trois arrêts en
+  OKLCH de l'autre, et rien qui rougisse si ça bouge.
+- `chromaticBleed` et `duotone` : **passagers** d'un scénario bâti pour autre
+  chose — le premier dans `photo-double-exposure`, le second dans
+  `masque-edge-aware`. Ils y font tourner du code, mais si leur rendu dérivait,
+  la référence changerait sans qu'on sache laquelle des deux propriétés a bougé.
+  Passager n'est pas verrouillé.
+
+Sept scénarios posés, dont **deux mires neuves** — parce que dans les deux cas
+aucune mire existante ne pouvait montrer la propriété :
+
+- `mireLampes` (quatre sources de teintes très différentes, posées deux fois :
+  sur du presque noir et sur un fond clair) pour `halation`. Ce que la famille
+  des halos a de commun est le bright-pass ; ce qui les sépare est ce qu'ils font
+  de l'énergie. La halation JETTE la couleur de la source — le fichier le déclare
+  au bright-pass, et rien ne le vérifiait. Quatre halos rouges identiques autour
+  de quatre sources de couleurs différentes, c'est cette ligne-là qui devient
+  opposable. Un second scénario, effacement à 0, sert de témoin au terme de fond
+  clair, qui est **inerte sur du noir** et n'était donc exercé nulle part : écart
+  **20,4 % des canaux** entre les deux. ⚠️ Cet écart est MESURÉ plus que montré —
+  la moitié claire du témoin vire au rose-chaud, et c'est tout.
+- `mireDamierNeutre` (damier fin, r = g = b partout) pour `chromaticBleed`. La
+  mire commune porte déjà de la chromaticité partout — rouge croissant en x, vert
+  en y — donc une frange colorée ne s'y distingue pas de son fond. Sur une source
+  sans couleur, tout pixel coloré de la sortie est FABRIQUÉ par la dispersion.
+  C'est le raisonnement des barres binaires de `sliceShift`, porté à deux
+  dimensions parce qu'une aberration radiale déplace en x ET en y. Deuxième
+  scénario pour l'orientation tangentielle (`angle` 45°), qui est une seconde
+  géométrie et non un réglage de plus : **23,1 %** d'écart avec le radial.
+
+**Et la question duotone / gradientMap a enfin une mesure.** Les deux sont posés
+sur la MÊME rampe neutre, et l'écart entre les deux références vaut **74,2 % des
+canaux**. Les images disent pourquoi sans qu'on ait à trancher : `duotone` rend
+trois aplats à bascules dures, `gradientMap` une rampe continue. Un troisième
+scénario replie la rampe quatre fois en miroir (**74,1 %** d'écart avec la rampe
+simple) — trois teintes fixes ne se répètent pas, donc c'est la capacité que
+`duotone` ne peut pas avoir. Le troisième tour de la question de fusion part
+maintenant d'un chiffre au lieu d'un avis.
+
 ## Triage
 
 **A. DÉFAUTS — un effet livré qui ne tient pas sa promesse.**
@@ -1097,8 +1143,16 @@ LISIBLE — défauts, noms, et peut-être un mot dans l'interface.
    **50,0 %** sur la mire nue, **74,3 %** avec l'effet, contre 3,0 % pour
    halftone et 30,6 % pour outlines sur la même mire. L'effet AJOUTE des arêtes
    franches alors que son fichier annonce une iso-surface « toujours antialiasée
-   analytiquement ». Verrou posé (`effet-gooey-merge`), **correctif pas encore
-   fait**.
+   analytiquement ». Verrou posé (`effet-gooey-merge`), puis **CORRIGÉ le
+   2026-08-02** (`b43a74a`) — et le relevé ci-dessus était juste sur le
+   diagnostic, faux sur sa nature. Ce n'était pas un bord crénelé mais le liseré
+   spéculaire réduit à un fil d'UN pixel (`coverage * (1 - coverage)` culmine sur
+   un seul pixel dès que la bascule est étroite), plus un plancher `fwidth` qui
+   valait exactement ZÉRO parce que `fwidth` lit le champ tel qu'il est STOCKÉ —
+   8 bits, demi-résolution — donc deux texels voisins identiques sur une plage
+   lissée. Filaments comptés aux quatre seuils : **103/95/85/60 avant, 0/0/0/0
+   après**. Le couple 74,3 % / 50,0 % ne s'est jamais reproduit, sous aucune des
+   cinq définitions de « transition franche » essayées.
 
 **B. SURFACE DE CONTRÔLE TROP PAUVRE — l'effet est juste, la main manque.**
 4. ~~`posterize` — un seul paramètre.~~ **LIVRÉ le 2026-08-02** (`bde32ba`) :
@@ -1145,7 +1199,10 @@ LISIBLE — défauts, noms, et peut-être un mot dans l'interface.
    comptait : elle exclut que les deux ondes retombent sur la même branche.
 
 **C. ERGONOMIE — l'effet est bon, on ne sait pas le viser.**
-8. `pixelStretch` — « difficile à positionner correctement ». La région existe
+8. ~~`pixelStretch` — « difficile à positionner correctement ».~~ **LIVRÉ le
+   2026-08-03** (`ff5a3c1`) : la zone se pose SUR LA TOILE, plus seulement aux
+   curseurs. Le relevé d'origine, gardé parce qu'il nomme le manque :
+   La région existe
    (`regionX`/`regionY`/`regionRadius`/`regionFeather`) mais se règle par
    curseurs. Le §6bis le disait déjà : « Le nôtre a angle + position + portée,
    **sans manipulateur direct** », là où Figma pose un cercle sur la toile.

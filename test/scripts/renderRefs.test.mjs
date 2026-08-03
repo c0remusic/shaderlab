@@ -278,6 +278,34 @@ const ATTENDU = {
   // d'antialiasing. Le compte declare devient une assertion de plus.
   "effet-isolines.png": { width: 256, height: 256, valeurs: 23 },
   "effet-isolines-maitresses.png": { width: 256, height: 256, valeurs: 27 },
+  // LES QUATRE EFFETS QUI N'AVAIENT AUCUN VERROU PROPRE (2026-08-03), trouves
+  // par un audit de couverture effet par effet. Deux n'avaient RIEN (`halation`,
+  // `gradientMap`) ; les deux autres n'etaient que PASSAGERS d'un scenario bati
+  // pour autre chose — `chromaticBleed` dans la double exposition, `duotone`
+  // dans le masque edge-aware. Un passager fait tourner du code sans que sa
+  // derive soit imputable : si la rampe de `duotone` bougeait, c'est la
+  // reference du MASQUE qui changeait.
+  //
+  // Halation en DEUX references, et la seconde est un temoin, pas un doublon :
+  // l'effacement sur fond clair est mathematiquement INERTE sur du noir
+  // (`poidsFond` vaut 1), donc aucune mire sombre ne peut l'exercer. Le temoin
+  // le met a 0 ; l'ecart entre les deux images EST la contribution du terme.
+  "effet-halation.png": { width: 256, height: 256, valeurs: null },
+  "effet-halation-fond-clair.png": { width: 256, height: 256, valeurs: null },
+  // Chromatic bleed en deux orientations. `angle` a 45 degres n'est pas un
+  // reglage de plus : le decalage devient perpendiculaire au rayon (decentrement
+  // d'objectif), donc les franges tournent autour du centre au lieu d'en partir.
+  "effet-chromatic-bleed.png": { width: 256, height: 256, valeurs: null },
+  "effet-chromatic-bleed-tangentiel.png": { width: 256, height: 256, valeurs: null },
+  // DUOTONE ET GRADIENT MAP SUR LA MEME RAMPE, a dessein : « sont-ils des
+  // doublons » en est a son troisieme tour sans avoir jamais eu de mesure. Deux
+  // references sur la meme mire, aux memes tons, la rendent chiffrable — et si
+  // un jour les deux effets rendaient la meme chose, le `contre` du harnais
+  // rougirait de lui-meme. La troisieme replie la rampe quatre fois, ce que
+  // trois teintes fixes ne peuvent pas faire.
+  "effet-duotone.png": { width: 256, height: 256, valeurs: null },
+  "effet-gradient-map.png": { width: 256, height: 256, valeurs: null },
+  "effet-gradient-map-repetition.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

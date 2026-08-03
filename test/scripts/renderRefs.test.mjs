@@ -133,7 +133,24 @@ const ATTENDU = {
   // confondrait avec un flou de mouvement. La reference a paye son cout des sa
   // premiere execution : elle a montre que la trainee PERLAIT en chapelet, un
   // trou structurel entre le nombre de taps et la croissance du pas.
-  "effet-anamorphic-streak.png": { width: 256, height: 256, valeurs: null },
+  // PORTEE DE `anamorphicStreak` VERS `lensDistortion` le 2026-08-03 (ADR-0014),
+  // reglages transposes a l identique — la trainee est le meme code, seuls ses
+  // index de parametres ont bouge.
+  "effet-lens-distortion-trainee.png": { width: 256, height: 256, valeurs: null },
+  // LE FISHEYE SEUL, sur la mire commune : son damier a pas regulier est le seul
+  // motif qui rende une deformation radiale mesurable a l oeil. Il verrouille
+  // AUSSI que les quatre passes de trainee ne tournent pas a intensite nulle —
+  // si elles tournaient, `prevPass` porterait la source et l image sortirait
+  // avec la photo ajoutee en double.
+  "effet-lens-distortion-fisheye.png": { width: 256, height: 256, valeurs: null },
+  // LES TROIS MODES D ABERRATION, meme mire et meme force. Aucun ne se deduit
+  // d un autre : la laterale est nulle au centre, la longitudinale se voit
+  // PARTOUT (c est une mise au point, pas un deplacement), l anamorphique ne
+  // deplace que sur l horizontale et ne croit pas avec le rayon. Les ecarts
+  // mutuels des trois references sont ce qui l etablit.
+  "effet-lens-distortion-laterale.png": { width: 256, height: 256, valeurs: null },
+  "effet-lens-distortion-longitudinale.png": { width: 256, height: 256, valeurs: null },
+  "effet-lens-distortion-anamorphique.png": { width: 256, height: 256, valeurs: null },
   // SLICE SHIFT (2026-08-02) : posee AVANT d ajouter le fondu des bords, pour
   // la meme raison qu outlines — l effet n avait aucun verrou, et « le nouveau
   // parametre a 0 ne change rien » serait reste une affirmation sans une

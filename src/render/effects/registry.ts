@@ -18,7 +18,7 @@ import { echoOutlines } from "./echoOutlines";
 import { dither } from "./dither";
 import { isolines } from "./isolines";
 import { halftone } from "./halftone";
-import { anamorphicStreak } from "./anamorphicStreak";
+import { lensDistortion } from "./lensDistortion";
 import { motionBlur } from "./motionBlur";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 
@@ -41,11 +41,20 @@ import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 export const effectRegistry: EffectModule[] = [
   glow,
   halation,
-  // `anamorphicStreak` (2026-08-01) complete la famille des halos, et les trois
-  // ne se doublent pas : `glow` etale la lumiere SANS la colorer (diffusion),
-  // `halation` la reexpose en rouge sur fond sombre (film), celui-ci la tire en
-  // trait bleu sur un seul axe (optique cylindrique). Ils s'empilent.
-  anamorphicStreak,
+  // `lensDistortion` (2026-08-03) a ABSORBE `anamorphicStreak` (ADR-0014), qui
+  // occupait cette place depuis le 2026-08-01. La trainee bleue sur un seul axe
+  // n'etait pas un halo de plus : c'est ce que fait le VERRE cylindrique d'un
+  // anamorphique, donc elle appartient a la distorsion d'objectif — la fiche
+  // Figma nomme d'ailleurs `Anamorphic` un de ses trois modes d'aberration.
+  //
+  // Pose ici, entre les halos et les flous, parce que c'est la troisieme
+  // question qu'on pose a un objectif : ce qu'il RENVOIE (halos), ce qu'il ne
+  // met pas au point (flous), et ce que sa FORME fait a l'image.
+  //
+  // Ses quatre passes de trainee sont CONDITIONNELLES : a intensite nulle (son
+  // defaut) elles ne tournent pas et n'allouent rien, donc poser cet effet pour
+  // un simple fisheye ne coute que sa geometrie.
+  lensDistortion,
   lensBlur,
   // `motionBlur` (2026-08-01) suit `lensBlur` : les deux sont des intégrations,
   // l'une sur la SURFACE de l'ouverture, l'autre le long d'une TRAJECTOIRE

@@ -94,7 +94,7 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `MAX_EFFECT_PARAMS` (`shaderCompose.ts`, **24** depuis le 2026-08-01) si
   nécessaire.
   Registre réel au 2026-08-03 (soir), dans l'ordre : `glow`, `halation`,
-  `anamorphicStreak`, `lensBlur`, `motionBlur`, `chromaticBleed`,
+  `lensDistortion`, `lensBlur`, `motionBlur`, `chromaticBleed`,
   `warp`, `grain`, `duotone`, `hatching`, `halftone`, `dither`, `gooeyMerge`,
   `channelMixer`, `outlines`, `echoOutlines`, `isolines`,
   `pixelStretch`, `sliceShift`, `gradientMap` — **vingt**.
@@ -132,9 +132,17 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Les deux flous ci-dessus n'en sont PAS : un noyau pyramidal ne sait produire
   ni bord franc, ni polygone, ni poids de valeur.
 - **Trois familles closes**, chacune par un découpage qui ne se devine pas
-  depuis les noms. **Halos** : `glow` étale sans colorer (diffusion),
-  `halation` réexpose en rouge sur fond sombre (film), `anamorphicStreak` tire
-  un trait bleu sur un seul axe (optique cylindrique) — ils s'empilent.
+  depuis les noms. **Halos** : `glow` étale sans colorer (diffusion) et
+  `halation` réexpose en rouge sur fond sombre (film) — ils s'empilent. La
+  famille est retombée à DEUX le 2026-08-03 : `anamorphicStreak` en est sorti,
+  absorbé par `lensDistortion` (ADR-0014), parce qu'une traînée sur un seul axe
+  n'est pas un halo mais ce que fait un verre CYLINDRIQUE. Ce qu'un objectif
+  fait se range donc en trois questions : ce qu'il RENVOIE (halos), ce qu'il ne
+  met pas au point (flous), ce que sa FORME déforme (`lensDistortion` — fisheye
+  signé + trois modes d'aberration, dont la longitudinale qui défocalise au lieu
+  de déplacer). ⚠️ Son mode Latérale RECOUVRE `chromaticBleed`, resté au
+  registre et désormais candidat au retrait — doublon assumé et testé pour
+  rester visible.
   **Impression** : `dither` (aplats ET trames — il a absorbé `posterize`,
   ADR-0012 : sa `Force du tramage` à 0 EST le rendu sérigraphie), `hatching`
   (taille-douce), `halftone` (trame CMJN et sa rosette). **Flous** : voir
@@ -258,7 +266,8 @@ de la pile (0004), rattachement par proximité (0005), fond d'export blanc
 un effet ne se pose jamais sur un calque photo (0008), déplacement libre du
 viewport (0009), le gaussien reste hors du registre (0010, ⚠️ sa 3ᵉ conséquence
 est caduque), retrait de `surfaceBlur` (0011), retrait de `posterize` (0012),
-`outlines` absorbe `coloredEdges` (0013).
+`outlines` absorbe `coloredEdges` (0013), `lensDistortion` absorbe
+`anamorphicStreak` (0014).
 Les décisions du
 projet vivent là, pas dans les docs de design.
 

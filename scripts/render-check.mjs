@@ -1324,16 +1324,81 @@ const INSTALL = `(async () => {
     // lumiere parasite, pas un flou), et de la MEME couleur pour les quatre
     // teintes de la mire — la trainee prend sa teinte du traitement de l
     // objectif, pas de la source.
-    "effet-anamorphic-streak": {
+    // PORTE DE \`anamorphicStreak\` VERS \`lensDistortion\` le 2026-08-03 (ADR-0014),
+    // reglages transposes a l identique : la trainee est le meme code, seuls ses
+    // index de parametres ont bouge. Geometrie et aberration a ZERO ici — ce
+    // scenario verrouille la trainee et rien d autre.
+    "effet-lens-distortion-trainee": {
       contre: "photo-de-fond-seule",
       build: async (r, stack) => {
         const points = await mireBokeh(W, H);
         const sourceId = await r.photoSources.register(points);
         const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "points");
-        const a = stack.addLayer("anamorphicStreak", p);
+        const a = stack.addLayer("lensDistortion", p);
         stack.updateParams(a, {
-          threshold: 0.5, length: 70, intensity: 1.4, angle: 0,
-          tintHue: 210, tintSaturation: 0.8, tintLightness: 0.6, dispersion: 0.25,
+          distortion: 0, zoom: 1, aberration: 0,
+          streakThreshold: 0.5, streakLength: 70, streakIntensity: 1.4, streakAngle: 0,
+          streakTintHue: 210, streakTintSaturation: 0.8, streakTintLightness: 0.6,
+          streakDispersion: 0.25,
+        });
+      },
+    },
+
+    // LE FISHEYE, SEUL — et sur la mire COMMUNE, dont le damier a pas regulier
+    // est le seul motif qui rende une deformation radiale mesurable a l oeil :
+    // des cases qui grossissent du centre vers les bords, ce qu aucun degrade ni
+    // aucun point isole ne pourrait montrer.
+    //
+    // Trainee a ZERO, qui est son defaut : ce scenario verifie donc AUSSI que les
+    // quatre passes internes ne tournent pas. Si elles tournaient et que
+    // \`prevPass\` portait la source (ce qu il porte quand elles sautent), l image
+    // sortirait avec la photo ajoutee en double — le produit par l intensite
+    // nulle est ce qui l en empeche, et cette reference le fige.
+    "effet-lens-distortion-fisheye": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("lensDistortion");
+        stack.updateParams(a, { distortion: 0.55, zoom: 1.18, aberration: 0, streakIntensity: 0 });
+      },
+    },
+
+    // LES TROIS MODES D ABERRATION, sur la meme mire et a la meme force. Aucun ne
+    // se deduit d un autre, et les trois references le prouvent par leurs ecarts
+    // mutuels : la laterale est nulle au centre, la longitudinale se voit
+    // PARTOUT (c est une mise au point, pas un deplacement), l anamorphique ne
+    // deplace que sur l horizontale et ne croit pas avec le rayon.
+    //
+    // Distorsion a zero dans les trois : on isole l aberration de la geometrie,
+    // sinon on ne saurait pas laquelle des deux a bouge un pixel.
+    "effet-lens-distortion-laterale": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("lensDistortion");
+        stack.updateParams(a, {
+          distortion: 0, aberration: 0.06, aberrationMode: 0,
+          centerFalloff: 2, centerPresence: 0.1, asymmetry: 0.4, streakIntensity: 0,
+        });
+      },
+    },
+
+    "effet-lens-distortion-longitudinale": {
+      contre: "effet-lens-distortion-laterale",
+      build: async (r, stack) => {
+        const a = stack.addLayer("lensDistortion");
+        stack.updateParams(a, {
+          distortion: 0, aberration: 0.06, aberrationMode: 1,
+          centerFalloff: 2, centerPresence: 0.1, asymmetry: 0.4, streakIntensity: 0,
+        });
+      },
+    },
+
+    "effet-lens-distortion-anamorphique": {
+      contre: "effet-lens-distortion-laterale",
+      build: async (r, stack) => {
+        const a = stack.addLayer("lensDistortion");
+        stack.updateParams(a, {
+          distortion: 0, aberration: 0.06, aberrationMode: 2,
+          centerFalloff: 2, centerPresence: 0.1, asymmetry: 0.4, streakIntensity: 0,
         });
       },
     },

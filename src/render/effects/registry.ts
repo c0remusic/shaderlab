@@ -41,19 +41,19 @@ import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 export const effectRegistry: EffectModule[] = [
   glow,
   halation,
-  // `lensDistortion` (2026-08-03) a ABSORBE `anamorphicStreak` (ADR-0014), qui
-  // occupait cette place depuis le 2026-08-01. La trainee bleue sur un seul axe
-  // n'etait pas un halo de plus : c'est ce que fait le VERRE cylindrique d'un
-  // anamorphique, donc elle appartient a la distorsion d'objectif — la fiche
+  // `lensDistortion` (2026-08-03) a ABSORBÉ `anamorphicStreak` (ADR-0014), qui
+  // occupait cette place depuis le 2026-08-01. La traînée bleue sur un seul axe
+  // n'était pas un halo de plus : c'est ce que fait le VERRE cylindrique d'un
+  // anamorphique, donc elle appartient à la distorsion d'objectif — la fiche
   // Figma nomme d'ailleurs `Anamorphic` un de ses trois modes d'aberration.
   //
-  // Pose ici, entre les halos et les flous, parce que c'est la troisieme
-  // question qu'on pose a un objectif : ce qu'il RENVOIE (halos), ce qu'il ne
-  // met pas au point (flous), et ce que sa FORME fait a l'image.
+  // Posé ici, entre les halos et les flous, parce que c'est la troisième
+  // question qu'on pose à un objectif : ce qu'il RENVOIE (halos), ce qu'il ne
+  // met pas au point (flous), et ce que sa FORME fait à l'image.
   //
-  // Ses quatre passes de trainee sont CONDITIONNELLES : a intensite nulle (son
-  // defaut) elles ne tournent pas et n'allouent rien, donc poser cet effet pour
-  // un simple fisheye ne coute que sa geometrie.
+  // Ses quatre passes de traînée sont CONDITIONNELLES : à intensité nulle (son
+  // défaut) elles ne tournent pas et n'allouent rien, donc poser cet effet pour
+  // un simple fisheye ne coûte que sa géométrie.
   lensDistortion,
   lensBlur,
   // `motionBlur` (2026-08-01) suit `lensBlur` : les deux sont des intégrations,

@@ -265,6 +265,11 @@ const ATTENDU = {
   // que deux valeurs. Trois signaleraient une quantification qui fuit.
   "effet-dither.png": { width: 256, height: 256, valeurs: 2 },
   "effet-dither-bruit-bleu.png": { width: 256, height: 256, valeurs: 2 },
+  // ISOLINES (2026-08-03). Peu de valeurs, et c'est CONFORME : des traits noirs
+  // antialiases sur un fond blanc uni n'en produisent qu'une par palier
+  // d'antialiasing. Le compte declare devient une assertion de plus.
+  "effet-isolines.png": { width: 256, height: 256, valeurs: 23 },
+  "effet-isolines-maitresses.png": { width: 256, height: 256, valeurs: 27 },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus
@@ -786,6 +791,74 @@ describe("references de rendu committees", () => {
     let differents = 0;
     for (let i = 0; i < a.pixels.length; i += 4) if (a.pixels[i] !== b.pixels[i]) differents++;
     expect(differents / (a.pixels.length / 4)).toBeGreaterThan(0.1);
+  });
+
+  /* ── ISOLINES : la largeur du trait est celle DEMANDÉE, pas celle de la pente
+   *
+   * C'est toute la promesse de l'effet, et ce qui le sépare d'un `posterize`
+   * suivi d'un détecteur de contours : là-bas l'épaisseur suit le gradient local
+   * — une bande dans un ciel doux, un cheveu sur une arête. Une carte dont
+   * l'épaisseur dirait la pente au lieu de l'altitude n'est pas une carte.
+   *
+   * ⚠️ LA COUVERTURE SE MESURE EN LUMIÈRE LINÉAIRE. La composition
+   * `mix(papier, encre, c)` se fait en linéaire, donc une couverture de 0,5 sort
+   * à 0,735 en sRGB. Sommer les valeurs sRGB sous-compte les bords — première
+   * version de ce relevé, qui donnait 1,60 px pour 2 px demandés et accusait
+   * l'effet d'un déficit de 20 % qui était dans l'instrument.
+   */
+  const largeursDeTraits = (fichier, y = 128) => {
+    const img = decodePng(readFileSync(path.join(REF_DIR, fichier)));
+    const { width: w, pixels } = img;
+    const lin = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+    const out = [];
+    let debut = null, somme = 0;
+    for (let x = 0; x < w; x++) {
+      const encre = 1 - lin(pixels[(y * w + x) * 4] / 255);
+      if (encre > 0.02) {
+        if (debut === null) { debut = x; somme = 0; }
+        somme += encre;
+      } else if (debut !== null) {
+        out.push({ centre: (debut + x - 1) / 2, largeur: somme });
+        debut = null;
+      }
+    }
+    return out;
+  };
+
+  it("isolines : tous les traits font l'épaisseur demandée", () => {
+    // Scénario : `thickness: 2`, courbe maîtresse désactivée.
+    const traits = largeursDeTraits("effet-isolines.png");
+    expect(traits.length).toBeGreaterThanOrEqual(8);
+    const l = traits.map((t) => t.largeur);
+    const moyenne = l.reduce((s, v) => s + v, 0) / l.length;
+    const ecartType = Math.sqrt(l.reduce((s, v) => s + (v - moyenne) ** 2, 0) / l.length);
+
+    // L'épaisseur OBTENUE est celle DEMANDÉE. Une largeur pilotée par la pente
+    // n'aurait aucune raison de tomber sur le réglage — c'est la borne qui
+    // distingue vraiment cet effet de l'empilement.
+    expect(moyenne).toBeGreaterThan(1.8);
+    expect(moyenne).toBeLessThan(2.2);
+    // Et elle est la MÊME partout. Mesuré : 5,1 % de dispersion.
+    expect(ecartType / moyenne).toBeLessThan(0.12);
+  });
+
+  it("isolines : une courbe sur quatre est une maîtresse, au rapport demandé", () => {
+    // Scénario : `majorEvery: 4`, `majorWidth: 2.6`.
+    const l = largeursDeTraits("effet-isolines-maitresses.png").map((t) => t.largeur);
+    // Deux populations franches, et pas un continuum : c'est ce qui rend un
+    // faisceau comptable à l'œil sur une carte.
+    const grosses = l.filter((v) => v > 3.5);
+    const fines = l.filter((v) => v > 1 && v <= 3.5);
+    expect(grosses.length).toBeGreaterThanOrEqual(2);
+    expect(fines.length).toBeGreaterThanOrEqual(6);
+
+    const moy = (a) => a.reduce((s, v) => s + v, 0) / a.length;
+    // Rapport mesuré : 2,66 pour 2,6 demandé. Les bornes tiennent l'échantillon
+    // partiel des bords d'image sans laisser passer un rapport de 1 (mécanisme
+    // mort) ni de 4 (mauvais facteur).
+    const rapport = moy(grosses) / moy(fines);
+    expect(rapport).toBeGreaterThan(2.2);
+    expect(rapport).toBeLessThan(3.1);
   });
 
   it("gooey-merge : le liseré spéculaire couvre plus d'un pixel", () => {

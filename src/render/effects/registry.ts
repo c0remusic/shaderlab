@@ -18,6 +18,7 @@ import { hatching } from "./hatching";
 import { coloredEdges } from "./coloredEdges";
 import { echoOutlines } from "./echoOutlines";
 import { dither } from "./dither";
+import { isolines } from "./isolines";
 import { halftone } from "./halftone";
 import { anamorphicStreak } from "./anamorphicStreak";
 import { motionBlur } from "./motionBlur";
@@ -98,6 +99,16 @@ export const effectRegistry: EffectModule[] = [
   // travail. Notre `outlines` garde sa place et son id : il est bon à ce qu'il
   // fait, il ne fait simplement pas ça.
   echoOutlines,
+  // `isolines` (2026-08-03) est le frère d'`echoOutlines`, et posé juste après
+  // lui : les deux tracent des lignes équidistantes en ramenant une grandeur EN
+  // PIXELS avant de décider. Ce qu'ils mesurent diffère — l'un une distance à
+  // une forme seuillée, l'autre les niveaux du ton lui-même, qui se referment
+  // sur les sommets comme sur une carte.
+  //
+  // Ce n'est pas `posterize` + `outlines` empilés : là-bas la largeur du trait
+  // suit le gradient local (une bande dans un ciel doux, un cheveu sur une
+  // arête), ici elle est constante par construction.
+  isolines,
   pixelStretch,
   sliceShift,
   gradientMap,

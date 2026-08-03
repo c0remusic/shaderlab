@@ -669,6 +669,65 @@ const INSTALL = `(async () => {
       },
     },
 
+    // ISOLINES SUR LA RAMPE — et la mire est LE test, pour une raison qui est
+    // toute la promesse de l effet. La rampe a une pente qui VARIE le long de
+    // l image (c est un degrade non lineaire), donc des niveaux egalement
+    // espaces y tombent a des distances differentes. Un effet dont la largeur
+    // de trait suivrait la pente — ce que donne posterize + outlines empiles —
+    // y rendrait des traits d epaisseurs visiblement inegales. Ici ils doivent
+    // etre tous a la meme largeur, et c est mesurable.
+    //
+    // Courbe maitresse DESACTIVEE dans ce scenario (majorEvery tres grand) :
+    // elle est faite pour etre plus epaisse, donc elle fausserait justement la
+    // mesure d uniformite. Elle a son propre scenario juste apres.
+    // Peu de valeurs, et c est CONFORME : des traits noirs antialiases sur un
+    // fond blanc uni n en produisent qu une par palier d antialiasing. Le
+    // compte est declare plutot que le plancher contourne — il devient alors
+    // une assertion de plus, et un changement d antialiasing le fera rougir.
+    "effet-isolines": {
+      contre: "photo-de-fond-seule",
+      valeurs: 23,
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("isolines", p);
+        stack.updateParams(a, {
+          levels: 14, thickness: 2, smoothing: 3, inputMode: 0,
+          blackPoint: 0, whitePoint: 1,
+          majorEvery: 12, majorWidth: 1,
+          lowHue: 0, lowSaturation: 0, lowLightness: 0,
+          highHue: 0, highSaturation: 0, highLightness: 0,
+          wash: 1, backgroundHue: 0, backgroundSaturation: 0, backgroundLightness: 1,
+        });
+      },
+    },
+
+    // LA MEME CHOSE AVEC LES COURBES MAITRESSES. Une courbe sur quatre est
+    // tracee 2,6 fois plus epaisse — c est ce qui rend un faisceau comptable a
+    // l oeil sur une vraie carte. Ce scenario existe pour que le mecanisme soit
+    // verrouille separement de l uniformite : les deux se contredisent par
+    // construction, et les melanger dans une seule image rendrait chacun des
+    // deux invisible a la mesure de l autre.
+    "effet-isolines-maitresses": {
+      contre: "effet-isolines",
+      valeurs: 27,
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("isolines", p);
+        stack.updateParams(a, {
+          levels: 14, thickness: 2, smoothing: 3, inputMode: 0,
+          blackPoint: 0, whitePoint: 1,
+          majorEvery: 4, majorWidth: 2.6,
+          lowHue: 0, lowSaturation: 0, lowLightness: 0,
+          highHue: 0, highSaturation: 0, highLightness: 0,
+          wash: 1, backgroundHue: 0, backgroundSaturation: 0, backgroundLightness: 1,
+        });
+      },
+    },
+
     // DITHER, SUR LA RAMPE — et la mire est le test. Un tramage existe pour
     // rendre un DEGRADE avec peu de niveaux : c est la seule chose qu il sait
     // faire mieux qu une quantification nue, donc la seule sur laquelle il

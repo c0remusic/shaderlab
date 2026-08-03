@@ -1,7 +1,6 @@
 import type { EffectModule } from "./types";
 import { validateEffect } from "./validate";
 import { glow } from "./glow";
-import { chromaticBleed } from "./chromaticBleed";
 import { warp } from "./warp";
 import { grain } from "./grain";
 import { duotone } from "./duotone";
@@ -67,7 +66,15 @@ export const effectRegistry: EffectModule[] = [
   // toujours dehors et pour une autre raison — la référence §6ter dit qu'il lave
   // l'image (ADR-0010) ; son garde vit désormais dans `registry.test.ts`, et non
   // plus dans le fichier de test d'un effet qui pouvait disparaître.
-  chromaticBleed,
+  //
+  // `chromaticBleed` a occupé cette place jusqu'au 2026-08-03, puis a été
+  // ABSORBÉ par le mode Latérale de `lensDistortion` (ADR-0016). Le recouvrement
+  // était déclaré depuis ADR-0014 ; il a été MESURÉ avant d'être conclu, et la
+  // mesure a dit deux choses : les deux effets s'écartaient de 0,005 % des
+  // canaux sur le cas radial (le doublon était réel), mais l'orientation du
+  // décalage — ±45°, les franges tangentielles d'un objectif décentré — valait
+  // 23,1 % et n'existait nulle part ailleurs. Elle a donc été portée
+  // (`aberrationAngle`) AVANT le retrait, un paramètre pour tout un effet.
   warp,
   grain,
   duotone,

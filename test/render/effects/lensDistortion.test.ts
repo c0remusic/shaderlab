@@ -196,13 +196,28 @@ describe("lensDistortion — ce que l'absorption a retiré du registre", () => {
     expect(() => getEffect("anamorphicStreak")).toThrow();
   });
 
-  it("porte le recouvrement avec `chromaticBleed`, qui reste au registre", () => {
-    // Assumé et écrit plutôt que subi : le mode Latérale fait ce que
-    // `chromaticBleed` fait déjà. Antoine a tranché « tout dans
-    // lensDistortion », ce qui met `chromaticBleed` en candidat au RETRAIT —
-    // décision à part, donc non faite ici. Ce test existe pour que le doublon
-    // reste VISIBLE au lieu de se faire oublier.
-    expect(effectRegistry.some((e) => e.id === "chromaticBleed")).toBe(true);
+  it("`chromaticBleed` n'est plus un effet non plus", () => {
+    // Le doublon était DÉCLARÉ depuis ADR-0014 et ce test le gardait visible.
+    // Il a été MESURÉ le 2026-08-03 avant d'être conclu (ADR-0016) : 0,005 % de
+    // canaux d'écart entre les deux effets sur le cas radial, même mire et
+    // mêmes réglages. Le test change de sens sans changer de rôle — il empêche
+    // toujours l'oubli, mais dans l'autre direction.
+    expect(effectRegistry.some((e) => e.id === "chromaticBleed")).toBe(false);
+    expect(() => getEffect("chromaticBleed")).toThrow();
     expect(lensDistortion.wgsl).toContain("let profil = mix(pow(clamp(r2 * 2.0, 0.0, 1.0), falloff * 0.5), 1.0, centerPresence);");
+  });
+
+  it("a porté l'ORIENTATION du décalage, la seule chose que l'absorbé savait faire de plus", () => {
+    // C'EST LA MOITIÉ DE LA MESURE QU'ON OUBLIERAIT. Le mode Latérale est un
+    // grandissement dépendant de la longueur d'onde : il ne produit QUE du
+    // radial, par construction, et aucun réglage des quatre autres curseurs n'y
+    // change rien. Or les deux orientations de l'effet absorbé s'écartaient de
+    // 23,1 % des canaux — c'était une capacité, pas une nuance.
+    const angle = lensDistortion.params.find((p) => p.name === "aberrationAngle");
+    expect(angle?.default).toBe(0);
+    expect([angle?.min, angle?.max]).toEqual([-45, 45]);
+    // Le défaut prend la branche d'ÉCHELLE, celle que la référence a figée :
+    // `p·geom·(1+k)` n'est pas bit pour bit `p·geom + p·geom·k`.
+    expect(lensDistortion.wgsl).toContain("if (angleAberration != 0.0) {");
   });
 });

@@ -114,19 +114,27 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `MAX_EFFECT_PARAMS` (`shaderCompose.ts`, **32** depuis le 2026-08-03) si
   nécessaire.
   Registre réel au 2026-08-03 (soir), dans l'ordre : `glow`, `halation`,
-  `lensDistortion`, `lensBlur`, `motionBlur`, `chromaticBleed`,
+  `lensDistortion`, `lensBlur`, `motionBlur`,
   `warp`, `grain`, `duotone`, `hatching`, `halftone`, `dither`, `gooeyMerge`,
   `channelMixer`, `outlines`, `isolines`,
-  `pixelStretch`, `sliceShift`, `gradientMap` — **dix-neuf**.
-  **Quatre départs le 2026-08-03**, tous sur arbitrage d'Antoine : `surfaceBlur`
+  `pixelStretch`, `sliceShift`, `gradientMap` — **dix-huit**.
+  **Cinq départs le 2026-08-03**, tous sur arbitrage d'Antoine : `surfaceBlur`
   (ADR-0011, verdict d'usage sur la famille des flous), `posterize` (ADR-0012,
   couvert par `dither` — couverture PROUVÉE avant le retrait, le scénario
   sérigraphie porté mot pour mot rend les mêmes 32 valeurs distinctes),
   `coloredEdges` **absorbé par `outlines`** (ADR-0013, mode d'encre : Encre
-  unique ou Roue d'orientation) et `echoOutlines` **absorbé par le même**
-  (ADR-0015, troisième mode de DÉTECTION : Échos de la forme). Retirer un effet
-  ne casse pas les presets qui le citent : `presetDocument.ts` ignore le calque
-  et pousse un avertissement, jamais une exception.
+  unique ou Roue d'orientation), `echoOutlines` **absorbé par le même**
+  (ADR-0015, troisième mode de DÉTECTION : Échos de la forme) et
+  `chromaticBleed` **absorbé par `lensDistortion`** (ADR-0016, mode Latérale).
+  Retirer un effet ne casse pas les presets qui le citent : `presetDocument.ts`
+  ignore le calque et pousse un avertissement, jamais une exception.
+  ⚠️ **Un doublon se MESURE avant de se retirer, et la mesure répond souvent
+  deux choses.** Sur `chromaticBleed` : 0,005 % de canaux d'écart avec le mode
+  Latérale sur le cas radial (le doublon était réel), mais 23,1 % sur
+  l'orientation du décalage, que le mode Latérale ne sait pas produire — un
+  grandissement dépendant de la longueur d'onde n'est que radial. Le paramètre
+  a été PORTÉ avant le retrait. Sans la mesure, c'était un retrait sec présenté
+  comme un dédoublonnage.
   **`outlines` est donc l'effet le plus chargé du registre — 26 paramètres, deux
   modes d'encre et trois modes de détection**, et le SEUL dont le coût dépende
   d'un choix : ses neuf passes de pyramide ne tournent qu'en mode Échos
@@ -162,9 +170,10 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   fait se range donc en trois questions : ce qu'il RENVOIE (halos), ce qu'il ne
   met pas au point (flous), ce que sa FORME déforme (`lensDistortion` — fisheye
   signé + trois modes d'aberration, dont la longitudinale qui défocalise au lieu
-  de déplacer). ⚠️ Son mode Latérale RECOUVRE `chromaticBleed`, resté au
-  registre et désormais candidat au retrait — doublon assumé et testé pour
-  rester visible.
+  de déplacer). Son mode Latérale a ABSORBÉ `chromaticBleed` le 2026-08-03
+  (ADR-0016) : le doublon déclaré depuis ADR-0014 a été mesuré, puis résolu en
+  portant la seule chose qui manquait — `aberrationAngle`, les franges
+  tangentielles d'un objectif décentré.
   **Impression** : `dither` (aplats ET trames — il a absorbé `posterize`,
   ADR-0012 : sa `Force du tramage` à 0 EST le rendu sérigraphie), `hatching`
   (taille-douce), `halftone` (trame CMJN et sa rosette). **Flous** : voir
@@ -293,7 +302,8 @@ un effet ne se pose jamais sur un calque photo (0008), déplacement libre du
 viewport (0009), le gaussien reste hors du registre (0010, ⚠️ sa 3ᵉ conséquence
 est caduque), retrait de `surfaceBlur` (0011), retrait de `posterize` (0012),
 `outlines` absorbe `coloredEdges` (0013), `lensDistortion` absorbe
-`anamorphicStreak` (0014), `outlines` absorbe `echoOutlines` (0015).
+`anamorphicStreak` (0014), `outlines` absorbe `echoOutlines` (0015),
+`lensDistortion` absorbe `chromaticBleed` (0016).
 Les décisions du
 projet vivent là, pas dans les docs de design.
 

@@ -158,7 +158,7 @@ export class Renderer {
     // ferait réapparaître la photo répétée sur tout le fond), et la chaîne
     // bloom/SAT s'appuie sur des bords non repliés. Il ne doit donc PAS être
     // basculé en repeat/mirror pour régler une traînée de bord : les effets qui
-    // échantillonnent hors cadre (chromaticBleed, warp) traitent leur propre
+    // échantillonnent hors cadre (lensDistortion, warp) traitent leur propre
     // bord via `mirrorUv` (voir effects/uvSpace.ts).
     this.sampler = ctx.device.createSampler({
       magFilter: "linear",

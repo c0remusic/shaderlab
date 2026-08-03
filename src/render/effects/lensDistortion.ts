@@ -18,12 +18,25 @@ import {
  * compris la traînée anamorphique — `anamorphicStreak` est ABSORBÉ et son id
  * disparaît du registre (ADR-0014).
  *
- * ⚠️ RECOUVREMENT ASSUMÉ AVEC `chromaticBleed`, et il est écrit plutôt que subi.
- * Le mode d'aberration Latérale ci-dessous fait ce que cet effet fait déjà, avec
- * les mêmes trois contrôles de profil radial. Antoine a tranché « tout dans
- * lensDistortion », ce qui met `chromaticBleed` en candidat au RETRAIT — non
- * fait ici, parce que retirer un effet est une décision à part et qu'elle mérite
- * son propre ADR. En attendant, les deux coexistent et le doublon est nommé.
+ * SECONDE ABSORPTION LE LENDEMAIN : `chromaticBleed` (ADR-0016). Le recouvrement
+ * avec le mode Latérale était déclaré ici dès l'écriture de ce fichier ; il a
+ * été MESURÉ avant d'être conclu, et la mesure a dit deux choses au lieu d'une :
+ *
+ *   les deux effets, même mire, mêmes réglages   ->  0,005 % des canaux d'écart
+ *   le tangentiel de l'absorbé vs son radial     ->   23,1 % des canaux d'écart
+ *
+ * Autrement dit le doublon était réel sur le cas radial — à une dizaine de
+ * canaux sur 196 608 — et FAUX sur l'orientation. `chromaticBleed` savait
+ * pivoter son décalage jusqu'à ±45°, ce qui donne des franges tangentielles au
+ * lieu de radiales : la signature d'un objectif DÉCENTRÉ. Un grandissement
+ * dépendant de la longueur d'onde, qui est ce que fait ce mode, ne produit que
+ * du radial ; aucun réglage des quatre autres curseurs n'y changeait rien.
+ *
+ * D'où `aberrationAngle`, ajouté en fin de liste. **Un seul paramètre pour tout
+ * un effet** : les quatre autres (`amount` -> `aberration`, `centerFalloff`,
+ * `centerPresence`, `asymmetry`) existaient déjà ici sous les mêmes noms et la
+ * même algèbre. C'est ce qui rendait le retrait légitime, et c'est la mesure qui
+ * l'a établi plutôt qu'une lecture comparée des deux fichiers.
  *
  * ─── LA GÉOMÉTRIE ───────────────────────────────────────────────────────────
  *
@@ -110,6 +123,13 @@ const ABERRATION_MODES = ["Latérale", "Longitudinale", "Anamorphique"] as const
 const ABERRATION_LATERAL = 0;
 const ABERRATION_LONGITUDINAL = 1;
 
+/** Index de l'orientation du décalage latéral. Ajouté À LA FIN de la liste le
+ *  2026-08-03 en absorbant `chromaticBleed` (ADR-0016), donc LOIN des autres
+ *  réglages d'aberration dans le panneau — l'index est persisté dans les
+ *  presets, et le confort de rangement ne vaut pas de déplacer les quinze
+ *  autres. */
+const P_ABERRATION_ANGLE = 15;
+
 const STREAK_BRIGHT_WGSL = `
 ${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
@@ -188,6 +208,13 @@ export const lensDistortion: EffectModule = {
     { name: "streakTintSaturation", label: "Saturation", unit: "percent", min: 0, max: 1, default: 0.8, step: 0.01, colorGroup: { key: "tint", role: "saturation", label: "Traitement de l'objectif" } },
     { name: "streakTintLightness", label: "Luminosité", unit: "percent", min: 0, max: 1, default: 0.6, step: 0.01, colorGroup: { key: "tint", role: "lightness", label: "Traitement de l'objectif" } },
     { name: "streakDispersion", label: "Dispersion de la traînée", unit: "percent", min: 0, max: 1, default: 0.25, step: 0.01, hint: "Fait virer la teinte vers les extrémités — le traitement anti-reflet ne filtre pas pareil aux grands angles. 0 = traînée d'un bleu uniforme, ce qu'aucun objectif ne fait" },
+    // ── CE QUI VIENT DE `chromaticBleed` (absorption du 2026-08-03) ──────────
+    // UN SEUL paramètre : les quatre autres de l'effet retiré (`amount`,
+    // `centerFalloff`, `centerPresence`, `asymmetry`) existaient déjà ici sous
+    // les mêmes noms et la même algèbre. Mesuré avant le geste, sur la même
+    // mire et aux mêmes réglages : les deux effets s'écartaient de 0,005 % des
+    // canaux. Celui-ci, lui, manquait — et il vaut 23,1 % d'écart.
+    { name: "aberrationAngle", label: "Orientation du décalage", unit: "degrees", min: -45, max: 45, default: 0, step: 1, hint: "0 = décalage purement radial, ce que fait un objectif centré. ±45° = franges TANGENTIELLES, la signature d'un objectif décentré. Sans objet hors du mode Latérale — un décalage longitudinal n'a pas de direction, et l'anamorphique a la sienne" },
   ],
   passes: [
     { scale: 0.5, wgsl: STREAK_BRIGHT_WGSL, enabled: streakActive },
@@ -215,6 +242,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let centerPresence = clamp(params[5], 0.0, 1.0);
   let asymmetry = params[6];
   let streakIntensity = max(params[${P_STREAK_INTENSITY}], 0.0);
+  let angleAberration = radians(params[${P_ABERRATION_ANGLE}]);
 
   // POINT COURANT, centré et isotrope. Tout le calcul radial vit ici : une même
   // distance y vaut le même nombre de pixels en x et en y, donc le fisheye est
@@ -246,6 +274,30 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     // elle se compose avec celle de la géométrie au lieu de s'y ajouter.
     uvR = lensUv(p, ar, geom * (1.0 + courseR * profil));
     uvB = lensUv(p, ar, geom * (1.0 - courseB * profil));
+
+    // ORIENTATION DU DÉCALAGE (absorption de \`chromaticBleed\`, 2026-08-03).
+    //
+    // ⚠️ POURQUOI UNE BRANCHE, ET PAS UNE ROTATION APPLIQUÉE TOUJOURS. Les deux
+    // écritures sont algébriquement égales à angle nul, et PAS égales en
+    // flottant : \`p·geom·(1+k)\` n'est pas bit pour bit \`p·geom + p·geom·k\`.
+    // Or le défaut est 0 et \`effet-lens-distortion-laterale\` fige cette image.
+    // La branche garde donc à l'identique le chemin que la référence a verrouillé,
+    // et l'écriture par décalage ne sert que là où elle est nécessaire.
+    //
+    // ⚠️ LA ROTATION SE FAIT DANS L'ESPACE CORRIGÉ DE L'ASPECT, avant la
+    // reconversion en UV. La faire après serait une rotation dans un espace
+    // anisotrope, c'est-à-dire un cisaillement déguisé sur toute image non
+    // carrée — l'effet absorbé portait déjà cet avertissement, il aurait été
+    // dommage de le reperdre en le déplaçant.
+    if (angleAberration != 0.0) {
+      let base = p * geom;
+      let ca = cos(angleAberration);
+      let sa = sin(angleAberration);
+      let dR = base * (courseR * profil);
+      let dB = base * (-(courseB * profil));
+      uvR = mirrorUv((base + vec2<f32>(dR.x * ca - dR.y * sa, dR.x * sa + dR.y * ca)) / ar + vec2<f32>(0.5));
+      uvB = mirrorUv((base + vec2<f32>(dB.x * ca - dB.y * sa, dB.x * sa + dB.y * ca)) / ar + vec2<f32>(0.5));
+    }
   } else if (mode == ${ABERRATION_LONGITUDINAL}) {
     // AUCUN déplacement : c'est le plan de mise au point qui diffère. Le vert
     // reste net et sert de référence — c'est lui qu'on met au point dans un

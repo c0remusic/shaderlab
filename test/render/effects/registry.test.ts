@@ -21,20 +21,29 @@ describe("effectRegistry", () => {
     expect(effectRegistry.some((e) => e.id === "passthrough")).toBe(false);
   });
 
-  it("exposes French display metadata for chromatic bleed parameters", () => {
-    const chromaticBleed = getEffect("chromaticBleed");
+  it("exposes French display metadata for lens aberration parameters", () => {
+    // CE TEST VISAIT `chromaticBleed`, absorbé par `lensDistortion` le
+    // 2026-08-03 (ADR-0016). Il est reporté et non supprimé : ce qu'il garde
+    // n'est pas un effet mais une RÈGLE — tout paramètre exposé porte un label
+    // français et une unité, et c'est vrai du registre entier.
+    const lens = getEffect("lensDistortion");
 
-    expect(chromaticBleed.params).toEqual(
+    expect(lens.params).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          name: "amount",
-          label: "Décalage chromatique",
+          name: "aberration",
+          label: "Aberration",
           unit: "percent",
         }),
         expect.objectContaining({
           name: "centerFalloff",
-          label: "Atténuation centrale",
+          label: "Croissance vers les coins",
           unit: "none",
+        }),
+        expect.objectContaining({
+          name: "aberrationAngle",
+          label: "Orientation du décalage",
+          unit: "degrees",
         }),
       ]),
     );

@@ -36,11 +36,11 @@ function backgroundLayer(name = "DSC_0042.jpg"): LayerState {
 
 const layers: LayerState[] = [
   makeLayer({ id: "layer-1", effectId: "glow", opacity: 1 }),
-  makeLayer({ id: "layer-2", effectId: "chromaticBleed", opacity: 0.6, enabled: false }),
+  makeLayer({ id: "layer-2", effectId: "lensDistortion", opacity: 0.6, enabled: false }),
   makeLayer({ id: "layer-3", effectId: "grain", opacity: 0.35, blendMode: "screen" }),
 ];
 
-const effectCycle = ["glow", "chromaticBleed", "warp", "grain"];
+const effectCycle = ["glow", "lensDistortion", "warp", "grain"];
 const manyLayers: LayerState[] = Array.from({ length: 8 }, (_, i) =>
   makeLayer({
     id: `layer-${i + 1}`,
@@ -100,7 +100,7 @@ export const StackOrderIsCausal: Story = {
     await expect(rows.map((row) => row.querySelector(".layer-panel__row-name")?.textContent)).toEqual([
       "DSC_0042.jpg",
       "Glow",
-      "Chromatic bleed",
+      "Lens distortion",
       "Grain",
     ]);
     // Toutes les lignes de la liste sont des lignes de calque — la ligne
@@ -290,7 +290,7 @@ export const ClickLayerSelects: Story = {
     // Clicking the row name bubbles to the <li> onClick → onSelect(id).
     // Pas d'ambiguïté de texte : depuis 2026-07-27 les lignes ne portent plus
     // aucun sélecteur, seul le nom du calque porte ce libellé.
-    await userEvent.click(canvas.getByText("Chromatic bleed"));
+    await userEvent.click(canvas.getByText("Lens distortion"));
     await expect(args.onSelect).toHaveBeenCalledWith("layer-2");
   },
 };

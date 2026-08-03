@@ -19,7 +19,7 @@ function documentWithBackground(): LayerState[] {
  *  (`presetDocument.ts` les exclut à la capture). */
 function presetLayers(): LayerState[] {
   const stack = new LayerStack();
-  stack.addLayer("chromaticBleed");
+  stack.addLayer("lensDistortion");
   stack.addLayer("warp");
   return stack.layers;
 }
@@ -49,7 +49,7 @@ describe("withPhotoLayersPreserved — §2.3, appliquer un preset ne détruit pa
     expect(merged.map((l) => l.imageSource?.sourceId ?? l.effectId)).toEqual([
       "src-fond",
       "src-import",
-      "chromaticBleed",
+      "lensDistortion",
       "warp",
     ]);
   });
@@ -116,7 +116,7 @@ describe("withPhotoLayersPreserved — cas que le design ne couvrait pas", () =>
 
     expect(merged.map((l) => l.imageSource?.sourceId ?? l.effectId)).toEqual([
       "src-milieu",
-      "chromaticBleed",
+      "lensDistortion",
       "warp",
     ]);
   });

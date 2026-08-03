@@ -185,7 +185,7 @@ const twoPhotoDocument: LayerState[] = [
     imageSource: { sourceId: "s1" },
     transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
   }),
-  makeStoryLayer({ id: "bleed", effectId: "chromaticBleed", clipToBelow: true }),
+  makeStoryLayer({ id: "bleed", effectId: "lensDistortion", clipToBelow: true }),
 ];
 
 export const FiveRowDocumentHidesNoRow: Story = {

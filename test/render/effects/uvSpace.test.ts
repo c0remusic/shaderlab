@@ -5,7 +5,7 @@ import {
   mirrorCoord,
   UV_SPACE_WGSL,
 } from "../../../src/render/effects/uvSpace";
-import { chromaticBleed } from "../../../src/render/effects/chromaticBleed";
+import { lensDistortion } from "../../../src/render/effects/lensDistortion";
 import { warp } from "../../../src/render/effects/warp";
 
 /** Déplacement PIXEL produit par un décalage exprimé en UV. */
@@ -104,15 +104,26 @@ describe("intégration WGSL", () => {
     expect(UV_SPACE_WGSL).toContain("fn mirrorUv(uv: vec2<f32>) -> vec2<f32>");
   });
 
-  it("chromaticBleed corrige l'aspect et replie ses taps hors cadre", () => {
-    expect(chromaticBleed.wgsl).toContain("fn aspectScale(");
-    expect(chromaticBleed.wgsl).toContain("aspectScale(vec2<f32>(textureDimensions(srcTexture)))");
-    // Taps R et B décalés SÉPARÉMENT depuis l'ajout de l'asymétrie : une vraie
-    // lentille ne décale pas les deux canaux de façon strictement opposée.
-    expect(chromaticBleed.wgsl).toContain("mirrorUv(uv + shiftR)");
-    expect(chromaticBleed.wgsl).toContain("mirrorUv(uv - shiftB)");
-    // le tap vert n'est pas décalé : rien à replier.
-    expect(chromaticBleed.wgsl).toContain("textureSample(srcTexture, srcSampler, uv).g");
+  it("lensDistortion corrige l'aspect et replie ses taps hors cadre", () => {
+    // CE TEST PORTAIT SUR `chromaticBleed` jusqu'au 2026-08-03, et il a été
+    // reporté ici plutôt que supprimé avec lui (ADR-0016) : la propriété est
+    // celle de l'aberration chromatique en général, pas d'un fichier.
+    expect(lensDistortion.wgsl).toContain("fn aspectScale(");
+    expect(lensDistortion.wgsl).toContain("aspectScale(dims)");
+    // Taps R et B décalés SÉPARÉMENT — une vraie lentille ne décale pas les
+    // deux canaux de façon strictement opposée (c'est `asymmetry`).
+    expect(lensDistortion.wgsl).toContain("courseR = aberration * (1.0 + asymmetry)");
+    expect(lensDistortion.wgsl).toContain("courseB = aberration * (1.0 - asymmetry)");
+    // Repli hors cadre : le décalage est maximal AU BORD, donc les taps R/B
+    // sortent du cadre là où l'effet est le plus visible. `lensUv` le porte pour
+    // tout le monde, y compris la branche d'orientation qui l'appelle à la main.
+    expect(lensDistortion.wgsl).toContain("return mirrorUv(p * facteur / ar + vec2<f32>(0.5));");
+    // La ROTATION du décalage se fait dans l'espace corrigé de l'aspect, avant
+    // la reconversion en UV — la faire après serait un cisaillement déguisé sur
+    // toute image non carrée. C'est l'avertissement que l'effet absorbé portait.
+    expect(lensDistortion.wgsl).toContain("(base + vec2<f32>(dR.x * ca - dR.y * sa, dR.x * sa + dR.y * ca)) / ar");
+    // le canal vert n'est pas décalé par l'aberration : c'est la référence.
+    expect(lensDistortion.wgsl).toContain("var uvG = lensUv(p, ar, geom);");
   });
 
   it("warp corrige l'aspect et replie son tap hors cadre", () => {

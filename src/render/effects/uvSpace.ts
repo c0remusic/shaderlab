@@ -1,7 +1,7 @@
 /**
  * Convention d'espace UV des effets GÉOMÉTRIQUES (ceux qui déplacent leur
- * point d'échantillonnage : chromaticBleed, warp). Deux problèmes, un seul
- * endroit où ils sont résolus :
+ * point d'échantillonnage : lensDistortion, warp, et les autres qui replient
+ * leurs taps). Deux problèmes, un seul endroit où ils sont résolus :
  *
  * 1. **Isotropie.** Un décalage exprimé en UV est ANISOTROPE dès que l'image
  *    n'est pas carrée : le même 0.01 vaut 0.01*W pixels en X et 0.01*H pixels

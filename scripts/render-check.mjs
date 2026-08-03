@@ -683,8 +683,18 @@ const INSTALL = `(async () => {
         const p = stack.addPhotoLayer(sourceId, { x: 150, y: 110, scaleX: 1.4, scaleY: 1.4, rotation: 0.35 }, "mire");
         at(stack, p).opacity = 0.75;
         at(stack, p).blendMode = "multiply";
-        const c = stack.addLayer("chromaticBleed", p);
-        stack.updateParams(c, { amount: 0.05, centerFalloff: 1.5 });
+        // PASSAGER, pas le sujet : ce scenario verrouille la double exposition
+        // (transform du calque photo + fusion), et l effet pose dessus ne sert
+        // qu a prouver qu un effet s applique bien au resultat. Il portait
+        // chromaticBleed jusqu au 2026-08-03 ; l effet a ete absorbe par le
+        // mode Laterale de lensDistortion (ADR-0016) et les reglages sont
+        // transposes ici. La reference a donc ete regeneree — inevitable, et
+        // sans consequence sur ce que ce scenario prouve.
+        const c = stack.addLayer("lensDistortion", p);
+        stack.updateParams(c, {
+          distortion: 0, aberration: 0.05, aberrationMode: 0, centerFalloff: 1.5,
+          centerPresence: 0.35, aberrationAngle: 0, streakIntensity: 0,
+        });
       },
     },
 
@@ -1744,39 +1754,56 @@ const INSTALL = `(async () => {
     // Asymetrie a 0.4 (defaut 0.15) : le rouge et le bleu doivent parcourir des
     // distances DIFFERENTES. A l equilibre les deux franges seraient
     // symetriques et un bug qui echangerait les deux courses ne se verrait pas.
-    "effet-chromatic-bleed": {
+    //
+    // CE SCENARIO A CHANGE D EFFET le 2026-08-03 : il portait chromaticBleed,
+    // absorbe depuis par le mode Laterale de lensDistortion (ADR-0016). A la
+    // difference des quatre absorptions precedentes, celle-ci n est PAS
+    // identique a l octet — les deux implementations etaient independantes. Elle
+    // a ete mesuree avant le geste, sur cette mire et a ces reglages : 0,005 %
+    // des canaux d ecart, soit une dizaine sur 196 608. La reference a donc ete
+    // regeneree, et ce chiffre est la seule chose qui autorise a dire que rien
+    // n a ete perdu.
+    "effet-lens-distortion-laterale-damier": {
       contre: "photo-de-fond-seule",
       build: async (r, stack) => {
         const damier = await mireDamierNeutre(W, H);
         const sourceId = await r.photoSources.register(damier);
         const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "damier");
-        const a = stack.addLayer("chromaticBleed", p);
+        const a = stack.addLayer("lensDistortion", p);
         stack.updateParams(a, {
-          amount: 0.06, centerFalloff: 2, centerPresence: 0.1,
-          asymmetry: 0.4, angle: 0,
+          distortion: 0, aberration: 0.06, aberrationMode: 0,
+          centerFalloff: 2, centerPresence: 0.1, asymmetry: 0.4,
+          aberrationAngle: 0, streakIntensity: 0,
         });
       },
     },
 
-    // LE MEME, EN TANGENTIEL. \`angle\` n est pas un reglage de plus : a 45 degres
-    // le decalage n est plus radial mais perpendiculaire au rayon (decentrement
-    // d objectif), donc les franges tournent AUTOUR du centre au lieu d en
-    // partir. C est une seconde geometrie, et elle merite son verrou pour la
-    // meme raison que les geometries de champ de lensBlur ont le leur.
+    // LE MEME, EN TANGENTIEL. L orientation n est pas un reglage de plus : a 45
+    // degres le decalage n est plus radial mais perpendiculaire au rayon
+    // (decentrement d objectif), donc les franges tournent AUTOUR du centre au
+    // lieu d en partir. C est une seconde geometrie, et elle merite son verrou
+    // pour la meme raison que les geometries de champ de lensBlur ont le leur.
     //
     // \`contre\` pointe sur le scenario radial et non sur la photo nue : ce qu on
     // veut asserter n est pas « l effet fait quelque chose » (deja acquis) mais
     // « les deux orientations ne rendent pas la meme image ».
-    "effet-chromatic-bleed-tangentiel": {
-      contre: "effet-chromatic-bleed",
+    //
+    // C EST CE SCENARIO QUI A EMPECHE UN RETRAIT SEC. Mesure du 2026-08-03 : le
+    // mode Laterale couvrait chromaticBleed a 0,005 % pres sur le cas radial,
+    // mais cet ecart-ci vaut 23,1 % — un grandissement dependant de la longueur
+    // d onde ne produit que du radial, par construction. L orientation a donc
+    // ete PORTEE dans lensDistortion (aberrationAngle) avant que l effet parte.
+    "effet-lens-distortion-laterale-decentree": {
+      contre: "effet-lens-distortion-laterale-damier",
       build: async (r, stack) => {
         const damier = await mireDamierNeutre(W, H);
         const sourceId = await r.photoSources.register(damier);
         const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "damier");
-        const a = stack.addLayer("chromaticBleed", p);
+        const a = stack.addLayer("lensDistortion", p);
         stack.updateParams(a, {
-          amount: 0.06, centerFalloff: 2, centerPresence: 0.1,
-          asymmetry: 0.4, angle: 45,
+          distortion: 0, aberration: 0.06, aberrationMode: 0,
+          centerFalloff: 2, centerPresence: 0.1, asymmetry: 0.4,
+          aberrationAngle: 45, streakIntensity: 0,
         });
       },
     },

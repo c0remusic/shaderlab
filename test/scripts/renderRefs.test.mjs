@@ -343,11 +343,18 @@ const ATTENDU = {
   // le met a 0 ; l'ecart entre les deux images EST la contribution du terme.
   "effet-halation.png": { width: 256, height: 256, valeurs: null },
   "effet-halation-fond-clair.png": { width: 256, height: 256, valeurs: null },
-  // Chromatic bleed en deux orientations. `angle` a 45 degres n'est pas un
-  // reglage de plus : le decalage devient perpendiculaire au rayon (decentrement
-  // d'objectif), donc les franges tournent autour du centre au lieu d'en partir.
-  "effet-chromatic-bleed.png": { width: 256, height: 256, valeurs: null },
-  "effet-chromatic-bleed-tangentiel.png": { width: 256, height: 256, valeurs: null },
+  // L'aberration laterale en deux orientations. A 45 degres le decalage devient
+  // perpendiculaire au rayon (decentrement d'objectif), donc les franges
+  // tournent autour du centre au lieu d'en partir.
+  //
+  // CES DEUX REFERENCES PORTAIENT `chromaticBleed`, absorbe par le mode Laterale
+  // de `lensDistortion` le 2026-08-03 (ADR-0016). A la difference des quatre
+  // absorptions precedentes, celle-ci n'est PAS identique a l'octet : les deux
+  // implementations etaient independantes. Elle a ete mesuree AVANT le geste, a
+  // 0,005 % de canaux d'ecart sur le cas radial — et c'est ce qui a autorise a
+  // regenerer les images plutot qu'a garder l'effet.
+  "effet-lens-distortion-laterale-damier.png": { width: 256, height: 256, valeurs: null },
+  "effet-lens-distortion-laterale-decentree.png": { width: 256, height: 256, valeurs: null },
   // DUOTONE ET GRADIENT MAP SUR LA MEME RAMPE, a dessein : « sont-ils des
   // doublons » en est a son troisieme tour sans avoir jamais eu de mesure. Deux
   // references sur la meme mire, aux memes tons, la rendent chiffrable — et si

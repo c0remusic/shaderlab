@@ -221,7 +221,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // Les deux pas valent le même nombre de texels sur chaque axe, donc la même
   // distance en PIXELS : \`grad\` vit déjà dans un espace isotrope, et \`gdir\`
   // est une direction unitaire en pixels. Le retour en UV se fait tout en bas,
-  // par la division par \`ar\` — même convention que warp/chromaticBleed.
+  // par la division par \`ar\` — même convention que warp/lensDistortion.
   let grad = vec2<f32>(fx, fy);
   // max plutôt que select : sur un champ plat, gdir tend vers 0 au lieu de
   // produire un NaN qui se propagerait dans toute la suite.

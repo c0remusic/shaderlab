@@ -233,8 +233,13 @@ export const lensFlare: EffectModule = {
     // mais il faut alors savoir qu'on renonce au polygone.
     { name: "sourceRadius", label: "Rayon de la source", unit: "percent", min: 0.005, max: 0.5, default: 0.1, step: 0.005, hint: "Taille du lobe posé. C'est lui qui fixe la taille des fantômes : ils en sont des copies à l'échelle. Sous ~0,08 la forme du diaphragme ne survit pas au lissage et les fantômes redeviennent ronds" },
     { name: "sourceIntensity", label: "Intensité de la source posée", unit: "none", min: 0, max: 8, default: 0, step: 0.1, hint: "À 0, aucune source n'est posée et le flare ne part que des hautes lumières de la photo. Au-dessus, un lobe s'ajoute à l'endroit choisi — et comme il porte la forme du diaphragme, ses fantômes l'héritent" },
-    { name: "blades", label: "Lames du diaphragme", unit: "none", min: 0, max: 12, default: 6, step: 1, hint: "Forme du lobe posé, donc de ses fantômes. Six lames donnent des hexagones, cinq des pentagones. Sous 3, le diaphragme est circulaire. C'est le MÊME diaphragme que celui de Lens blur — un objectif n'en a qu'un" },
-    { name: "bladeRotation", label: "Rotation du diaphragme", unit: "degrees", min: 0, max: 180, default: 0, step: 1, hint: "Oriente le polygone. Sans objet sous 3 lames" },
+    // DÉFAUT À 0, DONC CIRCULAIRE — arbitrage d'Antoine (« je n'aime pas les
+    // lames de diaphragme »). Un objectif moderne à lames arrondies rend
+    // d'ailleurs des fantômes ronds, et aucune de ses cinq photographies de
+    // référence ne montre de polygone. Le contrôle reste : il porte une capacité
+    // réelle, partagée avec `lensBlur` par `effects/aperture.ts`.
+    { name: "blades", label: "Lames du diaphragme", unit: "none", min: 0, max: 12, default: 0, step: 1, hint: "Forme des fantômes. 0 à 2 = diaphragme circulaire, donc des fantômes RONDS — le défaut, et ce que rend un objectif moderne à lames arrondies. Six lames donnent des hexagones, cinq des pentagones. C'est le MÊME diaphragme que celui de Lens blur : un objectif n'en a qu'un" },
+    { name: "bladeRotation", label: "Rotation du diaphragme", unit: "degrees", min: 0, max: 180, default: 0, step: 1, hint: "Oriente le polygone. SANS OBJET au défaut, qui est le diaphragme circulaire — un cercle n'a pas d'orientation" },
     // ── LA CHAÎNE DE FANTÔMES ────────────────────────────────────────────────
     { name: "ghostCount", label: "Nombre de fantômes", unit: "none", min: 0, max: GHOSTS_MAX, default: 5, step: 1, hint: "Combien de reflets dans la chaîne. Chacun correspond à un couple de faces de l'objectif ; un zoom en compte plus qu'une focale fixe, et c'est ce qui les distingue à l'œil" },
     { name: "ghostSpacing", label: "Espacement", unit: "percent", min: 0.05, max: 1.2, default: 0.35, step: 0.01, hint: "Écart entre deux fantômes le long de l'axe source-centre. Bas = ils se serrent près du miroir de la source ; haut = la chaîne traverse tout le cadre" },

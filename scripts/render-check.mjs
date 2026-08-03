@@ -1895,7 +1895,7 @@ const INSTALL = `(async () => {
         stack.updateParams(a, {
           threshold: 1, spread: 1.2,
           sourceX: 0.16, sourceY: 0.14, sourceRadius: 0.09, sourceIntensity: 5,
-          blades: 6, bladeRotation: 0,
+          blades: 0, bladeRotation: 0,
           ghostCount: 5, ghostSpacing: 0.3, ghostIntensity: 1.2, ghostDispersion: 0.5,
           tintHue: 30, tintSaturation: 0.45, tintLightness: 0.6,
           haloIntensity: 0, haloRadius: 0.42, veil: 0, plume: 0, scatter: 0, arcs: 0,
@@ -1919,7 +1919,7 @@ const INSTALL = `(async () => {
         stack.updateParams(a, {
           threshold: 0.55, spread: 1.2,
           sourceIntensity: 0,
-          blades: 6, bladeRotation: 0,
+          blades: 0, bladeRotation: 0,
           ghostCount: 5, ghostSpacing: 0.3, ghostIntensity: 1.2, ghostDispersion: 0.5,
           tintHue: 30, tintSaturation: 0.45, tintLightness: 0.6,
           haloIntensity: 0, haloRadius: 0.42, veil: 0, plume: 0, scatter: 0, arcs: 0,
@@ -1942,7 +1942,7 @@ const INSTALL = `(async () => {
         stack.updateParams(a, {
           threshold: 1, spread: 1.2,
           sourceX: 0.16, sourceY: 0.14, sourceRadius: 0.09, sourceIntensity: 5,
-          blades: 6, bladeRotation: 0,
+          blades: 0, bladeRotation: 0,
           ghostCount: 0, ghostIntensity: 0,
           tintHue: 30, tintSaturation: 0.45, tintLightness: 0.6,
           haloIntensity: 0.7, haloRadius: 0.42, veil: 0, plume: 0, scatter: 0, arcs: 0,
@@ -1965,7 +1965,7 @@ const INSTALL = `(async () => {
         stack.updateParams(a, {
           threshold: 1, spread: 4,
           sourceX: 0.16, sourceY: 0.14, sourceRadius: 0.09, sourceIntensity: 5,
-          blades: 6, ghostCount: 0, ghostIntensity: 0,
+          blades: 0, ghostCount: 0, ghostIntensity: 0,
           tintHue: 30, tintSaturation: 0.45, tintLightness: 0.6,
           haloIntensity: 0, veil: 1.6, plume: 0, scatter: 0, arcs: 0,
         });
@@ -2028,6 +2028,12 @@ const INSTALL = `(async () => {
         stack.updateParams(a, {
           threshold: 1, spread: 2,
           sourceX: 1.25, sourceY: 0.3, sourceRadius: 0.09, sourceIntensity: 5,
+          // SIX LAMES ICI, ET NULLE PART AILLEURS. Le defaut est passe au
+          // diaphragme CIRCULAIRE le 2026-08-03 (arbitrage d Antoine, « je n
+          // aime pas les lames de diaphragme »), et les quatre autres scenarios
+          // l ont suivi. Celui-ci garde le polygone pour que la capacite reste
+          // verrouillee quelque part : un defaut qui change ne doit pas
+          // emporter la preuve de ce qu on peut encore faire.
           blades: 6, bladeRotation: 0,
           ghostCount: 4, ghostSpacing: 0.45, ghostIntensity: 0.8, ghostDispersion: 0.5,
           ghostFill: 0.2, ghostClip: 0.55, ghostVariation: 0.6,

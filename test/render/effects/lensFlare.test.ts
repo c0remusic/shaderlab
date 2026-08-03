@@ -177,6 +177,19 @@ describe("lensFlare — la source posée et la source automatique sont UNE machi
     expect(wgsl).toContain("let coupe = smoothstep(0.0, 0.03 * longueur, le - clamp(params[29], 0.0, 1.0) * longueur);");
   });
 
+  it("a pour diaphragme par défaut le CERCLE, pas le polygone", () => {
+    // Arbitrage d'Antoine (« je n'aime pas les lames de diaphragme »), et il est
+    // conforme à ses références : un objectif moderne à lames arrondies rend des
+    // fantômes ronds, et aucune de ses cinq photographies ne montre de polygone.
+    //
+    // Le contrôle RESTE : il porte une capacité réelle, partagée avec `lensBlur`
+    // par `effects/aperture.ts`. Un défaut qui change ne retire pas une
+    // capacité, et le scénario `effet-lens-flare-familles` la garde verrouillée.
+    expect(lensFlare.params.find((p) => p.name === "blades")?.default).toBe(0);
+    // Sous 3 lames, la fonction partagée rend 1 partout — donc un cercle.
+    expect(apertureRadiusSpec(1.234, 0, 0)).toBe(1);
+  });
+
   it("a pour teinte par défaut le bleu-violet des revêtements modernes", () => {
     // Trois des cinq photographies de référence sont franchement bleues, deux
     // ambrées. Le défaut suit la majorité — et surtout ce n'est PAS une teinte

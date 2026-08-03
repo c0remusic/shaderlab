@@ -1,8 +1,16 @@
 # Le VERRE — plan de portage
 
-> Statut : **plan, à valider par Antoine avant toute ligne de code.**
+> Statut : **validé par Antoine le 2026-08-03, TRANCHE 1 LIVRÉE le même jour.**
+> `glass` est au registre avec ses neuf matières de feuille et six références de
+> pixels sur `mireVerre`. **La tranche 2 (les cinq matières de PAVÉ) reste à
+> faire**, et ira à la fin de la liste de matières — pas dans un second effet.
+> ⚠️ Le jugement visuel sur une vraie photo n'a PAS été rendu : les références
+> prouvent que chaque matière porte sa propriété, pas qu'elle est belle. Antoine
+> a marqué le `Dépoli` « à raffiner ».
+> ⚠️ Six branches verrouillées sur quatorze — restent dehors les matières
+> Cannelé croisé, Gaufré, Écorce et les profils Arc plein, Prisme, Fond plat.
 > Source : `C:\dev\portfolio\src\shaders\verre\site.fs.glsl` (1 405 lignes, GLSL).
-> Écrit le 2026-08-03. Aucun code écrit à ce stade.
+> Écrit le 2026-08-03.
 
 ## 1. Ce que la source contient réellement
 

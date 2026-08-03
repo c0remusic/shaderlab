@@ -1954,7 +1954,7 @@ const INSTALL = `(async () => {
     // glow : le voile ajoute une lumiere SCALAIRE teintee, donc il remonte les
     // noirs SANS redessiner les formes. Un glow ajouterait la couleur locale et
     // ferait reapparaitre les points lumineux en plus gros. L image doit donc
-    // etre lavee et plate, pas auréolée.
+    // etre lavee et plate, pas aureolee.
     "effet-lens-flare-voile": {
       contre: "effet-lens-flare-source-posee",
       build: async (r, stack) => {

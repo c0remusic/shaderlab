@@ -98,7 +98,8 @@ l'historique git.
 **Pattern à surveiller** : `lint:tokens` (`scripts/lint-tokens.mjs`) ne scanne
 que le CSS — il ne voit jamais une valeur arbitraire Tailwind mal typée dans
 un `.tsx`. Ce garde-fou a un angle mort connu maintenant ; toute revue future
-touchant des classes `outline-[var(...)]`/`ring-[var(...)]`/`shadow-[var(...)]`
+touchant les classes Tailwind arbitraires d'outline, ring et shadow fondées sur
+des variables CSS
 doit vérifier le CSS RÉELLEMENT émis (`npm run build` + grep `dist/assets/*.css`),
 pas seulement lire le nom de la classe.
 

@@ -74,7 +74,8 @@ export default defineConfig({
         plugins: [
           storybookTest({ configDir: path.join(dirname, '.storybook') }),
           // Sans ce plugin, les stories rendent SANS Tailwind : `flex`,
-          // `sr-only` et les hauteurs en `h-[var(...)]` n'existent pas pendant
+          // `sr-only` et les hauteurs arbitraires fondées sur les tokens CSS
+          // n'existent pas pendant
           // les tests, alors qu'elles existent sous `storybook dev` (dont la
           // config vient de vite.config.ts, qui le charge). Toute assertion de
           // style y etait donc aveugle — decouvert le 2026-07-28 en mesurant un

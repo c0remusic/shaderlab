@@ -1,6 +1,7 @@
 # Pile, propriétés et masque — design UX
 
-> Statut : **proposition prête au checkpoint wireframe**, 2026-08-03.
+> Statut : **implémenté et vérifié techniquement**, 2026-08-04 ; verdict
+> esthétique humain final différé pour permettre la poursuite autonome.
 > Référence visuelle interactive : `docs/wireframes/effect-controls.html`.
 > Ce document remplace la lecture fragmentée « Effets / Photo / Réglages /
 > Masque » par un flux unique centré sur l'objet sélectionné.

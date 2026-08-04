@@ -182,7 +182,7 @@
     },
     {
       "path": "docs/superpowers/plans/2026-08-03-pile-proprietes-masque.md",
-      "status": "PRÊT APRÈS CHECKPOINT DU WIREFRAME — Task 0 humaine obligatoire, Tasks 1-9 non commencées.",
+      "status": "TECHNIQUEMENT TERMINÉ le 2026-08-04 — Tasks 1-8 livrées dans 1bd8fde puis auditées sur pièce ; Task 9 verte (1745 unitaires, 302 Storybook, types, tokens, build, 154 shaders, 77 références pixels et parcours WebView2). Verdict esthétique humain final différé à la demande d'Antoine pour poursuivre en autonomie.",
       "date": "2026-08-03",
       "topic": "plan d'implémentation du flux Pile/Propriétés/Masque",
       "summary": "Dix étapes : validation du wireframe ; état pur de sélection photo/effet/masque ; projection de pile ; nouveau LayerPanel ; PropertiesPanel réutilisant PhotoPanel/ParamPanel/MaskPanel ; ajout d'effet contextualisé ; session masque explicite ; miniature bornée sans raster React ; dépose des cartes fragmentées et migration du layout ; preuve automatique, CDP et checkpoint humain. Le plan garde l'ordre causal, le drag existant, le contrat live/commit et l'invariant des gros buffers hors state React."

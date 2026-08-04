@@ -1,14 +1,20 @@
 # Le VERRE — plan de portage
 
 > Statut : **validé par Antoine le 2026-08-03, TRANCHE 1 LIVRÉE le même jour.**
-> `glass` est au registre avec ses neuf matières de feuille et six références de
+> `glass` est au registre avec ses neuf matières de feuille et treize références de
 > pixels sur `mireVerre`. **La tranche 2 (les cinq matières de PAVÉ) reste à
 > faire**, et ira à la fin de la liste de matières — pas dans un second effet.
 > ⚠️ Le jugement visuel sur une vraie photo n'a PAS été rendu : les références
 > prouvent que chaque matière porte sa propriété, pas qu'elle est belle. Antoine
 > a marqué le `Dépoli` « à raffiner ».
-> ⚠️ Six branches verrouillées sur quatorze — restent dehors les matières
-> Cannelé croisé, Gaufré, Écorce et les profils Arc plein, Prisme, Fond plat.
+> Les quatorze branches de la tranche 1 sont verrouillées par treize références :
+> le scénario Cannelé simple couvre à la fois la matière 0 et le profil 0. Les
+> sept références complémentaires distinguent explicitement Cannelé croisé de
+> Cannelé simple, Gaufré de Cannelé croisé, Écorce de Martelé, et chacun des
+> trois profils restants du profil Arc doux. Une référence exploratoire `Poli`
+> à forte densité a été volontairement écartée : elle révélait un aliasing dû au
+> pas de différences finies constant de cette branche ; la figer aurait verrouillé
+> le défaut. Ce comportement reste à corriger ou à retirer de l'UI.
 > Source : `C:\dev\portfolio\src\shaders\verre\site.fs.glsl` (1 405 lignes, GLSL).
 > Écrit le 2026-08-03.
 

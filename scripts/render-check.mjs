@@ -2054,13 +2054,17 @@ const INSTALL = `(async () => {
     // moindre couleur dans ces references EST la dispersion — la propriete est
     // mesurable au lieu d etre appreciee.
     //
-    // CE QUI RESTE NON VERROUILLE, ecrit plutot que taise : sur neuf matieres et
-    // cinq profils, six references en couvrent SIX branches. Restent dehors les
-    // matieres Cannele croise, Gaufre et Ecorce (cette derniere partage sa
-    // primitive avec Martele, donc son risque est moindre), et les profils Arc
-    // plein, Prisme et Fond plat. C est exactement la configuration qui a coute
-    // cher a hatching — trois formes livrees et verrouillees par rien pendant
-    // seize heures. A completer avant de considerer la famille close.
+    // QUATORZE BRANCHES POUR TREIZE REFERENCES, et l ecart n est pas un trou :
+    // le scenario du cannele simple couvre a lui seul la matiere 0 ET le profil
+    // 0, puisqu il faut bien une matiere pour eprouver un profil.
+    //
+    // La premiere passe en couvrait sept. Le commentaire d alors en annoncait
+    // six : il oubliait Poli, et c est le recompte des branches, pas la note,
+    // qui a tranche. Les sept manquantes ont ete ecrites ensuite, chacune
+    // contre la reference dont elle doit se DISTINGUER plutot que contre la
+    // photo nue — un profil se prouve face a un autre profil, une matiere face
+    // a celle dont elle partage le code. Mesurer contre l image sans verre
+    // n aurait prouve que « ca fait quelque chose », ce qu on savait deja.
     "effet-verre-cannele": {
       contre: "photo-de-fond-seule",
       build: async (r, stack) => {
@@ -2170,6 +2174,173 @@ const INSTALL = `(async () => {
         stack.updateParams(a, {
           material: 7, depth: 0, grain: 0.8, thickness: 0.1,
           specular: 0.2, dispersion: 0, diffusion: 0.35, relief: 1,
+        });
+      },
+    },
+
+    // CANNELE CROISE : la meme pente, appliquee aux DEUX axes au lieu d un.
+    // Tout est identique au cannele simple sauf la matiere, donc l ecart entre
+    // les deux images EST la contribution du second axe, isolee. Ce que la
+    // reference protege est la SOMME : si un jour cette branche se mettait a
+    // multiplier les deux pentes, elle deviendrait le Gaufre — et le scenario
+    // suivant, qui se mesure contre celui-ci, tomberait en meme temps.
+    "effet-verre-croise": {
+      contre: "effet-verre-cannele",
+      build: async (r, stack) => {
+        const m = await mireVerre(W, H);
+        const sourceId = await r.photoSources.register(m);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
+        const a = stack.addLayer("glass", p);
+        stack.updateParams(a, {
+          material: 1, density: 28, depth: 0.55, profile: 0, flat: 0, fillet: 0.12,
+          orientation: 0, irregularity: 0, grain: 0.2, thickness: 0.16,
+          specular: 0.35, dispersion: 0.4, diffusion: 0.03, relief: 1,
+        });
+      },
+    },
+
+    // GAUFRE, ET SON \`contre\` EST LE POINT DU SCENARIO. La seule chose qui le
+    // separe du Cannele croise est un PRODUIT la ou l autre fait une somme : la
+    // pente d un axe modulee par la HAUTEUR de l autre. C est ce produit qui
+    // fait des domes ; une somme ferait une grille de sillons croises, ce qui
+    // est deja la matiere precedente. Le mesurer contre la photo nue aurait
+    // prouve que le Gaufre fait quelque chose ; le mesurer contre le croise
+    // prouve qu il fait autre chose QUE LUI, ce qui est la seule question.
+    "effet-verre-gaufre": {
+      contre: "effet-verre-croise",
+      build: async (r, stack) => {
+        const m = await mireVerre(W, H);
+        const sourceId = await r.photoSources.register(m);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
+        const a = stack.addLayer("glass", p);
+        stack.updateParams(a, {
+          material: 2, density: 28, depth: 0.55, profile: 0, flat: 0, fillet: 0.12,
+          orientation: 0, irregularity: 0, grain: 0.2, thickness: 0.16,
+          specular: 0.35, dispersion: 0.4, diffusion: 0.03, relief: 1,
+        });
+      },
+    },
+
+    // ECORCE : meme primitive que le Martele, a deux constantes pres —
+    // l etirement vertical des plaques (0,42) et l amplitude (0,055 contre
+    // 0,030). Les deux matieres partagent leur code par construction, donc la
+    // seule chose qui puisse casser sans etre vue est justement ce couple de
+    // constantes. Mesure contre le Martele, a parametres identiques : l ecart
+    // EST l anisotropie du tronc, et rien d autre.
+    "effet-verre-ecorce": {
+      contre: "effet-verre-martele",
+      build: async (r, stack) => {
+        const m = await mireVerre(W, H);
+        const sourceId = await r.photoSources.register(m);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
+        const a = stack.addLayer("glass", p);
+        stack.updateParams(a, {
+          material: 4, density: 90, depth: 0.6, flat: 0.3,
+          irregularity: 0.5, grain: 0.2, thickness: 0.8,
+          specular: 0.35, dispersion: 0.3, diffusion: 0.03, relief: 1,
+        });
+      },
+    },
+
+    // POLI : la matiere la plus facile a rendre INERTE sans que rien ne le
+    // signale. Aucun motif, aucune maille, une amplitude minuscule — si un
+    // refactor eteignait sa branche, l image resterait plausible (un verre
+    // plat qui verdit et qui brille, ce qui est exactement ce que rend le
+    // parametre Presence du relief a 0). D ou le creux et l epaisseur pousses,
+    // et le micro-relief presque coupe : ce qu on veut lire ici est
+    // l ondulation LENTE, pas la rugosite qui l accompagne.
+    "effet-verre-poli": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const m = await mireVerre(W, H);
+        const sourceId = await r.photoSources.register(m);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
+        const a = stack.addLayer("glass", p);
+        stack.updateParams(a, {
+          material: 6, density: 12, depth: 1, flat: 0,
+          irregularity: 0, grain: 0.05, thickness: 1.6,
+          specular: 0.3, dispersion: 0.3, diffusion: 0.02, relief: 1,
+        });
+      },
+    },
+
+    // ⚠️ UN HUITIEME SCENARIO A EXISTE ICI ET A ETE RETIRE, ce qui est une
+    // information et pas un vide. Le meme Poli a densite 150 s ecartait de
+    // celui-ci sur 65,4 % des canaux — l infobulle de Densite du motif annonce
+    // pourtant « Sans objet en Poli ». La mesure a donc dit deux choses : que
+    // l infobulle ment, et que ce que le curseur produit a fond de course n est
+    // pas un verre plus serre mais de l ALIASING (franges d interference, image
+    // illisible). Cause trouvee sur pieces : Poli est la seule branche pilotee
+    // par la densite dont le pas de differences finies est CONSTANT (0,06) la
+    // ou Cathedrale et Martele mettent le leur a l echelle (0,35/dens et
+    // 0,10/dens). Le pas finit plus grand que le motif qu il mesure.
+    // La reference n a pas ete ecrite : figer cette image verrouillerait le
+    // defaut au lieu de le signaler. A reposer une fois le sens du correctif
+    // tranche — Poli prend une vraie commande d echelle, ou la perd pour de bon.
+
+    // LES TROIS PROFILS RESTANTS, tous sur le cannele simple et tous mesures
+    // contre lui : seul \`profile\` change d un scenario a l autre, donc chaque
+    // ecart est la contribution d une forme de section, isolee. Meme protocole
+    // que le Bourrelet, qui etait le seul profil verrouille de la premiere
+    // passe.
+    //
+    // ARC PLEIN. Le plus dangereux des trois parce que le moins distinct : ce
+    // n est pas une autre courbe que l Arc doux, c est la MEME a un facteur
+    // 0,35 pres. Une reference qui le confondrait avec son voisin ne dirait
+    // rien ; celle-ci se mesure donc contre l Arc doux, la ou le facteur est
+    // toute la difference.
+    "effet-verre-arc-plein": {
+      contre: "effet-verre-cannele",
+      build: async (r, stack) => {
+        const m = await mireVerre(W, H);
+        const sourceId = await r.photoSources.register(m);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
+        const a = stack.addLayer("glass", p);
+        stack.updateParams(a, {
+          material: 0, density: 28, depth: 0.55, profile: 1, flat: 0, fillet: 0.12,
+          orientation: 0, irregularity: 0, grain: 0.2, thickness: 0.16,
+          specular: 0.35, dispersion: 0.4, diffusion: 0.03, relief: 1,
+        });
+      },
+    },
+
+    // PRISME : pente CONSTANTE et signee, donc un V. C est le seul profil dont
+    // la deviation ne varie pas dans la cellule — l image s y deplace en bloc
+    // de part et d autre de l arete, au lieu de s etirer continument. Ce que la
+    // reference verrouille est donc l ABSENCE de variation dans la cellule ; a
+    // quoi cela ressemble sur chaque quart de la mire n est pas affirme ici,
+    // faute d avoir ete regarde a une echelle ou ca se tranche.
+    "effet-verre-prisme": {
+      contre: "effet-verre-cannele",
+      build: async (r, stack) => {
+        const m = await mireVerre(W, H);
+        const sourceId = await r.photoSources.register(m);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
+        const a = stack.addLayer("glass", p);
+        stack.updateParams(a, {
+          material: 0, density: 28, depth: 0.55, profile: 2, flat: 0, fillet: 0.12,
+          orientation: 0, irregularity: 0, grain: 0.2, thickness: 0.16,
+          specular: 0.35, dispersion: 0.4, diffusion: 0.03, relief: 1,
+        });
+      },
+    },
+
+    // FOND PLAT : plateau exactement plat au centre, flancs en S, derivee NULLE
+    // aux deux raccords. Il porte une correction qui ne se voit que sur une
+    // reference — la premiere ecriture passait par un cosinus, qui surelevait
+    // le centre et donnait une gorge la ou il faut un creux. Un retour a cette
+    // forme compilerait, rendrait du plausible, et changerait la matiere.
+    "effet-verre-fond-plat": {
+      contre: "effet-verre-cannele",
+      build: async (r, stack) => {
+        const m = await mireVerre(W, H);
+        const sourceId = await r.photoSources.register(m);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
+        const a = stack.addLayer("glass", p);
+        stack.updateParams(a, {
+          material: 0, density: 28, depth: 0.55, profile: 3, flat: 0, fillet: 0.12,
+          orientation: 0, irregularity: 0, grain: 0.2, thickness: 0.16,
+          specular: 0.35, dispersion: 0.4, diffusion: 0.03, relief: 1,
         });
       },
     },

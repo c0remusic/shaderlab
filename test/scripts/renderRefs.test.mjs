@@ -355,16 +355,30 @@ const ATTENDU = {
   // regenerer les images plutot qu'a garder l'effet.
   "effet-lens-distortion-laterale-damier.png": { width: 256, height: 256, valeurs: null },
   "effet-lens-distortion-laterale-decentree.png": { width: 256, height: 256, valeurs: null },
-  // LE VERRE, TRANCHE 1 (2026-08-03). Six references, toutes sur `mireVerre` —
+  // LE VERRE, TRANCHE 1 (2026-08-03). Treize references, toutes sur `mireVerre` —
   // une mire ECRITE POUR EUX, parce qu'aucune existante ne pouvait montrer les
   // quatre proprietes en meme temps (deplacement, dispersion, periodicite,
   // diffusion). Elle est entierement ACHROMATIQUE : la moindre couleur dans ces
   // images EST la dispersion.
   //
-  // Elles couvrent SIX branches sur quatorze. Restent non verrouillees les
-  // matieres Cannele croise, Gaufre et Ecorce, et les profils Arc plein, Prisme
-  // et Fond plat — ecrit ici plutot que tu, parce que c'est exactement la
-  // configuration qui a coute cher a `hatching`.
+  // Treize pour QUATORZE branches, et l'ecart n'est pas un trou : le scenario du
+  // cannele simple couvre a lui seul la matiere 0 et le profil 0, puisqu'il faut
+  // bien une matiere pour eprouver un profil.
+  //
+  // La premiere passe n'en couvrait que sept, et sa note en annoncait six —
+  // elle oubliait `Poli`. Les sept manquantes ont ete posees ensuite, chacune
+  // mesuree contre la reference dont elle doit se DISTINGUER et non contre la
+  // photo nue : `croise` contre `cannele` (le second axe), `gaufre` contre
+  // `croise` (le produit contre la somme, seule chose qui les separe), `ecorce`
+  // contre `martele` (ils partagent leur primitive), et les trois profils
+  // contre `cannele` a parametres identiques.
+  //
+  // ⚠️ UNE QUATORZIEME REFERENCE MANQUE VOLONTAIREMENT — le meme `Poli` a
+  // densite forte. Elle a ete produite, regardee, puis NON committee : elle
+  // montre de l'aliasing (franges d'interference, image illisible), parce que
+  // `Poli` est la seule branche pilotee par la densite dont le pas de
+  // differences finies est constant la ou ses deux soeurs mettent le leur a
+  // l'echelle. La figer aurait verrouille le defaut au lieu de le signaler.
   // LENS FLARE (2026-08-03), quatre references sur `mireBokeh` — la seule mire
   // du dossier qui porte des sources PONCTUELLES FRANCHES sur du sombre, et un
   // flare ne part de rien d'autre. Une par contribution : la premiere isole les
@@ -392,6 +406,13 @@ const ATTENDU = {
   "effet-verre-aluminium.png": { width: 256, height: 256, valeurs: null },
   "effet-verre-cathedrale.png": { width: 256, height: 256, valeurs: null },
   "effet-verre-depoli.png": { width: 256, height: 256, valeurs: null },
+  "effet-verre-croise.png": { width: 256, height: 256, valeurs: null },
+  "effet-verre-gaufre.png": { width: 256, height: 256, valeurs: null },
+  "effet-verre-ecorce.png": { width: 256, height: 256, valeurs: null },
+  "effet-verre-poli.png": { width: 256, height: 256, valeurs: null },
+  "effet-verre-arc-plein.png": { width: 256, height: 256, valeurs: null },
+  "effet-verre-prisme.png": { width: 256, height: 256, valeurs: null },
+  "effet-verre-fond-plat.png": { width: 256, height: 256, valeurs: null },
   // DUOTONE ET GRADIENT MAP SUR LA MEME RAMPE, a dessein : « sont-ils des
   // doublons » en est a son troisieme tour sans avoir jamais eu de mesure. Deux
   // references sur la meme mire, aux memes tons, la rendent chiffrable — et si

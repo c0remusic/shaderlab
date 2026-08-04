@@ -32,11 +32,11 @@ function Slider({
       <SliderPrimitive.Control className="relative flex w-full touch-none items-center select-none data-disabled:opacity-50 data-[orientation=vertical]:h-full data-[orientation=vertical]:min-h-40 data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col">
         <SliderPrimitive.Track
           data-slot="slider-track"
-          className="relative grow overflow-hidden rounded-full bg-[var(--surface-raised)] select-none data-[orientation=horizontal]:h-[var(--slider-track-height)] data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-[var(--slider-track-height)]"
+          className="relative grow overflow-hidden rounded-full bg-[var(--border-emphasis)] select-none data-[orientation=horizontal]:h-[var(--slider-track-height)] data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-[var(--slider-track-height)]"
         >
           <SliderPrimitive.Indicator
             data-slot="slider-range"
-            className="bg-[var(--border-strong)] select-none data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full"
+            className="bg-[var(--text-secondary)] select-none data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full"
           />
         </SliderPrimitive.Track>
         {Array.from({ length: _values.length }, (_, index) => (

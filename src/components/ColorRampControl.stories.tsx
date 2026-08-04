@@ -25,7 +25,9 @@ export const Default: Story = {};
 export const CompressedRange: Story = { args: { initial: { midPosition: .34, blackPoint: .12, whitePoint: .82 } } };
 export const Disabled: Story = { args: { disabled: true } };
 export const OpensColor: Story = { args: { onOpenStop: fn() }, play: async ({ args, canvasElement }) => {
-  await userEvent.click(within(canvasElement).getByRole("button", { name: /Arrêt sombre/ }));
+  const canvas = within(canvasElement);
+  await userEvent.click(canvas.getByRole("button", { name: /Arrêt sombre — position/ }));
+  await userEvent.click(canvas.getByRole("button", { name: /Choisir la couleur — Arrêt sombre/ }));
   await expect(args.onOpenStop).toHaveBeenCalledTimes(1);
 } };
 export const KeyboardCommit: Story = { args: { onChange: fn(), onCommit: fn() }, play: async ({ args, canvasElement }) => {

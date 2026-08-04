@@ -1,43 +1,69 @@
-# Design QA — dock plat et plan de travail
+# Design QA — contrôle de rampe Gradient Map
 
-## Evidence
+> Le rapport précédent, « dock plat et plan de travail », est préservé dans
+> `docs/design-qa/2026-08-04-dock-flat-workspace.md`.
 
-- **Source visual truth:** `C:\Users\LEETJ\AppData\Local\Temp\codex-clipboard-f8a8bad9-c3cf-409a-9ecd-25d38ce5b794.png`
-- **Implementation screenshot:** `C:\dev\shaderlab\.dev-logs\dock-contrast.png`
-- **Viewport/state:** bureau sombre, aucun fichier chargé, dock Calques/Réglages ouvert.
-- **Runtime check:** `.canvas-stage` et `.workspace` ont la même largeur et hauteur (`fillsWorkspace: true`) dans la vraie WebView2 via CDP.
+## Artifacts
 
-## Comparison note
+- Source visual truth: `C:\Users\LEETJ\.codex\generated_images\019fcaf3-ae9a-7600-9307-585df86de409\exec-0109bd78-6d98-4257-bb1d-13dcca82e8df.png`
+- Rendered implementation: `C:\tmp\shaderlab-gradient-map-panel-final.png`
+- Side-by-side comparison: `C:\tmp\shaderlab-gradient-map-comparison.png`
+- State: dark theme, `sample.jpg`, `Gradient map` selected, middle stop selected, color picker closed.
+- Viewport: native Tauri WebView2 window; Properties card measured at 320 × 745.375 CSS px.
+- Source pixels: 868 × 1830. Implementation pixels: 640 × 1491 captured at scale 2.
+- Density normalization: source scaled to 640 px wide (result 640 × 1349) and placed beside the 640 px-wide implementation capture. The extra implementation height is the real card content at 320 px; no horizontal scaling mismatch remains.
 
-La référence Photoshop est un état chargé, avec trois cellules de dock (Historique, Calques, Propriétés) et une image ouverte. La capture Shaderlab est un état vide, avec deux cellules seulement. Ces états ne sont pas comparables pour la densité, la hiérarchie complète du dock, l'image ou les interactions de resize; aucune conclusion de fidélité ne peut être tirée sur ces surfaces.
+## Full-view comparison evidence
 
-## Required fidelity surfaces
+The implementation preserves the selected direction's hierarchy: two range markers above one gradient strip, three colored movable stop arrows below, selected middle stop inspector immediately after the ramp, one divider, then every generic Gradient Map control. All content fits the real Properties card with one owner of vertical scrolling; no persistent control is clipped.
 
-- **Fonts and typography:** texte d'interface compact en Segoe UI Variable, hiérarchie titre de panneau/texte de contrôle lisible. L'état chargé manque pour évaluer les libellés denses de calques et d'historique.
-- **Spacing and layout rhythm:** le dock reste ancré à droite et les séparateurs discrets structurent les cellules sans cadre. Le canvas remplit le plan de travail sous la toolbar, mais l'absence d'état chargé empêche de comparer les proportions avec la référence.
-- **Colors and visual tokens:** canvas `--surface-window` (`#1b1b1b`) et dock `--panel-bg` (`#2c2c2c`) sont désormais distincts. Aucun contournement de token détecté par `npm run lint:tokens`.
-- **Image quality and asset fidelity:** l'image de référence n'est pas ouverte dans Shaderlab; comparaison bloquée.
-- **Copy and content:** Calques/Réglages restent cohérents, mais Historique et Propriétés n'ont pas de composants correspondants dans l'état actuel.
+## Focused-region comparison evidence
 
-## Findings
-
-- **[P1] États de comparaison incompatibles**
-  - Location: référence Photoshop vs WebView2 Shaderlab.
-  - Evidence: la référence contient une image, Historique, Calques et Propriétés; Shaderlab est vide et ne rend que Calques/Réglages.
-  - Impact: le rendu ne peut pas être validé contre la référence à propos des proportions du canvas, du dock en colonnes, des cellules redimensionnables et du contenu dense.
-  - Fix: ouvrir une image dans Shaderlab et fournir ou implémenter les cellules attendues avant de refaire la capture au même viewport.
-
-- **[P1] Sens de « plein écran » non déterminé**
-  - Location: plan de travail / fenêtre Shaderlab.
-  - Evidence: le canvas remplit déjà son conteneur disponible; le rendu ne laisse aucune marge interne à supprimer.
-  - Impact: forcer la fenêtre native en plein écran ou agrandir l'image avec recadrage sont deux comportements différents, dont l'un peut masquer les contrôles système ou altérer l'image.
-  - Fix: confirmer lequel des deux comportements est souhaité avant une mutation de layout ou de fenêtre.
+The focused 320 px Properties capture was compared beside the normalized source. This region is sufficient because the request changes only the controller and shared slider visibility; the canvas, pile, toolbar and other dock cards are explicitly outside scope.
 
 ## Comparison history
 
-1. Le canvas et le dock avaient une différence insuffisante (`#222222` contre `#2c2c2c`).
-2. Le canvas a été déplacé sur `--surface-window` (`#1b1b1b`); la capture `dock-contrast.png` confirme une séparation visible sans bordure.
+### Pass 1 — blocked
+
+- [P2] Generic slider tracks disappeared into the panel surface.
+  - Evidence: the implementation used `--surface-raised` over `--surface-panel`, two adjacent Spectrum dark grays; the user's live screenshot read them as absent.
+  - Fix: shared slider track now uses `--border-emphasis`, and the filled range uses `--text-secondary`; dimensions and behavior are unchanged.
+- [P2] The existing round color-stop buttons did not match the selected Photoshop-like arrow vocabulary.
+  - Fix: distinct range markers above the strip and colored arrow/tab stops below; selected stop gets the light outline.
+- [P2] No persistent active-stop inspector existed.
+  - Fix: active swatch, semantic stop name, numeric position field and existing color-picker affordance added without changing the shader or parameter model.
+
+### Pass 2 — blocked
+
+- [P2] Range values `0` and `100` were absent because the ramp had no lateral gutter.
+  - Fix: the editor now reserves tokenized side gutters and renders the values at the ramp ends.
+- [P2] Range markers appeared solid instead of hollow.
+  - Fix: layered token-colored marker fill creates a high-contrast hollow range marker while color stops remain filled.
+
+### Pass 3 — passed
+
+- The `0`/`100` labels are visible above the ramp through explicit stacking.
+- Range markers, color stops and active stop are visually distinct.
+- All four generic sliders are visible, and both select rows remain visible.
+- Real WebView2 interaction check: selecting `Arrêt sombre` changes the active inspector and `aria-pressed`; its picker button opens `ColorPickerPanel`; four generic slider roots remain mounted.
+- No Tauri stderr error or visible application error banner occurred during loading, selection or picker interaction.
+
+## Required fidelity surfaces
+
+- Fonts and typography: project-native Segoe UI/monospace value fields retained; hierarchy matches the mock with a semibold active-stop label and secondary control labels.
+- Spacing and layout rhythm: token-only spacing, compact 320 px layout, no nested card around the active stop, one divider before generic controls.
+- Colors and visual tokens: canonical Spectrum surfaces, borders, text and focus tokens only; ramp colors remain derived from the live HSL stops.
+- Image quality and assets: no raster asset is needed for this UI control. The picker affordance uses the installed Lucide icon library; the gradient itself is the live functional ramp, not a replacement image.
+- Copy and content: French labels retained exactly for all existing generic controls; active stop uses the existing domain labels.
+
+## Findings
+
+No actionable P0, P1 or P2 mismatch remains.
+
+## Follow-up polish
+
+- [P3] The implementation is slightly taller than the generated mock because the shared `LabeledSlider` contract uses a label row above each track at a real 320 px width. This preserves readable labels and full-width hit targets; compressing to the mock's same-line rows would require a broader shared layout change.
 
 ## Final result
 
-blocked
+final result: passed

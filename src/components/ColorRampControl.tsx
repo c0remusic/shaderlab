@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { Pipette } from "lucide-react";
 import { hslToHex } from "../ui/hsl";
 import { moveColorRampHandle, nudgeColorRampHandle, type ColorRampHandleRole, type ColorRampPositions } from "../ui/colorRamp";
+import { NumberField } from "./ui/number-field";
 import "./ColorRampControl.css";
 
 export interface ColorRampStopValue {
@@ -30,6 +32,7 @@ const HANDLE_LABELS: Record<ColorRampHandleRole, string> = {
 };
 
 export function ColorRampControl({ label, stops, positions, disabled = false, onChange, onCommit, onOpenStop }: Props) {
+  const [activeStopId, setActiveStopId] = useState(stops[1].id);
   const [preview, setPreview] = useState(positions);
   const previewRef = useRef(preview);
   const startRef = useRef<ColorRampPositions | null>(null);
@@ -112,33 +115,57 @@ export function ColorRampControl({ label, stops, positions, disabled = false, on
     { ...stops[1], position: preview.midPosition },
     { ...stops[2], position: 1 },
   ] as const;
+  const activeStop = visualStops.find((stop) => stop.id === activeStopId) ?? visualStops[1];
   const gradient = `linear-gradient(90deg, ${visualStops.map((stop) => `${hslToHex(stop.hue, stop.saturation, stop.lightness)} ${stop.position * 100}%`).join(", ")})`;
+
+  const openActiveStop = (element: HTMLElement) => {
+    onOpenStop(activeStop.id, element.getBoundingClientRect().top);
+  };
 
   return (
     <section className="color-ramp" aria-label={label} data-disabled={disabled || undefined}>
-      <div className="color-ramp__track" style={{ backgroundImage: gradient }}>
+      <div className="color-ramp__editor">
+        <div className="color-ramp__track" style={{ backgroundImage: gradient }}>
+          {(["blackPoint", "whitePoint"] as const).map((role) => (
+            <button key={role} type="button" className="color-ramp__range-handle"
+              style={{ left: `calc(${preview[role]} * (100% - var(--control-height-sm)) + var(--control-height-sm) / 2)` }} aria-label={`${HANDLE_LABELS[role]} — ${Math.round(preview[role] * 100)} %`}
+              disabled={disabled} onPointerDown={(event) => handlePointerDown(role, event)} onKeyDown={(event) => handleKeyDown(role, event)} />
+          ))}
         {visualStops.map((stop) => (
           <button key={stop.id} type="button" className="color-ramp__stop"
             style={{ left: `calc(${stop.position} * (100% - var(--control-height-sm)) + var(--control-height-sm) / 2)`, "--ramp-stop-color": hslToHex(stop.hue, stop.saturation, stop.lightness) } as React.CSSProperties}
-            aria-label={stop.movable ? `${stop.label} — position ${Math.round(stop.position * 100)} %, cliquer pour la couleur` : `${stop.label} — ouvrir la couleur`} disabled={disabled}
-            onClick={(event) => {
+            aria-label={`${stop.label} — position ${Math.round(stop.position * 100)} %`} aria-pressed={stop.id === activeStop.id} disabled={disabled}
+            onClick={() => {
               if (suppressStopClickRef.current) { suppressStopClickRef.current = false; return; }
-              onOpenStop(stop.id, event.currentTarget.getBoundingClientRect().top);
+              setActiveStopId(stop.id);
             }}
             onPointerDown={stop.movable ? (event) => handlePointerDown("midPosition", event) : undefined}
             onKeyDown={stop.movable ? (event) => handleKeyDown("midPosition", event) : undefined} />
         ))}
-        {(["blackPoint", "whitePoint"] as const).map((role) => (
-          <button key={role} type="button" className="color-ramp__range-handle"
-            style={{ left: `calc(${preview[role]} * (100% - var(--control-height-sm)) + var(--control-height-sm) / 2)` }} aria-label={`${HANDLE_LABELS[role]} — ${Math.round(preview[role] * 100)} %`}
-            disabled={disabled} onPointerDown={(event) => handlePointerDown(role, event)} onKeyDown={(event) => handleKeyDown(role, event)} />
-        ))}
+        </div>
+        <output className="color-ramp__range-values" aria-live="polite">
+          <span>{Math.round(preview.blackPoint * 100)}</span>
+          <span>{Math.round(preview.whitePoint * 100)}</span>
+        </output>
       </div>
-      <output className="color-ramp__values" aria-live="polite">
-        <span>N {Math.round(preview.blackPoint * 100)}</span>
-        <span>M {Math.round(preview.midPosition * 100)}</span>
-        <span>B {Math.round(preview.whitePoint * 100)}</span>
-      </output>
+      <div className="color-ramp__active-stop">
+        <button type="button" className="color-ramp__active-swatch"
+          style={{ "--ramp-stop-color": hslToHex(activeStop.hue, activeStop.saturation, activeStop.lightness) } as React.CSSProperties}
+          aria-label={`Choisir la couleur — ${activeStop.label}`} disabled={disabled} onClick={(event) => openActiveStop(event.currentTarget)} />
+        <strong className="color-ramp__active-label">{activeStop.label}</strong>
+        <NumberField label="Position" value={Math.round(activeStop.position * 100)} unit="%" min={5} max={95} step={1}
+          disabled={disabled || !activeStop.movable} labelPlacement="inline"
+          classNames={{ root: "color-ramp__position", label: "color-ramp__position-label", field: "color-ramp__position-field", input: "color-ramp__position-input", unit: "color-ramp__position-unit" }}
+          onCommit={(value) => {
+            publish({ ...previewRef.current, midPosition: value / 100 });
+            flush();
+            onCommit();
+          }} />
+        <button type="button" className="color-ramp__picker-button" aria-label={`Ouvrir le sélecteur — ${activeStop.label}`}
+          disabled={disabled} onClick={(event) => openActiveStop(event.currentTarget)}>
+          <Pipette className="icon-sm icon-stroke" aria-hidden="true" />
+        </button>
+      </div>
     </section>
   );
 }

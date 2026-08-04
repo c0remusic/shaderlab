@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>shaderlab — wireframe contrôles d'effets</title>
+<style>
+:root {
+  /* Valeurs canoniques de src/design/{primitives,semantic,components}.css. */
+  --n100:#f2f2f2; --n200:#dbdbdb; --n850:#323232; --n900:#2c2c2c;
+  --n950:#222; --n1000:#1b1b1b; --blue:#4069fd; --blue-light:#6b90ff;
+  --surface-window:var(--n1000); --surface-workspace:var(--n950);
+  --surface-panel:var(--n900); --surface-raised:var(--n850);
+  --surface-inset:var(--n1000); --text:rgba(242,242,242,.94);
+  --text-2:rgba(242,242,242,.68); --text-3:rgba(242,242,242,.48);
+  --border:rgba(242,242,242,.11); --border-strong:rgba(242,242,242,.28);
+  --hover:rgba(242,242,242,.07); --active:rgba(242,242,242,.11);
+  --font:"Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+  --mono:"Cascadia Mono","Consolas",monospace;
+  --r-control:5px; --r-group:7px; --r-panel:8px;
+  --s1:2px; --s2:4px; --s3:6px; --s4:8px; --s5:12px; --s6:16px;
+  --shadow:0 12px 24px rgba(0,0,0,.28),0 3px 8px rgba(0,0,0,.22);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:#151515;color:var(--text);font:13px/1.35 var(--font);overflow:hidden}
+button,input,select{font:inherit;color:inherit}
+button{border:0}
+.app{height:100vh;min-width:980px;display:grid;grid-template-rows:38px 1fr 24px;background:var(--surface-window)}
+.toolbar{display:flex;align-items:center;gap:4px;padding:0 8px;background:var(--surface-panel);border-bottom:1px solid var(--border)}
+.wordmark{font-weight:600;letter-spacing:-.02em;margin-right:12px}.wordmark span{color:var(--text-3);font-weight:400}
+.tool{height:28px;padding:0 9px;border-radius:5px;background:transparent;color:var(--text-2);cursor:pointer}
+.tool:hover{background:var(--hover);color:var(--text)}
+.tool.icon{width:28px;padding:0;display:grid;place-items:center;font-size:15px}
+.separator{width:1px;height:18px;background:var(--border);margin:0 4px}
+.spacer{flex:1}
+.zoom{font:11px var(--mono);color:var(--text-2);padding:0 8px}
+.primary{background:var(--n200);color:#211e1a;font-weight:600}.primary:hover{background:var(--n100);color:#211e1a}
+.workspace{min-height:0;display:grid;grid-template-columns:1fr 336px;position:relative}
+.pasteboard{position:relative;overflow:hidden;background:#202020;display:grid;place-items:center}
+.pasteboard::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 40%,rgba(255,255,255,.025),transparent 56%)}
+.canvas{position:relative;width:min(67vw,940px);aspect-ratio:3/2;max-height:calc(100vh - 105px);background:#766a62;box-shadow:0 10px 38px rgba(0,0,0,.45);overflow:hidden;isolation:isolate}
+.photo{position:absolute;inset:0;background:
+  radial-gradient(ellipse at 53% 35%,rgba(255,236,210,.62) 0 4%,transparent 18%),
+  radial-gradient(ellipse at 50% 46%,#ad7f68 0 9%,transparent 9.5%),
+  radial-gradient(ellipse at 49% 56%,#191a1c 0 18%,transparent 18.5%),
+  linear-gradient(100deg,rgba(5,10,16,.9),transparent 36%,rgba(225,151,105,.36) 67%,rgba(8,10,12,.9)),
+  linear-gradient(155deg,#2c383f 0 32%,#9d7b68 48%,#27231f 68%,#11151a 100%);
+  filter:saturate(.72) contrast(1.1)}
+.photo::before{content:"";position:absolute;inset:0;background:repeating-radial-gradient(circle at 30% 40%,rgba(255,255,255,.028) 0 1px,transparent 1px 3px);mix-blend-mode:soft-light;opacity:.6}
+.photo::after{content:"EDITORIAL / 04";position:absolute;left:4.5%;bottom:5%;font:600 clamp(14px,2.1vw,28px)/1 var(--font);letter-spacing:.22em;color:rgba(255,255,255,.76)}
+.overlay{position:absolute;inset:0;z-index:4;touch-action:none}
+.overlay-view{position:absolute;inset:0;display:none}.overlay-view.active{display:block}
+.crosshair{position:absolute;width:14px;height:14px;border-radius:50%;background:var(--blue-light);border:2px solid #181818;box-shadow:0 0 0 1px rgba(255,255,255,.9),0 2px 6px #000;transform:translate(-50%,-50%);cursor:grab}
+.crosshair:active,.handle:active{cursor:grabbing}
+.crosshair::before,.crosshair::after{content:"";position:absolute;background:#fff;opacity:.9;pointer-events:none}
+.crosshair::before{width:22px;height:1px;left:-6px;top:5px}.crosshair::after{height:22px;width:1px;top:-6px;left:5px}
+.ring{position:absolute;border:1px solid rgba(255,255,255,.92);box-shadow:0 0 0 1px rgba(0,0,0,.74);border-radius:50%;transform:translate(-50%,-50%);pointer-events:none}
+.handle{position:absolute;width:12px;height:12px;border-radius:50%;background:var(--n100);border:2px solid #191919;box-shadow:0 0 0 1px rgba(255,255,255,.65);transform:translate(-50%,-50%);cursor:grab}
+.handle.active,.crosshair.active{background:var(--blue-light)}
+.axis-line{position:absolute;height:2px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.75);transform-origin:left center;pointer-events:none}
+.axis-line::after{content:"";position:absolute;right:-1px;top:-4px;border-left:8px solid #fff;border-top:5px solid transparent;border-bottom:5px solid transparent;filter:drop-shadow(0 1px 0 #000)}
+.tag{position:absolute;transform:translate(-50%,-100%);margin-top:-12px;padding:3px 6px;border-radius:4px;background:rgba(24,24,24,.9);box-shadow:0 1px 5px #000;color:var(--text);font-size:11px;white-space:nowrap;pointer-events:none}
+.flare-glow{position:absolute;width:34%;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);background:radial-gradient(circle,rgba(255,245,215,.42),rgba(255,155,86,.1) 30%,transparent 69%);mix-blend-mode:screen;pointer-events:none}
+.motion-ghost{position:absolute;inset:-3%;background:inherit;opacity:.13;filter:blur(8px);transform:translate(5%,3%);mix-blend-mode:screen;pointer-events:none}
+.gradient-preview{position:absolute;inset:0;background:linear-gradient(120deg,rgba(19,35,90,.62),transparent 45%,rgba(235,48,115,.28),rgba(255,181,43,.35));mix-blend-mode:color;pointer-events:none}
+.curve-preview{position:absolute;inset:0;background:linear-gradient(110deg,rgba(17,29,45,.22),transparent 45%,rgba(255,221,190,.12));mix-blend-mode:screen;pointer-events:none}
+.dock{min-height:0;padding:6px;background:#1a1a1a;border-left:1px solid var(--border);display:flex;flex-direction:column;gap:6px;overflow:hidden}
+.card{background:var(--surface-panel);border:1px solid var(--border);border-radius:var(--r-panel);box-shadow:0 2px 4px rgba(0,0,0,.15);overflow:hidden}
+.stack-card{flex:0 0 240px;display:flex;flex-direction:column;min-height:160px}
+.properties-card{flex:1;min-height:0;display:flex;flex-direction:column}
+.properties-scroll{min-height:0;overflow:auto}
+.card-header{height:34px;display:flex;align-items:center;padding:0 7px 0 10px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600}
+.card-header .muted{color:var(--text-3);font-weight:400;margin-left:5px}.chevron{margin-left:auto;color:var(--text-2)}
+.header-actions{margin-left:auto;display:flex;align-items:center;gap:1px}.header-icon{width:25px;height:25px;display:grid;place-items:center;border-radius:5px;background:transparent;color:var(--text-3);cursor:pointer}.header-icon:hover{background:var(--hover);color:var(--text)}.header-icon.danger:hover{color:#ef8d8d}
+.effect-tabs{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;padding:5px;background:var(--surface-inset);border-bottom:1px solid var(--border)}
+.effect-tab{min-width:0;height:34px;border-radius:5px;background:transparent;color:var(--text-3);cursor:pointer;display:grid;place-items:center;gap:1px;font-size:10px}
+.effect-tab svg{width:15px;height:15px}.effect-tab:hover{background:var(--hover);color:var(--text-2)}
+.effect-tab.active{background:var(--surface-raised);color:var(--text);box-shadow:inset 0 -2px var(--blue-light)}
+.stack-list{flex:1;min-height:0;overflow:auto;padding:5px 5px 2px;margin:0;list-style:none}
+.layer-row{height:34px;display:grid;grid-template-columns:22px 20px minmax(0,1fr) 26px 18px;align-items:center;gap:3px;padding:0 5px;border-radius:5px;color:var(--text-2);cursor:pointer;position:relative}
+.layer-row:hover{background:var(--hover);color:var(--text)}
+.layer-row.selected{background:color-mix(in srgb,var(--blue-light) 18%,var(--surface-panel));color:var(--text)}
+.layer-row.selected::before{content:"";position:absolute;left:0;top:4px;bottom:4px;width:2px;background:var(--blue-light);border-radius:2px}
+.layer-row.child{padding-left:17px}.layer-row.child::after{content:"";position:absolute;left:10px;top:-5px;bottom:-5px;border-left:1px solid var(--border)}
+.eye{width:20px;height:22px;background:transparent;color:var(--text-2);padding:0;cursor:pointer}.kind{font-size:13px;text-align:center;color:var(--text-3)}
+.layer-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px}.layer-row.selected .layer-name{font-weight:600}
+.mask-thumb{width:24px;height:18px;border-radius:3px;border:1px solid var(--border-strong);background:radial-gradient(circle at 63% 38%,#ececec 0 22%,#888 23% 44%,#202020 45%);cursor:pointer;position:relative}
+.mask-thumb:hover,.mask-thumb.active{outline:2px solid var(--n200);outline-offset:1px}.mask-thumb.empty{background:transparent;color:var(--text-3);display:grid;place-items:center;font-size:13px}
+.row-menu{color:var(--text-3);text-align:center}.stack-footer{height:34px;display:flex;align-items:center;gap:5px;padding:4px 6px;border-top:1px solid var(--border);background:var(--surface-inset)}
+.add-button{height:25px;width:25px;border-radius:5px;background:var(--surface-raised);color:var(--text-2);padding:0;font-size:15px;cursor:pointer}.add-button:hover{color:var(--text);background:var(--active)}
+.stack-action{height:25px;width:25px;border-radius:5px;background:transparent;color:var(--text-3);cursor:pointer}.stack-action:hover{background:var(--hover);color:var(--text)}
+.stack-count{margin-left:auto;color:var(--text-3);font:10px var(--mono);padding-right:3px}
+.add-menu{display:none;position:absolute;right:342px;top:278px;width:228px;padding:6px;background:var(--surface-panel);border:1px solid var(--border-strong);border-radius:7px;box-shadow:var(--shadow);z-index:20}.add-menu.open{display:block}.add-search{width:100%;height:28px;border-radius:5px;border:1px solid var(--border);background:var(--surface-inset);padding:0 8px;outline:none;font-size:11px}.add-search:focus{border-color:var(--blue)}.menu-group{margin-top:6px}.menu-group-title{padding:3px 6px;color:var(--text-3);font-size:9px;font-weight:600;letter-spacing:.07em;text-transform:uppercase}.menu-item{width:100%;height:28px;display:grid;grid-template-columns:20px 1fr auto;align-items:center;text-align:left;padding:0 6px;border-radius:4px;background:transparent;color:var(--text-2);font-size:11px;cursor:pointer}.menu-item:hover{background:var(--hover);color:var(--text)}.menu-item kbd{font:9px var(--mono);color:var(--text-3)}
+.mode-tabs{display:flex;gap:2px;padding:5px;background:var(--surface-inset);border-bottom:1px solid var(--border)}
+.mode-tab{height:27px;flex:1;border-radius:5px;background:transparent;color:var(--text-3);font-size:11px;cursor:pointer}.mode-tab.active{background:var(--surface-raised);color:var(--text);box-shadow:inset 0 -2px var(--blue-light)}
+.mask-panel{display:none;padding:10px}.mask-panel.active{display:block}
+.mask-summary{display:grid;grid-template-columns:56px 1fr;gap:9px;align-items:center;margin-bottom:10px}.mask-preview{width:56px;height:42px;border-radius:5px;border:1px solid var(--border-strong);background:radial-gradient(circle at 62% 38%,#eee 0 17%,#9d9d9d 18% 42%,#202020 43%)}
+.mask-summary strong{display:block;font-size:11px}.mask-summary span{display:block;color:var(--text-3);font-size:10px;margin-top:2px}.paint-button{width:100%;height:30px;border-radius:5px;background:var(--n200);color:#211e1a;font-weight:600;font-size:11px;cursor:pointer}.paint-button.active{background:var(--blue);color:#fff}
+.source-list{display:flex;flex-direction:column;gap:4px}.source-row{height:32px;display:grid;grid-template-columns:18px 1fr auto 20px;align-items:center;gap:5px;padding:0 6px;border-radius:5px;background:var(--surface-inset);color:var(--text-2);font-size:11px}.source-row.selected{box-shadow:inset 2px 0 var(--blue-light);background:var(--surface-raised)}
+.combine{color:var(--text-3);font-size:10px}.source-add{height:27px;border-radius:5px;background:transparent;border:1px dashed var(--border-strong);color:var(--text-3);font-size:11px;cursor:pointer}.source-add:hover{color:var(--text);border-color:var(--text-2)}
+.panel{display:none;padding:10px}.panel.active{display:block}
+.section{margin-bottom:12px}.section:last-child{margin-bottom:0}
+.section-title{display:flex;align-items:center;gap:6px;height:24px;color:var(--text-2);font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase}
+.section-title::after{content:"";height:1px;background:var(--border);flex:1}
+.spatial-mini{height:62px;position:relative;border:1px solid var(--border);border-radius:6px;background:var(--surface-inset);overflow:hidden;margin-bottom:8px;cursor:crosshair}
+.spatial-mini::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,rgba(255,255,255,.035),transparent 50%)}
+.mini-line{position:absolute;height:1px;background:var(--text-2);transform-origin:left center}.mini-dot{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--blue-light);box-shadow:0 0 0 2px #181818;transform:translate(-50%,-50%)}
+.row{display:grid;grid-template-columns:minmax(84px,1fr) minmax(92px,1.2fr) 62px;align-items:center;gap:7px;min-height:30px}
+.row label{font-size:11px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+input[type=range]{appearance:none;width:100%;height:18px;background:transparent;margin:0;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:3px;background:linear-gradient(90deg,var(--n200) var(--fill,50%),var(--surface-raised) var(--fill,50%));border-radius:99px}
+input[type=range]::-webkit-slider-thumb{appearance:none;width:12px;height:12px;border-radius:50%;background:var(--n100);border:1px solid #111;margin-top:-4.5px;box-shadow:0 0 0 1px var(--border-strong)}
+.value{height:26px;display:flex;align-items:center;justify-content:flex-end;padding:0 7px;background:var(--surface-inset);border:1px solid var(--border);border-radius:5px;color:var(--text);font:11px var(--mono)}
+.select{grid-column:2/4;height:26px;background:var(--surface-raised);border:0;border-radius:5px;padding:0 8px;font-size:11px;outline:none}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;min-height:30px;color:var(--text-2);font-size:11px}.switch{width:28px;height:16px;border-radius:99px;background:var(--blue);position:relative}.switch::after{content:"";position:absolute;width:12px;height:12px;border-radius:50%;background:#fff;right:2px;top:2px}
+.gradient-editor{padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface-inset);margin-bottom:8px}
+.gradient-bar{height:24px;border-radius:4px;background:linear-gradient(90deg,#152a6c 0%,#c92976 50%,#ffbd38 100%);position:relative;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.stop{position:absolute;bottom:-13px;width:10px;height:10px;background:var(--stop);border:2px solid #eee;box-shadow:0 0 0 1px #111;transform:translateX(-50%) rotate(45deg);cursor:ew-resize}.stop.selected{box-shadow:0 0 0 2px var(--blue)}
+.swatches{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:19px}.swatch{height:26px;border-radius:5px;border:1px solid var(--border);background:var(--c);display:flex;align-items:center;padding:0 6px;color:rgba(255,255,255,.88);text-shadow:0 1px 2px #000;font-size:10px}
+.curve-wrap{border:1px solid var(--border);border-radius:6px;background:var(--surface-inset);padding:6px;margin-bottom:8px}
+.curve-toolbar{display:flex;align-items:center;gap:4px;height:24px}.channel{margin-left:auto;height:22px;padding:0 7px;border-radius:4px;background:var(--surface-raised);color:var(--text-2);font-size:10px}
+.curve{display:block;width:100%;height:170px;border-radius:3px;touch-action:none;background:#171717}
+.curve-grid{stroke:rgba(242,242,242,.11);stroke-width:1}.hist{fill:rgba(242,242,242,.08)}.curve-base{stroke:rgba(242,242,242,.2);stroke-dasharray:3 3}.curve-path{fill:none;stroke:var(--n100);stroke-width:2}.curve-point{fill:var(--n100);stroke:#181818;stroke-width:2;cursor:grab}.curve-point.selected{fill:var(--blue-light)}
+.note{margin:10px;padding:8px;border-left:2px solid var(--blue-light);background:rgba(64,105,253,.08);color:var(--text-2);font-size:10px;line-height:1.45}
+.status{display:flex;align-items:center;padding:0 8px;background:#181818;border-top:1px solid var(--border);color:var(--text-3);font-size:10px}.status .spacer{flex:1}.status b{color:var(--text-2);font-weight:500}
+.legend{position:absolute;left:10px;top:10px;display:flex;gap:6px;z-index:6}.pill{padding:4px 7px;background:rgba(25,25,25,.78);border:1px solid rgba(255,255,255,.14);border-radius:99px;color:rgba(255,255,255,.66);font-size:10px;backdrop-filter:blur(6px)}
+.brush-cursor{display:none;position:absolute;width:76px;height:76px;border-radius:50%;border:1px solid rgba(255,255,255,.9);box-shadow:0 0 0 1px rgba(0,0,0,.7);left:56%;top:42%;transform:translate(-50%,-50%);z-index:8;pointer-events:none}.painting .brush-cursor{display:block}.painting .overlay-view{display:none!important}.painting .photo::after{content:"MODE MASQUE · PEINDRE";color:rgba(255,255,255,.9)}
+.mask-wash{display:none;position:absolute;inset:0;background:radial-gradient(circle at 58% 41%,transparent 0 17%,rgba(230,60,70,.28) 36%,rgba(230,60,70,.5) 100%);z-index:7;pointer-events:none}.painting .mask-wash{display:block}
+@media(max-width:1100px){.workspace{grid-template-columns:1fr 310px}.canvas{width:62vw}.dock{padding:4px}.row{grid-template-columns:80px 1fr 58px}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="toolbar">
+    <div class="wordmark">shaderlab <span>/ portrait-04.jpg</span></div>
+    <button class="tool">Fichier</button><button class="tool">Édition</button>
+    <div class="separator"></div>
+    <button class="tool icon" title="Annuler">↶</button><button class="tool icon" title="Rétablir">↷</button>
+    <div class="separator"></div>
+    <button class="tool icon">⌖</button><button class="tool icon">◌</button>
+    <div class="spacer"></div><span class="zoom">38,4 %</span><button class="tool primary">Exporter</button>
+  </header>
+
+  <section class="workspace">
+    <div class="pasteboard">
+      <div class="canvas" id="canvas">
+        <div class="photo"></div>
+        <div class="mask-wash"></div><div class="brush-cursor"></div>
+        <div class="overlay" id="overlay">
+          <div class="overlay-view active" data-view="flare">
+            <div class="flare-glow" id="flareGlow"></div><div class="ring" id="flareRing"></div>
+            <div class="crosshair active draggable" id="flarePoint" data-kind="point" tabindex="0" aria-label="Source du flare"></div>
+            <div class="handle draggable" id="flareRadius" data-kind="radius" tabindex="0" aria-label="Portée du flare"></div>
+            <div class="tag" id="flareTag">Source · 68 % / 28 %</div>
+          </div>
+          <div class="overlay-view" data-view="motion">
+            <div class="motion-ghost"></div><div class="axis-line" id="motionLine"></div>
+            <div class="handle active draggable" id="motionOrigin" data-kind="origin" tabindex="0" aria-label="Origine de la trajectoire"></div>
+            <div class="handle draggable" id="motionEnd" data-kind="axis" tabindex="0" aria-label="Direction et longueur"></div>
+            <div class="tag" id="motionTag">Trajectoire · 32° / 480 px</div>
+          </div>
+          <div class="overlay-view" data-view="gradient"><div class="gradient-preview"></div></div>
+          <div class="overlay-view" data-view="curve"><div class="curve-preview"></div></div>
+        </div>
+        <div class="legend"><span class="pill">Glisser les poignées</span><span class="pill">Maj = pas large</span></div>
+      </div>
+    </div>
+
+    <aside class="dock">
+      <article class="card stack-card">
+        <div class="card-header">Pile <span class="muted">· 2 photos, 4 effets</span><span class="header-actions"><button class="header-icon" title="Options de la pile">•••</button><button class="header-icon" title="Replier">⌃</button></span></div>
+        <ul class="stack-list" aria-label="Pile du document">
+          <li class="layer-row" data-photo="portrait"><button class="eye">◉</button><span class="kind">▣</span><span class="layer-name">Portrait principal</span><span></span><span class="row-menu">•••</span></li>
+          <li class="layer-row child selected effect-tab" data-tab="flare"><button class="eye">◉</button><span class="kind">✦</span><span class="layer-name">Lens flare</span><button class="mask-thumb" data-mask-for="flare" title="Modifier le masque"></button><span class="row-menu">•••</span></li>
+          <li class="layer-row child effect-tab" data-tab="gradient"><button class="eye">◉</button><span class="kind">✦</span><span class="layer-name">Gradient map</span><button class="mask-thumb empty" data-mask-for="gradient" title="Ajouter un masque">＋</button><span class="row-menu">•••</span></li>
+          <li class="layer-row child effect-tab" data-tab="curve"><button class="eye">◉</button><span class="kind">✦</span><span class="layer-name">Courbe tonale</span><button class="mask-thumb" data-mask-for="curve" title="Modifier le masque"></button><span class="row-menu">•••</span></li>
+          <li class="layer-row" data-photo="silhouette"><button class="eye">◉</button><span class="kind">▣</span><span class="layer-name">Silhouette</span><span></span><span class="row-menu">•••</span></li>
+          <li class="layer-row child effect-tab" data-tab="motion"><button class="eye">◉</button><span class="kind">✦</span><span class="layer-name">Flou de mouvement</span><button class="mask-thumb" data-mask-for="motion" title="Modifier le masque"></button><span class="row-menu">•••</span></li>
+        </ul>
+        <div class="stack-footer"><button class="add-button" id="addEffect" title="Ajouter un effet">＋</button><button class="stack-action" title="Importer une photo">▣</button><button class="stack-action" title="Dupliquer la sélection">▱</button><button class="stack-action" title="Supprimer la sélection">⌫</button><span class="stack-count">6 éléments</span></div>
+      </article>
+
+      <article class="card properties-card">
+        <div class="card-header">Propriétés <span class="muted" id="effectName">· Lens flare</span><span class="header-actions"><button class="header-icon" title="Activer ou désactiver">◉</button><button class="header-icon" title="Verrouiller">◇</button><button class="header-icon" title="Dupliquer">▱</button><button class="header-icon danger" title="Supprimer">⌫</button><button class="header-icon" title="Plus d’actions">•••</button></span></div>
+        <nav class="mode-tabs" aria-label="Propriétés de la sélection">
+          <button class="mode-tab active" data-mode="effect">Effet</button>
+          <button class="mode-tab" data-mode="mask">Masque · 3</button>
+        </nav>
+        <div class="properties-scroll">
+        <section class="panel active" data-panel="flare">
+          <div class="section"><div class="section-title">Source optique</div>
+            <div class="spatial-mini" id="flareMini"><div class="ring" style="left:68%;top:48%;width:48px;height:48px"></div><div class="mini-dot" style="left:68%;top:48%"></div></div>
+            <div class="row"><label>Position X</label><input id="flareX" type="range" min="0" max="100" value="68"><output class="value" id="flareXOut">68 %</output></div>
+            <div class="row"><label>Position Y</label><input id="flareY" type="range" min="0" max="100" value="28"><output class="value" id="flareYOut">28 %</output></div>
+            <div class="row"><label>Portée</label><input id="flareR" type="range" min="8" max="60" value="25"><output class="value" id="flareROut">0,42</output></div>
+          </div>
+          <div class="section"><div class="section-title">Lumière</div>
+            <div class="row"><label>Intensité</label><input type="range" min="0" max="100" value="38"><output class="value">38 %</output></div>
+            <div class="row"><label>Fantômes</label><input type="range" min="0" max="100" value="64"><output class="value">64 %</output></div>
+            <div class="row"><label>Diffusion</label><input type="range" min="0" max="100" value="24"><output class="value">24 %</output></div>
+            <div class="toggle-row"><span>Diaphragme circulaire</span><span class="switch"></span></div>
+          </div>
+        </section>
+
+        <section class="panel" data-panel="motion">
+          <div class="section"><div class="section-title">Trajectoire</div>
+            <div class="spatial-mini"><div class="mini-line" id="motionMiniLine"></div><div class="mini-dot" id="motionMiniOrigin"></div><div class="mini-dot" id="motionMiniEnd"></div></div>
+            <div class="row"><label>Mode</label><select class="select"><option>Directionnel</option><option>Rotation</option><option>Zoom</option></select></div>
+            <div class="row"><label>Angle</label><input id="motionAngle" type="range" min="-180" max="180" value="32"><output class="value" id="motionAngleOut">32°</output></div>
+            <div class="row"><label>Distance</label><input id="motionLength" type="range" min="0" max="2000" value="480"><output class="value" id="motionLengthOut">480 px</output></div>
+          </div>
+          <div class="section"><div class="section-title">Obturateur</div>
+            <div class="row"><label>Courbure</label><input type="range" min="0" max="100" value="14"><output class="value">14 %</output></div>
+            <div class="row"><label>Extinction</label><input type="range" min="0" max="100" value="35"><output class="value">35 %</output></div>
+          </div>
+        </section>
+
+        <section class="panel" data-panel="gradient">
+          <div class="section"><div class="section-title">Rampe tonale</div>
+            <div class="gradient-editor">
+              <div class="gradient-bar" id="gradientBar">
+                <span class="stop" style="left:0%;--stop:#152a6c"></span><span class="stop selected" id="midStop" style="left:50%;--stop:#c92976"></span><span class="stop" style="left:100%;--stop:#ffbd38"></span>
+              </div>
+              <div class="swatches"><div class="swatch" style="--c:#152a6c">Ombres</div><div class="swatch" style="--c:#c92976">Tons moyens</div><div class="swatch" style="--c:#b77b1e">Lumières</div></div>
+            </div>
+            <div class="row"><label>Ton moyen</label><input id="midPosition" type="range" min="5" max="95" value="50"><output class="value" id="midPositionOut">50 %</output></div>
+            <div class="row"><label>Point noir</label><input type="range" min="0" max="95" value="0"><output class="value">0 %</output></div>
+            <div class="row"><label>Point blanc</label><input type="range" min="5" max="100" value="100"><output class="value">100 %</output></div>
+            <div class="row"><label>Mélange</label><select class="select"><option>OKLCH</option><option>OKLab</option><option>sRGB</option><option>Linéaire</option></select></div>
+          </div>
+          <div class="section"><div class="section-title">Texture</div>
+            <div class="row"><label>Répétition</label><input type="range" min="1" max="12" value="1"><output class="value">1×</output></div>
+            <div class="row"><label>Dispersion</label><input type="range" min="0" max="100" value="10"><output class="value">10 %</output></div>
+          </div>
+        </section>
+
+        <section class="panel" data-panel="curve">
+          <div class="section"><div class="section-title">Réponse tonale</div>
+            <div class="curve-wrap">
+              <div class="curve-toolbar"><button class="tool icon" style="height:22px;width:22px">⌁</button><button class="tool icon" style="height:22px;width:22px">⌖</button><button class="channel">RVB⌄</button></div>
+              <svg class="curve" id="curve" viewBox="0 0 280 170" preserveAspectRatio="none" aria-label="Courbe tonale interactive">
+                <path class="hist" d="M0 166L8 165 18 158 29 154 38 138 49 145 60 120 72 126 83 98 94 108 105 92 116 70 128 76 139 54 150 67 161 63 172 86 183 75 194 101 205 91 216 122 227 115 238 140 249 137 260 154 270 160 280 165V170H0Z"/>
+                <g class="curve-grid"><path d="M70 0V170M140 0V170M210 0V170M0 42.5H280M0 85H280M0 127.5H280"/></g>
+                <path class="curve-base" d="M0 170L280 0"/><path class="curve-path" id="curvePath" d="M0 170 C70 158 72 112 140 88 S215 22 280 0"/>
+                <circle class="curve-point" data-i="0" cx="0" cy="170" r="5"/><circle class="curve-point" data-i="1" cx="74" cy="121" r="5"/><circle class="curve-point selected" data-i="2" cx="140" cy="88" r="5"/><circle class="curve-point" data-i="3" cx="214" cy="35" r="5"/><circle class="curve-point" data-i="4" cx="280" cy="0" r="5"/>
+              </svg>
+            </div>
+            <div class="row"><label>Entrée</label><input type="range" min="0" max="255" value="128"><output class="value">128</output></div>
+            <div class="row"><label>Sortie</label><input type="range" min="0" max="255" value="146"><output class="value">146</output></div>
+            <div class="toggle-row"><span>Afficher l'écrêtage</span><span class="switch"></span></div>
+          </div>
+        </section>
+
+        <section class="mask-panel" data-panel="mask">
+          <div class="mask-summary"><div class="mask-preview"></div><div><strong>Masque de Lens flare</strong><span>3 sources · actif · non inversé</span></div></div>
+          <button class="paint-button" id="paintButton">Peindre sur l’image</button>
+          <div class="section" style="margin-top:10px"><div class="section-title">Sources</div>
+            <div class="source-list">
+              <div class="source-row selected"><span>◉</span><span>Pinceau</span><span class="combine">Ajouter</span><span>•••</span></div>
+              <div class="source-row"><span>◒</span><span>Dégradé radial</span><span class="combine">Soustraire</span><span>•••</span></div>
+              <div class="source-row"><span>◐</span><span>Hautes lumières</span><span class="combine">Intersection</span><span>•••</span></div>
+              <button class="source-add">＋ Ajouter une source</button>
+            </div>
+          </div>
+          <div class="section"><div class="section-title">Source sélectionnée</div>
+            <div class="row"><label>Taille</label><input type="range" min="1" max="500" value="76"><output class="value">76 px</output></div>
+            <div class="row"><label>Dureté</label><input type="range" min="0" max="100" value="42"><output class="value">42 %</output></div>
+            <div class="row"><label>Flux</label><input type="range" min="0" max="100" value="65"><output class="value">65 %</output></div>
+          </div>
+          <div class="section"><div class="section-title">Affinage global</div>
+            <div class="row"><label>Contour</label><input type="range" min="-100" max="100" value="8"><output class="value">+8</output></div>
+            <div class="row"><label>Plume</label><input type="range" min="0" max="100" value="12"><output class="value">12 px</output></div>
+            <div class="toggle-row"><span>Accroche-contours</span><span class="switch"></span></div>
+          </div>
+        </section>
+        </div>
+
+        <div class="note" id="note">La source se pose sur la photo. Les trois valeurs restent disponibles pour une correction précise et suivent le geste en direct.</div>
+      </article>
+    </aside>
+    <div class="add-menu" id="addMenu" role="menu">
+      <input class="add-search" placeholder="Rechercher un effet…" aria-label="Rechercher un effet" />
+      <div class="menu-group"><div class="menu-group-title">Lumière</div>
+        <button class="menu-item"><span>✦</span><span>Lens flare</span><kbd>récent</kbd></button>
+        <button class="menu-item"><span>☀</span><span>Bloom</span><kbd></kbd></button>
+        <button class="menu-item"><span>◉</span><span>Halation</span><kbd></kbd></button>
+      </div>
+      <div class="menu-group"><div class="menu-group-title">Optique</div>
+        <button class="menu-item"><span>↗</span><span>Flou de mouvement</span><kbd></kbd></button>
+        <button class="menu-item"><span>◌</span><span>Flou d’objectif</span><kbd></kbd></button>
+        <button class="menu-item"><span>⌁</span><span>Distorsion d’objectif</span><kbd></kbd></button>
+      </div>
+      <div class="menu-group"><div class="menu-group-title">Couleur</div>
+        <button class="menu-item"><span>◐</span><span>Gradient map</span><kbd></kbd></button>
+        <button class="menu-item"><span>⌇</span><span>Channel mixer</span><kbd></kbd></button>
+      </div>
+    </div>
+  </section>
+  <footer class="status"><span><b>Wireframe interactif</b> · contrôles d'effets</span><span class="spacer"></span><span>Photo 6000 × 4000 · sRGB</span></footer>
+</main>
+<script>
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const names={flare:'Lens flare',motion:'Flou de mouvement',gradient:'Gradient map',curve:'Courbe tonale'};
+const notes={
+ flare:'La source se pose sur la photo. Les trois valeurs restent disponibles pour une correction précise et suivent le geste en direct.',
+ motion:'L’extrémité règle angle et distance en un geste. La miniature du panneau répète exactement la trajectoire posée sur l’image.',
+ gradient:'La rampe remplace neuf sliders HSL comme interface principale. Les trois arrêts restent compatibles avec le shader actuel.',
+ curve:'La courbe superpose histogramme, ligne de référence et points. Cliquer-glisser un point modifie immédiatement le rendu de prévisualisation.'
+};
+let currentEffect='flare', currentMode='effect';
+function showProperties(){
+ $$('.mode-tab').forEach(x=>x.classList.toggle('active',x.dataset.mode===currentMode));
+ $$('.panel').forEach(x=>x.classList.toggle('active',currentMode==='effect'&&x.dataset.panel===currentEffect));
+ $('.mask-panel').classList.toggle('active',currentMode==='mask');
+ $$('.overlay-view').forEach(x=>x.classList.toggle('active',currentMode==='effect'&&x.dataset.view===currentEffect));
+ $('#effectName').textContent='· '+names[currentEffect]+(currentMode==='mask'?' · Masque':'');
+ $('#note').textContent=currentMode==='mask'?'Le masque appartient à l’effet sélectionné. Ses sources se combinent dans l’ordre et le mode peinture forme une session explicite.':notes[currentEffect];
+ $('.mask-summary strong').textContent='Masque de '+names[currentEffect];
+}
+$$('.effect-tab').forEach(b=>b.addEventListener('click',()=>{
+ currentEffect=b.dataset.tab;currentMode='effect';
+ $$('.layer-row').forEach(x=>x.classList.toggle('selected',x===b));$$('.mask-thumb').forEach(x=>x.classList.remove('active'));
+ showProperties();
+}));
+$$('.mask-thumb').forEach(b=>b.addEventListener('click',e=>{
+ e.stopPropagation();currentEffect=b.dataset.maskFor;currentMode='mask';
+ $$('.layer-row').forEach(x=>x.classList.toggle('selected',x===b.closest('.layer-row')));$$('.mask-thumb').forEach(x=>x.classList.toggle('active',x===b));
+ showProperties();
+}));
+$$('.mode-tab').forEach(b=>b.addEventListener('click',()=>{currentMode=b.dataset.mode;showProperties()}));
+$('#paintButton').addEventListener('click',()=>{const active=canvas.classList.toggle('painting');$('#paintButton').classList.toggle('active',active);$('#paintButton').textContent=active?'Quitter le mode peinture (Échap)':'Peindre sur l’image'});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&canvas.classList.contains('painting')){$('#paintButton').click()}});
+$('#addEffect').addEventListener('click',e=>{e.stopPropagation();$('#addMenu').classList.toggle('open');if($('#addMenu').classList.contains('open'))$('.add-search').focus()});
+$('#addMenu').addEventListener('click',e=>e.stopPropagation());
+document.addEventListener('click',()=>$('#addMenu').classList.remove('open'));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')$('#addMenu').classList.remove('open')});
+function fillRanges(){ $$('input[type=range]').forEach(r=>{const f=(r.value-r.min)/(r.max-r.min)*100;r.style.setProperty('--fill',f+'%')}) }
+$$('input[type=range]').forEach(r=>r.addEventListener('input',fillRanges)); fillRanges();
+const canvas=$('#canvas');
+const flare={x:.68,y:.28,r:.25};
+function drawFlare(){const w=canvas.clientWidth,h=canvas.clientHeight,px=flare.x*w,py=flare.y*h,rr=flare.r*w;
+ Object.assign($('#flarePoint').style,{left:px+'px',top:py+'px'});Object.assign($('#flareRing').style,{left:px+'px',top:py+'px',width:rr*2+'px',height:rr*2+'px'});
+ Object.assign($('#flareRadius').style,{left:px+rr+'px',top:py+'px'});Object.assign($('#flareGlow').style,{left:px+'px',top:py+'px'});Object.assign($('#flareTag').style,{left:px+'px',top:py+'px'});
+ $('#flareTag').textContent=`Source · ${Math.round(flare.x*100)} % / ${Math.round(flare.y*100)} %`;
+ $('#flareX').value=Math.round(flare.x*100);$('#flareY').value=Math.round(flare.y*100);$('#flareR').value=Math.round(flare.r*100);$('#flareXOut').textContent=Math.round(flare.x*100)+' %';$('#flareYOut').textContent=Math.round(flare.y*100)+' %';$('#flareROut').textContent=(flare.r*1.68).toFixed(2).replace('.',',');fillRanges();
+}
+const motion={x:.39,y:.56,angle:-32,len:.26};
+function drawMotion(){const w=canvas.clientWidth,h=canvas.clientHeight,ox=motion.x*w,oy=motion.y*h,len=motion.len*w,a=motion.angle*Math.PI/180,ex=ox+Math.cos(a)*len,ey=oy+Math.sin(a)*len;
+ Object.assign($('#motionOrigin').style,{left:ox+'px',top:oy+'px'});Object.assign($('#motionEnd').style,{left:ex+'px',top:ey+'px'});Object.assign($('#motionLine').style,{left:ox+'px',top:oy+'px',width:len+'px',transform:`rotate(${motion.angle}deg)`});Object.assign($('#motionTag').style,{left:ex+'px',top:ey+'px'});
+ const deg=Math.round(-motion.angle),px=Math.round(motion.len/0.26*480);$('#motionTag').textContent=`Trajectoire · ${deg}° / ${px} px`;$('#motionAngle').value=deg;$('#motionLength').value=px;$('#motionAngleOut').textContent=deg+'°';$('#motionLengthOut').textContent=px+' px';
+ const box=$('#motionMiniLine').parentElement,bw=box.clientWidth,bh=box.clientHeight,mox=bw*.27,moy=bh*.68,ml=bw*.48,mex=mox+Math.cos(a)*ml,mey=moy+Math.sin(a)*ml;Object.assign($('#motionMiniLine').style,{left:mox+'px',top:moy+'px',width:ml+'px',transform:`rotate(${motion.angle}deg)`});Object.assign($('#motionMiniOrigin').style,{left:mox+'px',top:moy+'px'});Object.assign($('#motionMiniEnd').style,{left:mex+'px',top:mey+'px'});fillRanges();
+}
+let drag=null;
+$$('.draggable').forEach(el=>el.addEventListener('pointerdown',e=>{drag=el.dataset.kind;el.setPointerCapture(e.pointerId);e.preventDefault()}));
+$('#overlay').addEventListener('pointermove',e=>{if(!drag)return;const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+ if(drag==='point'){flare.x=Math.max(0,Math.min(1,x/r.width));flare.y=Math.max(0,Math.min(1,y/r.height));drawFlare()}
+ else if(drag==='radius'){flare.r=Math.max(.08,Math.min(.6,Math.hypot(x-flare.x*r.width,y-flare.y*r.height)/r.width));drawFlare()}
+ else if(drag==='origin'){motion.x=Math.max(0,Math.min(1,x/r.width));motion.y=Math.max(0,Math.min(1,y/r.height));drawMotion()}
+ else if(drag==='axis'){const dx=x-motion.x*r.width,dy=y-motion.y*r.height;motion.angle=Math.atan2(dy,dx)*180/Math.PI;motion.len=Math.max(.03,Math.min(.55,Math.hypot(dx,dy)/r.width));drawMotion()}
+});
+$('#overlay').addEventListener('pointerup',()=>drag=null);$('#overlay').addEventListener('pointercancel',()=>drag=null);
+$('#flareX').addEventListener('input',e=>{flare.x=e.target.value/100;drawFlare()});$('#flareY').addEventListener('input',e=>{flare.y=e.target.value/100;drawFlare()});$('#flareR').addEventListener('input',e=>{flare.r=e.target.value/100;drawFlare()});
+$('#motionAngle').addEventListener('input',e=>{motion.angle=-Number(e.target.value);drawMotion()});$('#motionLength').addEventListener('input',e=>{motion.len=Number(e.target.value)/480*.26;drawMotion()});
+$('#midPosition').addEventListener('input',e=>{$('#midStop').style.left=e.target.value+'%';$('#midPositionOut').textContent=e.target.value+' %'});
+const curvePts=[[0,170],[74,121],[140,88],[214,35],[280,0]];let curveDrag=null;
+function curvePath(){const p=curvePts;$('#curvePath').setAttribute('d',`M${p[0][0]} ${p[0][1]} C${p[1][0]} ${p[1][1]} ${p[1][0]} ${p[1][1]} ${p[2][0]} ${p[2][1]} S${p[3][0]} ${p[3][1]} ${p[4][0]} ${p[4][1]}`);$$('.curve-point').forEach((c,i)=>{c.setAttribute('cx',p[i][0]);c.setAttribute('cy',p[i][1])})}
+$$('.curve-point').forEach(c=>c.addEventListener('pointerdown',e=>{curveDrag=Number(c.dataset.i);c.setPointerCapture(e.pointerId);$$('.curve-point').forEach(x=>x.classList.toggle('selected',x===c))}));
+$('#curve').addEventListener('pointermove',e=>{if(curveDrag===null)return;const r=e.currentTarget.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*280,y=(e.clientY-r.top)/r.height*170;const lo=curveDrag?curvePts[curveDrag-1][0]+4:0,hi=curveDrag<curvePts.length-1?curvePts[curveDrag+1][0]-4:280;curvePts[curveDrag]=[Math.max(lo,Math.min(hi,x)),Math.max(0,Math.min(170,y))];curvePath()});
+$('#curve').addEventListener('pointerup',()=>curveDrag=null);$('#curve').addEventListener('pointercancel',()=>curveDrag=null);
+new ResizeObserver(()=>{drawFlare();drawMotion()}).observe(canvas);drawFlare();drawMotion();
+</script>
+</body>
+</html>

@@ -144,6 +144,17 @@ export const gradientMap: EffectModule = {
     { name: "repeatType", label: "Type de répétition", unit: "none", min: 0, max: REPEAT_TYPES.length - 1, default: REPEAT_MIRROR, step: 1, choices: [...REPEAT_TYPES], hint: "Miroir : les bandes s'enchaînent en se reflétant, sans arête. Répétition : chaque bande recommence à l'arrêt sombre, arête franche — le cycle néon. Sans objet tant que la répétition vaut 1." },
     { name: "scatter", label: "Dispersion", unit: "percent", min: 0, max: 1, default: 0, step: 0.01, hint: "Fait osciller chaque pixel entre les deux teintes voisines de la rampe — casse le banding par une trame de risographie au lieu de le recouvrir" },
   ],
+  colorRampControls: [{
+    id: "gradient",
+    label: "Rampe de couleur",
+    blackPoint: "blackPoint",
+    whitePoint: "whitePoint",
+    stops: [
+      { id: "shadow", label: "Arrêt sombre", hue: "shadowHue", saturation: "shadowSaturation", lightness: "shadowLightness" },
+      { id: "mid", label: "Arrêt moyen", hue: "midHue", saturation: "midSaturation", lightness: "midLightness", position: "midPosition" },
+      { id: "high", label: "Arrêt clair", hue: "highHue", saturation: "highSaturation", lightness: "highLightness" },
+    ],
+  }],
   wgsl: `
 ${HSL_TO_RGB_WGSL}${LINEAR_TO_SRGB_WGSL}${LINEAR_TO_SRGB_VEC3_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${OKLAB_WGSL}${MIX_IN_SPACE_WGSL}${HASH_WGSL}
 const GRADIENT_MAP_LUMA = vec3<f32>(0.2126, 0.7152, 0.0722);

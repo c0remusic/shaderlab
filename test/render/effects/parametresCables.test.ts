@@ -37,6 +37,18 @@ function indicesLus(effet: EffectModule): Set<number> {
   for (const src of sources) {
     for (const m of src.matchAll(/params\[(\d+)\]/g)) lus.add(Number(m[1]));
   }
+  // Une courbe lit ses huit slots via `params[base + offset]`. On ne marque un
+  // canal comme câblé que si son index de base est effectivement passé à
+  // `curve_eval` dans le shader : la seule déclaration UI ne suffirait pas à
+  // blanchir un contrôle mort.
+  for (const control of effet.curveControls ?? []) for (const channel of control.channels) {
+    const names = [channel.startY, ...channel.points.flatMap((point) => [point.x, point.y]), channel.endY];
+    const indices = names.map((name) => effet.params.findIndex((param) => param.name === name));
+    const base = indices[0];
+    if (base >= 0 && sources.some((src) => new RegExp(`curve_eval\\([^,]+,\\s*${base}u\\)`).test(src))) {
+      indices.forEach((index) => lus.add(index));
+    }
+  }
   return lus;
 }
 

@@ -73,19 +73,106 @@ export function validateEffect(effect: EffectModule): void {
     }
   }
 
-  // MANIPULATEUR DE RÉGION (`canvasRegion`). Les trois noms doivent désigner de
-  // vrais paramètres : sans cette garde, une faute de frappe ne lèverait rien et
-  // le cercle ne s'afficherait simplement PAS sur la toile — un échec muet, et
-  // le plus difficile à relier à sa cause puisque rien n'a l'air cassé.
-  if (effect.canvasRegion) {
-    const connus = new Set(effect.params.map((p) => p.name));
-    for (const [role, nom] of Object.entries(effect.canvasRegion)) {
-      if (!connus.has(nom)) {
-        throw new Error(
-          `Effet "${effect.id}" : \`canvasRegion.${role}\` désigne "${nom}", ` +
-            `qui n'est pas un paramètre déclaré de cet effet.`
-        );
+  if (effect.canvasControls) {
+    const params = new Map(effect.params.map((param) => [param.name, param]));
+    const ids = new Set<string>();
+    for (const control of effect.canvasControls) {
+      if (ids.has(control.id)) throw new Error(`Effet "${effect.id}" : contrôle canvas dupliqué "${control.id}".`);
+      ids.add(control.id);
+      const roles = control.kind === "point" ? [control.x, control.y]
+        : control.kind === "disk" ? [control.x, control.y, control.radius]
+        : [control.angle, control.length];
+      if (new Set(roles).size !== roles.length) throw new Error(`Effet "${effect.id}" : un contrôle canvas réutilise le même paramètre pour plusieurs rôles.`);
+      for (const name of roles) if (!params.has(name)) throw new Error(`Effet "${effect.id}" : contrôle canvas désigne le paramètre absent "${name}".`);
+      if ((control.kind === "point" || control.kind === "disk") &&
+          (params.get(control.x)?.unit !== "percent" || params.get(control.y)?.unit !== "percent")) {
+        throw new Error(`Effet "${effect.id}" : les coordonnées d'un contrôle canvas doivent être en percent.`);
       }
+      if (control.kind === "axis" && params.get(control.angle)?.unit !== "degrees") {
+        throw new Error(`Effet "${effect.id}" : l'angle d'un axe canvas doit être en degrees.`);
+      }
+      if (control.visibleWhen) {
+        const conditionalParam = params.get(control.visibleWhen.param);
+        if (!conditionalParam?.choices) {
+          throw new Error(`Effet "${effect.id}" : visibleWhen doit viser un paramètre choices.`);
+        }
+        const choiceCount = conditionalParam.choices.length;
+        const expectedValues = Array.isArray(control.visibleWhen.equals) ? control.visibleWhen.equals : [control.visibleWhen.equals];
+        if (expectedValues.length === 0 || new Set(expectedValues).size !== expectedValues.length) {
+          throw new Error(`Effet "${effect.id}" : visibleWhen doit viser au moins un index de choix distinct.`);
+        }
+        const invalid = expectedValues.find((value) => !Number.isInteger(value) || value < 0 || value >= choiceCount);
+        if (invalid !== undefined) {
+          throw new Error(`Effet "${effect.id}" : visibleWhen vise l'index de choix invalide ${invalid}.`);
+        }
+      }
+    }
+  }
+
+  if (effect.curveControls) {
+    const params = new Map(effect.params.map((param) => [param.name, param]));
+    const controlIds = new Set<string>();
+    const channelIds = new Set<string>();
+    const usedParams = new Set<string>();
+    for (const control of effect.curveControls) {
+      if (controlIds.has(control.id)) throw new Error(`Effet "${effect.id}" : contrôle de courbe dupliqué "${control.id}".`);
+      controlIds.add(control.id);
+      if (control.channels.length === 0) throw new Error(`Effet "${effect.id}" : le contrôle de courbe "${control.id}" ne déclare aucun canal.`);
+      for (const channel of control.channels) {
+        if (channelIds.has(channel.id)) throw new Error(`Effet "${effect.id}" : canal de courbe dupliqué "${channel.id}".`);
+        channelIds.add(channel.id);
+        const names = [channel.startY, ...channel.points.flatMap((point) => [point.x, point.y]), channel.endY];
+        for (const name of names) {
+          const param = params.get(name);
+          if (!param) throw new Error(`Effet "${effect.id}" : courbe désigne le paramètre absent "${name}".`);
+          if (usedParams.has(name)) throw new Error(`Effet "${effect.id}" : paramètre de courbe réutilisé "${name}".`);
+          usedParams.add(name);
+        }
+        let previousX = 0;
+        let inactiveSeen = false;
+        for (const point of channel.points) {
+          const x = params.get(point.x)!.default;
+          const y = params.get(point.y)!;
+          if (y.min > 0 || y.max < 1) throw new Error(`Effet "${effect.id}" : ordonnée de courbe "${point.y}" doit couvrir 0..1.`);
+          if (x < 0) { inactiveSeen = true; continue; }
+          if (inactiveSeen) throw new Error(`Effet "${effect.id}" : un slot de courbe actif suit un slot inactif dans "${channel.id}".`);
+          if (x <= previousX || x >= 1) throw new Error(`Effet "${effect.id}" : abscisses de courbe non strictement croissantes dans "${channel.id}".`);
+          previousX = x;
+        }
+      }
+    }
+  }
+
+  if (effect.tonalRangeControl) {
+    const params = new Map(effect.params.map((param) => [param.name, param]));
+    const names = Object.values(effect.tonalRangeControl);
+    for (const name of names) if (!params.has(name)) throw new Error(`Effet "${effect.id}" : plage tonale désigne le paramètre absent "${name}".`);
+    if (new Set(names).size !== names.length) throw new Error(`Effet "${effect.id}" : la plage tonale réutilise un paramètre.`);
+    const defaults = names.map((name) => params.get(name)!.default);
+    if (!(defaults[0] <= defaults[1] && defaults[1] <= defaults[2] && defaults[2] <= defaults[3])) {
+      throw new Error(`Effet "${effect.id}" : bornes tonales par défaut non ordonnées.`);
+    }
+  }
+
+  if (effect.colorRampControls) {
+    const params = new Map(effect.params.map((param) => [param.name, param]));
+    const controlIds = new Set<string>();
+    const usedParams = new Set<string>();
+    for (const control of effect.colorRampControls) {
+      if (controlIds.has(control.id)) throw new Error(`Effet "${effect.id}" : contrôle de rampe dupliqué "${control.id}".`);
+      controlIds.add(control.id);
+      if (control.stops.filter((stop) => stop.position !== undefined).length !== 1) {
+        throw new Error(`Effet "${effect.id}" : la rampe "${control.id}" doit déclarer exactement un arrêt positionnable.`);
+      }
+      const names = [control.blackPoint, control.whitePoint, ...control.stops.flatMap((stop) => [stop.hue, stop.saturation, stop.lightness, ...(stop.position ? [stop.position] : [])])];
+      for (const name of names) {
+        if (!params.has(name)) throw new Error(`Effet "${effect.id}" : rampe désigne le paramètre absent "${name}".`);
+        if (usedParams.has(name)) throw new Error(`Effet "${effect.id}" : paramètre de rampe réutilisé "${name}".`);
+        usedParams.add(name);
+      }
+      const black = params.get(control.blackPoint)!.default;
+      const white = params.get(control.whitePoint)!.default;
+      if (black >= white) throw new Error(`Effet "${effect.id}" : points noir/blanc de rampe non ordonnés.`);
     }
   }
 }

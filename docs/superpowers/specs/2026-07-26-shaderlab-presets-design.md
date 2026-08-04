@@ -1,5 +1,12 @@
 # Presets — design doc (le COMMENT)
 
+> **Bug différé observé le 2026-08-04** — appliquer un preset recharge aussi
+> l’image avec laquelle il a été enregistré, au lieu de restaurer uniquement
+> la pile d’effets. Le comportement attendu reste celui de la section 3 : les
+> calques et sources photo sont exclus du document de preset. À diagnostiquer
+> et corriger dans un chantier séparé ; ne pas le mélanger à la refonte
+> Pile/Propriétés en cours.
+
 > Suite de `PRD.md` § Presets (cadré 2026-07-24) et de `ARCHITECTURE.md` §3
 > (module map Presets, §6 séquencement). Ce document tranche ce qu'`ARCHITECTURE.md`
 > laissait ouvert au niveau implémentation — il ne rouvre pas les décisions déjà

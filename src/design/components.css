@@ -149,6 +149,16 @@
   --drag-ghost-opacity: .85;
   --drag-guide-opacity: .9;
   --loading-indicator-opacity: .7;
+  --tonal-graph-height: 64px;
+  --tonal-gradient-opacity: .32;
+  --curve-graph-height: 180px;
+  --curve-point-size: 14px;
+  --curve-point-border-width: 2px;
+  --curve-point-halo-width: 2px;
+  --curve-channel-master: var(--text-value);
+  --curve-channel-red: var(--primitive-danger-text);
+  --curve-channel-green: var(--primitive-success-text);
+  --curve-channel-blue: var(--primitive-accent-blue-400);
 }
 
 /* Barre de défilement FINE et discrète (2026-07-27), utilitaire partagé par
@@ -158,7 +168,9 @@
    piste transparente, et reste VISIBLE dès qu'il y a du contenu caché — une
    barre invisible est pire qu'une barre laide. Une seule définition : deux
    conteneurs qui défilent ne doivent pas diverger sur l'épaisseur ou la
-   couleur du curseur. */
+   couleur du curseur. Les composants peuvent rendre le thumb transparent au
+   repos quand plusieurs zones de scroll voisines seraient visibles ensemble,
+   mais conservent cette épaisseur et ces couleurs à l'activation. */
 .scroll-thin::-webkit-scrollbar {
   width: var(--space-3);
   height: var(--space-3);

@@ -144,10 +144,11 @@ describe("pixelStretch — la déclaration du manipulateur", () => {
   it("déclare sa région, et les trois noms existent vraiment", () => {
     // La garde équivalente vit dans `validateEffect` et lève au chargement du
     // registre ; celle-ci nomme l'effet concerné dans un test lisible.
-    const region = pixelStretch.canvasRegion;
-    expect(region).toEqual({ centerX: "regionX", centerY: "regionY", radius: "regionRadius" });
+    const region = pixelStretch.canvasControls?.[0];
+    expect(region).toEqual({ id: "zone", kind: "disk", x: "regionX", y: "regionY", radius: "regionRadius", label: "Zone" });
     const noms = new Set(pixelStretch.params.map((p) => p.name));
-    for (const nom of Object.values(region!)) expect(noms.has(nom)).toBe(true);
+    if (region?.kind !== "disk") throw new Error("disque attendu");
+    for (const nom of [region.x, region.y, region.radius]) expect(noms.has(nom)).toBe(true);
   });
 
   it("garde ses curseurs — le cercle vise, ils affinent", () => {

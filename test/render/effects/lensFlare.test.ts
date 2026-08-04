@@ -213,7 +213,9 @@ describe("lensFlare — la source posée et la source automatique sont UNE machi
     // L'ADR de `pixelStretch` dit pourquoi une position ne se règle pas aux
     // curseurs. Les bornes débordent le cadre à dessein : une source de flare
     // est le plus souvent HORS champ.
-    expect(lensFlare.canvasRegion).toEqual({ centerX: "sourceX", centerY: "sourceY", radius: "sourceRadius" });
+    expect(lensFlare.canvasControls).toEqual([
+      { id: "source", kind: "disk", x: "sourceX", y: "sourceY", radius: "sourceRadius", label: "Source" },
+    ]);
     const x = lensFlare.params.find((p) => p.name === "sourceX");
     expect([x?.min, x?.max]).toEqual([-0.5, 1.5]);
   });

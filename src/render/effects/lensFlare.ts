@@ -312,7 +312,7 @@ export const lensFlare: EffectModule = {
     { scale: 0.25, wgsl: upsampleWgsl(P_SPREAD), enabled: flareActif },
     { scale: 0.5, wgsl: upsampleWgsl(P_SPREAD), enabled: flareActif },
   ],
-  canvasRegion: { centerX: "sourceX", centerY: "sourceY", radius: "sourceRadius" },
+  canvasControls: [{ id: "source", kind: "disk", x: "sourceX", y: "sourceY", radius: "sourceRadius", label: "Source" }],
   wgsl: `
 ${UV_SPACE_WGSL}${HSL_TO_RGB_WGSL}${HASH_WGSL}${VALUE_NOISE_WGSL}${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${OKLAB_WGSL}
 

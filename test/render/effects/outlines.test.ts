@@ -118,12 +118,12 @@ describe("outlines — la fusion de coloredEdges n'a rien déplacé", () => {
     expect(outlines.wgsl).toContain("params[23] / 360.0, params[24], params[25]");
   });
 
-  it("laisse les seize slots du plafond au-dessus de lui inoccupés — mais six seulement", () => {
+  it("reste sous le plafond partagé élargi pour la tranche Courbes", () => {
     // Le plafond est passé de 24 à 32 pour cette absorption. La marge visée à
     // chaque élargissement depuis 2026-07-31 est la même : ~6 slots au-dessus
     // du plus gourmand. Ce test la rend visible plutôt que déclarative.
     expect(outlines.params.length).toBe(26);
-    expect(MAX_EFFECT_PARAMS - outlines.params.length).toBe(6);
+    expect(MAX_EFFECT_PARAMS - outlines.params.length).toBe(22);
   });
 });
 

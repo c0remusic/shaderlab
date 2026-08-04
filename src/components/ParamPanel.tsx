@@ -1,6 +1,7 @@
 import type { LayerState } from "../layers/types";
 import { getEffect } from "../render/effects/registry";
-import type { EffectParam } from "../render/effects/types";
+import type { CanvasControl, EffectParam } from "../render/effects/types";
+import { CircleDot, MoveRight } from "lucide-react";
 import "./ParamPanel.css";
 import { LabeledSlider } from "./ui/labeled-slider";
 import { Disclosure } from "./ui/collapsible";
@@ -8,9 +9,15 @@ import { Checkbox } from "./ui/checkbox";
 import { Select } from "./ui/select";
 import { ColorGroupControl } from "./ui/color-group-control";
 import { formatControlValue } from "../ui/formatValue";
+import { useState } from "react";
+import { CurveControl } from "./CurveControl";
+import { TonalRangeControl } from "./TonalRangeControl";
+import { ColorRampControl } from "./ColorRampControl";
+import type { CurvePoint } from "../ui/curveControl";
 
 export type ParamRenderItem =
-  | { kind: "single"; reactKey: string; param: EffectParam }
+  | { kind: "single"; reactKey: string; param: EffectParam; spatialId?: string }
+  | { kind: "spatial-header"; reactKey: string; id: string; label: string; controlKind: CanvasControl["kind"]; visibleWhen?: { param: string; equals: number | number[] } }
   | { kind: "group"; reactKey: string; key: string; label: string; hue: EffectParam; saturation: EffectParam; lightness: EffectParam; isFirst: boolean };
 
 /** Groups params sharing the same `colorGroup.key` (see EffectParam) into a
@@ -31,11 +38,12 @@ export type ParamRenderItem =
  *  Préfixer rend la collision IMPOSSIBLE par construction plutôt que de
  *  demander aux auteurs d'effets de ne pas nommer un paramètre comme un groupe.
  *  `test/components/paramRenderKeys.test.ts` le vérifie sur tout le registre. */
-export function groupEffectParams(params: EffectParam[]): ParamRenderItem[] {
+export function groupEffectParams(params: EffectParam[], controls: readonly CanvasControl[] = [], excluded = new Set<string>()): ParamRenderItem[] {
   const firstIndexByKey = new Map<string, number>();
   const roleByKey = new Map<string, { label: string; hue?: EffectParam; saturation?: EffectParam; lightness?: EffectParam }>();
 
   params.forEach((p, index) => {
+    if (excluded.has(p.name)) return;
     if (!p.colorGroup) return;
     const { key, role, label } = p.colorGroup;
     if (!firstIndexByKey.has(key)) firstIndexByKey.set(key, index);
@@ -46,9 +54,27 @@ export function groupEffectParams(params: EffectParam[]): ParamRenderItem[] {
 
   let seenGroups = 0;
   const items: ParamRenderItem[] = [];
+  const spatialByParam = new Map<string, CanvasControl>();
+  const spatialFirstIndex = new Map<string, number>();
+  for (const control of controls) {
+    const names = control.kind === "point" ? [control.x, control.y]
+      : control.kind === "disk" ? [control.x, control.y, control.radius]
+      : [control.angle, control.length];
+    for (const name of names) {
+      if (spatialByParam.has(name)) throw new Error(`Paramètre spatial partagé par plusieurs contrôles : "${name}".`);
+      spatialByParam.set(name, control);
+      const index = params.findIndex((param) => param.name === name);
+      spatialFirstIndex.set(control.id, Math.min(spatialFirstIndex.get(control.id) ?? index, index));
+    }
+  }
   params.forEach((p, index) => {
+    if (excluded.has(p.name)) return;
+    const spatial = spatialByParam.get(p.name);
+    if (spatial && spatialFirstIndex.get(spatial.id) === index) {
+      items.push({ kind: "spatial-header", reactKey: `spatial:${spatial.id}`, id: spatial.id, label: spatial.label, controlKind: spatial.kind, visibleWhen: spatial.visibleWhen });
+    }
     if (!p.colorGroup) {
-      items.push({ kind: "single", reactKey: `param:${p.name}`, param: p });
+      items.push({ kind: "single", reactKey: `param:${p.name}`, param: p, spatialId: spatial?.id });
       return;
     }
     if (firstIndexByKey.get(p.colorGroup.key) !== index) return;
@@ -93,10 +119,25 @@ function formatEffectParamValue(
 }
 
 export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, onOpenColorPicker }: Props) {
+  const [activeCurveChannel, setActiveCurveChannel] = useState("master");
   if (!layer) {
     return <p className="param-panel__empty">Sélectionne un calque.</p>;
   }
   const effect = getEffect(layer.effectId);
+
+  const controlledParams = new Set<string>();
+  for (const control of effect.curveControls ?? []) for (const channel of control.channels) {
+    controlledParams.add(channel.startY); controlledParams.add(channel.endY);
+    for (const point of channel.points) { controlledParams.add(point.x); controlledParams.add(point.y); }
+  }
+  if (effect.tonalRangeControl) Object.values(effect.tonalRangeControl).forEach((name) => controlledParams.add(name));
+  for (const control of effect.colorRampControls ?? []) {
+    controlledParams.add(control.blackPoint); controlledParams.add(control.whitePoint);
+    for (const stop of control.stops) {
+      controlledParams.add(stop.hue); controlledParams.add(stop.saturation); controlledParams.add(stop.lightness);
+      if (stop.position) controlledParams.add(stop.position);
+    }
+  }
 
   // Paramètres RÉSOLUS (défauts appliqués), pour les `maxFrom` d'en bas. Même
   // forme que ce que `runInternalPasses` passe à `EffectPass.enabled` — un
@@ -165,8 +206,73 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
       {clipRow}
       <Disclosure title="Effet" defaultOpen>
         <div className="param-panel__group">
-          {groupEffectParams(effect.params).map((item) =>
-            item.kind === "single" && item.param.choices ? (
+          {(effect.curveControls ?? []).map((control) => {
+            const channels = control.channels.map((channel) => {
+              const points: CurvePoint[] = [{ x: 0, y: resolvedParams[channel.startY] }];
+              for (const slot of channel.points) if (resolvedParams[slot.x] >= 0) points.push({ x: resolvedParams[slot.x], y: resolvedParams[slot.y] });
+              points.push({ x: 1, y: resolvedParams[channel.endY] });
+              return { id: channel.id, label: channel.label, points };
+            });
+            return <CurveControl key={`courbe:${control.id}`} channels={channels}
+              activeChannelId={channels.some((channel) => channel.id === activeCurveChannel) ? activeCurveChannel : channels[0].id}
+              disabled={locked} onActiveChannelChange={setActiveCurveChannel}
+              onChange={(channelId, points) => {
+                const channel = control.channels.find((candidate) => candidate.id === channelId);
+                if (!channel) return;
+                const patch: Record<string, number> = { [channel.startY]: points[0].y, [channel.endY]: points[points.length - 1].y };
+                const interiors = points.slice(1, -1);
+                channel.points.forEach((slot, index) => {
+                  patch[slot.x] = interiors[index]?.x ?? -1;
+                  patch[slot.y] = interiors[index]?.y ?? resolvedParams[slot.y];
+                });
+                onParamChange(layer.id, patch);
+              }} onCommit={onParamCommit} />;
+          })}
+          {(effect.colorRampControls ?? []).map((control) => {
+            const stops = control.stops.map((stop, index) => ({
+              id: stop.id, label: stop.label,
+              hue: resolvedParams[stop.hue], saturation: resolvedParams[stop.saturation], lightness: resolvedParams[stop.lightness],
+              position: stop.position ? resolvedParams[stop.position] : index / (control.stops.length - 1),
+              movable: stop.position !== undefined,
+            })) as Parameters<typeof ColorRampControl>[0]["stops"];
+            return <ColorRampControl key={`rampe:${control.id}`} label={control.label} stops={stops} disabled={locked}
+              positions={{ midPosition: stops[1].position, blackPoint: resolvedParams[control.blackPoint], whitePoint: resolvedParams[control.whitePoint] }}
+              onChange={(values) => {
+                const middle = control.stops.find((stop) => stop.position);
+                onParamChange(layer.id, {
+                  [control.blackPoint]: values.blackPoint,
+                  [control.whitePoint]: values.whitePoint,
+                  ...(middle?.position ? { [middle.position]: values.midPosition } : {}),
+                });
+              }}
+              onCommit={onParamCommit}
+              onOpenStop={(stopId, anchorTop) => {
+                const declaration = control.stops.find((stop) => stop.id === stopId);
+                if (!declaration) return;
+                const hue = effect.params.find((param) => param.name === declaration.hue)!;
+                const saturation = effect.params.find((param) => param.name === declaration.saturation)!;
+                const lightness = effect.params.find((param) => param.name === declaration.lightness)!;
+                onOpenColorPicker({ layerId: layer.id, effectId: layer.effectId, key: declaration.id, label: declaration.label, hue, saturation, lightness, anchorTop });
+              }} />;
+          })}
+          {effect.tonalRangeControl && (() => {
+            const declaration = effect.tonalRangeControl;
+            return <TonalRangeControl key="plage-tonale:effet" kind="effect" disabled={locked} values={{
+              shadowsMin: resolvedParams[declaration.shadowsMin], shadowsMax: resolvedParams[declaration.shadowsMax],
+              highlightsMin: resolvedParams[declaration.highlightsMin], highlightsMax: resolvedParams[declaration.highlightsMax],
+            }} onChange={(patch) => onParamChange(layer.id, Object.fromEntries(Object.entries(patch).map(([role, value]) => [declaration[role as keyof typeof declaration], value as number]))) }
+              onCommit={onParamCommit} />;
+          })()}
+          {groupEffectParams(effect.params, effect.canvasControls, controlledParams).map((item) =>
+            item.kind === "spatial-header" ? (
+              (!item.visibleWhen || (Array.isArray(item.visibleWhen.equals)
+                ? item.visibleWhen.equals.includes(resolvedParams[item.visibleWhen.param])
+                : resolvedParams[item.visibleWhen.param] === item.visibleWhen.equals)) ? <div key={item.reactKey} className="param-panel__spatial-heading">
+                {item.controlKind === "axis" ? <MoveRight className="icon-sm icon-stroke" aria-hidden="true" /> : <CircleDot className="icon-sm icon-stroke" aria-hidden="true" />}
+                <span>{item.label}</span>
+                <span className="param-panel__spatial-hint">sur la toile</span>
+              </div> : null
+            ) : item.kind === "single" && item.param.choices ? (
               // Paramètre à CHOIX DISCRET (voir EffectParam.choices) : la valeur
               // reste un nombre — l'index du choix — parce que l'uniform est un
               // array<f32> et que rien d'autre ne franchit cette frontière. Un

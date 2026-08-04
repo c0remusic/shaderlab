@@ -25,7 +25,11 @@
  *  6 slots au-dessus du plus gourmand, la même marge qu'aux deux
  *  élargissements précédents.
  *
- *  Ce que ça coûte : le uniform passe de 96 à 128 octets par passe d'effet, et
+ *  Puis de 32 à 48 (2026-08-04) : la tranche Courbes réserve quatre canaux de
+ *  cinq points bornés, une plage tonale et un mélange global. Le format reste
+ *  numérique et compatible preset ; aucun blob n'entre dans LayerState.
+ *
+ *  Ce que ça coûte : le uniform passe de 128 à 192 octets par passe d'effet, et
  *  `effectPassRunner` en alloue un par passe et par frame. À neuf passes de
  *  pyramide, 288 octets de plus par calque — sans commune mesure avec les
  *  cibles de rendu que la même pyramide emprunte au pool.
@@ -34,7 +38,7 @@
  *  n'y a donc plus qu'UN endroit à modifier, et `MAX_EFFECT_PARAMS` reste la
  *  seule source pour la taille du Float32Array côté CPU
  *  (`effectPassRunner.ts`) comme pour la déclaration WGSL. */
-export const MAX_EFFECT_PARAMS = 32;
+export const MAX_EFFECT_PARAMS = 48;
 
 export const FULLSCREEN_VERTEX_WGSL = `
 struct VertexOut {

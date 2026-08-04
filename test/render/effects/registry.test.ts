@@ -4,6 +4,10 @@ import { glow } from "../../../src/render/effects/glow";
 import { PASSTHROUGH_EFFECT } from "../../../src/render/effectPassRunner";
 
 describe("effectRegistry", () => {
+  it("uses only the generic canvas controls API", () => {
+    expect(effectRegistry.filter((effect) => effect.canvasControls?.some((control) => control.kind === "disk")).map((effect) => effect.id))
+      .toEqual(expect.arrayContaining(["pixelStretch", "lensFlare"]));
+  });
   it("contains the glow effect", () => {
     expect(effectRegistry).toContainEqual(glow);
   });

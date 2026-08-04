@@ -13,6 +13,7 @@ import {
 } from "../../src/ui/tools";
 
 const IDLE: ToolState = { mode: IDLE_CANVAS_MODE, erase: false };
+const TARGET = { layerId: "l1", sourceId: "brush-1" };
 
 const keyEvent = (code: string, over: Partial<Record<"ctrlKey" | "metaKey" | "altKey" | "repeat", boolean>> = {}) => ({
   code,
@@ -63,8 +64,8 @@ describe("activeTool — un outil est toujours actif", () => {
   });
 
   it("distingue pinceau et gomme par le seul drapeau d'effacement", () => {
-    expect(activeTool({ mode: { kind: "maskPaint" }, erase: false })).toBe("brush");
-    expect(activeTool({ mode: { kind: "maskPaint" }, erase: true })).toBe("eraser");
+    expect(activeTool({ mode: { kind: "maskPaint", ...TARGET }, erase: false })).toBe("brush");
+    expect(activeTool({ mode: { kind: "maskPaint", ...TARGET }, erase: true })).toBe("eraser");
   });
 
   it("un mode crop retombe sur Déplacer plutôt que sur aucun outil", () => {
@@ -79,23 +80,23 @@ describe("activeTool — un outil est toujours actif", () => {
 describe("selectTool", () => {
   it("est un aller-retour avec activeTool pour chaque outil", () => {
     for (const tool of TOOLS) {
-      expect(activeTool(selectTool(tool.id, IDLE))).toBe(tool.id);
+      expect(activeTool(selectTool(tool.id, IDLE, TARGET))).toBe(tool.id);
     }
   });
 
   it("Déplacer quitte la peinture", () => {
-    const painting: ToolState = { mode: { kind: "maskPaint" }, erase: true };
+    const painting: ToolState = { mode: { kind: "maskPaint", ...TARGET }, erase: true };
     expect(selectTool("move", painting).mode).toEqual(IDLE_CANVAS_MODE);
   });
 
   it("Déplacer préserve le sens d'effacement pour le retour au pinceau", () => {
-    const erasing: ToolState = { mode: { kind: "maskPaint" }, erase: true };
+    const erasing: ToolState = { mode: { kind: "maskPaint", ...TARGET }, erase: true };
     expect(selectTool("move", erasing).erase).toBe(true);
   });
 
   it("seul le pinceau et la gomme entrent en mode peinture", () => {
     for (const tool of TOOLS) {
-      const painting = selectTool(tool.id, { mode: { kind: "maskPaint" }, erase: true });
+      const painting = selectTool(tool.id, { mode: { kind: "maskPaint", ...TARGET }, erase: true }, TARGET);
       expect(painting.mode.kind === "maskPaint").toBe(tool.id === "brush" || tool.id === "eraser");
     }
   });
@@ -157,7 +158,7 @@ describe("Échap quitte l'outil", () => {
   });
 
   it("sortir de la peinture par Échap donne le même état que choisir Déplacer", () => {
-    const painting: ToolState = { mode: { kind: "maskPaint" }, erase: true };
+    const painting: ToolState = { mode: { kind: "maskPaint", ...TARGET }, erase: true };
     expect(selectTool(DEFAULT_TOOL, painting).mode).toEqual(IDLE_CANVAS_MODE);
   });
 

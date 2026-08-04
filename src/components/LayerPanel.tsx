@@ -1,18 +1,23 @@
 import { memo, useCallback, useMemo } from "react";
 import { usePointerReorder, type DropPosition } from "../ui/dragReorder";
 import "../ui/dragReorder.css";
-import { Copy, CornerLeftUp, Eye, EyeOff, GripVertical, Image as PhotoLayerIcon, Lock, LockOpen, Sparkles as EffectLayerIcon, Trash2 } from "lucide-react";
+import { Copy, CornerLeftUp, Eye, EyeOff, GripVertical, Image as PhotoLayerIcon, Lock, LockOpen, Plus, Sparkles as EffectLayerIcon, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
 import { eyeButtonLabels, isLayerVisible, isolationRole, isolationVisibleIds, type IsolationRole } from "../layers/isolation";
 import { resolveClipping } from "../layers/clipping";
 import { displayInsertToModelInsert } from "./layerDisplayOrder";
-import { toLayerTreeRows } from "./layerTree";
+import { toPileRows } from "./pileModel";
+import {
+  targetForLayerId,
+  type PropertiesTarget,
+} from "../ui/propertiesTarget";
 import { effectRegistry, getEffect } from "../render/effects/registry";
 import { PASSTHROUGH_EFFECT } from "../render/effectPassRunner";
 import { blendRegistry } from "../render/blend/registry";
 import { Select } from "./ui/select";
 import { NumberField } from "./ui/number-field";
 import { IconButton } from "./ui/icon-button";
+import { EffectPicker } from "./EffectPicker";
 import { layerControlsModel, opacityToPercent, parseOpacityPercent } from "./layerControlsModel";
 import "./LayerPanel.css";
 
@@ -21,6 +26,11 @@ interface Props {
   selectedId: string | null;
   hasImage: boolean;
   onSelect: (id: string) => void;
+  /** Facette sélectionnée dans le nouvel inspecteur. Optionnelle pendant la
+   *  migration : en son absence, la ligne sélectionnée est sa cible principale. */
+  selectedTarget?: PropertiesTarget | null;
+  /** Sélectionne explicitement le corps de ligne ou sa vignette de masque. */
+  onSelectTarget?: (target: PropertiesTarget) => void;
   /** Clic sur l'œil. `altKey` porte le geste d'ISOLATION (Alt+clic) : la
    *  décision de ce qu'il déclenche est prise par `layers/isolation.ts`, pas
    *  ici — ce composant ne fait que transmettre le modificateur. */
@@ -87,6 +97,10 @@ interface LayerRowProps {
    *  (voir `layerDisplayOrder.ts`). */
   index: number;
   selected: boolean;
+  maskSelected: boolean;
+  maskPresent: boolean;
+  maskSourceCount: number;
+  maskEnabled: boolean;
   isDragging: boolean;
   dropPosition: DropPosition | null;
   /** Visibilité EFFECTIVE (isolation comprise) : pilote l'icône et le libellé.
@@ -123,6 +137,7 @@ interface LayerRowProps {
   firstChild: boolean;
   lastChild: boolean;
   onSelect: (id: string) => void;
+  onSelectMask: (id: string) => void;
   onToggle: (id: string, altKey: boolean) => void;
   onGripPointerDown: (id: string, pointerId: number, target: Element, clientX: number, clientY: number) => void;
   thumbnailUrl?: (sourceId: string) => string | null;
@@ -145,6 +160,10 @@ const LayerRow = memo(function LayerRow({
   layer,
   index,
   selected,
+  maskSelected,
+  maskPresent,
+  maskSourceCount,
+  maskEnabled,
   isDragging,
   dropPosition,
   visible,
@@ -155,6 +174,7 @@ const LayerRow = memo(function LayerRow({
   firstChild,
   lastChild,
   onSelect,
+  onSelectMask,
   onToggle,
   onGripPointerDown,
   thumbnailUrl,
@@ -329,11 +349,12 @@ const LayerRow = memo(function LayerRow({
               par l'ordre des éléments (cette promesse-là avait déjà été
               fausse : un élément optionnel absent en amont décalait tout ce
               qui suit). */}
-          {layer.imageSource ? (
-            <PhotoLayerIcon className="layer-panel__row-nature layer-panel__col--nature icon-sm icon-stroke" aria-hidden="true" />
-          ) : (
-            <EffectLayerIcon className="layer-panel__row-nature layer-panel__col--nature icon-sm icon-stroke" aria-hidden="true" />
-          )}
+          <span className="layer-panel__row-state layer-panel__col--nature">
+            {layer.imageSource ? (
+              <PhotoLayerIcon className="layer-panel__row-nature icon-sm icon-stroke" aria-hidden="true" />
+            ) : (
+              <EffectLayerIcon className="layer-panel__row-nature icon-sm icon-stroke" aria-hidden="true" />
+            )}
           {/* VERROU — MARQUEUR, et seulement quand il est POSÉ (2026-07-29).
               Le CONTRÔLE a migré dans la zone de contrôles de la carte
               (ADR-0001 : un contrôle répété sur chaque ligne devient unique et
@@ -346,15 +367,32 @@ const LayerRow = memo(function LayerRow({
               la veille.
               `role="img"` et non un bouton : un lecteur d'écran n'annonce pas
               une action qui n'existe plus ici. */}
-          {locked && (
-            <span className="layer-panel__col--lock layer-panel__row-lock-slot">
+            {locked && (
               <Lock
                 className="layer-panel__row-lock--active icon-sm icon-stroke"
                 role="img"
                 aria-label="Calque verrouillé"
               />
-            </span>
-          )}
+            )}
+          </span>
+          <IconButton
+            label={maskPresent ? `Modifier le masque de ${displayName}` : `Ajouter un masque à ${displayName}`}
+            tooltip={maskPresent ? `${maskSourceCount} source${maskSourceCount > 1 ? "s" : ""} · ouvrir le masque` : "Ajouter un masque"}
+            size="compact"
+            className={`layer-panel__mask-target layer-panel__col--mask${maskSelected ? " layer-panel__mask-target--selected" : ""}${maskPresent && !maskEnabled ? " layer-panel__mask-target--disabled" : ""}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelectMask(layer.id);
+            }}
+          >
+            {maskPresent ? (
+              <span className="layer-panel__mask-thumbnail" aria-hidden="true">
+                {maskSourceCount > 1 && <span className="layer-panel__mask-count">{maskSourceCount}</span>}
+              </span>
+            ) : (
+              <Plus className="icon-sm icon-stroke" aria-hidden="true" />
+            )}
+          </IconButton>
         </span>
       </div>
       {dropPosition && <span className={`drag-reorder__alignment-guide layer-panel__alignment-guide--${dropPosition}`} aria-hidden="true" />}
@@ -548,6 +586,8 @@ export function LayerPanel({
   selectedId,
   hasImage,
   onSelect,
+  selectedTarget,
+  onSelectTarget,
   onToggle,
   isolatedLayerId = null,
   onAdd,
@@ -569,7 +609,11 @@ export function LayerPanel({
   //
   // Le FOND n'a plus de traitement à part : c'est un calque photo de `layers`,
   // que la règle de proximité trouve d'elle-même (tranche T1).
-  const rows = useMemo(() => toLayerTreeRows(layers), [layers]);
+  const effectiveTarget = useMemo(
+    () => selectedTarget ?? targetForLayerId(layers, selectedId),
+    [selectedTarget, layers, selectedId],
+  );
+  const rows = useMemo(() => toPileRows(layers, effectiveTarget), [layers, effectiveTarget]);
   // Le hook de réordonnancement ne s'intéresse qu'aux identités, pas à la
   // hiérarchie : il reçoit la liste plate dans l'ordre affiché.
   const displayLayers = useMemo(() => rows.map((row) => row.layer), [rows]);
@@ -618,16 +662,26 @@ export function LayerPanel({
     [handlePointerDown]
   );
 
+  const handleRowSelect = useCallback(
+    (id: string) => {
+      onSelect(id);
+      const target = targetForLayerId(layers, id);
+      if (target) onSelectTarget?.(target);
+    },
+    [layers, onSelect, onSelectTarget],
+  );
+
+  const handleMaskSelect = useCallback(
+    (id: string) => {
+      onSelect(id);
+      onSelectTarget?.({ kind: "mask", layerId: id });
+    },
+    [onSelect, onSelectTarget],
+  );
+
   return (
     <div className="layer-panel">
-      <Select
-        label="Ajouter un effet"
-        value={null}
-        placeholder="+ Ajouter un effet"
-        options={addEffectOptions}
-        disabled={!hasImage}
-        onChange={onAdd}
-      />
+      <EffectPicker disabled={!hasImage} onSelect={onAdd} />
       <ul
         // `data-dock-list` : marque la LISTE dans la zone défilante de la
         // carte, pour que le plancher de compression compte séparément les
@@ -644,12 +698,16 @@ export function LayerPanel({
         onPointerUp={dragState ? handlePointerUp : undefined}
         onPointerCancel={dragState ? handlePointerCancel : undefined}
       >
-        {rows.map(({ layer, depth, firstChild, lastChild }, displayRow) => (
+        {rows.map(({ layer, depth, firstChild, lastChild, selectedFacet, mask }, displayRow) => (
           <LayerRow
             key={layer.id}
             layer={layer}
             index={displayRow}
             selected={layer.id === selectedId}
+            maskSelected={selectedFacet === "mask"}
+            maskPresent={mask.present}
+            maskSourceCount={mask.sourceCount}
+            maskEnabled={mask.enabled}
             visible={isLayerVisible(layer, visibleIds)}
             role={isolationRole(layer.id, isolatedLayerId)}
             clipped={clipResolutions.get(layer.id)?.kind === "active"}
@@ -663,7 +721,8 @@ export function LayerPanel({
                 ? dragState.overPosition
                 : null
             }
-            onSelect={onSelect}
+            onSelect={handleRowSelect}
+            onSelectMask={handleMaskSelect}
             onToggle={onToggle}
             onGripPointerDown={handleGripPointerDown}
             thumbnailUrl={thumbnailUrl}

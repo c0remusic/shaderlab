@@ -403,10 +403,12 @@
     var(--control-height-sm)     /* 2 œil (visibilité) */
     var(--layer-thumbnail-size)  /* 3 marque : vignette OU flèche d'écrêtage */
     minmax(0, 1fr)               /* 4 nom */
-    var(--icon-size-sm)          /* 5 nature (effet ou photo) */
-    var(--control-height-sm);    /* 6 verrou, marqueur seul (voir plus bas) */
+    var(--control-height-sm)     /* 5 nature + badge verrou */
+    var(--control-height-sm);    /* 6 cible masque */
   align-items: center;
-  column-gap: var(--space-2);
+  /* La ligne est une barre d'outils compacte : 2 px entre pistes, tandis que
+     chaque cible conserve sa surface interactive de 28 px. */
+  column-gap: var(--space-1);
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -472,7 +474,70 @@
    décaler le nom d'une ligne à l'autre. En fin de ligne parce que c'est un
    ÉTAT, pas une étape de lecture de l'identité — il ferme la zone de droite,
    après la nature. */
-.layer-panel__col--lock { grid-column: 6; }
+.layer-panel__col--mask { grid-column: 6; }
+
+/* Nature et verrou décrivent tous deux l'état de la ligne. Le verrou devient
+   donc un badge de la nature au lieu de réserver 28 px sur CHAQUE ligne. */
+.layer-panel__row-state {
+  position: relative;
+  display: grid;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+  place-items: center;
+}
+
+.layer-panel__row-state .layer-panel__row-lock--active {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: var(--icon-size-xs);
+  height: var(--icon-size-xs);
+}
+
+/* VIGNETTE DE MASQUE — seconde cible de la ligne. Le raster complet ne passe
+   jamais par React : la miniature de cette tranche est un indicateur d'état,
+   dérivé du nombre de sources. Une vraie vignette GPU est une tâche séparée,
+   précédée d'une mesure 24 Mpx (design Pile/Propriétés/Masque § Miniatures). */
+.layer-panel__mask-target {
+  color: var(--text-tertiary);
+}
+
+.layer-panel__mask-target--selected {
+  color: var(--text-primary);
+  outline: var(--focus-width) solid var(--border-selection);
+  outline-offset: calc(var(--focus-offset) * -1);
+}
+
+.layer-panel__mask-target--disabled {
+  opacity: var(--dragging-opacity);
+}
+
+.layer-panel__mask-thumbnail {
+  position: relative;
+  display: block;
+  width: var(--icon-size-lg);
+  height: var(--icon-size-md);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background:
+    radial-gradient(circle at 62% 38%, var(--primitive-neutral-100) 0 22%, var(--primitive-neutral-500) 24% 46%, var(--surface-inset) 48%);
+}
+
+.layer-panel__mask-count {
+  position: absolute;
+  right: calc(var(--space-2) * -1);
+  bottom: calc(var(--space-2) * -1);
+  min-width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-round);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-2xs);
+  line-height: var(--icon-size-sm);
+  text-align: center;
+}
 
 /* Le cadenas de la ligne d'ARRIÈRE-PLAN n'est pas un bouton (voir le bloc de
    commentaire de la ligne dans LayerPanel.tsx) : il lui faut donc son propre

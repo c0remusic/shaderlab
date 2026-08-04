@@ -41,6 +41,27 @@
   padding-top: var(--space-2);
 }
 
+.param-panel__spatial-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-2);
+  border-left: var(--selection-bar-width) solid var(--selection-accent);
+  border-radius: var(--radius-control);
+  background: var(--surface-selected-accent);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.param-panel__spatial-hint {
+  margin-left: auto;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-regular);
+}
+
 .param-panel__clip-row {
   /* En-tête du panneau Réglages : l'écrêtage est un attribut du calque, pas un
      paramètre de son effet — il se lit AVANT le Disclosure « Effet », séparé de

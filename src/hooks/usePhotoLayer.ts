@@ -89,8 +89,9 @@ export function usePhotoLayer({
   // identité quand rien ne doit bouger, donc ce `setState` est un no-op React
   // dans le cas courant.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reconciliation d'un etat local sur une pile/selection qui a change SOUS lui : `reconcileCanvasMode` rend le mode inchange par IDENTITE quand rien ne bouge, donc aucun rendu en cascade dans le cas courant.
-    setCanvasMode((mode) => reconcileCanvasMode(mode, selectedId, layers.map((l) => l.id)));
+    const brushSources = new Map(layers.map((layer) => [layer.id, layer.mask.sources.filter((source) => source.type === "brush").map((source) => source.id)]));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- réconciliation d'un état local sur une pile/sélection qui a changé SOUS lui : `reconcileCanvasMode` rend le mode inchangé par IDENTITÉ quand rien ne bouge, donc aucun rendu en cascade dans le cas courant.
+    setCanvasMode((mode) => reconcileCanvasMode(mode, selectedId, layers.map((l) => l.id), brushSources));
   }, [selectedId, layers]);
 
   /** Importe une photo depuis un chemin ABSOLU déjà connu — extrait de
@@ -281,7 +282,11 @@ export function usePhotoLayer({
     [sessionRef, rendererRef, setError, applyTransformAction, imageSize],
   );
 
-  const toggleMaskPaintMode = useCallback(() => setCanvasMode(toggleMaskPaint), []);
+  const toggleMaskPaintMode = useCallback(() => {
+    if (!selectedId) return;
+    const sourceId = layers.find((layer) => layer.id === selectedId)?.mask.sources.find((source) => source.type === "brush")?.id ?? null;
+    setCanvasMode((mode) => toggleMaskPaint(mode, selectedId, sourceId));
+  }, [layers, selectedId]);
   const stopMaskPaintMode = useCallback(() => setCanvasMode(IDLE_CANVAS_MODE), []);
 
   /** Lecture de la vignette d'un calque photo, injectée dans `LayerPanel`.

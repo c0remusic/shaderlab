@@ -89,12 +89,60 @@ export interface EffectPass {
   enabled?: (params: Record<string, number>) => boolean;
 }
 
+export interface CanvasControlVisibility { visibleWhen?: { param: string; equals: number | number[] } }
+
+export type CanvasControl =
+  | ({ id: string; kind: "point"; x: string; y: string; label: string } & CanvasControlVisibility)
+  | ({ id: string; kind: "disk"; x: string; y: string; radius: string; label: string } & CanvasControlVisibility)
+  | ({ id: string; kind: "axis"; angle: string; length: string; label: string } & CanvasControlVisibility);
+
+export interface CurvePointSlot { x: string; y: string }
+
+export interface CurveChannelControl {
+  id: string;
+  label: string;
+  startY: string;
+  points: [CurvePointSlot, CurvePointSlot, CurvePointSlot];
+  endY: string;
+}
+
+export interface CurveControl {
+  id: string;
+  label: string;
+  channels: CurveChannelControl[];
+}
+
+export interface TonalRangeEffectControl {
+  shadowsMin: string;
+  shadowsMax: string;
+  highlightsMin: string;
+  highlightsMax: string;
+}
+
+export interface ColorRampStopControl {
+  id: string;
+  label: string;
+  hue: string;
+  saturation: string;
+  lightness: string;
+  /** Seul l'arrêt intérieur est positionnable dans la v1 à trois arrêts. */
+  position?: string;
+}
+
+export interface ColorRampControl {
+  id: string;
+  label: string;
+  stops: [ColorRampStopControl, ColorRampStopControl, ColorRampStopControl];
+  blackPoint: string;
+  whitePoint: string;
+}
+
 export interface EffectModule {
   id: string;
   name: string;
   params: EffectParam[];
   /** WGSL fragment shader body. Must define fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32>
-   *  and read params via the `params: array<f32, 8>` uniform (index order matches `params` above).
+   *  and read params via the shared `params: array<f32, MAX_EFFECT_PARAMS>` uniform (index order matches `params` above).
    *  Single-pass body (used directly when `passes` is absent). For multi-pass effects, this is the
    *  FINAL composite pass and additionally may sample `prevPass` (binding 4, the last internal
    *  pass's output) — this is also the only pass masking is applied to. */
@@ -104,6 +152,10 @@ export interface EffectModule {
    *  first pass's input is the layer's normal source texture). Masking is NOT applied to internal
    *  passes — only to the final composite. */
   passes?: EffectPass[];
+  canvasControls?: CanvasControl[];
+  curveControls?: CurveControl[];
+  tonalRangeControl?: TonalRangeEffectControl;
+  colorRampControls?: ColorRampControl[];
   /**
    * Déclare qu'un DISQUE de cet effet se manipule directement sur la toile,
    * en nommant les paramètres qui le portent. `RegionHandles` en dessine alors
@@ -121,5 +173,4 @@ export interface EffectModule {
    * espace ISOTROPE (pixels / sqrt(W*H)). Un effet qui exposerait un rayon en
    * UV ne peut pas se déclarer ici sans changer cette convention.
    */
-  canvasRegion?: { centerX: string; centerY: string; radius: string };
 }

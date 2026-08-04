@@ -25,7 +25,7 @@ import { BrushToolbar } from "./components/BrushToolbar";
 import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
 import { TransformHandles } from "./components/TransformHandles";
-import { RegionHandles } from "./components/RegionHandles";
+import { CanvasControls } from "./components/CanvasControls";
 import { ToolPalette } from "./components/ToolPalette";
 import "./components/ToolPalette.css";
 import { DEFAULT_TOOL, activeTool as activeToolOf, escapeAction, isQuitToolEvent, isToolShortcutEvent, selectTool, toolFromShortcut, type ToolId } from "./ui/tools";
@@ -67,13 +67,14 @@ import { LayerControls, LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
 import { PhotoPanel } from "./components/PhotoPanel";
 import { MaskPanel } from "./components/MaskPanel";
+import { PropertiesPanel, propertiesPanelTitle } from "./components/PropertiesPanel";
 import { getEffect } from "./render/effects/registry";
 import type { RefineEdgeParams } from "./mask/types";
 import { MAX_COLOR_RANGE_SAMPLES } from "./mask/sources/colorRange";
 import { planFold } from "./mask/foldPlan";
 import { OverlayAnimationLoop } from "./render/overlayAnimationLoop";
 import { hasValueChanged } from "./ui/valueChange";
-import { Layers, SlidersHorizontal, Brush as BrushRailIcon, PackagePlus, Image as PhotoRailIcon } from "lucide-react";
+import { Layers, SlidersHorizontal, PackagePlus } from "lucide-react";
 import { useContextualPanel } from "./ui/contextualPanel";
 import { PanelRail, type PanelRailItem } from "./components/dockedPanel/PanelRail";
 import { ColorPickerPanel } from "./components/ColorPickerPanel";
@@ -88,6 +89,12 @@ import { withPhotoLayersPreserved } from "./presets/preservePhotoLayers";
 import { Button } from "./components/ui/button";
 import { PresetDialogs } from "./components/PresetDialogs";
 import { CanvasSizeDialog } from "./components/CanvasSizeDialog";
+import {
+  reconcilePropertiesTarget,
+  targetForLayerId,
+  targetKeepsMaskSession,
+  type PropertiesTarget,
+} from "./ui/propertiesTarget";
 
 export default function App() {
   useGlobalControlWheel();
@@ -135,6 +142,7 @@ export default function App() {
   const [layers, setLayers] = useState<LayerState[]>([]);
   const presetIsDirty = presets.isDirtyOf(layers);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [propertiesTarget, setPropertiesTarget] = useState<PropertiesTarget | null>(null);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   // Zoom/déplacement du canvas (`src/ui/viewport.ts`). Le viewport est un état
   // d'INTERFACE : il ne touche ni le document, ni l'historique, ni l'export —
@@ -181,9 +189,7 @@ export default function App() {
 
   const [presetsFolded, setPresetsFolded] = useState(false);
   const [layersFolded, setLayersFolded] = useState(false);
-  const [photoFolded, setPhotoFolded] = useState(false);
-  const [paramsFolded, setParamsFolded] = useState(false);
-  const [maskFolded, setMaskFolded] = useState(false);
+  const [propertiesFolded, setPropertiesFolded] = useState(false);
   const [overlayForceHidden, setOverlayForceHidden] = useState(false);
   const [colorPicker, setColorPicker] = useState<{
     layerId: string;
@@ -201,11 +207,10 @@ export default function App() {
      *  positionné dans lequel le picker est rendu), pas en viewport. */
     anchorTop: number;
   } | null>(null);
-  // Ordre par défaut du dock : `photo` s'insère entre `layers` et `params` —
-  // inventaire (Calques) -> ce que le calque EST (Photo) -> ce qu'il FAIT
-  // (Réglages) -> OÙ il agit (Masque). Voir design
-  // `2026-07-27-shaderlab-panneau-photo-et-ecretage-design.md` §3.9.
-  const [dockLayout, setDockLayout] = useState<DockLayout>([["presets", "layers", "photo", "params", "mask"]]);
+  // Le dock porte désormais deux rôles : la Pile navigue, Propriétés inspecte
+  // la facette sélectionnée (photo/effet/masque). Les trois anciennes cartes
+  // contextuelles ont été fusionnées sans changer leurs contenus métier.
+  const [dockLayout, setDockLayout] = useState<DockLayout>([["presets", "layers", "properties"]]);
 
   // Task 4 : id du preset en attente de confirmation de remplacement — non
   // nul seulement quand la pile courante n'est pas vide (voir
@@ -260,8 +265,14 @@ export default function App() {
   // l'état React. Le fix garde setLayers() (UI correcte) mais retire le raster de
   // ce qui y entre ; les panneaux n'affichent jamais les pixels du masque.
   const syncSession = useCallback(() => {
-    setLayers(sessionRef.current.displayLayers());
-    setSelectedId(sessionRef.current.selectedId());
+    const displayLayers = sessionRef.current.displayLayers();
+    const sessionSelectedId = sessionRef.current.selectedId();
+    setLayers(displayLayers);
+    setSelectedId(sessionSelectedId);
+    setPropertiesTarget((previous) =>
+      reconcilePropertiesTarget(previous, displayLayers) ??
+      targetForLayerId(displayLayers, sessionSelectedId),
+    );
   }, []);
 
   // COALESCING DE LA SYNCHRONISATION REACT (2026-07-30, profil CPU sur la vraie
@@ -300,7 +311,9 @@ export default function App() {
 
   const selectLayer = useCallback((id: string | null) => {
     sessionRef.current.select(id);
-    setSelectedId(sessionRef.current.selectedId());
+    const sessionSelectedId = sessionRef.current.selectedId();
+    setSelectedId(sessionSelectedId);
+    setPropertiesTarget(targetForLayerId(sessionRef.current.displayLayers(), sessionSelectedId));
   }, []);
 
   const commit = useCallback(
@@ -697,6 +710,19 @@ export default function App() {
   });
   const { maskPaintMode, showTransformHandles, handleTransformChange, handleTransformCommit } = photoLayer;
 
+  /** Une peinture appartient à une facette masque précise. Changer d'onglet
+   * ou de calque termine explicitement la session avant de router le nouvel
+   * inspecteur ; le gros raster reste, lui, exclusivement dans layersRef. */
+  const handlePropertiesTargetChange = useCallback(
+    (nextTarget: PropertiesTarget) => {
+      if (maskPaintMode && !targetKeepsMaskSession(nextTarget, selectedId ?? "")) {
+        photoLayer.stopMaskPaintMode();
+      }
+      setPropertiesTarget(nextTarget);
+    },
+    [maskPaintMode, photoLayer, selectedId],
+  );
+
   // Palette d'outils (`src/ui/tools.ts`). L'outil actif est DÉDUIT de l'état
   // existant plutôt que stocké à côté : un `activeTool` en state se serait
   // désynchronisé de `canvasMode` à la première bascule faite ailleurs (la
@@ -706,11 +732,13 @@ export default function App() {
 
   const handleSelectTool = useCallback(
     (tool: ToolId) => {
-      const next = selectTool(tool, { mode: photoLayer.canvasMode, erase });
+      const brushSourceId = layers.find((layer) => layer.id === selectedId)?.mask.sources.find((source) => source.type === "brush")?.id ?? null;
+      const target = selectedId ? { layerId: selectedId, sourceId: brushSourceId } : undefined;
+      const next = selectTool(tool, { mode: photoLayer.canvasMode, erase }, target);
       setCanvasMode(next.mode);
       setErase(next.erase);
     },
-    [photoLayer.canvasMode, erase, setCanvasMode],
+    [photoLayer.canvasMode, erase, layers, selectedId, setCanvasMode],
   );
 
   // Raccourcis d'outil. Écouteur sur `window` et non sur le canvas : un outil
@@ -1439,38 +1467,14 @@ export default function App() {
 
   const selectedLayer = layers.find((l) => l.id === selectedId) ?? null;
   const selectedEffect = selectedLayer ? getEffect(selectedLayer.effectId) : null;
-  const paramsPanelTitle = selectedLayer ? `Réglages · ${selectedEffect?.name}` : "Réglages";
+  const currentPropertiesTitle = propertiesPanelTitle(propertiesTarget, selectedLayer);
 
-  /** Manipulateur de région : présent seulement si l'effet du calque
-   *  sélectionné en DÉCLARE un (`EffectModule.canvasRegion`). Rien n'est deviné
-   *  au nom de paramètre — voir la note sur `canvasRegion` dans
-   *  `render/effects/types.ts`. */
-  const regionManipulator = (() => {
-    const region = selectedEffect?.canvasRegion;
-    if (!region || !selectedLayer) return null;
-    const valeur = (nom: string) =>
-      selectedLayer.params[nom] ?? selectedEffect.params.find((p) => p.name === nom)?.default ?? 0;
-    const rayonParam = selectedEffect.params.find((p) => p.name === region.radius);
-    if (!rayonParam) return null;
-    return {
-      region,
-      center: { x: valeur(region.centerX), y: valeur(region.centerY) },
-      radius: valeur(region.radius),
-      radiusRange: { min: rayonParam.min, max: rayonParam.max },
-      effectName: selectedEffect.name,
-    };
-  })();
+  /** Contrôles canvas déclarés par l'effet sélectionné, sans convention de nom. */
+  const canvasControls = selectedEffect?.canvasControls ?? [];
 
   const presetsPanel = useContextualPanel(true, "static");
   const layersPanel = useContextualPanel(true, "static");
-  const paramsPanel = useContextualPanel(selectedId !== null, selectedId);
-  const maskPanel = useContextualPanel(selectedId !== null, selectedId);
-  // Panneau « Photo » : même câblage que Réglages/Masque (condition liée à la
-  // sélection), mais la condition est d'être un calque PHOTO. Le rail restant
-  // l'unique moyen de fermeture, il peut aussi l'OUVRIR hors condition — d'où
-  // l'état vide obligatoire de `PhotoPanel`.
-  const isPhotoLayerSelected = selectedLayer?.imageSource !== undefined;
-  const photoPanel = useContextualPanel(isPhotoLayerSelected, selectedId);
+  const propertiesPanel = useContextualPanel(selectedId !== null, selectedId);
 
   // Table explicite plutôt qu'une chaîne de ternaires : sans branche par
   // défaut, un id inconnu héritait silencieusement de la visibilité du Masque.
@@ -1483,11 +1487,9 @@ export default function App() {
     () => ({
       presets: presetsPanel.visible,
       layers: layersPanel.visible,
-      photo: photoPanel.visible,
-      params: paramsPanel.visible,
-      mask: maskPanel.visible,
+      properties: propertiesPanel.visible,
     }),
-    [presetsPanel.visible, layersPanel.visible, photoPanel.visible, paramsPanel.visible, maskPanel.visible]
+    [presetsPanel.visible, layersPanel.visible, propertiesPanel.visible]
   );
   const isPanelVisible = useCallback(
     (id: string) => {
@@ -1528,7 +1530,7 @@ export default function App() {
   // doit pouvoir l'éteindre explicitement. Voir
   // docs/superpowers/specs/2026-07-23-shaderlab-mask-overlay-visibility-design.md.
   const hasActiveMask = selectedLayer ? planFold(selectedLayer.mask).length > 0 : false;
-  const wantsOverlay = ((maskPanel.visible && !maskFolded) || maskPaintMode) && hasActiveMask && !!selectedId;
+  const wantsOverlay = ((propertiesPanel.visible && !propertiesFolded && propertiesTarget?.kind === "mask") || maskPaintMode) && hasActiveMask && !!selectedId;
 
   // Délai de grâce de 750ms avant extinction : quand on ferme le panneau
   // Masque, change de calque, ou que le calque perd son masque actif,
@@ -1557,17 +1559,13 @@ export default function App() {
     () =>
       [
         { id: "presets", icon: PackagePlus, label: "Presets", active: presetsPanel.visible, onClick: presetsPanel.toggleRail },
-        { id: "layers", icon: Layers, label: "Effets", active: layersPanel.visible, onClick: layersPanel.toggleRail },
-        { id: "photo", icon: PhotoRailIcon, label: "Photo", active: photoPanel.visible, onClick: photoPanel.toggleRail },
-        { id: "params", icon: SlidersHorizontal, label: "Réglages", active: paramsPanel.visible, onClick: paramsPanel.toggleRail },
-        { id: "mask", icon: BrushRailIcon, label: "Masque", active: maskPanel.visible, onClick: maskPanel.toggleRail },
+        { id: "layers", icon: Layers, label: "Pile", active: layersPanel.visible, onClick: layersPanel.toggleRail },
+        { id: "properties", icon: SlidersHorizontal, label: "Propriétés", active: propertiesPanel.visible, onClick: propertiesPanel.toggleRail },
       ] satisfies PanelRailItem[],
     [
       presetsPanel.visible, presetsPanel.toggleRail,
       layersPanel.visible, layersPanel.toggleRail,
-      photoPanel.visible, photoPanel.toggleRail,
-      paramsPanel.visible, paramsPanel.toggleRail,
-      maskPanel.visible, maskPanel.toggleRail,
+      propertiesPanel.visible, propertiesPanel.toggleRail,
     ],
   );
 
@@ -1818,22 +1816,16 @@ export default function App() {
             Les deux overlays peuvent coexister — un calque photo sélectionné
             n'a pas de région, un calque d'effet n'a pas de transform, donc les
             conditions sont en pratique exclusives sans avoir à l'écrire. */}
-        {showTransformHandles && regionManipulator && selectedLayer && (
-          <RegionHandles
-            center={regionManipulator.center}
-            radius={regionManipulator.radius}
-            radiusRange={regionManipulator.radiusRange}
-            bgSize={imageSize}
+        {showTransformHandles && canvasControls.length > 0 && selectedLayer && selectedEffect && (
+          <CanvasControls
+            controls={canvasControls}
+            params={selectedEffect.params}
+            values={selectedLayer.params}
+            imageSize={imageSize}
             canvasRef={canvasRef}
-            effectName={regionManipulator.effectName}
-            onRegionChange={(center, radius) =>
-              handleParamChange(selectedLayer.id, {
-                [regionManipulator.region.centerX]: center.x,
-                [regionManipulator.region.centerY]: center.y,
-                [regionManipulator.region.radius]: radius,
-              })
-            }
-            onRegionCommit={handleParamCommit}
+            effectName={selectedEffect.name}
+            onChange={(patch) => handleParamChange(selectedLayer.id, patch)}
+            onCommit={handleParamCommit}
           />
         )}
         </Canvas>
@@ -1882,44 +1874,16 @@ export default function App() {
               )
             },
             {
-              // LIBELLÉ « Effets » (décision Antoine sur maquette, 2026-07-27) :
-              // dans shaderlab la pile n'est pas un empilement de contenus
-              // comme dans Photoshop, c'est une chaîne de traitement appliquée
-              // à une image de fond. L'IDENTIFIANT reste `layers` — il est lu
-              // par dockLayout, panelVisibility et le rail ; aucun libellé
-              // n'est persisté nulle part (vérifié : ni localStorage ni
-              // document de preset ne porte de titre de panneau).
-              id: "layers", title: "Effets", collapsed: layersFolded, onCollapsedChange: setLayersFolded,
+              id: "layers", title: "Pile", collapsed: layersFolded, onCollapsedChange: setLayersFolded,
               // La pile de calques est LA liste longue du dock.
               variableLength: true,
-              // Contrôles du calque SÉLECTIONNÉ, dans la zone fixe de la carte
-              // (ils ne défilent pas avec la liste) — ils étaient répétés sur
-              // chaque ligne jusqu'au 2026-07-27.
-              // PIED et non en-tête (décision Antoine 2026-07-28) : on lit
-              // d'abord CE QUI est modifié — la ligne sélectionnée dans la
-              // liste — puis les réglages qui s'y appliquent. L'ADR-0001 est
-              // préservé : la zone reste unique, fixe, hors du conteneur
-              // défilant ; seule sa position change.
-              controlsPlacement: "bottom",
-              controls: <LayerControls
-                  layers={layers}
-                  selectedId={selectedId}
-                  onOpacityChange={handleOpacityChange}
-                  onOpacityCommit={handleParamCommit}
-                  onBlendModeChange={handleBlendModeChange}
-                  onEffectChange={handleEffectChange}
-                  // Verrou/duplication/suppression : migrés des lignes vers
-                  // cette zone le 2026-07-29 (ADR-0001). Ils agissent sur le
-                  // calque sélectionné ; les callbacks sont inchangés.
-                  onToggleLock={handleToggleLock}
-                  onDuplicate={handleDuplicate}
-                  onRemove={handleRemove}
-                />,
               content: <LayerPanel
                   layers={layers}
                   selectedId={selectedId}
+                  selectedTarget={propertiesTarget}
                   hasImage={imageSize.width > 0 && imageSize.height > 0}
                   onSelect={selectLayer}
+                  onSelectTarget={handlePropertiesTargetChange}
                   onToggle={isolation.handleEyeClick}
                   isolatedLayerId={isolation.isolatedLayerId}
                   onAdd={handleAdd}
@@ -1928,8 +1892,30 @@ export default function App() {
                 />
             },
             {
-              id: "photo", title: "Photo", collapsed: photoFolded, onCollapsedChange: setPhotoFolded,
-              content: <PhotoPanel
+              id: "properties", title: currentPropertiesTitle,
+              collapsed: propertiesFolded, onCollapsedChange: setPropertiesFolded,
+              // Propriétés est un contenu de formulaire, pas une liste de
+              // lignes. Le classer `variableLength` lui appliquait le
+              // plancher « cinq lignes » réservé aux listes : avec Courbes,
+              // ce faux minimum faisait défiler à la fois la grille du dock
+              // et le contenu de la carte. La carte garde son propre scroll
+              // et la grille reste immobile dans une fenêtre normale.
+              content: <PropertiesPanel
+                target={propertiesTarget}
+                layer={selectedLayer}
+                onTargetChange={handlePropertiesTargetChange}
+                controlsContent={<LayerControls
+                  layers={layers}
+                  selectedId={selectedId}
+                  onOpacityChange={handleOpacityChange}
+                  onOpacityCommit={handleParamCommit}
+                  onBlendModeChange={handleBlendModeChange}
+                  onEffectChange={handleEffectChange}
+                  onToggleLock={handleToggleLock}
+                  onDuplicate={handleDuplicate}
+                  onRemove={handleRemove}
+                />}
+                photoContent={<PhotoPanel
                   layer={selectedLayer}
                   thumbnailUrl={photoLayer.thumbnailUrl}
                   onTransformChange={handleTransformChange}
@@ -1938,11 +1924,8 @@ export default function App() {
                   onFitToCanvas={photoLayer.handlePhotoFitToCanvas}
                   onCenter={photoLayer.handlePhotoCenter}
                   onReplaceImage={photoLayer.handleReplacePhotoImage}
-                />
-            },
-            {
-              id: "params", title: paramsPanelTitle, collapsed: paramsFolded, onCollapsedChange: setParamsFolded,
-              content: <ParamPanel
+                />}
+                effectContent={<ParamPanel
                   layer={selectedLayer}
                   onParamChange={handleParamChange}
                   onParamCommit={handleParamCommit}
@@ -1964,13 +1947,8 @@ export default function App() {
                           }
                     )
                   }
-                />
-            },
-            {
-              id: "mask", title: "Masque", collapsed: maskFolded, onCollapsedChange: setMaskFolded,
-              // Liste des sources de masque : longueur variable elle aussi.
-              variableLength: true,
-              content: <MaskPanel
+                />}
+                maskContent={<MaskPanel
                   // Props RESSERRÉES (2026-07-30) : le panneau ne reçoit plus
                   // le calque entier, dont l'identité change à chaque frame de
                   // tout geste vivant, mais les trois champs qu'il lit. Voir
@@ -1993,7 +1971,8 @@ export default function App() {
                   onRefineEdgeChange={handleRefineEdgeChange}
                   onRefineEdgeCommit={handleParamCommit}
                   onAddColorSample={handleAddColorSample}
-                />
+                />}
+              />
             },
           ]}
           layout={visibleLayout}

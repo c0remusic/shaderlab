@@ -22,12 +22,11 @@ function makeStoryLayer(overrides: Partial<LayerState>): LayerState {
   };
 }
 
-const layout: DockLayout = [["layers", "params"], ["mask"]];
+const layout: DockLayout = [["layers", "properties"]];
 
 const panels: DockedPanelSpec[] = [
-  { id: "layers", title: "Calques", collapsed: false, onCollapsedChange: () => {}, content: <p style={{ margin: 0 }}>Liste des calques.</p> },
-  { id: "params", title: "Paramètres", collapsed: false, onCollapsedChange: () => {}, content: <p style={{ margin: 0 }}>Réglages de l'effet.</p> },
-  { id: "mask", title: "Masque", collapsed: true, onCollapsedChange: () => {}, content: <p style={{ margin: 0 }}>Sources de masque.</p> },
+  { id: "layers", title: "Pile", collapsed: false, onCollapsedChange: () => {}, content: <p style={{ margin: 0 }}>Structure du document.</p> },
+  { id: "properties", title: "Propriétés · Glow", collapsed: false, onCollapsedChange: () => {}, content: <p style={{ margin: 0 }}>Effet ou masque de la cible.</p> },
 ];
 
 const meta: Meta<typeof PanelColumn> = {
@@ -48,7 +47,7 @@ type Story = StoryObj<typeof PanelColumn>;
 export const Default: Story = {};
 
 export const SingleColumn: Story = {
-  args: { layout: [["layers", "params", "mask"]] },
+  args: { layout: [["layers", "properties"]] },
 };
 
 // --- State variants ---
@@ -93,7 +92,7 @@ export const ListCardHasCompressionFloor: Story = {
     panels: [
       {
         id: "layers",
-        title: "Effets",
+        title: "Pile",
         collapsed: false,
         onCollapsedChange: () => {},
         variableLength: true,
@@ -150,7 +149,7 @@ const DOCK_VIEWPORT_MARGIN = 32;
  *  (mesure CDP du 2026-07-27 reprise dans l'ADR-0001). Elles ne sont pas du
  *  décor : sans elles la colonne n'est pas en déficit, aucune carte n'est
  *  comprimée, et la garde ne garderait rien. */
-const OTHER_PANEL_CONTENT_HEIGHTS = { presets: 88, photo: 334, params: 187, mask: 248 };
+const OTHER_PANEL_CONTENT_HEIGHTS = { presets: 88, properties: 334 };
 
 const fillerPanel = (id: string, title: string, height: number, variableLength = false): DockedPanelSpec => ({
   id,
@@ -193,7 +192,7 @@ export const FiveRowDocumentHidesNoRow: Story = {
     <div className="sb-dock-viewport" style={{ position: "relative", height: DOCK_VIEWPORT_HEIGHT }}>
       <style>{`.sb-dock-viewport .panel-column__grid { max-height: ${DOCK_VIEWPORT_HEIGHT - DOCK_VIEWPORT_MARGIN}px; }`}</style>
       <PanelColumn
-        layout={[["presets", "layers", "photo", "params", "mask"]]}
+        layout={[["presets", "layers", "properties"]]}
         onMove={() => {}}
         width={320}
         onWidthChange={() => {}}
@@ -201,7 +200,7 @@ export const FiveRowDocumentHidesNoRow: Story = {
           fillerPanel("presets", "Presets", OTHER_PANEL_CONTENT_HEIGHTS.presets, true),
           {
             id: "layers",
-            title: "Effets",
+            title: "Pile",
             collapsed: false,
             onCollapsedChange: () => {},
             variableLength: true,
@@ -231,9 +230,7 @@ export const FiveRowDocumentHidesNoRow: Story = {
               />
             ),
           },
-          fillerPanel("photo", "Photo", OTHER_PANEL_CONTENT_HEIGHTS.photo),
-          fillerPanel("params", "Réglages", OTHER_PANEL_CONTENT_HEIGHTS.params),
-          fillerPanel("mask", "Masque", OTHER_PANEL_CONTENT_HEIGHTS.mask, true),
+          fillerPanel("properties", "Propriétés · Lens distortion", OTHER_PANEL_CONTENT_HEIGHTS.properties),
         ]}
       />
     </div>
@@ -303,7 +300,6 @@ export const CollapsePanelCallsSpec: Story = {
     panels: [
       { ...panels[0], onCollapsedChange: fn() },
       { ...panels[1], collapsed: true },
-      { ...panels[2] },
     ],
   },
   play: async ({ args, canvasElement }) => {

@@ -4,6 +4,7 @@ import type { PresetDocument } from "../../src/presets/presetTypes";
 import { defaultLayerMask } from "../../src/mask/types";
 import type { LayerState } from "../../src/layers/types";
 import type { EffectParam } from "../../src/render/effects/types";
+import { curves } from "../../src/render/effects/curves";
 
 function layer(overrides: Partial<LayerState> = {}): LayerState {
   return {
@@ -200,5 +201,24 @@ describe("migratePresetDocument", () => {
       layers: [],
     };
     expect(migratePresetDocument(doc)).toEqual(doc);
+  });
+});
+
+describe("preset Courbes", () => {
+  it("reste un JSON numérique transportable, sans photo ni migration spéciale", () => {
+    const params = Object.fromEntries(curves.params.map((param) => [param.name, param.default]));
+    params.masterPoint1X = 0.35;
+    params.masterPoint1Y = 0.22;
+    const source = layer({ id: "curve-layer", effectId: "curves", params });
+    const { preset } = capture([photo("photo-document", 0), source], "Courbe douce");
+    const serialized = JSON.stringify(preset);
+    const parsed = JSON.parse(serialized) as PresetDocument;
+    const result = apply(parsed, (id) => id === "curves", (id) => id === "curves" ? curves.params : null, () => "curve-fresh");
+
+    expect(parsed.schemaVersion).toBe(PRESET_SCHEMA_VERSION);
+    expect(parsed.layers).toHaveLength(1);
+    expect(Object.values(parsed.layers[0].params).every((value) => typeof value === "number")).toBe(true);
+    expect(result.layers[0]).toMatchObject({ id: "curve-fresh", effectId: "curves", params });
+    expect(result.layers[0].imageSource).toBeUndefined();
   });
 });

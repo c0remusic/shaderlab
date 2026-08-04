@@ -47,6 +47,16 @@
   overflow-y: auto;
 }
 
+/* Scroll vertical de DERNIER RECOURS uniquement. Son thumb ne concurrence pas
+   ceux des cartes ; il se révèle quand on vise directement la prise. */
+.panel-column__grid.scroll-thin::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+
+.panel-column__grid.scroll-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
 /* MODÈLE DE DÉFILEMENT (2026-07-27) : la colonne NE défile PLUS. Elle est
    bornée par la hauteur disponible (max-height héritée de .panel-column__grid)
    et distribue cette hauteur à ses cartes ; chaque carte défile dans son propre

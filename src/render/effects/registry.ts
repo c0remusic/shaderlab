@@ -20,6 +20,7 @@ import { lensDistortion } from "./lensDistortion";
 import { motionBlur } from "./motionBlur";
 import { glass } from "./glass";
 import { lensFlare } from "./lensFlare";
+import { curves } from "./curves";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 
 // Les six du milieu suivent l'ordre de priorité du backlog d'effets confirmé par
@@ -125,6 +126,7 @@ export const effectRegistry: EffectModule[] = [
   dither,
   gooeyMerge,
   channelMixer,
+  curves,
   // `outlines` a ABSORBÉ `coloredEdges` le 2026-08-03 (arbitrage d'Antoine).
   // Les deux partageaient déjà leur détecteur (`edgeGradient.ts`) et cinq
   // paramètres sur huit, écrits deux fois aux mêmes valeurs ; ce qui les

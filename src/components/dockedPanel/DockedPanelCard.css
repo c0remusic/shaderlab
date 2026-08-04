@@ -108,6 +108,7 @@
 }
 
 .docked-panel-card__content {
+  --dock-scroll-thumb: transparent;
   padding: var(--space-5);
   /* MODÈLE DE DÉFILEMENT (2026-07-27) : le scroll vit ICI, par panneau, et
    * PAS sur `.panel-column__stack`. `f8b2a0b` avait supprimé le double
@@ -128,6 +129,22 @@
    * coercition CSS — sans effet ici puisque l'axe Y est déjà `auto`, mais la
    * règle vaut pour quiconque retirerait le `overflow-y` ci-dessus. */
   overflow-x: clip;
+}
+
+/* Plusieurs cartes peuvent défiler en même temps, mais afficher tous leurs
+   thumbs côte à côte produit une fausse « double barre ». La gouttière reste
+   réservée (aucun saut de largeur) ; seul le panneau utilisé révèle son thumb. */
+.docked-panel-card__content.scroll-thin::-webkit-scrollbar-thumb {
+  background: var(--dock-scroll-thumb);
+}
+
+.docked-panel-card__content.scroll-thin:hover,
+.docked-panel-card__content.scroll-thin:focus-within {
+  --dock-scroll-thumb: var(--border-emphasis);
+}
+
+.docked-panel-card__content.scroll-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
 }
 
 /* Barre de défilement fine : utilitaire partagé `.scroll-thin`

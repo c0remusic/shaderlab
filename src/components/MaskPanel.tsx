@@ -12,6 +12,8 @@ import { Checkbox } from "./ui/checkbox";
 import { Toggle } from "./ui/toggle";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { Trash2, Eye, EyeOff } from "lucide-react";
+import { TonalRangeControl } from "./TonalRangeControl";
+import { ColorRangeControl } from "./ColorRangeControl";
 
 interface Props {
   /* PROPS RESSERRÉES (2026-07-30, profil CPU). Ce panneau recevait le
@@ -320,7 +322,28 @@ export const MaskPanel = memo(function MaskPanel({
               <p className="param-panel__source-params-title">
                 Réglages · {getMaskSourceModule(activeSource.type).name}
               </p>
+              {activeSource.type === "luminosity" && (
+                <TonalRangeControl
+                  values={activeSource.params as unknown as import("../ui/tonalRange").TonalRangeValues}
+                  disabled={locked}
+                  onChange={(patch) => onMaskSourceParamsChange(layerId, activeSource.id, { ...activeSource.params, ...patch })}
+                  onCommit={onMaskSourceParamsCommit}
+                />
+              )}
+              {activeSource.type === "colorRange" && (
+                <ColorRangeControl
+                  samples={(activeSource.params.samples as number[]) ?? []}
+                  tolerance={(activeSource.params.tolerance as number) ?? 0}
+                  hardness={(activeSource.params.hardness as number) ?? 0}
+                  disabled={locked}
+                  onAddSample={() => onAddColorSample(layerId, activeSource.id)}
+                  onChange={(patch) => onMaskSourceParamsChange(layerId, activeSource.id, { ...activeSource.params, ...patch })}
+                  onCommit={onMaskSourceParamsCommit}
+                />
+              )}
               {Object.entries(activeSource.params).map(([key, value]) => {
+                if (activeSource.type === "luminosity" && ["shadowsMin", "shadowsMax", "highlightsMin", "highlightsMax"].includes(key)) return null;
+                if (activeSource.type === "colorRange" && ["samples", "tolerance", "hardness"].includes(key)) return null;
                 if (key === "samples") {
                   const samples = (value as number[]) ?? [];
                   const sampleCount = Math.floor(samples.length / 3);

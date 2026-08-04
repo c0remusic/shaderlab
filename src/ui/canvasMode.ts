@@ -21,7 +21,7 @@ import type { CropRect } from "../layers/types";
  */
 export type CanvasMode =
   | { kind: "idle" }
-  | { kind: "maskPaint" }
+  | { kind: "maskPaint"; layerId: string; sourceId: string | null }
   | { kind: "crop"; layerId: string; original: CropRect | undefined };
 
 export const IDLE_CANVAS_MODE: CanvasMode = { kind: "idle" };
@@ -29,8 +29,8 @@ export const IDLE_CANVAS_MODE: CanvasMode = { kind: "idle" };
 /** Bascule du mode peinture de masque. Entrer dans un mode sort de l'autre :
  *  depuis `crop`, on entre en peinture (le crop est ABANDONNÉ, jamais
  *  validé — même sémantique que `pointercancel`). */
-export function toggleMaskPaint(mode: CanvasMode): CanvasMode {
-  return mode.kind === "maskPaint" ? { kind: "idle" } : { kind: "maskPaint" };
+export function toggleMaskPaint(mode: CanvasMode, layerId: string, sourceId: string | null): CanvasMode {
+  return mode.kind === "maskPaint" ? { kind: "idle" } : { kind: "maskPaint", layerId, sourceId };
 }
 
 /** Entre en mode recadrage sur `layerId`, en mémorisant le crop d'entrée
@@ -71,7 +71,15 @@ export function reconcileCanvasMode(
   mode: CanvasMode,
   selectedId: string | null,
   layerIds: readonly string[],
+  brushSourceIdsByLayer: ReadonlyMap<string, readonly string[]> = new Map(),
 ): CanvasMode {
+  if (mode.kind === "maskPaint") {
+    if (mode.layerId !== selectedId || !layerIds.includes(mode.layerId)) return { kind: "idle" };
+    const sourceIds = brushSourceIdsByLayer.get(mode.layerId) ?? [];
+    if (mode.sourceId === null && sourceIds.length > 0) return { ...mode, sourceId: sourceIds[0] };
+    if (mode.sourceId !== null && !sourceIds.includes(mode.sourceId)) return { kind: "idle" };
+    return mode;
+  }
   if (mode.kind !== "crop") return mode;
   if (mode.layerId !== selectedId) return { kind: "idle" };
   if (!layerIds.includes(mode.layerId)) return { kind: "idle" };

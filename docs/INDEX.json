@@ -169,6 +169,46 @@
       "_verification": "Le finding principal n'est pas déduit du code : il est mesuré par `Renderer.exportFrame()` lu en CDP sur la vraie fenêtre WebView2, avec deux témoins (glow, posterize) restés lumineux sur le même montage."
     },
     {
+      "path": "docs/superpowers/specs/2026-08-03-controles-effets-design.md",
+      "date": "2026-08-03",
+      "topic": "design des contrôles d'effets — manipulations spatiales directes puis courbes, plages tonales et rampes",
+      "summary": "Transforme le cahier de postproduction éditoriale en chantier UI sans confondre looks et nouveaux filtres. Constat sur le code réel : ParamPanel sait rendre curseur, choix nommé et groupe HSL ; canvasRegion est une exception spécialisée disque, branchée directement dans App.tsx, déjà utile à pixelStretch/lensFlare mais impossible à étendre proprement par copie. Tranche 1 : union déclarative CanvasControl (point/disk/axis), noms de paramètres validés fail-fast, géométrie pure, un hôte de toile, valeurs numériques conservées comme source de vérité, live pendant le geste + un commit au relâchement, clavier et exclusion pendant peinture de masque. P0 : migration sans régression des deux disques puis axe de motionBlur. P1 : lensDistortion/glass seulement si leurs paramètres réels portent la géométrie. Tranches suivantes explicitement séparées : courbes + plages tonales, rampe trois arrêts de gradientMap, puis éléments de composition. Aucun shader, paramètre, preset ou format de document ne change en tranche 1."
+    },
+    {
+      "path": "docs/superpowers/specs/2026-08-03-pile-proprietes-masque-design.md",
+      "date": "2026-08-03",
+      "topic": "design UX unifié de la pile, des propriétés et des masques",
+      "summary": "Remplace la navigation fragmentée Effets/Photo/Réglages/Masque par deux zones persistantes : Pile pour la structure et Propriétés pour la cible. La pile montre photos racines et effets rattachés ; une ligne d'effet porte deux cibles explicites, son corps et sa vignette de masque. Propriétés route le contenu Photo ou les onglets Effet/Masque sans dupliquer les handlers métier. Le masque cesse d'être un panneau global et devient une facette de l'effet ; Peindre ouvre une session liée au calque/source, fermée sur Échap ou changement de contexte. Ajout d'effet contextualisé et classé par intention. Aucun changement de compositing ou format de document dans cette tranche. Référence interactive : docs/wireframes/effect-controls.html."
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-03-pile-proprietes-masque.md",
+      "status": "PRÊT APRÈS CHECKPOINT DU WIREFRAME — Task 0 humaine obligatoire, Tasks 1-9 non commencées.",
+      "date": "2026-08-03",
+      "topic": "plan d'implémentation du flux Pile/Propriétés/Masque",
+      "summary": "Dix étapes : validation du wireframe ; état pur de sélection photo/effet/masque ; projection de pile ; nouveau LayerPanel ; PropertiesPanel réutilisant PhotoPanel/ParamPanel/MaskPanel ; ajout d'effet contextualisé ; session masque explicite ; miniature bornée sans raster React ; dépose des cartes fragmentées et migration du layout ; preuve automatique, CDP et checkpoint humain. Le plan garde l'ordre causal, le drag existant, le contrat live/commit et l'invariant des gros buffers hors state React."
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-03-controles-effets-spatiaux.md",
+      "status": "TERMINÉ le 2026-08-04 — Tasks 1-7 exécutées, contrôles point/disque/axe validés dans WebView2, checkpoint Antoine obtenu ; suite tranche 2 écrite.",
+      "date": "2026-08-03",
+      "topic": "plan d'implémentation de la tranche 1 des contrôles d'effets spatiaux",
+      "summary": "Sept tâches livrées : union CanvasControl validée, géométrie pure, hôte générique accessible, migration des disques lensFlare/pixelStretch, axe Motion blur directionnel et point Centre en Rotation/Zoom, regroupement ParamPanel, puis preuve complète. Mesures WebView2 : overlay Pixel stretch aligné au canvas sous 0,02 px avant/après zoom ; déplacement clavier annulé/rétabli en une entrée ; peinture masque cache le contrôle et Échap le restaure ; console propre. 1716 tests unitaires, 289 stories et 151 shaders verts au checkpoint."
+    },
+    {
+      "path": "docs/superpowers/specs/2026-08-04-controles-effets-courbes-plages-tonales-design.md",
+      "status": "EXÉCUTÉ EN CODE le 2026-08-04 — Tasks 1 à 6 review-clean ; preuve visuelle finale encore en attente.",
+      "date": "2026-08-04",
+      "topic": "design tranche 2 des contrôles d'effets — courbes maître/RGB et ciblage tonal",
+      "summary": "Décide un effet Courbes autonome piloté par déclaration, quatre canaux Maître/R/V/B, cinq points bornés par canal et une plage tonale à quatre poignées. Les données restent des nombres dans LayerState.params et les presets JSON : endpoints fixes, trois slots intérieurs avec sentinelle, aucun blob ni texture persistée. Le plafond partagé passe de 32 à 48 floats pour 37 paramètres réels. Interpolation cubique monotone commune CPU/WGSL, identité neutre à l'octet, live+commit unique, contrôle tonal visuellement partagé avec le masque mais modèle métier séparé."
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-04-controles-effets-courbes-plages-tonales.md",
+      "status": "EN CHECKPOINT FINAL — Tasks 1 à 6 terminées ; 1 738 unitaires, 293 stories, types, tokens, build et 154 shaders verts. Référence dédiée et checkpoint WebView2/humain en attente.",
+      "date": "2026-08-04",
+      "topic": "plan d'implémentation tranche 2 — éditeur de courbes et plage tonale d'effet",
+      "summary": "Sept tâches : capacité/déclarations ; modèle pur et interpolation monotone ; éditeur SVG accessible ; effet Courbes avec référence neutre préalable ; plage tonale d'effet ; intégration ParamPanel/historique/presets ; preuve complète et checkpoint humain. Le plan interdit les branchements par effectId, les buffers lourds dans React et les presets opaques ; la tranche 3 gradientMap reste séparée."
+    },
+    {
       "path": "docs/superpowers/specs/2026-08-03-verre-plan-de-portage.md",
       "date": "2026-08-03",
       "topic": "plan de portage du système de réfraction du portfolio vers un effet `glass` — validé, tranche 1 livrée",
@@ -371,6 +411,20 @@
       "date": "2026-07-30",
       "topic": "plan performance en six tranches (P0 fait, P1-P5 devenues du confort)",
       "summary": "Règle d'exécution en trois temps par tranche (mesurer avant, implémenter en worktree isolé, review adverse qui rejoue les commandes elle-même), témoin planté obligatoire sur test:render, exécution séquentielle assumée — deux agents qui mesurent sur la même fenêtre se perturbent. P0 (mesure en build de production, aucun code touché) a FERMÉ la boucle : la cible est tenue. P1 morphologie de masque sur-invalidée, P2 pré-passe photo conditionnelle, P3 cache de préfixe de pile, P4 téléversement incrémental du masque, P5 nettoyages — toutes restent des gaspillages réels mais ne sont plus un problème de fluidité. À rouvrir seulement si la lenteur est de nouveau ressentie, en nommant la condition manquante."
+    },
+    {
+      "path": "docs/superpowers/specs/2026-08-04-controle-rampe-gradient-map-design.md",
+      "status": "✅ IMPLÉMENTÉ — checkpoint humain final en attente",
+      "date": "2026-08-04",
+      "topic": "design du contrôle visuel à trois arrêts de Gradient Map",
+      "summary": "Rampe compacte déclarative : trois pastilles couleur, arrêt moyen positionnable, points noir/blanc non croisés, sélecteur couleur existant, clavier et pointercancel. Remplace comme interface principale les neuf sliders HSL et trois sliders de position sans modifier le format numérique des presets ni le shader."
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-04-controle-rampe-gradient-map.md",
+      "status": "🟡 TASKS 1-5 TECHNIQUEMENT TERMINÉES — checkpoint humain final en attente",
+      "date": "2026-08-04",
+      "topic": "plan d'implémentation tranche 3 : rampe Gradient Map",
+      "summary": "Contrat EffectModule.colorRampControls validé, modèle pur, ColorRampControl accessible, intégration ParamPanel sans branche par effectId, stories et preuve WebView2. Gates verts : 1742 unit, 301 Storybook, 154 shaders, build et tokens."
     }
   ]
 }

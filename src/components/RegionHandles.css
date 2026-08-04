@@ -85,3 +85,9 @@
   outline: 2px solid var(--focus-color);
   outline-offset: 2px;
 }
+
+.region-handles__center:disabled,
+.region-handles__radius:disabled {
+  cursor: default;
+  opacity: var(--disabled-opacity);
+}

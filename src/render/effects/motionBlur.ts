@@ -299,6 +299,10 @@ export const motionBlur: EffectModule = {
     { name: "bias", label: "Décentrage de l'obturateur", unit: "percent", min: -1, max: 1, default: 0, step: 0.01, hint: "0 = la traînée déborde des deux côtés du sujet, comme une intégration symétrique. ±1 = elle part d'un seul côté et le sujet garde un bord net de l'autre, comme un obturateur à rideau" },
     { name: "falloff", label: "Extinction", unit: "percent", min: 0, max: 1, default: 0.35, step: 0.01, hint: "0 = obturateur franc, toute la traînée à densité égale. 1 = elle s'éteint vers ses extrémités, le filé photographique" },
   ],
+  canvasControls: [
+    { id: "trajectory", kind: "axis", angle: "angle", length: "amount", label: "Trajectoire", visibleWhen: { param: "trajectory", equals: 0 } },
+    { id: "center", kind: "point", x: "centerX", y: "centerY", label: "Centre", visibleWhen: { param: "trajectory", equals: [1, 2] } },
+  ],
   passes: [
     { scale: STAGE1_SCALE, wgsl: MOTION_GATHER_WGSL },
     { scale: STAGE1_SCALE, wgsl: MOTION_STITCH_WGSL },

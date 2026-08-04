@@ -117,14 +117,14 @@ export function activeTool(state: ToolState): ToolId {
  * remettre à faux : c'est ce qui fait qu'un aller-retour vers la palette rend
  * la gomme et non le pinceau.
  */
-export function selectTool(tool: ToolId, current: ToolState): ToolState {
+export function selectTool(tool: ToolId, current: ToolState, target?: { layerId: string; sourceId: string | null }): ToolState {
   switch (tool) {
     case "move":
       return { mode: IDLE_CANVAS_MODE, erase: current.erase };
     case "brush":
-      return { mode: { kind: "maskPaint" }, erase: false };
+      return { mode: target ? { kind: "maskPaint", ...target } : IDLE_CANVAS_MODE, erase: false };
     case "eraser":
-      return { mode: { kind: "maskPaint" }, erase: true };
+      return { mode: target ? { kind: "maskPaint", ...target } : IDLE_CANVAS_MODE, erase: true };
   }
 }
 

@@ -30,10 +30,13 @@ import { effectRegistry } from "../../src/render/effects/registry";
 describe("clés de rendu du panneau de paramètres", () => {
   for (const effect of effectRegistry) {
     it(`${effect.id} : deux items de rendu ne partagent jamais une clé React`, () => {
-      const cles = groupEffectParams(effect.params).map((item) => item.reactKey);
+      const contrôlés = new Set(effect.curveControls?.flatMap((control) => control.channels.flatMap((channel) => [channel.startY, channel.endY, ...channel.points.flatMap((point) => [point.x, point.y])])) ?? []);
+      if (effect.tonalRangeControl) Object.values(effect.tonalRangeControl).forEach((name) => contrôlés.add(name));
+      const cles = groupEffectParams(effect.params, effect.canvasControls, contrôlés).map((item) => item.reactKey);
       const doublons = cles.filter((c, i) => cles.indexOf(c) !== i);
       expect(doublons, `clés dupliquées dans ${effect.id} : ${doublons.join(", ")}`).toEqual([]);
       expect(new Set(cles).size).toBe(cles.length);
+      for (const name of contrôlés) expect(cles).not.toContain(`param:${name}`);
     });
   }
 
@@ -64,5 +67,20 @@ describe("clés de rendu du panneau de paramètres", () => {
     expect(reelles).toContain("param:tint");
     expect(reelles).toContain("groupe:tint");
     expect(new Set(reelles).size).toBe(reelles.length);
+  });
+
+  it("place un en-tête spatial avant les paramètres sans les dupliquer", () => {
+    const motion = effectRegistry.find((effect) => effect.id === "motionBlur")!;
+    const items = groupEffectParams(motion.params, motion.canvasControls);
+    const header = items.findIndex((item) => item.kind === "spatial-header" && item.id === "trajectory");
+    const angle = items.findIndex((item) => item.kind === "single" && item.param.name === "angle");
+    const amount = items.findIndex((item) => item.kind === "single" && item.param.name === "amount");
+    expect(header).toBeGreaterThanOrEqual(0);
+    expect(header).toBeLessThan(angle);
+    expect(header).toBeLessThan(amount);
+    expect(items.filter((item) => item.kind === "single" && ["angle", "amount"].includes(item.param.name))).toHaveLength(2);
+    expect(items.filter((item) => item.kind === "spatial-header").map((item) => item.reactKey)).toEqual([
+      "spatial:trajectory", "spatial:center",
+    ]);
   });
 });

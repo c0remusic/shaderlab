@@ -95,7 +95,7 @@ export const pixelStretch: EffectModule = {
   // Les curseurs RESTENT : le cercle vise, ils affinent. Retirer les uns pour
   // l'autre échangerait un défaut d'ergonomie contre un autre — un réglage fin
   // au pixel près ne se fait pas à la souris.
-  canvasRegion: { centerX: "regionX", centerY: "regionY", radius: "regionRadius" },
+  canvasControls: [{ id: "zone", kind: "disk", x: "regionX", y: "regionY", radius: "regionRadius", label: "Zone" }],
   wgsl: `
 ${UV_SPACE_WGSL}${HASH_WGSL}${VALUE_NOISE_WGSL}
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {

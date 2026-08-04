@@ -1,0 +1,45 @@
+.effect-picker__search {
+  transition: outline-color var(--duration-fast) var(--ease-standard);
+}
+
+.effect-picker__search:focus-within {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: calc(-1 * var(--focus-width));
+}
+
+.effect-picker__search-input {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+}
+
+/* Le focus appartient au CHAMP COMPLET (`label:focus-within`) : la règle
+   globale de reset sur `:focus-visible` ne doit pas dessiner un second cadre
+   rectangulaire autour de l'input seul. */
+.effect-picker__search-input:focus,
+.effect-picker__search-input:focus-visible {
+  outline: none;
+  outline-offset: 0;
+  box-shadow: none;
+}
+
+.effect-picker__group + .effect-picker__group {
+  margin-top: var(--space-4);
+}
+
+.effect-picker__category {
+  margin-bottom: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-control);
+  background: var(--surface-inset);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.effect-picker__effect {
+  padding-right: var(--space-2);
+  padding-left: var(--space-5);
+}

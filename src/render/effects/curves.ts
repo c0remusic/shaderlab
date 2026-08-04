@@ -1,0 +1,153 @@
+import type { CurveChannelControl, EffectModule, EffectParam } from "./types";
+import { evaluateMonotoneCurve, type CurvePoint } from "../../ui/curveControl";
+
+const LUMA = [0.2126, 0.7152, 0.0722] as const;
+const CHANNEL_IDS = ["master", "red", "green", "blue"] as const;
+const CHANNEL_LABELS = ["Maître", "Rouge", "Vert", "Bleu"] as const;
+
+function channelParamNames(id: string) {
+  return {
+    startY: `${id}StartY`,
+    points: [0, 1, 2].map((slot) => ({ x: `${id}Point${slot + 1}X`, y: `${id}Point${slot + 1}Y` })) as CurveChannelControl["points"],
+    endY: `${id}EndY`,
+  };
+}
+
+function channelParams(id: string): EffectParam[] {
+  const names = channelParamNames(id);
+  const ordinate = (name: string, defaultValue: number): EffectParam => ({
+    name, label: name, unit: "percent", min: 0, max: 1, default: defaultValue, step: 0.001,
+  });
+  return [
+    ordinate(names.startY, 0),
+    ...names.points.flatMap((point, index) => [
+      { name: point.x, label: point.x, unit: "percent" as const, min: -1, max: 1, default: -1, step: 0.001 },
+      ordinate(point.y, (index + 1) / 4),
+    ]),
+    ordinate(names.endY, 1),
+  ];
+}
+
+const curveChannels: CurveChannelControl[] = CHANNEL_IDS.map((id, index) => ({
+  id,
+  label: CHANNEL_LABELS[index],
+  ...channelParamNames(id),
+}));
+
+function channelPoints(params: readonly number[], offset: number): CurvePoint[] {
+  const points: CurvePoint[] = [{ x: 0, y: params[offset] }];
+  for (let slot = 0; slot < 3; slot += 1) {
+    const x = params[offset + 1 + slot * 2];
+    if (x < 0) break;
+    points.push({ x, y: params[offset + 2 + slot * 2] });
+  }
+  points.push({ x: 1, y: params[offset + 7] });
+  return points;
+}
+
+function isIdentityChannel(params: readonly number[], offset: number): boolean {
+  return params[offset] === 0 && params[offset + 7] === 1 &&
+    params[offset + 1] < 0 && params[offset + 3] < 0 && params[offset + 5] < 0;
+}
+
+/** Twin CPU du shader, utilisé pour verrouiller identité, bornes et parité. */
+export function curvesSpec(rgb: readonly [number, number, number], params: readonly number[]): [number, number, number] {
+  const source: [number, number, number] = [rgb[0], rgb[1], rgb[2]];
+  if ([0, 8, 16, 24].every((offset) => isIdentityChannel(params, offset))) return source;
+  const luma = source[0] * LUMA[0] + source[1] * LUMA[1] + source[2] * LUMA[2];
+  const mappedLuma = evaluateMonotoneCurve(channelPoints(params, 0), luma);
+  const scale = luma > 1e-6 ? mappedLuma / luma : 0;
+  const master = luma > 1e-6 ? source.map((value) => value * scale) : [mappedLuma, mappedLuma, mappedLuma];
+  const corrected: [number, number, number] = [0, 1, 2].map((channel) =>
+    evaluateMonotoneCurve(channelPoints(params, 8 + channel * 8), master[channel])) as [number, number, number];
+  const tone = Math.min(1, Math.max(0, luma));
+  const smoothstep = (a: number, b: number, x: number) => {
+    if (b <= a) return x >= b ? 1 : 0;
+    const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+    return t * t * (3 - 2 * t);
+  };
+  const range = smoothstep(params[32], params[33], tone) * (1 - smoothstep(params[34], params[35], tone));
+  const amount = Math.min(1, Math.max(0, params[36])) * range;
+  return source.map((value, channel) => Math.min(1, Math.max(0, value + (corrected[channel] - value) * amount))) as [number, number, number];
+}
+
+const WGSL_CURVE = `
+fn curve_is_identity(base: u32) -> bool {
+  return params[base] == 0.0 && params[base + 7u] == 1.0 &&
+    params[base + 1u] < 0.0 && params[base + 3u] < 0.0 && params[base + 5u] < 0.0;
+}
+fn curves_smoothstep_safe(edge0: f32, edge1: f32, x: f32) -> f32 {
+  if (edge1 <= edge0) { return select(0.0, 1.0, x >= edge1); }
+  let t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+  return t * t * (3.0 - 2.0 * t);
+}
+fn curve_eval(xIn: f32, base: u32) -> f32 {
+  var xs = array<f32, 5>(0.0, 1.0, 1.0, 1.0, 1.0);
+  var ys = array<f32, 5>(params[base], params[base + 7u], params[base + 7u], params[base + 7u], params[base + 7u]);
+  var count = 2u;
+  for (var slot = 0u; slot < 3u; slot += 1u) {
+    let px = params[base + 1u + slot * 2u];
+    if (px < 0.0) { break; }
+    xs[count - 1u] = px;
+    ys[count - 1u] = params[base + 2u + slot * 2u];
+    xs[count] = 1.0;
+    ys[count] = params[base + 7u];
+    count += 1u;
+  }
+  var slopes = array<f32, 4>();
+  var tangents = array<f32, 5>();
+  for (var i = 0u; i + 1u < count; i += 1u) { slopes[i] = (ys[i + 1u] - ys[i]) / (xs[i + 1u] - xs[i]); }
+  tangents[0] = slopes[0];
+  tangents[count - 1u] = slopes[count - 2u];
+  for (var i = 1u; i + 1u < count; i += 1u) {
+    tangents[i] = select(0.5 * (slopes[i - 1u] + slopes[i]), 0.0, slopes[i - 1u] * slopes[i] <= 0.0);
+  }
+  for (var i = 0u; i + 1u < count; i += 1u) {
+    if (slopes[i] == 0.0) { tangents[i] = 0.0; tangents[i + 1u] = 0.0; }
+    else {
+      let alpha = tangents[i] / slopes[i];
+      let beta = tangents[i + 1u] / slopes[i];
+      let magnitude = alpha * alpha + beta * beta;
+      if (magnitude > 9.0) {
+        let factor = 3.0 / sqrt(magnitude);
+        tangents[i] = factor * alpha * slopes[i];
+        tangents[i + 1u] = factor * beta * slopes[i];
+      }
+    }
+  }
+  let x = clamp(xIn, 0.0, 1.0);
+  var segment = count - 2u;
+  for (var i = 0u; i + 1u < count; i += 1u) { if (x <= xs[i + 1u]) { segment = i; break; } }
+  let width = xs[segment + 1u] - xs[segment];
+  let t = (x - xs[segment]) / width;
+  let t2 = t * t;
+  let t3 = t2 * t;
+  return clamp((2.0*t3-3.0*t2+1.0)*ys[segment] + (t3-2.0*t2+t)*width*tangents[segment] + (-2.0*t3+3.0*t2)*ys[segment+1u] + (t3-t2)*width*tangents[segment+1u], 0.0, 1.0);
+}`;
+
+export const curves: EffectModule = {
+  id: "curves",
+  name: "Courbes",
+  params: [
+    ...CHANNEL_IDS.flatMap(channelParams),
+    { name: "shadowsMin", label: "Début des ombres", unit: "percent", min: 0, max: 1, default: 0, step: 0.001 },
+    { name: "shadowsMax", label: "Fin des ombres", unit: "percent", min: 0, max: 1, default: 0, step: 0.001 },
+    { name: "highlightsMin", label: "Début des hautes lumières", unit: "percent", min: 0, max: 1, default: 1, step: 0.001 },
+    { name: "highlightsMax", label: "Fin des hautes lumières", unit: "percent", min: 0, max: 1, default: 1, step: 0.001 },
+    { name: "mix", label: "Mélange", unit: "percent", min: 0, max: 1, default: 1, step: 0.01 },
+  ],
+  curveControls: [{ id: "curves", label: "Courbes", channels: curveChannels }],
+  tonalRangeControl: { shadowsMin: "shadowsMin", shadowsMax: "shadowsMax", highlightsMin: "highlightsMin", highlightsMax: "highlightsMax" },
+  wgsl: `${WGSL_CURVE}
+const CURVES_LUMA = vec3<f32>(0.2126, 0.7152, 0.0722);
+fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
+  if (curve_is_identity(0u) && curve_is_identity(8u) && curve_is_identity(16u) && curve_is_identity(24u)) { return color; }
+  let luma = dot(color.rgb, CURVES_LUMA);
+  let mappedLuma = curve_eval(luma, 0u);
+  let master = select(vec3<f32>(mappedLuma), color.rgb * (mappedLuma / max(luma, 0.000001)), luma > 0.000001);
+  let corrected = vec3<f32>(curve_eval(master.r, 8u), curve_eval(master.g, 16u), curve_eval(master.b, 24u));
+  let range = curves_smoothstep_safe(params[32], params[33], luma) * (1.0 - curves_smoothstep_safe(params[34], params[35], luma));
+  let amount = clamp(params[36], 0.0, 1.0) * range;
+  return vec4<f32>(clamp(mix(color.rgb, corrected, amount), vec3<f32>(0.0), vec3<f32>(1.0)), color.a);
+}`,
+};

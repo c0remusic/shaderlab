@@ -32,6 +32,7 @@ interface Props {
   onRegionCommit: () => void;
   /** Nom de l'effet, pour que le nom accessible dise de QUELLE zone il s'agit. */
   effectName?: string;
+  disabled?: boolean;
 }
 
 /** Pas du déplacement au clavier, en fraction du cadre. 0,5 % par appui : assez
@@ -50,8 +51,7 @@ type DragKind = "center" | "radius";
 
 /**
  * Manipulateur de RÉGION — le cercle qu'on pose sur la toile pour dire à un
- * effet où agir. Piloté par `EffectModule.canvasRegion`, qui NOMME les trois
- * paramètres concernés (voir `render/effects/types.ts`).
+ * effet où agir. Utilisé comme primitive disque par l'hôte `CanvasControls`.
  *
  * Toute la géométrie vit dans `ui/regionHandles.ts` et se teste en Node ; ce
  * fichier n'a que le DOM, la mesure et les gestes — même partage que
@@ -72,6 +72,7 @@ export function RegionHandles({
   onRegionChange,
   onRegionCommit,
   effectName,
+  disabled = false,
 }: Props) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const [overlayRect, setOverlayRect] = useState<OverlayRect | null>(null);
@@ -237,6 +238,7 @@ export function RegionHandles({
 
       <button
         type="button"
+        disabled={disabled}
         className="region-handles__center"
         style={{ left: drawn.cx - overlayRect.left, top: drawn.cy - overlayRect.top }}
         aria-label={`${nom} — centre. Flèches pour déplacer, Maj pour un pas large.`}
@@ -259,6 +261,7 @@ export function RegionHandles({
           de réduire la zone. */}
       <button
         type="button"
+        disabled={disabled}
         className={`region-handles__radius${rayon.rabattue ? " region-handles__radius--rabattue" : ""}`}
         style={{ left: rayon.x - overlayRect.left, top: rayon.y - overlayRect.top }}
         aria-label={`${nom} — rayon`}

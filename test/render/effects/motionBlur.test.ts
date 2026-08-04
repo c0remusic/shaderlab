@@ -7,6 +7,13 @@ const gather = motionBlur.passes?.[0];
 const stitch = motionBlur.passes?.[1];
 
 describe("motionBlur — la trajectoire", () => {
+  it("déclare un contrôle honnête pour chaque trajectoire", () => {
+    expect(motionBlur.canvasControls).toEqual([
+      { id: "trajectory", kind: "axis", angle: "angle", length: "amount", label: "Trajectoire", visibleWhen: { param: "trajectory", equals: 0 } },
+      { id: "center", kind: "point", x: "centerX", y: "centerY", label: "Centre", visibleWhen: { param: "trajectory", equals: [1, 2] } },
+    ]);
+  });
+
   it("expose trois trajectoires, directionnelle par défaut", () => {
     const traj = motionBlur.params.find((p) => p.name === "trajectory");
     expect(traj?.choices).toEqual(["Directionnel", "Rotation", "Zoom"]);

@@ -413,6 +413,10 @@ const ATTENDU = {
   "effet-verre-arc-plein.png": { width: 256, height: 256, valeurs: null },
   "effet-verre-prisme.png": { width: 256, height: 256, valeurs: null },
   "effet-verre-fond-plat.png": { width: 256, height: 256, valeurs: null },
+  // COURBES : identite GPU sur rampe, puis S-curve + dominante rouge mesuree
+  // contre cette identite. Deux references separent la neutralite du signal.
+  "effet-courbes-neutre.png": { width: 256, height: 256, valeurs: null },
+  "effet-courbes.png": { width: 256, height: 256, valeurs: null },
   // DUOTONE ET GRADIENT MAP SUR LA MEME RAMPE, a dessein : « sont-ils des
   // doublons » en est a son troisieme tour sans avoir jamais eu de mesure. Deux
   // references sur la meme mire, aux memes tons, la rendent chiffrable — et si

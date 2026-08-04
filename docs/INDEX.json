@@ -203,7 +203,7 @@
     },
     {
       "path": "docs/superpowers/plans/2026-08-04-controles-effets-courbes-plages-tonales.md",
-      "status": "EN CHECKPOINT FINAL — Tasks 1 à 6 terminées ; 1 738 unitaires, 293 stories, types, tokens, build et 154 shaders verts. Référence dédiée et checkpoint WebView2/humain en attente.",
+      "status": "TECHNIQUEMENT TERMINÉ — Tasks 1 à 7, WebView2 et deux références pixels dédiées déterministes à l'octet terminées ; verdict visuel humain différé à la demande d'Antoine pour permettre la suite autonome.",
       "date": "2026-08-04",
       "topic": "plan d'implémentation tranche 2 — éditeur de courbes et plage tonale d'effet",
       "summary": "Sept tâches : capacité/déclarations ; modèle pur et interpolation monotone ; éditeur SVG accessible ; effet Courbes avec référence neutre préalable ; plage tonale d'effet ; intégration ParamPanel/historique/presets ; preuve complète et checkpoint humain. Le plan interdit les branchements par effectId, les buffers lourds dans React et les presets opaques ; la tranche 3 gradientMap reste séparée."
@@ -414,14 +414,14 @@
     },
     {
       "path": "docs/superpowers/specs/2026-08-04-controle-rampe-gradient-map-design.md",
-      "status": "✅ IMPLÉMENTÉ — checkpoint humain final en attente",
+      "status": "✅ IMPLÉMENTÉ ET VALIDÉ PAR ITÉRATION HUMAINE le 2026-08-04 — esthétique hybride Photoshop, flèches sous la rampe et trois arrêts positionnables livrés",
       "date": "2026-08-04",
       "topic": "design du contrôle visuel à trois arrêts de Gradient Map",
       "summary": "Rampe compacte déclarative : trois pastilles couleur, arrêt moyen positionnable, points noir/blanc non croisés, sélecteur couleur existant, clavier et pointercancel. Remplace comme interface principale les neuf sliders HSL et trois sliders de position sans modifier le format numérique des presets ni le shader."
     },
     {
       "path": "docs/superpowers/plans/2026-08-04-controle-rampe-gradient-map.md",
-      "status": "🟡 TASKS 1-5 TECHNIQUEMENT TERMINÉES — checkpoint humain final en attente",
+      "status": "✅ TERMINÉ — Tasks 1-5, gates et WebView2 verts ; checkpoint humain conclu après trois demandes de finition successives",
       "date": "2026-08-04",
       "topic": "plan d'implémentation tranche 3 : rampe Gradient Map",
       "summary": "Contrat EffectModule.colorRampControls validé, modèle pur, ColorRampControl accessible, intégration ParamPanel sans branche par effectId, stories et preuve WebView2. Gates verts : 1742 unit, 301 Storybook, 154 shaders, build et tokens."

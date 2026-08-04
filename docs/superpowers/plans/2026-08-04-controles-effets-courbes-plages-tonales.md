@@ -11,10 +11,13 @@
 - Checkpoint technique WebView2 : **passé** sur une instance fraîche avec la
   fixture `sample.jpg` — ajout de Courbes, sélection du calque, canaux M/R/V/B,
   ajout de point, coordonnées E/S, déplacement clavier, historique actif et
-  console sans erreur. Le checkpoint humain final et la référence de rendu
-  dédiée restent en attente.
-- Tranche 3 `gradientMap` : **implémentée et review-clean techniquement** ;
-  checkpoint humain final en attente. Voir
+  console sans erreur. La référence de rendu dédiée est désormais posée en
+  deux scénarios (`effet-courbes-neutre` et `effet-courbes`) et déterministe à
+  l'octet. Le checkpoint humain final reste différé : l'utilisateur a demandé
+  d'enchaîner en autonomie, ce qui autorise la suite mais ne vaut pas verdict
+  visuel fictif.
+- Tranche 3 `gradientMap` : **implémentée, review-clean et validée humainement**
+  après trois itérations de finition. Voir
   `2026-08-04-controle-rampe-gradient-map.md`.
 
 ### Sous-passe de checkpoint — fluidité et finition professionnelle

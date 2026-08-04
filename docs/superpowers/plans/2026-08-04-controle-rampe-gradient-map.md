@@ -10,7 +10,12 @@
   type-check/build et lint tokens verts.
 - WebView2 réelle : rampe affichée, extrémités non rognées, sélecteur couleur,
   clavier, historique et absence de double scroll vérifiés.
-- Checkpoint humain final : en attente.
+- Checkpoint humain final : **validé par itération directe le 2026-08-04**.
+  Antoine a demandé successivement une esthétique hybride Photoshop, les
+  flèches sous la rampe, puis le déplacement des arrêts sombre et clair ; ces
+  trois corrections ont été livrées et le verdict final a été « ok next ? ».
+  Les trois arrêts sont désormais positionnables, avec une distance minimale
+  de 5 %, historique et clavier.
 
 ## Task 1 — Modèle pur
 

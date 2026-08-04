@@ -1,6 +1,6 @@
 # Contrôles d'effets — design
 
-> Statut : **design prêt à exécuter**, écrit le 2026-08-03 à partir du cahier
+> Statut : **tranches 1 à 3 exécutées**, écrit le 2026-08-03 à partir du cahier
 > `2026-08-03-references-postproduction.md` et du registre réel de vingt effets.
 > Première tranche volontairement étroite : **manipulations spatiales directes**.
 > Les courbes, plages tonales et rampes de dégradé sont cadrées ici comme suites,
@@ -194,6 +194,11 @@ de premiers clients aux tranches suivantes.
 Textures/scans, light leaks, formes, typographie, crop et extension de toile sont
 un chantier de documents/calques, pas une extension de `EffectParam`.
 
+État réel au 2026-08-04 : les calques photo et l'extension de toile sont déjà
+livrés par les chantiers du 26–30 juillet. La suite exécutable est donc le plan
+`2026-08-03-pile-proprietes-masque.md`, qui unifie d'abord la structure de pile
+et l'inspecteur avant d'ajouter de nouveaux types de calques.
+
 ## 9. Critères d'acceptation
 
 - Déclarer un contrôle dans un effet suffit pour le faire apparaître sur la toile ;
@@ -227,4 +232,3 @@ image et nombres pour ces deux scénarios.
 - La couleur d'accent des différentes formes peut rester commune en tranche 1 ;
   une couleur par contrôle n'est justifiée que si plusieurs contrôles simultanés
   deviennent ambigus.
-

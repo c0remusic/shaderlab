@@ -2345,6 +2345,36 @@ const INSTALL = `(async () => {
       },
     },
 
+    // COURBES, SUR UNE RAMPE NEUTRE PUIS AVEC UNE CORRECTION VOLONTAIREMENT
+    // VISIBLE. La premiere reference verrouille l'identite byte-for-byte du
+    // chemin GPU ; la seconde porte a la fois une S-curve maitresse et une
+    // dominante rouge, puis se compare a l'identite sur la MEME source.
+    "effet-courbes-neutre": {
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        stack.addLayer("curves", p);
+      },
+    },
+    "effet-courbes": {
+      contre: "effet-courbes-neutre",
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("curves", p);
+        stack.updateParams(a, {
+          masterPoint1X: 0.24, masterPoint1Y: 0.14,
+          masterPoint2X: 0.74, masterPoint2Y: 0.86,
+          redPoint1X: 0.5, redPoint1Y: 0.62,
+          shadowsMin: 0, shadowsMax: 0.08,
+          highlightsMin: 0.92, highlightsMax: 1,
+          mix: 1,
+        });
+      },
+    },
+
     // DUOTONE, SUR LA RAMPE, A SES DEFAUTS EXACTS. Deux choix, deux raisons.
     //
     // La rampe parce que cet effet est une REPONSE TONALE et rien d autre : il

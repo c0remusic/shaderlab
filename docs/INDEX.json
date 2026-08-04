@@ -1,5 +1,12 @@
 {
   "_regle_entretien": "À chaque ajout/déplacement/archivage d'un doc dans docs/, mettre à jour ce fichier dans le même geste, pas en rattrapage différé. Même principe que Sift.",
+  "_feuille_de_route": {
+    "path": "docs/ROADMAP.md",
+    "date": "2026-08-04",
+    "topic": "ce qui RESTE à faire — le seul document du dépôt qui réponde à cette question",
+    "summary": "Placé en tête de cet index à dessein : le reste des entrées dit ce qui a été FAIT, celle-ci dit ce qui ne l'est pas. Trois blocs de natures différentes, à ne pas confondre. (1) Validation visuelle humaine, bloquante et non délégable — courbes, pile/propriétés/masque sur une pile dense, les quatorze matières du verre dont le Dépoli marqué « à raffiner », et les cinq pavés jamais regardés sur une photo. Le point de méthode qui justifie ce bloc : une référence de pixels prouve qu'un effet porte sa propriété, jamais qu'il est beau — ne pas lire « 18 références vertes » comme « le verre est validé ». (2) Rationalisation des contrôles, chantier ROUVERT parce que le précédent n'avait traité que les contrôles spécialisés et avait été clôturé comme s'il était complet : applicabilité conditionnelle (masquer au lieu du « Sans objet en … » d'aujourd'hui), fusion des réglages redondants, tri par catégories sur les 21 effets — par contrat déclaratif dans les modules d'effet, jamais par des `if (effectId)` dans ParamPanel, et le patron existe déjà (EffectPass.enabled, EffectParam.maxFrom). Trois contraintes dures y sont écrites, dont la principale : l'index d'un paramètre est persisté dans les presets, donc la catégorie est une donnée d'AFFICHAGE et ne réordonne pas params[]. (3) « Éléments et composition », sans design ni plan — textures/scans, light leaks, formes, typographie, recadrage. Sa vraie question n'est pas le rendu mais le MODÈLE DE DOCUMENT : formes et typographie sont un troisième genre de calque là où LayerState n'en connaît que deux, et ce type est consommé par cinq couches. Matière première déjà sur disque dans le cahier de postproduction du 2026-08-03.",
+    "_verification": "État du code mesuré sur disque le 2026-08-04 (21 effets comptés dans registry.ts, 18 références de verre listées, toutes les branches de glass verrouillées), pas repris d'une note antérieure — deux sessions concurrentes ont fait bouger master pendant la rédaction."
+  },
   "archive": [
     {
       "path": "docs/archive/claude-md-history-pre-2026-07-22.md",

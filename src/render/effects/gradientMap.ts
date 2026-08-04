@@ -143,6 +143,10 @@ export const gradientMap: EffectModule = {
     { name: "repeat", label: "Répétition", unit: "none", min: 1, max: 12, default: 1, step: 1, hint: "Combien de fois la rampe entière tient dans l'échelle des tons — 1 = une seule rampe, au-delà = bandes de couleur" },
     { name: "repeatType", label: "Type de répétition", unit: "none", min: 0, max: REPEAT_TYPES.length - 1, default: REPEAT_MIRROR, step: 1, choices: [...REPEAT_TYPES], hint: "Miroir : les bandes s'enchaînent en se reflétant, sans arête. Répétition : chaque bande recommence à l'arrêt sombre, arête franche — le cycle néon. Sans objet tant que la répétition vaut 1." },
     { name: "scatter", label: "Dispersion", unit: "percent", min: 0, max: 1, default: 0, step: 0.01, hint: "Fait osciller chaque pixel entre les deux teintes voisines de la rampe — casse le banding par une trame de risographie au lieu de le recouvrir" },
+    // AJOUTÉS EN FIN DE TABLE : l'ordre est persisté dans les presets. Les
+    // insérer près de midPosition aurait décalé les indices historiques 10..17.
+    { name: "shadowPosition", label: "Position de l'arrêt sombre", unit: "percent", min: 0, max: 0.9, default: 0, step: 0.01 },
+    { name: "highPosition", label: "Position de l'arrêt clair", unit: "percent", min: 0.1, max: 1, default: 1, step: 0.01 },
   ],
   colorRampControls: [{
     id: "gradient",
@@ -150,9 +154,9 @@ export const gradientMap: EffectModule = {
     blackPoint: "blackPoint",
     whitePoint: "whitePoint",
     stops: [
-      { id: "shadow", label: "Arrêt sombre", hue: "shadowHue", saturation: "shadowSaturation", lightness: "shadowLightness" },
+      { id: "shadow", label: "Arrêt sombre", hue: "shadowHue", saturation: "shadowSaturation", lightness: "shadowLightness", position: "shadowPosition" },
       { id: "mid", label: "Arrêt moyen", hue: "midHue", saturation: "midSaturation", lightness: "midLightness", position: "midPosition" },
-      { id: "high", label: "Arrêt clair", hue: "highHue", saturation: "highSaturation", lightness: "highLightness" },
+      { id: "high", label: "Arrêt clair", hue: "highHue", saturation: "highSaturation", lightness: "highLightness", position: "highPosition" },
     ],
   }],
   wgsl: `
@@ -166,7 +170,9 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let shadowStop = hsl2rgb(params[0] / 360.0, params[1], params[2]);
   let midStop = hsl2rgb(params[3] / 360.0, params[4], params[5]);
   let highStop = hsl2rgb(params[6] / 360.0, params[7], params[8]);
-  let midPosition = clamp(params[9], 0.05, 0.95);
+  let shadowPosition = clamp(params[18], 0.0, 0.9);
+  let midPosition = clamp(params[9], shadowPosition + 0.05, 0.95);
+  let highPosition = clamp(params[19], midPosition + 0.05, 1.0);
   let blackPoint = params[10];
   // Un point blanc sous le point noir inverserait la rampe en silence, avec un
   // dénominateur négatif : borné juste au-dessus, l'inversion se fait au
@@ -221,13 +227,25 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // \`select\` le dit au lieu de le cacher. (\`mix_srgb_in_space\`, lui, branche
   // en \`if\` : sa condition vient d'un uniforme, donc elle est la même pour
   // tous les pixels.)
-  let lowK = smoothstep(0.0, 1.0, x / midPosition);
-  let highK = smoothstep(0.0, 1.0, (x - midPosition) / (1.0 - midPosition));
-  let mapped = select(
-    mix_srgb_in_space(shadowStop, midStop, lowK, space),
-    mix_srgb_in_space(midStop, highStop, highK, space),
+  // CHEMIN HISTORIQUE conservé mot pour mot lorsque les extrémités restent à
+  // 0/100. La forme généralisée est mathématiquement équivalente à ces défauts,
+  // mais change l'ordre de quelques opérations flottantes et la référence de
+  // rendu a mesuré jusqu'à 73 LSB d'écart sur un canal. Un preset ancien doit
+  // rester identique à l'octet, pas seulement « visuellement proche ».
+  let legacyLowK = smoothstep(0.0, 1.0, x / midPosition);
+  let legacyHighK = smoothstep(0.0, 1.0, (x - midPosition) / (1.0 - midPosition));
+  let legacyMapped = select(
+    mix_srgb_in_space(shadowStop, midStop, legacyLowK, space),
+    mix_srgb_in_space(midStop, highStop, legacyHighK, space),
     x >= midPosition
   );
+
+  let lowK = smoothstep(0.0, 1.0, (x - shadowPosition) / (midPosition - shadowPosition));
+  let highK = smoothstep(0.0, 1.0, (x - midPosition) / (highPosition - midPosition));
+  let lowMapped = select(shadowStop, mix_srgb_in_space(shadowStop, midStop, lowK, space), x > shadowPosition);
+  let highMapped = select(mix_srgb_in_space(midStop, highStop, highK, space), highStop, x >= highPosition);
+  let positionedMapped = select(lowMapped, highMapped, x >= midPosition);
+  let mapped = select(positionedMapped, legacyMapped, shadowPosition == 0.0 && highPosition == 1.0);
 
   // MODELÉ. On remet la luminance d'origine en remettant à l'échelle la couleur
   // cartographiée — ce qui conserve sa chromaticité. Le facteur est borné à 4 :

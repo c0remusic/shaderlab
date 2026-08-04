@@ -173,4 +173,21 @@ describe("validateEffect", () => {
     expect(() => validateEffect(effect)).toThrow(/rampe désigne le paramètre absent "missing"/);
   });
 
+  it("validates three independently positioned color stops", () => {
+    const effect = effectWithParams(14);
+    effect.params[9].default = 0;
+    effect.params[10].default = 0.5;
+    effect.params[11].default = 1;
+    effect.params[12].default = 0;
+    effect.params[13].default = 1;
+    effect.colorRampControls = [{ id: "ramp", label: "Rampe", blackPoint: "p12", whitePoint: "p13", stops: [
+      { id: "shadow", label: "Sombre", hue: "p0", saturation: "p1", lightness: "p2", position: "p9" },
+      { id: "mid", label: "Moyen", hue: "p3", saturation: "p4", lightness: "p5", position: "p10" },
+      { id: "high", label: "Clair", hue: "p6", saturation: "p7", lightness: "p8", position: "p11" },
+    ] }];
+    expect(() => validateEffect(effect)).not.toThrow();
+    effect.params[11].default = 0.4;
+    expect(() => validateEffect(effect)).toThrow(/arrêts couleur de rampe non ordonnés/);
+  });
+
 });

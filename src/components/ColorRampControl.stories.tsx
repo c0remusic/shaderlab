@@ -5,13 +5,13 @@ import { ColorRampControl, type ColorRampStopValue } from "./ColorRampControl";
 import type { ColorRampPositions } from "../ui/colorRamp";
 
 const stops: [ColorRampStopValue, ColorRampStopValue, ColorRampStopValue] = [
-  { id: "shadow", label: "Arrêt sombre", hue: 235, saturation: .55, lightness: .14, position: 0, movable: false },
+  { id: "shadow", label: "Arrêt sombre", hue: 235, saturation: .55, lightness: .14, position: 0, movable: true },
   { id: "mid", label: "Arrêt moyen", hue: 320, saturation: .42, lightness: .5, position: .5, movable: true },
-  { id: "high", label: "Arrêt clair", hue: 45, saturation: .6, lightness: .88, position: 1, movable: false },
+  { id: "high", label: "Arrêt clair", hue: 45, saturation: .6, lightness: .88, position: 1, movable: true },
 ];
 
 function Harness(props: { initial?: ColorRampPositions; disabled?: boolean; onChange?: (values: ColorRampPositions) => void; onCommit?: () => void; onOpenStop?: () => void }) {
-  const [positions, setPositions] = useState(props.initial ?? { midPosition: .5, blackPoint: 0, whitePoint: 1 });
+  const [positions, setPositions] = useState(props.initial ?? { shadowPosition: 0, midPosition: .5, highPosition: 1, blackPoint: 0, whitePoint: 1 });
   return <div style={{ width: 320 }}><ColorRampControl label="Rampe de couleur" stops={stops} positions={positions} disabled={props.disabled}
     onChange={(next) => { setPositions(next); props.onChange?.(next); }} onCommit={() => props.onCommit?.()}
     onOpenStop={() => props.onOpenStop?.()} /></div>;
@@ -22,7 +22,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
-export const CompressedRange: Story = { args: { initial: { midPosition: .34, blackPoint: .12, whitePoint: .82 } } };
+export const CompressedRange: Story = { args: { initial: { shadowPosition: .08, midPosition: .34, highPosition: .92, blackPoint: .12, whitePoint: .82 } } };
 export const Disabled: Story = { args: { disabled: true } };
 export const OpensColor: Story = { args: { onOpenStop: fn() }, play: async ({ args, canvasElement }) => {
   const canvas = within(canvasElement);
@@ -36,6 +36,12 @@ export const KeyboardCommit: Story = { args: { onChange: fn(), onCommit: fn() },
   await expect(args.onChange).toHaveBeenCalledWith(expect.objectContaining({ midPosition: .51 }));
   await expect(args.onCommit).toHaveBeenCalledTimes(1);
 } };
+export const EndpointKeyboardCommit: Story = { args: { onChange: fn(), onCommit: fn() }, play: async ({ args, canvasElement }) => {
+  const handle = within(canvasElement).getByRole("button", { name: /Arrêt sombre — position/ });
+  handle.focus(); await userEvent.keyboard("{ArrowRight}");
+  await expect(args.onChange).toHaveBeenCalledWith(expect.objectContaining({ shadowPosition: .01 }));
+  await expect(args.onCommit).toHaveBeenCalledTimes(1);
+} };
 export const PointerCancelRestores: Story = { args: { onChange: fn(), onCommit: fn() }, play: async ({ args, canvasElement }) => {
   const handle = within(canvasElement).getByRole("button", { name: /Point noir/ });
   handle.setPointerCapture = () => {};
@@ -44,6 +50,6 @@ export const PointerCancelRestores: Story = { args: { onChange: fn(), onCommit: 
   fireEvent.pointerDown(handle, { pointerId: 4, clientX: rect.left });
   fireEvent.pointerMove(window, { pointerId: 4, clientX: rect.left + rect.width * .3 });
   fireEvent.pointerCancel(window, { pointerId: 4 });
-  await expect(args.onChange).toHaveBeenLastCalledWith({ midPosition: .5, blackPoint: 0, whitePoint: 1 });
+  await expect(args.onChange).toHaveBeenLastCalledWith({ shadowPosition: 0, midPosition: .5, highPosition: 1, blackPoint: 0, whitePoint: 1 });
   await expect(args.onCommit).not.toHaveBeenCalled();
 } };

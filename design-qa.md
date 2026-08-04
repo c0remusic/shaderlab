@@ -46,6 +46,7 @@ The focused 320 px Properties capture was compared beside the normalized source.
 - Range markers, color stops and active stop are visually distinct.
 - All four generic sliders are visible, and both select rows remain visible.
 - Real WebView2 interaction check: selecting `Arrêt sombre` changes the active inspector and `aria-pressed`; its picker button opens `ColorPickerPanel`; four generic slider roots remain mounted.
+- Follow-up WebView2 check: `ArrowRight` on the selected dark-stop arrow moves it from 0 to 1 %, updates the numeric inspector and enables Undo. The same pure non-crossing model covers the middle and light stops.
 - No Tauri stderr error or visible application error banner occurred during loading, selection or picker interaction.
 
 ## Required fidelity surfaces

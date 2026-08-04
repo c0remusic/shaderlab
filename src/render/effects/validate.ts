@@ -161,8 +161,9 @@ export function validateEffect(effect: EffectModule): void {
     for (const control of effect.colorRampControls) {
       if (controlIds.has(control.id)) throw new Error(`Effet "${effect.id}" : contrôle de rampe dupliqué "${control.id}".`);
       controlIds.add(control.id);
-      if (control.stops.filter((stop) => stop.position !== undefined).length !== 1) {
-        throw new Error(`Effet "${effect.id}" : la rampe "${control.id}" doit déclarer exactement un arrêt positionnable.`);
+      const positionedStops = control.stops.filter((stop) => stop.position !== undefined);
+      if (positionedStops.length !== 1 && positionedStops.length !== control.stops.length) {
+        throw new Error(`Effet "${effect.id}" : la rampe "${control.id}" doit déclarer un arrêt intérieur ou ses trois arrêts positionnables.`);
       }
       const names = [control.blackPoint, control.whitePoint, ...control.stops.flatMap((stop) => [stop.hue, stop.saturation, stop.lightness, ...(stop.position ? [stop.position] : [])])];
       for (const name of names) {
@@ -173,6 +174,12 @@ export function validateEffect(effect: EffectModule): void {
       const black = params.get(control.blackPoint)!.default;
       const white = params.get(control.whitePoint)!.default;
       if (black >= white) throw new Error(`Effet "${effect.id}" : points noir/blanc de rampe non ordonnés.`);
+      if (positionedStops.length === control.stops.length) {
+        const defaults = positionedStops.map((stop) => params.get(stop.position!)!.default);
+        if (!(defaults[0] < defaults[1] && defaults[1] < defaults[2])) {
+          throw new Error(`Effet "${effect.id}" : arrêts couleur de rampe non ordonnés.`);
+        }
+      }
     }
   }
 }

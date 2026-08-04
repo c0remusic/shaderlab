@@ -236,13 +236,14 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
               movable: stop.position !== undefined,
             })) as Parameters<typeof ColorRampControl>[0]["stops"];
             return <ColorRampControl key={`rampe:${control.id}`} label={control.label} stops={stops} disabled={locked}
-              positions={{ midPosition: stops[1].position, blackPoint: resolvedParams[control.blackPoint], whitePoint: resolvedParams[control.whitePoint] }}
+              positions={{ shadowPosition: stops[0].position, midPosition: stops[1].position, highPosition: stops[2].position, blackPoint: resolvedParams[control.blackPoint], whitePoint: resolvedParams[control.whitePoint] }}
               onChange={(values) => {
-                const middle = control.stops.find((stop) => stop.position);
                 onParamChange(layer.id, {
                   [control.blackPoint]: values.blackPoint,
                   [control.whitePoint]: values.whitePoint,
-                  ...(middle?.position ? { [middle.position]: values.midPosition } : {}),
+                  ...(control.stops[0].position ? { [control.stops[0].position]: values.shadowPosition } : {}),
+                  ...(control.stops[1].position ? { [control.stops[1].position]: values.midPosition } : {}),
+                  ...(control.stops[2].position ? { [control.stops[2].position]: values.highPosition } : {}),
                 });
               }}
               onCommit={onParamCommit}

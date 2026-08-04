@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Pipette } from "lucide-react";
 import { hslToHex } from "../ui/hsl";
-import { moveColorRampHandle, nudgeColorRampHandle, type ColorRampHandleRole, type ColorRampPositions } from "../ui/colorRamp";
+import { moveColorRampHandle, nudgeColorRampHandle, type ColorRampHandleRole, type ColorRampPositions, type ColorRampStopRole } from "../ui/colorRamp";
 import { NumberField } from "./ui/number-field";
 import "./ColorRampControl.css";
 
@@ -26,10 +26,14 @@ interface Props {
 }
 
 const HANDLE_LABELS: Record<ColorRampHandleRole, string> = {
+  shadowPosition: "Position de l'arrêt sombre",
   midPosition: "Position de l'arrêt moyen",
+  highPosition: "Position de l'arrêt clair",
   blackPoint: "Point noir",
   whitePoint: "Point blanc",
 };
+
+const STOP_ROLES: readonly ColorRampStopRole[] = ["shadowPosition", "midPosition", "highPosition"];
 
 export function ColorRampControl({ label, stops, positions, disabled = false, onChange, onCommit, onOpenStop }: Props) {
   const [activeStopId, setActiveStopId] = useState(stops[1].id);
@@ -88,7 +92,7 @@ export function ColorRampControl({ label, stops, positions, disabled = false, on
       window.removeEventListener("pointercancel", onCancel);
       startRef.current = null;
     };
-    const onUp = () => { if (moved) { if (role === "midPosition") suppressStopClickRef.current = true; flush(); onCommit(); } cleanup(); };
+    const onUp = () => { if (moved) { if (STOP_ROLES.includes(role as ColorRampStopRole)) suppressStopClickRef.current = true; flush(); onCommit(); } cleanup(); };
     const onCancel = () => {
       const start = startRef.current;
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
@@ -111,11 +115,13 @@ export function ColorRampControl({ label, stops, positions, disabled = false, on
   };
 
   const visualStops = [
-    { ...stops[0], position: 0 },
+    { ...stops[0], position: preview.shadowPosition },
     { ...stops[1], position: preview.midPosition },
-    { ...stops[2], position: 1 },
+    { ...stops[2], position: preview.highPosition },
   ] as const;
   const activeStop = visualStops.find((stop) => stop.id === activeStopId) ?? visualStops[1];
+  const activeStopIndex = visualStops.findIndex((stop) => stop.id === activeStop.id);
+  const activeStopRole = STOP_ROLES[activeStopIndex];
   const gradient = `linear-gradient(90deg, ${visualStops.map((stop) => `${hslToHex(stop.hue, stop.saturation, stop.lightness)} ${stop.position * 100}%`).join(", ")})`;
 
   const openActiveStop = (element: HTMLElement) => {
@@ -131,7 +137,7 @@ export function ColorRampControl({ label, stops, positions, disabled = false, on
               style={{ left: `calc(${preview[role]} * (100% - var(--control-height-sm)) + var(--control-height-sm) / 2)` }} aria-label={`${HANDLE_LABELS[role]} — ${Math.round(preview[role] * 100)} %`}
               disabled={disabled} onPointerDown={(event) => handlePointerDown(role, event)} onKeyDown={(event) => handleKeyDown(role, event)} />
           ))}
-        {visualStops.map((stop) => (
+        {visualStops.map((stop, index) => (
           <button key={stop.id} type="button" className="color-ramp__stop"
             style={{ left: `calc(${stop.position} * (100% - var(--control-height-sm)) + var(--control-height-sm) / 2)`, "--ramp-stop-color": hslToHex(stop.hue, stop.saturation, stop.lightness) } as React.CSSProperties}
             aria-label={`${stop.label} — position ${Math.round(stop.position * 100)} %`} aria-pressed={stop.id === activeStop.id} disabled={disabled}
@@ -139,8 +145,8 @@ export function ColorRampControl({ label, stops, positions, disabled = false, on
               if (suppressStopClickRef.current) { suppressStopClickRef.current = false; return; }
               setActiveStopId(stop.id);
             }}
-            onPointerDown={stop.movable ? (event) => handlePointerDown("midPosition", event) : undefined}
-            onKeyDown={stop.movable ? (event) => handleKeyDown("midPosition", event) : undefined} />
+            onPointerDown={stop.movable ? (event) => handlePointerDown(STOP_ROLES[index], event) : undefined}
+            onKeyDown={stop.movable ? (event) => handleKeyDown(STOP_ROLES[index], event) : undefined} />
         ))}
         </div>
         <output className="color-ramp__range-values" aria-live="polite">
@@ -153,11 +159,11 @@ export function ColorRampControl({ label, stops, positions, disabled = false, on
           style={{ "--ramp-stop-color": hslToHex(activeStop.hue, activeStop.saturation, activeStop.lightness) } as React.CSSProperties}
           aria-label={`Choisir la couleur — ${activeStop.label}`} disabled={disabled} onClick={(event) => openActiveStop(event.currentTarget)} />
         <strong className="color-ramp__active-label">{activeStop.label}</strong>
-        <NumberField label="Position" value={Math.round(activeStop.position * 100)} unit="%" min={5} max={95} step={1}
+        <NumberField label="Position" value={Math.round(activeStop.position * 100)} unit="%" min={0} max={100} step={1}
           disabled={disabled || !activeStop.movable} labelPlacement="inline"
           classNames={{ root: "color-ramp__position", label: "color-ramp__position-label", field: "color-ramp__position-field", input: "color-ramp__position-input", unit: "color-ramp__position-unit" }}
           onCommit={(value) => {
-            publish({ ...previewRef.current, midPosition: value / 100 });
+            publish(moveColorRampHandle(previewRef.current, activeStopRole, value / 100));
             flush();
             onCommit();
           }} />

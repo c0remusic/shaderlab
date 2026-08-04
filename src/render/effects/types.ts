@@ -125,7 +125,7 @@ export interface ColorRampStopControl {
   hue: string;
   saturation: string;
   lightness: string;
-  /** Seul l'arrêt intérieur est positionnable dans la v1 à trois arrêts. */
+  /** Paramètre de position persistant. Absent = arrêt fixe à sa place nominale. */
   position?: string;
 }
 

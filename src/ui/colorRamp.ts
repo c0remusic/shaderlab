@@ -1,7 +1,10 @@
-export type ColorRampHandleRole = "midPosition" | "blackPoint" | "whitePoint";
+export type ColorRampStopRole = "shadowPosition" | "midPosition" | "highPosition";
+export type ColorRampHandleRole = ColorRampStopRole | "blackPoint" | "whitePoint";
 
 export interface ColorRampPositions {
+  shadowPosition: number;
   midPosition: number;
+  highPosition: number;
   blackPoint: number;
   whitePoint: number;
 }
@@ -15,7 +18,9 @@ export function moveColorRampHandle(
   role: ColorRampHandleRole,
   value: number,
 ): ColorRampPositions {
-  if (role === "midPosition") return { ...positions, midPosition: clamp(value, MIN_GAP, 1 - MIN_GAP) };
+  if (role === "shadowPosition") return { ...positions, shadowPosition: clamp(value, 0, positions.midPosition - MIN_GAP) };
+  if (role === "midPosition") return { ...positions, midPosition: clamp(value, positions.shadowPosition + MIN_GAP, positions.highPosition - MIN_GAP) };
+  if (role === "highPosition") return { ...positions, highPosition: clamp(value, positions.midPosition + MIN_GAP, 1) };
   if (role === "blackPoint") return { ...positions, blackPoint: clamp(value, 0, positions.whitePoint - MIN_GAP) };
   return { ...positions, whitePoint: clamp(value, positions.blackPoint + MIN_GAP, 1) };
 }

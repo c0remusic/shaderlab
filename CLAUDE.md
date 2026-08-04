@@ -111,25 +111,33 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
 - Effets = modules autonomes enregistrés dans `src/render/effects/registry.ts`
   — en ajouter un = un nouveau fichier ; un effet à paramètres groupés (voir
   `EffectParam.colorGroup`) touche aussi `ParamPanel.tsx` et peut élargir
-  `MAX_EFFECT_PARAMS` (`shaderCompose.ts`, **32** depuis le 2026-08-03) si
-  nécessaire.
-  Registre réel au 2026-08-03 (soir), dans l'ordre : `glow`, `halation`,
+  `MAX_EFFECT_PARAMS` (`shaderCompose.ts`, **48** depuis le 2026-08-04, élargi
+  de 32 pour `curves`) si nécessaire.
+  Registre réel au 2026-08-04, dans l'ordre : `glow`, `halation`,
   `lensFlare`, `lensDistortion`, `lensBlur`, `motionBlur`,
   `glass`, `warp`, `grain`, `duotone`, `hatching`, `halftone`, `dither`,
-  `gooeyMerge`, `channelMixer`, `outlines`, `isolines`,
-  `pixelStretch`, `sliceShift`, `gradientMap` — **vingt**.
-  `glass` (2026-08-03) est le portage du système de réfraction d'Antoine
-  (`C:\dev\portfolio\src\shaders\verre\site.fs.glsl`), **tranche 1 = la
-  feuille**, neuf matières. Les cinq matières de PAVÉ sont la tranche 2 et iront
-  à la fin de sa liste de matières, PAS dans un second effet — plan validé,
-  `docs/superpowers/specs/2026-08-03-verre-plan-de-portage.md`. Un seul
-  mécanisme décliné neuf fois : chaque matière ne fait que fabriquer une PENTE
-  de surface, tout ce qui suit (réfraction, dispersion, diffusion, Fresnel,
-  absorption) est commun et ne sait rien d'elle.
-  ⚠️ **Six branches verrouillées sur quatorze** : restent dehors les matières
-  Cannelé croisé, Gaufré, Écorce, et les profils Arc plein, Prisme, Fond plat.
+  `gooeyMerge`, `channelMixer`, `curves`, `outlines`, `isolines`,
+  `pixelStretch`, `sliceShift`, `gradientMap` — **vingt et un**.
+  Une taxonomie éditoriale les range en six catégories dans
+  `effects/catalog.ts` (`EFFECT_CATEGORIES`) — explicite et centralisée, jamais
+  inférée du nom ; elle classe l'EFFET, pas ses paramètres (c'est le chantier 2
+  de `docs/ROADMAP.md` qui portera la catégorie au paramètre).
+  `glass` (2026-08-03/04) est le portage du système de réfraction d'Antoine
+  (`C:\dev\portfolio\src\shaders\verre\site.fs.glsl`) — plan
+  `docs/superpowers/specs/2026-08-03-verre-plan-de-portage.md`. **Il est
+  COMPLET** : quatorze matières (les neuf de la feuille + les cinq du PAVÉ,
+  livrées le 2026-08-04 à la fin de la même liste, PAS dans un second effet),
+  cinq profils de section, **dix-huit références de pixels — toutes les
+  branches verrouillées**. Un seul mécanisme décliné quatorze fois : chaque
+  matière ne fait que fabriquer une PENTE de surface, tout ce qui suit
+  (réfraction, dispersion, diffusion, Fresnel, absorption) est commun et ne sait
+  rien d'elle.
   Sa mire est `mireVerre`, écrite pour lui et **entièrement achromatique** —
   donc toute couleur dans ses références EST la dispersion.
+  ⚠️ Verrouillé ≠ validé : le **Dépoli** est marqué « à raffiner » par Antoine
+  et les cinq pavés n'ont jamais été regardés sur une vraie photo — une
+  référence de pixels prouve qu'un effet porte sa propriété, jamais qu'il est
+  beau (`docs/ROADMAP.md` §1).
   **Cinq départs le 2026-08-03**, tous sur arbitrage d'Antoine : `surfaceBlur`
   (ADR-0011, verdict d'usage sur la famille des flous), `posterize` (ADR-0012,
   couvert par `dither` — couverture PROUVÉE avant le retrait, le scénario
@@ -147,15 +155,23 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   grandissement dépendant de la longueur d'onde n'est que radial. Le paramètre
   a été PORTÉ avant le retrait. Sans la mesure, c'était un retrait sec présenté
   comme un dédoublonnage.
-  **`outlines` est donc l'effet le plus chargé du registre — 26 paramètres, deux
-  modes d'encre et trois modes de détection**, et le SEUL dont le coût dépende
-  d'un choix : ses neuf passes de pyramide ne tournent qu'en mode Échos
-  (`EffectPass.enabled`). Avant d'y toucher, lire son en-tête : les dix-neuf
-  premiers index sont gelés par sept références de pixels et par les presets.
+  **`outlines` porte donc 26 paramètres, deux modes d'encre et trois modes de
+  détection**, et il est le SEUL dont le coût dépende d'un choix : ses neuf
+  passes de pyramide ne tournent qu'en mode Échos (`EffectPass.enabled`). Avant
+  d'y toucher, lire son en-tête : les dix-neuf premiers index sont gelés par
+  sept références de pixels et par les presets.
   La question de nom que le cahier laissait ouverte (la fiche Figma appelle
   `Outlines` l'effet à échos, nous appelions `Outlines` le détecteur) est
   ÉTEINTE par la fusion — plus rien à arbitrer.
-  `isolines` trace des courbes de niveau du ton.
+  ⚠️ Il n'est plus le plus chargé du registre : mesuré le 2026-08-04 sur
+  `EffectModule.params.length`, c'est **`curves` (37)**, puis `lensFlare` (30),
+  puis `outlines` (26). Compter les `name:` du fichier source ne le dit PAS —
+  les 32 paramètres de `curves` sortent d'un `flatMap`, et le grep n'en voit
+  que 5.
+  `isolines` trace des courbes de niveau du ton, et `curves` (2026-08-04) est
+  la courbe tonale par canal — quatre canaux (maître, R, V, B) à trois points
+  mobiles chacun, plus une plage tonale ; son contrôle passe par les champs
+  `EffectModule.curveControls` / `tonalRangeControl`, pas par des curseurs.
   Six sont arrivés le 2026-08-01 et AUCUN ne vient du backlog Figma d'origine
   (épuisé le 2026-07-31) : ils sortent du cahier de références
   `docs/superpowers/specs/2026-08-01-references-effets.md` et de demandes
@@ -243,10 +259,10 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   DISTANCE à la forme au lieu d'un gradient » est le mode `Échos de la forme`
   (ADR-0015). Deux effets de moins, zéro capacité perdue, les deux prouvées à
   l'octet.
-  Les autres fichiers de `effects/` sont des helpers (`bayer`, `hsl`, `hash`,
-  `oklab`, `blendSpace`, `inputMode`, `srgbTransfer`, `uvSpace`, `validate`,
-  `types`) : la présence d'un fichier n'est pas la présence d'un effet, vérifier
-  `registry.ts`.
+  Les autres fichiers de `effects/` sont des helpers (`aperture`, `bayer`,
+  `blendSpace`, `catalog`, `hash`, `hsl`, `inputMode`, `oklab`, `srgbTransfer`,
+  `uvSpace`, `validate`, `types`) : la présence d'un fichier n'est pas la
+  présence d'un effet, vérifier `registry.ts`.
 - **Deux contrôles TRANSVERSAUX**, posés le 2026-08-01 d'après le §6bis du
   cahier de références (ils sont récurrents chez Figma et étaient absents
   partout ici) : `effects/blendSpace.ts` (espace de mélange — sRGB, Linéaire,
@@ -345,7 +361,8 @@ Points structurants qu'on ne devine pas en lisant un fichier isolé :
 
 `.claude/decisions/INDEX.md` — une ligne par ADR avec son statut. Un ADR
 `superseded` (ADR-0003, renversé par ADR-0004) n'est PAS une contrainte active.
-Actifs au 2026-08-03 : densité UI (0001), abandon round-trip (0002), sens causal
+Actifs au 2026-08-04 (ADR-0017 reste le dernier écrit) : densité UI (0001),
+abandon round-trip (0002), sens causal
 de la pile (0004), rattachement par proximité (0005), fond d'export blanc
 (0006), format de toile à la création + `MAX_CANVAS_PIXELS = 64 Mpx` (0007),
 un effet ne se pose jamais sur un calque photo (0008), déplacement libre du
@@ -516,6 +533,12 @@ pixel (`npm run test:render`) ; « valider le round-trip avec un vrai
 Lightroom » (Task 3) est sans objet, puisqu'on le retire au lieu de le valider.
 
 ## Index des documents docs/
+
+**`docs/ROADMAP.md` répond à une seule question : qu'est-ce qui RESTE ?** C'est
+le seul document du dépôt qui le dise ; les autres disent ce qui est fait. À
+lire au démarrage d'une session de travail, avant de reconstruire un backlog de
+tête. Il ne porte pas de section « fait » — un bloc soldé en sort et son
+résultat descend dans `INDEX.json`.
 
 `docs/INDEX.json` (référence, ~280 lignes) — À LIRE À LA DEMANDE (Read tool)
 quand tu cherches le statut d'un chantier/plan spécifique, PAS importé

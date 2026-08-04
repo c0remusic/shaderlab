@@ -433,6 +433,13 @@
       "date": "2026-08-04",
       "topic": "plan d'implémentation tranche 3 : rampe Gradient Map",
       "summary": "Contrat EffectModule.colorRampControls validé, modèle pur, ColorRampControl accessible, intégration ParamPanel sans branche par effectId, stories et preuve WebView2. Gates verts : 1742 unit, 301 Storybook, 154 shaders, build et tokens."
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-04-rationalisation-des-controles.md",
+      "status": "📋 PLAN ÉCRIT, NON EXÉCUTÉ — Task 1 (éprouver les 39 déclarations) prête à lancer ; arbitrage du contrat tranché voie A le 2026-08-04",
+      "date": "2026-08-04",
+      "topic": "rationalisation des contrôles sur les 21 effets : applicabilité conditionnelle, fusion, ordre par catégories",
+      "summary": "Chantier 2 de ROADMAP.md. Mesure : 39 paramètres portent « Sans objet » sur 9 effets (glass 15, outlines 11). Contrat déclaratif EffectParam.appliesWhen généralisant CanvasControl.visibleWhen, plus EffectParam.category et PARAM_CATEGORIES dans catalog.ts. Voie A tranchée : pas d'échappatoire prédicat, les deux conditions continues (lensFlare.sensorSpacing, lensBlur.bladeRotation) passent par un nouveau paramètre à choices ajouté à la fin. Gate discriminant : test:render doit rendre zéro écart, un écart prouverait qu'on a trié params[] au lieu de l'affichage."
     }
   ]
 }

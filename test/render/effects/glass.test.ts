@@ -3,7 +3,7 @@ import { glass } from "../../../src/render/effects/glass";
 import { getEffect, effectRegistry } from "../../../src/render/effects/registry";
 
 /**
- * GLASS, TRANCHE 1 — la feuille.
+ * GLASS — feuille et pavés.
  *
  * Ce que ces tests gardent n'est PAS le rendu : six références de pixels s'en
  * chargent, toutes posées sur `mireVerre`. Ils gardent ce que le fichier
@@ -14,7 +14,7 @@ import { getEffect, effectRegistry } from "../../../src/render/effects/registry"
 const wgsl = glass.wgsl;
 
 describe("glass — la surface de contrôle", () => {
-  it("déclare quatorze paramètres, dans l'ordre où le shader les lit", () => {
+  it("déclare vingt-deux paramètres, pavés ajoutés à la fin pour préserver les presets", () => {
     // Les cinq matières de PAVÉ de la tranche 2 s'ajouteront à la fin de la
     // liste de CHOIX, et leurs huit paramètres à la fin de celle-ci : l'index
     // est persisté dans les presets.
@@ -22,17 +22,22 @@ describe("glass — la surface de contrôle", () => {
       "material", "density", "depth", "profile", "flat", "fillet",
       "orientation", "irregularity", "grain", "thickness",
       "specular", "dispersion", "diffusion", "relief",
+      "blockSize", "mortar", "mortarHue", "mortarLightness",
+      "edgeDepth", "edgeWidth", "bevel", "inner",
     ]);
   });
 
-  it("propose neuf matières, et non huit — la note de reprise se trompait", () => {
+  it("propose les neuf feuilles puis les cinq pavés, sans déplacer les anciens indices", () => {
     // Dix branches dans la source, moins `beton` que son auteur a retiré. Le
     // compte de la note (« 8 matières ») venait d'un souvenir, pas du code, et
     // il aurait fait livrer une matière de moins sans que rien ne le signale.
     const mat = glass.params.find((p) => p.name === "material");
-    expect(mat?.choices).toHaveLength(9);
+    expect(mat?.choices).toHaveLength(14);
     expect(mat?.choices?.[0]).toBe("Cannelé simple");
     expect(mat?.choices?.[8]).toBe("Cathédrale");
+    expect(mat?.choices?.slice(9)).toEqual([
+      "Pavé · Nuage", "Pavé · Ondulé", "Pavé · Quadrillé", "Pavé · Alvéolaire", "Pavé · Lisse",
+    ]);
     expect(mat?.choices).not.toContain("Béton");
   });
 
@@ -65,7 +70,19 @@ describe("glass — les deux corrections payées à la première exécution", ()
     expect(wgsl).toContain("max(n * 1.6, 0.05)");   // cathédrale
     expect(wgsl).toContain("max(n * 0.30, 1.0)");   // martelé / écorce
     expect(wgsl).toContain("max(n * 0.16, 1.0)");   // aluminium
-    expect(wgsl).toContain("max(n * 0.022, 0.05)"); // poli
+    expect(wgsl).toContain("let dens = 0.35;");       // poli, échelle fixe
+  });
+
+  it("rend le Poli réellement indépendant de Densité", () => {
+    const poli = wgsl.slice(wgsl.indexOf("if (mat == 6)"), wgsl.indexOf("if (mat == 8)"));
+    expect(poli).not.toMatch(/\bn\b/);
+  });
+
+  it("porte le biseau, l'arête et le mortier des pavés", () => {
+    expect(wgsl).toContain("fn verre_hauteurPave");
+    expect(wgsl).toContain("distanceBord");
+    expect(wgsl).toContain("masqueMortier");
+    expect(wgsl).toContain("params[21]");
   });
 
   it("laisse à l'épaisseur la course qu'exigent les matières à FACETTES", () => {

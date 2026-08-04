@@ -1,12 +1,13 @@
 # Le VERRE — plan de portage
 
-> Statut : **validé par Antoine le 2026-08-03, TRANCHE 1 LIVRÉE le même jour.**
-> `glass` est au registre avec ses neuf matières de feuille et treize références de
-> pixels sur `mireVerre`. **La tranche 2 (les cinq matières de PAVÉ) reste à
-> faire**, et ira à la fin de la liste de matières — pas dans un second effet.
+> Statut : **DEUX TRANCHES LIVRÉES le 2026-08-04.** `glass` porte ses neuf
+> matières de feuille puis cinq matières de pavé, sans déplacer les indices
+> persistés. Dix-huit références pixels couvrent les branches sur `mireVerre`.
+> La tranche 2 ajoute huit paramètres, le biseau, l'arête optique et le mortier.
 > ⚠️ Le jugement visuel sur une vraie photo n'a PAS été rendu : les références
 > prouvent que chaque matière porte sa propriété, pas qu'elle est belle. Antoine
-> a marqué le `Dépoli` « à raffiner ».
+> a marqué le `Dépoli` « à raffiner » ; ce jugement sur vraie photo reste un
+> checkpoint humain différé, pas une dette de code masquée.
 > Les quatorze branches de la tranche 1 sont verrouillées par treize références :
 > le scénario Cannelé simple couvre à la fois la matière 0 et le profil 0. Les
 > sept références complémentaires distinguent explicitement Cannelé croisé de
@@ -14,7 +15,8 @@
 > trois profils restants du profil Arc doux. Une référence exploratoire `Poli`
 > à forte densité a été volontairement écartée : elle révélait un aliasing dû au
 > pas de différences finies constant de cette branche ; la figer aurait verrouillé
-> le défaut. Ce comportement reste à corriger ou à retirer de l'UI.
+> le défaut. Résolu en tranche 2 : Poli utilise une échelle fixe de 0,35 et
+> Densité est réellement sans objet pour cette matière.
 > Source : `C:\dev\portfolio\src\shaders\verre\site.fs.glsl` (1 405 lignes, GLSL).
 > Écrit le 2026-08-03.
 

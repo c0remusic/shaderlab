@@ -11,9 +11,9 @@ import { SRGB_TO_LINEAR_VEC3_WGSL, SRGB_TO_LINEAR_WGSL } from "./srgbTransfer";
  * Portage du système de réfraction d'Antoine, `C:\dev\portfolio\src\shaders\
  * verre\site.fs.glsl` (1 405 lignes GLSL), plan de portage validé le 2026-08-03
  * (`docs/superpowers/specs/2026-08-03-verre-plan-de-portage.md`). C'est la
- * TRANCHE 1 : la feuille. Les pavés de verre (grille de blocs, mortier, arête
- * biseautée, moulage interne) sont la tranche 2 et viendront comme cinq
- * matières de plus, à la FIN de la liste — pas comme un second effet.
+ * Les deux tranches sont livrées : feuille puis cinq pavés de verre (grille de
+ * blocs, mortier, arête biseautée, moulage interne), ajoutés à la FIN de la
+ * liste — jamais comme un second effet.
  *
  * DEUX CHIFFRES DE LA NOTE DE REPRISE ÉTAIENT FAUX, et les compter a changé le
  * découpage : la source porte NEUF matières de feuille utilisables (dix
@@ -112,9 +112,8 @@ const DISP_K = 0.175;
 /** Part de la demi-cellule qui reste PLATE au fond du profil « Fond plat ». */
 const FOND_PLAT = 0.38;
 
-/** Matières. ⚠️ L'index est PERSISTÉ dans les presets : on ajoute à la FIN.
- *  Les cinq matières de PAVÉ de la tranche 2 viendront donc après `Cathédrale`,
- *  et l'ordre ci-dessous ne bougera pas pour les accueillir. */
+/** Matières. ⚠️ L'index est PERSISTÉ dans les presets : les cinq pavés ont été
+ *  ajoutés après `Cathédrale`, sans déplacer les neuf indices historiques. */
 const MATERIALS = [
   "Cannelé simple",
   "Cannelé croisé",
@@ -125,6 +124,11 @@ const MATERIALS = [
   "Poli",
   "Dépoli",
   "Cathédrale",
+  "Pavé · Nuage",
+  "Pavé · Ondulé",
+  "Pavé · Quadrillé",
+  "Pavé · Alvéolaire",
+  "Pavé · Lisse",
 ] as const;
 
 const MAT_CANNELE = 0;
@@ -136,6 +140,8 @@ const MAT_ALU = 5;
 const MAT_POLI = 6;
 const MAT_DEPOLI = 7;
 const MAT_CATHEDRALE = 8;
+const MAT_PAVE_NUAGE = 9;
+const MAT_PAVE_LISSE = 13;
 
 /** Profils de section — la FORME de la strie, vue en coupe. Lus par `pente()`
  *  et `bosse()` seules, donc sans objet hors des trois premières matières.
@@ -172,6 +178,14 @@ export const glass: EffectModule = {
     { name: "dispersion", label: "Dispersion", unit: "percent", min: 0, max: 1, default: 0.25, step: 0.01, hint: "Frange colorée aux endroits inclinés — le verre ne dévie pas toutes les longueurs d'onde pareil. Nulle sur les parties planes, par construction : c'est l'INDICE qui varie, pas le déplacement" },
     { name: "diffusion", label: "Diffusion", unit: "percent", min: 0, max: 1, default: 0.08, step: 0.005, hint: "Étalement de la lecture — le verre translucide au lieu du verre transparent. C'est le réglage principal du Dépoli, qui ne déforme rien et ne fait que ça" },
     { name: "relief", label: "Présence du relief", unit: "percent", min: 0, max: 1, default: 1, step: 0.01, hint: "N'atténue QUE la déviation de l'image : reflets, absorption et spéculaire restent à pleine force. À 0, une dalle plane qui brille encore — ce qu'on ne peut pas obtenir en baissant le Creux, qui éteint la matière en même temps que la déformation" },
+    { name: "blockSize", label: "Taille du pavé", unit: "pixels", min: 24, max: 512, default: 132, step: 1, hint: "Côté d'un bloc en pixels natifs. Sans objet hors des cinq matières Pavé" },
+    { name: "mortar", label: "Largeur du mortier", unit: "pixels", min: 0, max: 24, default: 8, step: 0.5, hint: "Joint opaque entre les blocs. Sans objet hors des cinq matières Pavé" },
+    { name: "mortarHue", label: "Chaleur du mortier", unit: "percent", min: 0, max: 1, default: 0.35, step: 0.01, hint: "Du gris froid au crème chaud. Sans objet hors des cinq matières Pavé" },
+    { name: "mortarLightness", label: "Clarté du mortier", unit: "percent", min: 0.5, max: 2, default: 1, step: 0.01, hint: "Clarté relative à l'ambiante de la scène. Sans objet hors des cinq matières Pavé" },
+    { name: "edgeDepth", label: "Profondeur de l'arête", unit: "percent", min: 0, max: 1, default: 0.45, step: 0.01, hint: "Allonge le trajet optique au bord du bloc. Sans objet hors des cinq matières Pavé" },
+    { name: "edgeWidth", label: "Largeur de l'arête", unit: "percent", min: 0.04, max: 0.5, default: 0.18, step: 0.01, hint: "Part de la demi-cellule occupée par l'arête arrondie. Sans objet hors des cinq matières Pavé" },
+    { name: "bevel", label: "Biseau", unit: "percent", min: 0.04, max: 0.95, default: 0.28, step: 0.01, hint: "Largeur du chanfrein de verre autour du bloc. Sans objet hors des cinq matières Pavé" },
+    { name: "inner", label: "Moulage interne", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Échelle ou densité du relief moulé dans chaque bloc. Sans objet hors des cinq matières Pavé" },
   ],
   wgsl: `
 ${UV_SPACE_WGSL}${HASH_WGSL}${VALUE_NOISE_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}
@@ -300,6 +314,44 @@ fn verre_fractal2(q: vec2<f32>, dens: f32) -> f32 {
        + valueNoise(q * dens * 2.3 + vec2<f32>(5.9, 1.7)) * 0.30;
 }
 
+fn verre_mosaiquePave(f: vec2<f32>, dens: f32) -> f32 {
+  let p = f * dens;
+  let i = floor(p);
+  let g = fract(p) - 0.5;
+  let r = vec2<f32>(0.36 + hash(i) * 0.11, 0.36 + hash(i + vec2<f32>(7.1, 3.3)) * 0.11);
+  let a = abs(g) / r;
+  let carre = 1.0 - smoothstep(0.78, 1.04, max(a.x, a.y));
+  let dome = max(1.0 - dot(a, a) * 0.55, 0.0);
+  return carre * (0.42 + 0.58 * dome);
+}
+
+/** Hauteur dans un pavé : cadre périphérique en saillie, champ central creux,
+ *  puis moulage interne éteint dans le biseau. */
+fn verre_hauteurPave(f: vec2<f32>, mat: i32) -> f32 {
+  let s = (f - 0.5) * 2.0;
+  let b = clamp(params[20], 0.04, 0.95);
+  let champ = (1.0 - smoothstep(1.0 - b, 1.0, abs(s.x))) * (1.0 - smoothstep(1.0 - b, 1.0, abs(s.y)));
+  var moulage = 0.0;
+  let interne = clamp(params[21], 0.0, 1.0);
+  if (mat == ${MAT_PAVE_LISSE}) {
+    moulage = 0.0;
+  } else if (mat == 12) {
+    moulage = (verre_mosaiquePave(f, mix(11.0, 6.0, interne)) - 0.5) * 0.30;
+  } else if (mat == 11) {
+    let k = mix(8.0, 20.0, interne);
+    moulage = cos(6.2832 * f.y * k) * 0.13 + cos(6.2832 * f.x * k * 1.8) * 0.03;
+  } else if (mat == 10) {
+    let d = mix(1.8, 4.2, interne);
+    let w = select(f, f.yx, params[6] > 0.5);
+    moulage = (valueNoise(vec2<f32>(w.x * d, w.y * d * 0.34)) * 0.64
+      + valueNoise(vec2<f32>(w.x * d * 2.3 + 3.1, w.y * d * 0.78 + 7.7)) * 0.36 - 0.5) * 0.17;
+  } else {
+    let d = mix(1.8, 9.0, interne);
+    moulage = (valueNoise(f * d) * 0.62 + valueNoise(f * d * 2.3 + vec2<f32>(3.1, 7.7)) * 0.38 - 0.5) * 1.5;
+  }
+  return 1.0 - champ + moulage * champ;
+}
+
 /** LA PENTE DE SURFACE, pour la matière choisie. C'est le seul endroit où les
  *  neuf matières diffèrent ; tout ce qui suit est commun.
  *
@@ -307,7 +359,7 @@ fn verre_fractal2(q: vec2<f32>, dens: f32) -> f32 {
  *  distance y vaut le même nombre de pixels en x et en y, donc les stries ont
  *  le même pas sur les deux axes et les cellules du martelé sont rondes sur une
  *  photo 3:2. Sans ça, tourner l'orientation changerait la densité. */
-fn verre_pentes(q: vec2<f32>) -> vec2<f32> {
+fn verre_pentes(q: vec2<f32>, uv: vec2<f32>, dims: vec2<f32>) -> vec2<f32> {
   let mat = i32(params[0] + 0.5);
   let n = max(params[1], 1.0);
   let creux = clamp(params[2], 0.0, 1.0);
@@ -320,6 +372,17 @@ fn verre_pentes(q: vec2<f32>) -> vec2<f32> {
   // n'ont aucun relief macroscopique. C'est lui, et lui seul, qui porte le
   // Dépoli.
   let micro = verre_microRelief(q) * grain * 0.00035;
+
+  if (mat >= ${MAT_PAVE_NUAGE}) {
+    let cell = vec2<f32>(max(params[14], 24.0));
+    let f = fract(uv * dims / cell);
+    let e = 0.012;
+    let h0 = verre_hauteurPave(f, mat);
+    let hx = verre_hauteurPave(f + vec2<f32>(e, 0.0), mat);
+    let hy = verre_hauteurPave(f + vec2<f32>(0.0, e), mat);
+    let gr = vec2<f32>(hx - h0, -(hy - h0)) / e;
+    return -gr * dims / cell * 0.0060 * creux + micro;
+  }
 
   if (mat == ${MAT_DEPOLI}) {
     // DÉPOLI. Aucun galbe, aucune maille, aucune direction : un verre sablé n'a
@@ -336,7 +399,10 @@ fn verre_pentes(q: vec2<f32>) -> vec2<f32> {
     // Amplitude minuscule, longueur d'onde de plusieurs écrans — l'image reste
     // NETTE et se déplace seulement, par larges masses. C'est la déformation
     // qu'on lit sur une vitrine sans savoir la nommer.
-    let dens = max(n * 0.022, 0.05);
+    // Échelle fixe : le contrôle Densité annonce « sans objet en Poli » et ne
+    // doit donc pas modifier secrètement cette branche. Cela supprime aussi le
+    // régime aliasé observé à forte densité avec le pas de dérivation constant.
+    let dens = 0.35;
     let e = 0.06;
     let h0 = verre_fractal2(q, dens);
     let hx = verre_fractal2(q + vec2<f32>(e, 0.0), dens);
@@ -480,6 +546,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let dims = vec2<f32>(textureDimensions(srcTexture));
   let ar = aspectScale(dims);
   let q = (uv - vec2<f32>(0.5)) * ar;
+  let mat = i32(params[0] + 0.5);
 
   let epaisseur = max(params[9], 0.0);
   let spec = clamp(params[10], 0.0, 1.0);
@@ -489,7 +556,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
 
   // NORMALE de la surface, depuis la pente. \`z = 1\` : la pente est une dérivée,
   // donc le vecteur (-dh/dx, -dh/dy, 1) est normal au graphe de la hauteur.
-  let dh = verre_pentes(q);
+  let dh = verre_pentes(q, uv, dims);
   let N = normalize(vec3<f32>(-dh.x, -dh.y, 1.0));
   let I = vec3<f32>(0.0, 0.0, -1.0);
 
@@ -554,7 +621,26 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // soit — rendait un vert bouteille sur toute l'image. À 1,2, le défaut est à
   // peine teinté et le maximum de la course donne un verre franchement vert
   // sans devenir opaque.
-  let trajet = epaisseur * 1.2 * (1.0 + (1.0 - cosi) * 2.2);
+  // Arête du pavé : au ras du mortier, le rayon traverse davantage de verre.
+  // Ce n'est pas un contour peint ; la même absorption physique s'intensifie.
+  var distanceBord = 1e9;
+  var profilArete = 0.0;
+  var creteArete = 0.0;
+  var normaleArete = vec2<f32>(0.0);
+  if (mat >= ${MAT_PAVE_NUAGE}) {
+    let cell = vec2<f32>(max(params[14], 24.0));
+    let fCell = fract(uv * dims / cell);
+    let bord = (vec2<f32>(0.5) - abs(fCell - 0.5)) * cell;
+    distanceBord = min(bord.x, bord.y);
+    let largeur = max(params[19] * cell.x * 0.5, 1.0);
+    let tArete = clamp((distanceBord - params[15] * 0.5) / largeur, 0.0, 1.0);
+    profilArete = (1.0 - tArete) * (1.0 - tArete);
+    creteArete = exp(-pow((tArete - 0.20) * 5.2, 2.0));
+    let signe = sign(fCell - vec2<f32>(0.5));
+    normaleArete = select(vec2<f32>(0.0, -signe.y), vec2<f32>(signe.x, 0.0), bord.x < bord.y);
+  }
+  let trajet = epaisseur * 1.2 * (1.0 + (1.0 - cosi) * 2.2)
+    * (1.0 + params[18] * 7.0 * profilArete);
   c = c * exp(-trajet * vec3<f32>(0.055, 0.018, 0.042));
 
   // FRESNEL. Le reflet du ciel sur la surface, d'autant plus fort que
@@ -570,6 +656,28 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let L = normalize(vec3<f32>(-0.40, 0.58, 0.71));
   let Hv = normalize(L - I);
   c = c + pow(max(dot(N, Hv), 0.0), 120.0) * spec;
+
+  if (mat >= ${MAT_PAVE_NUAGE}) {
+    let lisere = creteArete * max(dot(normaleArete, vec2<f32>(-0.567, 0.823)), 0.0) * params[18] * spec * 1.7;
+    c = c + lisere;
+    let joint = max(params[15], 0.0);
+    let masqueMortier = 1.0 - smoothstep(joint * 0.5, joint * 0.5 + 1.4, distanceBord);
+    if (masqueMortier > 0.001) {
+      let amb = (verre_lire(uv + vec2<f32>(0.050, 0.028))
+        + verre_lire(uv + vec2<f32>(-0.050, 0.028))
+        + verre_lire(uv + vec2<f32>(0.050, -0.028))
+        + verre_lire(uv + vec2<f32>(-0.050, -0.028))
+        + verre_lire(uv)) * 0.2;
+      let lum = dot(amb, vec3<f32>(0.2126, 0.7152, 0.0722));
+      let froid = srgb_to_linear3(vec3<f32>(0.97, 1.0, 0.98));
+      let chaud = srgb_to_linear3(vec3<f32>(1.0, 0.95, 0.89));
+      var couleurMortier = mix(froid, chaud, clamp(params[16], 0.0, 1.0)) * (lum * params[17] + 0.07);
+      couleurMortier = couleurMortier + (valueNoise(uv * dims * 0.30) - 0.5) * 0.022;
+      let retrait = clamp(distanceBord / max(joint * 0.5, 0.5), 0.0, 1.0);
+      couleurMortier = couleurMortier * (1.0 - 0.18 * smoothstep(0.30, 1.0, retrait));
+      c = mix(c, clamp(couleurMortier, vec3<f32>(0.0), vec3<f32>(1.0)), masqueMortier);
+    }
+  }
 
   return vec4<f32>(c, color.a);
 }

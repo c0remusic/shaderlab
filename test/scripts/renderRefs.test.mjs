@@ -413,6 +413,11 @@ const ATTENDU = {
   "effet-verre-arc-plein.png": { width: 256, height: 256, valeurs: null },
   "effet-verre-prisme.png": { width: 256, height: 256, valeurs: null },
   "effet-verre-fond-plat.png": { width: 256, height: 256, valeurs: null },
+  "effet-verre-pave-nuage.png": { width: 256, height: 256, valeurs: null },
+  "effet-verre-pave-ondule.png": { width: 256, height: 256, valeurs: null },
+  "effet-verre-pave-quadrille.png": { width: 256, height: 256, valeurs: null },
+  "effet-verre-pave-alveolaire.png": { width: 256, height: 256, valeurs: null },
+  "effet-verre-pave-lisse.png": { width: 256, height: 256, valeurs: null },
   // COURBES : identite GPU sur rampe, puis S-curve + dominante rouge mesuree
   // contre cette identite. Deux references separent la neutralite du signal.
   "effet-courbes-neutre.png": { width: 256, height: 256, valeurs: null },

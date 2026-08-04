@@ -2264,19 +2264,12 @@ const INSTALL = `(async () => {
       },
     },
 
-    // ⚠️ UN HUITIEME SCENARIO A EXISTE ICI ET A ETE RETIRE, ce qui est une
-    // information et pas un vide. Le meme Poli a densite 150 s ecartait de
-    // celui-ci sur 65,4 % des canaux — l infobulle de Densite du motif annonce
-    // pourtant « Sans objet en Poli ». La mesure a donc dit deux choses : que
-    // l infobulle ment, et que ce que le curseur produit a fond de course n est
-    // pas un verre plus serre mais de l ALIASING (franges d interference, image
-    // illisible). Cause trouvee sur pieces : Poli est la seule branche pilotee
-    // par la densite dont le pas de differences finies est CONSTANT (0,06) la
-    // ou Cathedrale et Martele mettent le leur a l echelle (0,35/dens et
-    // 0,10/dens). Le pas finit plus grand que le motif qu il mesure.
-    // La reference n a pas ete ecrite : figer cette image verrouillerait le
-    // defaut au lieu de le signaler. A reposer une fois le sens du correctif
-    // tranche — Poli prend une vraie commande d echelle, ou la perd pour de bon.
+    // La dette Densite de Poli est RESOLUE en tranche 2 : une ancienne sonde a
+    // montre qu a 150 le parametre ne resserrait pas un verre, il fabriquait de
+    // l aliasing (65,4 % des canaux). Or son infobulle disait deja « Sans objet
+    // en Poli ». La branche utilise maintenant une echelle fixe de 0,35 : le
+    // parametre est vraiment inerte et le pas de derivation constant ne peut
+    // plus depasser le motif qu il mesure.
 
     // LES TROIS PROFILS RESTANTS, tous sur le cannele simple et tous mesures
     // contre lui : seul \`profile\` change d un scenario a l autre, donc chaque
@@ -2342,6 +2335,55 @@ const INSTALL = `(async () => {
           orientation: 0, irregularity: 0, grain: 0.2, thickness: 0.16,
           specular: 0.35, dispersion: 0.4, diffusion: 0.03, relief: 1,
         });
+      },
+    },
+
+    // TRANCHE 2 DU VERRE : cinq pavés, sur la même mire et avec le même bloc.
+    // Chaque scénario ne change que le moulage interne ; la chaîne contre
+    // garantit que deux branches ne peuvent pas converger silencieusement.
+    "effet-verre-pave-nuage": {
+      contre: "effet-verre-cannele",
+      build: async (r, stack) => {
+        const m = await mireVerre(W, H); const sourceId = await r.photoSources.register(m);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
+        const a = stack.addLayer("glass", p);
+        stack.updateParams(a, { material: 9, depth: 0.7, thickness: 1.1, dispersion: 0.35, diffusion: 0.04, blockSize: 64, mortar: 6, mortarHue: 0.35, mortarLightness: 1, edgeDepth: 0.55, edgeWidth: 0.18, bevel: 0.28, inner: 0.5 });
+      },
+    },
+    "effet-verre-pave-ondule": {
+      contre: "effet-verre-pave-nuage",
+      build: async (r, stack) => {
+        const m = await mireVerre(W, H); const sourceId = await r.photoSources.register(m);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
+        const a = stack.addLayer("glass", p);
+        stack.updateParams(a, { material: 10, depth: 0.7, thickness: 1.1, dispersion: 0.35, diffusion: 0.04, blockSize: 64, mortar: 6, mortarHue: 0.35, mortarLightness: 1, edgeDepth: 0.55, edgeWidth: 0.18, bevel: 0.28, inner: 0.5 });
+      },
+    },
+    "effet-verre-pave-quadrille": {
+      contre: "effet-verre-pave-ondule",
+      build: async (r, stack) => {
+        const m = await mireVerre(W, H); const sourceId = await r.photoSources.register(m);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
+        const a = stack.addLayer("glass", p);
+        stack.updateParams(a, { material: 11, depth: 0.7, thickness: 1.1, dispersion: 0.35, diffusion: 0.04, blockSize: 64, mortar: 6, mortarHue: 0.35, mortarLightness: 1, edgeDepth: 0.55, edgeWidth: 0.18, bevel: 0.28, inner: 0.5 });
+      },
+    },
+    "effet-verre-pave-alveolaire": {
+      contre: "effet-verre-pave-quadrille",
+      build: async (r, stack) => {
+        const m = await mireVerre(W, H); const sourceId = await r.photoSources.register(m);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
+        const a = stack.addLayer("glass", p);
+        stack.updateParams(a, { material: 12, depth: 0.7, thickness: 1.1, dispersion: 0.35, diffusion: 0.04, blockSize: 64, mortar: 6, mortarHue: 0.35, mortarLightness: 1, edgeDepth: 0.55, edgeWidth: 0.18, bevel: 0.28, inner: 0.5 });
+      },
+    },
+    "effet-verre-pave-lisse": {
+      contre: "effet-verre-pave-alveolaire",
+      build: async (r, stack) => {
+        const m = await mireVerre(W, H); const sourceId = await r.photoSources.register(m);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
+        const a = stack.addLayer("glass", p);
+        stack.updateParams(a, { material: 13, depth: 0.7, thickness: 1.1, dispersion: 0.35, diffusion: 0.04, blockSize: 64, mortar: 6, mortarHue: 0.35, mortarLightness: 1, edgeDepth: 0.55, edgeWidth: 0.18, bevel: 0.28, inner: 0.5 });
       },
     },
 

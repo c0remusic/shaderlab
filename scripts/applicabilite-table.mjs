@@ -377,6 +377,29 @@ export const DECLARATIONS = [
     ].map((d) => ({ ...d, effet: "outlines", mire: "mire" }));
   })(),
 
+  // ── dither ───────────────────────────────────────────────────────────
+  // DEUX DECLARATIONS NEUVES, posees le 2026-08-05 par un agent qui les a
+  // DEDUITES DU SHADER et non mesurees — il l a signale lui-meme. Or ce depot
+  // a une regle : une applicabilite se MESURE avant de se declarer, et elle a
+  // deja ete fausse dans les deux sens. Un curseur masque a tort ne bouge plus
+  // aucun pixel, donc aucune reference de rendu ne peut rougir de l erreur :
+  // ces deux-la ne peuvent etre eprouvees QUE par cette sonde.
+  //
+  // Le raisonnement de l agent : la branche Seuil est le `return 0.0` de sortie
+  // de `ditherThreshold`, celle qu aucun `if` ne teste — elle ne lit ni la
+  // cellule ni sa taille.
+  ...["size", "amount"].map((param) => ({
+    id: `dither.${param}`,
+    effet: "dither",
+    mire: "mire",
+    declare: "Sans objet en Seuil (declaration NEUVE, deduite du code)",
+    param,
+    a: { size: 1, amount: 0 }[param],
+    b: { size: 32, amount: 1 }[param],
+    // STYLE_SEUIL vaut 2 dans la liste des sept styles.
+    configs: [{ label: "Seuil", base: { style: 2, levels: 3, mono: 1, blackPoint: 0.05, whitePoint: 0.95 } }],
+  })),
+
   // ── gradientMap ──────────────────────────────────────────────────────
   {
     id: "gradientMap.repeatType",

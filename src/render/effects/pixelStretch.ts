@@ -85,6 +85,56 @@ export const pixelStretch: EffectModule = {
     { name: "regionFeather", label: "Fondu de la zone", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Adoucit la limite du disque — à 0 la coulure s'arrête net sur un cercle visible, ce qui trahit l'effet" },
 
   ],
+  /**
+   * TROIS SECTIONS — trois questions : comment la matière est ÉTIRÉE, ce qui
+   * empêche l'étirement de se lire comme un copier-coller, et OÙ il a le droit
+   * d'exister.
+   *
+   * DÉCOUPAGE THÉMATIQUE, PAS PAR MODE. Les douze paramètres sont vivants en
+   * permanence — aucun `appliesWhen` ici, ni sur un paramètre ni sur une section.
+   * Ce qui manquait à la liste plate n'était donc pas du masquage mais des
+   * TITRES : rien n'y disait que les quatre derniers curseurs ne règlent pas la
+   * coulure mais l'endroit où elle se produit, ni que l'ondulation et le lissage
+   * ne sont pas des réglages d'intensité — ce sont les deux correctifs qui
+   * séparent cet effet de sa version naïve (points 3 et 4 de l'en-tête).
+   *
+   * ⚠️ LA ZONE PREND SON CONTRÔLE EN ENTIER, EN-TÊTE COMPRIS. `ParamPanel` place
+   * l'en-tête « sur la toile » à l'index du PREMIER paramètre du disque
+   * (`regionRadius`) : citer les trois rôles dans une même section y emmène
+   * l'en-tête avec eux. En citer deux sur trois lèverait au montage — un
+   * manipulateur coupé en deux ne se voit ni au type-check ni sur une référence
+   * de pixels, c'est `groupEffectParams` qui le refuse là où le déplacement a
+   * lieu. `regionFeather` n'est pas un rôle du disque (il n'a pas de poignée)
+   * mais il répond à la même question, jusqu'où la zone porte : une section peut
+   * contenir PLUS que son contrôle, jamais moins.
+   *
+   * ⚠️ « Zone d'étirement » et non « Zone » tout court : le contrôle de toile
+   * s'appelle déjà « Zone » et son en-tête est rendu DANS cette section, donc le
+   * titre court aurait posé deux fois le même mot l'un sous l'autre.
+   *
+   * ⚠️ AUCUN INDEX N'A BOUGÉ — `params[]` reste dans son ordre d'origine, où les
+   * presets le lisent. Seule l'asymétrie remonte à l'affichage, auprès de la
+   * portée qu'elle répartit : elle est en fin de table parce qu'elle y a été
+   * AJOUTÉE (2026-08-01), pas parce qu'elle se lit là. Une section s'ouvre en
+   * revanche à la place de son premier paramètre, donc la zone reste en bas,
+   * exactement où la table la met.
+   */
+  sections: [
+    // LE GESTE : dans quelle direction, depuis quelle ligne, jusqu'où, avec
+    // quelle force, et de quel côté. Ces cinq-là se règlent en se regardant les
+    // uns les autres — l'asymétrie ne veut rien dire sans la portée qu'elle
+    // répartit entre les deux côtés.
+    { id: "etirement", label: "Étirement", params: ["angle", "position", "reach", "strength", "offset"], layout: "liste" },
+    // CE QUI TRAHIRAIT L'EFFET, et rien d'autre : une ligne source parfaitement
+    // droite se voit comme une règle, et son grain devient une rayure sur toute
+    // la traînée. Les trois curseurs ne changent pas la quantité d'étirement,
+    // ils changent ce qui le rend crédible — d'où un titre à part.
+    { id: "rendu", label: "Rendu", params: ["wobble", "wobbleScale", "smooth"], layout: "liste" },
+    // OÙ. Gabarit `pose` : le réglage se manipule sur l'image (le cercle vise),
+    // les curseurs affinent. C'est la déclaration du régime, pas une mise en
+    // page — voir `SectionLayout`.
+    { id: "zone", label: "Zone d'étirement", params: ["regionRadius", "regionX", "regionY", "regionFeather"], layout: "pose" },
+  ],
   // MANIPULATEUR SUR LA TOILE (2026-08-02). Verdict d'usage : « difficile à
   // positionner correctement ». La région existait depuis la veille mais ne se
   // réglait qu'aux curseurs, là où la référence dit « place the on-canvas circle

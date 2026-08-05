@@ -125,6 +125,57 @@ export const sliceShift: EffectModule = {
     // système de paramètres a su l'exprimer.
     { name: "edgeFeather", label: "Fondu des bords", unit: "pixels", min: 0, max: 400, default: 0, step: 1, maxFrom: (p) => Math.max(2, Math.min(400, p.sliceSize)), hint: "Adoucit la frontière entre deux tranches, en pixels pleine résolution. À 0 la coupure est franche — c'est la signature de l'effet. Sa course suit l'épaisseur des tranches : au-delà, deux fondus se recouvriraient au milieu d'une tranche" },
   ],
+  /**
+   * TROIS SECTIONS, TROIS QUESTIONS, ET AUCUNE CONDITION.
+   *
+   * `sliceShift` n'a pas de mode exclusif : ses huit paramètres servent tous,
+   * tout le temps. Le découpage est donc THÉMATIQUE — il ne masque rien, il
+   * range. Les trois questions sont celles que le shader traite dans cet ordre :
+   * comment l'image est TRANCHÉE, ce que chaque tranche FAIT, et à quoi
+   * ressemble la LIMITE entre deux.
+   *
+   * OÙ TOMBE LA GRAINE, et pourquoi avec la découpe. Elle commande les TROIS
+   * tirages de `sliceAmount`, pas seulement celui des bandes. Elle est rangée
+   * ici parce que le premier d'entre eux fixe l'IDENTITÉ d'une tranche
+   * (l'adoption) et que les deux autres hachent sur cette identité : changer la
+   * graine redessine d'abord la géométrie des bandes, le décalage suit.
+   *
+   * ⚠️ `params[]` NE BOUGE PAS — les index sont persistés dans les presets et
+   * gelés par les références de pixels. Deux sections s'entrelacent bien dans le
+   * tableau (`irregular` et `seed` sont posés entre les paramètres de décalage) :
+   * une section s'ouvrant à la place de son premier item, ces deux-là remontent
+   * à l'AFFICHAGE et rien d'autre ne bouge. Sans danger ici — l'effet ne déclare
+   * ni contrôle de toile ni groupe de couleur, les deux seules choses qu'une
+   * section ne doit jamais couper en deux.
+   */
+  sections: [
+    {
+      id: "decoupe",
+      label: "Découpe",
+      layout: "liste",
+      params: ["angle", "sliceSize", "irregular", "seed"],
+    },
+    {
+      id: "decalage",
+      label: "Décalage",
+      layout: "liste",
+      // `density` est ici et non dans la découpe : elle ne change aucune
+      // tranche, elle décide lesquelles BOUGENT — le reste de l'image sort
+      // intact au pixel près, et c'est ce qui rend le décrochage lisible.
+      params: ["displace", "density", "chromaSplit"],
+    },
+    {
+      id: "bords",
+      label: "Bords",
+      layout: "liste",
+      // UN SEUL PARAMÈTRE, ET UNE SECTION QUAND MÊME. La coupure franche est la
+      // signature de l'effet, et `edgeFeather` est le seul réglage qui la
+      // touche. Laissé à la suite du décalage, il se lirait comme un troisième
+      // dosage du glissement — alors qu'il ne déplace rien : il choisit entre
+      // deux lectures nettes au lieu d'en inventer une troisième.
+      params: ["edgeFeather"],
+    },
+  ],
   wgsl: `
 ${UV_SPACE_WGSL}${HASH_WGSL}
 // Décalage d'une tranche, fonction PURE de son index — extraite pour que le

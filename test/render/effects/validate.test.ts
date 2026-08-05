@@ -190,4 +190,112 @@ describe("validateEffect", () => {
     expect(() => validateEffect(effect)).toThrow(/arrêts couleur de rampe non ordonnés/);
   });
 
+  // APPLICABILITÉ (`EffectParam.appliesWhen`, 2026-08-05). Le champ naît d'une
+  // campagne de mesure — 39 déclarations « Sans objet » portées par des
+  // infobulles, 38 exactes et une fausse. Ces tests ne protègent PAS la mesure :
+  // ils protègent la seule chose que le code puisse encore rater une fois la
+  // déclaration écrite, viser un paramètre ou un index qui n'existe pas. Les
+  // deux fautes rendent le même symptôme muet — un curseur qui ne revient plus.
+  function effectWithMode(): EffectModule {
+    const effect = effectWithParams(3);
+    effect.params[0] = { ...effect.params[0], name: "mode", choices: ["Un", "Deux"], min: 0, max: 1, step: 1, default: 0 };
+    return effect;
+  }
+
+  it("accepts a param that applies only in one mode", () => {
+    const effect = effectWithMode();
+    effect.params[1] = { ...effect.params[1], appliesWhen: { param: "mode", equals: 1 } };
+    expect(() => validateEffect(effect)).not.toThrow();
+  });
+
+  it("rejects an appliesWhen aimed at an absent param", () => {
+    const effect = effectWithMode();
+    effect.params[1] = { ...effect.params[1], appliesWhen: { param: "missing", equals: 0 } };
+    expect(() => validateEffect(effect)).toThrow(/appliesWhen du paramètre "p1".*paramètre absent "missing"/);
+  });
+
+  it("rejects an appliesWhen aimed at a param without choices", () => {
+    const effect = effectWithMode();
+    effect.params[1] = { ...effect.params[1], appliesWhen: { param: "p2", equals: 0 } };
+    expect(() => validateEffect(effect)).toThrow(/appliesWhen du paramètre "p1".*doit viser un paramètre choices/);
+  });
+
+  it("rejects an appliesWhen index outside the available choices", () => {
+    const effect = effectWithMode();
+    effect.params[1] = { ...effect.params[1], appliesWhen: { param: "mode", equals: [0, 2] } };
+    expect(() => validateEffect(effect)).toThrow(/index de choix invalide 2/);
+  });
+
+  // Un sélecteur conditionné par lui-même se masque dès qu'on le sort de son
+  // propre choix, et rien ne permet alors de l'y ramener : le panneau ne montre
+  // plus le contrôle qui commande la condition.
+  it("rejects a param whose appliesWhen targets itself", () => {
+    const effect = effectWithMode();
+    effect.params[0] = { ...effect.params[0], appliesWhen: { param: "mode", equals: 0 } };
+    expect(() => validateEffect(effect)).toThrow(/se vise lui-même/);
+  });
+
+  // SECTIONS (`EffectModule.sections`). Elles regroupent des items de RENDU et
+  // ne touchent pas `params[]`, dont les index sont persistés dans les presets.
+  // Ce qui se vérifie est donc la citation, et rien d'autre.
+  it("accepts a section grouping declared params", () => {
+    const effect = effectWithMode();
+    effect.sections = [{ id: "reglages", label: "Réglages", params: ["p1", "p2"], layout: "liste" }];
+    expect(() => validateEffect(effect)).not.toThrow();
+  });
+
+  it("rejects a section citing an unknown param", () => {
+    const effect = effectWithMode();
+    effect.sections = [{ id: "reglages", label: "Réglages", params: ["p1", "missing"], layout: "liste" }];
+    expect(() => validateEffect(effect)).toThrow(/section "reglages".*paramètre absent "missing"/);
+  });
+
+  it("rejects a param cited by two sections", () => {
+    const effect = effectWithMode();
+    effect.sections = [
+      { id: "matiere", label: "Matière", params: ["p1"], layout: "liste" },
+      { id: "optique", label: "Optique", params: ["p2", "p1"], layout: "liste" },
+    ];
+    expect(() => validateEffect(effect)).toThrow(/"p1" est cité par deux sections \("matiere" et "optique"\)/);
+  });
+
+  it("rejects a section declared with no params", () => {
+    const effect = effectWithMode();
+    effect.sections = [{ id: "vide", label: "Vide", params: [], layout: "liste" }];
+    expect(() => validateEffect(effect)).toThrow(/section "vide" : aucun paramètre cité/);
+  });
+
+  it("rejects duplicate section ids", () => {
+    const effect = effectWithMode();
+    effect.sections = [
+      { id: "reglages", label: "Réglages", params: ["p1"], layout: "liste" },
+      { id: "reglages", label: "Réglages bis", params: ["p2"], layout: "liste" },
+    ];
+    expect(() => validateEffect(effect)).toThrow(/section dupliquée "reglages"/);
+  });
+
+  // La condition d'une section passe par la MÊME fonction que celle d'un
+  // paramètre et que `CanvasControl.visibleWhen` : ce test prouve la réutilisation.
+  it("rejects a section appliesWhen index outside the available choices", () => {
+    const effect = effectWithMode();
+    effect.sections = [{ id: "pave", label: "Pavé", params: ["p1"], layout: "liste", appliesWhen: { param: "mode", equals: 5 } }];
+    expect(() => validateEffect(effect)).toThrow(/appliesWhen de la section "pave".*index de choix invalide 5/);
+  });
+
+  it("rejects a posed or drawn layout on an effect that has no such control", () => {
+    const pose = effectWithMode();
+    pose.sections = [{ id: "centre", label: "Centre", params: ["p1"], layout: "pose" }];
+    expect(() => validateEffect(pose)).toThrow(/gabarit "pose".*aucun canvasControl/);
+
+    const figure = effectWithMode();
+    figure.sections = [{ id: "rampe", label: "Rampe", params: ["p1"], layout: "figure" }];
+    expect(() => validateEffect(figure)).toThrow(/gabarit "figure".*ni curveControls ni colorRampControls/);
+  });
+
+  it("accepts a drawn layout on an effect that declares a curve control", () => {
+    const effect = effectWithCurve();
+    effect.sections = [{ id: "maitre", label: "Maître", params: ["p0", "p1"], layout: "figure" }];
+    expect(() => validateEffect(effect)).not.toThrow();
+  });
+
 });

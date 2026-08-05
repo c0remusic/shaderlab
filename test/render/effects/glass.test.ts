@@ -48,15 +48,80 @@ describe("glass — la surface de contrôle", () => {
   });
 
   it("dit dans quel cas chaque réglage restreint est SANS OBJET", () => {
-    // Un curseur inerte est l'échec silencieux que ce dépôt proscrit, et c'est
-    // le seul garde-fou disponible tant que `ParamPanel` ne sait pas masquer un
-    // contrôle. Trois réglages ne sont lus que par `pente()`/`bosse()`, donc ne
-    // concernent que les trois premières matières.
+    // Un curseur inerte est l'échec silencieux que ce dépôt proscrit. L'infobulle
+    // dit POURQUOI, l'`appliesWhen` ci-dessous ne dit que QUE : porter la
+    // déclaration vers le contrat de masquage n'autorise pas à retirer le texte,
+    // et ce test garde les deux ensemble.
     for (const nom of ["profile", "fillet"]) {
       expect(glass.params.find((p) => p.name === nom)?.hint).toMatch(/Sans objet/);
     }
     // Le dépoli n'a aucun galbe : son creux ne fait rien, sa diffusion tout.
     expect(glass.params.find((p) => p.name === "depth")?.hint).toMatch(/Sans objet en Dépoli/);
+  });
+
+  it("masque chaque réglage restreint sur EXACTEMENT les matières mesurées", () => {
+    // Les quatorze déclarations éprouvées le 2026-08-05 (74 rendus,
+    // `scripts/applicabilite-table.mjs`). On assère la LISTE COMPLÈTE des index
+    // et non « contient » : ce qui se perd en masquant trop ne se voit nulle
+    // part, donc un test qui n'attrape que l'oubli ne garde que la moitié du
+    // risque.
+    const applicabilite = (nom: string) => {
+      const condition = glass.params.find((p) => p.name === nom)?.appliesWhen;
+      expect(condition?.param, `${nom} doit être commandé par la matière`).toBe("material");
+      return condition?.equals;
+    };
+    const CANNELURES = [0, 1, 2];
+    const PAVES = [9, 10, 11, 12, 13];
+    const SAUF = (...exclues: number[]) => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].filter((i) => !exclues.includes(i));
+
+    expect(applicabilite("density")).toEqual(SAUF(6, 7));       // ni Poli ni Dépoli
+    expect(applicabilite("depth")).toEqual(SAUF(7));            // pas de galbe au Dépoli
+    expect(applicabilite("profile")).toEqual(CANNELURES);       // lus par pente()/bosse() seules
+    expect(applicabilite("fillet")).toEqual(CANNELURES);
+    expect(applicabilite("orientation")).toEqual(SAUF(1, 2, 3, 5, 6, 7));
+    expect(applicabilite("irregularity")).toEqual(SAUF(6, 7));
+    for (const nom of ["blockSize", "mortar", "mortarHue", "mortarLightness", "edgeDepth", "edgeWidth", "bevel", "inner"]) {
+      expect(applicabilite(nom), `${nom} n'existe que sur un pavé`).toEqual(PAVES);
+    }
+  });
+
+  it("laisse `flat` VISIBLE partout — c'est le seul des trente-neuf qui mentait", () => {
+    // LA RAISON D'ÊTRE DE LA CAMPAGNE DE MESURE. `flat` disait « Sans objet
+    // ailleurs » et déplace 47,1 % des canaux en Martelé, 49,0 % en Écorce, où
+    // il règle la largeur de la rainure entre cellules. Le masquer sur la foi de
+    // cette phrase l'aurait effacé SANS RIEN FAIRE ROUGIR : un curseur masqué ne
+    // bouge plus aucun pixel, donc aucune référence de rendu ne l'aurait vu.
+    const flat = glass.params.find((p) => p.name === "flat");
+    expect(flat?.appliesWhen, "flat n'est masqué nulle part").toBeUndefined();
+    // Et son infobulle ne redit plus le mensonge : elle nomme ses trois sens.
+    expect(flat?.hint).not.toMatch(/Sans objet ailleurs/);
+    expect(flat?.hint).toMatch(/RAINURE/);
+    expect(flat?.hint).toMatch(/BROSSAGE/);
+    // Le shader, lui, le lit bien dans la branche Martelé/Écorce : c'est la
+    // largeur de rainure, et c'est cette ligne que la mesure a désignée.
+    expect(wgsl).toContain("let rainure = mix(0.06, 0.40, 1.0 - plat);");
+  });
+
+  it("range ses vingt-deux réglages en trois sections, sans toucher à params[]", () => {
+    // Les sections sont une donnée d'AFFICHAGE : l'index d'un paramètre est
+    // persisté dans les presets. Ce qui se vérifie ici est que les trois
+    // sections sont trois blocs CONTIGUS de `params[]` dans son ordre d'origine
+    // — la condition posée par `groupEffectParams`, qui s'appuie sur cet ordre
+    // en deux endroits et ne survivrait pas à une section qui en traverse une
+    // autre.
+    const noms = glass.params.map((p) => p.name);
+    const sections = glass.sections!;
+    expect(sections.map((s) => s.id)).toEqual(["matiere", "optique", "pave"]);
+    expect(sections.flatMap((s) => s.params)).toEqual(noms);
+
+    // Seule la troisième a une condition : les quatorze matières ont toutes une
+    // matière et une optique, cinq seulement ont un pavé.
+    expect(sections[0].appliesWhen).toBeUndefined();
+    expect(sections[1].appliesWhen).toBeUndefined();
+    expect(sections[2].appliesWhen).toEqual({ param: "material", equals: [9, 10, 11, 12, 13] });
+    // GRILLE pour les huit réglages courts du pavé, liste pour les deux étages
+    // du shader (fabriquer la pente, puis ce qui est commun aux quatorze).
+    expect(sections.map((s) => s.layout)).toEqual(["liste", "liste", "grille"]);
   });
 });
 

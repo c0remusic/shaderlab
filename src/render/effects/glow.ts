@@ -138,6 +138,33 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     { scale: 0.25, wgsl: upsampleWgsl(3) },
     { scale: 0.5, wgsl: upsampleWgsl(3) },
   ],
+  /**
+   * DEUX SECTIONS POUR QUATRE PARAMÈTRES, et c'est un arbitrage rendu, pas un
+   * oubli d'économie.
+   *
+   * L'objection a été posée puis levée le 2026-08-05 : sur un effet à quatre
+   * paramètres, deux titres coûtent de la hauteur au lieu d'en rendre — c'est la
+   * lettre d'ADR-0001. La cohérence l'emporte ici. Un panneau qui a des sections
+   * sur la moitié des effets et pas sur l'autre oblige à réapprendre la carte à
+   * chaque changement d'effet, et ce coût-là n'apparaît dans aucune mesure de
+   * hauteur. Si la carte de `glow` ressort du checkpoint plus haute qu'avant,
+   * c'est le gabarit des titres qui doit maigrir, pas les sections qui doivent
+   * disparaître.
+   *
+   * LA FRONTIÈRE EST CELLE DES PASSES, et pas un rangement de goût. « Seuil »
+   * regroupe ce que lit le bright-pass — ce qui ENTRE dans le halo ;
+   * « Diffusion » ce que lisent les remontées et le composite — ce que le halo
+   * DEVIENT une fois entré. Un paramètre changerait de section le jour où il
+   * changerait de passe, pas avant.
+   *
+   * Aucune condition sur les deux : `glow` n'a pas de mode, ses quatre
+   * paramètres servent toujours. Le découpage est THÉMATIQUE, il ne masque rien
+   * et ne touche ni au shader ni à l'ordre de `params[]`.
+   */
+  sections: [
+    { id: "seuil", label: "Seuil", layout: "liste", params: ["threshold", "knee"] },
+    { id: "diffusion", label: "Diffusion", layout: "liste", params: ["intensity", "spread"] },
+  ],
   // Composite ADDITIF et NEUTRE. Le halo garde la couleur de sa source — c'est
   // ce que fait une diffusion : elle étale la lumière présente, elle ne la
   // colore pas. Toute recoloration relève de `halation.ts`, qui est un autre

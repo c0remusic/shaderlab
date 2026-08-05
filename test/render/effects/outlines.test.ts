@@ -3,6 +3,8 @@ import { outlines } from "../../../src/render/effects/outlines";
 import { EDGE_GRADIENT_WGSL, SCHARR_NORM } from "../../../src/render/effects/edgeGradient";
 import { effectRegistry, getEffect } from "../../../src/render/effects/registry";
 import { MAX_EFFECT_PARAMS } from "../../../src/render/shaderCompose";
+import type { DisplayCondition } from "../../../src/render/effects/types";
+import { conditionRemplie } from "../../../src/render/effects/displayCondition";
 
 /** CE FICHIER S'APPELAIT `coloredEdges.test.ts` jusqu'au 2026-08-03.
  *
@@ -320,5 +322,125 @@ describe("outlines — registre", () => {
     // plus de sens depuis qu'il sert aussi de NIVEAU de seuillage.
     const seuil = outlines.params.find((p) => p.name === "threshold");
     expect(seuil?.max).toBe(1);
+  });
+});
+
+describe("outlines — les contrôles suivent le mode (2026-08-05)", () => {
+  const parNom = new Map(outlines.params.map((p) => [p.name, p]));
+  const defauts: Record<string, number> = {};
+  for (const p of outlines.params) defauts[p.name] = p.default;
+
+  /** Les onze verdicts de la campagne du 2026-08-05, transcrits. Un `appliesWhen`
+   *  de plus ou de moins doit faire rougir ce test : c'est la seule chose qui
+   *  rattache le masquage à une MESURE plutôt qu'à une intuition. */
+  const MESURÉS: Record<string, DisplayCondition> = {
+    chroma: { param: "inputSource", equals: [0, 2] },
+    inkMode: { param: "detectMode", equals: [0, 1] },
+    hueOffset: { param: "inkMode", equals: 1 },
+    hueSpread: { param: "inkMode", equals: 1 },
+    wheelChroma: { param: "inkMode", equals: 1 },
+    wheelLightness: { param: "inkMode", equals: 1 },
+    fill: { param: "detectMode", equals: [1, 2] },
+    smoothing: { param: "detectMode", equals: 2 },
+    spacing: { param: "detectMode", equals: 2 },
+    echoCount: { param: "detectMode", equals: 2 },
+    falloff: { param: "detectMode", equals: 2 },
+  };
+
+  it("porte les onze déclarations éprouvées, et AUCUNE de plus", () => {
+    // « Aucune de plus » est la moitié utile de l'assertion : masquer un curseur
+    // ne fait bouger aucun pixel, donc aucune référence de rendu ne peut voir un
+    // masquage ajouté au jugement. C'est exactement le scénario que la campagne
+    // de mesure existait pour empêcher — et qui a effectivement attrapé une
+    // déclaration FAUSSE sur `glass.flat`, un curseur qui déplace la moitié de
+    // l'image et que son infobulle disait sans objet.
+    const portés = outlines.params.filter((p) => p.appliesWhen).map((p) => p.name);
+    expect(portés.sort()).toEqual(Object.keys(MESURÉS).sort());
+    for (const [nom, condition] of Object.entries(MESURÉS)) {
+      expect(parNom.get(nom)?.appliesWhen).toEqual(condition);
+    }
+  });
+
+  it("garde les onze infobulles — masquer dit QUE, l'infobulle dit POURQUOI", () => {
+    // Porter une déclaration vers `appliesWhen` n'autorise pas à retirer le
+    // `hint` : un contrôle absent n'explique rien, et l'utilisateur qui le
+    // retrouve en changeant de mode a toujours besoin de savoir ce qu'il fait.
+    for (const nom of Object.keys(MESURÉS)) {
+      expect(parNom.get(nom)?.hint).toBeTruthy();
+    }
+  });
+
+  it("ne vise que des paramètres à CHOIX, jamais un seuil sur un curseur", () => {
+    // Un seuil sur une valeur continue serait une décision d'affichage cachée
+    // dans un nombre, que ni `validateEffect` ni un relecteur ne pourraient
+    // rattacher à ce qui la commande. `validateEffect` l'interdit ; ce test le
+    // rend visible depuis le fichier de l'effet.
+    for (const condition of Object.values(MESURÉS)) {
+      expect(parNom.get(condition.param)?.choices).toBeDefined();
+    }
+  });
+
+  it("range ses vingt-six paramètres, chacun dans une seule section", () => {
+    // `validateEffect` interdit qu'un paramètre soit cité DEUX fois ; il
+    // n'exige pas qu'il soit cité. Ce test-ci ferme l'autre bord : ajouter un
+    // paramètre à cet effet oblige à décider où il se range, au lieu de le
+    // laisser tomber en dehors des trois sections sans que rien ne le dise.
+    const cités = outlines.sections!.flatMap((s) => s.params);
+    expect(cités.length).toBe(26);
+    expect([...cités].sort()).toEqual(outlines.params.map((p) => p.name).sort());
+  });
+
+  it("ne coupe aucun groupe de couleur en deux sections", () => {
+    // `ParamPanel` ancre un groupe de couleur à l'index de son PREMIER membre et
+    // rend les trois rôles en un seul contrôle. Une section qui n'en citerait
+    // que deux ne déplacerait pas le contrôle, elle le casserait — et le garde
+    // de `groupEffectParams` ne lève que sur un groupe incomplet dans TOUT
+    // l'effet, pas sur un groupe éclaté entre deux sections.
+    const sectionDe = new Map<string, string>();
+    for (const section of outlines.sections!) {
+      for (const nom of section.params) sectionDe.set(nom, section.id);
+    }
+    const parClé = new Map<string, Set<string>>();
+    for (const p of outlines.params) {
+      if (!p.colorGroup) continue;
+      const vues = parClé.get(p.colorGroup.key) ?? new Set<string>();
+      vues.add(sectionDe.get(p.name)!);
+      parClé.set(p.colorGroup.key, vues);
+    }
+    expect([...parClé.keys()].sort()).toEqual(["background", "dernierEcho", "ink"]);
+    for (const [, sections] of parClé) expect(sections.size).toBe(1);
+  });
+
+  it("fait de la section Échos le MIROIR du prédicat des neuf passes", () => {
+    // LE POINT DE CE CHANTIER SUR CET EFFET. Le contrat de COÛT existait déjà —
+    // les neuf passes ne tournent qu'en Échos. Le contrat d'AFFICHAGE dit
+    // désormais la même chose au même moment, et les deux sont dérivés d'une
+    // SEULE déclaration dans le fichier de l'effet. Deux copies d'un même
+    // prédicat ne divergeraient pas bruyamment : une section restée visible là
+    // où la pyramide ne tourne plus afficherait des curseurs qui ne peuvent
+    // rien, sans qu'aucun test de rendu ne bronche.
+    //
+    // La condition est évaluée par `conditionRemplie` — l'évaluateur que le
+    // panneau utilisera — et non par une copie locale : ce qui est comparé ici
+    // est ce qui S'AFFICHERA, face au prédicat que les passes portent de leur
+    // côté. Deux mécanismes distincts, donc une vraie mesure d'accord.
+    const échos = outlines.sections!.find((s) => s.id === "echos");
+    expect(échos?.appliesWhen).toBeDefined();
+    for (const mode of [0, 1, 2]) {
+      const params = { ...defauts, detectMode: mode };
+      const passesTournent = outlines.passes!.every((p) => p.enabled!(params));
+      expect(conditionRemplie(échos!.appliesWhen!, params)).toBe(passesTournent);
+    }
+  });
+
+  it("ne masque QUE l'affichage : ni le shader ni les bornes ne bougent", () => {
+    // Masquer ne borne rien. La valeur reste dans le calque, part telle quelle
+    // dans les presets, et le shader continue de la lire — un preset écrit à la
+    // main ou un `updateParams` programmatique ne passent pas par le panneau.
+    // Les clamps des quatre réglages d'échos restent donc dans le corps final.
+    expect(outlines.wgsl).toContain("let spacing = max(params[20], 1.0);");
+    expect(outlines.wgsl).toContain("let count = max(params[21], 1.0);");
+    expect(outlines.wgsl).toContain("let falloff = clamp(params[22], 0.0, 1.0);");
+    expect(outlines.wgsl).toContain("let fill = clamp(params[18], 0.0, 1.0);");
   });
 });

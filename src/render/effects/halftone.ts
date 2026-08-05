@@ -82,6 +82,59 @@ export const halftone: EffectModule = {
     { name: "blackPoint", label: "Point noir", unit: "percent", min: 0, max: 0.95, default: 0, step: 0.01, hint: "Ton d'entrée qui reçoit l'encre maximale — le monter ferme les ombres" },
     { name: "whitePoint", label: "Point blanc", unit: "percent", min: 0.05, max: 1, default: 1, step: 0.01, hint: "Ton d'entrée à partir duquel le papier reste nu" },
   ],
+  /**
+   * TROIS SECTIONS, ET AUCUNE CONDITION — c'est le fait notable de cet effet.
+   *
+   * `colorMode` est bien un mode exclusif à quatre régimes, mais il commande le
+   * SHADER et non la surface de contrôle : il décide combien d'écrans sont
+   * tramés (quatre encres et leur rosette, trois canaux additifs, ou une seule
+   * encre à 45°) et par quelle loi ils se combinent — multiplication de
+   * transmittances d'un côté, addition de lumières de l'autre. Les neuf
+   * paramètres, eux, sont lus à l'identique dans les quatre régimes : chaque
+   * appel de `halftone_dot` reçoit le même pas, la même grosseur, la même
+   * rotation, le même centre et le même fondu, quel que soit le nombre d'appels.
+   * Rien n'est donc inerte nulle part, et la règle dit alors de ne rien
+   * conditionner. Une section masquée ici mentirait sur ce que fait le mode.
+   *
+   * CE QUE LE DÉCOUPAGE SÉPARE, c'est le moment où chaque réglage intervient :
+   * *Trame* décrit l'écran lui-même — sa géométrie et la façon dont le point y
+   * croît ; *Tonalité* est en amont de toute notion d'encre (`halftone_inks`
+   * étale le ton entre point noir et point blanc AVANT la conversion CMJ, et
+   * avant l'UCR) ; *Couleur* est ce qu'on imprime avec cet écran, seul réglage
+   * qui ne décrive pas l'écran.
+   *
+   * ⚠️ `params[]` NE BOUGE PAS — les index sont persistés dans les presets. Ces
+   * sections ne sont PAS trois blocs contigus : `colorMode` est à l'index 2,
+   * au milieu de la plage de *Trame*, donc il DESCEND à l'affichage (il était
+   * rendu en troisième position, il l'est maintenant après le fondu). Un item
+   * seul est un bloc atomique — il n'appartient ni à un groupe de couleur ni à
+   * un contrôle de toile — donc le déplacer ne coupe rien en deux ; c'est
+   * exactement ce que `groupEffectParams` vérifie avant de déplacer.
+   */
+  sections: [
+    {
+      id: "trame",
+      label: "Trame",
+      layout: "liste",
+      params: ["dotSize", "dotScale", "rotation", "centerX", "centerY", "softness"],
+    },
+    {
+      id: "couleur",
+      label: "Couleur",
+      layout: "liste",
+      params: ["colorMode"],
+    },
+    {
+      // PAIRE : deux bornes d'une même plage, qui ne se règlent qu'en se
+      // regardant l'une l'autre — les monter toutes les deux ne fait rien, c'est
+      // leur écart qui étale le ton. Même gabarit et même titre que dans
+      // `gradientMap`, où ces deux-là portent déjà les mêmes noms.
+      id: "tonalite",
+      label: "Tonalité",
+      layout: "paire",
+      params: ["blackPoint", "whitePoint"],
+    },
+  ],
   wgsl: `
 ${UV_SPACE_WGSL}${LINEAR_TO_SRGB_WGSL}${LINEAR_TO_SRGB_VEC3_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}
 const HALFTONE_LUMA = vec3<f32>(0.2126, 0.7152, 0.0722);

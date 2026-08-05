@@ -28,11 +28,20 @@ import { SRGB_TO_LINEAR_VEC3_WGSL, SRGB_TO_LINEAR_WGSL } from "./srgbTransfer";
  * rien de la matière qui l'a produite. C'est ce qui permet à neuf matières de
  * tenir dans un fichier au lieu de neuf.
  *
- * Conséquence directe sur les paramètres : `profil`, `plat` et `congé` ne sont
- * lus que par `pente()`/`bosse()`, donc ne concernent QUE les trois premières
- * matières. Un curseur inerte est l'échec silencieux que ce dépôt proscrit —
- * d'où le « Sans objet en … » de chaque infobulle, comme `hatching` et
- * `outlines` le font déjà.
+ * Conséquence directe sur les paramètres : `profil` et `congé` ne sont lus que
+ * par `pente()`/`bosse()`, donc ne concernent QUE les trois premières matières.
+ * Un curseur inerte est l'échec silencieux que ce dépôt proscrit — d'où le
+ * « Sans objet en … » de chaque infobulle, aujourd'hui doublé d'un
+ * `appliesWhen` qui masque pour de bon (l'infobulle dit POURQUOI, le masquage
+ * ne dit que QUE : les deux se gardent).
+ *
+ * ⚠️ CETTE PHRASE A LONGTEMPS CITÉ `plat` AVEC LES DEUX AUTRES, ET C'ÉTAIT
+ * FAUX. Il est lu par trois branches, pas une : les cannelures (méplat entre
+ * stries), l'Aluminium (profondeur du brossage) et le couple Martelé/Écorce
+ * (largeur de la rainure, `verre_pentes` — la moitié des canaux de l'image).
+ * Le troisième n'était documenté nulle part et son infobulle le disait « sans
+ * objet ailleurs » : mesuré le 2026-08-05, il est le SEUL des trente-neuf
+ * « Sans objet » du registre à être vivant. Voir sa déclaration plus bas.
  *
  * ─── CE QUI EMPÊCHE QUE ÇA RENDE CHEAP ──────────────────────────────────────
  *
@@ -153,18 +162,58 @@ const PROF_ARC_PLEIN = 1;
 const PROF_PRISME = 2;
 const PROF_FOND_PLAT = 3;
 
+/**
+ * APPLICABILITÉS — les listes d'index de matière que citent les `appliesWhen`
+ * ci-dessous.
+ *
+ * `DisplayCondition.equals` est une liste POSITIVE : « sans objet en Poli et en
+ * Dépoli » s'écrit donc en énumérant les douze AUTRES. Deux fonctions plutôt
+ * que douze nombres recopiés, et ce n'est pas de l'esthétique — une quinzième
+ * matière ajoutée à la fin de `MATERIALS` doit arriver avec ses réglages
+ * VISIBLES. Recopiée à la main, chaque liste l'aurait masquée en silence, et un
+ * contrôle absent ne se plaint pas.
+ *
+ * ⚠️ CHAQUE `appliesWhen` DE CE FICHIER TRANSCRIT UNE MESURE, PAS UNE LECTURE DU
+ * SHADER. Les configurations sont celles de la campagne du 2026-08-05
+ * (`scripts/applicabilite-table.mjs`, résultats dans
+ * `docs/superpowers/plans/2026-08-05-applicabilite-task1-resultats.md`) : 74
+ * rendus, 38 déclarations inertes, une VIVANTE. Là où le code suggère une
+ * exclusion plus large que ce qui a été mesuré, on s'en tient à la mesure — un
+ * curseur visible et inerte se voit et se corrige, un curseur vivant et masqué
+ * ne se voit jamais. C'est exactement le sort qu'a failli connaître `flat`.
+ */
+const MATIERES = MATERIALS.map((_, index) => index);
+const MATIERES_SAUF = (...exclues: number[]) => MATIERES.filter((index) => !exclues.includes(index));
+/** Les cinq PAVÉ — même frontière que le shader, qui teste `mat >= MAT_PAVE_NUAGE`. */
+const MATIERES_PAVE = MATIERES.filter((index) => index >= MAT_PAVE_NUAGE);
+
 export const glass: EffectModule = {
   id: "glass",
   name: "Glass",
   params: [
     { name: "material", label: "Matière", unit: "none", min: 0, max: MATERIALS.length - 1, default: MAT_CANNELE, step: 1, choices: [...MATERIALS], hint: "Quel verre. Chacune fabrique sa pente de surface à sa façon ; tout ce qui suit — réfraction, dispersion, reflets, absorption — est commun. Plusieurs réglages ci-dessous ne concernent qu'une partie d'entre elles, et le disent" },
-    { name: "density", label: "Densité du motif", unit: "none", min: 1, max: 200, default: 42, step: 1, hint: "Combien de stries, de cellules ou d'accidents sur la largeur de l'image. Sans objet en Poli, dont l'ondulation tient plusieurs fois l'écran par construction, et en Dépoli, qui n'a aucun motif" },
-    { name: "depth", label: "Creux", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Amplitude du relief, donc de la déviation. Sans objet en Dépoli : un verre sablé n'a pas de galbe, il n'a qu'une rugosité — c'est la Diffusion qui le règle" },
-    { name: "profile", label: "Profil de section", unit: "none", min: 0, max: PROFILES.length - 1, default: PROF_ARC_DOUX, step: 1, choices: [...PROFILES], hint: "La forme de la strie vue en coupe. Arc doux et Arc plein bombent ; Prisme est un V à pente constante ; Fond plat a un plateau au centre et des flancs en S ; Bourrelet est une nervure ronde jointive, tangente à sa voisine. Sans objet hors de Cannelé simple, Cannelé croisé et Gaufré" },
-    { name: "flat", label: "Part plate", unit: "percent", min: 0, max: 0.9, default: 0, step: 0.01, hint: "Largeur du méplat entre deux stries — 0 = elles se touchent. En Aluminium brossé, ce curseur règle au contraire la profondeur du BROSSAGE. Sans objet ailleurs" },
-    { name: "fillet", label: "Congé de raccord", unit: "percent", min: 0, max: 0.5, default: 0.12, step: 0.01, hint: "Adoucit le raccord au bord de chaque strie. Sans lui, les profils en arc ont une pente qui DIVERGE au bord puis retombe net : un trait dur et un escalier de pixels à chaque limite. Un verre réel a toujours un congé là. Sans objet hors des trois premières matières" },
-    { name: "orientation", label: "Orientation", unit: "none", min: 0, max: 1, default: 0, step: 1, choices: ["Verticale", "Horizontale"], hint: "Axe du motif. Sans objet sur les matières sans direction — Cannelé croisé, Gaufré, Martelé, Aluminium, Poli, Dépoli" },
-    { name: "irregularity", label: "Irrégularité", unit: "percent", min: 0, max: 1, default: 0.25, step: 0.01, hint: "Chaque strie prend son propre creux et sa propre position, au lieu d'un peigne parfait. Sur les matières à cellules, c'est le basculement propre à chaque plaque. Sans objet en Poli et en Dépoli" },
+    { name: "density", label: "Densité du motif", unit: "none", min: 1, max: 200, default: 42, step: 1, hint: "Combien de stries, de cellules ou d'accidents sur la largeur de l'image. Sans objet en Poli, dont l'ondulation tient plusieurs fois l'écran par construction, et en Dépoli, qui n'a aucun motif", appliesWhen: { param: "material", equals: MATIERES_SAUF(MAT_POLI, MAT_DEPOLI) } },
+    { name: "depth", label: "Creux", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Amplitude du relief, donc de la déviation. Sans objet en Dépoli : un verre sablé n'a pas de galbe, il n'a qu'une rugosité — c'est la Diffusion qui le règle", appliesWhen: { param: "material", equals: MATIERES_SAUF(MAT_DEPOLI) } },
+    { name: "profile", label: "Profil de section", unit: "none", min: 0, max: PROFILES.length - 1, default: PROF_ARC_DOUX, step: 1, choices: [...PROFILES], hint: "La forme de la strie vue en coupe. Arc doux et Arc plein bombent ; Prisme est un V à pente constante ; Fond plat a un plateau au centre et des flancs en S ; Bourrelet est une nervure ronde jointive, tangente à sa voisine. Sans objet hors de Cannelé simple, Cannelé croisé et Gaufré", appliesWhen: { param: "material", equals: [MAT_CANNELE, MAT_CROISE, MAT_GAUFRE] } },
+    // ⚠️ `flat` N'A PAS D'`appliesWhen`, ET C'EST LE SEUL DES QUINZE.
+    //
+    // Son infobulle a dit « Sans objet ailleurs » jusqu'au 2026-08-05, où la
+    // mesure l'a démentie : en Martelé il déplace 47,1 % des canaux, en Écorce
+    // 49,0 % — il y règle la largeur de la RAINURE entre cellules de Voronoï
+    // (`verre_pentes`, branche Martelé/Écorce). Un contrôle caché par sa propre
+    // documentation, et le porter sur la foi de cette phrase l'aurait masqué
+    // pour de bon SANS QUE RIEN NE ROUGISSE : un curseur qu'on masque ne bouge
+    // plus aucun pixel, donc aucune référence de rendu n'aurait bronché.
+    //
+    // Il porte donc TROIS sens sous un curseur, et l'infobulle les nomme tous
+    // les trois. Il reste aussi affiché sur les huit matières où la mesure le
+    // dit inerte (Poli, Dépoli, Cathédrale, les cinq Pavé) : masquer là est un
+    // arbitrage d'affichage qui n'a pas été rendu, et c'est le sens PRUDENT de
+    // l'erreur — un curseur inerte visible se voit, l'inverse pas.
+    { name: "flat", label: "Part plate", unit: "percent", min: 0, max: 0.9, default: 0, step: 0.01, hint: "Un curseur, trois sens selon la matière : sur les trois cannelures, la largeur du méplat entre deux stries — 0 = elles se touchent ; en Aluminium brossé, la profondeur du BROSSAGE ; en Martelé et en Écorce, la largeur de la RAINURE entre cellules, où il déplace près de la moitié de l'image (mesuré le 2026-08-05). Sans effet sur les autres matières" },
+    { name: "fillet", label: "Congé de raccord", unit: "percent", min: 0, max: 0.5, default: 0.12, step: 0.01, hint: "Adoucit le raccord au bord de chaque strie. Sans lui, les profils en arc ont une pente qui DIVERGE au bord puis retombe net : un trait dur et un escalier de pixels à chaque limite. Un verre réel a toujours un congé là. Sans objet hors des trois premières matières", appliesWhen: { param: "material", equals: [MAT_CANNELE, MAT_CROISE, MAT_GAUFRE] } },
+    { name: "orientation", label: "Orientation", unit: "none", min: 0, max: 1, default: 0, step: 1, choices: ["Verticale", "Horizontale"], hint: "Axe du motif. Sans objet sur les matières sans direction — Cannelé croisé, Gaufré, Martelé, Aluminium, Poli, Dépoli", appliesWhen: { param: "material", equals: MATIERES_SAUF(MAT_CROISE, MAT_GAUFRE, MAT_MARTELE, MAT_ALU, MAT_POLI, MAT_DEPOLI) } },
+    { name: "irregularity", label: "Irrégularité", unit: "percent", min: 0, max: 1, default: 0.25, step: 0.01, hint: "Chaque strie prend son propre creux et sa propre position, au lieu d'un peigne parfait. Sur les matières à cellules, c'est le basculement propre à chaque plaque. Sans objet en Poli et en Dépoli", appliesWhen: { param: "material", equals: MATIERES_SAUF(MAT_POLI, MAT_DEPOLI) } },
     { name: "grain", label: "Micro-relief", unit: "percent", min: 0, max: 1, default: 0.3, step: 0.01, hint: "Rugosité fine ajoutée à la SURFACE, donc qui dévie le rayon comme le reste — pas du bruit posé sur l'image. Un verre laminé n'est poli nulle part. C'est le seul relief du Dépoli" },
     // PLAFOND À 2, ET C'EST UNE MESURE. Posé à 0,5 au premier jet, il rendait
     // les matières à FACETTES quasi inertes : une facette d'aluminium incline de
@@ -178,14 +227,66 @@ export const glass: EffectModule = {
     { name: "dispersion", label: "Dispersion", unit: "percent", min: 0, max: 1, default: 0.25, step: 0.01, hint: "Frange colorée aux endroits inclinés — le verre ne dévie pas toutes les longueurs d'onde pareil. Nulle sur les parties planes, par construction : c'est l'INDICE qui varie, pas le déplacement" },
     { name: "diffusion", label: "Diffusion", unit: "percent", min: 0, max: 1, default: 0.08, step: 0.005, hint: "Étalement de la lecture — le verre translucide au lieu du verre transparent. C'est le réglage principal du Dépoli, qui ne déforme rien et ne fait que ça" },
     { name: "relief", label: "Présence du relief", unit: "percent", min: 0, max: 1, default: 1, step: 0.01, hint: "N'atténue QUE la déviation de l'image : reflets, absorption et spéculaire restent à pleine force. À 0, une dalle plane qui brille encore — ce qu'on ne peut pas obtenir en baissant le Creux, qui éteint la matière en même temps que la déformation" },
-    { name: "blockSize", label: "Taille du pavé", unit: "pixels", min: 24, max: 512, default: 132, step: 1, hint: "Côté d'un bloc en pixels natifs. Sans objet hors des cinq matières Pavé" },
-    { name: "mortar", label: "Largeur du mortier", unit: "pixels", min: 0, max: 24, default: 8, step: 0.5, hint: "Joint opaque entre les blocs. Sans objet hors des cinq matières Pavé" },
-    { name: "mortarHue", label: "Chaleur du mortier", unit: "percent", min: 0, max: 1, default: 0.35, step: 0.01, hint: "Du gris froid au crème chaud. Sans objet hors des cinq matières Pavé" },
-    { name: "mortarLightness", label: "Clarté du mortier", unit: "percent", min: 0.5, max: 2, default: 1, step: 0.01, hint: "Clarté relative à l'ambiante de la scène. Sans objet hors des cinq matières Pavé" },
-    { name: "edgeDepth", label: "Profondeur de l'arête", unit: "percent", min: 0, max: 1, default: 0.45, step: 0.01, hint: "Allonge le trajet optique au bord du bloc. Sans objet hors des cinq matières Pavé" },
-    { name: "edgeWidth", label: "Largeur de l'arête", unit: "percent", min: 0.04, max: 0.5, default: 0.18, step: 0.01, hint: "Part de la demi-cellule occupée par l'arête arrondie. Sans objet hors des cinq matières Pavé" },
-    { name: "bevel", label: "Biseau", unit: "percent", min: 0.04, max: 0.95, default: 0.28, step: 0.01, hint: "Largeur du chanfrein de verre autour du bloc. Sans objet hors des cinq matières Pavé" },
-    { name: "inner", label: "Moulage interne", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Échelle ou densité du relief moulé dans chaque bloc. Sans objet hors des cinq matières Pavé" },
+    // LES HUIT RÉGLAGES DE PAVÉ. Même condition sur les huit, et elle est aussi
+    // portée par la section « Pavé » plus bas — ce n'est pas un doublon oublié.
+    // Ici, c'est une propriété du SHADER, mesurée : hors des cinq matières Pavé,
+    // aucun des huit ne touche un canal. Là-bas, c'est une décision
+    // d'AFFICHAGE : ces huit-là se lisent ensemble, en grille. Réorganiser les
+    // sections un jour ne doit pas rouvrir un curseur prouvé inerte.
+    { name: "blockSize", label: "Taille du pavé", unit: "pixels", min: 24, max: 512, default: 132, step: 1, hint: "Côté d'un bloc en pixels natifs. Sans objet hors des cinq matières Pavé", appliesWhen: { param: "material", equals: MATIERES_PAVE } },
+    { name: "mortar", label: "Largeur du mortier", unit: "pixels", min: 0, max: 24, default: 8, step: 0.5, hint: "Joint opaque entre les blocs. Sans objet hors des cinq matières Pavé", appliesWhen: { param: "material", equals: MATIERES_PAVE } },
+    { name: "mortarHue", label: "Chaleur du mortier", unit: "percent", min: 0, max: 1, default: 0.35, step: 0.01, hint: "Du gris froid au crème chaud. Sans objet hors des cinq matières Pavé", appliesWhen: { param: "material", equals: MATIERES_PAVE } },
+    { name: "mortarLightness", label: "Clarté du mortier", unit: "percent", min: 0.5, max: 2, default: 1, step: 0.01, hint: "Clarté relative à l'ambiante de la scène. Sans objet hors des cinq matières Pavé", appliesWhen: { param: "material", equals: MATIERES_PAVE } },
+    { name: "edgeDepth", label: "Profondeur de l'arête", unit: "percent", min: 0, max: 1, default: 0.45, step: 0.01, hint: "Allonge le trajet optique au bord du bloc. Sans objet hors des cinq matières Pavé", appliesWhen: { param: "material", equals: MATIERES_PAVE } },
+    { name: "edgeWidth", label: "Largeur de l'arête", unit: "percent", min: 0.04, max: 0.5, default: 0.18, step: 0.01, hint: "Part de la demi-cellule occupée par l'arête arrondie. Sans objet hors des cinq matières Pavé", appliesWhen: { param: "material", equals: MATIERES_PAVE } },
+    { name: "bevel", label: "Biseau", unit: "percent", min: 0.04, max: 0.95, default: 0.28, step: 0.01, hint: "Largeur du chanfrein de verre autour du bloc. Sans objet hors des cinq matières Pavé", appliesWhen: { param: "material", equals: MATIERES_PAVE } },
+    { name: "inner", label: "Moulage interne", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Échelle ou densité du relief moulé dans chaque bloc. Sans objet hors des cinq matières Pavé", appliesWhen: { param: "material", equals: MATIERES_PAVE } },
+  ],
+  /**
+   * TROIS SECTIONS, ET ELLES SUIVENT UNE FRONTIÈRE DU SHADER.
+   *
+   * Ce fichier tient en deux étages : chaque matière ne fait QUE fabriquer une
+   * pente de surface, et tout ce qui suit — réfraction, dispersion, diffusion,
+   * Fresnel, spéculaire, absorption — est commun et ne sait rien d'elle. Les
+   * deux premières sections sont exactement ces deux étages, et la troisième
+   * est le bloc que seules cinq matières sur quatorze possèdent. Ce n'est donc
+   * pas un rangement de goût : un réglage change de section le jour où il
+   * change de côté dans `verre_pentes`, pas avant.
+   *
+   * CE QUE ÇA CHANGE POUR QUI S'EN SERT : en Poli, quinze des vingt-deux
+   * curseurs sont sans objet. La liste plate les montrait tous.
+   *
+   * ⚠️ AUCUN RÉORDONNANCEMENT — l'index d'un paramètre est persisté dans les
+   * presets. Les trois sections sont trois blocs CONTIGUS de `params[]` (0..8,
+   * 9..13, 14..21) dans leur ordre d'origine, ce qui est la condition posée par
+   * `groupEffectParams` : il s'appuie sur l'ordre du tableau en deux endroits
+   * (`spatialFirstIndex`, `firstIndexByKey`), donc une section déplace un bloc
+   * entier et ne le traverse jamais.
+   */
+  sections: [
+    {
+      id: "matiere",
+      label: "Matière",
+      layout: "liste",
+      params: ["material", "density", "depth", "profile", "flat", "fillet", "orientation", "irregularity", "grain"],
+    },
+    {
+      id: "optique",
+      label: "Optique",
+      layout: "liste",
+      params: ["thickness", "specular", "dispersion", "diffusion", "relief"],
+    },
+    {
+      // GRILLE et non liste : huit réglages courts qui se lisent ensemble
+      // (dimension du bloc, mortier, arête, biseau), et qui n'apparaissent que
+      // sur cinq matières — les empiler en huit lignes pleine largeur ferait
+      // sauter la carte de huit lignes à chaque passage feuille -> pavé.
+      id: "pave",
+      label: "Pavé",
+      layout: "grille",
+      appliesWhen: { param: "material", equals: MATIERES_PAVE },
+      params: ["blockSize", "mortar", "mortarHue", "mortarLightness", "edgeDepth", "edgeWidth", "bevel", "inner"],
+    },
   ],
   wgsl: `
 ${UV_SPACE_WGSL}${HASH_WGSL}${VALUE_NOISE_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}

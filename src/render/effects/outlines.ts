@@ -1,7 +1,12 @@
-import type { EffectModule } from "./types";
+import type { DisplayCondition, EffectModule } from "./types";
 import { HSL_TO_RGB_WGSL } from "./hsl";
 import { UV_SPACE_WGSL } from "./uvSpace";
-import { INPUT_DRIVER_WGSL, inputSourceParam } from "./inputMode";
+import {
+  INPUT_DRIVER_WGSL,
+  INPUT_SOURCE_LUMA,
+  INPUT_SOURCE_LUMA_INVERTED,
+  inputSourceParam,
+} from "./inputMode";
 import { EDGE_GRADIENT_WGSL, EDGE_SPACING_WGSL, SCHARR_NORM } from "./edgeGradient";
 import { OKLAB_WGSL } from "./oklab";
 import { DOWNSAMPLE_WGSL, upsampleWgsl } from "./blurChain";
@@ -80,6 +85,21 @@ import {
  * `Outlines` l'effet à échos, et nous appelions `Outlines` le détecteur — deux
  * choses sous un nom. Il n'y a plus deux choses. Le nom est désormais celui d'un
  * effet qui contient les deux lectures, donc plus rien à arbitrer.
+ *
+ * ─── LE PRIX DES DEUX FUSIONS, PAYÉ LE 2026-08-05 ───────────────────────────
+ *
+ * Vingt-six paramètres et dix-huit combinaisons de trois modes croisés : une
+ * liste plate les rend TOUS, tout le temps, et l'utilisateur lit en Crête de
+ * gradient onze réglages qui ne peuvent rien pour lui. Les onze ont été rendues
+ * deux fois chacune, aux bornes, dans les configurations où leur infobulle les
+ * disait sans objet — les onze sont inertes, zéro canal d'écart. Elles portent
+ * donc `appliesWhen` (voir le bloc de conditions plus bas), et les trois
+ * sections `Détection` / `Encre` / `Échos` groupent ce qui apparaît ensemble.
+ *
+ * ⚠️ RIEN DE TOUT ÇA N'EST DU MODÈLE. `params[]` n'a pas bougé d'un index —
+ * sept références de pixels et les presets en dépendent — et le shader ne sait
+ * pas qu'un contrôle est masqué : ses clamps restent nécessaires, la valeur
+ * masquée reste dans le calque et repart telle quelle dans les presets.
  *
  * ─── LA VERSION NAÏVE, et pourquoi elle rend « filtre Photoshop 2005 » ───────
  *
@@ -173,13 +193,84 @@ const EDGE_CHROMA_MAX = 0.3;
  *  d'`outlines`, donc le défaut qui conserve son rendu au bit. */
 const INK_MODES = ["Encre unique", "Roue d'orientation"] as const;
 const INK_SINGLE = 0;
+const INK_WHEEL = 1;
 
 /** Modes de DÉTECTION — comment le bord est trouvé, avant toute question
  *  d'encre. Même contrat d'index que ci-dessus : on ajoute à la FIN.
  *  `Crête de gradient` est en tête parce que c'est le comportement historique. */
 const DETECT_MODES = ["Crête de gradient", "Seuil de forme", "Échos de la forme"] as const;
 const DETECT_RIDGE = 0;
+const DETECT_SHAPE = 1;
 const DETECT_ECHO = 2;
+
+/**
+ * LES CINQ CONDITIONS D'AFFICHAGE DE CET EFFET, écrites une fois chacune.
+ *
+ * D'OÙ ÇA VIENT. Onze paramètres portaient dans leur infobulle une mention
+ * « Sans objet en … » — une phrase écrite au jugement par l'auteur de l'effet,
+ * que rien n'obligeait à rester vraie quand le shader bougeait. Les onze ont
+ * été RENDUES le 2026-08-05, deux valeurs aux bornes dans chaque configuration
+ * excluante, avec la garde qui manquait au geste naïf : l'écart de la
+ * configuration contre la photo seule, sans quoi « aucun écart » aurait pu
+ * signifier « l'effet entier ne fait rien ici »
+ * (`docs/superpowers/plans/2026-08-05-applicabilite-task1-resultats.md`). Les
+ * onze sont exactes. Ce sont donc les VERDICTS qui deviennent des conditions
+ * ici, pas la prose qui les annonçait — et la nuance vient d'être payée
+ * ailleurs : sur `glass`, une douzième déclaration du même lot s'est révélée
+ * FAUSSE, sur un curseur qui déplace la moitié de l'image.
+ *
+ * ⚠️ LE MASQUAGE NE REMPLACE PAS L'INFOBULLE. Il dit QUE le réglage ne sert pas
+ * ici, elle dit POURQUOI. Les onze `hint` restent donc mot pour mot.
+ *
+ * ⚠️ UNE CONDITION NE SAIT PAS DIRE « ET » (voie A : déclaratif seul, aucune
+ * échappatoire prédicat). Un cas résiduel en découle, connu et assumé : en
+ * Échos de la forme, `inkMode` se masque mais sa VALEUR reste, donc un calque
+ * laissé sur Roue d'orientation y garde ses quatre curseurs de roue affichés
+ * alors que ce mode calcule sa propre encre. Le remède serait une conjonction —
+ * exactement ce que la voie A refuse, parce qu'un prédicat saurait tout
+ * exprimer et ne se relirait plus, ni par `validateEffect` ni par qui cherche
+ * ce qui commande quoi.
+ */
+
+/** Le pilote a-t-il une CHROMATICITÉ à mesurer ? Une couverture alpha n'en a
+ *  pas — c'est une fraction de surface, pas une couleur. */
+const AVEC_CHROMATICITE = {
+  param: "inputSource",
+  equals: [INPUT_SOURCE_LUMA, INPUT_SOURCE_LUMA_INVERTED],
+} satisfies DisplayCondition;
+
+/** Les quatre réglages de la roue ne servent qu'à la roue : en Encre unique, la
+ *  direction du gradient est jetée avant qu'aucun d'eux ne soit lu. */
+const EN_ROUE = { param: "inkMode", equals: INK_WHEEL } satisfies DisplayCondition;
+
+/** Les deux modes qui ont une FORME, donc un intérieur à remplir. Une crête n'en
+ *  a pas : elle marque un endroit où l'image change, pas un dedans. */
+const SUR_UNE_FORME = {
+  param: "detectMode",
+  equals: [DETECT_SHAPE, DETECT_ECHO],
+} satisfies DisplayCondition;
+
+/** Les deux modes dont l'encre sort d'`inkMode`. Le troisième calcule la sienne,
+ *  par un dégradé indexé par le numéro de l'écho. */
+const HORS_ECHO = {
+  param: "detectMode",
+  equals: [DETECT_RIDGE, DETECT_SHAPE],
+} satisfies DisplayCondition;
+
+/**
+ * LE MODE ÉCHOS — une seule déclaration pour DEUX contrats.
+ *
+ * Le contrat de COÛT existait déjà : les neuf passes de pyramide portent ce
+ * prédicat via `EffectPass.enabled`, et c'est lui qui a débloqué l'absorption
+ * d'`echoOutlines`. Le contrat d'AFFICHAGE dit la même chose au même moment —
+ * la section Échos n'apparaît que là où ces passes tournent.
+ *
+ * Les deux sont donc DÉRIVÉS d'ici, et pas écrits deux fois : deux copies d'un
+ * même prédicat ne divergent pas bruyamment, elles divergent en silence — une
+ * section qui resterait affichée là où la pyramide ne tourne plus rendrait des
+ * curseurs qui ne peuvent plus rien, sans qu'aucun test de rendu ne bronche.
+ */
+const EN_ECHO = { param: "detectMode", equals: DETECT_ECHO } satisfies DisplayCondition;
 
 /** Index de `detectMode` dans la liste ci-dessous. Le prédicat des neuf passes
  *  le lit PAR NOM (`runInternalPasses` résout les paramètres en dictionnaire),
@@ -229,9 +320,12 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
 /** Prédicat des neuf passes de pyramide. Sans lui, les deux modes locaux
  *  paieraient une chaîne complète dont ils ne lisent pas un texel — c'est
  *  exactement ce qui a retardé cette fusion jusqu'à l'arrivée d'
- *  `EffectPass.enabled`. */
+ *  `EffectPass.enabled`.
+ *
+ *  LU DEPUIS `EN_ECHO` et non réécrit : c'est la même question posée au même
+ *  paramètre, et la déclaration en est la seule source (voir son en-tête). */
 const enEcho = (params: Record<string, number>) =>
-  Math.round(params.detectMode) === DETECT_ECHO;
+  Math.round(params[EN_ECHO.param]) === EN_ECHO.equals;
 
 export const outlines: EffectModule = {
   id: "outlines",
@@ -257,7 +351,7 @@ export const outlines: EffectModule = {
     // minimal n'avait plus de sens dès le second mode.
     { name: "threshold", label: "Seuil", unit: "percent", min: 0, max: 1, default: 0.09, step: 0.005, hint: "En Crête de gradient : contraste minimal (en tons perceptuels, sur l'épaisseur du trait) pour qu'un contour soit tracé. Dans les deux modes de forme : le niveau où passe le bord du sujet" },
     { name: "softness", label: "Fondu du trait", unit: "percent", min: 0, max: 1, default: 0.35, step: 0.01, hint: "0 = trait franc (toujours antialiasé), 1 = trait fondu qui s'éteint progressivement sur les contours faibles" },
-    { name: "chroma", label: "Sensibilité couleur", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Fait aussi lever les contours entre deux couleurs de MÊME luminosité (rouge/vert), qu'un contour de luminance ne voit pas. En Roue d'orientation, empêche en plus la teinte de scintiller faute d'orientation lisible. Sans objet en entrée Alpha : une couverture n'a pas de chromaticité." },
+    { name: "chroma", label: "Sensibilité couleur", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, appliesWhen: AVEC_CHROMATICITE, hint: "Fait aussi lever les contours entre deux couleurs de MÊME luminosité (rouge/vert), qu'un contour de luminance ne voit pas. En Roue d'orientation, empêche en plus la teinte de scintiller faute d'orientation lisible. Sans objet en entrée Alpha : une couverture n'a pas de chromaticité." },
     { name: "inkHue", label: "Teinte", unit: "degrees", min: 0, max: 360, default: 210, step: 1, colorGroup: { key: "ink", role: "hue", label: "Encre" } },
     { name: "inkSaturation", label: "Saturation", unit: "percent", min: 0, max: 1, default: 0, step: 0.01, colorGroup: { key: "ink", role: "saturation", label: "Encre" } },
     { name: "inkLightness", label: "Luminosité", unit: "percent", min: 0, max: 1, default: 0.06, step: 0.01, colorGroup: { key: "ink", role: "lightness", label: "Encre" } },
@@ -277,16 +371,16 @@ export const outlines: EffectModule = {
     // Ajouté À LA SUITE et jamais au milieu : les huit index ci-dessus sont
     // persistés dans les presets d'`outlines`, et ses références de pixels
     // doivent rester valables au bit.
-    { name: "inkMode", label: "Encre", unit: "none", min: 0, max: INK_MODES.length - 1, default: INK_SINGLE, step: 1, choices: [...INK_MODES], hint: "Encre unique : tous les contours à la couleur choisie ci-dessus. Roue d'orientation : la teinte vient de l'ANGLE du bord, donc deux bords d'une même forme sortent de deux couleurs — c'est l'ancien effet `Colored edges`. Sans objet en Échos de la forme, dont l'encre suit un dégradé indexé par le numéro de l'écho" },
-    { name: "hueOffset", label: "Rotation des teintes", unit: "degrees", min: 0, max: 360, default: 0, step: 1, hint: "Fait tourner la roue chromatique : choisit quelle couleur reçoit un bord horizontal. Sans objet en Encre unique" },
-    { name: "hueSpread", label: "Étendue des teintes", unit: "percent", min: 0.05, max: 1, default: 1, step: 0.01, hint: "Part du cercle chromatique parcourue par un tour complet d'orientation. 1 = toutes les teintes ; bas = une gamme resserrée autour de la rotation. Sans objet en Encre unique" },
+    { name: "inkMode", label: "Encre", unit: "none", min: 0, max: INK_MODES.length - 1, default: INK_SINGLE, step: 1, choices: [...INK_MODES], appliesWhen: HORS_ECHO, hint: "Encre unique : tous les contours à la couleur choisie ci-dessus. Roue d'orientation : la teinte vient de l'ANGLE du bord, donc deux bords d'une même forme sortent de deux couleurs — c'est l'ancien effet `Colored edges`. Sans objet en Échos de la forme, dont l'encre suit un dégradé indexé par le numéro de l'écho" },
+    { name: "hueOffset", label: "Rotation des teintes", unit: "degrees", min: 0, max: 360, default: 0, step: 1, appliesWhen: EN_ROUE, hint: "Fait tourner la roue chromatique : choisit quelle couleur reçoit un bord horizontal. Sans objet en Encre unique" },
+    { name: "hueSpread", label: "Étendue des teintes", unit: "percent", min: 0.05, max: 1, default: 1, step: 0.01, appliesWhen: EN_ROUE, hint: "Part du cercle chromatique parcourue par un tour complet d'orientation. 1 = toutes les teintes ; bas = une gamme resserrée autour de la rotation. Sans objet en Encre unique" },
     // Noms `wheelChroma` / `wheelLightness` et non `saturation` / `lightness` :
     // les anciens noms de `coloredEdges` auraient cohabité ici avec `inkSaturation`
     // et `inkLightness` sans qu'on puisse deviner lequel agit dans quel mode. Les
     // presets de `coloredEdges` ne survivent de toute façon pas au retrait de son
     // id, donc conserver ses noms n'aurait racheté personne.
-    { name: "wheelChroma", label: "Chroma de la roue", unit: "percent", min: 0, max: 1, default: 0.42, step: 0.01, hint: "Vivacité des contours, en chroma PERCEPTUEL — la même valeur donne la même vivacité à toutes les teintes, ce que la saturation HSL ne savait pas faire. Bornée au gamut sRGB. Sans objet en Encre unique" },
-    { name: "wheelLightness", label: "Clarté de la roue", unit: "percent", min: 0, max: 1, default: 0.62, step: 0.01, hint: "Clarté PERCEPTUELLE des contours. Constante sur tout le tour de la roue — avant la refonte du 2026-08-02, elle balayait 0,290 selon la seule orientation du bord. Sans objet en Encre unique" },
+    { name: "wheelChroma", label: "Chroma de la roue", unit: "percent", min: 0, max: 1, default: 0.42, step: 0.01, appliesWhen: EN_ROUE, hint: "Vivacité des contours, en chroma PERCEPTUEL — la même valeur donne la même vivacité à toutes les teintes, ce que la saturation HSL ne savait pas faire. Bornée au gamut sRGB. Sans objet en Encre unique" },
+    { name: "wheelLightness", label: "Clarté de la roue", unit: "percent", min: 0, max: 1, default: 0.62, step: 0.01, appliesWhen: EN_ROUE, hint: "Clarté PERCEPTUELLE des contours. Constante sur tout le tour de la roue — avant la refonte du 2026-08-02, elle balayait 0,290 selon la seule orientation du bord. Sans objet en Encre unique" },
     { name: "backgroundHue", label: "Teinte", unit: "degrees", min: 0, max: 360, default: 0, step: 1, colorGroup: { key: "background", role: "hue", label: "Couleur de fond" } },
     { name: "backgroundSaturation", label: "Saturation", unit: "percent", min: 0, max: 1, default: 0, step: 0.01, colorGroup: { key: "background", role: "saturation", label: "Couleur de fond" } },
     { name: "backgroundLightness", label: "Luminosité", unit: "percent", min: 0, max: 1, default: 1, step: 0.01, colorGroup: { key: "background", role: "lightness", label: "Couleur de fond" } },
@@ -295,7 +389,7 @@ export const outlines: EffectModule = {
     // Demandé par Antoine, d'après la fiche Figma. Ajouté à la FIN pour la même
     // raison que tout le reste : l'index est persisté.
     { name: "detectMode", label: "Détection", unit: "none", min: 0, max: DETECT_MODES.length - 1, default: DETECT_RIDGE, step: 1, choices: [...DETECT_MODES], hint: "Crête de gradient : le trait suit les endroits où l'image CHANGE, et son épaisseur suit le contraste local. Seuil de forme : le trait suit l'isoligne du niveau demandé, à épaisseur constante en pixels — c'est une silhouette, et le Seuil décide où elle passe. Échos de la forme : la même silhouette, RÉPÉTÉE vers l'extérieur à intervalles réguliers, comme des ondes à la surface de l'eau" },
-    { name: "fill", label: "Remplir la forme", unit: "percent", min: 0, max: 1, default: 0, step: 0.01, hint: "Peint l'INTÉRIEUR de la forme à la couleur d'encre, sous le trait. Sans objet en Crête de gradient : une crête n'a pas d'intérieur. C'est ce contrôle qui rend l'entrée « Luminance inversée » porteuse — inverser change quel côté est peint, ce qu'aucun réglage du seuil ne fait" },
+    { name: "fill", label: "Remplir la forme", unit: "percent", min: 0, max: 1, default: 0, step: 0.01, appliesWhen: SUR_UNE_FORME, hint: "Peint l'INTÉRIEUR de la forme à la couleur d'encre, sous le trait. Sans objet en Crête de gradient : une crête n'a pas d'intérieur. C'est ce contrôle qui rend l'entrée « Luminance inversée » porteuse — inverser change quel côté est peint, ce qu'aucun réglage du seuil ne fait" },
 
     // ── CE QUI VIENT D'`echoOutlines` (fusion du 2026-08-03) ─────────────────
     // À LA SUITE, pour la même raison que les deux lots précédents : les dix-neuf
@@ -306,16 +400,76 @@ export const outlines: EffectModule = {
     // une économie de façade — le seuil de la forme EST le seuil, l'épaisseur du
     // trait EST l'épaisseur, la couleur du premier écho EST l'encre. Ne restent
     // que les réglages qui n'ont aucun sens dans les deux autres modes.
-    { name: "smoothing", label: "Lissage de la forme", unit: "none", min: 0.5, max: 6, default: 2.5, step: 0.05, hint: "Simplifie la forme avant d'en tirer les échos — et fixe du même geste la portée : au-delà d'environ 62 + 60 × cette valeur pixels, il n'y a plus d'écho à tracer. Sans objet hors du mode Échos" },
-    { name: "spacing", label: "Espacement des échos", unit: "pixels", min: 2, max: 200, default: 22, step: 0.5, hint: "Distance entre deux échos successifs, en pixels — c'est la longueur d'onde des ondes. Sans objet hors du mode Échos" },
-    { name: "echoCount", label: "Nombre d'échos", unit: "none", min: 1, max: 24, default: 6, step: 1, hint: "Combien d'échos avant de s'arrêter. L'écho 0 est le bord de la forme lui-même. Sans objet hors du mode Échos" },
-    { name: "falloff", label: "Atténuation", unit: "percent", min: 0, max: 1, default: 0.35, step: 0.01, hint: "Fait pâlir les échos à mesure qu'ils s'éloignent — 0 = tous à la même force, 1 = le dernier s'éteint complètement. Sans objet hors du mode Échos" },
+    { name: "smoothing", label: "Lissage de la forme", unit: "none", min: 0.5, max: 6, default: 2.5, step: 0.05, appliesWhen: EN_ECHO, hint: "Simplifie la forme avant d'en tirer les échos — et fixe du même geste la portée : au-delà d'environ 62 + 60 × cette valeur pixels, il n'y a plus d'écho à tracer. Sans objet hors du mode Échos" },
+    { name: "spacing", label: "Espacement des échos", unit: "pixels", min: 2, max: 200, default: 22, step: 0.5, appliesWhen: EN_ECHO, hint: "Distance entre deux échos successifs, en pixels — c'est la longueur d'onde des ondes. Sans objet hors du mode Échos" },
+    { name: "echoCount", label: "Nombre d'échos", unit: "none", min: 1, max: 24, default: 6, step: 1, appliesWhen: EN_ECHO, hint: "Combien d'échos avant de s'arrêter. L'écho 0 est le bord de la forme lui-même. Sans objet hors du mode Échos" },
+    { name: "falloff", label: "Atténuation", unit: "percent", min: 0, max: 1, default: 0.35, step: 0.01, appliesWhen: EN_ECHO, hint: "Fait pâlir les échos à mesure qu'ils s'éloignent — 0 = tous à la même force, 1 = le dernier s'éteint complètement. Sans objet hors du mode Échos" },
     // Le dégradé va de l'ENCRE (ci-dessus) à cette couleur-ci. Trois paramètres
     // et non six : le premier écho n'avait aucune raison d'avoir sa propre
     // couleur à côté de celle du trait, qui est la même chose.
     { name: "endHue", label: "Teinte", unit: "degrees", min: 0, max: 360, default: 320, step: 1, colorGroup: { key: "dernierEcho", role: "hue", label: "Dernier écho" } },
     { name: "endSaturation", label: "Saturation", unit: "percent", min: 0, max: 1, default: 0.6, step: 0.01, colorGroup: { key: "dernierEcho", role: "saturation", label: "Dernier écho" } },
     { name: "endLightness", label: "Luminosité", unit: "percent", min: 0, max: 1, default: 0.62, step: 0.01, colorGroup: { key: "dernierEcho", role: "lightness", label: "Dernier écho" } },
+  ],
+  /**
+   * TROIS SECTIONS — trois questions, dans l'ordre où on se les pose : OÙ passe
+   * le trait, DE QUOI il est fait, et (s'il se répète) comment il se répète.
+   *
+   * POURQUOI CET EFFET EN A BESOIN quand la moitié du registre n'a rien à y
+   * gagner : deux fusions lui ont donné 26 paramètres et trois modes croisés,
+   * soit dix-huit combinaisons. `appliesWhen` seul n'aurait rendu qu'une liste
+   * plate PLUS COURTE ; ce qui manque à une liste plate, c'est de dire que « le
+   * seuil » et « l'entrée » répondent à la même question.
+   *
+   * ⚠️ AUCUN INDEX N'A BOUGÉ. Une section cite des NOMS et regroupe des items de
+   * RENDU ; `params[]` reste dans son ordre d'origine, où sept références de
+   * pixels et les presets le lisent. L'ordre d'affichage DANS une section reste
+   * celui de `params[]` (`ParamPanel`), donc l'ordre de citation ci-dessous est
+   * documentaire — il est écrit dans l'ordre des index pour que personne n'y
+   * lise une intention de tri qui n'existe pas.
+   *
+   * ⚠️ LES TROIS GROUPES DE COULEUR RESTENT ENTIERS, chacun dans une seule
+   * section : `ParamPanel` ancre un groupe à l'index de son premier membre, donc
+   * une section qui n'en citerait que deux rôles sur trois casserait le contrôle
+   * plutôt que de le déplacer.
+   *
+   * `Encre` porte tout ce qui DÉPOSE de la couleur, et pas seulement le trait :
+   * l'encre, le fond qui remplace la photo sous lui, et l'intérieur de la forme
+   * qui se peint de la même encre. Les séparer aurait fait une quatrième
+   * section de trois lignes.
+   */
+  sections: [
+    {
+      id: "detection",
+      label: "Détection",
+      params: ["thickness", "threshold", "softness", "chroma", "inputSource", "detectMode"],
+      layout: "liste",
+    },
+    {
+      id: "encre",
+      label: "Encre",
+      params: [
+        "inkHue", "inkSaturation", "inkLightness",
+        "wash",
+        "inkMode", "hueOffset", "hueSpread", "wheelChroma", "wheelLightness",
+        "backgroundHue", "backgroundSaturation", "backgroundLightness",
+        "fill",
+      ],
+      layout: "liste",
+    },
+    {
+      // LE MIROIR DU CONTRAT DE COÛT : cette section apparaît exactement là où
+      // les neuf passes de pyramide tournent, parce que les deux lisent la même
+      // déclaration (`EN_ECHO`). Ses sept réglages n'ont aucun lecteur ailleurs
+      // — quatre le disent déjà dans leur infobulle, les trois du dégradé de
+      // dernier écho ne le disaient nulle part et c'est la section qui le dit
+      // pour eux.
+      id: "echos",
+      label: "Échos",
+      params: ["smoothing", "spacing", "echoCount", "falloff", "endHue", "endSaturation", "endLightness"],
+      appliesWhen: EN_ECHO,
+      layout: "liste",
+    },
   ],
   // NEUF PASSES DE PYRAMIDE, toutes conditionnées au mode Échos. Hors de lui,
   // elles sont écartées AVANT d'emprunter leur cible — donc zéro allocation,

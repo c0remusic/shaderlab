@@ -84,6 +84,41 @@ export const grain: EffectModule = {
     { name: "chroma", label: "Chrominance", unit: "percent", min: 0, max: 1, default: 0.3, step: 0.01, hint: "0 = les trois canaux bougent ensemble (bruit de luminance pur) ; 1 = trois couches indépendantes, taches colorées" },
     { name: "seed", label: "Graine", unit: "none", min: 0, max: 1000, default: 0, step: 1 },
   ],
+  /**
+   * DEUX SECTIONS : le CHAMP de bruit, et la façon dont l'image le module.
+   *
+   * `mode` est le seul paramètre à choix de l'effet, et il ne commande pourtant
+   * aucune condition — les quatre curseurs servent dans les deux modes. Le
+   * découpage est donc THÉMATIQUE, comme sur les trois autres petits effets de
+   * cette passe, et il ne masque rien.
+   *
+   * OÙ TOMBE LE TYPE, et c'est le seul arbitrage du fichier. Il décide de deux
+   * choses à la fois : la structure spatiale du bruit (cellules corrélées contre
+   * bruit blanc, et la maille qui va avec) et la COURBE de réponse tonale
+   * (maximale au demi-ton pour l'argentique, dans les ombres pour le capteur).
+   * Il est rangé avec la réponse parce que c'est la courbe qui décide de ce
+   * qu'on VOIT, et parce que c'est elle qui interdit d'en faire un curseur —
+   * deux courbes opposées n'ont pas de milieu qui modélise quoi que ce soit
+   * (voir l'en-tête du paramètre). Sa maille, elle, se règle dans « Grain » avec
+   * la taille.
+   *
+   * CE QUI REND LA FRONTIÈRE VÉRIFIABLE : l'amplitude du grain à un ton donné
+   * vaut exactement `intensity × response(tone)`. La section « Réponse tonale »
+   * contient donc les deux termes du produit, et les trois autres paramètres
+   * décrivent un champ de bruit qui ne sait rien du ton de l'image.
+   *
+   * L'ordre affiché suit `params[]`, qui ne bouge pas : le Type ouvre le
+   * panneau, ce que l'en-tête de la liste demande déjà — un réglage qui change
+   * le sens des autres se pose au-dessus d'eux. Conséquence assumée : le titre
+   * qui ouvre la carte est « Réponse tonale » et non « Grain ».
+   */
+  sections: [
+    { id: "reponse", label: "Réponse tonale", layout: "liste", params: ["mode", "intensity"] },
+    // Le champ de bruit lui-même : sa maille, sa répartition sur les trois
+    // couches, son tirage. Trois réglages de la MATIÈRE, indépendants de ce que
+    // l'image contient.
+    { id: "grain", label: "Grain", layout: "liste", params: ["size", "chroma", "seed"] },
+  ],
   wgsl: `${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${HASH_WGSL}${VALUE_NOISE_WGSL}
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let numerique = params[0] >= 0.5;

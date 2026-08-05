@@ -313,6 +313,115 @@ export const lensFlare: EffectModule = {
     { scale: 0.5, wgsl: upsampleWgsl(P_SPREAD), enabled: flareActif },
   ],
   canvasControls: [{ id: "source", kind: "disk", x: "sourceX", y: "sourceY", radius: "sourceRadius", label: "Source" }],
+  /**
+   * TROIS SECTIONS CUMULATIVES, ET C'EST L'EXCEPTION QUI A FAÇONNÉ LE CONTRAT.
+   *
+   * Les autres effets sectionnés le sont par un MODE : une matière, un
+   * détecteur, un canal. Celui-ci porte trente paramètres et AUCUN `choices`,
+   * et ce n'est pas un oubli — ses trois phénomènes s'ADDITIONNENT au lieu de
+   * s'exclure (ADR-0017). Un mode y serait faux : rien n'interdit une photo qui
+   * porte à la fois une chaîne de fantômes, une plume de diffusion et un
+   * quadrillage capteur, et les photographies de référence en montrent
+   * plusieurs à la fois. C'est cet effet-là qui a imposé d'articuler le contrat
+   * sur des GROUPES QUI APPARAISSENT ENSEMBLE plutôt que sur « le mode »
+   * (design §2C).
+   *
+   * Le découpage n'est pas celui des apparences mais celui de l'ENDROIT OÙ LA
+   * LUMIÈRE SE PERD — la seule ligne qui sépare vraiment ces trois-là, et la
+   * même qui fait de leurs blocs WGSL trois blocs distincts plus bas :
+   *
+   *   · entre deux faces POLIES          -> Fantômes, des images de l'ouverture
+   *   · sur une surface SALE, ou de biais -> Diffusion, des stries et un cône
+   *   · par aller-retour avec le CAPTEUR  -> Quadrillage
+   *
+   * DEUX RATTACHEMENTS QUI NE SE DEVINENT PAS depuis le nom du paramètre :
+   *
+   * - **L'anneau est un fantôme**, malgré son apparence de halo. Il vient de la
+   *   réflexion sur une face SPHÉRIQUE, donc entre faces polies comme la chaîne
+   *   — ce qui le distingue d'un halo de diffusion est justement qu'il reste
+   *   centré sur l'axe et non sur la source. Même chose pour les arcs de
+   *   barillet, dont le shader dit lui-même qu'ils sont « la même intersection
+   *   que celle des fantômes, poussée à son extrême ».
+   * - **Le voile est une diffusion**, et c'est le seul rattachement discutable
+   *   des trente. Aucune image de l'ouverture n'y apparaît : c'est de la lumière
+   *   dispersée qui remonte les noirs sans rien redessiner, donc la même famille
+   *   que les stries et la plume, et pas celle des reflets. Le prédicat de coût
+   *   `flareActif` le range avec les fantômes et l'anneau — mais il groupe ce qui
+   *   LIT le champ de hautes lumières, pas ce qui vient du même phénomène. Les
+   *   deux découpages n'ont pas à coïncider.
+   *
+   * CE QUI RESTE HORS SECTION EST COMMUN À PLUSIEURS PHÉNOMÈNES, et un
+   * paramètre qu'aucune section ne cite reste rendu à sa place : le seuil et
+   * l'étalement fabriquent le champ de hautes lumières que lisent les fantômes,
+   * l'anneau ET le voile ; la source posée alimente les trois familles ; la
+   * teinte du traitement les colore toutes sauf le quadrillage, dont la couleur
+   * est une propriété du phénomène et non un réglage. Les enfermer dans une
+   * section les rattacherait à un phénomène qui ne les possède pas — et le
+   * disque posé se retrouverait titré « Fantômes » alors que la plume et les
+   * stries en partent aussi.
+   *
+   * ⚠️ AUCUNE DES TROIS NE PORTE DE CONDITION, et c'est une LIMITE du contrat,
+   * pas un choix. « Une section se masque quand son intensité propre est nulle »
+   * suppose un seuil sur un curseur : `appliesWhen` vise un paramètre à
+   * `choices` et rien d'autre, exprès (design §3, voie A). Les trois sections
+   * restent donc visibles à intensité nulle, comme `ghostFill` et
+   * `sensorSpacing` restent affichés là où leur infobulle les dit sans objet.
+   * Le jour où l'on voudra ce masquage, il faudra un paramètre à `choices` —
+   * ajouté en FIN de `params[]`, puisque les index sont persistés dans les
+   * presets, et à ce prix-là c'est un arbitrage, pas une finition.
+   */
+  sections: [
+    {
+      id: "fantomes",
+      label: "Fantômes",
+      layout: "liste",
+      params: [
+        // La forme de l'ouverture d'abord : c'est elle dont chaque fantôme est
+        // une image, et elle vaut pour toute la chaîne.
+        "blades",
+        "bladeRotation",
+        // La chaîne elle-même, puis l'anneau, puis ce qui donne aux fantômes
+        // DESSINÉS leur allure de photographie plutôt que de gommette.
+        "ghostCount",
+        "ghostSpacing",
+        "ghostIntensity",
+        "ghostDispersion",
+        "haloIntensity",
+        "haloRadius",
+        "ghostFill",
+        "ghostClip",
+        "ghostVariation",
+        "arcs",
+      ],
+    },
+    {
+      id: "diffusion",
+      label: "Diffusion",
+      layout: "liste",
+      params: [
+        // Du plus large au plus dessiné : le voile lave tout le cadre, la plume
+        // en traverse une part, les stries en sont le détail.
+        "veil",
+        "scatter",
+        "scatterDetail",
+        "plume",
+        "plumeLength",
+        "plumeSpread",
+        "plumeEdge",
+      ],
+    },
+    {
+      id: "capteur",
+      label: "Quadrillage capteur",
+      layout: "liste",
+      // Deux paramètres, et une section quand même : ce n'est pas un réglage de
+      // l'objectif mais du CAPTEUR — la seule des trois familles qui ne vienne
+      // pas du verre, et la seule dont la couleur ne suive pas le traitement.
+      // Les laisser en vrac entre les stries et les arcs effacerait exactement
+      // ce que le découpage sert à dire.
+      params: ["sensor", "sensorSpacing"],
+    },
+  ],
   wgsl: `
 ${UV_SPACE_WGSL}${HSL_TO_RGB_WGSL}${HASH_WGSL}${VALUE_NOISE_WGSL}${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${OKLAB_WGSL}
 

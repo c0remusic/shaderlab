@@ -1,4 +1,4 @@
-import type { EffectModule } from "./types";
+import type { DisplayCondition, EffectModule } from "./types";
 import { BAYER4_WGSL, BAYER8_WGSL } from "./bayer";
 import { HASH_WGSL } from "./hash";
 import { HSL_TO_RGB_WGSL } from "./hsl";
@@ -95,12 +95,39 @@ const STYLE_POINTS = 6;
 const DISTRIBUTIONS = ["Linéaire", "Perceptuel"] as const;
 const DISTRIB_PERCEPTUEL = 1;
 
+/**
+ * Le TÉMOIN. Il n'a pas de constante côté shader, et son absence est
+ * significative : aucune branche de `ditherThreshold` ne le teste, il est ce qui
+ * reste quand toutes les autres ont échoué (`return 0.0`). Il en faut une ici
+ * parce que l'AFFICHAGE, lui, doit le nommer — c'est le seul style qui commande
+ * quoi que ce soit au panneau.
+ */
+const STYLE_SEUIL = 2;
+
+/**
+ * « Ce style pose-t-il un MOTIF ? » — la seule question que `style` pose au
+ * panneau, et la seule frontière d'applicabilité de tout l'effet.
+ *
+ * DÉRIVÉE, PAS ÉCRITE À LA MAIN. Un style ajouté à la fin de `STYLES` entre ici
+ * tout seul, ce qui est le bon défaut : les six autres posent un motif, le
+ * témoin est l'exception. Une liste d'index écrite à la main aurait oublié le
+ * nouveau venu en silence — un curseur masqué à tort ne se plaint pas, ne bouge
+ * aucun pixel et ne rougit aucun test.
+ */
+const AVEC_MOTIF: DisplayCondition = {
+  param: "style",
+  equals: STYLES.map((_, index) => index).filter((index) => index !== STYLE_SEUIL),
+};
+
 export const dither: EffectModule = {
   id: "dither",
   name: "Dither",
   params: [
     { name: "style", label: "Style", unit: "none", min: 0, max: STYLES.length - 1, default: STYLE_BAYER, step: 1, choices: [...STYLES], hint: "Bayer : matrice ordonnée 8×8, on voit la grille (rendu 8 bits). Bruit bleu : grain fin sans grille (rendu impression). Seuil : aucun motif, la quantification nue — le témoin. Bayer fin : la 4×4, sa grille est plus grosse à taille égale. Bruit blanc : granuleux, filmique. Lignes : trame de traits, la gravure. Points groupés : le point qui grossit, la presse" },
-    { name: "size", label: "Taille du motif", unit: "pixels", min: 1, max: 32, default: 4, step: 1, hint: "Côté d'une cellule de trame, en pixels de l'image. Sur une grande photo affichée en réduction, une trame de 1 ou 2 px se moyenne en bouillie : c'est ici qu'on la remonte" },
+    // Sans objet en Seuil : cette branche ne lit ni la cellule ni sa taille —
+    // elle est le `return 0.0` de sortie de `ditherThreshold`, celle qu'aucun
+    // `if` ne teste. Le curseur ne peut donc y déplacer aucun pixel.
+    { name: "size", label: "Taille du motif", unit: "pixels", min: 1, max: 32, default: 4, step: 1, appliesWhen: AVEC_MOTIF, hint: "Côté d'une cellule de trame, en pixels de l'image. Sur une grande photo affichée en réduction, une trame de 1 ou 2 px se moyenne en bouillie : c'est ici qu'on la remonte. Sans objet en Seuil, qui ne pose aucun motif" },
     { name: "levels", label: "Niveaux", unit: "none", min: 2, max: 8, default: 3, step: 1, hint: "Nombre de valeurs conservées. 2 = un bit, le rendu photocopie ; au-delà de 6 le tramage cesse de se voir" },
     { name: "mono", label: "Deux encres", unit: "percent", min: 0, max: 1, default: 1, step: 0.01, hint: "0 = chaque canal est tramé séparément (rendu couleur rétro). 1 = l'image se réduit à l'encre et au papier ci-dessous, comme une risographie" },
     { name: "blackPoint", label: "Point noir", unit: "percent", min: 0, max: 0.95, default: 0.05, step: 0.01, hint: "Ton d'entrée qui reçoit le niveau le plus sombre — le monter écrase les ombres" },
@@ -143,8 +170,77 @@ export const dither: EffectModule = {
       max: 1,
       default: 1,
       step: 0.01,
-      hint: "À 0, le motif disparaît et les frontières entre niveaux redeviennent FRANCHES — c'est le rendu sérigraphie, celui que `posterize` fait. À 1, le motif est à pleine amplitude",
+      // Sans objet en Seuil, et pour une raison qui vaut d'être écrite : ce
+      // curseur MULTIPLIE le seuil, or la branche Seuil rend 0. Autrement dit
+      // le style Seuil EST ce curseur à 0, sur n'importe quel autre style — les
+      // deux ne sont pas seulement inertes ensemble, ils sont la même chose.
+      appliesWhen: AVEC_MOTIF,
+      hint: "À 0, le motif disparaît et les frontières entre niveaux redeviennent FRANCHES — c'est le rendu sérigraphie, celui que `posterize` fait. À 1, le motif est à pleine amplitude. Sans objet en Seuil, qui n'a aucun motif à doser",
     },
+  ],
+  /**
+   * QUATRE SECTIONS POUR QUATORZE RÉGIMES — et il faut dire pourquoi ce ne sont
+   * pas quatorze panneaux.
+   *
+   * `style` (7) × `distribution` (2) font bien quatorze régimes de RENDU, et
+   * c'est ce compte qui a fait retenir cet effet. Mais un régime de rendu n'est
+   * pas un régime de PANNEAU : ce qui commande l'affichage n'est pas le nombre
+   * de combinaisons, c'est ce que chaque branche LIT. Relevé branche par
+   * branche dans `ditherThreshold`, plutôt que déduit du nombre de choix :
+   *
+   * - Bayer, Bruit bleu, Bayer fin, Bruit blanc, Lignes, Points groupés — les
+   *   six lisent `cell` (donc `size`), et leur seuil est multiplié par `amount`.
+   *   Ils diffèrent par la FORME du motif, jamais par les réglages qui le
+   *   commandent : les mêmes deux curseurs les servent tous les six.
+   * - Seuil — la seule branche qui ne lit rien. `cell` n'y entre pas et
+   *   `0 × amount` reste 0 : les deux réglages de trame y sont morts, les douze
+   *   autres vivants.
+   * - `distribution` ne commande AUCUNE applicabilité : il déplace les niveaux
+   *   sur l'axe des tons, il n'en supprime ni n'en ajoute. C'est un mode de
+   *   RÉGLAGE (design §2B), pas un mode exclusif — et un panneau qui se
+   *   réorganiserait en changeant d'axe de répartition serait du bruit.
+   *
+   * UNE SEULE FRONTIÈRE, donc, et elle est portée par les deux paramètres
+   * concernés plutôt que par leur section. Le groupe *Trame* garde son sens
+   * dans les quatorze régimes puisque `style` y vit : une section conditionnelle
+   * emporterait avec elle le sélecteur qui seul permet d'en revenir.
+   *
+   * LES QUATRE QUESTIONS, dans l'ordre où l'effet les pose : de quel MOTIF on
+   * rend l'entre-deux (*Trame*), combien de niveaux et répartis comment
+   * (*Quantification*), avec quelles couleurs (*Encres*), et entre quels tons
+   * d'entrée (*Tonalité*).
+   *
+   * ⚠️ AUCUN INDEX N'A BOUGÉ — une section cite des NOMS et regroupe des items
+   * de RENDU. Conséquence assumée : les blocs s'ouvrent à la place de leur
+   * PREMIER paramètre (`ParamPanel`), donc *Tonalité* s'affiche en dernier bien
+   * qu'elle prolonge *Quantification* — `mono` (index 3) ouvre *Encres* avant
+   * que `blackPoint` (index 4) n'ouvre *Tonalité*. Ranger l'affichage
+   * demanderait de réordonner `params[]`, où la référence `effet-dither` et les
+   * presets lisent chaque index : c'est exactement ce qu'on ne fait pas.
+   *
+   * ⚠️ LES DEUX GROUPES DE COULEUR RESTENT ENTIERS dans *Encres*. `ParamPanel`
+   * ancre un groupe à l'index de son premier rôle et refuse un groupe réparti
+   * entre deux sections — une pastille orpheline ne lève ni au type-check ni au
+   * chargement du registre.
+   *
+   * GABARITS. *Tonalité* est une `paire` : deux bornes d'une même plage, dont
+   * l'une sans l'autre ne veut rien dire — même gabarit et même titre que
+   * `gradientMap`, qui nomme déjà cet effet parmi les quatre où ces deux points
+   * sont deux curseurs plats. *Encres* reste une `liste` malgré ses sept
+   * paramètres : elle ne rend que TROIS contrôles (un curseur et deux
+   * pastilles), et c'est le nombre de contrôles qu'une grille réduit, pas celui
+   * des paramètres.
+   */
+  sections: [
+    { id: "trame", label: "Trame", layout: "liste", params: ["style", "size", "amount"] },
+    { id: "quantification", label: "Quantification", layout: "liste", params: ["levels", "distribution"] },
+    {
+      id: "encres",
+      label: "Encres",
+      layout: "liste",
+      params: ["mono", "inkHue", "inkSaturation", "inkLightness", "paperHue", "paperSaturation", "paperLightness"],
+    },
+    { id: "tonalite", label: "Tonalité", layout: "paire", params: ["blackPoint", "whitePoint"] },
   ],
   wgsl: `
 ${LINEAR_TO_SRGB_WGSL}${LINEAR_TO_SRGB_VEC3_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${HSL_TO_RGB_WGSL}${BAYER4_WGSL}${BAYER8_WGSL}${HASH_WGSL}

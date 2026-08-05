@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent, within } from "storybook/test";
-import { ParamPanel } from "./ParamPanel";
+import { ParamPanel, ParamSection } from "./ParamPanel";
+import { LabeledSlider } from "./ui/labeled-slider";
+import type { SectionLayout } from "../render/effects/types";
 import { assertAccessibleNames } from "./ui/accessible-name.test-support";
 import { getEffect } from "../render/effects/registry";
 import { defaultLayerMask } from "../mask/types";
@@ -237,6 +239,74 @@ export const UnlockedLayerKeepsControlsActive: Story = {
     await expectLive(canvas.getByRole("checkbox", { name: "Écrêter sur la photo du dessus" }));
     for (const slider of canvas.getAllByRole("slider")) await expectLive(slider);
     await expectLive(canvas.getByRole("button", { name: "Ouvrir le sélecteur de couleur pour Ombres" }));
+  },
+};
+
+// --- Gabarits de section (SectionLayout) ---
+
+/** Une section isolée dans le chrome réel du panneau — c'est lui qui porte les
+ *  classes dont dépendent les gabarits.
+ *
+ *  POURQUOI PAS UN EFFET DU REGISTRE. Aucun n'en déclare encore : les sections
+ *  arrivent effet par effet dans une tâche ultérieure, et `ParamPanel` va
+ *  chercher son module par `getEffect(layer.effectId)` — il n'y a donc rien à
+ *  injecter. Ces stories montrent le RÉGIME, qui est justement tout ce qu'un
+ *  gabarit choisit ; ce que chaque effet y range se verra sur les siennes. */
+function SectionSeule({ label, layout, curseurs }: { label: string; layout: SectionLayout; curseurs: readonly string[] }) {
+  return (
+    <div className="param-panel" style={{ width: "var(--inspector-width-default)" }}>
+      <div className="param-panel__group">
+        <ParamSection label={label} layout={layout}>
+          {curseurs.map((nom, index) => (
+            <LabeledSlider key={nom} label={nom} value={0.2 + index * 0.1} min={0} max={1} step={0.01} onChange={() => {}} />
+          ))}
+        </ParamSection>
+      </div>
+    </div>
+  );
+}
+
+/** Deux tracks de grille, mesurées sur le style CALCULÉ. Une story de mise en
+ *  page qui se contente d'exister est une image : elle reste verte si la feuille
+ *  ne se charge pas, si la classe est mal orthographiée, ou si un gabarit tombe
+ *  en colonne — les trois façons dont un gabarit échoue. */
+async function attendreDeuxColonnes(canvasElement: HTMLElement) {
+  const corps = canvasElement.querySelector<HTMLElement>(".param-panel__section-body");
+  await expect(corps).not.toBeNull();
+  const style = getComputedStyle(corps!);
+  await expect(style.display).toBe("grid");
+  await expect(style.gridTemplateColumns.split(/\s+/).filter(Boolean)).toHaveLength(2);
+}
+
+/** GABARIT `paire` — deux curseurs liés lus comme un seul réglage coupé en
+ *  deux (`blackPoint`/`whitePoint`, qui traîne dans cinq effets). */
+export const GabaritPaire: Story = {
+  render: () => <SectionSeule label="Tonalité" layout="paire" curseurs={["Point noir", "Point blanc"]} />,
+  play: async ({ canvasElement }) => attendreDeuxColonnes(canvasElement),
+};
+
+/** GABARIT `grille` — curseurs courts en deux colonnes, pour les blocs longs
+ *  (les huit réglages de pavé de `glass`). Le gain est de la HAUTEUR : huit
+ *  lignes deviennent quatre. */
+export const GabaritGrille: Story = {
+  render: () => (
+    <SectionSeule label="Pavé" layout="grille"
+      curseurs={["Largeur", "Hauteur", "Chanfrein", "Mortier", "Décalage", "Irrégularité", "Grain", "Relief"]} />
+  ),
+  play: async ({ canvasElement }) => attendreDeuxColonnes(canvasElement),
+};
+
+/** GABARIT `liste` — le défaut, une ligne par curseur : c'est ce que rend tout
+ *  effet sans section (voir `Default`, `WarpLayer`). En story explicite pour
+ *  que la contre-épreuve des deux gabarits ci-dessus existe : sans elle, une
+ *  règle qui mettrait TOUTE section en grille passerait inaperçue. */
+export const GabaritListe: Story = {
+  render: () => <SectionSeule label="Détection" layout="liste" curseurs={["Seuil", "Épaisseur", "Lissage"]} />,
+  play: async ({ canvasElement }) => {
+    const corps = canvasElement.querySelector<HTMLElement>(".param-panel__section-body");
+    await expect(corps).not.toBeNull();
+    await expect(getComputedStyle(corps!).display).toBe("flex");
+    await expect(getComputedStyle(corps!).flexDirection).toBe("column");
   },
 };
 

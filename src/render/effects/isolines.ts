@@ -97,6 +97,66 @@ export const isolines: EffectModule = {
     { name: "backgroundSaturation", label: "Saturation", unit: "percent", min: 0, max: 1, default: 0.22, step: 0.01, colorGroup: { key: "fond", role: "saturation", label: "Couleur de fond" } },
     { name: "backgroundLightness", label: "Luminosité", unit: "percent", min: 0, max: 1, default: 0.93, step: 0.01, colorGroup: { key: "fond", role: "lightness", label: "Couleur de fond" } },
   ],
+  /**
+   * QUATRE SECTIONS — quatre questions, dans l'ordre où une carte se fabrique :
+   * OÙ passent les courbes, à quoi ressemble un TRAIT, de quelle couleur il est,
+   * et ce qu'il reste de la photo dessous.
+   *
+   * DÉCOUPAGE THÉMATIQUE, PAS PAR MODE, et c'est ce qui le distingue de celui
+   * d'`outlines`. Les 18 paramètres sont vivants en permanence : aucun ne porte
+   * d'`appliesWhen`, donc aucune section n'en porte non plus. `inputMode` est un
+   * choix d'ENTRÉE partagé par tout le registre — il change le champ qui porte le
+   * relief, il ne rend aucun autre curseur sans objet. Ce qui manquait ici
+   * n'était donc pas du masquage mais des TITRES : dix-huit curseurs de suite ne
+   * disent pas que « Niveaux » et « Point noir » répondent à la même question —
+   * où tombent les courbes — alors que « Épaisseur du trait », intercalé entre
+   * eux, répond à une autre.
+   *
+   * « Détection » est le titre d'`outlines` pour la même question, et c'est
+   * délibéré : les deux effets tracent des lignes et l'utilisateur passe de l'un
+   * à l'autre. Deux mots différents pour le même groupe lui feraient réapprendre
+   * la carte à chaque changement d'effet.
+   *
+   * ⚠️ AUCUN INDEX N'A BOUGÉ. Une section cite des NOMS et regroupe des items de
+   * RENDU ; `params[]` reste dans son ordre d'origine, où les presets le lisent.
+   * La seule différence à l'écran avec la liste plate est que l'épaisseur du
+   * trait (index 1) descend de quatre lignes, pour rejoindre les deux réglages
+   * de courbe maîtresse qui la déclinent. Les sections sont citées dans l'ordre
+   * des index pour que personne n'y lise une intention de tri : l'ordre DANS une
+   * section est celui de `params[]`, pas celui de cette liste.
+   *
+   * ⚠️ LES TROIS GROUPES DE COULEUR RESTENT ENTIERS, chacun dans une seule
+   * section : `ParamPanel` ancre un groupe à l'index de son premier rôle, donc
+   * une section qui n'en citerait que deux casserait la pastille au lieu de la
+   * déplacer. `bas` et `haut` sont les deux bouts d'un même dégradé d'altitude et
+   * ne se séparent pas ; `fond` va avec l'effacement qui le fait apparaître, et
+   * non avec l'encre.
+   *
+   * `majorWidth` aurait pu se masquer à `majorEvery` = 1 : toutes les courbes y
+   * sont maîtresses, et le multiplicateur y fait double emploi avec l'épaisseur.
+   * `appliesWhen` ne sait pas l'exprimer — il compare un index de `choices`,
+   * jamais un seuil sur un curseur (`types.ts`). Laissé vivant, donc, plutôt que
+   * de tordre le contrat pour un cas ; c'est le même arbitrage que les trois
+   * déclarations laissées en prose dans `gradientMap` et `lensFlare`.
+   */
+  sections: [
+    // Ce qui décide OÙ tombent les courbes : combien, sur quelle plage de tons,
+    // lues sur quel champ, et à quelle finesse de relief. Le lissage est ici et
+    // non dans « Trait » parce qu'il ne touche pas au trait — il simplifie la
+    // surface AVANT qu'on la découpe, c'est le vrai réglage de niveau de détail.
+    { id: "detection", label: "Détection", params: ["levels", "smoothing", "inputMode", "blackPoint", "whitePoint"], layout: "liste" },
+    // À quoi ressemble UNE courbe. Les deux réglages de maîtresse ne sont qu'une
+    // déclinaison de l'épaisseur : les tenir loin d'elle obligeait à faire
+    // l'aller-retour pour comparer une largeur à son multiple.
+    { id: "trait", label: "Trait", params: ["thickness", "majorEvery", "majorWidth"], layout: "liste" },
+    // Le dégradé d'altitude, en deux bouts. Une seule question — de quelle
+    // couleur est l'encre selon la hauteur — et deux pastilles pour y répondre.
+    { id: "couleurs", label: "Couleurs", params: ["lowHue", "lowSaturation", "lowLightness", "highHue", "highSaturation", "highLightness"], layout: "liste" },
+    // Ce qu'il reste de la photo sous les courbes. L'effacement et la couleur de
+    // fond sont un seul geste en deux curseurs : l'un ne se règle jamais sans
+    // regarder l'autre, puisque c'est celui-là qu'on découvre en montant celui-ci.
+    { id: "fond", label: "Fond", params: ["wash", "backgroundHue", "backgroundSaturation", "backgroundLightness"], layout: "liste" },
+  ],
   wgsl: `
 ${UV_SPACE_WGSL}${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${INPUT_DRIVER_WGSL}${HSL_TO_RGB_WGSL}${OKLAB_WGSL}
 

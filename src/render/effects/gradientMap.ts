@@ -141,12 +141,65 @@ export const gradientMap: EffectModule = {
     }),
     { name: "offset", label: "Décalage", unit: "percent", min: -1, max: 1, default: 0, step: 0.01, hint: "Déplace la rampe le long des tons — visible surtout avec une répétition ou en miroir, où ce qui sort d'un bout rentre par l'autre" },
     { name: "repeat", label: "Répétition", unit: "none", min: 1, max: 12, default: 1, step: 1, hint: "Combien de fois la rampe entière tient dans l'échelle des tons — 1 = une seule rampe, au-delà = bandes de couleur" },
+    // PAS D'`appliesWhen` ICI, ET CE N'EST PAS UN OUBLI. La campagne du
+    // 2026-08-05 a confirmé la déclaration de l'infobulle — à répétition 1, le
+    // repli miroir vaut l'identité et ce sélecteur est inerte
+    // (`2026-08-05-applicabilite-task1-resultats.md`). Elle n'est pourtant pas
+    // portable vers `appliesWhen` : la condition porterait sur `repeat`, qui est
+    // un paramètre CONTINU, alors que `DisplayCondition` exige une cible à
+    // `choices` — on compare un index dans une liste nommée, jamais un seuil sur
+    // un curseur (`types.ts`). Même blocage, le même jour, sur `lensFlare` :
+    // `ghostFill` (« sans objet sur la voie automatique ») et `sensorSpacing`
+    // (« sans objet à quadrillage nul ») visent eux aussi une intensité continue.
+    // Trois déclarations sur 38 décrivent donc un SEUIL et non un mode ; les
+    // porter demanderait d'élargir le contrat à une comparaison numérique, ce que
+    // la voie A tranchée refuse. Laissées en prose, donc, jusqu'à ce que cet
+    // élargissement soit décidé pour de bon — et il ne l'est pas.
     { name: "repeatType", label: "Type de répétition", unit: "none", min: 0, max: REPEAT_TYPES.length - 1, default: REPEAT_MIRROR, step: 1, choices: [...REPEAT_TYPES], hint: "Miroir : les bandes s'enchaînent en se reflétant, sans arête. Répétition : chaque bande recommence à l'arrêt sombre, arête franche — le cycle néon. Sans objet tant que la répétition vaut 1." },
     { name: "scatter", label: "Dispersion", unit: "percent", min: 0, max: 1, default: 0, step: 0.01, hint: "Fait osciller chaque pixel entre les deux teintes voisines de la rampe — casse le banding par une trame de risographie au lieu de le recouvrir" },
     // AJOUTÉS EN FIN DE TABLE : l'ordre est persisté dans les presets. Les
     // insérer près de midPosition aurait décalé les indices historiques 10..17.
     { name: "shadowPosition", label: "Position de l'arrêt sombre", unit: "percent", min: 0, max: 0.9, default: 0, step: 0.01 },
     { name: "highPosition", label: "Position de l'arrêt clair", unit: "percent", min: 0.1, max: 1, default: 1, step: 0.01 },
+  ],
+  /**
+   * REGROUPEMENT D'AFFICHAGE. Vingt paramètres se lisaient en une seule liste,
+   * où douze réglages de rampe (tous absorbés par `ColorRampControl`) voisinaient
+   * avec les quatre venus du cahier de références §6 sans qu'aucun titre ne dise
+   * qu'ils ne parlent pas de la même chose : les premiers décrivent le DÉGRADÉ,
+   * les seconds ce qu'on fait de l'échelle des tons AVANT de l'y lire.
+   *
+   * ⚠️ `params[]` NE BOUGE PAS — les index sont persistés dans les presets, et
+   * les deux positions d'arrêt sont en fin de table pour cette raison exacte
+   * (voir le commentaire des index 18/19). Une section regroupe des ITEMS DE
+   * RENDU. *Répétition* est le bloc ENTIER 14..17, pris tel quel dans l'ordre de
+   * la table ; aucune section n'en traverse une autre.
+   *
+   * `preserveShading` et l'espace de mélange ne sont cités par AUCUNE section,
+   * et c'est délibéré : le premier règle ce qu'on remet SOUS la couleur de
+   * sortie, le second le chemin entre deux arrêts — ni la rampe elle-même, ni sa
+   * répétition. Un paramètre non cité reste rendu à sa place.
+   *
+   * ⚠️ *Tonalité* EST À ARBITRER, et le signaler vaut mieux que de le taire :
+   * dans les quatre autres effets qui portent un point noir et un point blanc
+   * (`dither`, `halftone`, `hatching`, `isolines`) ce sont deux curseurs plats,
+   * que le gabarit `paire` sert exactement. Ici ils sont AUSSI deux poignées de
+   * la rampe — `ParamPanel` les retire donc de la liste plate au titre des
+   * paramètres pilotés par un contrôle spécialisé. Tant que ce retrait vaut,
+   * cette section n'a aucun contrôle à rendre et disparaît d'elle-même. La
+   * déclarer quand même dit ce que ces deux paramètres SONT ; c'est à
+   * l'interprétation des sections de trancher si une citation explicite les
+   * reprend à la rampe, ou si la rampe reste seule à les porter.
+   */
+  sections: [
+    { id: "rampe", label: "Rampe", layout: "figure", params: [
+      "shadowHue", "shadowSaturation", "shadowLightness",
+      "midHue", "midSaturation", "midLightness",
+      "highHue", "highSaturation", "highLightness",
+      "midPosition", "shadowPosition", "highPosition",
+    ] },
+    { id: "tonalite", label: "Tonalité", layout: "paire", params: ["blackPoint", "whitePoint"] },
+    { id: "repetition", label: "Répétition", layout: "liste", params: ["offset", "repeat", "repeatType", "scatter"] },
   ],
   colorRampControls: [{
     id: "gradient",

@@ -1,4 +1,4 @@
-import type { EffectModule } from "./types";
+import type { DisplayCondition, EffectModule } from "./types";
 import { HASH_WGSL } from "./hash";
 import { UV_SPACE_WGSL } from "./uvSpace";
 
@@ -46,6 +46,26 @@ import { UV_SPACE_WGSL } from "./uvSpace";
 /** Étiquettes de la trajectoire. L'index EST la valeur du paramètre. */
 const TRAJECTORIES = ["Directionnel", "Rotation", "Zoom"] as const;
 const TRAJ_DIRECTIONAL = 0;
+
+/**
+ * LES DEUX RÉGIMES DE LA TRAJECTOIRE, nommés une fois et lus par TROIS
+ * porteurs : le curseur (`EffectParam.appliesWhen`), le manipulateur posé sur
+ * l'image (`CanvasControl.visibleWhen`) et la section du panneau
+ * (`EffectSection.appliesWhen`). Les trois posent exactement la même question.
+ *
+ * DÉRIVÉS ET NON RECOPIÉS, pour la raison qui vaut déjà chez `outlines`
+ * (`EN_ECHO`) : trois copies littérales ne divergeraient pas bruyamment, elles
+ * divergeraient EN SILENCE. Un axe manipulable sur la toile sans sa ligne dans
+ * le panneau, ou une section titrée qui survit à ce qu'elle contient, ne
+ * déplacent aucun pixel — donc aucune référence de rendu ne peut rougir, et
+ * seul un œil sur la fenêtre l'attraperait.
+ */
+const TRAJ_DIRECTIONNELLE = { param: "trajectory", equals: TRAJ_DIRECTIONAL } satisfies DisplayCondition;
+
+/** Rotation (1) et Zoom (2) : les deux trajectoires qui tournent autour d'un
+ *  point ou en partent, donc les seules où un centre existe. Le Directionnel
+ *  n'en a pas — sa géométrie tient dans un angle. */
+const TRAJ_CENTREE = { param: "trajectory", equals: [1, 2] } satisfies DisplayCondition;
 
 /** Plafond du nombre d'échantillons d'UNE passe, qui suit sinon la longueur de
  *  la traînée (environ un par texel). Même arbitrage que `TAPS_MAX` de
@@ -293,15 +313,81 @@ export const motionBlur: EffectModule = {
   params: [
     { name: "trajectory", label: "Trajectoire", unit: "none", min: 0, max: TRAJECTORIES.length - 1, default: TRAJ_DIRECTIONAL, step: 1, choices: [...TRAJECTORIES], hint: "Directionnel : un filé en ligne droite. Rotation : le sujet tourne autour d'un point. Zoom : l'objectif zoome pendant la pose. Les deux dernières laissent le centre net par construction." },
     { name: "amount", label: "Amplitude", unit: "none", min: 0, max: 2000, default: 30, step: 0.5, hint: "Longueur du mouvement — en pixels pour un filé directionnel, en degrés pour une rotation, en fraction de la distance au centre pour un zoom. Va jusqu'à 2000 px comme le flou directionnel de Photoshop : la densité tient sur toute la course, la collecte se faisant en deux étages" },
-    { name: "angle", label: "Direction", unit: "degrees", min: 0, max: 360, default: 0, step: 1, hint: "Axe du filé. Sans objet en Rotation et en Zoom, dont la direction vient du centre." },
-    { name: "centerX", label: "Centre X", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Point autour duquel tourne ou depuis lequel part le mouvement. Sans objet en Directionnel." },
+    // CES DEUX CONDITIONS SONT CELLES DES `canvasControls` CI-DESSOUS, mot pour
+    // mot. C'est le but : le réglage posé sur l'image et son curseur sont deux
+    // vues du même paramètre, et ils doivent apparaître et disparaître ENSEMBLE
+    // — un axe manipulable sur la toile sans sa ligne dans le panneau (ou
+    // l'inverse) se lit comme un bug. Les deux modes excluants de `angle` ont
+    // été rendus séparément le 2026-08-05
+    // (`docs/superpowers/plans/2026-08-05-applicabilite-task1-resultats.md`) ;
+    // l'infobulle reste, elle seule dit POURQUOI le curseur ne sert pas ici.
+    { name: "angle", label: "Direction", unit: "degrees", min: 0, max: 360, default: 0, step: 1, appliesWhen: TRAJ_DIRECTIONNELLE, hint: "Axe du filé. Sans objet en Rotation et en Zoom, dont la direction vient du centre." },
+    // ⚠️ `centerY` NE PORTE PAS LA CONDITION DE `centerX`, dont son infobulle
+    // dépend pourtant par renvoi. Seul `centerX` a été mesuré, et masquer sur
+    // une déclaration non éprouvée est exactement ce que la campagne existait
+    // pour empêcher — un curseur masqué ne bouge plus aucun pixel, donc aucune
+    // référence de rendu ne peut rougir de l'erreur. À trancher : mesurer
+    // `centerY` en Directionnel, ou décider que le renvoi d'infobulle vaut
+    // déclaration.
+    // CE QUI A CHANGÉ LE 2026-08-05 : le panneau ne le montrera pas seul pour
+    // autant. La section `Centre` porte `TRAJ_CENTREE` — la condition du point
+    // POSÉ, qui vise les deux coordonnées ensemble depuis le début — et emporte
+    // donc la paire entière. La question reste entière au niveau du PARAMÈTRE ;
+    // seule sa conséquence visible est éteinte (voir l'en-tête des sections).
+    { name: "centerX", label: "Centre X", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, appliesWhen: TRAJ_CENTREE, hint: "Point autour duquel tourne ou depuis lequel part le mouvement. Sans objet en Directionnel." },
     { name: "centerY", label: "Centre Y", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Voir Centre X." },
     { name: "bias", label: "Décentrage de l'obturateur", unit: "percent", min: -1, max: 1, default: 0, step: 0.01, hint: "0 = la traînée déborde des deux côtés du sujet, comme une intégration symétrique. ±1 = elle part d'un seul côté et le sujet garde un bord net de l'autre, comme un obturateur à rideau" },
     { name: "falloff", label: "Extinction", unit: "percent", min: 0, max: 1, default: 0.35, step: 0.01, hint: "0 = obturateur franc, toute la traînée à densité égale. 1 = elle s'éteint vers ses extrémités, le filé photographique" },
   ],
   canvasControls: [
-    { id: "trajectory", kind: "axis", angle: "angle", length: "amount", label: "Trajectoire", visibleWhen: { param: "trajectory", equals: 0 } },
-    { id: "center", kind: "point", x: "centerX", y: "centerY", label: "Centre", visibleWhen: { param: "trajectory", equals: [1, 2] } },
+    { id: "trajectory", kind: "axis", angle: "angle", length: "amount", label: "Trajectoire", visibleWhen: TRAJ_DIRECTIONNELLE },
+    { id: "center", kind: "point", x: "centerX", y: "centerY", label: "Centre", visibleWhen: TRAJ_CENTREE },
+  ],
+  /**
+   * TROIS SECTIONS, ET UNE SEULE CONDITION.
+   *
+   * Le découpage sépare trois questions que la liste plate posait à la file :
+   * QUEL mouvement on intègre (sa nature, sa taille, sa direction), D'OÙ il
+   * part (le centre), et comment la traînée se PONDÈRE sur sa longueur. Les
+   * deux derniers réglages ne parlent pas du mouvement du tout — ils décrivent
+   * l'OBTURATEUR, et ils font la même chose sous les trois trajectoires : leur
+   * section n'a donc pas de condition.
+   *
+   * `Mouvement` N'EN PORTE PAS NON PLUS, et ce n'est pas un oubli. `amount`
+   * sert les trois régimes — des pixels en Directionnel, des degrés en
+   * Rotation, une fraction de la distance au centre en Zoom — et seul `angle`
+   * s'efface, par sa propre condition. Une section conditionnée aurait emporté
+   * l'amplitude avec la direction.
+   *
+   * ⚠️ `amount` ET `angle` SONT UN BLOC ATOMIQUE : ils forment l'axe posé sur
+   * l'image, dont l'en-tête se place au PREMIER des deux dans `params[]`
+   * (`spatialFirstIndex`). Une section qui n'en prendrait qu'un laisserait un
+   * en-tête « sur la toile » sans son réglage, ou l'inverse. Même chose pour la
+   * paire de coordonnées du point.
+   *
+   * ⚠️ LA CONDITION DE `Centre` MASQUE AUSSI `centerY`, QUI N'EN PORTE PAS.
+   * À lire avant de croire le sujet clos : seul `centerX` a été MESURÉ inerte
+   * en Directionnel (campagne du 2026-08-05), et sa jumelle ne porte toujours
+   * aucune déclaration à elle. Ce que la section réutilise n'est pas une
+   * déclaration neuve mais `TRAJ_CENTREE`, celle que le point posé porte sur
+   * les DEUX coordonnées depuis le premier jour. L'alternative aurait été une
+   * section titrée « Centre » ne contenant qu'un « Centre Y » orphelin, sans
+   * son en-tête ni son abscisse — un curseur qui ne peut rien, c'est-à-dire ce
+   * que ce chantier existe pour retirer.
+   *
+   * GABARITS. `Centre` est le seul `pose` : ses deux coordonnées SONT le point
+   * qu'on déplace sur l'image, et la section disparaît avec lui. `Mouvement`
+   * reste une `liste` bien qu'elle contienne l'axe posé, parce qu'un gabarit
+   * annonce un régime et non un cas particulier — en Rotation et en Zoom, il
+   * n'y a plus rien de posé dedans. Et `paire` a été écartée pour Centre X /
+   * Centre Y, qui sont pourtant deux moitiés d'un même réglage : l'en-tête
+   * « sur la toile » est un item DU MÊME BLOC et serait allé se ranger dans
+   * l'une des deux colonnes, à mi-largeur, à côté de Centre X.
+   */
+  sections: [
+    { id: "mouvement", label: "Mouvement", layout: "liste", params: ["trajectory", "amount", "angle"] },
+    { id: "centre", label: "Centre", layout: "pose", appliesWhen: TRAJ_CENTREE, params: ["centerX", "centerY"] },
+    { id: "obturateur", label: "Obturateur", layout: "liste", params: ["bias", "falloff"] },
   ],
   passes: [
     { scale: STAGE1_SCALE, wgsl: MOTION_GATHER_WGSL },

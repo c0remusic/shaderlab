@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { motionBlur } from "../../../src/render/effects/motionBlur";
 import { lensBlur } from "../../../src/render/effects/lensBlur";
 import { effectRegistry, getEffect } from "../../../src/render/effects/registry";
+import { groupEffectParams } from "../../../src/components/ParamPanel";
 
 const gather = motionBlur.passes?.[0];
 const stitch = motionBlur.passes?.[1];
@@ -161,6 +162,94 @@ describe("motionBlur — le raccord net/flou", () => {
     // 0.5 texel de demi-résolution = 1 px pleine définition : les deux chemins
     // coïncident, donc le raccord est invisible par construction.
     expect(gather?.wgsl).toContain("if (lenTexels < 0.5) {");
+  });
+});
+
+describe("motionBlur — les sections du panneau", () => {
+  it("range ses sept réglages en trois sections, sans toucher à params[]", () => {
+    // Les sections sont une donnée d'AFFICHAGE : l'index d'un paramètre est
+    // persisté dans les presets. Ce qui se vérifie ici est que les trois sont
+    // trois blocs CONTIGUS de `params[]` dans son ordre d'origine — la condition
+    // posée par `groupEffectParams`, qui s'appuie sur cet ordre en deux endroits
+    // — et qu'aucun réglage ne tombe en dehors : `validateEffect` interdit
+    // qu'un paramètre soit cité deux fois, il n'exige pas qu'il soit cité.
+    const sections = motionBlur.sections!;
+    expect(sections.map((s) => s.id)).toEqual(["mouvement", "centre", "obturateur"]);
+    expect(sections.flatMap((s) => s.params)).toEqual(motionBlur.params.map((p) => p.name));
+    // `pose` sur le seul groupe dont les deux réglages SONT le point qu'on
+    // déplace sur l'image ; liste pour les deux autres.
+    expect(sections.map((s) => s.layout)).toEqual(["liste", "pose", "liste"]);
+  });
+
+  it("ne conditionne que le centre, sur la déclaration MÊME du point posé", () => {
+    // Le mouvement sert les trois trajectoires (`amount` change d'unité, pas de
+    // sens) et l'obturateur aussi : les conditionner masquerait des réglages
+    // vivants. Seul le centre n'existe pas en Directionnel — et sa condition
+    // n'est pas une copie de celle du point posé, c'est le MÊME objet. Deux
+    // copies ne divergeraient pas bruyamment : un point manipulable sur la toile
+    // sans ses coordonnées dans le panneau ne déplace aucun pixel.
+    const sections = motionBlur.sections!;
+    const point = motionBlur.canvasControls!.find((control) => control.id === "center")!;
+    expect(sections[0].appliesWhen).toBeUndefined();
+    expect(sections[2].appliesWhen).toBeUndefined();
+    expect(sections[1].appliesWhen).toBe(point.visibleWhen);
+    expect(sections[1].appliesWhen).toEqual({ param: "trajectory", equals: [1, 2] });
+  });
+
+  it("montre à chaque trajectoire exactement ce qui peut agir", () => {
+    // LA MESURE QUI COMPTE : ce que le panneau RENDRA, par l'assembleur qu'il
+    // utilise lui-même, et non une relecture des déclarations. Elle prouve du
+    // même geste que les deux blocs ATOMIQUES ne sont pas coupés entre deux
+    // sections — l'axe posé (direction + amplitude) et le point posé (les deux
+    // coordonnées) — puisque `groupEffectParams` lève dans ce cas.
+    const rendu = (trajectory: number) =>
+      groupEffectParams(motionBlur.params, motionBlur.canvasControls, new Set(), {
+        sections: motionBlur.sections,
+        values: { trajectory },
+      }).map((bloc) => [bloc.label, bloc.items.map((item) => item.reactKey)]);
+
+    // Directionnel : pas de centre du tout, et l'axe posé annonce ses deux
+    // réglages. L'en-tête « sur la toile » se place au PREMIER paramètre du
+    // contrôle dans `params[]`, donc à l'amplitude et non à la direction.
+    expect(rendu(0)).toEqual([
+      ["Mouvement", ["param:trajectory", "spatial:trajectory", "param:amount", "param:angle"]],
+      ["Obturateur", ["param:bias", "param:falloff"]],
+    ]);
+
+    // Rotation et Zoom : la direction s'en va avec son axe, le centre arrive
+    // avec son point. ⚠️ « Centre Y » part avec « Centre X » alors qu'il ne
+    // porte aucune condition à lui — c'est la section qui l'emporte, et c'est
+    // la seule chose que ce chantier change au comportement de cet effet.
+    for (const trajectory of [1, 2]) {
+      expect(rendu(trajectory), `trajectoire ${trajectory}`).toEqual([
+        ["Mouvement", ["param:trajectory", "param:amount"]],
+        ["Centre", ["spatial:center", "param:centerX", "param:centerY"]],
+        ["Obturateur", ["param:bias", "param:falloff"]],
+      ]);
+    }
+  });
+
+  it("lit les DEUX coordonnées du centre dans une seule expression", () => {
+    // C'EST L'ARGUMENT QUI AUTORISE LA SECTION À EMPORTER `centerY`, dont
+    // l'inertie en Directionnel n'a jamais été mesurée pour lui-même : les deux
+    // coordonnées entrent par une ligne unique, et les deux seules sorties de la
+    // branche Directionnelle ne la citent pas. La mesure de `centerX` ne peut
+    // donc pas être vraie sans l'être de sa jumelle.
+    //
+    // ⚠️ C'est un argument de SYMÉTRIE DE LA SOURCE, pas une seconde mesure. Ce
+    // test existe pour qu'il cesse d'être vrai bruyamment : le jour où le centre
+    // se lirait ailleurs, ou où la branche Directionnelle s'en servirait, la
+    // question du masquage de `centerY` redevient ouverte.
+    for (const corps of [gather?.wgsl, stitch?.wgsl, motionBlur.wgsl]) {
+      expect(corps).toContain("let center = vec2<f32>(params[3], params[4]);");
+    }
+    expect(gather?.wgsl).toContain("return uv + vec2<f32>(cos(angle), sin(angle)) * amount * t / dims;");
+    expect(gather?.wgsl).toContain("    return abs(amount);");
+
+    // Et masquer ne borne rien : la valeur reste dans le calque, part telle
+    // quelle dans les presets, et le shader continue de la lire — un preset
+    // écrit à la main ou un `updateParams` ne passent pas par le panneau.
+    expect(motionBlur.wgsl).toContain("let mode = i32(params[0] + 0.5);");
   });
 });
 

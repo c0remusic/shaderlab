@@ -75,6 +75,19 @@ import { APERTURE_WGSL } from "./aperture";
 const FIELD_SHAPES = ["Uniforme", "Linéaire", "Iris", "Radial"] as const;
 const FIELD_UNIFORM = 0;
 
+/** Les géométries qui ONT un champ — toutes sauf Uniforme.
+ *
+ *  C'est la frontière du SHADER et non une lecture d'infobulle : `lens_field`
+ *  court-circuite sur Uniforme et rend 1.0 AVANT de lire le centre, l'angle,
+ *  l'étendue et le fondu. Les cinq réglages du champ n'y touchent donc aucun
+ *  canal, par construction et pas par mesure.
+ *
+ *  DÉRIVÉE DE LA LISTE plutôt qu'écrite `[1, 2, 3]` : une géométrie ajoutée à la
+ *  FIN de `FIELD_SHAPES` — le seul ajout permis, l'index étant persisté dans les
+ *  presets — tombe du bon côté toute seule, alors qu'un littéral la laisserait
+ *  dehors sans rien dire. */
+const FIELD_SHAPES_AVEC_CHAMP = FIELD_SHAPES.map((_, index) => index).filter((index) => index !== FIELD_UNIFORM);
+
 /** Plafond du nombre de taps de la collecte, qui est sinon proportionnel à
  *  l'AIRE du disque (environ un tap pour trois texels — voir le shader).
  *
@@ -251,15 +264,87 @@ export const lensBlur: EffectModule = {
     // quelque chose — le polygone se déforme continûment d'une lame à l'autre,
     // ce qu'un vrai diaphragme fait aussi en s'ouvrant.
     { name: "blades", label: "Lames du diaphragme", unit: "none", min: 0, max: 12, default: 0, step: 1, hint: "0 à 2 = diaphragme circulaire (taches rondes). À partir de 3, le bokeh prend la forme du polygone : 6 pour l'hexagone des objectifs courants" },
+    // ⚠️ PAS D'`appliesWhen` ICI, ET CE N'EST PAS UN OUBLI. La campagne du
+    // 2026-08-05 donne bien ce curseur inerte sur un diaphragme circulaire
+    // (`docs/superpowers/plans/2026-08-05-applicabilite-task1-resultats.md`),
+    // mais ce qui l'éteint est `blades` sous 3 : un SEUIL sur un curseur
+    // continu, pas un choix nommé. `appliesWhen` exige une cible à `choices`, et
+    // cette exigence est la garantie qu'on relise ce qui commande quoi — un
+    // seuil chiffré serait une décision d'affichage cachée dans un nombre, que
+    // ni `validateEffect` ni un relecteur ne rattacheraient à sa cause. Faire de
+    // `blades` un `choices` coûterait sa course continue de 0 à 12 pour un
+    // masquage. L'infobulle reste donc l'unique porteur de la déclaration.
     { name: "bladeRotation", label: "Orientation des lames", unit: "degrees", min: 0, max: 360, default: 0, step: 1, hint: "Fait tourner la forme du diaphragme. Sans objet sur un diaphragme circulaire." },
     { name: "highlightThreshold", label: "Seuil des hautes lumières", unit: "percent", min: 0, max: 1, default: 0.6, step: 0.01, hint: "À partir de quel ton un point compte comme une haute lumière — c'est ce qui sépare le bokeh du flou gaussien" },
     { name: "highlightBoost", label: "Intensité du bokeh", unit: "none", min: 0, max: 20, default: 6, step: 0.1, hint: "Combien une haute lumière pèse de plus qu'un ton sombre. À 0 le flou est une moyenne — c'est-à-dire un gaussien, et il lave l'image" },
     { name: "fieldShape", label: "Géométrie du champ", unit: "none", min: 0, max: FIELD_SHAPES.length - 1, default: FIELD_UNIFORM, step: 1, choices: [...FIELD_SHAPES], hint: "Uniforme : tout est flou. Linéaire : bande nette (tilt-shift). Iris : zone nette elliptique. Radial : net au centre, mou dans les coins. Les quatre réglages suivants ne servent qu'aux trois dernières." },
     { name: "fieldCenterX", label: "Centre X", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Position horizontale de la zone nette, en fraction de la toile" },
     { name: "fieldCenterY", label: "Centre Y", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Position verticale de la zone nette, en fraction de la toile" },
-    { name: "fieldAngle", label: "Orientation du champ", unit: "degrees", min: 0, max: 360, default: 0, step: 1, hint: "Oriente la bande nette (Linéaire) ou l'ellipse (Iris). Sans objet en Uniforme et en Radial." },
+    // Les deux seules géométries qui aient une DIRECTION : Linéaire (1) oriente
+    // sa bande, Iris (2) son ellipse. Uniforme n'a pas de champ du tout et
+    // Radial est isotrope par construction — les deux configurations ont été
+    // rendues séparément le 2026-08-05, et le signal le plus faible de toute la
+    // campagne est justement celui-là (Radial, 10,5 % des canaux) : bien
+    // au-dessus du seuil, donc l'effet agissait quand le curseur ne faisait rien.
+    // Valeurs 0 et 37° et non 0 et 360°, qui sont le MÊME angle.
+    { name: "fieldAngle", label: "Orientation du champ", unit: "degrees", min: 0, max: 360, default: 0, step: 1, appliesWhen: { param: "fieldShape", equals: [1, 2] }, hint: "Oriente la bande nette (Linéaire) ou l'ellipse (Iris). Sans objet en Uniforme et en Radial." },
     { name: "fieldRange", label: "Étendue nette", unit: "percent", min: 0.01, max: 1.5, default: 0.35, step: 0.01, hint: "Demi-largeur de la bande ou rayon de l'ellipse, en fraction de la plus petite dimension de la toile" },
     { name: "fieldFeather", label: "Fondu du champ", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Longueur de la transition entre net et flou — 0 = bascule franche, 1 = dégradé long. En Radial, règle la raideur de la montée." },
+  ],
+  /**
+   * DEUX SECTIONS, parce que cet effet est deux réglages SUPERPOSÉS et non un :
+   * le NOYAU — ce dont le flou est fait — et le CHAMP — où il s'applique.
+   * L'en-tête de ce fichier range déjà les géométries ainsi (§ GÉOMÉTRIE DE
+   * CHAMP) : elles « ne changent pas la nature du flou, elles modulent son
+   * RAYON ». Le découpage ne fait que rendre visible une frontière qui existait.
+   *
+   * CE QUE ÇA RÈGLE. En Uniforme, le champ n'existe pas — `lens_field` sort sur
+   * 1.0 sans lire un seul de ses cinq réglages — et pourtant les cinq curseurs
+   * restaient affichés. Le seul endroit qui le disait était la queue de
+   * l'infobulle de `fieldShape` (« Les quatre réglages suivants ne servent qu'aux
+   * trois dernières ») : une demi-phrase, tout en bas d'une bulle, pour cinq
+   * curseurs morts. La section porte désormais cette déclaration là où
+   * `validateEffect` la relit, et l'infobulle garde le POURQUOI.
+   *
+   * ⚠️ LE SÉLECTEUR RESTE DANS `Noyau`, ET CE N'EST PAS UN RANGEMENT PAR DÉFAUT.
+   * `fieldShape` placé dans la section qu'il commande partirait AVEC elle dès
+   * qu'on choisit Uniforme, et plus rien ne le ramènerait — la faute exacte que
+   * `validateEffect` refuse déjà sur un `appliesWhen` qui se vise lui-même. Il
+   * vit donc dans la seule section toujours présente, et il y est en DERNIER,
+   * immédiatement au-dessus du titre de la section qu'il ouvre.
+   *
+   * ⚠️ AUCUN INDEX N'A BOUGÉ : les deux sections sont deux blocs CONTIGUS de
+   * `params[]` (0..5 et 6..10), cités dans leur ordre d'index. Il n'y avait rien
+   * à réordonner — ce fichier rangeait déjà ses paramètres comme il les affiche.
+   *
+   * GABARIT `liste` DES DEUX CÔTÉS. `paire` demande deux réglages qui vont par
+   * deux (deux bornes, deux points) : le seuil et son intensité sont un seuil et
+   * un POIDS, pas une plage. Le vrai candidat serait `fieldCenterX`/`Y`, mais un
+   * gabarit s'applique à la section entière — les isoler coûterait un troisième
+   * titre pour deux lignes, et le jour où ce centre mérite mieux qu'un curseur,
+   * c'est un `canvasControl` point (gabarit `pose`) qu'il lui faut, pas `paire`.
+   * `grille` demande plus de six réglages courts ; la plus grosse section en a six.
+   */
+  sections: [
+    {
+      id: "noyau",
+      label: "Noyau",
+      params: ["radius", "blades", "bladeRotation", "highlightThreshold", "highlightBoost", "fieldShape"],
+      layout: "liste",
+    },
+    {
+      // Les cinq réglages du champ, absents du régime qui n'en a pas. La
+      // condition est celle du shader, pas une transcription de mesure.
+      // ⚠️ `fieldAngle` garde EN PLUS son propre `appliesWhen` ([1, 2]) : les
+      // deux se cumulent, et c'est voulu — la section dit « il n'y a pas de
+      // champ ici », le paramètre dit « ce champ-là n'a pas de direction ».
+      // Radial est isotrope par construction, et il est dans la section.
+      id: "champ",
+      label: "Champ",
+      params: ["fieldCenterX", "fieldCenterY", "fieldAngle", "fieldRange", "fieldFeather"],
+      appliesWhen: { param: "fieldShape", equals: FIELD_SHAPES_AVEC_CHAMP },
+      layout: "liste",
+    },
   ],
   passes: [{ scale: 0.5, wgsl: LENS_GATHER_WGSL }],
   wgsl: `

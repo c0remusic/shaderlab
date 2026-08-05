@@ -5,25 +5,29 @@
 > tranchées dans `.claude/decisions/INDEX.md`, le vocabulaire dans `CONTEXT.md`.
 > Ici, rien que l'ouvert.
 >
-> Écrit le 2026-08-04. Entretien : quand un bloc est soldé, il sort d'ici et son
-> résultat va dans `INDEX.json` — pas de section « fait » qui s'accumule.
+> Écrit le 2026-08-04, tenu à jour le 2026-08-05. Entretien : quand un bloc est
+> soldé, il sort d'ici et son résultat va dans `INDEX.json` — pas de section
+> « fait » qui s'accumule.
 >
 > ⚠️ **Deux sessions ont travaillé en parallèle sur `master` les 3 et 4 août** et
 > se sont marché dessus sans dommage (le travail non commité de l'une a été
 > ramassé par l'autre). Avant tout dispatch, `git worktree list` **et**
 > `git log --oneline -3` : ce fichier peut retarder sur le code.
 
-## Où en est le code — mesuré sur disque le 2026-08-04, pas de mémoire
+## Où en est le code — mesuré sur disque le 2026-08-05, pas de mémoire
 
 - **22 effets** au registre (`src/render/effects/registry.ts`) — `texture` ajouté le 2026-08-05 (ADR-0018).
 - `glass` **complet** : 14 matières (9 de feuille + 5 de pavé), 5 profils de
   section, **18 références de pixels — toutes les branches verrouillées**.
+- **Les 22 effets portent des sections** et leurs applicabilités déclarées
+  (`EffectModule.sections`, `EffectParam.appliesWhen`) — chantier de
+  rationalisation des contrôles **soldé le 2026-08-05**, statut dans
+  `INDEX.json`. Ce qu'il en reste est du jugement, donc dans le bloc 1.
 - Tout ce qui avait un plan exécutable est livré, testé, documenté, poussé.
 
 **Il ne reste donc AUCUN code en attente d'un plan existant.** Ce qui suit se
-répartit en trois natures très différentes : du jugement humain (1), un chantier
-rouvert qui a son cadrage mais pas son plan (2), et un chantier qui n'a ni l'un
-ni l'autre (3).
+répartit en deux natures très différentes : du jugement humain (1), et un
+chantier qui a son cadrage mais ni design d'effet ni plan (2).
 
 ---
 
@@ -55,6 +59,20 @@ c'est la seconde qui est ouverte ici. Ne pas lire « 18 références vertes » c
 | 2 | **Pile / Propriétés / Masque** | Le nouveau flux, sur une pile **dense** — c'est la densité qui est en question, pas le flux à deux calques |
 | 3 | **Verre** | Les matières sur une vraie photo. Le **Dépoli** est marqué « à raffiner » par Antoine et n'a pas été retouché depuis |
 | 4 | **Les cinq pavés** | À l'usage, et ajuster le rendu si besoin — livrés et verrouillés, jamais regardés sur une photo |
+| 5 | **Sections des panneaux** | Le découpage en blocs titrés, livré le 2026-08-05 sur les 22 effets. Un point précis à trancher : voir ci-dessous |
+
+⚠️ **Le seul défaut d'affichage que le checkpoint a déjà trouvé, et il attend un
+arbitrage et non un correctif.** Les trois sections d'encre de `duotone` portent
+le MÊME mot que la pastille qu'elles contiennent — « Ton moyen » sous
+« TON MOYEN », « Hautes lumières » sous « HAUTES LUMIÈRES », idem pour Ombres.
+Trois lignes de hauteur pour répéter trois mots, ce qui va contre ADR-0001.
+L'intention écrite dans `duotone.ts` était « le titre nomme la PLACE sur l'axe,
+la pastille montre la couleur » ; elle ne se réalise pas, puisque les deux
+portent le même libellé. Trois issues : retirer les trois sections (une section
+d'un seul item ne regroupe rien), renommer les titres, ou renommer les
+`colorGroup.label`. C'est un choix de vocabulaire, donc celui d'Antoine.
+La duplication s'est fait voir parce qu'un `getByText("Ombres")` de story est
+devenu ambigu et a levé — la story a été corrigée, le doublon reste.
 
 Protocole : `npm run dev:debug` puis `npm run dev:monitor`. Vérifier
 `Get-Process -Name shaderlab` avant — le script tue toute instance de la machine.
@@ -66,81 +84,7 @@ les propriétaires des ports avant de conclure à autre chose.
 
 ---
 
-## 2. Chantier ROUVERT — rationalisation des contrôles
-
-**Pourquoi rouvert :** le travail précédent n'a traité que les contrôles
-**spécialisés** (rampe de `gradientMap`, courbes, contrôles spatiaux). La
-rationalisation **globale** des paramètres n'a jamais été faite, et le chantier a
-été clôturé comme s'il l'était. C'est un manque de portée, pas un défaut de code.
-
-**Plan écrit le 2026-08-05** :
-`docs/superpowers/plans/2026-08-04-rationalisation-des-controles.md`. Non
-exécuté. La Task 1 (éprouver les 39 déclarations d'inertie au harnais de rendu)
-est prête à lancer et ne dépend d'aucun arbitrage.
-
-Ce que la mesure a corrigé du cadrage ci-dessous :
-- **39** paramètres portent « Sans objet », sur 9 effets — `glass` 15,
-  `outlines` 11, le reste en miettes.
-- Le patron déclaratif a **trois** précédents, pas deux :
-  `CanvasControl.visibleWhen` fait déjà le masquage conditionnel et il est
-  validé statiquement. Le chantier est d'abord sa généralisation à `EffectParam`.
-- **`glass.flat` n'est pas un cas de masquage mais de fusion** : en Aluminium
-  brossé le curseur ne disparaît pas, il change de sens.
-- Arbitrage du contrat **tranché voie A** (déclaratif seul, aucune échappatoire
-  prédicat) : les deux conditions continues passent par un paramètre à `choices`
-  ajouté **à la fin**, jamais par conversion du curseur existant — son index est
-  persisté dans les presets.
-
-### Trois exigences fermes, sur les 22 effets
-
-1. **Applicabilité conditionnelle.** Un contrôle sans effet dans la
-   configuration courante se **masque**. Aujourd'hui il reste affiché et porte
-   « Sans objet en … » dans son infobulle — un pis-aller assumé, écrit tel quel
-   dans le plan du verre faute que `ParamPanel` sache masquer.
-2. **Fusion** des réglages qui peuvent l'être.
-3. **Ordre par catégories**, cohérent d'un effet à l'autre.
-
-### Approche retenue : contrat DÉCLARATIF, jamais `if (effectId)` dans React
-
-Chaque paramètre déclare sa catégorie et ses conditions d'applicabilité **dans
-son module d'effet** ; `ParamPanel` ne fait qu'interpréter ce contrat,
-uniformément. Une liste de cas particuliers dans le composant violerait la
-frontière posée par `ARCHITECTURE.md` (« `components/` ne contient aucune
-logique métier »).
-
-**Le patron existe déjà deux fois dans le dépôt** — ce n'est pas une invention :
-- `EffectPass.enabled` — une passe interne déclare qu'elle ne sert à rien
-  (`outlines`, dont les neuf passes de pyramide ne tournent qu'en mode Échos).
-- `EffectParam.maxFrom` — un maximum dynamique lu sur les paramètres résolus.
-
-### ⚠️ Trois contraintes dures que ce chantier ne peut pas casser
-
-- **L'index d'un paramètre est PERSISTÉ dans les presets.** Réordonner
-  l'affichage, oui ; réordonner `params[]`, non. La catégorie est une donnée
-  d'**affichage**, pas un tri du tableau. Même règle pour les `choices` d'une
-  liste : on ajoute à la fin.
-- **Les dix-neuf premiers index d'`outlines` sont gelés** par sept références de
-  pixels et par les presets. C'est l'effet le plus chargé du registre (26
-  paramètres) — donc le principal bénéficiaire du chantier, et le plus risqué.
-- **Densité UI = ADR-0001**, checklist au moment où le contrôle est ajouté,
-  jamais en lot de rattrapage.
-
-### Un piège de mesure propre à ce chantier
-
-Masquer un contrôle inerte suppose de **savoir** qu'il est inerte, et cette
-connaissance a déjà été fausse dans les deux sens :
-- `sliceShift` avait deux courses **mortes** non déclarées (corrigé, D11).
-- `glass` déclarait « Sans objet en Poli » sur un curseur **vivant**, qui à fond
-  de course produisait de l'aliasing (trouvé le 2026-08-04 en écrivant son
-  verrou, corrigé en figeant `dens`).
-
-**Une applicabilité se MESURE avant de se déclarer** — le harnais de rendu est le
-seul instrument du dépôt qui sache le faire : deux scénarios identiques sauf le
-curseur en question, et l'écart de canaux tranche.
-
----
-
-## 3. Prochain grand chantier — « éléments et composition »
+## 2. Prochain grand chantier — « éléments et composition »
 
 **Cadrage écrit le 2026-08-05** :
 `docs/superpowers/specs/2026-08-05-elements-et-composition-cadrage.md`. Il ne
@@ -237,7 +181,9 @@ cinq points, dont **un soldé** :
 - le doublon se **mesure** avant de s'écrire ;
 - ce qui **ne se crée pas en postproduction** doit être dit et non simulé ;
 - plusieurs recettes demandent une **géométrie posée sur l'image**, pas des
-  curseurs — ce qui rejoint le chantier 2.
+  curseurs — ce que `CanvasControl` et le gabarit de section `pose` couvrent
+  déjà pour les effets qui l'ont déclaré (chantier des contrôles, soldé le
+  2026-08-05) ; ce qui reste ouvert est de le déclarer là où ça manque.
 
 ---
 

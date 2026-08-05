@@ -211,13 +211,21 @@ export const LockedLayer: Story = {
 
     // 3. La pastille de couleur ouvre un sélecteur qui ÉCRIT des params —
     //    inerte elle aussi, sinon le picker piloterait dans le vide.
-    await expectInert(canvas.getByRole("button", { name: "Ouvrir le sélecteur de couleur pour Ombres" }));
+    const pastilleOmbres = canvas.getByRole("button", { name: "Ouvrir le sélecteur de couleur pour Ombres" });
+    await expectInert(pastilleOmbres);
 
     // 4. LISIBILITÉ : désactivé ne veut dire ni caché ni vidé.
     const contrast = canvas.getByLabelText("Contraste (écrasement) (valeur)");
     await expectInert(contrast);
     await expect(contrast).toHaveValue("80 %");
-    await expect(canvas.getByText("Ombres")).toBeInTheDocument();
+    // ⚠️ REQUÊTE PORTÉE SUR LA LIGNE DE LA PASTILLE, et non sur tout le panneau.
+    //    « Ombres » y apparaît DEUX fois depuis que `duotone` déclare une
+    //    section par encre (2026-08-05) : le titre de la section, et le libellé
+    //    de la pastille qu'elle contient. Un `getByText` global y devient
+    //    ambigu et lève — c'est ainsi que la duplication s'est fait voir.
+    //    Ce qu'on veut prouver ici est que le LIBELLÉ de la pastille reste lu
+    //    sous verrou, pas qu'un titre de section existe.
+    await expect(within(pastilleOmbres.parentElement!).getByText("Ombres")).toBeInTheDocument();
 
     // 5. Clavier : un contrôle inerte ne se pilote pas non plus au clavier.
     sliders[0].focus();

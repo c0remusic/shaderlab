@@ -1,4 +1,4 @@
-import type { EffectParam } from "./types";
+import type { EffectParam, EffectSection } from "./types";
 
 /**
  * ENCRE RÉELLE — l'irrégularité d'un tirage imprimé, appliquée aux effets qui
@@ -101,6 +101,41 @@ export function inkScaleParam(overrides: Partial<EffectParam> = {}): EffectParam
  *  la liste de l'effet adoptant. */
 export function inkTextureParams(): EffectParam[] {
   return [inkTextureRankParam(), inkAmountParam(), inkScaleParam()];
+}
+
+/**
+ * La section d'affichage des trois paramètres ci-dessus — à ajouter aux
+ * `sections` de l'effet adoptant, comme `inkTextureParams()` l'est à ses
+ * `params`.
+ *
+ * D'OÙ ÇA VIENT. Les trois effets qui adoptent ce module portent des sections,
+ * et aucun ne citait ces paramètres-là : ils se rendaient donc en bloc LIBRE,
+ * sans titre, sous des blocs titrés. Deux chantiers concurrents s'étaient
+ * croisés le 2026-08-05 — l'encre arrivait sur `master` pendant que les
+ * sections se posaient sur une branche — et la fusion l'a signalé plutôt que de
+ * le taire. ⚠️ Un paramètre non cité n'est PAS un défaut en soi : quatre effets
+ * du registre en laissent délibérément, en disant pourquoi à l'endroit de leur
+ * déclaration (`lensFlare`, `channelMixer`, `curves`, `gradientMap`). Ce qui
+ * distingue les deux cas ne se mesure pas, il se lit — d'où cette fonction,
+ * qui rend la citation impossible à oublier au prochain adoptant.
+ *
+ * ⚠️ « Encre réelle » ET NON « Encre » : les trois effets ont déjà une section
+ * qui porte la COULEUR de l'encre (« Encres » dans `dither`, « Encre » dans
+ * `hatching`, « Couleur » dans `halftone`). Celle-ci porte sa MATIÈRE — le scan
+ * dont l'irrégularité vient froisser la marque. Deux choses distinctes, deux
+ * titres distincts.
+ *
+ * Gabarit `liste` : le rang se rend en sélecteur à VIGNETTES et non en curseur
+ * (`ParamPanel`, `EffectModule.libraryTexture`), et une grille à deux colonnes
+ * est faite pour des curseurs courts.
+ */
+export function inkTextureSection(): EffectSection {
+  return {
+    id: "encre-reelle",
+    label: "Encre réelle",
+    layout: "liste",
+    params: ["encreRang", "encreForce", "encreEchelle"],
+  };
 }
 
 /**

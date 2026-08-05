@@ -1,5 +1,5 @@
 import type { DisplayCondition, EffectModule } from "./types";
-import { INK_TEXTURE_WGSL, inkTextureParams } from "./inkTexture";
+import { INK_TEXTURE_WGSL, inkTextureParams, inkTextureSection } from "./inkTexture";
 import { BAYER4_WGSL, BAYER8_WGSL } from "./bayer";
 import { HASH_WGSL } from "./hash";
 import { HSL_TO_RGB_WGSL } from "./hsl";
@@ -248,6 +248,11 @@ export const dither: EffectModule = {
       params: ["mono", "inkHue", "inkSaturation", "inkLightness", "paperHue", "paperSaturation", "paperLightness"],
     },
     { id: "tonalite", label: "Tonalité", layout: "paire", params: ["blackPoint", "whitePoint"] },
+    // CINQUIÈME SECTION, venue du module transversal avec ses paramètres. Elle
+    // s'ouvre en dernier puisqu'ils sont en fin de `params[]` — leur place, les
+    // index étant persistés dans les presets. Distincte d'*Encres* ci-dessus,
+    // qui porte la COULEUR : celle-ci porte la MATIÈRE.
+    inkTextureSection(),
   ],
   wgsl: `
 ${LINEAR_TO_SRGB_WGSL}${LINEAR_TO_SRGB_VEC3_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${HSL_TO_RGB_WGSL}${BAYER4_WGSL}${BAYER8_WGSL}${HASH_WGSL}${INK_TEXTURE_WGSL}

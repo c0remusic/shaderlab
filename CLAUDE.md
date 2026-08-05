@@ -184,6 +184,31 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   (épuisé le 2026-07-31) : ils sortent du cahier de références
   `docs/superpowers/specs/2026-08-01-references-effets.md` et de demandes
   directes d'Antoine.
+- **Le panneau d'un effet est DÉCLARÉ par son module, jamais par `ParamPanel`**
+  (chantier soldé le 2026-08-05, statut dans `docs/INDEX.json`). Trois champs,
+  un seul type de condition partagé — `DisplayCondition` : `EffectParam.appliesWhen`
+  masque un curseur sans objet, `EffectModule.sections` regroupe en blocs titrés
+  (`SectionLayout` : vocabulaire **fermé** à `liste` · `paire` · `grille` ·
+  `pose` · `figure`), et `CanvasControl.visibleWhen` est le précédent dont les
+  deux autres sont issus. Une condition vise un paramètre à `choices` et rien
+  d'autre — voie A, aucune échappatoire prédicat, donc `validateEffect` relit
+  tout au chargement. Corollaires à ne pas approximer :
+  **(a)** c'est de l'AFFICHAGE — `params[]` ne se réordonne jamais, ses index
+  sont persistés dans les presets, et `test:render` doit rendre **zéro écart**
+  après tout travail de panneau (c'est le gate discriminant : un écart prouve
+  qu'on a trié le tableau au lieu des items) ;
+  **(b)** masquer ne borne pas — le shader garde ses clamps, un preset ne passe
+  pas par le panneau ;
+  **(c)** **un paramètre qu'aucune section ne cite n'est PAS un défaut** : quatre
+  effets en laissent délibérément (`lensFlare` 9, `channelMixer` 4, `gradientMap`
+  2, `curves` 1) en disant pourquoi à leur déclaration. La différence entre un
+  orphelin voulu et un oubli se LIT dans le commentaire, aucune mesure ne la
+  donne ;
+  **(d)** une applicabilité se MESURE avant de se déclarer —
+  `node scripts/render-check.mjs --applicabilite`. Sur 41 déclarations éprouvées
+  le 2026-08-05, une était FAUSSE (`glass.flat`, 47 % des canaux en Martelé) ;
+  masqué sur sa foi, aucun test n'aurait rougi, un curseur caché ne bougeant plus
+  aucun pixel.
 - **La famille des flous est CLOSE, et RÉDUITE À DEUX** depuis le 2026-08-03 :
   `lensBlur` est un noyau d'OBJECTIF (intégration sur la surface de l'ouverture —
   pondération des hautes lumières + diaphragme à N lames, plus quatre géométries

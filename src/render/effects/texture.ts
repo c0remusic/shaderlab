@@ -145,8 +145,50 @@ export const texture: EffectModule = {
       // 223 sur les huit du dossier. Étirer autour de 0,5 un papier dont la
       // moyenne est à 0,87 le fait saturer en blanc au lieu de révéler sa
       // matière. Le régler à l'œil est immédiat — l'image répond en direct.
-      hint: "Valeur du scan qui ne bouge pas quand on monte le contraste. À caler sur sa teinte dominante.",
+      hint: "Valeur du scan qui ne bouge pas quand on monte le contraste. À caler sur sa teinte dominante. Sans objet tant que le contraste vaut 1, où l'étirement est l'identité.",
     },
+  ],
+  /**
+   * QUATRE SECTIONS, ET AUCUNE CONDITION — le seul effet du registre qui n'en
+   * portait aucune, faute d'être arrivé pendant le chantier qui les a posées
+   * (livré le 2026-08-05 sur `master` pendant que les vingt et une autres se
+   * sectionnaient sur une branche ; la fusion l'a signalé plutôt que de le
+   * taire). Sectionné ici, à l'identique du reste du registre.
+   *
+   * ⚠️ AUCUN `appliesWhen` N'EST EXPRIMABLE ICI, et ce n'est pas un oubli :
+   * `appliesWhen` vise un paramètre à `choices` et rien d'autre (voie A, design
+   * §3), or cet effet n'en déclare AUCUN — ses neuf paramètres sont continus.
+   * Le seul cas d'inertie qu'il porte est d'ailleurs continu lui aussi : à
+   * contraste 1, l'étirement `(g − p) × 1 + p` est l'identité et `pivot` ne
+   * déplace plus rien. Un seuil sur un curseur est exactement ce que la voie A
+   * refuse d'exprimer en contrat ; la déclaration reste donc en prose, dans
+   * l'infobulle de `pivot`, comme les trois de `gradientMap`.
+   *
+   * ⚠️ `params[]` NE BOUGE PAS — les index sont persistés dans les presets, et
+   * `contraste`/`pivot` sont en fin de table pour cette raison exacte. Les
+   * sections sont déclarées dans l'ordre des index, qui est aussi celui où les
+   * blocs s'ouvriront : une section s'ouvre à la place de son PREMIER
+   * paramètre.
+   *
+   * CE QUE LE DÉCOUPAGE SÉPARE, ce sont quatre questions qui ne se posent pas
+   * au même moment : QUELLE matière (*Scan*), posée COMMENT sur le cadre
+   * (*Placement*), retournée ou décolorée (*Matière*), et étirée jusqu'où
+   * (*Niveaux*). Les deux dernières se ressemblent et ne font pas la même
+   * chose : *Matière* transforme le scan, *Niveaux* le rend simplement VISIBLE
+   * — sans lui, les scans réellement disponibles ont une étendue moyenne de dix
+   * niveaux sur 255 et ne se voient pas (mesure du 2026-08-05, voir le
+   * commentaire de `contraste`).
+   *
+   * *Placement* est la seule `grille` : quatre libellés courts, deux fois moins
+   * de lignes. Les trois autres sont des `liste` — *Scan* rend un sélecteur à
+   * vignettes et non un curseur, et les deux dernières portent des libellés que
+   * deux colonnes tronqueraient.
+   */
+  sections: [
+    { id: "scan", label: "Scan", layout: "liste", params: ["rang"] },
+    { id: "placement", label: "Placement", layout: "grille", params: ["echelle", "rotation", "decalageX", "decalageY"] },
+    { id: "matiere", label: "Matière", layout: "liste", params: ["inversion", "desaturation"] },
+    { id: "niveaux", label: "Niveaux", layout: "liste", params: ["contraste", "pivot"] },
   ],
   wgsl: `
 // Transferts sRGB LOCAUX, prefixes, plutot que les helpers partages de

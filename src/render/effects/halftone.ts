@@ -1,6 +1,6 @@
 import type { EffectModule } from "./types";
 import { UV_SPACE_WGSL } from "./uvSpace";
-import { INK_TEXTURE_WGSL, inkTextureParams } from "./inkTexture";
+import { INK_TEXTURE_WGSL, inkTextureParams, inkTextureSection } from "./inkTexture";
 import {
   LINEAR_TO_SRGB_VEC3_WGSL,
   LINEAR_TO_SRGB_WGSL,
@@ -163,6 +163,11 @@ export const halftone: EffectModule = {
       layout: "paire",
       params: ["blackPoint", "whitePoint"],
     },
+    // QUATRIÈME SECTION, venue du module transversal avec ses paramètres. Elle
+    // s'ouvre en dernier puisqu'ils sont en fin de `params[]` — leur place, les
+    // index étant persistés dans les presets. Distincte de *Couleur* ci-dessus,
+    // qui choisit les encres imprimées : celle-ci porte la matière de leur dépôt.
+    inkTextureSection(),
   ],
   wgsl: `
 ${UV_SPACE_WGSL}${LINEAR_TO_SRGB_WGSL}${LINEAR_TO_SRGB_VEC3_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${INK_TEXTURE_WGSL}

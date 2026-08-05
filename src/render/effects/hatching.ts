@@ -1,5 +1,5 @@
 import type { DisplayCondition, EffectModule } from "./types";
-import { INK_TEXTURE_WGSL, inkTextureParams } from "./inkTexture";
+import { INK_TEXTURE_WGSL, inkTextureParams, inkTextureSection } from "./inkTexture";
 import { HSL_TO_RGB_WGSL } from "./hsl";
 import {
   LINEAR_TO_SRGB_WGSL,
@@ -233,6 +233,11 @@ export const hatching: EffectModule = {
       appliesWhen: { param: "pattern", equals: PATTERN_CIRCLES },
       params: ["centerX", "centerY"],
     },
+    // SIXIÈME SECTION, venue du module transversal avec ses paramètres. Elle
+    // s'ouvre en dernier puisqu'ils sont en fin de `params[]` — leur place, les
+    // index étant persistés dans les presets. Distincte d'*Encre* ci-dessus,
+    // qui porte la COULEUR du trait : celle-ci porte la matière de son dépôt.
+    inkTextureSection(),
   ],
   wgsl: `
 ${HSL_TO_RGB_WGSL}${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${INK_TEXTURE_WGSL}

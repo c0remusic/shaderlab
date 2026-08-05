@@ -63,7 +63,23 @@ les propriétaires des ports avant de conclure à autre chose.
 rationalisation **globale** des paramètres n'a jamais été faite, et le chantier a
 été clôturé comme s'il l'était. C'est un manque de portée, pas un défaut de code.
 
-Cadrage acquis, plan d'implémentation **à écrire**.
+**Plan écrit le 2026-08-05** :
+`docs/superpowers/plans/2026-08-04-rationalisation-des-controles.md`. Non
+exécuté. La Task 1 (éprouver les 39 déclarations d'inertie au harnais de rendu)
+est prête à lancer et ne dépend d'aucun arbitrage.
+
+Ce que la mesure a corrigé du cadrage ci-dessous :
+- **39** paramètres portent « Sans objet », sur 9 effets — `glass` 15,
+  `outlines` 11, le reste en miettes.
+- Le patron déclaratif a **trois** précédents, pas deux :
+  `CanvasControl.visibleWhen` fait déjà le masquage conditionnel et il est
+  validé statiquement. Le chantier est d'abord sa généralisation à `EffectParam`.
+- **`glass.flat` n'est pas un cas de masquage mais de fusion** : en Aluminium
+  brossé le curseur ne disparaît pas, il change de sens.
+- Arbitrage du contrat **tranché voie A** (déclaratif seul, aucune échappatoire
+  prédicat) : les deux conditions continues passent par un paramètre à `choices`
+  ajouté **à la fin**, jamais par conversion du curseur existant — son index est
+  persisté dans les presets.
 
 ### Trois exigences fermes, sur les 21 effets
 
@@ -116,13 +132,23 @@ curseur en question, et l'écart de canaux tranche.
 
 ## 3. Prochain grand chantier — « éléments et composition »
 
-**Ni design ni plan.** Il demande les deux avant la première ligne de code.
+**Cadrage écrit le 2026-08-05** :
+`docs/superpowers/specs/2026-08-05-elements-et-composition-cadrage.md`. Il ne
+conçoit rien — il isole la question qui bloque, et **trois arbitrages y
+attendent Antoine** (voie du modèle · par quoi commencer · le masque par
+tonalité entre-t-il ici). Design d'effet et plan restent à écrire, après.
 
 - textures / scans et light leaks ;
 - formes ;
 - typographie ;
 - finalisation du recadrage ;
 - éventuelles extensions du modèle de document / calques.
+
+⚠️ **Le recadrage n'est pas à commencer, il est à FINIR.** `CropRect` et le mode
+`crop` de `CanvasMode` existent, garde structurel compris ; `LayerTransform` n'a
+pas de champ `crop` et `ui/tools.ts:23` garde l'outil **délibérément hors
+palette** en le disant. Manquent le champ de modèle, la géométrie et le
+branchement — et ça ne dépend d'aucun arbitrage.
 
 ### La vraie question de design, et ce n'est pas le rendu
 
@@ -134,20 +160,37 @@ ouverte, et elle touche la couche la plus partagée du projet — `LayerState` e
 consommé par `render/`, `mask/`, `export/`, `components/`, `application/`.
 
 À trancher avant de coder : un troisième genre de calque, ou un effet qui
-synthétise son propre contenu sur un calque existant ? Les deux marchent ; ils
-ne coûtent pas la même chose.
+synthétise son propre contenu sur un calque existant ?
+
+⚠️ **« Les deux marchent » était faux, et la mesure du 2026-08-05 le montre.**
+`params` est un `Record<string, number>` parce que l'uniform est
+`array<f32, 48>` — donc l'effet qui synthétise ne peut PAS porter une
+typographie, qui a besoin d'une chaîne. Il bute sur le modèle avant la première
+ligne de WGSL. Les formes simples, elles, tiennent en quatre à six flottants et
+passent partiellement. **La réponse peut donc différer entre formes et
+typographie ; les traiter d'un bloc est le premier piège du chantier.**
+
+Et le troisième genre n'est pas une invention : le DEUXIÈME n'a déjà aucun
+discriminant — un calque photo est un calque ordinaire qui porte `imageSource`,
+avec `effectId: passthrough`. Un calque qui est du CONTENU plutôt qu'un
+traitement existe déjà.
 
 ### Matière première déjà sur disque
 
 `docs/superpowers/specs/2026-08-03-references-postproduction.md` — cahier dicté
-par Antoine, ~500 lignes de workflows Photoshop/Lightroom. Il alimente
+par Antoine, **666 lignes** de workflows Photoshop/Lightroom. Il alimente
 directement ce chantier (§4 textures et matières, §6 collage, ombres graphiques,
-scan de tirage) et porte **son propre tri à faire**, écrit en fin de fichier :
+scan de tirage) et porte **son propre tri à faire**, écrit en fin de fichier —
+cinq points, dont **un soldé** :
 
 - beaucoup de ses recettes sont des **piles**, pas des effets — la question
-  n'est pas « quel effet écrire » mais « que manque-t-il à la pile » ;
-- la famille des **courbes** y revient partout (elle existe désormais :
-  `curves`) ;
+  n'est pas « quel effet écrire » mais « que manque-t-il à la pile ». Sa réponse
+  était **un masque par tonalité**, qui n'existe toujours pas, et qui n'est pas
+  un effet : c'est une **extension de `LayerMask`**. Plusieurs recettes
+  débloquées sans un seul shader — le meilleur rapport du cahier ;
+- ✅ la famille des **courbes** y revenait partout : soldée, `curves` est au
+  registre depuis le 2026-08-04 ;
+- le doublon se **mesure** avant de s'écrire ;
 - ce qui **ne se crée pas en postproduction** doit être dit et non simulé ;
 - plusieurs recettes demandent une **géométrie posée sur l'image**, pas des
   curseurs — ce qui rejoint le chantier 2.

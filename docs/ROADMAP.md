@@ -134,9 +134,15 @@ curseur en question, et l'écart de canaux tranche.
 
 **Cadrage écrit le 2026-08-05** :
 `docs/superpowers/specs/2026-08-05-elements-et-composition-cadrage.md`. Il ne
-conçoit rien — il isole la question qui bloque, et **trois arbitrages y
-attendent Antoine** (voie du modèle · par quoi commencer · le masque par
-tonalité entre-t-il ici). Design d'effet et plan restent à écrire, après.
+conçoit rien — il isole la question qui bloquait.
+
+**Voie du modèle tranchée le 2026-08-05 : A.** Un champ optionnel
+`contentSource?: { contentId }` sur `LayerState`, résolu par un store dédié hors
+state React, sur le patron `imageSource` / `PhotoSourceStore`. Formes et
+typographie passent par le même mécanisme. Le design d'effet peut donc
+commencer ; il reste à écrire, ainsi que le plan.
+Un seul arbitrage reste ouvert dans ce bloc : **le masque par tonalité y
+entre-t-il, ou est-ce un chantier à lui ?**
 
 - textures / scans et light leaks ;
 - formes ;

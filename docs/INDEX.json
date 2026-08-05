@@ -238,7 +238,7 @@
     },
     {
       "path": "docs/superpowers/specs/2026-08-05-elements-et-composition-cadrage.md",
-      "status": "🧭 CADRAGE ÉCRIT, TROIS ARBITRAGES OUVERTS — ne conçoit rien, isole la question qui bloque le reste",
+      "status": "🧭 CADRAGE ÉCRIT — voie du modèle TRANCHÉE A le 2026-08-05 (contentSource sur le patron imageSource/PhotoSourceStore) ; design d'effet et plan restent à écrire ; un seul arbitrage ouvert (le masque par tonalité entre-t-il dans ce bloc)",
       "date": "2026-08-05",
       "topic": "chantier 3 « éléments et composition » : le modèle de document avant le rendu",
       "summary": "La question du bloc n'est pas le rendu mais LayerState. Mesure décisive : params est un Record<string, number> et l'uniform est array<f32, 48> — une typographie a besoin d'une chaîne, donc « un effet qui synthétise son contenu » bute sur le modèle avant le shader ; les formes simples, elles, passent partiellement. Le 2ᵉ genre de calque (photo) se reconnaît à la PRÉSENCE d'imageSource, sans discriminant, et son contenu vit dans PhotoSourceStore hors state React (invariant anti-OOM) — c'est le patron d'un 3ᵉ genre. Trois voies : A un contentSource sur ce patron (recommandé), B un kind explicite (migration des cinq couches), C formes en effet et typographie en genre. Autre constat : le recadrage n'est pas à commencer mais à FINIR — CanvasMode et CropRect existent, LayerTransform n'a pas de champ crop et ui/tools.ts garde l'outil délibérément hors palette. Le point « courbes absentes » du cahier de postproduction est soldé depuis curves ; le « masque par tonalité » reste ouvert et n'est pas un effet mais une extension de LayerMask."

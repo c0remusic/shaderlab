@@ -111,13 +111,29 @@ tient dans `params`) ; seule la typographie ouvre le troisième genre.
   famille (« poser un élément sur l'image »), et un plafond dur — un tracé libre
   ou une forme importée ne pourra jamais rejoindre l'effet.
 
-**Recommandation : A.** Le patron existe, il est éprouvé, et il est le seul qui
+### ✅ TRANCHÉ le 2026-08-05 — voie A
+
+Antoine a retenu **A**. Le patron existe, il est éprouvé, et il est le seul qui
 tienne l'invariant anti-OOM sans y penser. Le coût de B est réel mais son
 bénéfice ne l'est pas encore ; C achète une tranche au prix d'un plafond.
 
-⚠️ Le choix se fait **avant** le premier design d'effet du bloc, pas après :
-formes et typographie sont les deux sujets qui en dépendent, et ce sont eux qui
-justifient le chantier.
+Ce que ça engage, et qui n'est pas gratuit :
+
+- **`LayerState` gagne un troisième « présent ssi » optionnel**, et rien dans le
+  type ne l'énonce. La garde doit donc vivre dans `LayerStack`, unique chemin
+  d'écriture — même patron que `setLayerClip` et que le verrou.
+- **Formes ET typographie passent par le même mécanisme**, puisque A ne
+  distingue pas. Le §3 disait que les formes simples pouvaient s'en passer :
+  A choisit de ne pas exploiter cette possibilité, contre un mécanisme unique.
+  C'est le prix accepté, à ne pas redécouvrir comme une surprise.
+- **Le store de contenu est à écrire** sur le modèle de `PhotoSourceStore`, hors
+  state React et hors historique — pas une Map dans un composant.
+- ⚠️ **Les presets excluent déjà `imageSource`/`transform`** ; `contentSource`
+  suit la même règle et doit être ajouté à cette exclusion, sans quoi un preset
+  citerait un `contentId` d'une autre session.
+
+Le design d'effet du bloc peut désormais commencer — c'est ce choix qui le
+bloquait.
 
 ## 5. Ce qui ne dépend PAS de l'arbitrage
 
@@ -151,9 +167,12 @@ du cahier sans écrire un seul shader.
 
 ## 7. À trancher
 
-1. **La voie du modèle** : A, B ou C (§4). Bloque formes et typographie.
-2. **Par quoi on commence** : le recadrage (fini, débloqué, visible tout de
-   suite) ou les éléments posés (le cœur du chantier, mais derrière l'arbitrage).
+1. ✅ **La voie du modèle** — **A**, tranché le 2026-08-05 (§4).
+2. **Par quoi on commence** — Antoine a délégué la séquence le 2026-08-05
+   (« fais tout dans l'ordre le plus logique »). Ordre retenu : Task 1 du
+   chantier 2 (mesure, sans dépendance), checkpoint visuel du bloc 1 groupé avec
+   elle puisque l'app tourne déjà, puis le reste du chantier 2, puis le
+   recadrage, puis le masque par tonalité, puis formes et typographie.
 3. **Le masque par tonalité entre-t-il dans ce bloc**, ou est-ce un chantier à
-   lui ? Il ne ressemble à rien d'autre dans la liste, et il est le plus rentable
-   en recettes débloquées par ligne de code.
+   lui ? Toujours ouvert. Il ne ressemble à rien d'autre dans la liste, et il est
+   le plus rentable en recettes débloquées par ligne de code.

@@ -661,3 +661,17 @@ Verdicts projet uniques (delta du registre supprimé, non déjà dans § Méthod
   créatif complet (l'exploration de domaine/signature a été jugée hors-sujet le
   2026-07-13 ; reprise directe sur palette/typo calées sur références validées,
   tokens dans `.interface-design/system.md`).
+
+## Agent skills
+
+### Issue tracker
+
+Markdown local : les issues et les specs vivent sous `.scratch/<feature>/`, une issue par fichier. Le remote GitHub existe et `gh` est authentifié, mais le dépôt n'a AUCUNE issue — ne pas retomber sur `gh issue` au prétexte qu'un remote existe. Les specs antérieures (`docs/superpowers/specs/`, `PRD*.md`) restent où elles sont. Voir `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Les cinq rôles canoniques, chaînes inchangées (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). Le tracker étant local, poser un label = éditer la ligne `Status:` du fichier d'issue, pas `gh issue edit --add-label`. Voir `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context : `CONTEXT.md` à la racine, plus DEUX dossiers d'ADR — `.claude/decisions/` (canonique, entrée par son `INDEX.md`, statuts qui comptent) et `docs/adr/` (4 ADR d'implémentation, non indexés). ⚠️ Numérotations distinctes qui se recouvrent : citer le dossier, jamais un numéro nu. Voir `docs/agents/domain.md`.

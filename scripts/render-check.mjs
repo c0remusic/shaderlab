@@ -410,6 +410,91 @@ const INSTALL = `(async () => {
     return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
   };
 
+  // Six teintes plates, en sRGB. Elles sont posees ici plutot que dans la mire
+  // parce que le scenario du range couleur doit ECHANTILLONNER exactement les
+  // memes valeurs : deux listes se seraient desaccordees au premier ajustement,
+  // et le mode de defaillance est muet — le masque devient vide, et une
+  // reference de masque vide ressemble a une reference.
+  const PASTILLES = [
+    [220, 40, 40],
+    [40, 180, 60],
+    [50, 70, 210],
+    [235, 205, 50],
+    [40, 190, 200],
+    [200, 60, 170],
+  ];
+
+  // Mire A PASTILLES : six aplats de teintes franches, en grille 3 x 2.
+  //
+  // Elle existe pour UNE source de masque, le range couleur, et aucune mire
+  // existante ne pouvait en temoigner. Cette source mesure une distance
+  // colorimetrique a un echantillon : ce qu il faut lui montrer, ce sont des
+  // couleurs SEPAREES et PLATES. La mire commune fait exactement l inverse —
+  // ses canaux rouge et vert sont deux degrades continus, donc la distance y
+  // varie sans palier et le masque sort en tache floue dont on ne peut pas dire
+  // si elle suit la couleur echantillonnee ou seulement la position.
+  //
+  // Aplats et non degrades, donc, pour que la reponse soit BINAIRE la ou elle
+  // doit l etre : une pastille est dedans ou dehors, et une pastille qui
+  // basculerait se verrait a l octet.
+  //
+  // SIX et non deux, parce que la propriete a prouver n est pas « il selectionne
+  // une couleur » mais « il selectionne LES couleurs echantillonnees et pas les
+  // autres ». Avec deux pastilles, un masque qui prendrait tout passerait.
+  // Distances mesurees en lineaire : les deux pastilles echantillonnees sont a
+  // 0, la plus proche des quatre autres est a 0,4057. La tolerance de 0,20 du
+  // scenario a donc deux fois la marge necessaire, ce qui rend le verrou
+  // insensible au bruit d encodage et sensible a un vrai changement de calcul.
+  //
+  // ⚠️ CHAQUE PASTILLE PORTE UNE VARIATION DE +/-4 %, ET CE N EST PAS DECORATIF.
+  // La premiere version rendait six aplats STRICTEMENT plats : la gate de signal
+  // l a refusee sur-le-champ, avec deux valeurs distinctes pour un plancher de
+  // 64. C est logique et pas contournable — six aplats traverses par un
+  // operateur par pixel ne peuvent donner que six valeurs. Une reference figee
+  // dessus aurait ete inerte, ce que la gate existe precisement pour empecher.
+  //
+  // L amplitude est MESUREE, pas choisie a l oeil, et c est le seul reglage qui
+  // compte ici. La rampe est diagonale pour multiplier le nombre de paliers a
+  // amplitude egale. A +/-4 %, les deux pastilles visees restent a 0,068 au pire
+  // de leur echantillon — sous le debut de la bande de transition (0,095), donc
+  // selectionnees en entier ; les quatre autres restent a 0,394 au mieux — au-dela
+  // de la tolerance (0,200), donc exclues en entier. A +/-6 % la premiere
+  // condition tombe (0,099) et le bord des pastilles visees commencerait a
+  // s effriter. La marge est donc reelle des deux cotes, et elle est etroite d un
+  // seul : ne pas monter l amplitude sans refaire le calcul.
+  const mirePastilles = (w, h) => {
+    const d = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const col = Math.min(2, ((x * 3) / w) | 0);
+        const row = Math.min(1, ((y * 2) / h) | 0);
+        const p = PASTILLES[row * 3 + col];
+        // Position DANS la pastille, 0..1 sur chaque axe, puis rampe diagonale
+        // centree : le centre geometrique de chaque pastille vaut exactement la
+        // couleur declaree, ce qui permet au scenario d echantillonner PASTILLES
+        // tel quel plutot qu une moyenne a recalculer.
+        const u = ((x * 3) / w) - col;
+        const v = ((y * 2) / h) - row;
+        const f = 1 + 0.04 * ((u + v) - 1);
+        d[i] = Math.round(p[0] * f);
+        d[i + 1] = Math.round(p[1] * f);
+        d[i + 2] = Math.round(p[2] * f);
+        d[i + 3] = 255;
+      }
+    }
+    return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
+  };
+
+  // sRGB 0..255 vers lumiere lineaire 0..1. Le range couleur compare a
+  // \`colorLinear\`, donc un echantillon donne en sRGB viserait a cote — et pas
+  // un peu : 220 sur 255 vaut 0,86 en sRGB et 0,72 en lineaire, soit plus de
+  // deux fois la tolerance du scenario. Le masque serait vide, sans erreur.
+  const versLineaire = (c) => {
+    const s = c / 255;
+    return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+
   // Mire A BARRES : barres verticales BINAIRES, periode 32 px (16 sombres, 16
   // claires), sur toute la toile et uniformes en y.
   //
@@ -2677,6 +2762,199 @@ const INSTALL = `(async () => {
         const fond = stack.layers[0].id;
         stack.updateBrushMask(fond, brushRaster(W, H));
         stack.updateRefineEdge(fond, { feather: 2, edgeAware: true, edgeRadius: 8, edgeStrength: 0.8 });
+      },
+    },
+
+    // ── LES TROIS SOURCES PARAMETRIQUES, CHACUNE SEULE ────────────────────
+    //
+    // Elles n avaient AUCUNE reference le 2026-08-05 : le registre en sert
+    // trois (\`mask/sources/registry.ts\`), et le seul verrou qui en touchait une
+    // etait \`masque-pinceau-degrade\`, ou le degrade voyage en PASSAGER — melange
+    // a un raster de pinceau, a un mode intersect et a trois passes de refine
+    // edge. Si sa rampe derivait, cette reference-la changerait sans qu on sache
+    // laquelle des quatre proprietes a bouge. C est le meme defaut que celui
+    // releve pour \`duotone\` dans \`masque-edge-aware\`, et il se corrige pareil :
+    // un scenario par propriete.
+    //
+    // CHACUN SE COMPARE AU MEME EFFET SANS MASQUE, et c est tout l interet du
+    // montage. Un \`contre\` sur la photo nue prouverait seulement que l effet
+    // agit. Contre un temoin identique au masque pres, l ecart mesure est
+    // exactement ce que le MASQUE retire, et rien d autre.
+    //
+    // ⚠️ TOUS PORTENT \`fond: false\`, ET C EST LA CONDITION POUR QUE LE VERROU
+    // MESURE QUELQUE CHOSE. \`Renderer.parametricMaskSourceTexture()\` sert au
+    // masque la photo la plus BASSE de la pile — pas la photo du calque masque.
+    // Avec le fond du harnais en place, la premiere version de ces scenarios
+    // generait donc ses masques depuis la mire commune pendant qu on regardait
+    // une rampe : les references en sont sorties avec un damier imprime dedans,
+    // ce qui n a ete vu qu en les OUVRANT. Le harnais etait vert, la gate de
+    // signal aussi — les deux mesuraient bien un ecart, simplement pas celui
+    // qu on croyait. En posant soi-meme sa mire comme calque du bas, l image
+    // guide et l image visible redeviennent la meme.
+    "masque-rampe-temoin": {
+      fond: false,
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("duotone", p);
+        stack.updateParams(a, {
+          shadowHue: 350, shadowSaturation: 0.65, shadowLightness: 0.25,
+          midtoneHue: 30, midtoneSaturation: 0.5, midtoneLightness: 0.5,
+          highlightHue: 220, highlightSaturation: 0.55, highlightLightness: 0.6,
+          contrast: 0.55, pivot: 0.5,
+        });
+      },
+    },
+
+    "masque-degrade": {
+      fond: false,
+      contre: "masque-rampe-temoin",
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("duotone", p);
+        stack.updateParams(a, {
+          shadowHue: 350, shadowSaturation: 0.65, shadowLightness: 0.25,
+          midtoneHue: 30, midtoneSaturation: 0.5, midtoneLightness: 0.5,
+          highlightHue: 220, highlightSaturation: 0.55, highlightLightness: 0.6,
+          contrast: 0.55, pivot: 0.5,
+        });
+        // VERTICAL sur une rampe HORIZONTALE, a dessein : les deux axes sont
+        // orthogonaux, donc l image finale porte les deux informations sans que
+        // l une puisse se faire passer pour l autre. Un degrade horizontal aurait
+        // suivi la rampe, et un decalage de son axe se serait lu comme un
+        // changement de la reponse tonale de duotone.
+        const g = stack.addMaskSource(a, "gradient");
+        stack.updateMaskSourceParams(a, g, {
+          angle: 90, startX: 0.5, startY: 0.15, endX: 0.5, endY: 0.85, feather: 0.12, invert: 0,
+        });
+      },
+    },
+
+    // LUMINOSITE, SUR LA RAMPE — et la mire est le test. Cette source selectionne
+    // deux PLAGES de ton, les ombres et les hautes lumieres, en laissant les tons
+    // moyens dehors. Une rampe neutre est la seule mire qui etale l axe des tons
+    // sur la largeur : l effet doit donc apparaitre aux DEUX BOUTS et manquer au
+    // milieu, ce qui est une signature qu aucun autre defaut ne peut imiter.
+    //
+    // ⚠️ Les bornes ne tombent PAS aux fractions annoncees de la largeur. La
+    // luminance est calculee en LINEAIRE (\`colorLinear\`), la rampe est ecrite en
+    // sRGB : le seuil 0,33 lineaire tombe vers 62 % de la largeur, pas 33 %. Ce
+    // n est pas un defaut a corriger, c est la coherence « lineaire strict » du
+    // depot — l ecrire ici evite qu une relecture future prenne l asymetrie de la
+    // reference pour une derive.
+    "masque-luminosite": {
+      fond: false,
+      contre: "masque-rampe-temoin",
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("duotone", p);
+        stack.updateParams(a, {
+          shadowHue: 350, shadowSaturation: 0.65, shadowLightness: 0.25,
+          midtoneHue: 30, midtoneSaturation: 0.5, midtoneLightness: 0.5,
+          highlightHue: 220, highlightSaturation: 0.55, highlightLightness: 0.6,
+          contrast: 0.55, pivot: 0.5,
+        });
+        const l = stack.addMaskSource(a, "luminosity");
+        stack.updateMaskSourceParams(a, l, {
+          shadowsMin: 0, shadowsMax: 0.2, highlightsMin: 0.7, highlightsMax: 1,
+          tolerance: 0.06, invert: 0,
+        });
+      },
+    },
+
+    // TEMOIN DU RANGE COULEUR : les pastilles avec l echange de canaux, SANS
+    // masque. Il existe pour que le scenario suivant mesure le masque et lui
+    // seul ; le publier separement le rend aussi lisible a l oeil quand une
+    // reference bouge.
+    //
+    // ⚠️ PAS duotone ICI, contrairement aux deux scenarios ci-dessus, et la
+    // raison est mesuree : duotone est une reponse TONALE, il remplace chaque
+    // luminance par une couleur. Sur six aplats a variation de 4 %, il rendait
+    // 36 valeurs distinctes pour un plancher de 64, et la gate de signal a
+    // refuse la reference — a juste titre, elle aurait ete presque inerte.
+    // Monter la variation de la mire etait la fausse solution : a +/-6 % le
+    // bord des pastilles visees sort de la selection et le verrou ne mesurerait
+    // plus le masque.
+    //
+    // Une permutation de canaux, elle, est une MATRICE : elle travaille canal
+    // par canal et preserve donc toute la variete de l entree. Elle se lit d un
+    // coup d oeil sur des teintes franches, ce qui est exactement ce qu il faut
+    // pour voir ou le masque laisse passer.
+    //
+    // ⚠️ ROTATION CYCLIQUE (R vient du bleu, V du rouge, B du vert) ET NON UN
+    // ECHANGE DE DEUX CANAUX. Un echange rouge/bleu laisse INVARIANTE toute
+    // couleur dont le rouge et le bleu sont proches — la pastille verte
+    // (40, 180, 60) en fait partie, et elle rendait donc le meme vert masquee ou
+    // non. Cette pastille-la ne temoignait de rien, ce qui n a ete vu qu en
+    // comparant les deux references a l oeil : la gate de signal ne compte pas
+    // les pastilles, elle compte les canaux. Une rotation n a d invariant que le
+    // gris, qu aucune pastille n approche.
+    //
+    // A LIRE EN COMPARANT LES DEUX REFERENCES : dans l image masquee, la rangee
+    // du BAS est la preuve principale — ses trois pastilles reviennent a leur
+    // couleur d origine, franchement. En haut, la pastille rouge sous rotation
+    // devient un vert VIF a cote du vert MOYEN de la pastille verte restee
+    // intacte : les deux se distinguent, mais moins que les autres. C est la
+    // seule paire un peu proche de la planche, et la dire evite de la relire un
+    // jour comme un defaut.
+    "masque-pastilles-temoin": {
+      fond: false,
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const pastilles = await mirePastilles(W, H);
+        const sourceId = await r.photoSources.register(pastilles);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "pastilles");
+        const a = stack.addLayer("channelMixer", p);
+        stack.updateParams(a, {
+          redFromRed: 0, redFromGreen: 0, redFromBlue: 1,
+          greenFromRed: 1, greenFromGreen: 0, greenFromBlue: 0,
+          blueFromRed: 0, blueFromGreen: 1, blueFromBlue: 0,
+          preserveLuma: 0, monochrome: 0, colorize: 0,
+        });
+      },
+    },
+
+    // RANGE COULEUR, DEUX ECHANTILLONS DANS LA MEME SOURCE. Deux et non un,
+    // parce que le cumul est la propriete que cette source est seule a porter —
+    // un seul echantillon serait indiscernable d une simple selection par teinte.
+    // Rouge et bleu sont pris aux DEUX BOUTS de la grille (pastilles 0 et 2 de la
+    // premiere ligne), donc un masque qui suivrait la position au lieu de la
+    // couleur rendrait une bande continue et se verrait immediatement.
+    //
+    // ⚠️ Les echantillons sont convertis en LINEAIRE. Le shader compare a
+    // \`colorLinear\` ; donnes en sRGB ils viseraient a plus de deux tolerances de
+    // leur cible et le masque sortirait VIDE — sans erreur, et une reference de
+    // masque vide ressemble a une reference.
+    "masque-range-couleur": {
+      fond: false,
+      contre: "masque-pastilles-temoin",
+      build: async (r, stack) => {
+        const pastilles = await mirePastilles(W, H);
+        const sourceId = await r.photoSources.register(pastilles);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "pastilles");
+        // Meme effet et memes reglages que le temoin, a l identique : l ecart
+        // mesure entre les deux images est alors exactement ce que le masque
+        // retire, et rien d autre.
+        const a = stack.addLayer("channelMixer", p);
+        stack.updateParams(a, {
+          redFromRed: 0, redFromGreen: 0, redFromBlue: 1,
+          greenFromRed: 1, greenFromGreen: 0, greenFromBlue: 0,
+          blueFromRed: 0, blueFromGreen: 1, blueFromBlue: 0,
+          preserveLuma: 0, monochrome: 0, colorize: 0,
+        });
+        const c = stack.addMaskSource(a, "colorRange");
+        stack.updateMaskSourceParams(a, c, {
+          // Tolerance 0,20 : les deux pastilles visees sont a 0, la plus proche
+          // des quatre autres est a 0,4057 en lineaire. Deux fois la marge.
+          tolerance: 0.2, hardness: 0.5, invert: 0,
+          samples: [...PASTILLES[0].map(versLineaire), ...PASTILLES[2].map(versLineaire)],
+        });
       },
     },
   };

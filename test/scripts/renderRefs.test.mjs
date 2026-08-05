@@ -52,6 +52,49 @@ const ATTENDU = {
   // que le guide du calque du bas etait la toile VIDE. Voir
   // docs/adr/0004-image-de-guide-du-masque-edge-aware.md.
   "masque-edge-aware-calque-du-bas.png": { width: 256, height: 256, valeurs: null },
+  // LES TROIS SOURCES PARAMÉTRIQUES, CHACUNE SEULE (2026-08-05). Le registre en
+  // sert trois (`mask/sources/registry.ts`) et AUCUNE n'avait de verrou propre :
+  // `masque-pinceau-degrade` ci-dessus fait tourner le dégradé, mais en passager
+  // d'un scénario bâti pour autre chose — mêlé à un raster de pinceau, à un mode
+  // intersect et à trois passes de refine edge. Même défaut, même correction que
+  // pour `duotone` dans `masque-edge-aware` : un scénario par propriété.
+  //
+  // DEUX TÉMOINS POUR TROIS MASQUES, et c'est le montage qui compte. Chaque
+  // masque se compare au MÊME effet sans masque, sur la MÊME mire : l'écart
+  // mesuré est donc exactement ce que le masque retire. Un `contre` sur la photo
+  // nue n'aurait prouvé que « l'effet agit ».
+  //
+  // ⚠️ LES CINQ PORTENT `fond: false`, ET C'EST LA CONDITION POUR QUE LE VERROU
+  // MESURE QUELQUE CHOSE. `Renderer.parametricMaskSourceTexture()` sert au
+  // masque la photo la plus BASSE de la pile — pas celle du calque masqué. Avec
+  // le fond du harnais en place, la première version générait ses masques depuis
+  // la mire commune pendant qu'on regardait une rampe, et les références en sont
+  // sorties avec un damier imprimé dedans. Ni le harnais ni la gate de signal
+  // n'ont bronché : les deux mesuraient bien un écart, simplement pas celui
+  // qu'on croyait. Ça n'a été vu qu'en OUVRANT les images.
+  "masque-rampe-temoin.png": { width: 256, height: 256, valeurs: null },
+  // Le dégradé SEUL, vertical sur une rampe horizontale : les deux axes sont
+  // orthogonaux, donc l'image porte les deux informations sans que l'une puisse
+  // se faire passer pour l'autre.
+  "masque-degrade.png": { width: 256, height: 256, valeurs: null },
+  // La luminosité SEULE, et la mire est le test : la source sélectionne deux
+  // PLAGES de ton en laissant les tons moyens dehors, donc la rampe doit sortir
+  // duotonée aux deux bouts et GRISE au milieu. Aucun autre défaut ne produit
+  // cette signature.
+  "masque-luminosite.png": { width: 256, height: 256, valeurs: null },
+  // Le range couleur, sur six pastilles de teintes franches — une mire écrite
+  // pour lui, parce qu'aucune existante ne peut en témoigner : cette source
+  // mesure une distance colorimétrique, il lui faut des couleurs SÉPARÉES et
+  // PLATES, là où la mire commune est faite de deux dégradés continus.
+  //
+  // Le témoin applique une ROTATION CYCLIQUE des canaux et non un échange de
+  // deux d'entre eux : un échange rouge/bleu laisse invariante toute couleur
+  // dont le rouge et le bleu sont proches — la pastille verte en fait partie, et
+  // elle ne témoignait donc de rien. Vu en comparant les deux références à
+  // l'œil ; la gate de signal ne compte pas les pastilles, elle compte les
+  // canaux.
+  "masque-pastilles-temoin.png": { width: 256, height: 256, valeurs: null },
+  "masque-range-couleur.png": { width: 256, height: 256, valeurs: null },
   // LENS BLUR (2026-08-01), et DEUX references pour un seul effet — ce n'est
   // pas une redondance. La premiere pose l'effet sur la mire commune : elle
   // verrouille la geometrie de champ (iris) et le raccord net/flou. La seconde

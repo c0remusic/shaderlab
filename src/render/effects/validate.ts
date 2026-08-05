@@ -182,4 +182,28 @@ export function validateEffect(effect: EffectModule): void {
       }
     }
   }
+
+  if (effect.libraryTexture) {
+    // Le rang d'une texture est le seul paramètre du dépôt lu HORS du shader
+    // (par `FramePipelineExecutor`, pour choisir quoi lier au binding 7). Il
+    // échappe donc à la garde de câblage, qui l'exempte sur cette déclaration —
+    // raison de plus pour que le nom soit vérifié ici : une faute de frappe
+    // blanchirait un paramètre réellement mort au lieu de lever.
+    const declared = new Set(effect.params.map((p) => p.name));
+    if (!declared.has(effect.libraryTexture.indexParam)) {
+      throw new Error(
+        `Effet "${effect.id}" : libraryTexture désigne le paramètre absent "${effect.libraryTexture.indexParam}".`,
+      );
+    }
+    // Les passes internes d'un effet à texture ne reçoivent PAS le binding 7 —
+    // `FramePipelineExecutor` ne le résout que pour la passe finale. Lever
+    // plutôt que de laisser un effet dont les passes internes échantillonneraient
+    // une texture inexistante : le shader ne compilerait pas, et l'erreur
+    // arriverait au rendu au lieu du chargement du registre.
+    if (effect.passes?.length) {
+      throw new Error(
+        `Effet "${effect.id}" : libraryTexture et passes internes ne sont pas encore combinables (le binding 7 n'est résolu que pour la passe finale).`,
+      );
+    }
+  }
 }

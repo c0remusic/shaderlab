@@ -242,3 +242,43 @@ export async function pickPresetImportPath(): Promise<string | null> {
 export async function importPreset(path: string): Promise<string> {
   return invoke<string>("import_preset", { path });
 }
+
+/** Dialogue "choisir un dossier" pour la bibliothèque de textures, même
+ *  contournement `rfd` que `pickExportFolder`. `null` si annulé.
+ *
+ *  L'application n'embarque AUCUNE texture : elle lit le dossier de
+ *  l'utilisateur. Aucune question de licence ne se pose donc au dépôt, quelle
+ *  que soit la provenance des scans (CC0 ambientCG/Poly Haven, ou un pack
+ *  payant). */
+export async function pickTextureFolder(): Promise<string | null> {
+  return invoke<string | null>("pick_texture_folder");
+}
+
+/** Chemins absolus des images d'un dossier de textures, récursif (3 niveaux),
+ *  triés, sans lire un seul octet d'image — voir `list_texture_files`.
+ *
+ *  REJETTE plutôt que de tronquer au-delà de 5000 fichiers : une liste coupée
+ *  se lirait comme un dossier complet. */
+export async function listTextureFiles(dir: string): Promise<string[]> {
+  return invoke<string[]>("list_texture_files", { dir });
+}
+
+/** Dossier de textures livré avec l'application, ou `null` s'il n'existe pas —
+ *  cas NORMAL sur un dépôt fraîchement cloné, les scans n'étant pas versionnés
+ *  (`src-tauri/textures/README.md`). C'est ce qui rend la bibliothèque non vide
+ *  au premier lancement, sans rien demander à l'utilisateur. */
+export async function defaultTextureDir(): Promise<string | null> {
+  return invoke<string | null>("default_texture_dir");
+}
+
+/** Enveloppe de vignette d'une texture — dimensions de la source puis PNG de
+ *  l'aperçu (`textures/thumbnailEnvelope.ts`). Servie depuis le cache disque, ou
+ *  fabriquée à la volée côté Rust.
+ *
+ *  Le fichier source ne traverse JAMAIS l'IPC : mesuré le 2026-08-05, un scan 8K
+ *  de 60 Mo coûtait 887 ms de transfert plus 1256 ms de décodage dans la
+ *  WebView, contre quelques dizaines de Ko ici. Voir `get_texture_thumbnail`. */
+export async function getTextureThumbnail(path: string): Promise<Uint8Array> {
+  const data = await invoke<ArrayBuffer>("get_texture_thumbnail", { path });
+  return new Uint8Array(data);
+}

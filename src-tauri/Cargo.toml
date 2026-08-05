@@ -18,7 +18,36 @@ serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "2.0", features = [] }
 rfd = "0.15"
 percent-encoding = "2"
+# Vignettes de textures fabriquées CÔTÉ RUST, et c'est une décision de
+# performance mesurée, pas de commodité. Mesure du 2026-08-05 dans la vraie
+# fenêtre, sur une matière 8K de 60 Mo : 887 ms rien que pour faire transiter le
+# fichier par l'IPC, plus 1256 ms de décodage dans la WebView — et
+# `createImageBitmap({resizeWidth})` n'économise RIEN, il coûte même plus cher
+# que le décodage plein (1125 ms), donc le moteur décode les 67 Mpx puis
+# rétrécit. Ici le fichier ne traverse jamais l'IPC et le décodage profite de
+# tous les cœurs. Formats limités à ceux que la bibliothèque liste.
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+
+# ⚠️ SANS CE BLOC, la vignette de texture est INUTILISABLE en développement, et
+# le défaut ne se voit pas en lisant le code.
+#
+# Mesuré le 2026-08-05 sur la vraie fenêtre, un scan 8192 × 8192 :
+#  - `cargo run` par défaut (debug, dépendances NON optimisées) : **49,6 s** pour
+#    UNE vignette, 360 s pour huit en parallèle ;
+#  - le même travail dans la WebView : 2,1 s.
+#
+# Le décodeur JPEG du crate `image` est du calcul serré ; compilé sans
+# optimisation il est vingt à cinquante fois plus lent. `tauri dev` étant un
+# build debug, tout le développement se fait dans ce mode — un gain mesuré en
+# release n'y changerait rien.
+#
+# `[profile.dev.package."*"]` optimise TOUTES LES DÉPENDANCES et laisse
+# `shaderlab` lui-même en debug : les points d'arrêt et les traces de panique de
+# NOTRE code restent intacts. Coût : une recompilation complète des dépendances,
+# une seule fois.
+[profile.dev.package."*"]
+opt-level = 3

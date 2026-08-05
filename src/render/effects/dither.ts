@@ -1,4 +1,5 @@
 import type { EffectModule } from "./types";
+import { INK_TEXTURE_WGSL, inkTextureParams } from "./inkTexture";
 import { BAYER4_WGSL, BAYER8_WGSL } from "./bayer";
 import { HASH_WGSL } from "./hash";
 import { HSL_TO_RGB_WGSL } from "./hsl";
@@ -145,9 +146,15 @@ export const dither: EffectModule = {
       step: 0.01,
       hint: "À 0, le motif disparaît et les frontières entre niveaux redeviennent FRANCHES — c'est le rendu sérigraphie, celui que `posterize` fait. À 1, le motif est à pleine amplitude",
     },
+    // ── ENCRE RÉELLE (transversal, `inkTexture.ts`), ajoutée À LA FIN le
+    // 2026-08-05 : l'index d'un paramètre est persisté dans les presets.
+    ...inkTextureParams(),
   ],
+  // Le scan arrive par le binding 7. Interdit les passes internes
+  // (`validateEffect`) — sans conséquence, `dither` est mono-passe.
+  libraryTexture: { indexParam: "encreRang" },
   wgsl: `
-${LINEAR_TO_SRGB_WGSL}${LINEAR_TO_SRGB_VEC3_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${HSL_TO_RGB_WGSL}${BAYER4_WGSL}${BAYER8_WGSL}${HASH_WGSL}
+${LINEAR_TO_SRGB_WGSL}${LINEAR_TO_SRGB_VEC3_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${HSL_TO_RGB_WGSL}${BAYER4_WGSL}${BAYER8_WGSL}${HASH_WGSL}${INK_TEXTURE_WGSL}
 const DITHER_LUMA = vec3<f32>(0.2126, 0.7152, 0.0722);
 
 /** Interleaved gradient noise (Jimenez, SIGGRAPH 2014) — approximation de bruit
@@ -271,7 +278,17 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // pas) et la référence est sortie uniforme. Même piège que le pool de cibles
   // de \`gooeyMerge\`, et c'est le garde de signal qui l'a attrapé, pas le
   // compilateur.
-  let seuil = ditherThreshold(cell, style, size) * clamp(params[13], 0.0, 1.0);
+  // BAVURE D'ENCRE : le SEUIL se froisse, ce qui rend le bord du motif de trame
+  // irregulier — une encre reelle ne bascule pas exactement la ou la matrice le
+  // dit. A force nulle, ink_froisse rend sa valeur inchangee, donc le rendu par
+  // defaut est identique au bit pres.
+  //
+  // AUCUN BACKTICK NI ACCENT DANS CE BLOC : il est dans un template literal JS,
+  // et un backtick de commentaire le FERME (CLAUDE.md, piege paye 4 fois).
+  let encreForce = clamp(params[15], 0.0, 1.0);
+  let encreEchelle = max(params[16], 0.05);
+  let seuilNet = ditherThreshold(cell, style, size) * clamp(params[13], 0.0, 1.0);
+  let seuil = ink_froisse(seuilNet, uv, encreEchelle, encreForce);
 
   // AXE DE RÉPARTITION. \`color.rgb\` est LINÉAIRE (format de texture -srgb).
   // En Perceptuel (défaut) on quantifie sur l'axe perceptuel puis on redescend ;

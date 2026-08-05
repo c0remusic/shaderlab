@@ -173,4 +173,47 @@ export interface EffectModule {
    * espace ISOTROPE (pixels / sqrt(W*H)). Un effet qui exposerait un rayon en
    * UV ne peut pas se déclarer ici sans changer cette convention.
    */
+
+  /**
+   * Déclare que cet effet ÉCHANTILLONNE UNE TEXTURE DE LA BIBLIOTHÈQUE, en
+   * nommant le paramètre qui porte son RANG dans le catalogue.
+   *
+   * C'est ce qui permet à un effet de désigner une image, ce que
+   * `LayerState.params` ne permet pas seul : il est un `Record<string, number>`
+   * parce que l'uniform est `array<f32, MAX_EFFECT_PARAMS>`. Le paramètre porte
+   * le RANG (un nombre), et le binding 7 porte les pixels — voir
+   * `ComposeOptions.hasLibraryTexture` et `render/textureLibraryStore.ts`.
+   *
+   * DÉCLARATIF ET NON DEVINÉ, même raison que `regionControl` ci-dessus :
+   * repérer le paramètre à son nom marcherait jusqu'au jour où un effet nomme
+   * autrement, et échouerait alors SANS RIEN DIRE. `validateEffect` vérifie que
+   * `indexParam` existe vraiment dans `params`.
+   *
+   * ⚠️ **CONTRAT DU SHADER : tester `textureDimensions(libraryTexture)` et
+   * rendre l'entrée inchangée quand un côté vaut 1.** Le chargement est
+   * asynchrone, et le binding est TOUJOURS fourni — `TextureLibraryStore`
+   * sert une texture 1×1 de repli tant que la vraie n'est pas là, précisément
+   * pour que le corps WGSL reste une chaîne fixe (voir `viewFor`). Sans ce
+   * test, l'effet afficherait un aplat pendant une frame.
+   */
+  libraryTexture?: { indexParam: string };
+
+  /**
+   * Mode de fusion et opacité posés sur un calque FRAÎCHEMENT créé pour cet
+   * effet. Absents = `normal` à 1, le comportement de tous les effets écrits
+   * jusqu'ici, et le bon défaut pour un effet qui TRAITE ce qui est en dessous.
+   *
+   * Ils existent pour les effets qui PRODUISENT du contenu au lieu de traiter :
+   * `texture` sort le scan brut, donc posé en `normal` à 1 il cacherait la
+   * photo. Le premier geste serait toujours de corriger les deux — ce n'est pas
+   * une préférence à deviner, c'est un défaut manquant.
+   *
+   * ⚠️ Ce sont des VALEURS INITIALES, pas une contrainte : l'utilisateur les
+   * change dans les contrôles du calque comme sur n'importe quel autre, et rien
+   * ne les repose ensuite. `defaultBlendMode` doit désigner un id réel de
+   * `render/blend/registry.ts` — `getBlendMode` lève sinon, et `validateEffect`
+   * ne peut pas le vérifier sans faire dépendre `effects/` de `blend/`.
+   */
+  defaultBlendMode?: string;
+  defaultOpacity?: number;
 }

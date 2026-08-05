@@ -6,7 +6,8 @@ import { MAX_PHOTO_LAYERS, canAddPhotoLayer } from "../layers/photoLayer";
 import type { Renderer } from "../render/renderer";
 import { pickImageFile, readImageFile } from "../launch";
 import { messageFromUnknown } from "../lib/errors";
-import { centerTransform, fitToCanvas, resetTransform } from "../ui/transform";
+import { centerTransform, coverCanvas, fitToCanvas, resetTransform } from "../ui/transform";
+import { DEFAULT_TEXTURE_BLEND_MODE } from "../textures/textureLayer";
 import {
   IDLE_CANVAS_MODE,
   isMaskPaint,
@@ -131,6 +132,70 @@ export function usePhotoLayer({
       setError(messageFromUnknown(e));
     }
   }, [rendererRef, sessionRef, setError, commit, currentStack, imageSize.width, imageSize.height, selectLayer, selectedId]);
+
+  /** Ajoute une TEXTURE (scan de matière) à la pile.
+   *
+   *  MÊME MODÈLE qu'une photo — un scan est un raster, donc un calque photo
+   *  ordinaire (design 2026-08-05 §2, D1). Ce n'est donc pas un chemin
+   *  parallèle à `importPhotoFromPath` mais le même, avec deux valeurs de
+   *  départ différentes, et c'est tout ce qui distingue les deux gestes :
+   *
+   *  1. **La transform COUVRE la toile** au lieu de valoir l'identité. Hors de
+   *     ses bornes, un calque photo est transparent (`compositeUvToPhotoUv`
+   *     rend `null`) : une texture à l'échelle 1 laisserait des bandes sans
+   *     matière, visibles comme un cadre. `coverCanvas` choisit en plus
+   *     l'orientation qui agrandit le MOINS — sur un scan portrait posé sur
+   *     une toile paysage, c'est la différence entre un agrandissement de
+   *     1,26× et un sous-échantillonnage de 0,89×.
+   *  2. **Le mode de fusion n'est pas `normal`**, qui cacherait la photo. Voir
+   *     `DEFAULT_TEXTURE_BLEND_MODE` pour pourquoi c'est `soft-light` et
+   *     pourquoi ce n'est PAS déduit du contenu du scan.
+   *
+   *  La fusion est posée par mutation directe puis un SEUL `commit`, comme
+   *  `App.handleBlendModeChange` : ajouter la texture et poser son mode sont
+   *  un seul geste utilisateur, donc une seule entrée d'historique — un undo
+   *  ne doit pas laisser une texture opaque sur la pile.
+   *
+   *  Prend un chemin ABSOLU, comme `importPhotoFromPath` : c'est ce qui permet
+   *  à la bibliothèque de n'avoir qu'un chemin à fournir. */
+  const importTextureFromPath = useCallback(async (path: string) => {
+    if (!rendererRef.current?.photoSources) return;
+    if (!canAddPhotoLayer(sessionRef.current.layers())) {
+      // Message distinct de celui de l'import photo : une texture consomme le
+      // MÊME plafond (elle est un calque photo), mais dire « photos importées »
+      // devant une grille de textures enverrait chercher une photo à supprimer.
+      setError(
+        `Limite atteinte : au plus ${MAX_PHOTO_LAYERS} calques d'image par document, textures comprises — une texture est un calque photo.`,
+      );
+      return;
+    }
+    try {
+      const bytes = await readImageFile(path);
+      // Pas de `type` sur le Blob, contrairement à l'import photo : la
+      // bibliothèque accepte le PNG autant que le JPEG (`is_texture_path`,
+      // côté Rust), et annoncer `image/jpeg` sur un PNG ferait échouer le
+      // décodage sur un fichier parfaitement valide.
+      const blob = new Blob([bytes.buffer as ArrayBuffer]);
+      const bitmap = await createImageBitmap(blob);
+      // `register` lève sur une dimension au-delà de `maxTextureDimension2D`
+      // (8192 par défaut) — la levée atterrit dans le `catch` et donc dans le
+      // bandeau, jamais dans le silence.
+      const sourceId = await rendererRef.current.photoSources.register(bitmap);
+      const transform = coverCanvas(resetTransform(imageSize), imageSize, {
+        width: bitmap.width,
+        height: bitmap.height,
+      });
+      const stack = currentStack();
+      const id = stack.addPhotoLayer(sourceId, transform, basename(path) ?? undefined, selectedId);
+      const layer = stack.layers.find((l) => l.id === id);
+      if (layer) layer.blendMode = DEFAULT_TEXTURE_BLEND_MODE;
+      commit(stack);
+      selectLayer(id);
+      setError(null);
+    } catch (e) {
+      setError(messageFromUnknown(e));
+    }
+  }, [rendererRef, sessionRef, setError, commit, currentStack, imageSize, selectLayer, selectedId]);
 
   /** Remplace l'IMAGE du calque photo `id` par celle du fichier `path`
    *  (tranche T2). Séparé du dialogue natif pour la même raison
@@ -310,6 +375,7 @@ export function usePhotoLayer({
     setCanvasMode,
     handleImportPhotoLayer,
     importPhotoFromPath,
+    importTextureFromPath,
     handleReplacePhotoImage,
     replacePhotoImageFromPath,
     handleTransformChange,

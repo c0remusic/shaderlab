@@ -50,7 +50,7 @@ export interface EffectPassesPort {
     layer: LayerState,
     sourceView: GPUTextureView,
     targetView: GPUTextureView,
-    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null; guideEpoch?: number; imageSourceView?: GPUTextureView | null; clipCoverageView?: GPUTextureView | null },
+    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null; guideEpoch?: number; imageSourceView?: GPUTextureView | null; clipCoverageView?: GPUTextureView | null; libraryTextureView?: GPUTextureView | null },
     pendingDestroy: FrameResource[],
   ): void;
   runInternalPasses(
@@ -112,6 +112,14 @@ export interface PhotoLayerInputPort {
   ): GPUTexture;
 }
 
+/** Résout la texture de bibliothèque d'un effet qui en déclare une
+ *  (`EffectModule.libraryTexture`). Rend TOUJOURS une vue — 1×1 de repli tant
+ *  que le décodage n'est pas fini, pour que le corps WGSL de l'effet reste une
+ *  chaîne fixe. Implémenté par `TextureLibraryStore`. */
+export interface LibraryTexturePort {
+  viewFor(index: number): GPUTextureView;
+}
+
 export type FramePipelineResult = {
   enabledLayerCount: number;
   churnedResourceCount: number;
@@ -166,6 +174,11 @@ export class FramePipelineExecutor {
     private readonly effects: EffectPassesPort,
     private readonly masks: MaskTexturesPort,
     private readonly photoInputs: PhotoLayerInputPort,
+    /** Optionnel : un banc de test qui n'exerce aucun effet à texture n'a pas
+     *  à en fournir un. Absent, un effet qui en déclare une composera son
+     *  shader SANS le binding — cohérent avec le bind group, donc pas de
+     *  plantage, seulement un effet inerte. */
+    private readonly libraryTextures: LibraryTexturePort | null = null,
   ) {}
 
   /** `livePreviewLayerId` : calque dont le masque est servi par l'APERÇU live
@@ -500,6 +513,16 @@ export class FramePipelineExecutor {
           // dit plus rien à elle seule : depuis la tranche T1, l'index 0 est
           // le calque photo de fond.
           guideEpoch: guideEpochs[index],
+          // Texture de bibliothèque : le paramètre déclaré porte un RANG dans
+          // le catalogue, le store rend les pixels. `Math.round` parce que
+          // `params` est un `Record<string, number>` — un index y transite en
+          // flottant, comme tous les choix à liste du dépôt.
+          libraryTextureView:
+            effect.libraryTexture && this.libraryTextures
+              ? this.libraryTextures.viewFor(
+                  Math.round(layer.params[effect.libraryTexture.indexParam] ?? 0),
+                )
+              : null,
         },
         pendingDestroy,
       );

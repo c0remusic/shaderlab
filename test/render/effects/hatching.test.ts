@@ -118,7 +118,12 @@ describe("hatching — écriture et registre", () => {
   it("unit les couches par produit des complémentaires, jamais par somme", () => {
     // Une somme dépasserait 1 aux croisements et écrêterait ; l'union superpose
     // deux passages d'encre opaque, ce qu'EST une taille croisée.
-    expect(hatching.wgsl).toContain("clair = clair * (1.0 - hatch_stripe(dist, 0.5 * charge, aa));");
+    // ⚠️ La demi-largeur passe par `demiLargeur` depuis l'adoption de l'encre
+    // réelle (2026-08-05) : c'est `0.5 * charge` UNE FOIS froissé par la
+    // bavure. Le PRODUIT des complémentaires — ce que ce test verrouille — est
+    // inchangé ; seule la largeur du trait est devenue irrégulière.
+    expect(hatching.wgsl).toContain("clair = clair * (1.0 - hatch_stripe(dist, demiLargeur, aa));");
+    expect(hatching.wgsl).toContain("let demiLargeur = ink_froisse(0.5 * charge, uv, encreEchelle, encreForce);");
     expect(hatching.wgsl).toContain("let encre = 1.0 - clair;");
   });
 
@@ -162,7 +167,14 @@ describe("hatching — écriture et registre", () => {
       "angle", "spacing", "weight", "crossAngle", "layers",
       "blackPoint", "whitePoint", "inkHue", "inkSaturation", "inkLightness", "wash",
       "pattern", "waveAmplitude", "waveFrequency", "centerX", "centerY",
+      // Encre réelle (`inkTexture.ts`), ajoutée à la fin le 2026-08-05.
+      "encreRang", "encreForce", "encreEchelle",
     ]);
+    // Non-régression : à force nulle la bavure est un no-op, donc le rendu par
+    // défaut est identique au bit près (vérifié par le verrou de pixels).
+    expect(hatching.params.find((p) => p.name === "encreForce")?.default).toBe(0);
+    expect(hatching.libraryTexture).toEqual({ indexParam: "encreRang" });
+    expect(hatching.passes ?? []).toHaveLength(0);
     expect(hatching.wgsl).toContain("let layers = clamp(i32(params[4] + 0.5), 1, 4);");
     expect(hatching.wgsl).toContain("let wash = clamp(params[10], 0.0, 1.0);");
   });

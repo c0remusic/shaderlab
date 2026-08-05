@@ -68,6 +68,17 @@ export class EffectPassRunner {
    *  buffer jetable à 60fps). Détruit dans `clearPipelines()`. */
   private timeBuffer: GPUBuffer | null = null;
 
+  /** Texture 1×1 liée au binding 7 quand un effet DÉCLARE une texture de
+   *  bibliothèque mais que l'appelant n'en fournit pas (banc de test, harnais
+   *  de compilation de shaders, store absent).
+   *
+   *  Elle existe pour que le corps WGSL reste une chaîne fixe : un binding
+   *  déclaré dans le shader et manquant du bind group fait échouer la
+   *  compilation, et c'est exactement ce qu'a rapporté `test:gpu-shaders`
+   *  (`unresolved value 'libraryTexture'`) avant qu'elle soit là. Créée à la
+   *  première demande, détruite avec les pipelines. */
+  private libraryPlaceholder: GPUTexture | null = null;
+
   /** POOL DES CIBLES DE PASSE INTERNE, indexé par dimensions.
    *
    *  Avant le 2026-08-02, `runInternalPasses` créait une texture NEUVE par
@@ -239,16 +250,25 @@ export class EffectPassRunner {
     pass.end();
   }
 
+  private libraryPlaceholderView(): GPUTextureView {
+    this.libraryPlaceholder ??= this.device.createTexture({
+      size: [1, 1],
+      format: this.srgbFormat,
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+    return this.libraryPlaceholder.createView();
+  }
+
   runEffectPass(
     encoder: GPUCommandEncoder,
     effect: EffectModule,
     layer: LayerState,
     sourceView: GPUTextureView,
     targetView: GPUTextureView,
-    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null; guideEpoch?: number; imageSourceView?: GPUTextureView | null; clipCoverageView?: GPUTextureView | null } = {},
+    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null; guideEpoch?: number; imageSourceView?: GPUTextureView | null; clipCoverageView?: GPUTextureView | null; libraryTextureView?: GPUTextureView | null } = {},
     pendingDestroy: PendingDestroy = []
   ): void {
-    const { applyMask = true, prevPassView = null, guideEpoch = 0, imageSourceView = null, clipCoverageView = null } = options;
+    const { applyMask = true, prevPassView = null, guideEpoch = 0, imageSourceView = null, clipCoverageView = null, libraryTextureView = null } = options;
     const paramValues = new Float32Array(MAX_EFFECT_PARAMS);
     effect.params.forEach((p, idx) => { paramValues[idx] = layer.params[p.name] ?? p.default; });
     const paramBuffer = this.device.createBuffer({ size: paramValues.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -262,7 +282,20 @@ export class EffectPassRunner {
     // (photo) ou de la base photo du DESSOUS (écrêtage). `composeShader` lève
     // si les deux sont posés — assert inatteignable, pas de repli ici.
     const coverageView = imageSourceView ?? clipCoverageView;
-    const shaderCode = composeShader(effect.wgsl, { applyMask, hasPrevPass: prevPassView !== null, hasImageSource, clipToCoverage, blendWgsl: applyMask ? blendMode.wgsl : undefined });
+    // ⚠️ Suit la DÉCLARATION de l'effet, JAMAIS la présence d'une vue.
+    //
+    // Le corps WGSL d'un effet est une chaîne FIXE : s'il échantillonne
+    // `libraryTexture`, le binding doit exister à CHAQUE compilation. Le faire
+    // dépendre de la vue produisait `unresolved value 'libraryTexture'` dès
+    // qu'aucun store n'était branché — attrapé par `test:gpu-shaders`, jamais
+    // par le compilateur TypeScript.
+    //
+    // La contrepartie est ci-dessous : le runner garantit une vue, de repli si
+    // l'appelant n'en fournit pas. Le shader distingue les deux cas par
+    // `textureDimensions` (voir `EffectModule.libraryTexture`).
+    const hasLibraryTexture = effect.libraryTexture !== undefined;
+    const libraryView = hasLibraryTexture ? (libraryTextureView ?? this.libraryPlaceholderView()) : null;
+    const shaderCode = composeShader(effect.wgsl, { applyMask, hasPrevPass: prevPassView !== null, hasImageSource, clipToCoverage, hasLibraryTexture, blendWgsl: applyMask ? blendMode.wgsl : undefined });
     let compositingBuffer: GPUBuffer | null = null;
     if (applyMask) {
       const compositing = new Float32Array([layer.opacity ?? 1, 0, 0, 0]);
@@ -283,6 +316,7 @@ export class EffectPassRunner {
       if (prevPassView) layoutEntries.push({ binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
       if (applyMask) layoutEntries.push({ binding: 5, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } });
       if (applyMask && coverageView) layoutEntries.push({ binding: 6, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
+      if (hasLibraryTexture) layoutEntries.push({ binding: 7, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
       const bindGroupLayout = this.device.createBindGroupLayout({ entries: layoutEntries });
       const pipeline = this.device.createRenderPipeline({
         layout: this.device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
@@ -316,6 +350,7 @@ export class EffectPassRunner {
     if (prevPassView) entries.push({ binding: 4, resource: prevPassView });
     if (applyMask && compositingBuffer) entries.push({ binding: 5, resource: { buffer: compositingBuffer } });
     if (applyMask && coverageView) entries.push({ binding: 6, resource: coverageView });
+    if (libraryView) entries.push({ binding: 7, resource: libraryView });
     const bindGroup = this.device.createBindGroup({ layout: cached.bindGroupLayout, entries });
     const pass = encoder.beginRenderPass({ colorAttachments: [{ view: targetView, loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } }] });
     pass.setPipeline(cached.pipeline);

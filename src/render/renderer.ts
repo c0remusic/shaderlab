@@ -7,6 +7,17 @@ import { EffectPassRunner } from "./effectPassRunner";
 import { MaskTextureResolver } from "./maskTextureResolver";
 import { FramePipelineExecutor, type PhotoLayerInputPort } from "./framePipelineExecutor";
 import { PhotoSourceStore } from "./photoSourceStore";
+import { TextureLibraryStore } from "./textureLibraryStore";
+import { readImageFile } from "../launch";
+
+/** Décodage par défaut d'une texture de bibliothèque : lecture du fichier par
+ *  IPC puis décodage navigateur. C'est le SEUL endroit du projet qui lit un
+ *  scan en pleine résolution — les vignettes, elles, sont fabriquées côté Rust
+ *  (`get_texture_thumbnail`, mesure du 2026-08-05). */
+async function defaultDecodeTexture(path: string): Promise<ImageBitmap> {
+  const bytes = await readImageFile(path);
+  return createImageBitmap(new Blob([bytes.buffer as ArrayBuffer]));
+}
 import { PhotoLayerInputResolver } from "./photoLayerInput";
 import { PresentPass, presentBackgroundFor, maskOverlayFor, type PresentDestination } from "./presentPass";
 import { FrameScheduler } from "./frameScheduler";
@@ -87,6 +98,7 @@ export class Renderer {
    *  exposure, ARCHITECTURE.md §4.2) — créé/vidé avec le document, jamais
    *  référencé depuis `LayerState`/le state React. */
   private photoSourceStore: PhotoSourceStore | null = null;
+  private textureLibraryStore: TextureLibraryStore | null = null;
   private photoLayerInputResolver: PhotoLayerInputResolver | null = null;
   /** `sourceId` de la photo d'ouverture, enregistrée comme toutes les autres
    *  (tranche T1). Le renderer ne sait rien du calque qui la porte — il ne fait
@@ -147,6 +159,23 @@ export class Renderer {
   constructor(
     ctx: GpuContext,
     diagnosticLogger: DiagnosticLogger = noopDiagnosticLogger,
+    /**
+     * Décodage d'une texture de bibliothèque, injecté. Par défaut il lit le
+     * fichier par IPC — c'est ce que fait l'application.
+     *
+     * ⚠️ **LE HARNAIS DE RENDU NE PEUT PAS UTILISER L'IPC**, et c'est une
+     * limite structurelle et non un défaut : ses modules sont importés depuis
+     * un Vite séparé (origine 1421), et Tauri v2 restreint ses commandes à
+     * l'origine de l'application. Un `read_image_file` y répond
+     * `not allowed. Plugin not found`. Sans ce port, aucun scénario ne pourrait
+     * verrouiller un effet à texture — il rendrait le repli 1×1, et le garde de
+     * signal du harnais l'a mesuré à 0,000 % d'écart le 2026-08-05.
+     *
+     * Le harnais y passe donc une mire GÉNÉRÉE dans la page, ce qui rend la
+     * référence plus reproductible qu'un fichier : rien à versionner, rien à
+     * télécharger, même discipline que ses autres mires.
+     */
+    private readonly decodeTexture: (path: string) => Promise<ImageBitmap> = defaultDecodeTexture,
   ) {
     this.ctx = ctx;
     this.frameDiagnostics = new FrameDiagnostics(diagnosticLogger);
@@ -334,13 +363,57 @@ export class Renderer {
       },
     };
 
+    this.textureLibraryStore?.dispose();
+    this.textureLibraryStore = new TextureLibraryStore(
+      device,
+      srgbFormat,
+      device.limits.maxTextureDimension2D,
+      // Décodage par le navigateur, et le fichier ne transite qu'ICI : c'est le
+      // seul endroit qui lit un scan en pleine résolution. Les VIGNETTES, elles,
+      // ne passent jamais par ce chemin — elles sont fabriquées côté Rust
+      // (`get_texture_thumbnail`), mesure du 2026-08-05.
+      this.decodeTexture,
+      // Une texture arrivée après coup doit redemander une frame, sinon l'effet
+      // resterait inerte jusqu'au prochain geste — un défaut silencieux.
+      () => this.requestRender(this.currentLayers),
+    );
+
     this.framePipelineExecutor = new FramePipelineExecutor(
       device,
       this.imageResources,
       this.effectPassRunner,
       this.maskTextureResolver,
       photoInputsAdapter,
+      this.textureLibraryStore,
     );
+  }
+
+  /** Catalogue de la bibliothèque de textures — les chemins triés du dossier
+   *  courant. C'est ce qui donne un sens au RANG que porte le paramètre d'un
+   *  effet `texture`. Posé par `App` quand la bibliothèque change de dossier. */
+  setTextureCatalog(paths: readonly string[]): void {
+    this.textureLibraryStore?.setCatalog(paths);
+    this.requestRender(this.currentLayers);
+  }
+
+  /** Nombre de textures au catalogue, ou -1 si aucun store n'existe.
+   *  Point de MESURE : « l'effet texture ne fait rien » a exactement deux
+   *  causes possibles — le catalogue n'est pas arrivé, ou il est arrivé et le
+   *  chargement échoue. Les distinguer à l'œil est impossible, les deux
+   *  produisent la texture de repli et donc une image inchangée. */
+  get textureCatalogSize(): number {
+    return this.textureLibraryStore?.catalogSize ?? -1;
+  }
+
+  get textureLibraryDiagnostics(): { catalogue: number; residentes: number; enCours: number } | null {
+    return this.textureLibraryStore?.diagnostics ?? null;
+  }
+
+  /** Attend qu'une texture de bibliothèque soit résidente. Voir
+   *  `TextureLibraryStore.ensureLoaded` — sert au harnais de rendu, qui doit
+   *  composer une frame déterministe et ne peut pas partir sur le repli 1×1. */
+  async ensureTextureLoaded(index: number): Promise<void> {
+    await this.textureLibraryStore?.ensureLoaded(index);
   }
 
   /**
@@ -392,6 +465,27 @@ export class Renderer {
    *  importées sans dupliquer un second store parallèle. */
   get photoSources(): PhotoSourceStore | null {
     return this.photoSourceStore;
+  }
+
+  /**
+   * Côté maximal d'une texture accepté par ce device — le seuil exact
+   * qu'applique `assertImageFitsGpu` (`render/limits.ts`) au moment d'importer
+   * une image.
+   *
+   * Exposé pour que la bibliothèque de textures puisse DÉSACTIVER une vignette
+   * trop grande au lieu de laisser l'utilisateur cliquer et récolter un bandeau
+   * d'erreur. C'est la même valeur, lue au même endroit, donc les deux ne
+   * peuvent pas diverger.
+   *
+   * ⚠️ Ce n'est PAS ce que l'adaptateur sait faire, c'est ce que le device a
+   * demandé : shaderlab ne passe aucun `requiredLimits` à `requestDevice`, donc
+   * il reçoit les limites PAR DÉFAUT de la spec WebGPU — 8192, quelle que soit
+   * la carte. Un scan « 8K » carré passe donc exactement à la limite, et 8193
+   * est refusé. Monter ce plafond serait une décision à part entière (mémoire
+   * VRAM), pas un réglage.
+   */
+  get maxTextureDimension(): number {
+    return this.ctx.device.limits.maxTextureDimension2D;
   }
 
   render(
@@ -481,6 +575,17 @@ export class Renderer {
    * frame.
    */
   async exportFrame(layers: LayerState[]): Promise<ExportedFrame> {
+    // ⚠️ ATTENDRE LES TEXTURES DE BIBLIOTHÈQUE ENCORE EN VOL. `viewFor` ne
+    // bloque JAMAIS — un rendu à l'écran ne s'arrête pas pour un décodage, il
+    // sert le repli 1×1 et redemande une frame. Un EXPORT n'a pas cette
+    // seconde chance : le fichier écrit serait dépourvu de l'effet,
+    // définitivement et sans message.
+    //
+    // Défaut trouvé le 2026-08-05 par le garde de signal du harnais de rendu,
+    // qui a mesuré 0,000 % d'écart là où un effet à texture aurait dû tout
+    // changer. Sans ce garde, la référence aurait été figée sur une image sans
+    // texture et le verrou serait devenu vert et aveugle.
+    await this.textureLibraryStore?.awaitPending();
     const exportTexture = this.imageResources.getExportTexture();
     this.runPipeline(layers, { kind: "export" });
     const { width, height } = this.imageResources;

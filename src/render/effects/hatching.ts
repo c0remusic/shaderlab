@@ -1,4 +1,5 @@
 import type { EffectModule } from "./types";
+import { INK_TEXTURE_WGSL, inkTextureParams } from "./inkTexture";
 import { HSL_TO_RGB_WGSL } from "./hsl";
 import {
   LINEAR_TO_SRGB_WGSL,
@@ -104,9 +105,15 @@ export const hatching: EffectModule = {
     { name: "waveFrequency", label: "Fréquence de l'onde", unit: "none", min: 0.2, max: 40, default: 6, step: 0.2, hint: "Nombre d'oscillations sur la plus petite dimension de la toile. Sans objet en Droites et en Cercles." },
     { name: "centerX", label: "Centre X", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Point autour duquel les tailles s'enroulent. Ne sert qu'en Cercles." },
     { name: "centerY", label: "Centre Y", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Voir Centre X." },
+    // ── ENCRE RÉELLE (transversal, `inkTexture.ts`), ajoutée À LA FIN le
+    // 2026-08-05 : l'index d'un paramètre est persisté dans les presets.
+    ...inkTextureParams(),
   ],
+  // Le scan arrive par le binding 7. Interdit les passes internes
+  // (`validateEffect`) — sans conséquence, `hatching` est mono-passe.
+  libraryTexture: { indexParam: "encreRang" },
   wgsl: `
-${HSL_TO_RGB_WGSL}${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}
+${HSL_TO_RGB_WGSL}${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${INK_TEXTURE_WGSL}
 const HATCH_LUMA = vec3<f32>(0.2126, 0.7152, 0.0722);
 
 // Couverture d'une taille, comme DIFFÉRENCE DE DEUX BORDS. \`h\` est la
@@ -177,6 +184,9 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let waveAmp = max(params[12], 0.0);
   let waveFreq = max(params[13], 0.01);
   let center = vec2<f32>(params[14], params[15]);
+  // params[16] = rang du scan d'encre, lu par le CPU pour choisir la texture.
+  let encreForce = clamp(params[17], 0.0, 1.0);
+  let encreEchelle = max(params[18], 0.05);
 
   // Espace PIXEL : l'angle demandé est l'angle obtenu, et l'espacement vaut la
   // même distance sur les deux axes. En UV, une trame à 45° sortirait à ~34°
@@ -229,7 +239,15 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     let ph = c.x / spacing;
     let dist = abs(ph - round(ph));
     let aa = c.y / spacing;
-    clair = clair * (1.0 - hatch_stripe(dist, 0.5 * charge, aa));
+    // BAVURE D'ENCRE : la DEMI-LARGEUR du trait varie localement, parce qu'un
+    // burin ne creuse pas regulierement et qu'une encre ne s'etale pas
+    // uniformement. On froisse la largeur et non la phase : la trame garde son
+    // orientation et son espacement, c'est le TRAIT qui devient sale.
+    // A force nulle, ink_froisse rend sa valeur inchangee.
+    //
+    // AUCUN BACKTICK NI ACCENT ICI : bloc dans un template literal JS.
+    let demiLargeur = ink_froisse(0.5 * charge, uv, encreEchelle, encreForce);
+    clair = clair * (1.0 - hatch_stripe(dist, demiLargeur, aa));
   }
   let encre = 1.0 - clair;
 

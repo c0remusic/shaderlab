@@ -49,6 +49,22 @@ function indicesLus(effet: EffectModule): Set<number> {
       indices.forEach((index) => lus.add(index));
     }
   }
+  // LE SEUL PARAMÈTRE DU DÉPÔT LU HORS DU SHADER, et l'exemption est étroite
+  // exprès. Le rang d'une texture de bibliothèque (`libraryTexture.indexParam`)
+  // est consommé par `FramePipelineExecutor`, qui s'en sert pour choisir
+  // laquelle des textures du catalogue lier au binding 7 ; le WGSL, lui, ne
+  // voit que les pixels. Un `params[N]` pour ce rang n'aurait aucun sens dans
+  // le corps.
+  //
+  // ⚠️ Exempté par la DÉCLARATION, jamais par le nom : un effet qui appellerait
+  // son paramètre « rang » sans déclarer `libraryTexture` reste couvert par la
+  // garde. Et `validateEffect` vérifie que ce nom existe vraiment dans
+  // `params`, donc une faute de frappe ne blanchit rien — elle lève au
+  // chargement du registre.
+  if (effet.libraryTexture) {
+    const index = effet.params.findIndex((p) => p.name === effet.libraryTexture!.indexParam);
+    if (index >= 0) lus.add(index);
+  }
   return lus;
 }
 

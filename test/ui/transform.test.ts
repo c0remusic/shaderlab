@@ -15,6 +15,7 @@ import {
   resetTransform,
   centerTransform,
   fitToCanvas,
+  coverCanvas,
   type CornerIndex,
 } from "../../src/ui/transform";
 import type { LayerTransform } from "../../src/layers/types";
@@ -449,5 +450,80 @@ describe("écart de saisie — pas de saut au démarrage d'un redimensionnement"
     expect(next.scaleY).toBeCloseTo(transform.scaleY, 6);
     expect(next.x).toBeCloseTo(transform.x, 6);
     expect(next.y).toBeCloseTo(transform.y, 6);
+  });
+});
+
+describe("coverCanvas", () => {
+  const IDENTITY: LayerTransform = { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+  const QUARTER_TURN = Math.PI / 2;
+
+  /** Étendue ÉCRAN de la texture transformée, sur chaque axe. À un quart de
+   *  tour, la largeur de la texture couvre la HAUTEUR de la toile : c'est
+   *  exactement l'échange que `coverCanvas` exploite, et l'assertion doit en
+   *  tenir compte sinon elle mesure la mauvaise chose. */
+  function screenExtent(t: LayerTransform, size: { width: number; height: number }) {
+    const turned = Math.abs(Math.abs(t.rotation) - QUARTER_TURN) < 1e-9;
+    return turned
+      ? { width: size.height * t.scaleY, height: size.width * t.scaleX }
+      : { width: size.width * t.scaleX, height: size.height * t.scaleY };
+  }
+
+  it("couvre les DEUX axes — c'est la propriété, un bord découvert est transparent", () => {
+    const canvas = { width: 6240, height: 4160 };
+    // Trois rapports d'aspect très différents, dont le format du pack de
+    // référence : la couverture ne doit dépendre d'aucun d'eux.
+    for (const texture of [
+      { width: 4961, height: 7016 },
+      { width: 8192, height: 8192 },
+      { width: 3000, height: 1000 },
+    ]) {
+      const extent = screenExtent(coverCanvas(IDENTITY, canvas, texture), texture);
+      expect(extent.width).toBeGreaterThanOrEqual(canvas.width - 1e-6);
+      expect(extent.height).toBeGreaterThanOrEqual(canvas.height - 1e-6);
+    }
+  });
+
+  it("choisit l'orientation qui AGRANDIT LE MOINS, chiffres du pack de référence", () => {
+    // 4961×7016 (Surface Supply) sur 6240×4160 (les photos mesurées du projet).
+    // Droit : max(6240/4961, 4160/7016) = 1,258 — un agrandissement.
+    // Tourné : max(6240/7016, 4160/4961) = 0,889 — un sous-échantillonnage.
+    const next = coverCanvas(IDENTITY, { width: 6240, height: 4160 }, { width: 4961, height: 7016 });
+    expect(next.rotation).toBeCloseTo(QUARTER_TURN, 12);
+    expect(next.scaleX).toBeCloseTo(0.8894, 4);
+  });
+
+  it("garde l'orientation du fichier quand tourner n'apporte rien", () => {
+    // Texture carrée : les deux orientations coûtent pareil. À égalité on ne
+    // tourne pas — le fichier est laissé tel qu'il a été scanné.
+    const square = coverCanvas(IDENTITY, { width: 6240, height: 4160 }, { width: 8192, height: 8192 });
+    expect(square.rotation).toBe(0);
+    // Texture déjà dans le bon sens : tourner coûterait strictement plus cher.
+    const landscape = coverCanvas(IDENTITY, { width: 6240, height: 4160 }, { width: 7016, height: 4961 });
+    expect(landscape.rotation).toBe(0);
+  });
+
+  it("reste HOMOTHÉTIQUE et centré, même depuis une transform étirée", () => {
+    const stretched: LayerTransform = { x: 12, y: 34, scaleX: 2.5, scaleY: 0.3, rotation: 1.1 };
+    const next = coverCanvas(stretched, { width: 6240, height: 4160 }, { width: 4961, height: 7016 });
+    expect(next.scaleX).toBe(next.scaleY);
+    expect(next.x).toBe(3120);
+    expect(next.y).toBe(2080);
+  });
+
+  it("laisse la transform intacte sur une taille dégénérée plutôt que de rendre NaN", () => {
+    const before: LayerTransform = { x: 5, y: 6, scaleX: 1.5, scaleY: 1.5, rotation: 0.2 };
+    expect(coverCanvas(before, { width: 100, height: 100 }, { width: 0, height: 10 })).toEqual(before);
+    expect(coverCanvas(before, { width: 100, height: 100 }, { width: 10, height: 0 })).toEqual(before);
+  });
+
+  it("est un COVER là où fitToCanvas est un CONTAIN — la distinction est le sujet", () => {
+    const canvas = { width: 6240, height: 4160 };
+    const texture = { width: 4961, height: 7016 };
+    const contained = fitToCanvas(IDENTITY, canvas, texture);
+    // Le contain rentre la texture entière : sur ce format il laisse donc du
+    // vide en largeur, et c'est ce vide qui serait transparent sur un overlay.
+    expect(texture.width * contained.scaleX).toBeLessThan(canvas.width);
+    const covered = coverCanvas(IDENTITY, canvas, texture);
+    expect(screenExtent(covered, texture).width).toBeGreaterThanOrEqual(canvas.width - 1e-6);
   });
 });

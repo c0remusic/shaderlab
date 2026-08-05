@@ -225,6 +225,58 @@ export function fitToCanvas(transform: LayerTransform, bgSize: PixelSize, photoS
   return { ...transform, x: bgSize.width / 2, y: bgSize.height / 2, scaleX: scale, scaleY: scale };
 }
 
+/** Quart de tour, en radians. Les deux seules orientations que `coverCanvas`
+ *  considère — un scan de texture n'a pas de « haut », donc le tourner d'un
+ *  quart de tour ne se voit pas, alors que ça change ce que couvrir coûte. */
+const QUARTER_TURN = Math.PI / 2;
+
+/**
+ * « Couvrir la toile » = *cover*, le PENDANT de `fitToCanvas` ci-dessus, qui
+ * lui est un *contain*. Écrit pour la bibliothèque de textures.
+ *
+ * Pourquoi les deux existent, et pourquoi un contain ne suffisait pas : hors
+ * de ses bornes, un calque photo est TRANSPARENT — `compositeUvToPhotoUv`
+ * rend `null`, jamais un repeat ni un clamp de bord. Une texture posée en
+ * contain laisse donc des bandes où l'effet n'existe pas, ce qui sur un
+ * overlay de matière se voit immédiatement comme un cadre.
+ *
+ * L'ORIENTATION FAIT PARTIE DU CALCUL, et c'est le cœur de cette fonction.
+ * Tournée d'un quart de tour, la largeur de la texture couvre la hauteur de
+ * la toile et réciproquement ; des deux orientations on garde celle dont
+ * l'échelle est la PLUS PETITE, c'est-à-dire celle qui agrandit le moins.
+ * Sur les formats réels ce n'est pas une nuance : un scan 4961×7016 posé
+ * droit sur une toile 6240×4160 demande 1,258× (agrandissement, donc perte de
+ * piqué), et 0,889× tourné — soit du sous-échantillonnage, et ~6 % de marge
+ * pour se déplacer dans la texture au lieu de zéro.
+ *
+ * HOMOTHÉTIQUE, comme `fitToCanvas` : couvrir ne déforme pas. Étirer une
+ * texture sur un seul axe reste possible à la main, ce n'est simplement pas ce
+ * que ce bouton fait.
+ *
+ * La rotation courante est ÉCRASÉE (0 ou un quart de tour), contrairement à
+ * `fitToCanvas` qui la conserve. C'est assumé : le choix d'orientation EST le
+ * résultat de la fonction, le conserver reviendrait à ne pas le calculer.
+ * Une texture de taille dégénérée laisse la transform inchangée plutôt que de
+ * produire un `Infinity`/`NaN` silencieux — même garde que `fitToCanvas`.
+ */
+export function coverCanvas(transform: LayerTransform, bgSize: PixelSize, photoSize: PixelSize): LayerTransform {
+  if (photoSize.width <= 0 || photoSize.height <= 0) return { ...transform };
+  const straight = Math.max(bgSize.width / photoSize.width, bgSize.height / photoSize.height);
+  const turned = Math.max(bgSize.width / photoSize.height, bgSize.height / photoSize.width);
+  // Strictement `<` : à égalité (texture carrée, ou toile carrée) on garde
+  // l'orientation droite, qui est celle du fichier tel qu'il a été scanné.
+  const useTurned = turned < straight;
+  const scale = clampTransformScale(useTurned ? turned : straight);
+  return {
+    ...transform,
+    x: bgSize.width / 2,
+    y: bgSize.height / 2,
+    scaleX: scale,
+    scaleY: scale,
+    rotation: useTurned ? QUARTER_TURN : 0,
+  };
+}
+
 function rotatePoint(local: PixelPoint, transform: LayerTransform): PixelPoint {
   const cos = Math.cos(transform.rotation);
   const sin = Math.sin(transform.rotation);

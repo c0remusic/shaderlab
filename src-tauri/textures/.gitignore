@@ -1,0 +1,10 @@
+# Les scans ne sont pas versionnés : un 8K pèse ~20 Mo en JPEG, et git ne sait
+# ni compresser ni différencier du binaire — l'historique enflerait
+# définitivement. Ils partent quand même dans le build local
+# (`bundle.resources`), versionnés ou non. Voir README.md.
+*.jpg
+*.jpeg
+*.png
+*.JPG
+*.JPEG
+*.PNG

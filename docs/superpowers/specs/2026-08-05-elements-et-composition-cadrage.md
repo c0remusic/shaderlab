@@ -140,9 +140,19 @@ bloquait.
 Trois sujets peuvent démarrer sans attendre :
 
 - **le recadrage** (§1) — champ de modèle, géométrie, branchement de l'outil ;
-- **textures / scans** — un effet ordinaire à texture d'entrée ; la seule
-  question neuve est d'où vient la texture (importée par l'utilisateur, ou
-  synthétisée) ;
+- ~~**textures / scans**~~ — **LIVRÉ le 2026-08-05**, et PAS de la façon décrite
+  ici. Cette ligne annonçait « un effet ordinaire à texture d'entrée » ; Antoine
+  a tranché l'inverse le même jour, dans une session parallèle : **une texture
+  est un calque photo, tel quel**. Un scan est un raster, `imageSource` le
+  couvre déjà, et la voie « effet » a été posée puis écartée par le §3 de CE
+  document : `params` est numérique, donc **un effet n'a aucun champ par lequel
+  désigner une image** — même mur que la typographie. (Une première rédaction
+  invoquait ADR-0008 à la place ; c'était faux, cet ADR interdit d'écrire un
+  `effectId` sur le calque qui porte `imageSource`, pas d'appliquer un effet à
+  une photo par un calque écrêté.) L'effet redoublerait en outre
+  calque photo, donc sur la photo qu'on veut texturer. Livré sans toucher
+  `LayerState`. Design et preuve :
+  `docs/superpowers/specs/2026-08-05-textures-scans-design.md` ;
 - **light leaks** — la géométrie posée sur l'image existe déjà, c'est la source
   posée de `lensFlare` et le patron `CanvasControl`.
 
@@ -173,6 +183,17 @@ du cahier sans écrire un seul shader.
    chantier 2 (mesure, sans dépendance), checkpoint visuel du bloc 1 groupé avec
    elle puisque l'app tourne déjà, puis le reste du chantier 2, puis le
    recadrage, puis le masque par tonalité, puis formes et typographie.
-3. **Le masque par tonalité entre-t-il dans ce bloc**, ou est-ce un chantier à
-   lui ? Toujours ouvert. Il ne ressemble à rien d'autre dans la liste, et il est
-   le plus rentable en recettes débloquées par ligne de code.
+3. ✅ **Le masque par tonalité** — **il entre dans ce bloc**, tranché le
+   2026-08-05. Il ne ressemble à rien d'autre dans la liste, et il est le plus
+   rentable en recettes débloquées par ligne de code.
+
+   ⚠️ Ce qu'il faut retenir en le planifiant : **ce n'est pas un effet, donc il
+   ne passe par rien de ce que le chantier 2 est en train de construire.** Ni
+   `EffectParam`, ni `appliesWhen`, ni `ParamPanel` — c'est `LayerMask` qui
+   s'étend, et son contrôle vit avec les propriétés du calque, pas dans la carte
+   d'un effet. Le confondre avec un effet serait refaire `curves` en pire :
+   un opérateur qui MODIFIE les tons là où on veut un opérateur qui SÉLECTIONNE
+   par les tons.
+
+**Plus aucun arbitrage ouvert dans ce cadrage.** Ce qui manque désormais est du
+design d'effet et un plan, sujet par sujet.

@@ -165,6 +165,307 @@ fn pick_export_folder() -> Option<String> {
         .map(|p| p.to_string_lossy().into_owned())
 }
 
+/// Dialogue "choisir un dossier" pour la bibliothèque de textures, même
+/// contournement `rfd` que `pick_export_folder`. `None` si annulé.
+///
+/// SÉPARÉ de `pick_export_folder` alors que les deux corps sont identiques :
+/// ce sont deux gestes utilisateur distincts, et le jour où l'un gagne un
+/// filtre ou un dossier de départ, l'autre ne doit pas le suivre par accident.
+#[tauri::command]
+fn pick_texture_folder() -> Option<String> {
+    rfd::FileDialog::new()
+        .pick_folder()
+        .map(|p| p.to_string_lossy().into_owned())
+}
+
+/// Bibliothèque de textures par défaut : `Images/shaderlab-textures`, jumelle
+/// exacte de `Images/shaderlab-export` (`default_export_dir`). Même famille
+/// d'API, même endroit, et surtout : un dossier que l'utilisateur peut ouvrir,
+/// remplir et vider sans passer par l'application.
+///
+/// ⚠️ **C'est ICI que vivent les gros fichiers, PAS dans les ressources
+/// empaquetées**, et cette distinction a un coût mesuré derrière elle. Un jeu
+/// de 44 matières 8K pèse **2,6 Go** ; posé dans `bundle.resources`, il serait
+/// recopié dans l'installateur ET dans le dossier cible à chaque build, y
+/// compris en `tauri dev`. Le dossier de ressources reste donc réservé à un
+/// jeu de départ MINUSCULE, ou à rien du tout.
+///
+/// Ordre de résolution, premier existant :
+/// 1. `Images/shaderlab-textures` — la bibliothèque de l'utilisateur ;
+/// 2. `resource_dir()/textures` — le jeu livré, s'il y en a un.
+///
+/// Rend `None` si aucun n'existe, et ce cas est NORMAL : les scans ne sont pas
+/// versionnés (`src-tauri/textures/README.md`). `None` et dossier vide se
+/// traitent pareil côté TS — la bibliothèque invite à désigner un dossier, elle
+/// ne prétend pas qu'il n'y a rien à voir.
+#[tauri::command]
+fn default_texture_dir(app: tauri::AppHandle) -> Option<String> {
+    let candidates = [
+        app.path().picture_dir().ok().map(|d| d.join("shaderlab-textures")),
+        app.path().resource_dir().ok().map(|d| d.join("textures")),
+    ];
+    candidates
+        .into_iter()
+        .flatten()
+        .find(|dir| dir.is_dir())
+        .map(|dir| dir.to_string_lossy().into_owned())
+}
+
+/// Dossier du cache de vignettes de textures, sous le dossier de CACHE de l'app
+/// — pas le dossier de config (`presets_dir`). La distinction est réelle :
+/// tout ce qui est ici est reconstructible depuis les fichiers sources, donc
+/// supprimable sans perte, et le système peut le nettoyer.
+fn texture_thumbnail_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|e| format!("Dossier de cache app introuvable: {e}"))?;
+    Ok(dir.join("texture-thumbnails"))
+}
+
+/// Nom de fichier de cache pour `path`, dérivé de (chemin, TAILLE, DATE DE
+/// MODIFICATION).
+///
+/// C'est l'invalidation, et elle tient dans la clé : remplacer un scan par un
+/// autre sous le même nom change sa taille ou sa date, donc sa clé, donc
+/// l'ancienne vignette n'est plus jamais retrouvée. Pas de comparaison, pas de
+/// péremption à écrire.
+///
+/// ⚠️ `DefaultHasher` n'est PAS stable d'une version de Rust à l'autre. C'est
+/// acceptable ICI et nulle part où une donnée serait perdue : un changement de
+/// hachage rend tout le cache introuvable, donc régénéré au prochain affichage.
+/// Il se répare tout seul, il ne se corrompt pas.
+fn thumbnail_cache_key(path: &str) -> Result<String, String> {
+    use std::hash::{Hash, Hasher};
+    let meta = fs::metadata(path).map_err(|e| format!("Métadonnées illisibles sur {path}: {e}"))?;
+    let modified = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |d| d.as_millis());
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    path.hash(&mut hasher);
+    meta.len().hash(&mut hasher);
+    modified.hash(&mut hasher);
+    Ok(format!("{:016x}.thumb", hasher.finish()))
+}
+
+/// Plafond d'entrées du cache. Une vignette pèse quelques dizaines de Ko, donc
+/// 3000 tiennent dans ~100 Mo — mais le cache accumule les dossiers visités au
+/// fil des sessions, et rien ne le viderait jamais sans ce plafond. Une
+/// croissance disque sans borne est le genre de défaut qui ne se remarque
+/// qu'une fois le disque plein.
+const MAX_THUMBNAIL_CACHE_ENTRIES: usize = 3000;
+
+/// Supprime les entrées les plus ANCIENNES quand le plafond est franchi.
+/// Jamais fatal : un cache qu'on n'arrive pas à élaguer reste un cache
+/// utilisable, et faire échouer l'écriture d'une vignette pour ça punirait
+/// l'utilisateur d'un problème qui ne le concerne pas.
+fn prune_thumbnail_cache(dir: &std::path::Path) {
+    let Ok(entries) = fs::read_dir(dir) else { return };
+    let mut files: Vec<(std::time::SystemTime, std::path::PathBuf)> = entries
+        .flatten()
+        .filter_map(|e| {
+            let meta = e.metadata().ok()?;
+            if !meta.is_file() {
+                return None;
+            }
+            Some((meta.modified().unwrap_or(std::time::UNIX_EPOCH), e.path()))
+        })
+        .collect();
+    if files.len() <= MAX_THUMBNAIL_CACHE_ENTRIES {
+        return;
+    }
+    files.sort_by_key(|(when, _)| *when);
+    // Un cinquième d'un coup plutôt qu'une entrée par écriture : sinon chaque
+    // vignette au-delà du plafond relance un tri complet du dossier.
+    let excess = files.len() - MAX_THUMBNAIL_CACHE_ENTRIES + MAX_THUMBNAIL_CACHE_ENTRIES / 5;
+    for (_, path) in files.into_iter().take(excess) {
+        let _ = fs::remove_file(path);
+    }
+}
+
+/// Largeur de la vignette produite, en pixels. La hauteur suit le rapport
+/// d'aspect. Généreux pour une cellule d'environ 72 px : un écran HiDPI affiche
+/// deux pixels physiques par pixel CSS, et une vignette de matière floue ne dit
+/// rien de la matière.
+const TEXTURE_THUMBNAIL_WIDTH: u32 = 128;
+
+/// Plafond de HAUTEUR de la vignette. `thumbnail` tient dans une boîte, donc
+/// sans plafond il faudrait `u32::MAX`, dont l'arithmétique interne n'a pas
+/// besoin. Huit fois la largeur laisse passer n'importe quel format portrait
+/// réel sans jamais mordre sur les scans carrés ou paysage.
+const TEXTURE_THUMBNAIL_MAX_HEIGHT: u32 = TEXTURE_THUMBNAIL_WIDTH * 8;
+
+/// Fabrique l'enveloppe d'une vignette : largeur puis hauteur de la SOURCE en
+/// 32 bits big-endian, suivies du PNG de l'aperçu. Format lu tel quel par
+/// `src/textures/thumbnailEnvelope.ts`.
+///
+/// L'en-tête existe parce que la grille affiche DEUX choses : l'aperçu, et les
+/// dimensions natives du scan, qui décident s'il est seulement importable
+/// (`assertImageFitsGpu`, 8192 px). Les dimensions du PNG sont celles de la
+/// vignette ; sans cet en-tête il faudrait relire le fichier source pour
+/// retrouver celles de la source, c'est-à-dire refaire toute la dépense.
+fn build_thumbnail_envelope(path: &str) -> Result<Vec<u8>, String> {
+    let image = image::ImageReader::open(path)
+        .map_err(|e| format!("Ouverture échouée sur {path}: {e}"))?
+        .with_guessed_format()
+        .map_err(|e| format!("Format illisible sur {path}: {e}"))?
+        .decode()
+        .map_err(|e| format!("Décodage échoué sur {path}: {e}"))?;
+    // Dimensions prises sur l'image DÉCODÉE plutôt que par une seconde lecture
+    // d'en-tête : c'est la même valeur, sans rouvrir le fichier.
+    let (width, height) = (image.width(), image.height());
+    let thumbnail = image.thumbnail(TEXTURE_THUMBNAIL_WIDTH, TEXTURE_THUMBNAIL_MAX_HEIGHT);
+    let mut png = Vec::new();
+    thumbnail
+        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+        .map_err(|e| format!("Encodage PNG échoué pour {path}: {e}"))?;
+    let mut envelope = Vec::with_capacity(8 + png.len());
+    envelope.extend_from_slice(&width.to_be_bytes());
+    envelope.extend_from_slice(&height.to_be_bytes());
+    envelope.extend_from_slice(&png);
+    Ok(envelope)
+}
+
+/// Vignette d'une texture : celle du cache si elle y est, sinon fabriquée ICI
+/// puis mise en cache. Un seul aller-retour IPC, et il ne transporte que
+/// quelques dizaines de Ko.
+///
+/// ⚠️ **C'est la mesure qui a mis cette fonction en Rust, pas une préférence.**
+/// Le premier jet fabriquait la vignette dans la WebView. Mesuré le 2026-08-05
+/// sur la vraie fenêtre, avec une matière 8K de 60 Mo :
+///  - **887 ms** rien que pour faire transiter le fichier par l'IPC ;
+///  - **1256 ms** de `createImageBitmap({ resizeWidth: 128 })` ;
+///  - 6 ms d'encodage PNG.
+///
+/// Et le résultat qui tranche : le décodage PLEIN, sans réduction, coûte
+/// **1125 ms** — donc `resizeWidth` n'économise RIEN, il coûte même plus cher.
+/// Le moteur décode les 67 Mpx puis rétrécit. Total ~2,1 s par fichier, soit
+/// 22,9 s pour remplir une grille de 21 cases.
+///
+/// Ici, le fichier ne traverse jamais l'IPC, et plusieurs appels concurrents
+/// occupent plusieurs cœurs — les commandes Tauri tournent sur un pool de
+/// threads, là où la WebView est mono-thread pour ce travail.
+/// ⚠️ **`async` ET `spawn_blocking`, les deux, et aucun des deux n'est
+/// décoratif.** Mesuré le 2026-08-05 :
+///  - En Tauri v2, une commande **synchrone s'exécute sur le thread
+///    principal**. La version synchrone de cette fonction faisait donc la queue :
+///    huit fichiers en parallèle prenaient **14,8 s** pour 2,0 s l'unité, soit
+///    presque aucun gain sur le séquentiel. Le parallélisme annoncé n'existait
+///    pas.
+///  - `async` seul ne suffit pas : le décodage est du calcul serré, et le tenir
+///    sur l'exécuteur asynchrone bloquerait les autres commandes. C'est
+///    `spawn_blocking` qui le sort sur le pool dédié.
+#[tauri::command]
+async fn get_texture_thumbnail(app: tauri::AppHandle, path: String) -> Result<Response, String> {
+    // Résolu AVANT de franchir la frontière du thread : c'est la seule chose
+    // dont la tâche ait besoin de l'`AppHandle`.
+    let dir = texture_thumbnail_dir(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let key = thumbnail_cache_key(&path)?;
+        let file = dir.join(&key);
+        if let Ok(bytes) = fs::read(&file) {
+            // Un fichier vide serait une écriture interrompue : le refabriquer
+            // plutôt que de rendre une enveloppe que le TS rejetterait.
+            if !bytes.is_empty() {
+                return Ok(Response::new(bytes));
+            }
+        }
+        let envelope = build_thumbnail_envelope(&path)?;
+        // Écriture du cache BEST-EFFORT : une vignette produite mais non mise
+        // en cache reste une vignette. Échouer ici punirait l'utilisateur d'un
+        // disque plein en lui retirant l'aperçu, alors qu'il est déjà calculé.
+        if fs::create_dir_all(&dir).is_ok() && fs::write(&file, &envelope).is_ok() {
+            prune_thumbnail_cache(&dir);
+        }
+        Ok(Response::new(envelope))
+    })
+    .await
+    .map_err(|e| format!("Tâche de vignette interrompue: {e}"))?
+}
+
+/// Extensions acceptées par la bibliothèque de textures. PNG en plus des JPEG
+/// que couvre `is_jpeg_path` : les scans CC0 (ambientCG, Poly Haven) se
+/// téléchargent en PNG aussi bien qu'en JPEG, et refuser le PNG rendrait la
+/// moitié d'un pack invisible sans rien en dire.
+fn is_texture_path(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    lower.ends_with(".jpg") || lower.ends_with(".jpeg") || lower.ends_with(".png")
+}
+
+/// Profondeur de descente dans les sous-dossiers. 3 et pas 1 : les packs réels
+/// ne sont PAS plats — un téléchargement ambientCG donne un dossier par
+/// matière, et un dossier plat serait le cas particulier, pas la règle. Un
+/// panneau vide devant un dossier qui contient visiblement des images serait
+/// un échec silencieux.
+const MAX_TEXTURE_DEPTH: usize = 3;
+
+/// Plafond de fichiers rapportés. Dépassé, la commande ÉCHOUE au lieu de
+/// tronquer : une liste silencieusement coupée se lit exactement comme un
+/// dossier complet, et l'utilisateur chercherait longtemps la texture qui n'y
+/// est pas.
+const MAX_TEXTURE_FILES: usize = 5000;
+
+/// Liste les images d'un dossier de textures, récursivement et à plat.
+///
+/// Rend des chemins ABSOLUS et rien d'autre : la vignette et les dimensions se
+/// produisent côté TS, hors GPU (`src/textures/thumbnailCache.ts`). Cette
+/// commande ne lit AUCUN octet d'image — c'est ce qui la rend instantanée sur
+/// un pack de 83 fichiers 8K, là où une lecture par fichier coûterait plusieurs
+/// centaines de Mo d'IPC pour afficher une grille.
+#[tauri::command]
+fn list_texture_files(dir: String) -> Result<Vec<String>, String> {
+    let root = std::path::PathBuf::from(&dir);
+    if !root.is_dir() {
+        return Err(format!("Dossier de textures introuvable: {dir}"));
+    }
+    let mut found = Vec::new();
+    // Parcours ITÉRATIF avec pile explicite, pas récursif : la profondeur est
+    // bornée, mais c'est la pile qui garde le contrôle de ce qui est visité.
+    let mut stack = vec![(root, 0usize)];
+    while let Some((current, depth)) = stack.pop() {
+        let entries = fs::read_dir(&current)
+            .map_err(|e| format!("Lecture du dossier {} échouée: {e}", current.display()))?;
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("Entrée de dossier illisible: {e}"))?;
+            let path = entry.path();
+            // `entry.file_type()` et NON `path.is_dir()` : celui-ci suit les
+            // liens, donc une jonction Windows pointant vers un ancêtre ferait
+            // boucler le parcours jusqu'au plafond de fichiers. `file_type` ne
+            // les suit pas — un lien n'est ni `is_dir` ni `is_file`, il est
+            // donc ignoré par les deux branches ci-dessous.
+            let file_type = entry
+                .file_type()
+                .map_err(|e| format!("Type de {} illisible: {e}", path.display()))?;
+            if file_type.is_dir() {
+                if depth < MAX_TEXTURE_DEPTH {
+                    stack.push((path, depth + 1));
+                }
+                continue;
+            }
+            if !file_type.is_file() {
+                continue;
+            }
+            let as_str = path.to_string_lossy();
+            if !is_texture_path(&as_str) {
+                continue;
+            }
+            if found.len() >= MAX_TEXTURE_FILES {
+                return Err(format!(
+                    "Plus de {MAX_TEXTURE_FILES} images sous {dir} : choisis un dossier plus précis. \
+                     Aucune liste tronquée n'est renvoyée — elle se lirait comme un dossier complet."
+                ));
+            }
+            found.push(as_str.into_owned());
+        }
+    }
+    // Ordre STABLE : `read_dir` n'en garantit aucun, et sans tri la grille de
+    // vignettes se réordonnerait à chaque ouverture du panneau.
+    found.sort();
+    Ok(found)
+}
+
 /// Dossier de bibliothèque locale des presets, sous le dossier de config
 /// app — même famille d'API que `default_export_dir` (`app.path().picture_dir()`).
 /// Ne crée pas le dossier lui-même : `write_preset` le fait via
@@ -341,7 +642,11 @@ pub fn run() {
             pick_preset_export_path,
             export_preset,
             pick_preset_import_path,
-            import_preset
+            import_preset,
+            pick_texture_folder,
+            list_texture_files,
+            default_texture_dir,
+            get_texture_thumbnail
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

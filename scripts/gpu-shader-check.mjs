@@ -210,14 +210,19 @@ const script = `(async () => {
       }
       // 2) passe de compositing : masque + blend, avec et sans calque photo
       if (e.wgsl) {
+        // Doit refleter EXACTEMENT ce que fait EffectPassRunner : la
+        // declaration de l'effet, jamais la presence d'une vue. Sinon le
+        // harnais compose un shader que l'application ne composera jamais, et
+        // il echoue (ou passe) pour une raison sans rapport avec le rendu reel.
+        const hasLibraryTexture = e.libraryTexture !== undefined;
         await compile(e.id + " composite",
-          composeShader(e.wgsl, { applyMask: true, hasPrevPass: (e.passes || []).length > 0, blendWgsl: normal }));
+          composeShader(e.wgsl, { applyMask: true, hasPrevPass: (e.passes || []).length > 0, blendWgsl: normal, hasLibraryTexture }));
         await compile(e.id + " composite+photo",
-          composeShader(e.wgsl, { applyMask: true, hasPrevPass: (e.passes || []).length > 0, blendWgsl: normal, hasImageSource: true }));
+          composeShader(e.wgsl, { applyMask: true, hasPrevPass: (e.passes || []).length > 0, blendWgsl: normal, hasImageSource: true, hasLibraryTexture }));
         // Écrêtage (2026-07-27) : même binding 6, autre expression de poids —
         // une variante de pipeline distincte, donc à compiler séparément.
         await compile(e.id + " composite+clip",
-          composeShader(e.wgsl, { applyMask: true, hasPrevPass: (e.passes || []).length > 0, blendWgsl: normal, clipToCoverage: true }));
+          composeShader(e.wgsl, { applyMask: true, hasPrevPass: (e.passes || []).length > 0, blendWgsl: normal, clipToCoverage: true, hasLibraryTexture }));
       }
     }
 

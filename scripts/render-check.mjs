@@ -152,6 +152,11 @@ import { comparePixels, verdictFor } from "./lib/pixelDiff.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REF_DIR = path.join(HERE, "..", "test", "render-refs");
+// Texture de test des scenarios `texture` et `encre`. GENEREE et versionnee
+// (`scripts/make-texture-fixture.mjs`), jamais un scan du dossier Images de
+// quelqu un : une reference de pixels doit se reproduire a l identique sur
+// n importe quelle machine.
+const TEXTURE_MIRE = path.join(HERE, "..", "test", "fixtures", "textures", "mire-encre.png");
 
 const argv = process.argv.slice(2);
 const flag = (name, fallback) => {
@@ -261,6 +266,11 @@ async function connect(port, origin) {
 // reponse CDP autour de 350 Ko plutot qu'un unique JSON de plusieurs Mo.
 const INSTALL = `(async () => {
   const O = ${JSON.stringify(ORIGIN)};
+  // Chemin ABSOLU de la texture de test, injecte depuis Node : la page ne
+  // connait pas la racine du depot.
+  // Identifiant de la texture au catalogue. Le port de decodage ignore ce
+  // chemin et rend la mire generee — il n existe aucun fichier derriere.
+  const TEXTURE_MIRE = "mire-encre-generee";
   const { initGpu } = await import(O + "/src/render/gpuContext.ts");
   const { Renderer } = await import(O + "/src/render/renderer.ts");
   const { LayerStack } = await import(O + "/src/layers/layerStack.ts");
@@ -284,6 +294,34 @@ const INSTALL = `(async () => {
   // besoin : un degrade continu (quantification), un damier a aretes franches
   // (flou, warp, detection de contour), un disque en hautes lumieres (seuil du
   // glow) et des rayures fines (aliasing).
+  // MIRE D ENCRE, pour les scenarios a texture de bibliotheque. Deterministe et
+  // GENEREE dans la page : le harnais n a pas d IPC (ses modules viennent d un
+  // Vite separe, et Tauri restreint ses commandes a l origine de l app), donc
+  // aucun fichier ne peut etre lu ici. Une mire generee est de toute facon plus
+  // reproductible qu un fichier versionne.
+  //
+  // Deux echelles superposees, et chacune sert un scenario different :
+  //  - cellules de 32 px et bandes diagonales : des STRUCTURES que la rotation
+  //    et le decalage de l effet texture deplacent visiblement ;
+  //  - detail au pixel : ce que la bavure d encre preleve en haut de bande. Sans
+  //    lui, le prelevement rend zero et le verrou ne dirait rien de l encre.
+  const mireEncre = (w, h) => {
+    const d = new Uint8ClampedArray(w * h * 4);
+    let graine = 20260805 >>> 0;
+    const suivant = () => { graine = (graine * 1664525 + 1013904223) >>> 0; return graine / 4294967296; };
+    const grandes = new Float64Array(64);
+    for (let i = 0; i < grandes.length; i++) grandes[i] = suivant();
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const cellule = grandes[(Math.floor(y / 32) % 8) * 8 + (Math.floor(x / 32) % 8)];
+      const bandes = 0.5 + 0.5 * Math.sin((x + y) * 0.19);
+      const fin = suivant();
+      const v = Math.round((0.42 * cellule + 0.33 * bandes + 0.25 * fin) * 255);
+      const i = (y * w + x) * 4;
+      d[i] = v; d[i + 1] = v; d[i + 2] = v; d[i + 3] = 255;
+    }
+    return createImageBitmap(new ImageData(d, w, h));
+  };
+
   const mire = (w, h, tint) => {
     const d = new Uint8ClampedArray(w * h * 4);
     const cx = (w >> 1), cy = (h >> 1), rr = (Math.min(w, h) * 0.23) | 0;
@@ -1355,6 +1393,82 @@ const INSTALL = `(async () => {
         stack.updateParams(a, {
           dotSize: 10, dotScale: 1.05, colorMode: 0, rotation: 0,
           centerX: 0.5, centerY: 0.5, softness: 0.12, blackPoint: 0, whitePoint: 1,
+        });
+      },
+    },
+
+    // TEXTURE, l effet qui echantillonne un SCAN. Sa propriete distinctive n est
+    // pas d assombrir ou d eclaircir — c est de poser une image EXTERIEURE et de
+    // la transformer. Une mire ne peut le montrer que si la texture porte des
+    // structures reconnaissables : d ou la mire generee, qui superpose des
+    // cellules de 32 px, des bandes diagonales et du detail au texel
+    // (scripts/make-texture-fixture.mjs).
+    //
+    // La ROTATION est reglee a 31 degres et le decalage non nul EXPRES : a
+    // rotation nulle et decalage nul, un bug qui ignorerait ces deux parametres
+    // rendrait exactement les memes pixels, et le verrou ne dirait rien d eux.
+    // C est la lecon de lensBlur (2026-08-01) — une reference posee sur un cas
+    // degenere verrouille du bruit.
+    "effet-texture": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        r.setTextureCatalog([TEXTURE_MIRE]);
+        // ATTENDRE le decodage : viewFor ne bloque pas, il sert le repli 1x1
+        // et rend la main. Sans cette attente, la frame partirait sans la
+        // texture — c est exactement ce que le garde de signal a attrape.
+        await r.ensureTextureLoaded(0);
+        const a = stack.addLayer("texture");
+        stack.updateParams(a, {
+          rang: 0, echelle: 0.6, rotation: 31, decalageX: 0.17, decalageY: -0.09,
+          inversion: 0, desaturation: 0, contraste: 1, pivot: 0.5,
+        });
+        // Incrustation a 0,7 : les defauts que l effet pose lui-meme. Le
+        // scenario verrouille donc AUSSI le fait que ces defauts existent.
+        const calque = stack.layers.find((l) => l.id === a);
+        if (calque) { calque.blendMode = "overlay"; calque.opacity = 0.7; }
+      },
+    },
+
+    // TEXTURE, LEVELS POUSSES — SCENARIO RETIRE LE 2026-08-05, ET LA RAISON
+    // VAUT D ETRE LUE PLUTOT QUE CONTOURNEE.
+    //
+    // Il reglait contraste 9 / pivot 0,42 et le harnais a refuse sa reference :
+    // 184668 canaux sur 196608 differaient entre DEUX RENDUS DE LA MEME PASSE,
+    // systematiquement, jamais aleatoirement. Le meme scenario a contraste 1
+    // (effet-texture) est parfaitement reproductible.
+    //
+    // Donc l instabilite n est PAS dans les Levels : ils AMPLIFIENT par 9 un
+    // ecart sub-LSB qui existe deja dans la voie de televersement de la texture,
+    // et que contraste 1 laisse sous le seuil de quantification. Baisser le gain
+    // pour faire passer le scenario aurait cache le defaut au lieu de le
+    // trouver — exactement ce que le garde de signal existe pour empecher.
+    //
+    // A CHASSER SEPAREMENT : d ou vient cet ecart entre deux rendus consecutifs
+    // avec la meme texture residente. Piste la plus probable, non verifiee :
+    // createImageBitmap depuis un ImageData applique une conversion (premultiplie
+    // ou espace colorimetrique) dont le resultat n est pas bit-a-bit stable
+    // d un appel a l autre.
+
+    // BAVURE D ENCRE sur la trame. Il CONTRE effet-halftone, donc l ecart
+    // mesure est exactement ce que la bavure ajoute — pas la trame elle-meme.
+    //
+    // Ce scenario est le seul qui verrouille quelque chose de l encre : celui de
+    // effet-halftone la laisse a zero, ou elle est un no-op par construction.
+    // Un verrou pose uniquement sur le defaut aurait l air de couvrir la
+    // fonctionnalite sans rien en dire.
+    "effet-halftone-encre": {
+      contre: "effet-halftone",
+      build: async (r, stack) => {
+        r.setTextureCatalog([TEXTURE_MIRE]);
+        // ATTENDRE le decodage : viewFor ne bloque pas, il sert le repli 1x1
+        // et rend la main. Sans cette attente, la frame partirait sans la
+        // texture — c est exactement ce que le garde de signal a attrape.
+        await r.ensureTextureLoaded(0);
+        const a = stack.addLayer("halftone");
+        stack.updateParams(a, {
+          dotSize: 10, dotScale: 1.05, colorMode: 0, rotation: 0,
+          centerX: 0.5, centerY: 0.5, softness: 0.12, blackPoint: 0, whitePoint: 1,
+          encreRang: 0, encreForce: 0.8, encreEchelle: 0.35,
         });
       },
     },
@@ -2609,7 +2723,9 @@ const INSTALL = `(async () => {
       if (scenario.surface === "canvas" && (toile.width !== W || toile.height !== H)) {
         throw new Error("scenario " + id + " : une toile != " + W + "x" + H + " exige la surface export");
       }
-      const r = new Renderer(pass.ctx);
+      // Troisieme argument : le port de DECODAGE de texture. Le harnais n a pas
+      // d IPC, donc il fournit sa mire generee au lieu de lire un fichier.
+      const r = new Renderer(pass.ctx, undefined, async () => mireEncre(512, 512));
       try {
         // Deuxieme argument = LA TOILE (tranche T2). Omis, \`loadImage\` retombe
         // sur les dimensions du bitmap : c'est le meme chemin de code qu'avant

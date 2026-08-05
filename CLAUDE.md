@@ -113,11 +113,19 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `EffectParam.colorGroup`) touche aussi `ParamPanel.tsx` et peut élargir
   `MAX_EFFECT_PARAMS` (`shaderCompose.ts`, **48** depuis le 2026-08-04, élargi
   de 32 pour `curves`) si nécessaire.
-  Registre réel au 2026-08-04, dans l'ordre : `glow`, `halation`,
+  Registre réel au 2026-08-05, dans l'ordre : `glow`, `halation`,
   `lensFlare`, `lensDistortion`, `lensBlur`, `motionBlur`,
   `glass`, `warp`, `grain`, `duotone`, `hatching`, `halftone`, `dither`,
   `gooeyMerge`, `channelMixer`, `curves`, `outlines`, `isolines`,
-  `pixelStretch`, `sliceShift`, `gradientMap` — **vingt et un**.
+  `pixelStretch`, `sliceShift`, `gradientMap`, `texture` — **vingt-deux**.
+  `texture` (2026-08-05, ADR-0018) est le PREMIER effet qui échantillonne une
+  IMAGE au lieu de ce qui est en dessous de lui. Ce qui le rend possible :
+  `params` est un `Record<string, number>`, donc **le paramètre porte le RANG**
+  de la texture dans le catalogue trié du dossier, **et le binding 7 porte les
+  pixels** (`render/textureLibraryStore.ts`). Le mécanisme est GÉNÉRIQUE — tout
+  effet peut déclarer `EffectModule.libraryTexture`. ⚠️ `libraryTexture` +
+  passes internes est REFUSÉ par `validateEffect` (le binding n'est résolu que
+  pour la passe finale), ce qui exclut `lensFlare` aujourd'hui.
   Une taxonomie éditoriale les range en six catégories dans
   `effects/catalog.ts` (`EFFECT_CATEGORIES`) — explicite et centralisée, jamais
   inférée du nom ; elle classe l'EFFET, pas ses paramètres (c'est le chantier 2
@@ -263,7 +271,8 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `blendSpace`, `catalog`, `hash`, `hsl`, `inputMode`, `oklab`, `srgbTransfer`,
   `uvSpace`, `validate`, `types`) : la présence d'un fichier n'est pas la
   présence d'un effet, vérifier `registry.ts`.
-- **Deux contrôles TRANSVERSAUX**, posés le 2026-08-01 d'après le §6bis du
+- **Trois contrôles TRANSVERSAUX.** Les deux premiers sont posés le 2026-08-01
+  d'après le §6bis du
   cahier de références (ils sont récurrents chez Figma et étaient absents
   partout ici) : `effects/blendSpace.ts` (espace de mélange — sRGB, Linéaire,
   OKLab, OKLCH ; plus un vocabulaire restreint aux deux courbes de transfert
@@ -272,6 +281,14 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Luminance inversée, Alpha). Un effet qui les adopte garde son rendu au bit
   près sur son défaut. ⚠️ L'index d'un choix est PERSISTÉ dans les presets :
   on ajoute une entrée à la FIN de la liste, jamais au milieu.
+  Le TROISIÈME est `effects/inkTexture.ts` (2026-08-05, ADR-0018), adopté par
+  `halftone`, `dither` et `hatching` : la bavure d'une encre RÉELLE sur une
+  marque calculée. Ni un effet à part (il n'aurait rien à encrer), ni trois
+  modes recopiés — les trois effets calculent une marque à partir du ton, et
+  l'encre ne change pas ce calcul mais la façon dont la marque est tracée. Même
+  raison d'être que les deux ci-dessus : une propriété récurrente de la famille
+  Impression, absente partout. Sa force vaut 0 par défaut, donc les rendus
+  existants sont inchangés au bit près.
   `passthrough` (`PASSTHROUGH_EFFECT`) est résolu par `getEffect` mais
   volontairement HORS du registre — c'est l'effectId par défaut d'un calque
   photo, pas un effet choisissable.
@@ -488,10 +505,29 @@ projet vivent là, pas dans les docs de design.
 ## Moyen de preuve (UI) — déclaré (règle CLAUDE.md global)
 **Playwright headless est INADAPTÉ ici** : le canvas WebGPU en WebView2 rend noir
 en headless (aucun rendu GPU) — un screenshot Playwright serait un œil aveugle qui
-dit « vu ». **Preuve UI = CDP sur la vraie fenêtre WebView2** (`--remote-debugging-port=9222`,
-voir Méthode ci-dessus) + checkpoint visuel humain. Le screenshot Playwright vaut
-seulement pour les stories sans canvas GPU (projet `storybook`, qui lui tourne
-bien en headless chromium).
+dit « vu ». **Preuve UI = CDP sur la vraie fenêtre WebView2**
+(`--remote-debugging-port=9222`, voir Méthode ci-dessus). Le screenshot Playwright
+vaut seulement pour les stories sans canvas GPU (projet `storybook`, qui lui
+tourne bien en headless chromium).
+
+✅ **AMENDÉ le 2026-08-05 : un agent PEUT voir le rendu, le checkpoint humain
+n'est plus la seule voie.** `Page.captureScreenshot` par CDP sur la vraie fenêtre
+capture le canvas WebGPU — vérifié, une PNG 3440×1377 où la photo, l'effet
+appliqué et le dock sont tous lisibles. Ce paragraphe disait « + checkpoint
+visuel humain » comme s'il était obligatoire ; il ne l'est que pour le JUGEMENT
+(est-ce beau), plus pour le CONSTAT (est-ce rendu).
+
+⚠️ Une capture se MESURE, elle ne se suppose pas : une PNG de 300 Ko entièrement
+noire a l'air d'une réussite jusqu'à ce qu'on l'ouvre. Le pilote rapporte
+moyenne et écart-type ; un écart sous 1 signale un aplat.
+
+**Outillage** : `/run-shaderlab` (`.claude/skills/run-shaderlab/`) — lancement
+avec le port CDP, puis un pilote qui ouvre une photo, ajoute un effet, pose un
+curseur, capture et mesure. Il porte aussi les pièges de sonde vérifiés : lire
+les pixels par `drawImage` du canvas rend du NOIR hors frame (passer par
+`Renderer.exportFrame()`), et patcher `window.__TAURI_INTERNALS__.invoke`
+n'intercepte rien (les modules importent `invoke` depuis `@tauri-apps/api/core`,
+une autre référence).
 
 ## Moyen de preuve (EFFETS) — un verrou aveugle ne verrouille rien
 

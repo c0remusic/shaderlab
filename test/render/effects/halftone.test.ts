@@ -30,7 +30,11 @@ describe("halftone — ce que la version naïve rate", () => {
   it("porte la densité par l'AIRE du point, pas par son rayon", () => {
     // L'œil intègre la surface couverte, qui va comme le carré du rayon. Sans
     // ce sqrt les demi-tons sortent deux fois trop clairs, sur toute la gamme.
-    expect(halftone.wgsl).toContain("let rayon = size * 0.5 * scale * sqrt(clamp(ink, 0.0, 1.0));");
+    // ⚠️ `rayonNet` et non `rayon` depuis l'adoption de l'encre réelle
+    // (2026-08-05) : `rayon` est désormais ce même rayon UNE FOIS froissé par
+    // la bavure. C'est le rayon NET qui porte la propriété testée ici — la
+    // bavure est un décalage additif qui ne touche pas la loi en racine.
+    expect(halftone.wgsl).toContain("let rayonNet = size * 0.5 * scale * sqrt(clamp(ink, 0.0, 1.0));");
   });
 
   it("lit la densité au CENTRE DE LA CELLULE, pas sous le pixel", () => {
@@ -78,7 +82,31 @@ describe("halftone — registre", () => {
     expect(halftone.params.map((p) => p.name)).toEqual([
       "dotSize", "dotScale", "colorMode", "rotation",
       "centerX", "centerY", "softness", "blackPoint", "whitePoint",
+      // Encre réelle (`inkTexture.ts`), ajoutée À LA FIN le 2026-08-05 —
+      // l'index d'un paramètre est persisté dans les presets, donc cet ordre
+      // est un contrat et non une commodité.
+      "encreRang", "encreForce", "encreEchelle",
     ]);
+  });
+
+  it("n'ajoute AUCUNE bavure par défaut — l'adoption de l'encre est invisible", () => {
+    // La condition de non-régression, et elle se lit sur le DÉFAUT : à
+    // `encreForce` nul, `ink_froisse` rend sa valeur inchangée, donc le rendu
+    // de cet effet est identique au bit près à ce qu'il était avant l'encre.
+    // C'est ce que le verrou de pixels vérifie, et ce test dit pourquoi.
+    expect(halftone.params.find((p) => p.name === "encreForce")?.default).toBe(0);
+    expect(halftone.wgsl).toContain("if (force <= 0.0) {");
+  });
+
+  it("déclare la texture d'encre par le paramètre qui porte son rang", () => {
+    expect(halftone.libraryTexture).toEqual({ indexParam: "encreRang" });
+    // Le rang doit exister dans `params` — `validateEffect` le vérifie aussi,
+    // mais un échec ici nomme l'effet fautif au lieu de faire tomber tout le
+    // chargement du registre.
+    expect(halftone.params.some((p) => p.name === "encreRang")).toBe(true);
+    // Et l'effet doit rester MONO-PASSE : le binding 7 n'est résolu que pour la
+    // passe finale.
+    expect(halftone.passes ?? []).toHaveLength(0);
   });
 
   it("propose le CMJN en défaut — c'est le mode qui porte la rosette", () => {

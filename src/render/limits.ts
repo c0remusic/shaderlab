@@ -4,6 +4,23 @@
  * (souvent invisible côté JS). Un panorama > limite doit produire un
  * message clair, pas un canvas noir.
  */
+/**
+ * `maxTextureDimension2D` par DÉFAUT de la spec WebGPU.
+ *
+ * C'est la valeur réelle sur ce projet, pas un minorant prudent : shaderlab ne
+ * passe aucun `requiredLimits` à `requestDevice`, donc le device reçoit les
+ * limites par défaut quelle que soit la carte — une RTX qui sait faire 16384 en
+ * expose 8192 ici. Conséquence pratique pour la bibliothèque de textures : un
+ * scan « 8K » carré (8192 × 8192) passe EXACTEMENT à la limite, et 8193 est
+ * refusé par `assertImageFitsGpu`.
+ *
+ * N'est PAS la source de vérité — `Renderer.maxTextureDimension` lit le device.
+ * Sert de valeur d'attente là où l'interface doit afficher quelque chose avant
+ * que le renderer existe (premier rendu de React). Un repli sur une valeur PLUS
+ * GRANDE laisserait proposer une texture que l'import refuserait ensuite.
+ */
+export const DEFAULT_MAX_TEXTURE_DIMENSION = 8192;
+
 export function assertImageFitsGpu(width: number, height: number, maxDimension: number): void {
   if (width > maxDimension || height > maxDimension) {
     throw new Error(

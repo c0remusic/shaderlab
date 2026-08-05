@@ -82,6 +82,17 @@ export interface ComposeOptions {
   /** Corps `fn blend(base, top)` du mode de fusion du calque. Requis quand
    *  applyMask=true. Ignoré sinon (les passes internes ne compositent pas). */
   blendWgsl?: string;
+  /** Ce calque porte un effet qui ÉCHANTILLONNE UNE TEXTURE DE BIBLIOTHÈQUE
+   *  (binding 7, `libraryTexture`), résolue par `TextureLibraryStore` depuis un
+   *  index porté par les paramètres.
+   *
+   *  C'est ce qui rend un effet capable de désigner une image, ce que
+   *  `params: array<f32, N>` ne permet pas seul : le paramètre porte le RANG,
+   *  le binding porte les pixels.
+   *
+   *  Contrairement au binding 6, il vaut sur les DEUX chemins — une passe
+   *  interne d'un effet à texture en a besoin autant que sa passe finale. */
+  hasLibraryTexture?: boolean;
 }
 
 /** Conversions sRGB↔linéaire partagées. Exportées parce que la passe de
@@ -139,6 +150,11 @@ export function composeShader(effectWgsl: string, opts: ComposeOptions): string 
   // appartient au calque photo du DESSOUS, pas à celui-ci).
   const coverageBinding = hasImageSource || clipToCoverage
     ? "@group(0) @binding(6) var coverageTexture: texture_2d<f32>;"
+    : "";
+  // Binding 7, sur les DEUX chemins (contrairement au 6) : une passe interne
+  // d'un effet à texture en a besoin autant que sa passe finale.
+  const libraryBinding = (opts.hasLibraryTexture ?? false)
+    ? "@group(0) @binding(7) var libraryTexture: texture_2d<f32>;"
     : "";
   const blendBlock = opts.applyMask ? SRGB_HELPERS_WGSL + "\n" + (opts.blendWgsl ?? "") : "";
   // Écrêté : l'entrée d'effet reste `color` (le composite en dessous) — l'effet
@@ -205,6 +221,7 @@ ${maskBinding}
 ${prevPassBinding}
 ${compositingBinding}
 ${coverageBinding}
+${libraryBinding}
 
 ${blendBlock}
 ${effectWgsl}

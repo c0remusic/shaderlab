@@ -39,7 +39,8 @@ import {
   type ViewportState,
 } from "./ui/viewport";
 import { ErrorBanner } from "./components/ErrorBanner";
-import { exportImage, resolveExportTargetAsync, resolveDefaultExportTarget } from "./export/exportImage";
+import { exportImage, resolveExportTargetAsync, resolveDefaultExportTarget, type ExportedFrame } from "./export/exportImage";
+import { mesurerStructureAjoutee } from "./render/frameStructure";
 import { messageFromUnknown } from "./lib/errors";
 import {
   getLaunchPath,
@@ -84,6 +85,9 @@ import { usePhotoLayer } from "./hooks/usePhotoLayer";
 import { usePresetWorkflow } from "./hooks/usePresetWorkflow";
 import { useLayerIsolation } from "./hooks/useLayerIsolation";
 import { PresetPanel } from "./components/PresetPanel";
+import { TextureLibrary } from "./components/TextureLibrary";
+import { useTextureLibrary } from "./hooks/useTextureLibrary";
+import { DEFAULT_MAX_TEXTURE_DIMENSION } from "./render/limits";
 import { TauriPresetStore } from "./presets/presetStore";
 import { withPhotoLayersPreserved } from "./presets/preservePhotoLayers";
 import { Button } from "./components/ui/button";
@@ -189,6 +193,28 @@ export default function App() {
 
   const [presetsFolded, setPresetsFolded] = useState(false);
   const [layersFolded, setLayersFolded] = useState(false);
+  // Repliée par défaut, contrairement aux trois autres : la grille de
+  // vignettes est le contenu le plus haut du dock, et la déplier d'office
+  // repousserait la Pile hors de vue sur une fenêtre de hauteur minimale
+  // (600 px, `tauri.conf.json`). Le chantier densité (ADR-0001) a déjà été payé
+  // une fois sur ce dock.
+  const [texturesFolded, setTexturesFolded] = useState(true);
+  /** Seuil réel de `assertImageFitsGpu`, lu sur le device au chargement d'un
+   *  document. Vaut la limite par défaut de la spec WebGPU tant qu'aucun
+   *  renderer n'existe — jamais plus, sinon la bibliothèque proposerait une
+   *  texture que l'import refuserait ensuite. */
+  const [maxTextureDimension, setMaxTextureDimension] = useState(DEFAULT_MAX_TEXTURE_DIMENSION);
+  /** Incrémenté à CHAQUE création de renderer. Sert d'unique dépendance
+   *  « le GPU vient de repartir de zéro » pour les effets qui doivent alors
+   *  repousser un état que le renderer ne conserve pas — aujourd'hui le
+   *  catalogue de textures. Un compteur et non un booléen : deux documents
+   *  ouverts d'affilée doivent tous deux réveiller l'effet. */
+  const [rendererGeneration, setRendererGeneration] = useState(0);
+  /** Frame de référence du pont de debug (dev-only) : sert à isoler ce qu'un
+   *  calque AJOUTE, en soustrayant l'état d'avant. Dans une ref et non dans le
+   *  state — c'est un raster de plusieurs dizaines de Mo, et l'invariant
+   *  anti-OOM du dépôt interdit qu'un raster entre dans React (`e3c7584`). */
+  const referenceFrameRef = useRef<ExportedFrame | null>(null);
   const [propertiesFolded, setPropertiesFolded] = useState(false);
   const [overlayForceHidden, setOverlayForceHidden] = useState(false);
   const [colorPicker, setColorPicker] = useState<{
@@ -210,7 +236,7 @@ export default function App() {
   // Le dock porte désormais deux rôles : la Pile navigue, Propriétés inspecte
   // la facette sélectionnée (photo/effet/masque). Les trois anciennes cartes
   // contextuelles ont été fusionnées sans changer leurs contenus métier.
-  const [dockLayout, setDockLayout] = useState<DockLayout>([["presets", "layers", "properties"]]);
+  const [dockLayout, setDockLayout] = useState<DockLayout>([["presets", "layers", "textures", "properties"]]);
 
   // Task 4 : id du preset en attente de confirmation de remplacement — non
   // nul seulement quand la pile courante n'est pas vide (voir
@@ -507,6 +533,17 @@ export default function App() {
       canvasRef.current.height = documentSize.height;
       rendererRef.current?.dispose();
       rendererRef.current = candidate;
+      // Recopié en STATE ici et pas lu sur la ref au rendu : `rendererRef` ne
+      // déclenche aucun rendu quand il se remplit, donc la bibliothèque de
+      // textures resterait sur sa valeur d'attente jusqu'au prochain rendu
+      // fortuit. C'est le seul site où le renderer change.
+      setMaxTextureDimension(candidate.maxTextureDimension);
+      // Réveille l'effet qui pousse le catalogue de textures : un renderer frais
+      // naît avec un `TextureLibraryStore` VIDE, alors que la bibliothèque a
+      // résolu son dossier bien avant, au montage. Sans ce compteur, l'effet
+      // n'aurait jamais de raison de se redéclencher et l'effet `texture`
+      // resterait inerte — sans erreur nulle part.
+      setRendererGeneration((generation) => generation + 1);
 
       setImageSize(documentSize);
       // Nouveau document = nouvelle géométrie : le zoom du document précédent
@@ -710,6 +747,34 @@ export default function App() {
   });
   const { maskPaintMode, showTransformHandles, handleTransformChange, handleTransformCommit } = photoLayer;
 
+  /** Bibliothèque de textures. Le hook ne connaît ni la pile ni le renderer :
+   *  il ne sait que résoudre un dossier et produire des vignettes. C'est
+   *  `photoLayer.importTextureFromPath` qui transforme un chemin en calque —
+   *  même séparation qu'entre `usePresets` (le disque) et `usePresetWorkflow`
+   *  (ce qu'on en fait). */
+  const textureLibrary = useTextureLibrary();
+
+  /** Le CATALOGUE descend au renderer, pas les pixels : c'est lui qui donne un
+   *  sens au RANG que porte le paramètre d'un effet `texture`
+   *  (`render/textureLibraryStore.ts`). Sans ce câblage, le curseur « Texture »
+   *  désigne un catalogue vide et l'effet est inerte — silencieusement, puisque
+   *  un rang hors bornes rend la texture de repli et que le shader la traite
+   *  comme « rendre l'entrée inchangée ».
+   *
+   *  ⚠️ **DEUX SITES, et un seul ne suffit pas.** La bibliothèque résout son
+   *  dossier AU MONTAGE, avant qu'un document soit ouvert : `rendererRef.current`
+   *  est alors `null`. Et comme `files` ne rebouge plus tant qu'on ne change pas
+   *  de dossier, un effet seul ne réessaierait jamais — l'effet `texture` ne
+   *  faisait donc littéralement rien, sans erreur nulle part. Le catalogue est
+   *  poussé quand le catalogue change ET quand un renderer NAÎT — d'où la
+   *  dépendance sur `rendererGeneration`, incrémentée à chaque création. Sans
+   *  elle, l'effet ne se redéclencherait jamais et le premier document ouvert
+   *  garderait un store vide. */
+  const textureFiles = textureLibrary.files;
+  useEffect(() => {
+    rendererRef.current?.setTextureCatalog(textureFiles);
+  }, [textureFiles, rendererGeneration]);
+
   /** Une peinture appartient à une facette masque précise. Changer d'onglet
    * ou de calque termine explicitement la session avant de router le nouvel
    * inspecteur ; le gros raster reste, lui, exclusivement dans layersRef. */
@@ -838,6 +903,52 @@ export default function App() {
       // par le dialogue natif, donc sans ce point d'entrée aucun scénario de
       // remplacement n'est exécutable sur la vraie fenêtre (T2).
       replacePhotoImageByPath: (id: string, path: string) => replacePhotoImageFromPath(id, path),
+      // Taille du catalogue vue par le RENDERER, pas par React. Les deux
+      // peuvent diverger — c'est précisément le défaut qu'on a chassé le
+      // 2026-08-05 : la bibliothèque avait ses fichiers, le store non.
+      textureCatalogSize: () => rendererRef.current?.textureCatalogSize ?? -1,
+      textureLibraryDiagnostics: () => rendererRef.current?.textureLibraryDiagnostics ?? null,
+      /** Signature des PIXELS RÉELLEMENT COMPOSÉS, via `exportFrame`.
+       *
+       *  ⚠️ Surtout PAS un `drawImage` du canvas : la surface de présentation
+       *  WebGPU relit du NOIR hors de sa frame, et une sonde qui la lit rapporte
+       *  « aucun changement » aussi bien quand l'effet est mort que quand il
+       *  marche. Vécu le 2026-08-05 sur cet effet précis — c'est la raison pour
+       *  laquelle `scripts/render-check.mjs` lit `exportFrame` et rien d'autre. */
+      frameSignature: async () => {
+        const renderer = rendererRef.current;
+        if (!renderer) return null;
+        const frame = await renderer.exportFrame(sessionRef.current.layers());
+        const pixels = frame.pixels;
+        let somme = 0;
+        let sommeCarres = 0;
+        let n = 0;
+        // Un pixel sur 997 : premier assez grand pour ne pas s'aligner sur la
+        // largeur d'une image usuelle, donc l'échantillon balaie la trame au
+        // lieu de suivre une colonne.
+        for (let i = 0; i < pixels.length; i += 4 * 997) {
+          const v = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+          somme += v;
+          sommeCarres += v * v;
+          n += 1;
+        }
+        const moyenne = somme / n;
+        return { n, moyenne, ecart: Math.sqrt(sommeCarres / n - moyenne * moyenne) };
+      },
+      /** Capture la frame courante comme RÉFÉRENCE, pour isoler ensuite ce
+       *  qu'un calque ajoute. Le calcul vit dans `render/frameStructure.ts` —
+       *  en le posant ici, ses deux cents lignes ont fait ABANDONNER le
+       *  compilateur React sur toute la racine de composition. */
+      capturerReference: async () => {
+        const frame = await rendererRef.current?.exportFrame(sessionRef.current.layers());
+        referenceFrameRef.current = frame ?? null;
+        return frame ? { width: frame.width, height: frame.height } : null;
+      },
+      structureAjoutee: async () => {
+        const reference = referenceFrameRef.current;
+        const frame = await rendererRef.current?.exportFrame(sessionRef.current.layers());
+        return reference && frame ? mesurerStructureAjoutee(reference, frame) : null;
+      },
       state: () => ({
         layers: sessionRef.current.layers().map((l) => ({
           id: l.id,
@@ -861,6 +972,21 @@ export default function App() {
     // juste AU-DESSUS du calque sélectionné (`LayerStack.insertIndexAfter`),
     // pas systématiquement en haut de pile. Sans sélection -> haut de pile.
     const id = stack.addLayer(effectId, selectedId);
+    // VALEURS INITIALES déclarées par l'effet (`defaultBlendMode`/
+    // `defaultOpacity`). Posées ICI et non dans `LayerStack` : le modèle de
+    // calques ne connaît pas le registre d'effets, et lui faire importer
+    // `render/effects` inverserait la dépendance des couches
+    // (ARCHITECTURE.md). Mutation directe puis un SEUL `commit`, comme
+    // `handleBlendModeChange` — ajouter le calque et poser ses défauts sont un
+    // seul geste utilisateur, donc une seule entrée d'historique.
+    const effect = getEffect(effectId);
+    if (effect.defaultBlendMode !== undefined || effect.defaultOpacity !== undefined) {
+      const layer = stack.layers.find((l) => l.id === id);
+      if (layer) {
+        if (effect.defaultBlendMode !== undefined) layer.blendMode = effect.defaultBlendMode;
+        if (effect.defaultOpacity !== undefined) layer.opacity = effect.defaultOpacity;
+      }
+    }
     commit(stack);
     selectLayer(id);
   }
@@ -1474,6 +1600,7 @@ export default function App() {
 
   const presetsPanel = useContextualPanel(true, "static");
   const layersPanel = useContextualPanel(true, "static");
+  const texturesPanel = useContextualPanel(true, "static");
   const propertiesPanel = useContextualPanel(selectedId !== null, selectedId);
 
   // Table explicite plutôt qu'une chaîne de ternaires : sans branche par
@@ -1487,9 +1614,10 @@ export default function App() {
     () => ({
       presets: presetsPanel.visible,
       layers: layersPanel.visible,
+      textures: texturesPanel.visible,
       properties: propertiesPanel.visible,
     }),
-    [presetsPanel.visible, layersPanel.visible, propertiesPanel.visible]
+    [presetsPanel.visible, layersPanel.visible, texturesPanel.visible, propertiesPanel.visible]
   );
   const isPanelVisible = useCallback(
     (id: string) => {
@@ -1892,6 +2020,25 @@ export default function App() {
                 />
             },
             {
+              id: "textures", title: "Textures", collapsed: texturesFolded, onCollapsedChange: setTexturesFolded,
+              // Grille de longueur variable, comme Presets et Pile : c'est
+              // elle qui se comprime quand la colonne manque de place.
+              variableLength: true,
+              content: <TextureLibrary
+                  dir={textureLibrary.dir}
+                  files={textureLibrary.files}
+                  thumbnails={textureLibrary.thumbnails}
+                  error={textureLibrary.error}
+                  maxTextureDimension={maxTextureDimension}
+                  // Une texture EST un calque photo : même plafond, même garde
+                  // que le bouton d'import de la Toolbar.
+                  canAdd={canAddPhotoLayer(layers)}
+                  onPickFolder={textureLibrary.pickFolder}
+                  onRequestThumbnail={textureLibrary.requestThumbnail}
+                  onAdd={photoLayer.importTextureFromPath}
+                />
+            },
+            {
               id: "properties", title: currentPropertiesTitle,
               collapsed: propertiesFolded, onCollapsedChange: setPropertiesFolded,
               // Propriétés est un contenu de formulaire, pas une liste de
@@ -1927,6 +2074,15 @@ export default function App() {
                 />}
                 effectContent={<ParamPanel
                   layer={selectedLayer}
+                  // La bibliothèque descend au panneau de paramètres pour que
+                  // l'effet `texture` choisisse par VIGNETTE et non par un rang
+                  // numérique. Même source que la carte du dock — un seul cache
+                  // de vignettes, donc pas de second décodage.
+                  textureLibrary={{
+                    files: textureLibrary.files,
+                    thumbnails: textureLibrary.thumbnails,
+                    onRequestThumbnail: textureLibrary.requestThumbnail,
+                  }}
                   onParamChange={handleParamChange}
                   onParamCommit={handleParamCommit}
                   onClipChange={handleClipChange}

@@ -1,0 +1,119 @@
+.texture-library {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+}
+
+.texture-library__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.texture-library__dir {
+  /* `min-width: 0` + ellipse : un chemin de dossier n'a aucune limite de
+   * longueur, et sans ça la rangee poussait la carte au-dela de la largeur du
+   * dock — meme defaut que `.preset-panel__name-input`. */
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+
+.texture-library__count {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.texture-library__empty,
+.texture-library__error {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.texture-library__error {
+  color: var(--text-primary);
+  background: var(--status-warning-bg);
+  border-radius: var(--radius-control);
+  padding: var(--space-2);
+}
+
+.texture-library__grid {
+  display: grid;
+  /* `auto-fill` et non `auto-fit` : la colonne du dock est etroite et
+   * redimensionnable, une largeur minimale fixe garde des vignettes lisibles
+   * plutot que de les etirer sur toute la largeur quand il n'y en a qu'une. */
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.texture-library__cell {
+  min-width: 0;
+}
+
+.texture-library__button {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-1);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  text-align: left;
+}
+
+.texture-library__button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.texture-library__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.texture-library__frame {
+  display: block;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: var(--radius-control);
+  background: var(--surface-inset);
+}
+
+.texture-library__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* `cover` : la vignette est decodee a largeur fixe, sa hauteur suit le
+   * rapport d'aspect du scan (portrait pour la plupart des papiers). Une
+   * cellule carree la recadre au lieu de la deformer. */
+  object-fit: cover;
+}
+
+.texture-library__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-xs);
+  color: var(--text-primary);
+}
+
+.texture-library__size {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.texture-library__size--over {
+  color: var(--status-danger-text);
+}

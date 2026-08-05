@@ -34,6 +34,7 @@ export const effectCategoryById: Readonly<Record<string, EffectCategory>> = {
   outlines: "Impression",
   isolines: "Impression",
   grain: "Texture",
+  texture: "Texture",
 };
 
 export interface EffectCatalogGroup {

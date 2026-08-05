@@ -127,6 +127,17 @@ const ATTENDU = {
   // partout donne un moire, pas une rosette : c est donc ce que cette reference
   // verrouille, et rien d autre ne pourrait le voir.
   "effet-halftone.png": { width: 256, height: 256, valeurs: null },
+  // Trame + BAVURE D'ENCRE (`inkTexture.ts`, 2026-08-05). Elle contre
+  // `effet-halftone`, donc l'écart mesuré est exactement ce que la bavure
+  // ajoute : 42,9 % des canaux. C'est la SEULE référence qui verrouille
+  // quelque chose de l'encre — celle de `effet-halftone` la laisse à zéro, où
+  // elle est un no-op par construction.
+  "effet-halftone-encre.png": { width: 256, height: 256, valeurs: null },
+  // L'effet qui échantillonne un SCAN. Sa mire est GÉNÉRÉE dans la page
+  // (`mireEncre`) et non lue sur disque : le harnais n'a pas d'IPC — ses
+  // modules viennent d'un Vite séparé, et Tauri restreint ses commandes à
+  // l'origine de l'application.
+  "effet-texture.png": { width: 256, height: 256, valeurs: null },
   // ANAMORPHIC STREAK (2026-08-01) : sur la mire a POINTS LUMINEUX ISOLES, la
   // meme que le temoin de bokeh. Une trainee ne se lit que sur une source
   // ponctuelle contre du sombre ; sur un damier, l etalement directionnel se

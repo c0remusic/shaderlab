@@ -15,7 +15,7 @@
 
 ## Où en est le code — mesuré sur disque le 2026-08-04, pas de mémoire
 
-- **21 effets** au registre (`src/render/effects/registry.ts`).
+- **22 effets** au registre (`src/render/effects/registry.ts`) — `texture` ajouté le 2026-08-05 (ADR-0018).
 - `glass` **complet** : 14 matières (9 de feuille + 5 de pavé), 5 profils de
   section, **18 références de pixels — toutes les branches verrouillées**.
 - Tout ce qui avait un plan exécutable est livré, testé, documenté, poussé.
@@ -29,9 +29,19 @@ ni l'autre (3).
 
 ## 1. Reste immédiat — validation visuelle humaine
 
-**Bloquant, et Antoine seul peut le faire.** Les sous-agents sont headless et le
-canvas WebGPU rend noir en headless : la seule preuve possible est un checkpoint
-humain sur la vraie fenêtre (`CLAUDE.md` § Méthode et § Moyen de preuve).
+**Bloquant, et Antoine seul peut le faire** — mais **moins cher qu'avant**.
+
+✅ **Amendé le 2026-08-05.** Ce bloc disait que le canvas WebGPU rend noir hors
+de la vraie fenêtre, donc qu'aucune capture n'était possible. C'est vrai en
+headless et **faux par CDP sur la fenêtre réelle** : `Page.captureScreenshot`
+rend la photo, l'effet et le dock, vérifié. Un agent peut donc **préparer** le
+checkpoint — ouvrir la photo, empiler les calques, poser les réglages, capturer —
+et Antoine n'a plus qu'à REGARDER, au lieu de piloter l'app lui-même.
+
+La frontière qui reste est celle du JUGEMENT, pas du constat : un banc dit qu'un
+effet agit, jamais qu'il est beau. Voir `/run-shaderlab`
+(`.claude/skills/run-shaderlab/`) pour le pilote, et `CLAUDE.md` § Moyen de
+preuve (UI).
 
 ⚠️ **Point de méthode qui explique pourquoi ce bloc existe.** Une référence de
 pixels prouve qu'un effet porte **sa propriété**, jamais qu'il est **beau**. Les
@@ -81,7 +91,7 @@ Ce que la mesure a corrigé du cadrage ci-dessous :
   ajouté **à la fin**, jamais par conversion du curseur existant — son index est
   persisté dans les presets.
 
-### Trois exigences fermes, sur les 21 effets
+### Trois exigences fermes, sur les 22 effets
 
 1. **Applicabilité conditionnelle.** Un contrôle sans effet dans la
    configuration courante se **masque**. Aujourd'hui il reste affiché et porte
@@ -141,14 +151,42 @@ conçoit rien — il isole la question qui bloquait.
 state React, sur le patron `imageSource` / `PhotoSourceStore`. Formes et
 typographie passent par le même mécanisme. Le design d'effet peut donc
 commencer ; il reste à écrire, ainsi que le plan.
-Un seul arbitrage reste ouvert dans ce bloc : **le masque par tonalité y
-entre-t-il, ou est-ce un chantier à lui ?**
+**Le masque par tonalité entre dans ce bloc** (tranché le 2026-08-05). Il n'y
+a donc plus d'arbitrage ouvert ici.
 
-- textures / scans et light leaks ;
+- ~~textures / scans~~ — **LIVRÉ le 2026-08-05**, design et preuve dans
+  `docs/superpowers/specs/2026-08-05-textures-scans-design.md` ;
+- light leaks ;
 - formes ;
 - typographie ;
 - finalisation du recadrage ;
+- **masque par tonalité** — extension de `LayerMask`, PAS un effet. Il vient du
+  point 1 du tri du cahier de postproduction : beaucoup de ses recettes sont
+  des piles, et ce qui leur manque n'est pas un effet de plus mais de pouvoir
+  restreindre un calque à une plage de tons. Meilleur rapport
+  recettes-débloquées par ligne de code du cahier, et il ne dépend d'aucun
+  autre sujet du bloc ;
 - éventuelles extensions du modèle de document / calques.
+
+⚠️ **Les textures ne sont PAS passées par un effet, et le cadrage du même jour
+disait le contraire** (« un effet ordinaire à texture d'entrée »). Antoine a
+tranché autrement : **une texture est un calque photo, tel quel** — un scan est
+un raster, `imageSource` le couvre déjà. Livré **sans toucher `LayerState`**.
+
+⚠️ L'option « effet » n'a PAS été écartée par ADR-0008, contrairement à ce qui a
+d'abord été écrit. ADR-0008 interdit d'écrire un `effectId` **sur** le calque
+qui porte `imageSource` ; appliquer un effet à une photo reste le flux normal,
+par un calque d'effet écrêté au-dessus. Ce qui écarte l'effet est structurel :
+`params` est un `Record<string, number>` (uniform `array<f32, 48>`), donc **un
+effet n'a aucun champ par lequel désigner une image** — le même mur que la
+typographie.
+
+Conséquence pour la voie A ci-dessus : elle reste entière, mais elle porte
+**moins** que la liste ne le suggère. Trois natures distinctes, pas une :
+`contentSource` est pour formes et typographie ; les textures sont des rasters
+déjà couverts ; les **light leaks** sont du contenu SYNTHÉTISÉ (cahier ligne
+330 : dégradés rouge/orange/jaune, flou fort, `Screen`, au bord du cadre), donc
+un effet du registre avec sa mire et sa référence de pixels.
 
 ⚠️ **Le recadrage n'est pas à commencer, il est à FINIR.** `CropRect` et le mode
 `crop` de `CanvasMode` existent, garde structurel compris ; `LayerTransform` n'a

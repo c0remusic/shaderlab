@@ -140,7 +140,7 @@ describe("WGSL dither — ce que `posterize` vérifiait, reporté sur son succes
     expect(dither.wgsl).toContain("hash(floor(cell))");
   });
 
-  it("verrouille l'ORDRE de ses quatorze paramètres", () => {
+  it("verrouille l'ORDRE de ses dix-sept paramètres", () => {
     // L'index d'un paramètre est PERSISTÉ dans les presets : un nouveau s'ajoute
     // à la FIN, jamais au milieu.
     expect(dither.params.map((p) => p.name)).toEqual([
@@ -149,7 +149,18 @@ describe("WGSL dither — ce que `posterize` vérifiait, reporté sur son succes
       "inkHue", "inkSaturation", "inkLightness",
       "paperHue", "paperSaturation", "paperLightness",
       "distribution", "amount",
+      // Encre réelle (`inkTexture.ts`), ajoutée à la fin le 2026-08-05.
+      "encreRang", "encreForce", "encreEchelle",
     ]);
+  });
+
+  it("n'ajoute AUCUNE bavure par défaut — l'adoption de l'encre est invisible", () => {
+    // Condition de non-régression : à force nulle, `ink_froisse` rend sa valeur
+    // inchangée, donc le rendu est identique au bit près. Le verrou de pixels
+    // le vérifie ; ce test dit POURQUOI il passe.
+    expect(dither.params.find((p) => p.name === "encreForce")?.default).toBe(0);
+    expect(dither.libraryTexture).toEqual({ indexParam: "encreRang" });
+    expect(dither.passes ?? []).toHaveLength(0);
   });
 
   it("sait ÉTEINDRE le tramage — c'est le rendu sérigraphie que faisait `posterize`", () => {

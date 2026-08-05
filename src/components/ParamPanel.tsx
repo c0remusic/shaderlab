@@ -14,6 +14,8 @@ import { CurveControl } from "./CurveControl";
 import { TonalRangeControl } from "./TonalRangeControl";
 import { ColorRampControl } from "./ColorRampControl";
 import type { CurvePoint } from "../ui/curveControl";
+import { TexturePicker } from "./TexturePicker";
+import type { TextureThumbnail } from "../textures/thumbnailCache";
 
 export type ParamRenderItem =
   | { kind: "single"; reactKey: string; param: EffectParam; spatialId?: string }
@@ -99,6 +101,15 @@ interface Props {
    *  porte l'attribut, une photo ne peut pas être écrêtée. */
   onClipChange: (id: string, clip: boolean) => void;
   onOpenColorPicker: (group: { layerId: string; effectId: string; key: string; label: string; hue: EffectParam; saturation: EffectParam; lightness: EffectParam; anchorTop: number }) => void;
+  /** Bibliothèque de textures, pour les effets qui déclarent
+   *  `EffectModule.libraryTexture`. Injectée depuis `App` plutôt que lue ici :
+   *  un composant ne connaît ni la bibliothèque ni le renderer
+   *  (`ARCHITECTURE.md`). Absente, le paramètre retombe sur son curseur. */
+  textureLibrary?: {
+    files: readonly string[];
+    thumbnails: ReadonlyMap<string, TextureThumbnail>;
+    onRequestThumbnail: (path: string) => void;
+  };
 }
 
 function formatEffectParamValue(
@@ -118,7 +129,7 @@ function formatEffectParamValue(
   }
 }
 
-export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, onOpenColorPicker }: Props) {
+export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, onOpenColorPicker, textureLibrary }: Props) {
   const [activeCurveChannel, setActiveCurveChannel] = useState("master");
   if (!layer) {
     return <p className="param-panel__empty">Sélectionne un calque.</p>;
@@ -273,6 +284,29 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
                 <span>{item.label}</span>
                 <span className="param-panel__spatial-hint">sur la toile</span>
               </div> : null
+            ) : item.kind === "single" && textureLibrary && effect.libraryTexture?.indexParam === item.param.name ? (
+              // TEXTURE DE BIBLIOTHÈQUE. La valeur reste un nombre — le rang
+              // dans le catalogue — mais un curseur afficherait « 3 » sans dire
+              // de quelle matière il s'agit. Une texture se reconnaît en la
+              // voyant.
+              <TexturePicker
+                key={item.reactKey}
+                label={item.param.label}
+                files={textureLibrary.files}
+                thumbnails={textureLibrary.thumbnails}
+                value={Math.round(layer.params[item.param.name] ?? item.param.default)}
+                disabled={locked}
+                onRequestThumbnail={textureLibrary.onRequestThumbnail}
+                onChange={(index) => {
+                  onParamChange(layer.id, { [item.param.name]: index });
+                  // Geste ATOMIQUE, comme un choix discret : pas de phase « en
+                  // cours », donc il valide son entrée d'historique tout de
+                  // suite. Sans ça, changer de texture ne serait jamais
+                  // annulable seul — le changement s'agrégerait au prochain
+                  // relâchement de curseur.
+                  onParamCommit();
+                }}
+              />
             ) : item.kind === "single" && item.param.choices ? (
               // Paramètre à CHOIX DISCRET (voir EffectParam.choices) : la valeur
               // reste un nombre — l'index du choix — parce que l'uniform est un

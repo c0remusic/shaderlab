@@ -21,6 +21,7 @@ import { motionBlur } from "./motionBlur";
 import { glass } from "./glass";
 import { lensFlare } from "./lensFlare";
 import { curves } from "./curves";
+import { texture } from "./texture";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 
 // Les six du milieu suivent l'ordre de priorité du backlog d'effets confirmé par
@@ -162,6 +163,11 @@ export const effectRegistry: EffectModule[] = [
   pixelStretch,
   sliceShift,
   gradientMap,
+  // PREMIER effet du registre qui échantillonne une IMAGE plutôt que ce qui est
+  // en dessous de lui. Il désigne un scan de la bibliothèque par son rang
+  // (`libraryTexture`), et les pixels arrivent par le binding 7 — voir
+  // `render/textureLibraryStore.ts`.
+  texture,
 ];
 effectRegistry.forEach(validateEffect);
 

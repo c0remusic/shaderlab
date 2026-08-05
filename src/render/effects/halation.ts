@@ -120,6 +120,34 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     { scale: 0.25, wgsl: upsampleWgsl(1) },
     { scale: 0.5, wgsl: upsampleWgsl(1) },
   ],
+  /**
+   * DEUX SECTIONS : ce qui DÉCLENCHE le halo, et ce que le halo EST.
+   *
+   * Pas de mode exclusif ici — les six paramètres servent tous, tout le temps.
+   * Le découpage est donc THÉMATIQUE : il ne masque rien, il répond aux deux
+   * questions que l'effet pose.
+   *
+   * POURQUOI « Effacement sur fond clair » EST UN SEUIL. Une halation a DEUX
+   * conditions d'existence, et n'en tenir qu'une est exactement ce qui la fait
+   * rendre comme un voile rose : il faut assez de lumière pour brûler l'émulsion
+   * (seuil sur la SOURCE) et assez de noir autour pour que le retour se voie
+   * (seuil sur le FOND). Les deux décident SI un halo apparaît ; aucun ne décide
+   * de quoi il a l'air. Ils se règlent donc ensemble, bien qu'ils soient lus par
+   * deux passes différentes — c'est la seule section des quatre effets de cette
+   * passe qui ne suive pas une frontière de passes, et c'est délibéré.
+   *
+   * Les quatre autres décrivent le halo une fois qu'il existe : jusqu'où il
+   * porte, avec quelle force, et le dégradé orange-au-cœur / rouge-au-loin qui
+   * le fait lire comme de la halation plutôt que comme un bloom teinté.
+   *
+   * ⚠️ `params[]` ne bouge pas — les index sont persistés dans les presets. Le
+   * seul effet visible est que « Effacement sur fond clair », dernier du
+   * tableau, rejoint à l'AFFICHAGE la section ouverte par le seuil.
+   */
+  sections: [
+    { id: "seuil", label: "Seuil", layout: "liste", params: ["threshold", "background"] },
+    { id: "halo", label: "Halo", layout: "liste", params: ["spread", "intensity", "hue", "transition"] },
+  ],
   wgsl: `
 ${HSL_TO_RGB_WGSL}${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {

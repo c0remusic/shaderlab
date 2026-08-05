@@ -172,6 +172,51 @@ export const gooeyMerge: EffectModule = {
     // décrit en tête reste celui qu'on obtient en posant le calque.
     { name: "tint", label: "Colorisation", unit: "percent", min: 0, max: 1, default: 0, step: 0.01, hint: "Teinte les seules gouttes, en conservant leur modelé. Le FOND n'est volontairement pas colorisable : ce serait un cast global, que duotone, gradient map et channel mixer font déjà" },
   ],
+  /**
+   * SECTIONS — découpage THÉMATIQUE, donc sans `appliesWhen`. `inputMode` est un
+   * mode de RÉGLAGE et non un mode exclusif : changer de champ (luminance,
+   * luminance inversée, alpha) change ce qui fusionne, jamais quels réglages
+   * existent — les six curseurs du liquide restent exactement les mêmes et
+   * gardent leur sens. Rien ici ne commande l'apparition de rien.
+   *
+   * DEUX SECTIONS, et la frontière est celle du `coverage`. Tout ce qui est dans
+   * « Fusion » sert à FABRIQUER l'iso-surface ou à l'habiller ; « Teinte » est le
+   * seul bloc qui ne fait que consommer le résultat — l'en-tête du fichier le dit
+   * déjà, la colorisation est bornée par `coverage` et le fond n'est jamais
+   * touché. C'est aussi le seul bloc à défaut NUL : l'effet posé sur un calque
+   * rend son comportement photographique sans qu'aucun réglage de cette section
+   * n'agisse. Une section qui commence éteinte est précisément celle qu'il ne
+   * faut pas mêler aux six qui, elles, sont en service dès la pose.
+   *
+   * POURQUOI « FUSION » NE SE COUPE PAS EN DEUX, alors qu'on y lit deux choses
+   * (la topologie du champ, puis la matière de la goutte) : `threshold` est lu
+   * par les TROIS — l'iso-surface (`coverage`), le ménisque qui pilote
+   * `flow`, et la crête qui pilote `rim`. Séparer « champ » et « surface »
+   * mettrait donc le même curseur des deux côtés d'un titre, et ferait croire
+   * qu'on peut régler l'un sans regarder l'autre. Ils se règlent ensemble parce
+   * que le shader les lit ensemble.
+   *
+   * `inputMode` reste DANS « Fusion », à sa place dans `params[]` : il nomme le
+   * champ que les six curseurs au-dessus mettent en forme. Lui donner son propre
+   * titre coûterait un en-tête pour une ligne, et le sortir de la section le
+   * couperait de ce qu'il commande.
+   */
+  sections: [
+    {
+      id: "fusion",
+      label: "Fusion",
+      layout: "liste",
+      params: ["merge", "threshold", "tension", "flow", "rim", "melt", "inputMode"],
+    },
+    {
+      // Quatre paramètres, deux items rendus : la pastille (trois rôles, bloc
+      // ATOMIQUE — une section la contient entière) puis le dosage.
+      id: "teinte",
+      label: "Teinte",
+      layout: "liste",
+      params: ["tintHue", "tintSaturation", "tintLightness", "tint"],
+    },
+  ],
   passes: [
     { scale: 0.5, wgsl: GOOEY_DOWNSAMPLE_WGSL },
     { scale: 0.25, wgsl: GOOEY_DOWNSAMPLE_WGSL },

@@ -193,8 +193,18 @@ export const lensDistortion: EffectModule = {
 
     { name: "aberration", label: "Aberration", unit: "percent", min: 0, max: 0.2, default: 0, step: 0.001, hint: "Force de la séparation des couleurs. 0 = aucune, donc le mode ci-dessous est sans objet" },
     { name: "aberrationMode", label: "Mode d'aberration", unit: "none", min: 0, max: ABERRATION_MODES.length - 1, default: ABERRATION_LATERAL, step: 1, choices: [...ABERRATION_MODES], hint: "Latérale : le décalage est radial et croît vers les coins — nul au centre. Longitudinale : ce n'est pas un décalage mais une mise au point qui diffère par canal, donc elle se voit PARTOUT, centre compris. Anamorphique : décalage purement horizontal, indépendant du rayon — le verre cylindrique du cinéma" },
-    { name: "centerFalloff", label: "Croissance vers les coins", unit: "none", min: 0.5, max: 4, default: 2, step: 0.1, hint: "Vitesse à laquelle le décalage croît du centre vers les coins. Sans objet hors du mode Latérale" },
-    { name: "centerPresence", label: "Présence au centre", unit: "percent", min: 0, max: 1, default: 0.2, step: 0.01, hint: "Part du décalage des coins déjà présente au centre — 0 = aberration purement périphérique. Sans objet hors du mode Latérale" },
+    // LES TROIS `appliesWhen` DE CET EFFET VISENT LE MÊME MODE (le troisième est
+    // `aberrationAngle`, resté en fin de liste). Ils ne sont pas une décision
+    // nouvelle : ils mettent en contrat une phrase d'infobulle écrite au
+    // jugement — « Sans objet hors du mode Latérale » — que la campagne du
+    // 2026-08-05 a ENFIN mesurée (74 configurations rendues, résultats dans
+    // `docs/superpowers/plans/2026-08-05-applicabilite-task1-resultats.md`).
+    // Les deux modes excluants ont été éprouvés SÉPARÉMENT, Longitudinale puis
+    // Anamorphique : n'en rendre qu'un n'aurait prouvé qu'une branche sur deux.
+    // L'infobulle reste — le masquage dit QUE le curseur ne sert pas ici, elle
+    // seule dit POURQUOI.
+    { name: "centerFalloff", label: "Croissance vers les coins", unit: "none", min: 0.5, max: 4, default: 2, step: 0.1, appliesWhen: { param: "aberrationMode", equals: ABERRATION_LATERAL }, hint: "Vitesse à laquelle le décalage croît du centre vers les coins. Sans objet hors du mode Latérale" },
+    { name: "centerPresence", label: "Présence au centre", unit: "percent", min: 0, max: 1, default: 0.2, step: 0.01, appliesWhen: { param: "aberrationMode", equals: ABERRATION_LATERAL }, hint: "Part du décalage des coins déjà présente au centre — 0 = aberration purement périphérique. Sans objet hors du mode Latérale" },
     { name: "asymmetry", label: "Asymétrie R/B", unit: "none", min: -1, max: 1, default: 0.15, step: 0.01, hint: "Déséquilibre entre la course du rouge et celle du bleu — un verre réel ne disperse pas les deux également" },
 
     { name: "streakThreshold", label: "Seuil de la traînée", unit: "percent", min: 0, max: 1, default: 0.62, step: 0.01, hint: "À partir de quel ton une lumière provoque une traînée. Haut = seules les sources franches, ce qui est le cas réel" },
@@ -214,7 +224,85 @@ export const lensDistortion: EffectModule = {
     // les mêmes noms et la même algèbre. Mesuré avant le geste, sur la même
     // mire et aux mêmes réglages : les deux effets s'écartaient de 0,005 % des
     // canaux. Celui-ci, lui, manquait — et il vaut 23,1 % d'écart.
-    { name: "aberrationAngle", label: "Orientation du décalage", unit: "degrees", min: -45, max: 45, default: 0, step: 1, hint: "0 = décalage purement radial, ce que fait un objectif centré. ±45° = franges TANGENTIELLES, la signature d'un objectif décentré. Sans objet hors du mode Latérale — un décalage longitudinal n'a pas de direction, et l'anamorphique a la sienne" },
+    // Même condition que `centerFalloff` et `centerPresence` (voir leur bloc)
+    // alors qu'onze index les séparent : l'absorption a rangé ce paramètre à la
+    // FIN pour ne pas décaler les autres dans les presets. C'est exactement le
+    // genre de parenté que l'ordre de `params[]` ne peut pas montrer — et c'est
+    // la section *Aberration* ci-dessous qui la montre, sans toucher un index.
+    { name: "aberrationAngle", label: "Orientation du décalage", unit: "degrees", min: -45, max: 45, default: 0, step: 1, appliesWhen: { param: "aberrationMode", equals: ABERRATION_LATERAL }, hint: "0 = décalage purement radial, ce que fait un objectif centré. ±45° = franges TANGENTIELLES, la signature d'un objectif décentré. Sans objet hors du mode Latérale — un décalage longitudinal n'a pas de direction, et l'anamorphique a la sienne" },
+  ],
+  /**
+   * TROIS SECTIONS — les trois questions qu'on pose à un objectif, et l'en-tête
+   * de ce fichier les pose déjà dans cet ordre : ce que sa FORME fait à l'image,
+   * ce que son VERRE fait aux longueurs d'onde, ce qu'un verre CYLINDRIQUE étale
+   * le long d'un axe. Le découpage suit donc les trois blocs du shader — un
+   * réglage change de section le jour où il change de bloc, pas avant.
+   *
+   * ⚠️ AUCUNE DES TROIS NE PORTE DE CONDITION, et c'est un choix par section :
+   *
+   * — *Géométrie* sert dans les trois modes. Elle est EN AMONT de l'aberration,
+   *   qui compose son échelle avec la sienne au lieu de s'y substituer : il n'y
+   *   a aucun régime où le fisheye cesse de s'appliquer.
+   * — *Aberration* CONTIENT son propre sélecteur. La conditionner au mode
+   *   masquerait le contrôle qui commande la condition — l'effet resterait
+   *   verrouillé dans le mode courant, sans rien pour en sortir. Ce que le mode
+   *   commande ici, ce sont les trois `appliesWhen` de paramètre déjà posés ; la
+   *   section les RASSEMBLE, elle ne les redouble pas. En Longitudinale comme en
+   *   Anamorphique elle se réduit donc d'elle-même à ses trois réglages communs.
+   * — *Traînée* ne dépend PAS du mode, malgré son nom. « Anamorphique » désigne
+   *   ici un type d'OBJECTIF (le verre cylindrique du cinéma) et non le
+   *   troisième choix d'`aberrationMode`, qui porte le même mot pour une autre
+   *   raison : le shader calcule la traînée HORS de la branche des modes, et ce
+   *   qui la commande est `streakIntensity`, un curseur continu. Le contrat ne
+   *   conditionne que sur des `choices`, délibérément — un seuil sur un curseur
+   *   serait une décision d'affichage cachée dans un nombre. À intensité nulle
+   *   la section reste donc visible, alors que ses quatre passes, elles, ne
+   *   tournent pas : le coût s'éteint, pas le réglage qui le rallume.
+   *
+   * ⚠️ *Aberration* N'EST PAS CONTIGUË dans `params[]`, et c'est exactement ce
+   * pour quoi cet effet a besoin de sections : `aberrationAngle` vit à l'index
+   * 15, onze rangs après ses trois frères, parce que l'absorption de
+   * `chromaticBleed` l'a rangé à la FIN pour ne décaler aucun preset (voir son
+   * bloc plus haut). La section le ramène auprès d'eux SANS TOUCHER UN INDEX. Le
+   * bloc de traînée qu'elle enjambe reste entier — groupe de couleur compris —
+   * et `ParamPanel` rouvre simplement la section déjà ouverte plus haut. Même
+   * figure que `outlines`, dont *Détection* récupère `detectMode` par-dessus
+   * *Encre*.
+   */
+  sections: [
+    {
+      // PAIRE et non liste : le recadrage n'est pas un réglage indépendant, il
+      // est la CORRECTION de l'autre — le barillet découvre les coins, le zoom
+      // les reprend. On ne touche jamais l'un sans regarder l'autre. Deux lignes
+      // pleine largeur pour deux nombres courts coûteraient une hauteur
+      // qu'ADR-0001 demande de rendre.
+      id: "geometrie",
+      label: "Géométrie",
+      layout: "paire",
+      params: ["distortion", "zoom"],
+    },
+    {
+      // LISTE : six réglages, dont un sélecteur de mode et deux courses fines
+      // (pas de 0,001) — la grille est faite pour des réglages courts qui se
+      // lisent d'un coup d'œil, pas pour une liste de choix nommés.
+      id: "aberration",
+      label: "Aberration",
+      layout: "liste",
+      params: ["aberration", "aberrationMode", "centerFalloff", "centerPresence", "asymmetry", "aberrationAngle"],
+    },
+    {
+      // LISTE : huit paramètres, mais SIX contrôles seulement — les trois rôles
+      // du traitement de l'objectif se rendent en une pastille unique, qui n'est
+      // pas un curseur court et n'a rien à faire dans une grille.
+      id: "trainee",
+      label: "Traînée",
+      layout: "liste",
+      params: [
+        "streakThreshold", "streakLength", "streakAngle", "streakIntensity",
+        "streakTintHue", "streakTintSaturation", "streakTintLightness",
+        "streakDispersion",
+      ],
+    },
   ],
   passes: [
     { scale: 0.5, wgsl: STREAK_BRIGHT_WGSL, enabled: streakActive },

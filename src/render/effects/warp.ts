@@ -60,8 +60,67 @@ export const warp: EffectModule = {
     { name: "twist", label: "Torsion", unit: "degrees", min: 0, max: 180, default: 0, step: 1, hint: "Fait pivoter le champ de déplacement : 0 = pousse, 90° = cisaille le long des lignes de niveau du bruit" },
     { name: "seed", label: "Graine", unit: "none", min: 0, max: 100, default: 0, step: 1 },
     { name: "type", label: "Type", unit: "none", min: 0, max: WARP_TYPES.length - 1, default: WARP_NOISE, step: 1, choices: [...WARP_TYPES], hint: "Bruit fractal : la houle organique, sans centre. Les huit autres sont des déformations CENTRÉES : Sinusoïde, Torsion, Bulle, Pincement, Ondulation, Drapeau, Compression, Tourbillon. Reprendre Échelle et Amplitude après un changement de type — chaque formule y répond autrement." },
-    { name: "centerX", label: "Centre X", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Point d'où la déformation irradie. Sans objet en Bruit fractal, qui n'a pas de centre." },
+    // LA CONDITION EST ÉNUMÉRÉE EN POSITIF, et c'est la seule forme possible :
+    // `appliesWhen` ne sait dire que « vaut l'un de ces choix », jamais « sauf
+    // celui-là ». Ici la déclaration est pourtant une exclusion — « sans objet
+    // en Bruit fractal » — donc les HUIT autres types se citent un par un.
+    // ⚠️ Corollaire : une dixième forme ajoutée à `WARP_TYPES` devra s'ajouter
+    // ICI aussi, faute de quoi son centre restera masqué sans que rien ne le
+    // signale. C'est le prix de la voie déclarative, assumé (design §3).
+    // Mesuré le 2026-08-05
+    // (`docs/superpowers/plans/2026-08-05-applicabilite-task1-resultats.md`) :
+    // le FBM n'a pas de centre, sa branche ne lit donc jamais `center`.
+    // ⚠️ `centerY` NE PORTE PAS LA CONDITION, alors que son infobulle renvoie à
+    // celle de `centerX`. Seul `centerX` a été éprouvé, et masquer sur une
+    // déclaration non mesurée est exactement ce que la campagne existait pour
+    // empêcher : un curseur masqué ne bouge plus aucun pixel, donc aucune
+    // référence de rendu ne peut rougir de l'erreur. Même arbitrage en attente
+    // que sur `motionBlur.centerY`. En l'état, le panneau montrera « Centre Y »
+    // seul en Bruit fractal.
+    { name: "centerX", label: "Centre X", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, appliesWhen: { param: "type", equals: [1, 2, 3, 4, 5, 6, 7, 8] }, hint: "Point d'où la déformation irradie. Sans objet en Bruit fractal, qui n'a pas de centre." },
     { name: "centerY", label: "Centre Y", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Voir Centre X." },
+  ],
+  /**
+   * TROIS SECTIONS POUR NEUF RÉGIMES, découpées sur la question « qui lit
+   * quoi ». Le shader se lit en deux étages et le panneau reprend ce découpage :
+   * une seule des deux familles fabrique le déplacement (le FBM, ou l'une des
+   * huit formes analytiques), puis TOUT ce qui suit est commun — torsion du
+   * vecteur, anisotropie, amplitude, repli de bord.
+   *
+   * - `Déplacement` sert PARTOUT, donc sans condition : ses quatre réglages
+   *   sont lus par les neuf types. `scale` et `amplitude` d'abord — la fiche
+   *   Figma dit de les reprendre à chaque changement de type, et les avoir
+   *   ensemble en tête est exactement ce que ce conseil demande. `anisotropy`
+   *   et `twist` les rejoignent parce qu'ils s'appliquent APRÈS le branchement,
+   *   sur le vecteur déjà fabriqué : ils décrivent le déplacement, jamais la
+   *   forme qui l'a produit.
+   * - `Bruit fractal` groupe les trois réglages que la seule branche du FBM
+   *   lit — le nombre d'octaves, leur poids, et la graine de la maille.
+   * - `Forme` tient le sélecteur et le point d'où la déformation irradie : huit
+   *   des neuf types sont CENTRÉS, et le centre n'a de sens que par le type
+   *   choisi.
+   *
+   * ⚠️ AUCUNE SECTION NE PORTE DE CONDITION, et c'est délibéré. Les deux
+   * candidates évidentes masqueraient sur une déclaration JAMAIS MESURÉE :
+   * `Bruit fractal` hors du type 0, et `Forme` restreinte aux huit formes
+   * centrées — cette dernière emporterait `centerY`, dont la note ci-dessus
+   * explique précisément pourquoi il reste visible. La campagne du 2026-08-05
+   * n'a éprouvé qu'une déclaration sur cet effet (`centerX`), et le masquage
+   * est l'unique décision d'affichage qu'aucune référence de rendu ne peut
+   * rattraper : un curseur masqué ne bouge plus aucun pixel. Le groupement,
+   * lui, ne cache rien — il dit à quel régime chaque réglage appartient, ce qui
+   * était le vrai manque. Le jour où `centerY` et le trio du bruit passent au
+   * banc, ces deux conditions tiennent en une ligne chacune.
+   *
+   * ⚠️ L'ordre des blocs n'est PAS celui de la lecture idéale. `Forme` vient en
+   * dernier alors que le type se choisit en premier, parce qu'une section
+   * s'ouvre à la place de son premier paramètre et que `type` est à l'index 7 —
+   * or `params[]` ne bouge jamais, les index sont persistés dans les presets.
+   */
+  sections: [
+    { id: "deplacement", label: "Déplacement", layout: "liste", params: ["scale", "amplitude", "anisotropy", "twist"] },
+    { id: "bruit", label: "Bruit fractal", layout: "liste", params: ["octaves", "roughness", "seed"] },
+    { id: "forme", label: "Forme", layout: "liste", params: ["type", "centerX", "centerY"] },
   ],
   wgsl: `
 ${UV_SPACE_WGSL}

@@ -135,3 +135,42 @@ describe("warp — les huit types analytiques", () => {
     expect(warp.wgsl).toContain("let dir = q / max(r, 0.0001);");
   });
 });
+
+describe("warp — les dix réglages rangés en trois sections", () => {
+  const sections = warp.sections!;
+
+  it("range chaque paramètre dans exactement une section, sans toucher à params[]", () => {
+    // Les sections sont une donnée d'AFFICHAGE : l'index d'un paramètre est
+    // persisté dans les presets, donc l'ordre de `params[]` ne bouge pas et la
+    // couverture se vérifie comme un ENSEMBLE, pas comme une concaténation.
+    // C'est la différence avec `glass`, dont les trois sections tombaient déjà
+    // contiguës : ici deux blocs se déplacent à l'affichage (l'anisotropie et
+    // la torsion remontent avec l'échelle et l'amplitude, la graine redescend
+    // avec les octaves), ce que `groupEffectParams` fait en attirant un item
+    // vers la section déjà ouverte plus haut.
+    expect(sections.map((s) => s.id)).toEqual(["deplacement", "bruit", "forme"]);
+    expect([...sections.flatMap((s) => s.params)].sort()).toEqual([...warp.params.map((p) => p.name)].sort());
+  });
+
+  it("sépare ce que la seule branche du bruit lit de ce que les neuf types lisent", () => {
+    // Le découpage EST celui du shader : une famille fabrique le déplacement,
+    // tout ce qui suit le branchement est commun.
+    expect(sections[0].params).toEqual(["scale", "amplitude", "anisotropy", "twist"]);
+    expect(sections[1].params).toEqual(["octaves", "roughness", "seed"]);
+    expect(sections[2].params).toEqual(["type", "centerX", "centerY"]);
+    expect(sections.map((s) => s.layout)).toEqual(["liste", "liste", "liste"]);
+  });
+
+  it("ne masque RIEN de plus que ce qui a été mesuré", () => {
+    // Les deux conditions tentantes — le bruit hors du type 0, la forme
+    // restreinte aux huit types centrés — porteraient sur des déclarations que
+    // la campagne du 2026-08-05 n'a jamais éprouvées, et la seconde emporterait
+    // `centerY`, laissé visible pour cette raison exacte. Un curseur masqué à
+    // tort ne bouge plus aucun pixel : aucune référence de rendu ne peut le
+    // dire, ce test est le seul endroit qui le tienne.
+    for (const section of sections) expect(section.appliesWhen).toBeUndefined();
+    // Le seul masquage de l'effet reste celui qui a été mesuré, au paramètre.
+    expect(warp.params.find((p) => p.name === "centerX")?.appliesWhen).toEqual({ param: "type", equals: [1, 2, 3, 4, 5, 6, 7, 8] });
+    expect(warp.params.find((p) => p.name === "centerY")?.appliesWhen).toBeUndefined();
+  });
+});

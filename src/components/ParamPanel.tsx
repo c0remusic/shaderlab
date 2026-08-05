@@ -1,6 +1,7 @@
 import type { LayerState } from "../layers/types";
 import { getEffect } from "../render/effects/registry";
-import type { CanvasControl, EffectParam } from "../render/effects/types";
+import type { CanvasControl, EffectParam, EffectSection, SectionLayout } from "../render/effects/types";
+import { conditionRemplie } from "../render/effects/displayCondition";
 import { CircleDot, MoveRight } from "lucide-react";
 import "./ParamPanel.css";
 import { LabeledSlider } from "./ui/labeled-slider";
@@ -9,7 +10,7 @@ import { Checkbox } from "./ui/checkbox";
 import { Select } from "./ui/select";
 import { ColorGroupControl } from "./ui/color-group-control";
 import { formatControlValue } from "../ui/formatValue";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { CurveControl } from "./CurveControl";
 import { TonalRangeControl } from "./TonalRangeControl";
 import { ColorRampControl } from "./ColorRampControl";
@@ -19,8 +20,31 @@ import type { TextureThumbnail } from "../textures/thumbnailCache";
 
 export type ParamRenderItem =
   | { kind: "single"; reactKey: string; param: EffectParam; spatialId?: string }
-  | { kind: "spatial-header"; reactKey: string; id: string; label: string; controlKind: CanvasControl["kind"]; visibleWhen?: { param: string; equals: number | number[] } }
+  | { kind: "spatial-header"; reactKey: string; id: string; label: string; controlKind: CanvasControl["kind"] }
   | { kind: "group"; reactKey: string; key: string; label: string; hue: EffectParam; saturation: EffectParam; lightness: EffectParam; isFirst: boolean };
+
+/**
+ * Un BLOC de rendu : les items d'une section déclarée, ou une suite d'items que
+ * nulle section ne cite.
+ *
+ * ⚠️ Ce n'est PAS un réordonnancement de `params[]` — les index sont persistés
+ * dans les presets. Un bloc regroupe des items de RENDU, et l'ordre interne à un
+ * bloc reste celui de `params[]`.
+ */
+export interface ParamRenderBlock {
+  reactKey: string;
+  /** Titre de la section. `null` = bloc libre, rendu sans en-tête. */
+  label: string | null;
+  layout: SectionLayout;
+  items: ParamRenderItem[];
+}
+
+export interface GroupEffectParamsOptions {
+  /** Sections déclarées par l'effet (`EffectModule.sections`). */
+  sections?: readonly EffectSection[];
+  /** Paramètres du calque. Les manquants prennent leur défaut déclaré. */
+  values?: Record<string, number>;
+}
 
 /** Groups params sharing the same `colorGroup.key` (see EffectParam) into a
  *  single swatch+disclosure render item, in the order each group first
@@ -39,8 +63,36 @@ export type ParamRenderItem =
  *
  *  Préfixer rend la collision IMPOSSIBLE par construction plutôt que de
  *  demander aux auteurs d'effets de ne pas nommer un paramètre comme un groupe.
- *  `test/components/paramRenderKeys.test.ts` le vérifie sur tout le registre. */
-export function groupEffectParams(params: EffectParam[], controls: readonly CanvasControl[] = [], excluded = new Set<string>()): ParamRenderItem[] {
+ *  `test/components/paramRenderKeys.test.ts` le vérifie sur tout le registre.
+ *
+ *  APPLICABILITÉ ET SECTIONS (2026-08-05). La fonction rend désormais des BLOCS
+ *  et non plus une liste plate : elle masque ce qui n'a pas d'objet aux réglages
+ *  courants (`EffectParam.appliesWhen`) et regroupe le reste par section
+ *  (`EffectModule.sections`). Un effet sans section rend exactement ce qu'il
+ *  rendait — un unique bloc libre, dans l'ordre de `params[]`.
+ *
+ *  ⚠️ AUCUN `if (effectId)` : tout ce qui suit lit le contrat déclaratif du
+ *  module d'effet, jamais son identité (frontière d'`ARCHITECTURE.md`). */
+export function groupEffectParams(
+  params: EffectParam[],
+  controls: readonly CanvasControl[] = [],
+  excluded = new Set<string>(),
+  options: GroupEffectParamsOptions = {},
+): ParamRenderBlock[] {
+  const sections = options.sections ?? [];
+
+  // Valeurs RÉSOLUES : défauts appliqués, même contrat que `EffectPass.enabled`
+  // et `EffectParam.maxFrom`. Un prédicat sur les réglages courants ne doit pas
+  // voir un `undefined` là où le shader verra un défaut. Corollaire voulu : un
+  // appelant qui ne passe rien (garde de registre, story de gabarit) décrit la
+  // configuration PAR DÉFAUT de l'effet — et non une configuration vide où
+  // toute condition serait fausse et où le panneau se viderait.
+  const valeurs: Record<string, number> = {};
+  for (const p of params) valeurs[p.name] = options.values?.[p.name] ?? p.default;
+
+  const sectionParParam = new Map<string, EffectSection>();
+  for (const section of sections) for (const name of section.params) sectionParParam.set(name, section);
+
   const firstIndexByKey = new Map<string, number>();
   const roleByKey = new Map<string, { label: string; hue?: EffectParam; saturation?: EffectParam; lightness?: EffectParam }>();
 
@@ -54,14 +106,14 @@ export function groupEffectParams(params: EffectParam[], controls: readonly Canv
     roleByKey.set(key, entry);
   });
 
-  let seenGroups = 0;
-  const items: ParamRenderItem[] = [];
   const spatialByParam = new Map<string, CanvasControl>();
   const spatialFirstIndex = new Map<string, number>();
+  const nomsParControle = new Map<string, string[]>();
   for (const control of controls) {
     const names = control.kind === "point" ? [control.x, control.y]
       : control.kind === "disk" ? [control.x, control.y, control.radius]
       : [control.angle, control.length];
+    nomsParControle.set(control.id, names);
     for (const name of names) {
       if (spatialByParam.has(name)) throw new Error(`Paramètre spatial partagé par plusieurs contrôles : "${name}".`);
       spatialByParam.set(name, control);
@@ -69,14 +121,57 @@ export function groupEffectParams(params: EffectParam[], controls: readonly Canv
       spatialFirstIndex.set(control.id, Math.min(spatialFirstIndex.get(control.id) ?? index, index));
     }
   }
+
+  // BLOCS ATOMIQUES. Un contrôle de toile et un groupe de couleur sont rendus
+  // comme UNE chose à partir de plusieurs paramètres : l'en-tête « sur la
+  // toile » se place à l'index du premier paramètre du contrôle, la pastille de
+  // couleur à celui du premier des trois rôles. Une section qui n'en citerait
+  // qu'une partie déplacerait la moitié du contrôle et laisserait l'autre en
+  // arrière — un en-tête sans ses curseurs, ou une pastille orpheline. Ça ne
+  // lève ni au type-check ni au chargement du registre, et aucune référence de
+  // pixels ne peut le voir : on le refuse ici, là où le déplacement a lieu.
+  const nommerSection = (name: string) => sectionParParam.get(name)?.id ?? "hors section";
+  const verifierBlocAtomique = (quoi: string, noms: readonly string[]) => {
+    const vues = [...new Set(noms.map(nommerSection))];
+    if (vues.length > 1) {
+      throw new Error(`${quoi} : ses paramètres sont répartis entre ${vues.join(" et ")}. Une section déplace un bloc atomique en entier, jamais à moitié.`);
+    }
+  };
+  for (const [id, noms] of nomsParControle) verifierBlocAtomique(`Contrôle de toile "${id}"`, noms);
+  for (const [key, entry] of roleByKey) {
+    const noms = [entry.hue?.name, entry.saturation?.name, entry.lightness?.name].filter((name): name is string => name !== undefined);
+    verifierBlocAtomique(`Groupe de couleur "${key}"`, noms);
+  }
+
+  // Un paramètre est masqué par SA condition, ou par celle de sa section — les
+  // deux se cumulent. ⚠️ Masquer n'efface pas : la valeur reste au calque, part
+  // telle quelle dans les presets, et le shader continue de la lire.
+  const masque = (p: EffectParam): boolean => {
+    if (p.appliesWhen && !conditionRemplie(p.appliesWhen, valeurs)) return true;
+    const section = sectionParParam.get(p.name);
+    return section?.appliesWhen !== undefined && !conditionRemplie(section.appliesWhen, valeurs);
+  };
+
+  let seenGroups = 0;
+  const plats: { item: ParamRenderItem; section: EffectSection | null }[] = [];
   params.forEach((p, index) => {
     if (excluded.has(p.name)) return;
+    const section = sectionParParam.get(p.name) ?? null;
     const spatial = spatialByParam.get(p.name);
     if (spatial && spatialFirstIndex.get(spatial.id) === index) {
-      items.push({ kind: "spatial-header", reactKey: `spatial:${spatial.id}`, id: spatial.id, label: spatial.label, controlKind: spatial.kind, visibleWhen: spatial.visibleWhen });
+      // L'en-tête suit la visibilité de son contrôle ET celle de ses
+      // paramètres : « sur la toile » au-dessus de rien annoncerait un réglage
+      // qui n'est plus là.
+      const vivants = (nomsParControle.get(spatial.id) ?? []).some((name) => {
+        const cible = params.find((candidate) => candidate.name === name);
+        return cible !== undefined && !excluded.has(name) && !masque(cible);
+      });
+      if (vivants && (!spatial.visibleWhen || conditionRemplie(spatial.visibleWhen, valeurs))) {
+        plats.push({ item: { kind: "spatial-header", reactKey: `spatial:${spatial.id}`, id: spatial.id, label: spatial.label, controlKind: spatial.kind }, section });
+      }
     }
     if (!p.colorGroup) {
-      items.push({ kind: "single", reactKey: `param:${p.name}`, param: p, spatialId: spatial?.id });
+      if (!masque(p)) plats.push({ item: { kind: "single", reactKey: `param:${p.name}`, param: p, spatialId: spatial?.id }, section });
       return;
     }
     if (firstIndexByKey.get(p.colorGroup.key) !== index) return;
@@ -84,10 +179,67 @@ export function groupEffectParams(params: EffectParam[], controls: readonly Canv
     if (!entry.hue || !entry.saturation || !entry.lightness) {
       throw new Error(`Groupe de couleur "${p.colorGroup.key}" incomplet : hue/saturation/lightness requis.`);
     }
-    items.push({ kind: "group", reactKey: `groupe:${p.colorGroup.key}`, key: p.colorGroup.key, label: entry.label, hue: entry.hue, saturation: entry.saturation, lightness: entry.lightness, isFirst: seenGroups === 0 });
+    // TOUT OU RIEN. `ColorGroupControl` a besoin de ses trois rôles pour
+    // afficher une pastille qui reflète une couleur modifiable : un masquage
+    // partiel n'est pas exprimable, il ne se DEVINE donc pas. Le groupe ne part
+    // que si ses trois paramètres sont sans objet.
+    if (masque(entry.hue) && masque(entry.saturation) && masque(entry.lightness)) return;
+    // `isFirst` compte les groupes RENDUS, pas les groupes déclarés : c'est lui
+    // qui décide du seul groupe déplié d'entrée, et un groupe masqué ne peut pas
+    // être celui-là.
+    plats.push({ item: { kind: "group", reactKey: `groupe:${p.colorGroup.key}`, key: p.colorGroup.key, label: entry.label, hue: entry.hue, saturation: entry.saturation, lightness: entry.lightness, isFirst: seenGroups === 0 }, section });
     seenGroups += 1;
   });
-  return items;
+
+  // Une section s'ouvre à la place de son PREMIER item et attire les suivants ;
+  // un item que nulle section ne cite reste à sa place, dans un bloc libre
+  // ouvert là où il se trouve (et non renvoyé vers le premier bloc libre, ce qui
+  // le déplacerait). Une section dont tous les items sont masqués n'ouvre aucun
+  // bloc : elle disparaît, en-tête compris — ADR-0001 prime sur la stabilité
+  // visuelle (arbitrage du plan, 2026-08-05).
+  const blocs: ParamRenderBlock[] = [];
+  const blocParSection = new Map<string, ParamRenderBlock>();
+  let libre: ParamRenderBlock | null = null;
+  for (const { item, section } of plats) {
+    if (!section) {
+      if (!libre) {
+        libre = { reactKey: `libre:${item.reactKey}`, label: null, layout: "liste", items: [] };
+        blocs.push(libre);
+      }
+      libre.items.push(item);
+      continue;
+    }
+    let bloc = blocParSection.get(section.id);
+    if (!bloc) {
+      bloc = { reactKey: `section:${section.id}`, label: section.label, layout: section.layout, items: [] };
+      blocParSection.set(section.id, bloc);
+      blocs.push(bloc);
+      // ⚠️ ON NE FERME LE BLOC LIBRE QUE SI UNE SECTION S'OUVRE ICI. Rejoindre
+      // une section DÉJÀ ouverte plus haut n'interrompt rien à cet endroit :
+      // fermer le bloc libre là aussi couperait en deux une suite de paramètres
+      // libres qui se suivent, pour n'y insérer aucun titre.
+      libre = null;
+    }
+    bloc.items.push(item);
+  }
+  return blocs;
+}
+
+/**
+ * Rend un bloc de paramètres selon son GABARIT (`SectionLayout`).
+ *
+ * Le gabarit ne choisit pas des pixels, il choisit un régime : toute la densité
+ * reste dans `ParamPanel.css`, par tokens. Exporté pour que les stories puissent
+ * montrer chaque gabarit — aucun effet du registre n'en déclare avant la tâche
+ * qui pose les sections.
+ */
+export function ParamSection({ label, layout, children }: { label: string | null; layout: SectionLayout; children: ReactNode }) {
+  return (
+    <div className={`param-panel__section param-panel__section--${layout}`}>
+      {label !== null && <div className="param-panel__section-title">{label}</div>}
+      <div className="param-panel__section-body">{children}</div>
+    </div>
+  );
 }
 
 interface Props {
@@ -275,15 +427,22 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
             }} onChange={(patch) => onParamChange(layer.id, Object.fromEntries(Object.entries(patch).map(([role, value]) => [declaration[role as keyof typeof declaration], value as number]))) }
               onCommit={onParamCommit} />;
           })()}
-          {groupEffectParams(effect.params, effect.canvasControls, controlledParams).map((item) =>
+          {/* Ce qui est MASQUÉ et ce qui est GROUPÉ se décide dans
+              `groupEffectParams`, sur le contrat déclaratif du module d'effet.
+              Le JSX ci-dessous ne connaît que des items et des gabarits — il
+              n'interroge jamais l'identité de l'effet. */}
+          {groupEffectParams(effect.params, effect.canvasControls, controlledParams, {
+            sections: effect.sections,
+            values: resolvedParams,
+          }).map((bloc) => (
+          <ParamSection key={bloc.reactKey} label={bloc.label} layout={bloc.layout}>
+          {bloc.items.map((item) =>
             item.kind === "spatial-header" ? (
-              (!item.visibleWhen || (Array.isArray(item.visibleWhen.equals)
-                ? item.visibleWhen.equals.includes(resolvedParams[item.visibleWhen.param])
-                : resolvedParams[item.visibleWhen.param] === item.visibleWhen.equals)) ? <div key={item.reactKey} className="param-panel__spatial-heading">
+              <div key={item.reactKey} className="param-panel__spatial-heading">
                 {item.controlKind === "axis" ? <MoveRight className="icon-sm icon-stroke" aria-hidden="true" /> : <CircleDot className="icon-sm icon-stroke" aria-hidden="true" />}
                 <span>{item.label}</span>
                 <span className="param-panel__spatial-hint">sur la toile</span>
-              </div> : null
+              </div>
             ) : item.kind === "single" && textureLibrary && effect.libraryTexture?.indexParam === item.param.name ? (
               // TEXTURE DE BIBLIOTHÈQUE. La valeur reste un nombre — le rang
               // dans le catalogue — mais un curseur afficherait « 3 » sans dire
@@ -395,6 +554,8 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
               />
             ),
           )}
+          </ParamSection>
+          ))}
         </div>
       </Disclosure>
     </div>

@@ -41,6 +41,63 @@
   padding-top: var(--space-2);
 }
 
+/* --- Gabarits de section (SectionLayout, 2026-08-05) ---------------------
+   Un gabarit ne choisit pas des pixels, il choisit un RÉGIME : la densité
+   reste réglée par les tokens et par ADR-0001. Cinq valeurs seulement, et
+   deux seulement ont une mise en page propre — `liste` est la colonne de
+   base, `pose` et `figure` délèguent à un contrôle spécialisé qui apporte la
+   sienne. Un gabarit sans règle ici retombe donc sur la colonne, ce qui est
+   le comportement voulu et non un oubli. */
+
+.param-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.param-panel__section-title {
+  /* Même registre typographique que l'en-tête de Disclosure (2xs capitales,
+     --tracking-label) : une section est une subdivision DANS un repli, elle
+     doit se lire comme un cran en dessous, d'où --text-tertiary. */
+  font-family: var(--font-ui);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.param-panel__section-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* `paire` — deux curseurs LIÉS sur une ligne (blackPoint/whitePoint, les
+   bornes d'une plage). Ils se lisent comme un seul réglage coupé en deux,
+   d'où la gouttière la plus étroite de l'échelle qui les sépare encore. Les
+   pistes doivent pouvoir se réduire : `minmax(0, 1fr)` et non `1fr`, sinon
+   la largeur minimale du champ de valeur empêcherait la colonne de rétrécir
+   et déborderait le dock. */
+.param-panel__section--paire .param-panel__section-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--space-3);
+  row-gap: var(--space-5);
+  align-items: end;
+}
+
+/* `grille` — curseurs COURTS en deux colonnes (les huit réglages de pavé de
+   glass). Deux colonnes de plus qu'en liste, donc deux fois moins de lignes :
+   c'est la seule raison d'être du gabarit, et l'interligne se resserre d'un
+   cran pour que le gain de hauteur ne soit pas rendu en gouttières. */
+.param-panel__section--grille .param-panel__section-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--space-4);
+  row-gap: var(--space-4);
+}
+
 .param-panel__spatial-heading {
   display: flex;
   align-items: center;

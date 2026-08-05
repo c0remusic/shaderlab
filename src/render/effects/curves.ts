@@ -1,4 +1,4 @@
-import type { CurveChannelControl, EffectModule, EffectParam } from "./types";
+import type { CurveChannelControl, EffectModule, EffectParam, EffectSection } from "./types";
 import { evaluateMonotoneCurve, type CurvePoint } from "../../ui/curveControl";
 
 const LUMA = [0.2126, 0.7152, 0.0722] as const;
@@ -33,6 +33,36 @@ const curveChannels: CurveChannelControl[] = CHANNEL_IDS.map((id, index) => ({
   label: CHANNEL_LABELS[index],
   ...channelParamNames(id),
 }));
+
+/**
+ * Les quatre canaux en SECTIONS — un groupe nommé par canal, et pas une liste de
+ * trente-deux entrées.
+ *
+ * D'OÙ ÇA VIENT. `curves` est le plus chargé du registre (37 paramètres), et 32
+ * sortent du `flatMap(channelParams)` ci-dessus : quatre fois les mêmes huit
+ * abscisses et ordonnées, dont le libellé EST leur propre nom (`redPoint2X`).
+ * Ces libellés n'ont jamais été écrits pour être lus — personne ne règle une
+ * courbe au curseur, c'est `CurveControl` qui les pilote, et `ParamPanel` les
+ * exclut déjà de sa liste (`controlledParams`). L'exclusion les rendait
+ * invisibles sans jamais dire à QUOI ils appartenaient ; la section le nomme.
+ *
+ * ⚠️ CE QUI RELIE UNE SECTION À SON CANAL, CE SONT LES PARAMÈTRES QU'ELLE CITE,
+ * pas son identifiant. Les deux sortent de `channelParamNames`, donc renommer un
+ * paramètre déplace la figure et la section ensemble. Un rapprochement par id se
+ * délierait en silence : une figure privée de ses paramètres ne lève rien, elle
+ * s'affiche vide.
+ */
+const channelSections: EffectSection[] = CHANNEL_IDS.map((id, index) => {
+  const names = channelParamNames(id);
+  return {
+    id: `canal-${id}`,
+    label: CHANNEL_LABELS[index],
+    // Ordre interne = celui de `channelParams`, donc celui de `params[]` : une
+    // section déplace un bloc entier, elle ne le retraverse pas.
+    params: [names.startY, ...names.points.flatMap((point) => [point.x, point.y]), names.endY],
+    layout: "figure",
+  };
+});
 
 function channelPoints(params: readonly number[], offset: number): CurvePoint[] {
   const points: CurvePoint[] = [{ x: 0, y: params[offset] }];
@@ -135,6 +165,25 @@ export const curves: EffectModule = {
     { name: "highlightsMin", label: "Début des hautes lumières", unit: "percent", min: 0, max: 1, default: 1, step: 0.001 },
     { name: "highlightsMax", label: "Fin des hautes lumières", unit: "percent", min: 0, max: 1, default: 1, step: 0.001 },
     { name: "mix", label: "Mélange", unit: "percent", min: 0, max: 1, default: 1, step: 0.01 },
+  ],
+  sections: [
+    ...channelSections,
+    {
+      // `figure` et non `paire`, alors que ce sont bien deux couples de bornes.
+      // Le gabarit décrit ce qui S'AFFICHE, et ces quatre-là ne s'affichent
+      // jamais en curseurs : `TonalRangeControl` les pilote, et `ParamPanel` les
+      // exclut de sa liste au même titre que les points de courbe. Déclarer
+      // `paire` promettrait deux lignes de curseurs que rien ne rendrait.
+      id: "plage-tonale",
+      label: "Plage tonale",
+      params: ["shadowsMin", "shadowsMax", "highlightsMin", "highlightsMax"],
+      layout: "figure",
+    },
+    // `mix` n'est cité par AUCUNE section, et c'est délibéré : il dose le
+    // résultat des quatre canaux à la fois, plus la plage tonale. Le ranger sous
+    // l'un d'eux le ferait passer pour son réglage ; lui inventer une section à
+    // lui seul rendrait un titre pour une ligne. Un paramètre non cité reste
+    // rendu à sa place, qui est ici la bonne — en dernier, sous tout ce qu'il dose.
   ],
   curveControls: [{ id: "curves", label: "Courbes", channels: curveChannels }],
   tonalRangeControl: { shadowsMin: "shadowsMin", shadowsMax: "shadowsMax", highlightsMin: "highlightsMin", highlightsMax: "highlightsMax" },

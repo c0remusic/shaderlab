@@ -1,3 +1,30 @@
+/**
+ * Condition d'affichage déclarative : « ceci ne s'affiche que si tel paramètre
+ * à `choices` vaut tel index ».
+ *
+ * UN SEUL TYPE POUR TROIS PORTEURS — `CanvasControl.visibleWhen` (le premier,
+ * 2026-08-02), `EffectParam.appliesWhen` et `EffectSection.appliesWhen`. Les
+ * trois posent la même question et `validateEffect` les vérifie par la même
+ * fonction. Trois copies auraient dérivé, et cette dérive-là ne se voit pas :
+ * une condition mal validée ne casse rien, elle masque — un contrôle absent ne
+ * se signale pas.
+ *
+ * ⚠️ LA CIBLE DOIT PORTER `choices` (vérifié). On compare un INDEX dans une
+ * liste nommée, jamais une valeur continue : un seuil sur un curseur serait une
+ * décision d'affichage cachée dans un nombre, que ni `validateEffect` ni un
+ * relecteur ne pourraient rattacher à ce qui la commande.
+ *
+ * ⚠️ L'index d'un choix est PERSISTÉ dans les presets, et une condition le cite
+ * en dur : ajouter une entrée à la FIN d'une liste de `choices` ne casse rien,
+ * en insérer une au milieu décale toutes les conditions qui la visent.
+ */
+export interface DisplayCondition {
+  /** Nom du paramètre à `choices` qui commande. */
+  param: string;
+  /** Index de choix — ou liste d'index — pour lesquels la condition est vraie. */
+  equals: number | number[];
+}
+
 export interface EffectParam {
   name: string;
   label: string;
@@ -5,6 +32,36 @@ export interface EffectParam {
   hint?: string;
   min: number;
   max: number;
+  /**
+   * Ce paramètre a-t-il un SENS aux réglages courants ? Absent = toujours (le
+   * cas de tous les paramètres écrits jusqu'ici).
+   *
+   * D'OÙ ÇA VIENT. 39 paramètres du registre portaient dans leur infobulle une
+   * mention « Sans objet en … » — une phrase que personne n'avait jamais
+   * mesurée, et que rien n'obligeait à rester vraie quand le shader bougeait.
+   * Campagne du 2026-08-05, 74 configurations rendues
+   * (`docs/superpowers/plans/2026-08-05-applicabilite-task1-resultats.md`) : 38
+   * déclarations exactes, et la 39ᵉ FAUSSE — `glass.flat` déplace 47 à 49 % des
+   * canaux en Martelé et en Écorce, où son infobulle le disait sans objet.
+   * Un curseur caché par sa propre documentation, que personne n'aurait trouvé.
+   * Ce champ sort la déclaration de la prose et la met là où `validateEffect`
+   * peut au moins la relire.
+   *
+   * ⚠️ CE N'EST PAS UNE VALIDATION DE VALEUR. Masquer ne borne rien : la valeur
+   * reste dans le calque, part telle quelle dans les presets, et le shader
+   * continue de la lire — ses clamps restent nécessaires. C'est voulu : revenir
+   * dans un mode où le paramètre s'applique doit le rendre agissant AVEC son
+   * réglage, masquer n'efface pas.
+   *
+   * ⚠️ CE N'EST PAS NON PLUS UN REMPLAÇANT D'INFOBULLE. Le masquage dit QUE le
+   * paramètre ne sert pas ici, l'infobulle dit POURQUOI. Les deux se gardent :
+   * porter une déclaration vers ce champ n'autorise pas à retirer le `hint`.
+   *
+   * Voie A tranchée (design §3) : déclaratif SEUL, aucune échappatoire
+   * prédicat. Un prédicat saurait tout exprimer et ne se relirait plus — ni par
+   * `validateEffect`, ni par qui cherche ce qui commande quoi.
+   */
+  appliesWhen?: DisplayCondition;
   /**
    * Maximum EFFECTIF aux réglages courants, quand il dépend d'un autre
    * paramètre. Absent = `max` tout court (le cas de tous les paramètres écrits
@@ -89,7 +146,7 @@ export interface EffectPass {
   enabled?: (params: Record<string, number>) => boolean;
 }
 
-export interface CanvasControlVisibility { visibleWhen?: { param: string; equals: number | number[] } }
+export interface CanvasControlVisibility { visibleWhen?: DisplayCondition }
 
 export type CanvasControl =
   | ({ id: string; kind: "point"; x: string; y: string; label: string } & CanvasControlVisibility)
@@ -137,6 +194,75 @@ export interface ColorRampControl {
   whitePoint: string;
 }
 
+/**
+ * Régime d'affichage d'une section — COMMENT ses contrôles se disposent.
+ *
+ * VOCABULAIRE FERMÉ, et c'est tout l'intérêt. « Que les contrôles soient
+ * optimisés pour l'affichage optimal de chaque mode » (Antoine, 2026-08-05) se
+ * lit naturellement comme une mise en page libre par effet : ce serait 21 mises
+ * en page à maintenir, et de la logique métier remontée dans `ParamPanel` — la
+ * frontière qu'`ARCHITECTURE.md` interdit de franchir (aucun `if (effectId)`
+ * dans `components/`). Chaque entrée ci-dessous répond à un besoin DÉJÀ présent
+ * dans le registre ; en ajouter une doit coûter une décision, faute de quoi la
+ * liste redevient de la mise en page libre en trois ajouts.
+ *
+ * ⚠️ UN GABARIT NE CHOISIT PAS DES PIXELS, il choisit un régime. La densité
+ * reste réglée par les tokens et par ADR-0001.
+ *
+ * - `liste`  — un curseur par ligne. L'existant, et le défaut.
+ * - `paire`  — deux curseurs liés sur une ligne : `blackPoint`/`whitePoint`,
+ *              qui traîne dans cinq effets, et les bornes d'une plage.
+ * - `grille` — curseurs courts en deux colonnes : les huit réglages de pavé de
+ *              `glass`, les quatre du mortier.
+ * - `pose`   — le réglage se manipule SUR l'image et non au curseur : c'est
+ *              `CanvasControl` (point / disque / axe), déjà là. Sans accent
+ *              dans le code ; le design l'appelle « posé ».
+ * - `figure` — un contrôle dessiné, propre à son domaine : `CurveControl`,
+ *              `ColorRampControl`, déjà là aussi.
+ */
+export type SectionLayout = "liste" | "paire" | "grille" | "pose" | "figure";
+
+/**
+ * Groupe nommé de paramètres d'un même effet, avec sa condition d'apparition et
+ * son gabarit.
+ *
+ * D'OÙ ÇA VIENT. `glass` porte 22 paramètres et, en Poli, 15 sont sans objet :
+ * l'utilisateur lit une liste plate dont les deux tiers ne servent à rien.
+ * `outlines` en porte 26 pour 18 combinaisons de ses trois modes croisés.
+ * `appliesWhen` seul ne suffit pas à ces deux-là — masquer ligne à ligne laisse
+ * une liste plate, plus courte. Ce qui manque est le GROUPE : « ce qui fabrique
+ * la pente » d'un côté, « ce qui s'applique aux quatorze matières » de l'autre.
+ *
+ * ⚠️ UN GROUPE N'EST PAS FORCÉMENT UN MODE. `lensFlare` a 30 paramètres et
+ * aucun `choices` : ses trois phénomènes s'ADDITIONNENT au lieu de s'exclure
+ * (ADR-0017), donc ses trois sections n'ont pas de condition. C'est la raison
+ * pour laquelle le contrat s'articule sur des groupes qui apparaissent
+ * ensemble, et pas sur « le mode ».
+ *
+ * ⚠️ C'EST UNE DONNÉE D'AFFICHAGE, PAS UN RÉORDONNANCEMENT DE `params[]`.
+ * L'index d'un paramètre est persisté dans les presets : `params[]` ne bouge
+ * jamais, une section regroupe des ITEMS DE RENDU. Corollaire non négociable :
+ * `groupEffectParams` s'appuie sur l'ordre de `params[]` en deux endroits
+ * (`spatialFirstIndex`, `firstIndexByKey`), donc une section déplace des BLOCS
+ * ENTIERS et ne les traverse jamais.
+ *
+ * Un paramètre qu'aucune section ne cite reste rendu à sa place : déclarer des
+ * sections n'oblige pas à toutes les écrire, et la moitié du registre n'a rien
+ * à y gagner — `glow` a 4 paramètres, `grain` 5, et ils ne doivent rien changer.
+ */
+export interface EffectSection {
+  /** Identifiant stable, unique dans l'effet (clé de rendu, état de repli). */
+  id: string;
+  /** Titre affiché. */
+  label: string;
+  /** Noms des paramètres regroupés. Chacun doit exister et n'être cité qu'une
+   *  seule fois, toutes sections confondues — `validateEffect` le vérifie. */
+  params: string[];
+  /** Section absente quand la condition est fausse. Absent = toujours présente. */
+  appliesWhen?: DisplayCondition;
+  layout: SectionLayout;
+}
+
 export interface EffectModule {
   id: string;
   name: string;
@@ -152,6 +278,9 @@ export interface EffectModule {
    *  first pass's input is the layer's normal source texture). Masking is NOT applied to internal
    *  passes — only to the final composite. */
   passes?: EffectPass[];
+  /** Regroupement d'AFFICHAGE des paramètres (voir `EffectSection`). Absent =
+   *  la liste plate, qui reste le défaut de tout le registre. */
+  sections?: EffectSection[];
   canvasControls?: CanvasControl[];
   curveControls?: CurveControl[];
   tonalRangeControl?: TonalRangeEffectControl;

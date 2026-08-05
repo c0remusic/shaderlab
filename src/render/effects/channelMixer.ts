@@ -1,4 +1,4 @@
-import type { EffectModule } from "./types";
+import type { EffectModule, EffectSection } from "./types";
 import {
   TRANSFER_SPACE_SRGB,
   TRANSFER_SPACE_WGSL,
@@ -174,6 +174,58 @@ function applyInks(
 
 const RANGE = { min: -1, max: 2, step: 0.01 } as const;
 
+/**
+ * UNE SECTION PAR CANAL DE SORTIE : la ligne qui le fabrique, puis l'encre dans
+ * laquelle il s'imprime.
+ *
+ * D'OÙ ÇA VIENT. La liste plate posait les neuf coefficients en haut et les
+ * trois pastilles dix rangs plus bas, séparées d'eux par les réglages communs.
+ * Régler « le rouge » demandait donc de faire l'aller-retour entre deux endroits
+ * du panneau — alors que c'est la MÊME algèbre : la ligne dit d'où le canal
+ * vient, l'encre dit en quoi il repart (point 4 de l'en-tête). Ce point-là
+ * concluait déjà que ce qui manquait n'était pas une capacité mais une PRISE ;
+ * la section est cette prise.
+ *
+ * ⚠️ LES TROIS RÔLES D'UNE ENCRE RESTENT DANS LA MÊME SECTION. `groupEffectParams`
+ * n'émet qu'UN item par `colorGroup.key`, à l'index de son premier rôle : citer
+ * la teinte ici et la saturation ailleurs découperait un bloc que le panneau ne
+ * sait rendre qu'entier. C'est l'invariant « une section déplace des blocs
+ * entiers, elle ne les traverse pas ».
+ *
+ * ⚠️ LES QUATRE RÉGLAGES COMMUNS RESTENT HORS SECTION, à leur place dans
+ * `params[]`. `preserveLuma` normalise les trois lignes, `monochrome` les fait
+ * toutes sortir de la seule ligne rouge, `transferSpace` choisit la courbe de
+ * toute la matrice et `colorize` dose les trois encres ensemble : aucun n'est le
+ * réglage d'UN canal, et le ranger sous l'un d'eux le dirait faux. Leur inventer
+ * une section « Commun » ne clarifierait rien non plus — un titre pour dire
+ * « tout le reste ». Le design le prévoit : un paramètre qu'aucune section ne
+ * cite reste rendu à sa place.
+ *
+ * Gabarit `liste` et non `grille` : « Rouge ← Vert » n'est pas un libellé court,
+ * et l'encre est une pastille repliable, pas un curseur. Deux colonnes étroites
+ * tronqueraient les uns et déformeraient l'autre.
+ */
+const outputSections: EffectSection[] = [
+  {
+    id: "sortie-rouge",
+    label: "Sortie rouge",
+    params: ["redFromRed", "redFromGreen", "redFromBlue", "redInkHue", "redInkSaturation", "redInkLightness"],
+    layout: "liste",
+  },
+  {
+    id: "sortie-verte",
+    label: "Sortie verte",
+    params: ["greenFromRed", "greenFromGreen", "greenFromBlue", "greenInkHue", "greenInkSaturation", "greenInkLightness"],
+    layout: "liste",
+  },
+  {
+    id: "sortie-bleue",
+    label: "Sortie bleue",
+    params: ["blueFromRed", "blueFromGreen", "blueFromBlue", "blueInkHue", "blueInkSaturation", "blueInkLightness"],
+    layout: "liste",
+  },
+];
+
 export const channelMixer: EffectModule = {
   id: "channelMixer",
   name: "Channel mixer",
@@ -243,6 +295,7 @@ export const channelMixer: EffectModule = {
       hint: "Remplace chaque canal de sortie par son encre — c'est le channel mixer « fausse couleur » de la référence. S'applique APRÈS la matrice : on peut séparer les canaux au filtre optique, puis les colorer",
     },
   ],
+  sections: outputSections,
   wgsl: `
 ${LINEAR_TO_SRGB_WGSL}${LINEAR_TO_SRGB_VEC3_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${TRANSFER_SPACE_WGSL}${HSL_TO_RGB_WGSL}
 fn mixRow(row: vec3<f32>, preserve: f32) -> vec3<f32> {

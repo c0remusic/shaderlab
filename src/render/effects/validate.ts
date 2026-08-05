@@ -1,5 +1,42 @@
-import type { EffectModule } from "./types";
+import type { DisplayCondition, EffectModule, EffectParam } from "./types";
 import { MAX_EFFECT_PARAMS } from "../shaderCompose";
+
+/**
+ * Valide une condition d'affichage (`DisplayCondition`), quel qu'en soit le
+ * porteur : un contrôle canvas, un paramètre, une section.
+ *
+ * FONCTION COMMUNE, PAS TROIS COPIES. Cette validation ne servait qu'à
+ * `CanvasControl.visibleWhen` ; deux porteurs se sont ajoutés le 2026-08-05.
+ * Une copie par porteur aurait dérivé sans que rien ne rougisse — une condition
+ * mal validée ne casse aucun rendu, elle masque un contrôle, et un contrôle
+ * absent ne se plaint pas.
+ *
+ * `contexte` ne sert qu'au message : c'est lui qui dit à l'auteur de l'effet
+ * LEQUEL de ses porteurs est fautif.
+ */
+function validerConditionDAffichage(
+  effectId: string,
+  params: Map<string, EffectParam>,
+  condition: DisplayCondition,
+  contexte: string,
+): void {
+  const cible = params.get(condition.param);
+  if (!cible) {
+    throw new Error(`Effet "${effectId}" : ${contexte} désigne le paramètre absent "${condition.param}".`);
+  }
+  const choix = cible.choices;
+  if (!choix) {
+    throw new Error(`Effet "${effectId}" : ${contexte} doit viser un paramètre choices.`);
+  }
+  const attendus = Array.isArray(condition.equals) ? condition.equals : [condition.equals];
+  if (attendus.length === 0 || new Set(attendus).size !== attendus.length) {
+    throw new Error(`Effet "${effectId}" : ${contexte} doit viser au moins un index de choix distinct.`);
+  }
+  const invalide = attendus.find((valeur) => !Number.isInteger(valeur) || valeur < 0 || valeur >= choix.length);
+  if (invalide !== undefined) {
+    throw new Error(`Effet "${effectId}" : ${contexte} vise l'index de choix invalide ${invalide}.`);
+  }
+}
 
 /**
  * Fail-fast au chargement du registry. Sans cette validation, un effet
@@ -16,6 +53,8 @@ export function validateEffect(effect: EffectModule): void {
         `Élargir MAX_EFFECT_PARAMS et le header WGSL ensemble si nécessaire.`
     );
   }
+
+  const params = new Map(effect.params.map((param) => [param.name, param]));
 
   // Paramètres à choix discret (`EffectParam.choices`). Les bornes et le pas ne
   // sont pas décoratifs : le panneau lit la valeur comme un INDEX dans le
@@ -73,8 +112,78 @@ export function validateEffect(effect: EffectModule): void {
     }
   }
 
+  // APPLICABILITÉ (`appliesWhen`). Ce que la validation attrape ici est une
+  // faute de frappe dans un nom ou un index — deux fautes qui, sans elle,
+  // produiraient exactement la même chose : un curseur qui ne s'affiche plus
+  // jamais, sans erreur, sans pixel modifié, sans test rouge.
+  for (const param of effect.params) {
+    if (!param.appliesWhen) continue;
+    if (param.appliesWhen.param === param.name) {
+      throw new Error(
+        `Effet "${effect.id}", paramètre "${param.name}" : \`appliesWhen\` se vise lui-même. ` +
+          `Un sélecteur qui se masque hors de son propre choix ne se rouvre plus.`
+      );
+    }
+    validerConditionDAffichage(effect.id, params, param.appliesWhen, `appliesWhen du paramètre "${param.name}"`);
+  }
+
+  // SECTIONS (`EffectModule.sections`). Elles ne réordonnent pas `params[]` —
+  // les index sont persistés dans les presets — elles regroupent des items de
+  // RENDU. Ce qui se vérifie donc ici est la cohérence de la CITATION : un nom
+  // qui n'existe pas ferait une section silencieusement plus courte, et un nom
+  // cité deux fois ferait apparaître le même curseur à deux endroits, pilotant
+  // la même valeur. Les deux se lisent comme un bug d'affichage, et aucune
+  // référence de rendu ne peut les voir.
+  if (effect.sections) {
+    const ids = new Set<string>();
+    const citePar = new Map<string, string>();
+    for (const section of effect.sections) {
+      if (ids.has(section.id)) throw new Error(`Effet "${effect.id}" : section dupliquée "${section.id}".`);
+      ids.add(section.id);
+      if (section.params.length === 0) {
+        throw new Error(
+          `Effet "${effect.id}", section "${section.id}" : aucun paramètre cité. Une section qui ` +
+            `DEVIENT vide parce que tous ses paramètres sont masqués disparaît d'elle-même à ` +
+            `l'affichage ; une section vide à la déclaration est une faute de frappe.`
+        );
+      }
+      for (const name of section.params) {
+        if (!params.has(name)) {
+          throw new Error(`Effet "${effect.id}", section "${section.id}" : désigne le paramètre absent "${name}".`);
+        }
+        const precedente = citePar.get(name);
+        if (precedente !== undefined) {
+          throw new Error(
+            `Effet "${effect.id}" : le paramètre "${name}" est cité par deux sections ` +
+              `("${precedente}" et "${section.id}").`
+          );
+        }
+        citePar.set(name, section.id);
+      }
+      // Les gabarits `pose` et `figure` ne dessinent rien par eux-mêmes : ils
+      // annoncent qu'un contrôle spécialisé de l'effet prend la place des
+      // curseurs. Les déclarer sur un effet qui n'en porte aucun rendrait une
+      // section titrée et VIDE. ⚠️ Ce garde prouve la PRÉSENCE du contrôle sur
+      // l'effet, pas que la section cite les paramètres que ce contrôle pilote.
+      if (section.layout === "pose" && !effect.canvasControls?.length) {
+        throw new Error(
+          `Effet "${effect.id}", section "${section.id}" : gabarit "pose" alors que l'effet ne ` +
+            `déclare aucun canvasControl — un réglage posé sur l'image a besoin de son contrôle.`
+        );
+      }
+      if (section.layout === "figure" && !effect.curveControls?.length && !effect.colorRampControls?.length) {
+        throw new Error(
+          `Effet "${effect.id}", section "${section.id}" : gabarit "figure" alors que l'effet ne ` +
+            `déclare ni curveControls ni colorRampControls.`
+        );
+      }
+      if (section.appliesWhen) {
+        validerConditionDAffichage(effect.id, params, section.appliesWhen, `appliesWhen de la section "${section.id}"`);
+      }
+    }
+  }
+
   if (effect.canvasControls) {
-    const params = new Map(effect.params.map((param) => [param.name, param]));
     const ids = new Set<string>();
     for (const control of effect.canvasControls) {
       if (ids.has(control.id)) throw new Error(`Effet "${effect.id}" : contrôle canvas dupliqué "${control.id}".`);
@@ -92,25 +201,12 @@ export function validateEffect(effect: EffectModule): void {
         throw new Error(`Effet "${effect.id}" : l'angle d'un axe canvas doit être en degrees.`);
       }
       if (control.visibleWhen) {
-        const conditionalParam = params.get(control.visibleWhen.param);
-        if (!conditionalParam?.choices) {
-          throw new Error(`Effet "${effect.id}" : visibleWhen doit viser un paramètre choices.`);
-        }
-        const choiceCount = conditionalParam.choices.length;
-        const expectedValues = Array.isArray(control.visibleWhen.equals) ? control.visibleWhen.equals : [control.visibleWhen.equals];
-        if (expectedValues.length === 0 || new Set(expectedValues).size !== expectedValues.length) {
-          throw new Error(`Effet "${effect.id}" : visibleWhen doit viser au moins un index de choix distinct.`);
-        }
-        const invalid = expectedValues.find((value) => !Number.isInteger(value) || value < 0 || value >= choiceCount);
-        if (invalid !== undefined) {
-          throw new Error(`Effet "${effect.id}" : visibleWhen vise l'index de choix invalide ${invalid}.`);
-        }
+        validerConditionDAffichage(effect.id, params, control.visibleWhen, "visibleWhen");
       }
     }
   }
 
   if (effect.curveControls) {
-    const params = new Map(effect.params.map((param) => [param.name, param]));
     const controlIds = new Set<string>();
     const channelIds = new Set<string>();
     const usedParams = new Set<string>();
@@ -144,7 +240,6 @@ export function validateEffect(effect: EffectModule): void {
   }
 
   if (effect.tonalRangeControl) {
-    const params = new Map(effect.params.map((param) => [param.name, param]));
     const names = Object.values(effect.tonalRangeControl);
     for (const name of names) if (!params.has(name)) throw new Error(`Effet "${effect.id}" : plage tonale désigne le paramètre absent "${name}".`);
     if (new Set(names).size !== names.length) throw new Error(`Effet "${effect.id}" : la plage tonale réutilise un paramètre.`);
@@ -155,7 +250,6 @@ export function validateEffect(effect: EffectModule): void {
   }
 
   if (effect.colorRampControls) {
-    const params = new Map(effect.params.map((param) => [param.name, param]));
     const controlIds = new Set<string>();
     const usedParams = new Set<string>();
     for (const control of effect.colorRampControls) {

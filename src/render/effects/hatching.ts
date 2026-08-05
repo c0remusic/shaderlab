@@ -1,4 +1,4 @@
-import type { EffectModule } from "./types";
+import type { DisplayCondition, EffectModule } from "./types";
 import { INK_TEXTURE_WGSL, inkTextureParams } from "./inkTexture";
 import { HSL_TO_RGB_WGSL } from "./hsl";
 import {
@@ -80,7 +80,24 @@ const MAX_LAYERS = 4;
  *  puisque le croisement par couches reste actif quelle que soit la forme. */
 const PATTERNS = ["Droites", "Ondulations", "Zigzag", "Cercles"] as const;
 const PATTERN_STRAIGHT = 0;
+const PATTERN_WAVES = 1;
+const PATTERN_ZIGZAG = 2;
 const PATTERN_CIRCLES = 3;
+
+/** Les deux formes qui SERPENTENT, nommées UNE fois.
+ *
+ *  Cette condition a deux porteurs — les deux réglages d'onde et la section qui
+ *  les regroupe — et c'est délibéré : sur les paramètres, elle rend une
+ *  propriété MESURÉE du shader (campagne du 2026-08-05, `waveAmplitude` et
+ *  `waveFrequency` inertes en Droites comme en Cercles) ; sur la section, elle
+ *  rend la décision d'AFFICHAGE de les lire ensemble. Réorganiser les sections
+ *  un jour ne doit pas rouvrir deux curseurs prouvés inertes, et c'est pour ça
+ *  que le paramètre garde la sienne.
+ *
+ *  Deux porteurs, mais une seule ÉCRITURE : deux listes d'index recopiées
+ *  divergeraient en silence — une section affichée là où ses deux curseurs sont
+ *  masqués ne rend qu'un titre vide, et aucun test de rendu ne peut le voir. */
+const EN_ONDE = { param: "pattern", equals: [PATTERN_WAVES, PATTERN_ZIGZAG] } satisfies DisplayCondition;
 
 export const hatching: EffectModule = {
   id: "hatching",
@@ -101,8 +118,16 @@ export const hatching: EffectModule = {
     // du blanc en perceptuel (qui demanderait un gamma manuel, interdit ici).
     { name: "wash", label: "Délavé du fond", unit: "percent", min: 0, max: 1, default: 0.75, step: 0.01, hint: "Éclaircit la photo sous la trame — 0 = tailles sur la photo intacte, 1 = estampe sur papier blanc" },
     { name: "pattern", label: "Forme des tailles", unit: "none", min: 0, max: PATTERNS.length - 1, default: PATTERN_STRAIGHT, step: 1, choices: [...PATTERNS], hint: "Droites : la taille-douce classique. Ondulations et Zigzag font serpenter les tailles. Cercles les enroule autour d'un point, et l'orientation n'a alors plus d'objet." },
-    { name: "waveAmplitude", label: "Amplitude de l'onde", unit: "pixels", min: 0, max: 60, default: 12, step: 0.5, hint: "De combien les tailles s'écartent de la ligne droite. Sans objet en Droites et en Cercles." },
-    { name: "waveFrequency", label: "Fréquence de l'onde", unit: "none", min: 0.2, max: 40, default: 6, step: 0.2, hint: "Nombre d'oscillations sur la plus petite dimension de la toile. Sans objet en Droites et en Cercles." },
+    // L'onde n'a de sens que pour les deux formes qui SERPENTENT — Ondulations
+    // (1) et Zigzag (2). Les Droites n'ont rien à faire onduler, et les Cercles
+    // ont leur propre géométrie. Les deux configurations excluantes ont été
+    // rendues SÉPARÉMENT le 2026-08-05
+    // (`docs/superpowers/plans/2026-08-05-applicabilite-task1-resultats.md`),
+    // parce qu'elles n'empruntent pas la même branche de `hatch_coord` :
+    // « inerte en Droites » ne dit rien de « inerte en Cercles ».
+    // L'infobulle reste — le masquage dit QUE, elle seule dit POURQUOI.
+    { name: "waveAmplitude", label: "Amplitude de l'onde", unit: "pixels", min: 0, max: 60, default: 12, step: 0.5, appliesWhen: EN_ONDE, hint: "De combien les tailles s'écartent de la ligne droite. Sans objet en Droites et en Cercles." },
+    { name: "waveFrequency", label: "Fréquence de l'onde", unit: "none", min: 0.2, max: 40, default: 6, step: 0.2, appliesWhen: EN_ONDE, hint: "Nombre d'oscillations sur la plus petite dimension de la toile. Sans objet en Droites et en Cercles." },
     { name: "centerX", label: "Centre X", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Point autour duquel les tailles s'enroulent. Ne sert qu'en Cercles." },
     { name: "centerY", label: "Centre Y", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Voir Centre X." },
     // ── ENCRE RÉELLE (transversal, `inkTexture.ts`), ajoutée À LA FIN le
@@ -112,6 +137,103 @@ export const hatching: EffectModule = {
   // Le scan arrive par le binding 7. Interdit les passes internes
   // (`validateEffect`) — sans conséquence, `hatching` est mono-passe.
   libraryTexture: { indexParam: "encreRang" },
+  /**
+   * CINQ SECTIONS, ET LA FORME DES TAILLES EN COMMANDE DEUX.
+   *
+   * Cet effet tient en deux temps : une GÉOMÉTRIE de trame (par où passent les
+   * tailles, à quelle charge, combien de fois croisées) puis un ENCRAGE (avec
+   * quoi on trace, sur quel papier, et sur quelle plage de tons). Entre les
+   * deux, `pattern` choisit la forme de la ligne — et deux blocs de réglages ne
+   * fabriquent leur géométrie que pour certaines de ces formes : l'onde ne fait
+   * serpenter que les Ondulations et le Zigzag, le centre n'enroule que les
+   * Cercles. Ce sont exactement ces deux blocs-là qui portent une condition ;
+   * la trame, la tonalité et l'encre servent les quatre formes et n'en portent
+   * aucune.
+   *
+   * ⚠️ `pattern` EST DANS « Trame », DONC DANS UNE SECTION SANS CONDITION. Un
+   * sélecteur de mode rangé dans une section conditionnelle disparaîtrait avec
+   * elle et ne se rouvrirait jamais — la panne exacte que `validateEffect`
+   * refuse déjà quand un `appliesWhen` se vise lui-même.
+   *
+   * ⚠️ AUCUN INDEX N'A BOUGÉ : une section cite des NOMS et regroupe des items
+   * de RENDU, `params[]` reste dans l'ordre où les presets le lisent. L'ordre
+   * d'affichage DANS une section reste celui de `params[]`, donc l'ordre de
+   * citation ci-dessous est documentaire — il est écrit dans l'ordre des index
+   * pour que personne n'y lise une intention de tri. Conséquence visible et
+   * assumée : `pattern` (index 11) s'affiche EN BAS de sa section, sous des
+   * réglages qu'il commande, exactement comme `detectMode` dans `outlines`.
+   *
+   * ⚠️ LE GROUPE DE COULEUR RESTE ENTIER dans « Encre » : `ParamPanel` ancre la
+   * pastille à l'index du premier de ses trois rôles, donc une section qui n'en
+   * citerait que deux casserait le contrôle au lieu de le déplacer.
+   *
+   * `wash` est rangé dans « Encre » et non dans « Tonalité » : il ne touche pas
+   * la réponse tonale des tailles, il éclaircit le PAPIER sous elles — ce qui
+   * reste de la photo dans l'estampe relève de l'encrage, pas de la plage.
+   */
+  sections: [
+    {
+      // OÙ PASSENT LES TAILLES. Direction, finesse, charge, croisement, nombre
+      // de passages, forme de la ligne : les six réglages qui décident du
+      // tracé, avant toute question d'encre. Liste et non grille — le gabarit
+      // en colonnes est fait pour des réglages COURTS, et ces six-là portent
+      // des libellés longs dont une liste de choix.
+      id: "trame",
+      label: "Trame",
+      layout: "liste",
+      params: ["angle", "spacing", "weight", "crossAngle", "layers", "pattern"],
+    },
+    {
+      // LES DEUX BORNES D'UNE MÊME PLAGE, donc une paire : au-dessus du point
+      // blanc plus aucune taille n'est tracée, sous le point noir toutes les
+      // couches saturent. Aucun des deux ne se règle sans regarder l'autre —
+      // le shader refuse d'ailleurs de les laisser se croiser.
+      id: "tonalite",
+      label: "Tonalité",
+      layout: "paire",
+      params: ["blackPoint", "whitePoint"],
+    },
+    {
+      // AVEC QUOI ON TRACE, ET SUR QUOI. La couleur du trait et le délavé du
+      // fond sont les deux seuls réglages qui déposent de la matière ; les
+      // séparer aurait fait deux sections d'une ligne.
+      id: "encre",
+      label: "Encre",
+      layout: "liste",
+      params: ["inkHue", "inkSaturation", "inkLightness", "wash"],
+    },
+    {
+      // Amplitude et fréquence ne veulent rien dire l'une sans l'autre — c'est
+      // la même onde, décrite par ses deux dimensions — d'où la paire plutôt
+      // que deux lignes pleine largeur.
+      id: "onde",
+      label: "Onde",
+      layout: "paire",
+      appliesWhen: EN_ONDE,
+      params: ["waveAmplitude", "waveFrequency"],
+    },
+    {
+      // ⚠️ CETTE CONDITION-CI N'EST PAS MESURÉE, contrairement à celle de
+      // l'onde. Elle repose sur la lecture complète du flux : `centerPx` n'a
+      // qu'un lecteur, `hatch_coord`, qui ne s'en sert que dans sa branche
+      // Cercles. C'est pourquoi elle est portée par la SECTION et par elle
+      // seule — une décision d'affichage se relit ici, alors qu'un
+      // `appliesWhen` posé sur les deux paramètres se lirait comme un verdict
+      // de la campagne du 2026-08-05, qui ne les a jamais vus : leur infobulle
+      // dit « Ne sert qu'en Cercles », phrase que le relevé des « Sans objet
+      // en … » n'a pas ramassée.
+      //
+      // Les coordonnées d'un point vont par deux par nature. Pas de gabarit
+      // `pose` malgré leur unité en percent : cet effet ne déclare aucun
+      // `canvasControl`, et une section « posée » sans contrôle sur la toile
+      // serait un titre au-dessus de rien (refusé par `validateEffect`).
+      id: "centre",
+      label: "Centre",
+      layout: "paire",
+      appliesWhen: { param: "pattern", equals: PATTERN_CIRCLES },
+      params: ["centerX", "centerY"],
+    },
+  ],
   wgsl: `
 ${HSL_TO_RGB_WGSL}${LINEAR_TO_SRGB_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${INK_TEXTURE_WGSL}
 const HATCH_LUMA = vec3<f32>(0.2126, 0.7152, 0.0722);

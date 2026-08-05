@@ -172,6 +172,10 @@ const TOLERER_ARRONDI = has("--tolerer-arrondi");
  *  Table dans `scripts/applicabilite-table.mjs`. */
 const APPLICABILITE = has("--applicabilite");
 const DECL_ONLY = flag("--declaration", null);
+/** Ecrit les deux rendus de chaque configuration en PNG, pour REGARDER un
+ *  verdict au lieu de le lire. Un chiffre dit qu'un curseur bouge ; il ne dit
+ *  pas ce qu'il fait, et c'est ce qu'il fait qui s'arbitre. */
+const IMAGES = flag("--images", null);
 
 /* ── CDP ────────────────────────────────────────────────────────────────── */
 
@@ -2726,6 +2730,12 @@ const INSTALL = `(async () => {
           curseurMax: curseur.max,
           signal: signal.n,
           signalMax: signal.max,
+          largeur: W,
+          hauteur: H,
+          // Les octets ne repartent que si on les demande : une reponse CDP
+          // par configuration reste petite dans le cas courant.
+          imageBas: s.images ? b64(bas) : null,
+          imageHaut: s.images ? b64(haut) : null,
         });
       } catch (e) {
         return JSON.stringify({ ok: false, error: String(e && e.stack ? e.stack : e) });
@@ -2959,7 +2969,7 @@ async function eprouverApplicabilite(cdp) {
     let inerte = true;
     let concluant = false;
     for (const c of d.configs) {
-      const spec = { effet: d.effet, mire: d.mire, base: c.base, param: d.param, a: d.a, b: d.b };
+      const spec = { effet: d.effet, mire: d.mire, base: c.base, param: d.param, a: d.a, b: d.b, images: Boolean(IMAGES) };
       const raw = JSON.parse(
         await cdp.evaluate(`window.__renderCheck.applicabilite(${JSON.stringify(JSON.stringify(spec))})`),
       );
@@ -2967,6 +2977,16 @@ async function eprouverApplicabilite(cdp) {
         lignes.push({ label: c.label, etat: "ERREUR", detail: raw.error.split("\n")[0] });
         inerte = false;
         continue;
+      }
+      if (IMAGES && raw.imageBas) {
+        mkdirSync(IMAGES, { recursive: true });
+        const nom = `${d.id}--${c.label}`.replace(/[^a-zA-Z0-9-]+/g, "-").toLowerCase();
+        for (const [suffixe, b64Pixels, valeur] of [["min", raw.imageBas, d.a], ["max", raw.imageHaut, d.b]]) {
+          const octets = Buffer.from(b64Pixels, "base64");
+          const fichier = path.join(IMAGES, `${nom}--${suffixe}-${valeur}.png`);
+          writeFileSync(fichier, encodePng(octets, raw.largeur, raw.hauteur));
+          console.log(`  image  ${path.relative(process.cwd(), fichier)}`);
+        }
       }
       const partSignal = raw.signal / raw.canaux;
       const partCurseur = raw.curseur / raw.canaux;

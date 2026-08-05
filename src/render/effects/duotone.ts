@@ -36,17 +36,27 @@ export const duotone: EffectModule = {
    * `pivot + 0.3`, largeur pilotée par `contrast`) et ne touchent AUCUNE
    * couleur. Mélangés dans une liste plate, les deux se cherchent.
    *
-   * UNE SECTION PAR ENCRE, plutôt qu'une seule section « Couleurs » : les trois
-   * pastilles sont des blocs ATOMIQUES (trois rôles chacune, dont
-   * `groupEffectParams` ne tire qu'un item), et l'ordre de `params[]` les donne
-   * déjà dans l'ordre de l'axe tonal. Le titre nomme la PLACE sur l'axe, la
-   * pastille montre la couleur qui s'y trouve — aucun item ne se déplace.
+   * ⚠️ UNE SEULE SECTION, ET IL Y EN A EU QUATRE. Les trois encres avaient
+   * chacune la leur — « Ombres », « Ton moyen », « Hautes lumières » — sur
+   * l'idée que « le titre nomme la PLACE sur l'axe, la pastille montre la
+   * couleur qui s'y trouve ». L'idée était juste et ne s'est pas réalisée : la
+   * pastille porte le MÊME libellé que le titre, donc le panneau affichait
+   * « Ton moyen » sous « TON MOYEN », trois fois. Trois lignes de hauteur pour
+   * répéter trois mots, ce que la checklist ADR-0001 ne laisse pas passer — et
+   * une section d'un seul item ne regroupe rien de toute façon. Retirées le
+   * 2026-08-05 sur arbitrage d'Antoine.
    *
-   * ⚠️ « TON MOYEN » MANQUE AU PLAN, et c'est une omission de sa part. Task 5
-   * ter annonce « Ombres · Hautes lumières · Tonalité » — le duotone classique à
-   * deux encres, alors que celui-ci en a trois depuis le début. La ranger sous
-   * « Tonalité » aurait mis une COULEUR sous un titre qui ne parle que de
-   * placement, à côté de deux curseurs qui n'en produisent aucune.
+   * CE QUI RESTE VAUT MIEUX QUE CE QUI PART. Les trois pastilles ne sont pas
+   * pour autant en vrac : `groupEffectParams` les rend dans un bloc LIBRE, à
+   * leur place dans `params[]`, qui est déjà l'ordre de l'axe tonal. Le seul
+   * titre du panneau est alors *Tonalité*, et il tranche ce qu'il devait
+   * trancher — les deux curseurs qui ne produisent aucune couleur.
+   *
+   * LE DÉFAUT S'EST FAIT VOIR PAR UN TEST, pas à l'œil : `getByText("Ombres")`
+   * dans `ParamPanel.stories` a levé « Found multiple elements » le jour où les
+   * sections sont arrivées. Une story qui rougit sur une requête ambiguë dit
+   * qu'un mot apparaît deux fois à l'écran ; c'est un signal d'affichage
+   * gratuit, à ne pas neutraliser sans regarder ce qu'il montre.
    *
    * ⚠️ `paire` ICI N'A NI POINT NOIR NI POINT BLANC. Le plan écrit « paire sur
    * les points noir et blanc » ; duotone n'en a pas — il n'a pas de rampe à
@@ -57,9 +67,6 @@ export const duotone: EffectModule = {
    * rend, pas une paire de noms.
    */
   sections: [
-    { id: "ombres", label: "Ombres", layout: "liste", params: ["shadowHue", "shadowSaturation", "shadowLightness"] },
-    { id: "ton-moyen", label: "Ton moyen", layout: "liste", params: ["midtoneHue", "midtoneSaturation", "midtoneLightness"] },
-    { id: "hautes-lumieres", label: "Hautes lumières", layout: "liste", params: ["highlightHue", "highlightSaturation", "highlightLightness"] },
     { id: "tonalite", label: "Tonalité", layout: "paire", params: ["contrast", "pivot"] },
   ],
   wgsl: `

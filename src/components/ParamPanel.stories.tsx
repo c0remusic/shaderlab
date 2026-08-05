@@ -219,12 +219,13 @@ export const LockedLayer: Story = {
     await expectInert(contrast);
     await expect(contrast).toHaveValue("80 %");
     // ⚠️ REQUÊTE PORTÉE SUR LA LIGNE DE LA PASTILLE, et non sur tout le panneau.
-    //    « Ombres » y apparaît DEUX fois depuis que `duotone` déclare une
-    //    section par encre (2026-08-05) : le titre de la section, et le libellé
-    //    de la pastille qu'elle contient. Un `getByText` global y devient
-    //    ambigu et lève — c'est ainsi que la duplication s'est fait voir.
-    //    Ce qu'on veut prouver ici est que le LIBELLÉ de la pastille reste lu
-    //    sous verrou, pas qu'un titre de section existe.
+    //    Un `getByText("Ombres")` global a levé « Found multiple elements » le
+    //    2026-08-05 : `duotone` avait reçu une section par encre, titrée du même
+    //    mot que la pastille qu'elle contient. Les trois sections ont été
+    //    retirées depuis (voir `duotone.ts`), donc la requête globale
+    //    repasserait — on garde la portée quand même, parce que ce qu'on veut
+    //    prouver ici est que le LIBELLÉ DE LA PASTILLE reste lu sous verrou, et
+    //    qu'un titre de section voisin n'a pas à pouvoir y répondre à sa place.
     await expect(within(pastilleOmbres.parentElement!).getByText("Ombres")).toBeInTheDocument();
 
     // 5. Clavier : un contrôle inerte ne se pilote pas non plus au clavier.

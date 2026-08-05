@@ -59,20 +59,17 @@ c'est la seconde qui est ouverte ici. Ne pas lire « 18 références vertes » c
 | 2 | **Pile / Propriétés / Masque** | Le nouveau flux, sur une pile **dense** — c'est la densité qui est en question, pas le flux à deux calques |
 | 3 | **Verre** | Les matières sur une vraie photo. Le **Dépoli** est marqué « à raffiner » par Antoine et n'a pas été retouché depuis |
 | 4 | **Les cinq pavés** | À l'usage, et ajuster le rendu si besoin — livrés et verrouillés, jamais regardés sur une photo |
-| 5 | **Sections des panneaux** | Le découpage en blocs titrés, livré le 2026-08-05 sur les 22 effets. Un point précis à trancher : voir ci-dessous |
+| 5 | **Sections des panneaux** | Le découpage en blocs titrés, livré le 2026-08-05 sur les 22 effets. Aucun n'a été regardé sur une vraie photo, sauf `texture`, `dither` et `duotone` |
 
-⚠️ **Le seul défaut d'affichage que le checkpoint a déjà trouvé, et il attend un
-arbitrage et non un correctif.** Les trois sections d'encre de `duotone` portent
-le MÊME mot que la pastille qu'elles contiennent — « Ton moyen » sous
-« TON MOYEN », « Hautes lumières » sous « HAUTES LUMIÈRES », idem pour Ombres.
-Trois lignes de hauteur pour répéter trois mots, ce qui va contre ADR-0001.
-L'intention écrite dans `duotone.ts` était « le titre nomme la PLACE sur l'axe,
-la pastille montre la couleur » ; elle ne se réalise pas, puisque les deux
-portent le même libellé. Trois issues : retirer les trois sections (une section
-d'un seul item ne regroupe rien), renommer les titres, ou renommer les
-`colorGroup.label`. C'est un choix de vocabulaire, donc celui d'Antoine.
-La duplication s'est fait voir parce qu'un `getByText("Ombres")` de story est
-devenu ambigu et a levé — la story a été corrigée, le doublon reste.
+✅ Le seul défaut d'affichage trouvé jusqu'ici est **corrigé** : les trois
+sections d'encre de `duotone` répétaient le libellé de la pastille qu'elles
+contenaient (« Ton moyen » sous « TON MOYEN »), soit trois lignes pour trois
+mots — contre ADR-0001. Retirées le 2026-08-05 ; les trois pastilles reviennent
+dans un bloc libre, à leur place, et *Tonalité* reste le seul titre. Il s'était
+fait voir par un test, pas à l'œil : `getByText("Ombres")` levait « Found
+multiple elements ». **Une story qui rougit sur une requête ambiguë dit qu'un
+mot apparaît deux fois à l'écran** — signal gratuit, à ne pas neutraliser sans
+regarder ce qu'il montre.
 
 Protocole : `npm run dev:debug` puis `npm run dev:monitor`. Vérifier
 `Get-Process -Name shaderlab` avant — le script tue toute instance de la machine.

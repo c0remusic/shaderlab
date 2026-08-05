@@ -152,11 +152,11 @@ import { comparePixels, verdictFor } from "./lib/pixelDiff.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REF_DIR = path.join(HERE, "..", "test", "render-refs");
-// Texture de test des scenarios `texture` et `encre`. GENEREE et versionnee
-// (`scripts/make-texture-fixture.mjs`), jamais un scan du dossier Images de
-// quelqu un : une reference de pixels doit se reproduire a l identique sur
-// n importe quelle machine.
-const TEXTURE_MIRE = path.join(HERE, "..", "test", "fixtures", "textures", "mire-encre.png");
+// La texture de test des scenarios `texture` et `encre` est GENEREE DANS LA
+// PAGE (`mireEncre`), pas lue sur disque : ce harnais n a AUCUN acces IPC,
+// ses modules venant d un Vite separe dont Tauri refuse les commandes. Il n y
+// a donc aucun chemin a resoudre ici — voir `TEXTURE_MIRE` dans le bloc
+// injecte, qui n est qu un identifiant de catalogue.
 
 const argv = process.argv.slice(2);
 const flag = (name, fallback) => {
@@ -1400,9 +1400,9 @@ const INSTALL = `(async () => {
     // TEXTURE, l effet qui echantillonne un SCAN. Sa propriete distinctive n est
     // pas d assombrir ou d eclaircir — c est de poser une image EXTERIEURE et de
     // la transformer. Une mire ne peut le montrer que si la texture porte des
-    // structures reconnaissables : d ou la mire generee, qui superpose des
-    // cellules de 32 px, des bandes diagonales et du detail au texel
-    // (scripts/make-texture-fixture.mjs).
+    // structures reconnaissables : d ou la mire generee mireEncre (plus haut
+    // dans ce fichier), qui superpose des cellules de 32 px, des bandes
+    // diagonales et du detail au texel.
     //
     // La ROTATION est reglee a 31 degres et le decalage non nul EXPRES : a
     // rotation nulle et decalage nul, un bug qui ignorerait ces deux parametres

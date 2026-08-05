@@ -166,6 +166,12 @@ const ONLY = flag("--scenario", null);
 const UPDATE = has("--update");
 const DIAGNOSTIC = has("--diagnostic");
 const TOLERER_ARRONDI = has("--tolerer-arrondi");
+/** Eprouve les declarations « Sans objet » du registre au lieu de comparer aux
+ *  references. Rien a voir avec la non-regression : ce mode ne lit ni n'ecrit
+ *  `test/render-refs/`, il MESURE si un curseur declare inerte l'est.
+ *  Table dans `scripts/applicabilite-table.mjs`. */
+const APPLICABILITE = has("--applicabilite");
+const DECL_ONLY = flag("--declaration", null);
 
 /* ── CDP ────────────────────────────────────────────────────────────────── */
 
@@ -2667,6 +2673,66 @@ const INSTALL = `(async () => {
         r.dispose();
       }
     },
+    // EPROUVE UNE DECLARATION « Sans objet » (Task 1 du plan de
+    // rationalisation des controles). Trois rendus sur la MEME configuration :
+    // la photo de fond seule, puis l'effet avec le parametre au minimum, puis
+    // au maximum.
+    //
+    // Deux chiffres sortent, et le second n'est pas decoratif. « Zero ecart
+    // entre min et max » a DEUX causes : le curseur est inerte, ou l'effet
+    // entier ne fait rien dans cette configuration. Sans le second chiffre
+    // (l'ecart contre le fond) la sonde rendrait « inerte » sur un effet
+    // eteint — le defaut meme que \`verifierSignal\` corrige plus bas.
+    async applicabilite(json) {
+      const s = JSON.parse(json);
+      const mires = {
+        mire: () => mire(W, H, 0),
+        mireBokeh: () => mireBokeh(W, H),
+        mireRampe: () => mireRampe(W, H),
+        mireBarres: () => mireBarres(W, H),
+        mireBruit: () => mireBruit(W, H),
+        mireLampes: () => mireLampes(W, H),
+        mireDamierNeutre: () => mireDamierNeutre(W, H),
+        mireVerre: () => mireVerre(W, H),
+      };
+      if (!mires[s.mire]) return JSON.stringify({ ok: false, error: "mire inconnue: " + s.mire });
+      const r = new Renderer(pass.ctx);
+      try {
+        await r.loadImage(await mires[s.mire](), { width: W, height: H });
+        // \`openDocument\` est pur : il relit l'etat du renderer et rend une pile
+        // NEUVE. Trois appels sur le meme renderer ne s'accumulent donc pas.
+        const rendre = async (params) => {
+          const stack = openDocument(r, "fond").stack;
+          if (params) stack.updateParams(stack.addLayer(s.effet), params);
+          return (await r.exportFrame(normalize(stack))).pixels;
+        };
+        const fond = await rendre(null);
+        const bas = await rendre(Object.assign({}, s.base, { [s.param]: s.a }));
+        const haut = await rendre(Object.assign({}, s.base, { [s.param]: s.b }));
+        const ecart = (x, y) => {
+          let n = 0, max = 0;
+          for (let i = 0; i < x.length; i++) {
+            const d = Math.abs(x[i] - y[i]);
+            if (d) { n++; if (d > max) max = d; }
+          }
+          return { n, max };
+        };
+        const curseur = ecart(bas, haut);
+        const signal = ecart(bas, fond);
+        return JSON.stringify({
+          ok: true,
+          canaux: bas.length,
+          curseur: curseur.n,
+          curseurMax: curseur.max,
+          signal: signal.n,
+          signalMax: signal.max,
+        });
+      } catch (e) {
+        return JSON.stringify({ ok: false, error: String(e && e.stack ? e.stack : e) });
+      } finally {
+        r.dispose();
+      }
+    },
     // Mesure la dependance a l'horloge de la surface de PRESENTATION — la
     // chose meme qu'une capture d'ecran mesure et que ce harnais refuse de
     // mesurer. Reconfigure un canvas detache en COPY_SRC pour pouvoir relire
@@ -2857,6 +2923,104 @@ function verifierSignal(results, ids, meta) {
   return true;
 }
 
+/** Part de canaux en dessous de laquelle une CONFIGURATION est jugee morte —
+ *  l'effet n'y fait rien, donc elle ne peut rien dire du curseur. Cale sur le
+ *  meme raisonnement que `MIN_PART_SIGNAL` et sur la meme mesure. */
+const MIN_SIGNAL_CONFIG = 0.03;
+
+/**
+ * TASK 1 du plan de rationalisation des controles : eprouver les 39
+ * declarations « Sans objet » au lieu de les croire.
+ *
+ * Trois verdicts, et le troisieme est celui qui rend la sonde honnete :
+ *  - INERTE      le curseur ne deplace aucun canal, et l'effet AGIT bien ici ;
+ *  - VIVANT      le curseur deplace des canaux la ou l'infobulle dit qu'il
+ *                n'en deplace aucun. C'est un defaut trouve, pas un resultat
+ *                de mesure : soit l'infobulle ment, soit le shader a un trou ;
+ *  - NON CONCLUANT  l'effet ne fait rien dans cette configuration, donc
+ *                l'absence d'ecart ne prouve rien du curseur. Sans ce verdict
+ *                la sonde rendrait « inerte » sur un effet eteint.
+ */
+async function eprouverApplicabilite(cdp) {
+  const { DECLARATIONS } = await import("./applicabilite-table.mjs");
+  const declarations = DECL_ONLY ? DECLARATIONS.filter((d) => d.id === DECL_ONLY) : DECLARATIONS;
+  if (declarations.length === 0) throw new Error(`Declaration inconnue: ${DECL_ONLY}`);
+
+  const mesures = declarations.reduce((n, d) => n + d.configs.length, 0);
+  console.log(
+    `Applicabilite : ${declarations.length} declaration(s), ${mesures} configuration(s), ` +
+      "3 rendus chacune (fond, min, max).\n",
+  );
+  await cdp.evaluate("window.__renderCheck.openPass()");
+
+  const verdicts = [];
+  for (const d of declarations) {
+    const lignes = [];
+    let inerte = true;
+    let concluant = false;
+    for (const c of d.configs) {
+      const spec = { effet: d.effet, mire: d.mire, base: c.base, param: d.param, a: d.a, b: d.b };
+      const raw = JSON.parse(
+        await cdp.evaluate(`window.__renderCheck.applicabilite(${JSON.stringify(JSON.stringify(spec))})`),
+      );
+      if (!raw.ok) {
+        lignes.push({ label: c.label, etat: "ERREUR", detail: raw.error.split("\n")[0] });
+        inerte = false;
+        continue;
+      }
+      const partSignal = raw.signal / raw.canaux;
+      const partCurseur = raw.curseur / raw.canaux;
+      if (partSignal < MIN_SIGNAL_CONFIG) {
+        lignes.push({
+          label: c.label,
+          etat: "MUET",
+          detail: `l'effet ne deplace que ${(partSignal * 100).toFixed(3)} % des canaux — configuration morte`,
+        });
+        inerte = false;
+        continue;
+      }
+      concluant = true;
+      if (raw.curseur === 0) {
+        lignes.push({ label: c.label, etat: "inerte", detail: `effet actif sur ${(partSignal * 100).toFixed(1)} % des canaux` });
+      } else {
+        inerte = false;
+        lignes.push({
+          label: c.label,
+          etat: "VIVANT",
+          detail: `${raw.curseur} canaux (${(partCurseur * 100).toFixed(3)} %), max ${raw.curseurMax}`,
+        });
+      }
+    }
+    const verdict = lignes.some((l) => l.etat === "ERREUR")
+      ? "ERREUR"
+      : lignes.some((l) => l.etat === "VIVANT")
+        ? "VIVANT"
+        : !concluant || lignes.some((l) => l.etat === "MUET")
+          ? "NON CONCLUANT"
+          : "inerte";
+    verdicts.push({ id: d.id, verdict, declare: d.declare, lignes });
+  }
+  await cdp.evaluate("window.__renderCheck.closePass()");
+
+  for (const v of verdicts) {
+    const tag = v.verdict === "inerte" ? "OK    " : v.verdict === "VIVANT" ? "VIVANT" : "?     ";
+    console.log(`${tag} ${v.id.padEnd(28)} ${v.verdict === "inerte" ? "" : v.verdict}`);
+    for (const l of v.lignes) console.log(`         ${l.etat.padEnd(7)} ${l.label.padEnd(22)} ${l.detail}`);
+  }
+
+  const compte = (q) => verdicts.filter((v) => v.verdict === q).length;
+  console.log(
+    `\nInertes ${compte("inerte")} · VIVANTS ${compte("VIVANT")} · non concluants ` +
+      `${compte("NON CONCLUANT")} · erreurs ${compte("ERREUR")} — sur ${verdicts.length} declarations.`,
+  );
+  if (compte("VIVANT")) {
+    console.log(
+      "\nUn VIVANT n'est pas un echec de la sonde : c'est une infobulle qui ment ou un\n" +
+        "shader qui a un trou. Les deux se tranchent a la main, pas au harnais.",
+    );
+  }
+}
+
 const cdp = await connect(PORT, ORIGIN);
 try {
   await main(cdp);
@@ -2880,6 +3044,8 @@ async function main(cdp) {
     for (const [k, v] of Object.entries(d)) if (k !== "canaux") console.log(`  ${String(v).padStart(8)}  ${k}`);
     return;
   }
+
+  if (APPLICABILITE) return await eprouverApplicabilite(cdp);
 
   console.log(
     `Mire ${meta.width}x${meta.height}, ${ids.length} scenario(s), 2 passes independantes ` +

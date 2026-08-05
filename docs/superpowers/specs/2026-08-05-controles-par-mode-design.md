@@ -147,14 +147,49 @@ catégories, qui ne sont pas les mêmes partout.
   *paire* pour `blackPoint`/`whitePoint`, qui traîne dans cinq effets.
 - **Lumière.** `glow` et `halation` (4 et 6 paramètres) n'ont **rien** à gagner
   et ne doivent rien changer. `lensFlare` gagne trois sections cumulatives.
-- **Déformation.** `warp` a 9 types pour 10 paramètres : c'est le cas où le
-  masquage seul suffit, sans section.
-- **Texture.** `grain`, 5 paramètres. Ne rien faire.
+- **Déformation.** `warp` a 9 types pour 10 paramètres : neuf régimes derrière
+  une seule liste.
+- **Texture.** `grain`, 5 paramètres, un mode à deux branches. Le plus petit cas
+  du registre.
 
-⚠️ **La moitié du registre n'a rien à gagner à ce chantier**, et le dire
-maintenant évite de le découvrir en refondant un effet à 4 paramètres. Le
-bénéfice est concentré sur `glass`, `outlines`, `lensFlare`, `curves`,
-`channelMixer`, `gradientMap` — six effets, tous au-dessus de 16 paramètres.
+### ⚠️ CORRECTION du 2026-08-05 — ce paragraphe disait le contraire du §2
+
+La version initiale concluait ici que « la moitié du registre n'a rien à gagner »
+et retenait **six effets, tous au-dessus de 16 paramètres**. Antoine a relevé
+l'omission ; elle était réelle, et c'était une **contradiction interne** — pas
+un oubli.
+
+Le §2 établit que ce qui appelle des sections est le **mode EXCLUSIF** (le choix
+qui change la nature de l'effet). Ce paragraphe filtrait sur un tout autre
+critère : le **nombre de paramètres**. Les deux ne désignent pas les mêmes
+effets, et c'est le mauvais qui était parti en exécution.
+
+**Le nombre de curseurs dit combien l'écran est CHARGÉ ; le nombre de modes
+exclusifs dit combien de panneaux DIFFÉRENTS se cachent derrière une seule
+liste.** Ce sont deux mesures sans rapport :
+
+| Effet | Paramètres | Régimes exclusifs | Retenu par le mauvais critère ? |
+| --- | --- | --- | --- |
+| `curves` | **37** | **1** | oui, à tort — un seul régime |
+| `dither` | 14 | **14** (`style` 7 × `distribution` 2) | non, à tort — quatorze panneaux |
+| `warp` | 10 | **9** | non, à tort |
+
+### Le critère, corrigé
+
+**Tout effet portant un mode EXCLUSIF reçoit des sections commandées par ce
+mode.** Neuf effets sont concernés : `glass`, `outlines`, `warp`, `dither`,
+`lensBlur`, `hatching`, `halftone`, `motionBlur`, `lensDistortion`.
+
+S'y ajoutent, pour une raison différente, les effets **sans** mode exclusif mais
+dont les paramètres forment des blocs thématiques nets : `lensFlare` (trois
+phénomènes cumulatifs, §2C), `curves` (quatre canaux), `channelMixer` (un canal
+de sortie par bloc), `gradientMap` (rampe, tonalité, répétition).
+
+**Treize effets au total.** Restent dehors, et cette fois pour la bonne raison —
+ni mode exclusif, ni bloc thématique : `glow` (4 paramètres), `halation` (6),
+`grain` (5), `duotone` (11), `gooeyMerge` (11), `pixelStretch` (12),
+`sliceShift` (8), `isolines` (18). Le dernier est le seul discutable : 18
+paramètres, mais son `inputMode` est un mode de RÉGLAGE (§2B), pas exclusif.
 
 ---
 

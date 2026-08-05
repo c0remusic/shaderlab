@@ -98,8 +98,59 @@ Un fichier par effet, indépendants les uns des autres :
 - **`gradientMap`** — *Rampe* (`figure`) · *Tonalité* (`paire` pour
   blackPoint/whitePoint) · *Répétition*.
 
-⚠️ **Ne toucher à AUCUN autre effet.** `glow` (4 params) et `grain` (5) ne
-doivent rien changer — la moitié du registre n'a rien à gagner ici.
+### ⚠️ Task 5 bis — les SEPT effets omis par la première passe
+
+Le périmètre ci-dessus filtrait sur le nombre de paramètres, alors que le design
+§2 dit que le critère est le **mode exclusif**. Correction relevée par Antoine
+le 2026-08-05 ; voir le §4 du design pour le raisonnement.
+
+**Tout effet portant un mode exclusif reçoit des sections commandées par ce
+mode.** Sept manquaient :
+
+| Effet | Mode exclusif | Ce que ça donne |
+| --- | --- | --- |
+| `warp` | `type`(9) | neuf régimes de déformation derrière une liste de 10 |
+| `dither` | `style`(7) × `distribution`(2) | **quatorze** panneaux dans une liste de 14 |
+| `lensBlur` | `fieldShape`(4) | Uniforme / Linéaire / Iris / Radial |
+| `hatching` | `pattern`(4) | Droites / Ondulations / Zigzag / Cercles |
+| `halftone` | `colorMode`(4) | quatre régimes de trame |
+| `motionBlur` | `trajectory`(3) | Directionnel / Rotation / Zoom |
+| `lensDistortion` | `aberrationMode`(3) | Latérale / Longitudinale / Anamorphique |
+
+Ces sept portent déjà leurs `appliesWhen` (Task 4, faite) : il ne manque que le
+regroupement. Les paramètres déjà masqués par `appliesWhen` n'ont pas à être
+re-conditionnés — une section peut se contenter de les CONTENIR.
+
+### Task 5 ter — les HUIT derniers : plus aucun effet dehors
+
+Arbitrage d'Antoine, 2026-08-05 : « il faut quand même optimiser leurs contrôles
+même s'ils n'ont qu'une option ». **Les 21 effets du registre sont donc dans le
+périmètre**, et les deux listes d'exclusion précédentes tombent.
+
+**TOUS reçoivent des sections** (arbitrage confirmé : « qu'ils aient des
+sections »). Aucune exception, y compris les effets à quatre paramètres.
+
+| Effet | Paramètres | Sections |
+| --- | --- | --- |
+| `isolines` | 18 | Détection · Trait · Couleurs · Fond |
+| `pixelStretch` | 12 | Zone (son disque posé) · Étirement · Rendu |
+| `duotone` | 11 | Ombres · Hautes lumières · Tonalité (`paire` sur noir/blanc) |
+| `gooeyMerge` | 11 | Fusion · Teinte |
+| `sliceShift` | 8 | Découpe · Décalage · Bords |
+| `halation` | 6 | Seuil · Halo |
+| `grain` | 5 | Grain · Réponse tonale |
+| `glow` | 4 | Seuil · Diffusion |
+
+⚠️ **Objection soulevée puis levée par Antoine, notée pour le prochain lecteur.**
+Sur un effet à quatre paramètres, deux titres de section coûtent de la hauteur
+au lieu d'en rendre — c'est la lettre d'ADR-0001. La cohérence l'emporte ici :
+un panneau qui a des sections sur la moitié des effets et pas sur l'autre oblige
+l'utilisateur à réapprendre la carte à chaque changement d'effet, et c'est un
+coût qui ne se voit pas dans une mesure de hauteur.
+
+**Conséquence à surveiller au checkpoint** : c'est sur `glow` et `grain` que le
+risque se matérialiserait. Si la carte y devient plus haute qu'avant, le gabarit
+des titres doit maigrir — pas les sections disparaître.
 
 ## Task 6 — `glass.flat`, libellé conditionnel
 

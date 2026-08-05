@@ -16,6 +16,7 @@ export const effectCategoryById: Readonly<Record<string, EffectCategory>> = {
   glow: "Lumière",
   halation: "Lumière",
   lensFlare: "Lumière",
+  lightLeak: "Lumière",
   lensDistortion: "Optique",
   lensBlur: "Optique",
   motionBlur: "Optique",

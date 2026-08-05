@@ -2765,6 +2765,65 @@ const INSTALL = `(async () => {
       },
     },
 
+    // LIGHT LEAK (2026-08-05), et DEUX references pour un seul effet — la
+    // seconde n est pas une illustration, c est la preuve que sa couleur est
+    // DERIVEE et non peinte.
+    //
+    // Sur \`mireBokeh\`, pour la meme raison que \`lensFlare\` : c est la seule mire
+    // du dossier qui soit essentiellement NOIRE, et une coulee posee en Ecran ne
+    // se lit que sur du sombre. Ses points isoles servent en prime de temoin du
+    // mode de fusion — l Ecran doit les laisser intacts la ou la coulee est
+    // noire.
+    //
+    // ⚠️ LE MODE DE FUSION EST POSE A LA MAIN. \`defaultBlendMode\` est applique
+    // par \`App.tsx\` a l ajout du calque, PAS par \`LayerStack.addLayer\` : le
+    // modele de calques ne connait pas le registre d effets. Sans cette ligne le
+    // calque serait en Normal et la reference verrouillerait la coulee seule sur
+    // fond noir — ce qui ne prouverait rien du compositing.
+    "effet-light-leak": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const points = await mireBokeh(W, H);
+        const sourceId = await r.photoSources.register(points);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bokeh");
+        const a = stack.addLayer("lightLeak", p);
+        stack.updateParams(a, {
+          origineX: 1, origineY: 0.32, direction: 195, portee: 0.62,
+          largeur: 0.13, ouverture: 1.1, attenuation: 1.5,
+          intensite: 1.35, chaleur: 0.55,
+          irregularite: 0.38, echelleBruit: 5.5, graine: 0,
+        });
+        at(stack, a).blendMode = "screen";
+      },
+    },
+
+    // LE MEME, COUCHES D EMULSION EGALISEES (chaleur 0). Tout est identique par
+    // ailleurs — meme geometrie, meme bruit, meme graine — donc l ecart entre
+    // les deux images EST la reponse chromatique du film, et rien d autre.
+    //
+    // Ce que ce temoin rend opposable : que le degrade rouge-orange-jaune-blanc
+    // sort d un MECANISME (trois saturations exponentielles a vitesses
+    // differentes) et non de trois arrets de couleur poses a la main. Si un jour
+    // quelqu un remplacait le modele par une rampe peinte, cette paire cesserait
+    // de se comporter comme elle se comporte : a chaleur 0 une rampe peinte
+    // resterait coloree, la ou ce modele rend une coulee strictement neutre.
+    "effet-light-leak-neutre": {
+      contre: "effet-light-leak",
+      build: async (r, stack) => {
+        const points = await mireBokeh(W, H);
+        const sourceId = await r.photoSources.register(points);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bokeh");
+        const a = stack.addLayer("lightLeak", p);
+        stack.updateParams(a, {
+          origineX: 1, origineY: 0.32, direction: 195, portee: 0.62,
+          largeur: 0.13, ouverture: 1.1, attenuation: 1.5,
+          intensite: 1.35, chaleur: 0,
+          irregularite: 0.38, echelleBruit: 5.5, graine: 0,
+        });
+        at(stack, a).blendMode = "screen";
+      },
+    },
+
     // ── LES TROIS SOURCES PARAMETRIQUES, CHACUNE SEULE ────────────────────
     //
     // Elles n avaient AUCUNE reference le 2026-08-05 : le registre en sert

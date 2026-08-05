@@ -89,9 +89,15 @@ describe("lensDistortion — il ne double ni glow ni halation", () => {
     // appartient aux halos et pas à ce bloc-ci, qui traite ce que la FORME du
     // verre déforme. L'assertion porte donc sur la frontière entre les deux
     // familles, et non plus sur un voisin nommé — un voisin, ça se remplace.
+    //
+    // ⚠️ LA LISTE A GRANDI LE 2026-08-05, et ce test a rougi pour la bonne
+    // raison — c'est son travail. `lightLeak` entre chez les halos par la même
+    // règle que `lensFlare` : il AJOUTE de la lumière sans déformer l'image.
+    // Élargir cette liste doit rester un geste conscient, sinon la frontière
+    // que ce test garde se déplacerait toute seule.
     expect(getEffect("lensDistortion")).toBe(lensDistortion);
     const i = effectRegistry.indexOf(lensDistortion);
-    const halos = ["glow", "halation", "lensFlare"];
+    const halos = ["glow", "halation", "lensFlare", "lightLeak"];
     expect(halos).toContain(effectRegistry[i - 1].id);
     // Tout ce qui précède est un halo, rien de ce qui suit ne l'est.
     expect(effectRegistry.slice(0, i).map((e) => e.id)).toEqual(halos);

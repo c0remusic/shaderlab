@@ -52,6 +52,18 @@ const ATTENDU = {
   // que le guide du calque du bas etait la toile VIDE. Voir
   // docs/adr/0004-image-de-guide-du-masque-edge-aware.md.
   "masque-edge-aware-calque-du-bas.png": { width: 256, height: 256, valeurs: null },
+  // LIGHT LEAK (2026-08-05), et DEUX références pour un seul effet. Sur
+  // `mireBokeh` pour la même raison que `lensFlare` : c'est la seule mire
+  // essentiellement NOIRE du dossier, et une coulée posée en Écran ne se lit que
+  // sur du sombre. Ses points isolés servent en prime de témoin du mode de
+  // fusion.
+  //
+  // La seconde n'est pas une illustration : elle égalise les trois couches
+  // d'émulsion (`chaleur` 0) sans rien changer d'autre, donc l'écart entre les
+  // deux images EST la réponse chromatique du film. Les deux assertions plus bas
+  // en font une mesure et pas une intention.
+  "effet-light-leak.png": { width: 256, height: 256, valeurs: null },
+  "effet-light-leak-neutre.png": { width: 256, height: 256, valeurs: null },
   // LES TROIS SOURCES PARAMÉTRIQUES, CHACUNE SEULE (2026-08-05). Le registre en
   // sert trois (`mask/sources/registry.ts`) et AUCUNE n'avait de verrou propre :
   // `masque-pinceau-degrade` ci-dessus fait tourner le dégradé, mais en passager
@@ -780,6 +792,80 @@ describe("references de rendu committees", () => {
     for (const seuil of [16, 24, 32, 48]) {
       expect(filaments("photo-de-fond-seule.png", seuil)).toBe(0);
     }
+  });
+
+  /* ── LIGHT LEAK : la couleur est DÉRIVÉE, pas peinte (2026-08-05) ───────────
+   *
+   * Le cahier de postproduction (ligne 330) décrit la recette à la main :
+   * « dégradés rouge, orange ou jaune ». La recopier aurait donné trois arrêts
+   * de couleur posés dans un dégradé — la même palette, et rien derrière. Le
+   * module part du mécanisme : les trois couches de l'émulsion ne saturent pas à
+   * la même vitesse sous une lumière chaude, donc chaque canal suit
+   * `1 - exp(-énergie · k)` avec kR > kV > kB.
+   *
+   * Les deux assertions ci-dessous sont ce qui rend cette phrase opposable. Sans
+   * elles, remplacer le modèle par une rampe peinte passerait les références au
+   * premier `--update` venu : les images se ressembleraient.
+   */
+
+  /** Écart max entre canaux d'un pixel — 0 sur un gris parfait. */
+  const ecartCanaux = (p, i) =>
+    Math.max(Math.abs(p[i] - p[i + 1]), Math.abs(p[i + 1] - p[i + 2]), Math.abs(p[i] - p[i + 2]));
+
+  it("light leak : à couches ÉGALISÉES, la coulée est strictement neutre", () => {
+    // `chaleur` à 0 met les trois vitesses de saturation à la même valeur. Le
+    // modèle rend alors du gris PUR, ce qu'une rampe peinte à trois arrêts
+    // chauds ne peut pas faire : il faudrait qu'elle désature ses arrêts, donc
+    // qu'elle porte une seconde construction pour ce seul cas.
+    const img = decodePng(readFileSync(path.join(REF_DIR, "effet-light-leak-neutre.png")));
+    let mesures = 0, neutres = 0;
+    for (let i = 0; i < img.pixels.length; i += 4) {
+      const L = 0.2126 * img.pixels[i] + 0.7152 * img.pixels[i + 1] + 0.0722 * img.pixels[i + 2];
+      if (L < 8) continue; // hors coulée : la mire est noire
+      mesures++;
+      if (ecartCanaux(img.pixels, i) <= 2) neutres++;
+    }
+    // La mesure porte sur des milliers de pixels, pas sur une poignée.
+    expect(mesures).toBeGreaterThan(8000);
+    // 97,5 % mesurés. Les 2,5 % restants ne sont PAS du bruit : ce sont les
+    // seize points colorés de `mireBokeh` qui transparaissent sous l'Écran —
+    // leur couleur vient de la mire, pas de la coulée. Le seuil est à 95 %,
+    // donc au-dessus de ce que les points seuls peuvent expliquer.
+    expect(neutres / mesures).toBeGreaterThan(0.95);
+  });
+
+  it("light leak : la chaleur culmine à MI-ÉNERGIE, elle ne monte pas avec la clarté", () => {
+    // LA SIGNATURE DU MODÈLE, et ce qu'aucun dégradé peint ne produit
+    // naturellement. Trois saturations exponentielles à vitesses différentes
+    // donnent forcément une BOSSE : au pied de la coulée tout est faible donc
+    // l'écart absolu R-B est petit ; à mi-course le rouge sature quand le bleu
+    // traîne, donc l'écart est maximal ; au cœur les trois saturent et l'image
+    // revient vers le blanc.
+    //
+    // Mesuré sur la référence, par tranches de 26 niveaux de luminance :
+    //   15,0 · 25,7 · 37,4 · 30,9 · 58,4 · 64,7 · 67,0 · 60,9 · 45,9 · 27,8
+    // Une rampe peinte du rouge au blanc rendrait une suite DÉCROISSANTE, et une
+    // rampe du blanc au rouge une suite croissante ; les deux échoueraient ici.
+    const img = decodePng(readFileSync(path.join(REF_DIR, "effet-light-leak.png")));
+    const seaux = Array.from({ length: 10 }, () => []);
+    for (let i = 0; i < img.pixels.length; i += 4) {
+      const L = 0.2126 * img.pixels[i] + 0.7152 * img.pixels[i + 1] + 0.0722 * img.pixels[i + 2];
+      if (L < 8) continue;
+      seaux[Math.min(9, Math.floor(L / 26))].push(img.pixels[i] - img.pixels[i + 2]);
+    }
+    const peuplées = seaux.filter((s) => s.length >= 200);
+    expect(peuplées.length).toBe(10);
+    const chaleurs = peuplées.map((s) => s.reduce((a, b) => a + b, 0) / s.length);
+
+    const sommet = chaleurs.indexOf(Math.max(...chaleurs));
+    // Le sommet est INTÉRIEUR : ni au pied ni au cœur de la coulée.
+    expect(sommet).toBeGreaterThan(0);
+    expect(sommet).toBeLessThan(chaleurs.length - 1);
+    // Et il domine franchement les deux extrémités. Mesuré : 4,5x le pied et
+    // 2,4x le cœur ; le seuil est à 1,8x, donc sous les deux avec de la marge
+    // des deux côtés.
+    expect(chaleurs[sommet]).toBeGreaterThan(1.8 * chaleurs[0]);
+    expect(chaleurs[sommet]).toBeGreaterThan(1.8 * chaleurs[chaleurs.length - 1]);
   });
 
   /* ── COLORED EDGES : la roue doit être PERCEPTUELLEMENT régulière (2026-08-02)

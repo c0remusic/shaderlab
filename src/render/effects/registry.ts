@@ -22,6 +22,7 @@ import { glass } from "./glass";
 import { lensFlare } from "./lensFlare";
 import { curves } from "./curves";
 import { texture } from "./texture";
+import { lightLeak } from "./lightLeak";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 
 // Les six du milieu suivent l'ordre de priorité du backlog d'effets confirmé par
@@ -59,6 +60,22 @@ export const effectRegistry: EffectModule[] = [
   // DÉFORMATION — l'image derrière ne bouge pas d'un pixel — c'est de la
   // lumière AJOUTÉE. Première question de la famille, pas la troisième.
   lensFlare,
+  // `lightLeak` (2026-08-05) ferme la famille des halos À QUATRE, et la règle
+  // qui l'y admet est celle qui décide dans les deux sens depuis ADR-0014 : un
+  // halo AJOUTE de la lumière, il ne déforme pas l'image. Celui-ci n'en ajoute
+  // même que ça — il ne lit pas un seul texel de ce qui est en dessous.
+  //
+  // C'est justement ce qui le distingue des trois autres, et le distingue ASSEZ
+  // pour justifier une quatrième entrée plutôt qu'un mode : `glow`, `halation`
+  // et `lensFlare` partent tous les trois des hautes lumières DE L'IMAGE et les
+  // transforment (étaler, réexposer, réfléchir). Une fuite ne vient pas de
+  // l'image du tout — elle vient d'un jeu du boîtier, en aval de l'objectif et
+  // en amont de l'émulsion. Aucun des trois ne peut la produire à aucun
+  // réglage, et elle ne peut produire aucun des trois.
+  //
+  // Il vient du cahier de postproduction (ligne 330) et non du backlog Figma,
+  // épuisé depuis le 2026-07-31.
+  lightLeak,
   // `lensDistortion` (2026-08-03) a ABSORBÉ `anamorphicStreak` (ADR-0014), qui
   // occupait cette place depuis le 2026-08-01. La traînée bleue sur un seul axe
   // n'était pas un halo de plus : c'est ce que fait le VERRE cylindrique d'un

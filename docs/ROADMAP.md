@@ -92,21 +92,27 @@ conçoit rien — il isole la question qui bloquait.
 state React, sur le patron `imageSource` / `PhotoSourceStore`. Formes et
 typographie passent par le même mécanisme. Le design d'effet peut donc
 commencer ; il reste à écrire, ainsi que le plan.
-**Le masque par tonalité entre dans ce bloc** (tranché le 2026-08-05). Il n'y
-a donc plus d'arbitrage ouvert ici.
+Il n'y a plus d'arbitrage ouvert ici.
 
 - ~~textures / scans~~ — **LIVRÉ le 2026-08-05**, design et preuve dans
   `docs/superpowers/specs/2026-08-05-textures-scans-design.md` ;
+- ~~masque par tonalité~~ — **IL EXISTE DÉJÀ**, et ce document a écrit deux
+  fois le contraire (« qui n'existe toujours pas », « meilleur rapport du
+  cahier »). Mesuré sur disque le 2026-08-05 : `mask/sources/luminosity.ts` est
+  au registre des sources de masque avec `gradient` et `colorRange`, câblé de
+  bout en bout — `MaskPanel` le propose et lui donne ses réglages, `App`
+  l'ajoute, `LayerStack` et `MaskTextureResolver` le consomment, son shader
+  compile sous `gpu-shader-check` (« masque source:luminosity »), et il a ses
+  stories. Deux rampes `smoothstep` sur la luminance Rec.709 en linéaire, plus
+  tolérance et inversion. ⚠️ **La leçon vaut plus que l'item** : `git log` et
+  ce fichier disaient tous deux qu'il restait à faire ; c'est le registre lu
+  sur disque qui a tranché. Ce qui reste éventuellement ouvert dessus n'est
+  plus « l'écrire » mais « l'éprouver » — aucune référence de pixels ne
+  verrouille les sources de masque paramétriques ;
 - light leaks ;
 - formes ;
 - typographie ;
 - finalisation du recadrage ;
-- **masque par tonalité** — extension de `LayerMask`, PAS un effet. Il vient du
-  point 1 du tri du cahier de postproduction : beaucoup de ses recettes sont
-  des piles, et ce qui leur manque n'est pas un effet de plus mais de pouvoir
-  restreindre un calque à une plage de tons. Meilleur rapport
-  recettes-débloquées par ligne de code du cahier, et il ne dépend d'aucun
-  autre sujet du bloc ;
 - éventuelles extensions du modèle de document / calques.
 
 ⚠️ **Les textures ne sont PAS passées par un effet, et le cadrage du même jour
@@ -166,13 +172,15 @@ traitement existe déjà.
 par Antoine, **666 lignes** de workflows Photoshop/Lightroom. Il alimente
 directement ce chantier (§4 textures et matières, §6 collage, ombres graphiques,
 scan de tirage) et porte **son propre tri à faire**, écrit en fin de fichier —
-cinq points, dont **un soldé** :
+cinq points, dont **deux soldés** :
 
-- beaucoup de ses recettes sont des **piles**, pas des effets — la question
+- ✅ beaucoup de ses recettes sont des **piles**, pas des effets — la question
   n'est pas « quel effet écrire » mais « que manque-t-il à la pile ». Sa réponse
-  était **un masque par tonalité**, qui n'existe toujours pas, et qui n'est pas
-  un effet : c'est une **extension de `LayerMask`**. Plusieurs recettes
-  débloquées sans un seul shader — le meilleur rapport du cahier ;
+  était **un masque par tonalité**, qui n'est pas un effet mais une extension de
+  `LayerMask` : **`mask/sources/luminosity.ts`, déjà au registre et câblé**
+  (constat du 2026-08-05, voir le bloc 2). Ce point était compté comme ouvert
+  dans les deux sens — ici et dans la liste du bloc 2 — alors que le code
+  répondait ;
 - ✅ la famille des **courbes** y revenait partout : soldée, `curves` est au
   registre depuis le 2026-08-04 ;
 - le doublon se **mesure** avant de s'écrire ;

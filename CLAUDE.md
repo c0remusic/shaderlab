@@ -81,9 +81,16 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   d'audit). Détail d'implémentation à ne pas approximer : `context.configure()`
   n'accepte PAS de variante `-srgb` — on configure le canvas avec
   `navigator.gpu.getPreferredCanvasFormat()` et on déclare la variante srgb en
-  `viewFormats`, la vue srgb servant à la passe finale (`gpuContext.ts:64-78`).
+  `viewFormats`, la vue srgb servant à la passe finale
+  (`gpuContext.ts:155-164` — cette référence a pointé 64-78 jusqu'au
+  2026-08-11, soit ~90 lignes à côté).
   Ne jamais coder `rgba8unorm-srgb` en dur : c'est `bgra8unorm` sur
   Windows/D3D12. L'ordre des canaux est transparent en WGSL via `textureSample`.
+  ⚠️ **Cet invariant ne peut PAS s'appliquer à un chemin de rendu flottant** :
+  aucun format flottant n'a de variante `-srgb` (vérifié en spec W3C le
+  2026-08-11). Tout travail 16-bit — l'export print du `PRD-print-export.md` —
+  bute donc dessus avant sa première ligne. Voir
+  `.scratch/prochain-palier/research/01-16-bit-hors-du-depot.md`.
 - **Pas de distinction preview/export** — un seul pipeline, résolution
   native, toujours (décision utilisateur explicite, pas de downscale).
 - JPEG traité comme sRGB, pas de lecture de profil ICC en v1 (limitation

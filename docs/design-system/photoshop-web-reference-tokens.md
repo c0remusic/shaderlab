@@ -6,20 +6,35 @@ cf. règle NG19). Valeurs extraites par `getComputedStyle` sur les éléments r�
 (perçant le Shadow DOM des web components Adobe `UE-*`/`PSW-*`/`SP-*`), pas
 estimées depuis un screenshot (règle NG20).
 
-## Constat structurel majeur (à trancher avec Antoine avant d'implémenter)
+## Constat structurel majeur — ✅ TRANCHÉ ET EXÉCUTÉ, section corrigée le 2026-08-11
 
-Photoshop web n'utilise **PAS** des panneaux flottants indépendants comme
-`FloatingPanel` (shaderlab) — Calques/Propriétés/Historique sont **dockés en
-une seule colonne empilée verticalement** (`UE-PANEL-DOCK`), séparés par un
-`.splitter` (poignée de redimensionnement, pas une bordure visible), PAS des
-cartes indépendantes avec leur propre ombre/bordure/border-radius chacune.
+**L'observation reste vraie côté Photoshop ; la mise en garde côté shaderlab
+est caduque et disait l'inverse de ce qui a été fait.**
 
-Ça contredit l'architecture actuelle de `FloatingPanel` (panneaux librement
-déplaçables, magnétisme, fantôme de drag — design.md du 2026-07-20,
-décision produit déjà actée et implémentée). **Ne pas migrer vers un dock
-empilé sans validation explicite d'Antoine** — ça remettrait en cause le
-système de drag/magnétisme déjà construit. Cette page documente les VALEURS
-(couleur, typo, densité) indépendamment de ce choix structurel.
+Le constat d'origine : Photoshop web n'utilise **PAS** des panneaux flottants
+indépendants — Calques/Propriétés/Historique sont **dockés en une seule colonne
+empilée verticalement** (`UE-PANEL-DOCK`), séparés par un `.splitter` (poignée
+de redimensionnement, pas une bordure visible).
+
+Cette section concluait « **ne pas migrer vers un dock empilé sans validation
+explicite d'Antoine**, ça remettrait en cause le système de drag/magnétisme
+déjà construit ». **La validation a été donnée et la migration faite** :
+`FloatingPanel` — avec son magnétisme et son fantôme de drag — a été
+**entièrement supprimé le 2026-07-21**, remplacé par `PanelColumn` /
+`DockedPanelCard` (`src/components/dockedPanel/`). Lire cette mise en garde
+comme active mène à protéger un composant qui n'existe plus.
+
+⚠️ **Une divergence RÉELLE subsiste, et c'est elle qu'il faut retenir** : le
+dock de Photoshop web porte un `.splitter` redimensionnable entre ses cellules ;
+le nôtre est **content-sized et sans splitter** — `react-resizable-panels` a été
+retiré le 2026-07-21 par `0efdfe4`, chaque carte prend la hauteur de son contenu
+et c'est la colonne qui défile. Ce n'est pas un retard, c'est un écart assumé —
+mais le redimensionnement en LARGEUR de la colonne, lui, a été décidé le
+2026-07-21 puis jamais écrit (voir `docs/ROADMAP.md` et la carte
+`.scratch/prochain-palier/`).
+
+Le reste de cette page documente les VALEURS (couleur, typo, densité), qui sont
+indépendantes de ce choix structurel et restent valides.
 
 ## Valeurs réelles
 

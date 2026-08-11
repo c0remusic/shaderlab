@@ -256,10 +256,22 @@ quel que soit le contenu de la pile. **Le prédicat, lui, reste** — il sert
 désormais de frontière à l'avis « calque photo exclu » d'un preset
 (`presets/presetDocument.ts`), un usage sans rapport avec l'export. Source :
 ARCHITECTURE.md §4.6.
-**Limite dure : `MAX_PHOTO_LAYERS` calques photo par document, valeur 4 depuis
-T5** (`src/layers/photoLayer.ts`) — soit au plus 5 photos sources à l'écran
-(le fond + 4). La photo de FOND n'est pas un calque et ne compte pas dans ce
-plafond. Limite atteinte : l'import est refusé côté application par
+**Limite dure : `MAX_PHOTO_LAYERS` calques photo par document, valeur 5**
+(`src/layers/photoLayer.ts:66`) — **la photo de FOND en fait partie**, donc
+5 = **4 imports + le fond**, soit au plus 5 photos sources à l'écran.
+
+⚠️ Ce paragraphe a porté « valeur 4 » et « la photo de FOND n'est pas un calque
+et ne compte pas dans ce plafond » jusqu'au 2026-08-11, comme `ARCHITECTURE.md`
+§4.6 et son risque R1. Les deux étaient vrais AVANT `26ab0ed` (« le fond du
+document devient un calque ordinaire ») et faux après. **La capacité
+utilisateur, elle, n'a pas bougé** : c'était 4 imports plus un fond qui ne
+comptait pas, c'est 4 imports plus un fond qui compte. Seule la comptabilité a
+changé — ce qui est précisément pourquoi personne ne l'a vu.
+
+La valeur 5 n'est pas un incrément mais un **verdict de mesure** : 6 a été
+essayé pour de vrai le 2026-07-30 et écarté — nominal bon marché (+82 Mo), mais
+le pire cas des sources monte à ~89 % de la VRAM contre ~84 % à 5, au-delà du
+seuil de 80 %. Critère de révision et protocole sur la constante elle-même. Limite atteinte : l'import est refusé côté application par
 `canAddPhotoLayer`, avec un message d'erreur nommant le plafond dans
 `ErrorBanner` — jamais un crash ni un import silencieusement ignoré. Un second
 plafond distinct, `MAX_REGISTERED_PHOTO_SOURCES` (= `4 × MAX_PHOTO_LAYERS`,

@@ -27,8 +27,30 @@
 - Tout ce qui avait un plan exécutable est livré, testé, documenté, poussé.
 
 **Il ne reste donc AUCUN code en attente d'un plan existant.** Ce qui suit se
-répartit en deux natures très différentes : du jugement humain (1), et un
-chantier qui a son cadrage mais ni design d'effet ni plan (2).
+répartit en quatre natures différentes : du jugement humain (1), un chantier
+qui a son cadrage mais ni design d'effet ni plan (2), un PRD entier jamais
+commencé (3), et des chantiers dormants retrouvés par mesure (4).
+
+---
+
+## ⚠️ Lire d'abord : une CARTE tient désormais les arbitrages ouverts
+
+**`.scratch/prochain-palier/map.md`** — chartée le 2026-08-11 par `/wayfinder`.
+Douze tickets, dont trois de recherche déjà résolus. **Ce fichier-ci dit ce qui
+reste ; la carte dit dans quel ORDRE le décider et ce que chaque décision
+attend.** Les deux se lisent ensemble, et un arbitrage se tranche dans la carte,
+pas ici.
+
+Ce qu'elle porte et que ce document ne portait pas : la forme et la typographie
+séparées (les traiter d'un bloc est le premier piège), ce qui reste valide du
+design de parité du calque photo, `curves` en linéaire ou en perçu, le sort de
+`sat-feather`, les différés de masquage, et deux tickets nés de recherches en
+sources primaires sur Photoshop et Lightroom.
+
+Trois corpus de recherche sont sur disque dans `.scratch/prochain-palier/research/`
+(~2 600 lignes, une source citée par affirmation) : la faisabilité du 16-bit,
+31 mécanismes de lisibilité d'interface, et 12 fonctions candidates avec leur
+verdict de doublon et leur **appel de licences**.
 
 ---
 
@@ -102,6 +124,29 @@ Ce n'est pas une finition : corriger change le rendu, donc les deux références
 de pixels de `curves` (`effet-courbes-neutre`, `effet-courbes`). C'est un
 arbitrage — « linéaire strict » est une décision structurante du projet, et
 c'est peut-être elle qu'il faut amender ici plutôt que l'effet.
+
+⚠️ **Amendement du 2026-08-11 — « ce que fait Photoshop » n'est PAS documenté,
+et le tableau ci-dessus le présentait comme un fait.** Vérifié en sources
+primaires
+(`.scratch/prochain-palier/research/10b-sources-primaires-fonctions.md`) :
+**Adobe n'énonce nulle part l'encodage sur lequel Curves opère** — sa page ne
+dit que « niveaux d'entrée (valeurs originales) ». Aucune phrase Adobe ne dit
+que Curves est perçu, ni qu'il est linéaire.
+
+Ce qu'Adobe documente en revanche, et qui est plus utile : l'option *Blend RGB
+Colors Using Gamma* est **décochée par défaut**, alors qu'Adobe écrit qu'un
+gamma de 1,00 est « colorimétriquement correct » et produit le moins
+d'artefacts de bord — et avertit que la COCHER fait diverger le rendu des
+autres applications. L'avertissement ne fait sens que si cocher est la
+déviation, donc la composition par défaut de Photoshop est l'espace **encodé en
+gamma**, pas la lumière linéaire. **Inférence, pas citation.**
+
+**Conséquence pour l'arbitrage** : l'argument « faisons comme Photoshop » perd
+son autorité — Photoshop qualifie son propre défaut de non colorimétriquement
+correct, en toutes lettres, et le garde quand même. C'est un précédent, pas une
+preuve. La question redevient celle du dépôt : le curseur doit-il répondre là
+où l'œil l'attend, ou la mathématique rester juste ? Se tranche dans
+`.scratch/prochain-palier/issues/06-curves-en-lineaire-ou-en-percu.md`.
 
 ⚠️ Et la **fluidité** du tirage de poignée, l'autre moitié de ce point, ne se
 capture pas : elle se sent au pointeur. Aucune planche ne peut y répondre.
@@ -191,11 +236,26 @@ un effet du registre avec sa mire et sa référence de pixels.
 `crop` de `CanvasMode` existent, garde structurel compris ; `LayerTransform` n'a
 pas de champ `crop` et `ui/tools.ts:23` garde l'outil **délibérément hors
 palette** en le disant. Manquent le champ de modèle, la géométrie et le
-branchement — et ça ne dépend d'aucun arbitrage.
+branchement.
 
-⚠️ **C'est donc le SEUL item de ce bloc qui soit prêt à coder**, et le seul qui
-ne dépende pas du design de `contentSource` : formes et typographie l'attendent,
-le recadrage non. C'est aussi le dernier trou FONCTIONNEL de l'app — vingt-trois
+⚠️ **CORRECTION DU 2026-08-11 — ce paragraphe disait « et ça ne dépend d'aucun
+arbitrage ». C'est FAUX**, mesuré sur disque. Son design existe pourtant en
+entier (`2026-07-26-shaderlab-photo-layer-parity-design.md` §3.1) — mais le
+modèle sous lui a bougé : le design spécifiait `scale: number` « UNIFORME » et
+`flipX`/`flipY` booléens, quand le code porte `scaleX`/`scaleY` depuis le
+2026-07-31. Le design avait prévu sa propre réouverture (« alors `scaleX`/
+`scaleY` SIGNÉS et le flip devient le signe ») et **elle s'est déclenchée à
+moitié** : les deux échelles sont arrivées, mais `clampTransformScale`
+(`src/ui/transform.ts:125-127`) les borne au positif, donc le signe ne peut pas
+porter le flip — et les booléens n'ont jamais été écrits. **Le miroir est tombé
+entre les deux sans qu'aucun test ne rougisse.** Ce qui reste valide du design
+se tranche dans
+`.scratch/prochain-palier/issues/05-ce-qui-reste-du-design-de-parite-du-calque-photo.md`.
+
+⚠️ **C'est le seul item de ce bloc qui ne dépende pas du design de
+`contentSource`** : formes et typographie l'attendent, le recadrage non. Ce
+paragraphe disait « le SEUL item prêt à coder » — retiré le 2026-08-11 pour la
+raison ci-dessus : il a un design, pas un modèle à jour. C'est aussi le dernier trou FONCTIONNEL de l'app — vingt-trois
 effets et pas de recadrage. En contrepartie il touche `LayerState`, la couche la
 plus partagée du projet (`render/`, `mask/`, `export/`, `components/`,
 `application/`) : plan écrit avant la première ligne.
@@ -248,6 +308,126 @@ cinq points, dont **deux soldés** :
   curseurs — ce que `CanvasControl` et le gabarit de section `pose` couvrent
   déjà pour les effets qui l'ont déclaré (chantier des contrôles, soldé le
   2026-08-05) ; ce qui reste ouvert est de le déclarer là où ça manque.
+
+---
+
+## 3. Export print — un PRD entier, jamais commencé
+
+**`PRD-print-export.md`** (racine, 151 lignes, cadré le 2026-07-20). Il se
+termine par « à lancer quand Antoine valide ce document ». **Jamais lancé, et
+jamais mentionné dans cette feuille jusqu'au 2026-08-11** — il a passé 22 jours
+invisible. Zéro trace en code : aucun TIFF, aucun ICC, aucune conversion de
+gamut ; les seuls `16float` du dépôt sont le `rg16float`/`r16float` du masque
+edge-aware, sans rapport.
+
+Il vise à vendre des **tirages physiques** : rendu en 16-bit flottant pour
+éliminer le banding des dégradés de bloom/halation, sortie TIFF 16 bits en
+Adobe RGB avec ICC embarqué, résolution native sans resampling, DPI affiché
+avant l'export.
+
+**Arbitrage d'Antoine, 2026-08-11 : réel mais LOINTAIN.** Il n'est donc pas la
+destination de la carte — il en est une **contrainte** : aucune décision prise
+d'ici là ne doit rendre le passage au 16-bit plus cher.
+
+Instruit le 2026-08-11
+(`.scratch/prochain-palier/research/01-16-bit-hors-du-depot.md`, 804 lignes) :
+
+- ✅ **Faisable, et moins cher que le PRD ne le croyait.** `rgba16float` passe
+  comme cible de rendu, en blending, en lecture et **en filtrage linéaire**,
+  sur un device demandé **sans aucune feature** (établi trois fois : spec W3C
+  §26.1.1, source Dawn à commit épinglé, mesure live). La crate qui écrit le
+  TIFF 16 bits avec ICC embarqué (`image` 0.25.10, `MIT OR Apache-2.0`) **est
+  déjà une dépendance du dépôt**. La matrice sRGB → Adobe RGB ne porte que
+  **4 coefficients non triviaux** (les deux espaces partagent leurs primaires
+  rouge et bleue et D65).
+- ⚠️ **Mais il bute sur une décision verrouillée du projet.** **Aucun format
+  flottant n'a de variante `-srgb`** — l'invariant « chaîne de couleur en sRGB
+  par le FORMAT, jamais par un gamma manuel en WGSL » (7 modules de
+  `src/render/`) ne peut pas s'appliquer à un chemin 16-bit. Or le PRD range
+  précisément ce contournement dans ses clauses « inacceptable ». **Le plan du
+  PRD porte donc une contradiction interne que personne n'avait vue.**
+- ⚠️ Deux autres tensions chiffrées : `rgba16float` n'est **pas** 16 bits
+  uniformes (~11 bits utiles près du blanc, 32 à 64× plus grossier qu'un
+  16 bits entier) alors que la sortie visée EST un TIFF 16 bits entier ; et
+  `MAX_CANVAS_PIXELS = 64 Mpx` dépasse les limites par défaut du device en
+  16 bits (relevables, mais plus gratuitement — ADR-0007 à relire).
+- ⚠️ **Trou déclaré** : toute cette mesure a été prise dans **Edge 151, pas
+  dans le WebView2 de shaderlab** (aucun binaire construit sur disque), sur un
+  seul GPU, backend D3D12 non mesuré. Le snippet pour le refermer est dans le
+  fichier de findings. **Le refermer avant de s'appuyer dessus.**
+
+## 4. Chantiers dormants — retrouvés par mesure le 2026-08-11
+
+Aucun n'était dans cette feuille. Tous ont été trouvés en mesurant sur disque,
+pas en relisant les documents — plusieurs y étaient contredits.
+
+### `origin/sat-feather` — 12 commits non mergés, et il NE FAUT PAS le merger
+
+Le ledger `.superpowers/sdd/progress.md` disait « si OK : merger sat-feather ».
+**Mesuré : le merger ferait RÉGRESSER `master`.** Base de fusion `5b9536c`
+(2026-07-24), 8 conflits dont 3 de code. Des trois commits de code :
+
+| Commit | État sur `master` |
+| --- | --- |
+| `c148d8f` morphologie séparable | **doublé** — `770b7a8` l'a faite indépendamment, avec axes exportés, commentaire chiffré et `test/mask/morphologySeparable.test.ts` |
+| `0a33de6` refactor helpers | **dépassé** par `6f3aa80` (plan de passes extrait en fonction pure, `src/mask/refinePlan.ts`) |
+| `aee22fb` SAT plein résolution feather | ⚠️ **toujours unique** — 105 lignes de prod + 77 de test |
+
+Sur `master` le feather est déjà séparable (`refinePlan.ts:59-61`, deux box
+filters H+V) : **202 échantillons par pixel à r=50 au lieu de 10 201** — le
+facteur 50 est acquis. `aee22fb` n'ajoute que le SECOND gain, `O(rayon)` →
+`O(1)`.
+
+**Donc la question à poser à Antoine a changé** : non plus « ce travail
+fait-il disparaître le lag », mais **« le lag sur *Adoucir le bord* a-t-il déjà
+disparu sur `master` ? »**. Si oui, la branche se supprime entière ; sinon, on
+cherry-picke `aee22fb` seul. Dans les deux cas elle ne se merge pas. Ça se juge
+au pointeur, pas au banc.
+
+### Le dégradé RADIAL du masque n'a jamais été livré
+
+Promis en **vague 1**, pas en différé :
+`2026-07-18-shaderlab-layers-masking-prd.md:76` dit « Dégradé linéaire/**radial**
+: angle, points de départ/fin, feather, inversion ». Sur disque,
+`src/mask/sources/gradient.ts` s'annonce « Dégradé linéaire » et ne porte aucun
+radial. Livré à moitié, signalé nulle part pendant 24 jours.
+
+⚠️ Le même PRD (ligne 124) donnait le dégradé radial comme MOTIF pour différer
+la sélection géométrique rect/ellipse — « dégradé radial déjà prévu ». **Le
+motif n'a donc jamais existé en code.**
+
+### Deux points d'interface décidés puis jamais écrits
+
+- **Largeur du dock redimensionnable** — décidée le 2026-07-21 (« plan séparé
+  après celui-ci »), jamais écrite. La mémoire projet
+  `dock-largeur-saute-avec-barre-defilement` porte le bug voisin, non résolu :
+  326 px pour 320 annoncés dès que la colonne défile, `flex-shrink` et
+  `scrollbar-gutter` tous deux testés inefficaces.
+- **`docs/design-qa/2026-08-04-dock-flat-workspace.md`** porte deux findings
+  P1 ouverts, dont « sens de *plein écran* non déterminé », qui demande
+  explicitement un arbitrage avant toute mutation de layout.
+
+### Cinq différés de masquage, avec leurs déclencheurs
+
+`2026-07-18-shaderlab-layers-masking-prd.md` : depth mask (⚠️ modèle de vision
+monoculaire **local** type MiDaS/Depth-Anything, **PAS un LLM** — et son
+déclencheur « après les masques de base » **est atteint** depuis le
+2026-08-05), segmentation sémantique sujet/ciel, pen/path Bézier, sélection
+rect/ellipse, lasso. Aucun rouvert depuis.
+
+### Branches mortes, mesurées
+
+`claude/lucid-vaughan-6f8fc7` est superseded par `master` ;
+`claude/wonderful-thompson-fd0488` est **déjà dans `master`** (`87cf44f`) ;
+`feature/dock-width-resize`, `claude/quizzical-hofstadter-b276ac` et
+`worktree-agent-af9e8ffc69359d5ab` sont à 0 commit d'avance ;
+`origin/task-management` porte un commit orphelin cité nulle part. Corvée de
+nettoyage, aucune décision — sauf le sort de `sat-feather` ci-dessus.
+
+⚠️ `master` est à **393 commits d'avance** sur `feature/design-system`, qui n'a
+rien en retour, et `origin/HEAD` pointe toujours sur `feature/design-system`.
+`docs/adr/0003-master-tracks-feature-design-system.md` décrit donc l'inverse de
+la réalité.
 
 ---
 

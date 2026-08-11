@@ -54,14 +54,59 @@ deux sont des questions distinctes ; le harnais ne répond qu'à la première, e
 c'est la seconde qui est ouverte ici. Ne pas lire « 18 références vertes » comme
 « le verre est validé ».
 
+**Les six sujets sont montés et capturés** — planche de contact publiée le
+2026-08-05 : <https://claude.ai/code/artifact/5158aad0-3e3d-44d7-b670-17d099bf963c>
+(privée, sur le compte d'Antoine). Elle porte les 14 matières de verre
+cliquables, la paire avant/après des courbes, le dock à 2 contre 7 calques, les
+panneaux sectionnés et la paire de références du light leak. Chaque vignette
+porte sa mesure. Elle se régénère par `/run-shaderlab` puis le pilote de la
+skill ; les images sources vivent dans le scratchpad de session, donc elles ne
+survivent pas — c'est la page publiée qui est l'artefact durable.
+
 | # | Sujet | Ce qu'il faut juger |
 | --- | --- | --- |
-| 1 | **Courbes** | Fluidité ET esthétique, définitivement, sur une vraie photo |
+| 1 | **Courbes** | Fluidité ET esthétique — mais **un défaut est déjà mesuré**, voir ci-dessous. Il se tranche avant de juger le reste |
 | 2 | **Pile / Propriétés / Masque** | Le nouveau flux, sur une pile **dense** — c'est la densité qui est en question, pas le flux à deux calques |
 | 3 | **Verre** | Les matières sur une vraie photo. Le **Dépoli** est marqué « à raffiner » par Antoine et n'a pas été retouché depuis |
 | 4 | **Les cinq pavés** | À l'usage, et ajuster le rendu si besoin — livrés et verrouillés, jamais regardés sur une photo |
 | 5 | **Sections des panneaux** | Le découpage en blocs titrés, livré le 2026-08-05 sur les 23 effets. Aucun n'a été regardé sur une vraie photo, sauf `texture`, `dither` et `duotone` |
 | 6 | **Light leak** | Livré le 2026-08-05 avec sa paire de références. Vu une fois sur une photo, jamais jugé — et deux défauts par défaut sont déjà probables : `intensite` à 1,35 sature le cœur en blanc, donc le dégradé chaud ne se lit qu'en marge, et l'irrégularité à 0,38 festonne le bord au point que la coulée se lit comme un nuage plutôt que comme un faisceau. Les deux sont des **valeurs**, pas du code |
+
+### ⚠️ Ce que la préparation du checkpoint a trouvé — `curves` travaille en lumière LINÉAIRE
+
+**Le seul point de cette liste qui demande une décision de CODE et non un
+goût.** `src/render/effects/curves.ts` n'importe aucune transformation sRGB : sa
+courbe s'applique donc à des valeurs **linéaires**, quand tous les outils de
+courbe qu'un photographe connaît travaillent sur la valeur **perçue**.
+
+Mesuré le 2026-08-05 en pilotant l'app, puis vérifié analytiquement — lever le
+point noir à 20 % :
+
+| | Sortie en sRGB |
+| --- | --- |
+| appliqué en **linéaire** — ce que fait shaderlab | **124** / 255 |
+| appliqué en **perçu** — ce que fait Photoshop | **51** / 255 |
+| milieu à 50 % perçu, en linéaire | 157 / 255 |
+| milieu à 50 % perçu, en perçu | 134 / 255 |
+
+À l'écran : la silhouette part en gris moyen au lieu d'un noir délavé, et les
+ombres perdent toute séparation d'un coup.
+
+⚠️ **Le dépôt porte déjà la règle inverse, écrite dans `texture.ts` à propos de
+ses niveaux** — « étirer en linéaire déplacerait le point médian PERÇU, et le
+curseur ne répondrait pas là où l'œil l'attend ». `dither`, `halftone`,
+`hatching`, `gradientMap` et `channelMixer` la suivent tous. `curves`, le seul
+effet qui *soit* une courbe tonale, ne la suit pas.
+
+Ce n'est pas une finition : corriger change le rendu, donc les deux références
+de pixels de `curves` (`effet-courbes-neutre`, `effet-courbes`). C'est un
+arbitrage — « linéaire strict » est une décision structurante du projet, et
+c'est peut-être elle qu'il faut amender ici plutôt que l'effet.
+
+⚠️ Et la **fluidité** du tirage de poignée, l'autre moitié de ce point, ne se
+capture pas : elle se sent au pointeur. Aucune planche ne peut y répondre.
+
+---
 
 ✅ Le seul défaut d'affichage trouvé jusqu'ici est **corrigé** : les trois
 sections d'encre de `duotone` répétaient le libellé de la pastille qu'elles
@@ -147,6 +192,13 @@ un effet du registre avec sa mire et sa référence de pixels.
 pas de champ `crop` et `ui/tools.ts:23` garde l'outil **délibérément hors
 palette** en le disant. Manquent le champ de modèle, la géométrie et le
 branchement — et ça ne dépend d'aucun arbitrage.
+
+⚠️ **C'est donc le SEUL item de ce bloc qui soit prêt à coder**, et le seul qui
+ne dépende pas du design de `contentSource` : formes et typographie l'attendent,
+le recadrage non. C'est aussi le dernier trou FONCTIONNEL de l'app — vingt-trois
+effets et pas de recadrage. En contrepartie il touche `LayerState`, la couche la
+plus partagée du projet (`render/`, `mask/`, `export/`, `components/`,
+`application/`) : plan écrit avant la première ligne.
 
 ### La vraie question de design, et ce n'est pas le rendu
 

@@ -16,10 +16,11 @@
 
 ## Où en est le code — mesuré sur disque le 2026-08-05, pas de mémoire
 
-- **22 effets** au registre (`src/render/effects/registry.ts`) — `texture` ajouté le 2026-08-05 (ADR-0018).
+- **23 effets** au registre (`src/render/effects/registry.ts`) — `texture` puis
+  `lightLeak`, tous deux le 2026-08-05.
 - `glass` **complet** : 14 matières (9 de feuille + 5 de pavé), 5 profils de
   section, **18 références de pixels — toutes les branches verrouillées**.
-- **Les 22 effets portent des sections** et leurs applicabilités déclarées
+- **Les 23 effets portent des sections** et leurs applicabilités déclarées
   (`EffectModule.sections`, `EffectParam.appliesWhen`) — chantier de
   rationalisation des contrôles **soldé le 2026-08-05**, statut dans
   `INDEX.json`. Ce qu'il en reste est du jugement, donc dans le bloc 1.
@@ -59,7 +60,8 @@ c'est la seconde qui est ouverte ici. Ne pas lire « 18 références vertes » c
 | 2 | **Pile / Propriétés / Masque** | Le nouveau flux, sur une pile **dense** — c'est la densité qui est en question, pas le flux à deux calques |
 | 3 | **Verre** | Les matières sur une vraie photo. Le **Dépoli** est marqué « à raffiner » par Antoine et n'a pas été retouché depuis |
 | 4 | **Les cinq pavés** | À l'usage, et ajuster le rendu si besoin — livrés et verrouillés, jamais regardés sur une photo |
-| 5 | **Sections des panneaux** | Le découpage en blocs titrés, livré le 2026-08-05 sur les 22 effets. Aucun n'a été regardé sur une vraie photo, sauf `texture`, `dither` et `duotone` |
+| 5 | **Sections des panneaux** | Le découpage en blocs titrés, livré le 2026-08-05 sur les 23 effets. Aucun n'a été regardé sur une vraie photo, sauf `texture`, `dither` et `duotone` |
+| 6 | **Light leak** | Livré le 2026-08-05 avec sa paire de références. Vu une fois sur une photo, jamais jugé — et deux défauts par défaut sont déjà probables : `intensite` à 1,35 sature le cœur en blanc, donc le dégradé chaud ne se lit qu'en marge, et l'irrégularité à 0,38 festonne le bord au point que la coulée se lit comme un nuage plutôt que comme un faisceau. Les deux sont des **valeurs**, pas du code |
 
 ✅ Le seul défaut d'affichage trouvé jusqu'ici est **corrigé** : les trois
 sections d'encre de `duotone` répétaient le libellé de la pastille qu'elles
@@ -106,10 +108,15 @@ Il n'y a plus d'arbitrage ouvert ici.
   stories. Deux rampes `smoothstep` sur la luminance Rec.709 en linéaire, plus
   tolérance et inversion. ⚠️ **La leçon vaut plus que l'item** : `git log` et
   ce fichier disaient tous deux qu'il restait à faire ; c'est le registre lu
-  sur disque qui a tranché. Ce qui reste éventuellement ouvert dessus n'est
-  plus « l'écrire » mais « l'éprouver » — aucune référence de pixels ne
-  verrouille les sources de masque paramétriques ;
-- light leaks ;
+  sur disque qui a tranché. ✅ Le « l'éprouver » qui restait est fait le
+  2026-08-05 : les trois sources ont chacune leur référence de pixels
+  (`masque-degrade`, `masque-luminosite`, `masque-range-couleur`), chacune
+  comparée au même effet **sans masque** sur la même mire ;
+- ~~light leaks~~ — **LIVRÉ le 2026-08-05** : `lightLeak`, 23ᵉ effet, quatrième
+  de la famille des halos. Sa couleur n'est pas peinte — trois saturations
+  exponentielles à vitesses différentes, une par couche d'émulsion — et deux
+  assertions de `renderRefs.test.mjs` rendent ce point opposable. Reste son
+  jugement esthétique, ligne 6 du bloc 1 ;
 - formes ;
 - typographie ;
 - finalisation du recadrage ;

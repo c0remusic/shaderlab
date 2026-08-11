@@ -114,10 +114,16 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `MAX_EFFECT_PARAMS` (`shaderCompose.ts`, **48** depuis le 2026-08-04, élargi
   de 32 pour `curves`) si nécessaire.
   Registre réel au 2026-08-05, dans l'ordre : `glow`, `halation`,
-  `lensFlare`, `lensDistortion`, `lensBlur`, `motionBlur`,
+  `lensFlare`, `lightLeak`, `lensDistortion`, `lensBlur`, `motionBlur`,
   `glass`, `warp`, `grain`, `duotone`, `hatching`, `halftone`, `dither`,
   `gooeyMerge`, `channelMixer`, `curves`, `outlines`, `isolines`,
-  `pixelStretch`, `sliceShift`, `gradientMap`, `texture` — **vingt-deux**.
+  `pixelStretch`, `sliceShift`, `gradientMap`, `texture` — **vingt-trois**.
+  ⚠️ **CE COMPTE ET CETTE LISTE SE METTENT À JOUR DANS LE COMMIT QUI AJOUTE
+  L'EFFET**, jamais au wrap-up. Ils ont dit « vingt-deux » pendant toute la
+  durée où le registre en portait vingt-trois (2026-08-05), et `docs/ROADMAP.md`
+  avec eux. Rien ne les vérifie — c'est de la prose, et aucun test ne compte les
+  entrées d'une phrase : la seule parade est de les traiter comme faisant partie
+  du geste d'ajout.
   `texture` (2026-08-05, ADR-0018) est le PREMIER effet qui échantillonne une
   IMAGE au lieu de ce qui est en dessous de lui. Ce qui le rend possible :
   `params` est un `Record<string, number>`, donc **le paramètre porte le RANG**
@@ -244,16 +250,23 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   analytique, donc valide **hors cadre** ; le prélèvement, lui, ne l'était pas —
   défaut mesuré et corrigé le 2026-08-03.
 - **Trois familles d'effets**, chacune découpée d'une façon qui ne se devine pas
-  depuis les noms. **Halos, à TROIS** : `glow` étale sans colorer (diffusion),
+  depuis les noms. **Halos, à QUATRE** : `glow` étale sans colorer (diffusion),
   `halation` réexpose en rouge sur fond sombre (film), `lensFlare` RÉFLÉCHIT —
   il produit des copies déplacées de la source au lieu de l'étaler sur place
-  (ADR-0017). Ils s'empilent. La famille a fait l'aller-retour dans la même
+  (ADR-0017) — et `lightLeak` (2026-08-05) n'a **aucune source dans l'image** :
+  il ne lit pas un texel de ce qui est en dessous. C'est ce qui le distingue
+  assez pour valoir une entrée et non un mode ; les trois autres partent tous
+  des hautes lumières DE L'IMAGE et les transforment, une fuite vient d'un jeu
+  du boîtier — en aval de l'objectif, en amont de l'émulsion. Ils s'empilent.
+  La famille a fait l'aller-retour dans la même
   journée : `anamorphicStreak` en est sorti le matin pour `lensDistortion`
   (ADR-0014, une traînée sur un seul axe est ce que fait un verre CYLINDRIQUE),
   et `lensFlare` l'a rouverte le soir. La règle qui décide est la même dans les
-  deux sens — **un halo AJOUTE de la lumière, il ne déforme pas l'image** ; une
+  trois sens — **un halo AJOUTE de la lumière, il ne déforme pas l'image** ; une
   famille close par un découpage se rouvre quand un mécanisme qui n'y entre pas
-  se présente, jamais pour une nuance. Ce qu'un objectif
+  se présente, jamais pour une nuance. ⚠️ `test/render/effects/lensDistortion.test.ts`
+  GÈLE cette liste : l'élargir doit faire rougir un test, sinon la frontière
+  entre halos et optique dérive toute seule. Ce qu'un objectif
   fait se range donc en trois questions : ce qu'il RENVOIE (halos), ce qu'il ne
   met pas au point (flous), ce que sa FORME déforme (`lensDistortion` — fisheye
   signé + trois modes d'aberration, dont la longitudinale qui défocalise au lieu

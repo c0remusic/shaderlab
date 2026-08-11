@@ -57,6 +57,22 @@ n'est un réglage de l'autre. `glow` a porté une teinte de halo jusqu'au
 Source : `src/render/effects/halation.ts`,
 `docs/superpowers/specs/2026-08-01-references-effets.md` §1.
 
+**Fuite de lumière** (effet `lightLeak`, livré 2026-08-05) — de la lumière
+entrée par un jeu du BOÎTIER (dos mal fermé, joint fatigué) qui frappe
+l'émulsion **sans passer par l'objectif**. C'est ce qui la sépare des trois
+autres halos : bloom, halation et flare partent tous des hautes lumières DE
+L'IMAGE et les transforment ; une fuite n'a **aucune source dans l'image** et
+peut apparaître sur une photo entièrement sombre. Trois conséquences qui
+définissent le terme : elle entre par un **bord** et voyage vers l'intérieur ;
+elle est hors de toute mise au point (la fente est à quelques millimètres du
+plan film, donc c'est un **coin qui s'élargit**, jamais une image de la fente) ;
+et sa **couleur suit son intensité** — les trois couches de l'émulsion ne
+saturent pas à la même vitesse, d'où rouge sourd au pied, orange puis jaune à
+mi-course, blanc chaud au cœur. Source : `src/render/effects/lightLeak.ts`,
+`docs/superpowers/specs/2026-08-03-references-postproduction.md` ligne 330.
+_Avoid_ : « dégradé orange dans un coin » — c'est la recette à la main, pas le
+phénomène ; et « halation », qui est une ré-exposition par l'image elle-même.
+
 **Bokeh** — la forme que prend une haute lumière ponctuelle HORS mise au point.
 Ce n'est pas « du flou » : sa signature est qu'un point plus petit donne une
 tache de MÊME diamètre, seulement plus transparente et à bords plus nets. Un

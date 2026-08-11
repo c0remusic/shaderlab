@@ -39,6 +39,24 @@ export default defineConfig({
   // object is the single source of truth imported from vite.config.ts.
   resolve: {
     alias,
+    // Browser-mode stories render through react-dom while components import
+    // `react` through Vite's own resolution. Without dedupe those two can
+    // land on separate copies of the package, leaving React 19's hook
+    // dispatcher (`ReactSharedInternals.H`) null on the copy the component
+    // sees — surfacing as "Cannot read properties of null (reading 'useState')"
+    // at the first hook call, before any assertion runs.
+    dedupe: ['react', 'react-dom'],
+  },
+  optimizeDeps: {
+    // Pre-bundle the whole React entry set together so the optimizer cannot
+    // mix a pre-bundled copy with a raw CJS one (the two-copies case above).
+    include: [
+      'react',
+      'react-dom',
+      'react-dom/client',
+      'react/jsx-runtime',
+      'react/jsx-dev-runtime',
+    ],
   },
   server: {
     fs: {

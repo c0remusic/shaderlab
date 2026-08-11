@@ -688,3 +688,7 @@ Les cinq rôles canoniques, chaînes inchangées (`needs-triage`, `needs-info`, 
 ### Domain docs
 
 Single-context : `CONTEXT.md` à la racine, plus DEUX dossiers d'ADR — `.claude/decisions/` (canonique, entrée par son `INDEX.md`, statuts qui comptent) et `docs/adr/` (4 ADR d'implémentation, non indexés). ⚠️ Numérotations distinctes qui se recouvrent : citer le dossier, jamais un numéro nu. Voir `docs/agents/domain.md`.
+
+### Wayfinder
+
+Chantier trop gros pour une session : `/wayfinder` charte la carte sur le tracker ci-dessus. Labels `wayfinder:map` et `wayfinder:{research,prototype,grilling,task}` créés. Sous-issues et blocage natif GitHub disponibles — pas de repli par convention de corps.

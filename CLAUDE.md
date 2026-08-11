@@ -61,9 +61,21 @@ Vite · **WebGPU/WGSL brut** (pas de lib de rendu) · Vitest (deux projets :
 **UI** : Tailwind v4 (`@tailwindcss/vite`) + `shadcn/ui` (style `base-nova`,
 PAS Radix — `components.json`). Tokens de marque = `src/design/{primitives,
 semantic,components}.css`, mappés dans `src/design/tailwind-theme.css`
-(jamais redéfinis). Migration en cours composant par composant : `ErrorBanner`/
-`Toolbar`/`BrushToolbar` migrés (2026-07-20) ; `LayerPanel`/`ParamPanel`/
-`Canvas` encore en CSS classique. `Inspector.tsx` (aside dockée fixe)
+(jamais redéfinis). ⚠️ **La migration shadcn n'est PAS « en cours », et la dette
+n'est pas de trois composants — c'est un arbitrage OUVERT.** Ce paragraphe a dit
+« migration en cours composant par composant : `ErrorBanner`/`Toolbar`/
+`BrushToolbar` migrés ; `LayerPanel`/`ParamPanel`/`Canvas` encore en CSS
+classique » jusqu'au 2026-08-12. Mesuré ce jour-là : **17 composants sur 27 sont
+en CSS classique PUR**, 1 hybride, 20 fichiers `.css` dans `src/components/`.
+Le plan de migration ne visait que ces trois-là et a été fini comme prévu — mais
+tout ce qui a été livré depuis (`ToolPalette` 07-31, `CurveControl`,
+`PropertiesPanel`, `ColorRampControl` 08-04, `TexturePicker` 08-05) est arrivé
+en CSS classique. **Elle n'a pas calé, elle s'est fait dépasser**, et l'écart
+grandit à chaque chantier. Nuance qui compte : `npm run lint:tokens` est vert
+sur les 250 fichiers, donc le CSS classique **ne contourne pas les tokens** —
+c'est une dette d'homogénéité, pas de design system. Se tranche dans
+`.scratch/prochain-palier/issues/13-la-migration-shadcn-est-elle-encore-la-direction.md`.
+`Inspector.tsx` (aside dockée fixe)
 supprimé le 2026-07-20, remplacé par `FloatingPanel`
 (panneaux déplaçables/repliables/dockables), lui-même **supprimé le
 2026-07-20/21** et remplacé par `PanelColumn`/`DockedPanelCard`

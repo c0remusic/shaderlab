@@ -415,6 +415,28 @@ déclencheur « après les masques de base » **est atteint** depuis le
 2026-08-05), segmentation sémantique sujet/ciel, pen/path Bézier, sélection
 rect/ellipse, lasso. Aucun rouvert depuis.
 
+### La migration shadcn s'est fait dépasser — 17 composants, pas 3
+
+`CLAUDE.md` a annoncé « migration en cours composant par composant » avec trois
+composants restants, du 2026-07-20 au 2026-08-12. **Mesuré : 17 composants sur
+27 sont en CSS classique PUR**, 1 hybride, 20 fichiers `.css` dans
+`src/components/`.
+
+Le plan `docs/superpowers/plans/2026-07-20-shadcn-migration.md` ne visait que
+`ErrorBanner`/`Toolbar`/`BrushToolbar` et disait « ne jamais toucher
+`LayerPanel`, `ParamPanel`, `Canvas` — hors-scope » : **il a été fini comme
+prévu.** Ce qui a bougé, c'est tout ce qui est venu après — `ToolPalette`
+(07-31), `CurveControl`, `PropertiesPanel`, `ColorRampControl` (08-04),
+`TexturePicker` (08-05), tous en CSS classique.
+
+⚠️ **Nuance qui change l'urgence** : `npm run lint:tokens` est vert sur les 250
+fichiers, donc le CSS classique **ne contourne aucun token**. C'est une dette
+d'homogénéité, pas de design system.
+
+Ni continuée ni arrêtée, jamais décidée — et l'écart grandit à chaque chantier.
+Se tranche dans
+`.scratch/prochain-palier/issues/13-la-migration-shadcn-est-elle-encore-la-direction.md`.
+
 ### Branches mortes, mesurées
 
 `claude/lucid-vaughan-6f8fc7` est superseded par `master` ;

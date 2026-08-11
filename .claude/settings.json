@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "$s = \"$env:CLAUDE_PROJECT_DIR\\.claude\\hooks\\roadmap-au-demarrage.ps1\"; if (Test-Path $s) { & $s }",
+            "timeout": 15,
+            "statusMessage": "Lecture de la feuille de route..."
+          }
+        ]
+      }
+    ]
+  }
+}

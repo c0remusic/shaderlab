@@ -33,10 +33,21 @@ tout ce qui vit hors du dépôt ; `/run-shaderlab` pour toute preuve visuelle.
 
 **Contrainte permanente de cette carte** — issue de la destination : l'export
 print est **réel mais lointain**. Aucune décision de cette carte ne doit rendre
-le passage en 16-bit plus cher. La forme opposable de cette contrainte est
-produite par [Ce que coûte d'attendre le 16-bit](issues/02-cout-d-attendre-le-16-bit.md) ;
-tant qu'elle n'est pas écrite, chaque ticket note simplement où il touche le
-chemin de rendu.
+le passage en 16-bit plus cher. ✅ **Sa forme opposable est écrite** (mesurée le
+2026-08-12, [Ce que coûte d'attendre le 16-bit](issues/02-cout-d-attendre-le-16-bit.md)) :
+
+> **Tout site qui choisit un format de texture COULEUR reçoit `srgbFormat` par
+> injection — jamais une constante littérale, jamais un format déduit sur
+> place.** Une décision (`gpuContext.ts:160`), quatorze lecteurs, zéro format
+> en dur : c'est cette propriété qui rend le 16-bit introduisible plus tard.
+> La préserver coûte zéro ; la perdre coûte une chasse dans huit fichiers.
+>
+> **Corollaire : un effet ne choisit JAMAIS de format.** S'il semble en avoir
+> besoin, c'est la conception qui est fausse — le patron est
+> `textureLibraryStore`, où le STORE choisit et l'effet consomme.
+
+Bonne nouvelle pour le reste de la carte : **formes, typographie et recadrage
+ajoutent ZÉRO site à la facture 16-bit**, un effet ne voyant jamais le format.
 
 **Préférences de méthode, payées cher, non négociables ici** :
 
@@ -63,6 +74,15 @@ chemin de rendu.
   déjà en dépendance, matrice à 4 coefficients) ; mais l'invariant « sRGB par
   le FORMAT » **ne survit pas** au flottant, et toute la mesure a été prise
   dans Edge, pas dans le WebView2 réel.
+- [Ce que coûte d'attendre le 16-bit](issues/02-cout-d-attendre-le-16-bit.md)
+  — **presque rien** : le chemin couleur n'a qu'UNE décision de format
+  (`srgbFormat`, injecté, 14 lecteurs, zéro format en dur) et les 23 effets ne
+  voient jamais le format, donc formes/typo/recadrage n'ajoutent aucun site.
+  La rupture est aux BORNES (présentation, export), et les 77 références de
+  pixels sont sauves tant que le 16-bit reste un SECOND point d'entrée. ⚠️ 22
+  effets sur 23 bornent leur sortie, donc la marge au-dessus de 1,0 serait
+  inutilisée — seule la précision dans [0,1] compte, ce qui rend contraignante
+  la limite des ~11 bits près du blanc.
 - [Ce que Photoshop et Lightroom rendent lisible](issues/09-ce-que-photoshop-et-lightroom-rendent-lisible.md)
   — 31 mécanismes sourcés, dont cinq à accrochage existant ; et une troisième
   voie sur `appliesWhen` (faner au lieu de masquer) que nous n'avions jamais

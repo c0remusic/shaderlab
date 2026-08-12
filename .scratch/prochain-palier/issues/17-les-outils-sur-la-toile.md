@@ -49,10 +49,26 @@ recettes demandent une GÉOMÉTRIE posée sur l'image, pas des curseurs », en
 notant que le patron existait. **Il existe — il n'a simplement pas été déclaré
 ailleurs.**
 
-Genres qui manquent probablement au vocabulaire : rectangle, courbe posée,
-poignée d'angle, dégradé posé (deux points + une rampe). ⚠️ À confirmer par
-[le ticket 18](18-ce-qu-est-un-manipulateur-de-niveau-pro.md) plutôt qu'à
-inventer.
+### ✅ La grille est arrivée — 2026-08-12
+
+[Ce qu'est un manipulateur direct de niveau professionnel](18-ce-qu-est-un-manipulateur-de-niveau-pro.md)
+est résolu : **42 lignes**, dont 17 genres et 25 points d'anatomie du geste
+([`research/18-manipulateurs-directs.md`](../research/18-manipulateurs-directs.md)).
+Ce ticket n'a plus à deviner — il a un critère de sortie vérifiable.
+
+⚠️ **Un candidat que j'avais listé est INFIRMÉ** : la « poignée d'angle » des
+*live shapes* n'existe pas, c'est un champ de la barre d'options. Ne pas
+l'entrer au vocabulaire.
+
+Genres confirmés qui nous manquent, les plus instructifs : **épingle
+composable** (porte sa valeur, se pose hors cadre, a une profondeur) ;
+**ellipse dont la rotation se prend sur le BORD, sans poignée dédiée** ; **trois
+zones concentriques où le fondu EST l'écart entre deux anneaux** ; **dégradé où
+l'on CRÉE une poignée en cliquant la géométrie et où on la SUPPRIME en
+l'éloignant** ; anneau de valeur au survol ; maillage à politique de guides.
+
+**11 des 42 lignes sont déjà faites en tout ou partie** — le socle n'est pas à
+refaire, il est inégal.
 
 ## Sous-front B — la qualité du geste
 
@@ -97,10 +113,39 @@ d'un point qu'on traîne — à confirmer par le ticket 18, à ne pas présumer 
 - `components/` ne porte aucune logique métier ; la géométrie est pure et
   testée à part (`src/ui/transform.ts` est le patron).
 
+## Les écarts MESURÉS sur notre code, à traiter en premier
+
+Ils ne demandent aucun genre nouveau et sont tous chiffrés :
+
+| Écart | Preuve |
+| --- | --- |
+| **Zéro règle `:hover`** dans les quatre CSS d'overlay | mesuré : `AxisHandles`, `PointHandles`, `RegionHandles`, `TransformHandles` = 0 chacun |
+| **Poignées de 12 px** contre 24×24 recommandés | `--slider-thumb-size: 12px` (`design/components.css:58`) |
+| ⚠️ Les poignées réutilisent le token du **pouce de slider** | à découpler AVANT toute mise à la cible : agrandir l'un déforme l'autre |
+| Aucune **valeur de paramètre** affichée pendant le geste | le retour chiffré existe mais montre la distance aux voisins |
+| L'origine d'un `axis` est **clouée au centre** | d'où, dans `lightLeak`, « Entrée de la lumière » et « Trajet » sans aucun lien géométrique |
+| Aucun magnétisme hors `TransformHandles` | alors que `src/ui/snap.ts` calcule déjà toute la géométrie nécessaire |
+
+## ⚠️ Un lien avec le modèle, non prévu, qui peut réordonner la carte
+
+**14 des 42 lignes de la grille supposent qu'un manipulateur soit un OBJET** —
+sélectionnable, duplicable, supprimable, à cardinalité variable — là où le nôtre
+est une projection de paramètres nommés sur un `Record<string, number>`.
+
+**C'est le même mur que la typographie et les formes.** Voir
+[Une forme a-t-elle besoin de `contentSource`](03-une-forme-a-t-elle-besoin-de-contentsource.md).
+Une réponse à la question du modèle déciderait donc aussi du plafond de ce
+front — ce que ni l'un ni l'autre ticket n'avait anticipé.
+
+**Les 28 autres lignes ne demandent pas ce changement** : il existe un palier
+atteignable sans toucher au modèle, et un au-delà qui en dépend. Ce ticket doit
+dire où il s'arrête.
+
 ## Ce qui prouve que ce front est fini
 
 **Chaque effet dont la géométrie est le sujet porte son outil**, et le geste
-tient une **grille de qualité écrite avant d'implémenter** — produite par le
-ticket 18, pas improvisée à la fin.
+tient la **grille de 42 lignes** — dont 11 sont déjà faites en tout ou partie,
+et 14 sont suspendues à la question du modèle.
 
-⚠️ Pas « on en a ajouté trois ». Les deux sous-fronts se prouvent séparément.
+⚠️ Pas « on en a ajouté trois ». Les deux sous-fronts se prouvent séparément, et
+le ticket doit déclarer explicitement lesquelles des 42 lignes il vise.

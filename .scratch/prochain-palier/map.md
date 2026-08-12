@@ -74,6 +74,13 @@ ajoutent ZÉRO site à la facture 16-bit**, un effet ne voyant jamais le format.
   déjà en dépendance, matrice à 4 coefficients) ; mais l'invariant « sRGB par
   le FORMAT » **ne survit pas** au flottant, et toute la mesure a été prise
   dans Edge, pas dans le WebView2 réel.
+- [Ce qu'est un manipulateur direct de niveau professionnel](issues/18-ce-qu-est-un-manipulateur-de-niveau-pro.md)
+  — **42 lignes de grille** (17 genres, 25 points d'anatomie du geste), dont
+  **11 déjà faites** chez nous. Écarts chiffrés : zéro `:hover` dans les quatre
+  CSS d'overlay, poignées de 12 px pour 24 recommandés, aucune valeur affichée
+  pendant le geste. ⚠️ **14 des 42 lignes supposent qu'un manipulateur soit un
+  OBJET** — le même mur que la typographie et les formes, lien non prévu qui
+  peut réordonner la carte.
 - [La rationalisation des contrôles n'est pas terminée](issues/14-la-fusion-des-reglages-redondants.md)
   — **résolu en CADRAGE** : trois documents la déclaraient soldée, la mesure dit
   le contraire sur ses **trois** fronts. 345 paramètres au total ; 10 % portent

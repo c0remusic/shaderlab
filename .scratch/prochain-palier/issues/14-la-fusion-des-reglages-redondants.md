@@ -1,7 +1,7 @@
 # La rationalisation des contrôles n'est pas terminée
 
 Type: grilling
-Status: open
+Status: resolved
 Parent: ../map.md
 
 > Ce ticket s'appelait « La fusion des réglages redondants » et ne visait qu'une
@@ -148,3 +148,65 @@ Personne n'a menti : chaque plan décrit fidèlement ce qu'il a fait. C'est la
 CLÔTURE qui a porté sur le chantier entier. Avant de refermer quoi que ce soit
 ici, dire **quelle mesure prouvera que c'est fini** — un compte de déclarations
 n'en est pas une.
+
+## Answer
+
+Résolu le 2026-08-12 en **cadrage**. Ce ticket ne construit rien : il découpe,
+ordonne, et pose les mesures de sortie. Les trois fronts partent en tickets
+séparés.
+
+### La décision de structure, et sa raison
+
+**Trois tickets, pas un.** C'est structurel, pas cosmétique : ce chantier a été
+clôturé prématurément **trois fois**, chaque fois parce qu'un plan couvrant une
+partie a été lu comme couvrant le tout. Trois tickets nommés, avec chacun sa
+mesure de sortie, rendent cette confusion mécaniquement impossible — clore l'un
+ne peut plus se lire comme clore le chantier.
+
+| Front | Ticket |
+| --- | --- |
+| 1. Applicabilité | [L'applicabilité couvre 10 % du parc](15-l-applicabilite-couvre-10-pourcent.md) |
+| 2. Sections et densité | [Les sections ne sectionnent pas](16-les-sections-ne-sectionnent-pas.md) |
+| 3. Outils sur la toile | [Les outils sur la toile : quatre effets, trois genres](17-les-outils-sur-la-toile.md) |
+
+### L'ordre, et pourquoi il n'est pas arbitraire
+
+**1 → 2 → 3**, et l'ordre porte de l'information :
+
+- **L'applicabilité d'abord.** Elle est déclarative, réversible, et son gate de
+  mesure existe déjà. Surtout : masquer **réduit mécaniquement ce qui est à
+  l'écran**. Re-sectionner avant de masquer, ce serait sectionner un panneau
+  qui n'existera plus.
+- **Les sections ensuite**, sur le parc réellement visible après masquage. La
+  densité mesurée aujourd'hui (`lensFlare` 10 par section) est celle d'un
+  panneau qui affiche des paramètres inertes.
+- **Les outils en dernier** : c'est le plus cher (géométrie **et** geste), et
+  le seul qui demande d'aller regarder dehors avant d'écrire quoi que ce soit.
+
+⚠️ **Une exception à cet ordre** : la recherche du front 3 ne dépend d'aucun des
+deux autres et ne demande personne. Elle peut partir **tout de suite, en
+parallèle**.
+
+### Le front 3 porte les DEUX manques — arbitrage d'Antoine, 2026-08-12
+
+La question laissée ouverte (« le NOMBRE de genres ou la QUALITÉ du geste ? »)
+est tranchée : **les deux**. Le ticket 17 porte donc deux sous-fronts distincts
+et ne peut pas se clore sur un seul.
+
+### Les mesures de sortie, écrites AVANT de commencer
+
+C'est la parade à la quatrième clôture prématurée. Aucun de ces trois tickets
+ne se clôt sur un compte de déclarations.
+
+| Front | Ce qui prouve que c'est fini |
+| --- | --- |
+| 1 | Zéro paramètre INERTE non masqué, prouvé effet par effet — et chaque déclaration éprouvée par `render-check.mjs --applicabilite`, jamais posée sur une croyance |
+| 2 | Un plafond de densité **chiffré et opposable**, et aucun effet au-dessus ; plus zéro orphelin sans raison écrite (il y en a 25, dont 9 non documentés sur `duotone`) |
+| 3 | Chaque effet dont la géométrie est le sujet porte son outil, et le geste tient une grille de qualité écrite **avant** d'implémenter |
+
+### Ce que ce cadrage ne tranche pas
+
+Le plafond de densité lui-même (un chiffre ? un jugement ?), le sort des 25
+orphelins un par un, et la grille de qualité du geste. Chacun appartient à son
+ticket — les remonter ici recréerait exactement l'objet trop gros qui a produit
+les trois clôtures.

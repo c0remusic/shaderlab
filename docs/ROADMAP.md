@@ -503,10 +503,31 @@ entier. **Avant de refermer, dire quelle MESURE prouvera que c'est fini ; un
 compte de déclarations n'en est pas une** (l'erreur commise ici même : 42
 déclarations lues comme « couvert », sans demander « sur combien »).
 
-Se tranche dans
-`.scratch/prochain-palier/issues/14-la-fusion-des-reglages-redondants.md`, qui
-porte aussi la contrainte dure : un paramètre ne se retire pas sans casser les
-presets qui le citent, contrairement à un effet retiré.
+**Découpé le 2026-08-12 en un ticket PAR FRONT**, avec chacun sa mesure de
+sortie — précisément parce que la cause des trois clôtures est toujours la
+même : un plan couvrant une partie, lu comme couvrant le tout. Trois tickets
+nommés rendent cette confusion impossible.
+
+| Ordre | Front | Ce qui prouve que c'est fini |
+| --- | --- | --- |
+| 1 | `15-l-applicabilite-couvre-10-pourcent.md` | zéro paramètre inerte non masqué, prouvé effet par effet, chaque déclaration éprouvée par `render-check.mjs --applicabilite` |
+| 2 | `16-les-sections-ne-sectionnent-pas.md` | un plafond de densité chiffré et opposable, aucun effet au-dessus, zéro orphelin sans raison écrite |
+| 3 | `17-les-outils-sur-la-toile.md` | chaque effet dont la géométrie est le sujet porte son outil, et le geste tient une grille écrite AVANT d'implémenter |
+
+L'ordre porte de l'information : **masquer réduit mécaniquement ce qui est à
+l'écran**, donc re-sectionner avant de masquer serait sectionner un panneau qui
+n'existera plus — le front 2 est explicitement bloqué par le front 1. Le front 3
+est le plus cher et le seul qui demande de regarder dehors : sa recherche
+(`18-ce-qu-est-un-manipulateur-de-niveau-pro.md`) est AFK et tourne en
+parallèle.
+
+⚠️ **Arbitrage d'Antoine, 2026-08-12** : sur les outils, les DEUX manques sont
+réels — le nombre de genres **et** la qualité du geste. Le front 3 ne peut donc
+pas se clore sur un seul des deux.
+
+Contrainte dure commune : un paramètre ne se retire pas sans casser les presets
+qui le citent, contrairement à un effet retiré ; et `test:render` doit rendre
+zéro écart après tout travail de panneau.
 
 ### La migration shadcn s'est fait dépasser — 17 composants, pas 3
 

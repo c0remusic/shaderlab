@@ -74,6 +74,16 @@ ajoutent ZÉRO site à la facture 16-bit**, un effet ne voyant jamais le format.
   déjà en dépendance, matrice à 4 coefficients) ; mais l'invariant « sRGB par
   le FORMAT » **ne survit pas** au flottant, et toute la mesure a été prise
   dans Edge, pas dans le WebView2 réel.
+- [La rationalisation des contrôles n'est pas terminée](issues/14-la-fusion-des-reglages-redondants.md)
+  — **résolu en CADRAGE** : trois documents la déclaraient soldée, la mesure dit
+  le contraire sur ses **trois** fronts. 345 paramètres au total ; 10 % portent
+  une condition et 15 effets sur 23 n'en ont aucune ; `liste` = 54 des 73
+  sections ; 4 effets sur 23 ont un outil sur la toile. Découpée en
+  [15](issues/15-l-applicabilite-couvre-10-pourcent.md) →
+  [16](issues/16-les-sections-ne-sectionnent-pas.md) →
+  [17](issues/17-les-outils-sur-la-toile.md), **un ticket par front avec sa
+  mesure de sortie**, parce que c'est la 3ᵉ clôture prématurée du même chantier
+  et que la cause est toujours un plan partiel lu comme un chantier entier.
 - [Ce que coûte d'attendre le 16-bit](issues/02-cout-d-attendre-le-16-bit.md)
   — **presque rien** : le chemin couleur n'a qu'UNE décision de format
   (`srgbFormat`, injecté, 14 lecteurs, zéro format en dur) et les 23 effets ne

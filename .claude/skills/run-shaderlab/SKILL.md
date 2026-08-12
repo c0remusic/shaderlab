@@ -160,6 +160,30 @@ Chacun a coûté du temps réel.
   importent `invoke` depuis `@tauri-apps/api/core` — une autre référence. Un
   espion posé là rapporte zéro appel alors que l'IPC travaille.
 
+- **Un objet WebGPU lu par spread rend `{}`, et ce vide n'est PAS une absence de
+  donnée.** `{...adapter.info}` et `Object.keys(adapter.info)` rendent vide
+  parce que les champs de `GPUAdapterInfo` sont des **accesseurs de prototype**.
+  Lus par leur nom, ils sont tous là (`vendor`, `architecture`, `device`,
+  `description`, `subgroupMinSize`, `subgroupMaxSize`, `isFallbackAdapter`).
+  Vérifié le 2026-08-12 : `Object.keys(info).length === 0` et sept accesseurs
+  sur `Object.getPrototypeOf(info)`. **Un résultat VIDE se raconte tout seul une
+  histoire crédible** (« la plateforme ne l'expose pas ») — imprimer
+  `getOwnPropertyNames(getPrototypeOf(x))` avant d'y croire. Vaut pour tout objet
+  d'API navigateur, pas seulement WebGPU.
+
+- **Une sonde sans témoin de discrimination ne prouve rien, même en vert.** Dans
+  la même passe, `rgba16float` passait le filtrage ET `rgba32float` était refusé
+  (`None of the supported sample types (UnfilterableFloat)`) : c'est le second
+  qui rend le premier lisible. Faire porter à toute sonde un cas dont on SAIT
+  qu'il doit échouer, sinon un vert d'instrument mort et un vert de vraie
+  réussite ont exactement la même tête.
+
+- **`SystemInfo.getInfo` (CDP, endpoint NAVIGATEUR et non page) donne le rapport
+  GPU** — devices, driver, `optimus`/`amdSwitchable`. ⚠️ Son `glRenderer` décrit
+  **ANGLE / Direct3D11**, qui est le chemin **WebGL** : ne jamais le lire comme
+  le backend **WebGPU**, que Dawn choisit séparément. `chrome://gpu` est
+  inaccessible dans WebView2 (page vide, même ouverte dans une cible séparée).
+
 - **Le dock existe SANS document ouvert.** Les cartes Presets / Pile / Textures
   s'affichent sur l'écran d'accueil. Le seul témoin fiable d'un document est
   `state().layers.length`, pas la présence du dock.

@@ -93,6 +93,35 @@ Turing) ; aucun TIFF n'a été produit ni relu, donc l'écart de type de champ I
 trouvé (`BYTE` au lieu de `UNDEFINED`, partagé par les deux crates) reste non
 tranché ; IEC 61966-2-1 est payante et non lue.
 
+### ✅ TROU PRINCIPAL REFERMÉ le 2026-08-12
+
+Mesure refaite **dans la vraie fenêtre WebView2** (`Edg/151.0.4129.78`), app
+lancée avec le port CDP : [`research/01b-mesure-webview2-reel.md`](../research/01b-mesure-webview2-reel.md).
+
+**Verdict identique** — `rgba16float` passe en cible de rendu, en filtrage
+linéaire et en lecture, sur un device demandé sans aucune feature. Avec son
+témoin de discrimination : `rgba32float` est refusé au filtrage dans la même
+sonde, alors même que l'adaptateur ANNONCE `float32-filterable` — le device
+n'ayant rien demandé. Adaptateur confirmé NVIDIA / Turing,
+`isFallbackAdapter: false`.
+
+⚠️ **Deux réserves à ne pas gommer** :
+
+- **Le nom du backend Dawn reste inconnu**, `chrome://gpu` étant inaccessible
+  dans WebView2. Mais la question se DISSOUT : le backend n'était qu'un proxy
+  pour « la mesure est-elle représentative », et mesurer dans shaderlab
+  lui-même rend le proxy inutile. ⚠️ Ne pas lire le `glRenderer`
+  (« ANGLE … Direct3D11 ») de `SystemInfo.getInfo` comme le backend WebGPU :
+  c'est le chemin **WebGL**.
+- **Un seul GPU reste vrai et NE SE REFERMERA PAS ici.** La machine n'a que la
+  RTX 2060 et le WARP logiciel — `optimus: false`, `amdSwitchable: false`,
+  aucun iGPU. Rien n'est établi pour Intel ou AMD.
+
+Correction de méthode issue de cette passe : `adapter.info` lu par spread rend
+`{}` parce que ses champs sont des **accesseurs de prototype**. Le `[non
+mesuré]` de ce ticket sur l'info d'adaptateur venait très probablement du même
+piège, pas d'une donnée absente.
+
 ### La leçon de méthode, qui vaut au-delà de ce ticket
 
 Conclure du **seul code Dawn** aurait donné un fait **FAUX** sur

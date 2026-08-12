@@ -157,10 +157,19 @@ Si quelqu'un transforme ça en drapeau, les 77 sautent.
 > besoin, c'est la conception qui est fausse — le patron est
 > `textureLibraryStore`, où c'est le STORE qui choisit et l'effet qui consomme.
 
-### Ce que ce ticket n'a PAS fait
+### ✅ Le trou déclaré est refermé — 2026-08-12
 
-Le trou déclaré n'est pas refermé : la faisabilité reste mesurée dans **Edge,
-pas dans le WebView2 de shaderlab** (aucun binaire sur disque). Ça ne bloque
-pas la contrainte ci-dessus, qui est une propriété du code et non du navigateur
-— mais ça bloque toute décision de CONSTRUIRE le 16-bit. À refermer au moment
-où ce chantier s'ouvrira, avec le snippet du fichier de findings.
+Fait le jour même : mesure refaite **dans la vraie fenêtre WebView2**
+(`Edg/151.0.4129.78`), verdict identique à Edge, avec témoin de discrimination.
+Détail dans [`research/01b-mesure-webview2-reel.md`](../research/01b-mesure-webview2-reel.md).
+
+**Plus rien ne bloque une décision de CONSTRUIRE le 16-bit** du côté de la
+faisabilité. Ce qui reste avant d'ouvrir ce chantier n'est plus technique mais
+d'arbitrage — la contradiction du PRD avec l'invariant « sRGB par le FORMAT »,
+et les ~11 bits utiles près du blanc face à un TIFF 16 bits entier.
+
+Deux réserves subsistent et ne se referment pas ici : le nom du backend Dawn
+(inaccessible, mais la question se dissout dès qu'on mesure dans le vrai
+runtime) et le **GPU unique** — cette machine n'a que la RTX 2060 et le WARP
+logiciel, aucun iGPU. Rien n'est établi pour Intel ou AMD, et ça demandera un
+autre matériel.

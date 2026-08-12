@@ -210,7 +210,21 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `docs/superpowers/specs/2026-08-01-references-effets.md` et de demandes
   directes d'Antoine.
 - **Le panneau d'un effet est DÉCLARÉ par son module, jamais par `ParamPanel`**
-  (chantier soldé le 2026-08-05, statut dans `docs/INDEX.json`). Trois champs,
+  — le MÉCANISME est livré ; ⚠️ **le CHANTIER ne l'est pas, contrairement à ce
+  que ce paragraphe a dit du 2026-08-05 au 2026-08-12** (« chantier soldé »).
+  Mesuré sur les modules réels le 2026-08-12 (instrument :
+  `.scratch/prochain-palier/assets/mesure-controles.ts`) : sur **345
+  paramètres**, seuls 36 portent une condition (**10 %**) et **15 effets sur 23
+  n'en ont AUCUNE** — dont `curves` (37 params), `lensFlare` (30, alors
+  qu'ADR-0017 lui donne trois blocs dont les paramètres ne font rien quand leur
+  bloc est éteint), `channelMixer` (22), `gradientMap` (20). Les sections
+  existent partout mais ne sectionnent pas (`duotone` 11 params pour 1 section,
+  `lensFlare` 10 par section ; `liste` = 54 des 73 gabarits, d'où le
+  défilement), et **4 effets sur 23 seulement** portent un outil sur la toile,
+  en trois genres. Se tranche dans
+  `.scratch/prochain-palier/issues/14-la-fusion-des-reglages-redondants.md`.
+  ⚠️ **Troisième clôture prématurée du même chantier** — `INDEX.json` note qu'il
+  avait déjà été rouvert une fois pour cette raison exacte. Trois champs,
   un seul type de condition partagé — `DisplayCondition` : `EffectParam.appliesWhen`
   masque un curseur sans objet, `EffectModule.sections` regroupe en blocs titrés
   (`SectionLayout` : vocabulaire **fermé** à `liste` · `paire` · `grille` ·
@@ -228,7 +242,12 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   effets en laissent délibérément (`lensFlare` 9, `channelMixer` 4, `gradientMap`
   2, `curves` 1) en disant pourquoi à leur déclaration. La différence entre un
   orphelin voulu et un oubli se LIT dans le commentaire, aucune mesure ne la
-  donne ;
+  donne. ⚠️ **Mais il y en a un CINQUIÈME, non documenté, et cette phrase a dit
+  « quatre » jusqu'au 2026-08-12** : `duotone` laisse **9** orphelins sur ses 11
+  paramètres. Cause probable — le retrait de ses trois sections d'encre le
+  2026-08-05 (elles répétaient le libellé de leur pastille, violation ADR-0001).
+  **La correction de densité a créé les orphelins**, et rien ne l'a signalé.
+  Mesure : 25 orphelins au total sur 345 paramètres ;
   **(d)** une applicabilité se MESURE avant de se déclarer —
   `node scripts/render-check.mjs --applicabilite`. Sur 41 déclarations éprouvées
   le 2026-08-05, une était FAUSSE (`glass.flat`, 47 % des canaux en Martelé) ;

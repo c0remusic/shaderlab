@@ -458,28 +458,50 @@ déclencheur « après les masques de base » **est atteint** depuis le
 2026-08-05), segmentation sémantique sujet/ciel, pen/path Bézier, sélection
 rect/ellipse, lasso. Aucun rouvert depuis.
 
-### La rationalisation des contrôles a livré 2 branches sur 3
+### La rationalisation des contrôles est OUVERTE sur trois fronts
 
-Le chantier avait trois branches (`docs/INDEX.json`) : applicabilité
-conditionnelle, **fusion des réglages redondants**, tri par catégories. Mesuré
-le 2026-08-12 :
+⚠️ Ce document, `CLAUDE.md` et `docs/INDEX.json` déclaraient tous les trois ce
+chantier **soldé le 2026-08-05**. Constat d'Antoine le 2026-08-12, puis mesure
+sur les modules réels
+(`.scratch/prochain-palier/assets/mesure-controles.ts` — le grep ment, les
+paramètres de `curves` sortent d'un `flatMap`) : **les trois fronts sont
+ouverts.** Le mécanisme est livré ; le chantier ne l'est pas.
 
-- ✅ **Applicabilité** — `EffectParam.appliesWhen` / `EffectSection.appliesWhen`
-  (`effects/types.ts:64`), **19 effets, 42 déclarations**, plus 10
-  `CanvasControl.visibleWhen`, et une gate qui les MESURE
-  (`render-check.mjs --applicabilite`).
-- ✅ **Tri par catégories** — `EFFECT_CATEGORIES` (`effects/catalog.ts`).
-- ⚠️ **Fusion des réglages redondants — aucune trace.** Le plan
-  `2026-08-04-rationalisation-des-controles.md` est marqué « TERMINÉ » et
-  décrit fidèlement ce qu'il a fait : contrat, panneau, déclarations. Il ne
-  mentionne pas la fusion.
+**345 paramètres au total sur 23 effets** — personne n'avait ce chiffre.
 
-⚠️ **Le motif compte plus que l'item.** `INDEX.json` écrit que ce chantier avait
-**déjà été rouvert une fois**, « parce que le précédent n'avait traité que les
-contrôles spécialisés et avait été clôturé comme s'il était complet ». C'est
-arrivé une **seconde** fois, sur une autre branche. Personne n'a menti — c'est
-la CLÔTURE qui a porté sur le chantier entier alors que le plan ne couvrait
-qu'une partie de son périmètre.
+- ⚠️ **Applicabilité : 10 % de couverture.** 36 conditions sur 345 paramètres,
+  concentrées sur 8 effets. **15 effets sur 23 n'en ont AUCUNE**, et ce sont
+  les plus chargés : `curves` (37 params), `lensFlare` (30), `channelMixer`
+  (22), `gradientMap` (20), `isolines` (18). Or ADR-0017 donne à `lensFlare`
+  **trois blocs distincts** dont les paramètres ne font rien quand leur bloc est
+  éteint — rien ne les masque. C'est le « réglages qui ne font rien selon les
+  situations » d'Antoine, chiffré.
+- ⚠️ **Sections : elles existent partout mais ne sectionnent pas.** `duotone`
+  11 params pour **1** section, `lensFlare` **10 par section**, `outlines` 8,7,
+  `curves` 7,4. Et le gabarit `liste` représente **54 des 73** sections — des
+  empilements verticaux, d'où le défilement. Une section de dix paramètres est
+  un scroll avec un titre.
+- ⚠️ **Outils sur la toile : 4 effets sur 23**, en trois genres seulement
+  (`point`, `disk`, `axis`), six instances. Absents de `warp`, `glass`,
+  `lensDistortion`, `gradientMap`, `isolines`, `sliceShift`, `gooeyMerge`,
+  `halftone`. Antoine les juge « bâclés, pas du niveau de Photoshop, et pas
+  présents partout » — reste à préciser si le manque est le NOMBRE de genres ou
+  la QUALITÉ du geste, ce qui change entièrement le chantier.
+- ⚠️ **Un orphelin non documenté, et sa cause.** `CLAUDE.md` affirmait que
+  quatre effets laissent des orphelins délibérés (16 au total) ; la mesure les
+  confirme **et en trouve un cinquième** — `duotone`, 9 orphelins sur 11
+  paramètres. Cause probable : le retrait de ses trois sections d'encre le
+  2026-08-05 pour violation ADR-0001. **La correction de densité a créé les
+  orphelins.** 25 orphelins au total.
+
+⚠️ **Le motif compte plus que les items : c'est la TROISIÈME clôture prématurée
+du même chantier.** `INDEX.json` note qu'il avait déjà été rouvert une fois
+« parce que le précédent n'avait traité que les contrôles spécialisés et avait
+été clôturé comme s'il était complet ». Personne n'a menti — chaque plan décrit
+fidèlement ce qu'il a fait, et c'est la CLÔTURE qui a porté sur le chantier
+entier. **Avant de refermer, dire quelle MESURE prouvera que c'est fini ; un
+compte de déclarations n'en est pas une** (l'erreur commise ici même : 42
+déclarations lues comme « couvert », sans demander « sur combien »).
 
 Se tranche dans
 `.scratch/prochain-palier/issues/14-la-fusion-des-reglages-redondants.md`, qui

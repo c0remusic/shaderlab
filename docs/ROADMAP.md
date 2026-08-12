@@ -351,10 +351,53 @@ Instruit le 2026-08-11
   16 bits entier) alors que la sortie visée EST un TIFF 16 bits entier ; et
   `MAX_CANVAS_PIXELS = 64 Mpx` dépasse les limites par défaut du device en
   16 bits (relevables, mais plus gratuitement — ADR-0007 à relire).
-- ⚠️ **Trou déclaré** : toute cette mesure a été prise dans **Edge 151, pas
-  dans le WebView2 de shaderlab** (aucun binaire construit sur disque), sur un
-  seul GPU, backend D3D12 non mesuré. Le snippet pour le refermer est dans le
-  fichier de findings. **Le refermer avant de s'appuyer dessus.**
+- ✅ **Le trou déclaré est REFERMÉ le 2026-08-12.** La faisabilité avait été
+  mesurée dans Edge 151 et non dans le WebView2 de shaderlab, faute de binaire
+  sur disque. Refaite dans la **vraie fenêtre** (`Edg/151.0.4129.78`, app
+  lancée avec le port CDP) : **verdict identique**, avec témoin de
+  discrimination — `rgba32float` est refusé au filtrage dans la même sonde
+  alors que l'adaptateur ANNONCE `float32-filterable`, le device n'ayant rien
+  demandé. Détail :
+  `.scratch/prochain-palier/research/01b-mesure-webview2-reel.md`.
+- ⚠️ **Deux réserves qui restent, et qu'il ne faut pas gommer.** Le nom du
+  backend Dawn est inconnu (`chrome://gpu` inaccessible en WebView2) — mais la
+  question se DISSOUT, le backend n'étant qu'un proxy pour « la mesure est-elle
+  représentative », que mesurer dans le vrai runtime rend inutile. ⚠️ Ne pas
+  lire le `glRenderer` d'ANGLE/Direct3D11 rendu par `SystemInfo.getInfo` comme
+  le backend WebGPU : c'est le chemin **WebGL**. Et **un seul GPU** reste vrai,
+  non refermable ici : la machine n'a que la RTX 2060 et le WARP logiciel,
+  `optimus: false`, `amdSwitchable: false`, aucun iGPU. Rien n'est établi pour
+  Intel ou AMD — il faudra un autre matériel.
+
+**Ce qui reste avant d'ouvrir ce chantier n'est donc plus technique, c'est de
+l'arbitrage** : la contradiction du PRD avec l'invariant « sRGB par le FORMAT »,
+et les ~11 bits utiles près du blanc face à une sortie TIFF 16 bits entier.
+
+### La contrainte que ce bloc impose au reste du travail
+
+Mesurée le 2026-08-12
+(`.scratch/prochain-palier/issues/02-cout-d-attendre-le-16-bit.md`) : **attendre
+ne coûte presque rien, parce que l'architecture porte déjà la propriété qui
+rend le 16-bit introduisible.**
+
+> Tout site qui choisit un format de texture COULEUR reçoit `srgbFormat` par
+> injection — jamais une constante littérale. Une décision
+> (`gpuContext.ts:160`), quatorze lecteurs, zéro format en dur. **Un effet ne
+> choisit JAMAIS de format** ; s'il semble en avoir besoin, la conception est
+> fausse — le patron est `textureLibraryStore`, où le store choisit et l'effet
+> consomme.
+
+Conséquences pour le bloc 2 : **formes, typographie et recadrage ajoutent ZÉRO
+site à la facture 16-bit**, un effet ne voyant jamais le format. Et les 77
+références de pixels sont sauves **tant que** le 16-bit reste un SECOND point
+d'entrée d'export, comme le PRD le pose déjà — en faire un drapeau sur l'export
+existant les ferait toutes sauter.
+
+⚠️ Une réserve qui n'était pas prévue : **22 effets sur 23 bornent leur sortie**
+(`clamp`/`saturate`), donc la marge au-dessus de 1,0 qu'offre un flottant ne
+serait **pas utilisée**. Le gain est purement de la précision dans [0,1], ce qui
+rend contraignante — et non anecdotique — la limite des ~11 bits près du blanc,
+précisément là où bloom et halation travaillent.
 
 ## 4. Chantiers dormants — retrouvés par mesure le 2026-08-11
 
@@ -414,6 +457,34 @@ monoculaire **local** type MiDaS/Depth-Anything, **PAS un LLM** — et son
 déclencheur « après les masques de base » **est atteint** depuis le
 2026-08-05), segmentation sémantique sujet/ciel, pen/path Bézier, sélection
 rect/ellipse, lasso. Aucun rouvert depuis.
+
+### La rationalisation des contrôles a livré 2 branches sur 3
+
+Le chantier avait trois branches (`docs/INDEX.json`) : applicabilité
+conditionnelle, **fusion des réglages redondants**, tri par catégories. Mesuré
+le 2026-08-12 :
+
+- ✅ **Applicabilité** — `EffectParam.appliesWhen` / `EffectSection.appliesWhen`
+  (`effects/types.ts:64`), **19 effets, 42 déclarations**, plus 10
+  `CanvasControl.visibleWhen`, et une gate qui les MESURE
+  (`render-check.mjs --applicabilite`).
+- ✅ **Tri par catégories** — `EFFECT_CATEGORIES` (`effects/catalog.ts`).
+- ⚠️ **Fusion des réglages redondants — aucune trace.** Le plan
+  `2026-08-04-rationalisation-des-controles.md` est marqué « TERMINÉ » et
+  décrit fidèlement ce qu'il a fait : contrat, panneau, déclarations. Il ne
+  mentionne pas la fusion.
+
+⚠️ **Le motif compte plus que l'item.** `INDEX.json` écrit que ce chantier avait
+**déjà été rouvert une fois**, « parce que le précédent n'avait traité que les
+contrôles spécialisés et avait été clôturé comme s'il était complet ». C'est
+arrivé une **seconde** fois, sur une autre branche. Personne n'a menti — c'est
+la CLÔTURE qui a porté sur le chantier entier alors que le plan ne couvrait
+qu'une partie de son périmètre.
+
+Se tranche dans
+`.scratch/prochain-palier/issues/14-la-fusion-des-reglages-redondants.md`, qui
+porte aussi la contrainte dure : un paramètre ne se retire pas sans casser les
+presets qui le citent, contrairement à un effet retiré.
 
 ### La migration shadcn s'est fait dépasser — 17 composants, pas 3
 

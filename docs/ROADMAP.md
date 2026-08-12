@@ -516,14 +516,63 @@ nommés rendent cette confusion impossible.
 
 L'ordre porte de l'information : **masquer réduit mécaniquement ce qui est à
 l'écran**, donc re-sectionner avant de masquer serait sectionner un panneau qui
-n'existera plus — le front 2 est explicitement bloqué par le front 1. Le front 3
-est le plus cher et le seul qui demande de regarder dehors : sa recherche
-(`18-ce-qu-est-un-manipulateur-de-niveau-pro.md`) est AFK et tourne en
-parallèle.
+n'existera plus — le front 2 est explicitement bloqué par le front 1.
 
 ⚠️ **Arbitrage d'Antoine, 2026-08-12** : sur les outils, les DEUX manques sont
 réels — le nombre de genres **et** la qualité du geste. Le front 3 ne peut donc
 pas se clore sur un seul des deux.
+
+#### ✅ La grille du front 3 est ÉCRITE — recherche résolue le 2026-08-12
+
+`.scratch/prochain-palier/research/18-manipulateurs-directs.md` : **42 lignes**
+(17 genres, 25 points d'anatomie du geste), sources citées, deux passes de
+navigateur indépendantes. Le front 3 n'a plus à deviner ce que « niveau
+Photoshop » veut dire — il a un critère de sortie vérifiable.
+
+**11 des 42 lignes sont déjà faites** chez nous en tout ou partie : le socle
+n'est pas à refaire, il est inégal. Écarts mesurés indépendamment :
+
+- **zéro règle `:hover`** dans les quatre CSS d'overlay (`AxisHandles`,
+  `PointHandles`, `RegionHandles`, `TransformHandles` — 0 chacun) ;
+- **poignées de 12 px** pour 24×24 recommandés — et ⚠️ elles réutilisent
+  `--slider-thumb-size` (`design/components.css:58`), **le token du pouce de
+  slider** : à découpler AVANT toute mise à la cible, sinon agrandir l'un
+  déforme l'autre ;
+- `src/ui/snap.ts` **existe déjà** (`SNAP_THRESHOLD_SCREEN_PX = 8`,
+  `SnapGuide`, `boundingBox`) et calcule la géométrie du magnétisme qui manque
+  partout sauf dans `TransformHandles` ;
+- aucune **valeur de paramètre** affichée pendant le geste ; l'origine d'un
+  `axis` est clouée au centre, d'où dans `lightLeak` une « Entrée de la
+  lumière » et un « Trajet » sans aucun lien géométrique.
+
+Trois pièges contraires à l'intuition, à ne pas réapprendre : l'accroche
+d'angle n'est **pas** un seul nombre (15° en rotation, **45°** sur un point de
+chemin, même touche) ; **`Maj` dans Photoshop depuis 2019 n'a pas de sens
+fixe** — c'est une bascule d'un état PERSISTANT, invisible dans le geste ; et
+« Photoshop masque ses poignées sur une petite sélection » n'est confirmé par
+aucune page. Un candidat a été **infirmé** : la poignée d'angle des *live
+shapes* n'existe pas, c'est un champ de la barre d'options.
+
+#### ⚠️ Un lien NON PRÉVU, qui peut réordonner tout le palier
+
+**14 des 42 lignes supposent qu'un manipulateur soit un OBJET** —
+sélectionnable, duplicable, supprimable, à cardinalité variable — là où le
+nôtre est une projection de paramètres nommés sur un `Record<string, number>`.
+
+**C'est exactement le mur de la typographie et des formes** (bloc 2 ci-dessus,
+et `.scratch/prochain-palier/issues/03-…` / `04-…`). Le front des outils et la
+question du modèle de document ne sont donc **pas indépendants**, ce qu'aucun
+des deux chantiers n'avait anticipé : une réponse sur `contentSource`
+déciderait aussi du plafond des manipulateurs.
+
+**Les 28 autres lignes ne demandent pas ce changement.** Il existe donc un
+palier atteignable sans toucher au modèle, et un au-delà qui en dépend — le
+front 3 doit déclarer où il s'arrête.
+
+⚠️ Note de conservation : **la référence de raccourcis Photoshop a été SUPPRIMÉE
+du site d'Adobe.** Le §Méthode du document de recherche liste les dix pages
+survivantes en style ancien — à archiver si le front 3 doit s'y appuyer dans six
+mois.
 
 Contrainte dure commune : un paramètre ne se retire pas sans casser les presets
 qui le citent, contrairement à un effet retiré ; et `test:render` doit rendre

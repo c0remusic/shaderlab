@@ -1,5 +1,6 @@
 import type { LayerState } from "../layers/types";
 import { resolveClipping, type ClipResolution } from "../layers/clipping";
+import { guideChainKey, jetonApercuLive } from "../layers/contentKey";
 import { photoGuideKey } from "../layers/photoLayer";
 import { defaultLayerMask } from "../mask/types";
 import { getEffect } from "./effects/registry";
@@ -160,6 +161,14 @@ export class FramePipelineExecutor {
    *  tronqués à la taille de la pile activée courante. */
   private lastGuideKeys: unknown[] = [];
   private lastGuideEpochs: number[] = [];
+  /** Clé de CONTENU du maillon `i`, servie d'autorité quand l'identité seule
+   *  dit « différent ». Un appelant en amont recopie le calque du bas à chaque
+   *  frame (même contenu, même id) : sans cette seconde comparaison, la chaîne
+   *  se périmait à chaque image et la SAT edge-aware de chaque masque de la
+   *  pile était reconstruite pour rien — 165 images par seconde tombant à ~14
+   *  dès qu'un masque existait (mesuré le 2026-08-13, photo de 26 Mpx). Voir
+   *  `layers/contentKey.ts` pour le sens de l'erreur à préserver. */
+  private lastGuideContentKeys: (string | null)[] = [];
   /** Même mécanique, pour les positions dont le guide n'est PAS la chaîne en
    *  dessous mais la photo du calque lui-même (voir `computeGuideEpochs`).
    *  Tableau séparé parce que ces deux dépendances n'ont rien à voir : une
@@ -167,6 +176,20 @@ export class FramePipelineExecutor {
    *  invalidations. */
   private lastOwnGuideKeys: (string | null)[] = [];
   private lastOwnGuideEpochs: number[] = [];
+  /** Diagnostic : à QUELLE position la chaîne de guides devient périmée, par
+   *  frame. Une divergence en position 0 (la toile) périme TOUTES les
+   *  positions au-dessus, donc invalide le cache SAT de chaque masque de la
+   *  pile — le cas le plus coûteux, et invisible autrement. Posé le
+   *  2026-08-13, quand les compteurs du résolveur ont montré une SAT
+   *  reconstruite à chaque image alors que le fold, lui, servait son cache. */
+  private diagStale: Record<string, number> = { frames: 0, jamais: 0 };
+  private diagDernierBas: LayerState | null = null;
+  private diagDernierBasId: string | null = null;
+  drainGuideDiagnostics(): Record<string, number> {
+    const copie = { ...this.diagStale };
+    this.diagStale = { frames: 0, jamais: 0 };
+    return copie;
+  }
 
   constructor(
     private readonly device: GPUDevice,
@@ -261,6 +284,8 @@ export class FramePipelineExecutor {
   ): number[] {
     const epochs: number[] = [];
     let stale = false;
+    this.diagStale.frames++;
+    let premierStale = -1;
     for (let i = 0; i < Math.max(enabledLayers.length, 1); i++) {
       const below = i === 0 ? null : enabledLayers[i - 1];
       const key =
@@ -271,9 +296,29 @@ export class FramePipelineExecutor {
               // pinceau sans nouveau `LayerState`. Une clé neuve à chaque
               // frame est la seule façon honnête de le dire — sinon le guide
               // d'un calque au-dessus resterait figé pendant tout le trait.
-              {}
+              // ⚠️ Un jeton `{}` ne suffit PLUS depuis que la comparaison
+              // retombe sur le CONTENU : deux littéraux vides ont la même clé.
+              jetonApercuLive()
             : below;
-      if (!stale && this.lastGuideKeys[i] !== key) stale = true;
+      // Deux comparaisons, dans cet ordre : l'IDENTITÉ (gratuite, et vraie
+      // dans le cas courant où rien n'a bougé), puis le CONTENU (le calque du
+      // bas est recopié à chaque frame par un appelant en amont, donc son
+      // identité ment). Ne périmer que si les deux disent « différent ».
+      if (!stale && this.lastGuideKeys[i] !== key) {
+        const contenu = guideChainKey(key);
+        if (this.lastGuideContentKeys[i] !== contenu) {
+          stale = true;
+          premierStale = i;
+        }
+        this.lastGuideContentKeys[i] = contenu;
+      } else if (stale) {
+        // Position AU-DESSUS d'une divergence : son epoch est renouvelée sans
+        // qu'on ait lu son contenu. Oublier la clé mémorisée force un vrai
+        // recalcul au prochain tour plutôt que de comparer à une valeur dont
+        // on ne sait plus si elle décrit la frame courante — sens sûr, comme
+        // partout ici.
+        this.lastGuideContentKeys[i] = null;
+      }
       if (stale) this.lastGuideEpochs[i] = ++this.guideGeneration;
       this.lastGuideKeys[i] = key;
 
@@ -295,8 +340,28 @@ export class FramePipelineExecutor {
     // epoch neuve. Conservateur dans le bon sens (jamais un guide périmé).
     this.lastGuideKeys.length = epochs.length;
     this.lastGuideEpochs.length = epochs.length;
+    this.lastGuideContentKeys.length = epochs.length;
     this.lastOwnGuideKeys.length = epochs.length;
     this.lastOwnGuideEpochs.length = epochs.length;
+    if (premierStale < 0) this.diagStale.jamais++;
+    else {
+      const cle = `stale_position_${premierStale}`;
+      this.diagStale[cle] = (this.diagStale[cle] ?? 0) + 1;
+    }
+    // Qu'est-ce qui change exactement en position 0 : l'OBJET du calque du bas,
+    // ou seulement son contenu ? Un id stable avec un objet neuf désigne une
+    // recopie par un appelant en amont ; un id qui change désigne un
+    // réordonnancement de la pile.
+    const bas = enabledLayers[0] ?? null;
+    if (bas) {
+      if (this.diagDernierBas !== null) {
+        if (this.diagDernierBas === bas) this.diagStale.bas_meme_objet = (this.diagStale.bas_meme_objet ?? 0) + 1;
+        else if (this.diagDernierBasId === bas.id) this.diagStale.bas_objet_neuf_meme_id = (this.diagStale.bas_objet_neuf_meme_id ?? 0) + 1;
+        else this.diagStale.bas_id_different = (this.diagStale.bas_id_different ?? 0) + 1;
+      }
+      this.diagDernierBas = bas;
+      this.diagDernierBasId = bas.id;
+    }
     return epochs;
   }
 

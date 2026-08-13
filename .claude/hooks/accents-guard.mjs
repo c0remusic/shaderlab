@@ -27,7 +27,10 @@
 import { readFileSync, statSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 
+// Les deux familles de CORRUPTION valent partout : du mojibake dans un .ts est
+// un degat comme ailleurs. La famille heuristique, elle, se restreint a EXT_PROSE.
 const EXT_TEXTE = /\.(md|txt|json|ts|tsx|js|mjs|css|html|ps1|rs|toml|yml|yaml)$/i
+const EXT_PROSE = /\.(md|txt)$/i
 const FENETRE_MS = 15_000
 
 // --- Famille 1 : un echappement \uXXXX qui a perdu son antislash. C'est ce qui
@@ -40,14 +43,37 @@ const MOJIBAKE = /Ã[©¨ª«¢§´¹»]|â€[™œ˜"]|Â[°«»]/g
 
 // --- Famille 3 : desaccentuation. Heuristique, donc elle avertit sans bloquer,
 // et uniquement dans un fichier qui porte des accents ailleurs.
+// Deux exclusions payees par des faux positifs REELS, mesures le 2026-08-12 :
+//   - les formes qui sont du FRANCAIS VALIDE sans accent — « il verrouille »,
+//     « corrige les pixels » sont corrects, les flaguer punit du bon texte ;
+//   - les mots qui sont de l'ANGLAIS — « for future reference », « general
+//     costs » apparaissent dans des fichiers a moitie anglais de ce depot.
+// D'ou l'absence de : verrouille, corrige, reference(s), general.
 const MOTS_DESACCENTUES = [
-  'possibilite', 'coherence', 'mesuree', 'mesurees', 'reference', 'references',
-  'deja', 'apres', 'tres', 'etat', 'etats', 'derniere', 'derniers', 'premiere',
+  'possibilite', 'coherence', 'mesuree', 'mesurees',
+  // « derniers » est absent pour la meme raison que « verrouille » : « les huit
+  // derniers » est correct. « derniere » reste, la ou l'accent est requis.
+  'deja', 'apres', 'tres', 'derniere', 'premiere',
   'necessaire', 'donnees', 'proprietes', 'parametre', 'parametres', 'requete',
-  'verifie', 'verifiee', 'corrige', 'corrigee', 'realite', 'securite',
-  'priorite', 'qualite', 'unite', 'entite', 'cle', 'cles', 'general',
+  'verifiee', 'corrigee', 'realite', 'securite',
+  'priorite', 'qualite', 'unite', 'entite', 'cles',
 ]
-const DESACCENTUES = new RegExp(`\\b(${MOTS_DESACCENTUES.join('|')})\\b`, 'gi')
+// ⚠️ PAS de `\b` : en JavaScript il est ASCII, donc le `e` accentue de
+// « parametres » y cree une FAUSSE frontiere de mot et `\btres\b` matche a
+// l'interieur. Mesure du 2026-08-12 : avec `\b`, 181 fichiers sur 570 se
+// declenchaient, dont du code pur — exactement le garde bruyant que l'en-tete
+// du garde du backtick donne en contre-exemple. Les lookarounds Unicode avec le
+// drapeau `u` sont la forme correcte.
+const DESACCENTUES = new RegExp(`(?<!\\p{L})(${MOTS_DESACCENTUES.join('|')})(?!\\p{L})`, 'giu')
+
+// Un fichier peut porter quelques caracteres accentues sans etre de la prose
+// francaise : `wgsl-backtick-guard.mjs` porte une plage de lettres accentuees
+// dans une REGEX, et serait analyse a tort alors qu'il est ecrit sans accent
+// par convention. Un seuil de DENSITE separe la prose du reste.
+// Calibre, pas choisi : `wgsl-backtick-guard.mjs` porte 2 accents (une plage
+// dans une regex) et doit rester dehors ; un court paragraphe francais en porte
+// une dizaine et doit entrer. 6 separe les deux sans serrer ni l'un ni l'autre.
+const SEUIL_PROSE = 6
 
 const charge = (() => {
   try { return JSON.parse(readFileSync(0, 'utf8')) } catch { return null }
@@ -76,6 +102,23 @@ function fichiersACheck() {
   }
 }
 
+// ⚠️ LE faux positif dominant, mesure le 2026-08-12 : les mots de la liste
+// vivent surtout dans des CHEMINS et des IDENTIFIANTS, non accentues par
+// convention — `2026-08-01-references-effets.md`, `pile-proprietes-masque`,
+// `general-purpose`. Avant ce filtre, la TOTALITE des declenchements de
+// CLAUDE.md, ROADMAP.md et CONTEXT.md etaient de ce type : zero vrai positif.
+// Un voisin `-`, `/`, `.` ou `_` suffit a trancher, et un span entre backticks
+// aussi.
+function dansUnIdentifiant(ligne, debut, longueur) {
+  const avant = ligne[debut - 1] ?? ' '
+  const apres = ligne[debut + longueur] ?? ' '
+  if (/[-/._]/.test(avant) || /[-/._]/.test(apres)) return true
+  // Entre backticks : compter les backticks avant la position. Impair = dedans.
+  let n = 0
+  for (let k = 0; k < debut; k++) if (ligne[k] === '`') n++
+  return n % 2 === 1
+}
+
 const bloquants = []
 const suspects = []
 
@@ -86,7 +129,18 @@ for (const fichier of fichiersACheck()) {
   try { source = readFileSync(fichier, 'utf8') } catch { continue }
 
   const lignes = source.split('\n')
-  const porteDesAccents = /[À-ÿ]/.test(source)
+  // Un bloc de code cloture (```) contient du code, donc des identifiants non
+  // accentues legitimes. Le test de backticks par ligne ne le voit pas — il
+  // faut suivre l'etat sur tout le fichier. Faux positif reel : une commande
+  // PowerShell citee dans SKILL.md.
+  let dansUnBloc = false
+  // La 3e famille ne vaut QUE dans de la prose. Dans du code, `cle`, `etat` ou
+  // `reference` sont des IDENTIFIANTS — un identifiant ne peut pas porter
+  // d'accent, donc y chercher une desaccentuation est structurellement faux.
+  // Mesure du 2026-08-12 : sans cette restriction, 73 fichiers se declenchaient,
+  // dont `render-check.mjs` a lui seul 165 fois — un fichier que CLAUDE.md
+  // documente comme deliberement non accentue.
+  const prose = EXT_PROSE.test(fichier) && (source.match(/[À-ÿ]/g) ?? []).length >= SEUIL_PROSE
 
   lignes.forEach((ligne, i) => {
     for (const m of ligne.matchAll(ECHAPPEMENT_NU)) {
@@ -95,8 +149,10 @@ for (const fichier of fichiersACheck()) {
     for (const m of ligne.matchAll(MOJIBAKE)) {
       bloquants.push(`${fichier}:${i + 1} « ${m[0]} » — UTF-8 relu en latin-1`)
     }
-    if (!porteDesAccents) return
+    if (/^\s*```/.test(ligne)) { dansUnBloc = !dansUnBloc; return }
+    if (!prose || dansUnBloc) return
     for (const m of ligne.matchAll(DESACCENTUES)) {
+      if (dansUnIdentifiant(ligne, m.index, m[0].length)) continue
       suspects.push(`${fichier}:${i + 1} « ${m[0]} » dans un fichier par ailleurs accentue`)
     }
   })

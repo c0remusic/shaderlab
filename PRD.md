@@ -116,13 +116,22 @@ non-destructif existant.
   > **Amendement 2026-07-26 (tranche T5 « N photos », design
   > `docs/superpowers/specs/2026-07-26-shaderlab-photo-layer-parity-design.md`
   > §3.5)** — cette limite a été levée : le plafond livré est
-  > `MAX_PHOTO_LAYERS = 4` calques photo par document (`src/layers/photoLayer.ts`),
-  > soit au plus 5 photos sources (le fond + 4). L'exigence « limite dure
-  > NOMMÉE et vérifiable, jamais codée en dur » reste, elle, entièrement
-  > valable — seule la VALEUR change. Elle est elle-même provisoire : borne de
-  > sécurité VRAM non encore mesurée, critère de révision écrit sur la
-  > constante. Les mentions « 2 photos » ci-dessous (hors-scope, risques,
-  > critères de fin) se lisent avec cet amendement.
+  > `MAX_PHOTO_LAYERS = 5` calques photo par document **fond compris**, soit
+  > 4 imports + le fond (`src/layers/photoLayer.ts:66`). L'exigence « limite
+  > dure NOMMÉE et vérifiable, jamais codée en dur » reste, elle, entièrement
+  > valable — seule la VALEUR change. Les mentions « 2 photos » ci-dessous
+  > (hors-scope, risques, critères de fin) se lisent avec cet amendement.
+  >
+  > ⚠️ **Corrigé le 2026-08-13, deux erreurs mesurées sur disque.** Ce
+  > paragraphe a dit `MAX_PHOTO_LAYERS = 4` **et** « soit au plus 5 photos
+  > sources (le fond + 4) » : le plafond vaut **5**, et il COMPTE le fond
+  > depuis `26ab0ed`, qui a fait du fond un calque ordinaire — la formulation
+  > « le fond + N » ne décrit plus le modèle. Il a aussi dit « borne de
+  > sécurité VRAM **non encore mesurée** » : elle a été **mesurée deux fois**,
+  > et c'est la mesure du 2026-07-30 qui a FIXÉ cette valeur — 6 calques
+  > essayés pour de vrai et écartés (pire cas des sources à ~89 % de la VRAM
+  > contre ~84 % à 5). Voir `ARCHITECTURE.md` §7 R1 et le critère de révision
+  > écrit sur la constante elle-même, qui reste le seul endroit où le relire.
 - ~~Le round-trip Lightroom n'est PAS supporté en présence d'un double
   exposure en v1~~ — contrainte SANS OBJET depuis la dépose du round-trip
   (ADR-0002) : tout export est une copie, quel que soit le contenu de la pile.
@@ -133,7 +142,9 @@ non-destructif existant.
 - **Presets** : organisation par dossiers/tags (liste plate uniquement) ;
   bibliothèque de presets fournis par défaut avec l'app (seulement ceux créés
   par l'utilisateur).
-- **Double exposure** : plus de 2 photos sources ; segmentation automatique du
+- **Double exposure** : ~~plus de 2 photos sources~~ (levé par T5 — le plafond
+  est `MAX_PHOTO_LAYERS = 5`, fond compris ; voir l'amendement plus haut) ;
+  segmentation automatique du
   sujet (voir différé nommé dans `CONTEXT.md` — fast-follow, pas ce PRD).
   L'exclusion « round-trip Lightroom en présence d'un double exposure » qui
   figurait ici est sans objet depuis la dépose du round-trip (ADR-0002).
@@ -158,10 +169,14 @@ non-destructif existant.
 **Inacceptable (double exposure)** :
 - Pas d'appel réseau/cloud pour l'isolation du sujet, même en v2 (segmentation
   ML strictement locale, cohérent avec le différé `CONTEXT.md`).
-- Le VRAM avec 2 photos pleine résolution chargées simultanément est un risque
-  ouvert (déjà noté projet-large dans `CLAUDE.md` pour 1 photo — untested à 2)
-  — à mesurer à l'usage réel avant de considérer la feature terminée, pas de
-  budget théorique figé par avance.
+- Le VRAM à N photos pleine résolution chargées simultanément se **mesure**,
+  pas de budget théorique figé par avance. ✅ **Fait, deux fois** — ce point a
+  dit « risque ouvert […] untested à 2 » jusqu'au 2026-08-13, alors que la
+  mesure du 2026-07-30 est justement ce qui a fixé `MAX_PHOTO_LAYERS = 5`
+  (toile de 64 Mpx, pire cas des SOURCES saturé — c'est lui qui décide, pas le
+  nominal). Détail et protocole : `ARCHITECTURE.md` §7 R1 et l'en-tête de la
+  constante. Ce qui reste inacceptable est de **réviser le plafond sans
+  refaire la mesure au nouveau plafond dérivé**.
 
 ## Terminé = démontrable
 
@@ -173,7 +188,8 @@ vérifié visuellement (Storybook + app réelle) et par tests sur la logique pur
 
 **Double exposure** : import d'une 2e photo, transform manuel fonctionnel,
 masque peint isolant le sujet, effets/blend applicables sur le calque de
-photo, limite 2 photos respectée (le critère « absence de round-trip Lightroom
+photo, limite `MAX_PHOTO_LAYERS` respectée — **5 calques photo fond compris**,
+pas 2 (le critère « absence de round-trip Lightroom
 en présence de la feature » est tombé avec la dépose du round-trip, ADR-0002 :
 il n'y a plus d'écrasement à constater absent) — vérifié visuellement (fenêtre réelle, CDP —
 canvas WebGPU non capturable par Playwright, cf. `CLAUDE.md` § Moyen de

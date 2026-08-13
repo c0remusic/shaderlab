@@ -69,6 +69,25 @@ ajoutent ZÉRO site à la facture 16-bit**, un effet ne voyant jamais le format.
 
 <!-- une ligne par ticket clos : le gist, puis le lien pour le détail -->
 
+- **Arbitrages d'Antoine du 2026-08-13**, pris devant l'app et non sur document —
+  ils tranchent des tickets ouverts et en ouvrent d'autres :
+  - **`curves` passe en PERÇU** (« pas les points rouges ni l'effet délavé ») —
+    tranche le ticket 06 dans le sens « corriger l'effet », pas « amender la
+    règle linéaire du dépôt. Casse les deux références de pixels de `curves`, à
+    relire à l'œil avant de committer.
+  - **`lensFlare` : ses trois phénomènes deviennent trois options
+    SÉLECTIONNABLES dans l'effet** — pas trois entrées du registre. La famille
+    des halos ne se rouvre donc pas une seconde fois (ADR-0017 tient).
+  - **Light leak refusé en l'état** : « très lampe torche, très grossier ». Ce
+    n'est pas qu'un réglage de valeurs — la FORME est en cause.
+  - **Verre : le grain doit être plus fin, et les matières comparées à de
+    vraies photos** avant d'être crédibles. Les espacements des pavés sont
+    « très moches » — mesuré depuis : notre rapport joint/pavé (8 px sur 132,
+    soit 6,1 %) est pourtant DANS la fourchette réelle (9–15 mm pour 190–200,
+    soit 5–8 %), donc le défaut est ailleurs que dans la largeur.
+  - **Un wireframe est demandé pour la pile à 7 calques et plus.**
+  - **La perf du masque est un blocage d'usage**, re-signalée deux fois.
+
 - [Ce dont le 16-bit a besoin hors du dépôt](issues/01-ce-dont-le-16-bit-a-besoin-hors-du-depot.md)
   — faisabilité **acquise** (`rgba16float` sans aucune feature, crate TIFF+ICC
   déjà en dépendance, matrice à 4 coefficients) ; mais l'invariant « sRGB par
@@ -171,17 +190,32 @@ Ruled beyond the destination. Ne graduent jamais.
   sauf si [Le sort de `sat-feather`](issues/07-le-sort-de-sat-feather.md)
   rouvre la question de la branche canonique — auquel cas elle y est traitée.
 
-### Corrections de documentation mesurées, en attente d'un geste
+### Corrections de documentation mesurées — ✅ SOLDÉES le 2026-08-13
 
-Aucune n'est une décision — ce sont des faits vérifiés le 2026-08-11 contre
-des documents qui disent autre chose. Elles sont consignées ICI parce que la
-faute que cette carte diagnostique est précisément celle-là : signaler et
-oublier. À appliquer d'un seul geste, pas une par une.
+Aucune n'était une décision — ce sont des faits vérifiés le 2026-08-11 contre
+des documents qui disaient autre chose. Elles étaient consignées ICI parce que
+la faute que cette carte diagnostique est précisément celle-là : signaler et
+oublier.
 
-| Document | Ce qu'il dit | Ce que le disque dit |
-| --- | --- | --- |
-| `CONTEXT.md:259`, `ARCHITECTURE.md:565`, `ARCHITECTURE.md:615` | `MAX_PHOTO_LAYERS = 4` | **5** (`src/layers/photoLayer.ts:66`). Le risque VRAM R1 d'`ARCHITECTURE.md` est chiffré sur le mauvais plafond |
-| `CLAUDE.md:84` | la config du canvas est en `gpuContext.ts:64-78` | **lignes 155-164** — la citation se trompe de ~90 lignes, dans le fichier que chaque session lit |
-| `docs/ROADMAP.md` §2 | le recadrage « ne dépend d'aucun arbitrage », « le SEUL item prêt à coder » | son design §3.1 a été partiellement renversé par le passage à deux échelles du 2026-07-31 — voir [Ce qui reste du design de parité du calque photo](issues/05-ce-qui-reste-du-design-de-parite-du-calque-photo.md) |
-| `docs/design-system/photoshop-web-reference-tokens.md` § Constat structurel majeur | met en garde contre un dock empilé, au nom de `FloatingPanel` | `FloatingPanel` est supprimé depuis le 2026-07-21 ; la mise en garde vise un composant qui n'existe plus |
-| `docs/INDEX.json` | n'a **aucune** entrée pour `2026-07-26-shaderlab-photo-layer-parity-design.md` | ce design est cité par `CONTEXT.md`, `PRD.md` et quatre fichiers source |
+**Re-mesurées une par une le 2026-08-13 avant d'y toucher : les cinq étaient
+déjà appliquées.** Elles l'ont été au fil des sessions des 11 et 12 août, sans
+que personne raye la table — donc la table listait comme « en attente » un
+travail fait, ce qui est la même faute vue de l'autre côté. Leçon opposable :
+**une liste de corrections se re-mesure avant de s'appliquer**, sinon on
+réécrit du correct par-dessus du correct.
+
+| Document | Ce qu'il disait | Ce que le disque dit | État au 2026-08-13 |
+| --- | --- | --- | --- |
+| `CONTEXT.md:259`, `ARCHITECTURE.md:565`, `ARCHITECTURE.md:618` | `MAX_PHOTO_LAYERS = 4` | **5**, fond compris (`src/layers/photoLayer.ts:66`) | ✅ déjà corrigé, R1 compris (« MESURÉ, deux fois ») |
+| `CLAUDE.md:84` | config du canvas en `gpuContext.ts:64-78` | **lignes 155-164** | ✅ déjà corrigé, avec la trace de l'écart |
+| `docs/ROADMAP.md` §2 | le recadrage « ne dépend d'aucun arbitrage », « le SEUL item prêt à coder » | design §3.1 renversé par le passage à deux échelles du 2026-07-31 | ✅ déjà corrigé, renvoie au [ticket 05](issues/05-ce-qui-reste-du-design-de-parite-du-calque-photo.md) |
+| `docs/design-system/photoshop-web-reference-tokens.md` § Constat structurel majeur | met en garde contre un dock empilé, au nom de `FloatingPanel` | supprimé le 2026-07-21 | ✅ section réécrite, l'écart réel (splitter vs content-sized) isolé |
+| `docs/INDEX.json` | aucune entrée pour `2026-07-26-shaderlab-photo-layer-parity-design.md` | — | ✅ entrée présente |
+
+**Le seul reste était HORS de cette table** : `PRD.md` portait le même plafond
+faux à trois endroits (`= 4`, « plus de 2 photos sources » en hors-scope,
+« limite 2 photos respectée » en critère de fin) **et une seconde erreur que
+personne n'avait relevée** — « borne de sécurité VRAM non encore mesurée »,
+alors que c'est la mesure du 2026-07-30 qui a fixé la valeur. Corrigé le
+2026-08-13. Ce qui l'a fait sortir : avoir cherché la CONSTANTE dans tout le
+dépôt au lieu de relire les lignes citées par la table.

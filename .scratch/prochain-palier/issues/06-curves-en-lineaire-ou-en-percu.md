@@ -1,7 +1,48 @@
 # curves en linéaire ou en perçu
 
 Type: grilling
-Status: open
+Status: resolved
+
+## Verdict du 2026-08-13 — PERÇU, et l'effet est corrigé
+
+Arbitrage d'Antoine, rendu devant l'image et non sur document : « fais en sorte
+qu'on n'ait pas les points rouges et l'effet délavé ». C'est donc l'EFFET qui se
+corrige, pas la règle « linéaire strict » du dépôt qui s'amende.
+
+**Ce n'est pas une entorse à la règle**, et c'est ce qui rend le verdict tenable :
+`srgbTransfer.ts` documente depuis le 2026-08-01 une seconde exception, l'aller-
+retour FERMÉ — encoder, appliquer, redécoder dans la même expression. Ce qui sort
+est linéaire, comme ce qui entre, et le mix final reste linéaire. Cinq effets la
+suivaient déjà (`texture`, `dither`, `halftone`, `hatching`, `gradientMap`,
+`channelMixer`) ; `curves` était le seul à ne pas le faire, alors qu'il est le
+plus tonal de tous.
+
+### Deux défauts, pas un — et le second ne se voyait qu'une fois le premier corrigé
+
+1. **L'espace.** La courbe s'appliquait à la lumière linéaire. Point noir levé à
+   25 % : moyenne 146,3/255 et écart-type effondré à **19,1** (photo nue : 60,7),
+   soit toute séparation des ombres perdue. Après passage en perçu : moyenne 96,5,
+   écart-type **44,7**.
+2. **Le gain du canal maître.** Le maître préserve la teinte en multipliant par
+   `mappedLuma / luma`. Quand `luma` tend vers zéro ce facteur explose — 0,001 en
+   entrée et 0,25 en sortie donnent un gain de 250 — et il multiplie le bruit
+   chromatique du JPEG avec le reste. **C'est lui, la vraie cause des points
+   rouges** ; le passage en perçu les atténuait sans les supprimer. Le gain est
+   désormais plafonné à 4, et au-delà on complète vers le gris neutre : la luma
+   visée est atteinte dans les deux cas, et **sous le plafond le résultat est
+   identique au bit près** à l'ancienne formule.
+
+⚠️ La leçon : corriger l'espace faisait disparaître 80 % des points colorés, ce
+qui aurait facilement passé pour « réglé ». Ce sont les captures relues à l'œil,
+pas les chiffres, qui ont montré qu'il en restait.
+
+### Ce que ça a coûté au verrou de pixels
+
+`effet-courbes-neutre` : **aucun écart, au bit près** — la courbe identité
+court-circuite avant toute conversion, donc le neutre reste neutre. C'est le
+témoin qui prouve que le changement ne touche que ce qu'il devait toucher.
+`effet-courbes` : écart max 56, moyenne 14,3 — attendu, référence régénérée et
+relue (dégradé lisse, sans bande, montant plus tôt vers les clairs qu'avant).
 Parent: ../map.md
 
 ## Question

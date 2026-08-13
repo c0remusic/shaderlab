@@ -1,5 +1,11 @@
 import type { CurveChannelControl, EffectModule, EffectParam, EffectSection } from "./types";
 import { evaluateMonotoneCurve, type CurvePoint } from "../../ui/curveControl";
+import {
+  LINEAR_TO_SRGB_VEC3_WGSL,
+  LINEAR_TO_SRGB_WGSL,
+  SRGB_TO_LINEAR_VEC3_WGSL,
+  SRGB_TO_LINEAR_WGSL,
+} from "./srgbTransfer";
 
 const LUMA = [0.2126, 0.7152, 0.0722] as const;
 const CHANNEL_IDS = ["master", "red", "green", "blue"] as const;
@@ -188,13 +194,58 @@ export const curves: EffectModule = {
   curveControls: [{ id: "curves", label: "Courbes", channels: curveChannels }],
   tonalRangeControl: { shadowsMin: "shadowsMin", shadowsMax: "shadowsMax", highlightsMin: "highlightsMin", highlightsMax: "highlightsMax" },
   wgsl: `${WGSL_CURVE}
+${LINEAR_TO_SRGB_WGSL}
+${LINEAR_TO_SRGB_VEC3_WGSL}
+${SRGB_TO_LINEAR_WGSL}
+${SRGB_TO_LINEAR_VEC3_WGSL}
 const CURVES_LUMA = vec3<f32>(0.2126, 0.7152, 0.0722);
+
+// LA COURBE TRAVAILLE EN PERCU, PAS EN LUMIERE LINEAIRE. Arbitrage d'Antoine
+// du 2026-08-13, devant l'image : lever le point noir donnait un gris moyen
+// delave au lieu d'un noir leve, et faisait diverger la chromaticite dans les
+// ombres (pixels rouges et violets sur les bords de la silhouette).
+//
+// Mesure qui l'a montre : point noir a 25 %, la moyenne de l'image passait a
+// 146/255 et l'ecart-type s'effondrait de 60,7 a 19,1 — toute separation des
+// ombres perdue. A 1 % seulement, la moyenne montait deja de 43,6 a 60,2. Un
+// pour cent de lumiere lineaire est un grand pas perceptuel : c'est la
+// non-linearite elle-meme qui rendait le curseur inutilisable.
+//
+// Ce n'est PAS une entorse a la regle du depot ("jamais de gamma manuel sur un
+// echantillon d'image"). C'est la seconde exception, deja ecrite dans
+// srgbTransfer.ts : un aller-retour FERME. On encode, on applique la courbe,
+// on redecode dans la meme expression ; ce qui sort est lineaire, comme ce qui
+// est entre, et le mix final se fait bien en lineaire. Cinq effets suivaient
+// deja cette regle (texture, dither, halftone, hatching, gradientMap,
+// channelMixer) ; curves etait le seul a ne pas la suivre, alors qu'il est le
+// plus tonal de tous.
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   if (curve_is_identity(0u) && curve_is_identity(8u) && curve_is_identity(16u) && curve_is_identity(24u)) { return color; }
-  let luma = dot(color.rgb, CURVES_LUMA);
+  let percu = linear_to_srgb3(color.rgb);
+  let luma = dot(percu, CURVES_LUMA);
   let mappedLuma = curve_eval(luma, 0u);
-  let master = select(vec3<f32>(mappedLuma), color.rgb * (mappedLuma / max(luma, 0.000001)), luma > 0.000001);
-  let corrected = vec3<f32>(curve_eval(master.r, 8u), curve_eval(master.g, 16u), curve_eval(master.b, 24u));
+  // GAIN BORNE, sinon le canal maitre fabrique des pixels colores dans les
+  // ombres. Le maitre preserve la teinte en multipliant la couleur par
+  // mappedLuma/luma ; quand luma tend vers zero ce facteur explose (luma
+  // 0,001 et sortie 0,25 donnent un gain de 250), et il multiplie le BRUIT
+  // chromatique du JPEG avec le reste. C'est ce qui semait des points rouges
+  // et violets sur les bords de la silhouette — vu par Antoine le 2026-08-13,
+  // attenue mais PAS supprime par le passage en percu.
+  //
+  // Au-dela du plafond, on complete vers le gris neutre au lieu d'etirer la
+  // chroma : la luma visee est atteinte exactement dans les deux cas, et sous
+  // le plafond le resultat est identique au bit pres a l'ancienne formule
+  // (manque vaut alors zero). Ce n'est donc pas un nouveau rendu, c'est le
+  // meme sans sa singularite.
+  let gain = min(mappedLuma / max(luma, 0.000001), 4.0);
+  let teinte = percu * gain;
+  let manque = mappedLuma - dot(teinte, CURVES_LUMA);
+  let master = select(vec3<f32>(mappedLuma), teinte + vec3<f32>(manque), luma > 0.000001);
+  let corrected = srgb_to_linear3(vec3<f32>(curve_eval(master.r, 8u), curve_eval(master.g, 16u), curve_eval(master.b, 24u)));
+  // La plage tonale se compare a la luma PERCUE elle aussi : ses quatre bornes
+  // sont des valeurs posees au curseur, donc perceptuelles. Les comparer a une
+  // luma lineaire les decalait — le meme defaut que la courbe, sur les memes
+  // reglages.
   let range = curves_smoothstep_safe(params[32], params[33], luma) * (1.0 - curves_smoothstep_safe(params[34], params[35], luma));
   let amount = clamp(params[36], 0.0, 1.0) * range;
   return vec4<f32>(clamp(mix(color.rgb, corrected, amount), vec3<f32>(0.0), vec3<f32>(1.0)), color.a);

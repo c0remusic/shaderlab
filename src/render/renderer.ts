@@ -518,10 +518,38 @@ export class Renderer {
    *  pour un rendu immédiat déterministe (premier affichage).
    *  `preview` : voir `MaskPreviewOverride` — utilisé par le pinceau pour un
    *  retour visuel par échantillon sans passer par `updateBrushMask()`. */
+  /** Diagnostic (DEV) : QUI appelle `requestRender` avec un calque du bas
+   *  RECOPIÉ — même id, objet neuf. Cette recopie ne périme plus la chaîne de
+   *  guides (corrigé par `layers/contentKey.ts`), mais elle reste du travail
+   *  fait pour rien, et on ne savait pas d'où elle venait. La pile d'appel se
+   *  capture ICI et pas dans l'exécuteur : le rendu réel est coalescé par
+   *  `FrameScheduler`, donc appelé depuis un rAF où l'appelant d'origine a
+   *  déjà disparu de la pile. */
+  private diagDernierBasRequest: LayerState | null = null;
+  private diagRecopies = new Map<string, number>();
+  drainRecopieDiagnostics(): Record<string, number> {
+    const copie = Object.fromEntries(this.diagRecopies);
+    this.diagRecopies.clear();
+    return copie;
+  }
+
   requestRender(
     layers: LayerState[],
     preview: MaskPreviewOverride | null = null,
   ): void {
+    if (import.meta.env.DEV) {
+      const bas = layers[0] ?? null;
+      const precedent = this.diagDernierBasRequest;
+      if (bas && precedent && bas !== precedent && bas.id === precedent.id) {
+        const pile = (new Error().stack ?? "")
+          .split("\n")
+          .slice(2, 6)
+          .map((ligne) => ligne.trim().replace(/^at\s+/, "").replace(/\?t=\d+/g, ""))
+          .join(" <- ");
+        this.diagRecopies.set(pile, (this.diagRecopies.get(pile) ?? 0) + 1);
+      }
+      if (bas) this.diagDernierBasRequest = bas;
+    }
     this.renderScheduler.request({ layers, preview });
   }
 
@@ -574,6 +602,19 @@ export class Renderer {
    * including the last one, so the readback always reflects the true final
    * frame.
    */
+  /** Compteurs de recalcul du résolveur de masque, vidés à chaque lecture —
+   *  instrument de diagnostic, pas une API de rendu. Voir
+   *  `MaskTextureResolver.drainDiagnostics`. */
+  drainMaskDiagnostics(): Record<string, number> | null {
+    return this.maskTextureResolver?.drainDiagnostics() ?? null;
+  }
+
+  /** Où la chaîne de guides devient périmée, par frame — voir
+   *  `FramePipelineExecutor.drainGuideDiagnostics`. */
+  drainGuideDiagnostics(): Record<string, number> | null {
+    return this.framePipelineExecutor?.drainGuideDiagnostics() ?? null;
+  }
+
   async exportFrame(layers: LayerState[]): Promise<ExportedFrame> {
     // ⚠️ ATTENDRE LES TEXTURES DE BIBLIOTHÈQUE ENCORE EN VOL. `viewFor` ne
     // bloque JAMAIS — un rendu à l'écran ne s'arrête pas pour un décodage, il

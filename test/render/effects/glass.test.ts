@@ -194,10 +194,29 @@ describe("glass — l'optique, et ce qui la sépare d'un portage naïf", () => {
     expect(wgsl).toMatch(/let Tr = refract\(I, N, 1\.0 \/ \(1\.52 - demi\)\)/);
   });
 
-  it("étale la traversée LATÉRALEMENT, sinon ce n'est pas un flou", () => {
-    // Neuf taps alignés font neuf copies décalées, et la striure sur l'axe du
-    // décalage trahit le procédé à l'œil nu. Le terme coûte zéro.
-    expect(wgsl).toContain("let lat = sin(t * 9.42) * f * 0.38;");
+  it("étale la traversée EN DEUX DIMENSIONS, sinon ce n'est pas un flou", () => {
+    // L'intention est inchangee depuis le premier jour : des taps alignes font
+    // des copies decalees, et la striure sur l'axe du decalage trahit le procede
+    // a l'oeil nu. Ce qui a change le 2026-08-13, c'est la façon de l'obtenir.
+    //
+    // AVANT : neuf taps sur un SEGMENT, plus un decalage lateral sinusoidal
+    // ajoute apres coup pour rompre l'alignement. Ce test assertait ce terme
+    // correctif MOT POUR MOT (`sin(t * 9.42) * f * 0.38`), donc il verrouillait
+    // une IMPLEMENTATION et non la propriete — il rougissait pour une methode
+    // qui tient l'intention strictement mieux.
+    //
+    // APRES : une spirale d'or, isotrope PAR CONSTRUCTION (rayon en racine de
+    // la fraction, angle par multiples de l'angle d'or), ponderee en gaussienne
+    // — ce que decrivent les references sur un verre sable, dont la diffusion
+    // est gaussienne et sans direction privilegiee.
+    //
+    // On asserte donc les deux proprietes, pas les constantes : l'offset porte
+    // sur DEUX axes a la fois, et le poids decroit avec le rayon.
+    expect(wgsl).toMatch(/vec2<f32>\(cos\(a\), sin\(a\)\) \* rayon \* f/);
+    expect(wgsl).toContain("let rayon = sqrt(fraction);");
+    expect(wgsl).toContain("let poids = exp(-2.0 * fraction);");
+    // Et le contre-exemple : plus aucun etalement sur un seul axe.
+    expect(wgsl).not.toContain("vec2<f32>(t * f, lat)");
   });
 
   it("échantillonne SANS dérivée d'écran — c'est une condition de compilation", () => {

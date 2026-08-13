@@ -633,11 +633,31 @@ fn verre_lire(uv: vec2<f32>) -> vec3<f32> {
 fn verre_traverser(uv: vec2<f32>, d: vec2<f32>, f: f32) -> vec3<f32> {
   var s = vec3<f32>(0.0);
   var somme = 0.0;
+  // SEIZE PRELEVEMENTS EN SPIRALE D'OR, ponderes en gaussienne — et non plus
+  // neuf le long d'un AXE. Le procede precedent etalait sur un segment et
+  // corrigeait sa propre striure par un decalage lateral sinusoidal ; a forte
+  // diffusion il rendait des paquets, ce qu'Antoine a vu sur le Depoli avant
+  // de demander des references reelles.
+  //
+  // Ce que disent ces references : un verre sable a une rugosite Ra de 0,4 a
+  // 1,2 micrometre et diffuse selon une distribution GAUSSIENNE, sans
+  // composante speculaire. A 26 Mpx un pixel couvre deja ~50 micrometres
+  // d'objet, donc le grain est cinquante fois plus petit qu'un pixel : un
+  // depoli ne doit montrer AUCUNE structure, seulement un etalement lisse.
+  // Neuf points sur un segment ne peuvent pas produire ca, quel que soit le
+  // terme correctif qu'on leur ajoute.
+  //
+  // La spirale de Vogel couvre le disque uniformement (rayon en racine de la
+  // fraction, angle par multiples de l'angle d'or), donc l'etalement est
+  // ISOTROPE : aucune direction privilegiee a trahir. Le poids exp(-2 r²) est
+  // la gaussienne elle-meme.
+  let angleOr = 2.39996323;
   for (var i = 0; i < 9; i = i + 1) {
-    let t = (f32(i) - 4.0) / 4.0;
-    let poids = 1.0 - abs(t) * 0.55;
-    let lat = sin(t * 9.42) * f * 0.38;
-    s = s + poids * verre_lire(uv + d + vec2<f32>(t * f, lat));
+    let fraction = (f32(i) + 0.5) / 9.0;
+    let rayon = sqrt(fraction);
+    let a = f32(i) * angleOr;
+    let poids = exp(-2.0 * fraction);
+    s = s + poids * verre_lire(uv + d + vec2<f32>(cos(a), sin(a)) * rayon * f);
     somme = somme + poids;
   }
   return s / somme;
@@ -728,8 +748,26 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   var profilArete = 0.0;
   var creteArete = 0.0;
   var normaleArete = vec2<f32>(0.0);
+  // VARIATION D'UN PAVE A L'AUTRE. Sans elle, toutes les plaques ont exactement
+  // la meme teinte et le meme eclat : c'est la regularite parfaite qui trahit le
+  // synthetique, et Antoine l'a nommee « tres artificiel, 3D des annees 90 » le
+  // 2026-08-13. Un vrai mur n'a jamais deux paves identiques — la pose, le bain
+  // de fabrication et l'epaisseur varient d'une plaque a la suivante.
+  //
+  // Pilotees par l'IRREGULARITE, qui existe deja et dont l'infobulle annonce
+  // presque ce comportement (« sur les matieres a cellules, c'est le basculement
+  // propre a chaque plaque ») : aucun curseur ajoute, donc aucun index de
+  // parametre deplace. A irregularite 0 les deux facteurs valent exactement 1 et
+  // le rendu est celui d'avant, au bit pres.
+  var varieteTeinte = 1.0;
+  var varieteEclat = 1.0;
   if (mat >= ${MAT_PAVE_NUAGE}) {
     let cell = vec2<f32>(max(params[14], 24.0));
+    let idCell = floor(uv * dims / cell);
+    let irregPave = clamp(params[7], 0.0, 1.0);
+    // Deux tirages DECORRELES : une plaque plus verte n'est pas plus brillante.
+    varieteTeinte = 1.0 + (hash(idCell + vec2<f32>(3.7, 9.1)) - 0.5) * irregPave * 0.85;
+    varieteEclat = 1.0 + (hash(idCell + vec2<f32>(17.3, 5.9)) - 0.5) * irregPave * 1.1;
     let fCell = fract(uv * dims / cell);
     let bord = (vec2<f32>(0.5) - abs(fCell - 0.5)) * cell;
     distanceBord = min(bord.x, bord.y);
@@ -741,7 +779,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     normaleArete = select(vec2<f32>(0.0, -signe.y), vec2<f32>(signe.x, 0.0), bord.x < bord.y);
   }
   let trajet = epaisseur * 1.2 * (1.0 + (1.0 - cosi) * 2.2)
-    * (1.0 + params[18] * 7.0 * profilArete);
+    * (1.0 + params[18] * 7.0 * profilArete) * varieteTeinte;
   c = c * exp(-trajet * vec3<f32>(0.055, 0.018, 0.042));
 
   // FRESNEL. Le reflet du ciel sur la surface, d'autant plus fort que
@@ -759,10 +797,20 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   c = c + pow(max(dot(N, Hv), 0.0), 120.0) * spec;
 
   if (mat >= ${MAT_PAVE_NUAGE}) {
-    let lisere = creteArete * max(dot(normaleArete, vec2<f32>(-0.567, 0.823)), 0.0) * params[18] * spec * 1.7;
+    let lisere = creteArete * max(dot(normaleArete, vec2<f32>(-0.567, 0.823)), 0.0) * params[18] * spec * 1.7 * varieteEclat;
     c = c + lisere;
     let joint = max(params[15], 0.0);
-    let masqueMortier = 1.0 - smoothstep(joint * 0.5, joint * 0.5 + 1.4, distanceBord);
+    // TRANSITION PROPORTIONNELLE AU JOINT, et non 1,4 pixel NATIF fixe. A 26
+    // Mpx affichee a 13 %, une transition de 1,4 pixel natif vaut 0,18 pixel
+    // ecran : le bord du joint sortait donc dur et crenele, et la grille se
+    // lisait comme un quadrillage peint. C'est ce qu'Antoine a resume par
+    // « les espacements entre les paves sont tres moches ».
+    //
+    // Le RATIO joint/pave, lui, etait deja juste : 8 px pour 132, soit 6,1 %,
+    // quand un joint de mortier reel fait 9 a 15 mm pour un pave de 190 a 200,
+    // soit 5 a 8 %. Ce n'etait pas la largeur, c'etait le bord.
+    let adoucissement = max(joint * 0.22, 1.0);
+    let masqueMortier = 1.0 - smoothstep(joint * 0.5 - adoucissement, joint * 0.5 + adoucissement, distanceBord);
     if (masqueMortier > 0.001) {
       let amb = (verre_lire(uv + vec2<f32>(0.050, 0.028))
         + verre_lire(uv + vec2<f32>(-0.050, 0.028))
@@ -772,10 +820,31 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
       let lum = dot(amb, vec3<f32>(0.2126, 0.7152, 0.0722));
       let froid = srgb_to_linear3(vec3<f32>(0.97, 1.0, 0.98));
       let chaud = srgb_to_linear3(vec3<f32>(1.0, 0.95, 0.89));
-      var couleurMortier = mix(froid, chaud, clamp(params[16], 0.0, 1.0)) * (lum * params[17] + 0.07);
-      couleurMortier = couleurMortier + (valueNoise(uv * dims * 0.30) - 0.5) * 0.022;
+      // LE JOINT NE PEUT PAS ETRE PLUS CLAIR QUE LE VERRE QU'IL BORDE. Il est
+      // OPAQUE : la ou le pave transmet la lumiere de la scene, lui ne transmet
+      // rien et ne renvoie que l'ambiante. Le facteur 0,55 et la suppression du
+      // plancher +0,07 le remettent SOUS le verre au lieu de le poser dessus —
+      // sans quoi la grille ressortait claire sur toute l'image, y compris dans
+      // les zones sombres ou elle etait le point le plus lumineux du cadre.
+      // C'est la moitie du « tres artificiel, 3D des annees 90 » (Antoine,
+      // 2026-08-13) : un mur de paves ne montre pas ses joints en clair.
+      var couleurMortier = mix(froid, chaud, clamp(params[16], 0.0, 1.0)) * (lum * params[17] * 0.55);
+      // Granulometrie a DEUX echelles, et six fois plus marquee : un mortier a
+      // du sable dedans. A 0,022 sur une seule frequence, le joint restait un
+      // aplat parfait — l'autre marque du synthetique.
+      couleurMortier = couleurMortier
+        + (valueNoise(uv * dims * 0.30) - 0.5) * 0.075
+        + (valueNoise(uv * dims * 1.70) - 0.5) * 0.055;
       let retrait = clamp(distanceBord / max(joint * 0.5, 0.5), 0.0, 1.0);
       couleurMortier = couleurMortier * (1.0 - 0.18 * smoothstep(0.30, 1.0, retrait));
+      // OMBRE DE CONTACT. Le pave est en SAILLIE et le joint en creux : le bord
+      // du pave porte donc une ombre dans le joint, du cote oppose a la lumiere
+      // (meme direction que le lisere d'arete, quelques lignes plus haut). Sans
+      // elle, le joint reste un aplat et la grille flotte au lieu d'etre
+      // encastree — l'autre moitie du « tres moche ».
+      let versLumiere = dot(normaleArete, vec2<f32>(-0.567, 0.823));
+      let ombreContact = clamp(-versLumiere, 0.0, 1.0) * (1.0 - retrait) * 0.35;
+      couleurMortier = couleurMortier * (1.0 - ombreContact);
       c = mix(c, clamp(couleurMortier, vec3<f32>(0.0), vec3<f32>(1.0)), masqueMortier);
     }
   }

@@ -25,6 +25,17 @@
             "statusMessage": "Garde backtick WGSL"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/accents-guard.mjs",
+            "timeout": 20,
+            "statusMessage": "Garde accents"
+          }
+        ]
       }
     ]
   }

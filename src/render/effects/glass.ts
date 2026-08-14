@@ -820,15 +820,20 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
       let lum = dot(amb, vec3<f32>(0.2126, 0.7152, 0.0722));
       let froid = srgb_to_linear3(vec3<f32>(0.97, 1.0, 0.98));
       let chaud = srgb_to_linear3(vec3<f32>(1.0, 0.95, 0.89));
-      // LE JOINT NE PEUT PAS ETRE PLUS CLAIR QUE LE VERRE QU'IL BORDE. Il est
-      // OPAQUE : la ou le pave transmet la lumiere de la scene, lui ne transmet
-      // rien et ne renvoie que l'ambiante. Le facteur 0,55 et la suppression du
-      // plancher +0,07 le remettent SOUS le verre au lieu de le poser dessus —
-      // sans quoi la grille ressortait claire sur toute l'image, y compris dans
-      // les zones sombres ou elle etait le point le plus lumineux du cadre.
-      // C'est la moitie du « tres artificiel, 3D des annees 90 » (Antoine,
-      // 2026-08-13) : un mur de paves ne montre pas ses joints en clair.
-      var couleurMortier = mix(froid, chaud, clamp(params[16], 0.0, 1.0)) * (lum * params[17] * 0.55);
+      // ⚠️ UN JOINT PEUT ETRE CLAIR OU SOMBRE, ET LE CURSEUR EST LA POUR CA.
+      // J'ai d'abord force le sombre ici (facteur 0,55) sur un raisonnement —
+      // « il est opaque, donc il ne peut pas etre plus clair que le verre ».
+      // Les photos disent l'inverse la moitie du temps : ciment blanc en
+      // interieur moderne, mortier sali et noirci a l'ombre. Les deux existent,
+      // et le facteur 0,55 avait ampute la course de Clarte de moitie (0,5..2
+      // devenait 0,275..1,1), donc rendu le cas clair inatteignable.
+      //
+      // Ce qui restait vrai du constat d'origine : le plancher additif. A 0,07
+      // le joint restait visible dans le NOIR absolu, ou rien ne l'eclaire —
+      // c'est lui qui faisait de la grille le point le plus lumineux des zones
+      // sombres. Reduit d'un facteur cinq, il ne sert plus qu'a ne pas rendre
+      // un joint parfaitement noir, ce qu'aucun materiau diffus n'est.
+      var couleurMortier = mix(froid, chaud, clamp(params[16], 0.0, 1.0)) * (lum * params[17] + 0.015);
       // Granulometrie a DEUX echelles, et six fois plus marquee : un mortier a
       // du sable dedans. A 0,022 sur une seule frequence, le joint restait un
       // aplat parfait — l'autre marque du synthetique.

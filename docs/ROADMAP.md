@@ -239,12 +239,20 @@ garde-fous : [19 — Le coût du verre](../.scratch/prochain-palier/issues/19-le
   (`--dock-card-list-rows: 5`, donc « 5 sur 7 » n'est pas un défaut), et la
   sélection ne défile pas dans la vue — on édite les propriétés d'un calque
   qu'on ne voit pas. Destination : `docs/wireframes/<feature>.html`.
-- **L'overlay de masque n'a AUCUNE référence de pixels.** Découvert en le
-  modifiant : `test:render` est resté vert parce que ses scénarios rendent le
-  DOCUMENT, pas l'aide visuelle. Le contour pointillé, le voile et leur
-  anticrénelage ne sont donc tenus par rien — seulement par des captures d'une
-  session. C'est exactement le « verrou aveugle » que `CLAUDE.md` § Moyen de
-  preuve proscrit, et il manque une mire.
+- ~~**L'overlay de masque n'a AUCUNE référence de pixels.**~~ ✅ **FAIT le
+  2026-08-14** — quatre références, deux paires témoin/overlay
+  (`masque-overlay-pinceau` sur masque peint, `masque-overlay-tonalite` sur
+  masque par tonalité posé sur du bruit). Chaque paire rend la MÊME pile, la
+  seconde avec `setMaskOverlay` : l'écart entre les deux EST l'aide de visée.
+  Ce qu'il a fallu pour que ce soit verrouillable : **l'horloge de l'overlay
+  est devenue un port** de `FramePipelineExecutor` (le contour est pointillé et
+  sa phase avance avec le temps, donc deux rendus de la même pile ne donnaient
+  pas les mêmes octets) ; le harnais la fixe, l'application garde
+  `performance.now`. Le lissage à 25 taps du 2026-08-13 est désormais opposable
+  par DEUX gardes indépendantes — la référence de pixels et une mesure
+  (« le contour est une ligne, pas une surface », `renderRefs.test.mjs`), toutes
+  deux calées en **rejouant la régression** : sans lissage, la mesure passe de
+  0,19 % à 2,03 % et l'écart de pixels atteint 162 valeurs.
 
 ---
 

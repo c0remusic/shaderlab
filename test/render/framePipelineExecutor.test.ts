@@ -25,7 +25,7 @@ function layer(overrides: Partial<LayerState> = {}): LayerState {
   };
 }
 
-function createExecutor() {
+function createExecutor(horloge?: () => number) {
   const source = texture();
   const firstTarget = texture();
   const secondTarget = texture();
@@ -67,6 +67,8 @@ function createExecutor() {
       effects,
       masks,
       photoInputs,
+      null,
+      horloge,
     ),
     effects,
     masks,
@@ -196,6 +198,31 @@ describe("FramePipelineExecutor", () => {
     expect(result.composedTexture).toBe(overlaySource);
     expect(result.overlayMaskTexture).toBe(overlayMask);
     expect(result.overlayMaskTexture).toBe(resolved);
+  });
+
+  // L'HORLOGE DE L'OVERLAY EST UN PORT, et c'est ce qui rend le safelight
+  // verrouillable au pixel : son contour est POINTILLÉ et sa phase avance avec
+  // le temps, donc à horloge libre deux rendus de la même pile ne donnent pas
+  // les mêmes octets. Le harnais de rendu la fixe ; l'application garde
+  // `performance.now`.
+  it("passe l'horloge injectée à la passe d'overlay, convertie en SECONDES", () => {
+    const { executor, effects } = createExecutor(() => 4000);
+
+    executor.run([layer({ enabled: true })], "L1");
+
+    const [, , , , temps] = (effects.runOverlayPass as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(temps).toBe(4);
+  });
+
+  it("rend deux frames IDENTIQUES sur le temps quand l'horloge est fixe", () => {
+    const { executor, effects } = createExecutor(() => 1234);
+
+    executor.run([layer({ enabled: true })], "L1");
+    executor.run([layer({ enabled: true })], "L1");
+
+    const appels = (effects.runOverlayPass as ReturnType<typeof vi.fn>).mock.calls;
+    expect(appels).toHaveLength(2);
+    expect(appels[0][4]).toBe(appels[1][4]);
   });
 
   it("uses the source texture and a STABLE epoch as the overlay's guide when the overlay layer is the bottom layer", () => {

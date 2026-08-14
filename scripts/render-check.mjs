@@ -2765,6 +2765,101 @@ const INSTALL = `(async () => {
       },
     },
 
+    // L OVERLAY DE MASQUE (safelight : voile rouge + contour pointille), et
+    // QUATRE scenarios pour lui — deux paires temoin/overlay.
+    //
+    // POURQUOI IL N EN AVAIT AUCUN JUSQU ICI, et ce n etait pas un oubli : il
+    // ne vit QUE sur la surface de presentation. La fonction maskOverlayFor le
+    // refuse a la destination export par construction (pour qu il n atteigne
+    // jamais un JPEG), or tous les scenarios sauf le damier lisent exportFrame.
+    // Le verrou etait donc structurellement aveugle a lui — modifie le
+    // 2026-08-13, test:render est reste vert, et c est ce qui a fait ecrire
+    // dans le ROADMAP que « le contour pointille, le voile et leur
+    // anticrenelage ne sont tenus par rien ».
+    //
+    // CE QU IL A FALLU POUR QUE CA DEVIENNE VERROUILLABLE : le contour est
+    // POINTILLE et sa phase avance avec le temps. L horloge est desormais un
+    // port de FramePipelineExecutor, que ce harnais fixe (voir la construction
+    // du Renderer plus bas). Sans ca, deux rendus de la meme pile ne donnent
+    // pas les memes octets et le harnais refuse a juste titre de comparer.
+    //
+    // LA PAIRE EST LE POINT. Un scenario d overlay seul verrouillerait
+    // l ensemble « image + voile + contour » sans jamais isoler l overlay : son
+    // temoin rend exactement la meme pile SANS setMaskOverlay, donc l ecart
+    // entre les deux EST l aide de visee, et rien d autre.
+    "masque-overlay-temoin": {
+      surface: "canvas",
+      build: async (r, stack) => {
+        const a = stack.addLayer("duotone");
+        stack.updateBrushMask(a, brushRaster(W, H));
+      },
+    },
+
+    // MASQUE PEINT : une frontiere franche, la valeur ne traverse 0.5 qu une
+    // fois. C est le cas pour lequel le contour est ecrit, et il doit rendre
+    // une LIGNE.
+    "masque-overlay-pinceau": {
+      surface: "canvas",
+      overlay: "L1",
+      contre: "masque-overlay-temoin",
+      build: async (r, stack) => {
+        const a = stack.addLayer("duotone");
+        stack.updateBrushMask(a, brushRaster(W, H));
+      },
+    },
+
+    // MASQUE PAR TONALITE SUR UNE IMAGE BRUITEE, et c est LE cas qui a produit
+    // le defaut du 2026-08-13 : la valeur du masque traverse 0.5 des milliers
+    // de fois — une par grain — donc le contour s allumait partout et le motif
+    // de pointilles remplissait la SURFACE au lieu de tracer une ligne.
+    // L arbitrage d Antoine a ete de lisser le masque POUR LE CONTOUR
+    // seulement (25 taps, pas d ecran plancher a un texel), le voile continuant
+    // de lire la valeur brute.
+    //
+    // Ce que ce scenario tient et qu aucun autre ne peut tenir : ce lissage.
+    // Le retirer, reduire son rayon, ou le faire deriver de la derivee des UV
+    // au lieu de l echelle ecran, tout cela remplit la zone de transition de
+    // hachures — donc deplace des dizaines de milliers de canaux ici.
+    "masque-overlay-tonalite-temoin": {
+      fond: false,
+      surface: "canvas",
+      build: async (r, stack) => {
+        const bruit = await mireBruit(W, H);
+        const sourceId = await r.photoSources.register(bruit);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bruit");
+        const a = stack.addLayer("grain", p);
+        stack.updateParams(a, { mode: 1, intensity: 0.35, size: 1, chroma: 0.8, seed: 7 });
+        const l = stack.addMaskSource(a, "luminosity");
+        // Bornes calees SUR LES DEUX PALIERS de la mire (0,30 et 0,62 avec
+        // +-3 % de bruit) : la rampe basse coupe en plein dans le grain du
+        // premier palier, donc la valeur du masque y oscille autour de 0.5.
+        // C est exactement la situation qui faisait exploser le contour.
+        stack.updateMaskSourceParams(a, l, {
+          shadowsMin: 0, shadowsMax: 0.32, highlightsMin: 0.9, highlightsMax: 1,
+          tolerance: 0.02, invert: 0,
+        });
+      },
+    },
+
+    "masque-overlay-tonalite": {
+      fond: false,
+      surface: "canvas",
+      overlay: "L1",
+      contre: "masque-overlay-tonalite-temoin",
+      build: async (r, stack) => {
+        const bruit = await mireBruit(W, H);
+        const sourceId = await r.photoSources.register(bruit);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bruit");
+        const a = stack.addLayer("grain", p);
+        stack.updateParams(a, { mode: 1, intensity: 0.35, size: 1, chroma: 0.8, seed: 7 });
+        const l = stack.addMaskSource(a, "luminosity");
+        stack.updateMaskSourceParams(a, l, {
+          shadowsMin: 0, shadowsMax: 0.32, highlightsMin: 0.9, highlightsMax: 1,
+          tolerance: 0.02, invert: 0,
+        });
+      },
+    },
+
     // LIGHT LEAK (2026-08-05), et DEUX references pour un seul effet — la
     // seconde n est pas une illustration, c est la preuve que sa couleur est
     // DERIVEE et non peinte.
@@ -3072,7 +3167,13 @@ const INSTALL = `(async () => {
       }
       // Troisieme argument : le port de DECODAGE de texture. Le harnais n a pas
       // d IPC, donc il fournit sa mire generee au lieu de lire un fichier.
-      const r = new Renderer(pass.ctx, undefined, async () => mireEncre(512, 512));
+      // Quatrieme argument : L HORLOGE DE L OVERLAY, fixee a zero. Le contour
+      // du safelight est pointille et sa phase avance avec le temps ; a
+      // horloge libre, deux lectures de la meme pile different sur les
+      // pointilles et le garde de reproductibilite du harnais rougit — a juste
+      // titre. C est ce qui rendait l overlay non verrouillable, et la seule
+      // raison pour laquelle il n avait aucune reference.
+      const r = new Renderer(pass.ctx, undefined, async () => mireEncre(512, 512), () => 0);
       try {
         // Deuxieme argument = LA TOILE (tranche T2). Omis, \`loadImage\` retombe
         // sur les dimensions du bitmap : c'est le meme chemin de code qu'avant
@@ -3088,6 +3189,14 @@ const INSTALL = `(async () => {
         const stack = scenario.fond === false ? new LayerStack() : openDocument(r, "fond").stack;
         await scenario.build(r, stack);
         const layers = normalize(stack);
+        // L OVERLAY SE POSE APRES normalize, ET C EST OBLIGATOIRE : normalize
+        // REECRIT les ids de calque en L0, L1... pour que deux passes du meme
+        // scenario ne different pas par un compteur de module. Un id capture
+        // dans build serait donc perime, l overlay ne trouverait aucun calque
+        // et rendrait exactement l image du temoin — un scenario vert et
+        // aveugle. Le scenario declare donc l id NORMALISE (L1 = le premier
+        // calque pose au-dessus du fond).
+        if (scenario.overlay) r.setMaskOverlay(scenario.overlay);
         // \`read\` rend un \`{ pixels, width, height }\` — les dimensions du frame
         // REELLEMENT rendu, pas celles que le scenario a declarees. Sur le
         // chemin d'export elles viennent d'\`ExportedFrame\` (le renderer les

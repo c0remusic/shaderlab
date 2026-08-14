@@ -202,6 +202,25 @@ export class FramePipelineExecutor {
      *  shader SANS le binding — cohérent avec le bind group, donc pas de
      *  plantage, seulement un effet inerte. */
     private readonly libraryTextures: LibraryTexturePort | null = null,
+    /**
+     * HORLOGE DE L'OVERLAY, injectable — et c'est le seul endroit du pipeline
+     * où le temps entre.
+     *
+     * Elle existe pour que le safelight de masque (voile rouge + contour
+     * POINTILLÉ dont la phase avance avec le temps) soit VERROUILLABLE au
+     * pixel. Sans elle, deux rendus consécutifs de la même pile diffèrent sur
+     * les pointillés, et le harnais de rendu ne peut ni écrire une référence
+     * ni la comparer — c'est pourquoi l'overlay n'en a jamais eu, alors qu'il
+     * est du rendu comme le reste (constat `docs/ROADMAP.md`, 2026-08-13 :
+     * « le contour pointillé, le voile et leur anticrénelage ne sont tenus par
+     * rien »).
+     *
+     * L'application garde le défaut. `tickOverlayAnimation`, l'AUTRE chemin qui
+     * anime le contour, reçoit déjà son temps en paramètre (timestamp rAF) :
+     * les deux chemins sont donc injectables, par des moyens différents mais
+     * pour la même raison.
+     */
+    private readonly maintenantMs: () => number = () => performance.now(),
   ) {}
 
   /** `livePreviewLayerId` : calque dont le masque est servi par l'APERÇU live
@@ -221,7 +240,7 @@ export class FramePipelineExecutor {
 
     this.masks.sweep(new Set(layers.map((layer) => layer.id)));
     const encoder = this.device.createCommandEncoder();
-    const overlayTimeSeconds = performance.now() / 1000;
+    const overlayTimeSeconds = this.maintenantMs() / 1000;
     const pendingDestroy: FrameResource[] = [];
 
     // Une passe (effet interne, resolve de masque...) peut lancer en cours

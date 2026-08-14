@@ -52,6 +52,23 @@ const ATTENDU = {
   // que le guide du calque du bas etait la toile VIDE. Voir
   // docs/adr/0004-image-de-guide-du-masque-edge-aware.md.
   "masque-edge-aware-calque-du-bas.png": { width: 256, height: 256, valeurs: null },
+  // L'OVERLAY DE MASQUE (safelight), et QUATRE références pour lui — deux
+  // paires témoin/overlay. Il n'en avait AUCUNE jusqu'au 2026-08-14, et pas par
+  // oubli : `maskOverlayFor` le refuse à la destination d'export par
+  // construction, or tous les scénarios sauf le damier lisent `exportFrame`.
+  // Le verrou était structurellement aveugle à lui — le modifier laissait
+  // `test:render` vert.
+  //
+  // Chaque paire rend la MÊME pile, la seconde avec `setMaskOverlay` : l'écart
+  // entre les deux EST l'aide de visée, jamais l'image en dessous. La première
+  // porte un masque PEINT (frontière franche, le contour doit être une ligne),
+  // la seconde un masque par TONALITÉ sur une image bruitée — le cas qui a fait
+  // exploser le contour en hachures le 2026-08-13, et que le lissage à 25 taps
+  // corrige. C'est cette correction que la mesure plus bas rend opposable.
+  "masque-overlay-temoin.png": { width: 256, height: 256, valeurs: null },
+  "masque-overlay-pinceau.png": { width: 256, height: 256, valeurs: null },
+  "masque-overlay-tonalite-temoin.png": { width: 256, height: 256, valeurs: null },
+  "masque-overlay-tonalite.png": { width: 256, height: 256, valeurs: null },
   // LIGHT LEAK (2026-08-05), et DEUX références pour un seul effet. Sur
   // `mireBokeh` pour la même raison que `lensFlare` : c'est la seule mire
   // essentiellement NOIRE du dossier, et une coulée posée en Écran ne se lit que
@@ -866,6 +883,55 @@ describe("references de rendu committees", () => {
     // des deux côtés.
     expect(chaleurs[sommet]).toBeGreaterThan(1.8 * chaleurs[0]);
     expect(chaleurs[sommet]).toBeGreaterThan(1.8 * chaleurs[chaleurs.length - 1]);
+  });
+
+  it("overlay de masque : sur un masque par tonalité, le contour est une LIGNE et pas une surface", () => {
+    // LA PROPRIÉTÉ QUE CETTE PAIRE EXISTE POUR TENIR. Le contour du safelight
+    // s'allume là où le masque traverse 0,5. Sur un masque PEINT il ne le
+    // traverse qu'une fois, sur une frontière franche. Sur un masque par
+    // TONALITÉ posé sur une image bruitée, il le traverse des milliers de fois
+    // — une par grain — et sans le lissage à 25 taps introduit le 2026-08-13,
+    // le motif de pointillés remplit la SURFACE de la zone de transition au
+    // lieu de tracer une ligne. C'est ce qu'Antoine a vu, et c'était une ligne
+    // de contour qui avait explosé.
+    //
+    // Comment on le mesure sans confondre le contour avec le voile : les
+    // pointillés sont ACHROMATIQUES et EXTRÊMES (noir pur ou blanc pur), le
+    // voile est rouge et modéré. Compter les pixels quasi-gris et quasi-saturés
+    // sépare donc les deux sans les opposer par un seuil arbitraire sur l'écart.
+    const extremesAchromatiques = (pixels) => {
+      let n = 0;
+      for (let i = 0; i < pixels.length; i += 4) {
+        const [r, g, b] = [pixels[i], pixels[i + 1], pixels[i + 2]];
+        const v = (r + g + b) / 3;
+        if (Math.abs(r - g) < 10 && Math.abs(g - b) < 10 && (v < 30 || v > 225)) n++;
+      }
+      return n / (pixels.length / 4);
+    };
+
+    const avec = decodePng(readFileSync(path.join(REF_DIR, "masque-overlay-tonalite.png")));
+    const sans = decodePng(readFileSync(path.join(REF_DIR, "masque-overlay-tonalite-temoin.png")));
+
+    // Mesuré : 0,00 % dans le témoin. L'image sous l'overlay — deux paliers
+    // gris bruités — n'a aucun pixel extrême, donc tout ce qu'on compte
+    // ensuite vient de l'overlay et de lui seul.
+    expect(extremesAchromatiques(sans.pixels)).toBeLessThan(0.0005);
+
+    // Mesuré : 0,19 %. La frontière fait 256 px de haut ; une ligne d'un pixel
+    // dont un pointillé sur deux est allumé en occupe ~0,2 % de l'image.
+    const part = extremesAchromatiques(avec.pixels);
+    // Le contour EXISTE.
+    expect(part).toBeGreaterThan(0.0005);
+    // Et il reste une LIGNE. ⚠️ LE SEUIL N'EST PAS CHOISI AU JUGÉ : la
+    // régression a été REJOUÉE pour le caler. En remplaçant `mLisse` par la
+    // valeur brute du masque — c'est-à-dire en retirant le lissage — la même
+    // scène rend un quadrillage de hachures sur tout le quadrant supérieur
+    // droit, et cette mesure passe de 0,19 % à 2,03 %. Le seuil est à 0,8 % :
+    // quatre fois au-dessus du rendu correct, deux fois et demie sous le rendu
+    // fautif. La référence de pixels, elle, voit le même défaut à 162 valeurs
+    // d'écart maximum — les deux gardes tombent ensemble, par des chemins
+    // différents.
+    expect(part).toBeLessThan(0.008);
   });
 
   /* ── COLORED EDGES : la roue doit être PERCEPTUELLEMENT régulière (2026-08-02)

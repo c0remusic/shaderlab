@@ -176,6 +176,17 @@ export class Renderer {
      * télécharger, même discipline que ses autres mires.
      */
     private readonly decodeTexture: (path: string) => Promise<ImageBitmap> = defaultDecodeTexture,
+    /**
+     * Horloge de l'overlay de masque, injectée pour la même raison que le port
+     * ci-dessus : rendre verrouillable ce que l'application, elle, laisse
+     * bouger. Le contour du safelight est POINTILLÉ et sa phase avance avec le
+     * temps ; à horloge libre, deux rendus de la même pile ne donnent pas les
+     * mêmes octets, donc aucune référence de pixels n'est possible.
+     *
+     * Le harnais la fixe (`scripts/render-check.mjs`) ; l'application garde le
+     * défaut. Voir `FramePipelineExecutor` pour le détail.
+     */
+    private readonly overlayClockMs: () => number = () => performance.now(),
   ) {
     this.ctx = ctx;
     this.frameDiagnostics = new FrameDiagnostics(diagnosticLogger);
@@ -385,6 +396,7 @@ export class Renderer {
       this.maskTextureResolver,
       photoInputsAdapter,
       this.textureLibraryStore,
+      this.overlayClockMs,
     );
   }
 

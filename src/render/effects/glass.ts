@@ -633,7 +633,7 @@ fn verre_lire(uv: vec2<f32>) -> vec3<f32> {
 fn verre_traverser(uv: vec2<f32>, d: vec2<f32>, f: f32) -> vec3<f32> {
   var s = vec3<f32>(0.0);
   var somme = 0.0;
-  // SEIZE PRELEVEMENTS EN SPIRALE D'OR, ponderes en gaussienne — et non plus
+  // NEUF PRELEVEMENTS EN SPIRALE D'OR, ponderes en gaussienne — et non plus
   // neuf le long d'un AXE. Le procede precedent etalait sur un segment et
   // corrigeait sa propre striure par un decalage lateral sinusoidal ; a forte
   // diffusion il rendait des paquets, ce qu'Antoine a vu sur le Depoli avant
@@ -651,6 +651,20 @@ fn verre_traverser(uv: vec2<f32>, d: vec2<f32>, f: f32) -> vec3<f32> {
   // fraction, angle par multiples de l'angle d'or), donc l'etalement est
   // ISOTROPE : aucune direction privilegiee a trahir. Le poids exp(-2 r²) est
   // la gaussienne elle-meme.
+  //
+  // ⚠️ NEUF, ET PAS SEIZE. Le passage a seize a ete pousse puis annule le meme
+  // jour : il coutait 37 % de cadence pour un gain nul, la GEOMETRIE de
+  // l'echantillonnage apportant tout le benefice, pas son nombre de points.
+  // Ce commentaire a dit « seize » pendant que la boucle en faisait neuf.
+  //
+  // ⚠️ AUCUNE GARDE, ET C'EST LE PREMIER POSTE DE COUT DE L'EFFET. Ces neuf
+  // lectures sont payees meme a Diffusion nulle. Sur une matiere de FEUILLE
+  // elles sont gratuites (67,6 contre 64,8 images/s a une seule lecture) ; sur
+  // un PAVE, ou le deplacement disperse les adresses, elles coutent ~7,4 ms
+  // chacune sur 26 Mpx et font tomber la cadence a 10 images/s. Mesure en build
+  // de production du 2026-08-14, protocole et tableaux dans
+  // .scratch/prochain-palier/issues/19-le-cout-du-verre.md — ne pas re-mesurer
+  // en developpement pour conclure.
   let angleOr = 2.39996323;
   for (var i = 0; i < 9; i = i + 1) {
     let fraction = (f32(i) + 0.5) / 9.0;

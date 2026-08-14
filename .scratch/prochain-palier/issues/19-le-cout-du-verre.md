@@ -3,6 +3,14 @@
 Type: task
 Status: open
 
+> ✅ **La mesure de PRODUCTION est prise (2026-08-14), et elle déplace la
+> question.** Ce n'est ni le mortier, ni l'arête, ni le moulage, ni la
+> géométrie des cellules : c'est le **déplacement** que le pavé produit, qui
+> disperse les lectures de texture. Une lecture dispersée coûte ~25 fois une
+> lecture cohérente sur cette photo. Voir le bloc « Mesuré en production »
+> plus bas ; les pistes d'origine sont conservées, avec ce que la mesure en
+> dit maintenant.
+
 ## Question
 
 `glass` est de loin l'effet le plus cher du registre, et personne ne l'avait
@@ -39,6 +47,118 @@ même jour sur le ticket 07 s'applique : une mesure en dev prouve qu'un coût
 existe, jamais qu'il est négligeable — et ici elle ne sert qu'à établir
 l'existence. **Le chiffre en production reste à prendre**, et c'est la première
 chose à faire.
+
+## Mesuré en production — 2026-08-14
+
+**Protocole.** Build de production (`npm run tauri build -- --no-bundle`, donc
+`target/release`), photo de **26 Mpx** (6240×4160, canvas à la résolution
+native), un calque d'effet Glass sur le calque photo, **vrai glissement de
+souris** par CDP `Input` (un `mousePressed`, 300 `mouseMoved` espacés de 4 ms,
+un `mouseReleased`), sur le curseur **Épaisseur** et sur sa course centrale
+(25 % → 75 %) — le même réglage et la même course dans TOUTES les lignes, pour
+que seule la configuration diffère. Trois passes après un échauffement, médiane
+rapportée. Instrument : **`scripts/perf-probe.mjs`**, écrit pour ce ticket et
+versionné (les deux mesures de perf précédentes ont dû réécrire le leur).
+
+**Ce qu'on compte** : les images RÉELLEMENT présentées, par instrumentation de
+`GPUCanvasContext.getCurrentTexture` dans la page. Témoin de discrimination
+posé dans la même session : le même calque en effet **Grain** rend
+**149 images/s**, donc l'instrument sait rendre un grand nombre.
+
+### Le résultat, et il ne désigne pas ce qu'on croyait
+
+| Configuration (tout le reste par défaut) | Cadence | Fil principal |
+| --- | --- | --- |
+| témoin — effet **Grain** | **149 img/s** | 60 % |
+| Verre, **Cannelé simple** (feuille) | **67,6 img/s** | 50 % |
+| Verre, **Pavé · Quadrillé** | **10,1 à 11,7 img/s** | 7 à 11 % |
+
+**Facteur 6 entre une feuille et un pavé**, et l'occupation du fil principal
+s'EFFONDRE quand on passe au pavé : le goulot est le GPU, pas le JavaScript.
+Le chiffre de 15,9 images/s relevé en développement n'était donc pas un
+artefact de plancher — la production ne rattrape rien.
+
+### Ablations : ce qui ne coûte RIEN
+
+Chaque réglage mis à zéro, cumulativement, sur le Pavé quadrillé :
+
+| Ablation | Cadence |
+| --- | --- |
+| référence (défauts) | 11,7 |
+| `Largeur du mortier` = 0 | 11,3 |
+| + `Profondeur de l'arête` = 0 | 11,7 |
+| + `Moulage interne` = 0 | 11,6 |
+| + `Dispersion` = 0 | 15,4 |
+
+Les trois ornements du pavé — mortier, arête, moulage — ne coûtent **rien de
+mesurable**. Le bloc d'ambiance du mortier est d'ailleurs gardé dans le shader
+(`if (masqueMortier > 0.001)`), donc ses cinq lectures ne sont payées que sur
+les pixels de joint : la piste « cinq `verre_lire` par pixel du joint » de ce
+ticket surestimait sa part.
+
+### Ce qui coûte : le DÉPLACEMENT, pas la géométrie
+
+`Creux` règle l'amplitude du relief, donc du déplacement de réfraction. Sur le
+Pavé quadrillé, toutes choses égales par ailleurs :
+
+| Creux | 0 | 0,1 | 0,25 | 0,5 (défaut) | 0,75 | 1 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Cadence | **66,9** | 47,0 | 23,3 | 14,4 | 9,9 | 10,1 |
+
+**À déplacement nul, un pavé coûte exactement ce que coûte une feuille** (66,9
+contre 67,6). Toute sa géométrie — les trois évaluations de `verre_hauteurPave`
+pour la différence finie, la mosaïque, les hachages de variété par cellule — est
+donc **gratuite** à l'échelle de la mesure. Ce qui coûte, c'est là où les
+lectures vont.
+
+### La confirmation, par une expérience jetable
+
+Boucle de `verre_traverser` ramenée de **9 prélèvements à 1**, build de
+production refait, mesure, puis retour à 9 et **mesure de contrôle** (10,1 —
+la même qu'avant, donc l'expérience n'a rien laissé derrière) :
+
+| Configuration | 9 taps | 1 tap |
+| --- | --- | --- |
+| Pavé quadrillé, défauts (9 + 3 lectures) | 10,1 | **23,8** |
+| Pavé quadrillé, dispersion 0 (9 + 0 puis 1 + 0) | 11,4 | **54,4** |
+| Cannelé simple (feuille) | 67,6 | 64,8 |
+
+Deux choses s'y lisent, et la seconde est la plus utile :
+
+1. **Sur une feuille, les neuf prélèvements sont GRATUITS** (67,6 contre 64,8 :
+   l'écart est dans le bruit). Le nombre de lectures n'est pas le sujet — leur
+   ADRESSE l'est.
+2. **Sur un pavé, le temps est proportionnel au nombre de lectures.** 12, 4 et
+   1 lectures donnent 99, 42 et 18 ms par image : la droite passe par
+   **~7,4 ms par lecture** plus ~11 ms de plancher. Sur la feuille, les mêmes
+   12 lectures tiennent dans 14,8 ms au total — soit **~25 fois moins par
+   lecture**.
+
+**Le mécanisme est donc la cohérence de cache.** Un pavé déplace fort et de
+façon divergente d'un pixel au suivant ; en prime, l'étalement des taps vaut
+`diffusion * 0.25 + length(d) * 0.10`, donc un grand déplacement ÉLARGIT encore
+la spirale. Les neuf lectures partent alors chacune de son côté, et chaque
+lecture manque le cache.
+
+### Ce que ça change pour les pistes
+
+- **Mipmap pour la diffusion** (piste 2 de ce ticket) : c'est la bonne piste, et
+  pour une raison plus forte que « moins de travail » — un niveau grossier rend
+  les lectures LOCALES en plus d'être moins nombreuses. C'est le seul levier qui
+  attaque les 7,4 ms par lecture au lieu de les compter.
+- **Mipmap pour l'ambiance du mortier** (piste 1) : sans objet, la mesure
+  montre que ce bloc ne coûte rien.
+- **« Le coût est-il payé quand il ne sert pas ? »** (piste 3) : oui pour la
+  diffusion — la boucle des neuf taps n'a **aucune garde**, elle tourne même à
+  `Diffusion` = 0 (vérifié dans le code ET par la mesure : 13,8 contre 14,8, rien).
+  Non pour la dispersion, qui a la sienne (`if (disp > 0.001)`).
+- **« Les cinq pavés sont le pire cas »** (piste 4) : vrai, mais pas par ce
+  qu'ils ajoutent — par ce qu'ils déplacent.
+
+⚠️ **La cible de cadence reste à décider, et c'est un arbitrage.** 10 images/s
+sur 26 Mpx est inutilisable au pointeur ; 60 demanderait de diviser le coût par
+six. Rien ici ne dit s'il faut viser le confort à pleine résolution, ou accepter
+que les matières à fort déplacement soient lentes sur une photo de 26 Mpx.
 
 ## Pistes, non instruites
 

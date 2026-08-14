@@ -342,8 +342,13 @@ export default function App() {
     setPropertiesTarget(targetForLayerId(sessionRef.current.displayLayers(), sessionSelectedId));
   }, []);
 
+  // Diagnostic (2026-08-13) : `commit` passe par `LayerStack.clone()`, qui
+  // recrée un objet pour CHAQUE calque. Compter ses appels pendant un geste dit
+  // si la recopie du calque du bas — 89 frames sur 89 — vient de là.
+  const diagCommitsRef = useRef(0);
   const commit = useCallback(
     (stack: LayerStack) => {
+      diagCommitsRef.current++;
       sessionRef.current.commit(stack);
       syncSession();
       rendererRef.current?.requestRender(sessionRef.current.layers());
@@ -899,6 +904,18 @@ export default function App() {
         await openFile(new File([blob], path, { type: "image/jpeg" }), path, canvasFormat);
       },
       importPhotoByPath: (path: string) => importPhotoFromPath(path),
+      // Compteurs de recalcul du résolveur de masque, vidés à chaque lecture.
+      // Posés le 2026-08-13 pour répondre à « quels étages du masque
+      // retravaillent à chaque frame », que les mesures de temps ne savent pas
+      // trancher — voir `MaskTextureResolver.drainDiagnostics`.
+      drainMaskDiagnostics: () => rendererRef.current?.drainMaskDiagnostics() ?? null,
+      drainGuideDiagnostics: () => rendererRef.current?.drainGuideDiagnostics() ?? null,
+      drainRecopieDiagnostics: () => rendererRef.current?.drainRecopieDiagnostics() ?? null,
+      drainCommitCount: () => {
+        const n = diagCommitsRef.current;
+        diagCommitsRef.current = 0;
+        return n;
+      },
       // Même raison que `importPhotoByPath` : le remplacement d'image passe
       // par le dialogue natif, donc sans ce point d'entrée aucun scénario de
       // remplacement n'est exécutable sur la vraie fenêtre (T2).

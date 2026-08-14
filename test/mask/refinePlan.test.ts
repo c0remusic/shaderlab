@@ -70,8 +70,7 @@ describe("planRefine — rayon 0", () => {
   it("contract=0 n'empêche pas les autres passes de figurer au plan", () => {
     const plan = planRefine(params({ contract: 0, feather: 4 }));
     expect(morph(plan)).toHaveLength(0);
-    expect(plan).toHaveLength(2);
-    expect(plan.every((p) => p.kind === "boxFilter")).toBe(true);
+    expect(plan).toEqual([{ kind: "featherSat", radius: 4 }]);
   });
 
   it("tout à zéro (défaut) : plan VIDE — l'appelant rend l'entrée telle quelle", () => {
@@ -80,12 +79,14 @@ describe("planRefine — rayon 0", () => {
 });
 
 describe("planRefine — feather et smooth", () => {
-  it("feather > 0 : une passe H puis une passe V, au rayon du feather", () => {
-    const plan = planRefine(params({ feather: 6 }));
-    expect(plan).toEqual([
-      { kind: "boxFilter", axis: "H", radius: 6 },
-      { kind: "boxFilter", axis: "V", radius: 6 },
-    ]);
+  // Le feather encodait DEUX passes de box filter, dont le cout etait
+  // proportionnel au rayon. Depuis le 2026-08-13 il en encode UNE, un lookup
+  // sur table de sommes cumulees, dont le cout n'en depend plus : mesure en
+  // production sur 26 Mpx, 164 images par seconde a petit rayon contre 48 a
+  // rayon 50. Le plan ne dit rien de la CONSTRUCTION de la table — elle est a
+  // la charge de l'encodeur, qui la met en cache.
+  it("feather > 0 : une seule passe, au rayon du feather", () => {
+    expect(planRefine(params({ feather: 6 }))).toEqual([{ kind: "featherSat", radius: 6 }]);
   });
 
   it("feather <= 0 : aucune passe (un rayon négatif n'a pas de sens ici)", () => {
@@ -106,8 +107,7 @@ describe("planRefine — feather et smooth", () => {
     expect(plan).toEqual([
       { kind: "morphology", mode: "erode", axis: "H", radius: 2 },
       { kind: "morphology", mode: "erode", axis: "V", radius: 2 },
-      { kind: "boxFilter", axis: "H", radius: 5 },
-      { kind: "boxFilter", axis: "V", radius: 5 },
+      { kind: "featherSat", radius: 5 },
       { kind: "boxFilter", axis: "H", radius: 1 },
       { kind: "boxFilter", axis: "V", radius: 1 },
     ]);

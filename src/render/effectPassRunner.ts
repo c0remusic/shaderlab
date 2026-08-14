@@ -32,12 +32,58 @@ fn fs_overlay(in: VertexOut) -> @location(0) vec4<f32> {
   let tint = vec3<f32>(0.791, 0.045, 0.061);
   var rgb = mix(img.rgb, tint, m * 0.28);
 
+  // LE VOILE lit le masque BRUT (m ci-dessus) : c'est l'affichage fidele de ce
+  // qui sera applique. LE CONTOUR, lui, lit une version lissee — et seulement
+  // lui. Arbitrage d'Antoine du 2026-08-13, apres avoir vu des hachures
+  // diagonales couvrir toute une zone au lieu d'une ligne.
+  //
+  // Pourquoi il le fallait. Le contour s'allume ou le masque traverse 0.5, sur
+  // une bande large de fwidth(m). Sur un masque PEINT, la valeur ne traverse
+  // 0.5 qu'une fois, sur une frontiere franche : le test rend une ligne, ce
+  // pour quoi il est ecrit. Sur un masque par TONALITE, elle la traverse des
+  // milliers de fois — une par grain de la photo — donc fwidth est grand
+  // partout dans la zone de transition, le contour s'allume partout, et le
+  // motif de pointilles remplit la SURFACE. Ce n'etait pas du bruit : c'etait
+  // une ligne de contour qui avait explose.
+  //
+  // Le lissage se fait a l'echelle de l'ECRAN et non de la texture (pas
+  // derive de fwidth(uv)), pour que la ligne ait la meme allure a 13 % de zoom
+  // qu'a 100 % — sans quoi elle se reformerait en hachures des qu'on dezoome,
+  // exactement le cas ou le defaut a ete vu.
+  // Le pas vaut au moins UN TEXEL du masque. Sans ce plancher, au-dessus de
+  // 100 % de zoom un pixel ecran couvre moins d'un texel : les neuf taps
+  // retombent sur le meme texel, la moyenne rend la valeur brute, et le
+  // lissage ne fait plus rien — precisement la ou on regarde de pres pour
+  // juger un bord. Verifie a 228 % de zoom, ou la premiere version restait
+  // hachuree.
+  let dims = vec2<f32>(textureDimensions(overlayMask, 0));
+  let pasEcran = max(fwidth(in.uv) * 1.5, 1.0 / dims);
+  // Rayon de DEUX pas (25 taps) et non un seul (9 taps). Mesure du 2026-08-13 :
+  // a 9 taps, l'image restait hachuree a l'identique. Un masque par tonalite
+  // traverse 0.5 des milliers de fois ; moyenner 9 texels divise l'amplitude
+  // du bruit par 3 seulement, et la moyenne locale reste assez proche de 0.5
+  // pour rallumer le contour. Ce qui compte n'est pas de reduire le bruit mais
+  // d'ELOIGNER la moyenne locale du seuil.
+  var mLisse = 0.0;
+  for (var j = -2; j <= 2; j = j + 1) {
+    for (var i = -2; i <= 2; i = i + 1) {
+      let decalage = vec2<f32>(f32(i), f32(j)) * pasEcran;
+      mLisse = mLisse + textureSample(overlayMask, overlaySampler, in.uv + decalage).r;
+    }
+  }
+  mLisse = mLisse / 25.0;
+
   // Contour au seuil 0.5 : bande de ~1.5px via dérivée d'écran, jamais de
   // tracé d'isoligne CPU (design.md, "Contour, pas seuil binaire caché").
   // Pointillés : phase animée le long de la diagonale écran, indépendante
   // du contenu du masque.
-  let edgeWidth = fwidth(m) * 1.5 + 0.0001;
-  let onContour = 1.0 - smoothstep(0.0, edgeWidth, abs(m - 0.5));
+  //
+  // La borne sur edgeWidth est le second garde, et il est independant du
+  // lissage : meme lissee, une transition tres raide garde un fwidth eleve.
+  // Sans plafond, la bande resterait proportionnelle a la pente au lieu
+  // d'etre une LIGNE, ce qu'un contour doit etre.
+  let edgeWidth = min(fwidth(mLisse) * 1.5, 0.25) + 0.0001;
+  let onContour = 1.0 - smoothstep(0.0, edgeWidth, abs(mLisse - 0.5));
   let dashPhase = fract((in.position.x + in.position.y) * 0.12 - overlayTime * 1.5);
   let dashColor = select(vec3<f32>(0.0), vec3<f32>(1.0), dashPhase > 0.5);
   rgb = mix(rgb, dashColor, onContour);

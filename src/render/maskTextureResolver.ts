@@ -105,6 +105,24 @@ type RefineCacheEntry = {
   lastContract: number;
   lastSmooth: number;
 };
+/** SAT pleine résolution du feather, allouée PARESSEUSEMENT — créée au premier
+ *  `feather > 0` sur ce calque, détruite dès qu'il retombe à 0. La paresse
+ *  n'est pas une micro-optimisation : deux textures `r32float` pleine taille
+ *  coûtent ~208 Mo à 26 Mpx, et le risque VRAM R1 d'`ARCHITECTURE.md` place
+ *  déjà le pire cas à ~84 % de la mémoire.
+ *
+ *  Ce qu'elle achète : le coût du feather cesse de dépendre du RAYON. Les deux
+ *  box filters séparables qu'elle remplace échantillonnent 2×(2r+1) fois par
+ *  pixel ; le lookup en lit quatre, quel que soit r. Et surtout la SAT n'est
+ *  reconstruite que si son ENTRÉE change (révision amont ou `contract`) —
+ *  glisser le seul curseur de feather relit une SAT déjà là. */
+type RefineSatWork = {
+  scratchA: GPUTexture;
+  scratchB: GPUTexture;
+  result: GPUTexture;
+  lastRevision: number;
+  lastContract: number;
+};
 
 /** Owns every persistent mask resource. It only encodes work: Renderer owns submit and frame-scoped destruction. */
 export class MaskTextureResolver {
@@ -125,6 +143,7 @@ export class MaskTextureResolver {
   >();
   private edgeAwareWorkTextures = new Map<string, EdgeWork>();
   private refineCache = new Map<string, RefineCacheEntry>();
+  private refineSatByLayer = new Map<string, RefineSatWork>();
   /** Compteur incrémenté par calque à chaque fois que le CONTENU de son
    *  masque résident change réellement (recompute dans resident()/
    *  parametric(), cache-miss du fold, ou bascule de `layer.mask.invert`) —
@@ -148,6 +167,44 @@ export class MaskTextureResolver {
   private maskSourcePipelineCache = new Map<string, PipelineEntry>();
   private maskFoldPipelineCache = new Map<string, PipelineEntry>();
   private edgeAwarePipelineCache = new Map<string, PipelineEntry>();
+  /** Compteurs de RECALCUL, par étage du résolveur. Ils répondent à une
+   *  question que les temps ne savent pas trancher : quand un masque existe,
+   *  QUELS étages retravaillent à chaque frame, et lesquels servent leur
+   *  cache. Des COMPTES, pas des durées — donc valides en build de
+   *  développement, où les durées ne le sont pas (le plancher React y est
+   *  2,6× celui de la production, mesuré le 2026-08-13).
+   *
+   *  Posés parce que la cadence tombe de 165 à ~14 images par seconde dès
+   *  qu'un masque à source paramétrique existe dans le document, y compris
+   *  en éditant un AUTRE calque — et que les caches de chaque étage
+   *  (`foldedMaskTextures`, `edgeAwareWorkTextures`, `refineCache`) existent
+   *  pourtant déjà. Un cache qui existe et un cache qui SERT sont deux
+   *  choses distinctes ; seuls ces compteurs les séparent. */
+  private diag = {
+    resolve: 0,
+    livePreview: 0,
+    planVide: 0,
+    foldHit: 0,
+    foldMiss: 0,
+    residentRecompute: 0,
+    parametricRecompute: 0,
+    edgeInactif: 0,
+    edgeHit: 0,
+    satGuide: 0,
+    lookupAB: 0,
+    refinePlanVide: 0,
+    refineHit: 0,
+    refineMiss: 0,
+  };
+  /** Rend les compteurs accumulés depuis le dernier appel, puis les remet à
+   *  zéro — l'appelant mesure donc toujours une FENÊTRE, jamais un cumul
+   *  depuis le chargement. */
+  drainDiagnostics(): Record<string, number> {
+    const copie = { ...this.diag };
+    for (const cle of Object.keys(this.diag) as (keyof typeof this.diag)[])
+      this.diag[cle] = 0;
+    return copie;
+  }
   private whiteMask: GPUTexture | null = null;
   private liveMaskTexture: GPUTexture | null = null;
   private liveMaskLayerId: string | null = null;
@@ -206,6 +263,22 @@ export class MaskTextureResolver {
       if (!layerIds.has(id)) this.lastEdgeAwareActiveByLayer.delete(id);
     for (const id of this.refineCache.keys())
       if (!layerIds.has(id)) this.refineCache.delete(id);
+    // Celle-ci possede ses textures (contrairement a refineCache, qui ne fait
+    // que referencer le ping-pong) : elles se detruisent ici, sinon 208 Mo par
+    // calque disparu resteraient sur le GPU.
+    for (const id of this.refineSatByLayer.keys())
+      if (!layerIds.has(id)) this.destroyRefineSat(id);
+  }
+
+  /** Libère la SAT de feather d'un calque. Appelée quand le calque disparaît
+   *  ET quand `feather` retombe à 0 — c'est ce second appel qui rend
+   *  l'allocation réellement paresseuse plutôt que simplement différée. */
+  private destroyRefineSat(id: string): void {
+    const w = this.refineSatByLayer.get(id);
+    if (!w) return;
+    w.scratchA.destroy();
+    w.scratchB.destroy();
+    this.refineSatByLayer.delete(id);
   }
   private sweepMap<T extends { texture: GPUTexture }>(
     map: Map<string, T>,
@@ -235,14 +308,20 @@ export class MaskTextureResolver {
     pendingDestroy: (GPUTexture | GPUBuffer)[],
     guideEpoch: number,
   ): GPUTexture {
-    if (this.livePreview?.layerId === layer.id)
+    this.diag.resolve++;
+    if (this.livePreview?.layerId === layer.id) {
+      this.diag.livePreview++;
       return this.getLiveMaskTexture(
         layer.id,
         this.livePreview.raster,
         this.livePreview.scope,
       );
+    }
     const plan = planFold(layer.mask);
-    if (!plan.length) return this.getWhiteMask();
+    if (!plan.length) {
+      this.diag.planVide++;
+      return this.getWhiteMask();
+    }
     // Bascule d'`invert` seule (sans qu'aucune source n'ait changé) : le
     // contenu résultant change quand même — resident()/parametric() ne le
     // détecteraient pas seuls puisqu'ils ne voient jamais `invert`.
@@ -286,6 +365,8 @@ export class MaskTextureResolver {
       !!cached &&
       foldInputsEqual(cached.lastInputs, snapshot) &&
       cached.lastInvert === layer.mask.invert;
+    if (cacheHit) this.diag.foldHit++;
+    else this.diag.foldMiss++;
     const folded = cacheHit
       ? cached!.texture
       : this.fold(layer.id, plan, layer.mask.invert, encoder, pendingDestroy);
@@ -370,6 +451,7 @@ export class MaskTextureResolver {
       raster = source.raster,
       old = this.sourceTextures.get(key);
     if (old?.syncedFrom === raster) return old.texture;
+    this.diag.residentRecompute++;
     const texture =
       old?.texture ??
       this.ctx.device.createTexture({
@@ -402,6 +484,7 @@ export class MaskTextureResolver {
     const key = `${id}:${source.id}`,
       old = this.parametricSourceTextures.get(key);
     if (old?.syncedFrom === source.params) return old.texture;
+    this.diag.parametricRecompute++;
     const texture =
       old?.texture ??
       this.ctx.device.createTexture({
@@ -682,7 +765,10 @@ export class MaskTextureResolver {
       this.bumpRevision(layer.id);
       this.lastEdgeAwareActiveByLayer.set(layer.id, active);
     }
-    if (!active) return input;
+    if (!active) {
+      this.diag.edgeInactif++;
+      return input;
+    }
     return this.edgePipeline(layer.id, input, color, x, e, p);
   }
   private computeSmallDims(): { smallW: number; smallH: number; scale: number } {
@@ -759,7 +845,12 @@ export class MaskTextureResolver {
       w.lastRevision !== maskRev ||
       w.lastRadius !== x.edgeRadius ||
       w.lastStrength !== x.edgeStrength;
-    if (!needsGuide && !needsAB) return w.result;
+    if (!needsGuide && !needsAB) {
+      this.diag.edgeHit++;
+      return w.result;
+    }
+    if (needsGuide) this.diag.satGuide++;
+    if (needsAB) this.diag.lookupAB++;
     // Même contrat que l'ancien cache à un seul palier : refine() (en
     // aval) sert un résultat périmé si ce bump n'a pas lieu quand le
     // contenu de `result` change réellement (voir commentaire d'origine).
@@ -807,49 +898,18 @@ export class MaskTextureResolver {
       rp.draw(3);
       rp.end();
     };
+    // `runLoad` et `uniform` sont devenus des METHODES le 2026-08-13 : le
+    // feather en a besoin lui aussi (voir `buildRefineSat`), et les recopier
+    // aurait fait deux implementations d'un meme encodage de passe SAT, libres
+    // de deriver. Ces deux lignes ne font que leur redonner leur nom local.
     const runLoad = (
       wgsl: string,
       entry: string,
       target: GPUTexture,
       views: GPUTextureView[],
       u?: GPUBuffer,
-    ) => {
-      const key = `${entry}:${wgsl.length}:load`;
-      let c = this.edgeAwarePipelineCache.get(key);
-      if (!c) {
-        const entries: GPUBindGroupLayoutEntry[] = [];
-        for (let i = 0; i < views.length; i++)
-          entries.push({ binding: i, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "unfilterable-float" } });
-        if (u) entries.push({ binding: views.length, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } });
-        const layout = this.ctx.device.createBindGroupLayout({ entries });
-        c = {
-          layout,
-          pipeline: this.ctx.device.createRenderPipeline({
-            layout: this.ctx.device.createPipelineLayout({ bindGroupLayouts: [layout] }),
-            vertex: { module: this.ctx.device.createShaderModule({ code: wgsl }), entryPoint: "vs_main" },
-            fragment: { module: this.ctx.device.createShaderModule({ code: wgsl }), entryPoint: entry, targets: [{ format: target.format }] },
-            primitive: { topology: "triangle-list" },
-          }),
-        };
-        this.edgeAwarePipelineCache.set(key, c);
-      }
-      const entries: GPUBindGroupEntry[] = [];
-      for (let i = 0; i < views.length; i++) entries.push({ binding: i, resource: views[i] });
-      if (u) entries.push({ binding: views.length, resource: { buffer: u } });
-      const rp = e.beginRenderPass({
-        colorAttachments: [{ view: target.createView(), loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } }],
-      });
-      rp.setPipeline(c.pipeline);
-      rp.setBindGroup(0, this.ctx.device.createBindGroup({ layout: c.layout, entries }));
-      rp.draw(3);
-      rp.end();
-    };
-    const uniform = (v: number) => {
-      const b = this.ctx.device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-      this.ctx.device.queue.writeBuffer(b, 0, new Float32Array([v, 0, 0, 0]));
-      p.push(b);
-      return b;
-    };
+    ) => this.runLoadPass(e, wgsl, entry, target, views, u);
+    const uniform = (v: number) => this.uniformBuffer(v, p);
     /** Construit la SAT complète (widen + scan H + scan V) à partir d'une
      *  vue source, en réutilisant `satScratchA`/`satScratchB` comme
      *  ping-pong. Retourne la texture (A ou B) qui porte le résultat
@@ -909,6 +969,129 @@ export class MaskTextureResolver {
     }
     return w.result;
   }
+  /** Encode une passe fullscreen qui LIT ses entrées par `textureLoad` (donc
+   *  sans échantillonneur) vers `target`. Extraite d'`edgePipeline` le
+   *  2026-08-13 pour que le feather puisse construire sa SAT avec le même
+   *  encodage — deux copies auraient pu diverger sur le format de binding ou
+   *  la clé de cache de pipeline. */
+  private runLoadPass(
+    e: GPUCommandEncoder,
+    wgsl: string,
+    entry: string,
+    target: GPUTexture,
+    views: GPUTextureView[],
+    u?: GPUBuffer,
+  ): void {
+    // ⚠️ LE FORMAT DE LA CIBLE FAIT PARTIE DE LA CLE. Un pipeline est compile
+    // pour UN format de cible (`targets: [{ format: target.format }]`) ; deux
+    // appels au meme shader vers des formats differents doivent donc obtenir
+    // deux pipelines. Sans ce fragment, le feather (cible r8unorm) et le filtre
+    // guide (cibles rg16float/rg32float) partageaient le meme `fs_satLookup` :
+    // le premier arrive fixait le format, le second recuperait un pipeline
+    // incompatible.
+    //
+    // Le defaut ne LEVE pas — la validation WebGPU est asynchrone ici. Il rend
+    // le pipeline NON REPRODUCTIBLE : `test:render` a refuse de comparer quoi
+    // que ce soit en constatant que deux executions du meme code ne rendaient
+    // pas la meme image (196118 canaux sur 196118). C'est le garde de
+    // reproductibilite qui l'a trouve, pas une comparaison de reference.
+    const key = `${entry}:${wgsl.length}:${target.format}:load`;
+    let c = this.edgeAwarePipelineCache.get(key);
+    if (!c) {
+      const entries: GPUBindGroupLayoutEntry[] = [];
+      for (let i = 0; i < views.length; i++)
+        entries.push({ binding: i, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "unfilterable-float" } });
+      if (u) entries.push({ binding: views.length, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } });
+      const layout = this.ctx.device.createBindGroupLayout({ entries });
+      c = {
+        layout,
+        pipeline: this.ctx.device.createRenderPipeline({
+          layout: this.ctx.device.createPipelineLayout({ bindGroupLayouts: [layout] }),
+          vertex: { module: this.ctx.device.createShaderModule({ code: wgsl }), entryPoint: "vs_main" },
+          fragment: { module: this.ctx.device.createShaderModule({ code: wgsl }), entryPoint: entry, targets: [{ format: target.format }] },
+          primitive: { topology: "triangle-list" },
+        }),
+      };
+      this.edgeAwarePipelineCache.set(key, c);
+    }
+    const entries: GPUBindGroupEntry[] = [];
+    for (let i = 0; i < views.length; i++) entries.push({ binding: i, resource: views[i] });
+    if (u) entries.push({ binding: views.length, resource: { buffer: u } });
+    const rp = e.beginRenderPass({
+      colorAttachments: [{ view: target.createView(), loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } }],
+    });
+    rp.setPipeline(c.pipeline);
+    rp.setBindGroup(0, this.ctx.device.createBindGroup({ layout: c.layout, entries }));
+    rp.draw(3);
+    rp.end();
+  }
+
+  /** Construit (ou réutilise) la SAT pleine résolution du feather de ce calque.
+   *
+   *  Reconstruite UNIQUEMENT si la révision amont ou `contract` diffèrent de la
+   *  dernière construction — c'est-à-dire si ce que la SAT résume a changé.
+   *  Bouger le seul curseur de feather relit donc une SAT déjà construite, et
+   *  c'est là qu'est tout le gain : le geste qu'Antoine a signalé deux fois.
+   *
+   *  Pas de sous-échantillonnage, contrairement au filtre guidé d'`edgePipeline`
+   *  qui plafonne son travail à ~2048 px : un lookup SAT est EXACT, et réduire
+   *  l'entrée d'un feather déplacerait son bord. */
+  private buildRefineSat(
+    id: string,
+    input: GPUTexture,
+    contract: number,
+    revision: number,
+    e: GPUCommandEncoder,
+    p: (GPUTexture | GPUBuffer)[],
+  ): GPUTexture {
+    let w = this.refineSatByLayer.get(id);
+    if (!w) {
+      const mk = () =>
+        this.ctx.device.createTexture({
+          size: [this.width, this.height],
+          format: "r32float",
+          usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+        });
+      const scratchA = mk(),
+        scratchB = mk();
+      w = { scratchA, scratchB, result: scratchA, lastRevision: NaN, lastContract: NaN };
+      this.refineSatByLayer.set(id, w);
+    }
+    if (w.lastRevision === revision && w.lastContract === contract) return w.result;
+
+    this.runLoadPass(e, buildSatWidenWgsl(), "fs_satWiden", w.scratchA, [input.createView()]);
+    let src = w.scratchA,
+      dst = w.scratchB;
+    const scan = (direction: "H" | "V", etendue: number) => {
+      const etapes = Math.max(1, Math.ceil(Math.log2(etendue)));
+      for (let k = 0; k < etapes; k++) {
+        this.runLoadPass(
+          e,
+          buildSatScanWgsl(direction),
+          direction === "H" ? "fs_satScanH" : "fs_satScanV",
+          dst,
+          [src.createView()],
+          this.uniformBuffer(2 ** k, p),
+        );
+        [src, dst] = [dst, src];
+      }
+    };
+    scan("H", this.width);
+    scan("V", this.height);
+    w.result = src;
+    w.lastRevision = revision;
+    w.lastContract = contract;
+    return src;
+  }
+
+  /** Buffer d'uniform jetable (un flottant), détruit après la soumission. */
+  private uniformBuffer(v: number, p: (GPUTexture | GPUBuffer)[]): GPUBuffer {
+    const b = this.ctx.device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    this.ctx.device.queue.writeBuffer(b, 0, new Float32Array([v, 0, 0, 0]));
+    p.push(b);
+    return b;
+  }
+
   private refine(
     id: string,
     input: GPUTexture,
@@ -922,7 +1105,10 @@ export class MaskTextureResolver {
     // et l'encode sur le ping-pong. Plan vide == rien à faire (contrat de
     // planRefine), on rend l'entrée telle quelle sans même la copier.
     const plan = planRefine(x);
-    if (plan.length === 0) return input;
+    if (plan.length === 0) {
+      this.diag.refinePlanVide++;
+      return input;
+    }
     const cached = this.refineCache.get(id);
     if (
       cached &&
@@ -930,8 +1116,11 @@ export class MaskTextureResolver {
       cached.lastFeather === x.feather &&
       cached.lastContract === x.contract &&
       cached.lastSmooth === x.smooth
-    )
+    ) {
+      this.diag.refineHit++;
       return cached.texture;
+    }
+    this.diag.refineMiss++;
     let [acc, next] = this.pair(this.refineEdgePingPongByLayer, id);
     e.copyTextureToTexture({ texture: input }, { texture: acc }, [
       this.width,
@@ -957,16 +1146,28 @@ export class MaskTextureResolver {
     // (2r+1)² pour 2*(2r+1) échantillons par pixel : facteur 50 à r=50
     // (équivalence prouvée dans test/mask/morphologySeparable.test.ts, compte
     // de passes prouvé dans test/mask/refinePlan.test.ts).
-    for (const p of plan) {
-      if (p.kind === "morphology") {
-        run(buildMorphologyWgsl(p.mode, p.axis), p.radius);
+    let featherEncode = false;
+    for (const passe of plan) {
+      if (passe.kind === "morphology") {
+        run(buildMorphologyWgsl(passe.mode, passe.axis), passe.radius);
+      } else if (passe.kind === "featherSat") {
+        // La SAT resume l'etat COURANT du ping-pong, donc apres la morphologie
+        // — d'ou sa dependance a `contract` et non au seul contenu du masque.
+        const sat = this.buildRefineSat(id, acc, x.contract, this.revision(id), e, p);
+        this.runLoadPass(e, buildSatLookupWgsl(), "fs_satLookup", next, [sat.createView()], u(passe.radius));
+        [acc, next] = [next, acc];
+        featherEncode = true;
       } else {
         run(
-          p.axis === "H" ? buildBoxFilterHWgsl(1) : buildBoxFilterVWgsl(1),
-          p.radius,
+          passe.axis === "H" ? buildBoxFilterHWgsl(1) : buildBoxFilterVWgsl(1),
+          passe.radius,
         );
       }
     }
+    // Rendre les ~208 Mo des que le feather cesse d'etre demande, sans attendre
+    // la disparition du calque : c'est ce qui distingue une allocation
+    // paresseuse d'une allocation simplement differee.
+    if (!featherEncode) this.destroyRefineSat(id);
     this.refineCache.set(id, {
       texture: acc,
       lastRevision: this.revision(id),

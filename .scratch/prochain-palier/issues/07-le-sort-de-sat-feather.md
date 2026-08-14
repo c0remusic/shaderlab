@@ -128,6 +128,107 @@ C'est une question de ressenti au pointeur — un banc ne peut pas y répondre.
 Préparer l'app par `/run-shaderlab` sur `master` nu, poser un masque, et
 laisser Antoine tirer le curseur de 1 à 50.
 
+## Verdict du 2026-08-13 — CHERRY-PICK, et la mesure en dev disait l'inverse
+
+Antoine a tiré le curseur : **« Adoucir le bord est toujours laggy »**. Mesuré
+derrière, et le résultat renverse la conclusion prise le matin même.
+
+### Le renversement, et pourquoi la première mesure mentait
+
+Mesure du matin, en build de DÉVELOPPEMENT : le coût du feather ne montait que
+de 45,6 à 52,5 ms par pas entre r≈5 et r≈45, soit **+15 %** — lu comme « le gain
+restant est sous le seuil du ressenti ». **Cette lecture était fausse**, et pas
+d'un peu : le plancher du build de dev (~45 ms par pas, dominé par `jsxDEV`,
+`validateProperty`, `addObjectDiffToProperties` — tous absents en production)
+NOYAIT le signal. Un coût réel de 3 ms sur 45 ne fait que +7 % ; le même coût
+sur un plancher de 6 ms fait +50 %.
+
+Refaite sur le build de PRODUCTION (`--no-bundle`, `target/release`), photo de
+**26 Mpx**, 8 calques, cadence pendant un glissement continu :
+
+| Geste | Cadence |
+| --- | --- |
+| témoin — Tolérance (bon marché) | **165,3 fps** |
+| Adoucir le bord, rayon 0 → 8 | **164,4 fps** |
+| Adoucir le bord, rayon 0 → 50 | **48,4 fps** |
+
+**Facteur 3,4 entre petit et grand rayon**, en production, sur le chemin
+interactif. C'est la dépendance au rayon que `aee22fb` supprime, et elle est
+au-dessus du seuil du ressenti — Antoine l'a d'ailleurs signalée sans voir aucun
+chiffre.
+
+### Ce que ça décide
+
+**On cherry-picke `aee22fb` SEUL**, adapté au `refinePlan.ts` d'aujourd'hui, et
+on supprime la branche. Les deux autres commits restent écartés pour la raison
+mesurée le 2026-08-11 (doublés et mieux faits par `master`) — ce point-là n'a pas
+bougé, et la branche ne se merge toujours pas.
+
+### FAIT le 2026-08-13 — porté, mesuré ×2,9, et la branche peut partir
+
+Le commit n'a pas été cherry-pické tel quel : `master` a depuis extrait le plan
+de passes en fonction pure (`mask/refinePlan.ts`), que le commit d'origine ne
+connaissait pas. Le feather y devient **une** passe `featherSat` au lieu de deux
+`boxFilter` — le plan dit QUOI, l'encodeur construit la table et la met en cache.
+Toutes les briques SAT existaient déjà sur `master` (`buildSatWidenWgsl`,
+`buildSatScanWgsl`, `buildSatLookupWgsl`), donc zéro WGSL importé.
+
+**Gain mesuré à protocole identique** — même build de production, même photo de
+26 Mpx, même scène, vrai glissement souris à 125 Hz, l'ancien chemin rebâti
+exprès pour servir de témoin :
+
+| Feather | Cadence |
+| --- | --- |
+| deux box filters (ancien) | **48,9 images/s** |
+| table de sommes cumulées + lookup | **143,1 images/s** |
+
+**×2,9.** Le 48,9 recoupe le 48,4 mesuré le matin, ce qui valide rétroactivement
+le verdict de ce ticket.
+
+⚠️ **Il a fallu rebâtir l'ancien chemin pour pouvoir le dire.** Les deux chiffres
+que j'avais sous la main — 48,4 (sonde synthétique, discréditée depuis) et 175,5
+(vrai glissement, mais edge-aware actif) — ne comparaient rien. Un gain ne
+s'affirme qu'entre deux mesures dont SEULE la chose testée diffère.
+
+### Un bug latent trouvé au passage, par le garde de reproductibilité
+
+Le cache de pipelines était indexé par `entry:longueur du wgsl`, sans le FORMAT
+de la cible. Or un pipeline est compilé pour un format donné : le lookup SAT du
+feather (cible `r8unorm`) et celui du filtre guidé (`rg16float`/`rg32float`)
+recevaient le même pipeline, le premier arrivé fixant le format. La validation
+WebGPU étant asynchrone ici, **rien ne levait** — le rendu devenait simplement
+non déterministe. `test:render` l'a vu en constatant que deux exécutions du même
+code ne rendaient pas la même image (196 118 canaux sur 196 118), et a refusé de
+comparer aux références tant que le protocole était instable. Le format fait
+maintenant partie de la clé.
+
+### Les deux risques annoncés, et ce que la mesure en dit
+
+- **Précision.** Une SAT pleine résolution accumule jusqu'à ~26 millions, au-delà
+  des 16,7 millions d'entiers exacts d'un `float32`. Vérifié sur la vraie photo à
+  rayon 50 : bords propres, **aucune bande ni discontinuité**, et l'écart aux
+  anciennes références plafonne à 5 valeurs sur 255 (moyenne 0,002). L'erreur
+  relative reste sous le LSB — le risque ne se matérialise pas à cette taille.
+- **VRAM.** ~208 Mo de scratch pour deux textures `r32float` pleine taille, d'où
+  l'allocation paresseuse (créée au premier `feather > 0`, détruite dès qu'il
+  retombe à 0, et au balayage des calques). ⚠️ **Non mesuré** : ni la mémoire
+  privée du process WebView2 ni le compteur `GPU Process Memory` ne bougent de
+  plus que leur bruit (±3 Mo sur 3,5 Go) alors que la SAT est bel et bien
+  construite — sans elle le feather ne rendrait rien. Les deux instruments sont
+  donc aveugles à cette allocation, et le coût VRAM reste à confirmer autrement.
+
+### La leçon de méthode, qui vaut au-delà de ce ticket
+
+⚠️ **Une mesure de performance prise en build de développement ne peut pas
+conclure à l'ABSENCE d'un coût.** Elle peut prouver qu'un coût existe (le
+plancher ne fabrique pas de signal), jamais qu'il est négligeable — le plancher
+dev est ~2,6× le plancher prod (15,4 ms contre 6,2 ms de travail synchrone par
+événement, mesuré à 8 calques). Le §P0 de
+`docs/superpowers/specs/2026-07-30-shaderlab-performance-baseline.md` mettait en
+garde ; l'avertissement a été cité dans le rapport du matin **et la conclusion a
+été tirée quand même**. Le protocole opposable : toute mesure qui sert à écarter
+un travail se refait en production.
+
 ## Ce qui rendrait ce ticket raté
 
 Le clore en disant « rebasé, tests verts » sans qu'Antoine ait tiré un seul

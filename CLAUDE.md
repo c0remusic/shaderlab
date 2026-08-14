@@ -167,10 +167,19 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   rien d'elle.
   Sa mire est `mireVerre`, écrite pour lui et **entièrement achromatique** —
   donc toute couleur dans ses références EST la dispersion.
-  ⚠️ Verrouillé ≠ validé : le **Dépoli** est marqué « à raffiner » par Antoine
-  et les cinq pavés n'ont jamais été regardés sur une vraie photo — une
-  référence de pixels prouve qu'un effet porte sa propriété, jamais qu'il est
-  beau (`docs/ROADMAP.md` §1).
+  ⚠️ Verrouillé ≠ validé, et le jugement est tombé : le **Dépoli** ET les cinq
+  pavés ont été regardés sur une vraie photo le 2026-08-13, et **REFUSÉS** —
+  « très artificiel, 3D des années 90 ». Une référence de pixels prouve qu'un
+  effet porte sa propriété, jamais qu'il est beau (`docs/ROADMAP.md` §1, qui
+  porte les quatre corrections que les photos désignent).
+  ⚠️ **Corollaire payé le même jour : sur une question d'APPARENCE, un
+  raisonnement physique ne remplace pas une image.** Trois constantes ont été
+  écrites dans `glass.ts` sur la foi de specs textuelles (largeur de joint en
+  mm, rugosité en µm) avant qu'une seule photo soit ouverte — dont « un joint
+  opaque est forcément sombre », démentie par la première photo venue, et qui
+  avait amputé de moitié la course du curseur `Clarté du mortier`. Une spec
+  décrit des GRANDEURS, une photo montre une APPARENCE ; le ratio joint/pavé
+  était d'ailleurs le seul chiffre déjà juste.
   **Cinq départs le 2026-08-03**, tous sur arbitrage d'Antoine : `surfaceBlur`
   (ADR-0011, verdict d'usage sur la famille des flous), `posterize` (ADR-0012,
   couvert par `dither` — couverture PROUVÉE avant le retrait, le scénario
@@ -328,6 +337,16 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   CURSEUR, jamais la valeur : le clamp du shader reste nécessaire, un preset ou
   un `updateParams` ne passent pas par le panneau (`LayerStack.updateParams`
   n'écrête rien).
+- **Tout changement qui ajoute des lectures de texture par pixel se MESURE
+  avant d'être committé.** Payé le 2026-08-13 : la diffusion de `glass` est
+  passée de 9 à 16 prélèvements pour un gain visuel réel, et a coûté **37 % de
+  cadence** (15,9 → 10,0 images/s sur 26 Mpx) — signalé par Antoine en pleine
+  session, pas par la mesure. La spirale isotrope apportait déjà tout le gain à
+  9 taps : c'était la GÉOMÉTRIE de l'échantillonnage qui comptait, pas son
+  nombre de points. ⚠️ Et la mesure se prend en build de **production** :
+  le plancher du build de dev est 2,6× celui de la prod (15,4 ms contre 6,2 ms
+  de travail synchrone par événement, à 8 calques) et noie les petits signaux —
+  une mesure en dev prouve qu'un coût existe, jamais qu'il est négligeable.
 - **Garde de câblage** : `test/render/effects/parametresCables.test.ts` vérifie
   que chaque paramètre déclaré est lu à SON index par le shader, sur tous les
   effets du registre. Elle naît d'un défaut réel — `warp` avait quatre contrôles sur sept

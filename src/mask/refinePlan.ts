@@ -13,7 +13,15 @@ export type RefinePass =
       axis: MorphologyAxis;
       radius: number;
     }
-  | { kind: "boxFilter"; axis: "H" | "V"; radius: number };
+  | { kind: "boxFilter"; axis: "H" | "V"; radius: number }
+  /** Feather par table de sommes cumulées : UNE passe de lookup, dont le coût
+   *  ne dépend pas du rayon. Remplace les deux `boxFilter` H/V que le feather
+   *  encodait jusqu'au 2026-08-13, dont le coût y était proportionnel — mesuré
+   *  en production sur 26 Mpx : 164 images par seconde à petit rayon contre 48
+   *  à rayon 50, un facteur 3,4 que l'utilisateur signalait sans voir de
+   *  chiffre. La construction de la table, elle, reste à la charge de
+   *  l'encodeur, qui la met en cache tant que son entrée ne change pas. */
+  | { kind: "featherSat"; radius: number };
 
 /** Plan d'encodage du refine edge (design.md §4) : la liste ORDONNÉE des
  *  passes fullscreen à encoder pour `x`, morphologie puis feather puis smooth.
@@ -56,10 +64,7 @@ export function planRefine(x: RefineEdgeParams): RefinePass[] {
     for (const axis of MORPHOLOGY_PASS_AXES)
       passes.push({ kind: "morphology", mode, axis, radius });
   }
-  if (x.feather > 0) {
-    passes.push({ kind: "boxFilter", axis: "H", radius: x.feather });
-    passes.push({ kind: "boxFilter", axis: "V", radius: x.feather });
-  }
+  if (x.feather > 0) passes.push({ kind: "featherSat", radius: x.feather });
   for (let i = 0; i < x.smooth; i++) {
     passes.push({ kind: "boxFilter", axis: "H", radius: 1 });
     passes.push({ kind: "boxFilter", axis: "V", radius: 1 });

@@ -91,14 +91,22 @@ export const lightLeak: EffectModule = {
     { name: "portee", label: "Portée", unit: "percent", min: 0.05, max: 1.5, default: 0.62, step: 0.01, hint: "Distance parcourue avant extinction, en fraction du cadre" },
 
     // ── LA FORME DU FAISCEAU ─────────────────────────────────────────────
-    { name: "largeur", label: "Largeur à l'entrée", unit: "percent", min: 0.01, max: 0.8, default: 0.13, step: 0.005, hint: "Largeur de la coulée au point d'entrée — la taille de la fente" },
+    // 0,30 et non 0,13 depuis le 2026-08-13. Un joint de porte qui a lâché
+    // fuit sur toute sa LONGUEUR : ce qui entre est une bande, pas un pinceau.
+    // À 0,13 la coulée se lisait comme un faisceau posé sur la photo — le
+    // « lampe torche » qu'Antoine a refusé.
+    { name: "largeur", label: "Largeur à l'entrée", unit: "percent", min: 0.01, max: 0.8, default: 0.17, step: 0.005, hint: "Largeur de la coulée au point d'entrée — la taille de la fente" },
     {
       name: "ouverture",
       label: "Ouverture",
       unit: "none",
       min: 0,
       max: 3,
-      default: 1.1,
+      // 0,6 et non 1,1 : combinée à une entrée large, une ouverture forte
+      // dessinait un COIN, donc une figure géométrique. Une fuite de bord
+      // s'évase à peine — c'est sa décroissance vers l'intérieur qu'on lit,
+      // pas son angle.
+      default: 0.6,
       step: 0.05,
       // À 0 la coulée est une BANDE de largeur constante, ce qui est le cas
       // limite d'une fente très longue. Au-delà, elle s'ouvre en coin, ce qui
@@ -121,14 +129,23 @@ export const lightLeak: EffectModule = {
     },
 
     // ── L'ÉMULSION ───────────────────────────────────────────────────────
-    { name: "intensite", label: "Intensité", unit: "none", min: 0, max: 4, default: 1.35, step: 0.05, hint: "Quantité de lumière entrée. C'est elle qui décide de la COULEUR autant que de la force — voir Chaleur" },
+    // 0,70 et non 1,35 : à 1,35 les trois couches saturaient ensemble au cœur,
+    // qui sortait BLANC — donc le dégradé chaud ne se lisait plus qu'en marge,
+    // exactement le défaut que le ROADMAP prédisait et que la mesure a
+    // confirmé. Les sources décrivent un voile orange, rouge ou magenta ; le
+    // blanc n'appartient qu'à la surexposition franche, qui reste à un curseur.
+    { name: "intensite", label: "Intensité", unit: "none", min: 0, max: 4, default: 0.7, step: 0.05, hint: "Quantité de lumière entrée. C'est elle qui décide de la COULEUR autant que de la force — voir Chaleur" },
     {
       name: "chaleur",
       label: "Chaleur",
       unit: "percent",
       min: 0,
       max: 1,
-      default: 0.55,
+      // 0,78 et non 0,55 : les sources décrivent un voile ORANGE, ROUGE ou
+      // MAGENTA, jamais rose pâle. À 0,55 les trois couches suivaient d'assez
+      // près pour que la zone dense vire au blanc rosé dès que l'énergie monte,
+      // et la couleur ne se lisait plus que sur la frange.
+      default: 0.78,
       step: 0.01,
       // Écart entre les vitesses de saturation des trois couches. À 0, les
       // trois répondent presque ensemble et la coulée est blanche partout — de
@@ -139,7 +156,9 @@ export const lightLeak: EffectModule = {
     },
 
     // ── L'IRRÉGULARITÉ DE LA FENTE ───────────────────────────────────────
-    { name: "irregularite", label: "Irrégularité", unit: "percent", min: 0, max: 1, default: 0.38, step: 0.01, hint: "Aspérités de la fente : elles modulent la largeur ET la force ensemble, comme un vrai jeu de boîtier" },
+    // 0,15 et non 0,38 : à 0,38 le bord festonnait au point que la coulée se
+    // lisait comme un nuage et non comme de la lumière entrée par une fente.
+    { name: "irregularite", label: "Irrégularité", unit: "percent", min: 0, max: 1, default: 0.15, step: 0.01, hint: "Aspérités de la fente : elles modulent la largeur ET la force ensemble, comme un vrai jeu de boîtier" },
     { name: "echelleBruit", label: "Grain de l'irrégularité", unit: "none", min: 1, max: 24, default: 5.5, step: 0.5, hint: "Grand = quelques ondulations lentes ; petit… l'inverse. Au-delà de ~16 la coulée se hache et cesse de se lire comme de la lumière" },
     { name: "graine", label: "Graine", unit: "none", min: 0, max: 64, default: 0, step: 1, hint: "Change le tirage de l'irrégularité sans rien changer d'autre" },
   ],
@@ -248,8 +267,20 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // au bord aussi, donc aucun liseré a la limite. Un gaussien aurait une queue
   // infinie qui voilerait tout le cadre ; un smoothstep laisserait une arete de
   // derivee au raccord, visible sur un aplat sombre.
-  let q = clamp(abs(s) / demiLargeur, 0.0, 1.0);
-  let lateral = 0.5 + 0.5 * cos(q * 3.14159265);
+  // BASE ELARGIE ET SOMMET MOINS PLAT. Le profil s'etendait jusqu'a
+  // \`demiLargeur\` exactement : au-dela, zero franc. La coulee avait donc un
+  // CONTOUR — une forme identifiable posee sur la photo, ce qu'Antoine a
+  // resume par « tres lampe torche, tres grossier » le 2026-08-13. Un voile de
+  // fuite n'a pas de bord : il s'eteint sans qu'on puisse dire ou.
+  //
+  // La base porte maintenant deux fois plus loin, et l'elevation a la puissance
+  // 1,6 creuse le sommet — le plateau central etait l'autre moitie du defaut,
+  // puisque sature il rendait un cœur uniformement blanc au lieu d'un degrade.
+  // La queue reste FINIE, ce qui etait la raison du cosinus releve : un gaussien
+  // voilerait tout le cadre.
+  let q = clamp(abs(s) / (demiLargeur * 2.0), 0.0, 1.0);
+  let profil = 0.5 + 0.5 * cos(q * 3.14159265);
+  let lateral = pow(profil, 1.6);
 
   // EXTINCTION le long du trajet. Le facteur (1 - t) garantit qu'elle atteint
   // exactement zero a la portee : une exponentielle aurait laisse un residu

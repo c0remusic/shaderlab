@@ -85,6 +85,41 @@ export const ManyLayers: Story = {
   args: { layers: manyLayers, selectedId: "layer-3" },
 };
 
+/** LA SÉLECTION DOIT ÊTRE DANS LA VUE, et ce test existe parce qu'elle ne
+ *  l'était pas. Mesuré devant l'app le 2026-08-13, à 7 calques : la carte n'en
+ *  montre que cinq — c'est voulu (`--dock-card-list-rows: 5`) — mais `scrollTop`
+ *  restait à 0 pendant qu'on éditait les propriétés d'un calque invisible.
+ *
+ *  Le décorateur pose la hauteur bornée que la carte du dock impose ; sans lui,
+ *  rien ne défile et le test passerait pour la mauvaise raison. */
+export const SelectionScrollsIntoView: Story = {
+  args: { layers: manyLayers, selectedId: "layer-8" },
+  decorators: [
+    (Story) => (
+      <div style={{ height: 200, overflow: "auto" }} data-testid="scroller">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const scroller = canvasElement.querySelector<HTMLElement>('[data-testid="scroller"]')!;
+    const ligne = canvasElement.querySelector<HTMLElement>('[data-layer-row-selected="true"]')!;
+    await expect(ligne).toBeTruthy();
+
+    // TÉMOIN : le conteneur défile vraiment. Sans lui, un `scrollTop` nul se
+    // lirait comme « la ligne est visible » alors qu'il signifierait « rien ne
+    // peut défiler », et le test serait vert sur une régression.
+    await expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight);
+    await expect(scroller.scrollTop).toBeGreaterThan(0);
+
+    // Et la ligne sélectionnée est bien DANS la fenêtre visible du conteneur.
+    const boiteScroller = scroller.getBoundingClientRect();
+    const boiteLigne = ligne.getBoundingClientRect();
+    await expect(boiteLigne.top).toBeGreaterThanOrEqual(boiteScroller.top - 1);
+    await expect(boiteLigne.bottom).toBeLessThanOrEqual(boiteScroller.bottom + 1);
+  },
+};
+
 // SENS D'AFFICHAGE (ADR-0004, 2026-07-28) : la liste se lit de haut en bas dans
 // l'ordre du TRAITEMENT. `layers[0]` est le calque appliqué EN PREMIER — depuis
 // la tranche T1 c'est la photo de fond elle-même, et les effets qui la

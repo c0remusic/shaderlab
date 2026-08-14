@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import { usePointerReorder, type DropPosition } from "../ui/dragReorder";
 import "../ui/dragReorder.css";
 import { Copy, CornerLeftUp, Eye, EyeOff, GripVertical, Image as PhotoLayerIcon, Lock, LockOpen, Plus, Sparkles as EffectLayerIcon, Trash2 } from "lucide-react";
@@ -238,6 +238,11 @@ const LayerRow = memo(function LayerRow({
         onSelect(layer.id);
       }}
       data-layer-row-index={index}
+      // Marque la ligne SÉLECTIONNÉE pour que le panneau puisse la ramener dans
+      // la vue (voir l'effet dans `LayerPanel`). Un attribut plutôt qu'une ref
+      // par ligne : la liste est virtualisée par personne, mais le nombre de
+      // lignes varie et une carte de refs se périmerait à chaque réordonnancement.
+      data-layer-row-selected={selected ? "true" : undefined}
       className={rowClass}
     >
       {/* Filet vertical vers la photo parente. `aria-hidden` : purement
@@ -679,10 +684,37 @@ export function LayerPanel({
     [onSelect, onSelectTarget],
   );
 
+  const listRef = useRef<HTMLUListElement>(null);
+  /**
+   * RAMENER LA SÉLECTION DANS LA VUE.
+   *
+   * Défaut mesuré le 2026-08-13 devant l'app, à 7 calques : la carte n'en montre
+   * que cinq — ça, c'est voulu (`--dock-card-list-rows: 5`) — mais `scrollTop`
+   * restait à **0** pendant qu'on éditait les propriétés d'un calque
+   * qu'on ne voyait pas. La sélection peut venir d'ailleurs que d'un clic sur la
+   * ligne (raccourci, sélection d'un masque, ajout d'un calque, undo), donc rien
+   * ne garantissait qu'elle soit visible.
+   *
+   * `block: "nearest"` ne bouge RIEN si la ligne est déjà dans la vue et fait le
+   * déplacement MINIMAL sinon — c'est ce qui évite de recentrer la liste à
+   * chaque clic, et ce qui laisse le défilement de l'utilisateur tranquille. Il
+   * remonte aussi les ancêtres défilants, donc il fonctionne que ce soit la
+   * liste ou la colonne du dock qui défile.
+   *
+   * `useLayoutEffect` et non `useEffect` : le défilement se fait AVANT la
+   * peinture, sinon la ligne apparaît hors champ puis saute.
+   */
+  useLayoutEffect(() => {
+    if (selectedId === null) return;
+    const ligne = listRef.current?.querySelector<HTMLElement>('[data-layer-row-selected="true"]');
+    ligne?.scrollIntoView({ block: "nearest" });
+  }, [selectedId]);
+
   return (
     <div className="layer-panel">
       <EffectPicker disabled={!hasImage} onSelect={onAdd} />
       <ul
+        ref={listRef}
         // `data-dock-list` : marque la LISTE dans la zone défilante de la
         // carte, pour que le plancher de compression compte séparément les
         // lignes et ce qui vit à côté d'elles — ici le sélecteur

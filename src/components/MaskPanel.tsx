@@ -52,6 +52,22 @@ const COMBINE_MODE_OPTIONS = [
   { value: "intersect", label: "∩ Intersecter" },
 ];
 
+const GRADIENT_MODE_OPTIONS = [
+  { value: 0, label: "Linéaire" },
+  { value: 1, label: "Radial" },
+];
+
+/** Les deux points du dégradé ne DÉSIGNENT pas la même chose selon la forme :
+ *  en radial, `start` est le centre et `end` un point du bord (voir
+ *  `mask/sources/gradient.ts`). Garder « Départ / Arrivée » y ferait chercher
+ *  un segment là où il y a un rayon. */
+const GRADIENT_RADIAL_LABELS: Record<string, string> = {
+  startX: "Centre X",
+  startY: "Centre Y",
+  endX: "Bord X",
+  endY: "Bord Y",
+};
+
 const MASK_PARAM_LABELS: Record<string, string> = {
   angle: "Angle",
   startX: "Départ X",
@@ -330,6 +346,36 @@ export const MaskPanel = memo(function MaskPanel({
                   onCommit={onMaskSourceParamsCommit}
                 />
               )}
+              {/* FORME DU DÉGRADÉ — linéaire ou radial. Un groupe de bascules
+                  et non un curseur : le paramètre ne prend que deux états, et
+                  le rendre continu ferait mentir le contrôle sur ce qu'il
+                  règle (même raison que la case à cocher d'`invert` plus
+                  bas). Même gabarit que le mode de combinaison au-dessus, donc
+                  aucun style nouveau. */}
+              {activeSource.type === "gradient" && (
+                <div className="param-panel__combine-mode" role="group" aria-label="Forme du dégradé">
+                  {GRADIENT_MODE_OPTIONS.map((option) => (
+                    <Toggle
+                      key={option.value}
+                      size="sm"
+                      title={option.label}
+                      aria-label={option.label}
+                      disabled={locked}
+                      pressed={((activeSource.params.mode as number) ?? 0) === option.value}
+                      onPressedChange={(pressed) => {
+                        if (!pressed) return;
+                        onMaskSourceParamsChange(layerId, activeSource.id, {
+                          ...activeSource.params,
+                          mode: option.value,
+                        });
+                        onMaskSourceParamsCommit();
+                      }}
+                    >
+                      {option.label}
+                    </Toggle>
+                  ))}
+                </div>
+              )}
               {activeSource.type === "colorRange" && (
                 <ColorRangeControl
                   samples={(activeSource.params.samples as number[]) ?? []}
@@ -342,6 +388,14 @@ export const MaskPanel = memo(function MaskPanel({
                 />
               )}
               {Object.entries(activeSource.params).map(([key, value]) => {
+                const radial = activeSource.type === "gradient" && ((activeSource.params.mode as number) ?? 0) === 1;
+                // `mode` a son propre contrôle juste au-dessus, et l'ANGLE n'a
+                // aucun sens sur un cercle : tourner un disque autour de son
+                // centre ne déplace pas un pixel. Le masquer plutôt que le
+                // laisser inerte — un curseur dont la course est morte est un
+                // échec silencieux (CLAUDE.md, leçon `sliceShift`).
+                if (activeSource.type === "gradient" && key === "mode") return null;
+                if (radial && key === "angle") return null;
                 if (activeSource.type === "luminosity" && ["shadowsMin", "shadowsMax", "highlightsMin", "highlightsMax"].includes(key)) return null;
                 if (activeSource.type === "colorRange" && ["samples", "tolerance", "hardness"].includes(key)) return null;
                 if (key === "samples") {
@@ -399,7 +453,7 @@ export const MaskPanel = memo(function MaskPanel({
                 return (
                   <LabeledSlider
                     key={key}
-                    label={MASK_PARAM_LABELS[key] ?? key}
+                    label={(radial ? GRADIENT_RADIAL_LABELS[key] : undefined) ?? MASK_PARAM_LABELS[key] ?? key}
                     value={value as number}
                     min={range.min}
                     max={range.max}

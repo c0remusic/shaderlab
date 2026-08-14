@@ -559,17 +559,33 @@ au pointeur, pas au banc.
 
 </details>
 
-### Le dégradé RADIAL du masque n'a jamais été livré
+### ~~Le dégradé RADIAL du masque n'a jamais été livré~~ ✅ LIVRÉ le 2026-08-14
 
-Promis en **vague 1**, pas en différé :
-`2026-07-18-shaderlab-layers-masking-prd.md:76` dit « Dégradé linéaire/**radial**
-: angle, points de départ/fin, feather, inversion ». Sur disque,
-`src/mask/sources/gradient.ts` s'annonce « Dégradé linéaire » et ne porte aucun
-radial. Livré à moitié, signalé nulle part pendant 24 jours.
+Promis en **vague 1**, pas en différé
+(`2026-07-18-shaderlab-layers-masking-prd.md:76`), livré à moitié, signalé nulle
+part pendant 27 jours — et le même PRD (ligne 124) s'en servait comme MOTIF pour
+différer la sélection géométrique rect/ellipse, un motif qui n'existait donc pas
+en code.
 
-⚠️ Le même PRD (ligne 124) donnait le dégradé radial comme MOTIF pour différer
-la sélection géométrique rect/ellipse — « dégradé radial déjà prévu ». **Le
-motif n'a donc jamais existé en code.**
+Livré comme un `mode` sur la source existante, **en dernière clé** de
+`defaultParams` : le résolveur sérialise les clés dans l'ordre, donc un masque
+enregistré avant reçoit le défaut 0 et rend le linéaire **au bit près** — la
+référence `masque-degrade` est inchangée. Les deux formes partagent leurs deux
+points (en radial, `start` est le centre et `end` un point du bord), donc aucun
+paramètre en plus et aucun réglage perdu en basculant.
+
+⚠️ Ce que le chantier a fait apparaître et qui n'était pas prévu : un radial
+doit être **circulaire sur la TOILE**, et l'espace UV ne l'est pas. Les
+dimensions du document sont désormais un uniform du wrapper de source
+(`maskDims`) — surtout pas `textureDimensions(srcColor)`, qui est la photo la
+plus basse de la pile et dont l'aspect diverge dès qu'une toile est créée à un
+autre format (ADR-0007). La paire de références est donc sur une toile
+**320 × 192** à dessein : sur une toile carrée, la propriété serait verrouillée
+par accident. Mesuré, en rejouant le défaut : empreinte 132 × 134 px avec la
+correction, **132 × 80** sans.
+
+Reste ouverte, et elle est plus large que le dégradé : la **sélection
+géométrique rect/ellipse**, que ce motif ne bloque plus.
 
 ### Deux points d'interface décidés puis jamais écrits
 

@@ -411,7 +411,14 @@ describe("MaskTextureResolver — gradient source params contract", () => {
     resolver.resolve(layer, createFakeEncoder(counts), {} as GPUTextureView, [], 0);
 
     expect(writeBufferCalls.length).toBeGreaterThan(0);
-    const flat = writeBufferCalls[writeBufferCalls.length - 1];
+    // ⚠️ PAS le dernier appel : depuis le 2026-08-14, chaque source
+    // paramétrique écrit DEUX uniformes — ses paramètres (8 slots) puis les
+    // dimensions du masque (4 slots, pour que le dégradé radial rende un
+    // cercle et non une ellipse). Prendre le dernier lisait les dimensions et
+    // comparait 4 à 0,11. On désigne donc celui qui porte les paramètres, par
+    // sa longueur, qui est le contrat lui-même (`PARAM_COUNT_BY_TYPE`).
+    const flat = writeBufferCalls.find((c) => c.length === 8)!;
+    expect(flat).toBeDefined();
     // toBeCloseTo, pas toEqual : le tableau transite par un Float32Array
     // (précision f32), une comparaison stricte échouerait sur l'arrondi
     // (0.11 → 0.10999999940395355), pas sur un bug d'ordonnancement.

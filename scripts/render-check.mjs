@@ -2988,6 +2988,64 @@ const INSTALL = `(async () => {
       },
     },
 
+    // LE DEGRADE RADIAL (2026-08-14), ET SA PAIRE. Promis en vague 1 par le PRD
+    // de masquage (« Degrade lineaire/radial »), livre a moitie, et le manque n a
+    // ete signale nulle part pendant 27 jours — le PRD s en servait meme comme
+    // MOTIF pour differer la selection rect/ellipse.
+    //
+    // TOILE 320 x 192, ET C EST LE POINT DU SCENARIO. Un radial doit rendre un
+    // CERCLE sur l image, or l espace UV n est pas isotrope : sans correction
+    // d aspect, le meme rayon donne 80 px sur un axe et 133 sur l autre. Sur une
+    // toile carree le defaut serait invisible — la reference verrouillerait un
+    // cercle par accident. Les deux scenarios rendent la meme pile, le second
+    // avec le masque : leur DIFFERENCE est l empreinte du masque, et sa boite
+    // englobante est ce que mesure la garde de renderRefs.test.mjs.
+    //
+    // Le centre est le point de DEPART et le bord le point d ARRIVEE : aucun
+    // parametre en plus que le lineaire, et basculer de forme ne perd aucun
+    // reglage.
+    "masque-degrade-radial-temoin": {
+      fond: false,
+      toile: { width: 320, height: 192 },
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: 160, y: 96, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("duotone", p);
+        stack.updateParams(a, {
+          shadowHue: 350, shadowSaturation: 0.65, shadowLightness: 0.25,
+          midtoneHue: 30, midtoneSaturation: 0.5, midtoneLightness: 0.5,
+          highlightHue: 220, highlightSaturation: 0.55, highlightLightness: 0.6,
+          contrast: 0.55, pivot: 0.5,
+        });
+      },
+    },
+
+    "masque-degrade-radial": {
+      fond: false,
+      toile: { width: 320, height: 192 },
+      contre: "masque-degrade-radial-temoin",
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: 160, y: 96, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("duotone", p);
+        stack.updateParams(a, {
+          shadowHue: 350, shadowSaturation: 0.65, shadowLightness: 0.25,
+          midtoneHue: 30, midtoneSaturation: 0.5, midtoneLightness: 0.5,
+          highlightHue: 220, highlightSaturation: 0.55, highlightLightness: 0.6,
+          contrast: 0.55, pivot: 0.5,
+        });
+        const g = stack.addMaskSource(a, "gradient");
+        // Centre au milieu, bord a 0,25 en X : rayon de 80 px sur les DEUX axes
+        // une fois l aspect corrige (0,25 x 320 = 80 ; 0,4167 x 192 = 80).
+        // Adoucissement nul, pour que la frontiere soit mesurable au pixel.
+        stack.updateMaskSourceParams(a, g, {
+          angle: 0, startX: 0.5, startY: 0.5, endX: 0.75, endY: 0.5, feather: 0.0001, invert: 0, mode: 1,
+        });
+      },
+    },
+
     // LUMINOSITE, SUR LA RAMPE — et la mire est le test. Cette source selectionne
     // deux PLAGES de ton, les ombres et les hautes lumieres, en laissant les tons
     // moyens dehors. Une rampe neutre est la seule mire qui etale l axe des tons

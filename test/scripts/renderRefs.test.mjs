@@ -65,6 +65,12 @@ const ATTENDU = {
   // la seconde un masque par TONALITÉ sur une image bruitée — le cas qui a fait
   // exploser le contour en hachures le 2026-08-13, et que le lissage à 25 taps
   // corrige. C'est cette correction que la mesure plus bas rend opposable.
+  // LE DÉGRADÉ RADIAL (2026-08-14), promis en vague 1 par le PRD de masquage et
+  // livré à moitié. La paire est sur une toile 320 × 192 À DESSEIN : sur une
+  // toile carrée, un radial sans correction d'aspect rendrait un cercle quand
+  // même, et la référence verrouillerait la propriété par accident.
+  "masque-degrade-radial-temoin.png": { width: 320, height: 192, valeurs: null },
+  "masque-degrade-radial.png": { width: 320, height: 192, valeurs: null },
   "masque-overlay-temoin.png": { width: 256, height: 256, valeurs: null },
   "masque-overlay-pinceau.png": { width: 256, height: 256, valeurs: null },
   "masque-overlay-tonalite-temoin.png": { width: 256, height: 256, valeurs: null },
@@ -883,6 +889,51 @@ describe("references de rendu committees", () => {
     // des deux côtés.
     expect(chaleurs[sommet]).toBeGreaterThan(1.8 * chaleurs[0]);
     expect(chaleurs[sommet]).toBeGreaterThan(1.8 * chaleurs[chaleurs.length - 1]);
+  });
+
+  it("dégradé radial : l'empreinte du masque est un CERCLE sur une toile 320 × 192", () => {
+    // CE QUE CETTE PAIRE TIENT, et pourquoi elle est sur une toile qui n'est
+    // PAS carrée. L'espace UV n'est pas isotrope : un rayon exprimé en UV
+    // donne 80 px sur un axe et 133 sur l'autre. Sur une toile carrée, un
+    // radial sans correction d'aspect rendrait quand même un cercle — la
+    // référence verrouillerait alors une propriété par accident, et le défaut
+    // n'apparaîtrait que chez l'utilisateur, sur sa photo 3:2.
+    //
+    // La mesure est la boîte englobante des pixels que le masque CHANGE :
+    // l'écart entre l'image masquée et son témoin sans masque est l'empreinte
+    // du masque, et rien d'autre.
+    const avec = decodePng(readFileSync(path.join(REF_DIR, "masque-degrade-radial.png")));
+    const sans = decodePng(readFileSync(path.join(REF_DIR, "masque-degrade-radial-temoin.png")));
+    expect(avec.width).toBe(320);
+    expect(avec.height).toBe(192);
+
+    let minX = Infinity, maxX = -1, minY = Infinity, maxY = -1;
+    for (let y = 0; y < avec.height; y++) {
+      for (let x = 0; x < avec.width; x++) {
+        const i = (y * avec.width + x) * 4;
+        const ecart = Math.max(
+          Math.abs(avec.pixels[i] - sans.pixels[i]),
+          Math.abs(avec.pixels[i + 1] - sans.pixels[i + 1]),
+          Math.abs(avec.pixels[i + 2] - sans.pixels[i + 2]),
+        );
+        if (ecart < 8) continue;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+    const largeur = maxX - minX + 1;
+    const hauteur = maxY - minY + 1;
+
+    // Mesuré : 132 × 134 px, soit un rapport de 0,985. ⚠️ LE SEUIL EST CALÉ EN
+    // REJOUANT LE DÉFAUT : en remplaçant le facteur d'aspect par (1, 1), la
+    // même scène rend 132 × 80, soit 1,650 — exactement l'aspect de la toile
+    // (320/192 = 1,667). Une tolérance de 10 % est donc six fois plus serrée
+    // que l'écart qu'elle doit attraper.
+    expect(largeur).toBeGreaterThan(100);
+    expect(largeur / hauteur).toBeGreaterThan(0.9);
+    expect(largeur / hauteur).toBeLessThan(1.1);
   });
 
   it("overlay de masque : sur un masque par tonalité, le contour est une LIGNE et pas une surface", () => {

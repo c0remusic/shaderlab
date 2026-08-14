@@ -13,6 +13,38 @@ describe("gradient source module", () => {
     expect(gradientSource.wgsl).toContain("fn fs_generate(");
     expect(gradientSource.wgsl).toContain("dot(");
   });
+
+  it("`mode` est le DERNIER paramètre, parce que le résolveur sérialise dans l'ordre des clés", () => {
+    // ⚠️ CE TEST GARDE UN CONTRAT DE SÉRIALISATION, pas un goût de rangement.
+    // `MaskTextureResolver.flatten` écrit `Object.keys(defaultParams)` dans
+    // l'ordre : insérer une clé au milieu décalerait tous les slots suivants
+    // d'un cran — le défaut réel qui avait fait recevoir à `feather` la valeur
+    // d'`endY`. Et une clé ajoutée à la FIN garantit qu'un masque enregistré
+    // avant elle reçoit son défaut, donc rend comme avant.
+    const cles = Object.keys(gradientSource.defaultParams);
+    expect(cles[cles.length - 1]).toBe("mode");
+    expect(gradientSource.defaultParams.mode).toBe(0);
+    // `angle` mis à part (commodité d'UI jamais sérialisée), les slots wgsl
+    // sont ceux que documente l'en-tête du module, dans cet ordre.
+    expect(cles.filter((c) => c !== "angle")).toEqual([
+      "startX", "startY", "endX", "endY", "feather", "invert", "mode",
+    ]);
+  });
+
+  it("le wgsl porte les DEUX formes, et corrige l'aspect en radial", () => {
+    // Le mode est lu au slot 6, le radial mesure une DISTANCE au centre, et il
+    // le fait dans un espace corrigé par les dimensions du DOCUMENT — pas par
+    // celles de la photo (`srcColor`), qui n'ont pas le même aspect dès qu'une
+    // toile est créée à un autre format.
+    expect(gradientSource.wgsl).toContain("params[6]");
+    expect(gradientSource.wgsl).toContain("length((uv - start) * ar)");
+    // ⚠️ Assertion POSITIVE sur le calcul, pas négative sur un nom : une
+    // première version interdisait `textureDimensions(srcColor` et rougissait
+    // sur le COMMENTAIRE qui explique justement pourquoi on ne l'utilise pas.
+    // Chercher un identifiant nu attrape la prose autant que le code.
+    expect(gradientSource.wgsl).toContain("maskDims.x");
+    expect(gradientSource.wgsl).toContain("maskDims.y");
+  });
 });
 
 describe("angleToEndpoints", () => {

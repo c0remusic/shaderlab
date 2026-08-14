@@ -52,7 +52,7 @@ export const PARAM_COUNT_BY_TYPE: Record<Exclude<MaskSourceType, "brush">, numbe
  *  non méthode privée) pour que `scripts/gpu-shader-check.mjs` compile la même
  *  source que le rendu. */
 export function wrapMaskSourceWgsl(g: string, n: number): string {
-  return `${FULLSCREEN_VERTEX_WGSL}\n@group(0) @binding(0) var srcColor: texture_2d<f32>;\n@group(0) @binding(1) var maskSampler: sampler;\n@group(0) @binding(2) var<uniform> genParams: array<f32, ${n}>;\n${g}\n@fragment fn fs_wrapped(in: VertexOut) -> @location(0) vec4<f32> { let color=textureSample(srcColor,maskSampler,in.uv).rgb; let v=fs_generate(in.uv,color,genParams); return vec4<f32>(v,v,v,1.0); }`;
+  return `${FULLSCREEN_VERTEX_WGSL}\n@group(0) @binding(0) var srcColor: texture_2d<f32>;\n@group(0) @binding(1) var maskSampler: sampler;\n@group(0) @binding(2) var<uniform> genParams: array<f32, ${n}>;\n@group(0) @binding(3) var<uniform> maskDims: vec2<f32>;\n${g}\n@fragment fn fs_wrapped(in: VertexOut) -> @location(0) vec4<f32> { let color=textureSample(srcColor,maskSampler,in.uv).rgb; let v=fs_generate(in.uv,color,genParams); return vec4<f32>(v,v,v,1.0); }`;
 }
 type Entry = { texture: GPUTexture; syncedFrom: unknown };
 type PipelineEntry = {
@@ -532,6 +532,19 @@ export class MaskTextureResolver {
             visibility: GPUShaderStage.FRAGMENT,
             buffer: { type: "uniform" },
           },
+          // DIMENSIONS DU MASQUE (= celles du DOCUMENT), et non celles de la
+          // photo. Une source qui a besoin d'un espace ISOTROPE — le dégradé
+          // radial, qui doit rendre un cercle et pas une ellipse — ne peut pas
+          // les prendre sur `srcColor` : le résolveur y sert la photo la plus
+          // BASSE de la pile, dont l'aspect n'est pas celui de la toile
+          // (ADR-0007 : le format de toile se choisit à la création). Les lire
+          // là aurait donné un masque juste tant que toile == photo, et faux
+          // dès qu'elles divergent — le genre de défaut qui dort.
+          {
+            binding: 3,
+            visibility: GPUShaderStage.FRAGMENT,
+            buffer: { type: "uniform" },
+          },
         ],
       });
       const code = wrapMaskSourceWgsl(module.wgsl, count);
@@ -555,12 +568,25 @@ export class MaskTextureResolver {
       };
       this.maskSourcePipelineCache.set(key2, c);
     }
+    // 16 octets pour deux flottants : la taille d'un binding uniform doit être
+    // un multiple de 16 (règle d'alignement WebGPU), pas seulement des 8 que
+    // pèse un `vec2<f32>`.
+    const dimsBuffer = this.ctx.device.createBuffer({
+      size: 16,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+    this.ctx.device.queue.writeBuffer(
+      dimsBuffer,
+      0,
+      new Float32Array([this.width, this.height, 0, 0]) as BufferSource,
+    );
     const bind = this.ctx.device.createBindGroup({
       layout: c.layout,
       entries: [
         { binding: 0, resource: this.sourceColor().createView() },
         { binding: 1, resource: this.sampler },
         { binding: 2, resource: { buffer } },
+        { binding: 3, resource: { buffer: dimsBuffer } },
       ],
     });
     const pass = encoder.beginRenderPass({
@@ -578,6 +604,10 @@ export class MaskTextureResolver {
     pass.draw(3);
     pass.end();
     pending.push(buffer);
+    // Même cycle de vie que le buffer de paramètres : détruit APRÈS la
+    // soumission de la frame, jamais avant. Un buffer oublié ici fuirait à
+    // chaque régénération de masque.
+    pending.push(dimsBuffer);
     this.parametricSourceTextures.set(key, {
       texture,
       syncedFrom: source.params,

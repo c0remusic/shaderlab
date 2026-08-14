@@ -85,20 +85,48 @@ porte sa mesure. Elle se régénère par `/run-shaderlab` puis le pilote de la
 skill ; les images sources vivent dans le scratchpad de session, donc elles ne
 survivent pas — c'est la page publiée qui est l'artefact durable.
 
-| # | Sujet | Ce qu'il faut juger |
+**Cinq des six sujets ont été jugés par Antoine le 2026-08-13**, devant l'app.
+La colonne de droite dit ce qu'il en reste APRÈS son verdict, pas ce qu'il
+fallait juger.
+
+| # | Sujet | Ce qu'il en reste |
 | --- | --- | --- |
-| 1 | **Courbes** | Fluidité ET esthétique — mais **un défaut est déjà mesuré**, voir ci-dessous. Il se tranche avant de juger le reste |
-| 2 | **Pile / Propriétés / Masque** | Le nouveau flux, sur une pile **dense** — c'est la densité qui est en question, pas le flux à deux calques |
-| 3 | **Verre** | Les matières sur une vraie photo. Le **Dépoli** est marqué « à raffiner » par Antoine et n'a pas été retouché depuis |
-| 4 | **Les cinq pavés** | À l'usage, et ajuster le rendu si besoin — livrés et verrouillés, jamais regardés sur une photo |
-| 5 | **Sections des panneaux** | Le découpage en blocs titrés, livré le 2026-08-05 sur les 23 effets. Aucun n'a été regardé sur une vraie photo, sauf `texture`, `dither` et `duotone` |
-| 6 | **Light leak** | Livré le 2026-08-05 avec sa paire de références. Vu une fois sur une photo, jamais jugé — et deux défauts par défaut sont déjà probables : `intensite` à 1,35 sature le cœur en blanc, donc le dégradé chaud ne se lit qu'en marge, et l'irrégularité à 0,38 festonne le bord au point que la coulée se lit comme un nuage plutôt que comme un faisceau. Les deux sont des **valeurs**, pas du code |
+| 1 | **Courbes** | ✅ **JUGÉ ET CORRIGÉ.** Verdict : « pas les points rouges ni l'effet délavé ». `curves` travaille en perçu depuis `ffe47c2`, et le gain du canal maître est borné — c'était lui, la vraie cause des pixels colorés. Détail et mesures : [ticket 06](../.scratch/prochain-palier/issues/06-curves-en-lineaire-ou-en-percu.md) |
+| 2 | **Pile / Propriétés / Masque** | ⚠️ **DÉFAUT MESURÉ, non corrigé.** À 7 calques la carte n'en montre que 5 — ça, c'est voulu (`--dock-card-list-rows: 5`) — mais **la sélection ne défile pas dans la vue** : `scrollTop` reste à 0 pendant qu'on édite les propriétés d'un calque invisible. Antoine a demandé un **wireframe pour 7 calques et plus** ; il n'est pas fait |
+| 3 | **Verre** | ⚠️ **REFUSÉ, partiellement corrigé.** Le Dépoli rendait des paquets : sa diffusion était directionnelle (9 taps sur un axe), elle est isotrope depuis `da86f3d`. Mais l'ensemble reste jugé « très artificiel, 3D des années 90 » — voir le bloc dédié plus bas |
+| 4 | **Les cinq pavés** | ⚠️ **REFUSÉ.** « Les espacements sont très moches », puis « je n'aime pas l'aspect du mortier ». Trois corrections livrées (joint adouci, variation par pavé, granulométrie), le verdict reste négatif. Ce qui manque est identifié par PHOTOS, voir plus bas |
+| 5 | **Sections des panneaux** | Inchangé — le découpage en blocs titrés, livré le 2026-08-05 sur les 23 effets, n'a toujours pas été regardé sujet par sujet |
+| 6 | **Light leak** | ⚠️ **REFUSÉ, reformé.** Les deux défauts prédits étaient réels et sont corrigés (`6fdc1da`), mais le verdict portait plus loin : « très lampe torche, très grossier » désignait la FORME, pas les valeurs. Le profil latéral n'a plus de contour. **Reste du goût** : la zone dense tire vers le rose pâle là où les sources décrivent un orange franc |
 
-### ⚠️ Ce que la préparation du checkpoint a trouvé — `curves` travaille en lumière LINÉAIRE
+### ✅ SOLDÉ le 2026-08-13 — `curves` travaillait en lumière LINÉAIRE
 
-**Le seul point de cette liste qui demande une décision de CODE et non un
-goût.** `src/render/effects/curves.ts` n'importe aucune transformation sRGB : sa
-courbe s'applique donc à des valeurs **linéaires**, quand tous les outils de
+**Tranché par Antoine devant l'image** (« fais en sorte qu'on n'ait pas les
+points rouges et l'effet délavé ») : c'est l'EFFET qui se corrige, pas la règle
+« linéaire strict » du dépôt. Livré en `ffe47c2`, verdict complet et mesures
+dans [le ticket 06](../.scratch/prochain-palier/issues/06-curves-en-lineaire-ou-en-percu.md).
+
+**Ce que la correction a appris et qui ne se devinait pas** : il y avait DEUX
+défauts, et le second ne s'est vu qu'une fois le premier corrigé. Passer en
+perçu supprimait ~80 % des pixels colorés — assez pour croire que c'était réglé.
+Le reste venait du canal maître, qui préserve la teinte en multipliant par
+`mappedLuma / luma` : dans les ombres profondes ce facteur explose (0,001 en
+entrée et 0,25 en sortie donnent un gain de 250) et amplifie le bruit
+chromatique du JPEG. Gain désormais plafonné à 4, avec complément vers le gris
+neutre au-delà ; sous le plafond, le résultat est identique au bit près à
+l'ancienne formule. **Ce sont les captures relues à l'œil, pas les chiffres, qui
+ont montré qu'il en restait.**
+
+Mesure de sortie : écart-type de l'image passé de **19,1 à 44,7** au même
+réglage (point noir à 25 %, photo nue à 60,7), et `effet-courbes-neutre` reste
+inchangé **au bit près** — la courbe identité court-circuite avant toute
+conversion, ce qui prouve que le changement ne touche que ce qu'il devait
+toucher.
+
+<details>
+<summary>Le constat d'origine, conservé pour la trace</summary>
+
+`src/render/effects/curves.ts` n'importait aucune transformation sRGB : sa
+courbe s'appliquait donc à des valeurs **linéaires**, quand tous les outils de
 courbe qu'un photographe connaît travaillent sur la valeur **perçue**.
 
 Mesuré le 2026-08-05 en pilotant l'app, puis vérifié analytiquement — lever le
@@ -145,11 +173,78 @@ gamma**, pas la lumière linéaire. **Inférence, pas citation.**
 son autorité — Photoshop qualifie son propre défaut de non colorimétriquement
 correct, en toutes lettres, et le garde quand même. C'est un précédent, pas une
 preuve. La question redevient celle du dépôt : le curseur doit-il répondre là
-où l'œil l'attend, ou la mathématique rester juste ? Se tranche dans
-`.scratch/prochain-palier/issues/06-curves-en-lineaire-ou-en-percu.md`.
+où l'œil l'attend, ou la mathématique rester juste ?
+
+</details>
 
 ⚠️ Et la **fluidité** du tirage de poignée, l'autre moitié de ce point, ne se
 capture pas : elle se sent au pointeur. Aucune planche ne peut y répondre.
+
+### ⚠️ OUVERT le 2026-08-13 — l'aspect du verre, et la méthode qui l'a raté
+
+**Refusé trois fois par Antoine** : « les espacements entre les pavés sont très
+moches », « je n'aime pas non plus l'aspect du mortier », « trop artificiel /
+3D des années 90 ». Trois corrections livrées (`da86f3d`, `6bffc3c`) et le
+verdict reste négatif.
+
+**La cause du ratage est de méthode, et elle est notée ici parce qu'elle se
+répétera** : Antoine avait demandé de « chercher des exemples en ligne » et de
+comparer à « de vrais exemples réels ». J'ai fait deux recherches qui ont rendu
+du TEXTE — 9 à 15 mm de joint, Ra de 0,4 à 1,2 µm, « distribution gaussienne » —
+et j'ai traité ces chiffres comme s'ils remplaçaient des images. **Trois
+constantes ont été écrites dans le shader avant qu'une seule photo soit
+ouverte**, dont une (« un joint opaque est forcément sombre ») que la première
+photo venue a démentie et qui a amputé de moitié la course d'un curseur. Une
+APPARENCE ne se déduit pas d'une spécification.
+
+Ce que les photos établissent, et qui reste à faire :
+
+1. **Un pavé ne transmet pas une image, il transmet de la lumière.** Sur toutes
+   les références, aucune scène n'est reconnaissable derrière — seulement des
+   carrés lumineux à dégradés doux. Notre `Diffusion` vaut **8 %** par défaut,
+   ce qui laisse tout lisible. C'est probablement le point structurant.
+2. **Le cadre lisse périphérique** — une bordure de verre lisse et brillante
+   encadre le motif, qui n'occupe que le carré central. Nous étalons le motif
+   jusqu'au joint. `Biseau` existe mais ne produit pas ça.
+3. **Baisser le contraste général** : sur un mur réel vu à distance, les joints
+   sont une trame fine et l'ensemble est sourd. Le nôtre individualise trop.
+4. **Atténuer la variation par cellule** ajoutée le 2026-08-13, trop marquée au
+   vu des murs réels.
+
+⚠️ **Le joint peut être clair OU sombre** — ciment blanc en intérieur moderne,
+mortier sali à l'ombre. C'est le curseur `Clarté du mortier` qui en décide, et
+aucune constante ne doit trancher à sa place.
+
+Cinq photos de référence ont été récupérées dans le scratchpad de session
+(`refs-verre/`) ; **elles ne survivront pas à la session** — les retélécharger
+depuis Wikimedia Commons (catégories `Glass blocks` et `Frosted glass`) ou
+repartir d'une recherche d'images.
+
+### ⚠️ OUVERT — le coût du verre
+
+`glass` est de loin l'effet le plus cher du registre et n'avait jamais été
+mesuré : **15,9 images/s** en développement sur 26 Mpx (Pavé quadrillé, vrai
+glissement souris). Ticket dédié avec les mesures, les pistes et deux
+garde-fous : [19 — Le coût du verre](../.scratch/prochain-palier/issues/19-le-cout-du-verre.md).
+
+### ⚠️ OUVERT — trois restes du 2026-08-13, chacun décidé mais pas fait
+
+- **`lensFlare` : ses trois phénomènes deviennent trois options SÉLECTIONNABLES
+  dans l'effet** — arbitrage d'Antoine, rendu ce jour-là. Pas trois entrées du
+  registre, donc la famille des halos ne se rouvre pas (ADR-0017 tient). Les
+  trois blocs ont déjà chacun leur interrupteur ; ce qui change est la forme du
+  contrôle. Rien n'est écrit côté code.
+- **Le wireframe de la pile à 7 calques et plus**, demandé et non fait. Deux
+  faits mesurés pour le nourrir : la carte est bornée à cinq lignes PAR DESIGN
+  (`--dock-card-list-rows: 5`, donc « 5 sur 7 » n'est pas un défaut), et la
+  sélection ne défile pas dans la vue — on édite les propriétés d'un calque
+  qu'on ne voit pas. Destination : `docs/wireframes/<feature>.html`.
+- **L'overlay de masque n'a AUCUNE référence de pixels.** Découvert en le
+  modifiant : `test:render` est resté vert parce que ses scénarios rendent le
+  DOCUMENT, pas l'aide visuelle. Le contour pointillé, le voile et leur
+  anticrénelage ne sont donc tenus par rien — seulement par des captures d'une
+  session. C'est exactement le « verrou aveugle » que `CLAUDE.md` § Moyen de
+  preuve proscrit, et il manque une mire.
 
 ---
 
@@ -404,7 +499,34 @@ précisément là où bloom et halation travaillent.
 Aucun n'était dans cette feuille. Tous ont été trouvés en mesurant sur disque,
 pas en relisant les documents — plusieurs y étaient contredits.
 
-### `origin/sat-feather` — 12 commits non mergés, et il NE FAUT PAS le merger
+### ✅ SOLDÉ le 2026-08-13 — `origin/sat-feather` : `aee22fb` porté, la branche peut partir
+
+**Antoine a répondu à la question ci-dessous : le lag n'avait PAS disparu.**
+`aee22fb` a donc été porté — pas cherry-pické, parce que `master` a depuis
+extrait le plan de passes en fonction pure : le feather y devient une passe
+`featherSat` (`578d67a`). Toutes les briques SAT existaient déjà sur `master`,
+donc zéro WGSL importé.
+
+**Gain mesuré à protocole identique** — même build de production, même photo de
+26 Mpx, l'ancien chemin rebâti exprès pour servir de témoin : **48,9 → 143,1
+images/s**, soit **×2,9**. Les deux autres commits restent écartés pour la
+raison mesurée le 2026-08-11. La branche ne se merge toujours pas et peut être
+supprimée.
+
+⚠️ **Il a fallu rebâtir l'ancien chemin pour pouvoir l'affirmer.** Les deux
+chiffres disponibles ne comparaient rien : 48,4 venait d'une sonde synthétique
+depuis discréditée, 175,5 d'un vrai glissement mais avec edge-aware actif. Un
+gain ne s'affirme qu'entre deux mesures dont SEULE la chose testée diffère.
+
+**Autre défaut de perf trouvé et corrigé au passage** (`f172f95`) : la chaîne de
+guides comparait les calques par IDENTITÉ D'OBJET, or un appelant recopie le
+calque du bas à chaque frame — mesuré 89 fois sur 89. La SAT du filtre
+edge-aware de chaque masque de la pile était donc rebâtie à chaque image, ~25
+passes, même en éditant un calque sans rapport. Elle compare désormais le
+CONTENU quand l'identité diverge, comme le cache du fold le faisait déjà.
+
+<details>
+<summary>Le constat d'origine, conservé pour la trace</summary>
 
 Le ledger `.superpowers/sdd/progress.md` disait « si OK : merger sat-feather ».
 **Mesuré : le merger ferait RÉGRESSER `master`.** Base de fusion `5b9536c`
@@ -426,6 +548,8 @@ fait-il disparaître le lag », mais **« le lag sur *Adoucir le bord* a-t-il d�
 disparu sur `master` ? »**. Si oui, la branche se supprime entière ; sinon, on
 cherry-picke `aee22fb` seul. Dans les deux cas elle ne se merge pas. Ça se juge
 au pointeur, pas au banc.
+
+</details>
 
 ### Le dégradé RADIAL du masque n'a jamais été livré
 

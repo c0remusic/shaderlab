@@ -966,6 +966,11 @@ export default function App() {
         const frame = await rendererRef.current?.exportFrame(sessionRef.current.layers());
         return reference && frame ? mesurerStructureAjoutee(reference, frame) : null;
       },
+      /** Arme une capture du temps GPU PAR PASSE sur la prochaine frame, et
+       *  rend le rapport. N'ORDONNE PAS de rendu : l'appelant arme, PUIS
+       *  provoque un vrai geste (curseur, ajout de calque). Voir
+       *  `Renderer.captureGpuTiming` pour pourquoi ce sens-là. */
+      capturerTimingGpu: () => rendererRef.current?.captureGpuTiming() ?? null,
       state: () => ({
         layers: sessionRef.current.layers().map((l) => ({
           id: l.id,

@@ -1,5 +1,6 @@
 import type { LayerState } from "../layers/types";
 import { getBlendMode } from "./blend/registry";
+import type { GpuTiming } from "./gpuTiming";
 import type { EffectModule } from "./effects/types";
 import { MAX_EFFECT_PARAMS, composeShader, FULLSCREEN_VERTEX_WGSL } from "./shaderCompose";
 
@@ -150,6 +151,14 @@ export class EffectPassRunner {
    *  prêts, et non un simple compteur. */
   private leasedPassTargets: GPUTexture[] = [];
 
+  /** Chronomètre GPU par passe, ou null. Posé APRÈS construction par le
+   *  `FramePipelineExecutor` plutôt que reçu au constructeur : le runner est
+   *  reconstruit à chaque redimensionnement (voir `passTargetPool`), et un
+   *  instrument de diagnostic n'a aucune raison de participer à ce cycle-là.
+   *  Hors capture, `slotFor` rend `undefined` et les descripteurs de passe sont
+   *  identiques à ce qu'ils étaient avant l'instrument. */
+  timing: GpuTiming | null = null;
+
   constructor(
     private readonly device: GPUDevice,
     private readonly srgbFormat: GPUTextureFormat,
@@ -289,7 +298,10 @@ export class EffectPassRunner {
       { binding: 2, resource: mask.createView() },
       { binding: 3, resource: { buffer: this.timeBuffer } },
     ] });
-    const pass = encoder.beginRenderPass({ colorAttachments: [{ view: targetView, loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } }] });
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [{ view: targetView, loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } }],
+      ...(this.timing?.slotFor("overlay") ?? {}),
+    });
     pass.setPipeline(cached.pipeline);
     pass.setBindGroup(0, bindGroup);
     pass.draw(3);
@@ -398,7 +410,14 @@ export class EffectPassRunner {
     if (applyMask && coverageView) entries.push({ binding: 6, resource: coverageView });
     if (libraryView) entries.push({ binding: 7, resource: libraryView });
     const bindGroup = this.device.createBindGroup({ layout: cached.bindGroupLayout, entries });
-    const pass = encoder.beginRenderPass({ colorAttachments: [{ view: targetView, loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } }] });
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [{ view: targetView, loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } }],
+      // Les passes INTERNES passent aussi par ici (`runInternalPasses` rappelle
+      // cette méthode par passe), donc un effet à N passes rend N lignes du
+      // même libellé, dans l'ordre d'encodage — c'est exactement la ventilation
+      // cherchée sur `outlines` et ses neuf passes de pyramide.
+      ...(this.timing?.slotFor(layer.effectId) ?? {}),
+    });
     pass.setPipeline(cached.pipeline);
     pass.setBindGroup(0, bindGroup);
     pass.draw(3);

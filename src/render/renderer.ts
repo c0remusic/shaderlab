@@ -4,6 +4,7 @@ import type { LayerState } from "../layers/types";
 import { projectIsolation } from "../layers/isolation";
 import { bottomPhotoSourceId } from "../layers/photoLayer";
 import { EffectPassRunner } from "./effectPassRunner";
+import { GpuTiming, type GpuTimingReport } from "./gpuTiming";
 import { MaskTextureResolver } from "./maskTextureResolver";
 import { FramePipelineExecutor, type PhotoLayerInputPort } from "./framePipelineExecutor";
 import { PhotoSourceStore } from "./photoSourceStore";
@@ -723,9 +724,40 @@ export class Renderer {
    * first — otherwise its textures are orphaned on the GPU with no JS
    * reference left to ever destroy them.
    */
+  /** Chronomètre GPU. Vit sur le Renderer et non sur le runner, qui est
+   *  reconstruit à chaque redimensionnement (`allocateDocument`) : le query set
+   *  et les buffers de relecture n'ont aucune raison de mourir avec lui. */
+  private gpuTiming: GpuTiming | null = null;
+
+  /**
+   * Arme une capture du temps GPU PAR PASSE sur la prochaine frame rendue, et
+   * rend le rapport quand les timestamps sont relus.
+   *
+   * ⚠️ N'ORDONNE PAS DE RENDU. C'est délibéré : la question intéressante est
+   * « que coûte la pile PENDANT un vrai geste », pas « que coûte une frame
+   * isolée déclenchée par la sonde ». Armer, puis bouger un curseur, mesure ce
+   * qui se passe vraiment — la faute inverse est celle de la sonde à 63 `input`
+   * (voir l'en-tête de `scripts/perf-probe.mjs`), qui fabriquait la lenteur
+   * qu'elle mesurait.
+   *
+   * Rejette si `timestamp-query` manque, ou si une capture est déjà en vol.
+   */
+  captureGpuTiming(): Promise<GpuTimingReport> {
+    const runner = this.effectPassRunner;
+    if (!runner) return Promise.reject(new Error("Aucun document chargé."));
+    this.gpuTiming ??= new GpuTiming(this.ctx.device);
+    // Rattaché À CHAQUE capture plutôt qu'à la construction du runner : c'est
+    // la seule façon de rester correct à travers un redimensionnement, qui
+    // remplace l'objet runner sans prévenir ce module.
+    runner.timing = this.gpuTiming;
+    return this.gpuTiming.arm();
+  }
+
   dispose(): void {
     this.renderScheduler.cancel();
     this.imageResources.dispose();
+    this.gpuTiming?.destroy();
+    this.gpuTiming = null;
     this.effectPassRunner?.clearPipelines();
     this.effectPassRunner = null;
     this.maskTextureResolver?.dispose();

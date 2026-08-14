@@ -111,8 +111,18 @@ export async function initGpu(
   // (maxTextureDimension2D = 8192) même si le matériel fait mieux — un JPEG
   // panoramique > 8192 px échouerait à createTexture. On demande le maximum
   // que l'adapter supporte réellement.
+  //
+  // `timestamp-query` est demandée SI et SEULEMENT SI l'adapter l'annonce, et
+  // son absence n'est jamais une erreur : elle ne sert qu'au chronométrage GPU
+  // par passe (`gpuTiming.ts`), un instrument de diagnostic. Une machine qui ne
+  // l'a pas doit rendre des images, pas refuser de démarrer. Demander une
+  // feature absente ferait rejeter `requestDevice` en bloc.
+  const featuresOptionnelles: GPUFeatureName[] = adapter.features.has("timestamp-query")
+    ? ["timestamp-query"]
+    : [];
   const device = await adapter.requestDevice({
     requiredLimits: { maxTextureDimension2D: adapter.limits.maxTextureDimension2D },
+    requiredFeatures: featuresOptionnelles,
   });
   // Debugging-only (see log_diagnostic in lib.rs): this app currently has NO
   // handler for device loss at all — a GPU-side reset/OOM goes completely

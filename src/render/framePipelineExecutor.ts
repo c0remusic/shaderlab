@@ -1,6 +1,7 @@
 import type { LayerState } from "../layers/types";
 import { resolveClipping, type ClipResolution } from "../layers/clipping";
 import { guideChainKey, jetonApercuLive } from "../layers/contentKey";
+import type { GpuTiming } from "./gpuTiming";
 import { photoGuideKey } from "../layers/photoLayer";
 import { defaultLayerMask } from "../mask/types";
 import { getEffect } from "./effects/registry";
@@ -45,6 +46,13 @@ export interface FrameResourcesPort {
 
 /** Stateless effect/overlay encoding. Frame submission remains outside this port. */
 export interface EffectPassesPort {
+  /** Chronomètre GPU par passe, ou absent. OPTIONNEL, et c'est le sujet : ce
+   *  port est la frontière de test de la couche rendu, et tous ses doubles
+   *  existants sont des objets littéraux. Le rendre requis les aurait tous fait
+   *  rougir pour un instrument de diagnostic auquel ils n'ont rien à dire.
+   *  L'exécuteur ne fait que relayer deux appels de cycle de vie
+   *  (`endFrame`/`afterSubmit`) — il n'arme jamais rien lui-même. */
+  timing?: GpuTiming | null;
   runEffectPass(
     encoder: GPUCommandEncoder,
     effect: ReturnType<typeof getEffect>,
@@ -696,12 +704,18 @@ export class FramePipelineExecutor {
     overlayMaskTexture: GPUTexture | null,
     presentTexture: GPUTexture,
   ): FramePipelineResult {
+    // AVANT `finish()` : `resolveQuerySet` et la recopie doivent vivre dans le
+    // MÊME encodeur que les passes mesurées. No-op hors capture.
+    this.effects.timing?.endFrame(encoder);
     this.device.queue.submit([encoder.finish()]);
     for (const resource of pendingDestroy) resource.destroy();
     // Les cibles de passe interne ne sont PAS détruites : elles retournent au
     // pool pour la frame suivante. Même point du cycle que la destruction —
     // après la soumission, donc les commandes en vol tiennent la mémoire.
     this.effects.releaseFrameTargets();
+    // Même point du cycle, même raison : la relecture des timestamps est
+    // asynchrone et ne peut démarrer qu'une fois les commandes soumises.
+    this.effects.timing?.afterSubmit();
     return {
       enabledLayerCount,
       churnedResourceCount: pendingDestroy.length,

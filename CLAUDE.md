@@ -390,6 +390,20 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
 - Modes de fusion = modules autonomes dans `src/render/blend/registry.ts`
   (même principe, Tranche 1 2026-07-19) — chaque calque a `opacity`/
   `blendMode` sur `LayerState`.
+- **Toute lecture de `libraryTexture` DÉCLARE son espace d'échantillonnage.**
+  Les scans portent une pyramide de mipmaps (`src/render/mipmapGenerator.ts` —
+  WebGPU n'a aucune génération intégrée, il faut la chaîne de blits). Le LOD
+  **automatique** est juste pour un effet qui mappe le scan sur le cadre
+  (`texture`), et FAUX pour un effet qui lit en espace TEXEL : `inkTexture` a un
+  pas exprimé en texels du scan et un `fract` discontinu, donc la dérivée d'écran
+  y explose à chaque couture de tuile et le matériel choisit le mip le plus
+  petit. Il force donc `textureSampleLevel(..., 0.0)`.
+  ⚠️ Mesuré en l'introduisant : sans ce forçage, `effet-halftone-encre` dérive de
+  **max 255, moyenne 57,7** — un seuil transforme un lissage discret en bascule
+  binaire. Et le défaut inverse, l'ABSENCE de mipmaps, n'était détectable par
+  AUCUN test : un `createTexture` sans `mipLevelCount` compile, valide, rend une
+  image correcte, et les références ont été figées avec lui. Un test compare à ce
+  qui existe, jamais à ce qui serait possible.
 
 ## Commandes
 
@@ -403,6 +417,21 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
 - Tests de stories : `npm run test-storybook` (Vitest + Playwright chromium, projet `storybook`) · `npm run test:all` pour les deux · `npm run coverage` (v8, projet storybook)
 - Shaders GPU : `node scripts/gpu-shader-check.mjs --origin http://localhost:1421` — prouve que les shaders COMPILENT. ⚠️ **`npm run test:gpu-shaders` SANS `--origin` compile les modules FIGÉS en cache de la fenêtre, pas ton édition** : vert ET rouge faux (un `import()` d'une URL déjà évaluée rend l'instance en cache). Même prérequis Vite que `test:render` ci-dessous. Avec `--origin`, la page CDP n'est qu'un HÔTE DE GPU — n'importe laquelle fait l'affaire, y compris celle d'un autre projet.
 - Non-régression du **rendu** : `npm run test:render` (`scripts/render-check.mjs`) — prouve que le pipeline produit les MÊMES PIXELS qu'avant. Prérequis : l'app tourne avec le port CDP 9222, ET un Vite du worktree courant sur 1421 (`npx vite --port 1421`). Références versionnées dans `test/render-refs/` ; `--update` les réécrit (les relire à l'œil avant de committer), `--diagnostic` mesure la dépendance à l'horloge de la surface de présentation. Lit les pixels de `Renderer.exportFrame()`, jamais une capture d'écran — voir l'en-tête du script pour pourquoi.
+- Validation **statique** du WGSL, sans GPU : `npm run test:wgsl`
+  (`test/render/wgslNaga.test.ts`, aussi inclus dans `npm run test`). Prérequis :
+  `cargo install naga-cli --locked`. **Seul gate de shader qui tourne en CI** ; il
+  ne remplace pas `test:gpu-shaders` — naga valide la SPEC, pas ce que Dawn puis
+  le JIT du pilote accepteront. ⚠️ Il porte une **exception bornée** : notre
+  uniform `params: array<f32, 48>` n'est pas conforme (stride 4 pour un
+  alignement requis de 16 en espace uniform), Dawn l'accepte quand même, et
+  corriger toucherait chaque accès `params[N]` des 23 effets — index gelés par
+  les presets. Voir `docs/ROADMAP.md` § 4.
+- Chronométrage **GPU par passe** : `__shaderlabDebug.capturerTimingGpu()`
+  (`src/render/gpuTiming.ts`, dev seulement). ⚠️ Il **n'ordonne aucun rendu** —
+  armer, PUIS provoquer un vrai geste, sinon on mesure une frame fabriquée par la
+  sonde. `frameDiagnostics` rend `jsEncodeMs`, un temps d'ENCODAGE JS qui peut
+  afficher 2 ms pendant que le GPU en passe 60 : les deux ne mesurent pas la même
+  chose.
 - Type-check : `npx tsc --noEmit`
 - Lint : `npm run lint` (eslint, couvre `src/**/*.{ts,tsx}`)
 - Lint tokens design : `npm run lint:tokens` (détecte couleurs/z-index/spacing en dur qui contournent un token existant, `scripts/lint-tokens.mjs`)
@@ -410,8 +439,10 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
 - Storybook (composants React isolés, tokens réels via `src/design/index.css`) : `npm run storybook` (dev, port 6006) · `npm run build-storybook` (static)
 
 **CI** (`.github/workflows/test.yml`, ubuntu) : `npm ci` → `npx playwright
-install --with-deps chromium` → `npm run test` → `npm run test-storybook`. Les
-tests GPU/rendu ne tournent PAS en CI (pas de GPU) — ce sont des gates locales.
+install --with-deps chromium` → `cargo install naga-cli` (avec cache) →
+`npm run test` → `npm run test-storybook`. Les tests GPU/rendu ne tournent PAS en
+CI (pas de GPU) — ce sont des gates locales. **La seule exception est
+`test:wgsl`** (ci-dessus), qui valide le WGSL en CPU pur et tourne donc là-bas.
 
 **Hook pre-commit** : source versionnée dans `scripts/hooks/pre-commit`, à
 installer à la main après un clone (`cp` vers `$(git rev-parse
@@ -483,7 +514,14 @@ est caduque), retrait de `surfaceBlur` (0011), retrait de `posterize` (0012),
 `outlines` absorbe `coloredEdges` (0013), `lensDistortion` absorbe
 `anamorphicStreak` (0014), `outlines` absorbe `echoOutlines` (0015),
 `lensDistortion` absorbe `chromaticBleed` (0016), `lensFlare` rouvre la famille
-des halos (0017).
+des halos (0017), la texture de bibliothèque (0018).
+
+⚠️ Cette liste a dit « ADR-0017 reste le dernier écrit » jusqu'au 2026-08-15
+alors qu'ADR-0018 était sur disque **et cité deux fois plus haut dans ce même
+fichier**. Rien ne relit cette phrase — la tenir fait partie du geste qui écrit
+un ADR. ⚠️ Et son titre (« la texture est un effet, pas un calque photo ») dit
+l'inverse de ce que `docs/ROADMAP.md` rapporte comme arbitrage d'Antoine (« une
+texture est un calque photo, tel quel ») : contradiction ouverte, à trancher.
 Les décisions du
 projet vivent là, pas dans les docs de design.
 
@@ -645,6 +683,22 @@ Corollaire : **le verrou sert aussi à rendre un refactor prouvable**. `outlines
 n'avait aucune référence ; en poser une AVANT d'extraire son gradient de Scharr
 vers `effects/edgeGradient.ts` a transformé « ça devrait être neutre » en
 `aucun écart`. Poser la preuve avant le geste, pas après.
+
+**Un CLASSEMENT par coût ne donne pas la CAUSE du coût.** Payé le 2026-08-15 :
+le temps GPU de `glass` a été relevé pour les quatorze matières (facteur 7,
+Dépoli 15,5 ms contre Pavé quadrillé 108,3 ms), et j'en ai conclu que la fonction
+de matière — évaluée trois fois par pixel en différences finies — était le poste
+dominant. **L'ablation `Creux` prise la veille dit le contraire** : à déplacement
+nul, un pavé coûte exactement ce que coûte une feuille (66,9 contre 67,6
+images/s). La géométrie est gratuite ; c'est la cohérence de cache qui coûte,
+une lecture dispersée valant ~25 fois une lecture cohérente.
+
+Trier ce qui est cher est convaincant et ne prouve rien — **seule une ablation,
+un facteur à la fois, désigne une cause**. Conséquence directe : une piste
+d'optimisation ALU (dérivées analytiques, 9 appels de bruit ramenés à 3) a été
+écrite, mesurée à 8 % de gain dans le bruit contre dix-huit références déplacées,
+puis reverté. On ne réduit pas un coût de cache en retirant des multiplications.
+Détail et protocoles : `.scratch/prochain-palier/issues/19-le-cout-du-verre.md`.
 
 ## Risques ouverts / gates
 

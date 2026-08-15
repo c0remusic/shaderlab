@@ -12,6 +12,12 @@ src-tauri/gen/
 .superpowers/
 .remember/
 .dev-logs/
+# Clone tiers de shadplay (MIT, playground WGSL à rechargement à chaud) —
+# 3,2 Go dont 3 de `target/`, reconstructible par `git clone` + `cargo build`.
+# ⚠️ Le HARNAIS, lui, est VERSIONNÉ dans `tools/shader-harness/` : c'est notre
+# code, copié de `glass.ts` et `hash.ts`, et il ne doit pas mourir avec le clone.
+tools/shadplay/
+
 # Profil WebView2 isolé, créé quand on lance deux instances en parallèle
 # (WEBVIEW2_USER_DATA_FOLDER). À garder HORS de l'arbre surveillé par Vite si
 # possible : dedans, chaque écriture de cache déclenche un rechargement en

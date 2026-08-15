@@ -66,7 +66,14 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'node',
-          exclude: [...configDefaults.exclude, '.claude/worktrees/**'],
+          // ⚠️ `tools/**` porte des clones TIERS (shadplay et son vendoring de
+          // Bevy, 8000 fichiers), et Vitest ne lit pas `.gitignore` : sans cette
+          // exclusion il ramasse leurs specs — vécu à la minute où le clone est
+          // entré dans l'arbre (`tools/shadplay/bevy/.github/.../wasm_example.spec.ts`,
+          // suite en échec sur 129 fichiers). Un outil posé dans le dépôt entre
+          // dans le périmètre de TOUS les scanners de fichiers, pas seulement de
+          // git.
+          exclude: [...configDefaults.exclude, '.claude/worktrees/**', 'tools/**'],
         },
       },
       {

@@ -205,8 +205,9 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   La question de nom que le cahier laissait ouverte (la fiche Figma appelle
   `Outlines` l'effet à échos, nous appelions `Outlines` le détecteur) est
   ÉTEINTE par la fusion — plus rien à arbitrer.
-  ⚠️ Il n'est plus le plus chargé du registre : mesuré le 2026-08-04 sur
-  `EffectModule.params.length`, c'est **`curves` (37)**, puis `lensFlare` (30),
+  ⚠️ Il n'est plus le plus chargé du registre : mesuré le 2026-08-15 sur
+  `EffectModule.params.length`, c'est **`curves` (37)**, puis `lensFlare` (33 —
+  30 jusqu'au 2026-08-14, plus ses trois interrupteurs de phénomène),
   puis `outlines` (26). Compter les `name:` du fichier source ne le dit PAS —
   les 32 paramètres de `curves` sortent d'un `flatMap`, et le grep n'en voit
   que 5.
@@ -221,12 +222,15 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
 - **Le panneau d'un effet est DÉCLARÉ par son module, jamais par `ParamPanel`**
   — le MÉCANISME est livré ; ⚠️ **le CHANTIER ne l'est pas, contrairement à ce
   que ce paragraphe a dit du 2026-08-05 au 2026-08-12** (« chantier soldé »).
-  Mesuré sur les modules réels le 2026-08-12 (instrument :
-  `.scratch/prochain-palier/assets/mesure-controles.ts`) : sur **345
-  paramètres**, seuls 36 portent une condition (**10 %**) et **15 effets sur 23
-  n'en ont AUCUNE** — dont `curves` (37 params), `lensFlare` (30, alors
-  qu'ADR-0017 lui donne trois blocs dont les paramètres ne font rien quand leur
-  bloc est éteint), `channelMixer` (22), `gradientMap` (20). Les sections
+  Mesuré sur les modules réels, d'abord le 2026-08-12 puis le 2026-08-15
+  (instrument : `.scratch/prochain-palier/assets/mesure-controles.ts`) : sur
+  **348 paramètres**, seuls 36 portent une condition et **14 effets sur 23 n'en
+  ont AUCUNE** — dont `curves` (37 params), `channelMixer` (22),
+  `gradientMap` (20). ✅ `lensFlare` en est SORTI le 2026-08-14 : ses trois
+  phénomènes ont désormais leurs trois interrupteurs, et ses trois sections
+  leur condition — c'était le cas qu'ADR-0017 rendait le plus criant (trois
+  blocs dont les paramètres ne font rien quand leur bloc est éteint). Le
+  registre porte 9 conditions de SECTION en tout. Les sections
   existent partout mais ne sectionnent pas (`duotone` 11 params pour 1 section,
   `lensFlare` 10 par section ; `liste` = 54 des 73 gabarits, d'où le
   défilement), et **4 effets sur 23 seulement** portent un outil sur la toile,
@@ -262,6 +266,14 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   le 2026-08-05, une était FAUSSE (`glass.flat`, 47 % des canaux en Martelé) ;
   masqué sur sa foi, aucun test n'aurait rougi, un curseur caché ne bougeant plus
   aucun pixel.
+  ⚠️ **Cet instrument ne couvre que `EffectParam.appliesWhen`, PAS
+  `EffectSection.appliesWhen`** (constat du 2026-08-14). Les trois conditions de
+  section de `lensFlare` ont donc dû s'éprouver autrement : six scénarios
+  temporaires ajoutés à `render-check.mjs`, chacun poussant TOUS les réglages
+  d'une famille éteinte de son minimum à son maximum, puis retirés une fois lus
+  — 0,000 % d'écart les trois fois. Tant que l'instrument ne voit pas les
+  sections, le front 1 du chantier des contrôles se terminerait sur des
+  déclarations non mesurées.
 - **La famille des flous est CLOSE, et RÉDUITE À DEUX** depuis le 2026-08-03 :
   `lensBlur` est un noyau d'OBJECTIF (intégration sur la surface de l'ouverture —
   pondération des hautes lumières + diaphragme à N lames, plus quatre géométries
@@ -421,11 +433,32 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   (`test/render/wgslNaga.test.ts`, aussi inclus dans `npm run test`). Prérequis :
   `cargo install naga-cli --locked`. **Seul gate de shader qui tourne en CI** ; il
   ne remplace pas `test:gpu-shaders` — naga valide la SPEC, pas ce que Dawn puis
-  le JIT du pilote accepteront. ⚠️ Il porte une **exception bornée** : notre
-  uniform `params: array<f32, 48>` n'est pas conforme (stride 4 pour un
-  alignement requis de 16 en espace uniform), Dawn l'accepte quand même, et
-  corriger toucherait chaque accès `params[N]` des 23 effets — index gelés par
-  les presets. Voir `docs/ROADMAP.md` § 4.
+  le JIT du pilote accepteront.
+  ⚠️ **IL EST ROUGE, ET DÉJÀ POUSSÉ** (constat du 2026-08-14). Il DEVRAIT porter
+  une exception bornée — notre uniform `params: array<f32, 48>` n'est pas
+  conforme (stride 4 pour un alignement requis de 16 en espace uniform), Dawn
+  l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 23
+  effets, index gelés par les presets ET par 97 références de pixels. Cette
+  exception **n'est pas implémentée** : le test échoue sur tous les effets du
+  registre (`error: Global variable [2] 'params' is invalid`). Comme c'est le
+  SEUL gate de shader qui tourne en CI, la CI est rouge en permanence — l'état
+  le pire pour un gate, puisqu'un vrai défaut de WGSL y passerait inaperçu.
+  Ne pas le neutraliser pour retrouver du vert : la dérogation doit être
+  **bornée et comptée**. Voir
+  `.scratch/prochain-palier/issues/21-le-gate-wgsl-est-rouge-en-ci.md`.
+- Cadence en build de **PRODUCTION**, pendant un vrai geste :
+  `node scripts/perf-probe.mjs bench <curseur> [passes] [pas] [ms]`
+  (`etat`, `sliders`, `add-effect`, `choisir`, `poser` montent la scène).
+  L'app se lance alors en RELEASE avec la photo en ARGUMENT — le pont de debug
+  n'existe pas en production, donc `openByPath` non plus, et c'est
+  `get_launch_path` qui ouvre le fichier. La sonde **refuse de mesurer** si le
+  pont de debug est présent : un chiffre de dev serait relu comme un chiffre de
+  prod six mois plus tard. Elle compte les images RÉELLEMENT présentées
+  (`GPUCanvasContext.getCurrentTexture`) — pas les tics de `requestAnimationFrame`,
+  qui suivent l'ÉCRAN et non le rendu, ni le compteur `Frames` de
+  `Performance.getMetrics`, qui compte les frames du DOCUMENT et rend un delta
+  de zéro. Elle attend en actif sous 12 ms, sinon `setTimeout` plafonne à
+  ~63 événements/s sur Windows et ce plafond se lit comme une mesure.
 - Chronométrage **GPU par passe** : `__shaderlabDebug.capturerTimingGpu()`
   (`src/render/gpuTiming.ts`, dev seulement). ⚠️ Il **n'ordonne aucun rendu** —
   armer, PUIS provoquer un vrai geste, sinon on mesure une frame fabriquée par la

@@ -92,7 +92,7 @@ fallait juger.
 | # | Sujet | Ce qu'il en reste |
 | --- | --- | --- |
 | 1 | **Courbes** | ✅ **JUGÉ ET CORRIGÉ.** Verdict : « pas les points rouges ni l'effet délavé ». `curves` travaille en perçu depuis `ffe47c2`, et le gain du canal maître est borné — c'était lui, la vraie cause des pixels colorés. Détail et mesures : [ticket 06](../.scratch/prochain-palier/issues/06-curves-en-lineaire-ou-en-percu.md) |
-| 2 | **Pile / Propriétés / Masque** | ⚠️ **DÉFAUT CORRIGÉ, WIREFRAME ÉCRIT — reste le choix.** La sélection est ramenée dans la vue depuis le 2026-08-14 (`scrollIntoView({ block: "nearest" })` au changement de sélection, story `SelectionScrollsIntoView` qui rougit sans le correctif). Le **wireframe pour 7 calques et plus** est écrit (`docs/wireframes/pile-longue.html`, quatre options mesurées) ; il reste à choisir laquelle. La borne à 5 lignes (`--dock-card-list-rows: 5`) est voulue, pas un défaut |
+| 2 | **Pile / Propriétés / Masque** | ⚠️ **DÉFAUT CORRIGÉ, WIREFRAME ÉCRIT — reste le choix.** La sélection est ramenée dans la vue depuis le 2026-08-14 (`scrollIntoView({ block: "nearest" })` au changement de sélection, story `SelectionScrollsIntoView` qui rougit sans le correctif). Le **wireframe pour 7 calques et plus** est écrit ET tranché : trois planches, Antoine retient le **repli des groupes** avec le filet, barre et lavis partant de l'axe du filet (variante C/c1). Reste à coder, et deux points de modèle à décider — voir le bloc « trois restes » plus bas. La borne à 5 lignes (`--dock-card-list-rows: 5`) est voulue, pas un défaut |
 | 3 | **Verre** | ⚠️ **REFUSÉ, partiellement corrigé.** Le Dépoli rendait des paquets : sa diffusion était directionnelle (9 taps sur un axe), elle est isotrope depuis `da86f3d`. Mais l'ensemble reste jugé « très artificiel, 3D des années 90 » — voir le bloc dédié plus bas |
 | 4 | **Les cinq pavés** | ⚠️ **REFUSÉ.** « Les espacements sont très moches », puis « je n'aime pas l'aspect du mortier ». Trois corrections livrées (joint adouci, variation par pavé, granulométrie), le verdict reste négatif. Ce qui manque est identifié par PHOTOS, voir plus bas |
 | 5 | **Sections des panneaux** | Inchangé — le découpage en blocs titrés, livré le 2026-08-05 sur les 23 effets, n'a toujours pas été regardé sujet par sujet |
@@ -240,10 +240,18 @@ dérivées analytiques (essayé, mesuré : 8 % de gain dans le bruit contre 18
 références de pixels déplacées). On ne réduit pas un coût de cache en retirant
 des multiplications.
 
-✅ La piste qui reste — **un mipmap pour la diffusion**, seul levier qui attaque
-les 7,4 ms par lecture au lieu de les compter — a vu son obstacle
-d'implémentation levé : `src/render/mipmapGenerator.ts` existe depuis le
-2026-08-15 (WebGPU n'a aucune génération de mipmaps intégrée).
+✅ **ARBITRÉ PAR ANTOINE LE 2026-08-15 : on fait le mipmap de diffusion.** C'est
+le seul levier qui attaque les 7,4 ms par lecture au lieu de les compter — un
+niveau grossier rend les lectures LOCALES en plus d'être moins nombreuses. Son
+obstacle d'implémentation est levé : `src/render/mipmapGenerator.ts` existe
+depuis le 2026-08-15 (WebGPU n'a aucune génération de mipmaps intégrée).
+
+⚠️ **Rien n'est écrit côté code, et le prix est connu d'avance** : le rendu
+CHANGE, donc les **18 références de pixels du verre** sont à régénérer et à
+relire à l'œil, et le résultat est à juger devant une photo — une référence
+prouve qu'un effet porte sa propriété, jamais qu'il est beau. La question de
+CIBLE reste ouverte : 10 images/s est inutilisable au pointeur, 60 demanderait
+de diviser par six, et rien ne dit lequel des deux vise juste.
 
 ⚠️ **Croisement avec le bloc « aspect du verre » ci-dessus** : trois des quatre
 matières les plus chères — Quadrillé, Alvéolaire, Nuage — sont exactement celles
@@ -265,14 +273,36 @@ Tout le détail, les protocoles et les ablations :
   passes de pyramide. Applicabilité **mesurée avant d'être déclarée** : 0,000 %
   d'écart sur chaque famille éteinte, du min au max de tous ses réglages. Les six
   références de flare sont inchangées au bit près.
-- ~~**Le wireframe de la pile à 7 calques et plus**~~ ✅ **ÉCRIT le 2026-08-14** :
-  `docs/wireframes/pile-longue.html`, quatre planches aux dimensions réelles du
-  dock. Les deux faits qui le nourrissaient sont sortis de la question — la borne
-  à cinq lignes est voulue, et la sélection est ramenée dans la vue — si bien
-  qu'il ne pose plus qu'une chose : **que montrer de ce qui dépasse**.
-  Recommandation du document : *B (le débordement se dit) maintenant, D (repli
-  des groupes) ensuite, C (carte étirée) à écarter*. **Reste le jugement
-  d'Antoine**, qui seul tranche entre les quatre.
+- ~~**Le wireframe de la pile à 7 calques et plus**~~ ✅ **ÉCRIT ET TRANCHÉ les
+  2026-08-14/15.** Trois planches, dans cet ordre — chacune répond à ce que la
+  précédente a fait surgir :
+  1. `docs/wireframes/pile-longue.html` — quatre réponses au débordement, aux
+     dimensions réelles (ligne 52 px, liste 292 px, dock 320 px ; une pile de 7
+     demande 412 px). **Antoine retient D, le repli des groupes** ;
+  2. `docs/wireframes/pile-longue-repli.html` — D avec le filet, qui **existe
+     déjà** (`.layer-panel__rail`, `LayerPanel.css:223`) et que ma première
+     planche avait oublié. Trois traitements du groupe replié : filet supprimé,
+     moignon de 14 px, filet pointillé ;
+  3. `docs/wireframes/pile-longue-hierarchie.html` — **la décision d'Antoine :
+     variante C, implantation c1**, c'est-à-dire lavis ET barre qui partent de
+     l'axe du filet, la barre étant l'ARÊTE du bloc (écart mesuré au filet :
+     0,0 px). Décalage recommandé **20 px** au lieu de 14 : premier cran où les
+     deux niveaux ne partagent plus aucune verticale, pour un nom qui passe de
+     190 à 184 px (mesuré, pas estimé).
+
+  ⚠️ **Ce qui reste à décider avant de coder**, et qu'aucun wireframe ne tranche :
+  **où vit l'état de repli** — dans le modèle de document (persisté, donc dans
+  `LayerState`, la couche la plus partagée du projet) ou dans l'état d'interface
+  (perdu à la réouverture) — et **ce que fait le repli d'un groupe dont un enfant
+  est SÉLECTIONNÉ** : replier en laissant la sélection sur une ligne invisible
+  ramènerait le défaut corrigé le 2026-08-14. La réponse évidente est de faire
+  remonter la sélection au parent, mais c'est une décision, pas une évidence.
+
+  ⚠️ Deux décisions écrites sont TOUCHÉES par c1, donc à amender en même temps :
+  la barre à `left: 0` est justifiée dans `LayerPanel.css` par « lavis et barre
+  couvrent la même surface d'une ligne à l'autre » (c1 en garde la moitié : le
+  lavis change, la barre suit), et `--layer-nest-indent` vaut 14 px — le filet
+  s'en sert pour se centrer, donc les deux bougent ensemble par construction.
 - ~~**L'overlay de masque n'a AUCUNE référence de pixels.**~~ ✅ **FAIT le
   2026-08-14** — quatre références, deux paires témoin/overlay
   (`masque-overlay-pinceau` sur masque peint, `masque-overlay-tonalite` sur
@@ -749,7 +779,7 @@ nommés rendent cette confusion impossible.
 
 | Ordre | Front | Ce qui prouve que c'est fini |
 | --- | --- | --- |
-| 1 | `15-l-applicabilite-couvre-10-pourcent.md` | zéro paramètre inerte non masqué, prouvé effet par effet, chaque déclaration éprouvée par `render-check.mjs --applicabilite` |
+| 1 | `15-l-applicabilite-couvre-10-pourcent.md` | zéro paramètre inerte non masqué, prouvé effet par effet, chaque déclaration éprouvée par `render-check.mjs --applicabilite` — ⚠️ **qui ne couvre que `EffectParam.appliesWhen`, pas `EffectSection.appliesWhen`** (constat du 2026-08-14 : les trois conditions de section de `lensFlare` ont dû s'éprouver par six scénarios jetables, écrits puis retirés). Étendre l'instrument aux sections, ou le front 1 se terminera sur des déclarations non mesurées |
 | 2 | `16-les-sections-ne-sectionnent-pas.md` | un plafond de densité chiffré et opposable, aucun effet au-dessus, zéro orphelin sans raison écrite |
 | 3 | `17-les-outils-sur-la-toile.md` | chaque effet dont la géométrie est le sujet porte son outil, et le geste tient une grille écrite AVANT d'implémenter |
 
@@ -838,6 +868,30 @@ d'homogénéité, pas de design system.
 Ni continuée ni arrêtée, jamais décidée — et l'écart grandit à chaque chantier.
 Se tranche dans
 `.scratch/prochain-palier/issues/13-la-migration-shadcn-est-elle-encore-la-direction.md`.
+
+### ⚠️ OUVERT le 2026-08-14 — un test ROUGE est sur `origin`
+
+`test/render/wgslNaga.test.ts` (arrivé avec `677a39d`) **échoue**, et il est
+déjà poussé sur `gpu-optimisations` (`af075ce`). Cause unique et connue : il
+n'exclut pas l'exception que `CLAUDE.md` documente pourtant en toutes lettres —
+`params: array<f32, 48>`, stride 4 pour un alignement de 16 en espace uniform,
+que Dawn accepte et que naga refuse. Le message le dit sans ambiguïté :
+`error: Global variable [2] 'params' is invalid`, sur **tous** les effets du
+registre. Ce n'est donc pas une régression de rendu, c'est le gate qui n'a pas
+encore sa dérogation.
+
+⚠️ **Et ce gate est le SEUL de shader qui tourne en CI** : tant qu'il est rouge,
+la CI l'est aussi, et un vrai défaut de WGSL y passerait inaperçu au milieu du
+bruit.
+
+### ⚠️ OUVERT — quatre commits de docs vivent sur `gpu-optimisations`
+
+`8b74e9c`, `adea7aa`, `eafa654`, `6a40a8a` (les trois wireframes de la pile et
+la réconciliation de cette feuille) ont atterri sur `gpu-optimisations` et non
+sur `master` : une session concurrente a changé la branche du checkout PARTAGÉ
+pendant qu'ils s'écrivaient. Ils ne dépendent de rien de cette branche — à
+reporter sur `master` par cherry-pick quand la ligne GPU sera posée, ou à
+emporter avec elle si elle est mergée.
 
 ### Branches mortes, mesurées
 

@@ -284,6 +284,29 @@ shaderlab.
 - **Les cinq pavés ajoutent le mortier et l'arête** à tout ce que fait déjà une
   matière de feuille : ce sont eux le pire cas, pas le verre en général.
 
+## ✅ Arbitrage d'Antoine, 2026-08-15 : on fait le mipmap de diffusion
+
+Question posée : « le seul levier mesuré est de rendre les lectures locales
+(mipmap de diffusion), ce qui CHANGE le rendu. On y va ? » — **réponse : oui**.
+Les deux autres options ont été écartées explicitement : ne rien changer et
+accepter ~10 images/s, ou baisser la résolution pendant le geste (qui
+contredirait frontalement « pas de distinction preview/export, résolution native
+toujours »).
+
+Ce que ça engage, et qui est connu AVANT d'écrire la première ligne :
+
+- le rendu change, donc les **18 références de pixels du verre** sont à
+  régénérer et à **relire à l'œil** avant commit ;
+- le résultat se juge devant une photo, pas devant un chiffre — trois des quatre
+  matières les plus chères sont exactement celles qu'Antoine a refusées à l'œil ;
+- `src/render/mipmapGenerator.ts` existe depuis le 2026-08-15 : la brique est là,
+  elle a été écrite pour les scans de la bibliothèque de textures.
+
+⚠️ **La CIBLE, elle, n'est pas tranchée.** 10 images/s est inutilisable au
+pointeur ; 60 demanderait de diviser le coût par six. Rien dans les mesures ne
+dit lequel des deux vise juste, et c'est un arbitrage d'usage, pas de
+performance.
+
 ## Ce qui rendrait ce ticket raté
 
 Optimiser sans mesurer d'abord en production — on ne saurait pas ce qu'on a

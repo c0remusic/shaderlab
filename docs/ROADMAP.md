@@ -92,7 +92,7 @@ fallait juger.
 | # | Sujet | Ce qu'il en reste |
 | --- | --- | --- |
 | 1 | **Courbes** | ✅ **JUGÉ ET CORRIGÉ.** Verdict : « pas les points rouges ni l'effet délavé ». `curves` travaille en perçu depuis `ffe47c2`, et le gain du canal maître est borné — c'était lui, la vraie cause des pixels colorés. Détail et mesures : [ticket 06](../.scratch/prochain-palier/issues/06-curves-en-lineaire-ou-en-percu.md) |
-| 2 | **Pile / Propriétés / Masque** | ⚠️ **DÉFAUT CORRIGÉ, wireframe toujours dû.** La sélection est ramenée dans la vue depuis le 2026-08-14 (`scrollIntoView({ block: "nearest" })` au changement de sélection, story `SelectionScrollsIntoView` qui rougit sans le correctif). Reste le **wireframe pour 7 calques et plus** demandé par Antoine ; il n'est pas fait, et la borne à 5 lignes (`--dock-card-list-rows: 5`) est voulue, pas un défaut |
+| 2 | **Pile / Propriétés / Masque** | ⚠️ **DÉFAUT CORRIGÉ, WIREFRAME ÉCRIT — reste le choix.** La sélection est ramenée dans la vue depuis le 2026-08-14 (`scrollIntoView({ block: "nearest" })` au changement de sélection, story `SelectionScrollsIntoView` qui rougit sans le correctif). Le **wireframe pour 7 calques et plus** est écrit (`docs/wireframes/pile-longue.html`, quatre options mesurées) ; il reste à choisir laquelle. La borne à 5 lignes (`--dock-card-list-rows: 5`) est voulue, pas un défaut |
 | 3 | **Verre** | ⚠️ **REFUSÉ, partiellement corrigé.** Le Dépoli rendait des paquets : sa diffusion était directionnelle (9 taps sur un axe), elle est isotrope depuis `da86f3d`. Mais l'ensemble reste jugé « très artificiel, 3D des années 90 » — voir le bloc dédié plus bas |
 | 4 | **Les cinq pavés** | ⚠️ **REFUSÉ.** « Les espacements sont très moches », puis « je n'aime pas l'aspect du mortier ». Trois corrections livrées (joint adouci, variation par pavé, granulométrie), le verdict reste négatif. Ce qui manque est identifié par PHOTOS, voir plus bas |
 | 5 | **Sections des panneaux** | Inchangé — le découpage en blocs titrés, livré le 2026-08-05 sur les 23 effets, n'a toujours pas été regardé sujet par sujet |
@@ -255,18 +255,24 @@ Tout le détail, les protocoles et les ablations :
 
 ### ⚠️ OUVERT — trois restes du 2026-08-13, chacun décidé mais pas fait
 
-- **`lensFlare` : ses trois phénomènes deviennent trois options SÉLECTIONNABLES
-  dans l'effet** — arbitrage d'Antoine, rendu ce jour-là. Pas trois entrées du
-  registre, donc la famille des halos ne se rouvre pas (ADR-0017 tient). Les
-  trois blocs ont déjà chacun leur interrupteur ; ce qui change est la forme du
-  contrôle. Rien n'est écrit côté code.
-- **Le wireframe de la pile à 7 calques et plus**, demandé et non fait. Deux
-  faits mesurés pour le nourrir : la carte est bornée à cinq lignes PAR DESIGN
-  (`--dock-card-list-rows: 5`, donc « 5 sur 7 » n'est pas un défaut), et la
-  sélection ~~ne défile pas dans la vue~~ **y est ramenée depuis le
-  2026-08-14** — le second fait est donc corrigé, et ce qui reste au wireframe
-  est la question de FOND : que montrer d'une pile plus longue que sa carte.
-  Destination : `docs/wireframes/<feature>.html`.
+- ~~**`lensFlare` : ses trois phénomènes deviennent trois options
+  SÉLECTIONNABLES**~~ ✅ **FAIT le 2026-08-14.** Trois interrupteurs
+  **cumulables** (`ghostsOn` / `diffusionOn` / `sensorOn`) — la forme du contrôle
+  n'était écrite nulle part et a été tranchée là : un sélecteur exclusif aurait
+  retiré une capacité, un objectif produisant les trois à la fois (ADR-0017).
+  Section de tête « Phénomènes », les trois sections de détail conditionnées par
+  eux, et ils **coupent le rendu** — éteindre les fantômes fait sauter les cinq
+  passes de pyramide. Applicabilité **mesurée avant d'être déclarée** : 0,000 %
+  d'écart sur chaque famille éteinte, du min au max de tous ses réglages. Les six
+  références de flare sont inchangées au bit près.
+- ~~**Le wireframe de la pile à 7 calques et plus**~~ ✅ **ÉCRIT le 2026-08-14** :
+  `docs/wireframes/pile-longue.html`, quatre planches aux dimensions réelles du
+  dock. Les deux faits qui le nourrissaient sont sortis de la question — la borne
+  à cinq lignes est voulue, et la sélection est ramenée dans la vue — si bien
+  qu'il ne pose plus qu'une chose : **que montrer de ce qui dépasse**.
+  Recommandation du document : *B (le débordement se dit) maintenant, D (repli
+  des groupes) ensuite, C (carte étirée) à écarter*. **Reste le jugement
+  d'Antoine**, qui seul tranche entre les quatre.
 - ~~**L'overlay de masque n'a AUCUNE référence de pixels.**~~ ✅ **FAIT le
   2026-08-14** — quatre références, deux paires témoin/overlay
   (`masque-overlay-pinceau` sur masque peint, `masque-overlay-tonalite` sur

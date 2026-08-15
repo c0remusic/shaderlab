@@ -220,12 +220,38 @@ Cinq photos de référence ont été récupérées dans le scratchpad de session
 depuis Wikimedia Commons (catégories `Glass blocks` et `Frosted glass`) ou
 repartir d'une recherche d'images.
 
-### ⚠️ OUVERT — le coût du verre
+### ⚠️ OUVERT — le coût du verre, désormais instruit et attribué
 
-`glass` est de loin l'effet le plus cher du registre et n'avait jamais été
-mesuré : **15,9 images/s** en développement sur 26 Mpx (Pavé quadrillé, vrai
-glissement souris). Ticket dédié avec les mesures, les pistes et deux
-garde-fous : [19 — Le coût du verre](../.scratch/prochain-palier/issues/19-le-cout-du-verre.md).
+`glass` est de loin l'effet le plus cher du registre. **Mesuré en PRODUCTION le
+2026-08-14, et la cause n'est pas celle qu'on croyait** : ni le mortier, ni
+l'arête, ni le moulage, ni la géométrie. À `Creux = 0` un pavé coûte exactement
+ce que coûte une feuille (66,9 contre 67,6 images/s) — c'est le **déplacement**
+qui disperse les lectures de texture, et une lecture dispersée coûte **~25 fois**
+une lecture cohérente. Cadence réelle : **10 à 12 images/s** sur un Pavé
+quadrillé à 26 Mpx.
+
+Complété le 2026-08-15 par un **coût GPU par matière** (14 matières, facteur 7,
+Dépoli 15,5 ms contre Pavé quadrillé 108,3 ms), rendu possible par le
+chronométrage par passe livré le même jour (`src/render/gpuTiming.ts`).
+
+⚠️ **Deux pistes sont désormais CONDAMNÉES par la mesure, ne pas les redémarrer** :
+réduire le nombre de prélèvements, et réécrire les fonctions de matière en
+dérivées analytiques (essayé, mesuré : 8 % de gain dans le bruit contre 18
+références de pixels déplacées). On ne réduit pas un coût de cache en retirant
+des multiplications.
+
+✅ La piste qui reste — **un mipmap pour la diffusion**, seul levier qui attaque
+les 7,4 ms par lecture au lieu de les compter — a vu son obstacle
+d'implémentation levé : `src/render/mipmapGenerator.ts` existe depuis le
+2026-08-15 (WebGPU n'a aucune génération de mipmaps intégrée).
+
+⚠️ **Croisement avec le bloc « aspect du verre » ci-dessus** : trois des quatre
+matières les plus chères — Quadrillé, Alvéolaire, Nuage — sont exactement celles
+qu'Antoine a refusées à l'œil. Même code, même fenêtre. Et le **Dépoli est la
+moins chère de toutes** : son problème est esthétique, pas de coût.
+
+Tout le détail, les protocoles et les ablations :
+[19 — Le coût du verre](../.scratch/prochain-palier/issues/19-le-cout-du-verre.md).
 
 ### ⚠️ OUVERT — trois restes du 2026-08-13, chacun décidé mais pas fait
 
@@ -588,6 +614,63 @@ correction, **132 × 80** sans.
 
 Reste ouverte, et elle est plus large que le dégradé : la **sélection
 géométrique rect/ellipse**, que ce motif ne bloque plus.
+
+### ⚠️ OUVERT le 2026-08-15 — notre uniform de paramètres n'est pas conforme à la spec
+
+Trouvé à la **première exécution** du gate `naga` (`test/render/wgslNaga.test.ts`,
+livré ce jour-là — le premier gate de shader du dépôt qui tourne en CI) :
+
+```
+@group(0) @binding(2) var<uniform> params: array<f32, 48>;
+-> The array stride 4 is not a multiple of the required alignment 16
+```
+
+naga a raison sur la spec : en espace `uniform`, l'alignement requis d'un
+`array<E,N>` vaut `roundUp(16, align(E))`, soit **16** pour un f32, quand le pas
+naturel du tableau est **4**. La forme conforme serait `array<vec4<f32>, 12>`.
+
+**Dawn l'accepte pourtant** — les 160 shaders composés compilent dans WebView2 et
+l'app rend. Ce n'est donc **pas** un défaut visible sur cette machine : c'est un
+risque de **PORTABILITÉ**, sur une implémentation plus stricte ou une version
+future de Tint.
+
+Ce qui rend l'arbitrage non trivial : les **vingt-trois effets** lisent
+`params[N]`, et ces index sont **gelés par les presets et par les références de
+pixels**. Passer en `vec4` change chaque accès. Une garde existe déjà pour la
+cohérence des index (`test/render/effects/parametresCables.test.ts`), mais elle
+ne dit rien de la conformité.
+
+En attendant, le gate porte une **exception bornée** : il tolère cette erreur
+uniquement sur la variable `params`, et uniquement si c'est la seule de la
+sortie. La même erreur ailleurs, ou une seconde à côté, fait rougir.
+
+**Décision attendue** : corriger (ADR + chantier traversant), ou assumer par
+écrit que shaderlab cible Dawn et rien d'autre.
+
+### ⚠️ EN ATTENTE d'Antoine — une référence de pixels à trancher
+
+Les textures de bibliothèque étaient créées **sans `mipLevelCount`**, donc à un
+seul niveau, alors que les scans montent à 8192×8192 et sont échantillonnés à
+l'échelle de l'écran : le cache de texture ne servait à rien et l'image aliasait.
+Corrigé le 2026-08-15 (`src/render/mipmapGenerator.ts` + sampler trilinéaire).
+
+⚠️ **Ce défaut ne pouvait être attrapé par AUCUN test** : un `createTexture` sans
+`mipLevelCount` compile, valide, et rend une image correcte — les références ont
+été figées AVEC le défaut. Un test compare à ce qui existe, jamais à ce qui
+serait possible.
+
+Le correctif est **prêt et non commité**, bloqué par une seule chose :
+`effet-texture` change (`max 66, moyenne 1,83`), et réécrire une référence de
+pixels est un jugement humain. Antoine a regardé les deux images et ne voit pas
+de différence — attendu, cette mire fait 256 px et n'exerce pas la minification
+1:8 pour laquelle les mips existent. **Trancher, ou mesurer le vrai cas** (un
+scan 8K sur une photo, temps GPU avec et sans).
+
+⚠️ Un piège trouvé au passage, et déjà corrigé : le LOD **automatique** est faux
+pour `inkTexture`, qui échantillonne en espace TEXEL et derrière un `fract`
+discontinu. Il lavait le grain d'encre, que `halftone` amplifiait en bascules
+binaires (`max 255`). Forcé au niveau 0. Toute nouvelle lecture de la texture de
+bibliothèque doit se demander si son échantillonnage est cohérent avec l'écran.
 
 ### Deux points d'interface décidés puis jamais écrits
 

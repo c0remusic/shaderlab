@@ -160,6 +160,116 @@ sur 26 Mpx est inutilisable au pointeur ; 60 demanderait de diviser le coût par
 six. Rien ici ne dit s'il faut viser le confort à pleine résolution, ou accepter
 que les matières à fort déplacement soient lentes sur une photo de 26 Mpx.
 
+## Session du 2026-08-15 — un instrument, un coût par matière, et une attribution FAUSSE corrigée
+
+### Ce qui existe maintenant et n'existait pas
+
+**Le temps GPU se mesure PAR PASSE** (`src/render/gpuTiming.ts`, `0e56a79`).
+Jusque-là le dépôt avait deux instruments et aucun ne voyait le GPU :
+`frameDiagnostics` rend `jsEncodeMs` — du temps d'ENCODAGE JS, qui peut afficher
+2 ms pendant que le GPU en passe 60 — et `perf-probe.mjs` rend une cadence
+murale pour la pile entière. Ni l'un ni l'autre ne sait dire QUELLE passe coûte.
+
+Capture à la demande, une frame à la fois : éteint, aucun `timestampWrites`
+n'est attaché et rien n'est alloué. Armé depuis le pont de debug
+(`__shaderlabDebug.capturerTimingGpu`). ⚠️ Il **n'ordonne pas de rendu** — on
+arme, PUIS on provoque un vrai geste, sinon on mesure une frame fabriquée par la
+sonde.
+
+⚠️ **L'instrument déduit sa propre granularité** (PGCD des valeurs brutes) :
+Chromium quantifie les timestamps GPU, et le pas mesuré ici est **65 536 ns**, et
+non les 100 µs annoncés partout. Une passe sous ce pas rend 0, jamais un chiffre
+inventé. Le PGCD n'a de sens qu'à partir de plusieurs passes — sur une seule il
+rend la valeur elle-même.
+
+### Coût GPU par matière — 14 matières, photo 24 Mpx, build de dev
+
+Toutes choses égales par ailleurs, seule la matière change. Minimum sur 3
+captures (une durée GPU est bruitée vers le haut, jamais vers le bas).
+
+| Matière | ms | Matière | ms |
+| --- | --- | --- | --- |
+| Dépoli | 15,5 | Pavé · Lisse | 25,1 |
+| Cannelé simple | 15,7 | Pavé · Ondulé | 26,5 |
+| Cannelé croisé | 16,3 | Martelé | 31,2 |
+| Gaufré | 16,7 | Aluminium brossé | 51,3 |
+| Poli | 18,4 | Écorce | 64,0 |
+| Cathédrale | 21,9 | Pavé · Nuage | 74,8 |
+| | | Pavé · Alvéolaire | 95,0 |
+| | | **Pavé · Quadrillé** | **108,3** |
+
+**Facteur 7 entre la moins chère et la plus chère.** Cohérent avec le facteur 6
+feuille/pavé mesuré en production plus haut.
+
+⚠️ **Croisement utile pour le bloc « aspect du verre » du ROADMAP** : trois des
+quatre matières les plus chères — Quadrillé, Alvéolaire, Nuage — sont
+**exactement celles qu'Antoine a refusées à l'œil**. Les deux chantiers visent le
+même code dans la même fenêtre. À l'inverse le **Dépoli est la MOINS chère de
+toutes** : son problème est esthétique, pas de coût.
+
+### ⚠️ L'attribution que cette session a tirée de ces chiffres était FAUSSE
+
+J'ai conclu du facteur 7 que le poste dominant était la **fonction de matière**
+(l'en-tête de `glass.ts` dit qu'elle est évaluée trois fois par pixel en
+différences finies pour la normale), et j'allais recommander de la réécrire en
+dérivées analytiques.
+
+**L'ablation `Creux` du bloc de production ci-dessus dit le contraire** : à
+déplacement nul, un pavé coûte exactement ce que coûte une feuille (66,9 contre
+67,6). Toute la géométrie — les trois évaluations comprises — est donc gratuite à
+l'échelle de la mesure. Le facteur 7 par matière ne mesure pas la complexité du
+calcul, il mesure **combien chaque matière DÉPLACE**, donc à quel point ses
+lectures divergent.
+
+**La leçon de méthode** : un classement par coût ne donne pas la CAUSE du coût.
+Il fallait une ablation, pas un tri. Le tri est arrivé le premier et il était
+convaincant.
+
+### Ce que ça condamne, et ce que ça confirme
+
+⛔ **Dérivées analytiques : essayé, mesuré, REJETÉ.** `valueNoiseD` écrite
+(dérivée exacte de notre `valueNoise` — l'interpolant `3f²−2f³` a pour dérivée
+`6f(1−f)`), puis `verre_microRelief` réécrit : **9 appels de bruit ramenés à 3**,
+36 hachages à 12. Résultat :
+
+- **coût** : les 18 références de `glass` déplacées, jusqu'à `max 255, moyenne 7` ;
+- **gain** : Dépoli 15,53 → 14,22 ms, soit 8 %, dans la bande de bruit.
+
+Reverté. On ne réduit pas un coût de **cache** en retirant des multiplications —
+et c'est la mesure de production ci-dessus qui explique pourquoi, pas le bruit de
+la mienne. **Ne pas redémarrer cette piste**, ni sur `verre_microRelief` ni sur
+`verre_hauteurPave`.
+
+⚠️ Ce que l'essai a quand même établi et qui reste vrai : **la différence finie
+de `verre_microRelief` n'est pas une dérivée**, c'est un passe-bas. Son pas de
+0,0016 en espace `c` vaut ~0,3 CELLULE de bruit à l'échelle 190. L'apparence
+actuelle du micro-relief a été réglée AVEC ce lissage. Si le chantier §1 rouvre
+ces matières, c'est un paramètre de rendu déguisé en détail d'implémentation.
+
+✅ **Mipmap pour la diffusion (piste 2) : la machinerie EXISTE maintenant.**
+`src/render/mipmapGenerator.ts` a été écrit cette session — WebGPU n'a aucune
+génération de mipmaps intégrée, il fallait la chaîne de blits. Elle sert
+aujourd'hui les textures de bibliothèque, mais elle est générique. C'est la seule
+piste qui attaque les 7,4 ms par lecture au lieu de les compter, et l'obstacle
+d'implémentation est levé.
+
+⚠️ Réserve à ne pas oublier en la reprenant : les cibles de ping-pong sont créées
+à **un seul niveau** (`effectPassRunner`, `imageFrameResources`). Les mipmapper
+coûte une chaîne de blits PAR FRAME, pas une fois au chargement — le calcul
+gain/coût est donc à refaire, il n'est pas le même que pour un scan.
+
+### Outillage d'itération disponible
+
+`C:\dev\shadplay` (MIT, Bevy, nightly) est construit et vérifié, avec un harnais
+maison : `assets/shaders/shaderlab-pave.wgsl` — champ de hauteur et pente des
+cinq matières Pavé, nos fonctions copiées de `glass.ts` et `hash.ts`, `params[]`
+remplacés par des constantes en tête de fichier, deux modes d'affichage
+(hauteur en gris, pente signée en couleur). Validé par `naga` et chargé par
+shadplay. Rechargement à chaud à l'enregistrement, au lieu du cycle complet de
+shaderlab.
+
+⚠️ Il est **hors du dépôt** : il ne survivra pas à un nettoyage de `C:\dev`.
+
 ## Pistes, non instruites
 
 - **L'ambiance du mortier** : cinq `verre_lire` par pixel pour une moyenne

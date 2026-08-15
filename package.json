@@ -25,6 +25,7 @@
     "lint:tokens": "node scripts/lint-tokens.mjs",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
+    "test:wgsl": "vitest run --project=unit test/render/wgslNaga.test.ts",
     "test:gpu-shaders": "node scripts/gpu-shader-check.mjs",
     "test:render": "node scripts/render-check.mjs"
   },

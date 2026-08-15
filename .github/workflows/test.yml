@@ -30,6 +30,23 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
+      # VALIDATION STATIQUE DU WGSL. C'est le SEUL gate de shader qui puisse
+      # tourner ici : `test:gpu-shaders` et `test:render` exigent un GPU et une
+      # fenetre WebView2, donc restent locaux. Sans cette etape,
+      # `test/render/wgslNaga.test.ts` echoue faute de binaire — volontairement,
+      # plutot que de se taire et de laisser croire a une couverture.
+      - name: Cache naga-cli
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/naga
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+          key: naga-cli-30.0.0-${{ runner.os }}
+
+      - name: Install naga-cli
+        run: command -v naga || cargo install naga-cli --locked --version 30.0.0
+
       - name: Run unit tests
         run: npm run test
 

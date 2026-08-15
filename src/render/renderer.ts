@@ -204,6 +204,15 @@ export class Renderer {
     this.sampler = ctx.device.createSampler({
       magFilter: "linear",
       minFilter: "linear",
+      // Trilinéaire. Le défaut de WebGPU est `nearest`, qui saute d'un niveau à
+      // l'autre en laissant une couture visible — et surtout, sans lui les
+      // pyramides construites par `mipmapGenerator.ts` ne serviraient à rien.
+      //
+      // NEUTRE PARTOUT AILLEURS, et c'est ce qui rend ce réglage global sûr :
+      // toutes les autres textures du pipeline (ping-pong, masques, photos)
+      // n'ont qu'UN niveau, et le LOD y est donc borné à 0 quel que soit ce
+      // filtre. Seules les textures de bibliothèque en ont plusieurs.
+      mipmapFilter: "linear",
       addressModeU: "clamp-to-edge",
       addressModeV: "clamp-to-edge",
     });

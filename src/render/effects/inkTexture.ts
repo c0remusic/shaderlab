@@ -181,12 +181,28 @@ fn ink_irregularite(uv: vec2<f32>, echelle: f32) -> f32 {
   // Le pas est en TEXELS du scan, pas en pixels du cadre : c'est la finesse du
   // scan qui decide de ce qu'est une bavure, pas la definition de la photo.
   let pas = vec2<f32>(f32(${INK_TAP_RADIUS}) / f32(dims.x), f32(${INK_TAP_RADIUS}) / f32(dims.y));
-  let centre = dot(textureSample(libraryTexture, srcSampler, tuv).rgb, w);
+  // NIVEAU 0 FORCE, jamais le LOD automatique. Les scans portent une pyramide
+  // de mipmaps depuis le 2026-08-14 (mipmapGenerator.ts), et elle est JUSTE
+  // pour l'effet texture, qui mappe le scan sur le cadre. Ici elle serait
+  // fausse, pour deux raisons independantes :
+  //
+  //  1. Le pas est en TEXELS du scan et non en pixels du cadre (voir juste
+  //     au-dessus). Le materiel, lui, deduit le niveau des derivees d'ECRAN de
+  //     tuv : il choisirait un niveau sans rapport avec la finesse qu'on vient
+  //     de calculer, et laverait le grain qui EST l'effet.
+  //  2. Le fract ci-dessus est discontinu. A chaque couture de tuile la
+  //     derivee d'ecran saute a ~1, donc le niveau choisi serait le plus petit
+  //     (1x1) : un aplat le long de chaque raccord.
+  //
+  // Mesure du jour, avant ce correctif : ecart max 255 et moyenne 57,7 sur
+  // effet-halftone-encre, parce qu'un seuil transforme un lissage discret en
+  // bascule binaire. Le verrou de pixels l'a attrape sur-le-champ.
+  let centre = dot(textureSampleLevel(libraryTexture, srcSampler, tuv, 0.0).rgb, w);
   let voisins = (
-    dot(textureSample(libraryTexture, srcSampler, tuv - vec2<f32>(pas.x, 0.0)).rgb, w) +
-    dot(textureSample(libraryTexture, srcSampler, tuv + vec2<f32>(pas.x, 0.0)).rgb, w) +
-    dot(textureSample(libraryTexture, srcSampler, tuv - vec2<f32>(0.0, pas.y)).rgb, w) +
-    dot(textureSample(libraryTexture, srcSampler, tuv + vec2<f32>(0.0, pas.y)).rgb, w)
+    dot(textureSampleLevel(libraryTexture, srcSampler, tuv - vec2<f32>(pas.x, 0.0), 0.0).rgb, w) +
+    dot(textureSampleLevel(libraryTexture, srcSampler, tuv + vec2<f32>(pas.x, 0.0), 0.0).rgb, w) +
+    dot(textureSampleLevel(libraryTexture, srcSampler, tuv - vec2<f32>(0.0, pas.y), 0.0).rgb, w) +
+    dot(textureSampleLevel(libraryTexture, srcSampler, tuv + vec2<f32>(0.0, pas.y), 0.0).rgb, w)
   ) * 0.25;
   // HAUT DE BANDE : moyenne nulle par construction. Un scan clair ou sombre ne
   // deplace donc PAS le seuil, il ne fait que le froisser.

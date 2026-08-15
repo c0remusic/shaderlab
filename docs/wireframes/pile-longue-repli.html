@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>shaderlab — wireframe repli des groupes</title>
+<style>
+  /* ---- Tokens RÉELS de shaderlab (src/design/{primitives,semantic,
+     components}.css), et géométrie RÉELLE du filet d'imbrication
+     (src/components/LayerPanel.css). Rien n'est approché ici : le filet
+     existe déjà dans l'application, ce document ne fait que le montrer
+     appliqué au repli. ---- */
+  :root {
+    --primitive-neutral-100: #f2f2f2;
+    --primitive-neutral-700: #383431;
+    --primitive-neutral-900: #2c2c2c;
+    --primitive-neutral-950: #222222;
+    --primitive-neutral-1000: #1b1b1b;
+    --primitive-accent-blue: #4069fd;
+
+    --space-2: 4px;
+    --space-3: 6px;
+    --space-4: 8px;
+    --space-5: 12px;
+    --space-6: 16px;
+
+    --font-ui: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+    --font-size-xs: 11px;
+    --font-size-sm: 12px;
+    --font-size-md: 13px;
+    --font-size-lg: 14px;
+    --font-weight-semibold: 600;
+
+    --radius-control: 5px;
+    --radius-panel: 8px;
+
+    --surface-window: var(--primitive-neutral-1000);
+    --surface-panel: var(--primitive-neutral-900);
+    /* Lavis de sélection : 24 % de l'accent (décision Antoine 2026-07-27). */
+    --surface-selected-accent: rgba(64, 105, 253, .24);
+
+    --text-primary: rgba(242, 242, 242, .94);
+    --text-secondary: rgba(242, 242, 242, .72);
+    --text-tertiary: rgba(242, 242, 242, .53);
+
+    --border-subtle: rgba(242, 242, 242, .07);
+    --border-default: rgba(242, 242, 242, .11);
+    --border-strong: rgba(242, 242, 242, .28);
+    --focus-color: var(--primitive-accent-blue);
+
+    --layer-row-height: 36px;
+    --layer-nest-indent: calc(var(--space-4) + var(--space-3)); /* 14 px */
+    --selection-bar-width: 2px;
+    --panel-dock-width: 320px;
+  }
+  .wf, .wf *, .wf *::before, .wf *::after { box-sizing: border-box; }
+  .wf {
+    font-family: var(--font-ui);
+    background: var(--surface-window);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    padding: var(--space-6);
+  }
+  .wf h1 { font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin: 0 0 var(--space-3); }
+  .wf h2 { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); margin: var(--space-6) 0 var(--space-2); }
+  .wf p { font-size: var(--font-size-sm); color: var(--text-secondary); line-height: 1.55; margin: 0 0 var(--space-4); max-width: 64ch; }
+  .wf .note { color: var(--text-tertiary); }
+  .wf .mesure { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  .wf code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: var(--font-size-xs); color: var(--text-primary); }
+
+  .planche { display: flex; gap: var(--space-6); flex-wrap: wrap; align-items: flex-start; }
+  .option { width: var(--panel-dock-width); }
+  .option__titre { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-2); }
+  .option__cout { font-size: var(--font-size-xs); color: var(--text-tertiary); margin-top: var(--space-3); line-height: 1.5; }
+
+  .carte { background: var(--surface-panel); border: 1px solid var(--border-default); border-radius: var(--radius-panel); overflow: hidden; }
+  .carte__titre {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 30px; padding: 0 var(--space-4);
+    font-size: var(--font-size-sm); color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  /* 5 lignes de 52 px + 4 gouttières de 8 = 292, plus 8 px de padding de part
+     et d'autre = 308 px. Le chiffre du dépôt (--dock-card-list-rows: 5). */
+  .carte__liste { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4); overflow: hidden; position: relative; }
+  .carte__liste--bornee { height: 308px; }
+  .carte__pied {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--border-subtle);
+    font-size: var(--font-size-xs); color: var(--text-tertiary);
+  }
+
+  /* ── Une ligne : 36 px de contenu, 8 px de padding, 52 px de boîte ─────── */
+  .ligne {
+    position: relative;
+    display: grid;
+    grid-template-columns: 14px 20px 24px 1fr auto;
+    align-items: center; gap: var(--space-3);
+    height: var(--layer-row-height);
+    padding: var(--space-4);
+    box-sizing: content-box;
+    flex: 0 0 auto;
+    border-radius: var(--radius-control);
+    font-size: var(--font-size-md);
+  }
+  .ligne--selectionnee { background: var(--surface-selected-accent); }
+  .ligne--selectionnee::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+    width: var(--selection-bar-width); background: var(--focus-color);
+    border-radius: var(--radius-control) 0 0 var(--radius-control);
+  }
+  .ligne--selectionnee .ligne__nom { font-weight: var(--font-weight-semibold); }
+  .ligne--imbriquee { margin-left: var(--layer-nest-indent); }
+  .ligne__poignee, .ligne__oeil, .ligne__masque { color: var(--text-tertiary); font-size: var(--font-size-sm); text-align: center; }
+  .ligne__vignette { width: 24px; height: 24px; border-radius: 3px; background: var(--primitive-neutral-700); }
+  .ligne__vignette--effet { background: transparent; border: 1px solid var(--border-strong); }
+  .ligne__nom { color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chevron { color: var(--text-tertiary); text-align: center; font-size: var(--font-size-sm); }
+
+  /* ── LE FILET, à sa géométrie exacte (LayerPanel.css:223) ─────────────────
+     left  = --space-4 + --layer-nest-indent / 2 = 8 + 7 = 15 px
+     top/bottom = -0,5 gouttière, pour que deux segments voisins se rejoignent
+     --first = -2 × --space-4 : franchit la gouttière de liste ET le padding
+               bas du parent, sinon 8 px de blanc restent sous lui (mesuré)
+     --last  = s'arrête au bas du CONTENU de sa propre ligne              */
+  .filet {
+    position: absolute;
+    left: calc(var(--space-4) + (var(--layer-nest-indent) / 2));
+    top: calc(var(--space-4) * -0.5);
+    bottom: calc(var(--space-4) * -0.5);
+    width: 1px;
+    background: var(--border-default);
+    pointer-events: none;
+  }
+  .filet--premier { top: calc(var(--space-4) * -2); }
+  .filet--dernier { bottom: var(--space-4); }
+  /* Sur le lavis de sélection, le filet passe à --text-tertiary : à 11 % de
+     blanc il tombait à 1,35:1 de contraste, très en dessous du 3:1 exigé. */
+  .ligne--selectionnee .filet,
+  .ligne--selectionnee + .ligne .filet--premier { background: var(--text-tertiary); }
+
+  /* Les trois traitements du groupe REPLIÉ. */
+  .filet--moignon { top: calc(var(--space-4) * -2); bottom: auto; height: 14px; }
+  .filet--pointille {
+    background: none;
+    border-left: 1px dashed var(--border-default);
+    width: 0;
+  }
+
+  .pastille {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+    background: rgba(242,242,242,.10); color: var(--text-secondary);
+    font-size: var(--font-size-xs); font-variant-numeric: tabular-nums;
+  }
+
+  .verdict { border-left: 2px solid var(--focus-color); padding-left: var(--space-5); margin-top: var(--space-6); }
+  .tableau { border-collapse: collapse; font-size: var(--font-size-sm); margin-top: var(--space-4); }
+  .tableau th, .tableau td { border: 1px solid var(--border-subtle); padding: var(--space-3) var(--space-4); text-align: left; color: var(--text-secondary); vertical-align: top; }
+  .tableau th { color: var(--text-primary); font-weight: var(--font-weight-semibold); }
+</style>
+</head>
+<body>
+<div class="wf">
+  <h1>Option D, avec le filet — et ce que le repli en fait</h1>
+  <p>
+    <strong>Le filet n'est pas à inventer : il est déjà dans l'application.</strong>
+    <code>.layer-panel__rail</code> (<code>LayerPanel.css:223</code>) relie une photo à ses
+    effets écrêtés, et deux stories le mesurent déjà
+    (<code>RailTouchesParentRow</code>, <code>RailStaysVisibleUnderSelection</code>).
+    Sa géométrie est reprise ici au pixel : <span class="mesure">1 px</span> de large, à
+    <span class="mesure">15 px</span> du bord gauche (la moitié de la gouttière
+    d'indentation), débordant d'une <span class="mesure">demi-gouttière</span> en haut et en
+    bas pour que deux segments voisins se rejoignent — et d'une gouttière ENTIÈRE plus le
+    padding du parent pour le segment de tête, sans quoi il reste
+    <span class="mesure">8 px</span> de blanc sous la photo. Sur une ligne sélectionnée il
+    passe de <code>--border-default</code> à <code>--text-tertiary</code> : à 11 % de blanc
+    sur le lavis, son contraste tombait à <span class="mesure">1,35:1</span>.
+  </p>
+  <p class="note">
+    Ce que ce document ajoute est donc étroit, et c'est la seule question qu'il pose :
+    <strong>que devient le filet quand le groupe est REPLIÉ ?</strong> Il n'a plus rien à
+    relier, mais s'il disparaît, une photo repliée devient indistinguable d'une photo sans
+    effets.
+  </p>
+
+  <h2>Le point de départ : le groupe déplié, tel qu'il s'affiche aujourd'hui</h2>
+  <div class="planche">
+    <div class="option">
+      <div class="option__titre">Déplié — 7 calques, 5 visibles</div>
+      <div class="carte">
+        <div class="carte__titre"><span>Pile</span><span>⌄</span></div>
+        <div class="carte__liste carte__liste--bornee">
+          <div class="ligne"><span class="chevron">⌄</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">DSC_0042.jpg</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee"><span class="filet filet--premier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Glass</span><span class="ligne__masque">◧</span></div>
+          <div class="ligne ligne--imbriquee ligne--selectionnee"><span class="filet"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Halation</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee"><span class="filet filet--dernier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Courbes</span><span class="ligne__masque">◧</span></div>
+          <div class="ligne"><span class="chevron">⌄</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">Texture papier</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee"><span class="filet filet--premier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Dither</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee"><span class="filet filet--dernier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Grain</span><span class="ligne__masque"></span></div>
+        </div>
+        <div class="carte__pied"><span>7 calques · 2 groupes</span><span>2 sous le pli</span></div>
+      </div>
+      <div class="option__cout">
+        Le filet dit déjà ce qui appartient à quoi. Il ne dit rien de ce qui dépasse — c'est
+        exactement le problème que le repli existe pour régler.
+      </div>
+    </div>
+  </div>
+
+  <h2>Replié : trois traitements du filet, à choisir</h2>
+  <div class="planche">
+
+    <!-- ── D-a ──────────────────────────────────────────────────────────── -->
+    <div class="option">
+      <div class="option__titre">a · Le filet disparaît</div>
+      <div class="carte">
+        <div class="carte__titre"><span>Pile</span><span>⌄</span></div>
+        <div class="carte__liste carte__liste--bornee">
+          <div class="ligne"><span class="chevron">›</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">DSC_0042.jpg</span><span class="pastille">3</span></div>
+          <div class="ligne"><span class="chevron">›</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">Texture papier</span><span class="pastille">2</span></div>
+          <div class="ligne ligne--selectionnee"><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Grain</span><span class="ligne__masque"></span></div>
+        </div>
+        <div class="carte__pied"><span>7 calques · 2 groupes repliés</span><span>tout tient</span></div>
+      </div>
+      <div class="option__cout">
+        Le plus propre à l'œil, et le plus muet : hors la pastille et le chevron, rien ne
+        distingue une photo repliée d'une photo nue. <strong>Le lien ne se voit plus qu'en
+        dépliant.</strong>
+      </div>
+    </div>
+
+    <!-- ── D-b ──────────────────────────────────────────────────────────── -->
+    <div class="option">
+      <div class="option__titre">b · Un moignon sous le parent</div>
+      <div class="carte">
+        <div class="carte__titre"><span>Pile</span><span>⌄</span></div>
+        <div class="carte__liste carte__liste--bornee">
+          <div class="ligne"><span class="chevron">›</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">DSC_0042.jpg</span><span class="pastille">3</span></div>
+          <div class="ligne" style="position: relative"><span class="filet filet--moignon"></span><span class="chevron">›</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">Texture papier</span><span class="pastille">2</span></div>
+          <div class="ligne ligne--selectionnee" style="position: relative"><span class="filet filet--moignon"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Grain</span><span class="ligne__masque"></span></div>
+        </div>
+        <div class="carte__pied"><span>7 calques · 2 groupes repliés</span><span>tout tient</span></div>
+      </div>
+      <div class="option__cout">
+        Un segment de <span class="mesure">14 px</span> qui descend sous la photo et
+        s'arrête : le filet ne relie plus, il ANNONCE. Même primitive, même abscisse, même
+        couleur — aucun style nouveau, seulement une borne changée.
+      </div>
+    </div>
+
+    <!-- ── D-c ──────────────────────────────────────────────────────────── -->
+    <div class="option">
+      <div class="option__titre">c · Le filet passe en pointillé</div>
+      <div class="carte">
+        <div class="carte__titre"><span>Pile</span><span>⌄</span></div>
+        <div class="carte__liste carte__liste--bornee">
+          <div class="ligne"><span class="chevron">›</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">DSC_0042.jpg</span><span class="pastille">3</span></div>
+          <div class="ligne" style="position: relative"><span class="filet filet--pointille filet--premier"></span><span class="chevron">›</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">Texture papier</span><span class="pastille">2</span></div>
+          <div class="ligne ligne--selectionnee" style="position: relative"><span class="filet filet--pointille filet--premier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Grain</span><span class="ligne__masque"></span></div>
+        </div>
+        <div class="carte__pied"><span>7 calques · 2 groupes repliés</span><span>tout tient</span></div>
+      </div>
+      <div class="option__cout">
+        Le lien reste tracé mais en creux — « il y a quelque chose ici, et c'est caché ».
+        <strong>Coût</strong> : un pointillé de 1 px sur fond sombre est à la limite du
+        visible, et il traverse toute la ligne suivante, qui ne lui appartient pas.
+      </div>
+    </div>
+
+  </div>
+
+  <h2>Ce que ça donne quand la pile grandit vraiment</h2>
+  <div class="planche">
+    <div class="option">
+      <div class="option__titre">12 calques, 3 groupes repliés</div>
+      <div class="carte">
+        <div class="carte__titre"><span>Pile</span><span>⌄</span></div>
+        <div class="carte__liste carte__liste--bornee">
+          <div class="ligne" style="position: relative"><span class="chevron">›</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">DSC_0042.jpg</span><span class="pastille">4</span></div>
+          <div class="ligne" style="position: relative"><span class="filet filet--moignon"></span><span class="chevron">›</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">Texture papier</span><span class="pastille">3</span></div>
+          <div class="ligne" style="position: relative"><span class="filet filet--moignon"></span><span class="chevron">⌄</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">Scan de tirage</span><span class="pastille">2</span></div>
+          <div class="ligne ligne--imbriquee"><span class="filet filet--premier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Halftone</span><span class="ligne__masque">◧</span></div>
+          <div class="ligne ligne--imbriquee ligne--selectionnee"><span class="filet filet--dernier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Grain</span><span class="ligne__masque"></span></div>
+        </div>
+        <div class="carte__pied"><span>12 calques · 2 repliés, 1 ouvert</span><span>5 lignes suffisent</span></div>
+      </div>
+      <div class="option__cout">
+        <strong>C'est là que le repli paye.</strong> Douze calques tiennent dans les cinq
+        lignes existantes tant qu'un seul groupe est ouvert — et c'est le cas normal, on
+        n'édite qu'un groupe à la fois. Aucune des trois autres options du wireframe
+        précédent ne tient à douze.
+      </div>
+    </div>
+  </div>
+
+  <div class="verdict">
+    <h2>Ce qu'il reste à trancher, et ce qui ne se tranche pas ici</h2>
+    <table class="tableau">
+      <tr><th>Traitement</th><th>Ce qu'il dit</th><th>Ce qu'il coûte</th></tr>
+      <tr>
+        <td>a · rien</td>
+        <td>chevron + compte, c'est tout</td>
+        <td>une photo repliée ressemble à une photo nue</td>
+      </tr>
+      <tr>
+        <td>b · moignon</td>
+        <td>« il y a quelque chose replié là-dessous »</td>
+        <td>une borne changée, zéro style nouveau</td>
+      </tr>
+      <tr>
+        <td>c · pointillé</td>
+        <td>le lien complet, en creux</td>
+        <td>1 px pointillé à la limite du visible, et il traverse une ligne qui n'est pas la sienne</td>
+      </tr>
+    </table>
+    <p style="margin-top: var(--space-4)">
+      <strong>Recommandation : b.</strong> Il réutilise la primitive existante en ne changeant
+      qu'une borne, il distingue une photo repliée d'une photo nue sans ajouter de marque, et
+      il ne déborde sur aucune ligne voisine. <em>c</em> promet un lien qu'il ne peut pas
+      rendre lisible à cette épaisseur ; <em>a</em> est le plus propre mais fait reposer toute
+      l'information sur la pastille.
+    </p>
+    <p class="note">
+      ⚠️ <strong>Deux choses ne se tranchent pas dans un wireframe et restent ouvertes.</strong>
+      Où vit l'état de repli — dans le modèle de document (donc persisté, donc dans
+      <code>LayerState</code>, la couche la plus partagée du projet) ou dans l'état
+      d'interface (donc perdu à la réouverture) ? Et que fait le repli d'un groupe dont un
+      enfant est SÉLECTIONNÉ — replier en gardant la sélection sur une ligne invisible
+      ramènerait le défaut corrigé le 2026-08-14. La réponse évidente est de faire remonter
+      la sélection au parent, mais c'est une décision, pas une évidence.
+    </p>
+  </div>
+</div>
+</body>
+</html>

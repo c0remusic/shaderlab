@@ -160,7 +160,17 @@ const GHOSTS_MAX = 8;
  *  composite lit quand même `prevPass`, elle lit la texture SOURCE — donc
  *  l'image ajoutée à elle-même. Un seul prédicat, appelé des deux côtés. */
 const flareActif = (p: Record<string, number>) =>
-  p.ghostIntensity > 0 || p.haloIntensity > 0 || p.veil > 0;
+  (allume(p.ghostsOn) && (p.ghostIntensity > 0 || p.haloIntensity > 0)) ||
+  (allume(p.diffusionOn) && p.veil > 0);
+
+/** Un interrupteur de phénomène, avec son défaut ALLUMÉ quand le calque ne le
+ *  porte pas. C'est le cas de tout preset écrit avant le 2026-08-14 : sans ce
+ *  `??`, un `undefined` comparé à 0,5 rendrait faux et éteindrait en silence
+ *  les trois familles d'un preset existant. Le shader n'a pas ce risque — le
+ *  runner y écrit `layer.params[nom] ?? p.default`. */
+function allume(v: number | undefined): boolean {
+  return (v ?? 1) > 0.5;
+}
 
 /** Vrai si QUELQUE CHOSE est dessiné depuis la source posée — chaîne, termes
  *  diffus ou l'une des trois familles analytiques. Ne lit aucune texture, donc
@@ -169,8 +179,9 @@ const flareActif = (p: Record<string, number>) =>
  *  casser quand la sortie anticipée ne regardait que le champ. */
 export const dessinActif = (p: Record<string, number>) =>
   p.sourceIntensity > 0 &&
-  (p.ghostIntensity > 0 || p.haloIntensity > 0 || p.veil > 0 ||
-    p.scatter > 0 || p.sensor > 0 || p.arcs > 0 || p.plume > 0);
+  ((allume(p.ghostsOn) && (p.ghostIntensity > 0 || p.haloIntensity > 0 || p.arcs > 0)) ||
+    (allume(p.diffusionOn) && (p.veil > 0 || p.scatter > 0 || p.plume > 0)) ||
+    (allume(p.sensorOn) && p.sensor > 0));
 
 /** SEUILLAGE DES HAUTES LUMIÈRES RÉELLES, et rien d'autre.
  *
@@ -294,6 +305,29 @@ export const lensFlare: EffectModule = {
     { name: "plumeLength", label: "Longueur de la plume", unit: "percent", min: 0.05, max: 2, default: 0.7, step: 0.01, hint: "Jusqu'où le cône porte, en fraction de la plus petite dimension de l'image" },
     { name: "plumeSpread", label: "Évasement", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "0 = un faisceau parallèle et étroit ; 1 = un large éventail qui s'ouvre en s'éloignant. C'est un CÔNE et non un cylindre parce que la lumière se disperse tout au long du fût" },
     { name: "plumeEdge", label: "Bord franc", unit: "percent", min: 0, max: 1, default: 0.25, step: 0.01, hint: "Position de la coupe DROITE en travers de la plume — l'ombre du parasoleil ou de la baïonnette. C'est elle qui fait lire un BANDEAU plutôt qu'un halo, et aucun lobe rond ne sait la produire. À 0, pas de coupe" },
+    // ── LES TROIS INTERRUPTEURS DE PHÉNOMÈNE (2026-08-14) ────────────────────
+    //
+    // Arbitrage d'Antoine du 2026-08-13 : « ses trois phénomènes deviennent
+    // trois options sélectionnables dans l'effet ». Trois options CUMULABLES et
+    // non un sélecteur exclusif — un objectif réel produit les trois à la fois,
+    // et ADR-0017 tient précisément là-dessus. Un mode unique retirerait une
+    // capacité au lieu d'en ranger l'accès.
+    //
+    // ⚠️ LEUR PLACE EN FIN DE LISTE EST LE CONTRAT, pas un rangement. L'index
+    // d'un paramètre est persisté dans les presets et gelé par les références
+    // de pixels ; ajoutés à la fin, les trente premiers ne bougent pas, et un
+    // preset écrit avant aujourd'hui ne les porte pas — il reçoit alors leur
+    // DÉFAUT (`layer.params[p.name] ?? p.default`, effectPassRunner), donc les
+    // trois phénomènes allumés, donc son rendu d'avant.
+    //
+    // ⚠️ ET ILS DOIVENT COUPER POUR DE BON. Un interrupteur qui ne ferait que
+    // masquer des curseurs serait un curseur mort de plus : chaque contribution
+    // est multipliée par le sien plus bas dans le shader, et `flareActif` les
+    // lit aussi, si bien qu'éteindre les fantômes fait aussi SAUTER les cinq
+    // passes de pyramide.
+    { name: "ghostsOn", label: "Fantômes", unit: "none", min: 0, max: 1, default: 1, step: 1, choices: ["Éteints", "Allumés"], hint: "Les reflets entre deux faces POLIES de l'objectif : chaîne de fantômes, anneau irisé, arcs de barillet. Éteindre masque leurs réglages ET saute les cinq passes de pyramide" },
+    { name: "diffusionOn", label: "Diffusion", unit: "none", min: 0, max: 1, default: 1, step: 1, choices: ["Éteinte", "Allumée"], hint: "Ce qui se perd sur une surface SALE ou rayée, et en rasant dans le fût : voile, stries radiales, plume. C'est ce que montrent les cinq photographies d'Antoine, bien plus souvent qu'une chaîne de fantômes" },
+    { name: "sensorOn", label: "Quadrillage capteur", unit: "none", min: 0, max: 1, default: 1, step: 1, choices: ["Éteint", "Allumé"], hint: "L'aller-retour capteur → lentille arrière → capteur, dont le pas des photosites fait une grille. La seule des trois familles qui ne vienne pas du verre" },
   ],
   passes: [
     // Seuillage + injection de la source posée, fondus (voir FLARE_BRIGHT_WGSL).
@@ -360,21 +394,37 @@ export const lensFlare: EffectModule = {
    * disque posé se retrouverait titré « Fantômes » alors que la plume et les
    * stries en partent aussi.
    *
-   * ⚠️ AUCUNE DES TROIS NE PORTE DE CONDITION, et c'est une LIMITE du contrat,
-   * pas un choix. « Une section se masque quand son intensité propre est nulle »
-   * suppose un seuil sur un curseur : `appliesWhen` vise un paramètre à
-   * `choices` et rien d'autre, exprès (design §3, voie A). Les trois sections
-   * restent donc visibles à intensité nulle, comme `ghostFill` et
-   * `sensorSpacing` restent affichés là où leur infobulle les dit sans objet.
-   * Le jour où l'on voudra ce masquage, il faudra un paramètre à `choices` —
-   * ajouté en FIN de `params[]`, puisque les index sont persistés dans les
-   * presets, et à ce prix-là c'est un arbitrage, pas une finition.
+   * ✅ **LES TROIS PORTENT DÉSORMAIS LEUR CONDITION** (2026-08-14). Ce
+   * paragraphe a dit pendant neuf jours qu'elles n'en portaient aucune, « et
+   * c'est une LIMITE du contrat, pas un choix » — en concluant qu'il faudrait
+   * pour ça un paramètre à `choices` ajouté en FIN de `params[]`, « et à ce
+   * prix-là c'est un arbitrage, pas une finition ». L'arbitrage a été rendu par
+   * Antoine le 2026-08-13, et c'est exactement ce prix qui a été payé : trois
+   * interrupteurs en fin de liste, la section de tête qui les porte, et les
+   * trois sections de détail conditionnées par eux.
+   *
+   * Ce qui NE change pas : les intensités restent des curseurs, donc une
+   * famille allumée mais réglée à zéro reste affichée. Masquer sur un seuil de
+   * curseur ferait disparaître des réglages pendant qu'on les tire vers zéro,
+   * ce qu'aucun panneau ne devrait faire.
    */
   sections: [
+    {
+      // LA SECTION DE TÊTE, et elle n'a que des interrupteurs. Trois options
+      // CUMULABLES, pas un mode : un objectif produit les trois phénomènes à la
+      // fois (ADR-0017), et les photographies de référence en montrent
+      // plusieurs ensemble. Un sélecteur exclusif aurait retiré une capacité en
+      // croyant ranger un panneau.
+      id: "phenomenes",
+      label: "Phénomènes",
+      layout: "liste",
+      params: ["ghostsOn", "diffusionOn", "sensorOn"],
+    },
     {
       id: "fantomes",
       label: "Fantômes",
       layout: "liste",
+      appliesWhen: { param: "ghostsOn", equals: [1] },
       params: [
         // La forme de l'ouverture d'abord : c'est elle dont chaque fantôme est
         // une image, et elle vaut pour toute la chaîne.
@@ -398,6 +448,7 @@ export const lensFlare: EffectModule = {
       id: "diffusion",
       label: "Diffusion",
       layout: "liste",
+      appliesWhen: { param: "diffusionOn", equals: [1] },
       params: [
         // Du plus large au plus dessiné : le voile lave tout le cadre, la plume
         // en traverse une part, les stries en sont le détail.
@@ -414,6 +465,7 @@ export const lensFlare: EffectModule = {
       id: "capteur",
       label: "Quadrillage capteur",
       layout: "liste",
+      appliesWhen: { param: "sensorOn", equals: [1] },
       // Deux paramètres, et une section quand même : ce n'est pas un réglage de
       // l'objectif mais du CAPTEUR — la seule des trois familles qui ne vienne
       // pas du verre, et la seule dont la couleur ne suive pas le traitement.
@@ -526,9 +578,22 @@ fn flare_lire(uv: vec2<f32>) -> vec3<f32> {
 }
 
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
-  let ghostIntensity = max(params[10], 0.0);
-  let haloIntensity = max(params[15], 0.0);
-  let veil = max(params[17], 0.0);
+  // LES TROIS INTERRUPTEURS DE PHENOMENE, appliques UNE SEULE FOIS ici, sur les
+  // intensites. Tout le reste du shader ne les voit jamais : chaque bloc est
+  // deja garde par un \`if (intensite > 0.0)\`, donc eteindre une famille la fait
+  // sauter sans qu'aucune de ces conditions ait a changer. Un interrupteur pose
+  // bloc par bloc aurait ete sept endroits a tenir d'accord.
+  let allumeFantomes = select(0.0, 1.0, params[30] > 0.5);
+  let allumeDiffusion = select(0.0, 1.0, params[31] > 0.5);
+  let allumeCapteur = select(0.0, 1.0, params[32] > 0.5);
+
+  let ghostIntensity = max(params[10], 0.0) * allumeFantomes;
+  let haloIntensity = max(params[15], 0.0) * allumeFantomes;
+  let arcsIntensite = max(params[25], 0.0) * allumeFantomes;
+  let veil = max(params[17], 0.0) * allumeDiffusion;
+  let striesIntensite = max(params[21], 0.0) * allumeDiffusion;
+  let plumeIntensite = max(params[26], 0.0) * allumeDiffusion;
+  let capteurIntensite = max(params[23], 0.0) * allumeCapteur;
 
   // SORTIE ANTICIPÉE, ET C'EST UNE CONDITION DE CORRECTION. Le prédicat est le
   // JUMEAU EXACT de celui des sept passes : quand elles sautent, \`prevPass\`
@@ -547,8 +612,8 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let champActif = ghostIntensity > 0.0 || haloIntensity > 0.0 || veil > 0.0;
   let dessinActif = params[5] > 0.0
     && (ghostIntensity > 0.0 || haloIntensity > 0.0 || veil > 0.0
-        || params[21] > 0.0 || params[23] > 0.0 || params[25] > 0.0
-        || params[26] > 0.0);
+        || striesIntensite > 0.0 || capteurIntensite > 0.0 || arcsIntensite > 0.0
+        || plumeIntensite > 0.0);
   if (!champActif && !dessinActif) {
     return color;
   }
@@ -791,7 +856,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     // fait lire un BANDEAU au lieu d'un halo. Aucun réglage d'un lobe isotrope
     // ne produit ni l'un ni l'autre, et c'est pourquoi c'est un bloc à part
     // plutôt qu'un curseur du voile.
-    if (params[26] > 0.0) {
+    if (plumeIntensite > 0.0) {
       // AXE : de la source vers le centre optique. C'est le trajet de la
       // lumière rasante à travers le fût, donc la direction dans laquelle elle
       // ressort. Repli sur le bas quand la source est pile sur l'axe — il n'y a
@@ -829,7 +894,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
       let coupe = smoothstep(0.0, 0.03 * longueur, le - clamp(params[29], 0.0, 1.0) * longueur);
       // En AVANT de la source seulement : derrière elle il n'y a pas de fût à
       // traverser, donc rien à diffuser.
-      flare = flare + teinteRvb * lat * lon * coupe * step(0.0, le) * params[26] * force * 0.22;
+      flare = flare + teinteRvb * lat * lon * coupe * step(0.0, le) * plumeIntensite * force * 0.22;
     }
 
     // ── VOILE, en lobe large autour de la source ────────────────────────────
@@ -869,7 +934,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     // à ±180°. L'échantillonner sur l'angle lui-même en poserait une, et elle se
     // lirait comme une strie de plus — la pire des coutures, celle qui ressemble
     // à ce qu'on voulait dessiner.
-    if (params[21] > 0.0) {
+    if (striesIntensite > 0.0) {
       let dir = select(vers / max(dSrc, 1e-5), vec2<f32>(1.0, 0.0), dSrc < 1e-5);
       let detail = max(params[22], 4.0);
       let n = valueNoise(dir * detail) * 0.62
@@ -886,7 +951,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
       // le bord du cadre.
       let r = dSrc / max(rayonSrc * 3.0, 1e-4);
       let chute = 1.0 / (1.0 + pow(r, 1.6));
-      flare = flare + teinteRvb * stries * chute * params[21] * force * 0.045;
+      flare = flare + teinteRvb * stries * chute * striesIntensite * force * 0.045;
     }
 
     // ── ARCS DE BARILLET ────────────────────────────────────────────────────
@@ -896,7 +961,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     // sont pas un ornement — sur les photographies de référence, ce sont eux qui
     // remplissent le vide entre les fantômes, et leur absence est ce qui fait
     // « vide » dans un flare de synthèse.
-    if (params[25] > 0.0) {
+    if (arcsIntensite > 0.0) {
       for (var a = 0; a < 2; a = a + 1) {
         let k = 2.2 + f32(a) * 1.4;
         let gIso = -sIso * k;
@@ -909,7 +974,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
         let e = max(length(p) / max(rayon, 1e-6), length(p - versAxe * 0.85 * rayon) / max(rayon, 1e-6));
         // Bande étroite autour du bord : l'arc est un FIL, pas une couronne.
         let bande = smoothstep(0.90, 1.0, e) * (1.0 - smoothstep(1.0, 1.04, e));
-        flare = flare + teinteRvb * bande * params[25] * force * 0.05;
+        flare = flare + teinteRvb * bande * arcsIntensite * force * 0.05;
       }
     }
 
@@ -925,7 +990,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     // anti-reflet. La lui faire suivre serait cohérent à l'œil et faux au fond —
     // et le nom que les photographes lui donnent, « red dot », dit bien que la
     // couleur est une propriété du phénomène et non un réglage.
-    if (params[23] > 0.0) {
+    if (capteurIntensite > 0.0) {
       let miroir = -sIso;
       let pas = max(params[24], 0.005);
       let g = ((uv - centre) * ar - miroir) / pas;
@@ -935,7 +1000,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
       // elle pave tout le cadre, ce qui ne ressemble plus à un défaut optique
       // mais à une texture posée.
       let env = 1.0 - smoothstep(0.0, 0.55, length((uv - centre) * ar - miroir));
-      flare = flare + vec3<f32>(1.0, 0.22, 0.16) * point * env * env * params[23] * force * 0.05;
+      flare = flare + vec3<f32>(1.0, 0.22, 0.16) * point * env * env * capteurIntensite * force * 0.05;
     }
   }
 

@@ -269,14 +269,57 @@ describe("lensFlare — le coût, et la garde qui va avec", () => {
     expect(wgsl).toContain("return color;");
 
     // Le jumeau TS des passes, et celui du dessin, disent bien deux choses.
+    // ⚠️ LES INTERRUPTEURS DE PHÉNOMÈNE GARDENT LEUR DÉFAUT ICI, et ce n'est pas
+    // une commodité : depuis le 2026-08-14 « tout à zéro » voudrait dire « les
+    // trois familles ÉTEINTES », donc ce test mesurerait l'extinction au lieu de
+    // la sortie anticipée. Ce qu'on veut décrire est « aucune intensité réglée,
+    // mais les trois phénomènes disponibles » — c'est-à-dire l'effet qu'on
+    // vient d'ajouter à la pile.
     const zero: Record<string, number> = {};
-    for (const p of lensFlare.params) zero[p.name] = 0;
+    for (const p of lensFlare.params) zero[p.name] = p.choices ? p.default : 0;
     const posee = { ...zero, sourceIntensity: 5, scatter: 0.5 };
     // Rien à prélever : les passes doivent sauter…
     expect(passes.every((p) => p.enabled?.(posee) === false)).toBe(true);
     // …et pourtant il y a quelque chose à dessiner.
     expect(dessinActif(posee)).toBe(true);
     expect(dessinActif(zero)).toBe(false);
+  });
+
+  it("les trois interrupteurs COUPENT, ils ne font pas que masquer des curseurs", () => {
+    // Arbitrage d'Antoine du 2026-08-13 : les trois phénomènes deviennent trois
+    // options sélectionnables. Cumulables — un objectif les produit ensemble
+    // (ADR-0017) — donc trois interrupteurs et pas un mode.
+    //
+    // ⚠️ CE QUE CE TEST TIENT : qu'ils agissent sur le RENDU et pas seulement
+    // sur l'affichage. Un interrupteur qui ne ferait que masquer des réglages
+    // serait un curseur mort de plus, exactement ce que le dépôt appelle un
+    // échec silencieux — et rien dans un panneau ne le dirait.
+    const defauts: Record<string, number> = {};
+    for (const p of lensFlare.params) defauts[p.name] = p.default;
+
+    // Les fantômes commandent les cinq passes de pyramide : les éteindre les
+    // fait sauter, alors que le voile de diffusion, lui, les garde.
+    expect(passes.every((p) => p.enabled?.(defauts) === true)).toBe(true);
+    expect(passes.every((p) => p.enabled?.({ ...defauts, ghostsOn: 0 }) === false)).toBe(false);
+    expect(
+      passes.every((p) => p.enabled?.({ ...defauts, ghostsOn: 0, diffusionOn: 0 }) === false),
+    ).toBe(true);
+
+    // Et chaque famille disparaît du dessin quand son interrupteur tombe.
+    const posee = { ...defauts, sourceIntensity: 5 };
+    expect(dessinActif(posee)).toBe(true);
+    expect(dessinActif({ ...posee, ghostsOn: 0, diffusionOn: 0, sensorOn: 0 })).toBe(false);
+
+    // ⚠️ UN PRESET ÉCRIT AVANT CES TROIS PARAMÈTRES NE LES PORTE PAS. Il doit
+    // alors rendre comme avant, donc les trois allumés — jamais éteints par
+    // l'absence. C'est le `?? 1` du module, et il se vérifie ici plutôt que de
+    // se relire.
+    const ancien = { ...defauts, sourceIntensity: 5 };
+    delete ancien.ghostsOn;
+    delete ancien.diffusionOn;
+    delete ancien.sensorOn;
+    expect(dessinActif(ancien)).toBe(true);
+    expect(passes.every((p) => p.enabled?.(ancien) === true)).toBe(true);
   });
 
   it("fait marcher la source HORS CADRE, ce qui était un défaut mesuré", () => {

@@ -67,6 +67,23 @@ ajoutent ZÉRO site à la facture 16-bit**, un effet ne voyant jamais le format.
 
 ## Decisions so far
 
+- **Arbitrages d'Antoine du 2026-08-15**, pris sur planches et sur mesures :
+  - **Le verre reçoit son mipmap de diffusion.** Seul levier qui attaque les
+    7,4 ms par lecture au lieu de les compter. Écartées explicitement : ne rien
+    changer (~10 images/s), et baisser la résolution pendant le geste — qui
+    contredirait « pas de distinction preview/export ». Prix connu d'avance :
+    18 références de verre à régénérer et à relire.
+    Détail : [19](issues/19-le-cout-du-verre.md).
+  - **`lensFlare` : trois interrupteurs CUMULABLES**, pas un sélecteur exclusif
+    — un objectif produit les trois phénomènes à la fois (ADR-0017). Livré le
+    2026-08-14, applicabilité mesurée à 0,000 % avant d'être déclarée.
+  - **La pile se replie par groupes**, avec le filet, et la ligne sélectionnée
+    devient un bloc décalé dont la barre bleue est l'arête (variante C,
+    implantation c1) ; décalage porté de 14 à 20 px. Trois wireframes sous
+    `docs/wireframes/pile-longue*.html`. Ce qui reste ouvert est le MODÈLE :
+    [20](issues/20-ou-vit-l-etat-de-repli-de-la-pile.md).
+
+
 <!-- une ligne par ticket clos : le gist, puis le lien pour le détail -->
 
 - **Arbitrages d'Antoine du 2026-08-13**, pris devant l'app et non sur document —
@@ -88,6 +105,18 @@ ajoutent ZÉRO site à la facture 16-bit**, un effet ne voyant jamais le format.
   - **Un wireframe est demandé pour la pile à 7 calques et plus.**
   - **La perf du masque est un blocage d'usage**, re-signalée deux fois.
 
+- [Où vit l'état de repli de la pile](issues/20-ou-vit-l-etat-de-repli-de-la-pile.md)
+  — **ouvert le 2026-08-15**, et il BLOQUE la première ligne du repli : le champ
+  va-t-il dans `LayerState` (persisté, couche la plus partagée) ou dans l'état
+  d'interface (perdu à la réouverture) ? Et que devient une sélection posée sur
+  un enfant qu'on replie ? Précédent utile : `maskOverlayLayerId` et
+  `isolatedLayerId` vivent sur le `Renderer`, parce que ce sont des aides de
+  visée et non des propriétés du document.
+- [Le gate WGSL est rouge en CI](issues/21-le-gate-wgsl-est-rouge-en-ci.md)
+  — **ouvert le 2026-08-15**. `wgslNaga.test.ts` échoue sur l'exception que
+  `CLAUDE.md` documente pourtant (`params: array<f32, 48>`), et c'est le SEUL
+  gate de shader qui tourne en CI. La question n'est pas de le neutraliser mais
+  de porter la dérogation **bornée et comptée**.
 - [Ce dont le 16-bit a besoin hors du dépôt](issues/01-ce-dont-le-16-bit-a-besoin-hors-du-depot.md)
   — faisabilité **acquise** (`rgba16float` sans aucune feature, crate TIFF+ICC
   déjà en dépendance, matrice à 4 coefficients) ; mais l'invariant « sRGB par

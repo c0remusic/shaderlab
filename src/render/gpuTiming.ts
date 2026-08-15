@@ -104,6 +104,16 @@ export class GpuTiming {
   /** Une capture est en vol (buffer mappé ou en cours de mapping). Empêche
    *  d'en armer une seconde, ce qui ferait échouer `mapAsync`. */
   private inFlight = false;
+  /** La frame capturée est encodée, sa relecture n'a pas encore été LANCÉE.
+   *
+   * ⚠️ DISTINCT de `inFlight`, et la distinction est la correction d'un défaut
+   * réel (2026-08-14). `inFlight` reste vrai jusqu'à la livraison du rapport,
+   * donc pendant tout le `mapAsync`. Sans ce second drapeau, la frame SUIVANTE
+   * appelait `afterSubmit`, voyait `inFlight` encore vrai, et relançait un
+   * `mapAsync` sur un buffer déjà en cours de mapping :
+   * `OperationError: Buffer already has an outstanding map pending`.
+   * Un état « en vol » ne dit pas si le travail a été LANCÉ. */
+  private pendingReadback = false;
   private resolveReport: ((r: GpuTimingReport) => void) | null = null;
   private rejectReport: ((e: Error) => void) | null = null;
 
@@ -135,8 +145,29 @@ export class GpuTiming {
     if (!this.available) {
       return Promise.reject(new Error("timestamp-query indisponible sur ce device."));
     }
-    if (this.inFlight || this.armed) {
-      return Promise.reject(new Error("Une capture GPU est déjà en cours."));
+    // EN VOL = les commandes sont soumises et le buffer est en cours de mapping.
+    // Là, refuser est la seule réponse correcte : deux captures se partageraient
+    // le buffer mappable.
+    if (this.inFlight) {
+      return Promise.reject(new Error("Une capture GPU est déjà en vol."));
+    }
+    // ARMÉE MAIS PAS ENCORE DÉCLENCHÉE = aucune frame n'est venue depuis le
+    // dernier `arm()`. Ce n'est pas un conflit, c'est une capture ORPHELINE, et
+    // elle le reste indéfiniment — rien ne la périme.
+    //
+    // Défaut trouvé le 2026-08-14 en se servant de l'instrument : une sonde
+    // d'ablation reposait le MÊME réglage deux fois de suite ; le second appel
+    // ne changeait rien, donc aucun rendu, donc la capture restait armée et
+    // TOUTES les suivantes échouaient. Un instrument qui se bloque sur une
+    // frame manquante ne se rate qu'une fois, mais empoisonne la session.
+    // On abandonne l'ancienne en le DISANT, plutôt que de refuser la nouvelle.
+    if (this.armed) {
+      this.rejectReport?.(
+        new Error("Capture abandonnée : aucune frame rendue entre deux armements."),
+      );
+      this.armed = false;
+      this.resolveReport = null;
+      this.rejectReport = null;
     }
     this.ensureResources();
     this.armed = true;
@@ -189,6 +220,7 @@ export class GpuTiming {
     encoder.resolveQuerySet(this.querySet, 0, count * TIMESTAMPS_PAR_PASSE, this.resolveBuffer, 0);
     encoder.copyBufferToBuffer(this.resolveBuffer, 0, this.readbackBuffer, 0, octets);
     this.inFlight = true;
+    this.pendingReadback = true;
   }
 
   /**
@@ -200,7 +232,10 @@ export class GpuTiming {
    * la mémoire côté pilote.
    */
   afterSubmit(): void {
-    if (!this.inFlight || !this.readbackBuffer) return;
+    // Consommé ICI : une seule relecture peut être lancée par capture, même si
+    // dix frames se soumettent pendant que le buffer se mappe.
+    if (!this.pendingReadback || !this.readbackBuffer) return;
+    this.pendingReadback = false;
     const buffer = this.readbackBuffer;
     const labels = this.labels;
     const dropped = this.dropped;
@@ -227,14 +262,27 @@ export class GpuTiming {
       })
       .catch((e: unknown) => {
         this.inFlight = false;
+        this.pendingReadback = false;
         this.rejectReport?.(new Error(`Relecture des timestamps GPU échouée : ${String(e)}`));
         this.resolveReport = null;
         this.rejectReport = null;
       });
   }
 
+  /** Abandonne une capture ARMÉE qui n'a pas encore reçu de frame. Sans effet
+   *  si rien n'est armé. Ne peut pas annuler une capture EN VOL : ses commandes
+   *  sont déjà soumises, et son buffer se démappera de toute façon. */
+  cancel(): void {
+    if (!this.armed) return;
+    this.armed = false;
+    this.rejectReport?.(new Error("Capture GPU annulée."));
+    this.resolveReport = null;
+    this.rejectReport = null;
+  }
+
   private livrerRapport(passes: PassTiming[], dropped: number, quantumNs = 0): void {
     this.inFlight = false;
+    this.pendingReadback = false;
     const rapport: GpuTimingReport = {
       passes,
       totalMs: passes.reduce((somme, p) => somme + p.durationMs, 0),

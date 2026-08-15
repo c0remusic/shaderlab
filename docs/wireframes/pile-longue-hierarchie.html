@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>shaderlab — wireframe hiérarchie et barre de sélection</title>
+<style>
+  /* ---- Tokens et géométries RÉELS (src/design/*.css, LayerPanel.css). ----
+     ⚠️ CORRECTION D'UNE ERREUR DE MA PLANCHE PRÉCÉDENTE : j'y indentais les
+     lignes enfants par `margin-left`. L'application le fait par `padding-left`
+     (LayerPanel.css:211), et la différence n'est pas cosmétique — avec une
+     marge, la boîte de la ligne se DÉPLACE, donc le filet tracé à 15 px de son
+     bord tombe sur la colonne de poignée au lieu de rester dans la gouttière
+     d'indentation. Avec un padding, la boîte garde sa largeur, le contenu se
+     décale, et le filet passe entre les deux. */
+  :root {
+    --primitive-neutral-700: #383431;
+    --primitive-neutral-900: #2c2c2c;
+    --primitive-neutral-1000: #1b1b1b;
+    --primitive-accent-blue: #4069fd;
+
+    --space-2: 4px;
+    --space-3: 6px;
+    --space-4: 8px;
+    --space-5: 12px;
+    --space-6: 16px;
+
+    --font-ui: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+    --font-size-xs: 11px;
+    --font-size-sm: 12px;
+    --font-size-md: 13px;
+    --font-size-lg: 14px;
+    --font-weight-semibold: 600;
+
+    --radius-control: 5px;
+    --radius-panel: 8px;
+
+    --surface-window: var(--primitive-neutral-1000);
+    --surface-panel: var(--primitive-neutral-900);
+    --surface-selected-accent: rgba(64, 105, 253, .24);
+
+    --text-primary: rgba(242, 242, 242, .94);
+    --text-secondary: rgba(242, 242, 242, .72);
+    --text-tertiary: rgba(242, 242, 242, .53);
+
+    --border-subtle: rgba(242, 242, 242, .07);
+    --border-default: rgba(242, 242, 242, .11);
+    --border-strong: rgba(242, 242, 242, .28);
+    --focus-color: var(--primitive-accent-blue);
+
+    --layer-row-height: 36px;
+    --layer-nest-indent: calc(var(--space-4) + var(--space-3)); /* 14 px */
+    --selection-bar-width: 2px;
+    --panel-dock-width: 320px;
+  }
+  .wf, .wf *, .wf *::before, .wf *::after { box-sizing: border-box; }
+  .wf {
+    font-family: var(--font-ui);
+    background: var(--surface-window);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    padding: var(--space-6);
+  }
+  .wf h1 { font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin: 0 0 var(--space-3); }
+  .wf h2 { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); margin: var(--space-6) 0 var(--space-2); }
+  .wf p { font-size: var(--font-size-sm); color: var(--text-secondary); line-height: 1.55; margin: 0 0 var(--space-4); max-width: 64ch; }
+  .wf .note { color: var(--text-tertiary); }
+  .wf .mesure { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  .wf code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: var(--font-size-xs); color: var(--text-primary); }
+
+  .planche { display: flex; gap: var(--space-6); flex-wrap: wrap; align-items: flex-start; }
+  .option { width: var(--panel-dock-width); }
+  .option__titre { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-2); }
+  .option__cout { font-size: var(--font-size-xs); color: var(--text-tertiary); margin-top: var(--space-3); line-height: 1.5; }
+
+  .carte { background: var(--surface-panel); border: 1px solid var(--border-default); border-radius: var(--radius-panel); overflow: hidden; }
+  .carte__titre {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 30px; padding: 0 var(--space-4);
+    font-size: var(--font-size-sm); color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .carte__liste { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4); position: relative; }
+
+  /* ── Une ligne : la boîte ne bouge JAMAIS, seul son contenu se décale ── */
+  .ligne {
+    position: relative;
+    display: grid;
+    grid-template-columns: 14px 20px 24px 1fr auto;
+    align-items: center; gap: var(--space-3);
+    /* border-box, et la hauteur exprimee EN BOITE : en content-box, le padding
+       d'indentation s'AJOUTE a la largeur, la ligne deborde de sa carte et la
+       colonne du nom se fait ecraser — mesure : nom a 10 px, page qui deborde
+       horizontalement. */
+    box-sizing: border-box;
+    min-height: calc(var(--layer-row-height) + var(--space-4) * 2);
+    padding: var(--space-4);
+    flex: 0 0 auto;
+    border-radius: var(--radius-control);
+    font-size: var(--font-size-md);
+  }
+  /* L'INDENTATION EST UN PADDING (LayerPanel.css:211). Trois profondeurs
+     comparées plus bas ; la première est celle qui tourne aujourd'hui. */
+  .ligne--imbriquee { --indent: var(--layer-nest-indent); padding-left: calc(var(--space-4) + var(--indent)); }
+  .ligne--imbriquee-20 { --indent: 20px; }
+  .ligne--imbriquee-28 { --indent: 28px; }
+  /* L'AXE DU GROUPE : milieu de la gouttiere d'indentation. Filet, lavis et
+     barre en derivent TOUS, et c'est la seule facon qu'ils ne divergent pas —
+     mesure a l'appui, une premiere version calculait la barre sur 14 px pendant
+     que le filet etait a 20, donc a 3 px l'un de l'autre sur la meme ligne. */
+  .ligne { --axe: calc(var(--space-4) + var(--layer-nest-indent) / 2); }
+  .ligne--imbriquee { --axe: calc(var(--space-4) + var(--indent) / 2); }
+
+  .ligne__poignee, .ligne__oeil, .ligne__masque { color: var(--text-tertiary); font-size: var(--font-size-sm); text-align: center; }
+  .ligne__vignette { width: 24px; height: 24px; border-radius: 3px; background: var(--primitive-neutral-700); }
+  .ligne__vignette--effet { background: transparent; border: 1px solid var(--border-strong); }
+  .ligne__nom { color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chevron { color: var(--text-tertiary); text-align: center; font-size: var(--font-size-sm); }
+
+  /* ── LE FILET, géométrie exacte : 15 px du bord de BOÎTE, 1 px ────────── */
+  .filet {
+    position: absolute;
+    left: var(--axe);
+    top: calc(var(--space-4) * -0.5);
+    bottom: calc(var(--space-4) * -0.5);
+    width: 1px;
+    background: var(--border-default);
+    pointer-events: none;
+  }
+  .filet--premier { top: calc(var(--space-4) * -2); }
+  .filet--dernier { bottom: var(--space-4); }
+  /* Abscisses du filet pour les deux indentations plus larges : toujours la
+     MOITIÉ de la gouttière, sinon il ne serait plus centré dedans. */
+
+  /* ── LA SÉLECTION : lavis + barre. C'est la barre qui est en question ── */
+  .ligne--sel { background: var(--surface-selected-accent); }
+  .ligne--sel .ligne__nom { font-weight: var(--font-weight-semibold); }
+  .ligne--sel::before {
+    content: ""; position: absolute; top: 0; bottom: 0;
+    width: var(--selection-bar-width); background: var(--focus-color);
+    left: 0; border-radius: var(--radius-control) 0 0 var(--radius-control);
+  }
+  /* B — la barre s'aligne sur le filet. Elle est CENTRÉE sur lui : le filet
+     fait 1 px, la barre 2, donc -0,5 px pour que leurs axes coïncident. */
+  .variante-b .ligne--imbriquee.ligne--sel::before {
+    left: calc(var(--axe) - 0.5px);
+    border-radius: 0;
+  }
+  /* C — la barre ET le lavis partent du filet : la ligne enfant devient un
+     bloc décalé, et les 15 px de gauche montrent le fond du panneau. */
+  .variante-c .ligne--imbriquee.ligne--sel {
+    background: linear-gradient(to right, transparent 0, transparent var(--axe), var(--surface-selected-accent) var(--axe));
+  }
+  .variante-c .ligne--imbriquee.ligne--sel::before {
+    left: calc(var(--axe) - 0.5px);
+    border-radius: 0;
+  }
+  /* D — la barre est TOUJOURS à l'abscisse du filet, imbriquée ou non : une
+     colonne constante, que la ligne appartienne à un groupe ou pas. */
+  .variante-d .ligne--sel::before {
+    left: calc(var(--axe) - 0.5px);
+    border-radius: 0;
+  }
+
+  /* ── C AFFINÉ : le bloc décalé, et TROIS implantations de la barre ─────
+     Le lavis part du filet dans les trois ; ce qui change est où se pose la
+     barre par rapport à cette arête. */
+  .bloc .ligne--imbriquee.ligne--sel {
+    background: linear-gradient(to right, transparent 0, transparent var(--axe), var(--surface-selected-accent) var(--axe));
+  }
+  /* c1 — la barre EST l'arête du bloc : elle commence exactement où le lavis
+     commence, et reprend le rayon de la ligne. Le filet passe DERRIÈRE elle et
+     reste continu au-dessus et en dessous. */
+  .bloc-c1 .ligne--imbriquee.ligne--sel::before {
+    left: var(--axe);
+    border-radius: var(--radius-control) 0 0 var(--radius-control);
+  }
+  /* c2 — la barre est CENTRÉE sur l'axe du filet : 1 px déborde à gauche du
+     lavis, sur le fond du panneau. */
+  .bloc-c2 .ligne--imbriquee.ligne--sel::before {
+    left: calc(var(--axe) - 0.5px);
+    border-radius: 0;
+  }
+  /* c3 — la barre est EN RETRAIT dans le bloc : le filet reste visible et
+     entier à sa gauche, les deux verticales coexistent à 3 px d'écart. */
+  .bloc-c3 .ligne--imbriquee.ligne--sel::before {
+    left: calc(var(--axe) + 3px);
+    border-radius: var(--radius-control) 0 0 var(--radius-control);
+  }
+  /* Dans c1 et c3 le filet doit rester lisible LÀ OÙ IL CROISE le lavis :
+     même correction de contraste que l'application (1,35:1 sinon). */
+  .bloc .ligne--sel .filet { background: var(--text-tertiary); }
+
+  .reperes { position: absolute; inset: 0; pointer-events: none; }
+  .repere { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(64,105,253,.35); }
+
+  .verdict { border-left: 2px solid var(--focus-color); padding-left: var(--space-5); margin-top: var(--space-6); }
+  .tableau { border-collapse: collapse; font-size: var(--font-size-sm); margin-top: var(--space-4); }
+  .tableau th, .tableau td { border: 1px solid var(--border-subtle); padding: var(--space-3) var(--space-4); text-align: left; color: var(--text-secondary); vertical-align: top; }
+  .tableau th { color: var(--text-primary); font-weight: var(--font-weight-semibold); }
+</style>
+</head>
+<body>
+<div class="wf">
+  <h1>La barre de sélection et la profondeur d'imbrication</h1>
+  <p>
+    Deux demandes d'Antoine sur la planche précédente : <strong>la barre bleue devrait être
+    alignée sur le filet</strong>, et <strong>les effets devraient être décalés par rapport à
+    la photo dont ils dépendent</strong>. Elles se regardent séparément — la première change
+    un signal de sélection, la seconde change la lisibilité de la hiérarchie.
+  </p>
+  <p class="note">
+    ⚠️ <strong>Une erreur de ma planche précédente est corrigée ici</strong>, et elle
+    déplaçait le filet : j'y indentais par <code>margin-left</code> quand l'application le
+    fait par <code>padding-left</code> (<code>LayerPanel.css:211</code>). Avec une marge, la
+    BOÎTE de la ligne se déplace, donc le filet tracé à 15 px de son bord tombe sur la
+    colonne de poignée ; avec un padding, la boîte garde sa largeur, seul le contenu se
+    décale, et le filet reste dans la gouttière. Le CSS du dépôt le dit en toutes lettres —
+    « l'indentation passe par le PADDING, pas par une marge » — et donne sa raison : que le
+    lavis et la barre couvrent la ligne entière.
+  </p>
+
+  <h2>1 · Où passe la barre de sélection</h2>
+  <p>
+    Aujourd'hui elle est à <code>left: 0</code> pour TOUTE ligne, imbriquée ou non, et c'est
+    une décision écrite. La déplacer sur le filet la fait coïncider avec lui :
+    le filet fait <span class="mesure">1 px</span>, la barre <span class="mesure">2 px</span>,
+    donc l'axe commun demande <span class="mesure">−0,5 px</span> — la barre devient un
+    segment épaissi et coloré du filet, sur la ligne sélectionnée.
+  </p>
+
+  <div class="planche">
+
+    <div class="option variante-a">
+      <div class="option__titre">A · Aujourd'hui — barre à gauche de la ligne</div>
+      <div class="carte">
+        <div class="carte__titre"><span>Pile</span><span>⌄</span></div>
+        <div class="carte__liste">
+          <div class="ligne"><span class="chevron">⌄</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">DSC_0042.jpg</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee"><span class="filet filet--premier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Glass</span><span class="ligne__masque">◧</span></div>
+          <div class="ligne ligne--imbriquee ligne--sel"><span class="filet"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Halation</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee"><span class="filet filet--dernier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Courbes</span><span class="ligne__masque">◧</span></div>
+        </div>
+      </div>
+      <div class="option__cout">
+        La barre et le filet sont deux verticales distinctes à <span class="mesure">0</span> et
+        <span class="mesure">15 px</span>. Sur une ligne imbriquée, la barre marque le bord
+        de la CARTE, pas celui du groupe.
+      </div>
+    </div>
+
+    <div class="option variante-b">
+      <div class="option__titre">B · Barre alignée sur le filet</div>
+      <div class="carte">
+        <div class="carte__titre"><span>Pile</span><span>⌄</span></div>
+        <div class="carte__liste">
+          <div class="ligne"><span class="chevron">⌄</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">DSC_0042.jpg</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee"><span class="filet filet--premier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Glass</span><span class="ligne__masque">◧</span></div>
+          <div class="ligne ligne--imbriquee ligne--sel"><span class="filet"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Halation</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee"><span class="filet filet--dernier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Courbes</span><span class="ligne__masque">◧</span></div>
+        </div>
+      </div>
+      <div class="option__cout">
+        Une seule verticale : la barre EST le filet, en épais et en couleur, là où la
+        sélection se pose. Le lavis continue de couvrir la ligne entière, donc la sélection
+        reste aussi lisible qu'avant.
+      </div>
+    </div>
+
+    <div class="option variante-c">
+      <div class="option__titre">C · Barre ET lavis alignés</div>
+      <div class="carte">
+        <div class="carte__titre"><span>Pile</span><span>⌄</span></div>
+        <div class="carte__liste">
+          <div class="ligne"><span class="chevron">⌄</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">DSC_0042.jpg</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee"><span class="filet filet--premier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Glass</span><span class="ligne__masque">◧</span></div>
+          <div class="ligne ligne--imbriquee ligne--sel"><span class="filet"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Halation</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee"><span class="filet filet--dernier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Courbes</span><span class="ligne__masque">◧</span></div>
+        </div>
+      </div>
+      <div class="option__cout">
+        La ligne sélectionnée devient un bloc qui commence au filet : la hiérarchie se lit
+        même dans le lavis. <strong>Coût</strong> : la surface sélectionnée n'est plus la même
+        selon la profondeur, et le lavis perd son coin arrondi gauche.
+      </div>
+    </div>
+
+    <div class="option variante-d">
+      <div class="option__titre">D · Barre toujours à l'abscisse du filet</div>
+      <div class="carte">
+        <div class="carte__titre"><span>Pile</span><span>⌄</span></div>
+        <div class="carte__liste">
+          <div class="ligne ligne--sel"><span class="chevron">⌄</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">DSC_0042.jpg</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee"><span class="filet filet--premier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Glass</span><span class="ligne__masque">◧</span></div>
+          <div class="ligne ligne--imbriquee"><span class="filet"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Halation</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee"><span class="filet filet--dernier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Courbes</span><span class="ligne__masque">◧</span></div>
+        </div>
+      </div>
+      <div class="option__cout">
+        Ici c'est la PHOTO qui est sélectionnée, et sa barre est au même endroit qu'elle le
+        serait sur un enfant. La colonne est constante, mais la barre ne touche plus le bord
+        de la ligne : elle flotte à l'intérieur du lavis.
+      </div>
+    </div>
+
+  </div>
+
+  <h2>2 · De combien décaler les effets</h2>
+  <p>
+    L'indentation actuelle vaut <span class="mesure">14 px</span>
+    (<code>--layer-nest-indent</code> = <code>--space-4 + --space-3</code>). C'est une
+    divergence ASSUMÉE d'avec Photoshop, qui n'indente rien : le CSS du dépôt écrit que
+    « ici la pile est une chaîne de traitement, et <em>quel effet s'applique à quelle photo</em>
+    est LA question ». La question ouverte n'est donc pas s'il faut décaler, mais de combien.
+    Le filet reste au MILIEU de la gouttière quelle que soit sa largeur.
+  </p>
+
+  <div class="planche">
+
+    <div class="option variante-b">
+      <div class="option__titre">14 px — aujourd'hui</div>
+      <div class="carte">
+        <div class="carte__titre"><span>Pile</span><span>⌄</span></div>
+        <div class="carte__liste">
+          <div class="ligne"><span class="chevron">⌄</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">DSC_0042.jpg</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee"><span class="filet filet--premier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Glass</span><span class="ligne__masque">◧</span></div>
+          <div class="ligne ligne--imbriquee ligne--sel"><span class="filet filet--dernier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Halation</span><span class="ligne__masque"></span></div>
+        </div>
+      </div>
+      <div class="option__cout">
+        Le décalage se voit, mais il faut le chercher : à cette largeur, la poignée d'un
+        enfant tombe presque sous le chevron du parent.
+      </div>
+    </div>
+
+    <div class="option variante-b">
+      <div class="option__titre">20 px</div>
+      <div class="carte">
+        <div class="carte__titre"><span>Pile</span><span>⌄</span></div>
+        <div class="carte__liste">
+          <div class="ligne"><span class="chevron">⌄</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">DSC_0042.jpg</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee ligne--imbriquee-20"><span class="filet filet--premier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Glass</span><span class="ligne__masque">◧</span></div>
+          <div class="ligne ligne--imbriquee ligne--imbriquee-20 ligne--sel"><span class="filet filet--dernier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Halation</span><span class="ligne__masque"></span></div>
+        </div>
+      </div>
+      <div class="option__cout">
+        La colonne des enfants commence après le chevron du parent : les deux niveaux ne
+        partagent plus aucune verticale. Mesuré dans cette planche : le nom passe de
+        <span class="mesure">190</span> à <span class="mesure">184 px</span>, soit
+        <span class="mesure">−6</span>.
+      </div>
+    </div>
+
+    <div class="option variante-b">
+      <div class="option__titre">28 px</div>
+      <div class="carte">
+        <div class="carte__titre"><span>Pile</span><span>⌄</span></div>
+        <div class="carte__liste">
+          <div class="ligne"><span class="chevron">⌄</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">DSC_0042.jpg</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee ligne--imbriquee-28"><span class="filet filet--premier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Glass</span><span class="ligne__masque">◧</span></div>
+          <div class="ligne ligne--imbriquee ligne--imbriquee-28 ligne--sel"><span class="filet filet--dernier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Halation</span><span class="ligne__masque"></span></div>
+        </div>
+      </div>
+      <div class="option__cout">
+        Hiérarchie lisible d'un coup d'œil. Mesuré : le nom tombe à
+        <span class="mesure">176 px</span>, soit <span class="mesure">−14</span> — sur un dock
+        où « Chromatic bleed » s'affichait déjà « C… » avant que les contrôles migrent hors de
+        la ligne (ADR-0001).
+      </div>
+    </div>
+
+  </div>
+
+
+  <h2>3 · C affiné — le bloc décalé, et trois façons d'y poser la barre</h2>
+  <p>
+    Arbitrage d'Antoine : <strong>c'est C qu'on garde</strong> — le lavis part du filet, donc
+    la hiérarchie se lit dans la sélection elle-même — <strong>mais la barre y est mal
+    implantée</strong>. Trois implantations, à indentation de 20 px et filet inchangé. Dans
+    les trois, le filet passe à <code>--text-tertiary</code> là où il croise le lavis, comme
+    l'application le fait déjà.
+  </p>
+  <div class="planche">
+    <div class="option bloc bloc-c1">
+      <div class="option__titre">c1 · La barre EST l'arête du bloc</div>
+      <div class="carte">
+        <div class="carte__titre"><span>Pile</span><span>⌄</span></div>
+        <div class="carte__liste">
+          <div class="ligne"><span class="chevron">⌄</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">DSC_0042.jpg</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee ligne--imbriquee-20"><span class="filet filet--premier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Glass</span><span class="ligne__masque">◧</span></div>
+          <div class="ligne ligne--imbriquee ligne--imbriquee-20 ligne--sel"><span class="filet"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Halation</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee ligne--imbriquee-20"><span class="filet filet--dernier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Courbes</span><span class="ligne__masque">◧</span></div>
+        </div>
+      </div>
+      <div class="option__cout">Elle commence exactement où le lavis commence et reprend le rayon de la ligne : le bloc a un bord franc, coloré, et le filet reste continu au-dessus et en dessous en passant derrière. <strong>Une seule verticale à cette abscisse</strong>, et elle change de nature selon que la ligne est sélectionnée ou non.</div>
+    </div>
+    <div class="option bloc bloc-c2">
+      <div class="option__titre">c2 · Barre centrée sur l'axe du filet</div>
+      <div class="carte">
+        <div class="carte__titre"><span>Pile</span><span>⌄</span></div>
+        <div class="carte__liste">
+          <div class="ligne"><span class="chevron">⌄</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">DSC_0042.jpg</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee ligne--imbriquee-20"><span class="filet filet--premier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Glass</span><span class="ligne__masque">◧</span></div>
+          <div class="ligne ligne--imbriquee ligne--imbriquee-20 ligne--sel"><span class="filet"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Halation</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee ligne--imbriquee-20"><span class="filet filet--dernier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Courbes</span><span class="ligne__masque">◧</span></div>
+        </div>
+      </div>
+      <div class="option__cout">Un pixel de barre déborde à gauche du lavis, sur le fond du panneau. L'axe est rigoureusement commun, mais le bord du bloc n'est plus net — la barre chevauche l'arête au lieu de la faire.</div>
+    </div>
+    <div class="option bloc bloc-c3">
+      <div class="option__titre">c3 · Barre en retrait, filet entier</div>
+      <div class="carte">
+        <div class="carte__titre"><span>Pile</span><span>⌄</span></div>
+        <div class="carte__liste">
+          <div class="ligne"><span class="chevron">⌄</span><span class="ligne__oeil">◉</span><span class="ligne__vignette"></span><span class="ligne__nom">DSC_0042.jpg</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee ligne--imbriquee-20"><span class="filet filet--premier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Glass</span><span class="ligne__masque">◧</span></div>
+          <div class="ligne ligne--imbriquee ligne--imbriquee-20 ligne--sel"><span class="filet"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Halation</span><span class="ligne__masque"></span></div>
+          <div class="ligne ligne--imbriquee ligne--imbriquee-20"><span class="filet filet--dernier"></span><span class="ligne__poignee">⠿</span><span class="ligne__oeil">◉</span><span class="ligne__vignette ligne__vignette--effet"></span><span class="ligne__nom">Courbes</span><span class="ligne__masque">◧</span></div>
+        </div>
+      </div>
+      <div class="option__cout">Le filet reste visible et ENTIER à gauche du bloc, la barre se pose 3 px à l'intérieur. Les deux verticales coexistent et disent deux choses différentes — appartenance et sélection. <strong>Coût</strong> : deux traits parallèles à 3 px, sur un dock étroit.</div>
+    </div>
+  </div>
+
+  <div class="verdict">
+    <h2>Ce que je recommande, et ce que ça touche</h2>
+    <table class="tableau">
+      <tr><th>Question</th><th>Recommandation</th><th>Pourquoi</th></tr>
+      <tr>
+        <td>Barre de sélection</td>
+        <td><strong>C, implantation c1</strong> — le lavis part du filet, la barre en est l'arête</td>
+        <td>C est tranché par Antoine : la hiérarchie doit se lire dans la sélection elle-même. Reste l'implantation, et c1 est la seule des trois qui donne au bloc un BORD au lieu d'un chevauchement (c2) ou d'un doublon de verticales (c3). B, qui gardait le lavis pleine ligne, est écarté par le même arbitrage.</td>
+      </tr>
+      <tr>
+        <td>Profondeur</td>
+        <td><strong>20 px</strong></td>
+        <td>Premier cran où les deux niveaux ne partagent plus aucune verticale, pour 6 px de nom. À 28 le gain de lisibilité est faible et le coût double.</td>
+      </tr>
+    </table>
+    <p style="margin-top: var(--space-4)">
+      ⚠️ <strong>Les deux touchent des décisions écrites</strong>, donc se tranchent avant
+      d'être codées. La barre à <code>left: 0</code> est justifiée dans le CSS par le fait que
+      « lavis et barre couvrent la même surface d'une ligne à l'autre » ; B garde le lavis et
+      ne déplace que la barre, donc la moitié de cette raison tient encore. L'indentation à
+      14 px, elle, est une valeur posée avec le mécanisme et jamais rejugée — la changer ne
+      contredit rien, mais elle vit dans <code>--layer-nest-indent</code>, que le filet lit
+      aussi pour se centrer : les deux bougent ensemble, par construction.
+    </p>
+    <p class="note">
+      Une chose que ces planches ne peuvent pas montrer : le modèle ne porte qu'UN niveau
+      d'imbrication (<code>depth: 0 | 1</code>, <code>LayerPanel.tsx</code>). Aucune de ces
+      variantes n'a donc à répondre pour un troisième niveau — et si un jour il existe, le
+      décalage cumulé sur un dock de 320 px redevient la question.
+    </p>
+  </div>
+</div>
+</body>
+</html>

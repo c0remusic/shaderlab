@@ -874,29 +874,29 @@ Ni continuée ni arrêtée, jamais décidée — et l'écart grandit à chaque c
 Se tranche dans
 `.scratch/prochain-palier/issues/13-la-migration-shadcn-est-elle-encore-la-direction.md`.
 
-### ⚠️ OUVERT le 2026-08-14 — un test ROUGE est sur `origin`
+### ⚠️ OUVERT — la CI est rouge, mais pas là où cette feuille le disait
 
-`test/render/wgslNaga.test.ts` (arrivé avec `677a39d`) **échoue**, et il est
-déjà poussé sur `gpu-optimisations` (`af075ce`). Cause unique et connue : il
-n'exclut pas l'exception que `CLAUDE.md` documente pourtant en toutes lettres —
-`params: array<f32, 48>`, stride 4 pour un alignement de 16 en espace uniform,
-que Dawn accepte et que naga refuse. Le message le dit sans ambiguïté :
-`error: Global variable [2] 'params' is invalid`, sur **tous** les effets du
-registre. Ce n'est donc pas une régression de rendu, c'est le gate qui n'a pas
-encore sa dérogation.
+Ce bloc s'intitulait « un test ROUGE est sur `origin` » et accusait
+`test/render/wgslNaga.test.ts` du 2026-08-14 au 2026-08-16. **Mesuré le
+2026-08-16 : ce gate est VERT**, en local comme en CI (`npm run test`, 128
+fichiers, run `31895619303`), et son exception `params` est dans le fichier
+depuis son premier commit (`wgslNaga.test.ts:73`), bornée par la variable ET par
+le nombre d'erreurs.
 
-⚠️ **Et ce gate est le SEUL de shader qui tourne en CI** : tant qu'il est rouge,
-la CI l'est aussi, et un vrai défaut de WGSL y passerait inaperçu au milieu du
-bruit.
+Ce qui reste ouvert, en deux morceaux qui n'ont rien à voir l'un avec l'autre :
 
-### ⚠️ OUVERT — quatre commits de docs vivent sur `gpu-optimisations`
+- **La dérogation n'est pas COMPTÉE** — elle tolère l'écart sans dire combien de
+  fois. Si l'uniform devenait conforme, le test resterait vert sans que personne
+  l'apprenne. [Ticket 21](../.scratch/prochain-palier/issues/21-le-gate-wgsl-est-rouge-en-ci.md).
+- **Le vrai rouge est `LayerPanel.stories.tsx`**, et il précède ce gate de
+  treize jours : `master` échoue sur les **60 derniers runs**, sans un succès
+  depuis le 2026-08-01, toujours sur ce seul fichier — alors que
+  `npm run test-storybook` est vert en local (32 fichiers, 306 tests).
+  [Ticket 22](../.scratch/prochain-palier/issues/22-layerpanel-rouge-en-ci-vert-en-local.md).
 
-`8b74e9c`, `adea7aa`, `eafa654`, `6a40a8a` (les trois wireframes de la pile et
-la réconciliation de cette feuille) ont atterri sur `gpu-optimisations` et non
-sur `master` : une session concurrente a changé la branche du checkout PARTAGÉ
-pendant qu'ils s'écrivaient. Ils ne dépendent de rien de cette branche — à
-reporter sur `master` par cherry-pick quand la ligne GPU sera posée, ou à
-emporter avec elle si elle est mergée.
+⚠️ **Une CI rouge en permanence n'est plus un gate** : toute branche en hérite,
+donc le rouge ne discrimine plus rien — c'est ce qui a permis à la mauvaise
+attribution de tenir deux jours sans jamais être contredite.
 
 ### Branches mortes, mesurées
 
@@ -906,6 +906,20 @@ emporter avec elle si elle est mergée.
 `worktree-agent-af9e8ffc69359d5ab` sont à 0 commit d'avance ;
 `origin/task-management` porte un commit orphelin cité nulle part. Corvée de
 nettoyage, aucune décision — sauf le sort de `sat-feather` ci-dessus.
+
+✅ **Fait le 2026-08-16, sur la ligne GPU** : `gpu-optimisations` a été fusionnée
+dans `master` en fast-forward (14 commits, `9a12812` → `6c17c88`) — elle
+emportait donc les quatre commits de docs qui vivaient sur elle, et le bloc qui
+demandait de les cherry-picker est sans objet. Deux branches entièrement
+contenues dans `master` ont été supprimées, local et distant :
+`gpu-timing-par-passe` et `fix/perf-masque-courbes-contour` (0 commit unique
+chacune, vérifié avant le geste). Il reste **12 branches distantes**.
+
+⚠️ **`mipmaps-bibliotheque` n'est PAS dans ce lot** : elle porte un commit
+unique (`c06147c`, `src/render/mipmapGenerator.ts`) qui attend son verdict, et
+elle est à 1 d'avance / 8 de retard sur `master` — donc rebasable proprement le
+jour où le verdict tombe. Deux passages de cette feuille la citaient comme si
+elle était acquise.
 
 ⚠️ `master` est à **393 commits d'avance** sur `feature/design-system`, qui n'a
 rien en retour, et `origin/HEAD` pointe toujours sur `feature/design-system`.

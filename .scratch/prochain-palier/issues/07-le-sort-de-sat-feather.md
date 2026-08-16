@@ -1,8 +1,16 @@
 # Le sort de sat-feather et de la branche canonique
 
 Type: task
-Status: claimed
+Status: resolved
 Parent: ../map.md
+
+> ✅ **RÉSOLU le 2026-08-13**, statut rectifié le 2026-08-16 — il était resté à
+> `claimed` trois jours après la résolution. Antoine a répondu que le lag n'avait
+> PAS disparu ; `aee22fb` a été **porté** (pas cherry-piqué) en passe
+> `featherSat` (`578d67a`, `src/mask/refinePlan.ts:24,67` — vérifié sur disque le
+> 2026-08-16), gain mesuré **48,9 → 143,1 images/s** à protocole identique. La
+> branche `origin/sat-feather` ne se merge pas et peut être supprimée.
+> Détail dans `docs/ROADMAP.md` § 4.
 
 ## Question
 

@@ -265,10 +265,14 @@
    n'atteint donc jamais la boîte de la ligne suivante (mesuré dans
    `RailStaysVisibleUnderSelection`).
 
-   ⚠️ NE VAUT PLUS QUE POUR LE SECOND CAS depuis le 2026-08-16. Le premier — le
-   filet de la ligne sélectionnée elle-même — n'est plus relevé en
-   `--text-tertiary` : il devient la BARRE DE SÉLECTION, voir le bloc suivant.
-   Il n'y a donc plus de filet blanc à sauver sur cette ligne-là. */
+   ⚠️ LE PREMIER CAS A CHANGÉ DE NATURE le 2026-08-16, sans disparaître. Sur une
+   ligne IMBRIQUÉE sélectionnée, la barre de sélection se pose désormais sur
+   l'axe du filet et le recouvre sur toute la hauteur du lavis (bloc suivant) :
+   il n'y a donc plus de contraste à sauver là. Mais le filet d'une ligne
+   RACINE sélectionnée, lui, croise toujours son lavis — et une racine n'a pas
+   de barre sur l'axe. Le sélecteur reste donc entier ; ce qu'il couvre s'est
+   seulement réduit. */
+.layer-panel__row--selected .layer-panel__rail,
 .layer-panel__row--selected + .layer-panel__row .layer-panel__rail--first {
   background: var(--text-tertiary);
 }
@@ -283,23 +287,39 @@
    l'axe du groupe, et le regard avait deux bords à lire là où il n'y a qu'un
    bloc.
 
-   LA FORME RETENUE — variante C du wireframe `pile-longue-hierarchie`, dont
-   c'est l'esprit : la hiérarchie se lit dans la sélection elle-même, la barre
-   étant l'ARÊTE du bloc. Mais l'implantation est plus simple que les trois de la
-   planche : on ne DÉPLACE pas la barre sur l'axe du filet, on fait du FILET la
-   barre. Même élément, donc mêmes bornes — `--first` et `--last` continuent de
-   valoir, le segment joint ses voisins exactement comme avant, et il n'y a rien
-   à réaccorder quand l'indentation changera.
+   ⚠️ PREMIÈRE IMPLANTATION REPRISE LE 2026-08-16 MÊME. Elle faisait du FILET la
+   barre — un seul élément, donc « mêmes bornes » présenté comme une économie.
+   C'était le défaut : les bornes du filet ne sont PAS celles du lavis. Mesuré
+   sur une ligne à la fois `--first` et `--last` (lavis 0→52 px) : la barre
+   allait de −16 à 44, soit **16 px au-dessus de la boîte de sélection et 8 px
+   trop courte en bas** — 24 px de décalage sur 52. Le filet remonte toucher la
+   photo parente et s'arrête avant le bas du groupe, ce qui est juste POUR UN
+   FILET et faux pour une barre de sélection, qui doit épouser son lavis.
 
-   Conséquence voulue : sur une ligne imbriquée, la barre à `left: 0` disparaît.
-   Une ligne RACINE n'a pas de filet et garde donc la sienne — c'est cohérent,
-   elle n'appartient à aucun groupe et n'a pas d'axe où se poser. */
+   LA FORME EN VIGUEUR sépare donc de nouveau les deux rôles, mais sur le MÊME
+   AXE — ce qui donne à l'œil la verticale unique demandée, sans confondre deux
+   géométries qui n'ont pas la même raison d'être :
+    - le FILET garde sa couleur, ses bornes et son travail de liaison ;
+    - la BARRE reste le `::before`, bornée au lavis comme toute barre de
+      sélection, simplement DÉPLACÉE de `left: 0` vers l'axe du filet.
+   Là où les deux se superposent — exactement la hauteur du lavis — c'est le
+   bleu qu'on voit ; au-dessus et en dessous, le filet continue en gris. C'est
+   bien « la ligne bleue remplace la ligne blanche », mais seulement sur la
+   ligne sélectionnée.
+
+   `z-index` NÉCESSAIRE ici, contrairement au bloc du filet ci-dessus où il
+   serait un no-op : le filet est un ÉLÉMENT ENFANT, donc peint APRÈS le
+   pseudo-élément de sa propre ligne. Sans lui, le gris couvrirait le bleu.
+
+   Pas de `border-radius` : au bord de la ligne il épousait la courbe du coin,
+   sur l'axe du filet il n'a aucun coin à épouser.
+
+   Une ligne RACINE n'a pas de filet, donc pas d'axe où se poser : elle garde sa
+   barre au bord, à `left: 0`. */
 .layer-panel__row--nested.layer-panel__row--selected::before {
-  display: none;
-}
-.layer-panel__row--nested.layer-panel__row--selected .layer-panel__rail {
-  width: var(--selection-bar-width);
-  background: var(--selection-accent);
+  left: calc(var(--space-4) + (var(--layer-nest-indent) / 2));
+  border-radius: 0;
+  z-index: 1;
 }
 
 /* PREMIÈRE ligne enfant (la plus HAUTE du groupe) : depuis l'ADR-0004 la photo
@@ -461,7 +481,21 @@
 .layer-panel__row-main {
   display: grid;
   grid-template-columns:
-    var(--icon-size-sm)          /* 1 chevron de repli (piste réservée) */
+    /* 1 chevron de repli — piste RÉSERVÉE, à la largeur de son BOUTON.
+       ⚠️ Deux valeurs fausses avant celle-ci, le même jour (2026-08-16), et la
+       seconde était pire que la première. Elle valait d'abord `--icon-size-sm`
+       nu : le chevron et la poignée se lisaient comme un seul bloc, 2 px entre
+       eux — la seule gouttière de la grille. Élargie ensuite à
+       `+ --space-3` (20 px) avec `justify-self: start`, l'écart est tombé à
+       **1 px** : l'IconButton compact fait 28 px, il DÉBORDAIT donc de 8 px sur
+       la piste voisine, et caler son bord gauche ne faisait qu'y pousser son
+       icône. Une piste plus étroite que son contenu ne l'espace pas — elle le
+       laisse s'échapper.
+       `--control-height-sm` est la largeur du bouton lui-même, exactement comme
+       la piste de l'œil : le contenu tient enfin dans sa piste, s'y centre, et
+       rend 7 px de respiration de chaque côté. Mesuré après : 9 px entre
+       l'icône du chevron et la poignée. */
+    var(--control-height-sm)
     var(--icon-size-sm)          /* 2 poignée de réordonnancement */
     var(--control-height-sm)     /* 3 œil (visibilité) */
     var(--layer-thumbnail-size)  /* 4 marque : vignette OU flèche d'écrêtage */
@@ -530,10 +564,10 @@
    l'absence du chevron ne doit pas décaler les six autres pistes d'une ligne à
    l'autre. Une ligne sans groupe rend un `<span>` vide qui occupe la piste.
 
-   `--icon-size-sm` et non `--control-height-sm` : c'est la largeur de la
-   poignée voisine, pas celle de l'œil. La cible cliquable reste celle de
-   l'IconButton compact, qui déborde de sa piste sans la pousser (la grille
-   dimensionne la piste, pas son contenu). */
+   La piste vaut la largeur du BOUTON (voir la grille ci-dessus) : le contenu y
+   tient et s'y centre, comme dans la piste de l'œil. Pas de `justify-self` —
+   essayé, et c'est ce qui a produit le défaut à 1 px : caler un contenu trop
+   large au bord de sa piste ne l'espace pas de son voisin, ça l'y pousse. */
 .layer-panel__col--collapse { grid-column: 1; }
 .layer-panel__col--grip { grid-column: 2; }
 .layer-panel__col--eye { grid-column: 3; }

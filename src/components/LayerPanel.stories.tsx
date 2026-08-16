@@ -804,25 +804,31 @@ export const RailKeepsItsRestingRank: Story = {
 };
 
 /**
- * LA BARRE DE SÉLECTION D'UNE LIGNE IMBRIQUÉE **EST** LE FILET (2026-08-16).
+ * LA BARRE DE SÉLECTION D'UNE LIGNE IMBRIQUÉE SE POSE SUR L'AXE DU FILET, ET
+ * ÉPOUSE SON LAVIS (2026-08-16).
  *
- * Défaut constaté par Antoine à l'écran, puis mesuré dans la fenêtre : une
- * ligne imbriquée sélectionnée portait DEUX verticales — la barre bleue à
- * `left: 0` et le filet blanc 15 px plus à droite. « La piste sélectionnée
- * dépassait » : la barre débordait à gauche de l'axe du groupe, et le regard
- * avait deux bords à lire là où il n'y a qu'un bloc.
+ * DEUX défauts successifs, tous deux constatés par Antoine à l'écran, et le
+ * second causé par le correctif du premier :
  *
- * CETTE STORY DOIT ROUGIR SANS LE CORRECTIF, et elle rougit sur les trois
- * points à la fois : sans lui la barre `::before` est visible, le filet fait
- * 1 px et non 2, et il porte `--border-default` (relevé en `--text-tertiary`
- * sous la sélection) au lieu de l'accent.
+ *  1. La barre était à `left: 0` et le filet 15 px plus à droite — deux
+ *     verticales, et la barre « dépassait » à gauche de l'axe du groupe.
+ *  2. Corrigé en faisant du FILET la barre. Mais les bornes d'un filet ne sont
+ *     pas celles d'un lavis : mesuré sur une ligne `--first`+`--last`, la barre
+ *     allait de −16 à 44 px pour un lavis de 0 à 52, soit **16 px au-dessus de
+ *     la boîte de sélection et 8 px trop courte en bas**.
  *
- * Elle ne dit RIEN d'une ligne racine : une photo n'a pas de filet, donc pas
- * d'axe où poser sa barre, et elle garde la sienne à `left: 0`. C'est
- * `SelectedRootRowKeepsItsLeftBar` qui verrouille ce versant — sans quoi
- * supprimer la barre PARTOUT passerait au vert ici.
+ * D'où la forme en vigueur : deux rôles, un seul AXE. Le filet garde ses bornes
+ * de liaison et sa couleur ; la barre reste le `::before`, bornée au lavis, et
+ * seulement DÉPLACÉE sur l'axe du filet. Elle le recouvre sur la hauteur du
+ * lavis (d'où le `z-index`, sans lequel le filet — élément enfant — peindrait
+ * par-dessus le pseudo-élément de sa propre ligne).
+ *
+ * CETTE STORY DOIT ROUGIR SUR LES DEUX DÉFAUTS. Sans le déplacement, la barre
+ * est au bord de la ligne (défaut 1). Si on refait du filet la barre, la hauteur
+ * ne colle plus au lavis (défaut 2) — c'est l'assertion de hauteur qui l'attrape,
+ * et elle n'existait pas dans la première version de cette story.
  */
-export const SelectedNestedRowBarIsTheRail: Story = {
+export const SelectedNestedRowBarSitsOnTheRailAxis: Story = {
   args: { layers: twoParentKinds, selectedId: "layer-A" },
   decorators: [dockWidthDecorator],
   play: async ({ canvasElement }) => {
@@ -830,54 +836,43 @@ export const SelectedNestedRowBarIsTheRail: Story = {
     if (!selected) throw new Error("aucune ligne sélectionnée");
     await expect(selected.className).toContain("layer-panel__row--nested");
 
-    // ---- UNE SEULE VERTICALE ----
-    // C'est l'assertion qui porte la demande. La barre de gauche ne doit plus
-    // être peinte du tout : la masquer par une couleur transparente laisserait
-    // une piste dans la grille et le défaut reviendrait au premier changement
-    // de token.
-    await expect(getComputedStyle(selected, "::before").display).toBe("none");
+    const barre = getComputedStyle(selected, "::before");
+    // La barre existe toujours — c'est elle qui porte la sélection.
+    await expect(barre.display).not.toBe("none");
 
-    const rail = selected.querySelector<HTMLElement>(".layer-panel__rail");
-    if (!rail) throw new Error("la ligne imbriquée sélectionnée devrait porter un filet");
-
-    // ---- ET C'EST LE FILET QUI LA PORTE ----
-    // Tokens résolus par le navigateur, jamais comparés à une chaîne écrite en
-    // dur : sinon un changement de `--selection-accent` laisserait ce test vert
-    // pendant que la barre partirait d'une autre couleur.
-    const probe = document.createElement("div");
-    probe.style.backgroundColor = "var(--selection-accent)";
-    probe.style.width = "var(--selection-bar-width)";
-    canvasElement.appendChild(probe);
-    const attendu = {
-      couleur: getComputedStyle(probe).backgroundColor,
-      largeur: getComputedStyle(probe).width,
-    };
-    probe.remove();
-
-    await expect(getComputedStyle(rail).backgroundColor).toBe(attendu.couleur);
-    await expect(getComputedStyle(rail).width).toBe(attendu.largeur);
-
-    // ---- SUR L'AXE DU GROUPE, PAS AU BORD DE LA LIGNE ----
-    // La mesure qui dit que la barre ne « dépasse » plus : son abscisse est
-    // celle du filet (moitié de la gouttière d'indentation), pas le bord gauche
-    // de la ligne. 15 px mesurés dans la fenêtre le 2026-08-16 ; on compare ici
-    // à l'axe CALCULÉ plutôt qu'à ce littéral, pour que la story survive au
-    // passage de l'indentation à 20 px.
+    // ---- ELLE ÉPOUSE LE LAVIS ----
+    // L'assertion qui attrape le défaut 2. Le lavis est le fond de la ligne,
+    // donc sa hauteur EST celle de la boîte : une barre qui déborde ou reste
+    // courte se voit immédiatement ici.
     const ligne = selected.getBoundingClientRect();
-    const barre = rail.getBoundingClientRect();
+    await expect(barre.top).toBe("0px");
+    await expect(barre.bottom).toBe("0px");
+    await expect(Math.abs(parseFloat(barre.height) - ligne.height)).toBeLessThan(0.5);
+
+    // ---- SUR L'AXE DU FILET, PAS AU BORD DE LA LIGNE ----
+    // L'assertion qui attrape le défaut 1. On compare à l'axe MESURÉ du filet
+    // d'un autre groupe plutôt qu'au littéral 15 px, pour que la story survive
+    // au passage de l'indentation à 20 px.
     const frere = canvasElement.querySelector<HTMLElement>(
       ".layer-panel__row--nested:not(.layer-panel__row--selected) .layer-panel__rail",
     );
     if (!frere) throw new Error("il faut un second groupe pour comparer les axes");
-    await expect(Math.abs(barre.left - frere.getBoundingClientRect().left)).toBeLessThan(0.5);
-    await expect(barre.left - ligne.left).toBeGreaterThan(4);
+    const axeFilet = frere.getBoundingClientRect().left - ligne.left;
+    await expect(Math.abs(parseFloat(barre.left) - axeFilet)).toBeLessThan(0.5);
+    await expect(parseFloat(barre.left)).toBeGreaterThan(4);
+
+    // ---- ET ELLE EST AU-DESSUS DU FILET ----
+    // Sans `z-index`, le filet (élément enfant) peint après le pseudo-élément
+    // et le gris couvrirait le bleu. Rien ne le dirait à l'œil sur une capture
+    // de 2 px de large.
+    await expect(barre.zIndex).not.toBe("auto");
   },
 };
 
-/** Le versant OPPOSÉ, et il n'est pas décoratif : sans lui, supprimer la barre
- *  de sélection sur TOUTES les lignes ferait passer la story ci-dessus au vert.
- *  Une ligne racine n'appartient à aucun groupe — aucun axe où poser sa barre,
- *  elle garde donc la sienne au bord. */
+/** Le versant OPPOSÉ, et il n'est pas décoratif : sans lui, déplacer la barre
+ *  sur l'axe du filet PARTOUT passerait au vert ci-dessus. Une ligne racine
+ *  n'appartient à aucun groupe — aucun filet, donc aucun axe où poser sa
+ *  barre : elle garde la sienne au bord. */
 export const SelectedRootRowKeepsItsLeftBar: Story = {
   args: { layers: twoParentKinds, selectedId: "photo-P" },
   decorators: [dockWidthDecorator],

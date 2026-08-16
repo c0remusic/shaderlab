@@ -84,6 +84,7 @@ import { usePresets } from "./hooks/usePresets";
 import { usePhotoLayer } from "./hooks/usePhotoLayer";
 import { usePresetWorkflow } from "./hooks/usePresetWorkflow";
 import { useLayerIsolation } from "./hooks/useLayerIsolation";
+import { useCollapsedGroups } from "./hooks/useCollapsedGroups";
 import { PresetPanel } from "./components/PresetPanel";
 import { TextureLibrary } from "./components/TextureLibrary";
 import { useTextureLibrary } from "./hooks/useTextureLibrary";
@@ -1032,6 +1033,12 @@ export default function App() {
   // hors modèle et hors historique — toute la logique vit dans
   // `useLayerIsolation`/`layers/isolation.ts`, App n'en garde que le câblage.
   const isolation = useLayerIsolation({ sessionRef, rendererRef, layers, toggleLayer: handleToggle });
+  // REPLI DES GROUPES (2026-08-16), même forme que l'isolation ci-dessus : la
+  // feature apporte son hook, App n'en garde que le câblage. Il ne touche ni le
+  // modèle ni le renderer — c'est purement l'affichage de la pile — mais il peut
+  // DÉPLACER la sélection (replier un groupe la remonte au parent), d'où
+  // `selectLayer` en dépendance.
+  const collapse = useCollapsedGroups({ layers, selectedId, onSelect: selectLayer });
 
   const handleRemove = useCallback(
     (id: string) => {
@@ -2038,6 +2045,8 @@ export default function App() {
                   isolatedLayerId={isolation.isolatedLayerId}
                   onAdd={handleAdd}
                   onReorder={handleReorder}
+                  collapseState={collapse.collapseState}
+                  onToggleGroup={collapse.handleToggleGroup}
                   thumbnailUrl={photoLayer.thumbnailUrl}
                 />
             },

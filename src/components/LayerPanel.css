@@ -334,6 +334,35 @@
   bottom: var(--space-4);
 }
 
+/* MOIGNON d'un groupe REPLIÉ (2026-08-16, traitement b du wireframe
+   `docs/wireframes/pile-longue-repli.html`).
+
+   Trois traitements étaient sur la planche : ne rien mettre, un moignon, un
+   filet pointillé. Le moignon est retenu pour ce qu'il ne coûte pas — il
+   RÉUTILISE la primitive ci-dessus en ne changeant qu'une borne, il distingue
+   une photo repliée d'une photo nue sans ajouter de marque, et il ne déborde
+   sur aucune ligne voisine. Le pointillé promettait un lien qu'un trait de 1 px
+   ne peut pas rendre lisible à cette épaisseur ; « rien » faisait reposer toute
+   l'information sur la pastille.
+
+   Il descend depuis le BAS DU CONTENU de la photo repliée — pas depuis le bas
+   de sa boîte, qui est 8 px plus bas (`padding: var(--space-4)`), même écart
+   que celui mesuré pour `--first`. Il est porté par la ligne parente, les
+   lignes enfants n'existant plus dans le DOM quand le groupe est replié.
+
+   14 px, la valeur de la planche, mais DÉRIVÉE de l'échelle et non écrite en
+   dur — `--space-4 + --space-3`, exactement la même dérivation que
+   `--layer-nest-indent`, qui vaut d'ailleurs la même chose. Le lint de tokens
+   refuse le littéral, et il a raison : c'est un ANNONCEUR, pas un lien, et sa
+   seule contrainte chiffrée est de s'arrêter AVANT la ligne suivante, dont le
+   haut est à 16 px (une gouttière de liste plus le padding haut). Un nombre nu
+   ne dit pas d'où vient cette marge de 2 px. */
+.layer-panel__rail--stub {
+  top: calc(var(--space-4) + var(--layer-row-height));
+  bottom: auto;
+  height: calc(var(--space-4) + var(--space-3));
+}
+
 /* Icône de NATURE (effet ou photo) : même traitement que la poignée et la
    flèche d'écrêtage — --text-tertiary, jamais comprimée. Elle tient dans la
    hauteur de ligne existante (--layer-row-height, 36px) : --icon-size-sm vaut
@@ -432,12 +461,13 @@
 .layer-panel__row-main {
   display: grid;
   grid-template-columns:
-    var(--icon-size-sm)          /* 1 poignée de réordonnancement */
-    var(--control-height-sm)     /* 2 œil (visibilité) */
-    var(--layer-thumbnail-size)  /* 3 marque : vignette OU flèche d'écrêtage */
-    minmax(0, 1fr)               /* 4 nom */
-    var(--control-height-sm)     /* 5 nature + badge verrou */
-    var(--control-height-sm);    /* 6 cible masque */
+    var(--icon-size-sm)          /* 1 chevron de repli (piste réservée) */
+    var(--icon-size-sm)          /* 2 poignée de réordonnancement */
+    var(--control-height-sm)     /* 3 œil (visibilité) */
+    var(--layer-thumbnail-size)  /* 4 marque : vignette OU flèche d'écrêtage */
+    minmax(0, 1fr)               /* 5 nom */
+    var(--control-height-sm)     /* 6 nature + badge verrou */
+    var(--control-height-sm);    /* 7 cible masque */
   align-items: center;
   /* La ligne est une barre d'outils compacte : 2 px entre pistes, tandis que
      chaque cible conserve sa surface interactive de 28 px. */
@@ -473,9 +503,40 @@
    Le total de largeur fixe est INCHANGÉ (14 + 28 + 24 + 14 + 28 = 108 px, plus
    cinq gouttières de 4 px) : c'est une permutation de pistes, pas un ajout —
    le nom garde très exactement la largeur mesurée le 2026-07-29 (152 px sur la
-   carte réelle, ADR-0001 point 6). */
-.layer-panel__col--grip { grid-column: 1; }
-.layer-panel__col--eye { grid-column: 2; }
+   carte réelle, ADR-0001 point 6).
+
+   ⚠️ AMENDÉ LE 2026-08-16, SUR MESURE DANS LA FENÊTRE. Les deux affirmations
+   ci-dessus ont cessé d'être vraies quelque part entre le 2026-07-29 et
+   aujourd'hui, sans que personne le relève. Relevé dans l'app (dock 320 px,
+   pile de 5 calques) : le nom fait **148 px** sur une ligne racine et **134 px**
+   sur une ligne imbriquée — le « plancher » de 152 px était donc déjà enfoncé
+   de 4 et 18 px AVANT l'ajout de la piste de repli.
+
+   Et il protégeait contre un problème disparu. Il avait été calé sur
+   « Aberration chromatique » (127 px), libellé que le registre ne porte plus :
+   mesuré dans la police réelle de la ligne, le plus long des 23 effets est
+   **`Lens distortion`, 79 px**. Aucun ne tronque à 118 px (la piste de repli
+   ajoutée), ni à 112 px (avec l'indentation portée à 20 px) — il reste 33 px de
+   marge dans le pire cas.
+
+   Seuls les noms de PHOTOS restent non bornés : ils viennent du nom de fichier,
+   tronquent déjà à 148 px, et aucune largeur ne règle ça — leur repli est le
+   `title` posé sur l'élément.
+
+   Conclusion opposable : **le plancher a survécu au problème qu'il bornait.**
+   Ne pas le réinvoquer contre une piste sans avoir remesuré les libellés. */
+/* CHEVRON DE REPLI (2026-08-16) — piste RÉSERVÉE en permanence, exactement
+   comme le verrou et la nature, et pour la même raison : la présence ou
+   l'absence du chevron ne doit pas décaler les six autres pistes d'une ligne à
+   l'autre. Une ligne sans groupe rend un `<span>` vide qui occupe la piste.
+
+   `--icon-size-sm` et non `--control-height-sm` : c'est la largeur de la
+   poignée voisine, pas celle de l'œil. La cible cliquable reste celle de
+   l'IconButton compact, qui déborde de sa piste sans la pousser (la grille
+   dimensionne la piste, pas son contenu). */
+.layer-panel__col--collapse { grid-column: 1; }
+.layer-panel__col--grip { grid-column: 2; }
+.layer-panel__col--eye { grid-column: 3; }
 /* MARQUE — vignette et flèche d'écrêtage PARTAGENT cette piste (2026-07-29).
    Elles sont mutuellement exclusives par invariant du modèle
    (`LayerStack.setLayerClip` refuse un calque portant `imageSource`), donc
@@ -493,21 +554,21 @@
    `--icon-size-sm` plus une gouttière, soit 18 px prélevés sur le nom, qui
    repasserait sous le plancher de 152 px posé par l'ADR-0001 (point 6). */
 .layer-panel__col--mark {
-  grid-column: 3;
+  grid-column: 4;
   justify-self: center;
 }
-.layer-panel__col--name { grid-column: 4; }
+.layer-panel__col--name { grid-column: 5; }
 /* NATURE — piste RÉSERVÉE en permanence, avant le verrou (2026-07-29). Toujours
    rendue : c'est ce qui empêche le titre « Effets » de la carte de devenir faux
    quand une photo importée est dans la pile. */
-.layer-panel__col--nature { grid-column: 5; }
+.layer-panel__col--nature { grid-column: 6; }
 /* VERROU — piste RÉSERVÉE en permanence, en FIN de ligne, alors que le cadenas
    n'est rendu que sur les lignes verrouillées (et sur l'arrière-plan). C'est
    tout l'intérêt de la grille : la présence ou l'absence du cadenas ne peut pas
    décaler le nom d'une ligne à l'autre. En fin de ligne parce que c'est un
    ÉTAT, pas une étape de lecture de l'identité — il ferme la zone de droite,
    après la nature. */
-.layer-panel__col--mask { grid-column: 6; }
+.layer-panel__col--mask { grid-column: 7; }
 
 /* Nature et verrou décrivent tous deux l'état de la ligne. Le verrou devient
    donc un badge de la nature au lieu de réserver 28 px sur CHAQUE ligne. */
@@ -625,13 +686,48 @@
   border: 1px solid var(--border-subtle);
 }
 
+/* La cellule du nom est devenue un FLEX le 2026-08-16, pour tenir la pastille
+   de repli à côté du libellé. La troncature descend d'un cran avec elle : c'est
+   `__row-label` qui tronque désormais, la cellule ne faisant plus que répartir.
+   `min-width: 0` sur les deux : sans lui, la taille minimale automatique d'un
+   élément flex vaut celle de son contenu, et un nom long pousserait la pastille
+   hors de la piste au lieu de se tronquer. */
 .layer-panel__row-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  min-width: 0;
   font-family: var(--font-ui);
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
+}
+
+.layer-panel__row-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* PASTILLE du groupe replié : combien de calques on ne voit plus.
+   `flex: 0 0 auto` — elle ne se comprime jamais, c'est le NOM qui cède. Quand
+   un groupe est replié, combien il cache est plus informatif que la fin de son
+   nom.
+   `tabular-nums` : les chiffres gardent la même chasse, donc la pastille ne
+   respire pas quand le compte passe de 9 à 10. */
+.layer-panel__row-count {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--layer-count-badge-size);
+  height: var(--layer-count-badge-size);
+  margin-left: var(--space-2);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-round);
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Signal NON COLORÉ de la sélection : la graisse. Sans lui, le marquage

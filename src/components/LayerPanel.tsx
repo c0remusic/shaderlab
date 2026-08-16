@@ -1,12 +1,18 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import { usePointerReorder, type DropPosition } from "../ui/dragReorder";
 import "../ui/dragReorder.css";
-import { Copy, CornerLeftUp, Eye, EyeOff, GripVertical, Image as PhotoLayerIcon, Lock, LockOpen, Plus, Sparkles as EffectLayerIcon, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Copy, CornerLeftUp, Eye, EyeOff, GripVertical, Image as PhotoLayerIcon, Lock, LockOpen, Plus, Sparkles as EffectLayerIcon, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
 import { eyeButtonLabels, isLayerVisible, isolationRole, isolationVisibleIds, type IsolationRole } from "../layers/isolation";
 import { resolveClipping } from "../layers/clipping";
 import { displayInsertToModelInsert } from "./layerDisplayOrder";
 import { toPileRows } from "./pileModel";
+import {
+  applyCollapse,
+  EMPTY_COLLAPSE_STATE,
+  visibleInsertToModelInsert,
+  type CollapseState,
+} from "./pileCollapse";
 import {
   targetForLayerId,
   type PropertiesTarget,
@@ -40,6 +46,13 @@ interface Props {
   isolatedLayerId?: string | null;
   onAdd: (effectId: string) => void;
   onReorder: (id: string, newIndex: number) => void;
+  /** REPLI DES GROUPES (2026-08-16). État d'INTERFACE, jamais le modèle —
+   *  arbitrage d'Antoine : un repli est une aide de visée, et le passer par
+   *  `LayerState` le rendrait annulable par Ctrl+Z. Absent = panneau monté sans
+   *  repli, tout est déplié (stories historiques). Règles pures et testées dans
+   *  `pileCollapse.ts`. */
+  collapseState?: CollapseState;
+  onToggleGroup?: (parentId: string) => void;
   /** Résout la vignette d'un calque photo par `sourceId`. La vignette est
    *  POSSÉDÉE par `PhotoSourceStore` (object URL, hors state React) — cette
    *  prop n'en transporte que la lecture, jamais le raster (invariant OOM).
@@ -136,8 +149,19 @@ interface LayerRowProps {
   depth: 0 | 1;
   firstChild: boolean;
   lastChild: boolean;
+  /** REPLI (2026-08-16). Trois booléens/compte déjà RÉDUITS à cette ligne par
+   *  `applyCollapse`, jamais l'état de repli entier — même raison que `depth` :
+   *  replier un groupe ne doit pas re-rendre les lignes d'un autre (`memo`).
+   *  `collapsible` est faux sur une photo sans effet rattaché : un chevron qui
+   *  ne fait rien est pire qu'un chevron absent. */
+  collapsible: boolean;
+  collapsed: boolean;
+  hiddenCount: number;
   onSelect: (id: string) => void;
   onSelectMask: (id: string) => void;
+  /** Bascule le repli du groupe ouvert par CETTE ligne. Absent = panneau monté
+   *  sans repli (stories historiques) : le chevron n'est alors pas rendu. */
+  onToggleCollapse?: (parentId: string) => void;
   onToggle: (id: string, altKey: boolean) => void;
   onGripPointerDown: (id: string, pointerId: number, target: Element, clientX: number, clientY: number) => void;
   thumbnailUrl?: (sourceId: string) => string | null;
@@ -173,9 +197,13 @@ const LayerRow = memo(function LayerRow({
   depth,
   firstChild,
   lastChild,
+  collapsible,
+  collapsed,
+  hiddenCount,
   onSelect,
   onSelectMask,
   onToggle,
+  onToggleCollapse,
   onGripPointerDown,
   thumbnailUrl,
 }: LayerRowProps) {
@@ -200,6 +228,7 @@ const LayerRow = memo(function LayerRow({
   const rowClass = [
     "layer-panel__row",
     depth > 0 && "layer-panel__row--nested",
+    collapsed && "layer-panel__row--collapsed",
     selected && "layer-panel__row--selected",
     isDragging && "layer-panel__row--dragging",
     dropPosition === "before" && "layer-panel__row--drop-before",
@@ -262,8 +291,47 @@ const LayerRow = memo(function LayerRow({
           aria-hidden="true"
         />
       )}
+      {/* MOIGNON du groupe replié (traitement b du wireframe `pile-longue-repli`,
+          recommandé pour ce qu'il ne coûte pas). Le filet ne relie plus, il
+          ANNONCE : un segment de 14 px qui descend sous la photo et s'arrête.
+          Même primitive, même abscisse, même couleur — seule une borne change,
+          d'où l'absence de style nouveau. Il est porté par la ligne PARENTE
+          puisque les lignes enfants n'existent plus dans le DOM. */}
+      {collapsed && <span className="layer-panel__rail layer-panel__rail--stub" aria-hidden="true" />}
       <div className="layer-panel__row-top">
         <span className="layer-panel__row-main">
+          {/* CHEVRON DE REPLI — piste RÉSERVÉE en permanence, comme le verrou.
+              Rendu seulement sur une ligne qui OUVRE un groupe non vide, mais la
+              piste existe sur toutes : sans elle, une ligne à groupe et une ligne
+              sans groupe auraient leurs six autres pistes décalées de 16 px.
+
+              Il n'y est PAS quand `onToggleCollapse` manque — le panneau est
+              alors monté sans repli (stories historiques), et un chevron inerte
+              serait pire qu'aucun chevron.
+
+              `stopPropagation` : cliquer le chevron ne sélectionne pas la ligne,
+              parité avec l'œil. Le geste a son propre effet sur la sélection —
+              replier la remonte au parent — et le laisser en plus sélectionner
+              la ligne cliquée le contredirait. */}
+          {collapsible && onToggleCollapse ? (
+            <IconButton
+              label={collapsed ? `Déplier le groupe (${hiddenCount} calques)` : "Replier le groupe"}
+              size="compact"
+              className="layer-panel__col--collapse"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleCollapse(layer.id);
+              }}
+            >
+              {collapsed ? (
+                <ChevronRight className="icon-sm icon-stroke" aria-hidden="true" />
+              ) : (
+                <ChevronDown className="icon-sm icon-stroke" aria-hidden="true" />
+              )}
+            </IconButton>
+          ) : (
+            <span className="layer-panel__col--collapse" aria-hidden="true" />
+          )}
           {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- poignee de GLISSEMENT au pointeur (`onPointerDown`) ; son `onClick` ne fait que `stopPropagation`. Le clavier a deja sa voie sur la LIGNE elle-meme (Enter/Espace -> `onSelect`, plus haut) ; il n'existe pas de reordonnancement au clavier a exposer ici, et poser un `role`/`tabIndex` sur cette poignee ajouterait un arret de tabulation qui ne fait rien. */}
           <span
             className="layer-panel__grip-handle layer-panel__col--grip"
@@ -334,7 +402,22 @@ const LayerRow = memo(function LayerRow({
             className={`layer-panel__col--name layer-panel__row-name ${selected ? "layer-panel__row-name--selected" : ""}`.trim()}
             title={displayName}
           >
-            {displayName}
+            <span className="layer-panel__row-label">{displayName}</span>
+            {/* PASTILLE du groupe replié : le nombre de calques qu'on NE VOIT
+                PLUS. Elle vit DANS la piste du nom plutôt que dans une piste à
+                elle — elle n'existe que sur une ligne repliée, donc lui réserver
+                une colonne permanente coûterait de la largeur sur toutes les
+                autres pour rien. Le nom se tronque à sa place le cas échéant,
+                et c'est le bon ordre de sacrifice : quand un groupe est replié,
+                combien il cache est plus informatif que la fin de son nom.
+                `aria-hidden` : le compte est déjà dans le libellé du chevron,
+                qui est le contrôle — l'annoncer deux fois ferait un doublon au
+                lecteur d'écran. */}
+            {collapsed && (
+              <span className="layer-panel__row-count" aria-hidden="true">
+                {hiddenCount}
+              </span>
+            )}
           </span>
           {/* NATURE de la ligne (2026-07-27) : la pile de shaderlab est une
               chaîne de traitement, pas un empilement de contenus — le panneau
@@ -597,6 +680,8 @@ export function LayerPanel({
   isolatedLayerId = null,
   onAdd,
   onReorder,
+  collapseState = EMPTY_COLLAPSE_STATE,
+  onToggleGroup,
   thumbnailUrl,
 }: Props) {
   // SENS D'AFFICHAGE (ADR-0004, 2026-07-28) : la liste se lit de haut en bas
@@ -618,9 +703,16 @@ export function LayerPanel({
     () => selectedTarget ?? targetForLayerId(layers, selectedId),
     [selectedTarget, layers, selectedId],
   );
-  const rows = useMemo(() => toPileRows(layers, effectiveTarget), [layers, effectiveTarget]);
+  // REPLI (2026-08-16) : une seconde projection, appliquée APRÈS `toPileRows`.
+  // Elle n'ajoute que des annotations et RETIRE des lignes — elle ne réordonne
+  // ni ne re-rattache rien, donc `layerTree` reste seul maître du rattachement.
+  const rows = useMemo(
+    () => applyCollapse(toPileRows(layers, effectiveTarget), collapseState),
+    [layers, effectiveTarget, collapseState],
+  );
   // Le hook de réordonnancement ne s'intéresse qu'aux identités, pas à la
-  // hiérarchie : il reçoit la liste plate dans l'ordre affiché.
+  // hiérarchie : il reçoit la liste plate dans l'ordre affiché — c'est-à-dire,
+  // depuis le repli, les lignes VISIBLES seulement.
   const displayLayers = useMemo(() => rows.map((row) => row.layer), [rows]);
 
   // Le glisser-déposer raisonne ENTIÈREMENT en espace d'affichage : le hook
@@ -628,11 +720,32 @@ export function LayerPanel({
   // les indicateurs avant/après gardent donc leur sens visuel sans inversion.
   // Une seule frontière convertit — ici, à la sortie du hook, par la fonction
   // pure testée `displayInsertToModelInsert` (test/components/layerDisplayOrder.test.ts).
+  // DEUX conversions en cascade, et la seconde n'est PAS décorative.
+  //
+  // `displayInsertToModelInsert` porte le SENS d'affichage, et elle suppose que
+  // la liste rendue est la pile entière — hypothèse vraie jusqu'au repli. Avec
+  // un groupe replié, la position 3 de la liste n'est plus l'indice 3 du
+  // modèle, et rien n'aurait rougi : le calque serait simplement atterri
+  // ailleurs que là où on l'a lâché, d'autant plus loin que le groupe replié
+  // est gros. `visibleInsertToModelInsert` referme ce trou en passant par les
+  // IDENTITÉS des lignes visibles (fonction pure testée, `pileCollapse.ts`).
+  //
+  // Ordre : d'abord le sens (affichage → modèle), ensuite le repli (visibles →
+  // pile entière). L'inverse mélangerait deux espaces d'indices.
   const handleReorderFromDisplay = useCallback(
     (id: string, displayNewIndex: number) => {
-      onReorder(id, displayInsertToModelInsert(displayNewIndex, layers.length));
+      const visibleInsert = displayInsertToModelInsert(displayNewIndex, displayLayers.length);
+      onReorder(
+        id,
+        visibleInsertToModelInsert(
+          layers.map((l) => l.id),
+          displayLayers.map((l) => l.id),
+          id,
+          visibleInsert,
+        ),
+      );
     },
-    [onReorder, layers.length]
+    [onReorder, layers, displayLayers]
   );
 
   const { dragState, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel } = usePointerReorder(
@@ -730,7 +843,7 @@ export function LayerPanel({
         onPointerUp={dragState ? handlePointerUp : undefined}
         onPointerCancel={dragState ? handlePointerCancel : undefined}
       >
-        {rows.map(({ layer, depth, firstChild, lastChild, selectedFacet, mask }, displayRow) => (
+        {rows.map(({ layer, depth, firstChild, lastChild, selectedFacet, mask, collapsible, collapsed, hiddenCount }, displayRow) => (
           <LayerRow
             key={layer.id}
             layer={layer}
@@ -747,6 +860,9 @@ export function LayerPanel({
             depth={depth}
             firstChild={firstChild}
             lastChild={lastChild}
+            collapsible={collapsible}
+            collapsed={collapsed}
+            hiddenCount={hiddenCount}
             isDragging={dragState?.draggedId === layer.id}
             dropPosition={
               dragState !== null && dragState.overIndex === displayRow && dragState.draggedId !== layer.id
@@ -756,6 +872,7 @@ export function LayerPanel({
             onSelect={handleRowSelect}
             onSelectMask={handleMaskSelect}
             onToggle={onToggle}
+            onToggleCollapse={onToggleGroup}
             onGripPointerDown={handleGripPointerDown}
             thumbnailUrl={thumbnailUrl}
           />

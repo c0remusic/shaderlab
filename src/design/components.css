@@ -21,6 +21,13 @@
      ajouter une quatrième nuance de bordure à 4 points d'une existante est
      exactement la dérive que l'audit UI signale. */
   --layer-nest-indent: calc(var(--space-4) + var(--space-3));
+  /* PASTILLE du groupe replié (2026-08-16) : combien de calques le repli cache.
+     18px = --layer-thumbnail-size (24px) moins --space-3 (6px) — elle se lit
+     comme une marque secondaire à côté du nom, pas comme une vignette. Dérivée
+     de l'échelle plutôt qu'inventée, même principe que --layer-nest-indent
+     au-dessus. Son rayon est --radius-round : une pastille de compte est un
+     ovale, et le repo n'a pas d'autre forme pour ça. */
+  --layer-count-badge-size: calc(var(--layer-thumbnail-size) - var(--space-3));
   --section-header-height: 28px;
 
   --icon-size-sm: 14px;

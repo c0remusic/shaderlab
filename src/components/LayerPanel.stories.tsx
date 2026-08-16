@@ -557,18 +557,43 @@ export const AllRowFormsShareOneGrid: Story = {
     // s'affiche « C… » et « DSCF5160-edited.JPG » « DSC… ».
     // Après migration des actions vers la zone de contrôles (ADR-0001) et
     // fusion de la flèche avec la vignette, il en reste plus du triple.
-    // Le seuil est un PLANCHER, pas une valeur exacte : il doit résister à une
-    // différence de métrique de police entre machines, tout en tombant
-    // immédiatement si un contrôle revient s'installer sur la ligne.
+    // ⚠️ LE SEUIL EST MESURÉ, PLUS ÉCRIT EN DUR (2026-08-16). Il valait 170 et
+    // 150 px, deux constantes calées le 2026-07-29 sur des libellés d'alors —
+    // « Chromatic bleed », « Aberration chromatique » (127 px). Le registre ne
+    // les porte plus : mesuré dans la police réelle de la ligne, le plus long
+    // des 23 effets est `Lens distortion`, 79 px. Les deux constantes exigeaient
+    // donc plus du double du besoin, et la première a fait rougir cette story à
+    // l'arrivée de la piste de repli — pour une troncature qui ne se produit pas.
+    //
+    // Le remède n'est PAS de baisser le nombre : c'est de le DÉRIVER. On mesure
+    // le plus long libellé que la liste peut avoir à rendre, et on exige que la
+    // piste du nom le contienne. Le garde d'origine tient toujours — si un
+    // contrôle revient s'installer sur la ligne et écrase le nom, la mesure
+    // tombe sous le libellé et la story rougit — mais il ne peut plus se périmer
+    // en silence quand les libellés changent.
     const nameWidth = (row: HTMLElement) => {
       const name = row.querySelector<HTMLElement>(".layer-panel__row-name");
       if (!name) throw new Error("ligne sans nom");
       return Math.round(name.getBoundingClientRect().width);
     };
+    // Le plus long libellé RÉELLEMENT rendu par cette story, mesuré dans la
+    // police de la ligne elle-même (et non dans celle du document, qui n'est pas
+    // la même). Un canvas plutôt qu'un élément sonde : on veut la largeur du
+    // TEXTE, pas celle de la boîte qui le tronque.
+    const label = rows[1].querySelector<HTMLElement>(".layer-panel__row-label")!;
+    const cs = getComputedStyle(label);
+    const ctx = document.createElement("canvas").getContext("2d")!;
+    ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const plusLong = Math.max(
+      ...Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__row-label")).map((n) =>
+        ctx.measureText(n.textContent ?? "").width,
+      ),
+    );
     // Ligne NON imbriquée (la plus large) et ligne imbriquée (amputée de
-    // l'indentation) : les deux doivent rester lisibles.
-    await expect(nameWidth(rows[1])).toBeGreaterThanOrEqual(170);
-    await expect(nameWidth(rows[3])).toBeGreaterThanOrEqual(150);
+    // l'indentation) : les deux doivent contenir le plus long libellé de la
+    // liste sans le tronquer.
+    await expect(nameWidth(rows[1])).toBeGreaterThanOrEqual(plusLong);
+    await expect(nameWidth(rows[3])).toBeGreaterThanOrEqual(plusLong);
 
     // ---- LE DOCK NE S'ÉLARGIT PAS ----
     // `min-width: 0` + ellipse du nom : aucune ligne ne déborde de la colonne,
@@ -863,6 +888,113 @@ export const SelectedRootRowKeepsItsLeftBar: Story = {
     const barre = getComputedStyle(selected, "::before");
     await expect(barre.display).not.toBe("none");
     await expect(barre.left).toBe("0px");
+  },
+};
+
+// --- Repli des groupes (2026-08-16) ---
+
+/** Deux groupes de deux effets : la plus petite pile qui permette de vérifier
+ *  qu'un repli n'atteint QUE son propre groupe. */
+const deuxGroupes: LayerState[] = [
+  makeLayer({ id: "P1", effectId: "passthrough", name: "DSC_0042.jpg", imageSource: { sourceId: "s-P1" }, transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 } }),
+  makeLayer({ id: "A1", effectId: "glow" }),
+  makeLayer({ id: "A2", effectId: "grain" }),
+  makeLayer({ id: "P2", effectId: "passthrough", name: "plage.jpg", imageSource: { sourceId: "s-P2" }, transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 } }),
+  makeLayer({ id: "B1", effectId: "warp" }),
+  makeLayer({ id: "B2", effectId: "duotone" }),
+];
+
+/**
+ * LE CHEVRON N'EXISTE QUE SUR UNE LIGNE QUI OUVRE UN GROUPE — mais sa PISTE
+ * existe partout.
+ *
+ * Les deux moitiés comptent. Rendre le chevron partout mettrait un contrôle
+ * inerte sur chaque effet ; ne réserver la piste que sur les lignes à groupe
+ * décalerait les six autres pistes de 16 px d'une ligne à l'autre, ce que la
+ * grille de la ligne existe précisément pour empêcher (même raison que la piste
+ * du verrou, rendue vide sur les lignes non verrouillées).
+ */
+export const CollapseChevronOnlyOnGroupRows: Story = {
+  args: { layers: deuxGroupes, selectedId: null, onToggleGroup: fn() },
+  decorators: [dockWidthDecorator],
+  play: async ({ canvasElement }) => {
+    const rows = Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__row"));
+    await expect(rows).toHaveLength(6);
+
+    // Deux boutons de repli — un par photo qui porte des effets.
+    const boutons = canvasElement.querySelectorAll("button.layer-panel__col--collapse");
+    await expect(boutons).toHaveLength(2);
+
+    // ... mais SIX pistes occupées : les quatre lignes d'effet rendent un
+    // placeholder. Sans lui, l'alignement casserait.
+    await expect(canvasElement.querySelectorAll(".layer-panel__col--collapse")).toHaveLength(6);
+
+    // L'ALIGNEMENT, MESURÉ — c'est ce que la piste réservée achète. Toutes les
+    // lignes racines partagent l'abscisse de leur œil ; le comparer entre une
+    // ligne à chevron et une ligne sans est la seule façon de voir le défaut
+    // que le placeholder évite.
+    const oeil = (row: HTMLElement) =>
+      row.querySelector<HTMLElement>(".layer-panel__col--eye")!.getBoundingClientRect().left;
+    await expect(Math.abs(oeil(rows[0]) - oeil(rows[3]))).toBeLessThan(0.5);
+  },
+};
+
+/**
+ * UN GROUPE REPLIÉ CACHE SES ENFANTS, ET DIT COMBIEN.
+ *
+ * Trois signaux à la fois, et ils ne sont pas redondants : les lignes
+ * disparaissent (c'est l'effet), la pastille dit le nombre (sans elle on ne
+ * saurait pas ce qu'on ne voit pas), le moignon dit qu'il y a quelque chose là
+ * (sans lui, une photo repliée ressemble à une photo nue).
+ */
+export const CollapsedGroupHidesItsChildren: Story = {
+  args: {
+    layers: deuxGroupes,
+    selectedId: null,
+    onToggleGroup: fn(),
+    collapseState: { collapsed: new Set(["P1"]), rememberedChild: new Map() },
+  },
+  decorators: [dockWidthDecorator],
+  play: async ({ canvasElement }) => {
+    const noms = Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__row-label")).map(
+      (n) => n.textContent,
+    );
+    // A1/A2 sont partis, le SECOND groupe est intact : un repli n'atteint que
+    // le sien.
+    await expect(noms).toEqual(["DSC_0042.jpg", "plage.jpg", "Warp", "Duotone"]);
+
+    // La pastille porte le nombre d'enfants MASQUÉS, et il n'y en a qu'une.
+    const pastilles = Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__row-count"));
+    await expect(pastilles).toHaveLength(1);
+    await expect(pastilles[0].textContent).toBe("2");
+
+    // Le moignon est porté par la ligne REPLIÉE elle-même — les lignes enfants
+    // n'existent plus dans le DOM, il ne peut donc pas vivre sur elles.
+    const repliee = canvasElement.querySelectorAll<HTMLElement>(".layer-panel__row")[0];
+    const moignon = repliee.querySelector<HTMLElement>(".layer-panel__rail--stub");
+    if (!moignon) throw new Error("la photo repliée devrait porter un moignon");
+    await expect(moignon.getBoundingClientRect().height).toBeCloseTo(14, 0);
+
+    // Et il DESCEND sous le contenu de sa ligne : c'est ce qui le fait lire
+    // comme « il y a quelque chose replié là-dessous » plutôt que comme une
+    // décoration posée à côté du nom.
+    const contenu = repliee.querySelector<HTMLElement>(".layer-panel__row-top")!.getBoundingClientRect();
+    await expect(moignon.getBoundingClientRect().top).toBeGreaterThanOrEqual(contenu.bottom - 0.5);
+  },
+};
+
+/** Le chevron appelle la bascule avec l'id de SA photo, et ne sélectionne pas
+ *  la ligne au passage — parité avec l'œil. Le geste a déjà son propre effet
+ *  sur la sélection (replier la remonte au parent) ; y ajouter la sélection de
+ *  la ligne cliquée le contredirait. */
+export const CollapseChevronDoesNotSelect: Story = {
+  args: { layers: deuxGroupes, selectedId: "B1", onToggleGroup: fn(), onSelect: fn() },
+  decorators: [dockWidthDecorator],
+  play: async ({ canvasElement, args }) => {
+    const boutons = canvasElement.querySelectorAll<HTMLElement>("button.layer-panel__col--collapse");
+    await userEvent.click(boutons[1]); // la SECONDE photo
+    await expect(args.onToggleGroup).toHaveBeenCalledWith("P2");
+    await expect(args.onSelect).not.toHaveBeenCalled();
   },
 };
 

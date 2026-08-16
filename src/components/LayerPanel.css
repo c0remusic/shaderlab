@@ -263,10 +263,43 @@
    Le débordement vers le BAS (`bottom: -0,5 × --space-4`) ne pose pas la
    question : il s'arrête dans la gouttière de liste, qui vaut le double, et
    n'atteint donc jamais la boîte de la ligne suivante (mesuré dans
-   `RailStaysVisibleUnderSelection`). */
-.layer-panel__row--selected .layer-panel__rail,
+   `RailStaysVisibleUnderSelection`).
+
+   ⚠️ NE VAUT PLUS QUE POUR LE SECOND CAS depuis le 2026-08-16. Le premier — le
+   filet de la ligne sélectionnée elle-même — n'est plus relevé en
+   `--text-tertiary` : il devient la BARRE DE SÉLECTION, voir le bloc suivant.
+   Il n'y a donc plus de filet blanc à sauver sur cette ligne-là. */
 .layer-panel__row--selected + .layer-panel__row .layer-panel__rail--first {
   background: var(--text-tertiary);
+}
+
+/* LA BARRE DE SÉLECTION EST LE FILET (2026-08-16, constat d'Antoine à l'écran :
+   « la piste sélectionnée dépassait, je voulais que la ligne bleue remplace la
+   ligne blanche »).
+
+   LE DÉFAUT, MESURÉ. Sur une ligne imbriquée sélectionnée il y avait DEUX
+   verticales : la barre bleue à `left: 0` et le filet blanc 15 px plus à droite
+   (relevé dans la fenêtre, dock 320 px). La barre débordait donc à gauche de
+   l'axe du groupe, et le regard avait deux bords à lire là où il n'y a qu'un
+   bloc.
+
+   LA FORME RETENUE — variante C du wireframe `pile-longue-hierarchie`, dont
+   c'est l'esprit : la hiérarchie se lit dans la sélection elle-même, la barre
+   étant l'ARÊTE du bloc. Mais l'implantation est plus simple que les trois de la
+   planche : on ne DÉPLACE pas la barre sur l'axe du filet, on fait du FILET la
+   barre. Même élément, donc mêmes bornes — `--first` et `--last` continuent de
+   valoir, le segment joint ses voisins exactement comme avant, et il n'y a rien
+   à réaccorder quand l'indentation changera.
+
+   Conséquence voulue : sur une ligne imbriquée, la barre à `left: 0` disparaît.
+   Une ligne RACINE n'a pas de filet et garde donc la sienne — c'est cohérent,
+   elle n'appartient à aucun groupe et n'a pas d'axe où se poser. */
+.layer-panel__row--nested.layer-panel__row--selected::before {
+  display: none;
+}
+.layer-panel__row--nested.layer-panel__row--selected .layer-panel__rail {
+  width: var(--selection-bar-width);
+  background: var(--selection-accent);
 }
 
 /* PREMIÈRE ligne enfant (la plus HAUTE du groupe) : depuis l'ADR-0004 la photo

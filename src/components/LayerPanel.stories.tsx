@@ -778,6 +778,94 @@ export const RailKeepsItsRestingRank: Story = {
   },
 };
 
+/**
+ * LA BARRE DE SÉLECTION D'UNE LIGNE IMBRIQUÉE **EST** LE FILET (2026-08-16).
+ *
+ * Défaut constaté par Antoine à l'écran, puis mesuré dans la fenêtre : une
+ * ligne imbriquée sélectionnée portait DEUX verticales — la barre bleue à
+ * `left: 0` et le filet blanc 15 px plus à droite. « La piste sélectionnée
+ * dépassait » : la barre débordait à gauche de l'axe du groupe, et le regard
+ * avait deux bords à lire là où il n'y a qu'un bloc.
+ *
+ * CETTE STORY DOIT ROUGIR SANS LE CORRECTIF, et elle rougit sur les trois
+ * points à la fois : sans lui la barre `::before` est visible, le filet fait
+ * 1 px et non 2, et il porte `--border-default` (relevé en `--text-tertiary`
+ * sous la sélection) au lieu de l'accent.
+ *
+ * Elle ne dit RIEN d'une ligne racine : une photo n'a pas de filet, donc pas
+ * d'axe où poser sa barre, et elle garde la sienne à `left: 0`. C'est
+ * `SelectedRootRowKeepsItsLeftBar` qui verrouille ce versant — sans quoi
+ * supprimer la barre PARTOUT passerait au vert ici.
+ */
+export const SelectedNestedRowBarIsTheRail: Story = {
+  args: { layers: twoParentKinds, selectedId: "layer-A" },
+  decorators: [dockWidthDecorator],
+  play: async ({ canvasElement }) => {
+    const selected = canvasElement.querySelector<HTMLElement>(".layer-panel__row--selected");
+    if (!selected) throw new Error("aucune ligne sélectionnée");
+    await expect(selected.className).toContain("layer-panel__row--nested");
+
+    // ---- UNE SEULE VERTICALE ----
+    // C'est l'assertion qui porte la demande. La barre de gauche ne doit plus
+    // être peinte du tout : la masquer par une couleur transparente laisserait
+    // une piste dans la grille et le défaut reviendrait au premier changement
+    // de token.
+    await expect(getComputedStyle(selected, "::before").display).toBe("none");
+
+    const rail = selected.querySelector<HTMLElement>(".layer-panel__rail");
+    if (!rail) throw new Error("la ligne imbriquée sélectionnée devrait porter un filet");
+
+    // ---- ET C'EST LE FILET QUI LA PORTE ----
+    // Tokens résolus par le navigateur, jamais comparés à une chaîne écrite en
+    // dur : sinon un changement de `--selection-accent` laisserait ce test vert
+    // pendant que la barre partirait d'une autre couleur.
+    const probe = document.createElement("div");
+    probe.style.backgroundColor = "var(--selection-accent)";
+    probe.style.width = "var(--selection-bar-width)";
+    canvasElement.appendChild(probe);
+    const attendu = {
+      couleur: getComputedStyle(probe).backgroundColor,
+      largeur: getComputedStyle(probe).width,
+    };
+    probe.remove();
+
+    await expect(getComputedStyle(rail).backgroundColor).toBe(attendu.couleur);
+    await expect(getComputedStyle(rail).width).toBe(attendu.largeur);
+
+    // ---- SUR L'AXE DU GROUPE, PAS AU BORD DE LA LIGNE ----
+    // La mesure qui dit que la barre ne « dépasse » plus : son abscisse est
+    // celle du filet (moitié de la gouttière d'indentation), pas le bord gauche
+    // de la ligne. 15 px mesurés dans la fenêtre le 2026-08-16 ; on compare ici
+    // à l'axe CALCULÉ plutôt qu'à ce littéral, pour que la story survive au
+    // passage de l'indentation à 20 px.
+    const ligne = selected.getBoundingClientRect();
+    const barre = rail.getBoundingClientRect();
+    const frere = canvasElement.querySelector<HTMLElement>(
+      ".layer-panel__row--nested:not(.layer-panel__row--selected) .layer-panel__rail",
+    );
+    if (!frere) throw new Error("il faut un second groupe pour comparer les axes");
+    await expect(Math.abs(barre.left - frere.getBoundingClientRect().left)).toBeLessThan(0.5);
+    await expect(barre.left - ligne.left).toBeGreaterThan(4);
+  },
+};
+
+/** Le versant OPPOSÉ, et il n'est pas décoratif : sans lui, supprimer la barre
+ *  de sélection sur TOUTES les lignes ferait passer la story ci-dessus au vert.
+ *  Une ligne racine n'appartient à aucun groupe — aucun axe où poser sa barre,
+ *  elle garde donc la sienne au bord. */
+export const SelectedRootRowKeepsItsLeftBar: Story = {
+  args: { layers: twoParentKinds, selectedId: "photo-P" },
+  decorators: [dockWidthDecorator],
+  play: async ({ canvasElement }) => {
+    const selected = canvasElement.querySelector<HTMLElement>(".layer-panel__row--selected");
+    if (!selected) throw new Error("aucune ligne sélectionnée");
+    await expect(selected.className).not.toContain("layer-panel__row--nested");
+    const barre = getComputedStyle(selected, "::before");
+    await expect(barre.display).not.toBe("none");
+    await expect(barre.left).toBe("0px");
+  },
+};
+
 // --- Verrou (arbitrage n°2 du design du 2026-07-28) ---
 
 // Le CADENAS de la ligne n'est plus un contrôle depuis le 2026-07-29 : c'est un

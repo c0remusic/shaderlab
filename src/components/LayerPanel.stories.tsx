@@ -828,7 +828,7 @@ export const RailKeepsItsRestingRank: Story = {
  * ne colle plus au lavis (défaut 2) — c'est l'assertion de hauteur qui l'attrape,
  * et elle n'existait pas dans la première version de cette story.
  */
-export const SelectedNestedRowBarSitsOnTheRailAxis: Story = {
+export const ActiveGroupRailIsOneColour: Story = {
   args: { layers: twoParentKinds, selectedId: "layer-A" },
   decorators: [dockWidthDecorator],
   play: async ({ canvasElement }) => {
@@ -836,56 +836,76 @@ export const SelectedNestedRowBarSitsOnTheRailAxis: Story = {
     if (!selected) throw new Error("aucune ligne sélectionnée");
     await expect(selected.className).toContain("layer-panel__row--nested");
 
-    const barre = getComputedStyle(selected, "::before");
-    // La barre existe toujours — c'est elle qui porte la sélection.
-    await expect(barre.display).not.toBe("none");
+    // Tokens résolus par le navigateur, jamais comparés à une chaîne écrite en
+    // dur : sinon un changement de `--selection-accent` laisserait ce test vert
+    // pendant que le filet partirait d'une autre couleur.
+    const sonde = document.createElement("div");
+    canvasElement.appendChild(sonde);
+    const resoudre = (token: string) => {
+      sonde.style.backgroundColor = `var(${token})`;
+      return getComputedStyle(sonde).backgroundColor;
+    };
+    const accent = resoudre("--selection-accent");
+    const repos = resoudre("--border-default");
+    sonde.remove();
 
-    // ---- ELLE ÉPOUSE LE LAVIS ----
-    // L'assertion qui attrape le défaut 2. Le lavis est le fond de la ligne,
-    // donc sa hauteur EST celle de la boîte : une barre qui déborde ou reste
-    // courte se voit immédiatement ici.
-    const ligne = selected.getBoundingClientRect();
-    await expect(barre.top).toBe("0px");
-    await expect(barre.bottom).toBe("0px");
-    await expect(Math.abs(parseFloat(barre.height) - ligne.height)).toBeLessThan(0.5);
+    // ---- LE FILET DU GROUPE ACTIF EST BLEU SUR TOUTE SA LONGUEUR ----
+    // L'assertion qui porte la demande. Elle vise TOUS les filets du groupe, pas
+    // celui de la ligne sélectionnée : c'est précisément le trait bicolore
+    // (gris/bleu/gris) qui était le défaut.
+    const actifs = Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__rail--active"));
+    await expect(actifs.length).toBeGreaterThan(0);
+    for (const rail of actifs) {
+      await expect(getComputedStyle(rail).backgroundColor).toBe(accent);
+    }
 
-    // ---- SUR L'AXE DU FILET, PAS AU BORD DE LA LIGNE ----
-    // L'assertion qui attrape le défaut 1. On compare à l'axe MESURÉ du filet
-    // d'un autre groupe plutôt qu'au littéral 15 px, pour que la story survive
-    // au passage de l'indentation à 20 px.
-    const frere = canvasElement.querySelector<HTMLElement>(
-      ".layer-panel__row--nested:not(.layer-panel__row--selected) .layer-panel__rail",
+    // ---- ET LES AUTRES GROUPES RESTENT AU REPOS ----
+    // LE TÉMOIN DISCRIMINANT, sans lequel colorer TOUS les filets en bleu
+    // passerait au vert. `twoParentKinds` porte deux groupes exprès.
+    const inactifs = Array.from(
+      canvasElement.querySelectorAll<HTMLElement>(".layer-panel__rail:not(.layer-panel__rail--active)"),
     );
-    if (!frere) throw new Error("il faut un second groupe pour comparer les axes");
-    const axeFilet = frere.getBoundingClientRect().left - ligne.left;
-    await expect(Math.abs(parseFloat(barre.left) - axeFilet)).toBeLessThan(0.5);
-    await expect(parseFloat(barre.left)).toBeGreaterThan(4);
+    await expect(inactifs.length).toBeGreaterThan(0);
+    for (const rail of inactifs) {
+      await expect(getComputedStyle(rail).backgroundColor).toBe(repos);
+    }
 
-    // ---- ET ELLE EST AU-DESSUS DU FILET ----
-    // Sans `z-index`, le filet (élément enfant) peint après le pseudo-élément
-    // et le gris couvrirait le bleu. Rien ne le dirait à l'œil sur une capture
-    // de 2 px de large.
-    await expect(barre.zIndex).not.toBe("auto");
+    // ---- LA LIGNE SÉLECTIONNÉE N'AJOUTE PLUS DE BARRE ----
+    // Elle en portait une, à l'axe du filet, jusqu'à ce que le filet prenne la
+    // couleur : elle peignait alors le même pixel. Un doublon qui reviendrait
+    // ferait deux traits de largeurs potentiellement différentes.
+    await expect(getComputedStyle(selected, "::before").display).toBe("none");
 
-    // ---- MÊME ÉPAISSEUR QUE LE FILET QU'ELLE RECOUVRE ----
-    // Troisième constat d'Antoine (2026-08-16) : « l'épaisseur devrait suivre
-    // la taille de la barre blanche ». À 2 px contre 1, la barre dépassait le
-    // filet d'un pixel et se lisait comme un troisième trait. Comparé au filet
-    // MESURÉ plutôt qu'au littéral `1px` : si le filet s'épaissit un jour, la
-    // barre doit suivre, et cette story doit le dire.
-    await expect(barre.width).toBe(getComputedStyle(frere).width);
-
-    // ---- LE LAVIS PART DE LA BARRE, PAS DU BORD DE LA LIGNE ----
-    // La seconde moitié de la variante C, livrée le 2026-08-16 seulement :
-    // « lavis ET barre partent de l'axe du filet, la barre étant l'ARÊTE du
-    // bloc ». Sans elle le lavis débordait de 15 px À GAUCHE de son arête, ce
-    // qui reproduisait le défaut d'origine — deux bords à lire.
-    // Le fond est un dégradé dont la première portion est transparente jusqu'à
-    // l'axe : on vérifie que la coupure tombe bien sur l'axe mesuré, et pas
-    // qu'un dégradé existe (un dégradé au mauvais endroit passerait).
+    // ---- ET SON LAVIS PART DE L'AXE, PAS DU BORD ----
+    // Variante C : « lavis ET barre partent de l'axe du filet ». Sans ça, le
+    // lavis débordait de 15 px à gauche du trait, et le regard avait de nouveau
+    // deux bords à lire. On vérifie que la coupure du dégradé tombe sur l'axe
+    // MESURÉ — un dégradé au mauvais endroit passerait un simple `toContain`.
+    const ligne = selected.getBoundingClientRect();
+    const axeFilet = actifs[0].getBoundingClientRect().left - ligne.left;
+    await expect(axeFilet).toBeGreaterThan(4);
     const fond = getComputedStyle(selected).backgroundImage;
     await expect(fond).toContain("linear-gradient");
     await expect(fond).toContain(`${Math.round(axeFilet)}px`);
+  },
+};
+
+/** Le groupe actif l'est même quand la sélection est posée sur SA PHOTO, et pas
+ *  sur un de ses effets. Sans cette story, `inActiveGroup` pourrait ne regarder
+ *  que `parentId` et laisser une photo sélectionnée sans groupe éclairé — cas
+ *  le plus courant à l'ouverture d'un document. */
+export const SelectingAGroupPhotoLightsItsRail: Story = {
+  args: { layers: twoParentKinds, selectedId: "photo-P" },
+  decorators: [dockWidthDecorator],
+  play: async ({ canvasElement }) => {
+    const actifs = Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__rail--active"));
+    await expect(actifs.length).toBeGreaterThan(0);
+    // Et ce sont bien les filets des ENFANTS de cette photo — un filet
+    // n'existe que sur une ligne imbriquée.
+    for (const rail of actifs) {
+      const ligne = rail.closest<HTMLElement>(".layer-panel__row")!;
+      await expect(ligne.className).toContain("layer-panel__row--nested");
+    }
   },
 };
 

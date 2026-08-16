@@ -149,6 +149,11 @@ interface LayerRowProps {
   depth: 0 | 1;
   firstChild: boolean;
   lastChild: boolean;
+  /** Le groupe de cette ligne contient-il la sélection ? Pilote la couleur du
+   *  FILET, et rien d'autre — le lavis dit la ligne, le filet dit le groupe.
+   *  Booléen déjà réduit à cette ligne (et non l'id du groupe actif) pour ne pas
+   *  casser la mémoïsation d'une ligne d'un autre groupe. */
+  inActiveGroup: boolean;
   /** REPLI (2026-08-16). Trois booléens/compte déjà RÉDUITS à cette ligne par
    *  `applyCollapse`, jamais l'état de repli entier — même raison que `depth` :
    *  replier un groupe ne doit pas re-rendre les lignes d'un autre (`memo`).
@@ -197,6 +202,7 @@ const LayerRow = memo(function LayerRow({
   depth,
   firstChild,
   lastChild,
+  inActiveGroup,
   collapsible,
   collapsed,
   hiddenCount,
@@ -285,6 +291,7 @@ const LayerRow = memo(function LayerRow({
             "layer-panel__rail",
             firstChild && "layer-panel__rail--first",
             lastChild && "layer-panel__rail--last",
+            inActiveGroup && "layer-panel__rail--active",
           ]
             .filter(Boolean)
             .join(" ")}
@@ -843,7 +850,7 @@ export function LayerPanel({
         onPointerUp={dragState ? handlePointerUp : undefined}
         onPointerCancel={dragState ? handlePointerCancel : undefined}
       >
-        {rows.map(({ layer, depth, firstChild, lastChild, selectedFacet, mask, collapsible, collapsed, hiddenCount }, displayRow) => (
+        {rows.map(({ layer, depth, firstChild, lastChild, selectedFacet, mask, collapsible, collapsed, hiddenCount, inActiveGroup }, displayRow) => (
           <LayerRow
             key={layer.id}
             layer={layer}
@@ -860,6 +867,7 @@ export function LayerPanel({
             depth={depth}
             firstChild={firstChild}
             lastChild={lastChild}
+            inActiveGroup={inActiveGroup}
             collapsible={collapsible}
             collapsed={collapsed}
             hiddenCount={hiddenCount}

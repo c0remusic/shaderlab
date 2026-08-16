@@ -339,12 +339,40 @@
       de la ligne reste un FOND : aucun empilement à arbitrer, et le
       `border-radius` de la ligne continue d'arrondir le côté droit.
       Le côté gauche devient FRANC, et c'est le but : c'est la barre qui fait
-      l'arête, pas une courbe. */
+      l'arête, pas une courbe.
+
+   ⚠️ TROISIÈME AMENDEMENT, ET C'EST LUI QUI SIMPLIFIE (2026-08-16). Constat
+   d'Antoine, qui porte sur l'ENSEMBLE et non sur la pièce : « la barre blanche
+   devrait devenir bleue, ça serait plus cohérent — tu es trop focusé ». Il a
+   raison, et le défaut se voyait sur toute la colonne : le filet est un trait
+   CONTINU qui traverse un groupe entier, et le colorer sur la seule ligne
+   sélectionnée le faisait changer de couleur DEUX FOIS sur sa longueur — gris,
+   bleu, gris — pour un objet qui n'a qu'un seul sens.
+
+   La règle est donc remontée d'un cran, de la LIGNE au GROUPE :
+
+    - le LAVIS dit quelle LIGNE est sélectionnée ;
+    - le FILET dit quel GROUPE la contient, sur toute sa longueur.
+
+   Deux marques, deux portées, plus aucun trait bicolore. `inActiveGroup` est
+   calculé dans `pileModel` (fonction pure) et vaut vrai sur TOUTES les lignes du
+   groupe visé, y compris les frères non sélectionnés — c'est le groupe qui est
+   actif, pas la ligne.
+
+   CE QUE ÇA SUPPRIME : la barre `::before` de la ligne imbriquée sélectionnée
+   n'a plus de raison d'être. Elle peignait un trait de 1 px exactement là où le
+   filet passe déjà — un doublon dès lors que le filet porte la couleur. Trois
+   passes auront été nécessaires pour voir que la bonne correction ENLEVAIT du
+   mécanisme au lieu d'en ajouter. */
 .layer-panel__row--nested.layer-panel__row--selected::before {
-  left: calc(var(--space-4) + (var(--layer-nest-indent) / 2));
-  width: 1px;
-  border-radius: 0;
-  z-index: 1;
+  display: none;
+}
+
+/* Le filet d'un groupe ACTIF. Placé après la règle de contraste ci-dessus, à
+   spécificité égale, pour la gagner : un filet actif n'a pas besoin d'être
+   relevé en `--text-tertiary`, il porte déjà l'accent. */
+.layer-panel__row .layer-panel__rail--active {
+  background: var(--selection-accent);
 }
 
 .layer-panel__row--nested.layer-panel__row--selected,

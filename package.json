@@ -23,6 +23,7 @@
     "coverage": "vitest run --project=storybook --coverage",
     "lint": "eslint .",
     "lint:tokens": "node scripts/lint-tokens.mjs",
+    "lint:css-comments": "node scripts/css-comment-guard.mjs",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "test:wgsl": "vitest run --project=unit test/render/wgslNaga.test.ts",

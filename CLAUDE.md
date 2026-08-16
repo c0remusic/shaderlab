@@ -482,6 +482,18 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
 - Type-check : `npx tsc --noEmit`
 - Lint : `npm run lint` (eslint, couvre `src/**/*.{ts,tsx}`)
 - Lint tokens design : `npm run lint:tokens` (détecte couleurs/z-index/spacing en dur qui contournent un token existant, `scripts/lint-tokens.mjs`)
+- **Commentaires CSS** : `npm run lint:css-comments` (`scripts/css-comment-guard.mjs`).
+  ⚠️ **Piège payé TROIS fois le 2026-08-16, dans le même fichier et la même
+  session** : éditer un bloc de commentaire en insérant de la prose APRÈS son
+  `*/`, puis en refermant par un second `*/`. **Compter les délimiteurs ne le
+  voit pas** — le total reste équilibré (mesuré : 53 contre 53). Rien d'autre ne
+  l'attrape : `lint:tokens` ne parse pas le CSS, `tsc` ne le voit pas.
+  Et **le symptôme ne nomme jamais la cause** : Vite rend
+  `Pre-transform error: Unterminated string: 'est la variante C'` — l'apostrophe
+  d'un « c'est » situé plus bas — puis **continue de servir l'ANCIEN CSS**. Une
+  mesure dans l'app rapporte donc les valeurs d'avant l'édition, ce qui a fait
+  chercher un problème de spécificité sur une règle jamais chargée. La garde
+  balaye à un seul état et signale toute fermeture ORPHELINE, avec sa ligne.
 - Rust : `cd src-tauri && cargo check`
 - Storybook (composants React isolés, tokens réels via `src/design/index.css`) : `npm run storybook` (dev, port 6006) · `npm run build-storybook` (static)
 

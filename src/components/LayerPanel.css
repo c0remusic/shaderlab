@@ -315,11 +315,45 @@
    sur l'axe du filet il n'a aucun coin à épouser.
 
    Une ligne RACINE n'a pas de filet, donc pas d'axe où se poser : elle garde sa
-   barre au bord, à `left: 0`. */
+   barre au bord, à `left: 0`.
+
+   ⚠️ AMENDÉ UNE SECONDE FOIS le 2026-08-16, et cette fois c'est la variante C
+   qui est enfin livrée ENTIÈRE. Constat d'Antoine : « l'épaisseur devrait
+   suivre la taille de la barre blanche, pas sûr que la sélection devrait
+   dépasser de la barre non plus ». Les deux points portent, et le second est
+   littéralement ce que la planche `pile-longue-hierarchie` avait tranché —
+   « lavis ET barre qui partent de l'axe du filet, la barre étant l'ARÊTE du
+   bloc ». Je n'en avais implanté que la barre : le lavis, lui, continuait de
+   partir du bord de la ligne et débordait donc de 15 px À GAUCHE de son
+   arête, ce qui reproduisait au fond le défaut d'origine — deux bords à lire.
+
+    - ÉPAISSEUR : `1px`, la valeur du filet qu'elle recouvre, et non
+      `--selection-bar-width` (2 px). Une barre plus large que le filet le
+      dépasse d'un pixel et se lit comme un troisième trait. Le littéral est le
+      même que celui du filet plus haut, par la même convention (le dépôt n'a
+      pas de token d'épaisseur de trait).
+    - LAVIS : un dégradé plutôt qu'un pseudo-élément. Le lavis doit passer
+      DERRIÈRE le texte de la ligne, or un `::after` positionné peint APRÈS le
+      contenu en flux — il faudrait un `z-index: -1`, qui le ferait passer sous
+      la carte selon ce que le parent peint. Un `linear-gradient` sur le fond
+      de la ligne reste un FOND : aucun empilement à arbitrer, et le
+      `border-radius` de la ligne continue d'arrondir le côté droit.
+      Le côté gauche devient FRANC, et c'est le but : c'est la barre qui fait
+      l'arête, pas une courbe. */
 .layer-panel__row--nested.layer-panel__row--selected::before {
   left: calc(var(--space-4) + (var(--layer-nest-indent) / 2));
+  width: 1px;
   border-radius: 0;
   z-index: 1;
+}
+
+.layer-panel__row--nested.layer-panel__row--selected,
+.layer-panel__row--nested.layer-panel__row--selected:hover {
+  background: linear-gradient(
+    to right,
+    transparent 0 calc(var(--space-4) + (var(--layer-nest-indent) / 2)),
+    var(--surface-selected-accent) calc(var(--space-4) + (var(--layer-nest-indent) / 2))
+  );
 }
 
 /* PREMIÈRE ligne enfant (la plus HAUTE du groupe) : depuis l'ADR-0004 la photo

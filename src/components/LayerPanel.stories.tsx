@@ -866,6 +866,26 @@ export const SelectedNestedRowBarSitsOnTheRailAxis: Story = {
     // et le gris couvrirait le bleu. Rien ne le dirait à l'œil sur une capture
     // de 2 px de large.
     await expect(barre.zIndex).not.toBe("auto");
+
+    // ---- MÊME ÉPAISSEUR QUE LE FILET QU'ELLE RECOUVRE ----
+    // Troisième constat d'Antoine (2026-08-16) : « l'épaisseur devrait suivre
+    // la taille de la barre blanche ». À 2 px contre 1, la barre dépassait le
+    // filet d'un pixel et se lisait comme un troisième trait. Comparé au filet
+    // MESURÉ plutôt qu'au littéral `1px` : si le filet s'épaissit un jour, la
+    // barre doit suivre, et cette story doit le dire.
+    await expect(barre.width).toBe(getComputedStyle(frere).width);
+
+    // ---- LE LAVIS PART DE LA BARRE, PAS DU BORD DE LA LIGNE ----
+    // La seconde moitié de la variante C, livrée le 2026-08-16 seulement :
+    // « lavis ET barre partent de l'axe du filet, la barre étant l'ARÊTE du
+    // bloc ». Sans elle le lavis débordait de 15 px À GAUCHE de son arête, ce
+    // qui reproduisait le défaut d'origine — deux bords à lire.
+    // Le fond est un dégradé dont la première portion est transparente jusqu'à
+    // l'axe : on vérifie que la coupure tombe bien sur l'axe mesuré, et pas
+    // qu'un dégradé existe (un dégradé au mauvais endroit passerait).
+    const fond = getComputedStyle(selected).backgroundImage;
+    await expect(fond).toContain("linear-gradient");
+    await expect(fond).toContain(`${Math.round(axeFilet)}px`);
   },
 };
 

@@ -244,7 +244,9 @@ des multiplications.
 le seul levier qui attaque les 7,4 ms par lecture au lieu de les compter — un
 niveau grossier rend les lectures LOCALES en plus d'être moins nombreuses. Son
 obstacle d'implémentation est levé : `src/render/mipmapGenerator.ts` existe
-depuis le 2026-08-15 (WebGPU n'a aucune génération de mipmaps intégrée).
+depuis le 2026-08-15 (WebGPU n'a aucune génération de mipmaps intégrée) — ⚠️
+**mais sur la branche `mipmaps-bibliotheque` (`c06147c`), pas sur `master`**
+(mesuré le 2026-08-16). Le levier est donc à portée, pas en place.
 
 ⚠️ **Rien n'est écrit côté code, et le prix est connu d'avance** : le rendu
 CHANGE, donc les **18 références de pixels du verre** sont à régénérer et à
@@ -688,7 +690,10 @@ sortie. La même erreur ailleurs, ou une seconde à côté, fait rougir.
 Les textures de bibliothèque étaient créées **sans `mipLevelCount`**, donc à un
 seul niveau, alors que les scans montent à 8192×8192 et sont échantillonnés à
 l'échelle de l'écran : le cache de texture ne servait à rien et l'image aliasait.
-Corrigé le 2026-08-15 (`src/render/mipmapGenerator.ts` + sampler trilinéaire).
+Corrigé le 2026-08-15 (`src/render/mipmapGenerator.ts` + sampler trilinéaire)
+— ⚠️ **sur la branche `mipmaps-bibliotheque` (`c06147c`) uniquement, qui attend
+son verdict et n'est pas fusionnée** (mesuré le 2026-08-16). Sur `master`, les
+textures de bibliothèque sont toujours à un seul niveau.
 
 ⚠️ **Ce défaut ne pouvait être attrapé par AUCUN test** : un `createTexture` sans
 `mipLevelCount` compile, valide, et rend une image correcte — les références ont

@@ -404,7 +404,12 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `blendMode` sur `LayerState`.
 - **Toute lecture de `libraryTexture` DÉCLARE son espace d'échantillonnage.**
   Les scans portent une pyramide de mipmaps (`src/render/mipmapGenerator.ts` —
-  WebGPU n'a aucune génération intégrée, il faut la chaîne de blits). Le LOD
+  WebGPU n'a aucune génération intégrée, il faut la chaîne de blits). ⚠️ **Ce
+  fichier n'est PAS sur `master` : il vit sur la branche `mipmaps-bibliotheque`
+  (`c06147c`, « EN ATTENTE D'UN VERDICT »), non fusionnée** — mesuré le
+  2026-08-16, ce paragraphe le citait comme acquis depuis le 2026-08-15. Tant que
+  le verdict n'est pas rendu, la règle d'espace ci-dessous décrit la branche, pas
+  le tronc. Le LOD
   **automatique** est juste pour un effet qui mappe le scan sur le cadre
   (`texture`), et FAUX pour un effet qui lit en espace TEXEL : `inkTexture` a un
   pas exprimé en texels du scan et un `fract` discontinu, donc la dérivée d'écran
@@ -434,18 +439,27 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `cargo install naga-cli --locked`. **Seul gate de shader qui tourne en CI** ; il
   ne remplace pas `test:gpu-shaders` — naga valide la SPEC, pas ce que Dawn puis
   le JIT du pilote accepteront.
-  ⚠️ **IL EST ROUGE, ET DÉJÀ POUSSÉ** (constat du 2026-08-14). Il DEVRAIT porter
-  une exception bornée — notre uniform `params: array<f32, 48>` n'est pas
+  ⚠️ **IL EST VERT, EXCEPTION COMPRISE** — mesuré le 2026-08-16 en local ET dans
+  la CI (`npm run test`, 128 fichiers, run `31895619303`). Ce paragraphe a dit
+  « IL EST ROUGE … cette exception **n'est pas implémentée** » du 2026-08-14 au
+  2026-08-16, et c'était faux : `ECART_CONNU_PARAMS` est dans le fichier de test
+  **depuis son tout premier commit** (`677a39d`, `wgslNaga.test.ts:73`). La
+  dérogation est déjà BORNÉE — elle ne tolère l'erreur que sur la variable
+  `params`, et une SECONDE erreur, quelle qu'elle soit, l'annule. Ce qui reste
+  ouvert n'est donc pas de la porter mais de la COMPTER.
+  Ce qu'elle laisse passer : notre uniform `params: array<f32, 48>` n'est pas
   conforme (stride 4 pour un alignement requis de 16 en espace uniform), Dawn
   l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 23
-  effets, index gelés par les presets ET par 97 références de pixels. Cette
-  exception **n'est pas implémentée** : le test échoue sur tous les effets du
-  registre (`error: Global variable [2] 'params' is invalid`). Comme c'est le
-  SEUL gate de shader qui tourne en CI, la CI est rouge en permanence — l'état
-  le pire pour un gate, puisqu'un vrai défaut de WGSL y passerait inaperçu.
-  Ne pas le neutraliser pour retrouver du vert : la dérogation doit être
-  **bornée et comptée**. Voir
-  `.scratch/prochain-palier/issues/21-le-gate-wgsl-est-rouge-en-ci.md`.
+  effets, index gelés par les presets ET par 97 références de pixels.
+  ⚠️ **La CI, elle, est bien ROUGE — mais ailleurs, et depuis avant ce gate** :
+  `LayerPanel.stories.tsx` échoue en chromium ubuntu (`Cannot read properties of
+  null (reading 'useMemo')`) quand `npm run test-storybook` est vert en local, et
+  `master` porte ce rouge depuis `9a12812` (2026-08-14). Voir
+  `.scratch/prochain-palier/issues/21-le-gate-wgsl-est-rouge-en-ci.md` (requalifié)
+  et `.scratch/prochain-palier/issues/22-layerpanel-rouge-en-ci-vert-en-local.md`.
+  **Leçon** : attribuer un rouge de CI se fait par `gh run view --log-failed`, pas
+  par déduction depuis le gate qu'on vient d'ajouter. Trois commits de docs ont
+  porté la mauvaise cause, dont un intitulé « un gate annoncé vert qui est rouge ».
 - Cadence en build de **PRODUCTION**, pendant un vrai geste :
   `node scripts/perf-probe.mjs bench <curseur> [passes] [pas] [ms]`
   (`etat`, `sliders`, `add-effect`, `choisir`, `poser` montent la scène).

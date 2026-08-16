@@ -1,71 +1,78 @@
-# Le seul gate de shader qui tourne en CI est rouge
+# La dérogation du gate WGSL est bornée, mais pas comptée
 
 Type: task
 Status: ready-for-agent
 Parent: ../map.md
 
-## Question
+> ⚠️ **Ce ticket a été REQUALIFIÉ le 2026-08-16.** Il s'appelait « Le seul gate
+> de shader qui tourne en CI est rouge » et affirmait que `wgslNaga.test.ts`
+> échouait sur tous les effets du registre. **C'était faux, et il l'était déjà
+> le jour de son écriture.** La mesure est plus bas ; le titre d'origine est
+> conservé dans le nom de fichier pour ne pas casser les liens de la carte.
 
-`test/render/wgslNaga.test.ts` (arrivé avec `677a39d`, poussé dans `af075ce`)
-**échoue**, et il est le SEUL gate de shader qui tourne en CI — les deux autres
-(`test:gpu-shaders`, `test:render`) exigent un GPU et sont donc locaux.
+## Ce que la mesure dit, contre ce que le ticket disait
 
-Tant qu'il est rouge, la CI l'est aussi, et **un vrai défaut de WGSL y passerait
-inaperçu au milieu du bruit**. C'est le pire état pour un gate : présent, donc
-on croit être couvert ; rouge en permanence, donc plus personne ne le lit.
+Mesuré le 2026-08-16, en local et dans la CI :
 
-## Ce qui est déjà su, et qui rend le ticket court
+| Affirmation d'origine | Mesure |
+| --- | --- |
+| `test:wgsl` échoue | **Vert** — 2 tests, ~90 variantes composées validées |
+| L'exception n'est pas implémentée | **Elle l'est**, `wgslNaga.test.ts:73` |
+| Elle a été omise à l'écriture | **Présente au tout premier commit du fichier** (`677a39d`) |
+| La CI est rouge à cause de ce gate | **`npm run test` passe en CI** : 128 fichiers verts (run `31895619303`) |
 
-La cause est unique, connue, et `CLAUDE.md` la documente en toutes lettres avant
-même que le test existe :
+La dérogation en place :
 
-> notre uniform `params: array<f32, 48>` n'est pas conforme (stride 4 pour un
-> alignement requis de 16 en espace uniform), Dawn l'accepte quand même, et
-> corriger toucherait chaque accès `params[N]` des 23 effets — index gelés par
-> les presets.
-
-Le message de naga le confirme, identique sur **tous** les effets du registre :
-
-```
-error: Global variable [2] 'params' is invalid
-   ┌─ glow_composite.wgsl:22:23
-22 │ @group(0) @binding(2) var<uniform> params: array<f32, 48>;
+```ts
+const ECART_CONNU_PARAMS =
+  /Global variable \[\d+\] 'params' is invalid[\s\S]*?stride 4 is not a multiple of the required alignment 16/;
 ```
 
-Ce n'est donc pas une régression de rendu : c'est le gate qui n'a pas encore sa
-dérogation.
+Elle est **bornée dans les deux sens** que le ticket réclamait : par la variable
+(`params` et rien d'autre) et par le nombre (`erreurs.length === 1` — une seconde
+erreur, quelle qu'elle soit, annule la tolérance). C'est la forme 2 des trois que
+le ticket proposait, resserrée d'un cran.
 
-## Ce qu'il reste à décider, et c'est la seule vraie question
+**La partie AFK n° 1 (« lire le test et voir s'il prévoit déjà un mécanisme
+d'exclusion inutilisé ») était donc la bonne question, et elle avait déjà sa
+réponse dans le fichier.** Personne ne l'a ouverte avant d'écrire le ticket.
 
-**Comment porter la dérogation sans la rendre aveugle.** Trois formes possibles,
-et elles ne se valent pas :
+## Ce qui reste, et c'est tout ce qui reste
 
-1. **Filtrer ce message précis** (`Global variable [2] 'params' is invalid`) :
-   simple, mais il masquerait aussi un futur défaut sur ce même uniform.
-2. **Filtrer par NOM de variable** (`params`) : plus étroit, mais tout aussi
-   muet si un jour `params` devient réellement invalide pour une autre raison.
-3. **Rendre l'uniform conforme** — `array<vec4<f32>, 12>` au lieu de
-   `array<f32, 48>`, avec un accesseur qui recompose l'index. Le WGSL redevient
-   conforme, mais **chaque accès `params[N]` des 23 effets change**, et les
-   index sont gelés par les presets ET par 97 références de pixels. C'est un
-   chantier, pas une correction.
+**La dérogation est bornée mais pas COMPTÉE.** Le test tolère l'écart connu sans
+dire combien de fois il l'a rencontré. Conséquences :
 
-⚠️ Quelle que soit la forme retenue, la dérogation doit être **bornée et
-comptée** : un test qui filtre doit dire combien d'erreurs il a filtrées et
-échouer si ce nombre change. Sinon la prochaine erreur entrera dans le filtre
-sans que personne ne le voie — exactement le défaut que ce ticket décrit.
+1. Si l'uniform devenait conforme demain, le test resterait vert sans que
+   personne apprenne que la dérogation ne sert plus.
+2. Si le nombre de variantes touchées changeait (un effet ajouté, un effet
+   retiré), rien ne bougerait.
 
-## Partie AFK
+Forme attendue : le test accumule le nombre de variantes ayant déclenché
+`seulementEcartConnu`, et **échoue si ce nombre s'écarte d'un attendu écrit en
+dur**, avec le message qui dit dans quel sens. Même esprit que les gates de
+pixels : un chiffre attendu, pas une tolérance ouverte.
 
-1. Lire le test et voir s'il prévoit déjà un mécanisme d'exclusion inutilisé.
-2. Compter les occurrences : combien de shaders composés, combien d'erreurs par
-   shader, et si `params` est la seule cause (le message est le même partout,
-   mais rien ne prouve encore qu'il n'y en a pas d'autres derrière).
-3. Vérifier ce que la CI fait de ce rouge aujourd'hui — bloque-t-elle, ou
-   est-elle déjà rouge depuis assez longtemps pour qu'on ne la regarde plus ?
+## Ce qui n'est PAS dans ce ticket
+
+- **Rendre l'uniform conforme** (`array<vec4<f32>, 12>`) reste un chantier avec
+  ADR : chaque accès `params[N]` des 23 effets change, et les index sont gelés
+  par les presets ET par 97 références de pixels. Rien ici ne l'engage.
+- **Le rouge réel de la CI** : c'est `LayerPanel.stories.tsx`, antérieur à ce
+  gate — voir [22](22-layerpanel-rouge-en-ci-vert-en-local.md).
 
 ## Ce qui rendrait ce ticket raté
 
-Neutraliser le test pour retrouver du vert. Il a été écrit parce qu'aucun gate
-de shader ne tournait en CI ; le rendre silencieux le ramènerait à zéro tout en
-laissant croire le contraire.
+Élargir la dérogation pour faire taire autre chose. Elle vaut par ce qu'elle
+refuse : une erreur sur une autre variable, ou une seconde erreur sur `params`,
+doivent continuer de rougir.
+
+## La leçon, qui vaut plus que le ticket
+
+Ce ticket a été écrit, poussé, référencé dans `CLAUDE.md` et repris dans un
+commit intitulé « un gate annoncé vert qui est rouge » — **sans que le fichier
+de test soit ouvert une seule fois**. Deux gestes de trente secondes
+l'auraient évité : `npm run test:wgsl`, et `gh run view --log-failed`.
+
+Une prémisse fausse dans un ticket ne reste pas dans le ticket : elle a produit
+un chantier `vec4` avec ADR pour un problème qui n'existait pas, et elle a
+masqué le rouge réel de la CI pendant deux jours.

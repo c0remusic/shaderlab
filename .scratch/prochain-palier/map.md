@@ -112,11 +112,20 @@ ajoutent ZÉRO site à la facture 16-bit**, un effet ne voyant jamais le format.
   un enfant qu'on replie ? Précédent utile : `maskOverlayLayerId` et
   `isolatedLayerId` vivent sur le `Renderer`, parce que ce sont des aides de
   visée et non des propriétés du document.
-- [Le gate WGSL est rouge en CI](issues/21-le-gate-wgsl-est-rouge-en-ci.md)
-  — **ouvert le 2026-08-15**. `wgslNaga.test.ts` échoue sur l'exception que
-  `CLAUDE.md` documente pourtant (`params: array<f32, 48>`), et c'est le SEUL
-  gate de shader qui tourne en CI. La question n'est pas de le neutraliser mais
-  de porter la dérogation **bornée et comptée**.
+- [La dérogation du gate WGSL est bornée, mais pas comptée](issues/21-le-gate-wgsl-est-rouge-en-ci.md)
+  — ouvert le 2026-08-15, **REQUALIFIÉ le 2026-08-16 sur mesure**. Il disait que
+  `wgslNaga.test.ts` échouait : il est **vert**, en local comme en CI, et son
+  exception `params` était dans le fichier **dès son premier commit**
+  (`wgslNaga.test.ts:73`), bornée par la variable ET par le nombre d'erreurs.
+  Ne reste que la rendre **comptée**. Le ticket a été écrit sans que le fichier
+  de test soit ouvert une seule fois.
+- [`LayerPanel.stories` est rouge en CI et vert en local](issues/22-layerpanel-rouge-en-ci-vert-en-local.md)
+  — **ouvert le 2026-08-16**, et c'est le VRAI rouge : `master` échoue sur les
+  **60 derniers runs**, sans un succès depuis le 2026-08-01 au moins, toujours
+  sur ce seul fichier (`Cannot read properties of null (reading 'useMemo')`
+  aujourd'hui, trois erreurs différentes au 2026-08-01 — peut-être deux défauts
+  successifs). Vert en local : 32 fichiers, 306 tests. Une CI rouge en
+  permanence ne se lit plus, et n'a plus valeur de gate pour aucune branche.
 - [Ce dont le 16-bit a besoin hors du dépôt](issues/01-ce-dont-le-16-bit-a-besoin-hors-du-depot.md)
   — faisabilité **acquise** (`rgba16float` sans aucune feature, crate TIFF+ICC
   déjà en dépendance, matrice à 4 coefficients) ; mais l'invariant « sRGB par

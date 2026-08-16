@@ -1,10 +1,63 @@
 # Où vit l'état de repli de la pile, et que fait-il d'une sélection dedans
 
 Type: grilling
-Status: ready-for-human
+Status: resolved
 Parent: ../map.md
 
-## Question
+## ✅ RÉSOLU le 2026-08-16 — et la mesure a d'abord retiré la question
+
+**Arbitrages d'Antoine**, pris sur la mesure ci-dessous :
+
+1. **Le repli vit en état d'INTERFACE**, comme `isolatedLayerId` — un `Set` d'ids
+   de photos repliées dans un hook, filtré dans `pileModel`. Aucun champ sur
+   `LayerState`, donc aucun plan préalable requis.
+2. **Replier fait remonter la sélection au parent, et déplier la REND à l'enfant
+   quitté** — un `Map<parentId, childId>` dans le même hook. C'est la forme qui
+   répond au piège que ce ticket signalait : sans mémoire, la sélection se perd
+   à chaque aller-retour.
+
+### Ce que la mesure a corrigé dans l'énoncé (2026-08-16)
+
+⚠️ **La question 1 opposait « persisté » à « perdu à la réouverture ». Les deux
+branches perdaient, et l'énoncé était donc faux.** Il n'existe **aucune
+persistance de document** dans le projet : les ~20 commandes IPC couvrent les
+images, les textures et les presets — aucune n'écrit une pile de calques, et
+`localStorage` ne porte que le dossier de textures et un journal d'erreurs GPU.
+Rien n'est retrouvé à la réouverture, ni le repli ni le reste.
+
+**Ce qui sépare réellement les deux options n'est pas la persistance mais
+l'ANNULABILITÉ** :
+
+| | Dans `LayerState` | En état d'interface |
+| --- | --- | --- |
+| Undo/redo | `History.push(LayerStack)` snapshotte la pile entière → replier puis annuler un coup de pinceau **rouvre le groupe** | intact |
+| Presets | zéro coût — `capture()` ne prend que 5 champs | zéro |
+| Surface de type | 65 fichiers citent `LayerState` | 0 |
+
+⚠️ **La partie AFK n°1 supposait que `presetDocument.ts` porte `locked` : il ne
+le porte pas** (`presetDocument.ts:48-50` — `enabled`, `opacity`, `blendMode`, et
+rien d'autre). `locked`, `clipToBelow` et `name` n'y sont pas non plus. Le
+précédent est donc plus net que le ticket ne le croyait : les champs de vue
+scalaires ne sont jamais capturés, et l'argument « les presets porteront le
+repli » n'existait pas.
+
+⚠️ **La partie AFK n°3 est sans réponse** :
+`docs/design-system/photoshop-web-observations-2026-07-27.md` ne dit rien du
+repli ni du sort d'une sélection dedans — zéro occurrence. La référence ne
+tranchait pas, seul Antoine pouvait.
+
+✅ **La partie AFK n°2 avait raison** : `layerTree.ts` calcule déjà
+`depth`/`parentId`/`firstChild`/`lastChild`, donc l'arbre est **dérivé** et le
+repli est un FILTRE dans `pileModel.toPileRows`, pas une donnée.
+
+### Leçon opposable
+
+**Un arbitrage se pose sur ce qui sépare vraiment les options, pas sur ce qu'on
+croit qui les sépare.** Posée telle qu'écrite, la question aurait fait choisir
+`LayerState` pour une persistance qui n'existe pas — et le champ serait arrivé
+dans la couche la plus partagée du projet pour rien.
+
+## Question (énoncé d'origine, conservé pour la trace)
 
 Antoine a tranché la FORME du repli le 2026-08-15, devant trois wireframes :
 la pile se replie par groupes (une photo et ses effets écrêtés), avec le filet

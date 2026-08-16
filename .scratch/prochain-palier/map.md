@@ -106,12 +106,16 @@ ajoutent ZÉRO site à la facture 16-bit**, un effet ne voyant jamais le format.
   - **La perf du masque est un blocage d'usage**, re-signalée deux fois.
 
 - [Où vit l'état de repli de la pile](issues/20-ou-vit-l-etat-de-repli-de-la-pile.md)
-  — **ouvert le 2026-08-15**, et il BLOQUE la première ligne du repli : le champ
-  va-t-il dans `LayerState` (persisté, couche la plus partagée) ou dans l'état
-  d'interface (perdu à la réouverture) ? Et que devient une sélection posée sur
-  un enfant qu'on replie ? Précédent utile : `maskOverlayLayerId` et
-  `isolatedLayerId` vivent sur le `Renderer`, parce que ce sont des aides de
-  visée et non des propriétés du document.
+  — ouvert le 2026-08-15, **RÉSOLU ET IMPLANTÉ le 2026-08-16**. État
+  d'INTERFACE (`useCollapsedGroups`), sélection qui remonte au parent au repli
+  et revient à l'enfant quitté au dépliage. ⚠️ La mesure a d'abord **réfuté
+  l'énoncé** : la question opposait « persisté » à « perdu à la réouverture »
+  alors que le projet n'a **aucune persistance de document** — les deux branches
+  perdaient. Ce qui les séparait vraiment était l'ANNULABILITÉ (`History.push`
+  snapshotte la pile, donc un champ de `LayerState` serait rejoué par l'undo).
+  Livré avec chevron, pastille et moignon ; le repli cassait silencieusement la
+  conversion d'index du glisser-déposer, refermée par
+  `visibleInsertToModelInsert`.
 - [La dérogation du gate WGSL est bornée, mais pas comptée](issues/21-le-gate-wgsl-est-rouge-en-ci.md)
   — ouvert le 2026-08-15, **REQUALIFIÉ le 2026-08-16 sur mesure**. Il disait que
   `wgslNaga.test.ts` échouait : il est **vert**, en local comme en CI, et son

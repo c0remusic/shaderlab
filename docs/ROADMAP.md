@@ -292,19 +292,42 @@ Tout le détail, les protocoles et les ablations :
      deux niveaux ne partagent plus aucune verticale, pour un nom qui passe de
      190 à 184 px (mesuré, pas estimé).
 
-  ⚠️ **Ce qui reste à décider avant de coder**, et qu'aucun wireframe ne tranche :
-  **où vit l'état de repli** — dans le modèle de document (persisté, donc dans
-  `LayerState`, la couche la plus partagée du projet) ou dans l'état d'interface
-  (perdu à la réouverture) — et **ce que fait le repli d'un groupe dont un enfant
-  est SÉLECTIONNÉ** : replier en laissant la sélection sur une ligne invisible
-  ramènerait le défaut corrigé le 2026-08-14. La réponse évidente est de faire
-  remonter la sélection au parent, mais c'est une décision, pas une évidence.
+  ✅ **CODÉ le 2026-08-16** — les deux questions que ces planches laissaient
+  ouvertes sont tranchées et implantées ([ticket 20](../.scratch/prochain-palier/issues/20-ou-vit-l-etat-de-repli-de-la-pile.md)).
+  L'état de repli est d'INTERFACE (`useCollapsedGroups`, règles pures dans
+  `src/components/pileCollapse.ts`) ; replier remonte la sélection au parent et
+  déplier la rend à l'enfant quitté. Chevron en septième piste, pastille du
+  nombre d'enfants masqués, moignon de 14 px sous la photo repliée.
 
-  ⚠️ Deux décisions écrites sont TOUCHÉES par c1, donc à amender en même temps :
-  la barre à `left: 0` est justifiée dans `LayerPanel.css` par « lavis et barre
-  couvrent la même surface d'une ligne à l'autre » (c1 en garde la moitié : le
-  lavis change, la barre suit), et `--layer-nest-indent` vaut 14 px — le filet
-  s'en sert pour se centrer, donc les deux bougent ensemble par construction.
+  ⚠️ **La mesure a réfuté l'énoncé de la question avant d'y répondre** : elle
+  opposait « persisté » à « perdu à la réouverture », alors que le projet n'a
+  **aucune persistance de document** — les deux branches perdaient. Ce qui les
+  sépare vraiment est l'ANNULABILITÉ : `History.push` snapshotte la pile
+  entière, donc un champ de `LayerState` serait rejoué par l'undo, et replier un
+  groupe puis annuler un coup de pinceau le rouvrirait.
+
+  ⚠️ **Un piège qui n'aurait fait rougir personne** : `displayInsertToModelInsert`
+  suppose que la liste affichée est la pile ENTIÈRE. Avec un groupe replié, le
+  calque atterrissait ailleurs que là où on le lâche. Refermé par
+  `visibleInsertToModelInsert`, qui passe par les identités des lignes visibles.
+
+  ⚠️ **Un plancher de largeur périmé, trouvé par la septième piste.** La story
+  `AllRowFormsShareOneGrid` exigeait 170 px de nom et a rougi. Le seuil datait du
+  2026-07-29 et était calé sur « Aberration chromatique » (127 px), libellé que
+  le registre ne porte plus : le plus long des 23 effets est `Lens distortion`,
+  **79 px**. Le seuil n'a pas été baissé mais **dérivé** — la story mesure
+  désormais le plus long libellé rendu. Le commentaire de `LayerPanel.css` qui
+  annonçait 152 px est amendé : mesuré dans la fenêtre, **148 px** sur une ligne
+  racine, **134 px** sur une imbriquée.
+
+  ⚠️ **RESTE DE c1 : l'indentation à 20 px n'est PAS faite.** La partie que
+  c1 visait vraiment — la barre bleue qui débordait à gauche du filet — a été
+  résolue autrement le 2026-08-16 (`5913e07`) : on ne déplace pas la barre sur
+  l'axe du filet, **le filet DEVIENT la barre** sur une ligne imbriquée
+  sélectionnée. Même élément, donc mêmes bornes. Ce qui reste ouvert est donc
+  seulement le passage de `--layer-nest-indent` de 14 à 20 px, qui n'a plus rien
+  à réaccorder — et la justification « lavis et barre couvrent la même surface »
+  est déjà amendée dans `LayerPanel.css`.
 - ~~**L'overlay de masque n'a AUCUNE référence de pixels.**~~ ✅ **FAIT le
   2026-08-14** — quatre références, deux paires témoin/overlay
   (`masque-overlay-pinceau` sur masque peint, `masque-overlay-tonalite` sur

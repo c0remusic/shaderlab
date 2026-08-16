@@ -21,21 +21,28 @@ export interface PileRow extends LayerTreeRow {
   mask: PileMaskSummary;
   selectedFacet: "primary" | "mask" | null;
   /**
-   * Cette ligne appartient-elle au groupe qui CONTIENT la sélection ?
+   * Le filet de cette ligne est-il sur le CHEMIN qui va de la photo du groupe
+   * jusqu'à la sélection ?
    *
-   * Deux marques distinctes, et c'est la distinction qui compte (2026-08-16,
-   * constat d'Antoine : « la barre blanche devrait devenir bleue, ça serait plus
-   * cohérent ») :
+   * Deux marques, deux portées, et c'est la distinction qui compte (2026-08-16,
+   * deux constats d'Antoine à un tour d'écart) :
    *  - le LAVIS dit quelle LIGNE est sélectionnée ;
-   *  - le FILET dit quel GROUPE la contient.
-   * Le filet est un trait CONTINU qui traverse tout un groupe. Le colorer sur la
-   * seule ligne sélectionnée le faisait changer de couleur deux fois sur sa
-   * longueur — gris, bleu, gris — pour un objet qui n'a qu'un seul sens.
+   *  - le FILET TRACE le chemin depuis la tête du groupe jusqu'à elle, puis
+   *    s'arrête. Au-dessous, il reprend sa couleur de repos.
    *
-   * Vrai aussi sur la PHOTO du groupe et sur ses frères non sélectionnés : c'est
-   * le groupe entier qui est actif, pas la ligne.
+   * ⚠️ DEUX ERREURS SUCCESSIVES avant cette forme, et elles se corrigent l'une
+   * l'autre. Colorer le seul segment de la ligne sélectionnée faisait un trait
+   * BICOLORE (gris, bleu, gris) sur un objet qui n'a qu'un sens — « la barre
+   * blanche devrait devenir bleue, ça serait plus cohérent ». Colorer le groupe
+   * ENTIER a corrigé ça mais dépassait la cible — « toute la barre est bleue,
+   * ça ne s'arrête pas à l'élément sélectionné ». Ce qui est juste est entre les
+   * deux : un trait CONTINU, qui commence à la photo et FINIT à la sélection.
+   *
+   * Conséquence assumée : sélectionner la PHOTO du groupe n'allume aucun filet.
+   * Le chemin est alors de longueur nulle — on est déjà à la tête, il n'y a rien
+   * à parcourir.
    */
-  inActiveGroup: boolean;
+  railToSelection: boolean;
 }
 
 /** Photo dont le groupe contient la cible : le parent de la ligne visée, ou la
@@ -55,15 +62,23 @@ export function toPileRows(
 ): PileRow[] {
   const arbre = toLayerTreeRows(layers);
   const groupeActif = activeGroupId(arbre, target);
-  return arbre.map((row) => {
+  // Position de la sélection dans l'ORDRE D'AFFICHAGE — c'est là que le chemin
+  // s'arrête. `toLayerTreeRows` rend déjà cet ordre (la photo ouvre son groupe
+  // par le haut depuis l'ADR-0004), donc comparer des index suffit : pas besoin
+  // de reconstruire une notion de « avant » propre à ce module.
+  const indexSelection = arbre.findIndex((row) => row.layer.id === target?.layerId);
+  return arbre.map((row, index) => {
     const ownsTarget = target?.layerId === row.layer.id;
     const sources = row.layer.mask.sources;
     return {
       ...row,
-      // Une ligne RACINE sans enfant n'est le groupe de personne : `parentId`
-      // vaut null et son propre id ne coïncide avec `groupeActif` que si elle
-      // ouvre bien un groupe — c'est ce que `activeGroupId` a déjà tranché.
-      inActiveGroup: groupeActif !== null && row.parentId === groupeActif,
+      // Trois conditions, et la troisième est celle qui ARRÊTE le trait :
+      // le bon groupe, une ligne qui porte un filet (donc imbriquée, ce que
+      // `parentId` non nul garantit), et une position AU-DESSUS OU SUR la
+      // sélection. Sans elle, le filet éclairait tout le groupe et dépassait la
+      // ligne visée.
+      railToSelection:
+        groupeActif !== null && row.parentId === groupeActif && index <= indexSelection,
       primaryTarget: layerTarget(row.layer),
       mask: {
         present: sources.length > 0,

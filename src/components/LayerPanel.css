@@ -349,15 +349,24 @@
    sélectionnée le faisait changer de couleur DEUX FOIS sur sa longueur — gris,
    bleu, gris — pour un objet qui n'a qu'un seul sens.
 
-   La règle est donc remontée d'un cran, de la LIGNE au GROUPE :
+   La règle est donc remontée d'un cran, de la LIGNE au CHEMIN :
 
     - le LAVIS dit quelle LIGNE est sélectionnée ;
-    - le FILET dit quel GROUPE la contient, sur toute sa longueur.
+    - le FILET TRACE le chemin depuis la photo du groupe jusqu'à elle, puis
+      S'ARRÊTE. Au-dessous, il reprend sa couleur de repos.
 
-   Deux marques, deux portées, plus aucun trait bicolore. `inActiveGroup` est
-   calculé dans `pileModel` (fonction pure) et vaut vrai sur TOUTES les lignes du
-   groupe visé, y compris les frères non sélectionnés — c'est le groupe qui est
-   actif, pas la ligne.
+   ⚠️ Il a fallu DEUX corrections pour arriver là, et la première dépassait la
+   cible. Colorer tout le groupe réparait bien le trait bicolore, mais Antoine
+   l'a renvoyé aussitôt : « toute la barre est bleue, ça ne s'arrête pas à
+   l'élément sélectionné ». Ce qui est juste est entre les deux extrêmes — un
+   trait CONTINU, qui commence à la tête du groupe et FINIT sur la sélection.
+   `railToSelection` (calculé dans `pileModel`, fonction pure) porte les trois
+   conditions : bon groupe, ligne imbriquée, position au-dessus ou sur la ligne
+   visée.
+
+   La transition se fait toute seule au bon endroit : le segment suivant, gris,
+   est plus loin dans le DOM et recouvre le débordement du segment bleu dans la
+   gouttière. Aucune règle à écrire pour ça.
 
    CE QUE ÇA SUPPRIME : la barre `::before` de la ligne imbriquée sélectionnée
    n'a plus de raison d'être. Elle peignait un trait de 1 px exactement là où le
@@ -368,9 +377,9 @@
   display: none;
 }
 
-/* Le filet d'un groupe ACTIF. Placé après la règle de contraste ci-dessus, à
-   spécificité égale, pour la gagner : un filet actif n'a pas besoin d'être
-   relevé en `--text-tertiary`, il porte déjà l'accent. */
+/* Le filet SUR LE CHEMIN de la sélection. Placé après la règle de contraste
+   ci-dessus, à spécificité égale, pour la gagner : un filet qui porte l'accent
+   n'a pas besoin d'être relevé en `--text-tertiary`. */
 .layer-panel__row .layer-panel__rail--active {
   background: var(--selection-accent);
 }

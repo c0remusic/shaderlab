@@ -149,11 +149,12 @@ interface LayerRowProps {
   depth: 0 | 1;
   firstChild: boolean;
   lastChild: boolean;
-  /** Le groupe de cette ligne contient-il la sélection ? Pilote la couleur du
-   *  FILET, et rien d'autre — le lavis dit la ligne, le filet dit le groupe.
+  /** Le filet de cette ligne est-il sur le chemin qui va de la photo du groupe
+   *  jusqu'à la sélection ? Pilote la couleur du FILET, et rien d'autre — le
+   *  lavis dit la ligne, le filet dit le chemin qui y mène et S'ARRÊTE sur elle.
    *  Booléen déjà réduit à cette ligne (et non l'id du groupe actif) pour ne pas
    *  casser la mémoïsation d'une ligne d'un autre groupe. */
-  inActiveGroup: boolean;
+  railToSelection: boolean;
   /** REPLI (2026-08-16). Trois booléens/compte déjà RÉDUITS à cette ligne par
    *  `applyCollapse`, jamais l'état de repli entier — même raison que `depth` :
    *  replier un groupe ne doit pas re-rendre les lignes d'un autre (`memo`).
@@ -202,7 +203,7 @@ const LayerRow = memo(function LayerRow({
   depth,
   firstChild,
   lastChild,
-  inActiveGroup,
+  railToSelection,
   collapsible,
   collapsed,
   hiddenCount,
@@ -291,7 +292,7 @@ const LayerRow = memo(function LayerRow({
             "layer-panel__rail",
             firstChild && "layer-panel__rail--first",
             lastChild && "layer-panel__rail--last",
-            inActiveGroup && "layer-panel__rail--active",
+            railToSelection && "layer-panel__rail--active",
           ]
             .filter(Boolean)
             .join(" ")}
@@ -850,7 +851,7 @@ export function LayerPanel({
         onPointerUp={dragState ? handlePointerUp : undefined}
         onPointerCancel={dragState ? handlePointerCancel : undefined}
       >
-        {rows.map(({ layer, depth, firstChild, lastChild, selectedFacet, mask, collapsible, collapsed, hiddenCount, inActiveGroup }, displayRow) => (
+        {rows.map(({ layer, depth, firstChild, lastChild, selectedFacet, mask, collapsible, collapsed, hiddenCount, railToSelection }, displayRow) => (
           <LayerRow
             key={layer.id}
             layer={layer}
@@ -867,7 +868,7 @@ export function LayerPanel({
             depth={depth}
             firstChild={firstChild}
             lastChild={lastChild}
-            inActiveGroup={inActiveGroup}
+            railToSelection={railToSelection}
             collapsible={collapsible}
             collapsed={collapsed}
             hiddenCount={hiddenCount}

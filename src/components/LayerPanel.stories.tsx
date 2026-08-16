@@ -633,6 +633,18 @@ export const AllRowFormsShareOneGrid: Story = {
 // rattaché par proximité, ADR-0005) et une photo IMPORTÉE (Grain, rattaché à
 // plage.jpg). Depuis la tranche T1 les deux sont des lignes de calque : c'est
 // la même forme de ligne, ce qui est précisément l'acquis de la tranche.
+/** UNE photo et TROIS effets — la plus petite pile qui distingue les trois
+ *  règles candidates pour la couleur du filet. Avec deux effets seulement,
+ *  « le segment sélectionné » et « le chemin jusqu'à la sélection » rendent le
+ *  même dessin dès que le second est visé : il faut un effet APRÈS la sélection
+ *  pour que « ça s'arrête » veuille dire quelque chose. */
+const troisEffetsSousUnePhoto: LayerState[] = [
+  makeLayer({ id: "P", effectId: "passthrough", name: "socle.jpg", imageSource: { sourceId: "s-P" }, transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 } }),
+  makeLayer({ id: "E1", effectId: "glow" }),
+  makeLayer({ id: "E2", effectId: "grain" }),
+  makeLayer({ id: "E3", effectId: "warp" }),
+];
+
 const twoParentKinds: LayerState[] = [
   backgroundLayer(),
   makeLayer({ id: "layer-A", effectId: "glow" }),
@@ -828,8 +840,8 @@ export const RailKeepsItsRestingRank: Story = {
  * ne colle plus au lavis (défaut 2) — c'est l'assertion de hauteur qui l'attrape,
  * et elle n'existait pas dans la première version de cette story.
  */
-export const ActiveGroupRailIsOneColour: Story = {
-  args: { layers: twoParentKinds, selectedId: "layer-A" },
+export const RailTracesThePathAndStopsAtTheSelection: Story = {
+  args: { layers: troisEffetsSousUnePhoto, selectedId: "E2" },
   decorators: [dockWidthDecorator],
   play: async ({ canvasElement }) => {
     const selected = canvasElement.querySelector<HTMLElement>(".layer-panel__row--selected");
@@ -849,26 +861,21 @@ export const ActiveGroupRailIsOneColour: Story = {
     const repos = resoudre("--border-default");
     sonde.remove();
 
-    // ---- LE FILET DU GROUPE ACTIF EST BLEU SUR TOUTE SA LONGUEUR ----
-    // L'assertion qui porte la demande. Elle vise TOUS les filets du groupe, pas
-    // celui de la ligne sélectionnée : c'est précisément le trait bicolore
-    // (gris/bleu/gris) qui était le défaut.
-    const actifs = Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__rail--active"));
-    await expect(actifs.length).toBeGreaterThan(0);
-    for (const rail of actifs) {
-      await expect(getComputedStyle(rail).backgroundColor).toBe(accent);
-    }
+    // ---- LE TRAIT EST CONTINU JUSQU'À LA SÉLECTION, ET S'ARRÊTE APRÈS ----
+    // La pile est une photo et TROIS effets, sélection sur le DEUXIÈME : c'est
+    // la seule forme qui distingue les trois règles candidates. Colorer le seul
+    // segment sélectionné donnerait 1 bleu, colorer tout le groupe en donnerait
+    // 3, et la règle juste en donne 2 — le chemin depuis la tête.
+    const rails = Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__rail"));
+    await expect(rails).toHaveLength(3);
+    const couleurs = rails.map((r) => getComputedStyle(r).backgroundColor);
+    await expect(couleurs).toEqual([accent, accent, repos]);
 
-    // ---- ET LES AUTRES GROUPES RESTENT AU REPOS ----
-    // LE TÉMOIN DISCRIMINANT, sans lequel colorer TOUS les filets en bleu
-    // passerait au vert. `twoParentKinds` porte deux groupes exprès.
-    const inactifs = Array.from(
-      canvasElement.querySelectorAll<HTMLElement>(".layer-panel__rail:not(.layer-panel__rail--active)"),
-    );
-    await expect(inactifs.length).toBeGreaterThan(0);
-    for (const rail of inactifs) {
-      await expect(getComputedStyle(rail).backgroundColor).toBe(repos);
-    }
+    // Et le trait est CONTINU : aucun gris entre deux bleus. Un trait bicolore
+    // (gris/bleu/gris) était le défaut d'origine, et cette assertion l'attrape
+    // même si le compte de bleus était bon par ailleurs.
+    const dernierBleu = couleurs.lastIndexOf(accent);
+    await expect(couleurs.slice(0, dernierBleu + 1).every((c) => c === accent)).toBe(true);
 
     // ---- LA LIGNE SÉLECTIONNÉE N'AJOUTE PLUS DE BARRE ----
     // Elle en portait une, à l'axe du filet, jusqu'à ce que le filet prenne la
@@ -882,7 +889,7 @@ export const ActiveGroupRailIsOneColour: Story = {
     // deux bords à lire. On vérifie que la coupure du dégradé tombe sur l'axe
     // MESURÉ — un dégradé au mauvais endroit passerait un simple `toContain`.
     const ligne = selected.getBoundingClientRect();
-    const axeFilet = actifs[0].getBoundingClientRect().left - ligne.left;
+    const axeFilet = rails[0].getBoundingClientRect().left - ligne.left;
     await expect(axeFilet).toBeGreaterThan(4);
     const fond = getComputedStyle(selected).backgroundImage;
     await expect(fond).toContain("linear-gradient");
@@ -890,22 +897,29 @@ export const ActiveGroupRailIsOneColour: Story = {
   },
 };
 
-/** Le groupe actif l'est même quand la sélection est posée sur SA PHOTO, et pas
- *  sur un de ses effets. Sans cette story, `inActiveGroup` pourrait ne regarder
- *  que `parentId` et laisser une photo sélectionnée sans groupe éclairé — cas
- *  le plus courant à l'ouverture d'un document. */
-export const SelectingAGroupPhotoLightsItsRail: Story = {
-  args: { layers: twoParentKinds, selectedId: "photo-P" },
+/** Sélectionner la PHOTO du groupe n'allume AUCUN filet : le chemin est de
+ *  longueur nulle, on est déjà à la tête. C'est le TÉMOIN qui empêche la règle
+ *  de dériver vers « tout le groupe » — la forme qu'Antoine a renvoyée le
+ *  2026-08-16 en disant « ça ne s'arrête pas à l'élément sélectionné ». Avec
+ *  elle, colorer le groupe entier rougit ici. */
+export const SelectingAGroupPhotoLightsNoRail: Story = {
+  args: { layers: troisEffetsSousUnePhoto, selectedId: "P" },
   decorators: [dockWidthDecorator],
   play: async ({ canvasElement }) => {
-    const actifs = Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__rail--active"));
-    await expect(actifs.length).toBeGreaterThan(0);
-    // Et ce sont bien les filets des ENFANTS de cette photo — un filet
-    // n'existe que sur une ligne imbriquée.
-    for (const rail of actifs) {
-      const ligne = rail.closest<HTMLElement>(".layer-panel__row")!;
-      await expect(ligne.className).toContain("layer-panel__row--nested");
-    }
+    // Les filets existent — c'est bien la COULEUR qu'on mesure, pas leur absence.
+    await expect(canvasElement.querySelectorAll(".layer-panel__rail")).toHaveLength(3);
+    await expect(canvasElement.querySelectorAll(".layer-panel__rail--active")).toHaveLength(0);
+  },
+};
+
+/** Sélection sur le DERNIER effet : le chemin couvre alors tout le groupe. La
+ *  story frontière de la précédente — sans elle, une règle qui n'allume jamais
+ *  rien passerait les deux. */
+export const RailReachesTheLastEffect: Story = {
+  args: { layers: troisEffetsSousUnePhoto, selectedId: "E3" },
+  decorators: [dockWidthDecorator],
+  play: async ({ canvasElement }) => {
+    await expect(canvasElement.querySelectorAll(".layer-panel__rail--active")).toHaveLength(3);
   },
 };
 

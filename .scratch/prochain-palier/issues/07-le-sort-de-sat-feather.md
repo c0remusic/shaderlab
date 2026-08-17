@@ -10,6 +10,8 @@ Parent: ../map.md
 > `featherSat` (`578d67a`, `src/mask/refinePlan.ts:24,67` — vérifié sur disque le
 > 2026-08-16), gain mesuré **48,9 → 143,1 images/s** à protocole identique. La
 > branche `origin/sat-feather` ne se merge pas et peut être supprimée.
+> ✅ **Elle l'a été le 2026-08-16**, avec six autres branches mortes, chacune
+> mesurée avant le geste. Ne plus la citer comme existante.
 > Détail dans `docs/ROADMAP.md` § 4.
 
 ## Question

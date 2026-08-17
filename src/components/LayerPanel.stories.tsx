@@ -840,86 +840,64 @@ export const RailKeepsItsRestingRank: Story = {
  * ne colle plus au lavis (défaut 2) — c'est l'assertion de hauteur qui l'attrape,
  * et elle n'existait pas dans la première version de cette story.
  */
-export const RailTracesThePathAndStopsAtTheSelection: Story = {
+
+/**
+ * LA BARRE DE SÉLECTION NE SORT PAS DE SON CADRE (2026-08-16).
+ *
+ * Quatre formes essayées dans la journée, et c'est la contrainte que les trois
+ * premières violaient — chacune à sa façon :
+ *  1. barre à `left: 0` : hors de l'axe du groupe, deux verticales à lire ;
+ *  2. le FILET devenu la barre : ses bornes sont celles d'un connecteur, donc
+ *     16 px au-dessus du lavis et 8 px trop courte en dessous ;
+ *  3. le filet du GROUPE en accent : « toute la barre est bleue, ça ne
+ *     s'arrête pas à l'élément sélectionné » ;
+ *  4. le filet jusqu'à la sélection : « pourquoi ça dépasse le cadre de
+ *     sélection ? ».
+ *
+ * La règle qui les recouvre toutes : **une marque de sélection est bornée par
+ * ce qu'elle sélectionne.** Le filet, lui, appartient au GROUPE — c'est un
+ * connecteur, il n'a pas à porter l'état de sélection et reste gris.
+ *
+ * Cette story mesure la BORNE, pas la couleur : c'est elle qui manquait aux
+ * trois premières formes.
+ */
+export const SelectionBarStaysInsideItsFrame: Story = {
   args: { layers: troisEffetsSousUnePhoto, selectedId: "E2" },
   decorators: [dockWidthDecorator],
   play: async ({ canvasElement }) => {
     const selected = canvasElement.querySelector<HTMLElement>(".layer-panel__row--selected");
     if (!selected) throw new Error("aucune ligne sélectionnée");
-    await expect(selected.className).toContain("layer-panel__row--nested");
-
-    // Tokens résolus par le navigateur, jamais comparés à une chaîne écrite en
-    // dur : sinon un changement de `--selection-accent` laisserait ce test vert
-    // pendant que le filet partirait d'une autre couleur.
-    const sonde = document.createElement("div");
-    canvasElement.appendChild(sonde);
-    const resoudre = (token: string) => {
-      sonde.style.backgroundColor = `var(${token})`;
-      return getComputedStyle(sonde).backgroundColor;
-    };
-    const accent = resoudre("--selection-accent");
-    const repos = resoudre("--border-default");
-    sonde.remove();
-
-    // ---- LE TRAIT EST CONTINU JUSQU'À LA SÉLECTION, ET S'ARRÊTE APRÈS ----
-    // La pile est une photo et TROIS effets, sélection sur le DEUXIÈME : c'est
-    // la seule forme qui distingue les trois règles candidates. Colorer le seul
-    // segment sélectionné donnerait 1 bleu, colorer tout le groupe en donnerait
-    // 3, et la règle juste en donne 2 — le chemin depuis la tête.
-    const rails = Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__rail"));
-    await expect(rails).toHaveLength(3);
-    const couleurs = rails.map((r) => getComputedStyle(r).backgroundColor);
-    await expect(couleurs).toEqual([accent, accent, repos]);
-
-    // Et le trait est CONTINU : aucun gris entre deux bleus. Un trait bicolore
-    // (gris/bleu/gris) était le défaut d'origine, et cette assertion l'attrape
-    // même si le compte de bleus était bon par ailleurs.
-    const dernierBleu = couleurs.lastIndexOf(accent);
-    await expect(couleurs.slice(0, dernierBleu + 1).every((c) => c === accent)).toBe(true);
-
-    // ---- LA LIGNE SÉLECTIONNÉE N'AJOUTE PLUS DE BARRE ----
-    // Elle en portait une, à l'axe du filet, jusqu'à ce que le filet prenne la
-    // couleur : elle peignait alors le même pixel. Un doublon qui reviendrait
-    // ferait deux traits de largeurs potentiellement différentes.
-    await expect(getComputedStyle(selected, "::before").display).toBe("none");
-
-    // ---- ET SON LAVIS PART DE L'AXE, PAS DU BORD ----
-    // Variante C : « lavis ET barre partent de l'axe du filet ». Sans ça, le
-    // lavis débordait de 15 px à gauche du trait, et le regard avait de nouveau
-    // deux bords à lire. On vérifie que la coupure du dégradé tombe sur l'axe
-    // MESURÉ — un dégradé au mauvais endroit passerait un simple `toContain`.
+    const barre = getComputedStyle(selected, "::before");
     const ligne = selected.getBoundingClientRect();
-    const axeFilet = rails[0].getBoundingClientRect().left - ligne.left;
-    await expect(axeFilet).toBeGreaterThan(4);
+
+    // ---- BORNÉE AU LAVIS, AU PIXEL ----
+    await expect(barre.top).toBe("0px");
+    await expect(barre.bottom).toBe("0px");
+    await expect(Math.abs(parseFloat(barre.height) - ligne.height)).toBeLessThan(0.5);
+
+    // ---- SUR L'AXE DU FILET, ET DE SON ÉPAISSEUR ----
+    const filets = Array.from(canvasElement.querySelectorAll<HTMLElement>(".layer-panel__rail"));
+    await expect(filets).toHaveLength(3);
+    const axe = filets[0].getBoundingClientRect().left - ligne.left;
+    await expect(Math.abs(parseFloat(barre.left) - axe)).toBeLessThan(0.5);
+    await expect(barre.width).toBe(getComputedStyle(filets[0]).width);
+
+    // ---- ET LE FILET NE PORTE AUCUN ÉTAT DE SÉLECTION ----
+    // LE TÉMOIN qui empêche les formes 3 et 4 de revenir : aucun filet ne doit
+    // porter l'accent, y compris celui du groupe qui contient la sélection.
+    const sonde = document.createElement("div");
+    sonde.style.backgroundColor = "var(--selection-accent)";
+    canvasElement.appendChild(sonde);
+    const accent = getComputedStyle(sonde).backgroundColor;
+    sonde.remove();
+    for (const filet of filets) {
+      await expect(getComputedStyle(filet).backgroundColor).not.toBe(accent);
+    }
+
+    // ---- LE LAVIS PART DE LA BARRE ----
     const fond = getComputedStyle(selected).backgroundImage;
     await expect(fond).toContain("linear-gradient");
-    await expect(fond).toContain(`${Math.round(axeFilet)}px`);
-  },
-};
-
-/** Sélectionner la PHOTO du groupe n'allume AUCUN filet : le chemin est de
- *  longueur nulle, on est déjà à la tête. C'est le TÉMOIN qui empêche la règle
- *  de dériver vers « tout le groupe » — la forme qu'Antoine a renvoyée le
- *  2026-08-16 en disant « ça ne s'arrête pas à l'élément sélectionné ». Avec
- *  elle, colorer le groupe entier rougit ici. */
-export const SelectingAGroupPhotoLightsNoRail: Story = {
-  args: { layers: troisEffetsSousUnePhoto, selectedId: "P" },
-  decorators: [dockWidthDecorator],
-  play: async ({ canvasElement }) => {
-    // Les filets existent — c'est bien la COULEUR qu'on mesure, pas leur absence.
-    await expect(canvasElement.querySelectorAll(".layer-panel__rail")).toHaveLength(3);
-    await expect(canvasElement.querySelectorAll(".layer-panel__rail--active")).toHaveLength(0);
-  },
-};
-
-/** Sélection sur le DERNIER effet : le chemin couvre alors tout le groupe. La
- *  story frontière de la précédente — sans elle, une règle qui n'allume jamais
- *  rien passerait les deux. */
-export const RailReachesTheLastEffect: Story = {
-  args: { layers: troisEffetsSousUnePhoto, selectedId: "E3" },
-  decorators: [dockWidthDecorator],
-  play: async ({ canvasElement }) => {
-    await expect(canvasElement.querySelectorAll(".layer-panel__rail--active")).toHaveLength(3);
+    await expect(fond).toContain(`${Math.round(axe)}px`);
   },
 };
 

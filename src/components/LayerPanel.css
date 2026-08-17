@@ -341,47 +341,39 @@
       Le côté gauche devient FRANC, et c'est le but : c'est la barre qui fait
       l'arête, pas une courbe.
 
-   ⚠️ TROISIÈME AMENDEMENT, ET C'EST LUI QUI SIMPLIFIE (2026-08-16). Constat
-   d'Antoine, qui porte sur l'ENSEMBLE et non sur la pièce : « la barre blanche
-   devrait devenir bleue, ça serait plus cohérent — tu es trop focusé ». Il a
-   raison, et le défaut se voyait sur toute la colonne : le filet est un trait
-   CONTINU qui traverse un groupe entier, et le colorer sur la seule ligne
-   sélectionnée le faisait changer de couleur DEUX FOIS sur sa longueur — gris,
-   bleu, gris — pour un objet qui n'a qu'un seul sens.
+   ⚠️ DEUX TENTATIVES DE PLUS, TOUTES DEUX RENVOYÉES, avant la règle qui suit.
+   Elles valent d'être écrites : ce sont les deux façons de se tromper sur cette
+   pièce, et elles sont symétriques.
 
-   La règle est donc remontée d'un cran, de la LIGNE au CHEMIN :
+    3. Le filet du GROUPE ENTIER en accent. Ça réparait bien le trait bicolore
+       (gris/bleu/gris) que la forme 2 laissait, mais : « toute la barre est
+       bleue, ça ne s'arrête pas à l'élément sélectionné ».
+    4. Le filet en accent DEPUIS LA PHOTO JUSQU'À la sélection. Mieux, et
+       toujours faux : « pourquoi ça dépasse le cadre de sélection ? ».
 
-    - le LAVIS dit quelle LIGNE est sélectionnée ;
-    - le FILET TRACE le chemin depuis la photo du groupe jusqu'à elle, puis
-      S'ARRÊTE. Au-dessous, il reprend sa couleur de repos.
+   LA RÈGLE QUI LES RECOUVRE, et qu'aucune des quatre formes ne respectait :
+   **une marque de sélection est bornée par ce qu'elle sélectionne.** Les formes
+   2, 3 et 4 la violaient toutes, parce qu'elles accrochaient l'accent au FILET —
+   or le filet appartient au GROUPE. C'est un connecteur : il relie une photo à
+   ses effets, il ne porte aucun état de sélection, et il reste gris.
 
-   ⚠️ Il a fallu DEUX corrections pour arriver là, et la première dépassait la
-   cible. Colorer tout le groupe réparait bien le trait bicolore, mais Antoine
-   l'a renvoyé aussitôt : « toute la barre est bleue, ça ne s'arrête pas à
-   l'élément sélectionné ». Ce qui est juste est entre les deux extrêmes — un
-   trait CONTINU, qui commence à la tête du groupe et FINIT sur la sélection.
-   `railToSelection` (calculé dans `pileModel`, fonction pure) porte les trois
-   conditions : bon groupe, ligne imbriquée, position au-dessus ou sur la ligne
-   visée.
+   Ce qui porte la sélection est donc, et seulement :
+    - le LAVIS, qui part de l'axe du filet (variante C) ;
+    - la BARRE, sur ce même axe, à l'épaisseur du filet, et BORNÉE AU LAVIS.
 
-   La transition se fait toute seule au bon endroit : le segment suivant, gris,
-   est plus loin dans le DOM et recouvre le débordement du segment bleu dans la
-   gouttière. Aucune règle à écrire pour ça.
+   Le filet passe derrière, continu et gris, du haut du groupe à son bas.
+   `mesuré` : barre de 52 px pour un lavis de 52 px.
 
-   CE QUE ÇA SUPPRIME : la barre `::before` de la ligne imbriquée sélectionnée
-   n'a plus de raison d'être. Elle peignait un trait de 1 px exactement là où le
-   filet passe déjà — un doublon dès lors que le filet porte la couleur. Trois
-   passes auront été nécessaires pour voir que la bonne correction ENLEVAIT du
-   mécanisme au lieu d'en ajouter. */
+   Leçon, et c'est la seule qui généralise : j'ai mesuré juste à chaque passe,
+   sur le mauvais objet. Trois corrections mesurées et verrouillées n'ont pas
+   rattrapé une erreur de cadrage — c'est l'œil d'Antoine qui l'a fait, quatre
+   fois. Une mesure garantit qu'on a fait ce qu'on a dit, jamais qu'on visait la
+   bonne chose. */
 .layer-panel__row--nested.layer-panel__row--selected::before {
-  display: none;
-}
-
-/* Le filet SUR LE CHEMIN de la sélection. Placé après la règle de contraste
-   ci-dessus, à spécificité égale, pour la gagner : un filet qui porte l'accent
-   n'a pas besoin d'être relevé en `--text-tertiary`. */
-.layer-panel__row .layer-panel__rail--active {
-  background: var(--selection-accent);
+  left: calc(var(--space-4) + (var(--layer-nest-indent) / 2));
+  width: 1px;
+  border-radius: 0;
+  z-index: 1;
 }
 
 .layer-panel__row--nested.layer-panel__row--selected,

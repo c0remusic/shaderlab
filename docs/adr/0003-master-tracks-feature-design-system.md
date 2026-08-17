@@ -1,8 +1,17 @@
 ---
 id: ADR-0003
-status: active
+status: superseded
 date: 2026-07-24
+superseded_by: ADR-0005
 ---
+
+> ⚠️ **RENVERSÉ par [ADR-0005](0005-master-est-la-branche-canonique.md) le
+> 2026-08-16.** La relation décrite ci-dessous s'est inversée : mesuré ce
+> jour-là, `master` avait **456 commits d'avance** sur `feature/design-system`,
+> qui n'avait rien en retour et n'avait pas bougé depuis le 2026-07-26. `master`
+> est désormais la branche canonique ET la branche par défaut du dépôt, et
+> **aucune synchronisation manuelle n'est due** — c'est précisément le geste
+> répété prescrit ici qui n'a pas tenu.
 
 ## Contexte
 

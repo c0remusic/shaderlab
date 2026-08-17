@@ -243,11 +243,13 @@ Ruled beyond the destination. Ne graduent jamais.
   composant supprimé le 2026-07-21, et le rail a été livré autrement (panneaux
   contextuels, 2026-07-25/26). PRD zombie : une suppression et une ligne de
   note, aucune décision.
-- **`docs/adr/0003-master-tracks-feature-design-system.md`** — décrit l'inverse
-  de la réalité mesurée (`master` est à 393 commits d'avance sur
-  `feature/design-system`, qui n'a rien en retour). Corvée de documentation,
-  sauf si [Le sort de `sat-feather`](issues/07-le-sort-de-sat-feather.md)
-  rouvre la question de la branche canonique — auquel cas elle y est traitée.
+- ✅ **`docs/adr/0003-master-tracks-feature-design-system.md` — RÉGLÉ le
+  2026-08-16, et ce n'était pas une corvée.** Cette entrée le rangeait en
+  « corvée de documentation » ; c'en était une décision. Tant que l'ADR restait
+  `active`, il prescrivait une synchronisation manuelle que personne ne faisait,
+  et la branche par défaut du dépôt montrait un instantané de trois semaines.
+  `master` est désormais canonique et par défaut
+  ([ADR-0005](../../docs/adr/0005-master-est-la-branche-canonique.md)).
 
 ### Corrections de documentation mesurées — ✅ SOLDÉES le 2026-08-13
 

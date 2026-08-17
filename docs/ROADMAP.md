@@ -942,10 +942,14 @@ elle est à 1 d'avance / 8 de retard sur `master` — donc rebasable proprement 
 jour où le verdict tombe. Deux passages de cette feuille la citaient comme si
 elle était acquise.
 
-⚠️ `master` est à **393 commits d'avance** sur `feature/design-system`, qui n'a
-rien en retour, et `origin/HEAD` pointe toujours sur `feature/design-system`.
-`docs/adr/0003-master-tracks-feature-design-system.md` décrit donc l'inverse de
-la réalité.
+✅ **RÉGLÉ le 2026-08-16.** `master` était à **456 commits d'avance** sur
+`feature/design-system` — qui n'avait rien en retour et n'avait pas bougé depuis
+le 2026-07-26 — pendant qu'`origin/HEAD` pointait toujours sur elle. `master` est
+désormais la branche canonique ET la branche par défaut du dépôt
+([ADR-0005](../docs/adr/0005-master-est-la-branche-canonique.md), qui renverse
+ADR-0003). `feature/design-system` a été fast-forwardée, sans perte : elle
+n'avait aucun commit unique. **Plus aucune synchronisation manuelle n'est due** —
+c'est le geste répété prescrit par ADR-0003 qui n'avait pas tenu.
 
 ---
 

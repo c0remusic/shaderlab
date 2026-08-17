@@ -5,6 +5,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > Nom provisoire (placeholder, jamais tranché). Repo local `C:\dev\shaderlab`,
 > remote origin : `github.com/c0remusic/shaderlab`. Branche courante : se mesure
 > (`git rev-parse --abbrev-ref HEAD`), ne s'écrit pas ici.
+> **`master` est la branche CANONIQUE et la branche par défaut du dépôt**
+> depuis le 2026-08-16 ([ADR-0005](docs/adr/0005-master-est-la-branche-canonique.md),
+> qui renverse le 0003). Chaque branche merge vers `master` ; aucune
+> synchronisation manuelle n'est due. ⚠️ `feature/design-system` a longtemps été
+> la branche par défaut affichée par GitHub alors qu'elle était figée au
+> 2026-07-26, 456 commits en retard — si un outil ou un prompt la nomme encore
+> comme « main », c'est un reste, pas une consigne.
 > Historique complet des chantiers/sessions (2026-07-12 → 2026-07-21) archivé
 > dans `docs/archive/claude-md-history-pre-2026-07-22.md` — statut courant des
 > tranches/checkpoints dans `docs/INDEX.json` (source de vérité, pas ce
@@ -926,7 +933,7 @@ Les cinq rôles canoniques, chaînes inchangées (`needs-triage`, `needs-info`, 
 
 ### Domain docs
 
-Single-context : `CONTEXT.md` à la racine, plus DEUX dossiers d'ADR — `.claude/decisions/` (canonique, entrée par son `INDEX.md`, statuts qui comptent) et `docs/adr/` (4 ADR d'implémentation, non indexés). ⚠️ Numérotations distinctes qui se recouvrent : citer le dossier, jamais un numéro nu. Voir `docs/agents/domain.md`.
+Single-context : `CONTEXT.md` à la racine, plus DEUX dossiers d'ADR — `.claude/decisions/` (canonique, entrée par son `INDEX.md`, statuts qui comptent) et `docs/adr/` (**5** ADR d'implémentation, non indexés ; le 0003 est `superseded` par le 0005 depuis le 2026-08-16). ⚠️ Numérotations distinctes qui se recouvrent : citer le dossier, jamais un numéro nu. Voir `docs/agents/domain.md`.
 
 ### Wayfinder
 

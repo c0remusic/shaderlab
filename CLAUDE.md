@@ -471,12 +471,17 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   conforme (stride 4 pour un alignement requis de 16 en espace uniform), Dawn
   l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 23
   effets, index gelés par les presets ET par 97 références de pixels.
-  ⚠️ **La CI, elle, est bien ROUGE — mais ailleurs, et depuis avant ce gate** :
-  `LayerPanel.stories.tsx` échoue en chromium ubuntu (`Cannot read properties of
-  null (reading 'useMemo')`) quand `npm run test-storybook` est vert en local, et
-  `master` porte ce rouge depuis `9a12812` (2026-08-14). Voir
-  `.scratch/prochain-palier/issues/21-le-gate-wgsl-est-rouge-en-ci.md` (requalifié)
-  et `.scratch/prochain-palier/issues/22-layerpanel-rouge-en-ci-vert-en-local.md`.
+  ✅ **La CI est VERTE depuis le 2026-08-16** (run `31986492689`), après 60+ runs
+  rouges d'affilée. Le rouge n'a JAMAIS été ce gate : c'était
+  `LayerPanel.stories.tsx`, pour une raison sans rapport — voir le § CI ci-dessous
+  et le ticket 22.
+  ⚠️ **Sa borne était pourtant inerte, et personne ne l'avait vu** : `naga` colore
+  sa sortie même derrière un tuyau, donc l'ancre `/^error:/gm` ne matchait aucune
+  ligne et la tolérance rendait faux. **Le verdict du gate dépendait du SHELL** —
+  vert sous PowerShell et en CI, rouge sous Bash. Déminé par `sansAnsi()` à
+  l'entrée, une fois. Toute sortie d'outil externe se démine avant d'être parsée :
+  `stdio: "pipe"` ne suffit pas, beaucoup d'outils Rust regardent `CLICOLOR`/`TERM`
+  et pas le TTY.
   **Leçon** : attribuer un rouge de CI se fait par `gh run view --log-failed`, pas
   par déduction depuis le gate qu'on vient d'ajouter. Trois commits de docs ont
   porté la mauvaise cause, dont un intitulé « un gate annoncé vert qui est rouge ».

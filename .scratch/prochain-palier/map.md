@@ -65,6 +65,19 @@ ajoutent ZÉRO site à la facture 16-bit**, un effet ne voyant jamais le format.
 - **Avant tout dispatch** : `git worktree list` ET `git log --oneline -3`.
   Des sessions concurrentes ont déjà collisionné sur ce dépôt.
 
+## Notes de sortie de session — 2026-08-16
+
+⚠️ **La CI de `master` est VERTE** (run `31986492689`), pour la première fois
+depuis au moins le 2026-08-01. Les trois tickets ouverts par les sessions des 15
+et 16 août — [20](issues/20-ou-vit-l-etat-de-repli-de-la-pile.md),
+[21](issues/21-le-gate-wgsl-est-rouge-en-ci.md),
+[22](issues/22-layerpanel-rouge-en-ci-vert-en-local.md) — sont tous `resolved`.
+
+**Ce qui reste sur cette carte est ce qui y était avant** : onze tickets
+d'arbitrage de fond (formes, typographie, parité du calque photo, masquage,
+lisibilité, migration shadcn, les trois fronts des contrôles, le coût du verre).
+Aucun n'est un reste de ces deux sessions.
+
 ## Decisions so far
 
 - **Arbitrages d'Antoine du 2026-08-15**, pris sur planches et sur mesures :

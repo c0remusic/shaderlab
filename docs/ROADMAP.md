@@ -919,38 +919,6 @@ Ni continuée ni arrêtée, jamais décidée — et l'écart grandit à chaque c
 Se tranche dans
 `.scratch/prochain-palier/issues/13-la-migration-shadcn-est-elle-encore-la-direction.md`.
 
-### ⚠️ OUVERT — la CI est rouge, mais pas là où cette feuille le disait
-
-Ce bloc s'intitulait « un test ROUGE est sur `origin` » et accusait
-`test/render/wgslNaga.test.ts` du 2026-08-14 au 2026-08-16. **Mesuré le
-2026-08-16 : ce gate est VERT**, en local comme en CI (`npm run test`, 128
-fichiers, run `31895619303`), et son exception `params` est dans le fichier
-depuis son premier commit (`wgslNaga.test.ts:73`), bornée par la variable ET par
-le nombre d'erreurs.
-
-Ce qui reste ouvert, en deux morceaux qui n'ont rien à voir l'un avec l'autre :
-
-- ✅ **La dérogation est COMPTÉE depuis le 2026-08-16** (attendu dérivé,
-  `tolerees === liste.length`). ⚠️ Et l'éprouver a trouvé pire : **`naga` colore
-  sa sortie même derrière un tuyau**, donc l'ancre `/^error:/gm` de sa borne ne
-  matchait plus rien et la dérogation était INERTE — gate rouge sous Bash, vert
-  sous PowerShell et en CI. Déminé par `sansAnsi()`, et `seulementEcartConnu` est
-  désormais exportée et testée sur cinq sorties écrites à la main.
-  [Ticket 21](../.scratch/prochain-palier/issues/21-le-gate-wgsl-est-rouge-en-ci.md).
-- ✅ **`LayerPanel.stories.tsx` est RÉSOLU le 2026-08-16.** Ni React, ni ubuntu :
-  Vite découvrait `react/jsx-dev-runtime` en cours d'exécution, ré-optimisait et
-  RECHARGEAIT la page — l'arbre React détruit en plein rendu, d'où le dispatcher
-  nul. Une ligne d'`optimizeDeps.include` sur le projet `storybook`.
-  ⚠️ **Vider `node_modules/.cache/storybook` reproduit la CI en local** : à froid
-  **12** fichiers tombent (3 passes sur 3, déterministe), à chaud 32/32 passent.
-  ✅ Confirmé par le run `31986492689` — **premier vert de `master` depuis au
-  moins le 2026-08-01**.
-  [Ticket 22](../.scratch/prochain-palier/issues/22-layerpanel-rouge-en-ci-vert-en-local.md).
-
-⚠️ **Une CI rouge en permanence n'est plus un gate** : toute branche en hérite,
-donc le rouge ne discrimine plus rien — c'est ce qui a permis à la mauvaise
-attribution de tenir deux jours sans jamais être contredite.
-
 ### Branches mortes, mesurées
 
 `claude/lucid-vaughan-6f8fc7` est superseded par `master` ;

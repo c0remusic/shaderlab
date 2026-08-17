@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>shaderlab — wireframe barre d'options d'outil</title>
+<style>
+  /* ---- Tokens RÉELS (src/design/*.css) et géométries MESURÉES dans la vraie
+     fenêtre le 2026-08-17, à 1280 × 720. Aucune valeur estimée : la planche
+     précédente de ce dossier s'ouvre sur la correction d'une erreur due
+     exactement à ça. ---- */
+  :root {
+    --primitive-neutral-700: #383431;
+    --primitive-neutral-900: #2c2c2c;
+    --primitive-neutral-1000: #1b1b1b;
+    --primitive-accent-blue: #4069fd;
+
+    --space-2: 4px;
+    --space-3: 6px;
+    --space-4: 8px;
+    --space-5: 12px;
+    --space-6: 16px;
+
+    --font-ui: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+    --font-size-xs: 11px;
+    --font-size-sm: 12px;
+    --font-size-md: 13px;
+    --font-size-lg: 14px;
+    --font-weight-semibold: 600;
+
+    --radius-control: 5px;
+    --radius-panel: 8px;
+
+    --surface-window: var(--primitive-neutral-1000);
+    --surface-panel: var(--primitive-neutral-900);
+    --surface-selected-accent: rgba(64, 105, 253, .24);
+
+    --text-primary: rgba(242, 242, 242, .94);
+    --text-secondary: rgba(242, 242, 242, .72);
+    --text-tertiary: rgba(242, 242, 242, .53);
+
+    --border-subtle: rgba(242, 242, 242, .07);
+    --border-default: rgba(242, 242, 242, .11);
+    --border-strong: rgba(242, 242, 242, .28);
+    --focus-color: var(--primitive-accent-blue);
+
+    --toolbar-height: 36px;
+    --control-height-sm: 28px;
+
+    /* MESURÉ dans la fenêtre, pas dérivé du CSS. */
+    --h-toolbar: 57px;
+    --h-barre-pinceau: 75px;
+    --w-palette: 44px;
+    --h-palette: 158px;
+    --w-dock: 320px;
+  }
+  .wf, .wf *, .wf *::before, .wf *::after { box-sizing: border-box; }
+  .wf {
+    font-family: var(--font-ui);
+    background: var(--surface-window);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    padding: var(--space-6);
+  }
+  .wf h1 { font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin: 0 0 var(--space-3); }
+  .wf h2 { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); margin: var(--space-6) 0 var(--space-2); }
+  .wf h3 { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); margin: var(--space-5) 0 var(--space-2); color: var(--text-secondary); }
+  .wf p { font-size: var(--font-size-sm); color: var(--text-secondary); line-height: 1.55; margin: 0 0 var(--space-4); max-width: 68ch; }
+  .wf .note { color: var(--text-tertiary); }
+  .wf .mesure { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  .wf code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: var(--font-size-xs); color: var(--text-primary); }
+  .wf strong { color: var(--text-primary); font-weight: var(--font-weight-semibold); }
+
+  .planche { display: flex; gap: var(--space-6); flex-wrap: wrap; align-items: flex-start; margin-bottom: var(--space-6); }
+  .colonne { display: flex; flex-direction: column; gap: var(--space-3); }
+  .legende { font-size: var(--font-size-xs); color: var(--text-tertiary); max-width: 420px; line-height: 1.5; }
+
+  /* --- Maquette de fenêtre, à l'échelle 1/2 des mesures réelles --- */
+  .fenetre {
+    width: 640px;                 /* 1280 / 2 */
+    height: 360px;                /* 720 / 2 */
+    background: var(--surface-window);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-panel);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .bande {
+    display: flex; align-items: center; gap: var(--space-4);
+    padding: 0 var(--space-4);
+    font-size: var(--font-size-xs);
+    border-bottom: 1px solid var(--border-default);
+    flex: none;
+  }
+  .bande--titre { height: 28px; background: var(--surface-panel); color: var(--text-tertiary); }
+  .bande--options { background: var(--primitive-neutral-700); color: var(--text-primary); }
+  .bande--options.h-actuelle { height: 37px; }   /* 75 / 2, arrondi */
+  .corps { flex: 1; display: flex; position: relative; min-height: 0; }
+  .palette {
+    width: 22px;                 /* 44 / 2 */
+    margin: var(--space-4);
+    background: var(--surface-panel);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-control);
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 3px 0;
+    flex: none;
+    align-self: flex-start;
+  }
+  .outil { width: 16px; height: 16px; border-radius: 3px; background: var(--border-default); }
+  .outil--actif { background: var(--surface-selected-accent); outline: 1px solid var(--primitive-accent-blue); }
+  .toile { flex: 1; margin: var(--space-4) 0; background: #101010; border: 1px dashed var(--border-subtle); position: relative; }
+  .dock { width: 160px; margin: var(--space-4); background: var(--surface-panel); border: 1px solid var(--border-default); border-radius: var(--radius-control); flex: none; }
+
+  .reglage { display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border: 1px solid var(--border-default); border-radius: 3px; color: var(--text-secondary); }
+  .vide { color: var(--text-tertiary); font-style: italic; }
+
+  /* Flèche de saut mesuré */
+  .saut {
+    position: absolute; left: 34px; width: 0; border-left: 1px dashed var(--primitive-accent-blue);
+  }
+  .saut::after {
+    content: attr(data-l); position: absolute; left: 6px; top: 50%; transform: translateY(-50%);
+    font-size: 10px; color: var(--primitive-accent-blue); white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  table { border-collapse: collapse; font-size: var(--font-size-sm); margin: 0 0 var(--space-5); }
+  th, td { text-align: left; padding: var(--space-2) var(--space-5) var(--space-2) 0; border-bottom: 1px solid var(--border-subtle); color: var(--text-secondary); }
+  th { color: var(--text-primary); font-weight: var(--font-weight-semibold); }
+  td.n { font-variant-numeric: tabular-nums; color: var(--text-primary); }
+</style>
+</head>
+<body class="wf">
+
+<h1>Où vivent les options d'un outil</h1>
+
+<p>
+  Ouvert le 2026-08-17, après l'ajout de l'outil <strong>Forme</strong>. Antoine :
+  « niveau layout tu as prévu quoi ? ». Réponse honnête : rien — l'outil a été
+  ajouté sans se demander où se règlent ses options, et le manque est franc.
+</p>
+
+<p>
+  <strong>La barre d'options existe déjà, et ne sert qu'un outil sur quatre.</strong>
+  <code>BrushToolbar</code> se décrit elle-même comme « barre d'options du pinceau
+  (style barre d'outils Photoshop) ». Le pinceau et la gomme la partagent ;
+  <em>Déplacer</em> et <em>Forme</em> n'ont rien. La question n'est donc pas
+  « faut-il une barre d'options » mais « pourquoi n'y en a-t-il qu'une ».
+</p>
+
+<h2>Ce que ça coûte aujourd'hui — mesuré, pas estimé</h2>
+
+<p>
+  Mesures prises dans la vraie fenêtre à <span class="mesure">1280 × 720</span>,
+  en passant de <em>Déplacer</em> au <em>Pinceau</em>.
+</p>
+
+<table>
+  <tr><th>Élément</th><th>Déplacer</th><th>Pinceau</th><th>Écart</th></tr>
+  <tr><td>Haut de la toile</td><td class="n">y 57</td><td class="n">y 132</td><td class="n">+75 px</td></tr>
+  <tr><td>Hauteur de la toile</td><td class="n">663 px</td><td class="n">588 px</td><td class="n">−75 px (−11,3 %)</td></tr>
+  <tr><td>Haut de la palette d'outils</td><td class="n">y 73</td><td class="n">y 148</td><td class="n">+75 px</td></tr>
+</table>
+
+<p>
+  <strong>Le troisième chiffre est le défaut, pas les deux premiers.</strong> Une
+  toile qui se réduit quand une barre apparaît est un arbitrage discutable ; une
+  <em>palette d'outils qui se déplace de 75 px au moment où on clique dedans</em>
+  n'en est pas un. On choisit un outil, la rangée de boutons glisse sous le
+  curseur, et le suivant n'est plus là où on pointait. C'est la seule surface de
+  l'application dont la position doit être absolument stable — c'est ce à quoi
+  elle sert.
+</p>
+
+<div class="planche">
+  <div class="colonne">
+    <div class="fenetre">
+      <div class="bande bande--titre">Barre de document</div>
+      <div class="corps">
+        <div class="palette">
+          <div class="outil outil--actif"></div>
+          <div class="outil"></div>
+          <div class="outil"></div>
+          <div class="outil"></div>
+        </div>
+        <div class="toile"></div>
+        <div class="dock"></div>
+      </div>
+    </div>
+    <div class="legende"><strong>Aujourd'hui, outil Déplacer.</strong> Aucune barre
+      d'options. La palette est à <span class="mesure">y 73</span>.</div>
+  </div>
+
+  <div class="colonne">
+    <div class="fenetre">
+      <div class="bande bande--titre">Barre de document</div>
+      <div class="bande bande--options h-actuelle">
+        <span class="reglage">Taille</span>
+        <span class="reglage">Dureté</span>
+        <span class="reglage">Opacité</span>
+        <span class="reglage">Débit</span>
+      </div>
+      <div class="corps">
+        <div class="palette">
+          <div class="outil"></div>
+          <div class="outil outil--actif"></div>
+          <div class="outil"></div>
+          <div class="outil"></div>
+        </div>
+        <div class="toile"></div>
+        <div class="dock"></div>
+      </div>
+      <div class="saut" style="top: 28px; height: 37px;" data-l="+75 px"></div>
+    </div>
+    <div class="legende"><strong>Aujourd'hui, outil Pinceau.</strong> La barre
+      s'insère et pousse tout : toile ET palette descendent de
+      <span class="mesure">75 px</span>.</div>
+  </div>
+</div>
+
+<h2>A — Une barre permanente, dont le contenu change</h2>
+
+<p>
+  Le modèle de Photoshop, d'Illustrator et d'Affinity : la barre est
+  <strong>toujours là</strong>, à hauteur constante, et seul son contenu suit
+  l'outil. Rien ne bouge en changeant d'outil — ni la toile, ni la palette.
+</p>
+
+<div class="planche">
+  <div class="colonne">
+    <div class="fenetre">
+      <div class="bande bande--titre">Barre de document</div>
+      <div class="bande bande--options" style="height: 22px;">
+        <span class="reglage">Auto-sélection</span>
+        <span class="reglage">Aligner</span>
+      </div>
+      <div class="corps">
+        <div class="palette">
+          <div class="outil outil--actif"></div>
+          <div class="outil"></div>
+          <div class="outil"></div>
+          <div class="outil"></div>
+        </div>
+        <div class="toile"></div>
+        <div class="dock"></div>
+      </div>
+    </div>
+    <div class="legende"><strong>Déplacer.</strong> La barre existe et porte peu —
+      mais elle occupe sa place.</div>
+  </div>
+
+  <div class="colonne">
+    <div class="fenetre">
+      <div class="bande bande--titre">Barre de document</div>
+      <div class="bande bande--options" style="height: 22px;">
+        <span class="reglage">Fond</span>
+        <span class="reglage">Contour</span>
+        <span class="reglage">Primitive</span>
+        <span class="reglage">Angle</span>
+      </div>
+      <div class="corps">
+        <div class="palette">
+          <div class="outil"></div>
+          <div class="outil"></div>
+          <div class="outil"></div>
+          <div class="outil outil--actif"></div>
+        </div>
+        <div class="toile"></div>
+        <div class="dock"></div>
+      </div>
+    </div>
+    <div class="legende"><strong>Forme.</strong> Même hauteur, contenu différent.
+      Et surtout : <strong>on règle la couleur AVANT de tracer</strong>, ce qui
+      est aujourd'hui impossible — on trace un rectangle noir puis on va chercher
+      sa couleur dans le dock.</div>
+  </div>
+</div>
+
+<h3>Ce que A coûte, et ce qu'elle demande de trancher</h3>
+
+<p>
+  Elle prend <span class="mesure">~46 px</span> de hauteur de toile <em>en
+  permanence</em> (une barre à <code>--toolbar-height</code> plus ses marges),
+  contre 75 px par intermittence aujourd'hui. Sur 720 px de fenêtre c'est 6,4 %.
+</p>
+
+<p>
+  ⚠️ <strong>Et elle bute sur une règle du dépôt.</strong> ADR-0001 impose qu'un
+  contrôle qui se répète devienne un contrôle unique dans une zone fixe — ce que
+  cette barre EST. Mais elle crée aussi un second endroit où régler un effet : la
+  <em>Forme</em> aurait son fond dans la barre, et le calque <code>aplat</code>
+  déjà posé garderait le sien dans le dock. Deux surfaces pour une même valeur,
+  c'est exactement ce que la règle refuse. <strong>À trancher : la barre
+  règle-t-elle l'outil (le prochain tracé) ou le calque sélectionné ?</strong>
+  Photoshop répond « l'outil », et accepte la double surface.
+</p>
+
+<h2>B — Une barre par outil</h2>
+
+<p>
+  Ce qu'on obtient en ajoutant un <code>ShapeToolbar</code> à côté de
+  <code>BrushToolbar</code>. Le moins cher à écrire, et il reconduit exactement le
+  défaut mesuré plus haut : chaque barre apparaît et disparaît, donc chaque
+  changement d'outil déplace la palette. À deux barres le défaut ne double pas,
+  il empire — les hauteurs diffèrent, donc le saut change selon la paire d'outils
+  entre lesquels on navigue.
+</p>
+
+<h2>C — Les options dans le dock</h2>
+
+<p>
+  Une carte « Outil » qui suit l'outil actif, dans la colonne de droite. Cohérent
+  avec le reste de l'application, et zéro pixel pris à la toile.
+</p>
+
+<p>
+  ⚠️ Deux objections, et la seconde est mesurée. D'abord la distance : on règle un
+  pinceau <em>en peignant</em>, et l'aller-retour vers le bord droit casse le
+  geste — c'est la raison écrite dans l'en-tête de <code>BrushToolbar</code> pour
+  laquelle elle n'est pas dans l'inspecteur. Ensuite la hauteur : la colonne est
+  <strong>déjà sous budget</strong> (ADR-0001, épisode du panneau Photo à 1613 px
+  pour 1345 disponibles), et la borne à cinq lignes du panneau de pile existe
+  précisément pour ça.
+</p>
+
+<h2>Ce que cette planche ne tranche pas</h2>
+
+<p>
+  Le <strong>contenu</strong> de la barre pour <em>Forme</em>. « Fond, contour,
+  primitive, angle » est ce que Photoshop y met — mais notre contour n'existe
+  pas (écarté par Antoine le 2026-08-17), et notre <code>aplat</code> porte un
+  dégradé que Photoshop n'a pas dans sa barre. Le contenu se décide après la
+  structure, pas avec.
+</p>
+
+</body>
+</html>

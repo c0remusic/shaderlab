@@ -5,11 +5,24 @@ import { FULLSCREEN_VERTEX_WGSL } from "./shaderCompose";
  *
  * POURQUOI CE FICHIER EXISTE (constat du 2026-08-14). `textureLibraryStore`
  * créait ses textures sans `mipLevelCount`, donc avec UN SEUL niveau. Les scans
- * montent jusqu'à 8192x8192 et sont échantillonnés à l'échelle de l'écran, soit
- * un rapport de l'ordre de 1:8. Sans mipmap, deux pixels voisins à l'écran
- * lisent des texels distants de huit texels en mémoire : le cache de texture ne
- * sert quasiment à rien, chaque prélèvement part en VRAM. Et ça aliase — un
- * scan de papier réduit sans mip scintille.
+ * montent jusqu'à 8192x8192 et sont minifiés en les échantillonnant : sans
+ * mipmap, deux pixels voisins lisent des texels distants en mémoire, le cache de
+ * texture ne sert quasiment à rien, chaque prélèvement part en VRAM. Et ça
+ * aliase — un scan de papier réduit sans mip scintille.
+ *
+ * ⚠️ CE PARAGRAPHE A DIT « échantillonnés à l'échelle de l'ÉCRAN, soit un rapport
+ * de l'ordre de 1:8 » jusqu'au 2026-08-17, et c'était FAUX. `presentPass.ts:44` :
+ * le canvas porte la résolution NATIVE de l'image et n'est réduit que par CSS.
+ * L'échantillonnage se fait donc à la résolution de la CIBLE DE RENDU — 6240x4160
+ * pour une photo de 26 Mpx, soit 8192/6240 = 1,31 et 8192/4160 = 1,97, un LOD de
+ * ~1 au réglage par défaut. Le rapport 1:8 n'est atteint qu'à `Echelle` ~ 0,25,
+ * où le scan se répète. Mesuré le 2026-08-17, temps GPU de la passe `texture` :
+ * ×1,24 au défaut, ×2,63 à 8:1 — et surtout un coût PLAT au lieu de croissant
+ * avec la minification, ce qui est la vraie signature du gain.
+ *
+ * Tout raisonnement de LOD dans ce dépôt part de la résolution de la cible de
+ * rendu, jamais de la taille apparente à l'écran : s'en tromper surestime le
+ * gain d'un facteur 4 à 6.
  *
  * ⚠️ CE DÉFAUT NE POUVAIT PAS ÊTRE ATTRAPÉ PAR UN TEST. Un `createTexture` sans
  * `mipLevelCount` compile, valide, et rend une image correcte ; les références
@@ -64,13 +77,16 @@ export class MipmapGenerator {
    * (chaque niveau est une cible de rendu) et avoir été créée avec son
    * `mipLevelCount` définitif — un niveau ne s'ajoute pas après coup.
    *
-   * Encode et soumet son propre command buffer : appelée une fois au
-   * chargement d'un scan, jamais dans la boucle de frame.
+   * ⚠️ SANS `encoder`, elle encode ET SOUMET son propre command buffer — ce qui
+   * ne convient QUE hors de la boucle de frame (au chargement d'un scan). Pour
+   * un usage par image, passer l'encodeur de la frame : une soumission
+   * intercalée casserait l'ordonnancement des passes et rendrait le
+   * chronométrage GPU illisible, chaque `submit` fermant le lot mesuré.
    */
-  generate(texture: GPUTexture): void {
+  generate(texture: GPUTexture, encoderExterne?: GPUCommandEncoder): void {
     if (texture.mipLevelCount <= 1) return;
     this.ensureResources();
-    const encoder = this.device.createCommandEncoder();
+    const encoder = encoderExterne ?? this.device.createCommandEncoder();
     for (let niveau = 1; niveau < texture.mipLevelCount; niveau++) {
       // Vue SOURCE bornée au niveau précédent. Sans `mipLevelCount: 1`, la vue
       // porterait toute la pyramide et le sampler pourrait lire un niveau qu'on
@@ -98,7 +114,7 @@ export class MipmapGenerator {
       passe.draw(3);
       passe.end();
     }
-    this.device.queue.submit([encoder.finish()]);
+    if (!encoderExterne) this.device.queue.submit([encoder.finish()]);
   }
 
   private ensureResources(): void {

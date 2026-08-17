@@ -85,13 +85,10 @@ famille sur une planche.
 Trois se confirment comme des trous francs, et deux d'entre eux sont bon marché
 chez nous :
 
-- **Vignette.** Universelle, absente ici. ⚠️ Mais leurs mots-clés disent
-  « shape oval triangle diamond rectangle hexagon octagon linear dither », donc
-  ce n'est PAS un simple assombrissement de bord : c'est une forme bornée à bord
-  adouci. **`aplat` livré le 2026-08-17 en fait déjà la moitié** — couleur unie,
-  primitive posée, adoucissement en pixels, plus le mode de fusion du calque. La
-  question devient « que manque-t-il à `aplat` pour couvrir la vignette », pas
-  « faut-il un effet vignette ». À mesurer avant d'écrire quoi que ce soit.
+- ~~**Vignette.**~~ ✅ **MESURÉE le 2026-08-17, et elle EXISTE DÉJÀ.** Voir le
+  bloc dédié ci-dessous : `aplat` plus un masque dégradé radial inversé la
+  produit sans une ligne de code. Ce qui manque n'est pas un effet, c'est **un
+  paramètre**.
 - **Carte de déplacement** (leur `Displacement`) — déjà retenue plus haut, et
   cette source la confirme comme une entrée de catalogue à part entière et non
   une variante de warp.
@@ -151,6 +148,65 @@ survivent pas, et **elles n'ont pas leur place dans le dépôt** : ce sont leurs
 images. Les regénérer depuis `https://effect.app/effects/<Categorie>/<id>.jpg`
 si besoin ; la liste des 69 identifiants est reconstructible depuis les attributs
 `data-effect-id` de leur page d'accueil.
+
+### ✅ La vignette, mesurée dans l'app le 2026-08-17
+
+Elle était notée « à mesurer avant d'écrire quoi que ce soit ». Fait, dans la
+vraie fenêtre, sur `photo-1.jpg` à 26 Mpx.
+
+**Elle existe déjà, sans une ligne de code** : un calque `aplat` noir, borné par
+le masque du calque, avec une source de masque **Dégradé en mode Radial** et la
+case **Inverser** cochée. Capture à l'appui — les bords s'assombrissent, le
+centre reste ouvert.
+
+**Et elle ne bande pas.** Ablation sur la même ligne de 770 px, calque affiché
+puis masqué :
+
+| | sans vignette | avec vignette |
+| --- | --- | --- |
+| valeurs distinctes | 102 | 76 |
+| plus long palier | 3 px | **7 px** |
+| palier moyen | 1,04 px | 1,08 px |
+| maximum | 169 | 114 |
+
+Le palier double mais reste à 7 px, loin des dizaines de pixels qu'il faut pour
+qu'une bande se voie. La perte de valeurs distinctes est de la **compression de
+plage** (le maximum tombe de 169 à 114), pas du banding — multiplier par un
+facteur lisse inférieur à 1 réduit mécaniquement le nombre de valeurs. Sur une
+vraie photo, le grain dithère la chute tout seul.
+
+⚠️ Leur mot-clé `dither` sur la vignette reste donc non expliqué par cette
+mesure. Deux hypothèses non départagées : du contenu LISSE (un aplat, un ciel
+synthétique) où le grain ne rattrape rien, ou une chute bien plus dure que celle
+que j'ai réglée. **Ne pas conclure que leur dither est décoratif** sur la foi
+d'une seule mesure faite sur une photo bruitée.
+
+### Ce que la mesure a trouvé et qu'on ne cherchait pas : `aplat` n'a pas d'INVERSE
+
+Leurs mots-clés listent six formes de vignette — `oval triangle diamond
+rectangle hexagon octagon`. Nous avons désormais les trois primitives qui les
+couvrent toutes (rectangle, ellipse, polygone à 3–12 côtés, livrés le
+2026-08-17).
+
+**Mais la couverture d'`aplat` remplit l'INTÉRIEUR de sa forme.** Une vignette
+veut l'extérieur. Le chemin qui marche aujourd'hui — le masque dégradé radial
+inversé — n'est disponible que pour le radial et le linéaire, parce que
+l'inversion vit sur le MASQUE et que les sources de masque n'ont pas de
+géométrie (union fermée à `gradient` / `luminosity` / `colorRange`, voir
+[ticket 03](03-une-forme-a-t-elle-besoin-de-contentsource.md)).
+
+Donc une vignette **hexagonale** n'est pas atteignable, alors que la forme
+hexagonale existe. Ce qui la sépare de nous est **un booléen sur `aplat`** —
+inverser sa couverture — ajouté à la fin de `params[]`, sans toucher aucun index
+persisté.
+
+C'est le genre de trouvaille qui justifie la règle du dépôt : la question posée
+était « faut-il un effet vignette », la mesure répond « non, il faut un
+paramètre ». Écrire l'effet aurait produit un doublon de tout ce qui est déjà là.
+
+**À trancher ici** : ajoute-t-on cet inverse à `aplat` ? Il est presque gratuit,
+mais il n'a pas été demandé — et `aplat` est déjà entré au registre par une
+question à laquelle il n'a pas répondu.
 
 ## La règle qui garde ce ticket honnête
 

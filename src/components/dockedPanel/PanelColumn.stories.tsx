@@ -290,7 +290,34 @@ export const FiveRowDocumentHidesNoRow: Story = {
     // différence est le CHROME de la carte (padding de `.docked-panel-card` et
     // de sa zone défilante), absent d'une story qui monte le panneau nu à 320 px.
     // C'est CE chiffre-ci qui est celui de la vraie fenêtre.
-    await expect(Math.round(name.getBoundingClientRect().width)).toBeGreaterThanOrEqual(145);
+    // ⚠️ LE SEUIL EST DÉRIVÉ, PLUS ÉCRIT EN DUR (2026-08-16, arbitrage
+    // d'Antoine). Il valait 145 px, calé sur la mesure du 2026-07-29, et il a
+    // rougi à l'arrivée de la piste du chevron : `expected 118 to be greater
+    // than or equal to 145`. Le nom est bien passé de 148/134 à 118/104 px sur
+    // cette carte — mais la question que pose l'ADR-0001 point 6 est « le nom
+    // garde-t-il une largeur LISIBLE ? », pas « atteint-il 145 px ».
+    //
+    // Mesuré : le plus long libellé du registre est `Lens distortion`, 79 px
+    // dans la police de la ligne. Aucun des 23 effets ne tronque à 104. Ce qui
+    // tronque est un NOM DE FICHIER, qui tronquait déjà à 152 et que aucune
+    // largeur ne sauvera — son repli est le `title` posé sur l'élément.
+    //
+    // On mesure donc ce que la question demande : que la piste contienne le
+    // plus long libellé qu'elle a réellement à rendre. Le garde d'origine tient
+    // — un contrôle qui revient sur la ligne et écrase le nom fait tomber la
+    // mesure sous le libellé — sans pouvoir se périmer quand les libellés
+    // changent. Même remède que `LayerPanel.stories.tsx > AllRowFormsShareOneGrid`.
+    const cs = getComputedStyle(label);
+    const ctx = document.createElement("canvas").getContext("2d")!;
+    ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const plusLongLibelle = Math.max(
+      ...Array.from(content.querySelectorAll<HTMLElement>(".layer-panel__row-label"))
+        // Les noms de FICHIER sont hors budget par nature : ils tronquent à
+        // toute largeur, et les inclure ferait de ce seuil une loterie.
+        .filter((n) => !(n.textContent ?? "").includes("."))
+        .map((n) => ctx.measureText(n.textContent ?? "").width),
+    );
+    await expect(name.getBoundingClientRect().width).toBeGreaterThanOrEqual(plusLongLibelle);
     // La colonne garde sa largeur réservée : le nom n'a pas le droit de
     // l'élargir (c'est ce que `min-width: 0` sur .panel-column__stack empêche).
     await expect(photoRow.offsetWidth).toBeLessThanOrEqual(320);

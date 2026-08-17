@@ -432,6 +432,15 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Toujours passer `--project=unit` (sinon les deux projets démarrent, dont le
   navigateur Playwright).
 - Tests de stories : `npm run test-storybook` (Vitest + Playwright chromium, projet `storybook`) · `npm run test:all` pour les deux · `npm run coverage` (v8, projet storybook)
+  ⚠️ **Après tout changement de LAYOUT — grille de ligne, piste, padding, hauteur —
+  lancer `test-storybook` EN ENTIER avant de committer.** Un changement de grille
+  se voit à TROIS échelles, et chacune a son fichier de stories : le composant
+  (`LayerPanel.stories.tsx`), la carte et la colonne
+  (`dockedPanel/PanelColumn.stories.tsx`). Filtrer sur le fichier qu'on vient
+  d'éditer sert à ITÉRER vite, jamais à valider. Payé le 2026-08-16 : l'ajout
+  d'une piste à la ligne a laissé `FiveRowDocumentHidesNoRow` — l'une des DEUX
+  gardes que l'ADR-0001 nomme pour son point 6 — rouge sur `master` une journée
+  entière, parce que seul `LayerPanel.stories.tsx` a été relancé.
 - Shaders GPU : `node scripts/gpu-shader-check.mjs --origin http://localhost:1421` — prouve que les shaders COMPILENT. ⚠️ **`npm run test:gpu-shaders` SANS `--origin` compile les modules FIGÉS en cache de la fenêtre, pas ton édition** : vert ET rouge faux (un `import()` d'une URL déjà évaluée rend l'instance en cache). Même prérequis Vite que `test:render` ci-dessous. Avec `--origin`, la page CDP n'est qu'un HÔTE DE GPU — n'importe laquelle fait l'affaire, y compris celle d'un autre projet.
 - Non-régression du **rendu** : `npm run test:render` (`scripts/render-check.mjs`) — prouve que le pipeline produit les MÊMES PIXELS qu'avant. Prérequis : l'app tourne avec le port CDP 9222, ET un Vite du worktree courant sur 1421 (`npx vite --port 1421`). Références versionnées dans `test/render-refs/` ; `--update` les réécrit (les relire à l'œil avant de committer), `--diagnostic` mesure la dépendance à l'horloge de la surface de présentation. Lit les pixels de `Renderer.exportFrame()`, jamais une capture d'écran — voir l'en-tête du script pour pourquoi.
 - Validation **statique** du WGSL, sans GPU : `npm run test:wgsl`
@@ -814,6 +823,29 @@ sélection = à justifier par écrit ou à réduire.
 Cette règle existe parce qu'elle a été enfreinte le jour même où elle a été
 posée : le panneau Photo a été livré avant le lot de densité, portant la colonne
 à 1613 px pour 1345 px disponibles avec **deux** calques.
+
+**Une marque de sélection est bornée par ce qu'elle sélectionne.** Payé CINQ fois
+le 2026-08-16 sur la barre de sélection de la pile. Le filet d'imbrication
+appartient au GROUPE : ses segments débordent d'une demi-gouttière en haut et en
+bas pour se rejoindre, par construction. Lui faire porter l'état de sélection —
+en le colorant, en le prenant pour barre, en l'éclairant jusqu'à la ligne visée —
+la fait donc dépasser du cadre quelle que soit la variante. Les cinq corrections
+ont toutes mesuré la BARRE, qui était juste à chaque fois ; c'est le FILET qui
+dépassait, et aucune story ne le regardait. Corollaire de méthode : **une mesure
+garantit qu'on a fait ce qu'on a dit, jamais qu'on visait la bonne chose** — quand
+la même pièce revient une troisième fois, arrêter de corriger et chercher la
+contrainte structurelle que toutes les tentatives violent.
+
+⚠️ **Le point 6 de la checklist se mesure DÉRIVÉ, jamais contre un seuil écrit en
+dur.** Il demande « le nom garde-t-il une largeur LISIBLE ? », et deux seuils
+littéraux (170 px dans `AllRowFormsShareOneGrid`, 145 px dans
+`FiveRowDocumentHidesNoRow`) ont rougi le 2026-08-16 pour une troncature qui ne
+se produit pas : ils étaient calés sur « Aberration chromatique » (127 px), que
+le registre ne porte plus. Mesuré ce jour-là, le plus long des 23 libellés est
+`Lens distortion`, **79 px**. Les deux stories mesurent désormais le plus long
+libellé qu'elles rendent — le garde tient, sans pouvoir se périmer quand les
+libellés changent. Seuls les noms de FICHIER restent hors budget : ils tronquent
+à toute largeur, leur repli est le `title`.
 
 ## Wireframe & tokens
 Source de tokens canonique (à viser pour tout wireframe `interface-design`) :

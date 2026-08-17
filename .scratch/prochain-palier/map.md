@@ -123,13 +123,12 @@ ajoutent ZÉRO site à la facture 16-bit**, un effet ne voyant jamais le format.
   (`wgslNaga.test.ts:73`), bornée par la variable ET par le nombre d'erreurs.
   Ne reste que la rendre **comptée**. Le ticket a été écrit sans que le fichier
   de test soit ouvert une seule fois.
-- **Le chevron de repli a coûté 30 px au nom, et la garde d'ADR-0001 point 6 est
-  rouge** — ouvert le 2026-08-16, arbitrage de DENSITÉ en attente d'Antoine.
-  Mesuré sur la vraie carte : nom de 148/134 px à **118/104**. Aucun effet ne
-  tronque (le plus long libellé fait 79 px) ; ce sont les noms de fichiers, qui
-  tronquaient déjà. Trois sorties chiffrées dans `docs/ROADMAP.md` § 1. Le seuil
-  de `FiveRowDocumentHidesNoRow` n'a **pas** été baissé sans décision — la garde
-  reste rouge pour que la question ne se perde pas.
+- **Le chevron de repli coûte 30 px au nom** — ouvert ET tranché le 2026-08-16.
+  Nom de 148/134 px à 118/104 sur la vraie carte, accepté : le plus long libellé
+  du registre fait 79 px, donc aucun effet ne tronque. Les deux gardes du point 6
+  de l'ADR-0001 mesurent maintenant le plus long libellé rendu au lieu d'un seuil
+  littéral — deux seuils périmés (170 et 145 px) avaient rougi pour une
+  troncature qui ne se produit pas.
 - [`LayerPanel.stories` est rouge en CI et vert en local](issues/22-layerpanel-rouge-en-ci-vert-en-local.md)
   — **ouvert le 2026-08-16**, et c'est le VRAI rouge : `master` échoue sur les
   **60 derniers runs**, sans un succès depuis le 2026-08-01 au moins, toujours

@@ -23,6 +23,7 @@ import { lensFlare } from "./lensFlare";
 import { curves } from "./curves";
 import { texture } from "./texture";
 import { lightLeak } from "./lightLeak";
+import { aplat } from "./aplat";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 
 // Les six du milieu suivent l'ordre de priorité du backlog d'effets confirmé par
@@ -185,6 +186,11 @@ export const effectRegistry: EffectModule[] = [
   // (`libraryTexture`), et les pixels arrivent par le binding 7 — voir
   // `render/textureLibraryStore.ts`.
   texture,
+  // ⚠️ PROTOTYPE, ticket 23 — à garder ou à jeter selon l'arbitrage d'Antoine
+  // sur le ticket 03. Il est au registre parce qu'un effet ne se montre pas
+  // autrement : la seule façon de le juger est de le poser sur une photo dans
+  // la vraie fenêtre. Ne rien construire dessus tant que 03 n'est pas résolu.
+  aplat,
 ];
 effectRegistry.forEach(validateEffect);
 

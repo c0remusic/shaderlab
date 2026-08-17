@@ -99,6 +99,18 @@ Aucun n'est un reste de ces deux sessions.
 
 <!-- une ligne par ticket clos : le gist, puis le lien pour le détail -->
 
+- [À quoi ressemble une forme dans shaderlab](issues/23-a-quoi-ressemble-une-forme-dans-shaderlab.md)
+  — ouvert et **résolu le 2026-08-17**. Antoine, mis devant le périmètre du
+  ticket 03 : « je ne sais pas encore — montre-moi ». Prototype construit
+  (`src/render/effects/aplat.ts`, une couleur unie bornée par un masque ou par
+  une primitive posée) et trois scènes capturées sur sa photo. ⚠️ Il établit que
+  **les deux demandes du cahier de postproduction se rendent sans aucune
+  géométrie nouvelle** — l'ombre graphique du §393 sort d'une couleur unie plus
+  un masque de luminosité, deux pièces qui existaient déjà ; ce qui manquait au
+  registre était la couleur unie. Et il montre en creux le seul niveau qui bute
+  vraiment sur le modèle : la forme LIBRE, qu'un `array<f32, 48>` ne peut pas
+  porter. **Le ticket 03 est débloqué et prêt à trancher.**
+
 - **Arbitrages d'Antoine du 2026-08-13**, pris devant l'app et non sur document —
   ils tranchent des tickets ouverts et en ouvrent d'autres :
   - **`curves` passe en PERÇU** (« pas les points rouges ni l'effet délavé ») —

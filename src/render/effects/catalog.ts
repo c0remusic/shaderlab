@@ -36,6 +36,10 @@ export const effectCategoryById: Readonly<Record<string, EffectCategory>> = {
   isolines: "Impression",
   grain: "Texture",
   texture: "Texture",
+  // ⚠️ PROTOTYPE (ticket 23). Rangé en Couleur et non en Texture : il ne
+  // fabrique aucune matière, il pose UNE couleur — la question qu'il sert est
+  // « de quoi une forme a-t-elle besoin », pas « quel grain ».
+  aplat: "Couleur",
 };
 
 export interface EffectCatalogGroup {

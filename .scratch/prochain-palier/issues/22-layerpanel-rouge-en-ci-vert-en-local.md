@@ -1,87 +1,85 @@
-# `LayerPanel.stories` est rouge en CI et vert en local — depuis 60 runs
+# `LayerPanel.stories` est rouge en CI et vert en local
 
 Type: research
-Status: ready-for-agent
+Status: resolved
 Parent: ../map.md
 
-## Le fait, mesuré le 2026-08-16
+## ✅ RÉSOLU le 2026-08-16 — et ce n'était ni React, ni ubuntu
 
-La CI de `master` échoue **sur les 60 derniers runs récupérables**, sans un seul
-succès depuis au moins le **2026-08-01** (run `30686003560`). Un seul fichier
-est en cause, le même du premier au dernier :
+**La cause est l'état du CACHE DE PRÉ-BUNDLING de Vite, rien d'autre.**
+`react/jsx-dev-runtime` n'était pas déclaré dans `optimizeDeps.include` : Vite le
+DÉCOUVRE en cours d'exécution, ré-optimise, et **recharge la page**. L'arbre React
+est alors détruit en plein rendu, et le composant qui appelle `useMemo` lit un
+dispatcher nul.
 
+Correctif : `optimizeDeps: { include: ['react/jsx-dev-runtime'] }` sur le projet
+`storybook` de `vitest.config.ts`. Une ligne.
+
+### Le protocole qui l'a trouvé, et qui vaut plus que le correctif
+
+La CI tourne **toujours à froid** (`npm ci` sur une machine neuve) ; en local, le
+cache est chaud dès la deuxième exécution. D'où :
+
+| état du cache | résultat |
+| --- | --- |
+| froid (cache vidé) | **5 fichiers en échec**, dont `LayerPanel.stories.tsx` |
+| chaud (2ᵉ passe, rien changé) | 32 fichiers, 311 tests, vert |
+| froid **avec le correctif** | 32 fichiers, 311 tests, **vert** |
+
+```powershell
+Remove-Item -Recurse -Force node_modules\.cache\storybook, node_modules\.vite
+npm run test-storybook
 ```
-FAIL  storybook (chromium)  src/components/LayerPanel.stories.tsx
-Test Files  1 failed | 31 passed (32)
-```
 
-Le même `npm run test-storybook` est **vert en local** : 32 fichiers, 306 tests,
-45 s (Windows, chromium Playwright). `npm run test` est vert des deux côtés
-(128 fichiers en CI, run `31895619303`).
+**Vider le cache reproduit la CI en local.** C'est la manipulation qui manquait à
+l'énoncé d'origine, lequel proposait de reproduire « ubuntu, chromium, npm ci » —
+trois pistes coûteuses et toutes fausses.
 
-## Pourquoi ce ticket existe alors que rien n'est cassé chez nous
-
-Trois raisons, dans l'ordre de gravité :
-
-1. **Une CI rouge en permanence ne se lit plus.** Elle a laissé passer deux
-   semaines sans que personne l'ouvre — et pendant ce temps, elle a été
-   attribuée à la mauvaise cause (voir plus bas).
-2. **Elle rend `gh run` inutilisable comme gate de merge.** Toute branche hérite
-   du rouge, donc le rouge ne discrimine plus rien.
-3. **Vert en local + rouge en CI = un défaut d'environnement non instruit.** On
-   ne sait pas lequel des deux dit la vérité sur le composant.
-
-## Ce que l'erreur dit, et ce qu'elle ne dit pas
-
-Sur le run le plus récent (`31895619303`) :
+### Ce que l'erreur disait, et pourquoi elle a menti deux semaines
 
 ```
 TypeError: Cannot read properties of null (reading 'useMemo')
-  ❯ LayerPanel src/components/LayerPanel.tsx:521:27
-  ❯ renderWithHooks react-dom-client.development.js:7662:21
+  ❯ LayerPanel src/components/LayerPanel.tsx
+  ❯ renderWithHooks react-dom-client.development.js
 ```
 
-Un dispatcher React **nul** au moment du rendu : c'est la signature d'un hook
-appelé hors d'un rendu React, ou de **deux copies de React** dans le même
-graphe de modules — pas d'un défaut de logique du composant.
+`renderWithHooks` DANS la pile avec un dispatcher nul est la signature manuelle
+du **double React** — c'est ce que l'énoncé d'origine, et moi, avons lu. La
+signature était juste, le diagnostic faux : il n'y a qu'une copie de React
+(`npm ls react` : tout dédupliqué en 19.2.7), et le dispatcher est nul parce que
+la page a été **rechargée sous le rendu**, pas parce qu'il vient d'une autre
+instance.
 
-⚠️ **Mais l'erreur n'a pas toujours été celle-là.** Au 2026-08-01, le même
-fichier échouait avec trois erreurs DIFFÉRENTES sur trois stories
-(`AssertionError`, `TypeError`, `TestingLibraryElementError`). Il peut donc y
-avoir **deux défauts successifs** dans la même case rouge, le second ayant
-masqué le premier. Ne pas supposer une cause unique parce que le fichier est
-unique.
+⚠️ **Vite annonçait la cause en toutes lettres, dans le même flot de sortie** :
 
-## Partie AFK
+```
+✨ new dependencies optimized: react/jsx-dev-runtime
+[vitest] Vite unexpectedly reloaded a test.
+For a stable experience, please add mentioned dependencies to your
+config's `optimizeDeps.include` field manually.
+✨ optimized dependencies changed. reloading
+```
 
-1. **Dater le premier rouge pour de vrai.** L'API n'a rendu que 60 runs ;
-   remonter au-delà (`gh api` avec pagination) pour trouver le dernier succès et
-   le commit qui l'a suivi.
-2. **Séparer les deux erreurs.** L'erreur du 2026-08-01 et celle d'aujourd'hui
-   sont-elles le même défaut ? Bissecter sur les runs, pas sur le code : la CI a
-   l'historique, il suffit de le lire.
-3. **Reproduire localement les conditions CI** — ubuntu, chromium Playwright
-   installé par `npx playwright install --with-deps`, `npm ci` et non
-   `npm install`. La piste la plus économique est `npm ci` : un arbre de
-   dépendances résolu différemment est le mécanisme classique de la double copie
-   de React.
-4. **Vérifier s'il y a deux React.** `npm ls react react-dom` en local et dans
-   un conteneur ubuntu ; comparer.
+Elle n'apparaît QUE sur un run à froid. Les logs de CI que j'avais lus étaient
+filtrés sur `FAIL|Error|TypeError` — le message qui donnait la réponse ne
+contenait aucun de ces mots.
 
-## Ce qui rendrait ce ticket raté
+### Deux hypothèses écartées, et l'une m'a fait conclure de travers
+
+- **Double React** : réfutée par `npm ls react react-dom`, tout dédupliqué.
+- **`resolve.dedupe: ['react','react-dom']`** : essayée, et la suite a cassé en
+  local juste après. J'en ai conclu que le correctif était nuisible — **c'était
+  faux** : la casse venait du cache que je venais de vider pour l'essai, pas du
+  changement. Deux variables bougées en même temps, et j'ai attribué l'effet à la
+  mauvaise. C'est ce contretemps qui a mis le cache sur la piste.
+
+### Pourquoi ce fichier-là
+
+Aucune raison tenant à `LayerPanel` : c'est celui que l'ordonnancement place au
+moment du rechargement. N'importe quel autre aurait fait l'affaire — et de fait,
+à froid, quatre autres tombent avec lui.
+
+## Ce qui rendrait ce ticket raté (énoncé d'origine, conservé)
 
 Marquer le fichier `skip` pour retrouver du vert. `LayerPanel` porte la pile de
-calques — la pièce d'interface la plus centrale du projet, et ses 30+ stories
-sont la seule couverture automatique qu'elle ait. Un vert obtenu en éteignant
-sa couverture serait pire que le rouge actuel, qui au moins ne ment pas.
-
-## La leçon déjà payée
-
-Ce rouge a été attribué, dans `CLAUDE.md` et dans le ticket
-[21](21-le-gate-wgsl-est-rouge-en-ci.md), au gate WGSL arrivé le **2026-08-14** —
-alors que la CI était rouge depuis le **2026-08-01 au moins**, treize jours plus
-tôt. La chronologie seule suffisait à réfuter l'attribution, et personne ne l'a
-regardée : le gate venait d'arriver, il faisait un coupable plausible.
-
-**Attribuer un rouge se fait par son log** (`gh run view --log-failed`), jamais
-par proximité temporelle avec le dernier changement.
+calques et ses 30+ stories sont sa seule couverture automatique.

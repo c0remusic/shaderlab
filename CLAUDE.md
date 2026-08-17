@@ -523,6 +523,27 @@ install --with-deps chromium` → `cargo install naga-cli` (avec cache) →
 CI (pas de GPU) — ce sont des gates locales. **La seule exception est
 `test:wgsl`** (ci-dessus), qui valide le WGSL en CPU pur et tourne donc là-bas.
 
+⚠️ **REPRODUIRE LA CI EN LOCAL SE FAIT EN VIDANT LE CACHE DE PRÉ-BUNDLING, pas en
+cherchant une différence d'OS.** La CI tourne TOUJOURS à froid (`npm ci` sur une
+machine neuve) ; en local le cache est chaud dès la deuxième exécution, et cet
+écart-là suffit à faire diverger les deux.
+
+```powershell
+Remove-Item -Recurse -Force node_modules\.cache\storybook, node_modules\.vite
+npm run test-storybook
+```
+
+Payé deux semaines (2026-08-01 → 08-16, ticket 22) : `LayerPanel.stories.tsx`
+échouait en CI et passait en local sur `Cannot read properties of null (reading
+'useMemo')`, avec `renderWithHooks` dans la pile — la signature manuelle du
+DOUBLE React. Il n'y en avait qu'un. Vite découvrait `react/jsx-dev-runtime` en
+cours d'exécution, ré-optimisait et **rechargeait la page** : l'arbre React était
+détruit en plein rendu. Corrigé par une ligne d'`optimizeDeps.include`.
+**Toute dépendance découverte en cours de route doit y être déclarée** — Vite le
+dit lui-même (`For a stable experience, please add mentioned dependencies…`),
+mais seulement sur un run à froid, et le message ne contient ni `FAIL` ni
+`Error` : un log de CI filtré sur ces mots-là ne le montre jamais.
+
 **Hook pre-commit** : source versionnée dans `scripts/hooks/pre-commit`, à
 installer à la main après un clone (`cp` vers `$(git rev-parse
 --git-common-dir)/hooks/`, instructions en tête du fichier). Aujourd'hui

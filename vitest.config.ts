@@ -89,6 +89,35 @@ export default defineConfig({
           // en-tete a 132px sous vitest contre 92px en rendu reel.
           tailwindcss(),
         ],
+        // PRÉ-BUNDLER `react/jsx-dev-runtime` PLUTÔT QUE LE LAISSER DÉCOUVRIR
+        // (2026-08-16) — c'est le correctif du ticket 22.
+        //
+        // LE DÉFAUT. `LayerPanel.stories.tsx` échouait en CI ubuntu depuis le
+        // 2026-08-01 et passait en local, sur `TypeError: Cannot read properties
+        // of null (reading 'useMemo')` avec `renderWithHooks` DANS la pile. La
+        // lecture naturelle est « deux copies de React » — elle est fausse.
+        //
+        // CE QUE LA MESURE DIT. Le défaut ne dépend ni de l'OS ni de React, mais
+        // de l'état du CACHE DE PRÉ-BUNDLING. Vidé `node_modules/.cache/storybook`
+        // et `node_modules/.vite`, la suite échoue en LOCAL exactement pareil :
+        // 5 fichiers, dont `LayerPanel.stories.tsx`. Relancée sans rien changer,
+        // cache désormais chaud : 32 fichiers, 311 tests, vert. La CI, elle,
+        // tourne TOUJOURS à froid — `npm ci` sur une machine neuve.
+        //
+        // LE MÉCANISME, que Vite annonce lui-même :
+        //   ✨ new dependencies optimized: react/jsx-dev-runtime
+        //   [vitest] Vite unexpectedly reloaded a test.
+        //   ✨ optimized dependencies changed. reloading
+        // La dépendance est découverte EN COURS d'exécution, Vite ré-optimise et
+        // RECHARGE la page ; l'arbre React est détruit en plein rendu, et un
+        // composant qui appelle `useMemo` lit alors un dispatcher nul. L'erreur
+        // décrit la conséquence, jamais la cause — d'où deux semaines à chercher
+        // un double React qui n'existait pas.
+        //
+        // Pourquoi `LayerPanel.stories.tsx` et pas un autre : c'est celui que le
+        // hasard d'ordonnancement place au moment du rechargement. Rien de
+        // particulier à ce composant.
+        optimizeDeps: { include: ['react/jsx-dev-runtime'] },
         test: {
           name: 'storybook',
           browser: {

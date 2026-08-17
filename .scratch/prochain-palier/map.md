@@ -125,12 +125,15 @@ ajoutent ZÉRO site à la facture 16-bit**, un effet ne voyant jamais le format.
   Un gate dont le verdict dépend du terminal donne raison au dernier qui l'a
   lancé.
 - [`LayerPanel.stories` est rouge en CI et vert en local](issues/22-layerpanel-rouge-en-ci-vert-en-local.md)
-  — **ouvert le 2026-08-16**, et c'est le VRAI rouge : `master` échoue sur les
-  **60 derniers runs**, sans un succès depuis le 2026-08-01 au moins, toujours
-  sur ce seul fichier (`Cannot read properties of null (reading 'useMemo')`
-  aujourd'hui, trois erreurs différentes au 2026-08-01 — peut-être deux défauts
-  successifs). Vert en local : 32 fichiers, 306 tests. Une CI rouge en
-  permanence ne se lit plus, et n'a plus valeur de gate pour aucune branche.
+  — ouvert le 2026-08-16, **RÉSOLU le même jour**. Ni React, ni ubuntu : c'est
+  l'état du **cache de pré-bundling**. Vite découvrait `react/jsx-dev-runtime` en
+  cours d'exécution, ré-optimisait et RECHARGEAIT la page — l'arbre React détruit
+  en plein rendu, d'où un dispatcher nul. Une ligne d'`optimizeDeps.include`.
+  ⚠️ **Vider le cache reproduit la CI en local** : à froid, 5 fichiers tombent ;
+  à chaud, 32/32 vert. C'est la manipulation qui manquait, l'énoncé proposant
+  trois pistes coûteuses et toutes fausses. Et Vite annonçait la cause en toutes
+  lettres — dans un message qui ne contient ni `FAIL` ni `Error`, donc invisible
+  dans un log de CI filtré.
 - [Ce dont le 16-bit a besoin hors du dépôt](issues/01-ce-dont-le-16-bit-a-besoin-hors-du-depot.md)
   — faisabilité **acquise** (`rgba16float` sans aucune feature, crate TIFF+ICC
   déjà en dépendance, matrice à 4 coefficients) ; mais l'invariant « sRGB par

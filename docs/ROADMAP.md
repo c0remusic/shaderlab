@@ -937,10 +937,12 @@ Ce qui reste ouvert, en deux morceaux qui n'ont rien à voir l'un avec l'autre :
   sous PowerShell et en CI. Déminé par `sansAnsi()`, et `seulementEcartConnu` est
   désormais exportée et testée sur cinq sorties écrites à la main.
   [Ticket 21](../.scratch/prochain-palier/issues/21-le-gate-wgsl-est-rouge-en-ci.md).
-- **Le vrai rouge est `LayerPanel.stories.tsx`**, et il précède ce gate de
-  treize jours : `master` échoue sur les **60 derniers runs**, sans un succès
-  depuis le 2026-08-01, toujours sur ce seul fichier — alors que
-  `npm run test-storybook` est vert en local (32 fichiers, 306 tests).
+- ✅ **`LayerPanel.stories.tsx` est RÉSOLU le 2026-08-16.** Ni React, ni ubuntu :
+  Vite découvrait `react/jsx-dev-runtime` en cours d'exécution, ré-optimisait et
+  RECHARGEAIT la page — l'arbre React détruit en plein rendu, d'où le dispatcher
+  nul. Une ligne d'`optimizeDeps.include` sur le projet `storybook`.
+  ⚠️ **Vider `node_modules/.cache/storybook` reproduit la CI en local** : à froid
+  5 fichiers tombent, à chaud 32/32 passent.
   [Ticket 22](../.scratch/prochain-palier/issues/22-layerpanel-rouge-en-ci-vert-en-local.md).
 
 ⚠️ **Une CI rouge en permanence n'est plus un gate** : toute branche en hérite,

@@ -652,8 +652,9 @@ rend le 16-bit introduisible.**
 > consomme.
 
 Conséquences pour le bloc 2 : **formes, typographie et recadrage ajoutent ZÉRO
-site à la facture 16-bit**, un effet ne voyant jamais le format. Et les 77
-références de pixels sont sauves **tant que** le 16-bit reste un SECOND point
+site à la facture 16-bit**, un effet ne voyant jamais le format. Et les **102**
+références de pixels (re-mesuré le 2026-08-18 ; ce nombre disait 77) sont
+sauves **tant que** le 16-bit reste un SECOND point
 d'entrée d'export, comme le PRD le pose déjà — en faire un drapeau sur l'export
 existant les ferait toutes sauter.
 

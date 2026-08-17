@@ -129,9 +129,17 @@ Aucun n'est un reste de ces deux sessions.
   une bande se regarde comme un rendu. **Un défaut décrit de tête au lieu d'être
   replié en dix lignes de Node ressort plausible et faux** ; c'est la même faute
   que la prémisse du mipmap de bibliothèque, deux jours plus tôt.
-  ⚠️ Au passage : **le compte de références de ce document était périmé**.
-  Mesuré — 98 scénarios déclarés, 102 PNG sur disque, dont **4 orphelins** que
-  nul scénario ne compare. `CLAUDE.md:511` dit 97, ce document disait 77.
+  ⚠️ Au passage : **le compte de références de ce document était périmé** —
+  mesuré, **102 PNG, tous déclarés**. `CLAUDE.md` disait 97, ce document 77 ;
+  les deux sont corrigés.
+  ⚠️⚠️ **Et j'ai d'abord annoncé « 4 orphelins », ce qui était FAUX** : un
+  artefact de mon propre grep, poussé en tâche avant vérification. Quatre
+  scénarios sont générés par un `Object.fromEntries` étalé au lieu d'être écrits
+  en clés, donc invisibles à un motif calé sur la syntaxe des clés. **Un
+  comptage qui dépend d'une FORME syntaxique n'est pas une mesure** — partir de
+  l'artefact (les PNG) et non du code. Deuxième constat faux de la même
+  session, après « disparaît entièrement » : les deux avaient l'air décisifs,
+  et les deux venaient d'avoir sauté l'épreuve.
 
 - [Aplat passe à la qualité](issues/24-aplat-passe-a-la-qualite.md) — **RÉSOLU le
   2026-08-17** sur deux de ses trois fronts. Livrés : le remplissage en DÉGRADÉ
@@ -253,7 +261,7 @@ Aucun n'est un reste de ces deux sessions.
   La rupture est aux BORNES (présentation, export), et les références de
   pixels sont sauves tant que le 16-bit reste un SECOND point d'entrée.
   (Le « 77 » que portait cette ligne est périmé — re-mesuré le 2026-08-18 :
-  98 scénarios, 102 PNG.) ⚠️ 22
+  **102**, tous déclarés.) ⚠️ 22
   effets sur 23 bornent leur sortie, donc la marge au-dessus de 1,0 serait
   inutilisée — seule la précision dans [0,1] compte, ce qui rend contraignante
   la limite des ~11 bits près du blanc.

@@ -508,7 +508,14 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Ce qu'elle laisse passer : notre uniform `params: array<f32, 48>` n'est pas
   conforme (stride 4 pour un alignement requis de 16 en espace uniform), Dawn
   l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 23
-  effets, index gelés par les presets ET par 97 références de pixels.
+  effets, index gelés par les presets ET par **102** références de pixels
+  (re-mesuré le 2026-08-18 : 102 PNG dans `test/render-refs/`, tous déclarés,
+  zéro orphelin ; ce nombre disait 97 et le ROADMAP 77).
+  ⚠️ **Compter les scénarios par un grep sur les clés littérales SOUS-COMPTE de
+  quatre** : les quatre trames de `dither` sont générées par un
+  `Object.fromEntries([...].map(...))` étalé (`render-check.mjs:1095-1099`), pas
+  écrites en clés. Le seul comptage fiable est indépendant de la syntaxe — partir
+  des PNG et vérifier que chaque nom est cité dans le script.
   ✅ **La CI est VERTE depuis le 2026-08-16** (run `31986492689`), après 60+ runs
   rouges d'affilée. Le rouge n'a JAMAIS été ce gate : c'était
   `LayerPanel.stories.tsx`, pour une raison sans rapport — voir le § CI ci-dessous

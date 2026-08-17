@@ -245,13 +245,21 @@ pas après**, et sa mire doit montrer un BORD de photo ET quelques pixels
 AUTOUR — une mire cadrée sur l'image seule verrait le trou mais pas la bande,
 et c'est la bande qui est le vrai piège.
 
-⚠️ **Le compte de références que citaient les docs est périmé, dans les deux
-sens.** Mesuré le 2026-08-18 : `render-check.mjs` déclare **98 scénarios**, et
-`test/render-refs/` porte **102 PNG**. `CLAUDE.md:511` dit « 97 », le ROADMAP et
-cette carte disent « 77 ». L'écart de 4 n'est pas du bruit : quatre PNG sont
-ORPHELINS (`effet-dither-bayer-fin`, `-bruit-blanc`, `-lignes`, `-points`) —
-des références qu'aucun scénario ne compare, donc du poids mort qui se lit comme
-de la couverture. Sorti en tâche à part.
+⚠️ **Le compte de références que citaient les docs était périmé** : mesuré le
+2026-08-18, `test/render-refs/` porte **102 PNG**, tous déclarés. `CLAUDE.md:511`
+disait « 97 », le ROADMAP et cette carte « 77 ». Corrigés.
+
+⚠️⚠️ **Et j'avais d'abord annoncé « 98 scénarios, donc 4 PNG orphelins ». FAUX —
+c'était un artefact de mon propre grep**, et je l'avais poussé en tâche avant de
+le vérifier. Les quatre trames de `dither` sont générées par un
+`Object.fromEntries([...].map(...))` étalé (`render-check.mjs:1095-1099`), pas
+écrites en clés littérales : mon motif `^\s{4}"[nom]":\s*\{` ne pouvait pas les
+voir. Elles sont bien vivantes et délibérées — chacune se compare à la
+PRÉCÉDENTE, la chaîne prouvant que les six motifs sont six.
+**Un comptage qui dépend d'une FORME syntaxique n'est pas une mesure.** Le
+comptage fiable part de l'artefact et non du code — pour chaque PNG, vérifier
+que son nom est cité quelque part dans le script, quelle que soit la syntaxe :
+102 sur 102, zéro orphelin.
 
 ### 6. Ce qui reste valide de §3.1, une fois tout mesuré
 

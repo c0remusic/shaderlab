@@ -197,9 +197,10 @@ export const glass: EffectModule = {
   // niveau plus grossier rend ces lectures locales : 98,6 ms → 25,6 ms sur un
   // Pavé quadrillé à 26 Mpx.
   //
-  // ⚠️ Le niveau est DÉRIVÉ de l'étalement réel et borné à 1 (`verre_niveau`),
+  // ⚠️ Le niveau est DÉRIVÉ de l'étalement réel et borné à 2 (`verre_niveau`),
   // donc les matières qui déplacent peu restent au niveau 0 et rendent le même
-  // bit qu'avant. Voir `EffectModule.sourceMipmaps` pour ce que le drapeau coûte.
+  // bit qu'avant. Voir `EffectModule.sourceMipmaps` pour ce que le drapeau coûte,
+  // et `verre_niveau` pour pourquoi ce plafond a d'abord été posé à 1 par erreur.
   sourceMipmaps: true,
   params: [
     { name: "material", label: "Matière", unit: "none", min: 0, max: MATERIALS.length - 1, default: MAT_CANNELE, step: 1, choices: [...MATERIALS], hint: "Quel verre. Chacune fabrique sa pente de surface à sa façon ; tout ce qui suit — réfraction, dispersion, reflets, absorption — est commun. Plusieurs réglages ci-dessous ne concernent qu'une partie d'entre elles, et le disent" },
@@ -651,14 +652,29 @@ fn verre_lire(uv: vec2<f32>, niveau: f32) -> vec3<f32> {
  *  texel d etalement, rien a gagner — on reste au niveau 0, et le rendu est
  *  alors INCHANGE AU BIT PRES par rapport a l avant-2026-08-17.
  *
- *  ⚠️ BORNE A 1, ET CE N EST PAS UNE PRUDENCE — C EST UNE MESURE. Le niveau 2
- *  rend 28,8 ms la ou le niveau 1 en rend 25,6 : il est MOINS BON. Au niveau 1
- *  la zone de travail tient deja dans le cache, donc descendre plus bas n achete
- *  plus de localite et ne fait que perdre du detail. La tentation naturelle est
- *  de croire que plus grossier est plus rapide ; la courbe dit non. */
+ *  ⚠️ BORNE A 2, ET LE CHEMIN POUR Y ARRIVER EST LA VRAIE LECON. Le plafond a
+ *  d abord ete pose a 1, sur une mesure qui disait « le niveau 2 rend 28,8 ms la
+ *  ou le niveau 1 en rend 25,6, donc il est moins bon ». Cette mesure forcait un
+ *  niveau CONSTANT partout ; ici le niveau est DERIVE, donc le plafond ne mord
+ *  que sur les pixels dont l etalement le justifie deja. Les deux experiences ne
+ *  disent pas la meme chose, et generaliser la premiere a couté la moitie du
+ *  gain.
+ *
+ *  Mesure en production, meme protocole des deux cotes, Pave quadrille a 26 Mpx :
+ *
+ *    plafond 1 -> 26,7 images/s sur la course pleine d Epaisseur, 39,9 au defaut
+ *    plafond 2 -> 47,4 images/s sur la course pleine, 38,3 au defaut (bruit)
+ *
+ *  Donc le plafond 2 double la cadence la ou le deplacement est fort, et ne coute
+ *  rien la ou il est faible — parce que la derivation l y laisse a 0 ou 1.
+ *
+ *  ⚠️ Le plafond 3 n a PAS ete eprouve. La cible d usage (« le confort au
+ *  pointeur », arbitrage du 2026-08-17) est atteinte a 2, et chaque cran coute
+ *  17 references a regenerer et a relire : monter encore echangerait de l image
+ *  contre une vitesse dont on n a pas besoin. */
 fn verre_niveau(etalementUv: f32, dims: vec2<f32>) -> f32 {
   let texels = etalementUv * max(dims.x, dims.y);
-  return clamp(log2(max(texels, 1.0)), 0.0, 1.0);
+  return clamp(log2(max(texels, 1.0)), 0.0, 2.0);
 }
 
 /** TRAVERSÉE DIFFUSE, neuf prélèvements.

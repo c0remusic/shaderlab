@@ -99,6 +99,17 @@ Aucun n'est un reste de ces deux sessions.
 
 <!-- une ligne par ticket clos : le gist, puis le lien pour le détail -->
 
+- [Le coût du verre](issues/19-le-cout-du-verre.md) — **RÉSOLU le 2026-08-17.**
+  Le mipmap de diffusion est livré et mesuré en production : **13,6 → 39,9
+  images/s** au réglage courant, 47,4 sur la course complète d'Épaisseur. La
+  cible d'usage d'Antoine (« le confort au pointeur ») est atteinte. Mécanisme :
+  `EffectModule.sourceMipmaps`, un drapeau déclaratif servi par une COPIE à
+  pyramide — donner la pyramide aux cibles de ping-pong faisait sortir la frame
+  NOIRE, sans que `tsc` en dise rien. ⚠️ Le plafond de niveau a d'abord été posé
+  à 1 sur une mesure « à niveau forcé » qui ne prédisait pas une implantation « à
+  niveau dérivé » : la corriger a doublé le gain. Un plafond vérifié à UN point
+  de fonctionnement ne vaut pas sur toute la course.
+
 - [Une forme a-t-elle besoin de `contentSource`](issues/03-une-forme-a-t-elle-besoin-de-contentsource.md)
   — **NON, et la question était mal posée**. Arbitrage d'Antoine du 2026-08-17,
   devant le prototype : « c'était pour les masques et la sélection, pas pour un

@@ -1,7 +1,7 @@
 # Le coût du verre, mesuré et jamais instruit
 
 Type: task
-Status: open
+Status: resolved
 
 > ✅ **La mesure de PRODUCTION est prise (2026-08-14), et elle déplace la
 > question.** Ce n'est ni le mortier, ni l'arête, ni le moulage, ni la
@@ -426,6 +426,67 @@ Et retirer de la crédibilité pour gagner des millisecondes : l'absorption qui
 verdit avec l'inclinaison, la dispersion sur les seuls flancs, le liseré
 d'arête sont ce qui sépare ce verre d'une lentille en plastique. Le coût qu'on
 retire doit être du travail INUTILE, pas du travail visible.
+
+## ✅ Answer — livré et mesuré le 2026-08-17
+
+**13,6 → 39,9 images/s** au réglage courant (×2,93), **13,6 → 47,4** sur la course
+complète d'Épaisseur (×3,49). Build de production, photo 26 Mpx, Pavé quadrillé,
+vrai glissement, médiane de trois passes. La cible d'usage fixée par Antoine le
+même jour — « le confort au pointeur » — est **atteinte**.
+
+Temps GPU de la passe, mesuré séparément : **98,6 → 25,7 ms**.
+
+### Le mécanisme
+
+`EffectModule.sourceMipmaps` : un effet DÉCLARE qu'il lit sa source à plusieurs
+niveaux, et l'exécuteur lui fournit une copie à pyramide (`mippedSource.ts`).
+`glass` est le seul du registre à le demander. Le niveau est **dérivé de
+l'étalement réel** (`verre_niveau`) et borné à 2, donc les matières qui déplacent
+peu restent au niveau 0 et rendent le même bit qu'avant.
+
+L'ambiance du mortier garde délibérément le niveau 0 : ses taps ont des décalages
+FIXES, donc cohérents, et l'ablation du 2026-08-14 avait déjà mesuré qu'ils ne
+coûtent rien.
+
+### ⚠️ Le faux départ, et c'est la leçon la plus transférable du ticket
+
+Le plafond a d'abord été posé à **1**, sur une mesure de ce ticket qui disait « le
+niveau 2 rend 28,8 ms là où le niveau 1 en rend 25,6, donc il est moins bon ».
+
+**Cette mesure forçait un niveau CONSTANT partout. L'implantation, elle, le
+DÉRIVE.** Un plafond sur un niveau dérivé ne mord que sur les pixels dont
+l'étalement le justifie déjà — les deux expériences ne mesurent donc pas la même
+chose, et généraliser la première a coûté la moitié du gain :
+
+| Plafond | course pleine | au défaut |
+| --- | --- | --- |
+| 1 | 26,7 img/s | 39,9 img/s |
+| **2** | **47,4 img/s** | 38,3 img/s (dans le bruit) |
+
+Ce qui l'a fait sortir : avoir mesuré la course PLEINE et pas seulement le
+réglage par défaut. Un gain vérifié à un seul point de fonctionnement ne dit rien
+de la course — et c'est exactement l'erreur symétrique de celle que ce ticket
+avait déjà consignée (« un classement par coût ne donne pas la cause du coût »).
+
+⚠️ Le plafond 3 n'a **pas** été éprouvé : la cible est atteinte à 2, et chaque
+cran coûte 17 références à régénérer et à relire.
+
+### Le prix, payé deux fois
+
+Les 18 références du verre régénérées au plafond 1, puis 17 au plafond 2 (le
+Poli ne bouge pas — il déplace le moins). Aucune autre référence n'a bougé, ce
+qui prouve que le mécanisme est bien opt-in.
+
+Ce que les images montrent, en constat et non en jugement : le moucheté
+chromatique haute fréquence à l'intérieur des pavés s'effondre, toute la
+structure survit (grille de mortier, dégradés, biseau, stries), et le grain du
+**Dépoli** devient nettement plus lisse — ce que son propre en-tête exige
+(« un dépoli ne doit montrer AUCUNE structure, seulement un étalement lisse »).
+
+⚠️ **Le jugement esthétique reste entier et reste celui d'Antoine.** Une
+référence prouve qu'un effet porte sa propriété, jamais qu'il est beau. Ce
+travail ne solde pas le bloc « aspect du verre » du ROADMAP — il pousse dans son
+sens, ce qui n'est pas la même chose.
 
 ## Hors sujet ici
 

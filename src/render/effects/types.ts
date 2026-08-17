@@ -364,11 +364,18 @@ export interface EffectModule {
    * d'une cible). Un effet qui ne lit qu'au niveau 0 ne doit rien payer de tout
    * ça — d'où un drapeau qu'on pose, jamais un comportement par défaut.
    *
-   * ⚠️ **LE GAIN SATURE AU NIVEAU 1**, mesuré : le niveau 2 rend 28,8 ms, donc
-   * MOINS BON que le niveau 1. Au niveau 1 la zone de travail tient déjà dans le
-   * cache ; descendre plus bas n'achète plus de localité et ne fait que perdre
-   * du détail. Un shader qui dérive son niveau d'un rayon doit donc le BORNER —
-   * la tentation naturelle est de croire que plus grossier est plus rapide.
+   * ⚠️ **UN SHADER QUI DÉRIVE SON NIVEAU DOIT LE BORNER, ET LE BON PLAFOND NE SE
+   * DEVINE PAS.** Sur `glass` il vaut 2, trouvé après un faux départ instructif :
+   * une première mesure disait « le niveau 2 est moins bon que le niveau 1 »
+   * (28,8 ms contre 25,6) et le plafond a donc été posé à 1 — mais cette
+   * mesure-là forçait un niveau CONSTANT partout, alors qu'un niveau DÉRIVÉ ne
+   * l'applique qu'aux pixels dont l'étalement le justifie. Les deux expériences
+   * ne disent pas la même chose. Corrigé : à plafond 2 la cadence passe de 26,7
+   * à 47,4 images/s sur la course complète, sans rien coûter au réglage courant.
+   *
+   * La leçon transférable : un plafond mesuré à UN point de fonctionnement ne
+   * vaut pas sur toute la course, et une mesure « à niveau forcé » ne prédit pas
+   * une implantation « à niveau dérivé ».
    */
   sourceMipmaps?: boolean;
 }

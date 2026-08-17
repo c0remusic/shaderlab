@@ -239,8 +239,16 @@ Ruled beyond the destination. Ne graduent jamais.
   trouvé le 2026-08-16** — récolté avant suppression. Deux affirmations de cette
   carte étaient par ailleurs fausses (« déjà dans master », « superseded » sur des
   branches qui portaient des commits uniques : vrai en contenu, faux en commits).
-  Restent `mipmaps-bibliotheque` (verdict en attente) et `task-management`
-  (480 lignes orphelines — décision, pas corvée). Détail dans `docs/ROADMAP.md` § 4.
+  ✅ **`mipmaps-bibliotheque` a reçu son verdict le 2026-08-17 et est fusionnée** —
+  rendu par la mesure que son propre commit réclamait (scan 8192² sur photo
+  26 Mpx : le coût de la passe devient PLAT au lieu de croître avec la
+  minification). ⚠️ Sa prémisse écrite était pourtant FAUSSE — « échantillonné à
+  l'échelle de l'écran, 1:8 », alors que le canvas est à la résolution native et
+  n'est réduit que par CSS : au défaut c'est ~2:1. **Un geste juste pour une
+  raison fausse se fusionne quand même, mais sa raison se corrige** — sinon elle
+  sert de prémisse au chantier suivant, qui est ici le mipmap de diffusion du
+  verre. Reste `task-management` (480 lignes orphelines — décision, pas corvée).
+  Détail dans `docs/ROADMAP.md` § 4.
 
 - **`PRD-floating-panel-rail.md`** — cadre un rail pour `FloatingPanel`,
   composant supprimé le 2026-07-21, et le rail a été livré autrement (panneaux

@@ -258,6 +258,49 @@ d'implémentation est levé.
 coûte une chaîne de blits PAR FRAME, pas une fois au chargement — le calcul
 gain/coût est donc à refaire, il n'est pas le même que pour un scan.
 
+## Session du 2026-08-17 — le levier est en place, et il a été éprouvé ailleurs d'abord
+
+✅ **`mipmapGenerator.ts` est sur `master`** (fusion de `mipmaps-bibliotheque`,
+`068b574`). Son verdict a été rendu par la mesure que son propre commit
+réclamait, et cette mesure dit quelque chose d'utile POUR CE TICKET : sur la
+passe `texture`, scan 8192² et photo 26 Mpx,
+
+| Minification | sans mips | avec mips |
+| --- | --- | --- |
+| ~2:1 | 3,01 ms | 2,42 ms |
+| ~8:1 | 6,03 ms | 2,29 ms |
+| ~20:1 | 5,05 ms | 2,23 ms |
+
+**Le coût devient PLAT au lieu de croître avec la minification.** C'est exactement
+la propriété qu'on vient chercher ici : ce ticket a établi qu'une lecture
+dispersée coûte ~25 fois une lecture cohérente, et une pyramide est le seul
+mécanisme mesuré qui ramène le coût à une constante. Le mécanisme est donc
+prouvé sur un cas réel du dépôt AVANT d'être appliqué là où il coûtera 18
+références de pixels.
+
+⚠️ **Ce que cette mesure ne transporte PAS.** Là-bas la pyramide est construite
+UNE FOIS au chargement du scan ; ici la source de `verre_lire` est une cible de
+ping-pong (`effectPassRunner.ts:209`) recréée et réécrite à chaque frame. Le coût
+de construction est donc payé PAR IMAGE et il n'est pas mesuré. La première chose
+à faire n'est pas d'écrire le shader, c'est de **mesurer ce que coûte la chaîne
+de blits sur une cible 6240×4160**, parce que c'est elle qui décide si la piste
+tient : si générer la pyramide coûte plus que les 7,4 ms par lecture qu'elle
+économise, la piste meurt là.
+
+⚠️ **Et une prémisse fausse a été trouvée en chemin, qui vaut pour ici aussi.** La
+branche justifiait ses mipmaps par « les scans sont échantillonnés à l'échelle de
+l'ÉCRAN, un rapport de l'ordre de 1:8 ». Faux : `presentPass.ts:44` dit que le
+canvas porte la résolution NATIVE de l'image et n'est réduit que par CSS. Tout
+raisonnement de LOD dans ce dépôt doit partir de la résolution de la CIBLE DE
+RENDU, jamais de la taille apparente à l'écran — s'en tromper fait surestimer un
+gain d'un facteur 4 à 6.
+
+⚠️ **Un défaut voisin, repéré et non traité** : `texture.ts:235` échantillonne
+derrière un `fract` en gardant le LOD automatique — le même motif qui a forcé
+`inkTexture` au niveau 0. Au réglage par défaut la couture tombe sur le bord du
+cadre, donc sans conséquence ; dès que `Décalage X/Y` la ramène dans le cadre,
+elle devient une ligne d'un pixel prise au mip le plus grossier. Non mesuré.
+
 ### Outillage d'itération disponible
 
 `C:\dev\shadplay` (MIT, Bevy, nightly) est construit et vérifié, avec un harnais

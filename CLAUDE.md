@@ -411,12 +411,17 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `blendMode` sur `LayerState`.
 - **Toute lecture de `libraryTexture` DÉCLARE son espace d'échantillonnage.**
   Les scans portent une pyramide de mipmaps (`src/render/mipmapGenerator.ts` —
-  WebGPU n'a aucune génération intégrée, il faut la chaîne de blits). ⚠️ **Ce
-  fichier n'est PAS sur `master` : il vit sur la branche `mipmaps-bibliotheque`
-  (`c06147c`, « EN ATTENTE D'UN VERDICT »), non fusionnée** — mesuré le
-  2026-08-16, ce paragraphe le citait comme acquis depuis le 2026-08-15. Tant que
-  le verdict n'est pas rendu, la règle d'espace ci-dessous décrit la branche, pas
-  le tronc. Le LOD
+  WebGPU n'a aucune génération intégrée, il faut la chaîne de blits). ✅ **Sur
+  `master` depuis le 2026-08-17**, verdict rendu par la mesure que son commit
+  réclamait — scan 8192² sur photo 26 Mpx, temps GPU de la passe `texture` : le
+  coût devient **PLAT** (2,2 à 2,4 ms quelle que soit la minification) là où sans
+  pyramide il CROÎT (3,0 à 6,0 ms). ⚠️ **Et la prémisse de la branche était
+  fausse** : elle annonçait « échantillonné à l'échelle de l'écran, un rapport de
+  l'ordre de 1:8 », alors que `presentPass.ts:44` dit que le canvas a la
+  résolution NATIVE de l'image et n'est réduit que par CSS. L'échantillonnage se
+  fait donc à 6240×4160 — **1,31 × 1,97, un LOD de ~1 au réglage par défaut**, où
+  le gain vaut ×1,24 ; le 1:8 n'arrive qu'à `Échelle` ≈ 0,25 (×2,6). Le geste
+  était bon, sa raison écrite ne l'était pas. Le LOD
   **automatique** est juste pour un effet qui mappe le scan sur le cadre
   (`texture`), et FAUX pour un effet qui lit en espace TEXEL : `inkTexture` a un
   pas exprimé en texels du scan et un `fract` discontinu, donc la dérivée d'écran

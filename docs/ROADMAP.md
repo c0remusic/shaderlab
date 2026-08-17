@@ -242,11 +242,20 @@ des multiplications.
 
 ✅ **ARBITRÉ PAR ANTOINE LE 2026-08-15 : on fait le mipmap de diffusion.** C'est
 le seul levier qui attaque les 7,4 ms par lecture au lieu de les compter — un
-niveau grossier rend les lectures LOCALES en plus d'être moins nombreuses. Son
-obstacle d'implémentation est levé : `src/render/mipmapGenerator.ts` existe
-depuis le 2026-08-15 (WebGPU n'a aucune génération de mipmaps intégrée) — ⚠️
-**mais sur la branche `mipmaps-bibliotheque` (`c06147c`), pas sur `master`**
-(mesuré le 2026-08-16). Le levier est donc à portée, pas en place.
+niveau grossier rend les lectures LOCALES en plus d'être moins nombreuses. ✅ Son
+obstacle d'implémentation est levé **et la brique est sur `master` depuis le
+2026-08-17** (`src/render/mipmapGenerator.ts`, verdict rendu — voir le bloc
+soldé plus bas). Le levier est en place, et il a été **éprouvé sur un cas réel
+avant d'être appliqué ici** : sur la passe `texture`, la pyramide rend le coût
+PLAT au lieu de croissant avec la minification.
+
+⚠️ **Ce que le verdict des mipmaps NE dit PAS de `glass`.** Là-bas la pyramide se
+construit UNE FOIS au chargement du scan ; ici la source de `verre_lire` est une
+cible de ping-pong, créée à un seul niveau
+(`effectPassRunner.ts:209`, `imageFrameResources`) et réécrite à chaque frame.
+La mipmapper coûterait une chaîne de blits PAR IMAGE, et ce coût-là n'est pas
+mesuré. Le gain/coût est à refaire entièrement — le verdict valide le MÉCANISME,
+pas son prix dans ce contexte.
 
 ⚠️ **Rien n'est écrit côté code, et le prix est connu d'avance** : le rendu
 CHANGE, donc les **18 références de pixels du verre** sont à régénérer et à
@@ -730,33 +739,53 @@ sortie. La même erreur ailleurs, ou une seconde à côté, fait rougir.
 **Décision attendue** : corriger (ADR + chantier traversant), ou assumer par
 écrit que shaderlab cible Dawn et rien d'autre.
 
-### ⚠️ EN ATTENTE d'Antoine — une référence de pixels à trancher
+### ✅ SOLDÉ le 2026-08-17 — les mipmaps de bibliothèque, verdict rendu et fusionné
 
-Les textures de bibliothèque étaient créées **sans `mipLevelCount`**, donc à un
-seul niveau, alors que les scans montent à 8192×8192 et sont échantillonnés à
-l'échelle de l'écran : le cache de texture ne servait à rien et l'image aliasait.
-Corrigé le 2026-08-15 (`src/render/mipmapGenerator.ts` + sampler trilinéaire)
-— ⚠️ **sur la branche `mipmaps-bibliotheque` (`c06147c`) uniquement, qui attend
-son verdict et n'est pas fusionnée** (mesuré le 2026-08-16). Sur `master`, les
-textures de bibliothèque sont toujours à un seul niveau.
+Le verdict attendait depuis le 2026-08-15 **la mesure que le commit de la branche
+réclamait lui-même** — « le vrai cas (un scan 8K sur une photo, temps GPU avec et
+sans) reste à mesurer ». Prise ce jour, scan 8192² sur photo 26 Mpx, minimum sur
+cinq captures par point :
+
+| Échelle (minification) | sans mips | avec mips | rapport |
+| --- | --- | --- | --- |
+| 1,00 (~2:1) | 3,01 ms | 2,42 ms | ×1,24 |
+| 0,25 (~8:1) | 6,03 ms | 2,29 ms | **×2,63** |
+| 0,10 (~20:1) | 5,05 ms | 2,23 ms | ×2,26 |
+
+**Ce qui a tranché n'est pas le gain, c'est la FORME** : avec la pyramide le coût
+est PLAT quelle que soit la minification, sans elle il CROÎT avec. Signature d'un
+coût de cache — donc ce verdict valide sur un cas réel le levier que le mipmap de
+diffusion de `glass` doit appliquer, avant qu'il coûte 18 références.
+
+⚠️ **La prémisse de la branche était fausse, et le geste restait bon.** Elle
+annonçait « échantillonné à l'échelle de l'écran, un rapport de l'ordre de 1:8 » ;
+`presentPass.ts:44` dit que le canvas a la résolution NATIVE de l'image et n'est
+réduit que par CSS. L'échantillonnage se fait à 6240×4160 : **1,31 × 1,97, un LOD
+de ~1 au défaut**, et le 1:8 n'arrive qu'à `Échelle` ≈ 0,25. Au réglage par défaut
+le gain vaut donc ×1,24, pas ×2,6.
 
 ⚠️ **Ce défaut ne pouvait être attrapé par AUCUN test** : un `createTexture` sans
 `mipLevelCount` compile, valide, et rend une image correcte — les références ont
 été figées AVEC le défaut. Un test compare à ce qui existe, jamais à ce qui
 serait possible.
 
-Le correctif est **prêt et non commité**, bloqué par une seule chose :
-`effet-texture` change (`max 66, moyenne 1,83`), et réécrire une référence de
-pixels est un jugement humain. Antoine a regardé les deux images et ne voit pas
-de différence — attendu, cette mire fait 256 px et n'exerce pas la minification
-1:8 pour laquelle les mips existent. **Trancher, ou mesurer le vrai cas** (un
-scan 8K sur une photo, temps GPU avec et sans).
+⚠️ **Et l'image ne pouvait pas trancher non plus.** `effet-texture` bouge de
+`max 66, moyenne 1,83` ; les deux références relues côte à côte sont
+INDISCERNABLES, parce que la mire fait 256 px et n'exerce aucune minification. Un
+crénelage de minification se voit en SCINTILLEMENT pendant un mouvement — aucune
+capture figée ne peut y répondre. **C'est la mesure qui a rendu le verdict, pas
+l'œil, et c'était le seul moyen disponible.**
 
 ⚠️ Un piège trouvé au passage, et déjà corrigé : le LOD **automatique** est faux
 pour `inkTexture`, qui échantillonne en espace TEXEL et derrière un `fract`
 discontinu. Il lavait le grain d'encre, que `halftone` amplifiait en bascules
-binaires (`max 255`). Forcé au niveau 0. Toute nouvelle lecture de la texture de
+binaires (`max 255`). Forcé au niveau 0 — et `effet-halftone-encre` rend AUCUN
+écart après fusion, ce qui le prouve. Toute nouvelle lecture de la texture de
 bibliothèque doit se demander si son échantillonnage est cohérent avec l'écran.
+⚠️ **`texture.ts` échantillonne lui aussi derrière un `fract`** (ligne 235) et
+garde le LOD automatique : au défaut la couture tombe sur le bord du cadre, donc
+sans effet — mais dès que `Décalage X/Y` la ramène à l'intérieur, elle est une
+ligne d'un pixel au mip le plus grossier. Non mesuré, non corrigé.
 
 ### Deux points d'interface décidés puis jamais écrits
 

@@ -114,14 +114,24 @@ Aucun n'est un reste de ces deux sessions.
   `transform`, et `updateLayerTransform` toujours vivant à zéro appelant. Le
   ROADMAP se trompait donc deux fois.
   ⚠️ **Et le signé porte un défaut MUET**, trouvé en mesurant : le feather
-  multiplie une DISTANCE par l'échelle (`photoLayerInput.ts:80-84`), donc à
-  échelle négative la couverture tombe à 0 et **le calque miroité disparaît
-  entièrement** — ça compile, ça valide sous naga, ça rend. Correction d'un mot
-  (`abs`), mais aucune des 77 références ne l'aurait attrapé : elles ne
+  multiplie une DISTANCE par l'échelle (`photoLayerInput.ts:80-84`). Correction
+  d'un mot (`abs`), mais aucune référence ne l'aurait attrapé : elles ne
   miroitent rien, puisque le miroir n'existe pas. **La référence de pixels du
-  miroir se pose AVANT le geste.** En contrepartie le signé EFFACE le livrable
-  le plus risqué de T3 (branche de flip CPU + WGSL, `PHOTO_INVERSE_TRANSFORM_WGSL`,
-  harnais `gpu-parity.mjs`) — l'inverse-transform divise déjà par l'échelle.
+  miroir se pose AVANT le geste**, et sa mire doit montrer le bord ET quelques
+  pixels autour. En contrepartie le signé EFFACE le livrable le plus risqué de
+  T3 (branche de flip CPU + WGSL, `PHOTO_INVERSE_TRANSFORM_WGSL`, harnais
+  `gpu-parity.mjs`) — l'inverse-transform divise déjà par l'échelle.
+  ⚠️⚠️ **J'avais écrit « le calque miroité disparaît entièrement ». FAUX** —
+  Antoine a demandé la vérification, la formule a été repliée en Node, et elle
+  renverse la description : l'alpha s'INVERSE sur l'axe miroité (0 à l'intérieur
+  de la photo, **1,0 juste en dehors**). Un trou à la place de l'image et une
+  bande opaque à côté — pire qu'une disparition, un trou faisant chercher là où
+  une bande se regarde comme un rendu. **Un défaut décrit de tête au lieu d'être
+  replié en dix lignes de Node ressort plausible et faux** ; c'est la même faute
+  que la prémisse du mipmap de bibliothèque, deux jours plus tôt.
+  ⚠️ Au passage : **le compte de références de ce document était périmé**.
+  Mesuré — 98 scénarios déclarés, 102 PNG sur disque, dont **4 orphelins** que
+  nul scénario ne compare. `CLAUDE.md:511` dit 97, ce document disait 77.
 
 - [Aplat passe à la qualité](issues/24-aplat-passe-a-la-qualite.md) — **RÉSOLU le
   2026-08-17** sur deux de ses trois fronts. Livrés : le remplissage en DÉGRADÉ
@@ -240,8 +250,10 @@ Aucun n'est un reste de ces deux sessions.
   — **presque rien** : le chemin couleur n'a qu'UNE décision de format
   (`srgbFormat`, injecté, 14 lecteurs, zéro format en dur) et les 23 effets ne
   voient jamais le format, donc formes/typo/recadrage n'ajoutent aucun site.
-  La rupture est aux BORNES (présentation, export), et les 77 références de
-  pixels sont sauves tant que le 16-bit reste un SECOND point d'entrée. ⚠️ 22
+  La rupture est aux BORNES (présentation, export), et les références de
+  pixels sont sauves tant que le 16-bit reste un SECOND point d'entrée.
+  (Le « 77 » que portait cette ligne est périmé — re-mesuré le 2026-08-18 :
+  98 scénarios, 102 PNG.) ⚠️ 22
   effets sur 23 bornent leur sortie, donc la marge au-dessus de 1,0 serait
   inutilisée — seule la précision dans [0,1] compte, ce qui rend contraignante
   la limite des ~11 bits près du blanc.

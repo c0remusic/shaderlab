@@ -213,22 +213,45 @@ let edgeDistScreen = min(
 let coverage = clamp(edgeDistScreen + 0.5, 0.0, 1.0);
 ```
 
-À `scaleX < 0`, une distance positive fois une échelle négative rend
-`edgeDistScreen` négatif **partout**, donc `coverage = 0` : **le calque miroité
-disparaît entièrement**. Ça compile, ça valide sous naga, ça rend une frame, et
-rien ne lève.
+⚠️ **Première rédaction de ce paragraphe : « le calque miroité disparaît
+entièrement ». FAUX, et Antoine a demandé la vérification qui l'a renversée.**
+La formule a été repliée en Node, aux mêmes expressions, à `scaleX = -1` :
+
+| point échantillonné | couverture à `scaleX = +1` | à `scaleX = -1` |
+| --- | --- | --- |
+| centre de la photo | 1,000 | **0,000** |
+| 1 px à l'intérieur du bord | 1,000 | **0,000** |
+| pile sur le bord | 0,500 | 0,500 |
+| 10 px À L'EXTÉRIEUR | 0,000 | **1,000** |
+| coin de la toile | 0,000 | 0,000 |
+
+Ce n'est pas une disparition, c'est une **INVERSION de l'alpha sur l'axe
+miroité** : un trou à la place de l'image, et une bande opaque à côté d'elle.
+C'est PIRE qu'une disparition — un trou se voit comme un bug et fait chercher,
+une bande de pixels faux se regarde comme un rendu. Le coin de la toile retombe
+à 0 parce que le terme en Y, resté positif, domine le `min` : le défaut est donc
+**borné à l'axe miroité**, jamais global.
 
 Correction d'un mot — `abs(scaleX)` / `abs(scaleY)` : le feather veut une
 magnitude, jamais un signe. Inventaire complet des usages d'échelle dans ce
 shader, il n'y en a pas d'autres : **lignes 46-47 (division — veut le signe)** et
 **lignes 81-82 (feather — veut la magnitude)**.
 
-**Aucun test ne l'aurait attrapé.** Les 77 références de pixels ne miroitent
-rien, puisque le miroir n'existe pas — un test compare à ce qui existe, jamais à
-ce qui serait possible. Conséquence opposable, sur la règle du dépôt
-(§ Moyen de preuve — EFFETS) : **la référence de pixels du miroir se pose AVANT
-le geste, pas après**, et la mire doit montrer un BORD de photo — c'est le
-feather qui est en cause, pas le centre de l'image.
+**Aucun test ne l'aurait attrapé.** Les références de pixels ne miroitent rien,
+puisque le miroir n'existe pas — un test compare à ce qui existe, jamais à ce
+qui serait possible. Conséquence opposable, sur la règle du dépôt (§ Moyen de
+preuve — EFFETS) : **la référence de pixels du miroir se pose AVANT le geste,
+pas après**, et sa mire doit montrer un BORD de photo ET quelques pixels
+AUTOUR — une mire cadrée sur l'image seule verrait le trou mais pas la bande,
+et c'est la bande qui est le vrai piège.
+
+⚠️ **Le compte de références que citaient les docs est périmé, dans les deux
+sens.** Mesuré le 2026-08-18 : `render-check.mjs` déclare **98 scénarios**, et
+`test/render-refs/` porte **102 PNG**. `CLAUDE.md:511` dit « 97 », le ROADMAP et
+cette carte disent « 77 ». L'écart de 4 n'est pas du bruit : quatre PNG sont
+ORPHELINS (`effet-dither-bayer-fin`, `-bruit-blanc`, `-lignes`, `-points`) —
+des références qu'aucun scénario ne compare, donc du poids mort qui se lit comme
+de la couverture. Sorti en tâche à part.
 
 ### 6. Ce qui reste valide de §3.1, une fois tout mesuré
 

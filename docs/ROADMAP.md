@@ -942,7 +942,9 @@ Ce qui reste ouvert, en deux morceaux qui n'ont rien à voir l'un avec l'autre :
   RECHARGEAIT la page — l'arbre React détruit en plein rendu, d'où le dispatcher
   nul. Une ligne d'`optimizeDeps.include` sur le projet `storybook`.
   ⚠️ **Vider `node_modules/.cache/storybook` reproduit la CI en local** : à froid
-  5 fichiers tombent, à chaud 32/32 passent.
+  **12** fichiers tombent (3 passes sur 3, déterministe), à chaud 32/32 passent.
+  ✅ Confirmé par le run `31986492689` — **premier vert de `master` depuis au
+  moins le 2026-08-01**.
   [Ticket 22](../.scratch/prochain-palier/issues/22-layerpanel-rouge-en-ci-vert-en-local.md).
 
 ⚠️ **Une CI rouge en permanence n'est plus un gate** : toute branche en hérite,

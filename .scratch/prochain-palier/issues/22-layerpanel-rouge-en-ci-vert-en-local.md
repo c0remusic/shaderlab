@@ -15,6 +15,30 @@ dispatcher nul.
 Correctif : `optimizeDeps: { include: ['react/jsx-dev-runtime'] }` sur le projet
 `storybook` de `vitest.config.ts`. Une ligne.
 
+### ✅ CONFIRMÉ PAR LE SEUL JUGE QUI COMPTE
+
+Run `31986492689` sur `master` : **`success`**. C'est le **premier vert depuis au
+moins le 2026-08-01** — les 60 runs précédents récupérables échouaient tous, et
+les onze qui le précèdent immédiatement (toute la session du jour) aussi.
+
+### Taux de reproduction : 3/3, déterministe
+
+La boucle n'avait d'abord été observée qu'une fois rouge et une fois verte. Une
+découverte de dépendance par Vite est une COURSE : rien ne garantissait qu'elle
+se produise à chaque fois, et une boucle intermittente aurait rendu le correctif
+invérifiable. Mesuré, correctif retiré, cache vidé à chaque passe :
+
+```
+passe 1 : exit=1 fichiers_en_echec=12 rechargement decouvert=[react/jsx-dev-runtime]
+passe 2 : exit=1 fichiers_en_echec=12 rechargement decouvert=[react/jsx-dev-runtime]
+passe 3 : exit=1 fichiers_en_echec=12 rechargement decouvert=[react/jsx-dev-runtime]
+```
+
+Trois fois sur trois, même dépendance, même rechargement, même compte. ⚠️ Et
+**douze** fichiers en échec, pas cinq : mon premier relevé partait d'un cache
+partiellement chaud, donc il sous-estimait la portée. Une mesure prise sur un
+état intermédiaire décrit cet état, pas le défaut.
+
 ### Le protocole qui l'a trouvé, et qui vaut plus que le correctif
 
 La CI tourne **toujours à froid** (`npm ci` sur une machine neuve) ; en local, le

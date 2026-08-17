@@ -1,9 +1,14 @@
 # Aplat passe à la qualité
 
 Type: task
-Status: open
-Blocked by: 17
+Status: claimed
 Parent: ../map.md
+
+> ⚠️ **Ce ticket portait `Blocked by: 17` et c'était une erreur de découpage.**
+> Seul le FRONT 2 (les poignées) dépend du ticket 17 ; les fronts 1 et 3 ne
+> dépendent de rien. Un ticket bloqué sur une partie qu'il n'a pas besoin de
+> commencer par ne se prend jamais — le blocage est noté au front concerné, où
+> il est vrai.
 
 ## Question
 
@@ -74,6 +79,52 @@ trois références de pixels existantes citent `borne: 1` et `borne: 2`.
   s'écartait que de 2,96 % et le gate a rougi. Leur différence n'est QUE les
   quatre coins (1 − π/4 de la boîte), donc toute réduction de la forme dans ces
   scénarios refait tomber le signal.
+
+## ✅ Fronts 1 et 3 — livrés le 2026-08-17
+
+**Front 1, le dégradé.** Trois modes de remplissage (`Couleur unie`, `Dégradé
+linéaire`, `Dégradé radial`), un second arrêt de couleur, un angle et une
+étendue. ⚠️ **Les deux arrêts sont convertis en LINÉAIRE avant d'être
+interpolés** — un fondu mélangé en gamma passe par un milieu assombri, défaut
+classique d'un dégradé fait à la main. Le scénario de verrouillage va du crème au
+bleu sombre pour cette raison précise : sur deux teintes voisines le défaut serait
+invisible.
+
+Ni `ColorRampControl` ni `mask/sources/gradient.ts` n'ont été réutilisés, contre
+ce que ce ticket suggérait : le premier pilote une rampe à N arrêts éditables
+(bien plus que deux couleurs), le second est une source de MASQUE qui rend un
+scalaire, pas une couleur. Les emprunter aurait coûté une adaptation plus grosse
+que les vingt lignes de `mix`. À reconsidérer si un troisième arrêt est demandé.
+
+**Front 3, le polygone.** Un paramètre, `cotes` (3 à 12). ⚠️ **Pas d'ÉTOILE**, et
+c'est délibéré : elle demande deux rayons alternés donc une seconde géométrie, et
+le cahier de postproduction n'en demande nulle part. L'ajouter « parce que
+Photoshop l'a » violerait la règle du dépôt — ici il n'y a même pas de besoin
+mesuré.
+
+Le polygone partage la conversion en pixels de l'ellipse, pas seulement son
+espace : c'est elle qui garantit que le bord n'est pas deux fois plus doux sur le
+grand axe que sur le petit, et le défaut se serait reproduit à l'identique sur un
+polygone étiré.
+
+### Deux verrous posés
+
+`effet-aplat-polygone` (13,2 % d'écart avec le rectangle de même boîte) et
+`effet-aplat-degrade` (34,1 % avec le même aplat en couleur unie). Chacun ne
+change QU'UNE chose par rapport à `effet-aplat`, donc l'écart mesure la capacité
+et rien d'autre.
+
+⚠️ **Aucune référence existante n'a bougé.** Les défauts reconduisent le rendu
+d'avant au bit près — `remplissage` vaut 0, donc un preset écrit hier lit 0 sur
+un paramètre absent de son document et rend exactement ce qu'il rendait.
+
+### Ce que la garde de câblage a attrapé
+
+Le shader avait été écrit en supposant que les paramètres du dégradé venaient
+AVANT `cotes` : quatre index décalés, tous lisant du plausible.
+`parametresCables.test.ts` les a nommés un par un. Sans elle, le mode de
+remplissage aurait lu l'étendue, et le défaut ne se serait vu que sur un réglage
+que personne n'aurait touché ce jour-là.
 
 ## Ce que ce ticket ne tranche PAS
 

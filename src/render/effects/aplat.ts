@@ -82,20 +82,24 @@ export const aplat: EffectModule = {
       label: "Bornée par",
       unit: "none",
       min: 0,
-      max: 2,
+      max: 3,
       default: 0,
       step: 1,
       // ⚠️ « Le masque » est le DÉFAUT, et ce n'est pas un hasard de rangement :
       // c'est l'hypothèse que ce prototype teste. Si elle suffit, les deux
       // primitives ci-dessous sont du confort, pas une capacité.
-      choices: ["Le masque du calque", "Un rectangle", "Une ellipse"],
+      // ⚠️ « Un polygone » est AJOUTÉ À LA FIN (2026-08-17, ticket 24 front 3).
+      // L'index d'un choix est persisté dans les presets et cité en dur par les
+      // `appliesWhen` ci-dessous : en insérer un au milieu décalerait les deux
+      // primitives existantes et les trois références de pixels qui les citent.
+      choices: ["Le masque du calque", "Un rectangle", "Une ellipse", "Un polygone"],
       hint: "Ce qui décide où la couleur se pose. « Le masque du calque » n'ajoute aucune géométrie — c'est le pinceau, le dégradé, la luminosité ou le range couleur qui borne, et les modes de fusion font le reste",
     },
-    { name: "centreX", label: "Centre X", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.001, appliesWhen: { param: "borne", equals: [1, 2] }, hint: "Se manipule sur l'image" },
-    { name: "centreY", label: "Centre Y", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.001, appliesWhen: { param: "borne", equals: [1, 2] } },
-    { name: "largeur", label: "Largeur", unit: "percent", min: 0.01, max: 2, default: 0.4, step: 0.005, appliesWhen: { param: "borne", equals: [1, 2] }, hint: "En fraction de la LARGEUR du cadre. Au-delà de 1 la forme déborde, ce qui est le cas normal d'un aplat de bord" },
-    { name: "hauteur", label: "Hauteur", unit: "percent", min: 0.01, max: 2, default: 0.4, step: 0.005, appliesWhen: { param: "borne", equals: [1, 2] } },
-    { name: "rotation", label: "Rotation", unit: "degrees", min: -180, max: 180, default: 0, step: 1, appliesWhen: { param: "borne", equals: [1, 2] } },
+    { name: "centreX", label: "Centre X", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.001, appliesWhen: { param: "borne", equals: [1, 2, 3] }, hint: "Se manipule sur l'image" },
+    { name: "centreY", label: "Centre Y", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.001, appliesWhen: { param: "borne", equals: [1, 2, 3] } },
+    { name: "largeur", label: "Largeur", unit: "percent", min: 0.01, max: 2, default: 0.4, step: 0.005, appliesWhen: { param: "borne", equals: [1, 2, 3] }, hint: "En fraction de la LARGEUR du cadre. Au-delà de 1 la forme déborde, ce qui est le cas normal d'un aplat de bord" },
+    { name: "hauteur", label: "Hauteur", unit: "percent", min: 0.01, max: 2, default: 0.4, step: 0.005, appliesWhen: { param: "borne", equals: [1, 2, 3] } },
+    { name: "rotation", label: "Rotation", unit: "degrees", min: -180, max: 180, default: 0, step: 1, appliesWhen: { param: "borne", equals: [1, 2, 3] } },
     {
       name: "adoucissement",
       label: "Adoucissement du bord",
@@ -104,7 +108,7 @@ export const aplat: EffectModule = {
       max: 400,
       default: 0,
       step: 1,
-      appliesWhen: { param: "borne", equals: [1, 2] },
+      appliesWhen: { param: "borne", equals: [1, 2, 3] },
       // Le cahier §398 dit « léger ou aucun flou » pour une ombre graphique :
       // le défaut est donc ZÉRO, et non un adoucissement « qui fait joli ».
       hint: "Largeur du dégradé de bord, en pixels — donc constante quelle que soit la taille de la forme. Le cahier dit « léger ou aucun flou » pour une ombre graphique, d'où le défaut à 0",
@@ -112,13 +116,81 @@ export const aplat: EffectModule = {
     { name: "teinte", label: "Teinte", unit: "degrees", min: 0, max: 360, default: 0, step: 1, colorGroup: { key: "encre", role: "hue", label: "Couleur" } },
     { name: "saturation", label: "Saturation", unit: "percent", min: 0, max: 1, default: 0, step: 0.01, colorGroup: { key: "encre", role: "saturation", label: "Couleur" } },
     { name: "clarte", label: "Luminosité", unit: "percent", min: 0, max: 1, default: 0, step: 0.01, colorGroup: { key: "encre", role: "lightness", label: "Couleur" } },
+
+    // ─── AJOUTS DU 2026-08-17, ticket 24 ──────────────────────────────────
+    // TOUS À LA FIN, sans exception : les index 0 à 9 sont gelés par trois
+    // références de pixels et par les presets. Un ajout au milieu les décalerait
+    // toutes en silence — le shader lirait `params[10]` là où le preset a écrit
+    // autre chose, et aucun test ne le dirait.
+
+    // FRONT 3 — le polygone. Un seul paramètre suffit : le nombre de côtés. Une
+    // ÉTOILE n'est PAS ici, et c'est délibéré — elle demande deux rayons
+    // alternés, donc une seconde géométrie, et le cahier de postproduction n'en
+    // demande nulle part. L'ajouter « parce que Photoshop l'a » serait le
+    // contraire de la règle du dépôt (« le doublon se mesure avant de s'écrire »,
+    // et ici il n'y a même pas de besoin mesuré).
+    {
+      name: "cotes",
+      label: "Côtés",
+      unit: "none",
+      min: 3,
+      max: 12,
+      default: 6,
+      step: 1,
+      appliesWhen: { param: "borne", equals: 3 },
+      hint: "Nombre de côtés du polygone régulier. À 3 un triangle, à 12 un quasi-cercle — au-delà, l'ellipse fait mieux et moins cher",
+    },
+
+    // FRONT 1 — le remplissage en dégradé.
+    //
+    // ⚠️ « Couleur unie » est l'index 0 et le DÉFAUT : tout preset écrit avant
+    // aujourd'hui lit 0 sur un paramètre absent de son document, donc rend
+    // exactement ce qu'il rendait. C'est la condition pour que cet ajout ne
+    // casse aucun preset, et elle vaut d'être dite plutôt que constatée.
+    {
+      name: "remplissage",
+      label: "Remplissage",
+      unit: "none",
+      min: 0,
+      max: 2,
+      default: 0,
+      step: 1,
+      choices: ["Couleur unie", "Dégradé linéaire", "Dégradé radial"],
+      hint: "Photoshop a trois calques de remplissage — Couleur unie, Dégradé, Motif. Les deux premiers sont ici ; le motif existe déjà ailleurs, c'est l'effet Texture",
+    },
+    { name: "teinte2", label: "Teinte", unit: "degrees", min: 0, max: 360, default: 210, step: 1, appliesWhen: { param: "remplissage", equals: [1, 2] }, colorGroup: { key: "encre2", role: "hue", label: "Seconde couleur" } },
+    { name: "saturation2", label: "Saturation", unit: "percent", min: 0, max: 1, default: 0.4, step: 0.01, appliesWhen: { param: "remplissage", equals: [1, 2] }, colorGroup: { key: "encre2", role: "saturation", label: "Seconde couleur" } },
+    { name: "clarte2", label: "Luminosité", unit: "percent", min: 0, max: 1, default: 0.75, step: 0.01, appliesWhen: { param: "remplissage", equals: [1, 2] }, colorGroup: { key: "encre2", role: "lightness", label: "Seconde couleur" } },
+    {
+      name: "angleDegrade",
+      label: "Angle du dégradé",
+      unit: "degrees",
+      min: -180,
+      max: 180,
+      default: 90,
+      step: 1,
+      // Le radial n'a pas d'angle — il part du centre dans toutes les directions.
+      appliesWhen: { param: "remplissage", equals: 1 },
+      hint: "Direction du dégradé linéaire. Indépendant de la rotation de la forme : on veut souvent une forme droite et un dégradé oblique",
+    },
+    {
+      name: "etendueDegrade",
+      label: "Étendue du dégradé",
+      unit: "percent",
+      min: 0.02,
+      max: 2,
+      default: 0.6,
+      step: 0.01,
+      appliesWhen: { param: "remplissage", equals: [1, 2] },
+      hint: "Distance sur laquelle la première couleur devient la seconde, en fraction du cadre. Courte = transition franche, longue = fondu large",
+    },
   ],
   // Le centre se pose sur la toile plutôt qu'à deux curseurs — c'est
   // exactement le geste que le chantier des contrôles existe pour rendre
   // possible, et une position en pourcentage réglée au curseur est le cas
   // d'école qu'ADR-0017 nomme.
   canvasControls: [
-    { id: "centre", kind: "point", x: "centreX", y: "centreY", label: "Centre de la forme", visibleWhen: { param: "borne", equals: [1, 2] } },
+    { id: "centre", kind: "point", x: "centreX", y: "centreY", label: "Centre de la forme", visibleWhen: { param: "borne", equals: [1, 2, 3] } },
   ],
   sections: [
     // La borne d'abord : c'est elle qui décide si les cinq réglages suivants
@@ -129,10 +201,19 @@ export const aplat: EffectModule = {
       id: "forme",
       label: "Forme",
       layout: "grille",
-      params: ["centreX", "centreY", "largeur", "hauteur", "rotation", "adoucissement"],
-      appliesWhen: { param: "borne", equals: [1, 2] },
+      params: ["centreX", "centreY", "largeur", "hauteur", "rotation", "adoucissement", "cotes"],
+      appliesWhen: { param: "borne", equals: [1, 2, 3] },
     },
-    { id: "couleur", label: "Couleur", layout: "liste", params: ["teinte", "saturation", "clarte"] },
+    // La couleur et son dégradé sont UNE seule question — « de quoi est faite
+    // cette surface » — donc une seule section. Les séparer aurait obligé à
+    // l'aller-retour entre deux blocs pour régler une transition dont les deux
+    // bouts sont ici.
+    {
+      id: "couleur",
+      label: "Couleur",
+      layout: "liste",
+      params: ["teinte", "saturation", "clarte", "remplissage", "teinte2", "saturation2", "clarte2", "angleDegrade", "etendueDegrade"],
+    },
   ],
   wgsl: `
 ${UV_SPACE_WGSL}${SRGB_TO_LINEAR_WGSL}${SRGB_TO_LINEAR_VEC3_WGSL}${HSL_TO_RGB_WGSL}
@@ -151,20 +232,71 @@ fn aplat_couverture(distancePx: f32, adoucissementPx: f32) -> f32 {
   return clamp(0.5 - distancePx / (2.0 * demi), 0.0, 1.0);
 }
 
+/** Distance signee a un POLYGONE REGULIER de rayon 1, en unites de ce rayon.
+ *
+ *  Repli angulaire : on ramene l angle dans un seul secteur, ou le bord du
+ *  polygone est une DROITE. La distance a cette droite est alors
+ *  \`r * cos(angle replie) - cos(demi-secteur)\` — exacte partout sauf tout pres
+ *  d un sommet, ou elle sous-estime legerement. Sur un aplat anticrenele au
+ *  pixel, cet ecart est sous le seuil de visibilite ; le rendre exact
+ *  demanderait une distance a un SEGMENT, donc deux fois le calcul pour un
+ *  resultat identique a l oeil.
+ *
+ *  ⚠️ Le rayon 1 est le rayon CIRCONSCRIT (les sommets), pas l inscrit. Un
+ *  hexagone remplit donc sa boite englobante comme le ferait une ellipse, ce qui
+ *  est le comportement attendu quand on change de primitive sans toucher aux
+ *  curseurs de taille. */
+fn aplat_polygone(k: vec2<f32>, cotes: f32) -> f32 {
+  let n = max(cotes, 3.0);
+  let secteur = 6.2831853 / n;
+  let brut = atan2(k.y, k.x);
+  let replie = brut - secteur * floor(brut / secteur + 0.5);
+  return length(k) * cos(replie) - cos(secteur * 0.5);
+}
+
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let borne = i32(params[0] + 0.5);
 
-  let encre = srgb_to_linear3(hsl2rgb(params[7] / 360.0, params[8], params[9]));
+  let dims = vec2<f32>(textureDimensions(srcTexture));
+  let ar = aspectScale(dims);
+  let centre = vec2<f32>(params[1], params[2]);
+
+  // COULEUR DE LA SURFACE : unie, ou interpolee entre deux arrets.
+  //
+  // ⚠️ L INTERPOLATION SE FAIT EN LINEAIRE, et c est le format qui le garantit.
+  // Les deux arrets sont convertis AVANT le \`mix\`, donc la transition est celle
+  // de la lumiere et non celle des octets encodes — un fondu entre deux teintes
+  // melangees en gamma passe par un milieu assombri, defaut classique des
+  // degrades faits a la main.
+  let encre1 = srgb_to_linear3(hsl2rgb(params[7] / 360.0, params[8], params[9]));
+  let modeRemplissage = i32(params[11] + 0.5);
+  var encre = encre1;
+  if (modeRemplissage != 0) {
+    let encre2 = srgb_to_linear3(hsl2rgb(params[12] / 360.0, params[13], params[14]));
+    let etendue = max(params[16], 0.02);
+    // Position sur le degrade, en espace ISOTROPE : sans \`ar\`, un degrade a 45
+    // degres serait couche sur une photo 3:2, et un radial serait un ovale.
+    let vers = (uv - centre) * ar;
+    var t = 0.0;
+    if (modeRemplissage == 1) {
+      let angle = params[15] * 0.017453292;
+      let axe = vec2<f32>(cos(angle), sin(angle));
+      // Centre du degrade au MILIEU de sa course, pas a son debut : c est ce qui
+      // fait que bouger l angle pivote le degrade au lieu de le faire glisser.
+      t = dot(vers, axe) / etendue + 0.5;
+    } else {
+      t = length(vers) / etendue;
+    }
+    encre = mix(encre1, encre2, clamp(t, 0.0, 1.0));
+  }
 
   // BORNEE PAR LE MASQUE : aucune geometrie, couverture pleine. Le compositing
   // en aval multiplie deja par l'opacite et par le masque du calque, donc c'est
   // le pinceau (ou le degrade, la luminosite, le range couleur) qui decide ou
-  // la couleur se pose. C'est l'hypothese que ce prototype teste.
+  // la couleur se pose.
   var couverture = 1.0;
 
   if (borne != 0) {
-    let dims = vec2<f32>(textureDimensions(srcTexture));
-    let centre = vec2<f32>(params[1], params[2]);
     // Demi-dimensions en UV. La largeur est exprimee en fraction de la LARGEUR
     // du cadre et la hauteur en fraction de sa HAUTEUR : un carre a l'ecran
     // demande donc deux valeurs differentes, ce qui est le comportement d'un
@@ -173,7 +305,6 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
 
     // Rotation autour du CENTRE de la forme, et en espace ISOTROPE : tourner en
     // UV brut cisaillerait le rectangle sur une photo 3:2 au lieu de le tourner.
-    let ar = aspectScale(dims);
     let d = (uv - centre) * ar;
     let a = params[5] * 0.017453292;
     let s = sin(a);
@@ -193,13 +324,22 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
       let q = (abs(local) - demi) * pxParUv;
       distancePx = max(q.x, q.y);
     } else {
-      // ELLIPSE : approximation de la distance signee par le gradient de la
-      // forme implicite. \`length(k)\` seul rendrait une distance en unites
-      // d'ellipse, dont le bord serait deux fois plus doux sur le grand axe que
-      // sur le petit — le defaut exact que le point 1 de l'en-tete refuse.
+      // ELLIPSE ET POLYGONE : les deux vivent dans le meme espace UNITAIRE
+      // \`k = local / demi\`, ou la forme a un rayon de 1 — et surtout ils
+      // partagent la MEME conversion en pixels. C'est elle qui compte : sans
+      // \`g\`, la distance serait en unites de forme, donc le bord serait deux
+      // fois plus doux sur le grand axe que sur le petit. Le defaut exact que le
+      // point 1 de l'en-tete refuse, et il se produirait a l'identique sur un
+      // polygone etire.
       let k = local / demi;
       let g = length(k / (demi * pxParUv));
-      distancePx = (length(k) - 1.0) / max(g, 0.0001);
+      var dUnite = 0.0;
+      if (borne == 2) {
+        dUnite = length(k) - 1.0;
+      } else {
+        dUnite = aplat_polygone(k, params[10]);
+      }
+      distancePx = dUnite / max(g, 0.0001);
     }
     couverture = aplat_couverture(distancePx, params[6]);
   }
@@ -213,3 +353,4 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
 }
 `,
 };
+

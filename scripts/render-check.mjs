@@ -3002,6 +3002,48 @@ const INSTALL = `(async () => {
       },
     },
 
+    // LE POLYGONE, compare au RECTANGLE de meme boite. Tout est identique par
+    // ailleurs — meme centre, meme largeur, meme hauteur, meme rotation, meme
+    // couleur — donc l ecart entre les deux images EST la primitive, et rien
+    // d autre. Un hexagone ne remplit qu environ deux tiers de sa boite
+    // englobante, ce qui laisse largement de quoi discriminer (contrairement au
+    // couple rectangle/ellipse, ou le gate a d abord rougi a 2,96 %).
+    "effet-aplat-polygone": {
+      contre: "effet-aplat",
+      build: async (r, stack) => {
+        const a = stack.addLayer("aplat");
+        stack.updateParams(a, {
+          borne: 3, cotes: 6,
+          centreX: 0.46, centreY: 0.52, largeur: 0.8, hauteur: 0.6,
+          rotation: 20, adoucissement: 0,
+          teinte: 35, saturation: 0.3, clarte: 0.9,
+        });
+      },
+    },
+
+    // LE REMPLISSAGE EN DEGRADE, sur la MEME forme que \`effet-aplat\`. Seul le
+    // remplissage change, donc l ecart est la transition et rien d autre.
+    //
+    // CE QU IL VERROUILLE ET QU UN OEIL NE VERRAIT PAS : que les deux arrets
+    // sont convertis en LINEAIRE avant d etre interpoles. Un fondu melange en
+    // gamma passe par un milieu assombri — visible sur une paire tres contrastee
+    // comme celle-ci (creme vers bleu sombre), invisible sur deux teintes
+    // voisines. Le choix de couleurs de ce scenario n est donc pas decoratif.
+    "effet-aplat-degrade": {
+      contre: "effet-aplat",
+      build: async (r, stack) => {
+        const a = stack.addLayer("aplat");
+        stack.updateParams(a, {
+          borne: 1,
+          centreX: 0.46, centreY: 0.52, largeur: 0.8, hauteur: 0.6,
+          rotation: 20, adoucissement: 0,
+          teinte: 35, saturation: 0.3, clarte: 0.9,
+          remplissage: 1, angleDegrade: 30, etendueDegrade: 0.7,
+          teinte2: 225, saturation2: 0.8, clarte2: 0.18,
+        });
+      },
+    },
+
     // ── LES TROIS SOURCES PARAMETRIQUES, CHACUNE SEULE ────────────────────
     //
     // Elles n avaient AUCUNE reference le 2026-08-05 : le registre en sert

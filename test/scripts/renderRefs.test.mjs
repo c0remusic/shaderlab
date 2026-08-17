@@ -104,6 +104,16 @@ const ATTENDU = {
   // cette moitié disparaîtrait, et l'effet aurait l'air correct partout où une
   // photo couvre.
   "effet-aplat-hors-photo.png": { width: 320, height: 320, valeurs: null },
+  // Les deux CAPACITÉS ajoutées le 2026-08-17 (ticket 24), chacune comparée à
+  // `effet-aplat` dont elles ne changent qu'une chose : le polygone ne change
+  // que la primitive, le dégradé ne change que le remplissage.
+  //
+  // ⚠️ Le dégradé va du crème au bleu sombre, et ce n'est pas décoratif : ce
+  // qu'il verrouille est que les deux arrêts sont convertis en LINÉAIRE avant
+  // d'être interpolés. Un fondu mélangé en gamma passe par un milieu assombri —
+  // visible sur une paire très contrastée, invisible sur deux teintes voisines.
+  "effet-aplat-polygone.png": { width: 256, height: 256, valeurs: null },
+  "effet-aplat-degrade.png": { width: 256, height: 256, valeurs: null },
   // LES TROIS SOURCES PARAMÉTRIQUES, CHACUNE SEULE (2026-08-05). Le registre en
   // sert trois (`mask/sources/registry.ts`) et AUCUNE n'avait de verrou propre :
   // `masque-pinceau-degrade` ci-dessus fait tourner le dégradé, mais en passager

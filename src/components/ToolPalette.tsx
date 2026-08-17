@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Brush, Eraser, MousePointer2, type LucideIcon } from "lucide-react";
+import { Brush, Eraser, MousePointer2, Square, type LucideIcon } from "lucide-react";
 import { Toggle } from "./ui/toggle";
 import { TOOLS, type ToolId } from "../ui/tools";
 
@@ -10,6 +10,10 @@ const TOOL_ICONS: Record<ToolId, LucideIcon> = {
   move: MousePointer2,
   brush: Brush,
   eraser: Eraser,
+  // Un CARRÉ plein, et non une icône de « forme » générique : l'outil ne trace
+  // qu'un rectangle aujourd'hui, et une icône qui promettrait un choix de
+  // primitives mentirait sur ce que le geste fait.
+  shape: Square,
 };
 
 interface Props {

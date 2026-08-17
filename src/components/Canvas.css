@@ -196,6 +196,26 @@
   z-index: var(--z-canvas-overlay);
 }
 
+/* Bande élastique du tracé de forme (outil U). Vit DANS le conteneur transformé
+   et se positionne en pixels de la TOILE : elle hérite donc du zoom et du
+   déplacement sans aucun calcul, et reste collée à l'image.
+
+   Deux contours superposés — un clair et une ombre portée d'un pixel — pour la
+   même raison que le curseur de pinceau juste au-dessus : un liseré d'une seule
+   couleur disparaît sur les zones de sa propre valeur, et un rectangle qu'on
+   trace passe forcément sur du clair ET du sombre.
+
+   `border-width` est piloté en JS (divisé par l'échelle) pour rester d'un pixel
+   à l'ÉCRAN quel que soit le zoom — d'où l'absence d'épaisseur ici. */
+.pasteboard__shape-band {
+  position: absolute;
+  border-style: solid;
+  border-color: var(--outline-guide);
+  box-shadow: 0 0 0 1px var(--outline-contrast);
+  pointer-events: none;
+  z-index: var(--z-canvas-overlay);
+}
+
 .pasteboard__brush-cursor::before {
   content: "";
   position: absolute;

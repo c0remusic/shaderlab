@@ -1,6 +1,7 @@
 import { forwardRef, useRef, useEffect, useState, useCallback } from "react";
 import { EmptyWorkspace } from "./EmptyWorkspace";
 import { panBy, zoomByWheel, type Size, type ViewportState } from "../ui/viewport";
+import { rectFromDrag, isDrawnRectUsable, type DrawnRect } from "../ui/shapeDraw";
 
 interface Props {
   onFileDropped: (file: File) => void;
@@ -39,6 +40,14 @@ interface Props {
    *  `maskPaint` ni en `crop`. Le pinceau garde la main sans exception : la
    *  branche peinture sort avant, inchangée. */
   onPick?: (x: number, y: number) => void;
+  /** L'outil FORME est actif : un glissement sur la toile trace un rectangle au
+   *  lieu de désigner un calque. Même exclusion que le pinceau — la branche
+   *  peinture reste prioritaire et intacte. */
+  shapeDrawMode?: boolean;
+  /** Un rectangle vient d'être tracé, en pixels de la TOILE. N'est appelé que
+   *  pour un geste d'ampleur suffisante (`isDrawnRectUsable`) : un clic simple
+   *  ne crée rien, sinon chaque clic manqué laisserait un calque derrière lui. */
+  onShapeDrawn?: (rect: DrawnRect) => void;
 }
 
 export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
@@ -52,6 +61,8 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
     brushSize,
     brushHardness,
     onPick,
+    shapeDrawMode,
+    onShapeDrawn,
     viewport,
     contentSize,
     onViewportChange,
@@ -216,6 +227,14 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
     }
     return true;
   }
+  /** TRACÉ DE FORME EN COURS, en pixels de la TOILE.
+   *
+   *  En `useState` et non en ref, contrairement au geste de vue : la bande
+   *  élastique doit se REDESSINER à chaque mouvement, donc elle doit passer par
+   *  le rendu. Le geste de vue, lui, écrit une transformation CSS et n'a rien
+   *  à re-rendre — c'est ce qui justifie sa ref, pas une préférence de style. */
+  const [shapeDrag, setShapeDrag] = useState<{ pointerId: number; from: { x: number; y: number }; to: { x: number; y: number }; carre: boolean } | null>(null);
+
   // Dernière position souris connue (coordonnées écran), pour pouvoir
   // recalculer le curseur SANS bouger la souris — voir l'effet ci-dessous.
   const lastPointerScreenRef = useRef<{ clientX: number; clientY: number } | null>(null);
@@ -441,6 +460,22 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
           // bouillonnement (voir son handler pour ce que coûtaient deux
           // propriétaires). On sort sans rien faire, et surtout sans peindre.
           if (isPanGesture(e)) return;
+          // TRACÉ DE FORME, avant la désignation : les deux partent du même
+          // geste (bouton gauche enfoncé sur la toile) et ne peuvent pas
+          // coexister. L'ordre suit celui de la palette — un outil choisi passe
+          // avant le comportement par défaut.
+          if (shapeDrawMode) {
+            const pt = toImageCoords(e);
+            if (!pt) return;
+            try {
+              e.currentTarget.setPointerCapture(e.pointerId);
+            } catch {
+              // best-effort, même raison que le pinceau : la capture est un
+              // confort, son échec ne doit pas avorter le geste.
+            }
+            setShapeDrag({ pointerId: e.pointerId, from: pt, to: pt, carre: e.shiftKey });
+            return;
+          }
           if (!maskPaintMode) {
             // Désignation directe (T1). Hors mode peinture UNIQUEMENT, et
             // seulement si l'appelant l'a autorisée pour le mode courant : le
@@ -482,6 +517,15 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
           // élément ne reçoit même plus les mouvements. On sort quand même sur
           // un geste en cours, pour le cas d'un pointeur secondaire.
           if (panDragRef.current) return;
+          // Le tracé lit `shiftKey` À CHAQUE MOUVEMENT et non au seul appui :
+          // dans tous les éditeurs, Maj se presse et se relâche EN COURS de
+          // geste et la contrainte suit. La mémoriser à l'appui obligerait à
+          // recommencer le rectangle pour le passer en carré.
+          if (shapeDrag && shapeDrag.pointerId === e.pointerId) {
+            const pt = toImageCoords(e);
+            if (pt) setShapeDrag({ ...shapeDrag, to: pt, carre: e.shiftKey });
+            return;
+          }
           if (!maskPaintMode || panning) return;
           updateCursor(e);
           if (!isPaintingRef.current) return;
@@ -498,12 +542,28 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
         // détient la capture. L'appeler ici aussi aurait relâché le geste
         // depuis le mauvais élément.
         onPointerUp={(e) => {
+          // FIN DU TRACÉ. Le rectangle n'est remonté que s'il a de l'ampleur :
+          // un clic simple ne doit rien créer, sinon chaque clic manqué laisse
+          // un calque à annuler à la main. L'état se vide dans TOUS les cas —
+          // y compris sur un geste rejeté, sinon la bande resterait à l'écran.
+          if (shapeDrag && shapeDrag.pointerId === e.pointerId) {
+            const rect = rectFromDrag(shapeDrag.from, shapeDrag.to, shapeDrag.carre);
+            setShapeDrag(null);
+            if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+              e.currentTarget.releasePointerCapture(e.pointerId);
+            }
+            if (isDrawnRectUsable(rect)) onShapeDrawn?.(rect);
+            return;
+          }
           endStroke();
           if (e.currentTarget.hasPointerCapture(e.pointerId)) {
             e.currentTarget.releasePointerCapture(e.pointerId);
           }
         }}
         onPointerCancel={() => {
+          // Un tracé annulé ne crée RIEN — même sémantique que le crop
+          // abandonné : `pointercancel` n'est pas une validation.
+          setShapeDrag(null);
           endStroke();
         }}
         onPointerLeave={() => {
@@ -514,6 +574,48 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
           hideCursor();
         }}
       />
+        {/* BANDE ÉLASTIQUE du tracé de forme.
+          *
+          * ⚠️ ELLE REPRODUIT LE TRANSFORM DU CANVAS, elle n'en hérite PAS. Le
+          * zoom/déplacement est posé sur le `<canvas>` LUI-MÊME et non sur un
+          * conteneur (voir son `style` plus haut) : une bande placée à côté de
+          * lui ne reçoit donc rien. Mesuré le 2026-08-17 en la posant naïvement
+          * — le rectangle sortait à 3371 px pour un geste au centre de la
+          * fenêtre, soit à l'échelle 1:1 de l'image au lieu de l'échelle de vue.
+          *
+          * L'ORDRE DES TROIS TRANSFORMS EST LOAD-BEARING. Ils s'appliquent de
+          * DROITE à GAUCHE : d'abord `translate(r.x, r.y)` en pixels d'IMAGE,
+          * puis `scale`, puis `translate(offset)` en pixels d'ÉCRAN. C'est
+          * exactement la chaîne que subit le canvas. Les intervertir placerait
+          * la forme à un offset mis à l'échelle, donc juste au zoom 100 % et
+          * faux partout ailleurs — le genre de bug qui se voit seulement quand
+          * on a déjà zoomé.
+          *
+          * `pointerEvents: none` (en CSS) : elle est sous le curseur pendant
+          * tout le geste, et sans ça elle volerait les `pointermove` au canvas
+          * qui détient la capture. */}
+        {shapeDrag && (() => {
+          const r = rectFromDrag(shapeDrag.from, shapeDrag.to, shapeDrag.carre);
+          return (
+            <div
+              className="pasteboard__shape-band"
+              aria-hidden="true"
+              style={{
+                left: 0,
+                top: 0,
+                width: `${r.width}px`,
+                height: `${r.height}px`,
+                transformOrigin: "0 0",
+                transform: `translate(${viewport.offsetX}px, ${viewport.offsetY}px) scale(${viewport.scale}) translate(${r.x}px, ${r.y}px)`,
+                // L'épaisseur du liseré est divisée par l'échelle pour rester
+                // d'un pixel À L'ÉCRAN quel que soit le zoom. Sans ça, à 800 %
+                // le trait ferait huit pixels et masquerait le bord qu'il
+                // désigne ; à 13 % il disparaîtrait.
+                borderWidth: `${1 / viewport.scale}px`,
+              }}
+            />
+          );
+        })()}
         {children}
       </div>
       <div ref={cursorRef} className="pasteboard__brush-cursor" aria-hidden="true" />

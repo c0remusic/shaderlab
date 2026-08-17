@@ -31,9 +31,27 @@ export type PhotoSizeLookup = (sourceId: string) => PixelSize | null;
  *    d'affichage, et ferait divergemment deux définitions du bord.
  * 2. **Un calque à l'œil éteint n'est pas saisissable** : on ne désigne pas ce
  *    qu'on ne voit pas, et le clic doit atteindre le calque visible en dessous.
- * 3. **Un calque VERROUILLÉ l'est** : sélectionner n'est pas muter (les gardes
- *    `isLocked` de `LayerStack` refusent toujours le déplacement), et c'est le
- *    seul chemin vers son déverrouillage.
+ * 3. **Un calque VERROUILLÉ n'est pas saisissable non plus** — corrigé le
+ *    2026-08-17 sur signalement d'Antoine (« le lock de calque ne permet pas de
+ *    lock la sélection d'un calque/d'une photo »).
+ *
+ *    ⚠️ CETTE RÈGLE DISAIT L'INVERSE, et sa justification était fausse. Elle
+ *    tenait en une phrase : « sélectionner n'est pas muter, et c'est le seul
+ *    chemin vers son déverrouillage ». Le second membre ne tient pas — le
+ *    bouton de verrou vit dans la LIGNE du panneau de pile (`LayerPanel`), qui
+ *    est le chemin normal et le seul que Photoshop offre. Le premier membre est
+ *    vrai et hors sujet : le problème n'est pas qu'on mute le calque, c'est
+ *    qu'on le SÉLECTIONNE en visant autre chose.
+ *
+ *    Le cas d'usage que ça casse est exactement celui du verrou : une photo de
+ *    fond verrouillée, du travail au-dessus, et chaque clic qui rate son calque
+ *    tombe sur le fond — la sélection saute, le panneau change, et il faut
+ *    revenir. Un verrou qui laisse ça arriver ne verrouille pas ce pour quoi on
+ *    le pose.
+ *
+ *    Corollaire à ne pas perdre : le clic CONTINUE de descendre la pile. Un
+ *    calque verrouillé n'absorbe pas le clic, il devient transparent pour lui —
+ *    c'est ce qui permet d'attraper un calque situé DESSOUS un fond verrouillé.
  *
  * Fonction PURE : aucune lecture GPU, aucun raster, aucun état. L'alternative
  * « rendre un buffer d'identifiants au GPU » est écartée (§10.4).
@@ -57,6 +75,10 @@ export function hitTestPhotoLayer(
     const layer = layers[i];
     if (!layer.imageSource || !layer.transform) continue;
     if (!layer.enabled) continue;
+    // Verrouillé : transparent au clic, exactement comme un calque éteint. Voir
+    // la règle 3 de l'en-tête — et le `continue` plutôt qu'un `return null` est
+    // le point : le clic passe au travers et atteint ce qui est dessous.
+    if (layer.locked === true) continue;
     const photoSize = photoSizeOf(layer.imageSource.sourceId);
     // Taille inconnue ou dégénérée : on ne peut pas décider, on n'invente pas
     // un hit — le clic continue de descendre la pile.

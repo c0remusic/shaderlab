@@ -40,7 +40,7 @@ import { IDLE_CANVAS_MODE, type CanvasMode } from "./canvasMode";
  * précédent puisqu'on ne l'a jamais quitté. C'est la convention de Photoshop,
  * de Figma et de Blender.
  */
-export type ToolId = "move" | "brush" | "eraser";
+export type ToolId = "move" | "brush" | "eraser" | "shape";
 
 /** L'outil de repos, celui sur lequel `Échap` ramène. « Déplacer » et non
  *  « aucun » : la palette ne doit jamais afficher zéro outil actif (cf.
@@ -82,6 +82,22 @@ export const TOOLS: readonly ToolDefinition[] = [
     shortcutLabel: "E",
     hint: "Effacer le masque du calque sélectionné",
   },
+  // FORME (2026-08-17). `U` est la touche de Photoshop pour l'outil de forme, et
+  // c'est aussi celle d'Illustrator et d'Affinity — la reprendre coûte zéro et
+  // évite de faire réapprendre une lettre.
+  //
+  // ⚠️ IL EXISTE PARCE QUE SON ABSENCE ÉTAIT UN DÉFAUT, pas parce que la palette
+  // manquait d'entrées. `aplat` est entré au registre avec un rectangle qu'on
+  // règle à QUATRE CURSEURS ; verdict d'Antoine le jour même : « la pire façon
+  // de créer un rectangle ». Un rectangle se TRACE. Les curseurs retouchent une
+  // forme qui existe déjà — ils ne la créent pas.
+  {
+    id: "shape",
+    label: "Forme",
+    shortcut: "KeyU",
+    shortcutLabel: "U",
+    hint: "Tracer un aplat en tirant sur l'image — Maj pour un carré",
+  },
 ] as const;
 
 /** État que la palette pilote. Regroupé en UN objet parce que ces deux champs
@@ -107,6 +123,7 @@ export interface ToolState {
  */
 export function activeTool(state: ToolState): ToolId {
   if (state.mode.kind === "maskPaint") return state.erase ? "eraser" : "brush";
+  if (state.mode.kind === "shapeDraw") return "shape";
   return "move";
 }
 
@@ -125,6 +142,11 @@ export function selectTool(tool: ToolId, current: ToolState, target?: { layerId:
       return { mode: target ? { kind: "maskPaint", ...target } : IDLE_CANVAS_MODE, erase: false };
     case "eraser":
       return { mode: target ? { kind: "maskPaint", ...target } : IDLE_CANVAS_MODE, erase: true };
+    // La forme n'a PAS de `target` : elle ne travaille pas sur un calque
+    // existant, elle en crée un. C'est ce qui la distingue du pinceau, dont le
+    // mode retombe en `idle` quand aucun calque n'est sélectionné.
+    case "shape":
+      return { mode: { kind: "shapeDraw" }, erase: current.erase };
   }
 }
 

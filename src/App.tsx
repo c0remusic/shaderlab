@@ -58,6 +58,7 @@ import {
 import { useGlobalControlWheel } from "./ui/activeControl";
 import { openDocument } from "./layers/openedDocument";
 import { hitTestPhotoLayer } from "./ui/hitTest";
+import { aplatParamsFromRect, type DrawnRect } from "./ui/shapeDraw";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 import type { BrushSettings } from "./mask/maskPainter";
 import { getBrushRaster } from "./mask/brushSource";
@@ -1014,6 +1015,37 @@ export default function App() {
     selectLayer(id);
   }
 
+  /**
+   * Un rectangle vient d'être TRACÉ sur la toile (outil Forme, 2026-08-17) :
+   * crée un calque `aplat` qui l'épouse.
+   *
+   * Trois choses en un seul geste utilisateur, donc UNE seule entrée
+   * d'historique — même raison que `handleAdd` juste au-dessus : ajouter le
+   * calque, le borner au rectangle, poser sa géométrie. Trois `commit`
+   * demanderaient trois `Ctrl+Z` pour défaire un geste qui en était un.
+   *
+   * ⚠️ `borne: 1` est l'index du choix « Un rectangle » dans `aplat.params[0]`,
+   * cité en dur ici comme il l'est dans les `appliesWhen` de l'effet. Cet index
+   * est PERSISTÉ dans les presets et ne bouge donc jamais — c'est ce qui rend la
+   * citation sûre, pas une négligence.
+   */
+  const handleShapeDrawn = useCallback(
+    (rect: DrawnRect) => {
+      const params = aplatParamsFromRect(rect, imageSize);
+      // Toile dégénérée : `aplatParamsFromRect` rend `null` plutôt que des NaN.
+      // On ne crée alors rien — un calque aux paramètres NaN ne se répare qu'en
+      // le supprimant.
+      if (!params) return;
+      clearActivePreset();
+      const stack = currentStack();
+      const id = stack.addLayer("aplat", selectedId);
+      stack.updateParams(id, { borne: 1, ...params });
+      commit(stack);
+      selectLayer(id);
+    },
+    [imageSize, selectedId, clearActivePreset, currentStack, commit, selectLayer],
+  );
+
   // Callbacks passés à LayerPanel/ParamPanel enveloppés dans useCallback :
   // LayerPanel mémoïse chaque ligne (React.memo, voir LayerRow) pour qu'un
   // drag d'opacité ne re-render QUE la ligne concernée, pas la liste entière
@@ -1922,6 +1954,8 @@ export default function App() {
           // (le pinceau garde la main), jamais en `crop` (les poignées de crop
           // prennent la place) — `src/ui/canvasMode.ts`.
           onPick={photoLayer.canvasMode.kind === "idle" ? handleCanvasPick : undefined}
+          shapeDrawMode={photoLayer.canvasMode.kind === "shapeDraw"}
+          onShapeDrawn={handleShapeDrawn}
           viewport={viewport}
           contentSize={imageSize}
           onViewportChange={handleViewportChange}

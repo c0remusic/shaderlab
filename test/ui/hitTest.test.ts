@@ -124,12 +124,26 @@ describe("hitTestPhotoLayer — ce qui n'est pas saisissable", () => {
     expect(hitTestPhotoLayer(layers, { x: 500, y: 500 }, BG, sizeOf)).toBeNull();
   });
 
-  it("SÉLECTIONNE une photo VERROUILLÉE (le verrou refuse la mutation, pas la désignation)", () => {
-    // Arbitrage n°3 : sélectionner n'est pas muter, et c'est le seul chemin
-    // vers le bouton de déverrouillage. Les gardes `isLocked` de `LayerStack`
-    // continuent de refuser tout déplacement.
+  it("NE SÉLECTIONNE PAS une photo VERROUILLÉE — c'est ce pour quoi on pose un verrou", () => {
+    // ⚠️ CE TEST ASSERTAIT L'INVERSE jusqu'au 2026-08-17, sur une justification
+    // fausse : « c'est le seul chemin vers le bouton de déverrouillage ». Le
+    // bouton vit dans la LIGNE du panneau de pile, qui est le chemin normal.
+    //
+    // Le cas d'usage que l'ancienne règle cassait : une photo de fond
+    // verrouillée, du travail au-dessus, et chaque clic qui rate son calque
+    // tombe sur le fond. Signalé par Antoine — « le lock de calque ne permet pas
+    // de lock la sélection d'un calque/d'une photo ».
     const layers = [photoLayer("verrouille", {}, { locked: true })];
-    expect(hitTestPhotoLayer(layers, { x: 500, y: 500 }, BG, sizeOf)).toBe("verrouille");
+    expect(hitTestPhotoLayer(layers, { x: 500, y: 500 }, BG, sizeOf)).toBeNull();
+  });
+
+  it("laisse le clic TRAVERSER un calque verrouillé et atteindre celui du dessous", () => {
+    // Le corollaire qui rend la règle utilisable : un verrouillé n'ABSORBE pas
+    // le clic, il devient transparent pour lui. Sans ça, verrouiller un fond
+    // rendrait inatteignable tout ce qui est dessous — on aurait remplacé une
+    // gêne par une autre.
+    const layers = [photoLayer("dessous"), photoLayer("verrouille", {}, { locked: true })];
+    expect(hitTestPhotoLayer(layers, { x: 500, y: 500 }, BG, sizeOf)).toBe("dessous");
   });
 
   it("ignore une photo dont la taille source est inconnue, et continue de descendre", () => {

@@ -22,6 +22,10 @@ import type { CropRect } from "../layers/types";
 export type CanvasMode =
   | { kind: "idle" }
   | { kind: "maskPaint"; layerId: string; sourceId: string | null }
+  // TRACÉ D'UNE FORME (2026-08-17). Le seul mode SANS `layerId` : il n'agit pas
+  // sur un calque, il en crée un. `reconcileCanvasMode` n'a donc rien à
+  // rattraper pour lui — il n'a aucune cible à trahir.
+  | { kind: "shapeDraw" }
   | { kind: "crop"; layerId: string; original: CropRect | undefined };
 
 export const IDLE_CANVAS_MODE: CanvasMode = { kind: "idle" };

@@ -139,11 +139,20 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `EffectParam.colorGroup`) touche aussi `ParamPanel.tsx` et peut élargir
   `MAX_EFFECT_PARAMS` (`shaderCompose.ts`, **48** depuis le 2026-08-04, élargi
   de 32 pour `curves`) si nécessaire.
-  Registre réel au 2026-08-05, dans l'ordre : `glow`, `halation`,
+  Registre réel au 2026-08-17, dans l'ordre : `glow`, `halation`,
   `lensFlare`, `lightLeak`, `lensDistortion`, `lensBlur`, `motionBlur`,
   `glass`, `warp`, `grain`, `duotone`, `hatching`, `halftone`, `dither`,
   `gooeyMerge`, `channelMixer`, `curves`, `outlines`, `isolines`,
-  `pixelStretch`, `sliceShift`, `gradientMap`, `texture` — **vingt-trois**.
+  `pixelStretch`, `sliceShift`, `gradientMap`, `texture`, `aplat` —
+  **vingt-quatre**.
+  `aplat` (2026-08-17) est une COULEUR UNIE bornée par un masque ou par une
+  primitive posée. Il est le premier à entrer par une question à laquelle il n'a
+  pas répondu : né prototype pour trancher « une forme a-t-elle besoin d'un
+  troisième genre de calque », il a servi à faire corriger la QUESTION — une
+  forme SÉLECTIONNE, elle ne se pose pas. Il reste pour une raison indépendante,
+  arbitrée le même jour : la couleur unie manquait, et le cahier la cite (§96).
+  ⚠️ Son upgrade qualité est DÛ et ticketé (dégradé de remplissage, poignées sur
+  la toile, primitives supplémentaires) — il est encore à sa version pipeline.
   ⚠️ **CE COMPTE ET CETTE LISTE SE METTENT À JOUR DANS LE COMMIT QUI AJOUTE
   L'EFFET**, jamais au wrap-up. Ils ont dit « vingt-deux » pendant toute la
   durée où le registre en portait vingt-trois (2026-08-05), et `docs/ROADMAP.md`

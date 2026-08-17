@@ -186,10 +186,17 @@ export const effectRegistry: EffectModule[] = [
   // (`libraryTexture`), et les pixels arrivent par le binding 7 — voir
   // `render/textureLibraryStore.ts`.
   texture,
-  // ⚠️ PROTOTYPE, ticket 23 — à garder ou à jeter selon l'arbitrage d'Antoine
-  // sur le ticket 03. Il est au registre parce qu'un effet ne se montre pas
-  // autrement : la seule façon de le juger est de le poser sur une photo dans
-  // la vraie fenêtre. Ne rien construire dessus tant que 03 n'est pas résolu.
+  // `aplat` (2026-08-17) est le VINGT-QUATRIÈME, et le premier à entrer par une
+  // question à laquelle il n'a pas répondu. Né prototype pour rendre le ticket
+  // 03 décidable (« une forme a-t-elle besoin d'un troisième genre de calque »),
+  // il a servi à faire corriger la QUESTION : mis devant lui, Antoine a répondu
+  // que les formes étaient pour les masques et la sélection, pas pour un effet.
+  //
+  // Il reste quand même, sur son arbitrage, pour une raison indépendante : une
+  // COULEUR UNIE manquait au registre, et le cahier de postproduction la cite
+  // (§96, « calques Couleur unie en modes Color, Soft Light ou Screen »). C'est
+  // la seule entrée qui ne LIT pas ce qui est en dessous d'elle pour le
+  // transformer — comme `lightLeak`, mais sans même une source dans l'image.
   aplat,
 ];
 effectRegistry.forEach(validateEffect);

@@ -16,8 +16,11 @@
 
 ## Où en est le code — mesuré sur disque le 2026-08-05, pas de mémoire
 
-- **23 effets** au registre (`src/render/effects/registry.ts`) — `texture` puis
-  `lightLeak`, tous deux le 2026-08-05.
+- **24 effets** au registre (`src/render/effects/registry.ts`) — `texture` puis
+  `lightLeak` le 2026-08-05, `aplat` le 2026-08-17.
+  ⚠️ `aplat` (couleur unie bornée par un masque ou une primitive posée) est
+  **encore à sa version pipeline** : son upgrade qualité est dû et ticketé, ce
+  qui en fait le seul effet du registre dans cet état. Voir le bloc 1.
 - `glass` **complet** : 14 matières (9 de feuille + 5 de pavé), 5 profils de
   section, **18 références de pixels — toutes les branches verrouillées**.
 - **Les 23 effets portent des sections** et leurs applicabilités déclarées

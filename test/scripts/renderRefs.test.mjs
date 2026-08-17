@@ -87,6 +87,23 @@ const ATTENDU = {
   // en font une mesure et pas une intention.
   "effet-light-leak.png": { width: 256, height: 256, valeurs: null },
   "effet-light-leak-neutre.png": { width: 256, height: 256, valeurs: null },
+  // APLAT (2026-08-17), trois références pour trois propriétés distinctes.
+  //
+  // La paire rectangle/ellipse partage TOUTE sa géométrie : leur écart est donc
+  // exactement la différence des deux primitives. ⚠️ Elle a un plancher de
+  // signal, payé à la première exécution — à 0,5 × 0,32 elle ne s'écartait que
+  // de 2,96 % des canaux et le gate a rougi. Leur différence n'est QUE les
+  // quatre coins, dont l'aire vaut `1 - π/4` de la boîte englobante : 21,5 %
+  // d'une petite boîte ne fait rien. À 0,8 × 0,6 la paire porte 8,3 %.
+  "effet-aplat.png": { width: 256, height: 256, valeurs: null },
+  "effet-aplat-ellipse.png": { width: 256, height: 256, valeurs: null },
+  // La TROISIÈME est la seule qui verrouille `outAlpha = max(color.a,
+  // couverture)` : toile 320 pour une mire de 256, rectangle à cheval sur le
+  // bord gauche, donc une moitié tombe sur le passe-partout. Avec l'alpha
+  // d'entrée préservé — l'écriture naturelle, celle de tous les autres effets —
+  // cette moitié disparaîtrait, et l'effet aurait l'air correct partout où une
+  // photo couvre.
+  "effet-aplat-hors-photo.png": { width: 320, height: 320, valeurs: null },
   // LES TROIS SOURCES PARAMÉTRIQUES, CHACUNE SEULE (2026-08-05). Le registre en
   // sert trois (`mask/sources/registry.ts`) et AUCUNE n'avait de verrou propre :
   // `masque-pinceau-degrade` ci-dessus fait tourner le dégradé, mais en passager

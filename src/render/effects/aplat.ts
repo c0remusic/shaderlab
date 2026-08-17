@@ -9,14 +9,19 @@ import { SRGB_TO_LINEAR_VEC3_WGSL, SRGB_TO_LINEAR_WGSL } from "./srgbTransfer";
 /**
  * Aplat — une COULEUR UNIE, bornée par un masque ou par une primitive posée.
  *
- * ⚠️ PROTOTYPE, ticket 23 de `.scratch/prochain-palier/`. Écrit pour rendre une
- * question décidable, pas pour être gardé tel quel. Antoine, mis devant le
- * périmètre du ticket 03 (« une forme a-t-elle besoin d'un troisième genre de
- * calque ? »), a répondu « je ne sais pas encore — montre-moi ». Ce fichier est
- * ce qu'on lui montre. Il se garde ou se jette selon sa réponse ; tant qu'elle
- * n'est pas rendue, ne rien construire dessus.
+ * VINGT-QUATRIÈME effet du registre, entré le 2026-08-17. Né prototype (ticket 23
+ * de `.scratch/prochain-palier/`, écrit pour rendre le ticket 03 décidable) et
+ * GARDÉ sur arbitrage d'Antoine le même jour : « faut l'améliorer type
+ * photoshop ». Ce qu'il lui manque pour ça est ticketé, pas oublié — dégradé de
+ * remplissage, poignées sur la toile, primitives supplémentaires.
  *
- * ─── CE QU'IL TESTE, ET POURQUOI C'EST LA BONNE QUESTION ────────────────────
+ * ⚠️ Il n'a PAS résolu la question qui l'a fait naître, et c'est le plus utile
+ * qu'il ait fait : mis devant lui, Antoine a corrigé la question elle-même —
+ * « c'était pour les masques et la sélection, pas pour un effet ». Une forme
+ * SÉLECTIONNE. Cet effet reste parce qu'une couleur unie manquait au registre
+ * (le cahier de postproduction la cite §96), pas parce qu'il répond aux formes.
+ *
+ * ─── D'OÙ IL VIENT, ET POURQUOI IL RESTE ───────────────────────────────────
  *
  * Le cahier de postproduction ne demande pas « des formes » en bloc. Il en
  * demande DEUX choses, et elles ne se ressemblent pas :
@@ -37,19 +42,21 @@ import { SRGB_TO_LINEAR_VEC3_WGSL, SRGB_TO_LINEAR_WGSL } from "./srgbTransfer";
  * cahier la cite pourtant §96, « calques Couleur unie en modes Color, Soft
  * Light ou Screen ».
  *
- * **Si cet effet suffit, la question du troisième genre de calque ne se pose
- * pas** : il ne touche pas `LayerState`, ne porte aucun `contentSource`, et
- * tient en dix paramètres sur les 48 disponibles.
+ * Il ne touche pas `LayerState`, ne porte aucun `contentSource`, et tient en dix
+ * paramètres sur les 48 disponibles.
  *
- * ─── LE NIVEAU QU'IL NE PEUT PAS MONTRER, ET C'EST L'INFORMATION ────────────
+ * ─── CE QU'IL NE FERA JAMAIS, ET OÙ ÇA VIT ─────────────────────────────────
  *
- * Une forme LIBRE — N points, Bézier, transformation perspective — ne s'écrit
- * pas ici, et pas par manque de temps : `LayerState.params` est un
+ * Une forme LIBRE — N points, Bézier, transformation perspective — ne s'écrira
+ * pas ici, et pas par manque d'envie : `LayerState.params` est un
  * `Record<string, number>` servi par un uniform `array<f32, 48>`. Une forme à
  * douze points en consomme vingt-quatre pour ses seules coordonnées, et rien ne
- * dit combien de points l'utilisateur voudra. C'est le SEUL des trois niveaux
- * qui bute réellement sur le modèle — donc le seul qui puisse justifier la
- * voie A. Le montrer absent vaut mieux que le décrire.
+ * dit combien de points l'utilisateur voudra.
+ *
+ * C'est le mur que le ticket 03 a fini par désigner, et sa conclusion n'était
+ * pas « alors ouvrons la voie A » mais « alors ce n'est pas un effet » : ce que
+ * ce mur borne est un OUTIL DE SÉLECTION, qui vit du côté de `mask/sources/` et
+ * qui a sa propre carte à charter. Ne pas tenter de le faire entrer ici.
  *
  * ─── TROIS CHOIX QUI ÉVITENT LE RENDU CHEAP ────────────────────────────────
  *

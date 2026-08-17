@@ -1304,7 +1304,7 @@ const INSTALL = `(async () => {
 
     // CERCLES : la seule forme dont la phase n est pas une projection sur une
     // direction, donc la seule ou l angle et le croisement n ont plus d objet.
-    // Centre decale hors du milieu (0.35, 0.4) exprès : centre, les anneaux
+    // Centre decale hors du milieu (0.35, 0.4) expres : centre, les anneaux
     // seraient symetriques sur les deux axes et une inversion de x et y passerait
     // inapercue.
     "effet-hatching-cercles": {
@@ -1816,7 +1816,7 @@ const INSTALL = `(async () => {
     },
 
     // GOOEY MERGE, SEUL, et pose le 2026-08-02 pour repondre a une question
-    // d Antoine : « tres aliasé effet metal avec des artefacts, c est le but ? »
+    // d Antoine : « tres aliase effet metal avec des artefacts, c est le but ? »
     //
     // La question ne peut pas se trancher sur sa capture : il y empilait gooey
     // merge SOUS un halftone, donc l effet posait un seuil de metaballe sur une
@@ -2547,8 +2547,8 @@ const INSTALL = `(async () => {
       },
     },
 
-    // TRANCHE 2 DU VERRE : cinq pavés, sur la même mire et avec le même bloc.
-    // Chaque scénario ne change que le moulage interne ; la chaîne contre
+    // TRANCHE 2 DU VERRE : cinq paves, sur la meme mire et avec le meme bloc.
+    // Chaque scenario ne change que le moulage interne ; la chaine contre
     // garantit que deux branches ne peuvent pas converger silencieusement.
     "effet-verre-pave-nuage": {
       contre: "effet-verre-cannele",
@@ -2916,6 +2916,89 @@ const INSTALL = `(async () => {
           irregularite: 0.38, echelleBruit: 5.5, graine: 0,
         });
         at(stack, a).blendMode = "screen";
+      },
+    },
+
+    // ── APLAT : UNE COULEUR UNIE, BORNEE ──────────────────────────────────
+    //
+    // Trois scenarios pour trois proprietes distinctes, et le troisieme est le
+    // seul qui puisse attraper la decision la plus facile a defaire.
+    //
+    // CE QUE LA MIRE PEUT MONTRER, verifie avant d ecrire : un aplat est une
+    // REGION, donc n importe quelle mire structuree suffit a lire ou il commence
+    // et ou il finit. C est l inverse du piege de \`lensBlur\`, qui demandait un
+    // point brillant isole — ici la propriete est geometrique, pas tonale.
+
+    // RECTANGLE TOURNE, bord franc. Verrouille la couverture, la rotation en
+    // espace isotrope et la couleur. La rotation est a 20 degres et non a 0 ou
+    // 90 : un rectangle droit ne distinguerait pas une rotation correcte d une
+    // rotation absente, et un rectangle a 90 degres ne distinguerait pas une
+    // rotation d un echange largeur/hauteur.
+    "effet-aplat": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("aplat");
+        stack.updateParams(a, {
+          borne: 1,
+          // GRAND, et c est le gate de signal qui l a impose. A 0,5 x 0,32
+          // l ellipse ne s ecartait du rectangle que sur 2,96 % des canaux :
+          // leur difference n est QUE les quatre coins, dont l aire vaut
+          // 1 - pi/4 de la boite englobante, soit 21,5 % — donc 21,5 % d une
+          // petite boite ne fait rien. A 0,8 x 0,6 la paire porte ~10 %.
+          centreX: 0.46, centreY: 0.52, largeur: 0.8, hauteur: 0.6,
+          rotation: 20, adoucissement: 0,
+          teinte: 35, saturation: 0.3, clarte: 0.9,
+        });
+      },
+    },
+
+    // LA MEME GEOMETRIE EN ELLIPSE. Tout est identique par ailleurs, donc l ecart
+    // entre les deux images EST la difference des deux primitives, et rien
+    // d autre. Ce qu il attrape et qu un scenario isole ne pourrait pas : les
+    // deux branches partagent la meme fonction de couverture, donc une erreur
+    // dans la distance de l une seule passerait inapercue si chacune n etait
+    // comparee qu a la photo nue.
+    "effet-aplat-ellipse": {
+      contre: "effet-aplat",
+      build: async (r, stack) => {
+        const a = stack.addLayer("aplat");
+        stack.updateParams(a, {
+          borne: 2,
+          // GRAND, et c est le gate de signal qui l a impose. A 0,5 x 0,32
+          // l ellipse ne s ecartait du rectangle que sur 2,96 % des canaux :
+          // leur difference n est QUE les quatre coins, dont l aire vaut
+          // 1 - pi/4 de la boite englobante, soit 21,5 % — donc 21,5 % d une
+          // petite boite ne fait rien. A 0,8 x 0,6 la paire porte ~10 %.
+          centreX: 0.46, centreY: 0.52, largeur: 0.8, hauteur: 0.6,
+          rotation: 20, adoucissement: 0,
+          teinte: 35, saturation: 0.3, clarte: 0.9,
+        });
+      },
+    },
+
+    // L APLAT COUVRE LA OU IL N Y A RIEN, et c est le seul scenario qui le dise.
+    //
+    // Toile 320 x 320 pour une mire de 256 : une bande de 32 px reste non
+    // couverte sur les quatre cotes, et l export l aplatit en BLANC (ADR-0006).
+    // Le rectangle est pose a cheval sur le bord gauche, donc une moitie tombe
+    // sur la photo et l autre sur le passe-partout.
+    //
+    // CE QU IL VERROUILLE : \`outAlpha = max(color.a, couverture)\` dans
+    // \`aplat.ts\`. Avec l alpha d entree preserve — l ecriture naturelle, et
+    // celle de tous les autres effets du registre — la moitie exterieure
+    // resterait BLANCHE, et le cas 453 du cahier (un aplat colore A
+    // COTE de la photographie) serait irrealisable sans que rien ne rougisse :
+    // l effet aurait l air parfaitement correct partout ou une photo couvre.
+    "effet-aplat-hors-photo": {
+      toile: { width: 320, height: 320 },
+      build: async (r, stack) => {
+        const a = stack.addLayer("aplat");
+        stack.updateParams(a, {
+          borne: 1,
+          centreX: 0.1, centreY: 0.5, largeur: 0.24, hauteur: 0.7,
+          rotation: 0, adoucissement: 0,
+          teinte: 200, saturation: 0.6, clarte: 0.5,
+        });
       },
     },
 

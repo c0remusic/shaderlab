@@ -232,13 +232,16 @@ Ruled beyond the destination. Ne graduent jamais.
   d'Antoine, 2026-08-11) : cette carte n'y va pas, elle en garde seulement la
   contrainte. `PRD-print-export.md` reste valide et dormant ; le rouvrir sera
   une carte à lui.
-- **La suppression des branches mortes** — mesurée le 2026-08-11 :
-  `claude/lucid-vaughan-6f8fc7` est superseded par `master`,
-  `claude/wonderful-thompson-fd0488` est déjà dans `master` (`87cf44f`),
-  `feature/dock-width-resize` / `claude/quizzical-hofstadter-b276ac` /
-  `worktree-agent-af9e8ffc69359d5ab` sont à 0 commit d'avance. Aucune décision
-  à prendre, rien de bloqué : c'est une corvée, pas une étape de la route. Le
-  sort de `sat-feather`, lui, EST une décision — voir son ticket.
+- ✅ **La suppression des branches mortes — FAITE le 2026-08-16.** Sept branches
+  distantes retirées, chacune vérifiée avant le geste. ⚠️ Et ce n'était pas la
+  corvée annoncée : `claude/mattpocock-skills-wayfinder-6lxjiz` portait depuis le
+  2026-08-11 un correctif du défaut CI du ticket 22, **plus complet que celui
+  trouvé le 2026-08-16** — récolté avant suppression. Deux affirmations de cette
+  carte étaient par ailleurs fausses (« déjà dans master », « superseded » sur des
+  branches qui portaient des commits uniques : vrai en contenu, faux en commits).
+  Restent `mipmaps-bibliotheque` (verdict en attente) et `task-management`
+  (480 lignes orphelines — décision, pas corvée). Détail dans `docs/ROADMAP.md` § 4.
+
 - **`PRD-floating-panel-rail.md`** — cadre un rail pour `FloatingPanel`,
   composant supprimé le 2026-07-21, et le rail a été livré autrement (panneaux
   contextuels, 2026-07-25/26). PRD zombie : une suppression et une ligne de

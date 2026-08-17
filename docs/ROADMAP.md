@@ -919,37 +919,43 @@ Ni continuée ni arrêtée, jamais décidée — et l'écart grandit à chaque c
 Se tranche dans
 `.scratch/prochain-palier/issues/13-la-migration-shadcn-est-elle-encore-la-direction.md`.
 
-### Branches mortes, mesurées
+### ✅ Branches mortes — SUPPRIMÉES le 2026-08-16
 
-`claude/lucid-vaughan-6f8fc7` est superseded par `master` ;
-`claude/wonderful-thompson-fd0488` est **déjà dans `master`** (`87cf44f`) ;
-`feature/dock-width-resize`, `claude/quizzical-hofstadter-b276ac` et
-`worktree-agent-af9e8ffc69359d5ab` sont à 0 commit d'avance ;
-`origin/task-management` porte un commit orphelin cité nulle part. Corvée de
-nettoyage, aucune décision — sauf le sort de `sat-feather` ci-dessus.
+Sept branches distantes retirées, chacune **vérifiée avant le geste** et non sur
+la foi de ce que ce document en disait :
 
-✅ **Fait le 2026-08-16, sur la ligne GPU** : `gpu-optimisations` a été fusionnée
-dans `master` en fast-forward (14 commits, `9a12812` → `6c17c88`) — elle
-emportait donc les quatre commits de docs qui vivaient sur elle, et le bloc qui
-demandait de les cherry-picker est sans objet. Deux branches entièrement
-contenues dans `master` ont été supprimées, local et distant :
-`gpu-timing-par-passe` et `fix/perf-masque-courbes-contour` (0 commit unique
-chacune, vérifié avant le geste). Il reste **12 branches distantes**.
+| branche | uniques | pourquoi elle pouvait partir |
+| --- | --- | --- |
+| `claude/quizzical-hofstadter-b276ac` | 0 | rien d'unique |
+| `feature/dock-width-resize` | 0 | rien d'unique |
+| `worktree-agent-af9e8ffc69359d5ab` | 0 | rien d'unique |
+| `claude/lucid-vaughan-6f8fc7` | 4 | dépose du round-trip — faite autrement sur `master` : `isLaunchFile`/`roundTripActive` n'y existent plus qu'en commentaires |
+| `claude/wonderful-thompson-fd0488` | 2 | garde overlay/export — sur `master` sous une MEILLEURE forme (`maskOverlayFor`, plus trois tests dont un témoin) |
+| `claude/mattpocock-skills-wayfinder-6lxjiz` | 2 | son correctif Vite a été RÉCOLTÉ avant suppression (voir ci-dessous) ; le reste est un `settings.json` de plugin et une story déjà verte |
+| `sat-feather` | 12 | verdict rendu le 2026-08-13 : `aee22fb` porté en passe `featherSat` |
 
-⚠️ **`mipmaps-bibliotheque` n'est PAS dans ce lot** : elle porte un commit
-unique (`c06147c`, `src/render/mipmapGenerator.ts`) qui attend son verdict, et
-elle est à 1 d'avance / 8 de retard sur `master` — donc rebasable proprement le
-jour où le verdict tombe. Deux passages de cette feuille la citaient comme si
-elle était acquise.
+⚠️ **UNE BRANCHE MORTE PEUT PORTER UN CORRECTIF QU'ON N'A PAS.**
+`claude/mattpocock-skills-wayfinder-6lxjiz` portait déjà, depuis le 2026-08-11,
+un correctif du défaut CI du ticket 22 — et **plus complet que celui trouvé le
+2026-08-16** : elle pré-bundlait TOUT le jeu d'entrées React, là où le mien ne
+couvrait que l'entrée que Vite avait découverte ce jour-là. Récolté (`a53cf18`)
+avant de supprimer. **Mesurer les branches avant de les jeter n'est pas une
+formalité de nettoyage.**
 
-✅ **RÉGLÉ le 2026-08-16.** `master` était à **456 commits d'avance** sur
-`feature/design-system` — qui n'avait rien en retour et n'avait pas bougé depuis
-le 2026-07-26 — pendant qu'`origin/HEAD` pointait toujours sur elle. `master` est
-désormais la branche canonique ET la branche par défaut du dépôt
-([ADR-0005](../docs/adr/0005-master-est-la-branche-canonique.md), qui renverse
-ADR-0003). `feature/design-system` a été fast-forwardée, sans perte : elle
-n'avait aucun commit unique. **Plus aucune synchronisation manuelle n'est due** —
-c'est le geste répété prescrit par ADR-0003 qui n'avait pas tenu.
+⚠️ **Et deux affirmations de ce document étaient fausses** : il donnait
+`claude/wonderful-thompson-fd0488` pour « déjà dans master » et
+`claude/lucid-vaughan-6f8fc7` pour « superseded », alors que les deux portaient
+des commits uniques. Elles l'étaient en CONTENU, pas en commits — la conclusion
+tenait, la raison écrite était fausse, et seule la vérification le montre.
+
+### Ce qui RESTE, et pourquoi
+
+- **`mipmaps-bibliotheque`** (1 commit unique) — `src/render/mipmapGenerator.ts`,
+  « EN ATTENTE D'UN VERDICT ». Ne pas supprimer avant qu'il soit rendu.
+- **`task-management`** (1 commit unique) — `DesignPreview.tsx`, **480 lignes
+  jamais fusionnées et citées nulle part**. Ce n'est pas un reliquat, c'est du
+  travail orphelin : le supprimer perd le code. Décision à prendre.
+- `feature/design-system` — miroir de `master` (ADR-0005), gardée telle quelle.
 
 ---
 

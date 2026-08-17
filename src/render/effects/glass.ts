@@ -190,6 +190,17 @@ const MATIERES_PAVE = MATIERES.filter((index) => index >= MAT_PAVE_NUAGE);
 export const glass: EffectModule = {
   id: "glass",
   name: "Glass",
+  // SOURCE À PYRAMIDE (ticket 19, 2026-08-17). Cet effet est le seul du registre
+  // à la demander, et pour une raison mesurée : ce qui le rend cher n'est ni son
+  // calcul ni sa géométrie mais la DISPERSION de ses adresses de lecture — à
+  // `Creux = 0` un pavé coûte exactement ce que coûte une feuille. Lire un
+  // niveau plus grossier rend ces lectures locales : 98,6 ms → 25,6 ms sur un
+  // Pavé quadrillé à 26 Mpx.
+  //
+  // ⚠️ Le niveau est DÉRIVÉ de l'étalement réel et borné à 1 (`verre_niveau`),
+  // donc les matières qui déplacent peu restent au niveau 0 et rendent le même
+  // bit qu'avant. Voir `EffectModule.sourceMipmaps` pour ce que le drapeau coûte.
+  sourceMipmaps: true,
   params: [
     { name: "material", label: "Matière", unit: "none", min: 0, max: MATERIALS.length - 1, default: MAT_CANNELE, step: 1, choices: [...MATERIALS], hint: "Quel verre. Chacune fabrique sa pente de surface à sa façon ; tout ce qui suit — réfraction, dispersion, reflets, absorption — est commun. Plusieurs réglages ci-dessous ne concernent qu'une partie d'entre elles, et le disent" },
     { name: "density", label: "Densité du motif", unit: "none", min: 1, max: 200, default: 42, step: 1, hint: "Combien de stries, de cellules ou d'accidents sur la largeur de l'image. Sans objet en Poli, dont l'ondulation tient plusieurs fois l'écran par construction, et en Dépoli, qui n'a aucun motif", appliesWhen: { param: "material", equals: MATIERES_SAUF(MAT_POLI, MAT_DEPOLI) } },
@@ -616,11 +627,38 @@ fn verre_pentes(q: vec2<f32>, uv: vec2<f32>, dims: vec2<f32>) -> vec2<f32> {
   return p + micro;
 }
 
-/** Une lecture du fond, repliée. \`textureSampleLevel\` et non \`textureSample\` :
- *  voir l'en-tête — le flux de contrôle n'est pas uniforme ici, et rien n'a
- *  besoin de dérivée d'écran. */
-fn verre_lire(uv: vec2<f32>) -> vec3<f32> {
-  return textureSampleLevel(srcTexture, srcSampler, mirrorUv(uv), 0.0).rgb;
+/** Une lecture du fond, repliee, a un niveau de mipmap CHOISI PAR L APPELANT.
+ *
+ *  \`textureSampleLevel\` et non \`textureSample\` : voir l en-tete — le flux de
+ *  controle n est pas uniforme ici, et rien n a besoin de derivee d ecran. Le
+ *  niveau etait une constante 0 jusqu au 2026-08-17 ; il est devenu un argument
+ *  parce que la diffusion et la dispersion n ont pas les memes besoins.
+ *
+ *  ⚠️ CE QUE LE NIVEAU CHANGE N EST PAS QUE DU DETAIL, C EST LE COUT. Ce qui
+ *  rend cet effet cher n est ni son calcul ni sa geometrie mais la DISPERSION
+ *  de ses adresses de lecture : une lecture dispersee coute ~25 fois une lecture
+ *  coherente (ticket 19). Un niveau plus grossier divise la surface lue par
+ *  quatre, donc rend les lectures locales. Mesure du 2026-08-17 sur Pave
+ *  quadrille a 26 Mpx : 98,6 ms au niveau 0, 25,6 ms au niveau 1. */
+fn verre_lire(uv: vec2<f32>, niveau: f32) -> vec3<f32> {
+  return textureSampleLevel(srcTexture, srcSampler, mirrorUv(uv), niveau).rgb;
+}
+
+/** Niveau de mipmap pour un etalement donne, exprime en UV.
+ *
+ *  Un niveau vaut deux fois la taille de texel du precedent : le niveau juste
+ *  suffisant pour un etalement de N texels est donc \`log2(N)\`. En dessous d un
+ *  texel d etalement, rien a gagner — on reste au niveau 0, et le rendu est
+ *  alors INCHANGE AU BIT PRES par rapport a l avant-2026-08-17.
+ *
+ *  ⚠️ BORNE A 1, ET CE N EST PAS UNE PRUDENCE — C EST UNE MESURE. Le niveau 2
+ *  rend 28,8 ms la ou le niveau 1 en rend 25,6 : il est MOINS BON. Au niveau 1
+ *  la zone de travail tient deja dans le cache, donc descendre plus bas n achete
+ *  plus de localite et ne fait que perdre du detail. La tentation naturelle est
+ *  de croire que plus grossier est plus rapide ; la courbe dit non. */
+fn verre_niveau(etalementUv: f32, dims: vec2<f32>) -> f32 {
+  let texels = etalementUv * max(dims.x, dims.y);
+  return clamp(log2(max(texels, 1.0)), 0.0, 1.0);
 }
 
 /** TRAVERSÉE DIFFUSE, neuf prélèvements.
@@ -630,7 +668,7 @@ fn verre_lire(uv: vec2<f32>) -> vec3<f32> {
  *  trahit le procédé à l'œil nu. Le terme \`sin(t · 9.42) · f · 0.38\` rompt
  *  l'alignement pour un coût nul. Il vient de la source, où il avait été ajouté
  *  après coup pour cette raison exacte. */
-fn verre_traverser(uv: vec2<f32>, d: vec2<f32>, f: f32) -> vec3<f32> {
+fn verre_traverser(uv: vec2<f32>, d: vec2<f32>, f: f32, niveau: f32) -> vec3<f32> {
   var s = vec3<f32>(0.0);
   var somme = 0.0;
   // NEUF PRELEVEMENTS EN SPIRALE D'OR, ponderes en gaussienne — et non plus
@@ -671,7 +709,7 @@ fn verre_traverser(uv: vec2<f32>, d: vec2<f32>, f: f32) -> vec3<f32> {
     let rayon = sqrt(fraction);
     let a = f32(i) * angleOr;
     let poids = exp(-2.0 * fraction);
-    s = s + poids * verre_lire(uv + d + vec2<f32>(cos(a), sin(a)) * rayon * f);
+    s = s + poids * verre_lire(uv + d + vec2<f32>(cos(a), sin(a)) * rayon * f, niveau);
     somme = somme + poids;
   }
   return s / somme;
@@ -711,7 +749,20 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // par l'autre bout.
   let f = diffusion * 0.25 + length(d) * 0.10;
 
-  var c = verre_traverser(uv, d, f);
+  // NIVEAU DE MIPMAP DES LECTURES DE FOND, derive de l etalement reel (ticket
+  // 19). A etalement inferieur a un texel il vaut 0, donc le rendu des matieres
+  // qui deplacent peu est INCHANGE AU BIT PRES ; c est sur les pavés, ou l
+  // etalement atteint des dizaines de texels, qu il monte a 1 et fait tomber le
+  // cout d un facteur ~3,9.
+  //
+  // ⚠️ Le meme niveau sert a la DISPERSION plus bas, et c est voulu : ses taps
+  // ne rendent qu un ECART a une reference prise au meme endroit, donc flouter
+  // les deux termes identiquement preserve la frange. Ce qui ne doit PAS le
+  // recevoir est l ambiance du mortier, dont la mesure dit qu elle ne coute
+  // rien — la deplacer bougerait 18 references pour aucun gain.
+  let niveau = verre_niveau(f, dims);
+
+  var c = verre_traverser(uv, d, f, niveau);
 
   if (disp > 0.001) {
     // DISPERSION PAR L'INDICE. Un seul flou à neuf taps, au décalage du vert ;
@@ -734,8 +785,8 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     // piège dans le dossier après \`trait\` (echoOutlines), \`active\`
     // (sliceShift) et \`smooth\` (pixelStretch) — attrapé par
     // \`npm run test:gpu-shaders\`, jamais par tsc, qui ne voit qu'une chaîne.
-    let refVert = verre_lire(uv + d);
-    c = c + vec3<f32>(verre_lire(uv + dr).r - refVert.r, 0.0, verre_lire(uv + db).b - refVert.b);
+    let refVert = verre_lire(uv + d, niveau);
+    c = c + vec3<f32>(verre_lire(uv + dr, niveau).r - refVert.r, 0.0, verre_lire(uv + db, niveau).b - refVert.b);
   }
 
   // ABSORPTION DE BEER-LAMBERT, et c'est elle qui rend le verre VERT. Le vert
@@ -826,11 +877,16 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     let adoucissement = max(joint * 0.22, 1.0);
     let masqueMortier = 1.0 - smoothstep(joint * 0.5 - adoucissement, joint * 0.5 + adoucissement, distanceBord);
     if (masqueMortier > 0.001) {
-      let amb = (verre_lire(uv + vec2<f32>(0.050, 0.028))
-        + verre_lire(uv + vec2<f32>(-0.050, 0.028))
-        + verre_lire(uv + vec2<f32>(0.050, -0.028))
-        + verre_lire(uv + vec2<f32>(-0.050, -0.028))
-        + verre_lire(uv)) * 0.2;
+      // NIVEAU 0 DELIBERE, contre la tentation. Ces cinq taps ont des decalages
+      // FIXES, donc leurs adresses sont coherentes d un pixel au suivant — c est
+      // exactement ce que la mesure du ticket 19 a constate en les ablatant :
+      // ils ne coutent RIEN. Un niveau grossier les rendrait plus lisses et ne
+      // gagnerait aucune milliseconde, au prix des 18 references du verre.
+      let amb = (verre_lire(uv + vec2<f32>(0.050, 0.028), 0.0)
+        + verre_lire(uv + vec2<f32>(-0.050, 0.028), 0.0)
+        + verre_lire(uv + vec2<f32>(0.050, -0.028), 0.0)
+        + verre_lire(uv + vec2<f32>(-0.050, -0.028), 0.0)
+        + verre_lire(uv, 0.0)) * 0.2;
       let lum = dot(amb, vec3<f32>(0.2126, 0.7152, 0.0722));
       let froid = srgb_to_linear3(vec3<f32>(0.97, 1.0, 0.98));
       let chaud = srgb_to_linear3(vec3<f32>(1.0, 0.95, 0.89));

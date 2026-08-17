@@ -168,7 +168,16 @@ describe("glass — les deux corrections payées à la première exécution", ()
     // Quatrième occurrence du piège dans ce dossier après `trait`, `active` et
     // `smooth` : `ref` est réservé, et le compilateur le refuse. Attrapé par
     // `npm run test:gpu-shaders`, jamais par tsc, qui ne voit qu'une chaîne.
-    expect(wgsl).toContain("let refVert = verre_lire(uv + d);");
+    // ⚠️ ON ASSERTE L'INVARIANT, PAS LA LIGNE. Cette assertion citait l'appel
+    // entier (`let refVert = verre_lire(uv + d);`) et a rougi le 2026-08-17 pour
+    // une raison sans rapport avec ce qu'elle protège : `verre_lire` a pris un
+    // second argument (le niveau de mipmap, ticket 19). Un test qui casse quand
+    // le code change POUR UNE AUTRE RAISON coûte une enquête à chaque fois et
+    // finit par être neutralisé sans qu'on regarde ce qu'il disait.
+    //
+    // Ce qui compte est double, et se dit sans citer la ligne : la variable
+    // existe sous son nom non réservé, et `ref` nu n'apparaît nulle part.
+    expect(wgsl).toMatch(/\blet refVert\b/);
     expect(wgsl).not.toMatch(/\blet ref\b/);
   });
 });
@@ -223,7 +232,14 @@ describe("glass — l'optique, et ce qui la sépare d'un portage naïf", () => {
     // La traversée vit sous des grandeurs qui dépendent du pixel, donc un flux
     // de contrôle non uniforme où `textureSample` serait illégal. Rien ici n'a
     // besoin de dérivée : `textureSampleLevel` partout.
-    expect(wgsl).toContain("textureSampleLevel(srcTexture, srcSampler, mirrorUv(uv), 0.0)");
+    //
+    // ⚠️ LE NIVEAU N'EST PLUS UNE CONSTANTE, et l'assertion ne doit donc plus en
+    // citer une. Elle exigeait `..., mirrorUv(uv), 0.0)` jusqu'au 2026-08-17 ;
+    // depuis le ticket 19 le niveau est DÉRIVÉ de l'étalement, et geler `0.0`
+    // ici aurait interdit précisément le changement qui divise le coût par
+    // ~3,9. Ce que ce test protège est l'ABSENCE de dérivée d'écran, pas la
+    // valeur du niveau.
+    expect(wgsl).toMatch(/textureSampleLevel\(srcTexture, srcSampler, mirrorUv\(uv\), \w+\)/);
     expect(wgsl).not.toMatch(/textureSample\(/);
   });
 

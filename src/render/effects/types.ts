@@ -345,4 +345,30 @@ export interface EffectModule {
    */
   defaultBlendMode?: string;
   defaultOpacity?: number;
+
+  /**
+   * Déclare que cet effet lit sa source à des NIVEAUX DE MIPMAP, et non
+   * seulement au niveau 0. L'exécuteur lui fournit alors une copie de sa source
+   * portant une pyramide complète, reconstruite à chaque frame.
+   *
+   * D'OÙ ÇA VIENT (ticket 19, mesuré le 2026-08-17). `glass` est de loin l'effet
+   * le plus cher du registre — 98,6 ms de temps GPU sur un Pavé quadrillé à
+   * 26 Mpx — et la cause n'est ni son calcul ni sa géométrie : c'est que son
+   * DÉPLACEMENT disperse les adresses de ses lectures. Une lecture dispersée
+   * coûte ~25 fois une lecture cohérente. Lire un niveau plus grossier rend les
+   * lectures LOCALES : mesuré, la même passe tombe à **25,6 ms**.
+   *
+   * ⚠️ **CE N'EST PAS GRATUIT, ET C'EST POUR ÇA QUE C'EST DÉCLARATIF.** La
+   * pyramide coûte une copie pleine résolution plus sa chaîne de blits À CHAQUE
+   * IMAGE (~1 ms à 26 Mpx), et une texture de plus en VRAM (+33 % de la taille
+   * d'une cible). Un effet qui ne lit qu'au niveau 0 ne doit rien payer de tout
+   * ça — d'où un drapeau qu'on pose, jamais un comportement par défaut.
+   *
+   * ⚠️ **LE GAIN SATURE AU NIVEAU 1**, mesuré : le niveau 2 rend 28,8 ms, donc
+   * MOINS BON que le niveau 1. Au niveau 1 la zone de travail tient déjà dans le
+   * cache ; descendre plus bas n'achète plus de localité et ne fait que perdre
+   * du détail. Un shader qui dérive son niveau d'un rayon doit donc le BORNER —
+   * la tentation naturelle est de croire que plus grossier est plus rapide.
+   */
+  sourceMipmaps?: boolean;
 }

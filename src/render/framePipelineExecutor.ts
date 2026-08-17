@@ -1,6 +1,7 @@
 import type { LayerState } from "../layers/types";
 import { resolveClipping, type ClipResolution } from "../layers/clipping";
 import { guideChainKey, jetonApercuLive } from "../layers/contentKey";
+import { MippedSourceCache } from "./mippedSource";
 import type { GpuTiming } from "./gpuTiming";
 import { photoGuideKey } from "../layers/photoLayer";
 import { defaultLayerMask } from "../mask/types";
@@ -198,6 +199,12 @@ export class FramePipelineExecutor {
     this.diagStale = { frames: 0, jamais: 0 };
     return copie;
   }
+
+  /** Copie à pyramide de la source, pour les effets qui déclarent
+   *  `EffectModule.sourceMipmaps`. Créée à la PREMIÈRE demande : un document
+   *  qui n'en contient aucun ne l'alloue jamais, et c'est tout l'intérêt du
+   *  drapeau déclaratif (voir `mippedSource.ts`). */
+  private mippedSources: MippedSourceCache | null = null;
 
   constructor(
     private readonly device: GPUDevice,
@@ -580,6 +587,20 @@ export class FramePipelineExecutor {
           pendingDestroy,
         );
       }
+      // SOURCE À PYRAMIDE pour les effets qui le déclarent (ticket 19). Une
+      // COPIE de `readTexture`, jamais `readTexture` elle-même : une cible de
+      // ping-pong à pyramide casse toutes les vues qui en font une cible de
+      // rendu, et la frame sort noire sans que `tsc` en dise rien — voir
+      // `mippedSource.ts` pour les deux raisons et leur mesure.
+      //
+      // Encodée ICI, juste avant la passe qui la lit : les passes d'un même
+      // encodeur s'exécutent dans l'ordre de soumission, donc deux calques
+      // déclarants partagent la même texture sans se marcher dessus.
+      let effectSourceView = readTexture.createView();
+      if (effect.sourceMipmaps) {
+        this.mippedSources ??= new MippedSourceCache(this.device, readTexture.format);
+        effectSourceView = this.mippedSources.viewFor(encoder, readTexture);
+      }
       this.effects.runEffectPass(
         encoder,
         effect,
@@ -588,7 +609,7 @@ export class FramePipelineExecutor {
         // composite-en-dessous, jamais la photo — c'est ce qui laisse
         // apparaître le fond hors des bornes de la silhouette (défaut (b),
         // couverture injectée séparément via `imageSourceView`).
-        readTexture.createView(),
+        effectSourceView,
         targetView,
         {
           applyMask: true,

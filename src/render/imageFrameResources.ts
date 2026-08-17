@@ -56,7 +56,16 @@ export class ImageFrameResources {
     this.canvas = this.device.createTexture({
       size: [this.imageWidth, this.imageHeight],
       format: this.srgbFormat,
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+      // `COPY_SRC` posé le 2026-08-17 pour `MippedSourceCache`, et pour lui
+      // seul : la toile est la source du PREMIER calque de la pile, donc une
+      // pile réduite à un unique effet déclarant `sourceMipmaps` échouait en
+      // validation là où toutes les autres passaient (les cibles de ping-pong
+      // portent `COPY_SRC` depuis toujours). Un drapeau d'usage ne coûte rien.
+      usage:
+        GPUTextureUsage.TEXTURE_BINDING |
+        GPUTextureUsage.COPY_DST |
+        GPUTextureUsage.COPY_SRC |
+        GPUTextureUsage.RENDER_ATTACHMENT,
     });
     this.clearCanvas(this.canvas);
     this.intermediate = [this.createRenderTarget(), this.createRenderTarget()];

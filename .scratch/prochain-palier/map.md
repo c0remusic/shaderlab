@@ -99,6 +99,17 @@ Aucun n'est un reste de ces deux sessions.
 
 <!-- une ligne par ticket clos : le gist, puis le lien pour le détail -->
 
+- [Une forme a-t-elle besoin de `contentSource`](issues/03-une-forme-a-t-elle-besoin-de-contentsource.md)
+  — **NON, et la question était mal posée**. Arbitrage d'Antoine du 2026-08-17,
+  devant le prototype : « c'était pour les masques et la sélection, pas pour un
+  effet ». Une forme n'est ni un troisième genre de calque ni un effet — c'est
+  une façon de SÉLECTIONNER une région. La voie A perd donc sa justification
+  côté formes ; elle est à réexaminer pour la typographie seule (ticket 04).
+  ⚠️ Les documents disaient le contraire de lui — le cadrage du 2026-08-05 ne
+  contient pas une fois le mot « sélection » — et **c'est le CODE qui a tranché** :
+  `mask/sources/types.ts:2` porte une union fermée à trois sources, sans aucune
+  source géométrique. Trou franc que ni le ROADMAP, ni le cadrage, ni cette carte
+  ne signalaient.
 - [À quoi ressemble une forme dans shaderlab](issues/23-a-quoi-ressemble-une-forme-dans-shaderlab.md)
   — ouvert et **résolu le 2026-08-17**. Antoine, mis devant le périmètre du
   ticket 03 : « je ne sais pas encore — montre-moi ». Prototype construit
@@ -204,11 +215,10 @@ Aucun n'est un reste de ces deux sessions.
 
 Brouillard en portée, pas encore assez net pour être ticketé.
 
-- **Le design d'effet des formes** — rendu vectoriel sur GPU, anticrénelage,
-  quelles primitives. Suspendu à la réponse de
-  [Une forme a-t-elle besoin de `contentSource`](issues/03-une-forme-a-t-elle-besoin-de-contentsource.md) :
-  selon qu'une forme est un effet ordinaire ou un troisième genre de calque,
-  ce n'est pas le même design ni le même nombre de tickets.
+- ~~**Le design d'effet des formes**~~ — **sans objet depuis le 2026-08-17.** Le
+  ticket 03 a répondu que ce n'est ni un effet ni un genre de calque, donc il n'y
+  a pas de « design d'effet des formes » à écrire. Ce qui le remplace — un outil
+  de SÉLECTION — est plus gros que cette carte : voir **Out of scope**.
 - **Le plan du recadrage et du miroir** — suspendu à
   [Ce qui reste du design de parité du calque photo](issues/05-ce-qui-reste-du-design-de-parite-du-calque-photo.md).
   Le geste touche `LayerState`, la couche la plus partagée du projet
@@ -238,6 +248,21 @@ Brouillard en portée, pas encore assez net pour être ticketé.
 ## Out of scope
 
 Ruled beyond the destination. Ne graduent jamais.
+
+- 🆕 **L'outil de SÉLECTION — hors périmètre le 2026-08-17, et il lui faut sa
+  propre carte.** Le ticket 03 a établi qu'une forme sélectionne au lieu de se
+  poser ; Antoine ne s'arrête pas à la primitive géométrique — il veut détourer à
+  la main, tracer une silhouette, combiner des régions (ajouter, soustraire).
+  Ça dépasse les six flottants d'un rectangle, et le sujet devient l'OUTIL, pas
+  la forme.
+  Ce que le dépôt a déjà et qui compte pour cet effort : quatre façons de borner
+  (pinceau, `gradient`, `luminosity`, `colorRange`), un `MaskSourceModule` à
+  huit flottants, un `CanvasControl` à trois genres, et un prototype de
+  géométrie transférable (`src/render/effects/aplat.ts`, ticket 23).
+  Ce qui lui manque : toute source géométrique, et toute composition de régions.
+  ⚠️ Ce n'est PAS une exclusion de valeur — c'est une exclusion de TAILLE. Cette
+  carte-ci produit des décisions pour le prochain palier ; un outil de sélection
+  est un palier à lui seul.
 
 - **L'implémentation de l'export print elle-même** — pipeline 16-bit,
   encodeur TIFF, conversion de gamut, ICC. Réel mais lointain (arbitrage

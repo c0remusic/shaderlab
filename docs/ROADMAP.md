@@ -334,14 +334,22 @@ Tout le détail, les protocoles et les ablations :
   Les DEUX gardes du point 6 de l'ADR-0001 mesurent désormais le plus long
   libellé RENDU au lieu d'un seuil écrit en dur — voir `CLAUDE.md` § Densité.
 
-  ⚠️ **RESTE DE c1 : l'indentation à 20 px n'est PAS faite.** La partie que
-  c1 visait vraiment — la barre bleue qui débordait à gauche du filet — a été
-  résolue autrement le 2026-08-16 (`5913e07`) : on ne déplace pas la barre sur
-  l'axe du filet, **le filet DEVIENT la barre** sur une ligne imbriquée
-  sélectionnée. Même élément, donc mêmes bornes. Ce qui reste ouvert est donc
-  seulement le passage de `--layer-nest-indent` de 14 à 20 px, qui n'a plus rien
-  à réaccorder — et la justification « lavis et barre couvrent la même surface »
-  est déjà amendée dans `LayerPanel.css`.
+  ✅ **c1 EST COMPLÈTE depuis le 2026-08-16.** L'indentation est passée de 14 à
+  20 px (`--layer-nest-indent`, `--space-4 + --space-5`), dernière pièce de
+  l'arbitrage. Mesuré : indentation 20 px, axe du filet 18, barre de sélection à
+  18 px sur 1 px de large et 52 px de haut pour un lavis de 52.
+
+  Le changement n'a demandé qu'UN point : padding de la ligne imbriquée, axe du
+  filet, axe de la barre et coupure du dégradé de lavis lisent tous le même
+  token. ⚠️ Il aurait été bien plus cher pendant les cinq passes du même jour,
+  où la barre dépendait du FILET au lieu du lavis — une pièce mal accrochée
+  n'est pas seulement fausse, elle rend cher tout ce qui la touche ensuite.
+
+  Une coïncidence fortuite a été défaite au passage : le moignon du groupe replié
+  mesure aussi 14 px, et son commentaire affirmait tenir la même dérivation que
+  l'indentation. Il reste à 14 — c'est une longueur VERTICALE bornée par la
+  gouttière, l'indentation une largeur bornée par le dock.
+
 - ~~**L'overlay de masque n'a AUCUNE référence de pixels.**~~ ✅ **FAIT le
   2026-08-14** — quatre références, deux paires témoin/overlay
   (`masque-overlay-pinceau` sur masque peint, `masque-overlay-tonalite` sur

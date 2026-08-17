@@ -117,7 +117,34 @@ export default defineConfig({
         // Pourquoi `LayerPanel.stories.tsx` et pas un autre : c'est celui que le
         // hasard d'ordonnancement place au moment du rechargement. Rien de
         // particulier à ce composant.
-        optimizeDeps: { include: ['react/jsx-dev-runtime'] },
+        //
+        // ⚠️ LE JEU EST COMPLET À DESSEIN, et ce n'est pas de la précaution.
+        // La première version de ce correctif ne listait que
+        // `react/jsx-dev-runtime` — la seule que Vite ait découverte CE
+        // jour-là. Or ce qui déclenche le rechargement n'est pas cette entrée en
+        // particulier, c'est qu'une entrée QUELCONQUE de React soit découverte
+        // en cours de route ; le jeu qui sera découvert dépend de l'ordre des
+        // fichiers et du hasard d'ordonnancement. Corriger sur l'entrée observée
+        // corrige l'instance, pas la classe.
+        // Ce jeu-ci vient de `claude/mattpocock-skills-wayfinder-6lxjiz`
+        // (`0f6feba`), branche jamais fusionnée où quelqu'un avait déjà attaqué
+        // le même défaut — trouvée en mesurant les branches avant de les
+        // supprimer.
+        // Second garde, repris de la meme branche : il vise l'AUTRE mecanisme
+        // par lequel un dispatcher React peut etre nul — deux copies du paquet
+        // dans le graphe, l'une servant le rendu et l'autre le composant. Ce
+        // n'est PAS le defaut mesure ici (npm ls rend tout deduplique), mais les
+        // deux echouent de la meme facon et le cout est nul.
+        resolve: { dedupe: ['react', 'react-dom'] },
+        optimizeDeps: {
+          include: [
+            'react',
+            'react-dom',
+            'react-dom/client',
+            'react/jsx-runtime',
+            'react/jsx-dev-runtime',
+          ],
+        },
         test: {
           name: 'storybook',
           browser: {

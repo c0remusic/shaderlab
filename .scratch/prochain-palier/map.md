@@ -99,6 +99,30 @@ Aucun n'est un reste de ces deux sessions.
 
 <!-- une ligne par ticket clos : le gist, puis le lien pour le détail -->
 
+- [Ce qui reste du design de parité du calque photo](issues/05-ce-qui-reste-du-design-de-parite-du-calque-photo.md)
+  — **RÉSOLU le 2026-08-18. Le modèle est confirmé, le design §3.1 reste
+  écrivable**, moyennant trois corrections nommées. Deux arbitrages d'Antoine :
+  **les DEUX recadrages sont demandés** (le geste TOILE n'est pas dans §3.1 —
+  sorti en [ticket 28](issues/28-recadrer-la-toile-deja-ouverte.md)), et **le
+  miroir reste, en échelles SIGNÉES** — la réouverture que le design nommait,
+  déclenchée en entier.
+  ⚠️ **Le ticket lisait « le miroir est tombé entre les deux ». C'est la tranche
+  T3 ENTIÈRE qui n'a jamais été livrée**, et elle portait trois prérequis du
+  crop sans rapport avec le miroir : `transformsEqual` (0 occurrence — donc
+  valider un crop ne produirait aucune entrée d'undo, la comparaison énumérée ne
+  voyant que 5 champs scalaires), `clone()` qui ne recopie toujours pas
+  `transform`, et `updateLayerTransform` toujours vivant à zéro appelant. Le
+  ROADMAP se trompait donc deux fois.
+  ⚠️ **Et le signé porte un défaut MUET**, trouvé en mesurant : le feather
+  multiplie une DISTANCE par l'échelle (`photoLayerInput.ts:80-84`), donc à
+  échelle négative la couverture tombe à 0 et **le calque miroité disparaît
+  entièrement** — ça compile, ça valide sous naga, ça rend. Correction d'un mot
+  (`abs`), mais aucune des 77 références ne l'aurait attrapé : elles ne
+  miroitent rien, puisque le miroir n'existe pas. **La référence de pixels du
+  miroir se pose AVANT le geste.** En contrepartie le signé EFFACE le livrable
+  le plus risqué de T3 (branche de flip CPU + WGSL, `PHOTO_INVERSE_TRANSFORM_WGSL`,
+  harnais `gpu-parity.mjs`) — l'inverse-transform divise déjà par l'échelle.
+
 - [Aplat passe à la qualité](issues/24-aplat-passe-a-la-qualite.md) — **RÉSOLU le
   2026-08-17** sur deux de ses trois fronts. Livrés : le remplissage en DÉGRADÉ
   (linéaire et radial, arrêts interpolés en LINÉAIRE — un fondu mélangé en gamma
@@ -239,13 +263,12 @@ Brouillard en portée, pas encore assez net pour être ticketé.
   ticket 03 a répondu que ce n'est ni un effet ni un genre de calque, donc il n'y
   a pas de « design d'effet des formes » à écrire. Ce qui le remplace — un outil
   de SÉLECTION — est plus gros que cette carte : voir **Out of scope**.
-- **Le plan du recadrage et du miroir** — suspendu à
-  [Ce qui reste du design de parité du calque photo](issues/05-ce-qui-reste-du-design-de-parite-du-calque-photo.md).
-  Le geste touche `LayerState`, la couche la plus partagée du projet
-  (`render/`, `mask/`, `export/`, `components/`, `application/`), donc le plan
-  s'écrit avant la première ligne — mais son design §3.1 a été partiellement
-  renversé par le passage à deux échelles du 2026-07-31, donc on ne sait pas
-  encore quel plan.
+- ~~**Le plan du recadrage et du miroir**~~ — **sorti du brouillard le
+  2026-08-18.** Le ticket 05 a confirmé le modèle : le plan est écrivable, et
+  plus aucun arbitrage ne le bloque. Il reste « plan avant la première ligne »
+  (le geste touche `LayerState`), mais c'est une contrainte d'exécution, pas du
+  brouillard. La part qui n'était pas dans §3.1 — recadrer la TOILE — est
+  devenue le [ticket 28](issues/28-recadrer-la-toile-deja-ouverte.md).
 - **Ce que devient le dock** — trois questions voisines dont on ne sait pas
   encore si elles font un ticket ou trois : la largeur redimensionnable
   (décidée le 2026-07-21, « plan séparé après celui-ci », jamais écrit) ; le

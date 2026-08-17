@@ -269,6 +269,23 @@ Brouillard en portée, pas encore assez net pour être ticketé.
 
 Ruled beyond the destination. Ne graduent jamais.
 
+- 🆕 **La TYPOGRAPHIE — hors portée le 2026-08-17.** Arbitrage d'Antoine devant
+  la mesure : « ni l'un ni l'autre pour l'instant » — ni l'import comme chantier,
+  ni le texte éditable.
+  [Le ticket](issues/04-la-typographie-entre-t-elle-dans-ce-palier.md) est clos
+  ici et non dans *Decisions so far* : une frontière de portée n'est pas une
+  étape de la route.
+  ⚠️ **Sa mesure reste vraie et vaut d'être retenue** : le mur `array<f32, 48>`
+  que le ROADMAP donne pour bloquant ne bloque qu'un effet qui SYNTHÉTISERAIT des
+  glyphes — que le cahier de postproduction ne demande nulle part. Ses quatre
+  mentions décrivent ce qu'on fait SUBIR à un texte déjà composé. Et un PNG à
+  alpha s'importe et se compose **déjà**, vérifié dans la vraie fenêtre, sans une
+  ligne de code : `createImageBitmap` renifle le format, la texture a quatre
+  canaux, `photoLayerInput` écrit la couverture dans l'alpha.
+  Le seul blocage — un filtre de trois mots qui contredit le glisser-déposer —
+  **ne sort PAS avec la typographie** : il touche tout PNG à alpha. Il est
+  ticketé à part.
+
 - 🆕 **L'outil de SÉLECTION — hors périmètre le 2026-08-17, et il lui faut sa
   propre carte.** Le ticket 03 a établi qu'une forme sélectionne au lieu de se
   poser ; Antoine ne s'arrête pas à la primitive géométrique — il veut détourer à

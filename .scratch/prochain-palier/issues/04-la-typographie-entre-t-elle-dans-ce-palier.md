@@ -1,7 +1,7 @@
 # La typographie entre-t-elle dans ce palier
 
 Type: grilling
-Status: open
+Status: resolved
 Parent: ../map.md
 
 ## Question
@@ -41,6 +41,56 @@ ce piège.
   exactement le « filtre Photoshop 2005 » que ce dépôt proscrit — et la barre
   de qualité du projet est explicite : un effet qui marche mais rend cheap
   n'est pas terminé.
+
+## Answer — HORS PORTÉE, 2026-08-17
+
+Arbitrage d'Antoine, devant la mesure ci-dessous : **« ni l'un ni l'autre pour
+l'instant »**. Ni import de PNG comme chantier, ni texte éditable. La typographie
+sort du périmètre de cette carte — voir sa section **Out of scope**.
+
+Conformément à ce que ce ticket prévoyait lui-même, la sortie ne va PAS dans
+*Decisions so far* : une frontière de portée n'est pas une étape de la route.
+
+### ⚠️ Mais la mesure a renversé la prémisse, et ça, ça reste vrai
+
+Le ROADMAP annonce que la typographie « bute sur le modèle avant la première
+ligne de WGSL », parce que `params` est un `Record<string, number>` servi par un
+`array<f32, 48>` et ne peut pas porter une CHAÎNE.
+
+**C'est vrai, et hors sujet.** Ce mur ne bloque qu'un *effet qui synthétiserait
+des glyphes*. Or le cahier de postproduction n'en demande nulle part : ses quatre
+mentions de typographie décrivent toutes ce qu'on fait SUBIR à un texte déjà
+composé —
+
+- §384 : « typographie transformée avec `Warp` ou `Displacement Map` », en
+  `Multiply` / `Screen` / `Overlay`, masquée par les volumes du sujet ;
+- §391 : « une displacement map créée à partir de la photo aide le texte à
+  suivre les volumes » ;
+- §213 et §445 : des ZONES réservées au texte, jamais le texte ;
+- §441 : « textes utilisés comme prolongement du cadre ».
+
+### Ce que la mesure établit, et qui vaut indépendamment de l'arbitrage
+
+**Un PNG à alpha s'importe et se compose DÉJÀ, sans une ligne de code.** Vérifié
+dans la vraie fenêtre le 2026-08-17 : un PNG 2400×900 portant du texte blanc sur
+fond transparent, importé par `importPhotoByPath`, rend son texte sur la photo
+avec le transparent qui laisse passer le fond — et le calque porte ses poignées,
+donc il se déplace, tourne, se redimensionne, et tout effet s'empile dessus.
+
+La chaîne le supportait déjà de bout en bout : `createImageBitmap` RENIFLE le
+format (l'étiquette `image/jpeg` posée sur le Blob dans `App.tsx` est ignorée),
+la texture est en `srgbFormat` donc à quatre canaux, et `photoLayerInput` écrit
+déjà la couverture dans l'alpha.
+
+⚠️ **Le seul blocage est un filtre de trois mots, et il est INCOHÉRENT avec
+lui-même** : `pick_image_file` (`src-tauri/src/lib.rs:120`) filtre sur
+`["jpg", "jpeg"]`, donc le bouton « Ouvrir une image » refuse un PNG — alors que
+le glisser-déposer n'a AUCUN filtre (`Canvas.tsx:380`) et l'accepte. Deux chemins
+d'entrée pour la même chose, deux réponses différentes.
+
+Ce défaut n'est pas de la typographie et ne sort donc PAS avec elle : il touche
+tout PNG à alpha, scan, logo ou masque importé. Il est ticketé à part —
+[Le sélecteur de fichier refuse ce que le glisser-déposer accepte](26-le-selecteur-refuse-ce-que-le-glisser-depose-accepte.md).
 
 ## Une sortie de portée est une réponse valide
 

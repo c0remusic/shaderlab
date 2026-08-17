@@ -151,8 +151,19 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   troisième genre de calque », il a servi à faire corriger la QUESTION — une
   forme SÉLECTIONNE, elle ne se pose pas. Il reste pour une raison indépendante,
   arbitrée le même jour : la couleur unie manquait, et le cahier la cite (§96).
-  ⚠️ Son upgrade qualité est DÛ et ticketé (dégradé de remplissage, poignées sur
-  la toile, primitives supplémentaires) — il est encore à sa version pipeline.
+  ✅ **Deux des trois fronts de son upgrade qualité sont LIVRÉS** le 2026-08-17 :
+  remplissage en DÉGRADÉ (linéaire et radial, arrêts interpolés en lumière
+  linéaire — un fondu mélangé en gamma passe par un milieu assombri) et POLYGONE
+  (3 à 12 côtés ; pas d'étoile, aucun besoin mesuré). Contour et rayon d'angle
+  ÉCARTÉS par Antoine. Reste les POIGNÉES, seul front bloqué par le chantier des
+  outils sur la toile (ticket 25).
+  ✅ Et il se **TRACE à la souris** depuis le même jour — outil Forme, touche `U`,
+  Maj pour un carré. Il était né avec un rectangle réglé à quatre curseurs ;
+  verdict d'Antoine : « la pire façon de créer un rectangle ». ⚠️ La leçon
+  dépasse cet effet : comparer un outil à sa référence se fait sur DEUX axes —
+  ce qu'il RÈGLE (les paramètres, qui se lisent dans un panneau) et ce qu'on FAIT
+  pour s'en servir (le geste, qui ne se lit dans aucune liste de champs). Le
+  second est celui sur lequel un utilisateur juge en premier.
   ⚠️ **CE COMPTE ET CETTE LISTE SE METTENT À JOUR DANS LE COMMIT QUI AJOUTE
   L'EFFET**, jamais au wrap-up. Ils ont dit « vingt-deux » pendant toute la
   durée où le registre en portait vingt-trois (2026-08-05), et `docs/ROADMAP.md`
@@ -239,18 +250,24 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   — le MÉCANISME est livré ; ⚠️ **le CHANTIER ne l'est pas, contrairement à ce
   que ce paragraphe a dit du 2026-08-05 au 2026-08-12** (« chantier soldé »).
   Mesuré sur les modules réels, d'abord le 2026-08-12 puis le 2026-08-15
-  (instrument : `.scratch/prochain-palier/assets/mesure-controles.ts`) : sur
-  **348 paramètres**, seuls 36 portent une condition et **14 effets sur 23 n'en
-  ont AUCUNE** — dont `curves` (37 params), `channelMixer` (22),
-  `gradientMap` (20). ✅ `lensFlare` en est SORTI le 2026-08-14 : ses trois
+  (instrument : `.scratch/prochain-palier/assets/mesure-controles.ts`), puis
+  re-mesuré le 2026-08-17 : sur **365 paramètres**, 48 portent une condition et
+  **15 effets sur 24 n'en ont AUCUNE** — dont `curves` (37 params),
+  `channelMixer` (22), `gradientMap` (20).
+  ⚠️ **Le bond de 36 à 48 conditions n'est pas un progrès du chantier** : il
+  vient d'`aplat` seul, qui en porte **12** et devient d'un coup le deuxième
+  effet le mieux conditionné du registre derrière `glass` (14). Un effet neuf
+  déplace tous ces ratios ; les RE-MESURER avant de s'en servir pour juger l'état
+  du chantier, sinon un ajout se lit comme une correction. ✅ `lensFlare` en est SORTI le 2026-08-14 : ses trois
   phénomènes ont désormais leurs trois interrupteurs, et ses trois sections
   leur condition — c'était le cas qu'ADR-0017 rendait le plus criant (trois
   blocs dont les paramètres ne font rien quand leur bloc est éteint). Le
   registre porte 9 conditions de SECTION en tout. Les sections
   existent partout mais ne sectionnent pas (`duotone` 11 params pour 1 section,
-  `lensFlare` 10 par section ; `liste` = 54 des 73 gabarits, d'où le
-  défilement), et **4 effets sur 23 seulement** portent un outil sur la toile,
-  en trois genres. Se tranche dans
+  `lensFlare` 10 par section ; `liste` = **57 des 77** gabarits, d'où le
+  défilement), et **5 effets sur 24 seulement** portent un outil sur la toile,
+  en trois genres (`disk` ×2, `point` ×3, `axis` ×2) — `aplat` s'y est ajouté le
+  2026-08-17 avec un `point` sur le centre de sa forme. Se tranche dans
   `.scratch/prochain-palier/issues/14-la-fusion-des-reglages-redondants.md`.
   ⚠️ **Troisième clôture prématurée du même chantier** — `INDEX.json` note qu'il
   avait déjà été rouvert une fois pour cette raison exacte. Trois champs,

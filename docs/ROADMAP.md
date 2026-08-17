@@ -320,6 +320,37 @@ Tout le détail, les protocoles et les ablations :
   annonçait 152 px est amendé : mesuré dans la fenêtre, **148 px** sur une ligne
   racine, **134 px** sur une imbriquée.
 
+  ⚠️ **OUVERT le 2026-08-16 — la piste du chevron a coûté 30 px au nom, et la
+  garde d'ADR-0001 point 6 est ROUGE.** Mesuré sur la vraie carte (dock 320 px) :
+  le nom passe de **148/134 px** (racine/imbriqué) à **118/104**. La cause n'est
+  pas la piste elle-même (14 px) mais son ÉLARGISSEMENT à `--control-height-sm`
+  (28 px), fait pour donner au chevron la respiration qu'Antoine demandait — le
+  correctif d'ergonomie a doublé le coût de largeur.
+  `PanelColumn.stories.tsx > FiveRowDocumentHidesNoRow` exige `>= 145` et rougit
+  donc (`expected 118 to be greater than or equal to 145`).
+
+  **Ce n'est pas un défaut de rendu, c'est un arbitrage de densité** : le plus
+  long libellé du registre est `Lens distortion`, **79 px** — aucun effet ne
+  tronque, même à 104. Ce qui tronque est un NOM DE FICHIER, qui tronquait déjà
+  à 152. Les trois sorties, chiffrées :
+
+  | piste du chevron | nom racine | nom imbriqué |
+  | --- | --- | --- |
+  | 28 px (en place) | 118 | 104 |
+  | 20 px | 126 | 112 |
+  | 14 px | 132 | 118 |
+
+  Revenir à 14 px rendrait 14 px au nom mais ramènerait le défaut d'espacement
+  signalé (chevron et poignée collés). **Le seuil de la story n'a PAS été
+  baissé sans arbitrage** — la garde reste rouge exprès, pour que la question ne
+  se perde pas.
+
+  ⚠️ **Et la leçon de process compte autant** : cette story est nommée par
+  l'ADR-0001 comme l'une de ses deux gardes, et elle est restée rouge sur
+  `master` toute la journée parce que je n'ai lancé que
+  `LayerPanel.stories.tsx`, jamais `npm run test-storybook`. Une garde citée par
+  un ADR se lance en entier.
+
   ⚠️ **RESTE DE c1 : l'indentation à 20 px n'est PAS faite.** La partie que
   c1 visait vraiment — la barre bleue qui débordait à gauche du filet — a été
   résolue autrement le 2026-08-16 (`5913e07`) : on ne déplace pas la barre sur

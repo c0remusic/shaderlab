@@ -278,7 +278,14 @@ export const FiveRowDocumentHidesNoRow: Story = {
     // elle qui manquait — à 52 px, « DSCF5160-edited.JPG » s'affichait « DSC… ».
     const photoRow = rows[3];
     const name = photoRow.querySelector<HTMLElement>(".layer-panel__row-name")!;
-    await expect(name.scrollWidth).toBeGreaterThan(name.clientWidth); // ellipse active
+    // ⚠️ L'ELLIPSE SE MESURE SUR `__row-label`, PAS SUR `__row-name`, depuis le
+    // 2026-08-16 : la cellule du nom est devenue un FLEX pour tenir la pastille
+    // du groupe replié à côté du libellé, et c'est le libellé qui tronque
+    // désormais. Mesurée sur la cellule, la comparaison rendait `118 > 118` —
+    // un témoin muet, qui aurait laissé passer un nom non tronqué et donc une
+    // mesure de largeur qui ne prouve plus rien.
+    const label = photoRow.querySelector<HTMLElement>(".layer-panel__row-label")!;
+    await expect(label.scrollWidth).toBeGreaterThan(label.clientWidth); // ellipse active
     // 152 px mesurés ici, contre 176 px dans `LayerPanel.stories.tsx` : la
     // différence est le CHROME de la carte (padding de `.docked-panel-card` et
     // de sa zone défilante), absent d'une story qui monte le panneau nu à 320 px.

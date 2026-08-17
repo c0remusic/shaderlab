@@ -301,6 +301,72 @@ derrière un `fract` en gardant le LOD automatique — le même motif qui a forc
 cadre, donc sans conséquence ; dès que `Décalage X/Y` la ramène dans le cadre,
 elle devient une ligne d'un pixel prise au mip le plus grossier. Non mesuré.
 
+### ✅ La piste est MESURÉE, et elle tient — expérience jetable du 2026-08-17
+
+Montée puis **démontée le jour même** (aucune ligne n'en survit dans le dépôt) :
+pyramide construite par frame sur les cibles de ping-pong, `verre_lire` forcé à
+un niveau constant. Photo 26 Mpx, **Pavé · Quadrillé**, build de dev, temps GPU
+de la passe `glass`, minimum sur cinq captures.
+
+| `verre_lire` | temps GPU | rapport |
+| --- | --- | --- |
+| **niveau 0** — ce que fait le dépôt | **98,63 ms** | référence |
+| **niveau 1** | **25,56 ms** | **×3,86** |
+| niveau 2 | 28,77 ms | ×3,43 |
+
+**Trois choses s'y lisent, et la deuxième est la plus utile.**
+
+1. **Le gain est là, et il est du bon ordre.** ×3,86 sur la passe. Rapporté à la
+   cadence, ça sort la matière la plus chère du registre de ses ~10 images/s pour
+   la mettre dans la bande de confort qu'Antoine a fixée (30 à 60).
+2. **ÇA SATURE AU NIVEAU 1** — le niveau 2 est *moins bon* (28,77 contre 25,56).
+   Ce n'est pas une contradiction : au niveau 1 la zone de travail tient déjà dans
+   le cache, donc descendre plus bas n'achète plus de localité et ne fait que
+   perdre du détail. **Le réglage n'est donc pas « le plus grossier possible »**,
+   et une implantation qui dériverait le LOD du rayon de diffusion sans le borner
+   irait au-delà du point utile en croyant bien faire.
+3. **Construire la pyramide ne coûte rien de mesurable.** L'ablation est propre :
+   à pyramide CONSTRUITE et niveau 0, la passe rend 98,63 ms — soit la même chose
+   que les 108,3 ms relevés le 2026-08-15 sans aucune pyramide. Tout le coût est
+   dans les LECTURES, comme ce ticket l'a établi ; rien dans la construction.
+
+⚠️ **Le piège de l'expérience, qui sera le même dans l'implantation vraie.** Dès
+que les cibles portent une pyramide, **toute vue qui sert de CIBLE DE RENDU doit
+être bornée à un niveau** (`createView({ baseMipLevel: 0, mipLevelCount: 1 })`).
+Sinon : `The mip level count (13) ... used as attachment is greater than 1`, la
+passe échoue, et **la frame sort NOIRE** — `frameSignature` rend `moyenne 0,
+écart 0`. Quatre sites concernés, trouvés un par un : `framePipelineExecutor`
+(cible de calque, blit du court-circuit, deux cibles d'overlay) et `renderer.ts`
+(overlay d'animation, destination d'export). Aucun n'est signalé par `tsc`.
+
+### Ce que l'image dit, et le croisement qu'il faut voir
+
+Écart entre niveau 0 et niveau 1 sur la scène réelle : **max 131, moyenne 2,966,
+81 % des pixels**. Le niveau 1 est plus doux, la moucheture haute fréquence
+à l'intérieur des pavés diminue, et **toute la structure est conservée** — arêtes,
+joint, bande sombre, biseau.
+
+⚠️ **Et ça pousse dans le sens du verdict esthétique, pas contre lui.** Le bloc
+« aspect du verre » du ROADMAP dit, photos à l'appui : *un pavé ne transmet pas
+une image, il transmet de la lumière* — sur les références réelles aucune scène
+n'est reconnaissable derrière. La moucheture que le niveau 0 rend est exactement
+ce détail transmis qui ne devrait pas l'être. **L'optimisation et la correction
+d'apparence tirent ici dans la même direction**, ce qui est assez rare pour être
+noté, et assez piégeux pour ne pas être confondu : ça ne dispense pas de traiter
+le point 1 du bloc aspect, ça en rapproche.
+
+### Ce qu'il reste à écrire, et ce que la mesure a déjà tranché pour lui
+
+- **le déclencheur** : un effet déclare que sa source a besoin d'une pyramide
+  (`EffectModule`), jamais un `if (effectId === "glass")` dans l'exécuteur —
+  l'expérience le faisait, et c'est précisément ce que le dépôt interdit ;
+- **la condition** : pas de pyramide quand aucun calque ne la demande. La version
+  jetable la construisait pour TOUTES les piles et coûtait ~33 % de VRAM par
+  cible (34 Mo sur 104 à 26 Mpx) même sans verre ;
+- **le niveau** : borné à 1 par la mesure ci-dessus, quel que soit le rayon ;
+- **les vues de cible** : bornées à un niveau, aux quatre sites listés plus haut ;
+- **le prix connu** : 18 références de verre à régénérer et à relire à l'œil.
+
 ### Outillage d'itération disponible
 
 `C:\dev\shadplay` (MIT, Bevy, nightly) est construit et vérifié, avec un harnais

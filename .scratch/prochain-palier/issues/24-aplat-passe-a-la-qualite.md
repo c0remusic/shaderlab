@@ -1,7 +1,7 @@
 # Aplat passe à la qualité
 
 Type: task
-Status: claimed
+Status: resolved
 Parent: ../map.md
 
 > ⚠️ **Ce ticket portait `Blocked by: 17` et c'était une erreur de découpage.**
@@ -36,7 +36,12 @@ troisième** : `ColorRampControl` (le contrôle, `gradientMap`) et
 `mask/sources/gradient.ts` (la géométrie linéaire/radiale). La question de
 conception est laquelle réutiliser, pas comment en faire une.
 
-## Front 2 — les POIGNÉES sur la toile
+## Front 2 — les POIGNÉES sur la toile — ➡️ SORTI DANS SON PROPRE TICKET
+
+**Déplacé le 2026-08-17 vers le [ticket 25](25-les-poignees-de-l-aplat.md).**
+Il est le seul des trois à dépendre du ticket 17, et le garder ici bloquait un
+ticket dont les deux tiers étaient takeables. Le texte ci-dessous est conservé
+pour la trace ; c'est le 25 qui fait foi.
 
 Aujourd'hui seul le CENTRE se manipule sur l'image (`CanvasControl` de genre
 `point`) ; largeur, hauteur et rotation restent au curseur.

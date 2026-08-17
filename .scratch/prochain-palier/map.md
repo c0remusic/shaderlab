@@ -99,6 +99,15 @@ Aucun n'est un reste de ces deux sessions.
 
 <!-- une ligne par ticket clos : le gist, puis le lien pour le détail -->
 
+- [Aplat passe à la qualité](issues/24-aplat-passe-a-la-qualite.md) — **RÉSOLU le
+  2026-08-17** sur deux de ses trois fronts. Livrés : le remplissage en DÉGRADÉ
+  (linéaire et radial, arrêts interpolés en LINÉAIRE — un fondu mélangé en gamma
+  passe par un milieu assombri) et le POLYGONE (3 à 12 côtés ; pas d'étoile,
+  aucun besoin mesuré). Écartés par Antoine : contour et rayon d'angle. Le
+  troisième front est sorti dans le [ticket 25](issues/25-les-poignees-de-l-aplat.md),
+  seul à dépendre du 17. ⚠️ La garde de câblage a attrapé quatre index décalés
+  qui lisaient tous du plausible.
+
 - [Le coût du verre](issues/19-le-cout-du-verre.md) — **RÉSOLU le 2026-08-17.**
   Le mipmap de diffusion est livré et mesuré en production : **13,6 → 39,9
   images/s** au réglage courant, 47,4 sur la course complète d'Épaisseur. La

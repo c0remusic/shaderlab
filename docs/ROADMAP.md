@@ -18,9 +18,17 @@
 
 - **24 effets** au registre (`src/render/effects/registry.ts`) — `texture` puis
   `lightLeak` le 2026-08-05, `aplat` le 2026-08-17.
-  ⚠️ `aplat` (couleur unie bornée par un masque ou une primitive posée) est
-  **encore à sa version pipeline** : son upgrade qualité est dû et ticketé, ce
-  qui en fait le seul effet du registre dans cet état. Voir le bloc 1.
+  ✅ `aplat` (couleur unie bornée par un masque ou une primitive posée) a reçu
+  **deux des trois fronts de son upgrade qualité** le 2026-08-17 : remplissage en
+  DÉGRADÉ (linéaire et radial, arrêts interpolés en lumière linéaire) et
+  POLYGONE (3 à 12 côtés). Écartés par Antoine : contour et rayon d'angle.
+  Reste le troisième front — les POIGNÉES —
+  [ticket 25](../.scratch/prochain-palier/issues/25-les-poignees-de-l-aplat.md),
+  seul à dépendre du chantier des outils sur la toile.
+  ✅ Et il se **trace à la souris** depuis le même jour (outil Forme, touche `U`).
+  Il était né avec un rectangle réglé à quatre curseurs ; verdict d'Antoine :
+  « la pire façon de créer un rectangle ». Un rectangle se trace, les curseurs
+  retouchent ce qui existe.
 - `glass` **complet** : 14 matières (9 de feuille + 5 de pavé), 5 profils de
   section, **18 références de pixels — toutes les branches verrouillées**.
 - **Les 23 effets portent des sections** et leurs applicabilités déclarées
@@ -405,12 +413,33 @@ les propriétaires des ports avant de conclure à autre chose.
 `docs/superpowers/specs/2026-08-05-elements-et-composition-cadrage.md`. Il ne
 conçoit rien — il isole la question qui bloquait.
 
-**Voie du modèle tranchée le 2026-08-05 : A.** Un champ optionnel
-`contentSource?: { contentId }` sur `LayerState`, résolu par un store dédié hors
-state React, sur le patron `imageSource` / `PhotoSourceStore`. Formes et
-typographie passent par le même mécanisme. Le design d'effet peut donc
-commencer ; il reste à écrire, ainsi que le plan.
-Il n'y a plus d'arbitrage ouvert ici.
+~~**Voie du modèle tranchée le 2026-08-05 : A.**~~ ⚠️ **CADUQUE depuis le
+2026-08-17 : la voie A a perdu SES DEUX justifications, l'une après l'autre.**
+
+Elle existait pour porter formes ET typographie par un même
+`contentSource?: { contentId }` sur `LayerState`. Or :
+
+- **les formes n'en ont pas besoin** — arbitrage d'Antoine devant le prototype :
+  « c'était pour les masques et la sélection, pas pour un effet ». Une forme
+  SÉLECTIONNE ; ce qu'elle demande vit du côté de `mask/sources/`
+  ([ticket 03](../.scratch/prochain-palier/issues/03-une-forme-a-t-elle-besoin-de-contentsource.md)) ;
+- **la typographie sort du palier** — « ni l'un ni l'autre pour l'instant »
+  ([ticket 04](../.scratch/prochain-palier/issues/04-la-typographie-entre-t-elle-dans-ce-palier.md)).
+
+**Rien ne réclame donc plus `contentSource` aujourd'hui.** Ne pas le rouvrir sans
+un besoin mesuré : c'est une migration de la couche la plus partagée du projet
+pour un bénéfice qui n'a plus de porteur.
+
+⚠️ **Et la mesure du 2026-08-17 renverse l'argument technique qui le soutenait.**
+Ce document affirme que la typographie « bute sur le modèle avant la première
+ligne de WGSL » parce que `params` ne peut pas porter une chaîne. C'est vrai d'un
+effet qui SYNTHÉTISERAIT des glyphes — que le cahier de postproduction ne demande
+nulle part. Vérifié dans la vraie fenêtre : **un PNG à alpha s'importe et se
+compose déjà**, texte compris, sans une ligne de code, et le calque garde ses
+poignées. Le seul blocage est un filtre de trois mots sur le sélecteur de
+fichier, qui contredit le glisser-déposer — et il est ticketé à part parce qu'il
+touche tout PNG à alpha, pas seulement du texte
+([ticket 26](../.scratch/prochain-palier/issues/26-le-selecteur-refuse-ce-que-le-glisser-depose-accepte.md)).
 
 - ~~textures / scans~~ — **LIVRÉ le 2026-08-05**, design et preuve dans
   `docs/superpowers/specs/2026-08-05-textures-scans-design.md` ;
@@ -433,8 +462,13 @@ Il n'y a plus d'arbitrage ouvert ici.
   exponentielles à vitesses différentes, une par couche d'émulsion — et deux
   assertions de `renderRefs.test.mjs` rendent ce point opposable. Reste son
   jugement esthétique, ligne 6 du bloc 1 ;
-- formes ;
-- typographie ;
+- ~~formes~~ — **RÉORIENTÉ le 2026-08-17.** Ce n'est ni un genre de calque ni un
+  effet : c'est une façon de SÉLECTIONNER. `mask/sources/types.ts:2` porte une
+  union FERMÉE (`gradient` / `luminosity` / `colorRange`) sans aucune source
+  géométrique — pas de rectangle, pas d'ellipse, aucun équivalent du marquee.
+  Trou franc qu'aucun document ne signalait. L'outil de SÉLECTION qui le comble
+  est plus gros que cette carte et attend la sienne ;
+- ~~typographie~~ — **HORS PORTÉE le 2026-08-17** (voir plus haut) ;
 - finalisation du recadrage ;
 - éventuelles extensions du modèle de document / calques.
 
@@ -451,12 +485,16 @@ par un calque d'effet écrêté au-dessus. Ce qui écarte l'effet est structurel
 effet n'a aucun champ par lequel désigner une image** — le même mur que la
 typographie.
 
-Conséquence pour la voie A ci-dessus : elle reste entière, mais elle porte
-**moins** que la liste ne le suggère. Trois natures distinctes, pas une :
-`contentSource` est pour formes et typographie ; les textures sont des rasters
-déjà couverts ; les **light leaks** sont du contenu SYNTHÉTISÉ (cahier ligne
-330 : dégradés rouge/orange/jaune, flou fort, `Screen`, au bord du cadre), donc
-un effet du registre avec sa mire et sa référence de pixels.
+~~Conséquence pour la voie A ci-dessus : elle reste entière…~~ ⚠️ **Ce paragraphe
+énumérait trois natures dont `contentSource` en couvrait deux — formes et
+typographie. Le 2026-08-17 les a retirées toutes les deux**, donc il n'en reste
+aucune : les textures sont des rasters déjà couverts, et les **light leaks** sont
+du contenu SYNTHÉTISÉ (cahier ligne 330 : dégradés rouge/orange/jaune, flou fort,
+`Screen`, au bord du cadre), livrés comme effet du registre avec leur mire et
+leur référence de pixels.
+
+C'est ce qui rend la voie A caduque plutôt que « diminuée » : elle n'a plus
+d'objet, pas seulement moins d'objets.
 
 ⚠️ **Le recadrage n'est pas à commencer, il est à FINIR.** `CropRect` et le mode
 `crop` de `CanvasMode` existent, garde structurel compris ; `LayerTransform` n'a
@@ -800,6 +838,56 @@ ligne d'un pixel au mip le plus grossier. Non mesuré, non corrigé.
 - **`docs/design-qa/2026-08-04-dock-flat-workspace.md`** porte deux findings
   P1 ouverts, dont « sens de *plein écran* non déterminé », qui demande
   explicitement un arbitrage avant toute mutation de layout.
+
+### ⚠️ OUVERT le 2026-08-17 — la palette d'outils SAUTE quand on clique dedans
+
+Trouvé en cherchant où loger les options de l'outil Forme. Mesuré dans la vraie
+fenêtre à 1280 × 720, en passant de *Déplacer* au *Pinceau* :
+
+| | Déplacer | Pinceau | écart |
+| --- | --- | --- | --- |
+| haut de la toile | y 57 | y 132 | +75 px |
+| hauteur de la toile | 663 | 588 | −75 px (−11,3 %) |
+| **haut de la palette d'outils** | **y 73** | **y 148** | **+75 px** |
+
+**Le troisième chiffre est le défaut, pas les deux premiers.** Une toile qui se
+réduit quand une barre apparaît est un arbitrage discutable ; une palette
+d'outils qui se déplace de 75 px **au moment où on clique dedans** n'en est pas
+un — on choisit un outil, la rangée de boutons glisse sous le curseur, et le
+suivant n'est plus là où on pointait.
+
+Cause : `BrushToolbar` s'insère dans le flux quand le mode masque s'active. Et
+elle est la SEULE barre d'options du projet, alors qu'elle se décrit elle-même
+comme « style barre d'outils Photoshop » — le pinceau et la gomme l'ont,
+*Déplacer* et *Forme* n'ont rien.
+
+Trois voies dessinées dans `docs/wireframes/barre-options-outil.html` ; deux sont
+écartées par la mesure. Ce qui reste à trancher est **une seule question** : une
+valeur réglée dans la barre appartient-elle à l'OUTIL (le prochain tracé,
+réponse de Photoshop, mais deux surfaces pour une même valeur — ce qu'ADR-0001
+refuse) ou au CALQUE sélectionné (une seule surface, mais on ne peut plus rien
+régler avant de tracer) ?
+[Ticket 27](../.scratch/prochain-palier/issues/27-la-barre-d-options-regle-l-outil-ou-le-calque.md).
+
+### ⚠️ OUVERT le 2026-08-17 — le sélecteur de fichier refuse ce que le glisser-déposer accepte
+
+`pick_image_file` (`src-tauri/src/lib.rs:120`) filtre sur `["jpg", "jpeg"]`, donc
+le bouton « Ouvrir une image » et l'import de calque photo refusent un PNG. Le
+glisser-déposer sur la toile, lui, n'a **aucun filtre** (`Canvas.tsx:380`) et
+l'accepte. Deux chemins d'entrée pour la même chose, deux réponses.
+
+⚠️ **Et la chaîne supporte l'alpha de bout en bout** — vérifié dans la vraie
+fenêtre : un PNG 2400×900 à fond transparent importé par `importPhotoByPath`
+compose son texte sur la photo, le transparent laissant passer le fond, avec les
+poignées du calque. `createImageBitmap` renifle le format (l'étiquette
+`image/jpeg` posée sur le Blob est ignorée), la texture est à quatre canaux, et
+`photoLayerInput` écrit déjà la couverture dans l'alpha. Lever le filtre ne
+demande donc pas un chantier : ça retire une contradiction.
+
+Ce qui reste à décider : quels formats exactement, et **ne pas confondre le JPEG
+d'ENTRÉE avec celui de SORTIE** — l'export reste du JPEG et `exportImage.ts`
+refuse délibérément d'encoder un pixel non opaque.
+[Ticket 26](../.scratch/prochain-palier/issues/26-le-selecteur-refuse-ce-que-le-glisser-depose-accepte.md).
 
 ### Cinq différés de masquage, avec leurs déclencheurs
 

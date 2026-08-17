@@ -480,12 +480,19 @@
    lignes enfants n'existant plus dans le DOM quand le groupe est replié.
 
    14 px, la valeur de la planche, mais DÉRIVÉE de l'échelle et non écrite en
-   dur — `--space-4 + --space-3`, exactement la même dérivation que
-   `--layer-nest-indent`, qui vaut d'ailleurs la même chose. Le lint de tokens
-   refuse le littéral, et il a raison : c'est un ANNONCEUR, pas un lien, et sa
-   seule contrainte chiffrée est de s'arrêter AVANT la ligne suivante, dont le
-   haut est à 16 px (une gouttière de liste plus le padding haut). Un nombre nu
-   ne dit pas d'où vient cette marge de 2 px. */
+   dur — `--space-4 + --space-3`. Le lint de tokens refuse le littéral, et il a
+   raison : c'est un ANNONCEUR, pas un lien, et sa seule contrainte chiffrée est
+   de s'arrêter AVANT la ligne suivante, dont le haut est à 16 px (une gouttière
+   de liste plus le padding haut). Un nombre nu ne dit pas d'où vient cette
+   marge de 2 px.
+
+   ⚠️ Ce commentaire ajoutait « exactement la même dérivation que
+   `--layer-nest-indent`, qui vaut d'ailleurs la même chose ». C'était vrai
+   jusqu'au 2026-08-16 et ça ne l'est plus : l'indentation est passée à 20 px
+   (variante C), le moignon reste à 14. La coïncidence était fortuite — le
+   moignon est une LONGUEUR VERTICALE bornée par la gouttière, l'indentation une
+   largeur bornée par le dock. Les faire dépendre l'une de l'autre aurait
+   propagé ce changement-ci là où il n'a rien à faire. */
 .layer-panel__rail--stub {
   top: calc(var(--space-4) + var(--layer-row-height));
   bottom: auto;

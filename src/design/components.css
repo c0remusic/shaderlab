@@ -14,13 +14,26 @@
      (THUMBNAIL_MAX_SIDE), affiché ici en 24px : net sur écran HiDPI. */
   --layer-thumbnail-size: 24px;
   /* IMBRICATION des effets sous leur photo (2026-07-28, src/components/layerTree.ts).
-     14px = --space-4 + --space-3 : dérivé de l'échelle plutôt qu'inventé, et
-     assez large pour loger le filet vertical sans manger la largeur utile d'un
-     dock de 240px. Le filet lui-même réutilise --border-default, le rôle
-     « hairline discret » déjà en place — la maquette disait « ~15% », et
-     ajouter une quatrième nuance de bordure à 4 points d'une existante est
-     exactement la dérive que l'audit UI signale. */
-  --layer-nest-indent: calc(var(--space-4) + var(--space-3));
+     Dérivé de l'échelle plutôt qu'inventé, et assez large pour loger le filet
+     vertical sans manger la largeur utile d'un dock de 240px. Le filet lui-même
+     réutilise --border-default, le rôle « hairline discret » déjà en place — la
+     maquette disait « ~15% », et ajouter une quatrième nuance de bordure à 4
+     points d'une existante est exactement la dérive que l'audit UI signale.
+
+     ⚠️ PORTÉ DE 14 À 20 PX LE 2026-08-16 — dernière pièce de la variante C,
+     tranchée par Antoine le 2026-08-15 sur `docs/wireframes/pile-longue-hierarchie.html`.
+     20 px est le PREMIER CRAN où les deux niveaux ne partagent plus aucune
+     verticale : à 14, la colonne de poignée d'une ligne imbriquée retombait
+     dans l'alignement d'une colonne de la ligne racine, et la hiérarchie se
+     lisait mal. `--space-4 + --space-5` reste une dérivation de l'échelle, au
+     même titre que `+ --space-3` avant lui.
+
+     TOUT EN DÉCOULE, en un seul point : le padding de la ligne imbriquée, l'axe
+     du filet, celui de la barre de sélection et la coupure du dégradé de lavis
+     lisent tous ce token. Rien d'autre à réaccorder — c'est ce qui a rendu ce
+     changement trivial une fois la barre correctement accrochée (elle ne l'a
+     pas été pendant cinq passes le même jour). */
+  --layer-nest-indent: calc(var(--space-4) + var(--space-5));
   /* PASTILLE du groupe replié (2026-08-16) : combien de calques le repli cache.
      18px = --layer-thumbnail-size (24px) moins --space-3 (6px) — elle se lit
      comme une marque secondaire à côté du nom, pas comme une vignette. Dérivée

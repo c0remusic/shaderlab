@@ -117,18 +117,13 @@ ajoutent ZÉRO site à la facture 16-bit**, un effet ne voyant jamais le format.
   conversion d'index du glisser-déposer, refermée par
   `visibleInsertToModelInsert`.
 - [La dérogation du gate WGSL est bornée, mais pas comptée](issues/21-le-gate-wgsl-est-rouge-en-ci.md)
-  — ouvert le 2026-08-15, **REQUALIFIÉ le 2026-08-16 sur mesure**. Il disait que
-  `wgslNaga.test.ts` échouait : il est **vert**, en local comme en CI, et son
-  exception `params` était dans le fichier **dès son premier commit**
-  (`wgslNaga.test.ts:73`), bornée par la variable ET par le nombre d'erreurs.
-  Ne reste que la rendre **comptée**. Le ticket a été écrit sans que le fichier
-  de test soit ouvert une seule fois.
-- **Le chevron de repli coûte 30 px au nom** — ouvert ET tranché le 2026-08-16.
-  Nom de 148/134 px à 118/104 sur la vraie carte, accepté : le plus long libellé
-  du registre fait 79 px, donc aucun effet ne tronque. Les deux gardes du point 6
-  de l'ADR-0001 mesurent maintenant le plus long libellé rendu au lieu d'un seuil
-  littéral — deux seuils périmés (170 et 145 px) avaient rougi pour une
-  troncature qui ne se produit pas.
+  — ouvert le 2026-08-15, requalifié le 2026-08-16, **RÉSOLU le même jour**. La
+  dérogation est comptée (attendu DÉRIVÉ, jamais littéral). ⚠️ Et l'épreuve du
+  compteur a trouvé pire que ce qu'il comptait : **`naga` colore sa sortie même
+  derrière un tuyau**, l'ancre `/^error:/gm` ne matchait donc plus rien, et la
+  dérogation était INERTE — gate rouge sous Bash, vert sous PowerShell et en CI.
+  Un gate dont le verdict dépend du terminal donne raison au dernier qui l'a
+  lancé.
 - [`LayerPanel.stories` est rouge en CI et vert en local](issues/22-layerpanel-rouge-en-ci-vert-en-local.md)
   — **ouvert le 2026-08-16**, et c'est le VRAI rouge : `master` échoue sur les
   **60 derniers runs**, sans un succès depuis le 2026-08-01 au moins, toujours

@@ -454,8 +454,19 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   2026-08-16, et c'était faux : `ECART_CONNU_PARAMS` est dans le fichier de test
   **depuis son tout premier commit** (`677a39d`, `wgslNaga.test.ts:73`). La
   dérogation est déjà BORNÉE — elle ne tolère l'erreur que sur la variable
-  `params`, et une SECONDE erreur, quelle qu'elle soit, l'annule. Ce qui reste
-  ouvert n'est donc pas de la porter mais de la COMPTER.
+  `params`, et une SECONDE erreur, quelle qu'elle soit, l'annule. ✅ Elle est
+  **COMPTÉE depuis le 2026-08-16** (attendu dérivé, `tolerees === liste.length`,
+  jamais un littéral qui se périmerait au prochain effet), et
+  `seulementEcartConnu` est exportée et testée sur cinq sorties écrites à la
+  main.
+  ⚠️ **`naga` COLORE SA SORTIE MÊME DERRIÈRE UN TUYAU** (`stdio: "pipe"`), et ça
+  rendait la dérogation INERTE : sa borne « une seule erreur » repose sur
+  `/^error:/gm`, et les codes ANSI en tête de ligne font que l'ancre ne matche
+  AUCUNE ligne. Le gate rougissait donc sur l'écart qu'il tolère — **sous Bash
+  seulement**, PowerShell et la CI ne colorant pas. Un gate dont le verdict
+  dépend du terminal qui le lance donne raison au dernier qui l'a lancé : la
+  sortie est désormais déminée par `sansAnsi()` à l'entrée. Trouvé en éprouvant
+  le compteur, pas en lançant le gate.
   Ce qu'elle laisse passer : notre uniform `params: array<f32, 48>` n'est pas
   conforme (stride 4 pour un alignement requis de 16 en espace uniform), Dawn
   l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 23

@@ -1,7 +1,7 @@
 # La dérogation du gate WGSL est bornée, mais pas comptée
 
 Type: task
-Status: ready-for-agent
+Status: resolved
 Parent: ../map.md
 
 > ⚠️ **Ce ticket a été REQUALIFIÉ le 2026-08-16.** Il s'appelait « Le seul gate
@@ -37,20 +37,51 @@ le ticket proposait, resserrée d'un cran.
 d'exclusion inutilisé ») était donc la bonne question, et elle avait déjà sa
 réponse dans le fichier.** Personne ne l'a ouverte avant d'écrire le ticket.
 
-## Ce qui reste, et c'est tout ce qui reste
+## ✅ RÉSOLU le 2026-08-16 — et le compteur a trouvé pire que ce qu'il comptait
 
-**La dérogation est bornée mais pas COMPTÉE.** Le test tolère l'écart connu sans
-dire combien de fois il l'a rencontré. Conséquences :
+La dérogation est désormais **comptée** : le test accumule le nombre de variantes
+qui l'ont déclenchée et exige `tolerees === liste.length`. L'attendu est DÉRIVÉ
+et non littéral — toute variante composée déclare `params`, donc toutes sont
+touchées ; un nombre écrit en dur se périmerait au prochain effet ajouté.
 
-1. Si l'uniform devenait conforme demain, le test resterait vert sans que
-   personne apprenne que la dérogation ne sert plus.
-2. Si le nombre de variantes touchées changeait (un effet ajouté, un effet
-   retiré), rien ne bougerait.
+Ce que ça ferme : si l'uniform devenait conforme, `tolerees` tomberait à 0 et le
+test le dirait, au lieu de rester vert en tolérant une erreur qui ne se produit
+plus.
 
-Forme attendue : le test accumule le nombre de variantes ayant déclenché
-`seulementEcartConnu`, et **échoue si ce nombre s'écarte d'un attendu écrit en
-dur**, avec le message qui dit dans quel sens. Même esprit que les gates de
-pixels : un chiffre attendu, pas une tolérance ouverte.
+### ⚠️ CE QUE L'ÉPREUVE DU COMPTEUR A TROUVÉ, et qui était plus grave
+
+En vérifiant que le compteur comptait vraiment — assertion volontairement fausse
+pour lire sa valeur — le gate a **rougi**, alors qu'il passait deux minutes plus
+tôt. Cause : **`naga` colore sa sortie même derrière un tuyau** (`stdio: "pipe"`).
+Mesuré :
+
+```
+ANSI present : true
+lignes ^error: : 0
+```
+
+La borne « une seule erreur » repose sur `sortie.match(/^error:/gm)`. Avec les
+codes ANSI en tête de ligne, l'ancre `^error:` ne matche AUCUNE ligne :
+`erreurs.length` vaut 0 au lieu de 1, `seulementEcartConnu` rend faux, et le gate
+rougit sur l'écart qu'il est censé tolérer.
+
+**Et le verdict dépendait du SHELL.** Vert sous PowerShell et en CI, où naga ne
+colore pas ; rouge sous Bash, où il colore. Un gate dont le résultat dépend du
+terminal qui le lance est pire qu'un gate rouge — il donne raison au dernier qui
+l'a lancé. Corrigé par un `sansAnsi()` en entrée, une fois, plutôt que par une
+variable d'environnement que chaque appelant devrait penser à poser.
+
+### Ce que ça a ajouté au fichier
+
+`seulementEcartConnu` est **exportée** et testée sur cinq sorties écrites à la
+main, codes ANSI compris. Deux raisons de ne pas passer que par naga : son
+coloriage dépend du terminal, donc un test qui ne l'exerce qu'à travers lui
+valide un comportement au hasard ; et les cas qu'on veut INTERDIRE (deux erreurs,
+la même erreur sur une autre variable) ne se produisent pas aujourd'hui, donc
+rien ne les exercerait. Éprouvé en retirant `sansAnsi` : deux tests rougissent,
+dont le gate réel.
+
+## Ce que le ticket demandait (énoncé d'origine, conservé)
 
 ## Ce qui n'est PAS dans ce ticket
 

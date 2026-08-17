@@ -73,8 +73,30 @@ const NAGA = "naga";
 const ECART_CONNU_PARAMS =
   /Global variable \[\d+\] 'params' is invalid[\s\S]*?stride 4 is not a multiple of the required alignment 16/;
 
+/**
+ * `naga` COLORE SA SORTIE MÊME DERRIÈRE UN TUYAU, et ça rendait la dérogation
+ * inerte (trouvé le 2026-08-16, en éprouvant le compteur ci-dessous).
+ *
+ * Mesuré : avec `stdio: "pipe"`, stderr commence par
+ * `\x1b[0m\x1b[1m\x1b[38;5;9merror\x1b[0m\x1b[1m: Global variable [0] 'params'…`.
+ * L'ancre `^error:` ne matche donc AUCUNE ligne, `erreurs.length` vaut 0 au lieu
+ * de 1, et `seulementEcartConnu` rend faux — le gate rougit sur l'écart qu'il est
+ * censé tolérer.
+ *
+ * ⚠️ ET C'EST DÉPENDANT DU SHELL. Le gate passait sous PowerShell et en CI, où
+ * naga ne colore pas, et rougissait sous Bash, où il colore. Un gate dont le
+ * verdict dépend du terminal qui le lance est pire qu'un gate rouge : il donne
+ * raison au dernier qui l'a lancé. Le déminage se fait ici, une fois, plutôt que
+ * par une variable d'environnement que chaque appelant devrait penser à poser.
+ */
+function sansAnsi(texte: string): string {
+  // eslint-disable-next-line no-control-regex -- on retire justement des sequences de controle ANSI
+  return texte.replace(/\[[0-9;]*m/g, "");
+}
+
 /** Vrai si la sortie de naga ne contient QUE l'écart connu ci-dessus. */
-function seulementEcartConnu(sortie: string): boolean {
+export function seulementEcartConnu(sortieBrute: string): boolean {
+  const sortie = sansAnsi(sortieBrute);
   if (!ECART_CONNU_PARAMS.test(sortie)) return false;
   // Une seconde erreur, quelle qu'elle soit, annule la tolérance.
   const erreurs = sortie.match(/^error:/gm) ?? [];
@@ -140,6 +162,47 @@ function variantes(): Variante[] {
   return sortie;
 }
 
+/**
+ * LA DÉROGATION SE TESTE SUR DES SORTIES ÉCRITES À LA MAIN, pas seulement à
+ * travers naga. Deux raisons : naga colore ou non selon le terminal, donc un
+ * test qui ne passe QUE par lui valide un comportement au hasard ; et les cas
+ * qu'on veut interdire (deux erreurs, une erreur sur une autre variable) ne se
+ * produisent pas aujourd'hui, donc rien ne les exercerait.
+ *
+ * Les échantillons ci-dessous sont recopiés de la vraie sortie du 2026-08-16,
+ * codes ANSI compris.
+ */
+describe("dérogation `params` — bornes", () => {
+  const ERREUR_PARAMS =
+    "error: Global variable [2] 'params' is invalid\n" +
+    "   ┌─ glow_composite.wgsl:22:23\n" +
+    "   = The array stride 4 is not a multiple of the required alignment 16";
+  const COLORÉ =
+    "[0m[1m[38;5;9merror[0m[1m: Global variable [2] 'params' is invalid[0m\n" +
+    "   = The array stride 4 is not a multiple of the required alignment 16";
+
+  it("tolère l'écart connu, en clair", () => {
+    expect(seulementEcartConnu(ERREUR_PARAMS)).toBe(true);
+  });
+
+  // LE TEST QUI AURAIT ÉVITÉ LE DÉFAUT : la même erreur, colorée par naga.
+  it("tolère l'écart connu, COLORÉ par naga", () => {
+    expect(seulementEcartConnu(COLORÉ)).toBe(true);
+  });
+
+  it("refuse une SECONDE erreur, même anodine", () => {
+    expect(seulementEcartConnu(`${ERREUR_PARAMS}\nerror: something else entirely`)).toBe(false);
+  });
+
+  it("refuse la même erreur sur une AUTRE variable", () => {
+    expect(seulementEcartConnu(ERREUR_PARAMS.replace("'params'", "'autreChose'"))).toBe(false);
+  });
+
+  it("refuse une sortie qui ne parle pas de l'alignement", () => {
+    expect(seulementEcartConnu("error: Global variable [2] 'params' is invalid")).toBe(false);
+  });
+});
+
 describe("WGSL composé — validation statique par naga", () => {
   it("naga est installé", () => {
     expect(
@@ -157,6 +220,7 @@ describe("WGSL composé — validation statique par naga", () => {
     if (!nagaDisponible()) return; // le test ci-dessus a déjà rougi
     const dossier = mkdtempSync(join(tmpdir(), "shaderlab-wgsl-"));
     const echecs: string[] = [];
+    let tolerees = 0;
     const liste = variantes();
     try {
       for (const { nom, source } of liste) {
@@ -167,7 +231,10 @@ describe("WGSL composé — validation statique par naga", () => {
         } catch (e) {
           const err = e as { stderr?: Buffer; stdout?: Buffer };
           const detail = (err.stderr?.toString() || err.stdout?.toString() || String(e)).trim();
-          if (seulementEcartConnu(detail)) continue;
+          if (seulementEcartConnu(detail)) {
+            tolerees++;
+            continue;
+          }
           echecs.push(`${nom}\n${detail}`);
         }
       }
@@ -176,5 +243,25 @@ describe("WGSL composé — validation statique par naga", () => {
     }
     expect(liste.length).toBeGreaterThan(0);
     expect(echecs.join("\n\n---\n\n")).toBe("");
+
+    // ---- LA DÉROGATION EST COMPTÉE, PAS SEULEMENT BORNÉE ----
+    // Elle l'était déjà par la variable (`params`) et par le nombre d'erreurs
+    // par shader (une seule). Il lui manquait le COMPTE GLOBAL, et c'est ce que
+    // le ticket 21 demandait : « un test qui filtre doit dire combien d'erreurs
+    // il a filtrées et échouer si ce nombre change ».
+    //
+    // Sans lui, deux dérives passaient au vert :
+    //  - l'uniform devient conforme un jour, la dérogation ne sert plus, et
+    //    personne ne l'apprend — elle resterait dans le fichier à tolérer une
+    //    erreur qui ne se produit plus ;
+    //  - un effet entre ou sort du registre et le nombre de variantes touchées
+    //    change sans que rien ne le dise.
+    //
+    // L'attendu est DÉRIVÉ, pas écrit en dur : toute variante composée déclare
+    // l'uniform `params`, donc TOUTES sont touchées. Un attendu littéral se
+    // périmerait au prochain effet ajouté — exactement le défaut que deux
+    // seuils de largeur ont montré le 2026-08-16 dans `LayerPanel.stories.tsx`
+    // et `PanelColumn.stories.tsx`.
+    expect(tolerees).toBe(liste.length);
   });
 });

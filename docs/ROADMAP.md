@@ -930,9 +930,13 @@ le nombre d'erreurs.
 
 Ce qui reste ouvert, en deux morceaux qui n'ont rien à voir l'un avec l'autre :
 
-- **La dérogation n'est pas COMPTÉE** — elle tolère l'écart sans dire combien de
-  fois. Si l'uniform devenait conforme, le test resterait vert sans que personne
-  l'apprenne. [Ticket 21](../.scratch/prochain-palier/issues/21-le-gate-wgsl-est-rouge-en-ci.md).
+- ✅ **La dérogation est COMPTÉE depuis le 2026-08-16** (attendu dérivé,
+  `tolerees === liste.length`). ⚠️ Et l'éprouver a trouvé pire : **`naga` colore
+  sa sortie même derrière un tuyau**, donc l'ancre `/^error:/gm` de sa borne ne
+  matchait plus rien et la dérogation était INERTE — gate rouge sous Bash, vert
+  sous PowerShell et en CI. Déminé par `sansAnsi()`, et `seulementEcartConnu` est
+  désormais exportée et testée sur cinq sorties écrites à la main.
+  [Ticket 21](../.scratch/prochain-palier/issues/21-le-gate-wgsl-est-rouge-en-ci.md).
 - **Le vrai rouge est `LayerPanel.stories.tsx`**, et il précède ce gate de
   treize jours : `master` échoue sur les **60 derniers runs**, sans un succès
   depuis le 2026-08-01, toujours sur ce seul fichier — alors que

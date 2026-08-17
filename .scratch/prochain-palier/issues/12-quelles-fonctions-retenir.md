@@ -62,6 +62,96 @@ capacités nouvelles. Les premiers rendent les seconds moins chers ou inutiles �
 l'inverse n'est pas vrai. L'ordre porte donc de l'information que la liste ne
 porte pas.
 
+## Seconde source, relevée le 2026-08-17 : effect.app
+
+Antoine a signalé <https://effect.app> (« ses effets sont pas mal »). Relevé sur
+place : **69 effets** en huit catégories, plus **77 presets**. C'est la source la
+plus proche de notre domaine — Photoshop et Lightroom sont des outils de
+retouche, celui-ci est un catalogue d'effets, comme nous.
+
+⚠️ **Ce qui a été regardé, et ce qui ne l'a PAS été.** Leur code est propriétaire
+et sans licence accordée : rien n'en a été lu ni copié, et rien ne doit l'être.
+N'ont été relevés que des éléments PUBLICS — la liste des effets, leurs mots-clés
+de recherche, leurs vignettes de démonstration publiées, et les libellés de
+paramètres visibles dans l'interface.
+
+⚠️ **Piège de leurs vignettes, à ne pas oublier en les relisant** : chaque effet
+a sa PROPRE photo de démonstration, choisie pour le flatter. On peut comparer un
+effet à son avant ; on ne peut pas comparer deux effets entre eux, ni juger une
+famille sur une planche.
+
+### Ce que leur catalogue confirme de nos absences
+
+Trois se confirment comme des trous francs, et deux d'entre eux sont bon marché
+chez nous :
+
+- **Vignette.** Universelle, absente ici. ⚠️ Mais leurs mots-clés disent
+  « shape oval triangle diamond rectangle hexagon octagon linear dither », donc
+  ce n'est PAS un simple assombrissement de bord : c'est une forme bornée à bord
+  adouci. **`aplat` livré le 2026-08-17 en fait déjà la moitié** — couleur unie,
+  primitive posée, adoucissement en pixels, plus le mode de fusion du calque. La
+  question devient « que manque-t-il à `aplat` pour couvrir la vignette », pas
+  « faut-il un effet vignette ». À mesurer avant d'écrire quoi que ce soit.
+- **Carte de déplacement** (leur `Displacement`) — déjà retenue plus haut, et
+  cette source la confirme comme une entrée de catalogue à part entière et non
+  une variante de warp.
+- **Emboss.** Un relief gris tiré du gradient. Nous avons déjà la machinerie
+  exacte — `effects/edgeGradient.ts`, Scharr 3×3 avec ton perceptuel. Le coût
+  est celui d'un habillage, pas d'un détecteur.
+
+### Ce qu'ils font et que nous n'avons pas envisagé
+
+- **Bevel** — un biseau éclairé, métallique, appliqué à une FORME. C'est leur
+  effet le plus récent, et il vise clairement le lettrage et le logo. Il suppose
+  une couverture alpha à biseauter, donc il retombe sur la question de la
+  sélection (ticket 03).
+- **Scatter** — semis de sprites sur une grille à clé de couleur. Leur nouveauté
+  de tête, rien d'approchant ici.
+- **ASCII**, **LED screen**, **CRT / VHS / NTSC** — la famille « écran », entière
+  et absente. À décider en bloc : c'est une DA, pas une fonction.
+- **Risograph** — séparation en encres tramées avec décalage de repérage et
+  grain. Nos `dither` et `duotone` en approchent des morceaux ; l'overprint de
+  deux ou trois encres SPOT, non.
+- **Palette adaptative** sur leur `Dither` (mot-clé « palette adaptive »). Le
+  nôtre quantifie par canal ou vers deux encres — pas de palette dérivée de
+  l'image.
+
+### Ce qui confirme nos choix, et compte autant
+
+- Leur **Thermal** est une fausse couleur par table — c'est exactement ce que
+  `gradientMap` fait déjà. Bon exemple de doublon qu'on n'écrit pas.
+- Ils ont **Gaussian blur** ; ADR-0010 le garde délibérément dehors. Rien dans
+  leur catalogue ne rouvre cet arbitrage.
+- Leur `Reeded glass` est **un seul effet** là où `glass` porte quatorze
+  matières, cinq profils et dix-huit références. Nous sommes en avance là.
+- `isolines`, `outlines` et ses trois modes de détection, `sliceShift`,
+  `pixelStretch`, `gooeyMerge`, `lightLeak` : **aucun équivalent chez eux**.
+
+### La densité de leurs panneaux, qui est un signal pour le chantier des contrôles
+
+Leur `Halftone screen` expose **dix-neuf** réglages : Pattern, Frequency,
+Roughness, Fuzziness, Paper Fiber, Ink Texture, Ink Density, quatre angles
+d'encre, quatre interrupteurs d'encre, quatre décalages d'encre.
+
+Deux choses à en retenir, et la seconde vaut plus que la première :
+
+1. **Un interrupteur PAR ENCRE et un décalage PAR ENCRE.** Le décalage est le
+   défaut de repérage d'une presse — ce qui fait qu'une trame imprimée n'est
+   jamais parfaitement superposée. Notre `halftone` a la rosette mais pas ça.
+2. **Ils séparent le SUPPORT de l'ENCRE** (`Paper Fiber` d'un côté, `Ink Texture`
+   et `Ink Density` de l'autre). Nous avons `inkTexture` en contrôle transversal,
+   mais rien qui décrive le papier — et le cahier de postproduction en parle.
+
+⚠️ Et ils portent dix-neuf réglages à plat, sans sections apparentes. C'est
+exactement le défaut que le chantier des contrôles (tickets 15/16/17) traite
+chez nous : à citer comme contre-exemple, pas comme modèle.
+
+Planches de contact assemblées dans le scratchpad de session — elles ne
+survivent pas, et **elles n'ont pas leur place dans le dépôt** : ce sont leurs
+images. Les regénérer depuis `https://effect.app/effects/<Categorie>/<id>.jpg`
+si besoin ; la liste des 69 identifiants est reconstructible depuis les attributs
+`data-effect-id` de leur page d'accueil.
+
 ## La règle qui garde ce ticket honnête
 
 **Le doublon se mesure avant de s'écrire**, et la mesure répond souvent deux

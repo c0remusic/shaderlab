@@ -898,6 +898,27 @@ export const SelectionBarStaysInsideItsFrame: Story = {
     const fond = getComputedStyle(selected).backgroundImage;
     await expect(fond).toContain("linear-gradient");
     await expect(fond).toContain(`${Math.round(axe)}px`);
+
+    // ---- ET AUCUN GRIS NE SORT DU CADRE ----
+    // L'assertion qui a manqué à QUATRE corrections d'affilée. Un filet continu
+    // plus une barre bornée mettent du gris contre le bleu par construction :
+    // chaque segment déborde d'une demi-gouttière pour rejoindre ses voisins,
+    // la barre s'arrête au lavis, et il reste 4 px de gris à chaque bout.
+    // Mesurer la BARRE ne le voyait pas — il faut mesurer le FILET de la ligne
+    // sélectionnée, qui doit tenir exactement dans le cadre.
+    const filetSelection = selected.querySelector<HTMLElement>(".layer-panel__rail")!;
+    const boiteFilet = filetSelection.getBoundingClientRect();
+    await expect(Math.abs(boiteFilet.top - ligne.top)).toBeLessThan(0.5);
+    await expect(Math.abs(boiteFilet.bottom - ligne.bottom)).toBeLessThan(0.5);
+
+    // ---- SANS OUVRIR DE TROU POUR AUTANT ----
+    // Le témoin symétrique : borner le filet de la sélection laisserait deux
+    // gouttières vides si les voisins ne les comblaient pas. On vérifie que la
+    // ligne reste CONTINUE de part et d'autre — les segments se touchent.
+    const voisinHaut = filets[0].getBoundingClientRect();
+    const voisinBas = filets[2].getBoundingClientRect();
+    await expect(Math.abs(voisinHaut.bottom - boiteFilet.top)).toBeLessThan(0.5);
+    await expect(Math.abs(voisinBas.top - boiteFilet.bottom)).toBeLessThan(0.5);
   },
 };
 

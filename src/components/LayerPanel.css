@@ -376,6 +376,52 @@
   z-index: 1;
 }
 
+/* LE FILET CÈDE SA PLACE À LA BARRE, EXACTEMENT (2026-08-16, cinquième et
+   dernier renvoi : « on a encore le trait blanc qui dépasse, on tourne en
+   rond »).
+
+   LE DÉFAUT, ET IL EST STRUCTUREL. Un filet CONTINU plus une barre BORNÉE
+   mettent forcément du gris contre le bleu : chaque segment de filet déborde
+   d'une demi-gouttière en haut et en bas pour rejoindre ses voisins, alors que
+   la barre s'arrête au lavis. Mesuré : filet de la ligne sélectionnée
+   116 → 176, barre 120 → 172, donc **4 px de gris qui dépassent à chaque bout**,
+   contre les coins du cadre. Aucune des quatre corrections précédentes ne
+   pouvait l'éliminer — elles déplaçaient l'accent, jamais la géométrie.
+
+   CE QUI LE FERME. Sur la ligne sélectionnée, le filet prend EXACTEMENT les
+   bornes du lavis : la barre le recouvre alors intégralement, et plus un pixel
+   de gris ne sort du cadre. Ses deux voisins comblent les gouttières qu'il ne
+   déborde plus — celui du dessous par `+`, celui du dessus par `:has()`, qui
+   est le seul moyen d'exprimer « la ligne SUIVIE d'une sélection ».
+
+   ⚠️ `:has()` est utilisé ici alors que le bloc du filet, plus haut, note qu'il
+   ne sait PAS exprimer « même parent que la ligne précédente ». Les deux sont
+   vrais : il ne sait pas comparer des attributs entre frères, mais il exprime
+   parfaitement une relation de VOISINAGE. Ne pas lire l'un comme contredisant
+   l'autre.
+
+   ⚠️ LES DEUX RÈGLES DE VOISINAGE EXCLUENT `--first` ET `--last`, et ce n'est
+   pas une précaution. Sans l'exclusion, la première ÉCRASE le segment de tête —
+   celui qui remonte DEUX gouttières pour toucher le contenu de sa photo parente
+   — et le ramène à une seule. Attrapé par `RailStaysVisibleUnderSelection`, qui
+   mesure ce croisement : `expected 0 to be greater than 0`. Symétriquement,
+   `--last` s'arrête EN RETRAIT sous son groupe, et l'étendre le ferait dépasser
+   sous la dernière ligne. Les deux bornes de groupe restent donc maîtresses de
+   leur côté ; ces règles ne touchent que les segments INTÉRIEURS.
+
+   Mesuré après : gris 44 → 120, bleu 120 → 172, gris 172 → 224. Continu, sans
+   recouvrement et sans trou. */
+.layer-panel__row--selected .layer-panel__rail {
+  top: 0;
+  bottom: 0;
+}
+.layer-panel__row--selected + .layer-panel__row .layer-panel__rail:not(.layer-panel__rail--first) {
+  top: calc(var(--space-4) * -1);
+}
+.layer-panel__row:has(+ .layer-panel__row--selected) .layer-panel__rail:not(.layer-panel__rail--last) {
+  bottom: calc(var(--space-4) * -1);
+}
+
 .layer-panel__row--nested.layer-panel__row--selected,
 .layer-panel__row--nested.layer-panel__row--selected:hover {
   background: linear-gradient(

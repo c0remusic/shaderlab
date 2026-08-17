@@ -1,4 +1,5 @@
 import { assertImageFitsGpu } from "./limits";
+import { MipmapGenerator, mipLevelCountFor } from "./mipmapGenerator";
 
 /**
  * Textures GPU de la BIBLIOTHÈQUE, pour l'effet `texture`.
@@ -61,6 +62,20 @@ export class TextureLibraryStore {
    *  `list_texture_files`. L'index d'un paramètre d'effet s'y lit. */
   private catalog: readonly string[] = [];
   private readonly resident = new Map<number, Resident>();
+  /** Construit la pyramide de chaque scan chargé. Possédé par le store parce
+   *  que c'est le seul endroit du projet qui crée une texture multi-niveaux —
+   *  les cibles de ping-pong et les masques n'en ont pas l'usage, elles sont
+   *  lues à leur résolution propre.
+   *
+   *  ⚠️ Créé à la PREMIÈRE demande et non en initialiseur de champ : avec
+   *  `useDefineForClassFields`, les champs s'initialisent AVANT que les
+   *  propriétés de constructeur (`device`, `srgbFormat`) soient affectées, et
+   *  un initialiseur ici lirait `undefined`. */
+  private mipmapsLazy: MipmapGenerator | null = null;
+
+  private get mipmaps(): MipmapGenerator {
+    return (this.mipmapsLazy ??= new MipmapGenerator(this.device, this.srgbFormat));
+  }
   private readonly loading = new Map<number, Promise<void>>();
   private placeholder: GPUTexture | null = null;
   private clock = 0;
@@ -198,13 +213,21 @@ export class TextureLibraryStore {
         }
         assertImageFitsGpu(bitmap.width, bitmap.height, this.maxTextureDimension);
         this.evictIfNeeded();
+        // PYRAMIDE COMPLÈTE, et non un seul niveau (défaut jusqu'au 2026-08-14).
+        // Un scan 8K échantillonné à l'échelle de l'écran lit un texel sur huit :
+        // sans mip, le cache de texture ne sert à rien et l'image scintille.
+        // Voir `mipmapGenerator.ts` pour pourquoi aucun test ne pouvait le voir.
+        const niveaux = mipLevelCountFor(bitmap.width, bitmap.height);
         const texture = this.device.createTexture({
           size: [bitmap.width, bitmap.height],
           format: this.srgbFormat,
+          mipLevelCount: niveaux,
           usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
         });
         this.device.queue.copyExternalImageToTexture({ source: bitmap }, { texture }, [bitmap.width, bitmap.height]);
         bitmap.close();
+        // APRÈS l'upload du niveau 0, qui est la source de toute la pyramide.
+        this.mipmaps.generate(texture);
         this.clock += 1;
         this.resident.set(index, { texture, lastUsed: this.clock });
         this.onLoaded();

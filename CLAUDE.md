@@ -155,6 +155,18 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   française**. Un bloc inséré via heredoc Python est ressorti désaccentué dans un
   fichier qui, lui, est accentué — aucun linter ne regarde ça, seule une relecture
   l'attrape.
+  ⚠️ **Élargi le 2026-08-18, et le périmètre « prose française » était trop
+  étroit.** Un splice par INDICES (`s[:i] + neuf + s[j:]`) sur
+  `src/design/components.css` a **supprimé 267 lignes** — tous les tokens après
+  le premier — en laissant du CSS parfaitement valide. Ni `tsc` (opaque au CSS),
+  ni `lint:css-comments` (les délimiteurs restaient équilibrés), ni le hook
+  d'accents ne l'ont vu ; `lint:tokens` l'aurait attrapé mais avait tourné AVANT.
+  Symptôme final : 33 fichiers de stories rouges d'un coup, avec un message
+  parlant du serveur de vitest — rien qui désigne un fichier CSS. **Un splice par
+  indices ne s'écrit pas** : `Edit` avec son ancre exacte, ou à défaut
+  `str.replace(a, b, 1)` précédé d'un `assert a in s` — un remplacement ancré ne
+  peut pas manger ce qui suit. Et comparer `wc -l` avant/après toute édition
+  scriptée coûte une seconde.
 - Effets = modules autonomes enregistrés dans `src/render/effects/registry.ts`
   — en ajouter un = un nouveau fichier ; un effet à paramètres groupés (voir
   `EffectParam.colorGroup`) touche aussi `ParamPanel.tsx` et peut élargir
@@ -613,7 +625,7 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   chose.
 - Type-check : `npx tsc --noEmit`
 - Lint : `npm run lint` (eslint, couvre `src/**/*.{ts,tsx}`)
-- Lint tokens design : `npm run lint:tokens` (détecte couleurs/z-index/spacing en dur qui contournent un token existant, `scripts/lint-tokens.mjs`)
+- Lint tokens design : `npm run lint:tokens` (`scripts/lint-tokens.mjs`) — deux règles distinctes : valeurs en dur qui contournent un token EXISTANT, et depuis le 2026-08-18 **tokens jamais DÉCLARÉS**. La seconde attrape la panne la plus silencieuse : une variable CSS absente rend la déclaration invalide et la propriété simplement ignorée, sans erreur ni avertissement. `--icon-size-xs` et `--disabled-opacity` étaient dans ce cas, le second lu par SIX feuilles — tout état désactivé se rendait exactement comme un état actif. ⚠️ En l'ajoutant, la table de tokens du linter s'est révélée **incomplète depuis toujours** : elle lisait les fichiers de design commentaires compris, et son `[^;]+` traversant les sauts de ligne, un `--token` cité dans un commentaire ouvrait une déclaration fantôme qui avalait la VRAIE déclaration suivante.
 - **Commentaires CSS** : `npm run lint:css-comments` (`scripts/css-comment-guard.mjs`).
   ⚠️ **Piège payé TROIS fois le 2026-08-16, dans le même fichier et la même
   session** : éditer un bloc de commentaire en insérant de la prose APRÈS son
@@ -702,6 +714,15 @@ Points structurants qu'on ne devine pas en lisant un fichier isolé :
   toute opération document-level, y compris presets et calque photo. Il expose
   deux vues : `layers()` (complet, pour le GPU) et `displayLayers()`
   (projection sans raster, pour React — c'est l'invariant anti-OOM).
+  ⚠️ **`replaceLiveLayers` est la porte que les gardes de `LayerStack` NE
+  COUVRENT PAS.** `LayerStack` refuse quatorze opérations sur un calque
+  verrouillé, chacune derrière `isLocked` — mais AUCUN geste vivant ne passe par
+  ses mutateurs : pendant un glissement, `App.tsx` construit le tableau à la main
+  et appelle `replaceLiveLayers`, délibérément (`clone()` re-rend la liste
+  entière, 34,2 ms de CPU par `pointermove`). Le verrou fuyait donc par là, et le
+  commit ne rattrapait rien puisqu'il commite l'état vivant déjà modifié.
+  **Toute règle métier posée sur `LayerStack` doit s'exprimer AUSSI sur cette
+  porte**, sinon elle ne protège que ce que personne ne fait.
 - **L'espace de coordonnées du masque est celui de la photo de fond**
   (`MaskPainter` alloue aux dimensions de l'image de base), jamais celui d'une
   source d'image transformée.

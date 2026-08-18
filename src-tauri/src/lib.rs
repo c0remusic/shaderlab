@@ -114,10 +114,36 @@ fn read_image_file(path: String) -> Result<Response, String> {
 // above prove our own custom commands work fine over the same IPC channel,
 // so this bypasses the plugin entirely and calls `rfd` directly — the exact
 // workaround the community settled on for this bug.
+/// ⚠️ CE FILTRE N'EST PAS UNE LISTE DE CAPACITÉS, et il ne doit jamais le
+/// redevenir. Il a porté `&["jpg", "jpeg"]` jusqu'au 2026-08-18, pendant que
+/// le glisser-déposer sur la toile n'a AUCUN filtre
+/// (`src/components/Canvas.tsx`, `onDrop` passe le fichier tel quel) : deux
+/// chemins d'entrée pour la même chose, et le sélecteur refusait ce que la
+/// toile acceptait. Un PNG à alpha se composait déjà de bout en bout — vérifié
+/// dans la vraie fenêtre le 2026-08-17 — sans une ligne de code, parce que
+/// `createImageBitmap` RENIFLE le format et ignore l'étiquette du Blob.
+///
+/// D'où la forme retenue : les extensions NOMMÉES ne sont que du confort de
+/// dialogue, et le second filtre attrape-tout garantit que ce sélecteur ne
+/// puisse plus jamais être le chemin le plus étroit. Un format qui ne se décode
+/// pas échoue de la même façon sur les deux chemins — `openFile` lève
+/// « Image non supportée ou corrompue. » (`src/App.tsx`) — donc ouvrir la liste
+/// ne peut pas produire d'état incohérent, seulement un refus honnête.
+///
+/// Ne sont nommés que les formats MESURÉS chez nous : JPEG (chemin quotidien)
+/// et PNG (éprouvé le 2026-08-17, 2400×900 à fond transparent). WebP, AVIF et
+/// consorts sont très probablement décodés par WebView2 — ils ne sont pas
+/// listés parce que personne ne l'a VÉRIFIÉ ici, et l'attrape-tout les rend
+/// déjà atteignables. Les ajouter = une mesure, puis un mot.
+///
+/// ⚠️ Rien de tout ceci ne touche l'EXPORT, qui reste du JPEG : `is_jpeg_path`
+/// refuse d'écrire ailleurs et `exportImage.ts` refuse d'encoder un pixel non
+/// opaque. Accepter un PNG transparent en ENTRÉE ne dit rien sur la SORTIE.
 #[tauri::command]
 fn pick_image_file() -> Option<String> {
     rfd::FileDialog::new()
-        .add_filter("Images", &["jpg", "jpeg"])
+        .add_filter("Images (JPEG, PNG)", &["jpg", "jpeg", "png"])
+        .add_filter("Tous les fichiers", &["*"])
         .pick_file()
         .map(|p| p.to_string_lossy().into_owned())
 }

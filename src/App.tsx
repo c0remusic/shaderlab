@@ -694,8 +694,15 @@ export default function App() {
       // `resolveExportTargetAsync` n'a plus aucun moyen de rendre le chemin
       // source, quel que soit le chemin d'ouverture.
       const bytes = await readImageFile(path);
-      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
-      await openFile(new File([blob], path, { type: "image/jpeg" }), path, canvasFormat);
+      // AUCUN type MIME revendiqué (2026-08-18). Il disait `image/jpeg` sur des
+      // octets dont on ne sait rien — un mensonge inoffensif, puisque
+      // `createImageBitmap` renifle le format et que personne ne lit `.type`
+      // d'un fichier image ici, mais un mensonge qui se lisait comme la raison
+      // du filtre `["jpg","jpeg"]` du sélecteur. Même forme que
+      // `render/renderer.ts` et que l'import de texture, qui n'ont jamais
+      // revendiqué de type.
+      const blob = new Blob([bytes.buffer as ArrayBuffer]);
+      await openFile(new File([blob], path), path, canvasFormat);
     } catch (e) {
       setError(messageFromUnknown(e));
     }
@@ -902,8 +909,8 @@ export default function App() {
       // computer-use.
       openByPath: async (path: string, canvasFormat: CanvasFormatRequest = PHOTO_CANVAS_FORMAT) => {
         const bytes = await readImageFile(path);
-        const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
-        await openFile(new File([blob], path, { type: "image/jpeg" }), path, canvasFormat);
+        const blob = new Blob([bytes.buffer as ArrayBuffer]);
+        await openFile(new File([blob], path), path, canvasFormat);
       },
       importPhotoByPath: (path: string) => importPhotoFromPath(path),
       // Compteurs de recalcul du résolveur de masque, vidés à chaque lecture.

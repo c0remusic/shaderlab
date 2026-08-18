@@ -99,6 +99,24 @@ Aucun n'est un reste de ces deux sessions.
 
 <!-- une ligne par ticket clos : le gist, puis le lien pour le détail -->
 
+- [Le sélecteur de fichier refuse ce que le glisser-déposer accepte](issues/26-le-selecteur-refuse-ce-que-le-glisser-depose-accepte.md)
+  — **RÉSOLU le 2026-08-18.** Filtre levé, et la forme choisie fait que le
+  sélecteur ne peut plus redevenir le chemin le plus étroit : deux filtres, dont
+  un **attrape-tout**. Ça répond au « quels formats » du ticket en retirant sa
+  portée — seuls JPEG et PNG sont NOMMÉS (les deux mesurés), rien n'est interdit.
+  Sûr parce que structurel : le glisser-déposer n'a jamais eu de filtre, donc un
+  format indécodable échoue déjà identiquement sur les deux chemins. Retiré dans
+  le même geste : le `{ type: "image/jpeg" }` revendiqué sur des octets inconnus
+  (personne ne lit `.type` — vérifié), et « Dépose un JPEG ici ».
+  Preuve en fenêtre réelle : PNG 600×400 RGBA à disque opaque sur fond
+  transparent — le transparent laisse passer la photo jusqu'au bord du disque.
+  ⚠️ **Piège de sonde payé ici** : un chemin Windows en antislashs passé à
+  `driver.mjs eval` perd ses séparateurs, et `importPhotoByPath` échoue alors en
+  rendant une promesse RÉSOLUE (faute avalée par son `catch`). La sonde
+  rapportait « import OK, zéro calque » — indiscernable d'un bug de l'app. C'est
+  le TÉMOIN JPEG, qui échouait pareil, qui a désigné la sonde. Slashes avant
+  dans tout chemin passé à `eval`.
+
 - [Ce qui reste du design de parité du calque photo](issues/05-ce-qui-reste-du-design-de-parite-du-calque-photo.md)
   — **RÉSOLU le 2026-08-18. Le modèle est confirmé, le design §3.1 reste
   écrivable**, moyennant trois corrections nommées. Deux arbitrages d'Antoine :

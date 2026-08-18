@@ -113,7 +113,7 @@ export function usePhotoLayer({
     }
     try {
       const bytes = await readImageFile(path);
-      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
+      const blob = new Blob([bytes.buffer as ArrayBuffer]);
       const bitmap = await createImageBitmap(blob);
       // `register` est ATTENDU (il produit la vignette) avant `addPhotoLayer`,
       // pour que le re-render qui crée la ligne ait déjà sa vignette — sinon
@@ -224,7 +224,7 @@ export function usePhotoLayer({
     }
     try {
       const bytes = await readImageFile(path);
-      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "image/jpeg" });
+      const blob = new Blob([bytes.buffer as ArrayBuffer]);
       const bitmap = await createImageBitmap(blob);
       const sourceId = await rendererRef.current.photoSources.register(bitmap);
       const stack = currentStack();

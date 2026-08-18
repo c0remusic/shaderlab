@@ -132,9 +132,17 @@ describe("glass — la surface de contrôle", () => {
     expect(sections[0].appliesWhen).toBeUndefined();
     expect(sections[1].appliesWhen).toBeUndefined();
     expect(sections[2].appliesWhen).toEqual({ param: "material", equals: [9, 10, 11, 12, 13] });
-    // GRILLE pour les huit réglages courts du pavé, liste pour les deux étages
-    // du shader (fabriquer la pente, puis ce qui est commun aux quatorze).
-    expect(sections.map((s) => s.layout)).toEqual(["liste", "liste", "grille"]);
+    // GRILLE pour la matière ET pour le pavé, liste pour l'optique.
+    //
+    // ⚠️ « Matière » est passée de `liste` à `grille` le 2026-08-18 (ticket 16) :
+    // ses neuf rangées en une colonne en faisaient la deuxième section la plus
+    // haute du parc, et le levier du front s'est révélé être le GABARIT et non le
+    // découpage — deux colonnes rendent les mêmes réglages en cinq lignes. Les
+    // deux sections à réglages courts du même effet se lisent désormais pareil.
+    //
+    // « Optique » reste en liste : cinq lignes, sous le plafond, et rien à gagner
+    // à la resserrer.
+    expect(sections.map((s) => s.layout)).toEqual(["grille", "liste", "grille"]);
   });
 });
 

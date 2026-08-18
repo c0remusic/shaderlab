@@ -295,7 +295,10 @@ export const glass: EffectModule = {
     {
       id: "matiere",
       label: "Matière",
-      layout: "liste",
+      // `grille` (2026-08-18, ticket 16), comme la section « Pavé » juste en
+      // dessous : neuf rangées en une colonne étaient la deuxième section la plus
+      // haute du parc. Les deux sections du même effet lisent désormais pareil.
+      layout: "grille",
       params: ["material", "density", "depth", "profile", "flat", "fillet", "orientation", "irregularity", "grain"],
     },
     {

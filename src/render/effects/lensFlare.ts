@@ -423,7 +423,10 @@ export const lensFlare: EffectModule = {
     {
       id: "fantomes",
       label: "Fantômes",
-      layout: "liste",
+      // `grille` et non `liste` (2026-08-18, ticket 16) : douze rangées en une
+      // colonne font douze lignes à défiler, la section la plus haute du parc.
+      // Deux colonnes les rendent en six, sans rien scinder ni renommer.
+      layout: "grille",
       appliesWhen: { param: "ghostsOn", equals: [1] },
       params: [
         // La forme de l'ouverture d'abord : c'est elle dont chaque fantôme est
@@ -447,7 +450,9 @@ export const lensFlare: EffectModule = {
     {
       id: "diffusion",
       label: "Diffusion",
-      layout: "liste",
+      // Voir « Fantômes » ci-dessus : sept rangées en deux colonnes font quatre
+      // lignes.
+      layout: "grille",
       appliesWhen: { param: "diffusionOn", equals: [1] },
       params: [
         // Du plus large au plus dessiné : le voile lave tout le cadre, la plume

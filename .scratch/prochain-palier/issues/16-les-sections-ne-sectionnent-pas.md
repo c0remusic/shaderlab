@@ -1,7 +1,7 @@
 # Les sections ne sectionnent pas
 
 Type: grilling
-Status: open
+Status: resolved
 Blocked by: 15
 Parent: ../map.md
 
@@ -96,3 +96,88 @@ Un **plafond de densité chiffré et opposable**, aucun effet au-dessus, et
 
 ⚠️ Pas « les sections ont été revues ». La mesure de sortie se relance
 (`assets/mesure-controles.ts`) et doit tenir toute seule.
+
+---
+
+## Answer — RÉSOLU le 2026-08-18
+
+**Le levier était le GABARIT, pas le découpage.** Cinq sections dépassaient le
+plafond ; quatre sont passées en `grille`, **aucune n'a été scindée ni
+renommée**, et le vocabulaire fermé s'est révélé déjà suffisant. Zéro code écrit.
+
+### ⚠️ Le tableau de densité de ce ticket portait DEUX dénominateurs faux
+
+Le premier est celui que le ticket 15 avait déjà corrigé : **la rangée, pas le
+paramètre**. Les points d'une courbe, les arrêts d'une rampe, les bornes d'une
+plage tonale et les satellites d'un `colorGroup` sont consommés par un contrôle
+composite — trois paramètres de pastille font UNE ligne, pas trois.
+
+Le second est propre à ce front, et il inverse un classement : **la ligne
+visuelle, pas la rangée**. `grille` et `paire` posent DEUX colonnes — leur CSS le
+dit et c'est leur seule raison d'être. Le tableau comparait donc des sections
+`liste` à des sections `grille` sur le même axe :
+
+| section | rangées | gabarit | lignes RÉELLES |
+| --- | --- | --- | --- |
+| `glass.pave` | 8 | `grille` | **4** |
+| `gooeyMerge.fusion` | 7 | `liste` | **7** |
+
+Le ticket classait la première comme la plus dense des deux. C'est l'inverse.
+
+### Ce qui a changé, et ce qui a été REFUSÉ
+
+Passées en `grille` : `lensFlare.fantomes` (12 rangées → 6 lignes),
+`glass.matiere` (9 → 5), `lensFlare.diffusion` (7 → 4),
+`gooeyMerge.fusion` (7 → 4).
+
+**`outlines.encre` a été laissée en `liste`, et c'est un refus mesuré.** Elle
+porte deux PASTILLES, et une pastille est un contrôle repliable, pas un
+curseur — `channelMixer` avait déjà écarté `grille` pour cette raison exacte et
+l'avait écrit : « deux colonnes étroites tronqueraient les uns et déformeraient
+l'autre ». Elle est la seule exception au plafond, déclarée avec sa raison.
+
+Les quatre qui passent ont été ÉPROUVÉES : story `GrilleLabelsDoNotTruncate`, qui
+rend `lensFlare` à 320 px — la largeur par défaut du dock — et exige qu'aucun
+libellé ne déborde sa boîte. Le plus long du lot fait 24 caractères
+(« Remplissage des fantômes »). Seuil DÉRIVÉ (`scrollWidth > clientWidth`),
+jamais un nombre de pixels écrit en dur.
+
+### Le plafond, chiffré et opposable
+
+**Six lignes visuelles par section.** Calé sur le parc réel après les
+changements : six sections y sont exactement, ce qu'un test vérifie — un plafond
+que rien n'approche pourrait valoir 40 et ne prouverait rien. Forme identique à
+la règle des 56 px d'ADR-0001, exception écrite comprise.
+
+⚠️ **La première réponse à un dépassement n'est ni de monter le nombre ni de
+scinder : c'est de regarder le gabarit.** Deux des cinq tiennent le même contenu
+dans deux fois moins de hauteur.
+
+### Les orphelins, et le garde qui les rend bruyants
+
+**`duotone` est corrigé** : ses trois pastilles entrent dans UNE section
+« Encres ». Une seule, et non trois — le titre ne répète aucun libellé de
+pastille, donc la violation d'ADR-0001 qui avait fait retirer les trois sections
+d'origine ne peut pas revenir. Neuf orphelins de moins, trois rangées de plus.
+
+Restent **16 orphelins, tous déclarés avec leur raison** dans
+`test/render/effects/densiteSections.test.ts` : les 9 réglages communs de
+`lensFlare`, les 4 de `channelMixer` qui portent sur la matrice entière,
+`curves.mix` et les 2 de `gradientMap`.
+
+**Le garde répond à la question « est-ce forcer une prose dans un test ? » par
+non** : la prose reste dans le module, à la déclaration ; ce qui vit dans le test
+est la LISTE. Ajouter un orphelin sans venir écrire sa ligne fait rougir.
+Symétriquement, un orphelin qui rentre dans une section doit SORTIR de la liste —
+sinon elle devient un cimetière où le prochain vrai orphelin se cacherait.
+
+⚠️ **La première version de cette liste en devinait dix-sept, dont aucun n'était
+juste** : elle avait été écrite d'après le ticket au lieu d'être mesurée. Elle
+citait `channelMixer.shadowsMin`, qui est cité par une section.
+
+### État de sortie, mesuré
+
+27 effets · aucune section au-dessus de 6 lignes hors l'exception écrite ·
+**zéro orphelin sans raison déclarée**. `test:render` rend **aucun écart** — le
+gate discriminant : un écart aurait prouvé qu'on a trié `params[]` au lieu des
+items d'affichage.

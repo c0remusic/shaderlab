@@ -347,3 +347,49 @@ export const ChangeParamFiresChange: Story = {
     await expect(args.onParamChange).toHaveBeenCalledWith("layer-1", { threshold: 0.5 });
   },
 };
+
+/**
+ * GABARIT `grille` — AUCUN LIBELLE NE TRONQUE A LA LARGEUR REELLE DU DOCK.
+ *
+ * Quatre sections sont passees de `liste` a `grille` le 2026-08-18 (ticket 16) :
+ * deux colonnes tiennent le meme nombre de reglages en deux fois moins de
+ * lignes, ce qui etait le vrai levier du front — pas le decoupage.
+ *
+ * Une demi-largeur a un prix, et `channelMixer` l'a deja documente en REFUSANT
+ * `grille` : « Rouge <- Vert n'est pas un libelle court, et l'encre est une
+ * pastille repliable, pas un curseur. Deux colonnes etroites tronqueraient les
+ * uns et deformeraient l'autre. » Le meme raisonnement a fait garder `liste` sur
+ * `outlines.encre`, qui porte deux pastilles.
+ *
+ * Restait a EPROUVER les quatre qui passent. Le plus long libelle du lot est
+ * « Remplissage des fantomes », 24 caracteres. Ce test le rend a 320 px — la
+ * largeur par defaut du dock (`--inspector-width-default`) — et exige qu'aucun
+ * libelle ne deborde sa boite.
+ *
+ * Le seuil est DERIVE (`scrollWidth > clientWidth`), jamais un nombre de pixels
+ * ecrit en dur : un litteral se perimerait au premier changement de gabarit,
+ * comme les deux seuils de `LayerPanel` en 2026-08-16.
+ */
+export const GrilleLabelsDoNotTruncate: Story = {
+  args: {
+    layer: makeLayer({ effectId: "lensFlare", params: { ghostsOn: 1, diffusionOn: 1, sensorOn: 0 } }),
+  },
+  decorators: [
+    (Story) => (
+      <div style={{ width: "var(--inspector-width-default)" }}>
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const grilles = Array.from(
+      canvasElement.querySelectorAll<HTMLElement>(".param-panel__section--grille"),
+    );
+    await expect(grilles.length).toBeGreaterThan(0);
+    const tronques = grilles
+      .flatMap((g) => Array.from(g.querySelectorAll<HTMLElement>("label")))
+      .filter((l) => l.scrollWidth > l.clientWidth)
+      .map((l) => l.textContent);
+    await expect(tronques).toEqual([]);
+  },
+};

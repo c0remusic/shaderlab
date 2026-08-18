@@ -455,6 +455,13 @@ export const outlines: EffectModule = {
         "backgroundHue", "backgroundSaturation", "backgroundLightness",
         "fill",
       ],
+      // `liste` MAINTENUE, et c'est un refus mesuré (2026-08-18, ticket 16).
+      // Neuf rangées en une colonne en font la section la plus haute de l'effet
+      // le plus chargé, donc elle était candidate au passage en `grille` comme
+      // quatre autres. Elle porte DEUX PASTILLES — une pastille est un contrôle
+      // repliable, pas un curseur, et `channelMixer` a déjà écarté `grille` pour
+      // cette raison exacte : deux colonnes étroites la déforment.
+      // Sa hauteur est le prix d'un contrôle qui n'entre pas en demi-largeur.
       layout: "liste",
     },
     {

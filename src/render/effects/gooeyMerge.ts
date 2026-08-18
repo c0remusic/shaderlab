@@ -205,7 +205,9 @@ export const gooeyMerge: EffectModule = {
     {
       id: "fusion",
       label: "Fusion",
-      layout: "liste",
+      // `grille` (2026-08-18, ticket 16) : sept réglages courts en deux colonnes,
+      // quatre lignes au lieu de sept.
+      layout: "grille",
       params: ["merge", "threshold", "tension", "flow", "rim", "melt", "inputMode"],
     },
     {

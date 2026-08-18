@@ -67,6 +67,32 @@ export const duotone: EffectModule = {
    * rend, pas une paire de noms.
    */
   sections: [
+    // ⚠️ CETTE SECTION A ÉTÉ RECRÉÉE le 2026-08-18 (ticket 16), et sa forme
+    // porte la raison de sa disparition.
+    //
+    // Les trois encres avaient TROIS sections — « Ombres », « Ton moyen »,
+    // « Hautes lumières » — retirées le 2026-08-05 parce qu'elles répétaient le
+    // libellé de leur propre pastille (« Ton moyen » sous « TON MOYEN »), ce
+    // qu'ADR-0001 refuse. Le diagnostic était juste et la correction aussi.
+    //
+    // Mais elle a laissé NEUF paramètres qu'aucune section ne citait, et rien ne
+    // l'a signalé : aucun test ne comptait les orphelins. Corriger la densité
+    // d'un côté avait créé un défaut de l'autre — c'est le motif que le garde
+    // `densiteSections.test.ts` existe pour rendre bruyant.
+    //
+    // UNE section pour les trois pastilles, et non trois : le titre « Encres »
+    // ne répète aucun libellé de pastille, donc la violation d'origine ne peut
+    // pas revenir. Trois rangées, pas neuf — une pastille est un contrôle.
+    {
+      id: "encres",
+      label: "Encres",
+      layout: "liste",
+      params: [
+        "shadowHue", "shadowSaturation", "shadowLightness",
+        "midtoneHue", "midtoneSaturation", "midtoneLightness",
+        "highlightHue", "highlightSaturation", "highlightLightness",
+      ],
+    },
     { id: "tonalite", label: "Tonalité", layout: "paire", params: ["contrast", "pivot"] },
   ],
   wgsl: `

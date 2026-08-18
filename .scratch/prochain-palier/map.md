@@ -175,7 +175,17 @@ Aucun n'est un reste de ces deux sessions.
   ✅ **Modèle livré en TDD** (`src/ui/toolOptionsModel.ts`, 6 tests). Le test
   discriminant entre les deux réponses du ticket : un calque créé part avec une
   COPIE — partager l'objet aurait produit la réponse « au calque » sans qu'aucune
-  décision soit prise. Reste la barre elle-même et son contenu par outil.
+  décision soit prise.
+  ✅ **Et la BARRE est livrée le même jour** (`ToolOptionsBar`, permanente,
+  hauteur constante). Défaut mesuré CORRIGÉ dans la vraie fenêtre : la palette
+  se déplace de **0 px** sur les quatre outils, contre +75 px. Le prix est réel
+  et accepté — la toile perd 75 px en permanence, y compris sous *Déplacer*.
+  ⚠️ Deux défauts trouvés en câblant, **aucun par un test** : la hauteur
+  constante ne l'était pas aux deux premiers essais (36 px puis 68 px, contre
+  75 px de contenu réel — la story qui compare les quatre outils les a
+  attrapés), et le sélecteur de primitive affichait « 0 », le défaut de `borne`
+  dans `aplat` valant « aucune borne » — une valeur absente de sa propre liste.
+  Celui-là s'est vu sur une CAPTURE.
 
 - [Quels mécanismes de lisibilité adopter](issues/11-quels-mecanismes-de-lisibilite-adopter.md)
   — **RÉSOLU le 2026-08-18.** Quatre adoptés (filtre par nom dans Presets et

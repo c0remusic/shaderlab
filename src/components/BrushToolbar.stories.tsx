@@ -6,6 +6,18 @@ import { assertAccessibleNames } from "./ui/accessible-name.test-support";
 const meta: Meta<typeof BrushToolbar> = {
   title: "Components/BrushToolbar",
   component: BrushToolbar,
+  // LE CONTENEUR N'APPARTIENT PLUS À CE COMPOSANT (2026-08-18, ticket 27) : la
+  // barre est permanente et vit dans `ToolOptionsBar`. Le décorateur le rend ici
+  // pour que les stories montrent la même surface qu'en production — sans lui,
+  // elles montreraient des contrôles nus et jugeraient un habillage qui n'existe
+  // nulle part.
+  decorators: [
+    (Story) => (
+      <div className="tool-options-bar" role="toolbar" aria-label="Options de l'outil">
+        <Story />
+      </div>
+    ),
+  ],
   args: {
     brushSize: 40,
     onBrushSizeChange: () => {},

@@ -113,14 +113,53 @@ l'arbitrage :
 Par outil, et pas un état partagé : la taille du pinceau et la couleur d'une
 forme n'ont rien à se dire.
 
+### ✅ La barre est LIVRÉE le même jour, et le défaut est mesuré CORRIGÉ
+
+`src/components/ToolOptionsBar.tsx` — permanente, hauteur constante, contenu
+suivant l'outil. `BrushToolbar` n'est plus sa propre barre : elle est devenue le
+CONTENU affiché pour le pinceau et la gomme.
+
+**Mesuré dans la vraie fenêtre par CDP, document ouvert, sur les quatre
+outils** :
+
+| | avant | après |
+| --- | --- | --- |
+| haut de la palette, Déplacer → Pinceau | **+75 px** | **0 px** |
+| haut de la palette, Déplacer → Forme | non mesuré | **0 px** |
+| hauteur de la toile, Déplacer → Pinceau | −75 px | **0 px** |
+| hauteur de la barre | 0 puis 75 | **75 px, constante** |
+
+⚠️ **Le prix est réel et il est celui qu'on a accepté** : la toile perd 75 px en
+PERMANENCE, y compris sous *Déplacer* qui n'a rien à régler. C'est la voie A, et
+la planche l'avait posé — une toile qui se réduit est un arbitrage discutable,
+une palette qui bouge sous le curseur n'en est pas un.
+
+### Deux choses trouvées en câblant, aucune par un test
+
+1. **La hauteur constante ne l'était pas au premier jet.** `min-height:
+   var(--toolbar-height)` (36 px) laissait *Déplacer* à 45 px contre 75 px pour
+   le Pinceau — le défaut réduit, pas corrigé. Un second essai à 68 px laissait
+   68 contre 75. La valeur est celle du CONTENU le plus haut plus le padding, et
+   elle a dû être MESURÉE. La story `EveryToolKeepsTheSameHeight` rend les quatre
+   outils dans le même arbre et compare leurs hauteurs à celle du premier — c'est
+   elle qui a attrapé les deux essais.
+2. **Le sélecteur de primitive affichait « 0 ».** Le défaut de `borne` dans
+   `aplat` vaut 0 — « bornée par le masque », toute la toile — et ce n'est pas une
+   primitive qu'un outil de TRACÉ puisse offrir : la valeur était absente de sa
+   propre liste de choix. Le défaut de l'OUTIL est donc le rectangle, exactement
+   ce que `handleShapeDrawn` écrivait en dur avant. **Trouvé sur une capture, pas
+   dans le code** — aucun test ne le regardait, et la story qui le garde
+   maintenant a été écrite après.
+
 ### Ce qui RESTE
 
-- **La barre elle-même** — le composant, à hauteur CONSTANTE (voie A, acquise),
-  et le remplacement de `BrushToolbar` qui déplace la palette de 75 px quand on
-  clique dedans.
-- **Son CONTENU pour chaque outil**, que la planche ne tranche pas et qu'il ne
-  faut pas y chercher : « fond, contour, primitive, angle » est ce que Photoshop
-  y met, mais notre contour n'existe pas (écarté le 2026-08-17) et notre `aplat`
-  porte un dégradé que Photoshop n'a pas dans sa barre. Le contenu se décide
-  après la structure — et la structure est décidée.
-- **`move`, qui n'a rien à régler** et occuperait quand même la bande.
+- **Le contenu de la barre pour le pinceau reste celui d'avant** : quatre
+  réglages plus Remplir/Vider plus « Quitter la peinture ». Ce dernier bouton
+  n'a plus tout à fait le même sens maintenant qu'un outil se quitte par la
+  palette ou par `Échap`.
+- **Les défauts de couleur de la forme sont ceux d'`aplat`** — teinte 0,
+  saturation 0, luminosité 0, c'est-à-dire NOIR. La barre permet enfin de les
+  changer avant de tracer, mais le premier rectangle d'une session reste noir
+  tant que personne ne décide d'un autre défaut. Question produit, pas technique.
+- **`move` porte une phrase d'aide** faute de réglage. Elle occupe la bande, ce
+  qui est le comportement voulu ; ce qu'elle DIT peut se discuter.

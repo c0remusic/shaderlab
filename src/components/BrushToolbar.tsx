@@ -31,17 +31,24 @@ interface Props {
 }
 
 /**
- * Barre d'options du pinceau (style barre d'outils Photoshop) — affichée
- * uniquement en mode masque. Regroupe les réglages du pinceau (taille, dureté,
- * opacité, débit, gomme) et les deux actions de masque global dans une surface
- * horizontale visible, au lieu de les enfouir dans l'inspecteur.
+ * Réglages du pinceau — le CONTENU que `ToolOptionsBar` affiche quand l'outil
+ * actif est le pinceau ou la gomme. Taille, dureté, opacité, débit, gomme, plus
+ * les deux actions de masque global.
+ *
+ * ⚠️ IL N'EST PLUS SA PROPRE BARRE (2026-08-18, ticket 27). Il portait
+ * `.brush-toolbar` et n'était monté qu'en mode masque, ce qui produisait le
+ * défaut mesuré à 1280 × 720 : en passant de *Déplacer* au *Pinceau*, la barre
+ * apparaissait et **la palette d'outils descendait de 75 px** — la rangée de
+ * boutons glissait sous le curseur au moment même où on cliquait dedans. Le
+ * conteneur est désormais permanent et à hauteur constante ; ce composant ne
+ * rend plus qu'une suite de contrôles.
  *
  * **Pourquoi Remplir/Vider ici et pas dans le panneau Masque** (ADR-0001) :
- * cette barre est déjà une zone de contrôles fixe, hors du conteneur défilant
- * du dock, et n'existe qu'en mode peinture — soit exactement le moment où ces
- * deux gestes ont un sens. Les poser dans la carte Masque ajouterait deux
- * lignes à une colonne dont la hauteur est sous budget, pour des actions qui y
- * seraient inertes la plupart du temps.
+ * cette barre est une zone de contrôles fixe, hors du conteneur défilant du
+ * dock, et ces deux gestes n'apparaissent qu'avec l'outil pinceau — soit
+ * exactement le moment où ils ont un sens. Les poser dans la carte Masque
+ * ajouterait deux lignes à une colonne dont la hauteur est sous budget, pour des
+ * actions qui y seraient inertes la plupart du temps.
  */
 export function BrushToolbar({
   brushSize,
@@ -59,7 +66,7 @@ export function BrushToolbar({
   onStop,
 }: Props) {
   return (
-    <div className="brush-toolbar" role="toolbar" aria-label="Options du pinceau">
+    <>
       <span className="brush-toolbar__tool">
         <Brush className="icon-md icon-stroke" aria-hidden="true" />
         Pinceau
@@ -138,6 +145,6 @@ export function BrushToolbar({
       >
         Quitter la peinture
       </Button>
-    </div>
+    </>
   );
 }

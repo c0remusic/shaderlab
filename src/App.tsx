@@ -21,7 +21,8 @@ import { changeLayerEffect } from "./layers/changeLayerEffect";
 import { documentDisplayName } from "./layers/documentName";
 import { duplicateLayer } from "./layers/duplicateLayer";
 import { DocumentSession } from "./application/documentSession";
-import { BrushToolbar } from "./components/BrushToolbar";
+import { ToolOptionsBar } from "./components/ToolOptionsBar";
+import { optionsInitiales, paramsPourNouveauCalque, reglerOption, type ToolOptions } from "./ui/toolOptionsModel";
 import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
 import { TransformHandles } from "./components/TransformHandles";
@@ -809,6 +810,12 @@ export default function App() {
   const { setCanvasMode } = photoLayer;
   const currentTool = activeToolOf({ mode: photoLayer.canvasMode, erase });
 
+  // RÉGLAGES DE LA BARRE D'OPTIONS — ils appartiennent à l'OUTIL, pas au calque
+  // (ticket 27, arbitré le 2026-08-18). Hors de l'historique délibérément : ce
+  // ne sont pas des données du document, ce sont les réglages de l'outil, et un
+  // Ctrl+Z ne doit pas défaire un choix de couleur qui n'a rien produit encore.
+  const [toolOptions, setToolOptions] = useState<ToolOptions>(optionsInitiales);
+
   const handleSelectTool = useCallback(
     (tool: ToolId) => {
       const brushSourceId = layers.find((layer) => layer.id === selectedId)?.mask.sources.find((source) => source.type === "brush")?.id ?? null;
@@ -1046,12 +1053,24 @@ export default function App() {
       clearActivePreset();
       const stack = currentStack();
       const id = stack.addLayer("aplat", selectedId);
-      stack.updateParams(id, { borne: 1, ...params });
+      // LES RÉGLAGES DE L'OUTIL SÈMENT LE TRACÉ (ticket 27) — « le prochain
+      // rectangle sera bleu ». `borne: 1` était écrit en dur ici ; c'est
+      // désormais la primitive choisie dans la barre, avec le rectangle pour
+      // défaut, et il vient d'`aplat.params` et non d'une seconde constante.
+      // La géométrie tracée passe EN DERNIER : elle vient du geste, et rien
+      // dans la barre ne doit pouvoir l'écraser.
+      stack.updateParams(id, { borne: 1, ...paramsPourNouveauCalque(toolOptions, "shape"), ...params });
       commit(stack);
       selectLayer(id);
     },
-    [imageSize, selectedId, clearActivePreset, currentStack, commit, selectLayer],
+    [imageSize, selectedId, toolOptions, clearActivePreset, currentStack, commit, selectLayer],
   );
+
+  /** Un réglage de la barre d'options. Il ne touche AUCUN calque : le modèle
+   *  n'en connaît aucun, et son seul canal est `paramsPourNouveauCalque`. */
+  const handleToolOptionChange = useCallback((outil: ToolId, nom: string, valeur: number) => {
+    setToolOptions((precedent) => reglerOption(precedent, outil, nom, valeur));
+  }, []);
 
   // Callbacks passés à LayerPanel/ParamPanel enveloppés dans useCallback :
   // LayerPanel mémoïse chaque ligne (React.memo, voir LayerRow) pour qu'un
@@ -1897,23 +1916,31 @@ export default function App() {
         onZoomFit={handleZoomFit}
       />
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
-      {maskPaintMode && (
-        <BrushToolbar
-          brushSize={brushSize}
-          onBrushSizeChange={setBrushSize}
-          brushHardness={brushHardness}
-          onBrushHardnessChange={setBrushHardness}
-          brushOpacity={brushOpacity}
-          onBrushOpacityChange={setBrushOpacity}
-          brushFlow={brushFlow}
-          onBrushFlowChange={setBrushFlow}
-          erase={erase}
-          onEraseChange={setErase}
-          onFillMask={handleFillMaskFull}
-          onClearMask={handleClearMask}
-          onStop={photoLayer.stopMaskPaintMode}
-        />
-      )}
+      {/* PERMANENTE, et sans condition de montage — c'est le correctif du
+          ticket 27. Elle était `{maskPaintMode && <BrushToolbar/>}`, donc elle
+          apparaissait en entrant dans le pinceau et poussait la palette
+          d'outils de 75 px vers le bas, sous le curseur qui venait de cliquer
+          dedans. */}
+      <ToolOptionsBar
+        outil={currentTool}
+        options={toolOptions}
+        onOptionChange={handleToolOptionChange}
+        pinceau={{
+          brushSize,
+          onBrushSizeChange: setBrushSize,
+          brushHardness,
+          onBrushHardnessChange: setBrushHardness,
+          brushOpacity,
+          onBrushOpacityChange: setBrushOpacity,
+          brushFlow,
+          onBrushFlowChange: setBrushFlow,
+          erase,
+          onEraseChange: setErase,
+          onFillMask: handleFillMaskFull,
+          onClearMask: handleClearMask,
+          onStop: photoLayer.stopMaskPaintMode,
+        }}
+      />
       {/* Deux mesures DISTINCTES, à ne pas confondre :
           --dock-reserved-width = largeur d'UNE colonne (lue par PanelColumn.css
           pour dimensionner chaque pile, et pilotée par la poignée de resize) ;

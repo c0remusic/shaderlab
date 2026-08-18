@@ -1,10 +1,19 @@
-/* Barre d'options du pinceau (mode masque). Surface horizontale entre la
-   barre d'outils principale et le canvas, façon barre d'options Photoshop. */
-.brush-toolbar {
+/* Barre d'options de l'OUTIL. Surface horizontale entre la barre d'outils
+   principale et le canvas, façon barre d'options Photoshop.
+
+   ⚠️ ELLE EST PERMANENTE ET SA HAUTEUR EST CONSTANTE, et c'est tout son sujet
+   (ticket 27). Elle s'appelait `.brush-toolbar` et n'existait qu'en mode
+   masque : passer de Déplacer au Pinceau la faisait apparaître et descendait la
+   palette d'outils de 75 px — la rangée de boutons glissait sous le curseur au
+   moment même où on cliquait dedans. `min-height` et non `height` : les
+   contrôles gardent leur hauteur naturelle, mais la bande ne peut pas être plus
+   basse que la barre principale, donc *Déplacer* occupe la même place que le
+   Pinceau. */
+.tool-options-bar {
   display: flex;
   align-items: center;
   gap: var(--space-6);
-  min-height: var(--toolbar-height);
+  min-height: var(--tool-options-bar-height);
   padding: var(--space-5) var(--space-6);
   background: var(--surface-panel);
   border-bottom: 1px solid var(--border-default);

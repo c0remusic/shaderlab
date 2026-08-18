@@ -3,6 +3,20 @@
   --control-height-md: 30px;
   --control-height-lg: 32px;
   --toolbar-height: 36px;
+  /* BARRE D'OPTIONS DE L'OUTIL — hauteur CONSTANTE, et c'est toute sa raison
+     d'être (ticket 27, 2026-08-18). La bande est permanente : elle ne peut ni
+     apparaître ni changer de taille quand on change d'outil, sinon la palette
+     d'outils glisse sous le curseur au moment où on clique dedans (mesuré :
+     +75px en passant de Déplacer au Pinceau).
+
+     ⚠️ 75px et non --toolbar-height : le contenu le plus haut est un
+     LabeledSlider (libellé au-dessus de la piste et de son champ), qui mesure
+     ~67px. MESURÉ, pas estimé : poser 36px laissait Déplacer à 45px contre
+     75px pour le Pinceau, et poser 68px le laissait à 68 contre 75 — le défaut
+     d'origine réduit deux fois, jamais corrigé. La valeur est celle du CONTENU
+     le plus haut plus le padding de la barre, relevée dans la story
+     `EveryToolKeepsTheSameHeight`, qui rougit si un contenu vient la dépasser. */
+  --tool-options-bar-height: 75px;
   /* 36px - 28px (IconButton compact) = 8px, réparti en --space-2 (4px) de
      marge de chaque côté — même calcul que --toolbar-height, 30px ne
      laissait qu'1px (bug déjà rencontré et corrigé sur DockedPanelCard). */

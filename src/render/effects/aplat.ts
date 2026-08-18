@@ -184,6 +184,34 @@ export const aplat: EffectModule = {
       appliesWhen: { param: "remplissage", equals: [1, 2] },
       hint: "Distance sur laquelle la première couleur devient la seconde, en fraction du cadre. Courte = transition franche, longue = fondu large",
     },
+    // L'INVERSE (ticket 12, tranche 2). Ce qu'il apporte n'est pas « l'aplat à
+    // l'envers » mais une VIGNETTE À GÉOMÉTRIE : la vignette existe déjà par un
+    // aplat noir sur un masque à dégradé radial inversé (mesuré le 2026-08-17),
+    // et elle est donc RONDE et rien d'autre — l'inversion vivait sur le MASQUE,
+    // dont les sources n'ont aucune géométrie. Ici elle vit sur la FORME, ce qui
+    // rend atteignables l'hexagone et l'octogone que le catalogue liste, avec la
+    // géométrie livrée le 2026-08-17.
+    //
+    // ⚠️ En FIN de `params[]`, et à 0 par défaut : un preset écrit avant
+    // aujourd'hui lit 0 sur un paramètre absent de son document, donc rend
+    // exactement ce qu'il rendait. Même raison qu'à l'arrivée de `remplissage`.
+    //
+    // Sans objet quand rien ne borne : à `borne` = 0 la couverture vaut 1
+    // partout, donc l'inverse vaut 0 partout et l'effet ne rendrait plus rien.
+    // Et il ne peut pas inverser le MASQUE du calque, qui s'applique en aval de
+    // l'effet, dans le compositing.
+    {
+      name: "inverse",
+      label: "Inverser",
+      unit: "none",
+      min: 0,
+      max: 1,
+      default: 0,
+      step: 1,
+      choices: ["Dedans", "Dehors"],
+      appliesWhen: { param: "borne", equals: [1, 2, 3] },
+      hint: "Peindre AUTOUR de la forme au lieu de dedans. C'est ce qui fait une vignette hexagonale ou octogonale, que la source de masque radiale ne sait pas produire",
+    },
   ],
   // Le centre se pose sur la toile plutôt qu'à deux curseurs — c'est
   // exactement le geste que le chantier des contrôles existe pour rendre
@@ -201,7 +229,7 @@ export const aplat: EffectModule = {
       id: "forme",
       label: "Forme",
       layout: "grille",
-      params: ["centreX", "centreY", "largeur", "hauteur", "rotation", "adoucissement", "cotes"],
+      params: ["centreX", "centreY", "largeur", "hauteur", "rotation", "adoucissement", "cotes", "inverse"],
       appliesWhen: { param: "borne", equals: [1, 2, 3] },
     },
     // La couleur et son dégradé sont UNE seule question — « de quoi est faite
@@ -342,6 +370,10 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
       distancePx = dUnite / max(g, 0.0001);
     }
     couverture = aplat_couverture(distancePx, params[6]);
+    // L INVERSE. Pose ICI et non sur \`melange\` : il doit se prendre sur la
+    // couverture ANTICRENELEE, sinon le bord de la vignette redeviendrait dur.
+    // Hors du \`if\`, il rendrait \`borne\` = 0 entierement transparent.
+    couverture = select(couverture, 1.0 - couverture, params[17] > 0.5);
   }
 
   let melange = mix(color.rgb, encre, couverture);

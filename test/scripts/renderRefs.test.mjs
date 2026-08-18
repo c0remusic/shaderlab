@@ -114,6 +114,12 @@ const ATTENDU = {
   // visible sur une paire très contrastée, invisible sur deux teintes voisines.
   "effet-aplat-polygone.png": { width: 256, height: 256, valeurs: null },
   "effet-aplat-degrade.png": { width: 256, height: 256, valeurs: null },
+  // L INVERSE (2026-08-18, ticket 12 tranche 2), sur le MEME hexagone que
+  // `effet-aplat-polygone` : les deux images sont complementaires, la ou l une
+  // porte l encre l autre porte la photo. C est la vignette a geometrie, que la
+  // source de masque radiale ne sait pas produire — l inversion vivait sur le
+  // MASQUE, dont les sources n ont aucune geometrie.
+  "effet-aplat-inverse.png": { width: 256, height: 256, valeurs: null },
   // LES TROIS SOURCES PARAMÉTRIQUES, CHACUNE SEULE (2026-08-05). Le registre en
   // sert trois (`mask/sources/registry.ts`) et AUCUNE n'avait de verrou propre :
   // `masque-pinceau-degrade` ci-dessus fait tourner le dégradé, mais en passager
@@ -538,6 +544,13 @@ const ATTENDU = {
   // contre cette identite. Deux references separent la neutralite du signal.
   "effet-courbes-neutre.png": { width: 256, height: 256, valeurs: null },
   "effet-courbes.png": { width: 256, height: 256, valeurs: null },
+  // SOLARISATION (2026-08-18, ticket 12 tranche 2) : une courbe qui DESCEND
+  // puis remonte. La levee n a touche que `constrainCurvePoint`, cote interface,
+  // la these etant que le shader savait deja le faire. Cette reference est le
+  // seul endroit ou cette these se verifie sur des pixels — le jumeau
+  // TypeScript de la courbe partage son code avec l apercu, il pourrait tres
+  // bien etre le seul des deux a savoir descendre.
+  "effet-courbes-solarisation.png": { width: 256, height: 256, valeurs: null },
   // DUOTONE ET GRADIENT MAP SUR LA MEME RAMPE, a dessein : « sont-ils des
   // doublons » en est a son troisieme tour sans avoir jamais eu de mesure. Deux
   // references sur la meme mire, aux memes tons, la rendent chiffrable — et si
@@ -552,6 +565,62 @@ const ATTENDU = {
   // differentes des neuf autres, est la trace qu'une reference n'est plus
   // forcement 256 x 256.
   "toile-plus-grande-que-la-photo.png": { width: 320, height: 320, valeurs: null },
+  // ── LES TROIS EFFETS DE LA TRANCHE 3 (2026-08-18, ticket 12) ─────────────
+  //
+  // RELIEF. Le couple `effet-emboss` / `effet-emboss-oppose` porte la seule
+  // propriete qu aucun pourcentage global ne pourrait exprimer autrement :
+  // retourner la lampe doit INVERSER le modele. Un noyau qui ne garderait que la
+  // MAGNITUDE du gradient — c est-a-dire `outlines`, dont cet effet partage le
+  // detecteur — rendrait ici deux images IDENTIQUES.
+  "effet-emboss.png": { width: 256, height: 256, valeurs: null },
+  "effet-emboss-oppose.png": { width: 256, height: 256, valeurs: null },
+  "effet-emboss-sur-image.png": { width: 256, height: 256, valeurs: null },
+  // CARTE DE DEPLACEMENT, un scenario par mode de lecture. La carte est
+  // `mireEncre`, servie par le port de decodage du harnais.
+  //
+  // ⚠️ Ces deux-la dependent de `ensureTextureLoaded` : sans l attente, l effet
+  // prend sa branche de repli 1x1 et rend l image INCHANGEE. La reference
+  // ressemblerait a une reference et ne verrouillerait rien — meme piege que
+  // celui deja attrape sur `effet-texture`.
+  "effet-deplacement-pente.png": { width: 256, height: 256, valeurs: null },
+  "effet-deplacement-canaux.png": { width: 256, height: 256, valeurs: null },
+  // NETTETE, sur `mireBruit` — la seule mire qui porte a la fois des MARCHES
+  // franches (l accentuation se lit sur un bord) et des plages PLATES bruitees
+  // (sans elles, le masquage n aurait rien a epargner et son curseur ne
+  // bougerait aucun canal).
+  //
+  // Le temoin est la mire seule. `accentuation` verrouille en prime un
+  // branchement qui n a aucun autre temoin : ses sept passes de pyramide sont
+  // ETEINTES par `EffectPass.enabled`, donc `prevPass` est la source elle-meme et
+  // le flou se fait dans la passe finale. Si les passes cessaient d etre
+  // sautees, le flou deviendrait large et l image changerait partout.
+  "effet-nettete-temoin.png": { width: 256, height: 256, valeurs: null },
+  "effet-nettete-accentuation.png": { width: 256, height: 256, valeurs: null },
+  "effet-nettete-clarte.png": { width: 256, height: 256, valeurs: null },
+  "effet-nettete-masquage.png": { width: 256, height: 256, valeurs: null },
+  // ── LES SIX MODES DE FUSION (2026-08-18, ticket 12 tranche 1) ────────────
+  //
+  // Le registre en portait onze et n en verrouillait que TROIS, tous en
+  // passagers d un scenario d effet (`screen`, `overlay`, `multiply`).
+  //
+  // Ce que le montage a de particulier : la chaine des `contre` du harnais fait
+  // que chacun se mesure contre celui dont il doit se DISTINGUER, et pas contre
+  // la photo nue. Un `contre` sur la photo nue prouverait seulement que le mode
+  // agit ; ici l ecart repond a la question qui separe deux modes voisins —
+  // Luminosite contre Couleur (le sens de la reprise), Teinte contre Couleur (l
+  // origine de la saturation), Soustraction contre Difference (la surface ou la
+  // valeur absolue replie une valeur negative).
+  //
+  // ⚠️ `fusion-couleur` porte peu de valeurs distinctes (1228 mesure) et c est
+  // NORMAL, pas un aplat : le mode ne prend du dessus que sa chromaticite, et le
+  // dessus est une mire a quatre bandes — donc quatre chromaticites, sur toute
+  // la plage de luminosite du dessous.
+  "fusion-couleur.png": { width: 256, height: 256, valeurs: null },
+  "fusion-luminosite.png": { width: 256, height: 256, valeurs: null },
+  "fusion-teinte.png": { width: 256, height: 256, valeurs: null },
+  "fusion-saturation.png": { width: 256, height: 256, valeurs: null },
+  "fusion-difference.png": { width: 256, height: 256, valeurs: null },
+  "fusion-soustraction.png": { width: 256, height: 256, valeurs: null },
 };
 
 /** Meme plancher que `MIN_COULEURS` dans `scripts/render-check.mjs`. */

@@ -160,12 +160,31 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `EffectParam.colorGroup`) touche aussi `ParamPanel.tsx` et peut élargir
   `MAX_EFFECT_PARAMS` (`shaderCompose.ts`, **48** depuis le 2026-08-04, élargi
   de 32 pour `curves`) si nécessaire.
-  Registre réel au 2026-08-17, dans l'ordre : `glow`, `halation`,
+  Registre réel au 2026-08-18, dans l'ordre : `glow`, `halation`,
   `lensFlare`, `lightLeak`, `lensDistortion`, `lensBlur`, `motionBlur`,
-  `glass`, `warp`, `grain`, `duotone`, `hatching`, `halftone`, `dither`,
-  `gooeyMerge`, `channelMixer`, `curves`, `outlines`, `isolines`,
-  `pixelStretch`, `sliceShift`, `gradientMap`, `texture`, `aplat` —
-  **vingt-quatre**.
+  `glass`, `warp`, `displacementMap`, `grain`, `duotone`, `hatching`,
+  `halftone`, `dither`, `gooeyMerge`, `channelMixer`, `curves`, `nettete`,
+  `outlines`, `isolines`, `emboss`, `pixelStretch`, `sliceShift`,
+  `gradientMap`, `texture`, `aplat` — **vingt-sept**.
+  Les trois derniers arrivés (2026-08-18) sont la TRANCHE 3 du ticket 12, et
+  aucun n'a demandé de mécanisme neuf :
+  - `nettete` — accentuation et clarté, un seul opérateur à deux BANDES de
+    fréquence. Il était donné « doublement bloqué » (pas de mode de fusion
+    signé, un effet ne peut lire aucun autre calque) et les deux blocages
+    étaient faux : `glow` tient déjà `color` et `prevPass` dans son dernier
+    pass, donc la soustraction a lieu DANS l'effet, entre deux échelles de sa
+    propre entrée. ⚠️ Second usage d'`EffectPass.enabled` après `outlines`, et
+    il exploite une propriété que le runner documente — **un mode dont TOUTES
+    les passes sautent reçoit la texture SOURCE en `prevPass`**
+    (`effectPassRunner.ts:247`). C'est ce qui loge deux rayons très différents
+    dans un seul effet sans pyramide conditionnelle.
+  - `emboss` — TROISIÈME lecteur d'`edgeGradient.ts`, dont l'en-tête annonçait
+    « le prochain effet à bords ». Ce qui le sépare d'`outlines` tient en une
+    ligne : celui-là prend la MAGNITUDE du gradient et jette sa direction,
+    celui-ci ne garde que la direction.
+  - `displacementMap` — le champ de déplacement devient une DONNÉE au lieu
+    d'être du code (`warp` et `glass` calculent le leur). Rendu bon marché par
+    le binding 7 d'ADR-0018, générique dès son écriture.
   `aplat` (2026-08-17) est une COULEUR UNIE bornée par un masque ou par une
   primitive posée. Il est le premier à entrer par une question à laquelle il n'a
   pas répondu : né prototype pour trancher « une forme a-t-elle besoin d'un
@@ -272,21 +291,25 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   que ce paragraphe a dit du 2026-08-05 au 2026-08-12** (« chantier soldé »).
   Mesuré sur les modules réels, d'abord le 2026-08-12 puis le 2026-08-15
   (instrument : `.scratch/prochain-palier/assets/mesure-controles.ts`), puis
-  re-mesuré le 2026-08-17 : sur **365 paramètres**, 48 portent une condition et
-  **15 effets sur 24 n'en ont AUCUNE** — dont `curves` (37 params),
-  `channelMixer` (22), `gradientMap` (20).
-  ⚠️ **Le bond de 36 à 48 conditions n'est pas un progrès du chantier** : il
-  vient d'`aplat` seul, qui en porte **12** et devient d'un coup le deuxième
-  effet le mieux conditionné du registre derrière `glass` (14). Un effet neuf
-  déplace tous ces ratios ; les RE-MESURER avant de s'en servir pour juger l'état
-  du chantier, sinon un ajout se lit comme une correction. ✅ `lensFlare` en est SORTI le 2026-08-14 : ses trois
+  re-mesuré le 2026-08-18 (après la tranche 3) : sur **382 paramètres**, 51
+  portent une condition (13 %) et **16 effets sur 27 n'en ont AUCUNE** — dont
+  `curves` (37 params), `lensFlare` (33), `channelMixer` (22),
+  `gradientMap` (20).
+  ⚠️ **Le ratio n'a PAS bougé et le compte a monté deux fois de suite pour la
+  même raison — un effet neuf, pas une correction.** 36 → 48 le 2026-08-17
+  (`aplat` seul en apportait 12), 48 → 51 le 2026-08-18 (`nettete` 1,
+  `displacementMap` 1, `aplat` 1 de plus avec son inverse). Et le
+  DÉNOMINATEUR monte avec : 16 effets sans condition contre 15, `emboss` entrant
+  sans aucune — délibérément, il n'a pas d'état caché (point 2 du ticket 15).
+  RE-MESURER avant de s'en servir pour juger l'état du chantier, sinon un ajout
+  se lit comme un progrès. ✅ `lensFlare` en est SORTI le 2026-08-14 : ses trois
   phénomènes ont désormais leurs trois interrupteurs, et ses trois sections
   leur condition — c'était le cas qu'ADR-0017 rendait le plus criant (trois
   blocs dont les paramètres ne font rien quand leur bloc est éteint). Le
   registre porte 9 conditions de SECTION en tout. Les sections
   existent partout mais ne sectionnent pas (`duotone` 11 params pour 1 section,
-  `lensFlare` 10 par section ; `liste` = **57 des 77** gabarits, d'où le
-  défilement), et **5 effets sur 24 seulement** portent un outil sur la toile,
+  `outlines` 8,7 par section ; `liste` = **63 des 83** gabarits, d'où le
+  défilement), et **5 effets sur 27 seulement** portent un outil sur la toile,
   en trois genres (`disk` ×2, `point` ×3, `axis` ×2) — `aplat` s'y est ajouté le
   2026-08-17 avec un `point` sur le centre de sa forme. Se tranche dans
   `.scratch/prochain-palier/issues/14-la-fusion-des-reglages-redondants.md`.
@@ -545,11 +568,11 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   le compteur, pas en lançant le gate.
   Ce qu'elle laisse passer : notre uniform `params: array<f32, 48>` n'est pas
   conforme (stride 4 pour un alignement requis de 16 en espace uniform), Dawn
-  l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 23
-  effets, index gelés par les presets ET par **108** références de pixels
-  (re-mesuré le 2026-08-18 : 108 PNG dans `test/render-refs/`, tous déclarés,
-  zéro orphelin — 102 le matin, plus les six modes de fusion ; ce nombre disait
-  97 et le ROADMAP 77).
+  l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 27
+  effets, index gelés par les presets ET par **119** références de pixels
+  (re-mesuré le 2026-08-18 : 119 PNG dans `test/render-refs/`, tous déclarés,
+  zéro orphelin — 102 le matin, plus six modes de fusion et onze scénarios des
+  tranches 2 et 3 ; ce nombre disait 97 et le ROADMAP 77).
   ⚠️ **Compter les scénarios par un grep sur les clés littérales SOUS-COMPTE de
   quatre** : les quatre trames de `dither` sont générées par un
   `Object.fromEntries([...].map(...))` étalé (`render-check.mjs:1095-1099`), pas

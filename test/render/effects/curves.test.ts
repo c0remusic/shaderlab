@@ -32,6 +32,25 @@ describe("curves", () => {
     }
   });
 
+  // TRANCHE 2 DU TICKET 12 — la solarisation. Rien n'a été écrit dans l'effet
+  // pour elle : ce test EXISTE pour prouver que le rendu la portait déjà, et
+  // que la contrainte était côté interface seule (`constrainCurvePoint`).
+  it("porte une courbe qui DESCEND puis remonte, sans déborder", () => {
+    const params = [...defaults];
+    params[1] = 0.35; params[2] = 0.9;
+    params[3] = 0.65; params[4] = 0.1;
+    const gris = (v: number) => curvesSpec([v, v, v], params)[0];
+    for (let index = 0; index <= 256; index += 1) {
+      const sortie = gris(index / 256);
+      expect(sortie).toBeGreaterThanOrEqual(0);
+      expect(sortie).toBeLessThanOrEqual(1);
+    }
+    // La descente est REELLE, pas un palier : c'est la seule assertion que la
+    // contrainte d'origine faisait échouer.
+    expect(gris(0.65)).toBeLessThan(gris(0.35));
+    expect(gris(1)).toBeGreaterThan(gris(0.65));
+  });
+
   it("une courbe rouge ne déplace pas les canaux vert et bleu", () => {
     const params = [...defaults];
     params[8] = 0.2;

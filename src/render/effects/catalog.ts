@@ -25,15 +25,26 @@ export const effectCategoryById: Readonly<Record<string, EffectCategory>> = {
   gooeyMerge: "Déformation",
   pixelStretch: "Déformation",
   sliceShift: "Déformation",
+  // Avec `warp` et `glass`, dont il ne diffère que par la PROVENANCE du champ :
+  // les deux le calculent, celui-ci le lit dans une image.
+  displacementMap: "Déformation",
   duotone: "Couleur",
   channelMixer: "Couleur",
   curves: "Couleur",
   gradientMap: "Couleur",
+  // ⚠️ La famille tonale, et non `Optique` près des flous dont il est l'inverse
+  // spatial : cette table classe le MÉCANISME, et une accentuation n'est
+  // produite par aucun verre. Arbitrage visible plutôt que rangement muet.
+  nettete: "Couleur",
   hatching: "Impression",
   halftone: "Impression",
   dither: "Impression",
   outlines: "Impression",
   isolines: "Impression",
+  // Le gaufrage est un procédé d'impression, et cet effet ne fabrique aucune
+  // matière — il éclaire celle que l'image porte déjà. D'où Impression et non
+  // Texture, où l'on aurait pu le ranger sur son seul nom.
+  emboss: "Impression",
   grain: "Texture",
   texture: "Texture",
   // ⚠️ PROTOTYPE (ticket 23). Rangé en Couleur et non en Texture : il ne

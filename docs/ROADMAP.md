@@ -16,8 +16,9 @@
 
 ## Où en est le code — mesuré sur disque le 2026-08-05, pas de mémoire
 
-- **24 effets** au registre (`src/render/effects/registry.ts`) — `texture` puis
-  `lightLeak` le 2026-08-05, `aplat` le 2026-08-17.
+- **27 effets** au registre (`src/render/effects/registry.ts`) — `texture` puis
+  `lightLeak` le 2026-08-05, `aplat` le 2026-08-17, et la tranche 3 du ticket 12
+  le 2026-08-18 : `nettete`, `emboss`, `displacementMap`.
   ✅ `aplat` (couleur unie bornée par un masque ou une primitive posée) a reçu
   **deux des trois fronts de son upgrade qualité** le 2026-08-17 : remplissage en
   DÉGRADÉ (linéaire et radial, arrêts interpolés en lumière linéaire) et
@@ -31,7 +32,7 @@
   retouchent ce qui existe.
 - `glass` **complet** : 14 matières (9 de feuille + 5 de pavé), 5 profils de
   section, **18 références de pixels — toutes les branches verrouillées**.
-- **Les 24 effets portent des sections** et leurs applicabilités déclarées
+- **Les 27 effets portent des sections** et leurs applicabilités déclarées
   (`EffectModule.sections`, `EffectParam.appliesWhen`) — chantier de
   rationalisation des contrôles **soldé le 2026-08-05**, statut dans
   `INDEX.json`. Ce qu'il en reste est du jugement, donc dans le bloc 1.
@@ -682,15 +683,47 @@ du dépôt n'est pas « ce que fait Photoshop » (qui fait tout en gamma) mais
 pour cette raison. Les quatre non séparables, eux, décodent en sRGB : leurs
 coefficients 0,3 / 0,59 / 0,11 sont une luma perçue sur des valeurs encodées.
 
-**Tranche 2 — les contraintes à lever.** Deux gestes qui ne créent rien :
-courbe libre / solarisation (le shader l'évalue déjà, c'est
-`constrainCurvePoint` côté interface qui l'interdit) et **l'inverse d'`aplat`**
-— ✅ adopté : un booléen en fin de `params[]`, une ligne de shader, aucun index
-persisté déplacé, qui rend atteignables les vignettes hexagonale et octogonale
-dont la géométrie est déjà livrée.
+✅ **Tranche 2 — LIVRÉE le 2026-08-18.** La courbe libre n'a coûté qu'une
+suppression : `constrainCurvePoint` clampait l'ordonnée d'un point entre celles
+de ses voisins, et cette contrainte-là ne servait rien — seul l'ordre en X en a
+une (`curve_eval` balaye `xs` de gauche à droite). Le shader évaluait déjà une
+courbe descendante, sa cubique de Hermite étant celle de Fritsch-Carlson, qui
+préserve la monotonie PAR SEGMENT et non sur toute la courbe. L'inverse d'`aplat`
+est un booléen en fin de `params[]` et une ligne de shader, posé sur la
+couverture ANTICRÉNELÉE plutôt que sur le mélange — sinon le bord de la vignette
+redeviendrait dur.
 
-**Tranche 3 — les effets à machinerie existante.** Netteté / contraste local,
-emboss, carte de déplacement. Trois fois le même patron, donc parallélisables.
+⚠️ **Une thèse « le rendu sait déjà le faire » se vérifie sur des PIXELS.** Le
+jumeau TypeScript de la courbe partage son code avec l'aperçu du contrôle : il
+aurait très bien pu être le seul des deux à savoir descendre, et les tests
+unitaires seraient restés verts. D'où `effet-courbes-solarisation`.
+
+✅ **Tranche 3 — LIVRÉE le 2026-08-18.** Trois effets, aucun mécanisme neuf, le
+registre passe de 24 à **27**.
+
+- **`nettete`** — accentuation et clarté, un seul opérateur à deux BANDES. Il
+  exploite une propriété que `effectPassRunner.ts:247` documente et que rien
+  n'utilisait : **un mode dont TOUTES les passes sautent reçoit la texture
+  SOURCE en `prevPass`**. En Accentuation, les sept passes de pyramide sont
+  éteintes et le flou se fait en tente 3×3 dans la passe finale ; en Clarté la
+  pyramide tourne. Deux rayons très éloignés dans un seul effet, sans pyramide
+  conditionnelle. Trois choses tiennent la barre de qualité (le liseré) :
+  compresseur doux sur l'amplitude, masquage des zones plates, et correction sur
+  la LUMINANCE seule — additive, jamais multiplicative, la forme `sortie/entrée`
+  ayant déjà explosé dans les ombres de `curves` le 2026-08-13.
+- **`emboss`** — troisième lecteur d'`edgeGradient.ts`, dont l'en-tête annonçait
+  « le prochain effet à bords ». `outlines` prend la MAGNITUDE du gradient et
+  jette sa direction ; celui-ci ne garde que la direction.
+  ⚠️ **Son signe a été pris à l'envers, et rien ne l'a dit** : le shader
+  compilait, la référence était forte, la gate de signal verte. C'est en OUVRANT
+  l'image qu'on a vu le disque crème s'assombrir du côté de la lampe — un
+  plateau vu en cuvette. **Un relief inversé ressemble à un relief.**
+- **`displacementMap`** — le champ de déplacement devient une DONNÉE au lieu
+  d'être du code. Son défaut n'est PAS la convention Photoshop (rouge = X,
+  vert = Y) mais la pente du gris, et c'est mesurable dans le dossier : la
+  bibliothèque est faite de scans, donc d'images grises, où R et V sont égaux et
+  où le mode Photoshop ne produit qu'un cisaillement à 45°. Le défaut doit
+  marcher avec ce que la bibliothèque CONTIENT.
 
 ⚠️ **La netteté n'est PAS bloquée, contrairement à ce qui a été écrit.** Elle
 était donnée « DOUBLEMENT bloquée : aucun mode signé, et un effet ne peut lire
@@ -1084,6 +1117,14 @@ un contrôle composite** (points de `curveControls`, arrêts de
 
 **Parc réel : 24 effets · 365 params déclarés · 289 RANGÉES · 48 conditions de
 paramètre (16,6 % des rangées) · 77 sections · 10 conditions de section.**
+
+⚠️ **Chiffres du 2026-08-17, périmés depuis la tranche 3.** Re-mesuré le
+2026-08-18 sur le même instrument : **27 effets · 382 params · 51 conditions de
+paramètre · 83 sections · 16 effets sur 27 sans aucune condition**. Le RATIO n'a
+pas bougé — les trois effets neufs apportent 2 conditions et 16 paramètres, donc
+le numérateur et le dénominateur montent ensemble. Le décompte des RANGÉES (celui
+qui compte, un contrôle composite ne faisant qu'une ligne) n'a pas été refait :
+il demande le tableau de `--applicabilite`, pas ce script.
 
 Deux corrections qui changent le travail, pas seulement les chiffres :
 

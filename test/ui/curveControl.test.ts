@@ -19,9 +19,28 @@ describe("curve control model", () => {
     expect(points).toHaveLength(MAX_CURVE_POINTS);
   });
 
-  it("clamps a moved point between both neighbours on x and y", () => {
+  it("clamps a moved point between both neighbours on x, mais PLUS sur y", () => {
     const points = [{ x: 0, y: 0 }, { x: 0.3, y: 0.2 }, { x: 0.7, y: 0.8 }, { x: 1, y: 1 }];
-    expect(constrainCurvePoint(points, 1, { x: 0.9, y: 0.95 })[1]).toEqual({ x: 0.699, y: 0.8 });
+    // x : borne par le voisin de droite, moins POINT_GAP (largeur de segment
+    // nulle = division par zero dans `curve_eval`).
+    // y : 0,95 passe DESSUS son voisin de droite (0,8) — c'est la solarisation,
+    // interdite par l'interface seule jusqu'au 2026-08-18.
+    expect(constrainCurvePoint(points, 1, { x: 0.9, y: 0.95 })[1]).toEqual({ x: 0.699, y: 0.95 });
+  });
+
+  it("laisse une courbe DESCENDRE puis remonter, et l'evalue sans deborder", () => {
+    // Solarisation : le ton monte, redescend, remonte. Ce qui doit tenir n'est
+    // pas la monotonie — c'est qu'aucune valeur ne sorte de [0,1] et que la
+    // courbe suive bien ses points de controle.
+    const points = [{ x: 0, y: 0 }, { x: 0.35, y: 0.9 }, { x: 0.65, y: 0.1 }, { x: 1, y: 1 }];
+    const valeurs = Array.from({ length: 1001 }, (_, i) => evaluateMonotoneCurve(points, i / 1000));
+    expect(valeurs.every((v) => v >= 0 && v <= 1)).toBe(true);
+    for (const point of points) {
+      expect(evaluateMonotoneCurve(points, point.x)).toBeCloseTo(point.y, 6);
+    }
+    // La descente existe VRAIMENT : sans elle ce test passerait sur une courbe
+    // que la contrainte aurait aplatie en palier.
+    expect(valeurs[500]).toBeLessThan(valeurs[350]);
   });
 
   it("keeps endpoint x fixed and endpoints removable only in y", () => {

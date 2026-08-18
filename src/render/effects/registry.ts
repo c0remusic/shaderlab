@@ -24,6 +24,9 @@ import { curves } from "./curves";
 import { texture } from "./texture";
 import { lightLeak } from "./lightLeak";
 import { aplat } from "./aplat";
+import { nettete } from "./nettete";
+import { emboss } from "./emboss";
+import { displacementMap } from "./displacementMap";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 
 // Les six du milieu suivent l'ordre de priorité du backlog d'effets confirmé par
@@ -127,6 +130,18 @@ export const effectRegistry: EffectModule[] = [
   // liste de matières, pas dans un second effet — plan validé le 2026-08-03.
   glass,
   warp,
+  // `displacementMap` (2026-08-18) suit `warp` parce qu'il pose exactement sa
+  // question et n'en change que la PROVENANCE : `warp` et `glass` CALCULENT leur
+  // champ de déplacement (FBM, relief de matière), celui-ci le LIT dans une
+  // image de la bibliothèque. C'est ce que le binding 7 d'ADR-0018 rend bon
+  // marché — le mécanisme `libraryTexture` était générique dès son écriture, il
+  // n'a rien fallu ouvrir.
+  //
+  // ⚠️ Il ne peut PAS avoir de passes internes : `libraryTexture` + `passes` est
+  // refusé par `validateEffect`, le binding n'étant résolu que pour la passe
+  // finale. Tout ce qu'il fait tient donc dans une passe, et c'est une borne à
+  // connaître avant de vouloir y flouter la carte.
+  displacementMap,
   grain,
   duotone,
   // `hatching` et `halftone` (2026-08-01) appartiennent à la référence
@@ -146,6 +161,24 @@ export const effectRegistry: EffectModule[] = [
   gooeyMerge,
   channelMixer,
   curves,
+  // `nettete` (2026-08-18) est posé après `curves` parce qu'il pose la même
+  // question qu'elle par l'autre bout : `curves` décide de la valeur d'un ton,
+  // celui-ci de l'écart entre un ton et son VOISINAGE. Les deux sont tonals ;
+  // seul le second est spatial.
+  //
+  // C'était le manque le plus répété du cahier de postproduction — NEUF
+  // mentions, zéro effet — et le seul que le ticket 12 donnait « doublement
+  // bloqué » : pas de mode de fusion signé, et un effet ne peut lire aucun autre
+  // calque. Les deux blocages étaient faux. `glow` tenait déjà les deux images
+  // dans son dernier pass, donc la soustraction se fait DANS l'effet, entre deux
+  // échelles de sa propre entrée. Il n'a rien fallu ouvrir.
+  //
+  // ⚠️ Rangé en `Couleur` et non près des flous, dont il est pourtant l'inverse
+  // spatial. La taxonomie classe le MÉCANISME : ce qui vit dans `Optique` est ce
+  // que fait un objectif, et une accentuation n'est produite par aucun verre.
+  // Le rangement près des flous se défend par le chemin de recherche de
+  // l'utilisateur ; c'est une ligne à changer si Antoine le préfère.
+  nettete,
   // `outlines` a ABSORBÉ `coloredEdges` le 2026-08-03 (arbitrage d'Antoine).
   // Les deux partageaient déjà leur détecteur (`edgeGradient.ts`) et cinq
   // paramètres sur huit, écrits deux fois aux mêmes valeurs ; ce qui les
@@ -178,6 +211,16 @@ export const effectRegistry: EffectModule[] = [
   // suit le gradient local (une bande dans un ciel doux, un cheveu sur une
   // arête), ici elle est constante par construction.
   isolines,
+  // `emboss` (2026-08-18) est le TROISIÈME lecteur d'`edgeGradient.ts`, et il
+  // est posé juste après les deux autres parce que ce qui l'en sépare tient en
+  // une ligne : `outlines` et le mode Échos prennent la MAGNITUDE du gradient et
+  // jettent sa direction, celui-ci ne garde que la direction. Un produit
+  // scalaire contre une direction de lampe, et le détecteur devient un relief.
+  //
+  // Rangé en Impression avec eux, et pas en Texture : le gaufrage EST un procédé
+  // d'impression, et cet effet ne fabrique aucune matière — il éclaire celle que
+  // l'image porte déjà.
+  emboss,
   pixelStretch,
   sliceShift,
   gradientMap,

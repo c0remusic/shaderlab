@@ -2682,6 +2682,39 @@ const INSTALL = `(async () => {
       },
     },
 
+    // SOLARISATION — une courbe qui DESCEND puis remonte (ticket 12, tranche 2).
+    //
+    // CE QUE CE SCENARIO PROUVE, ET QU AUCUN TEST UNITAIRE NE PEUT PROUVER : que
+    // le SHADER porte la courbe non monotone. La levee du 2026-08-18 n a touche
+    // que \`constrainCurvePoint\`, cote interface — la these etant que le rendu
+    // savait deja le faire. Une these pareille se verifie sur des pixels, pas sur
+    // le jumeau TypeScript de la courbe, qui partage son code avec l apercu et
+    // pourrait tres bien etre le seul des deux a savoir descendre.
+    //
+    // Sur la RAMPE, pour la meme raison que \`effet-courbes\` : la solarisation
+    // EST une reponse tonale, et une rampe l etale sur toute la largeur. Sur la
+    // mire commune, la descente serait hachee par le damier.
+    //
+    // \`contre\` pointe sur \`effet-courbes\` et non sur la rampe nue : ce qu on veut
+    // mesurer n est pas qu une courbe agit, c est qu une courbe DESCENDANTE ne
+    // rend pas ce que rend une courbe montante.
+    "effet-courbes-solarisation": {
+      contre: "effet-courbes",
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("curves", p);
+        stack.updateParams(a, {
+          masterPoint1X: 0.35, masterPoint1Y: 0.9,
+          masterPoint2X: 0.65, masterPoint2Y: 0.1,
+          shadowsMin: 0, shadowsMax: 0.08,
+          highlightsMin: 0.92, highlightsMax: 1,
+          mix: 1,
+        });
+      },
+    },
+
     // DUOTONE, SUR LA RAMPE, A SES DEFAUTS EXACTS. Deux choix, deux raisons.
     //
     // La rampe parce que cet effet est une REPONSE TONALE et rien d autre : il
@@ -3077,6 +3110,30 @@ const INSTALL = `(async () => {
       },
     },
 
+    // L INVERSE, SUR LE MEME HEXAGONE que le scenario precedent (ticket 12,
+    // tranche 2). Tout est identique sauf le drapeau, donc les deux images sont
+    // COMPLEMENTAIRES : la ou l une porte l encre, l autre porte la photo. C est
+    // la vignette a geometrie, celle que la source de masque radiale ne sait pas
+    // produire — et le seul scenario du dossier ou l encre sort du cadre de la
+    // forme au lieu d y entrer.
+    //
+    // ⚠️ Le \`contre\` se lit A L ENVERS de l habitude : un ecart ENORME est
+    // attendu (les deux images se partagent le cadre), et c est un ecart FAIBLE
+    // qui signalerait le defaut — un drapeau non lu rendrait 0 %.
+    "effet-aplat-inverse": {
+      contre: "effet-aplat-polygone",
+      build: async (r, stack) => {
+        const a = stack.addLayer("aplat");
+        stack.updateParams(a, {
+          borne: 3, cotes: 6,
+          centreX: 0.46, centreY: 0.52, largeur: 0.8, hauteur: 0.6,
+          rotation: 20, adoucissement: 0,
+          teinte: 35, saturation: 0.3, clarte: 0.9,
+          inverse: 1,
+        });
+      },
+    },
+
     // LE REMPLISSAGE EN DEGRADE, sur la MEME forme que \`effet-aplat\`. Seul le
     // remplissage change, donc l ecart est la transition et rien d autre.
     //
@@ -3348,6 +3405,168 @@ const INSTALL = `(async () => {
           tolerance: 0.2, hardness: 0.5, invert: 0,
           samples: [...PASTILLES[0].map(versLineaire), ...PASTILLES[2].map(versLineaire)],
         });
+      },
+    },
+
+    // ── RELIEF (emboss) : TROIS SCENARIOS ────────────────────────────────
+    //
+    // Sur la mire commune, et c est le bon choix ici : un relief se lit sur des
+    // PENTES, et elle en porte de toutes les sortes — les aretes franches du
+    // damier, la pente douce des deux degrades, le bord courbe du disque. C est
+    // l inverse du cas \`nettete\`, qui reclamait du plat.
+
+    // GRIS : le modele seul. Lampe en haut a gauche (135 degres), l orientation
+    // par defaut de tous les reliefs d interface.
+    "effet-emboss": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("emboss");
+        stack.updateParams(a, { rendu: 0, angle: 135, force: 1.4, epaisseur: 1, entree: 0 });
+      },
+    },
+
+    // LA LAMPE A L OPPOSE (315 degres), tout le reste identique. C est LE
+    // scenario du lot, et il tient une propriete qu aucun pourcentage global ne
+    // pourrait exprimer autrement : le relief doit s INVERSER, creux et bosses
+    // echanges. Un noyau qui ne garderait que la MAGNITUDE du gradient — c est
+    // a dire \`outlines\` — rendrait ici EXACTEMENT la meme image que ci-dessus.
+    // L ecart mesure est donc la preuve que la direction est lue.
+    "effet-emboss-oppose": {
+      contre: "effet-emboss",
+      build: async (r, stack) => {
+        const a = stack.addLayer("emboss");
+        stack.updateParams(a, { rendu: 0, angle: 315, force: 1.4, epaisseur: 1, entree: 0 });
+      },
+    },
+
+    // SUR L IMAGE : le meme relief, ajoute a la photo au lieu de la remplacer.
+    // Contre le rendu Gris, dont il ne change que la base — l ecart est donc ce
+    // que l image apporte, et rien du relief.
+    "effet-emboss-sur-image": {
+      contre: "effet-emboss",
+      build: async (r, stack) => {
+        const a = stack.addLayer("emboss");
+        stack.updateParams(a, { rendu: 1, angle: 135, force: 1.4, epaisseur: 1, entree: 0 });
+      },
+    },
+
+    // ── CARTE DE DEPLACEMENT : DEUX SCENARIOS, UN PAR MODE DE LECTURE ─────
+    //
+    // La carte est \`mireEncre\`, la meme que celle qui sert \`effet-texture\` — le
+    // harnais n a pas d IPC, donc la bibliotheque est une mire GENEREE dans la
+    // page. Elle convient par construction : deux echelles de structure (des
+    // cellules de 32 px et des bandes diagonales) plus un detail au pixel, donc
+    // des pentes lisibles a plusieurs finesses.
+    //
+    // ⚠️ \`ensureTextureLoaded\` est OBLIGATOIRE : \`viewFor\` ne bloque pas, il sert
+    // le repli 1x1 et rend la main. Sans l attente, l effet prendrait sa branche
+    // de repli et rendrait l image INCHANGEE — une reference qui ressemble a une
+    // reference, et qui ne verrouille rien. Le garde de signal l a deja attrape
+    // une fois sur \`effet-texture\`.
+
+    // PENTE DU GRIS, le defaut : la carte est un relief, le decalage suit sa
+    // pente. C est le mode qui marche avec ce que la bibliotheque CONTIENT — des
+    // scans, donc des images grises.
+    "effet-deplacement-pente": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        r.setTextureCatalog([TEXTURE_MIRE]);
+        await r.ensureTextureLoaded(0);
+        const a = stack.addLayer("displacementMap");
+        stack.updateParams(a, { rang: 0, mode: 0, amplitude: 60, echelle: 0.8, angle: 12, finesse: 4 });
+      },
+    },
+
+    // CANAUX R ET V, la convention Photoshop. Contre le mode Pente, tout le
+    // reste identique : l ecart EST la facon de lire la carte, et rien d autre.
+    //
+    // Sur une carte GRISE, ce mode pousse tout en diagonale a 45 degres, R et V
+    // y etant egaux — ce n est pas un defaut du scenario, c est la raison pour
+    // laquelle il n est pas le defaut de l effet, et cette reference le montre.
+    "effet-deplacement-canaux": {
+      contre: "effet-deplacement-pente",
+      build: async (r, stack) => {
+        r.setTextureCatalog([TEXTURE_MIRE]);
+        await r.ensureTextureLoaded(0);
+        const a = stack.addLayer("displacementMap");
+        stack.updateParams(a, { rang: 0, mode: 1, amplitude: 60, echelle: 0.8, angle: 12, finesse: 4 });
+      },
+    },
+
+    // ── NETTETE : QUATRE SCENARIOS, TROIS PROPRIETES ─────────────────────
+    //
+    // SUR \`mireBruit\`, ET CE CHOIX EST LA MOITIE DU VERROU. Cet effet a trois
+    // choses a montrer, et il faut une mire qui porte les trois : deux MARCHES
+    // franches d orientations differentes (l accentuation se lit sur un bord, et
+    // un biais d orientation se verrait), et des plages PLATES faiblement
+    // bruitees (+-3 %) — sans elles, le masquage n aurait rien a epargner et son
+    // curseur ne bougerait aucun canal. La mire commune n a pas de plage plate :
+    // son damier saute d un texel a l autre partout.
+    //
+    // ⚠️ C est exactement le piege de \`lensBlur\` (dix-sept tests verts sur un
+    // flou au double du rayon), pris par l autre bout : ici la propriete est un
+    // ECART LOCAL, donc la mire doit porter du plat ET du bord.
+
+    // TEMOIN : la mire seule, sans effet. Les trois suivants s y comparent, donc
+    // l ecart mesure est ce que l effet AJOUTE, et rien d autre.
+    "effet-nettete-temoin": {
+      fond: false,
+      build: async (r, stack) => {
+        const bruit = await mireBruit(W, H);
+        const sourceId = await r.photoSources.register(bruit);
+        stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bruit");
+      },
+    },
+
+    // ACCENTUATION : la bande haute. Les sept passes de pyramide sont ETEINTES
+    // (\`EffectPass.enabled\`), donc \`prevPass\` est la source elle-meme et le flou
+    // se fait en tente 3x3 dans la passe finale. Ce scenario verrouille donc
+    // aussi ce branchement-la, qui n a aucun autre temoin : si les passes
+    // cessaient d etre sautees, le flou deviendrait large et l image changerait
+    // partout.
+    "effet-nettete-accentuation": {
+      fond: false,
+      contre: "effet-nettete-temoin",
+      build: async (r, stack) => {
+        const bruit = await mireBruit(W, H);
+        const sourceId = await r.photoSources.register(bruit);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bruit");
+        const a = stack.addLayer("nettete", p);
+        stack.updateParams(a, { bande: 0, force: 1.6, rayon: 1, masquage: 0, halos: 0.9 });
+      },
+    },
+
+    // CLARTE : la meme dose, la meme maitrise, le meme masquage — SEULE la bande
+    // change. L ecart entre les deux images EST donc le rayon du flou, et rien
+    // d autre. C est le couple qui attrape une pyramide qui ne tournerait pas,
+    // ou un \`rayon\` cable au mauvais index dans le noyau de remontee.
+    "effet-nettete-clarte": {
+      fond: false,
+      contre: "effet-nettete-accentuation",
+      build: async (r, stack) => {
+        const bruit = await mireBruit(W, H);
+        const sourceId = await r.photoSources.register(bruit);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bruit");
+        const a = stack.addLayer("nettete", p);
+        stack.updateParams(a, { bande: 1, force: 1.6, rayon: 2, masquage: 0, halos: 0.9 });
+      },
+    },
+
+    // MASQUAGE : la meme accentuation, mais les plages plates epargnees. L ecart
+    // se concentre par construction dans le bruit des deux paliers, PAS sur les
+    // deux marches — c est la propriete meme du controle. Un masquage cable a
+    // l envers (qui epargnerait les bords) rendrait un ecart du meme ordre, mais
+    // au mauvais endroit : c est ce que la relecture de l image tranche, la ou le
+    // pourcentage ne le pourrait pas.
+    "effet-nettete-masquage": {
+      fond: false,
+      contre: "effet-nettete-accentuation",
+      build: async (r, stack) => {
+        const bruit = await mireBruit(W, H);
+        const sourceId = await r.photoSources.register(bruit);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bruit");
+        const a = stack.addLayer("nettete", p);
+        stack.updateParams(a, { bande: 0, force: 1.6, rayon: 1, masquage: 0.5, halos: 0.9 });
       },
     },
 

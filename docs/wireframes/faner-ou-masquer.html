@@ -132,6 +132,20 @@ code {
 }
 .section-repliee .compte { font-size: 11px; color: var(--text-tertiary); font-family: Consolas, monospace; }
 
+/* ---- valeur par défaut visible + retour au défaut (ajout 2026-08-18) ---- */
+.rangee-nom.modifie { color: var(--text-primary); cursor: pointer; text-decoration: underline dotted var(--border-strong); text-underline-offset: 3px; }
+.rangee-valeur b { color: var(--text-primary); font-weight: 600; }
+.defaut { color: var(--text-tertiary); opacity: .65; }
+.defaut::before { content: "↺ "; }
+.marque-defaut {
+  position: absolute; top: 50%; width: 1px; height: 10px;
+  transform: translate(-50%, -50%); background: var(--border-strong);
+}
+.retour-groupe {
+  font-family: Consolas, monospace; font-size: 11px; color: var(--text-tertiary);
+  cursor: pointer;
+}
+
 /* ---- mesure ---- */
 .mesure {
   margin-top: var(--space-5); padding: var(--space-4) var(--space-5);
@@ -338,6 +352,120 @@ td.n { font-family: Consolas, monospace; text-align: right; padding-right: var(-
   <thead><tr><th>Variante</th><th>Contrôles à l'écran</th><th>Hauteur de carte</th><th>Écart vs A</th><th>Ce qu'on perd</th></tr></thead>
   <tbody id="tableau"></tbody>
 </table>
+
+<!-- ===================================================================
+     AJOUT DU 2026-08-18, demandé par Antoine en regardant cette planche.
+     ⚠️ Il vient d'un MALENTENDU fécond : les valeurs grisées de la variante B
+     sont des valeurs COURANTES fanées, pas des défauts — la planche ne montrait
+     aucun défaut. L'idée lue vaut pourtant mieux que celle qui était dessinée,
+     donc elle est spécifiée ici plutôt que corrigée.
+     =================================================================== -->
+<div class="note" style="margin-top:32px">
+  <h2>Montrer le défaut, et y revenir d'un double-clic</h2>
+  <p style="margin:0 0 16px">
+    Enrichissement du mécanisme « retour au défaut » déjà adopté. Le défaut ne
+    s'affiche <strong>que lorsque la valeur en diffère</strong> : sinon il
+    répéterait le nombre d'à côté, et ADR-0001 refuse un contrôle qui se répète.
+    Le double-clic porte sur le <strong>nom</strong>, pas sur la piste — un
+    double-clic sur une piste est déjà un geste de saisie.
+  </p>
+</div>
+
+<div class="planches">
+  <div class="colonne">
+    <div class="entete-variante">
+      <span class="badge">Rangée au défaut</span>
+      <h2>Rien de plus</h2>
+      <span class="sous-titre">La valeur EST le défaut : aucun bruit ajouté.</span>
+    </div>
+    <div class="carte">
+      <div class="carte-corps">
+        <div class="section">
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Épaisseur</span><span class="rangee-valeur">0,60</span></div>
+            <div class="piste"><span class="remplissage" style="width:60%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Dispersion</span><span class="rangee-valeur">0,22</span></div>
+            <div class="piste"><span class="remplissage" style="width:22%"></span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="colonne">
+    <div class="entete-variante">
+      <span class="badge">Rangée MODIFIÉE</span>
+      <h2>Le défaut apparaît</h2>
+      <span class="sous-titre">Grisé, après la valeur. Double-clic sur le nom pour y revenir.</span>
+    </div>
+    <div class="carte">
+      <div class="carte-corps">
+        <div class="section">
+          <div class="rangee"><div class="rangee-tete">
+              <span class="rangee-nom modifie">Épaisseur</span>
+              <span class="rangee-valeur"><b>0,84</b> <span class="defaut">0,60</span></span></div>
+            <div class="piste"><span class="remplissage" style="width:84%"></span><span class="marque-defaut" style="left:60%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete">
+              <span class="rangee-nom modifie">Dispersion</span>
+              <span class="rangee-valeur"><b>0,05</b> <span class="defaut">0,22</span></span></div>
+            <div class="piste"><span class="remplissage" style="width:5%"></span><span class="marque-defaut" style="left:22%"></span></div></div>
+          <div class="raison">Un cran sur la piste marque aussi le défaut — on vise sans lire.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="colonne">
+    <div class="entete-variante">
+      <span class="badge">Question ouverte</span>
+      <h2>Et le groupe ?</h2>
+      <span class="sous-titre">Alt-clic sur le titre remet toute la section.</span>
+    </div>
+    <div class="carte">
+      <div class="carte-corps">
+        <div class="section">
+          <div class="section-titre"><span>Optique</span><span class="retour-groupe">↺ 3</span></div>
+          <div class="rangee"><div class="rangee-tete">
+              <span class="rangee-nom modifie">Épaisseur</span>
+              <span class="rangee-valeur"><b>0,84</b> <span class="defaut">0,60</span></span></div>
+            <div class="piste"><span class="remplissage" style="width:84%"></span><span class="marque-defaut" style="left:60%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Reflet spéculaire</span><span class="rangee-valeur">0,30</span></div>
+            <div class="piste"><span class="remplissage" style="width:30%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete">
+              <span class="rangee-nom modifie">Dispersion</span>
+              <span class="rangee-valeur"><b>0,05</b> <span class="defaut">0,22</span></span></div>
+            <div class="piste"><span class="remplissage" style="width:5%"></span><span class="marque-defaut" style="left:22%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete">
+              <span class="rangee-nom modifie">Diffusion</span>
+              <span class="rangee-valeur"><b>0,41</b> <span class="defaut">0,15</span></span></div>
+            <div class="piste"><span class="remplissage" style="width:41%"></span><span class="marque-defaut" style="left:15%"></span></div></div>
+          <div class="raison">Le compteur « ↺ 3 » dit combien de réglages ont bougé — il ne se justifie que si le double-clic existe.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <ul>
+    <li>
+      <strong>Ce que ça donne à `EffectSection.label`</strong>, aujourd'hui
+      purement décoratif : une cible cliquable et un compteur. C'est le second
+      usage qui le sort de la décoration, après le retour au défaut du groupe.
+    </li>
+    <li>
+      <strong>La marque sur la piste est facultative et se juge à part.</strong>
+      Elle donne le défaut sans lire un nombre — mais elle ajoute un repère sur
+      une piste de 4 px de haut, et sur les paramètres dont le défaut est 0 elle
+      tombe pile sur le bord gauche, donc invisible. À trancher séparément.
+    </li>
+    <li>
+      <strong>Ce que ça ne résout pas</strong> : les paramètres qui ne sont pas
+      des curseurs. Un choix (<em>Profil de section</em>, <em>Orientation</em>)
+      n'a pas de « valeur grisée » à afficher à côté — au mieux une pastille
+      « modifié ». Les courbes de <code>curves</code> encore moins.
+      Le mécanisme couvre les curseurs, pas le parc entier.
+    </li>
+  </ul>
+</div>
 
 <div class="note">
   <h2>Ce que la planche ne dit pas, et qu'il faut savoir en la regardant</h2>

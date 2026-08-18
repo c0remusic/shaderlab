@@ -99,6 +99,27 @@ Aucun n'est un reste de ces deux sessions.
 
 <!-- une ligne par ticket clos : le gist, puis le lien pour le détail -->
 
+- [Quels mécanismes de lisibilité adopter](issues/11-quels-mecanismes-de-lisibilite-adopter.md)
+  — **RÉSOLU le 2026-08-18.** Quatre adoptés (filtre par nom dans Presets et
+  Textures · avant/après par touche maintenue · retour au défaut au double-clic ·
+  mode Solo des cartes), un **refusé** (l'œil par section — il franchit vers le
+  MODÈLE, et `lensFlare` a déjà résolu ce besoin par des interrupteurs déclarés
+  dans l'effet).
+  **La question de fond est tranchée devant une planche, pas sur un principe :
+  on garde le MASQUAGE.** Planche `docs/wireframes/faner-ou-masquer.html`, sur
+  le pire cas réel (`glass` sur Poli, 13 des 22 paramètres sans objet), et qui
+  **mesure ses propres hauteurs** : masquer 445 px, faner tout **1030 px = 76,6 %
+  du budget de colonne pour UNE carte**, faner en section 489 px. Ce qui a tué la
+  troisième voie est ce chiffre, pas ADR-0001.
+  ⚠️ L'écart B/C ne vient pas du NOMBRE de conditions mais de leur RÉPARTITION —
+  8 paramètres groupés se replient en une ligne, 5 isolés ne se replient pas.
+  🆕 **Enrichissement demandé par Antoine devant la planche** : montrer la valeur
+  par DÉFAUT grisée, uniquement quand la valeur en diffère. Née d'un malentendu
+  fécond — il a lu des défauts là où la planche montrait des valeurs courantes
+  fanées, et l'idée lue vaut mieux que celle qui était dessinée.
+  ⚠️ Elle **ne couvre que les curseurs** : un `choices` n'a pas de valeur grisée
+  à afficher, les courbes de `curves` encore moins.
+
 - [Ce que coûte un modèle de vision embarqué](issues/29-ce-que-coute-un-modele-de-vision-embarque.md)
   — recherche **RENDUE le 2026-08-18**, le jour de son ouverture.
   **Le mur n'est pas le coût, c'est la NETTETÉ DE BORD, et elle est plafonnée

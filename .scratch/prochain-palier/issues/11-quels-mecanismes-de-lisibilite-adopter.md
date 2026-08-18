@@ -1,7 +1,7 @@
 # Quels mécanismes de lisibilité adopter
 
 Type: grilling
-Status: claimed
+Status: resolved
 Blocked by: 09
 Parent: ../map.md
 
@@ -131,9 +131,99 @@ L'écart entre B et C ne vient pas du nombre de conditions mais de leur
 RÉPARTITION : les 8 paramètres de *Pavé* sont groupés, donc une seule ligne
 repliée les remplace ; les 5 isolés de *Matière* ne se replient pas.
 
-### Ce qui reste à trancher, et qui attend Antoine
+### VERDICT — **A, on garde le masquage** (Antoine, devant la planche)
 
-- **Faner ou masquer**, devant la planche.
-- **Le cinquième mécanisme** (un œil par section), non proposé par erreur.
+La troisième voie est **close**, et pour la première fois avec un chiffre au
+lieu d'un principe. Ce qui l'a tuée n'est pas « ADR-0001 l'interdit » mais
+**76,6 % du budget de colonne pour une seule carte**, quand la colonne en empile
+plusieurs.
 
-Le ticket reste ouvert tant que ces deux-là ne sont pas répondus.
+⚠️ **Et C perd malgré ses 44 px**, ce qui mérite d'être écrit parce que ce n'est
+pas ce que le rapport coût/bénéfice suggérait. Le prix n'était pas la hauteur :
+C laisse un titre de section inerte dans une colonne où tout le reste agit, donc
+il ne supprime la question « pourquoi ce bloc ne fait rien » qu'en la déplaçant.
+Un dixième du coût de B, mais pour un bénéfice qui n'était pas demandé.
+
+**Ce qui devient opposable, et qui ne l'était pas ce matin** : le choix de
+masquer n'est plus un défaut hérité du chantier des contrôles, c'est une
+décision prise en connaissance de son alternative. Les corollaires écrits dans
+`CLAUDE.md` (masquer ne borne pas ; un orphelin de section n'est pas un défaut)
+tiennent inchangés.
+
+**Le contrecoup à assumer, puisque personne ne le fera à notre place** : à
+« Poli », treize réglages de `glass` n'existent pas à l'écran et **rien ne dit
+qu'ils existent**. C'est le prix payé, il est connu, et il n'y a pas de
+compensation prévue.
+
+### Le cinquième — REFUSÉ : « les quatre suffisent »
+
+L'œil par section sort, et la raison est une **frontière**, pas un budget : les
+quatre adoptés sont de l'affichage pur ou un état d'interface jetable, celui-ci
+franchit vers le **modèle**. Éteindre une section change le RENDU — il faudrait
+donc un état par section qui vive quelque part, entre dans l'historique, et pose
+la question du preset (un preset enregistré avec une section éteinte la rend-il
+éteinte ?). C'est un chantier, pas un mécanisme de lisibilité.
+
+Et le besoin a déjà sa réponse dans le dépôt, prise autrement : `lensFlare` a
+reçu le 2026-08-14 **trois vrais paramètres d'interrupteur déclarés dans
+l'effet**, un par phénomène (ADR-0017). Un effet qui a des blocs qu'on veut
+éteindre déclare des interrupteurs ; il n'a pas besoin que le panneau en
+invente. La voie existe, elle est éprouvée, et elle laisse la décision à l'effet
+plutôt qu'à l'interface.
+
+⚠️ **Ce refus vaut aussi rétrospectivement pour la recherche 09** : elle vendait
+ce mécanisme comme « quatre fonctions sur une seule case », ce qui est vrai et
+trompeur — les quatre n'ont pas le même coût, et compter les fonctions cachait
+que deux d'entre elles traversent la frontière affichage/modèle. **Un décompte
+de bénéfices n'est pas une mesure de coût.**
+
+---
+
+## Answer — RÉSOLU le 2026-08-18
+
+Quatre mécanismes adoptés, un refusé, et la question de fond tranchée devant une
+planche plutôt que sur un principe.
+
+**Adoptés** : filtre par nom (Presets, Textures) · avant/après par touche
+maintenue · **retour au défaut par double-clic, ENRICHI (voir ci-dessous)** ·
+mode Solo des cartes.
+**Refusé** : l'œil par section — il franchit vers le modèle, et `lensFlare` a
+déjà résolu ce besoin par des interrupteurs déclarés dans l'effet.
+**Question de fond** : on garde le **masquage** (variante A), la troisième voie
+close par 76,6 % du budget de colonne pour une seule carte.
+
+Ce que la carte gagne : les vingt-six autres mécanismes de la recherche 09
+restent instruits mais non retenus — ils ne sont ni adoptés ni refusés, et
+personne n'a à les re-trier tant que ces quatre-là ne sont pas livrés.
+
+### Enrichissement du retour au défaut — demandé par Antoine devant la planche
+
+**Montrer la valeur par DÉFAUT, grisée, à côté de la valeur courante.**
+
+⚠️ **L'idée naît d'un malentendu, et il faut le dire pour que personne ne la
+cherche dans la planche d'origine** : les valeurs grisées de la variante B sont
+des valeurs COURANTES fanées, pas des défauts — la planche n'en montrait aucun.
+Antoine y a lu une capacité qui n'y était pas, et elle est meilleure que celle
+qui était dessinée. Elle est donc spécifiée plutôt que corrigée.
+
+Ce qui est arbitré, et visible dans la planche (troisième bloc) :
+
+- **Le défaut ne s'affiche QUE si la valeur en diffère.** Sinon il répéterait le
+  nombre d'à côté — un contrôle qui se répète, ce qu'ADR-0001 refuse.
+- **Le double-clic porte sur le NOM, pas sur la piste** : un double-clic sur une
+  piste est déjà un geste de saisie.
+- **Alt-clic sur le titre de section remet le groupe**, et le titre porte un
+  compteur (`↺ 3`) de ce qui a bougé. C'est le **second** usage qui sort
+  `EffectSection.label` de la décoration.
+
+Deux choses délibérément NON tranchées ici :
+
+- **La marque du défaut sur la piste** (un cran à sa position). Elle donne le
+  défaut sans lire un nombre, mais elle ajoute un repère sur une piste de 4 px,
+  et sur tout paramètre dont le défaut vaut 0 elle tombe sur le bord gauche,
+  donc invisible. À juger à part.
+- **Les paramètres qui ne sont pas des curseurs.** Un `choices` (*Profil de
+  section*, *Orientation*) n'a pas de valeur grisée à afficher — au mieux une
+  pastille « modifié » — et les courbes de `curves` encore moins. **Le mécanisme
+  couvre les curseurs, pas le parc entier**, et l'annoncer autrement serait
+  répéter l'erreur du décompte de fonctions ci-dessus.

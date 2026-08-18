@@ -1,7 +1,7 @@
 # Lesquels des cinq différés de masquage entrent dans ce palier
 
 Type: grilling
-Status: open
+Status: resolved
 Parent: ../map.md
 
 ## Question
@@ -82,3 +82,84 @@ juge en sachant que sa justification de report n'a jamais existé en code.
 Pour chacune des cinq, la réponse peut être « hors de portée de ce palier ».
 Auquel cas elle va dans la section **Out of scope** de la carte avec sa raison
 — jamais dans *Decisions so far*, qui n'enregistre que la route parcourue.
+
+---
+
+## Answer — RÉSOLU le 2026-08-18
+
+**Quatre des six étaient déjà tombées avant qu'on ouvre ce ticket.** Il n'en
+restait qu'une question, et elle part en recherche.
+
+### 3, 4 et 5 sont hors portée depuis le 2026-08-17, et personne ne l'avait vu
+
+Pen/path Bézier, sélection géométrique rect/ellipse et lasso : c'est **mot pour
+mot** ce que la carte a mis hors portée en sortant l'outil de sélection, la
+veille, en résolvant le [ticket 03](03-une-forme-a-t-elle-besoin-de-contentsource.md).
+L'entrée *Out of scope* dit : « Antoine ne s'arrête pas à la primitive
+géométrique — il veut **détourer à la main, tracer une silhouette, combiner des
+régions** ».
+
+| Différé du PRD | Formulation de la sortie de portée |
+| --- | --- |
+| 5. Lasso libre / polygonal / magnétique | « détourer à la main » |
+| 3. Pen / path Bézier | « tracer une silhouette » |
+| 4. Sélection géométrique rect / ellipse | « la primitive géométrique », nommée |
+
+Ce n'est pas une exclusion de valeur mais de TAILLE : un outil de sélection est
+un palier à lui seul, avec sa propre carte. Les trois y vont **ensemble**, et
+c'est cohérent — ils ne diffèrent que par le geste, pas par ce qu'ils
+produisent.
+
+⚠️ **Ce ticket a donc été écrit sur une question que la carte allait résoudre
+ailleurs**, et sans le lien rien ne l'aurait signalé : une décision prise dans
+un ticket peut clore le contenu d'un autre sans citer son numéro. Le repérage ne
+peut pas venir d'une recherche par identifiant — il vient de relire ce que la
+décision DIT.
+
+### L'addendum (dégradé radial) est LIVRÉ
+
+Le ticket le donnait « promis en vague 1, livré à moitié, invisible depuis 24
+jours ». Il ne l'est plus : `22c8049 feat(masque): le degrade radial, promis en
+vague 1 et livre a moitie`, **2026-08-14**. Sur disque, `gradient.ts` s'annonce
+« Dégradé LINÉAIRE OU RADIAL » et porte `[6]=mode (0 linéaire, 1 radial)`.
+Verrouillé par **deux** références de pixels — `masque-degrade-radial` et son
+témoin — donc pas seulement écrit : prouvé.
+
+Conséquence pour le point 4, qui n'a plus d'objet mais mérite d'être notée : sa
+justification de report (« dégradé radial déjà prévu ») a cessé d'être fausse
+entre l'écriture de ce ticket et sa résolution.
+
+### 1 et 2 : la seule vraie question, et elle part en recherche
+
+Depth mask et segmentation sémantique demandent la même chose — un modèle de
+vision monoculaire LOCAL embarqué. Le déclencheur du depth mask **est atteint**
+(les trois masques de base sont livrés, câblés et verrouillés depuis le
+2026-08-05), mais le ticket avait raison de dire qu'un déclencheur atteint ne
+vaut pas décision.
+
+**Arbitrage d'Antoine : ni entrée ni sortie de portée — une recherche d'abord.**
+Personne n'a les chiffres qui rendent la décision produit possible : taille et
+surtout **licence des POIDS** (l'app est distribuée), runtime d'inférence côté
+Rust et ce qu'il ajoute au binaire, résolution réelle d'évaluation et coût du
+ré-échantillonnage sur les contours, et la piste propre à ce dépôt — une
+inférence dans le `GPUDevice` WebGPU qu'il tient déjà.
+
+Sorti en [ticket 29](29-ce-que-coute-un-modele-de-vision-embarque.md),
+`Type: research`, lancé le jour même.
+
+Mesure d'ancrage prise ici pour cadrer l'écart : les dépendances Rust actuelles
+sont **six crates légères** (`serde`, `serde_json`, `tauri`, `rfd`,
+`percent-encoding`, `image`), sans rien de ML.
+
+### Contrainte que la recherche doit respecter, et qui vient d'ici
+
+Le PRD pose que **le masque DOSE un effet et ne touche jamais les pixels** —
+c'est au nom de cette frontière qu'il a ÉCARTÉ (et non différé) la
+décontamination de couleur de bordure. Toute capacité retenue doit produire une
+carte scalaire 0..1, jamais une image retouchée.
+
+Second point dur, mesuré ici : `MaskSourceModule`
+(`src/mask/sources/types.ts`) est une union **FERMÉE** à trois entrées, dont le
+WGSL reçoit `params: array<f32, 8>` et rend un flottant. Une source qui
+dépendrait d'une TEXTURE calculée hors shader n'entre pas dans ce contrat tel
+qu'il est écrit.

@@ -99,6 +99,23 @@ Aucun n'est un reste de ces deux sessions.
 
 <!-- une ligne par ticket clos : le gist, puis le lien pour le détail -->
 
+- [Lesquels des cinq différés de masquage entrent dans ce palier](issues/08-lesquels-des-cinq-differes-de-masquage.md)
+  — **RÉSOLU le 2026-08-18. Quatre des six étaient déjà tombées avant qu'on
+  ouvre le ticket.** Pen/path, géométrique rect-ellipse et lasso sont **mot pour
+  mot** ce que la sortie de portée de l'outil de sélection décrit la veille
+  (« détourer à la main, tracer une silhouette », la primitive nommée) — ils y
+  vont ensemble. Et l'addendum « dégradé radial jamais livré » est **livré**
+  depuis le 2026-08-14 (`22c8049`), verrouillé par deux références.
+  Reste 1 et 2 (depth mask, segmentation), même famille, même dépendance : un
+  modèle de vision local embarqué. Arbitrage d'Antoine — **ni entrée ni sortie,
+  une recherche d'abord**, personne n'ayant les chiffres qui rendent la décision
+  produit possible (licence des POIDS avant tout, l'app étant distribuée).
+  Sorti en [ticket 29](issues/29-ce-que-coute-un-modele-de-vision-embarque.md).
+  ⚠️ **Leçon de carte** : ce ticket a été écrit sur une question qu'un AUTRE
+  ticket allait clore, et sa résolution ne cite aucun numéro. Rien ne le
+  signalait — le repérage vient de relire ce qu'une décision DIT, jamais d'une
+  recherche par identifiant.
+
 - [Le sélecteur de fichier refuse ce que le glisser-déposer accepte](issues/26-le-selecteur-refuse-ce-que-le-glisser-depose-accepte.md)
   — **RÉSOLU le 2026-08-18.** Filtre levé, et la forme choisie fait que le
   sélecteur ne peut plus redevenir le chemin le plus étroit : deux filtres, dont
@@ -361,6 +378,16 @@ Ruled beyond the destination. Ne graduent jamais.
   ⚠️ Ce n'est PAS une exclusion de valeur — c'est une exclusion de TAILLE. Cette
   carte-ci produit des décisions pour le prochain palier ; un outil de sélection
   est un palier à lui seul.
+  🆕 **Cette sortie de portée en emporte TROIS de plus, constaté le 2026-08-18**
+  en résolvant le [ticket 08](issues/08-lesquels-des-cinq-differes-de-masquage.md) :
+  les différés « pen/path Bézier », « sélection géométrique rect/ellipse » et
+  « lasso libre/polygonal/magnétique » du PRD de masquage
+  (`docs/superpowers/specs/2026-07-18-shaderlab-layers-masking-prd.md`) sont
+  exactement ce que décrivent « détourer à la main, tracer une silhouette,
+  combiner des régions » ci-dessus. Ils ne diffèrent que par le GESTE, pas par
+  ce qu'ils produisent — donc ils partent avec l'outil, jamais séparément. La
+  carte de l'outil de sélection devra les reprendre comme entrées, pas les
+  redécouvrir.
 
 - **L'implémentation de l'export print elle-même** — pipeline 16-bit,
   encodeur TIFF, conversion de gamut, ICC. Réel mais lointain (arbitrage

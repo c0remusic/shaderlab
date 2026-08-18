@@ -15,7 +15,16 @@
      75px pour le Pinceau, et poser 68px le laissait à 68 contre 75 — le défaut
      d'origine réduit deux fois, jamais corrigé. La valeur est celle du CONTENU
      le plus haut plus le padding de la barre, relevée dans la story
-     `EveryToolKeepsTheSameHeight`, qui rougit si un contenu vient la dépasser. */
+     `EveryToolKeepsTheSameHeight`, qui rougit si un contenu vient la dépasser.
+
+     ⚠️ ET CETTE HAUTEUR A UN SECOND PRIX, mesuré le 2026-08-18, qui ne se paie
+     pas sur la toile : à 1280 × 720, ces 75px sortent de la COLONNE DU DOCK, où
+     la carte Propriétés passe alors 24px sous le bord de la fenêtre — contenu
+     inatteignable, ce qu'ADR-0001 refuse.
+     La baisser ne suffit PAS à corriger ça, et l'essai a été fait : il manque
+     40px et un libellé en ligne n'en rend que 20 (il casse en prime le nom
+     accessible des curseurs, que Base UI porte sur le pouce). La cause est dans
+     la RÉPARTITION de la colonne, pas dans ce nombre. */
   --tool-options-bar-height: 75px;
   /* 36px - 28px (IconButton compact) = 8px, réparti en --space-2 (4px) de
      marge de chaque côté — même calcul que --toolbar-height, 30px ne

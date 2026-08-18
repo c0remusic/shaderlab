@@ -59,6 +59,7 @@ import {
 import { useGlobalControlWheel } from "./ui/activeControl";
 import { openDocument } from "./layers/openedDocument";
 import { hitTestPhotoLayer } from "./ui/hitTest";
+import { showsEffectControls } from "./ui/canvasMode";
 import { aplatParamsFromRect, type DrawnRect } from "./ui/shapeDraw";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 import type { BrushSettings } from "./mask/maskPainter";
@@ -769,6 +770,7 @@ export default function App() {
     layers,
   });
   const { maskPaintMode, showTransformHandles, handleTransformChange, handleTransformCommit } = photoLayer;
+  const showEffectControls = showsEffectControls(photoLayer.canvasMode);
 
   /** Bibliothèque de textures. Le hook ne connaît ni la pile ni le renderer :
    *  il ne sait que résoudre un dossier et produire des vignettes. C'est
@@ -2096,7 +2098,12 @@ export default function App() {
             Les deux overlays peuvent coexister — un calque photo sélectionné
             n'a pas de région, un calque d'effet n'a pas de transform, donc les
             conditions sont en pratique exclusives sans avoir à l'écrire. */}
-        {showTransformHandles && !selectedLayer?.locked && canvasControls.length > 0 && selectedLayer && selectedEffect && (
+        {/* `showEffectControls` et non `showTransformHandles` : les contrôles
+            d'un effet survivent à l'outil FORME, pour qu'on puisse ajuster ce
+            qu'on vient de tracer sans quitter l'outil qui l'a créé. Voir
+            `showsEffectControls` — c'est la correction du geste que l'énoncé du
+            2026-08-18 appelait « le petit problème de forme ». */}
+        {showEffectControls && !selectedLayer?.locked && canvasControls.length > 0 && selectedLayer && selectedEffect && (
           <CanvasControls
             controls={canvasControls}
             params={selectedEffect.params}
@@ -2104,6 +2111,9 @@ export default function App() {
             imageSize={imageSize}
             canvasRef={canvasRef}
             effectName={selectedEffect.name}
+            // Dans l'outil Forme, le corps de la boîte n'intercepte pas : un
+            // glissement dedans commence une NOUVELLE forme.
+            corpsInteractif={photoLayer.canvasMode.kind !== "shapeDraw"}
             onChange={(patch) => handleParamChange(selectedLayer.id, patch)}
             onCommit={handleParamCommit}
           />

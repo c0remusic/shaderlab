@@ -242,3 +242,27 @@
   background: var(--mask-overlay-edge);
   box-shadow: 0 0 0 1px var(--outline-contrast);
 }
+
+/* MESURE DU TRACE EN COURS. Ancree au coin superieur GAUCHE de la bande et
+   posee AU-DESSUS d'elle : sous la forme, elle passerait sous le bord bas de la
+   toile des qu'on trace pres du bord, et c'est le cas le plus frequent quand on
+   cadre un aplat sur une photo.
+
+   `transform-origin` en bas a gauche : l'etiquette porte une contre-echelle
+   (voir Canvas.tsx), et sans origine fixee elle glisserait par rapport a la
+   bande a chaque cran de zoom. */
+.pasteboard__shape-band-mesure {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  transform-origin: 0 100%;
+  margin-bottom: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-2xs);
+  white-space: nowrap;
+  pointer-events: none;
+}

@@ -14,13 +14,17 @@ interface Props {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   effectName: string;
   disabled?: boolean;
+  /** Le CORPS d'une boîte capte-t-il le pointeur ? Faux dans l'outil Forme :
+   *  les poignées restent attrapables, mais un glissement DANS la forme
+   *  commence une nouvelle forme au lieu de déplacer celle qui est là. */
+  corpsInteractif?: boolean;
   onChange: (patch: Record<string, number>) => void;
   onCommit: () => void;
 }
 
 /** Hôte déclaratif unique. La première migration porte les disques historiques ;
  * point et axe rejoignent ce dispatch sans branchement par identifiant d'effet. */
-export function CanvasControls({ controls, params, values, imageSize, canvasRef, effectName, disabled = false, onChange, onCommit }: Props) {
+export function CanvasControls({ controls, params, values, imageSize, canvasRef, effectName, disabled = false, corpsInteractif = true, onChange, onCommit }: Props) {
   const value = (name: string) => values[name] ?? params.find((param) => param.name === name)?.default ?? 0;
   return controls.map((control) => {
     if (control.visibleWhen) {
@@ -73,6 +77,7 @@ export function CanvasControls({ controls, params, values, imageSize, canvasRef,
           bgSize={imageSize}
           canvasRef={canvasRef}
           layerName={`${effectName} — ${control.label}`}
+          corpsInteractif={corpsInteractif}
           onTransformChange={(suivant) => {
             const rendue = transformVersBoite(suivant, photoSize, imageSize);
             onChange({

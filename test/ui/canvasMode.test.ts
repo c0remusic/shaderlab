@@ -5,6 +5,7 @@ import {
   isMaskPaint,
   reconcileCanvasMode,
   showsTransformHandles,
+  showsEffectControls,
   toggleMaskPaint,
   type CanvasMode,
 } from "../../src/ui/canvasMode";
@@ -79,5 +80,37 @@ describe("CanvasMode — retour forcé en idle", () => {
     const pending: CanvasMode = { kind: "maskPaint", layerId: "l1", sourceId: null };
     expect(reconcileCanvasMode(pending, "l1", ["l1"], new Map([["l1", ["brush-1"]]])))
       .toEqual({ kind: "maskPaint", layerId: "l1", sourceId: "brush-1" });
+  });
+
+  /**
+   * LES CONTRÔLES D'EFFET SURVIVENT À L'OUTIL FORME, et c'est le vrai « petit
+   * problème de forme ».
+   *
+   * `showsTransformHandles` vaut `idle` seulement, et il gouvernait TOUT :
+   * poignées du calque photo comme contrôles d'effet. Conséquence à l'usage —
+   * on trace un rectangle, il se pose, et pour l'ajuster il faut QUITTER
+   * l'outil qui vient de le créer. Photoshop garde ses poignées dans l'outil de
+   * forme ; c'est là qu'on veut ajuster, juste après avoir tracé.
+   *
+   * Les deux prédicats se séparent donc, et ils ne disent pas la même chose :
+   * - `showsTransformHandles` = les poignées du CALQUE PHOTO. Rien à faire en
+   *   traçant une forme : déplacer la photo sous la forme qu'on dessine n'a
+   *   aucun sens, et la boîte de la photo couvre toute l'image.
+   * - `showsEffectControls` = les contrôles d'un EFFET (point, disque, axe,
+   *   boîte). Ils portent sur ce qu'on vient de créer.
+   */
+  it("les contrôles d'effet vivent AUSSI dans l'outil Forme", () => {
+    expect(showsEffectControls(IDLE_CANVAS_MODE)).toBe(true);
+    expect(showsEffectControls({ kind: "shapeDraw" })).toBe(true);
+    // Le pinceau doit rester seul maître du canvas : une poignée y
+    // intercepterait un coup de pinceau.
+    expect(showsEffectControls({ kind: "maskPaint", layerId: "l1", sourceId: null })).toBe(false);
+    expect(showsEffectControls({ kind: "crop", layerId: "l1", original: undefined })).toBe(false);
+  });
+
+  it("les poignées du calque PHOTO restent réservées au repos", () => {
+    // Déplacer la photo pendant qu'on trace une forme dessus n'a pas de sens,
+    // et sa boîte couvre toute l'image — elle avalerait le tracé.
+    expect(showsTransformHandles({ kind: "shapeDraw" })).toBe(false);
   });
 });

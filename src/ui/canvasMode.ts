@@ -62,6 +62,33 @@ export function showsTransformHandles(mode: CanvasMode): boolean {
 }
 
 /**
+ * Vrai ssi les contrôles d'un EFFET (point, disque, axe, boîte) peuvent
+ * s'afficher.
+ *
+ * ⚠️ SÉPARÉ DE `showsTransformHandles` LE 2026-08-18, et la séparation corrige
+ * le geste que l'énoncé appelait « le petit problème de forme ».
+ *
+ * Un seul prédicat gouvernait les deux, à `idle` : on traçait un rectangle, il
+ * se posait, et pour l'ajuster il fallait QUITTER l'outil qui venait de le
+ * créer. Photoshop garde ses poignées dans l'outil de forme — c'est là qu'on
+ * veut ajuster, juste après avoir tracé, pas trois touches plus loin.
+ *
+ * Les deux ne disent pas la même chose, et c'est pourquoi ils se séparent
+ * plutôt que de s'élargir :
+ * - les poignées du CALQUE PHOTO n'ont rien à faire pendant un tracé —
+ *   déplacer la photo sous la forme qu'on dessine n'a aucun sens, et sa boîte
+ *   couvre toute l'image, donc elle avalerait le geste ;
+ * - les contrôles d'EFFET portent sur ce qu'on vient de créer.
+ *
+ * Le pinceau et le recadrage restent seuls maîtres du canvas : une poignée y
+ * intercepterait le geste, ce que `CanvasMode` existe précisément pour rendre
+ * inexprimable.
+ */
+export function showsEffectControls(mode: CanvasMode): boolean {
+  return mode.kind === "idle" || mode.kind === "shapeDraw";
+}
+
+/**
  * Ramène le mode à `idle` quand son calque cible n'est plus la cible
  * légitime : changement de sélection, ou disparition du calque (suppression,
  * undo, changement de document). Ne concerne que `crop`, seul mode attaché à

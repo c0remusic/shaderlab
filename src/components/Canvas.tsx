@@ -613,7 +613,29 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
                 // désigne ; à 13 % il disparaîtrait.
                 borderWidth: `${1 / viewport.scale}px`,
               }}
-            />
+            >
+              {/* RETOUR CHIFFRÉ PENDANT LE GESTE (2026-08-18). Il manquait, et
+                  c'est l'un des écarts que le ticket 17 avait mesurés sans le
+                  corriger : on tirait une forme sans jamais savoir de quelle
+                  taille. Photoshop affiche ses dimensions en traçant.
+
+                  En PIXELS de l'image, pas en fraction du cadre : c'est
+                  l'unité que l'utilisateur reconnaît, et la seule qui reste
+                  vraie quand on zoome. Le shader, lui, continue de lire des
+                  fractions — voir `aplatParamsFromRect`.
+
+                  Contre-échelle sur l'étiquette : la bande est posée dans le
+                  repère zoomé, donc sans elle le texte ferait huit fois sa
+                  taille à 800 % et disparaîtrait à 13 %. Même raison que
+                  l'épaisseur du liseré juste au-dessus. */}
+              <span
+                className="pasteboard__shape-band-mesure"
+                style={{ transform: `scale(${1 / viewport.scale})` }}
+              >
+                {Math.round(r.width)} × {Math.round(r.height)} px
+                {shapeDrag.carre ? " · carré" : ""}
+              </span>
+            </div>
           );
         })()}
         {children}

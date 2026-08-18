@@ -42,6 +42,20 @@ interface Props {
    * sont des cibles explicites et petites, elles gardent la priorité absolue.
    */
   onPickThrough?: (x: number, y: number) => boolean;
+  /**
+   * Le CORPS du cadre capte-t-il le pointeur ? Vrai par défaut.
+   *
+   * ⚠️ Faux dans l'outil FORME (2026-08-18), et c'est ce qui rend le geste
+   * cohérent : les poignées y restent attrapables — on veut ajuster ce qu'on
+   * vient de tracer — mais un glissement DANS la forme doit commencer une
+   * NOUVELLE forme, comme chez Photoshop, pas déplacer celle qui est là. Sans
+   * cette borne, la boîte couvre toute la forme et l'outil de tracé cesse de
+   * pouvoir tracer par-dessus son propre résultat.
+   *
+   * Ne touche QUE le corps : les poignées sont des cibles explicites et petites,
+   * elles gardent la priorité absolue.
+   */
+  corpsInteractif?: boolean;
   /** Nom du calque, pour que le nom accessible du cadre dise DE QUELLE photo
    *  il s'agit. Deux photos superposées produisent sinon deux cadres portant
    *  le même nom, ce qui ne distingue rien au lecteur d'écran. */
@@ -96,7 +110,7 @@ type DragKind =
  * `ui/transform.ts`, ce composant ne fait que traduire écran<->pixels du
  * fond et déléguer.
  */
-export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayers, canvasRef, onTransformChange, onTransformCommit, onPickThrough, layerName }: Props) {
+export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayers, canvasRef, onTransformChange, onTransformCommit, onPickThrough, layerName, corpsInteractif = true }: Props) {
   const dragRef = useRef<DragKind | null>(null);
   /** Vrai entre le premier `keydown` de flèche et le `keyup` qui le relâche.
    *  L'appui MAINTENU répète le `keydown` mais n'émet qu'un seul `keyup` :
@@ -434,7 +448,7 @@ export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayer
                 déplacement au clavier ne marcherait que pour les utilisateurs
                 sans lecteur d'écran, c'est-à-dire pas pour ceux qu'il vise. */}
             <polygon
-              className="transform-handles__box"
+              className={`transform-handles__box${corpsInteractif ? "" : " transform-handles__box--inerte"}`}
               points={corners.map((corner) => `${corner.x},${corner.y}`).join(" ")}
               vectorEffect="non-scaling-stroke"
               tabIndex={0}

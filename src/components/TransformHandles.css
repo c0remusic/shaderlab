@@ -138,3 +138,14 @@
 .transform-handles__rotation {
   cursor: grab;
 }
+
+/* CORPS INERTE — outil Forme (2026-08-18). Les poignees restent attrapables,
+   mais un glissement DANS la forme commence une NOUVELLE forme au lieu de
+   deplacer celle qui est la, comme chez Photoshop. Sans ca, la boite couvre
+   toute la forme et l'outil de trace cesse de pouvoir tracer par-dessus son
+   propre resultat.
+   Le trait du cadre reste visible : c'est lui qui dit ce qui est selectionne. */
+.transform-handles__box--inerte {
+  pointer-events: none;
+  cursor: default;
+}

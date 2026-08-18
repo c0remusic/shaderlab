@@ -1,7 +1,7 @@
 # Le geste de la forme n'est pas au niveau
 
 Type: grilling
-Status: open
+Status: resolved
 Parent: ../map.md
 
 ## Question
@@ -78,3 +78,59 @@ de portée par écrit.
 
 ⚠️ Pas « la forme a été améliorée ». Le ticket doit dire LEQUEL des cinq était
 le sujet.
+
+---
+
+## Answer — RÉSOLU le 2026-08-18
+
+**Deux des cinq écarts sont corrigés, et ce sont les deux qui cassaient le
+GESTE.** Les trois autres sont soit hors de ce ticket, soit une non-question.
+
+### 1. ✅ Tracer puis ajuster SANS quitter l'outil (écart 2)
+
+C'était le plus lourd, et il était structurel. `showsTransformHandles` valait
+`idle` seulement, et gouvernait TOUT : poignées du calque photo comme contrôles
+d'effet. À l'usage — on trace un rectangle, il se pose, et pour l'ajuster il faut
+**quitter l'outil qui vient de le créer**.
+
+Les deux prédicats se SÉPARENT plutôt que de s'élargir, parce qu'ils ne disent
+pas la même chose : les poignées du calque PHOTO n'ont rien à faire pendant un
+tracé (déplacer la photo sous la forme qu'on dessine n'a aucun sens, et sa boîte
+couvre toute l'image donc elle avalerait le geste) ; les contrôles d'EFFET
+portent sur ce qu'on vient de créer.
+
+Et le CORPS de la boîte devient inerte dans l'outil Forme : les poignées restent
+attrapables, mais un glissement DANS la forme commence une NOUVELLE forme, comme
+chez Photoshop. Sans cette borne, l'outil de tracé cesse de pouvoir tracer
+par-dessus son propre résultat.
+
+**Mesuré dans la vraie fenêtre** : après relâchement, outil toujours « Forme »,
+**9 poignées** rendues, corps inerte.
+
+### 2. ✅ La mesure PENDANT le geste (écart 5)
+
+On tirait une forme sans jamais savoir de quelle taille. En PIXELS de l'image et
+non en fraction du cadre — c'est l'unité que l'utilisateur reconnaît, et la seule
+qui reste vraie quand on zoome ; le shader continue de lire des fractions.
+Relevé en cours de tracé : `1095 × 626 px`.
+
+### 3. ⏸️ L'unité du panneau (écart 3) → [ticket 03](03-symetrie-panneau-toile.md)
+
+Il déborde l'aplat : cinq effets ont des contrôles spatiaux en pourcentage.
+Trancher ici créerait deux conventions.
+
+### 4. ✅ Le rectangle noir n'est PAS un défaut (écart 4)
+
+La recherche l'a retourné : chez Photoshop, une forme prend la **couleur de
+premier plan**, dont le défaut est le noir
+([recherche 01](../research/01-conventions-adobe.md)). Notre noir est donc la
+convention, pas un oubli. Ce qui manquait était de pouvoir le changer AVANT de
+tracer, et c'est livré (pastille et sélecteur dans la barre d'options).
+
+### 5. ⏸️ La rotation au survol (écart 1) — délibérément NON fait
+
+Adobe ne montre sa poignée de rotation qu'au survol de la forme ; la nôtre est
+permanente. C'est « moins d'encre sur la toile », pas un geste cassé — et le
+corps de la boîte étant désormais inerte dans l'outil Forme, un `:hover` sur
+cette boîte ne se déclencherait plus. Le faire demanderait une cible de survol
+séparée, donc un vrai travail pour un gain esthétique. Écarté, avec sa raison.

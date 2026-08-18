@@ -73,13 +73,42 @@ y remet « à zéro » — c'est-à-dire au neutre du réglage, pas à une valeu
 d'usine arbitraire. Notre défaut est `EffectParam.default`, ce qui est la bonne
 lecture.
 
-## Ce qui RESTE, et c'est là que la carte commence
+## État des quatre tickets
 
-- [Le geste de la forme n'est pas au niveau](issues/01-le-geste-de-la-forme.md)
-  — le point que l'énoncé ouvre et que rien n'a encore mesuré.
+✅ **[Le geste de la forme](issues/01-le-geste-de-la-forme.md) — RÉSOLU le
+2026-08-18.** Deux des cinq écarts corrigés, et ce sont les deux qui cassaient
+le geste : on **trace et on ajuste sans quitter l'outil** (les contrôles d'effet
+se séparent des poignées du calque photo, et le corps de la boîte devient inerte
+pour qu'un glissement dedans commence une nouvelle forme), et la **mesure
+s'affiche pendant le tracé** en pixels de l'image.
+⚠️ Un écart s'est révélé n'en être PAS un : le premier rectangle est noir parce
+que **c'est la convention de Photoshop** (couleur de premier plan, noire par
+défaut). Ce qui manquait était de pouvoir la changer avant de tracer — livré.
+Deux écarts restent, chacun avec sa raison écrite : l'unité du panneau part au
+ticket 03, la rotation au survol est écartée (gain esthétique, coût réel).
+
+✅ **[Le layout](issues/04-le-layout.md) — RÉSOLU le 2026-08-18. Pas de refonte,
+UN défaut.** Mesuré à trois tailles : le pasteboard tient plus de quatre
+cinquièmes de la fenêtre partout, le dock reste sous le quart au-delà de 1280.
+Mais **à 1280 × 720 la colonne du dock DÉFILE** — `scrollHeight` 630 pour 556 —
+et la carte Propriétés finit 24 px sous le bord. C'est exactement ce qu'ADR-0001
+interdit.
+⚠️ La cause immédiate est à nous : les **75 px de la barre d'options permanente**
+sortent de la hauteur de la colonne. Le prix du ticket 27 ne se payait pas que
+sur la toile. ⚠️ Et la baisser ne corrige pas — essayé, mesuré : 20 px rendus
+pour 40 manquants, et le nom accessible des curseurs cassé au passage.
+**Ce qui reste est un ARBITRAGE, pas un correctif** : baisser le plancher des
+listes (que `CLAUDE.md` dit voulu) ou replier une carte (et dire laquelle).
+Chaque voie défait une décision écrite — à Antoine de trancher.
+
+## Ce qui RESTE
+
 - [Le verrou est binaire là où Photoshop en a quatre](issues/02-le-verrou-binaire.md)
-- [La symétrie panneau / toile](issues/03-symetrie-panneau-toile.md)
-- [Le layout, mesuré contre les deux références](issues/04-le-layout.md)
+  — le verrou VERROUILLE depuis le 2026-08-18 ; la question est s'il faut le
+  scinder, et le faux ami à ne pas transposer est nommé.
+- [La symétrie panneau / toile](issues/03-symetrie-panneau-toile.md) — quelle
+  unité MONTRER, sachant que la fraction stockée est ce qui rend un preset
+  indépendant de la définition.
 
 ## Notes
 

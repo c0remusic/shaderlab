@@ -1,7 +1,7 @@
 # Recadrer la toile déjà ouverte
 
 Type: grilling
-Status: open
+Status: claimed
 Parent: ../map.md
 
 ## Question
@@ -103,3 +103,85 @@ gestes ne se bloquent pas l'un l'autre.
 Ni le plan d'exécution. Ce ticket produit la décision sur le sort des masques ;
 le plan s'écrit après, et avant la première ligne (le geste touche la couche la
 plus partagée du projet).
+
+---
+
+## Mesure du 2026-08-18 — « le sort des masques » est TROIS questions, pas une
+
+Travail AFK, avant toute question. Rien n'est tranché : le ticket reste
+`grilling`. Mais l'énoncé parle des « rasters de masque » comme d'un bloc, et
+le modèle en distingue trois natures dont **une seule** porte des pixels.
+
+### Seules les sources PINCEAU ont un raster
+
+`src/mask/types.ts` : `raster: Uint8Array` n'existe que sur `BrushMaskSource`.
+Les trois sources paramétriques portent `raster: null` — leur contribution est
+calculée dans le shader à chaque frame. D'où trois sorts, et ils ne se
+ressemblent pas :
+
+| Nature | Ce qu'elle stocke | Sort sous un recadrage de toile |
+| --- | --- | --- |
+| `brush` | un `Uint8Array` de W×H | **le seul vrai sujet** — à découper, invalider ou perdre |
+| `gradient` | quatre flottants en **UV** | **casse en SILENCE**, sans coûter un octet |
+| `luminosity`, `colorRange` | rien de géométrique | **survivent intactes, gratuitement** |
+
+**Deux tiers des sources de masque ne sont pas concernées par la question du
+ticket**, et la troisième l'est d'une façon qu'il ne décrit pas.
+
+### ⚠️ Le dégradé casse sans qu'on le voie, et ce n'est PAS un choix
+
+Ses points sont en UV de la toile (`params[0..3] = startX/startY/endX/endY`,
+`gradient.ts`). Recadrer la toile remappe donc l'UV : **le dégradé glisse par
+rapport à la photo**, alors que rien ne l'a déplacé.
+
+Pire pour le radial : son commentaire dit qu'il est « CIRCULAIRE SUR LA TOILE,
+pas dans l'espace UV » et corrige par l'aspect de la toile — que le recadrage
+change. Son rayon relatif à la photo bouge donc aussi.
+
+**Ce n'est pas une des trois issues à arbitrer : c'est de l'arithmétique.** Les
+quatre flottants se remappent exactement, sans perte et sans décision — comme
+`recenterForCrop` le fait pour le transform d'un calque photo (ticket 05). À
+faire, pas à trancher. Mais **rien ne le signale aujourd'hui**, et c'est le
+genre de défaut que la session d'hier a payé deux fois : ça compile, ça rend, et
+le masque n'est simplement plus au bon endroit.
+
+### Le chiffre du raster pinceau, et pourquoi l'undo décide
+
+- **1 octet par pixel de DOCUMENT** (`new Uint8Array(width * height)`,
+  `maskPainter.ts:81-84`) — soit **~26 Mo** par raster sur une photo 26 Mpx, et
+  **64 Mo** au plafond `MAX_CANVAS_PIXELS`.
+- L'historique est borné à **512 Mo** par document
+  (`DEFAULT_BUDGET_BYTES`, `history.ts:3`) et **refcompte chaque buffer
+  UNIQUE** : aujourd'hui `clone()` PARTAGE les références, donc dix entrées
+  d'historique qui portent le même masque coûtent **un** raster, pas dix.
+
+**C'est cette économie que le recadrage casse.** Découper les rasters les
+REMPLACE : les anciens restent retenus par les entrées passées (sinon l'undo ne
+rend rien), les nouveaux s'ajoutent. Un recadrage annulable coûte donc
+`surface_conservée × total_actuel` en plus, et rien n'est libérable tant que
+l'undo est possible.
+
+Ordre de grandeur, à 26 Mpx et quatre traits de pinceau dans la pile : 104 Mo
+retenus aujourd'hui ; un recadrage à la moitié de la surface porte le total à
+**156 Mo sur les 512**. Tenable. Au plafond de 64 Mpx, **huit rasters suffisent
+à saturer le budget avant tout recadrage** — le geste n'y est pas annulable, ou
+alors il évince les entrées les plus anciennes.
+
+### Ce que la mesure retire de la question, et ce qu'elle y laisse
+
+Le design montage propose trois issues — invalider / recadrer / rééchantillonner.
+**La troisième n'en est pas une** : rééchantillonner a un sens pour un
+REDIMENSIONNEMENT (la toile change d'échelle) et aucun pour un RECADRAGE, où
+les pixels conservés n'ont pas bougé d'un texel. La proposer reviendrait à
+déformer un masque que personne n'a touché.
+
+Il reste donc **deux** issues pour le pinceau — découper ou invalider — et la
+mesure ci-dessus dit que découper est **le seul qui préserve l'alignement au
+pixel**, au prix d'une empreinte d'historique bornée mais réelle.
+
+**La vraie question qui subsiste, et elle n'est pas dans la liste d'origine** :
+le recadrage est-il DESTRUCTIF ? S'il ne l'est pas — si les calques gardent leur
+contenu hors cadre, comme le reste du projet — alors **il ne faut pas découper
+les rasters du tout** : on change le cadre, pas les données, et l'empreinte
+d'historique tombe à zéro. C'est cette question-là qui gouverne les autres, et
+c'est celle qu'il faut poser en premier.

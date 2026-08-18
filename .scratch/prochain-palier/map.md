@@ -97,6 +97,29 @@ Aucun n'est un reste de ces deux sessions.
     [20](issues/20-ou-vit-l-etat-de-repli-de-la-pile.md).
 
 
+
+- [Quelles fonctions retenir, et dans quel ordre](issues/12-quelles-fonctions-retenir.md)
+  — **RÉSOLU le 2026-08-18. Périmètre : tout, netteté comprise** (Antoine), et
+  l'inverse d'`aplat` adopté (un booléen en fin de `params[]`, qui rend
+  atteignables les vignettes hexagonale et octogonale déjà géométriquement
+  livrées).
+  ⚠️ **La mesure a renversé la prémisse la plus lourde du ticket : la netteté
+  n'est pas doublement bloquée, elle ne l'est pas du tout.** Le dernier pass de
+  `glow` tient DÉJÀ les deux images — `color` (son entrée non floutée) et
+  `prevPass` (sa pyramide) — donc un masque flou est `color + (color − bloom)·f`,
+  la même forme au signe près. Pas besoin d'un mode signé (la soustraction est
+  DANS l'effet), pas besoin de lire un autre calque (il faut sa propre entrée à
+  deux échelles, ce que `passes` fournit). **Elle passe de « chère et bloquée » à
+  la même case qu'emboss.**
+  ⚠️ **Et une justification tombe avec** : les modes signés étaient en partie
+  justifiés comme prérequis de la netteté. Ils entrent désormais pour eux-mêmes.
+  Ordre en trois tranches : **socle de fusion** (6 modes d'un coup — l'interface
+  est `blend(base, top)`, elle reçoit déjà les deux couleurs entières, et
+  `blendMode` étant une CHAÎNE aucun index de preset ne bouge ; solde le
+  split-tone différé depuis le 2026-07-20) → **levées de contrainte** (courbe
+  libre, inverse d'`aplat`) → **effets à machinerie existante** (netteté, emboss,
+  carte de déplacement — trois fois le même patron, donc parallélisables).
+
 <!-- une ligne par ticket clos : le gist, puis le lien pour le détail -->
 
 - [Quels mécanismes de lisibilité adopter](issues/11-quels-mecanismes-de-lisibilite-adopter.md)

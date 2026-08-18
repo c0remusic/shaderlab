@@ -1,7 +1,7 @@
 # Quelles fonctions retenir, et dans quel ordre
 
 Type: grilling
-Status: open
+Status: resolved
 Blocked by: 10
 Parent: ../map.md
 
@@ -207,6 +207,125 @@ paramètre ». Écrire l'effet aurait produit un doublon de tout ce qui est déj
 **À trancher ici** : ajoute-t-on cet inverse à `aplat` ? Il est presque gratuit,
 mais il n'a pas été demandé — et `aplat` est déjà entré au registre par une
 question à laquelle il n'a pas répondu.
+
+---
+
+## Answer — RÉSOLU le 2026-08-18
+
+**Périmètre : tout, netteté comprise** (arbitrage d'Antoine). Et la mesure prise
+pour écrire l'ordre a **renversé la prémisse la plus lourde du ticket**.
+
+### ⚠️ La netteté n'est PAS doublement bloquée. Elle n'est pas bloquée du tout.
+
+Le ticket la donnait « DOUBLEMENT bloquée : aucun mode de fusion signé, et un
+effet ne peut lire aucun autre calque ». **Les deux blocages tombent**, pour la
+même raison — mesurée sur `glow`, dont le dernier pass est :
+
+```wgsl
+fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
+  let bloom = textureSample(prevPass, srcSampler, uv).rgb;
+  return vec4<f32>(color.rgb + bloom * intensity, color.a);
+}
+```
+
+Il tient **les deux images à la fois** : `color`, l'entrée du calque non
+floutée, et `prevPass`, le résultat de ses onze passes de pyramide. Un masque
+flou est exactement la même forme, au signe près :
+
+| | opérateur |
+| --- | --- |
+| `glow` | `color + bloom · intensité` |
+| netteté | `color + (color − bloom) · force` |
+
+- **Pas besoin d'un mode signé** : la soustraction a lieu DANS l'effet, pas
+  entre deux calques.
+- **Pas besoin de lire un autre calque** : il faut sa PROPRE entrée à deux
+  échelles, et c'est précisément ce que `EffectModule.passes` fournit —
+  `blurChain.ts` est déjà partagé par `glow` et `halation`.
+
+**Conséquence sur l'ordre, et elle est franche** : la netteté quitte la case
+« chère et bloquée » pour rejoindre emboss et déplacement — des effets à
+machinerie existante. Elle n'est pas le gros morceau du palier.
+
+⚠️ **Et une justification tombe avec.** Les modes signés (Différence,
+Soustraction) étaient en partie justifiés par « ils débloquent la moitié de la
+netteté ». **C'est faux.** Ils gardent une valeur propre — Différence est un
+mode standard, et comparer deux états est un usage réel — mais ils entrent
+désormais pour eux-mêmes, pas comme prérequis. Le dire, sinon la prochaine
+session lira un prérequis là où il n'y en a plus.
+
+### L'ordre retenu — trois tranches, du moins cher au plus cher
+
+**Tranche 1 — le socle de fusion.** SIX modes d'un coup : les quatre non
+séparables (Couleur, Luminosité, Teinte, Saturation) et les deux signés
+(Différence, Soustraction).
+
+Mesuré ici, et c'est plus favorable que ce que le ticket annonçait : l'interface
+n'est pas seulement `vec3→vec3`, c'est
+`fn blend(base: vec3<f32>, top: vec3<f32>) -> vec3<f32>` — elle reçoit **déjà
+les deux couleurs entières**, ce qui est exactement ce qu'un mode non séparable
+demande. **Zéro changement d'interface.** Le registre porte 7 modes aujourd'hui
+(`normal`, `multiply`, `screen`, `add`, `darken`, `lighten`, `overlay`), tous
+canal par canal, aucun signé. Et `blendMode` est une CHAÎNE
+(`src/layers/types.ts:58`), donc en ajouter six **ne déplace aucun index de
+preset** — contrairement à un `choices` d'effet, où l'index est persisté.
+
+Elle solde une dette nommée : le **split-tone**, différé depuis le 2026-07-20
+dans `PRD-print-export.md`, devient atteignable par la pile sans nouvel effet.
+
+**Tranche 2 — les contraintes à lever.** Deux gestes qui ne créent rien :
+
+- **Courbe libre / solarisation** — le shader l'évalue déjà ; c'est
+  `constrainCurvePoint` (`src/ui/curveControl.ts:19`, appelé depuis
+  `CurveControl.tsx`) qui l'interdit, côté interface seulement.
+- **Inverse d'`aplat`** — ✅ **adopté** (voir ci-dessous).
+
+**Tranche 3 — les effets à machinerie existante.** Trois entrées de registre,
+aucune architecture neuve :
+
+- **Netteté / contraste local** — patron `glow` (passes + `color`/`prevPass`).
+- **Emboss** — `effects/edgeGradient.ts` (Scharr 3×3) existe ; c'est un
+  habillage, pas un détecteur.
+- **Carte de déplacement** — le binding 7 d'ADR-0018 la rend bon marché.
+
+**Ce que cet ordre porte et qu'une liste ne porterait pas** : la tranche 1 ne
+dépend de rien et ne casse rien ; la tranche 3 est trois fois le même patron, ce
+qui la rend parallélisable. La netteté a changé de tranche à cause d'une mesure,
+pas d'un avis.
+
+### L'inverse d'`aplat` — ADOPTÉ
+
+Un booléen en fin de `params[]`, une ligne de shader (`1.0 − couverture` au site
+`aplat.ts:347`, `mix(color.rgb, encre, couverture)`), **aucun index persisté
+déplacé**.
+
+Il rend atteignables les six formes de vignette que le catalogue d'effect.app
+liste — dont l'hexagone et l'octogone — avec la géométrie livrée le 2026-08-17.
+Aujourd'hui la vignette existe déjà (`aplat` noir + masque dégradé radial
+inversé, mesuré le 2026-08-17), mais **seulement en radial**, parce que
+l'inversion vit sur le MASQUE et que les sources de masque n'ont aucune
+géométrie.
+
+### Les huit écartées : pourquoi une lecture suffit ici
+
+Le ticket demandait lesquelles méritent une mesure plutôt qu'une lecture, au nom
+d'ADR-0016. **La règle ne mord pas de la même façon** : ADR-0016 concerne le
+RETRAIT d'une capacité existante, où se tromper détruit du travail livré et des
+références. Ici on décide de ne PAS ÉCRIRE — se tromper coûte de l'écrire plus
+tard, rien de plus.
+
+La mesure se réclame donc seulement quand la lecture ne peut pas trancher la
+FORME de l'opérateur. Le **bleach bypass** est le bon exemple du cas inverse :
+jugé atteignable par deux calques existants, donc un **preset** et pas un effet
+— et un preset se vérifie en le fabriquant, ce qui est déjà la mesure.
+
+### Hors de ce palier, et pas refusés
+
+Groupes de calques (~96 Mo par niveau, `LayerState` plat à passer en arbre),
+déformation peinte, pixel sorting. Plus, du catalogue d'effect.app : **Bevel**
+(retombe sur la sélection, ticket 03), **Scatter**, la famille « écran »
+(ASCII / LED / CRT / VHS / NTSC — c'est une DA, pas une fonction, et elle se
+décide en bloc), **Risograph** et la **palette adaptative** de leur dither.
 
 ## La règle qui garde ce ticket honnête
 

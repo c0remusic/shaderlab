@@ -1,7 +1,7 @@
 # Les outils sur la toile : quatre effets, trois genres
 
 Type: grilling
-Status: open
+Status: claimed
 Blocked by: 18
 Parent: ../map.md
 
@@ -31,6 +31,59 @@ instances au total.
 **Arbitrage d'Antoine : les DEUX manques sont réels** — le nombre de genres
 *et* la qualité du geste. Ce ticket porte donc deux sous-fronts et **ne peut pas
 se clore sur un seul**.
+
+## Mesure du 2026-08-18 — le vocabulaire est saturé, pas sous-employé
+
+Travail AFK, avant toute question. Le ticket reste `grilling`.
+
+| | 2026-08-12 (ticket) | **2026-08-18** |
+| --- | --- | --- |
+| Effets portant un outil | 4 / 23 | **5 / 24** (`aplat` s'est ajouté le 08-17) |
+| Instances | 6 | **7** |
+| Genres utilisés | 3 | 3 — `point` ×3, `disk` ×2, `axis` ×2 |
+
+### ⚠️ Ce que le ticket lit comme « trois genres seulement » n'est pas une sous-utilisation
+
+`CanvasControl` (`effects/types.ts:151-154`) est une union **FERMÉE à trois
+variantes** : `point`, `disk`, `axis`. Le registre les utilise **toutes les
+trois**.
+
+Le manque de couverture n'est donc **pas** un défaut de déclaration — ce n'est
+pas « des effets oublient de déclarer un outil qui existe », c'est **« le
+vocabulaire ne contient que trois mots »**. Élargir la couverture demande
+d'étendre un TYPE, exactement comme `SectionLayout` et son vocabulaire fermé à
+cinq gabarits. Ça change la nature du sous-front A : ce n'est pas du rattrapage,
+c'est de la conception.
+
+Corollaire pour la grille des 42 lignes du ticket 18 : ses **17 genres** se
+comparent à **3**, pas à un parc mal déclaré.
+
+### L'inversion que personne n'attendait : les outils sont le mécanisme le MIEUX conditionné
+
+`CanvasControl.visibleWhen` est le précédent dont `appliesWhen` et
+`EffectSection.appliesWhen` sont issus (CLAUDE.md). Mesuré côte à côte :
+
+| Mécanisme | Portent une condition |
+| --- | --- |
+| **Outils sur la toile** | **3 / 7 — 43 %** |
+| Paramètres | 48 / 289 rangées — 17 % |
+| Sections | 10 / 77 — 13 % |
+
+Le plus jeune et le plus petit des trois est le mieux couvert, **de loin**. Ce
+n'est pas anecdotique pour le chantier : ça suggère que la couverture suit la
+TAILLE du parc à déclarer, pas la maturité du mécanisme — et donc que les fronts
+1 et 2 ne se rattraperont pas par de la discipline seule.
+
+### Ce que la mesure retire du tableau du sous-front A
+
+Le ticket range `curves` (37 params) parmi les effets sans outil. C'est vrai au
+sens strict et trompeur au sens utile : **`curves` porte le manipulateur direct
+le plus abouti du registre** — ses quatre courbes se tirent au point, dans le
+panneau. Il ne manque pas d'outil ; le sien n'est simplement pas *sur la toile*.
+Le compter comme un trou fausse le sous-front.
+
+À l'inverse `glass` (22 params, 22 rangées, zéro outil) reste le meilleur
+candidat du tableau, et le plus cher.
 
 ## Sous-front A — la couverture
 

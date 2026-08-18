@@ -99,6 +99,29 @@ Aucun n'est un reste de ces deux sessions.
 
 <!-- une ligne par ticket clos : le gist, puis le lien pour le détail -->
 
+- [Ce que coûte un modèle de vision embarqué](issues/29-ce-que-coute-un-modele-de-vision-embarque.md)
+  — recherche **RENDUE le 2026-08-18**, le jour de son ouverture.
+  **Le mur n'est pas le coût, c'est la NETTETÉ DE BORD, et elle est plafonnée
+  avant qu'un modèle entre en jeu** : ces modèles voient **784 × 518**, soit
+  1,6 % d'une photo 26 Mpx ; 1 pixel inféré = 8 pixels sur la photo ; **F1 de
+  frontière plafonné à 0,065 même avec une profondeur PARFAITE**. Pour doser un
+  effet par la distance, c'est ça qui décide. Le seul modèle qui déplace le
+  plafond a des poids « recherche seulement » — **plafond et licence sont
+  corrélés**.
+  ⚠️ **Depth-Anything V2 scinde sa licence PAR TAILLE** (Small Apache, Base et
+  au-delà CC-BY-NC) alors que **V1 est permissif partout** : « prendre le plus
+  récent » est le geste qui perd la licence.
+  Coût, mythes retirés : `onnxruntime.dll` = **15,40 Mio mesuré** (les 76 Mo qui
+  circulent sont à 95 % du `.pdb`), exe 20,47 Mo contre 9,1 aujourd'hui, et le
+  temps **ne dépend pas** des 26 Mpx. En Tauri v2 le Rust ne voit pas le
+  `GPUDevice` de la WebView : la piste WebGPU n'existe qu'en JS.
+  ✅ Trou n°2 comblé le jour même par sonde CDP : `shader-f16` **est** disponible
+  ici — mais `gpuContext.ts:120-125` ne la demande pas, et une feature ne
+  s'ajoute pas après création. Pas une limite du matériel, une ligne de notre
+  code.
+  **La décision produit reste ENTIÈRE** : la recherche rapporte, elle ne tranche
+  pas.
+
 - [Lesquels des cinq différés de masquage entrent dans ce palier](issues/08-lesquels-des-cinq-differes-de-masquage.md)
   — **RÉSOLU le 2026-08-18. Quatre des six étaient déjà tombées avant qu'on
   ouvre le ticket.** Pen/path, géométrique rect-ellipse et lasso sont **mot pour

@@ -60,7 +60,7 @@ export function PointHandles({ point, xRange, yRange, canvasRef, label, disabled
   };
 
   return <div ref={overlayRef} className="point-handles" style={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}>
-    <button type="button" className="point-handles__handle"
+    <button type="button" className="canvas-handle point-handles__handle"
       disabled={disabled}
       style={{ left: drawn.x - rect.left, top: drawn.y - rect.top }}
       aria-label={`${label} — position. Flèches pour déplacer, Maj pour un pas large.`}

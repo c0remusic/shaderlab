@@ -478,7 +478,7 @@ export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayer
               // (bas-gauche) sur l'axe ↗↙. Une seule règle CSS pour les quatre
               // affichait donc une flèche à l'envers sur deux d'entre eux —
               // elle annonçait un geste et le contrôle en faisait un autre.
-              className={`transform-handles__corner transform-handles__corner--${index % 2 === 0 ? "nwse" : "nesw"}`}
+              className={`canvas-handle transform-handles__corner transform-handles__corner--${index % 2 === 0 ? "nwse" : "nesw"}`}
               style={toScreenStyle(corners[index])}
               onPointerDown={(e) => handleScaleHandleDown(e, { kind: "corner", index })}
               onPointerMove={handlePointerMove}
@@ -495,7 +495,7 @@ export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayer
             <div
               key={`edge-${index}`}
               aria-hidden="true"
-              className={`transform-handles__edge transform-handles__edge--${index % 2 === 0 ? "vertical" : "horizontal"}`}
+              className={`canvas-handle transform-handles__edge transform-handles__edge--${index % 2 === 0 ? "vertical" : "horizontal"}`}
               style={toScreenStyle(edges[index])}
               onPointerDown={(e) => handleScaleHandleDown(e, { kind: "edge", index })}
               onPointerMove={handlePointerMove}
@@ -504,7 +504,7 @@ export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayer
             />
           ))}
           <div
-            className="transform-handles__rotation"
+            className="canvas-handle transform-handles__rotation"
             aria-hidden="true"
             style={toScreenStyle(rotationHandle)}
             onPointerDown={(e) => handlePointerDown(e, { kind: "rotate" })}

@@ -2,7 +2,8 @@
 .axis-handles__svg { position: absolute; inset: 0; overflow: visible; }
 .axis-handles__halo { stroke: var(--outline-contrast); stroke-width: 4; }
 .axis-handles__line { stroke: var(--text-value); stroke-width: 2; stroke-dasharray: 5 4; }
-.axis-handles__end { position: absolute; width: var(--slider-thumb-size); height: var(--slider-thumb-size); margin: calc(var(--slider-thumb-size) / -2); padding: 0; border: 1px solid var(--outline-contrast); border-radius: var(--radius-round); background: var(--focus-color); cursor: crosshair; pointer-events: auto; }
+/* Ne reste ici que le curseur : le reste vient de `canvas-handle`. */
+.axis-handles__end { cursor: crosshair; }
 .axis-handles__end:focus-visible { outline: var(--focus-width) solid var(--focus-color); outline-offset: var(--focus-offset); }
 .pasteboard__view--pan .axis-handles__end { pointer-events: none; }
 .axis-handles__end:disabled {

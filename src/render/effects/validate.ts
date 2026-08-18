@@ -190,15 +190,28 @@ export function validateEffect(effect: EffectModule): void {
       ids.add(control.id);
       const roles = control.kind === "point" ? [control.x, control.y]
         : control.kind === "disk" ? [control.x, control.y, control.radius]
+        : control.kind === "box" ? [control.x, control.y, control.width, control.height, control.rotation]
         : [control.angle, control.length];
       if (new Set(roles).size !== roles.length) throw new Error(`Effet "${effect.id}" : un contrôle canvas réutilise le même paramètre pour plusieurs rôles.`);
       for (const name of roles) if (!params.has(name)) throw new Error(`Effet "${effect.id}" : contrôle canvas désigne le paramètre absent "${name}".`);
-      if ((control.kind === "point" || control.kind === "disk") &&
+      if ((control.kind === "point" || control.kind === "disk" || control.kind === "box") &&
           (params.get(control.x)?.unit !== "percent" || params.get(control.y)?.unit !== "percent")) {
         throw new Error(`Effet "${effect.id}" : les coordonnées d'un contrôle canvas doivent être en percent.`);
       }
       if (control.kind === "axis" && params.get(control.angle)?.unit !== "degrees") {
         throw new Error(`Effet "${effect.id}" : l'angle d'un axe canvas doit être en degrees.`);
+      }
+      // UNE BOÎTE A DEUX UNITÉS, et les confondre est le piège de son
+      // adaptateur : ses étendues sont des FRACTIONS du cadre (percent) et son
+      // angle est en DEGRÉS. Un angle déclaré en percent tournerait la boîte
+      // d'un facteur 57 sans rien casser d'autre.
+      if (control.kind === "box") {
+        if (params.get(control.width)?.unit !== "percent" || params.get(control.height)?.unit !== "percent") {
+          throw new Error(`Effet "${effect.id}" : les étendues d'une boîte canvas doivent être en percent.`);
+        }
+        if (params.get(control.rotation)?.unit !== "degrees") {
+          throw new Error(`Effet "${effect.id}" : la rotation d'une boîte canvas doit être en degrees.`);
+        }
       }
       if (control.visibleWhen) {
         validerConditionDAffichage(effect.id, params, control.visibleWhen, "visibleWhen");

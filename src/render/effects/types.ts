@@ -151,7 +151,31 @@ export interface CanvasControlVisibility { visibleWhen?: DisplayCondition }
 export type CanvasControl =
   | ({ id: string; kind: "point"; x: string; y: string; label: string } & CanvasControlVisibility)
   | ({ id: string; kind: "disk"; x: string; y: string; radius: string; label: string } & CanvasControlVisibility)
-  | ({ id: string; kind: "axis"; angle: string; length: string; label: string } & CanvasControlVisibility);
+  | ({ id: string; kind: "axis"; angle: string; length: string; label: string } & CanvasControlVisibility)
+  /**
+   * BOÎTE redimensionnable et tournante — huit poignées et une rotation, comme
+   * Photoshop. Quatrième genre, ajouté le 2026-08-18 (ticket 25, débloqué par le
+   * ticket 17).
+   *
+   * ⚠️ IL N'A DEMANDÉ AUCUN MANIPULATEUR NEUF. `TransformHandles` fait déjà tout
+   * ça pour le calque photo — coins, côtés, rotation, magnétisme, accès
+   * clavier — et une boîte d'effet est le MÊME objet dans d'autres unités : un
+   * centre, deux demi-étendues, un angle. `ui/boxControl.ts` est ce changement
+   * d'unités, et c'est tout ce que le genre a coûté.
+   *
+   * `width`/`height` sont des fractions du cadre, `rotation` est en DEGRÉS —
+   * les unités d'un paramètre d'effet, pas celles de la géométrie.
+   */
+  | ({
+      id: string;
+      kind: "box";
+      x: string;
+      y: string;
+      width: string;
+      height: string;
+      rotation: string;
+      label: string;
+    } & CanvasControlVisibility);
 
 export interface CurvePointSlot { x: string; y: string }
 

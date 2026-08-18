@@ -199,3 +199,64 @@ export const UnnamedLayerStillHasAName: Story = {
     await expect(report[0].name).toBe("Cadre de transformation — flèches pour déplacer, Maj+flèches par pas de 10 px");
   },
 };
+
+
+/**
+ * LA POIGNEE S'ATTRAPE, ET ELLE LE DIT — les deux ecarts mesures du ticket 17.
+ *
+ * Les quatre overlays de toile partageaient trois defauts IDENTIQUES : aucune
+ * regle `:hover`, une taille de 12 px contre 24x24 recommandes, et le token du
+ * POUCE DE CURSEUR (`--slider-thumb-size`) reutilise pour une poignee de
+ * manipulateur — donc agrandir l'une aurait grossi tous les curseurs du dock.
+ *
+ * DEUX MESURES, ET LA DISTINCTION EST LE FOND DU SUJET. Ce qu'on VOIT reste a
+ * 12 px : une poignee de 24 px peinte sur une petite forme la recouvrirait.
+ * Ce qu'on ATTRAPE fait 24 px, par un pseudo-element transparent qui deborde.
+ * La recommandation porte sur la CIBLE, jamais sur la peinture.
+ *
+ * Attendus DERIVES des tokens, jamais des litteraux : changer un token doit
+ * changer ce test avec lui, pas le faire mentir.
+ */
+export const HandlesAreGrabbableAndSayIt: Story = {
+  play: async ({ canvasElement }) => {
+    const poignee = canvasElement.querySelector<HTMLElement>(".canvas-handle");
+    await expect(poignee).not.toBeNull();
+    const racine = getComputedStyle(document.documentElement);
+    const taille = parseFloat(racine.getPropertyValue("--canvas-handle-size"));
+    const cible = parseFloat(racine.getPropertyValue("--canvas-handle-target"));
+    await expect(cible).toBeGreaterThan(taille);
+
+    // Ce qu'on VOIT : la taille visible, pas la cible.
+    const boite = poignee!.getBoundingClientRect();
+    await expect(Math.round(boite.width)).toBe(taille);
+
+    // Ce qu'on ATTRAPE : le pseudo-element deborde de la moitie de l'ecart de
+    // chaque cote, donc la cible totale vaut le token.
+    const apres = getComputedStyle(poignee!, "::after");
+    const debord = parseFloat(apres.top);
+    await expect(taille - 2 * debord).toBeCloseTo(cible, 1);
+
+    // Et elle ANNONCE sa prise : sans retour au survol, il faut essayer pour
+    // savoir qu'un manipulateur est attrapable.
+    //
+    // ⚠️ LU DANS LE CSSOM, et pas par `userEvent.hover`. Un `:hover` CSS suit la
+    // position REELLE du pointeur ; les evenements de survol synthetiques ne
+    // l'activent pas, donc un test qui passerait par eux verifierait toujours
+    // l'etat de repos en croyant mesurer le survol. On demande donc a la feuille
+    // CHARGEE si la regle existe — ce qui distingue une regle vivante d'une
+    // ligne presente dans un fichier jamais importe.
+    const regles = Array.from(document.styleSheets).flatMap((feuille) => {
+      try {
+        return Array.from(feuille.cssRules);
+      } catch {
+        return [];
+      }
+    });
+    const survol = regles.filter(
+      (r): r is CSSStyleRule =>
+        r instanceof CSSStyleRule && r.selectorText.includes(".canvas-handle:hover"),
+    );
+    await expect(survol.length).toBeGreaterThan(0);
+    await expect(survol.some((r) => r.style.transform !== "")).toBe(true);
+  },
+};

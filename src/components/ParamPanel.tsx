@@ -112,6 +112,7 @@ export function groupEffectParams(
   for (const control of controls) {
     const names = control.kind === "point" ? [control.x, control.y]
       : control.kind === "disk" ? [control.x, control.y, control.radius]
+      : control.kind === "box" ? [control.x, control.y, control.width, control.height, control.rotation]
       : [control.angle, control.length];
     nomsParControle.set(control.id, names);
     for (const name of names) {

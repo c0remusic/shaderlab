@@ -239,7 +239,7 @@ export function RegionHandles({
       <button
         type="button"
         disabled={disabled}
-        className="region-handles__center"
+        className="canvas-handle region-handles__center"
         style={{ left: drawn.cx - overlayRect.left, top: drawn.cy - overlayRect.top }}
         aria-label={`${nom} — centre. Flèches pour déplacer, Maj pour un pas large.`}
         onPointerDown={startDrag("center")}
@@ -262,7 +262,7 @@ export function RegionHandles({
       <button
         type="button"
         disabled={disabled}
-        className={`region-handles__radius${rayon.rabattue ? " region-handles__radius--rabattue" : ""}`}
+        className={`canvas-handle region-handles__radius${rayon.rabattue ? " region-handles__radius--rabattue" : ""}`}
         style={{ left: rayon.x - overlayRect.left, top: rayon.y - overlayRect.top }}
         aria-label={`${nom} — rayon`}
         onPointerDown={startDrag("radius")}

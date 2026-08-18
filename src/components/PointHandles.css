@@ -4,29 +4,9 @@
   z-index: var(--z-canvas-overlay);
 }
 
+/* Ne reste ici que ce qui est PROPRE au point : son curseur. Taille, cible
+   tactile, survol, focus et neutralisation pendant le pan viennent de
+   `canvas-handle` (voir `canvasHandle.css`, ticket 17). */
 .point-handles__handle {
-  position: absolute;
-  width: var(--slider-thumb-size);
-  height: var(--slider-thumb-size);
-  margin: calc(var(--slider-thumb-size) / -2);
-  padding: 0;
-  border: 1px solid var(--outline-contrast);
-  border-radius: var(--radius-round);
-  background: var(--focus-color);
   cursor: move;
-  pointer-events: auto;
-}
-
-.pasteboard__view--pan .point-handles__handle {
-  pointer-events: none;
-}
-
-.point-handles__handle:focus-visible {
-  outline: var(--focus-width) solid var(--focus-color);
-  outline-offset: var(--focus-offset);
-}
-
-.point-handles__handle:disabled {
-  cursor: default;
-  opacity: var(--disabled-opacity);
 }

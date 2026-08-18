@@ -218,7 +218,33 @@ export const aplat: EffectModule = {
   // possible, et une position en pourcentage réglée au curseur est le cas
   // d'école qu'ADR-0017 nomme.
   canvasControls: [
-    { id: "centre", kind: "point", x: "centreX", y: "centreY", label: "Centre de la forme", visibleWhen: { param: "borne", equals: [1, 2, 3] } },
+    // ✅ TROISIÈME FRONT DE L'UPGRADE QUALITÉ, livré le 2026-08-18 (ticket 25).
+    //
+    // C'était un `point` : seul le CENTRE se manipulait sur l'image, largeur,
+    // hauteur et rotation restaient au curseur. Le ticket était bloqué parce
+    // qu'aucun des trois genres de `CanvasControl` ne savait exprimer une boîte
+    // redimensionnable avec rotation.
+    //
+    // ⚠️ Le quatrième genre n'a demandé AUCUN manipulateur neuf :
+    // `TransformHandles` fait déjà huit poignées, une rotation, le magnétisme et
+    // l'accès clavier pour le calque photo, et une boîte d'effet est le même
+    // objet dans d'autres unités. Voir `ui/boxControl.ts`.
+    //
+    // Le verdict d'Antoine sur le rectangle à quatre curseurs — « la pire façon
+    // de créer un rectangle » — portait sur la CRÉATION, réglée le 2026-08-17
+    // par l'outil Forme. Celui-ci règle la RETOUCHE : une forme posée se
+    // retouche en la tirant, pas en cherchant quatre curseurs dans le dock.
+    {
+      id: "boite",
+      kind: "box",
+      x: "centreX",
+      y: "centreY",
+      width: "largeur",
+      height: "hauteur",
+      rotation: "rotation",
+      label: "Boîte de la forme",
+      visibleWhen: { param: "borne", equals: [1, 2, 3] },
+    },
   ],
   sections: [
     // La borne d'abord : c'est elle qui décide si les cinq réglages suivants

@@ -84,15 +84,11 @@
   pointer-events: none;
 }
 
+/* Ne reste ici que la couleur de repos : taille, cible tactile, survol, focus
+   et neutralisation pendant le pan viennent de `canvas-handle`
+   (`canvasHandle.css`, ticket 17). */
 .transform-handles__corner {
-  position: absolute;
-  width: var(--slider-thumb-size);
-  height: var(--slider-thumb-size);
-  margin: calc(var(--slider-thumb-size) / -2);
-  border-radius: var(--radius-round);
   background: var(--text-value);
-  border: 1px solid var(--outline-contrast);
-  pointer-events: auto;
 }
 
 /* La diagonale du curseur suit celle du coin. Une règle unique `nwse-resize`
@@ -121,36 +117,24 @@
    identiques aux coins n'auraient rien annoncé. Même remplissage et même
    contour que les coins — c'est la même famille de contrôle. */
 .transform-handles__edge {
-  position: absolute;
   background: var(--text-value);
-  border: 1px solid var(--outline-contrast);
-  pointer-events: auto;
+  border-radius: var(--radius-control);
 }
 
 /* Côtés HAUT et BAS : la poignée est large et plate, et elle étire la HAUTEUR. */
 .transform-handles__edge--vertical {
-  width: calc(var(--slider-thumb-size) * 2);
-  height: var(--slider-thumb-size);
-  margin: calc(var(--slider-thumb-size) / -2) calc(var(--slider-thumb-size) * -1);
+  width: calc(var(--canvas-handle-size) * 2);
+  margin-inline: calc(var(--canvas-handle-size) * -1);
   cursor: ns-resize;
 }
 
 /* Côtés GAUCHE et DROIT : haute et étroite, elle étire la LARGEUR. */
 .transform-handles__edge--horizontal {
-  width: var(--slider-thumb-size);
-  height: calc(var(--slider-thumb-size) * 2);
-  margin: calc(var(--slider-thumb-size) * -1) calc(var(--slider-thumb-size) / -2);
+  height: calc(var(--canvas-handle-size) * 2);
+  margin-block: calc(var(--canvas-handle-size) * -1);
   cursor: ew-resize;
 }
 
 .transform-handles__rotation {
-  position: absolute;
-  width: var(--slider-thumb-size);
-  height: var(--slider-thumb-size);
-  margin: calc(var(--slider-thumb-size) / -2);
-  border-radius: var(--radius-round);
-  background: var(--focus-color);
-  border: 1px solid var(--outline-contrast);
-  pointer-events: auto;
   cursor: grab;
 }

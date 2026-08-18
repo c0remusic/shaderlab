@@ -3,6 +3,7 @@
 @import "./components.css";
 @import "./motion.css";
 @import "./reset.css";
+@import "../components/canvasHandle.css";
 @import "../components/BrushToolbar.css";
 @import "../components/Canvas.css";
 @import "../App.css";

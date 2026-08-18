@@ -49,7 +49,7 @@ export function AxisHandles({ angle, length, lengthRange, imageSize, canvasRef, 
       <line className="axis-handles__halo" x1={drawn.cx - rect.left} y1={drawn.cy - rect.top} x2={drawn.x - rect.left} y2={drawn.y - rect.top} />
       <line className="axis-handles__line" x1={drawn.cx - rect.left} y1={drawn.cy - rect.top} x2={drawn.x - rect.left} y2={drawn.y - rect.top} />
     </svg>
-    <button type="button" className="axis-handles__end" style={{ left: drawn.x - rect.left, top: drawn.y - rect.top }}
+    <button type="button" className="canvas-handle axis-handles__end" style={{ left: drawn.x - rect.left, top: drawn.y - rect.top }}
       disabled={disabled}
       aria-label={`${label} — direction et longueur`}
       onPointerDown={(event) => { if (event.button !== 0) return; event.stopPropagation(); dragging.current = true; event.currentTarget.setPointerCapture(event.pointerId); }}

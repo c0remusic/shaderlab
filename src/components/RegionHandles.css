@@ -46,17 +46,12 @@
   pointer-events: none;
 }
 
+/* Ne reste ici que ce qui est PROPRE a la region : sa couleur de repos et ses
+   curseurs. Taille, cible tactile, survol, focus et neutralisation pendant le
+   pan viennent de `canvas-handle` (voir `canvasHandle.css`, ticket 17). */
 .region-handles__center,
 .region-handles__radius {
-  position: absolute;
-  width: var(--slider-thumb-size);
-  height: var(--slider-thumb-size);
-  margin: calc(var(--slider-thumb-size) / -2);
-  padding: 0;
-  border-radius: var(--radius-round);
   background: var(--text-value);
-  border: 1px solid var(--outline-contrast);
-  pointer-events: auto;
 }
 
 .region-handles__center {
@@ -80,14 +75,4 @@
   border-width: 2px;
 }
 
-.region-handles__center:focus-visible,
-.region-handles__radius:focus-visible {
-  outline: 2px solid var(--focus-color);
-  outline-offset: 2px;
-}
 
-.region-handles__center:disabled,
-.region-handles__radius:disabled {
-  cursor: default;
-  opacity: var(--disabled-opacity);
-}

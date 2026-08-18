@@ -1,0 +1,77 @@
+/* POIGNÉE D'OVERLAY DE TOILE — le socle partagé par les quatre manipulateurs
+   (`PointHandles`, `AxisHandles`, `RegionHandles`, `TransformHandles`).
+
+   Il naît du ticket 17, qui avait mesuré trois écarts sur ces quatre fichiers et
+   les avait trouvés IDENTIQUES dans les quatre : aucune règle `:hover`, une
+   taille de 12 px contre 24×24 recommandés, et le token du pouce de curseur
+   réutilisé pour une poignée de manipulateur. Quatre copies d'un même défaut
+   sont un défaut de socle, pas quatre défauts.
+
+   Même raison que `blurChain.ts` et `edgeGradient.ts` côté rendu : deux copies
+   d'un noyau dérivent, et ici la dérive se lirait comme une incohérence
+   d'interface — deux manipulateurs de la même app qui ne s'attrapent pas
+   pareil. */
+
+.canvas-handle {
+  position: absolute;
+  width: var(--canvas-handle-size);
+  height: var(--canvas-handle-size);
+  margin: calc(var(--canvas-handle-size) / -2);
+  padding: 0;
+  border: 1px solid var(--outline-contrast);
+  border-radius: var(--radius-round);
+  background: var(--focus-color);
+  pointer-events: auto;
+}
+
+/* LA CIBLE, ET C'EST LA MOITIÉ QUI COMPTE. Ce qu'on VOIT garde 12 px : une
+   poignée de 24 px peinte sur une petite forme la recouvrirait, et aucun outil
+   professionnel ne fait ça. Ce qu'on ATTRAPE fait 24 px, par un pseudo-élément
+   transparent centré qui déborde la poignée de part et d'autre.
+
+   `inset` négatif plutôt qu'une taille : la cible reste centrée quelle que soit
+   la taille visible, donc les deux tokens peuvent bouger indépendamment. */
+.canvas-handle::after {
+  content: "";
+  position: absolute;
+  inset: calc((var(--canvas-handle-target) - var(--canvas-handle-size)) / -2);
+  border-radius: var(--radius-round);
+}
+
+/* ⚠️ `:hover` — les quatre overlays n'en avaient AUCUN. Un manipulateur qui ne
+   réagit pas au survol ne dit pas qu'il est attrapable : l'utilisateur doit
+   essayer pour savoir. C'est le seul des trois écarts mesurés qui se voit sans
+   instrument.
+
+   Le grossissement passe par `scale` et non par `width`/`height` : la poignée
+   est positionnée par une marge négative calée sur sa taille, donc changer sa
+   taille au survol la DÉPLACERAIT d'un demi-pixel — un manipulateur qui bouge
+   quand on l'approche est pire que pas de retour du tout. */
+.canvas-handle:hover {
+  transform: scale(1.25);
+  border-color: var(--focus-color);
+  background: var(--surface-panel);
+}
+
+.canvas-handle:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.canvas-handle:disabled {
+  cursor: default;
+  opacity: var(--disabled-opacity);
+}
+
+/* Pendant un déplacement de la vue (Espace maintenu), plus rien ne s'attrape :
+   le geste appartient au pasteboard. Sans cette règle, le survol continuerait
+   d'annoncer une prise qui ne se ferait pas. */
+.pasteboard__view--pan .canvas-handle {
+  pointer-events: none;
+}
+
+.pasteboard__view--pan .canvas-handle:hover {
+  transform: none;
+  border-color: var(--outline-contrast);
+  background: var(--focus-color);
+}

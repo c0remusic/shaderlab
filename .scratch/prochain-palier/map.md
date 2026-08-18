@@ -142,6 +142,50 @@ Aucun n'est un reste de ces deux sessions.
 
 <!-- une ligne par ticket clos : le gist, puis le lien pour le détail -->
 
+- [L'applicabilité couvre 10 % du parc](issues/15-l-applicabilite-couvre-10-pourcent.md)
+  — **RÉSOLU le 2026-08-18. Le front était COUVERT, et il ne restait qu'UNE
+  déclaration à écrire.** Le cadrage confondait trois choses : un `choices` qui
+  nomme un ESPACE ou une ENTRÉE ne gouverne rien — il change comment TOUS les
+  réglages agissent, pas lesquels existent. Seul un `choices` qui nomme un MODE
+  peut rendre un paramètre inerte, et les deux vrais modes restants
+  (`halftone.rotation`, `grain.size`) ont été mesurés VIVANTS.
+  ⚠️ **Le couple de valeurs a produit un FAUX « inerte »** : `0` vs `90` sur un
+  réseau CARRÉ le ramène sur lui-même. C'est le sens DANGEREUX de l'erreur —
+  masquer un curseur vivant ne fait rougir personne.
+  La seule dette : `glass.flat`, seul VIVANT des 41 déclarations **depuis
+  quatorze jours**, sur une déclaration que le code ne portait plus. 41/41
+  inertes désormais.
+
+- [Les sections ne sectionnent pas](issues/16-les-sections-ne-sectionnent-pas.md)
+  — **RÉSOLU le 2026-08-18. Le levier était le GABARIT.** Quatre sections
+  passées en `grille`, **aucune scindée ni renommée**, zéro code écrit. Le
+  tableau de densité portait DEUX dénominateurs faux : la rangée (pas le
+  paramètre) et la ligne VISUELLE (pas la rangée — `grille` pose deux colonnes,
+  ce qui inversait le classement). Plafond opposable à **6 lignes**, exception
+  écrite pour `outlines.encre` (deux pastilles, `grille` les déformerait).
+  Garde `densiteSections.test.ts` : 16 orphelins déclarés avec leur raison,
+  `duotone` corrigé.
+
+- [Les outils sur la toile](issues/17-les-outils-sur-la-toile.md)
+  — **RÉSOLU le 2026-08-18**, avec sa portée DÉCLARÉE. Livré : les trois écarts
+  d'overlay, qui étaient identiques dans les quatre fichiers — donc un défaut de
+  SOCLE (`canvasHandle.css`) et non quatre défauts. La cible tactile fait 24 px,
+  la peinture reste à 12 : la recommandation porte sur la CIBLE. Plus le
+  quatrième genre, `box`.
+  Hors portée, dit : les 14 lignes qui supposent un manipulateur-OBJET (mur
+  partagé avec le [03](03-une-forme-a-t-elle-besoin-de-contentsource.md)), et
+  trois écarts séparables — valeur pendant le geste, origine d'un `axis`,
+  magnétisme hors `TransformHandles`.
+
+- [Les poignées de l'aplat](issues/25-les-poignees-de-l-aplat.md)
+  — **RÉSOLU le 2026-08-18. Le quatrième genre n'a demandé AUCUN manipulateur
+  neuf** : `TransformHandles` fait déjà huit poignées, une rotation, le
+  magnétisme et le clavier, et une boîte d'effet est le même objet dans d'autres
+  unités. Coût réel : `ui/boxControl.ts`, deux fonctions pures, sept tests.
+  ⚠️ Deux pièges tenus par les tests — degrés contre radians (facteur 57, rien
+  de visible), et lire `photoSize` sans `scaleX` rendrait une boîte qui ne
+  grandit jamais. Vérifié dans la vraie fenêtre : 9 poignées et 1 cadre.
+
 - [Recadrer la toile déjà ouverte](issues/28-recadrer-la-toile-deja-ouverte.md)
   — **RÉSOLU le 2026-08-18. Le recadrage n'est PAS destructif**, et cette
   réponse-là fait disparaître les trois issues du design montage au lieu d'en

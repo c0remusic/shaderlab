@@ -3,6 +3,8 @@ import type { CanvasControl, EffectParam } from "../render/effects/types";
 import { RegionHandles } from "./RegionHandles";
 import { AxisHandles } from "./AxisHandles";
 import { PointHandles } from "./PointHandles";
+import { TransformHandles } from "./TransformHandles";
+import { boiteVersTransform, transformVersBoite } from "../ui/boxControl";
 
 interface Props {
   controls: readonly CanvasControl[];
@@ -44,6 +46,46 @@ export function CanvasControls({ controls, params, values, imageSize, canvasRef,
         label={`${effectName} — ${control.label}`}
         disabled={disabled}
         onChange={(angle, length) => onChange({ [control.angle]: angle, [control.length]: length })} onCommit={onCommit} />;
+    }
+    if (control.kind === "box") {
+      // LE QUATRIÈME GENRE NE REND AUCUN MANIPULATEUR NEUF (ticket 25) :
+      // `TransformHandles` fait déjà huit poignées, une rotation, le magnétisme
+      // et l'accès clavier pour le calque photo. Une boîte d'effet est le même
+      // objet dans d'autres unités, et `ui/boxControl.ts` est ce changement
+      // d'unités — voir son en-tête pour le piège des degrés et des radians.
+      //
+      // `otherPhotoLayers` reste vide : les cibles d'accroche d'une boîte
+      // d'effet sont les bords et médianes de la toile, pas les autres photos —
+      // un aplat ne s'aligne pas sur une image qu'il recouvre.
+      const boite = {
+        centreX: value(control.x),
+        centreY: value(control.y),
+        largeur: value(control.width),
+        hauteur: value(control.height),
+        rotation: value(control.rotation),
+      };
+      const { transform, photoSize } = boiteVersTransform(boite, imageSize);
+      return (
+        <TransformHandles
+          key={control.id}
+          transform={transform}
+          photoSize={photoSize}
+          bgSize={imageSize}
+          canvasRef={canvasRef}
+          layerName={`${effectName} — ${control.label}`}
+          onTransformChange={(suivant) => {
+            const rendue = transformVersBoite(suivant, photoSize, imageSize);
+            onChange({
+              [control.x]: rendue.centreX,
+              [control.y]: rendue.centreY,
+              [control.width]: rendue.largeur,
+              [control.height]: rendue.hauteur,
+              [control.rotation]: rendue.rotation,
+            });
+          }}
+          onTransformCommit={onCommit}
+        />
+      );
     }
     if (control.kind !== "disk") return null;
     const radiusParam = params.find((param) => param.name === control.radius);

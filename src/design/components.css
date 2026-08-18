@@ -90,6 +90,24 @@
 
   --slider-track-height: var(--space-2);
   --slider-thumb-size: 12px;
+
+  /* POIGNÉE D'OVERLAY DE TOILE — les quatre overlays (`PointHandles`,
+     `AxisHandles`, `RegionHandles`, `TransformHandles`).
+
+     ⚠️ DÉCOUPLÉE DE `--slider-thumb-size` le 2026-08-18 (ticket 17). Les quatre
+     lisaient le token du POUCE DE CURSEUR, ce qui liait deux choses qui n'ont
+     rien à voir : agrandir la poignée d'un manipulateur pour qu'on puisse
+     l'attraper aurait grossi le pouce de tous les curseurs du dock. Le ticket
+     nommait ce découplage comme préalable, pas comme finition.
+
+     DEUX MESURES, ET LA DISTINCTION EST LE FOND DU SUJET. Ce qu'on VOIT reste
+     petit — une poignée de 24 px peinte sur une petite forme la recouvrirait,
+     et aucun outil professionnel ne fait ça. Ce qu'on ATTRAPE fait 24 px, la
+     cible recommandée, obtenue par un pseudo-élément transparent qui déborde la
+     poignée. C'est la lecture juste de « 12 px contre 24×24 recommandés » : la
+     recommandation porte sur la CIBLE, jamais sur la peinture. */
+  --canvas-handle-size: 12px;
+  --canvas-handle-target: 24px;
   --slider-value-width: 9ch;
 
   /* Barre de sélection d'une ligne de liste — 2px pleins, l'épaisseur qui

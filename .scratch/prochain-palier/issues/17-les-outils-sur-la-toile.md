@@ -1,7 +1,7 @@
 # Les outils sur la toile : quatre effets, trois genres
 
 Type: grilling
-Status: open
+Status: resolved
 Blocked by: 18
 Parent: ../map.md
 
@@ -202,3 +202,76 @@ et 14 sont suspendues à la question du modèle.
 
 ⚠️ Pas « on en a ajouté trois ». Les deux sous-fronts se prouvent séparément, et
 le ticket doit déclarer explicitement lesquelles des 42 lignes il vise.
+
+
+---
+
+## Answer — RÉSOLU le 2026-08-18
+
+Ce ticket devait **déclarer explicitement lesquelles des 42 lignes il vise**. Le
+voici, et la déclaration compte autant que le travail.
+
+### CE QUI EST LIVRÉ
+
+**Les trois écarts mesurés sur nos quatre overlays** — et la mesure disait déjà
+l'essentiel : ils étaient IDENTIQUES dans les quatre. Quatre copies d'un même
+défaut sont un défaut de SOCLE, pas quatre défauts. D'où `canvasHandle.css`, que
+les quatre composent, pour la raison exacte qui a produit `blurChain.ts` et
+`edgeGradient.ts` côté rendu : deux copies dérivent, et la dérive se lirait ici
+comme une incohérence d'interface — deux manipulateurs de la même app qui ne
+s'attrapent pas pareil.
+
+| écart | état |
+| --- | --- |
+| zéro règle `:hover` dans les quatre CSS | ✅ le socle en porte une |
+| poignées de 12 px contre 24×24 recommandés | ✅ **cible** de 24 px, peinture de 12 |
+| le token du POUCE DE CURSEUR réutilisé | ✅ découplé (`--canvas-handle-size`) |
+
+⚠️ **La recommandation porte sur la CIBLE, jamais sur la peinture**, et c'est la
+lecture que « 12 px contre 24×24 » n'imposait pas d'elle-même. Une poignée de
+24 px peinte sur une petite forme la recouvrirait — aucun outil professionnel ne
+fait ça. Deux tokens, donc : ce qu'on voit reste à 12 px, ce qu'on attrape fait
+24 par un pseudo-élément transparent qui déborde.
+
+Le découplage était nommé par le ticket comme **préalable**, et il l'était :
+agrandir la poignée d'un manipulateur aurait grossi le pouce de tous les
+curseurs du dock.
+
+**Le QUATRIÈME GENRE, `box`** — huit poignées et une rotation. Il débloque le
+[ticket 25](25-les-poignees-de-l-aplat.md), et il n'a demandé **aucun
+manipulateur neuf** : voir là-bas.
+
+### CE QUI EST HORS PORTÉE, ET POURQUOI
+
+**Les 14 lignes qui supposent qu'un manipulateur soit un OBJET** — sélectionnable,
+duplicable, à cardinalité variable. C'est le mur que ce ticket avait identifié
+sans l'anticiper, et il est PARTAGÉ avec la typographie et les formes
+([ticket 03](03-une-forme-a-t-elle-besoin-de-contentsource.md)). Le trancher ici
+serait trancher trois chantiers depuis le plus étroit des trois.
+
+**Trois des six écarts mesurés restent ouverts**, et ils ne sont pas de la même
+famille que les trois livrés :
+
+- **aucune valeur de paramètre affichée pendant le geste** — c'est un ajout, pas
+  une correction de socle ; il demande de décider CE QU'ON MONTRE (la valeur du
+  paramètre ? les deux ? en quelle unité) pour chacun des quatre genres ;
+- **l'origine d'un `axis` clouée au centre** — c'est un changement de CONTRAT
+  (un axe gagnerait une origine), donc un cinquième rôle de paramètre, pas un
+  réglage de CSS ;
+- **aucun magnétisme hors `TransformHandles`** — `src/ui/snap.ts` calcule déjà
+  la géométrie, mais les cibles d'accroche d'un point d'effet ne sont pas celles
+  d'une photo, et personne n'a dit lesquelles.
+
+Aucun des trois n'est bloqué ; ils sont simplement séparables, et les mélanger à
+la correction de socle aurait rendu celle-ci non relisible.
+
+### Ce qui prouve ce qui est livré
+
+Story `HandlesAreGrabbableAndSayIt` : la taille visible vaut le token, la cible
+vaut le token de cible, et la règle `:hover` existe **dans la feuille chargée**.
+
+⚠️ **Le survol se lit dans le CSSOM, pas par `userEvent.hover`.** Un `:hover` CSS
+suit la position RÉELLE du pointeur ; les événements de survol synthétiques ne
+l'activent pas. Un test qui passerait par eux vérifierait toujours l'état de
+repos en croyant mesurer le survol — écrit d'abord ainsi, et il rougissait pour
+la bonne raison.

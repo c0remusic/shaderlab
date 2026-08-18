@@ -31,7 +31,7 @@
   retouchent ce qui existe.
 - `glass` **complet** : 14 matières (9 de feuille + 5 de pavé), 5 profils de
   section, **18 références de pixels — toutes les branches verrouillées**.
-- **Les 23 effets portent des sections** et leurs applicabilités déclarées
+- **Les 24 effets portent des sections** et leurs applicabilités déclarées
   (`EffectModule.sections`, `EffectParam.appliesWhen`) — chantier de
   rationalisation des contrôles **soldé le 2026-08-05**, statut dans
   `INDEX.json`. Ce qu'il en reste est du jugement, donc dans le bloc 1.
@@ -511,15 +511,84 @@ modèle sous lui a bougé : le design spécifiait `scale: number` « UNIFORME »
 `scaleY` SIGNÉS et le flip devient le signe ») et **elle s'est déclenchée à
 moitié** : les deux échelles sont arrivées, mais `clampTransformScale`
 (`src/ui/transform.ts:125-127`) les borne au positif, donc le signe ne peut pas
-porter le flip — et les booléens n'ont jamais été écrits. **Le miroir est tombé
-entre les deux sans qu'aucun test ne rougisse.** Ce qui reste valide du design
-se tranche dans
-`.scratch/prochain-palier/issues/05-ce-qui-reste-du-design-de-parite-du-calque-photo.md`.
+porter le flip — et les booléens n'ont jamais été écrits.
+
+### ✅ TRANCHÉ le 2026-08-18 — le modèle est confirmé, et il manquait une TRANCHE entière
+
+[Ticket 05](../.scratch/prochain-palier/issues/05-ce-qui-reste-du-design-de-parite-du-calque-photo.md).
+Le design §3.1 reste écrivable, moyennant trois corrections nommées.
+
+⚠️ **Ce n'est pas « le miroir est tombé entre les deux » : c'est la tranche T3
+ENTIÈRE qui n'a jamais été livrée**, et elle portait **trois prérequis du CROP**
+sans rapport avec le miroir — `transformsEqual` (0 occurrence, donc valider un
+crop ne produirait **aucune entrée d'undo**, la comparaison énumérée de
+`usePhotoLayer.ts:273` ne voyant que 5 champs scalaires), `clone()` qui ne
+recopie toujours pas `transform` (`layerStack.ts:653`, alors que
+`duplicateLayer` le fait dans le même fichier), et `updateLayerTransform`
+toujours vivant à zéro appelant. **Le recadrage dépend donc d'un arbitrage ET
+d'une tranche jamais construite.**
+
+**Arbitrages d'Antoine** : le miroir reste, en **échelles SIGNÉES** (la
+réouverture que le design nommait, déclenchée en entier) — et **les DEUX
+recadrages sont demandés**, gestes distincts.
+
+Le signé est **moins cher** que le design ne le chiffrait : il **efface** le
+livrable le plus risqué de T3 (branche de flip CPU + WGSL,
+`PHOTO_INVERSE_TRANSFORM_WGSL`, harnais `gpu-parity.mjs`), l'inverse-transform
+divisant déjà par l'échelle.
+
+⚠️ **Mais il porte un défaut MUET, et c'est le seul.** Le feather de couverture
+multiplie une DISTANCE par l'échelle (`photoLayerInput.ts:80-84`). À échelle
+négative, **l'alpha s'INVERSE sur l'axe miroité** — mesuré : couverture 0,000 au
+centre de la photo et **1,000 à dix pixels EN DEHORS**. Un trou à la place de
+l'image, une bande opaque à côté. Ça compile, ça valide sous naga, ça rend.
+Correction d'un mot (`abs`), mais **aucune des 102 références ne l'attraperait**,
+puisqu'aucune ne miroite. **La référence de pixels du miroir se pose AVANT le
+geste, et sa mire doit montrer le bord ET quelques pixels autour** — une mire
+cadrée sur l'image seule verrait le trou et raterait la bande.
+
+Corrigé aussi : la formule de `recenterForCrop` du design est **fausse à deux
+échelles** — il faut mettre à l'échelle par axe AVANT la rotation, sinon le
+sujet saute dès qu'une photo est étirée, ce que §3.1 existe précisément pour
+empêcher.
+
+### ⚠️ OUVERT le 2026-08-18 — recadrer la TOILE, un second geste qui n'a aucun design
+
+Antoine a tranché « les deux, gestes distincts ». Rogner un CALQUE est le design
+§3.1 ci-dessus. **Recadrer la TOILE n'est spécifié nulle part** — il est différé
+dans le design montage du 2026-07-29 §9, avec un déclencheur qui vient d'être
+tiré. [Ticket 28](../.scratch/prochain-palier/issues/28-recadrer-la-toile-deja-ouverte.md).
+
+Mesuré le 2026-08-18, et l'énoncé du différé est trop grossier — **« le sort des
+masques » est TROIS questions, dont une seule porte des pixels** :
+
+| Nature | Sort sous un recadrage de toile |
+| --- | --- |
+| `brush` | un `Uint8Array` de W×H — **le seul vrai sujet** |
+| `gradient` | quatre flottants en **UV** — **casse en SILENCE**, coût nul |
+| `luminosity`, `colorRange` | **survivent intactes, gratuitement** |
+
+Le dégradé n'est **pas** une des issues à arbitrer : ses points se remappent
+exactement, c'est de l'arithmétique. Mais **rien ne le signale aujourd'hui**.
+
+Et la troisième issue du design (« rééchantillonner ») **n'en est pas une** :
+elle a un sens pour un REDIMENSIONNEMENT et aucun pour un RECADRAGE, où les
+pixels conservés n'ont pas bougé d'un texel.
+
+Chiffres : un raster = **1 octet par pixel de DOCUMENT** (~26 Mo à 26 Mpx, 64 Mo
+au plafond) ; historique borné à **512 Mo**, refcompté par buffer UNIQUE — donc
+dix entrées portant le même masque coûtent UN raster aujourd'hui. **C'est cette
+économie que découper casse.**
+
+**La vraie question, et elle n'était pas dans la liste d'origine : le recadrage
+est-il DESTRUCTIF ?** S'il ne l'est pas, il ne faut PAS découper les rasters du
+tout — on change le cadre, pas les données, et l'empreinte d'historique tombe à
+zéro. C'est elle qui gouverne les autres.
 
 ⚠️ **C'est le seul item de ce bloc qui ne dépende pas du design de
 `contentSource`** : formes et typographie l'attendent, le recadrage non. Ce
 paragraphe disait « le SEUL item prêt à coder » — retiré le 2026-08-11 pour la
-raison ci-dessus : il a un design, pas un modèle à jour. C'est aussi le dernier trou FONCTIONNEL de l'app — vingt-trois
+raison ci-dessus : il a un design, pas un modèle à jour. C'est aussi le dernier trou FONCTIONNEL de l'app — **vingt-quatre**
 effets et pas de recadrage. En contrepartie il touche `LayerState`, la couche la
 plus partagée du projet (`render/`, `mask/`, `export/`, `components/`,
 `application/`) : plan écrit avant la première ligne.
@@ -574,6 +643,55 @@ cinq points, dont **deux soldés** :
   2026-08-05) ; ce qui reste ouvert est de le déclarer là où ça manque.
 
 ---
+
+## 2bis. Les fonctions à ajouter — ORDRE TRANCHÉ le 2026-08-18
+
+Périmètre arbitré par Antoine : **tout, netteté comprise**
+([ticket 12](../.scratch/prochain-palier/issues/12-quelles-fonctions-retenir.md)).
+Trois tranches, du moins cher au plus cher — l'ordre porte de l'information que
+la liste ne porte pas.
+
+**Tranche 1 — le socle de fusion.** SIX modes d'un coup : les quatre non
+séparables (Couleur, Luminosité, Teinte, Saturation) et les deux signés
+(Différence, Soustraction).
+Mesuré : l'interface est `fn blend(base: vec3<f32>, top: vec3<f32>) -> vec3<f32>`
+— elle reçoit **déjà les deux couleurs entières**, ce qu'un mode non séparable
+demande. **Zéro changement d'interface.** Le registre porte 7 modes, tous canal
+par canal, aucun signé ; et `blendMode` est une CHAÎNE, donc en ajouter six **ne
+déplace aucun index de preset**. Solde le **split-tone**, différé depuis le
+2026-07-20 dans `PRD-print-export.md`.
+
+**Tranche 2 — les contraintes à lever.** Deux gestes qui ne créent rien :
+courbe libre / solarisation (le shader l'évalue déjà, c'est
+`constrainCurvePoint` côté interface qui l'interdit) et **l'inverse d'`aplat`**
+— ✅ adopté : un booléen en fin de `params[]`, une ligne de shader, aucun index
+persisté déplacé, qui rend atteignables les vignettes hexagonale et octogonale
+dont la géométrie est déjà livrée.
+
+**Tranche 3 — les effets à machinerie existante.** Netteté / contraste local,
+emboss, carte de déplacement. Trois fois le même patron, donc parallélisables.
+
+⚠️ **La netteté n'est PAS bloquée, contrairement à ce qui a été écrit.** Elle
+était donnée « DOUBLEMENT bloquée : aucun mode signé, et un effet ne peut lire
+aucun autre calque ». Les deux tombent, mesuré sur `glow`, dont le dernier pass
+tient **déjà les deux images** — `color` (son entrée non floutée) et `prevPass`
+(sa pyramide) :
+
+| | opérateur |
+| --- | --- |
+| `glow` | `color + bloom · intensité` |
+| netteté | `color + (color − bloom) · force` |
+
+Pas besoin d'un mode signé (la soustraction est DANS l'effet), pas besoin de
+lire un autre calque (il faut sa propre entrée à deux échelles, ce que
+`EffectModule.passes` fournit et que `blurChain.ts` partage déjà).
+**Et une justification tombe avec** : les modes signés étaient en partie
+justifiés comme prérequis de la netteté. Ils entrent désormais pour eux-mêmes.
+
+Hors de ce palier, et pas refusés : groupes de calques, déformation peinte,
+pixel sorting, et du catalogue d'effect.app — Bevel (retombe sur la sélection),
+Scatter, la famille « écran » (ASCII / LED / CRT / VHS / NTSC — une DA, pas une
+fonction, à décider en bloc), Risograph, palette adaptative.
 
 ## 3. Export print — un PRD entier, jamais commencé
 
@@ -870,33 +988,63 @@ refuse) ou au CALQUE sélectionné (une seule surface, mais on ne peut plus rien
 régler avant de tracer) ?
 [Ticket 27](../.scratch/prochain-palier/issues/27-la-barre-d-options-regle-l-outil-ou-le-calque.md).
 
-### ⚠️ OUVERT le 2026-08-17 — le sélecteur de fichier refuse ce que le glisser-déposer accepte
+### ✅ SOLDÉ le 2026-08-18 — le sélecteur de fichier accepte ce que la toile acceptait
 
-`pick_image_file` (`src-tauri/src/lib.rs:120`) filtre sur `["jpg", "jpeg"]`, donc
-le bouton « Ouvrir une image » et l'import de calque photo refusent un PNG. Le
-glisser-déposer sur la toile, lui, n'a **aucun filtre** (`Canvas.tsx:380`) et
-l'accepte. Deux chemins d'entrée pour la même chose, deux réponses.
+Le filtre `["jpg", "jpeg"]` de `pick_image_file` est levé. **Deux filtres, dont
+un attrape-tout** (`Tous les fichiers`, `*`) — ce qui répond au « quels
+formats » en retirant sa portée : seuls JPEG et PNG sont NOMMÉS (les deux
+mesurés), rien n'est interdit. Sûr parce que structurel : le glisser-déposer
+n'ayant jamais eu de filtre, un format indécodable échouait déjà identiquement
+sur les deux chemins.
+Retiré dans le même geste, le mensonge attenant : le `{ type: "image/jpeg" }`
+revendiqué sur des octets inconnus (personne ne lit `.type` — vérifié), et
+« Dépose un JPEG ici ». L'export n'a pas bougé, et l'avertissement est écrit
+dans l'en-tête de `pick_image_file`, sur le code qu'on lira en voulant élargir.
 
-⚠️ **Et la chaîne supporte l'alpha de bout en bout** — vérifié dans la vraie
-fenêtre : un PNG 2400×900 à fond transparent importé par `importPhotoByPath`
-compose son texte sur la photo, le transparent laissant passer le fond, avec les
-poignées du calque. `createImageBitmap` renifle le format (l'étiquette
-`image/jpeg` posée sur le Blob est ignorée), la texture est à quatre canaux, et
-`photoLayerInput` écrit déjà la couverture dans l'alpha. Lever le filtre ne
-demande donc pas un chantier : ça retire une contradiction.
+### ✅ SOLDÉ le 2026-08-18 — les cinq différés de masquage : quatre étaient déjà tombés
 
-Ce qui reste à décider : quels formats exactement, et **ne pas confondre le JPEG
-d'ENTRÉE avec celui de SORTIE** — l'export reste du JPEG et `exportImage.ts`
-refuse délibérément d'encoder un pixel non opaque.
-[Ticket 26](../.scratch/prochain-palier/issues/26-le-selecteur-refuse-ce-que-le-glisser-depose-accepte.md).
+`2026-07-18-shaderlab-layers-masking-prd.md`. Tranché par le
+[ticket 08](../.scratch/prochain-palier/issues/08-lesquels-des-cinq-differes-de-masquage.md).
 
-### Cinq différés de masquage, avec leurs déclencheurs
+**Trois sortent avec l'outil de sélection** (hors portée depuis le 2026-08-17,
+sa propre carte) : pen/path Bézier, sélection rect/ellipse, lasso. C'est mot
+pour mot ce que cette sortie de portée décrit — « détourer à la main, tracer une
+silhouette, combiner des régions ». Ils ne diffèrent que par le GESTE.
 
-`2026-07-18-shaderlab-layers-masking-prd.md` : depth mask (⚠️ modèle de vision
-monoculaire **local** type MiDaS/Depth-Anything, **PAS un LLM** — et son
-déclencheur « après les masques de base » **est atteint** depuis le
-2026-08-05), segmentation sémantique sujet/ciel, pen/path Bézier, sélection
-rect/ellipse, lasso. Aucun rouvert depuis.
+**Le dégradé radial** (donné pour jamais livré) l'est depuis le 2026-08-14.
+
+**Restent depth mask et segmentation sémantique**, même dépendance : un modèle
+de vision monoculaire LOCAL. Le déclencheur du depth mask EST atteint, mais un
+déclencheur atteint ne vaut pas décision → recherche demandée et **RENDUE le
+2026-08-18** (voir le bloc ci-dessous).
+
+### ⚠️ OUVERT le 2026-08-18 — embarque-t-on un modèle de vision ? La recherche est rendue, la décision non
+
+[`research/29-modele-de-vision-embarque.md`](../.scratch/prochain-palier/research/29-modele-de-vision-embarque.md)
+— 1135 lignes, provenance marquée par affirmation, 63 incertitudes nommées.
+
+**Le mur n'est pas le coût, c'est la NETTETÉ DE BORD, et elle est plafonnée
+avant qu'un modèle entre en jeu.** Ces modèles voient **784 × 518**, soit 1,6 %
+d'une photo 26 Mpx ; une erreur d'1 pixel inféré vaut **8 pixels** sur la photo ;
+et le **F1 de frontière plafonne à 0,065 même avec une profondeur PARFAITE**.
+Pour doser un effet par la distance, c'est ça qui décide. Le seul modèle qui
+déplace le plafond (Depth Pro, 0,311) a des poids « recherche seulement » :
+**plafond et licence sont corrélés.**
+
+⚠️ Piège de licence contre-intuitif : **Depth-Anything V2 scinde sa licence PAR
+TAILLE** (Small Apache, Base et au-delà CC-BY-NC) alors que **V1 est permissif
+partout**. Prendre le plus récent est le geste qui perd la licence.
+
+Mythes retirés : `onnxruntime.dll` = **15,40 Mio mesuré** (les 76 Mo qui
+circulent sont à 95 % du `.pdb`) ; exe 20,47 Mo contre 9,1 aujourd'hui ; et le
+temps **ne dépend pas** des 26 Mpx, l'entrée étant fixe. En Tauri v2 le Rust ne
+voit pas le `GPUDevice` de la WebView — la piste WebGPU n'existe qu'en JS.
+✅ `shader-f16` **est** disponible sur cette machine (sonde CDP, 2026-08-18),
+mais `gpuContext.ts:120-125` ne la demande pas et une feature ne s'ajoute pas
+après création : pas une limite du matériel, une ligne de notre code.
+
+**Trou n°1, non comblé et le plus lourd : aucun chiffre de latence Windows grand
+public n'existe pour aucun de ces modèles.**
 
 ### La rationalisation des contrôles est OUVERTE sur trois fronts
 
@@ -907,7 +1055,41 @@ sur les modules réels
 paramètres de `curves` sortent d'un `flatMap`) : **les trois fronts sont
 ouverts.** Le mécanisme est livré ; le chantier ne l'est pas.
 
-**345 paramètres au total sur 23 effets** — personne n'avait ce chiffre.
+⚠️ **RE-MESURÉ le 2026-08-18, et le DÉNOMINATEUR de ce bloc était faux.** Un
+`EffectParam` n'est pas une rangée de panneau : **76 des 365 sont consommés par
+un contrôle composite** (points de `curveControls`, arrêts de
+`colorRampControls`, bornes de `tonalRangeControl`, satellites d'un
+`colorGroup`) et n'ont jamais de ligne à masquer.
+
+**Parc réel : 24 effets · 365 params déclarés · 289 RANGÉES · 48 conditions de
+paramètre (16,6 % des rangées) · 77 sections · 10 conditions de section.**
+
+Deux corrections qui changent le travail, pas seulement les chiffres :
+
+- **`curves` s'effondre** — 37 déclarés, **13 rangées**. Il ouvrait le tableau
+  des « plus chargés sans conditions » ; il est en milieu de peloton.
+- ⚠️ **Pour HUIT effets, une condition est STRUCTURELLEMENT IMPOSSIBLE.** La
+  voie A ne vise qu'un paramètre à `choices`, et le parc n'en compte que 25 :
+  `curves`, `lightLeak`, `pixelStretch`, `texture`, `sliceShift`, `halation`,
+  `duotone`, `glow` n'en ont **aucun**. **69 rangées** où la réponse n'est pas
+  « il manque des conditions » mais « il n'y a rien sur quoi conditionner ».
+- Le cas de démonstration du front 1 (`lensFlare`, « 30 params, 0 condition »)
+  est **réparé depuis le 2026-08-14** : trois conditions de SECTION.
+
+⚠️ **Front 3 : le vocabulaire est SATURÉ, pas sous-employé.** `CanvasControl`
+est une union fermée à trois variantes, et le registre les utilise **toutes les
+trois** (5 effets, 7 instances). Élargir la couverture demande d'étendre un
+TYPE, pas de rattraper des déclarations oubliées — ce n'est pas du rattrapage,
+c'est de la conception.
+
+**L'inversion qui vaut pour tout le chantier** : les outils sur la toile portent
+une condition à **43 %** (3/7), les paramètres à 17 %, les sections à 13 %. Le
+plus jeune et le plus petit mécanisme est le mieux couvert — **la couverture
+suit la TAILLE du parc à déclarer, pas la maturité du mécanisme.** Les fronts 1
+et 2 ne se rattraperont donc pas par de la discipline seule.
+
+**345 paramètres au total sur 23 effets** — chiffre du 2026-08-12, périmé, gardé
+pour la trace.
 
 - ⚠️ **Applicabilité : 10 % de couverture.** 36 conditions sur 345 paramètres,
   concentrées sur 8 effets. **15 effets sur 23 n'en ont AUCUNE**, et ce sont
@@ -1018,27 +1200,30 @@ Contrainte dure commune : un paramètre ne se retire pas sans casser les presets
 qui le citent, contrairement à un effet retiré ; et `test:render` doit rendre
 zéro écart après tout travail de panneau.
 
-### La migration shadcn s'est fait dépasser — 17 composants, pas 3
+### ✅ SOLDÉ le 2026-08-18 — il n'y a pas de « migration shadcn », et la dette est de 4
 
-`CLAUDE.md` a annoncé « migration en cours composant par composant » avec trois
-composants restants, du 2026-07-20 au 2026-08-12. **Mesuré : 17 composants sur
-27 sont en CSS classique PUR**, 1 hybride, 20 fichiers `.css` dans
-`src/components/`.
+Ni oui ni non : la mesure a montré un TROISIÈME patron que personne n'avait
+décidé et que tout le monde suivait. **Il est désormais la règle**, écrite dans
+`CLAUDE.md` § Stack :
 
-Le plan `docs/superpowers/plans/2026-07-20-shadcn-migration.md` ne visait que
-`ErrorBanner`/`Toolbar`/`BrushToolbar` et disait « ne jamais toucher
-`LayerPanel`, `ParamPanel`, `Canvas` — hors-scope » : **il a été fini comme
-prévu.** Ce qui a bougé, c'est tout ce qui est venu après — `ToolPalette`
-(07-31), `CurveControl`, `PropertiesPanel`, `ColorRampControl` (08-04),
-`TexturePicker` (08-05), tous en CSS classique.
+> Un composant **COMPOSE** les primitives `src/components/ui/` pour tout ce qui
+> est un **CONTRÔLE**, et habille sa **MISE EN PAGE** en CSS classique à noms
+> BEM. Posée comme ADR-0001 : au moment où le composant s'écrit, jamais en lot
+> de rattrapage.
 
-⚠️ **Nuance qui change l'urgence** : `npm run lint:tokens` est vert sur les 250
-fichiers, donc le CSS classique **ne contourne aucun token**. C'est une dette
-d'homogénéité, pas de design system.
+**24 des 30 composants applicatifs sont DÉJÀ conformes.** Restent **quatre** :
+`CurveControl`, `EffectPicker`, `PropertiesPanel`, `TexturePicker`. La dette ne
+tombe pas parce qu'on baisse la barre — elle était mal placée : elle mesurait le
+style de l'HABILLAGE au lieu de la provenance des CONTRÔLES.
 
-Ni continuée ni arrêtée, jamais décidée — et l'écart grandit à chaque chantier.
-Se tranche dans
-`.scratch/prochain-palier/issues/13-la-migration-shadcn-est-elle-encore-la-direction.md`.
+⚠️ Deux chiffres de ce document étaient faux. **« 17 sur 27 »** venait d'un test
+« le composant importe-t-il un `.css` ? », qui rate tout composant dont la
+feuille BEM vit ailleurs. Et **aucun composant n'a jamais été entièrement
+migré** — zéro Tailwind pur dans tout le parc ; les « trois migrés » sont trois
+hybrides, dont `BrushToolbar` qui porte en fait son propre `.css` et zéro
+utilitaire.
+Reste vrai : `lint:tokens` vert sur 261 fichiers, **aucun style ne contourne un
+token**. Ce n'a jamais été une dette de design system.
 
 ### ✅ Branches mortes — SUPPRIMÉES le 2026-08-16
 
@@ -1071,8 +1256,8 @@ tenait, la raison écrite était fausse, et seule la vérification le montre.
 
 ### Ce qui RESTE, et pourquoi
 
-- **`mipmaps-bibliotheque`** (1 commit unique) — `src/render/mipmapGenerator.ts`,
-  « EN ATTENTE D'UN VERDICT ». Ne pas supprimer avant qu'il soit rendu.
+- ~~**`mipmaps-bibliotheque`**~~ — ✅ **verdict rendu et branche FUSIONNÉE le
+  2026-08-17.** Ne plus la citer comme en attente.
 - **`task-management`** (1 commit unique) — `DesignPreview.tsx`, **480 lignes
   jamais fusionnées et citées nulle part**. Ce n'est pas un reliquat, c'est du
   travail orphelin : le supprimer perd le code. Décision à prendre.

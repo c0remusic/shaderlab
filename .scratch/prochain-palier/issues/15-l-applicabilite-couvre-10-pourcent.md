@@ -1,7 +1,7 @@
 # L'applicabilité couvre 10 % du parc
 
 Type: grilling
-Status: claimed
+Status: open
 Parent: ../map.md
 
 > Front 1 sur 3 de la rationalisation des contrôles. Cadrage et ordre :

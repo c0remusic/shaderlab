@@ -1,7 +1,7 @@
 # Les outils sur la toile : quatre effets, trois genres
 
 Type: grilling
-Status: claimed
+Status: open
 Blocked by: 18
 Parent: ../map.md
 

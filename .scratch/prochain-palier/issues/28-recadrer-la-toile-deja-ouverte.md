@@ -1,7 +1,7 @@
 # Recadrer la toile déjà ouverte
 
 Type: grilling
-Status: claimed
+Status: open
 Parent: ../map.md
 
 ## Question

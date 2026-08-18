@@ -1985,6 +1985,9 @@ export default function App() {
           onFillMask: handleFillMaskFull,
           onClearMask: handleClearMask,
           onStop: photoLayer.stopMaskPaintMode,
+          // Le MEME nom que la pile affiche (`LayerPanel`) : le pinceau doit
+          // nommer sa cible comme l'utilisateur la lit ailleurs.
+          cible: selectedLayer ? (selectedLayer.name ?? getEffect(selectedLayer.effectId).name) : null,
         }}
       />
       {/* Deux mesures DISTINCTES, à ne pas confondre :

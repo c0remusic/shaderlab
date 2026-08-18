@@ -54,3 +54,15 @@
 .brush-toolbar__spacer {
   flex: 1;
 }
+
+/* Nom du calque dont le pinceau peint le masque. Un rang en dessous du libelle
+   de l'outil : ce qui compte d'abord est CE QUE fait le pinceau, la cible
+   ensuite. Tronque plutot que de pousser les reglages hors de la barre — un
+   nom de calque peut etre un nom de fichier entier. */
+.brush-toolbar__cible {
+  overflow: hidden;
+  max-width: 18ch;
+  color: var(--text-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

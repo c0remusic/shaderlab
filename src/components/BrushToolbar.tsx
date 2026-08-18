@@ -28,6 +28,13 @@ interface Props {
    *  peinture et poignées de transform s'excluent (design T1), donc déplacer
    *  ou redimensionner la photo passe obligatoirement par ce bouton. */
   onStop: () => void;
+  /** Nom du calque dont le pinceau peint le MASQUE, ou `null` si aucun n'est
+   *  sélectionné. Il n'est pas décoratif : sans lui, la barre ne dit nulle part
+   *  CE QUE le pinceau fait ni SUR QUOI — taille, dureté, opacité et débit
+   *  décrivent la MARQUE, aucun ne dit qu'elle atterrit sur un masque et jamais
+   *  sur l'image. « Le pinceau fait quoi exactement ? » est la question que
+   *  cette barre a effectivement provoquée (2026-08-18). */
+  cible?: string | null;
 }
 
 /**
@@ -64,12 +71,23 @@ export function BrushToolbar({
   onFillMask,
   onClearMask,
   onStop,
+  cible = null,
 }: Props) {
   return (
     <>
+      {/* CE QUE LE PINCEAU FAIT, ET SUR QUOI — dit ici et nulle part ailleurs.
+          Les quatre réglages décrivent la MARQUE (taille, dureté, opacité,
+          débit) ; aucun ne dit qu'elle atterrit sur le MASQUE d'un calque et
+          jamais sur l'image. Un masque DOSE un effet pixel par pixel, il ne
+          modifie pas la photo — c'est la phrase du glossaire, et elle manquait
+          au seul endroit où le geste se déclenche.
+
+          Le nom du calque suit, parce que « le masque » sans dire lequel n'aide
+          pas dans une pile de sept. */}
       <span className="brush-toolbar__tool">
         <Brush className="icon-md icon-stroke" aria-hidden="true" />
-        Pinceau
+        {erase ? "Gomme du masque" : "Pinceau du masque"}
+        {cible !== null && <span className="brush-toolbar__cible"> · {cible}</span>}
       </span>
       <div className="brush-toolbar__control">
         <LabeledSlider

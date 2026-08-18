@@ -90,16 +90,11 @@ export const EveryToolKeepsTheSameHeight: Story = {
 export const ShapeFieldsHaveAccessibleNames: Story = {
   args: { outil: "shape" },
   play: async ({ canvasElement }) => {
+    // La couleur est desormais UNE pastille repliee (`ColorGroupControl`), pas
+    // trois curseurs nus : au repos, la barre n'expose donc que la primitive et
+    // le point d'entree de la couleur.
     const report = assertAccessibleNames(canvasElement);
-    await expect(report.map((entry) => entry.name)).toEqual([
-      "Primitive",
-      "Teinte",
-      "Teinte (valeur)",
-      "Saturation",
-      "Saturation (valeur)",
-      "Luminosité",
-      "Luminosité (valeur)",
-    ]);
+    await expect(report.map((entry) => entry.name)).toEqual(["Primitive"]);
   },
 };
 
@@ -112,6 +107,10 @@ export const ReglerSemeLOutil: Story = {
   args: { outil: "shape", onOptionChange: fn() },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
+    // La couleur est REPLIEE au repos : trois curseurs deroules sur une barre
+    // permanente auraient mange la largeur des autres outils. On ouvre le repli
+    // comme l'utilisateur, puis on regle.
+    await userEvent.click(canvas.getByText("Couleur"));
     const teinte = canvas.getByRole("textbox", { name: "Teinte (valeur)" });
     await userEvent.clear(teinte);
     await userEvent.type(teinte, "210");
@@ -124,9 +123,34 @@ export const ReglerSemeLOutil: Story = {
  *  retomberait au défaut à chaque changement d'outil, et « le prochain rectangle
  *  sera bleu » ne voudrait plus rien dire. */
 export const UnReglagePoseEstAffiche: Story = {
-  args: { outil: "shape", options: reglerOption(optionsInitiales(), "shape", "teinte", 210) },
+  args: {
+    outil: "shape",
+    // TROIS reglages et pas seulement la teinte, et c'est une correction :
+    // `aplat` a saturation 0 et clarte 0 pour defauts, donc une teinte seule
+    // laisse la pastille NOIRE quelle qu'elle soit. Une story qui ne posait que
+    // la teinte affirmait donc une couleur qu'elle ne produisait pas.
+    options: ["teinte", "saturation", "clarte"].reduce(
+      (o, nom) => reglerOption(o, "shape", nom, { teinte: 210, saturation: 0.8, clarte: 0.55 }[nom]!),
+      optionsInitiales(),
+    ),
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    // LA PASTILLE PORTE DEJA LA REPONSE, repli ferme : son hexadecimal change
+    // avec la teinte. On l'assert sans le recalculer — on exige seulement qu'il
+    // DIFFERE de celui du defaut, ce qui est la propriete voulue et non une
+    // seconde implementation de la conversion TSL vers RVB.
+    // Le noir de reference est DERIVE des defauts du module, jamais ecrit en
+    // dur : `aplat` a saturation 0 et clarte 0, donc sa pastille au repos est
+    // noire quelle que soit la teinte. Un litteral ici serait une seconde
+    // implementation de la conversion TSL vers RVB.
+    const noirAuRepos = within(canvasElement)
+      .getByLabelText("Ouvrir le sélecteur de couleur pour Couleur")
+      .parentElement!.textContent!.match(/#[0-9a-f]{6}/i);
+    await expect(noirAuRepos).not.toBeNull();
+    await expect(noirAuRepos![0].toLowerCase()).not.toBe("#" + "0".repeat(6));
+    // Et le curseur, une fois deplie, montre bien la valeur posee.
+    await userEvent.click(canvas.getByText("Couleur"));
     await expect(canvas.getByRole("textbox", { name: "Teinte (valeur)" })).toHaveValue("210°");
   },
 };

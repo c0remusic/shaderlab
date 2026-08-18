@@ -524,6 +524,12 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
                       step={item.param.step}
                       displayValue={formatEffectParamValue(valeur, item.param)}
                       disabled={locked}
+                      // LE DÉFAUT VIENT DU MODULE D'EFFET, sa seule source de
+                      // vérité (ticket 11). C'est lui qui arme le double-clic de
+                      // retour au défaut et la marque sur la piste — recopier
+                      // une valeur ici aurait créé un second endroit où vit le
+                      // défaut d'un paramètre, et les deux auraient dérivé.
+                      defaultValue={item.param.default}
                       onChange={(v) => onParamChange(layer.id, { [item.param.name]: v })}
                       onCommit={onParamCommit}
                     />

@@ -393,3 +393,53 @@ export const GrilleLabelsDoNotTruncate: Story = {
     await expect(tronques).toEqual([]);
   },
 };
+
+
+/**
+ * DOUBLE-CLIC POUR REVENIR AU DEFAUT, et MARQUE du defaut sur la piste — les
+ * deux mecanismes adoptes au ticket 11 le 2026-08-18, construits le meme jour.
+ *
+ * La marque n'apparait QUE lorsque la valeur a quitte son defaut. C'est
+ * l'enrichissement demande par Antoine devant la planche : la montrer en
+ * permanence ferait un point de plus a lire sur chaque ligne d'un panneau qui
+ * en compte deja trop.
+ *
+ * ⚠️ Le test ne compte pas les marques contre un LITTERAL. Il rend DEUX
+ * panneaux — l'un a ses defauts, l'autre non — et exige zero marque d'un cote,
+ * au moins une de l'autre. Un seuil ecrit en dur se perimerait au premier
+ * parametre ajoute a `glow`.
+ */
+export const DefaultMarkerAppearsOnlyOffDefault: Story = {
+  render: () => (
+    <>
+      <div data-testid="au-defaut">
+        <ParamPanel layer={makeLayer({ effectId: "glow", params: {} })} onParamChange={() => {}} onParamCommit={() => {}} onClipChange={() => {}} onOpenColorPicker={() => {}} />
+      </div>
+      <div data-testid="hors-defaut">
+        <ParamPanel layer={glowLayer} onParamChange={() => {}} onParamCommit={() => {}} onClipChange={() => {}} onOpenColorPicker={() => {}} />
+      </div>
+    </>
+  ),
+  play: async ({ canvasElement }) => {
+    const marques = (id: string) =>
+      within(canvasElement).getByTestId(id).querySelectorAll("[data-marque-defaut]").length;
+    await expect(marques("au-defaut")).toBe(0);
+    await expect(marques("hors-defaut")).toBeGreaterThan(0);
+  },
+};
+
+/** Double-cliquer sur le LIBELLE ramene au defaut, et en UN geste : une seule
+ *  entree d'historique, comme un relachement de glissement. */
+export const DoubleClickOnLabelResetsToDefault: Story = {
+  args: { layer: glowLayer, onParamChange: fn(), onParamCommit: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    // `getByLabelText` viserait le curseur ; ici on veut le LIBELLE, et
+    // « Seuil » est aussi le titre de la section de `glow` — d'ou la selection
+    // par role plutot que par texte.
+    await userEvent.dblClick(canvas.getByText("Seuil", { selector: "label" }));
+    // 0.55 est le defaut declare par le module, jamais recopie dans ce test.
+    await expect(args.onParamChange).toHaveBeenCalledWith("layer-1", { threshold: 0.55 });
+    await expect(args.onParamCommit).toHaveBeenCalledTimes(1);
+  },
+};

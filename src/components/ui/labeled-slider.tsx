@@ -27,6 +27,24 @@ export interface LabeledSliderProps {
    * conséquence sur l'historique (ex. taille de pinceau) peut l'omettre.
    */
   onCommit?: () => void;
+  /**
+   * Valeur PAR DÉFAUT du réglage. Deux mécanismes adoptés au ticket 11
+   * (2026-08-18) en dépendent, et aucun des deux n'est décoratif :
+   *
+   * - **retour au défaut au DOUBLE-CLIC** sur la piste ou sur le libellé. C'est
+   *   le geste de Photoshop, de Lightroom et de Blender ; sans lui, revenir en
+   *   arrière demande de se souvenir du chiffre.
+   * - **marque du défaut sur la piste**, et **uniquement quand la valeur en
+   *   diffère**. Enrichissement demandé par Antoine devant la planche : la
+   *   montrer en permanence ferait un point de plus à lire sur chaque ligne d'un
+   *   panneau qui en compte déjà trop.
+   *
+   * ⚠️ Omis = les deux mécanismes n'existent pas pour ce curseur, en silence et
+   * volontairement : la taille du pinceau ou le zoom n'ont pas de « défaut » au
+   * sens d'un paramètre d'effet, et inventer une valeur de repli fabriquerait un
+   * geste qui ramène ailleurs qu'on ne croit.
+   */
+  defaultValue?: number;
   className?: string;
 }
 
@@ -47,6 +65,7 @@ export function LabeledSlider({
   disabled = false,
   onChange,
   onCommit,
+  defaultValue,
   className,
 }: LabeledSliderProps) {
   const id = useId();
@@ -135,16 +154,57 @@ export function LabeledSlider({
     event.currentTarget.blur();
   }
 
+  /** Retour au défaut, si ce curseur en a un et n'y est pas déjà.
+   *  `onCommit` derrière `onChange` : c'est UN geste, donc UNE entrée
+   *  d'historique — comme un relâchement de glissement. */
+  function revenirAuDefaut() {
+    if (disabled || defaultValue === undefined || defaultValue === value) return;
+    onChange(defaultValue);
+    onCommit?.();
+  }
+
+  /** Position du défaut sur la piste, en pourcentage — `undefined` quand il n'y
+   *  a rien à montrer : pas de défaut déclaré, valeur déjà au défaut, ou course
+   *  dégénérée (min == max, où le pourcentage n'existe pas). */
+  const positionDefaut =
+    defaultValue !== undefined && defaultValue !== value && max > min
+      ? ((Math.min(Math.max(defaultValue, min), max) - min) / (max - min)) * 100
+      : undefined;
+
   return (
     <div ref={rowRef} className={cn("flex flex-col gap-1", disabled && "opacity-50", className)}>
-      <label id={labelId} htmlFor={id} className="text-sm text-muted-foreground">
+      {/* DOUBLE-CLIC SUR LE LIBELLÉ, et pas seulement sur la piste : c'est la
+          cible la plus large et la plus stable de la ligne, et viser un curseur
+          de 12 px pour le remettre au défaut serait un geste de précision au
+          service d'une remise à zéro. Photoshop accepte les deux. */}
+      <label
+        id={labelId}
+        htmlFor={id}
+        className={cn("text-sm text-muted-foreground", positionDefaut !== undefined && "cursor-pointer")}
+        onDoubleClick={revenirAuDefaut}
+        title={positionDefaut !== undefined ? "Double-cliquer pour revenir au défaut" : undefined}
+      >
         {label}
       </label>
       <div className="flex items-center gap-2">
+        {/* MARQUE DU DÉFAUT — un filet vertical sur la piste, posé DERRIÈRE le
+            curseur et sans capter le pointeur. Elle n'apparaît que lorsque la
+            valeur a quitté le défaut : c'est la demande d'Antoine devant la
+            planche, et c'est ce qui l'empêche de devenir un point de plus à lire
+            sur chaque ligne d'un panneau qui en compte déjà trop. */}
+        <span className="relative flex min-w-0 flex-1 items-center">
+          {positionDefaut !== undefined && (
+            <span
+              aria-hidden="true"
+              data-marque-defaut=""
+              className="pointer-events-none absolute z-0 h-[var(--space-4)] w-px bg-[var(--border-strong)]"
+              style={{ left: `${positionDefaut}%` }}
+            />
+          )}
         <SliderPrimitive
           id={id}
           aria-labelledby={labelId}
-          className="min-w-0 flex-1"
+          className="relative z-10 min-w-0 flex-1"
           value={[value]}
           min={min}
           max={max}
@@ -155,7 +215,9 @@ export function LabeledSlider({
             markControlActive(id);
           }}
           onValueCommitted={() => onCommit?.()}
+          onDoubleClick={revenirAuDefaut}
         />
+        </span>
         <input
           aria-label={`${label} (valeur)`}
           className="h-[var(--control-height-md)] w-[var(--slider-value-width)] rounded-[var(--radius-control)] border border-border bg-[var(--surface-inset)] px-2 text-center font-mono text-sm tabular-nums text-foreground outline-none transition-colors hover:border-[var(--border-emphasis)] focus-visible:border-[var(--focus-color)] focus-visible:ring-[var(--focus-width)] focus-visible:ring-[var(--focus-color)]/50 disabled:cursor-not-allowed"

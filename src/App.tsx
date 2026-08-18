@@ -22,7 +22,7 @@ import { documentDisplayName } from "./layers/documentName";
 import { duplicateLayer } from "./layers/duplicateLayer";
 import { DocumentSession } from "./application/documentSession";
 import { ToolOptionsBar } from "./components/ToolOptionsBar";
-import { optionsInitiales, paramsPourNouveauCalque, reglerOption, type ToolOptions } from "./ui/toolOptionsModel";
+import { optionsDe, optionsInitiales, paramsPourNouveauCalque, reglerOption, type ToolOptions } from "./ui/toolOptionsModel";
 import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
 import { TransformHandles } from "./components/TransformHandles";
@@ -220,12 +220,20 @@ export default function App() {
   const referenceFrameRef = useRef<ExportedFrame | null>(null);
   const [propertiesFolded, setPropertiesFolded] = useState(false);
   const [overlayForceHidden, setOverlayForceHidden] = useState(false);
+  /** Cible d'un sélecteur de couleur ouvert. Deux formes, et la distinction
+   *  n'est pas cosmétique : le dock règle la couleur d'un CALQUE posé, la barre
+   *  d'options règle celle du PROCHAIN tracé (ticket 27, la valeur appartient à
+   *  l'outil). Les deux écrivent des `hue`/`saturation`/`lightness`, mais pas au
+   *  même endroit — et confondre les deux ferait écrire un réglage d'outil dans
+   *  un calque, c'est-à-dire précisément la réponse que le ticket a écartée. */
   const [colorPicker, setColorPicker] = useState<{
-    layerId: string;
+    /** `null` = la cible est l'OUTIL Forme, pas un calque. */
+    layerId: string | null;
     /** Effet du calque au moment de l'ouverture. Les `EffectParam` capturés
      *  ci-dessous n'appartiennent qu'à cet effet : si le calque en change
      *  (`setLayerEffect` vide aussi `params`), le picker doit disparaître au
-     *  lieu de piloter des paramètres qui n'existent plus. Comparé au rendu. */
+     *  lieu de piloter des paramètres qui n'existent plus. Comparé au rendu.
+     *  Sur une cible d'OUTIL, il vaut l'id de l'effet que l'outil sème. */
     effectId: string;
     key: string;
     label: string;
@@ -1064,6 +1072,25 @@ export default function App() {
       selectLayer(id);
     },
     [imageSize, selectedId, toolOptions, clearActivePreset, currentStack, commit, selectLayer],
+  );
+
+  /** Paramètre d'`aplat` par son nom — le module est la seule source de vérité
+   *  des bornes et du défaut, ici comme dans la barre d'options. */
+  const aplatParam = useCallback((nom: string) => {
+    const param = getEffect("aplat").params.find((p) => p.name === nom);
+    if (!param) throw new Error(`paramètre aplat inconnu : ${nom}`);
+    return param;
+  }, []);
+
+  /** Valeur à montrer au sélecteur de couleur, selon sa cible : les options de
+   *  l'OUTIL Forme, ou les paramètres du calque visé. Le défaut du module sert
+   *  de repli dans les deux cas — sa seule source de vérité. */
+  const valeurPourPicker = useCallback(
+    (layerId: string | null, param: EffectParam) =>
+      layerId === null
+        ? (optionsDe(toolOptions, "shape")[param.name] ?? param.default)
+        : (layers.find((l) => l.id === layerId)?.params[param.name] ?? param.default),
+    [toolOptions, layers],
   );
 
   /** Un réglage de la barre d'options. Il ne touche AUCUN calque : le modèle
@@ -1925,6 +1952,25 @@ export default function App() {
         outil={currentTool}
         options={toolOptions}
         onOptionChange={handleToolOptionChange}
+        onOpenColorPicker={(anchorTop) =>
+          // Bascule, comme la pastille du dock : re-cliquer referme. La cible
+          // est l'OUTIL (`layerId: null`) — le réglage sème le prochain tracé
+          // et ne touche aucun calque, ce que le ticket 27 a arbitré.
+          setColorPicker((current) =>
+            current && current.layerId === null
+              ? null
+              : {
+                  layerId: null,
+                  effectId: "aplat",
+                  key: "outil-forme",
+                  label: "Couleur de la forme",
+                  hue: aplatParam("teinte"),
+                  saturation: aplatParam("saturation"),
+                  lightness: aplatParam("clarte"),
+                  anchorTop: anchorTop - (workspaceRef.current?.getBoundingClientRect().top ?? 0),
+                },
+          )
+        }
         pinceau={{
           brushSize,
           onBrushSizeChange: setBrushSize,
@@ -2242,21 +2288,37 @@ export default function App() {
           onWidthChange={handleDockWidthChange}
         />
         <PanelRail items={railItems} />
-        {colorPicker && selectedLayer?.id === colorPicker.layerId && selectedLayer.effectId === colorPicker.effectId && (
+        {colorPicker && (colorPicker.layerId === null || (selectedLayer?.id === colorPicker.layerId && selectedLayer.effectId === colorPicker.effectId)) && (
           <ColorPickerPanel
             key={colorPicker.key}
             label={colorPicker.label}
-            hue={layers.find((l) => l.id === colorPicker.layerId)?.params[colorPicker.hue.name] ?? colorPicker.hue.default}
-            saturation={layers.find((l) => l.id === colorPicker.layerId)?.params[colorPicker.saturation.name] ?? colorPicker.saturation.default}
-            lightness={layers.find((l) => l.id === colorPicker.layerId)?.params[colorPicker.lightness.name] ?? colorPicker.lightness.default}
+            hue={valeurPourPicker(colorPicker.layerId, colorPicker.hue)}
+            saturation={valeurPourPicker(colorPicker.layerId, colorPicker.saturation)}
+            lightness={valeurPourPicker(colorPicker.layerId, colorPicker.lightness)}
             onChange={(values) => {
+              const roles: [string, number | undefined][] = [
+                [colorPicker.hue.name, values.hue],
+                [colorPicker.saturation.name, values.saturation],
+                [colorPicker.lightness.name, values.lightness],
+              ];
+              if (colorPicker.layerId === null) {
+                // CIBLE OUTIL : le réglage sème le prochain tracé et ne touche
+                // aucun calque. C'est le canal unique du modèle d'options.
+                for (const [nom, valeur] of roles) {
+                  if (valeur !== undefined) handleToolOptionChange("shape", nom, valeur);
+                }
+                return;
+              }
               const params: Record<string, number> = {};
-              if (values.hue !== undefined) params[colorPicker.hue.name] = values.hue;
-              if (values.saturation !== undefined) params[colorPicker.saturation.name] = values.saturation;
-              if (values.lightness !== undefined) params[colorPicker.lightness.name] = values.lightness;
+              for (const [nom, valeur] of roles) if (valeur !== undefined) params[nom] = valeur;
               handleParamChange(colorPicker.layerId, params);
             }}
-            onCommit={handleParamCommit}
+            onCommit={() => {
+              // Un réglage d'OUTIL n'entre pas dans l'historique du document :
+              // il n'a encore rien produit. Un Ctrl+Z qui défait un choix de
+              // couleur sans forme à l'écran serait un undo sans objet.
+              if (colorPicker.layerId !== null) handleParamCommit();
+            }}
             onClose={() => setColorPicker(null)}
             anchorTop={colorPicker.anchorTop}
             // Ancré à GAUCHE du dock ENTIER, pas d'une seule colonne : le dock

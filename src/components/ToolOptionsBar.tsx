@@ -1,8 +1,9 @@
 import { Move, Shapes } from "lucide-react";
-import { LabeledSlider } from "./ui/labeled-slider";
 import { Select } from "./ui/select";
+import { ColorGroupControl } from "./ui/color-group-control";
 import { BrushToolbar } from "./BrushToolbar";
 import { aplat } from "../render/effects/aplat";
+import type { EffectParam } from "../render/effects/types";
 import type { ToolId } from "../ui/tools";
 import { optionsDe, type ToolOptions } from "../ui/toolOptionsModel";
 
@@ -57,13 +58,20 @@ interface Props {
    *  ce sont les seuls qui pilotent un geste EN COURS (le trait), pas le
    *  prochain objet créé — voir la note de bas de fichier. */
   pinceau: React.ComponentProps<typeof BrushToolbar>;
+  /** Ouvre le sélecteur de couleur, aligné sur la pastille. Même canal que le
+   *  dock : la barre ne fabrique pas son propre picker. */
+  onOpenColorPicker?: (anchorTop: number) => void;
 }
 
 /** Défaut d'un paramètre d'`aplat`, lu sur le module. */
-function defautAplat(nom: string): number {
+function paramAplat(nom: string): EffectParam {
   const param = aplat.params.find((p) => p.name === nom);
   if (!param) throw new Error(`paramètre aplat inconnu : ${nom}`);
-  return param.default;
+  return param;
+}
+
+function defautAplat(nom: string): number {
+  return paramAplat(nom).default;
 }
 
 /**
@@ -96,7 +104,7 @@ const PRIMITIVES = [
   { value: "3", label: "Polygone" },
 ];
 
-export function ToolOptionsBar({ outil, options, onOptionChange, pinceau }: Props) {
+export function ToolOptionsBar({ outil, options, onOptionChange, pinceau, onOpenColorPicker }: Props) {
   return (
     <div className="tool-options-bar" role="toolbar" aria-label="Options de l'outil">
       {(outil === "brush" || outil === "eraser") && <BrushToolbar {...pinceau} />}
@@ -114,39 +122,29 @@ export function ToolOptionsBar({ outil, options, onOptionChange, pinceau }: Prop
             options={PRIMITIVES}
             onChange={(v) => onOptionChange("shape", "borne", Number(v))}
           />
-          <div className="brush-toolbar__control">
-            <LabeledSlider
-              label="Teinte"
-              displayValue={`${Math.round(valeurForme(options, "teinte"))}°`}
-              value={valeurForme(options, "teinte")}
-              min={0}
-              max={360}
-              step={1}
-              onChange={(v) => onOptionChange("shape", "teinte", v)}
-            />
-          </div>
-          <div className="brush-toolbar__control">
-            <LabeledSlider
-              label="Saturation"
-              displayValue={`${Math.round(valeurForme(options, "saturation") * 100)} %`}
-              value={valeurForme(options, "saturation")}
-              min={0}
-              max={1}
-              step={0.01}
-              onChange={(v) => onOptionChange("shape", "saturation", v)}
-            />
-          </div>
-          <div className="brush-toolbar__control">
-            <LabeledSlider
-              label="Luminosité"
-              displayValue={`${Math.round(valeurForme(options, "clarte") * 100)} %`}
-              value={valeurForme(options, "clarte")}
-              min={0}
-              max={1}
-              step={0.01}
-              onChange={(v) => onOptionChange("shape", "clarte", v)}
-            />
-          </div>
+          {/* LA MÊME PASTILLE QUE LE DOCK, et pas trois curseurs de plus.
+              `ColorGroupControl` porte le carré de couleur, son hexadécimal, le
+              repli sur les trois curseurs, et l'ouverture du sélecteur de
+              couleur. La barre en portait une copie déroulée : trois curseurs
+              nus, sans pastille ni picker — donc « le prochain rectangle sera
+              bleu » demandait de composer un bleu de tête en TSL.
+
+              C'est aussi ce qu'ADR-0001 attend d'un contrôle qui se répète : la
+              couleur d'un aplat se règle au MÊME endroit visuel, que la forme
+              existe déjà (dock) ou pas encore (barre). Deux apparences pour la
+              même valeur auraient été le défaut que le ticket 27 borne. */}
+          <ColorGroupControl
+            label="Couleur"
+            hueParam={paramAplat("teinte")}
+            saturationParam={paramAplat("saturation")}
+            lightnessParam={paramAplat("clarte")}
+            hue={valeurForme(options, "teinte")}
+            saturation={valeurForme(options, "saturation")}
+            lightness={valeurForme(options, "clarte")}
+            onChange={(nom, valeur) => onOptionChange("shape", nom, valeur)}
+            onCommit={() => {}}
+            onOpenPicker={onOpenColorPicker}
+          />
         </>
       )}
 

@@ -2,6 +2,7 @@ import { toDisplayLayers } from "../layers/displayProjection";
 import { History } from "../layers/history";
 import { LayerStack } from "../layers/layerStack";
 import type { LayerState } from "../layers/types";
+import { composerCadre, type CanvasFrame, type CanvasFrameState } from "../layers/canvasFrame";
 
 /** Framework-free application state for one non-destructive image document. */
 export class DocumentSession {
@@ -16,6 +17,33 @@ export class DocumentSession {
 
   layers(): LayerState[] {
     return this.current.layers;
+  }
+
+  /** Cadre visible de la toile, ou `null` si elle n'est pas recadrée. */
+  cadreToile(): CanvasFrameState {
+    return this.current.cadre;
+  }
+
+  /**
+   * Recadre la toile. NON DESTRUCTIF (ticket 28) : aucun calque, aucun raster,
+   * aucune transform n'est touché — seul le cadre change.
+   *
+   * `rect` est exprimé dans le cadre COURANT, pas dans l'espace d'origine : un
+   * recadrage d'un recadrage part de ce qu'on voit, ce qui est le seul point de
+   * vue que l'utilisateur ait.
+   */
+  recadrerToile(rect: CanvasFrame): void {
+    this.current.cadre = composerCadre(this.current.cadre, rect);
+  }
+
+  /**
+   * Rend la toile entière. C'est la promesse du non-destructif, et elle tient en
+   * une ligne PARCE QUE rien n'a été découpé : il n'y a rien à reconstruire, ni
+   * raster à recoller, ni transform à défaire. Le nombre de recadrages empilés
+   * ne change rien au coût.
+   */
+  annulerRecadrage(): void {
+    this.current.cadre = null;
   }
 
   displayLayers(): LayerState[] {

@@ -1,7 +1,7 @@
 # La barre d'options règle-t-elle l'outil ou le calque
 
 Type: grilling
-Status: open
+Status: resolved
 Parent: ../map.md
 
 ## Question
@@ -74,3 +74,53 @@ Voisin de [Les outils sur la toile](17-les-outils-sur-la-toile.md) — troisièm
 front du chantier des contrôles — mais distinct : le 17 porte sur ce qu'on
 manipule SUR l'image (poignées, `CanvasControl`), celui-ci sur ce qu'on règle
 AUTOUR d'elle. Ils ne se bloquent pas.
+
+---
+
+## Answer — RÉSOLU le 2026-08-18
+
+**Arbitrage d'Antoine : la barre règle l'OUTIL.** « Le prochain rectangle sera
+bleu » — la réponse de Photoshop. Elle résout le défaut d'origine : aujourd'hui
+on trace un rectangle NOIR, puis on va chercher sa couleur dans le dock, et
+régler avant de tracer est impossible.
+
+**Le coût nommé par le ticket n'est pas dissous, il est BORNÉ.** Deux surfaces
+pour une même valeur, c'est ce qu'ADR-0001 refuse en général. Ce qu'un modèle
+peut faire — et fait — c'est rendre la frontière **inexprimable autrement** : il
+ne connaît AUCUN calque. Il ne reçoit ni pile, ni sélection, ni identifiant, et
+son seul canal vers un calque est `paramsPourNouveauCalque`, appelé à la
+CRÉATION. Un réglage de barre ne peut donc pas atteindre un calque existant —
+pas par discipline, par typage. La tension reste réelle dans l'interface ; elle
+ne peut plus devenir un bug.
+
+### Ce qui est LIVRÉ (2026-08-18, en TDD)
+
+`src/ui/toolOptionsModel.ts`, module pur (même convention que `tools.ts` et
+`layerControlsModel.ts`), six tests dans `test/ui/toolOptionsModel.test.ts`.
+
+Deux propriétés que la boucle a fait sortir, et qui sont les deux moitiés de
+l'arbitrage :
+
+1. **Les réglages PERSISTENT à travers un changement d'outil.** Sans ça, le
+   réglage ne survit pas au premier aller-retour vers le pinceau, et la barre
+   redevient un doublon du dock placé plus près de la main — c'est-à-dire
+   l'autre réponse du ticket, arrivée par accident.
+2. **Un calque créé part avec une COPIE.** C'est le test discriminant entre les
+   deux réponses : si la valeur appartenait au calque, éditer le calque posé
+   changerait ce que le prochain tracé reçoit. Partager l'objet aurait produit
+   ce comportement-là sans qu'aucune décision soit prise.
+
+Par outil, et pas un état partagé : la taille du pinceau et la couleur d'une
+forme n'ont rien à se dire.
+
+### Ce qui RESTE
+
+- **La barre elle-même** — le composant, à hauteur CONSTANTE (voie A, acquise),
+  et le remplacement de `BrushToolbar` qui déplace la palette de 75 px quand on
+  clique dedans.
+- **Son CONTENU pour chaque outil**, que la planche ne tranche pas et qu'il ne
+  faut pas y chercher : « fond, contour, primitive, angle » est ce que Photoshop
+  y met, mais notre contour n'existe pas (écarté le 2026-08-17) et notre `aplat`
+  porte un dégradé que Photoshop n'a pas dans sa barre. Le contenu se décide
+  après la structure — et la structure est décidée.
+- **`move`, qui n'a rien à régler** et occuperait quand même la bande.

@@ -83,6 +83,62 @@ import { DOWNSAMPLE_WGSL, upsampleWgsl } from "./blurChain";
  *  et le flou se fait en tente 3x3 dans la passe finale. */
 const enClarte = (params: Record<string, number>) => params.bande >= 0.5;
 
+/** Poids Rec.709, les mêmes qu'en WGSL et que partout ailleurs dans `effects/`. */
+const POIDS = [0.2126, 0.7152, 0.0722] as const;
+
+/**
+ * Jumeau TS de l'opérateur, une fois le flou connu.
+ *
+ * Il commence là où le shader a fini de LIRE : `flou` est ce que la tente 3x3
+ * (bande Accentuation) ou la pyramide (bande Clarté) a produit. L'échantillonnage
+ * est le travail du GPU et n'est pas une couture ; ce qui suit — détail,
+ * masquage, compression, application — est de la logique pure, et c'est elle
+ * qui tient la barre de qualité.
+ *
+ * ⚠️ DEUX IMPLÉMENTATIONS, RIEN NE LES RELIE AUTOMATIQUEMENT. Même contrat que
+ * `curvesSpec`/`curve_eval` et que `inputDriver`/`input_driver` : toute
+ * modification de la formule se fait des DEUX côtés, et c'est
+ * `npm run test:render` qui attrape un oubli.
+ *
+ * @param entree couleur LINÉAIRE du pixel
+ * @param flou   couleur LINÉAIRE du même pixel, passée au flou de la bande
+ * @param params valeurs résolues, dans l'ordre de `nettete.params`
+ */
+export function netteteSpec(
+  entree: readonly [number, number, number],
+  flou: readonly [number, number, number],
+  params: readonly number[],
+): [number, number, number] {
+  const force = params[1];
+  const masquage = params[3];
+  const maitrise = params[4];
+  const luma = (c: readonly [number, number, number]) =>
+    c[0] * POIDS[0] + c[1] * POIDS[1] + c[2] * POIDS[2];
+  const d = luma(entree) - luma(flou);
+  const a = Math.abs(d);
+  // MASQUAGE. Rampe douce et non bascule : une frontière dure se VERRAIT entre
+  // la zone accentuée et la zone épargnée. Au repos le seuil tombe à 1e-5, donc
+  // le masque vaut 1 partout et le curseur ne coûte rien.
+  const seuil = Math.max(masquage * 0.15, 1e-5);
+  const t = Math.min(1, Math.max(0, a / seuil));
+  const masque = t * t * (3 - 2 * t);
+  // Compresseur doux : ~a quand a << limite, tend vers limite au-delà. Continu
+  // et strictement croissant partout — ce qu'un `min` n'est pas, et c'est toute
+  // la différence : un plafond aplatirait le modelé en palier là où celui-ci
+  // continue de distinguer deux bords d'amplitudes voisines.
+  const limite = 0.02 + (0.5 - 0.02) * maitrise;
+  const detail = Math.sign(d) * ((limite * a) / (limite + a));
+  const gain = detail * force * masque;
+  // Plancher PAR CANAL : une valeur négative en lumière linéaire n'a pas de sens,
+  // et le ré-encodage sRGB en ferait un NaN (`pow` d'une base négative), donc un
+  // pixel mort plutôt qu'un pixel sombre.
+  return [
+    Math.max(entree[0] + gain, 0),
+    Math.max(entree[1] + gain, 0),
+    Math.max(entree[2] + gain, 0),
+  ];
+}
+
 export const nettete: EffectModule = {
   id: "nettete",
   name: "Netteté",

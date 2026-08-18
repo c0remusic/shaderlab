@@ -1,4 +1,5 @@
 import type { LayerState, LayerTransform } from "./types";
+import type { CanvasFrameState } from "./canvasFrame";
 import { defaultLayerMask, createBrushSource, createParametricSource } from "../mask/types";
 import type { MaskSourceType, CombineMode, RefineEdgeParams, MaskSourceParams } from "../mask/types";
 import { getMaskSourceModule } from "../mask/sources/registry";
@@ -39,6 +40,17 @@ function paramsEqual(a: object, b: object): boolean {
 
 export class LayerStack {
   layers: LayerState[] = [];
+
+  /** Cadre visible de la toile, ou `null` si elle n'est pas recadrée.
+   *
+   *  IL VIT ICI, et pas dans le renderer ni dans `OpenedDocument`, pour UNE
+   *  raison : `LayerStack` est l'état que `History` prend en instantané, donc
+   *  un recadrage devient annulable sans une ligne de plus. Le mettre à côté
+   *  aurait demandé un second canal d'undo.
+   *
+   *  Voir `canvasFrame.ts` pour pourquoi c'est un CADRE et non de nouvelles
+   *  dimensions (recadrage non destructif, ticket 28). */
+  cadre: CanvasFrameState = null;
 
   /** Index d'insertion d'un NOUVEAU calque, pour `addLayer`/`addPhotoLayer`.
    *
@@ -650,6 +662,10 @@ export class LayerStack {
 
   clone(): LayerStack {
     const copy = new LayerStack();
+    // Objet FRAIS, comme les conteneurs de masque ci-dessous : recadrer le clone
+    // ne doit pas déplacer le cadre de l'original, sinon l'undo rendrait un
+    // instantané qui a bougé depuis.
+    copy.cadre = this.cadre === null ? null : { ...this.cadre };
     copy.layers = this.layers.map((l) => ({
       ...l,
       params: { ...l.params },

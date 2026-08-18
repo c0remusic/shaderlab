@@ -1,7 +1,7 @@
 # Recadrer la toile déjà ouverte
 
 Type: grilling
-Status: open
+Status: resolved
 Parent: ../map.md
 
 ## Question
@@ -185,3 +185,78 @@ contenu hors cadre, comme le reste du projet — alors **il ne faut pas découpe
 les rasters du tout** : on change le cadre, pas les données, et l'empreinte
 d'historique tombe à zéro. C'est cette question-là qui gouverne les autres, et
 c'est celle qu'il faut poser en premier.
+
+---
+
+## Answer — RÉSOLU le 2026-08-18
+
+**Arbitrage d'Antoine : le recadrage n'est PAS destructif.** On change le CADRE,
+pas les données. Les calques gardent leur contenu hors cadre, aucun raster de
+masque n'est découpé, et l'empreinte d'historique tombe à **zéro** — c'est la
+troisième issue, celle que la liste d'origine ne portait pas, et elle rend les
+deux autres sans objet.
+
+**Ce que la décision fait disparaître d'un coup** : les trois issues du design
+montage (invalider / recadrer / rééchantillonner) supposaient toutes qu'il fallait
+FAIRE quelque chose aux rasters. La mesure en avait déjà écarté une
+(rééchantillonner n'a de sens que pour un redimensionnement) ; l'arbitrage écarte
+les deux autres par le haut. Le chiffre qui rendait la découpe coûteuse — 104 Mo
+retenus devenant 156 Mo sur 512 à 26 Mpx, et huit rasters suffisant à saturer le
+budget au plafond de 64 Mpx — cesse simplement d'exister.
+
+### Ce qui est LIVRÉ (2026-08-18, en TDD)
+
+Modèle pur et couture `DocumentSession` — `src/layers/canvasFrame.ts`,
+`LayerStack.cadre`, `DocumentSession.recadrerToile / cadreToile /
+annulerRecadrage`. Sept tests dans `test/application/recadrageToile.test.ts`.
+
+Trois choses que la boucle rouge→vert a fait sortir et qui n'étaient pas dans le
+ticket :
+
+1. **Un cadre, pas de nouvelles dimensions.** Un cadre exprime « ce qu'on
+   montre » ; des dimensions expriment « ce qu'on garde ». C'est la forme qui
+   rend le geste réversible sans stocker une copie : annuler, c'est reposer
+   `null`, quel que soit le nombre de recadrages empilés.
+2. **La COMPOSITION est le vrai piège.** Un recadrage d'un recadrage est
+   exprimé dans le cadre COURANT — c'est le seul point de vue que l'utilisateur
+   ait, il trace sur l'image affichée — pendant que le cadre stocké doit rester
+   ABSOLU, sinon plus rien ne sait où sont les pixels. Deux repères, et les
+   confondre est silencieux.
+3. **Il vit sur `LayerStack`**, pas dans le renderer ni dans `OpenedDocument` :
+   c'est l'état dont `History` prend un instantané, donc un recadrage s'annule
+   par le même Ctrl+Z que tout le monde, sans second canal d'undo.
+
+⚠️ **La garde du non-destructif s'asserte sur les RÉFÉRENCES, pas sur les
+valeurs.** Un raster recopié à l'identique passerait un `toEqual` tout en coûtant
+26 Mo par entrée d'historique — c'est-à-dire exactement ce que l'arbitrage
+écarte. Le test compare donc les objets.
+
+### ✅ Le second défaut silencieux tombe AVEC l'arbitrage, et ce n'était pas prévu
+
+La mesure de ce ticket avait trouvé un défaut à part du sujet : **le dégradé
+casse en silence**, ses quatre points vivant en UV de la TOILE, donc glissant par
+rapport à la photo dès que la toile change de format. Le ticket concluait « c'est
+de l'arithmétique, à faire, pas à trancher », et prévoyait un remappage sur le
+modèle de `recenterForCrop`.
+
+**Ce remappage n'a plus lieu d'être.** Sous un recadrage non destructif, rien ne
+quitte l'espace d'ORIGINE : les rasters, les transforms et les UV des sources
+paramétriques y restent tous, et le cadre ne décide que de ce qu'on MONTRE. Un
+dégradé posé sur la photo reste donc posé sur la photo — il n'y a aucun repère à
+remapper, parce qu'aucun repère n'a bougé.
+
+C'est une conséquence de la décision, pas une seconde décision. Elle vaut d'être
+écrite ici, sinon la tranche de câblage réintroduira le remappage « parce que le
+ticket le disait », et fera glisser un dégradé que plus rien ne déplaçait.
+
+⚠️ **Elle porte une contrainte pour cette tranche** : le renderer doit évaluer
+les sources de masque dans l'espace d'ORIGINE et n'appliquer le cadre qu'à la
+présentation et à l'export. Évaluer dans l'espace du cadre rouvrirait le défaut
+exactement tel qu'il était décrit.
+
+### Ce qui RESTE, dit plutôt que découvert
+
+Le rendu ne lit pas encore le cadre : `Renderer.allocateDocument` alloue toujours
+la toile entière. La tranche suivante est ce câblage — passe de présentation,
+dimensions d'export, et l'outil de recadrage lui-même — et elle passe par les
+gates GPU. Le modèle, lui, ne bougera plus.

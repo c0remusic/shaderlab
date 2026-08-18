@@ -142,6 +142,41 @@ Aucun n'est un reste de ces deux sessions.
 
 <!-- une ligne par ticket clos : le gist, puis le lien pour le détail -->
 
+- [Recadrer la toile déjà ouverte](issues/28-recadrer-la-toile-deja-ouverte.md)
+  — **RÉSOLU le 2026-08-18. Le recadrage n'est PAS destructif**, et cette
+  réponse-là fait disparaître les trois issues du design montage au lieu d'en
+  choisir une : si on change le CADRE et pas les données, il n'y a aucun raster à
+  découper, à invalider ni à rééchantillonner. L'empreinte d'historique tombe à
+  **zéro** — là où la découpe valait 104 → 156 Mo sur 512 à 26 Mpx, et huit
+  rasters saturaient le budget au plafond de 64 Mpx.
+  ✅ **Modèle livré en TDD le même jour** (`canvasFrame.ts`, `LayerStack.cadre`,
+  `DocumentSession`, 7 tests). Trois choses sont sorties de la boucle :
+  un CADRE et non de nouvelles dimensions (c'est ce qui rend l'annulation
+  gratuite) ; la COMPOSITION est le vrai piège — un recadrage d'un recadrage est
+  exprimé dans le cadre COURANT alors que le cadre stocké est ABSOLU, et
+  confondre les deux repères est silencieux ; le cadre vit sur `LayerStack`,
+  donc `History` l'annule sans second canal d'undo.
+  ✅ **Et le second défaut silencieux du ticket tombe avec** : le dégradé qui
+  glissait (points en UV de la toile) n'a plus rien à remapper, puisque rien ne
+  quitte l'espace d'origine. Ce n'est pas une seconde décision, c'est une
+  conséquence — à écrire, sinon la tranche de câblage réintroduira le remappage
+  « parce que le ticket le disait ».
+  ⚠️ Reste le CÂBLAGE : `Renderer.allocateDocument` alloue toujours la toile
+  entière, et le renderer devra évaluer les masques dans l'espace d'ORIGINE.
+
+- [La barre d'options règle-t-elle l'outil ou le calque](issues/27-la-barre-d-options-regle-l-outil-ou-le-calque.md)
+  — **RÉSOLU le 2026-08-18. Elle règle l'OUTIL** — « le prochain rectangle sera
+  bleu ». Elle résout le défaut d'origine : on trace un rectangle noir, puis on
+  va chercher sa couleur dans le dock.
+  **Le coût qu'ADR-0001 refuse n'est pas dissous, il est BORNÉ par le typage** :
+  le modèle ne connaît AUCUN calque — ni pile, ni sélection, ni identifiant — et
+  son seul canal vers un calque est `paramsPourNouveauCalque`, appelé à la
+  création. Un réglage de barre ne PEUT pas atteindre un calque existant.
+  ✅ **Modèle livré en TDD** (`src/ui/toolOptionsModel.ts`, 6 tests). Le test
+  discriminant entre les deux réponses du ticket : un calque créé part avec une
+  COPIE — partager l'objet aurait produit la réponse « au calque » sans qu'aucune
+  décision soit prise. Reste la barre elle-même et son contenu par outil.
+
 - [Quels mécanismes de lisibilité adopter](issues/11-quels-mecanismes-de-lisibilite-adopter.md)
   — **RÉSOLU le 2026-08-18.** Quatre adoptés (filtre par nom dans Presets et
   Textures · avant/après par touche maintenue · retour au défaut au double-clic ·

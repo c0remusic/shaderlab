@@ -1,7 +1,7 @@
 # L'applicabilité couvre 10 % du parc
 
 Type: grilling
-Status: open
+Status: claimed
 Parent: ../map.md
 
 > Front 1 sur 3 de la rationalisation des contrôles. Cadrage et ordre :
@@ -96,3 +96,87 @@ déclaration éprouvée par le gate, jamais posée sur une croyance.
 ⚠️ **Pas un compte de déclarations.** « On est passé de 36 à 200 » ne prouve
 rien : c'est exactement la mesure qui a fait croire, le 2026-08-12, que ce front
 était couvert.
+
+---
+
+## Mesure du 2026-08-18 — le cadrage de ce ticket tombe sur TROIS points
+
+Travail AFK, avant toute question. Rien n'est tranché ici : le ticket reste
+`grilling`, et la décision « lesquels masque-t-on » attend Antoine. Mais les
+chiffres sur lesquels il repose ne tiennent plus.
+
+### 1. Le DÉNOMINATEUR est faux — 289 rangées, pas 365 paramètres
+
+Un `EffectParam` n'est pas une rangée de panneau. Soixante-seize d'entre eux
+sont **consommés par un contrôle composite** — points de `curveControls`,
+arrêts de `colorRampControls`, bornes de `tonalRangeControl`, satellites d'un
+`colorGroup` — et ne sont jamais rendus comme une ligne à masquer.
+
+| | Déclarés | **Rangées réelles** |
+| --- | --- | --- |
+| Parc entier | 365 | **289** |
+
+La couverture n'est donc pas de 10 %, ni même de 13,2 % : elle est de
+**16,6 %** (48 conditions / 289 rangées). Masquer un paramètre qui n'a pas de
+ligne n'a aucun sens — il ne pouvait pas être au dénominateur.
+
+### 2. `curves`, l'exemple n°1 du ticket, s'effondre
+
+Le ticket ouvre sur « `curves` — 37 paramètres, **0** condition », en tête d'un
+tableau des « plus chargés ». Mesuré : **37 déclarés, 13 rangées.** Les
+vingt-quatre autres sont les points de ses quatre courbes, qui se manipulent
+dans le tracé et pas dans une liste. Il est en milieu de peloton, pas en tête.
+
+### 3. ⚠️ Pour HUIT effets, une condition est STRUCTURELLEMENT IMPOSSIBLE
+
+C'est la trouvaille qui change la question. La voie A est fermée par décision :
+**une condition vise un paramètre à `choices` et rien d'autre.** Or le parc ne
+compte que **25 paramètres à `choices`**, et huit effets n'en ont **aucun** :
+
+| Effet | Rangées | Params à `choices` |
+| --- | --- | --- |
+| `curves` | 13 | 0 |
+| `lightLeak` | 12 | 0 |
+| `pixelStretch` | 12 | 0 |
+| `texture` | 9 | 0 |
+| `sliceShift` | 8 | 0 |
+| `halation` | 6 | 0 |
+| `duotone` | 5 | 0 |
+| `glow` | 4 | 0 |
+
+**69 rangées où la réponse n'est pas « il manque des conditions » mais « il n'y
+a rien sur quoi conditionner ».** Le ticket les comptait comme de la dette ; ce
+sont des effets sans mode, donc sans état où un réglage dort.
+
+### 4. Le cas de démonstration du ticket est déjà réparé
+
+Il s'appuie sur `lensFlare` — « trois blocs distincts, trente paramètres, zéro
+condition ». Depuis le 2026-08-14, il porte **trois conditions de SECTION**, une
+par phénomène. Ses 31 rangées sont donc gouvernées, simplement pas par des
+conditions de paramètre. Le ticket a été écrit avant.
+
+### Parc complet au 2026-08-18
+
+24 effets · 365 params déclarés · **289 rangées** · 48 conditions de paramètre ·
+77 sections · **10 conditions de section** · 14 effets sur 24 sans aucune
+condition d'aucune sorte.
+
+### Ce que la question devient, une fois ces chiffres posés
+
+Le ticket demandait « quels paramètres sont réellement inertes, et lesquels
+masque-t-on ». La mesure la scinde en trois, et seule la première est un travail
+de déclaration :
+
+1. **Les effets À MODES, sans conditions** — `channelMixer` (16 rangées, 1
+   `choices`), `gradientMap` (8, 2), `isolines` (12, 1), `halftone` (12, 1),
+   `gooeyMerge` (9, 1), `grain` (5, 1). Là, la question du ticket se pose telle
+   quelle, et le gate `--applicabilite` l'éprouve.
+2. **Les huit sans `choices`** — la question n'est pas « que masquer » mais
+   « ces effets ont-ils un état caché qui mériterait un mode ? ». C'est une
+   question de CONCEPTION d'effet, pas d'affichage, et elle ne se répond pas
+   dans ce front.
+3. **`lensFlare`** — déjà gouverné par sections. Rien à faire.
+
+**La question pour Antoine se réduit donc au point 2** : accepte-t-on que huit
+effets restent hors du champ de l'applicabilité par construction, ou est-ce le
+signal qu'il leur manque un mode ?

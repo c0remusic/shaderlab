@@ -145,3 +145,74 @@ est complet et reproductible ; la décision revient à Antoine.
 ⚠️ Ne PAS « corriger » en montant simplement la hauteur minimale de fenêtre :
 `--window-min-height` vaut 600 px, donc 1280 × 720 est une taille pleinement
 supportée, pas un cas limite.
+
+---
+
+## Amendement du 2026-08-18 — une des deux voies est MORTE, mesurée
+
+Les deux voies ci-dessus ont été éprouvées dans la page vivante, à 1280 × 720,
+aplat sélectionné. **La première ne rend rien du tout.**
+
+### Voie 1 (baisser le plancher des listes) : 0 px
+
+`--dock-card-list-rows` forcé de 5 à 3 dans la page, puis relecture :
+
+```
+débord avant : 74 px
+débord après : 74 px
+gain réel du passage 5 -> 3 lignes : 0 px
+```
+
+La cause est écrite dans `PanelColumn.css:138` et personne ne l'avait rapprochée
+de ce ticket : le plancher est borné par
+`min(plancher nominal, hauteur naturelle du contenu)` — « une carte plus courte
+que le plancher n'est jamais GONFLÉE par lui ». Or **aucune liste n'atteint ici
+son plancher de 5 lignes** : contenu naturel de Presets 132 px, de Pile 172 px,
+de Textures 0 px. Elles sont bornées par leur CONTENU. Baisser le plancher ne
+leur rend rien.
+
+Conséquence sur l'arbitrage : **la note de `CLAUDE.md` (« la borne à 5 lignes
+est voulue, pas un défaut ») n'a pas à être défaite.** Elle n'était pas en
+cause. Il ne reste donc pas deux voies qui coûtent chacune une décision écrite,
+mais **une seule voie**, qui n'en défait aucune — replier une carte est
+exactement ce qu'ADR-0001 prescrit.
+
+### Toutes les cartes sont déjà posées sur leur plancher
+
+Relevé, `plancher` étant le `min-height` calculé :
+
+| carte | rendu | plancher | contenu naturel |
+| --- | --- | --- | --- |
+| Presets | 184 | 184 | 132 |
+| Pile | 224 | 224 | 172 |
+| Textures | 52 | 52 | 0 (déjà repliée) |
+| Propriétés · Aplat | 112 | 112 | **551** |
+
+`rendu === plancher` partout : la colonne ne peut plus se comprimer d'un pixel.
+Et Propriétés réclame 551 px pour n'en obtenir que 112.
+
+⚠️ **Textures est repliée par DÉFAUT**, ce que le relevé initial du ticket ne
+disait pas. Une première sonde a cru la replier alors qu'elle la DÉPLOYAIT, et a
+rapporté un « gain » de −356 px qui ressemblait à une anomalie du layout. Il n'y
+en a pas : la carte déployée porte un catalogue de 1119 px, plancher 408.
+
+### Ce que chaque repli rend, mesuré carte par carte
+
+| voie | Presets | Pile | Textures | Propriétés | colonne |
+| --- | --- | --- | --- | --- | --- |
+| actuelle | 184 | 224 | 52 | 112 | **630 / 556 — défile** |
+| Presets repliée | 52 | 224 | 52 | **204** | 556 / 556 — tient |
+| Pile repliée | 184 | 52 | 52 | **244** | 556 / 556 — tient |
+| Propriétés repliée | 184 | 224 | 52 | 52 | 536 / 536 — tient |
+
+Les trois rendent exactement les 74 px manquants : **le choix n'est pas une
+question de place**, et aucune voie n'est techniquement meilleure. Ce qui les
+sépare est ce qu'on accepte de perdre de vue en travaillant — une liste
+consultée par intermittence, la navigation du document, ou le panneau de l'objet
+qu'on vient de sélectionner.
+
+Les pixels libérés ne disparaissent pas : ils vont à Propriétés, seule carte à
+réclamer plus que son plancher. Replier Presets lui en donne 204, replier Pile
+244.
+
+Planche : [`docs/wireframes/dock-1280-arbitrage.html`](../../../docs/wireframes/dock-1280-arbitrage.html).

@@ -1,0 +1,452 @@
+<title>Wireframe — quelle unité montre le panneau</title>
+<style>
+  /* ---- Tokens réels shaderlab, inlinés (primitives.css + semantic.css +
+     components.css, src/design/) — self-contained, même convention que les
+     autres wireframes du dossier. Fragment sans doctype/html/head/body. ---- */
+  :root {
+    --primitive-neutral-100: #f2f2f2;
+    --primitive-neutral-850: #323232;
+    --primitive-neutral-900: #2c2c2c;
+    --primitive-neutral-950: #222222;
+    --primitive-neutral-1000: #1b1b1b;
+    --primitive-accent-blue: #4069fd;
+
+    --space-1: 2px;
+    --space-2: 4px;
+    --space-3: 6px;
+    --space-4: 8px;
+    --space-5: 12px;
+    --space-6: 16px;
+    --space-7: 24px;
+
+    --font-ui: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+    --font-mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+    --font-size-xs: 11px;
+    --font-size-sm: 12px;
+    --font-size-md: 13px;
+    --font-size-lg: 14px;
+    --font-size-xl: 16px;
+    --font-weight-semibold: 600;
+
+    --radius-control: 5px;
+    --radius-panel: 8px;
+    --radius-round: 999px;
+
+    --surface-window: var(--primitive-neutral-1000);
+    --surface-workspace: var(--primitive-neutral-950);
+    --surface-panel: var(--primitive-neutral-900);
+    --surface-selected: rgba(242, 242, 242, .10);
+
+    --text-primary: rgba(242, 242, 242, .94);
+    --text-secondary: rgba(242, 242, 242, .72);
+    --text-tertiary: rgba(242, 242, 242, .53);
+    --text-value: var(--primitive-neutral-100);
+    --text-muted: rgba(242, 242, 242, .53);
+
+    --border-subtle: rgba(242, 242, 242, .07);
+    --border-default: rgba(242, 242, 242, .11);
+    --border-strong: rgba(242, 242, 242, .28);
+    --border-emphasis: rgba(242, 242, 242, .18);
+    --focus-color: var(--primitive-accent-blue);
+
+    --panel-bg: var(--surface-panel);
+    --panel-dock-width: 320px;
+    --control-height-md: 30px;
+    --slider-track-height: var(--space-2);
+    --slider-thumb-size: 12px;
+
+    /* Annotations de planche, pas des tokens produit. */
+    --annot-good: #3d9a50;
+    --annot-bad: #e5484d;
+    --annot-warn: #d98324;
+  }
+
+  .wf, .wf *, .wf *::before, .wf *::after { box-sizing: border-box; }
+  .wf {
+    font-family: var(--font-ui);
+    -webkit-font-smoothing: antialiased;
+    background: var(--surface-window);
+    color: var(--text-primary);
+    padding: var(--space-7);
+    min-height: 100vh;
+  }
+  .wf h1 { font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin: 0 0 var(--space-3); }
+  .wf h2 { font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin: var(--space-7) 0 var(--space-4); }
+  .wf p  { font-size: var(--font-size-md); color: var(--text-secondary); margin: 0 0 var(--space-4); max-width: 96ch; line-height: 1.55; }
+  .wf code { font-family: var(--font-mono); font-size: var(--font-size-sm); color: var(--text-primary); }
+  .wf .lede { color: var(--text-primary); }
+
+  .measure {
+    display: inline-flex; gap: var(--space-6); flex-wrap: wrap;
+    border: 1px solid var(--border-default); border-radius: var(--radius-panel);
+    padding: var(--space-4) var(--space-6); margin-bottom: var(--space-6);
+    background: var(--surface-workspace);
+    font-size: var(--font-size-sm); font-family: var(--font-mono); color: var(--text-secondary);
+  }
+  .measure b { color: var(--text-primary); font-weight: var(--font-weight-semibold); }
+
+  .board { display: flex; gap: var(--space-7); flex-wrap: wrap; align-items: flex-start; }
+  .plate { width: var(--panel-dock-width); }
+  .plate__head { margin-bottom: var(--space-3); min-height: 62px; }
+  .plate__title { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); }
+  .plate__sub { font-size: var(--font-size-sm); color: var(--text-tertiary); margin-top: var(--space-1); line-height: 1.4; }
+  .plate__verdict { font-size: var(--font-size-sm); font-family: var(--font-mono); margin-top: var(--space-2); }
+  .v-good { color: var(--annot-good); }
+  .v-bad  { color: var(--annot-bad); }
+  .v-warn { color: var(--annot-warn); }
+
+  /* ---- Carte Propriétés ---- */
+  .card { border: 1px solid var(--border-default); border-radius: var(--radius-panel); background: var(--panel-bg); overflow: hidden; }
+  .card__bar { height: 52px; display: flex; align-items: center; gap: var(--space-3); padding: 0 var(--space-5); border-bottom: 1px solid var(--border-subtle); }
+  .card__chev { color: var(--text-tertiary); font-size: 10px; }
+  .card__name { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); }
+  .card__body { padding: var(--space-5); }
+
+  .section-title {
+    font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: .04em;
+    color: var(--text-tertiary); margin-bottom: var(--space-4);
+  }
+
+  /* ---- Ligne de paramètre ---- */
+  .prow { margin-bottom: var(--space-5); }
+  .prow__head { display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-3); }
+  .prow__label { font-size: var(--font-size-sm); color: var(--text-muted); }
+  .prow__value {
+    margin-left: auto; font-family: var(--font-mono); font-size: var(--font-size-sm);
+    color: var(--text-value);
+  }
+  .prow__value--alt { color: var(--text-tertiary); font-size: var(--font-size-xs); margin-left: var(--space-3); }
+  .prow__track {
+    position: relative; height: var(--slider-track-height);
+    background: var(--border-emphasis); border-radius: var(--radius-round);
+  }
+  .prow__fill { position: absolute; inset: 0 auto 0 0; background: var(--border-strong); border-radius: var(--radius-round); }
+  .prow__thumb {
+    position: absolute; top: 50%; width: var(--slider-thumb-size); height: var(--slider-thumb-size);
+    margin-top: calc(var(--slider-thumb-size) / -2); margin-left: calc(var(--slider-thumb-size) / -2);
+    border-radius: var(--radius-round); background: var(--text-value); border: 1px solid var(--border-strong);
+  }
+  /* Champ de saisie, pour la voie qui accepte des pixels. */
+  .prow__input {
+    margin-left: auto; height: 22px; min-width: 74px;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--border-emphasis); border-radius: var(--radius-control);
+    background: var(--surface-workspace);
+    font-family: var(--font-mono); font-size: var(--font-size-sm); color: var(--text-value);
+  }
+  .prow--dual .prow__head { gap: var(--space-2); }
+  .prow__input--second { border-color: var(--annot-bad); margin-left: var(--space-2); }
+
+  /* Pastille « pendant le geste », pour la voie A. */
+  .hud {
+    display: inline-flex; gap: var(--space-4);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-control);
+    background: rgba(27, 27, 27, .88);
+    border: 1px solid var(--border-strong);
+    font-family: var(--font-mono); font-size: var(--font-size-sm); color: var(--text-value);
+  }
+  .canvas-mock {
+    position: relative; height: 132px; margin-top: var(--space-4);
+    border: 1px solid var(--border-default); border-radius: var(--radius-control);
+    background:
+      linear-gradient(135deg, rgba(242,242,242,.05), rgba(242,242,242,.01)),
+      var(--surface-workspace);
+    overflow: hidden;
+  }
+  .canvas-mock__box {
+    position: absolute; left: 22%; top: 20%; width: 40%; height: 46%;
+    border: 1px solid var(--focus-color); background: rgba(64, 105, 253, .14);
+  }
+  .canvas-mock__h {
+    position: absolute; width: 7px; height: 7px; background: var(--text-value);
+    border: 1px solid var(--focus-color); margin: -4px 0 0 -4px;
+  }
+  .canvas-mock__hud { position: absolute; left: 22%; bottom: var(--space-4); }
+  .canvas-mock__label {
+    position: absolute; right: var(--space-3); top: var(--space-2);
+    font-size: var(--font-size-xs); color: var(--text-tertiary);
+  }
+
+  .note {
+    border-left: 3px solid var(--border-strong);
+    padding: var(--space-4) var(--space-6);
+    background: var(--surface-workspace);
+    border-radius: 0 var(--radius-control) var(--radius-control) 0;
+    margin: var(--space-6) 0;
+  }
+  .note--warn { border-left-color: var(--annot-warn); }
+  .note p:last-child { margin-bottom: 0; }
+
+  table { border-collapse: collapse; font-size: var(--font-size-sm); margin-top: var(--space-4); }
+  th, td { text-align: left; padding: var(--space-3) var(--space-6) var(--space-3) 0; border-bottom: 1px solid var(--border-subtle); vertical-align: top; }
+  th { color: var(--text-tertiary); font-weight: var(--font-weight-semibold); }
+  td { color: var(--text-secondary); }
+  td.mono { font-family: var(--font-mono); }
+  td.good { color: var(--annot-good); }
+  td.bad  { color: var(--annot-bad); }
+</style>
+
+<div class="wf">
+  <h1>Quelle unité montre le panneau — quatre voies</h1>
+  <p class="lede">
+    La forme est stockée en <b>fraction du cadre</b>, et c'est ce qui rend un preset indépendant de la définition :
+    <code>largeur: 0.4</code> couvre 40 % du cadre sur une photo de 6 240 px comme sur une de 1 200.
+    Cette question n'est donc <b>pas</b> « quelle unité stocker » — elle est tranchée — mais <b>quelle unité montrer</b>.
+  </p>
+
+  <div class="measure">
+    <span>photo de travail <b>6240 × 4160</b></span>
+    <span><code>largeur 0.4</code> = <b>2496 px</b></span>
+    <span><code>hauteur 0.4</code> = <b>1664 px</b></span>
+    <span>portée : <b>5 effets</b> à contrôle spatial</span>
+  </div>
+
+  <div class="note note--warn">
+    <p><b>Mesure qui déplace la question : le panneau parle DÉJÀ deux unités.</b></p>
+    <p>
+      Sur les 27 effets du registre — <b>183 paramètres en <code>percent</code>, 19 en <code>pixels</code>, 42 en
+      <code>degrees</code></b> — et <b>11 effets mélangent <code>percent</code> et <code>pixels</code> dans le même
+      panneau</b> (dont <code>aplat</code> : neuf en fraction, l'adoucissement du bord en pixels).
+      Ajouter une lecture en pixels n'introduit donc aucun mélange : il est là. Ce qui manque est une <b>règle</b>
+      qui dise lequel des deux se montre, et quand.
+    </p>
+    <p>
+      Conséquence directe et visible aujourd'hui : un adoucissement de <code>200 px</code> sur une forme de
+      <code>0.4</code> — est-il large ou fin par rapport à elle ? <b>Le panneau ne permet pas de le savoir</b>,
+      les deux nombres n'étant pas dans la même unité.
+    </p>
+  </div>
+
+  <h2>Les quatre voies, sur la section Géométrie d'un aplat</h2>
+
+  <div class="board">
+
+    <!-- ── VOIE A ── -->
+    <div class="plate">
+      <div class="plate__head">
+        <div class="plate__title">A — le panneau reste en fraction</div>
+        <div class="plate__sub">La mesure en pixels n'apparaît que <b>pendant le geste</b>, sur la toile. Déjà livré au ticket 01.</div>
+      </div>
+      <div class="card">
+        <div class="card__bar"><span class="card__chev">▾</span><span class="card__name">Propriétés · Aplat</span></div>
+        <div class="card__body">
+          <div class="section-title">Géométrie</div>
+          <div class="prow">
+            <div class="prow__head"><span class="prow__label">Centre X</span><span class="prow__value">50 %</span></div>
+            <div class="prow__track"><div class="prow__fill" style="width:50%"></div><div class="prow__thumb" style="left:50%"></div></div>
+          </div>
+          <div class="prow">
+            <div class="prow__head"><span class="prow__label">Largeur</span><span class="prow__value">40 %</span></div>
+            <div class="prow__track"><div class="prow__fill" style="width:20%"></div><div class="prow__thumb" style="left:20%"></div></div>
+          </div>
+          <div class="prow">
+            <div class="prow__head"><span class="prow__label">Hauteur</span><span class="prow__value">40 %</span></div>
+            <div class="prow__track"><div class="prow__fill" style="width:20%"></div><div class="prow__thumb" style="left:20%"></div></div>
+          </div>
+          <div class="prow">
+            <div class="prow__head"><span class="prow__label">Adoucissement du bord</span><span class="prow__value">200 px</span></div>
+            <div class="prow__track"><div class="prow__fill" style="width:50%"></div><div class="prow__thumb" style="left:50%"></div></div>
+          </div>
+          <div class="canvas-mock">
+            <span class="canvas-mock__label">toile</span>
+            <div class="canvas-mock__box">
+              <span class="canvas-mock__h" style="left:0;top:0"></span>
+              <span class="canvas-mock__h" style="left:100%;top:0"></span>
+              <span class="canvas-mock__h" style="left:0;top:100%"></span>
+              <span class="canvas-mock__h" style="left:100%;top:100%"></span>
+            </div>
+            <div class="canvas-mock__hud"><span class="hud">2496 × 1664 px</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="plate__verdict v-good">une surface par valeur · ADR-0001 respecté · zéro code</div>
+      <div class="plate__sub" style="margin-top:var(--space-2)">
+        Ne répond pas à « je viens de tirer la poignée, quelle taille ai-je faite ? » une fois le geste FINI.
+      </div>
+    </div>
+
+    <!-- ── VOIE B ── -->
+    <div class="plate">
+      <div class="plate__head">
+        <div class="plate__title">B — le panneau passe en pixels</div>
+        <div class="plate__sub">Conversion à l'affichage <b>et en saisie</b>. La fraction reste stockée, donc les presets ne bougent pas.</div>
+      </div>
+      <div class="card">
+        <div class="card__bar"><span class="card__chev">▾</span><span class="card__name">Propriétés · Aplat</span></div>
+        <div class="card__body">
+          <div class="section-title">Géométrie</div>
+          <div class="prow">
+            <div class="prow__head"><span class="prow__label">Centre X</span><span class="prow__input">3120 px</span></div>
+            <div class="prow__track"><div class="prow__fill" style="width:50%"></div><div class="prow__thumb" style="left:50%"></div></div>
+          </div>
+          <div class="prow">
+            <div class="prow__head"><span class="prow__label">Largeur</span><span class="prow__input">2496 px</span></div>
+            <div class="prow__track"><div class="prow__fill" style="width:20%"></div><div class="prow__thumb" style="left:20%"></div></div>
+          </div>
+          <div class="prow">
+            <div class="prow__head"><span class="prow__label">Hauteur</span><span class="prow__input">1664 px</span></div>
+            <div class="prow__track"><div class="prow__fill" style="width:20%"></div><div class="prow__thumb" style="left:20%"></div></div>
+          </div>
+          <div class="prow">
+            <div class="prow__head"><span class="prow__label">Adoucissement du bord</span><span class="prow__input">200 px</span></div>
+            <div class="prow__track"><div class="prow__fill" style="width:50%"></div><div class="prow__thumb" style="left:50%"></div></div>
+          </div>
+          <div class="canvas-mock">
+            <span class="canvas-mock__label">toile</span>
+            <div class="canvas-mock__box">
+              <span class="canvas-mock__h" style="left:0;top:0"></span>
+              <span class="canvas-mock__h" style="left:100%;top:0"></span>
+              <span class="canvas-mock__h" style="left:0;top:100%"></span>
+              <span class="canvas-mock__h" style="left:100%;top:100%"></span>
+            </div>
+            <div class="canvas-mock__hud"><span class="hud">2496 × 1664 px</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="plate__verdict v-good">panneau et toile disent le MÊME nombre · adoucissement enfin comparable</div>
+      <div class="plate__sub" style="margin-top:var(--space-2)">
+        Prix : chaque champ spatial des 5 effets doit connaître <code>imageSize</code>, et un preset ouvert sur une
+        autre photo affichera d'autres nombres pour la même forme.
+      </div>
+    </div>
+
+    <!-- ── VOIE C ── -->
+    <div class="plate">
+      <div class="plate__head">
+        <div class="plate__title">C — les deux, côte à côte</div>
+        <div class="plate__sub">Un couple de champs par grandeur : la fraction et sa conversion.</div>
+      </div>
+      <div class="card">
+        <div class="card__bar"><span class="card__chev">▾</span><span class="card__name">Propriétés · Aplat</span></div>
+        <div class="card__body">
+          <div class="section-title">Géométrie</div>
+          <div class="prow prow--dual">
+            <div class="prow__head"><span class="prow__label">Centre X</span><span class="prow__input">50 %</span><span class="prow__input prow__input--second">3120 px</span></div>
+            <div class="prow__track"><div class="prow__fill" style="width:50%"></div><div class="prow__thumb" style="left:50%"></div></div>
+          </div>
+          <div class="prow prow--dual">
+            <div class="prow__head"><span class="prow__label">Largeur</span><span class="prow__input">40 %</span><span class="prow__input prow__input--second">2496 px</span></div>
+            <div class="prow__track"><div class="prow__fill" style="width:20%"></div><div class="prow__thumb" style="left:20%"></div></div>
+          </div>
+          <div class="prow prow--dual">
+            <div class="prow__head"><span class="prow__label">Hauteur</span><span class="prow__input">40 %</span><span class="prow__input prow__input--second">1664 px</span></div>
+            <div class="prow__track"><div class="prow__fill" style="width:20%"></div><div class="prow__thumb" style="left:20%"></div></div>
+          </div>
+          <div class="prow">
+            <div class="prow__head"><span class="prow__label">Adoucissement du bord</span><span class="prow__input">200 px</span></div>
+            <div class="prow__track"><div class="prow__fill" style="width:50%"></div><div class="prow__thumb" style="left:50%"></div></div>
+          </div>
+          <div class="canvas-mock">
+            <span class="canvas-mock__label">toile</span>
+            <div class="canvas-mock__box">
+              <span class="canvas-mock__h" style="left:0;top:0"></span>
+              <span class="canvas-mock__h" style="left:100%;top:0"></span>
+              <span class="canvas-mock__h" style="left:0;top:100%"></span>
+              <span class="canvas-mock__h" style="left:100%;top:100%"></span>
+            </div>
+            <div class="canvas-mock__hud"><span class="hud">2496 × 1664 px</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="plate__verdict v-bad">DEUX surfaces pour une même valeur — ce qu'ADR-0001 refuse</div>
+      <div class="plate__sub" style="margin-top:var(--space-2)">
+        Et la section grossit d'une colonne sur une carte déjà étranglée à 112 px.
+      </div>
+    </div>
+
+    <!-- ── VOIE D ── -->
+    <div class="plate">
+      <div class="plate__head">
+        <div class="plate__title">D — une surface, deux lectures</div>
+        <div class="plate__sub">Un seul champ. Il lit la fraction au repos, et <b>bascule en pixels</b> pendant qu'on tire le curseur ou la poignée.</div>
+      </div>
+      <div class="card">
+        <div class="card__bar"><span class="card__chev">▾</span><span class="card__name">Propriétés · Aplat</span></div>
+        <div class="card__body">
+          <div class="section-title">Géométrie</div>
+          <div class="prow">
+            <div class="prow__head"><span class="prow__label">Centre X</span><span class="prow__value">50 %</span></div>
+            <div class="prow__track"><div class="prow__fill" style="width:50%"></div><div class="prow__thumb" style="left:50%"></div></div>
+          </div>
+          <div class="prow">
+            <div class="prow__head">
+              <span class="prow__label" style="color:var(--text-primary)">Largeur</span>
+              <span class="prow__value">2496 px</span>
+              <span class="prow__value prow__value--alt">40 %</span>
+            </div>
+            <div class="prow__track"><div class="prow__fill" style="width:20%; background:var(--focus-color)"></div><div class="prow__thumb" style="left:20%; border-color:var(--focus-color)"></div></div>
+          </div>
+          <div class="prow">
+            <div class="prow__head"><span class="prow__label">Hauteur</span><span class="prow__value">40 %</span></div>
+            <div class="prow__track"><div class="prow__fill" style="width:20%"></div><div class="prow__thumb" style="left:20%"></div></div>
+          </div>
+          <div class="prow">
+            <div class="prow__head"><span class="prow__label">Adoucissement du bord</span><span class="prow__value">200 px</span></div>
+            <div class="prow__track"><div class="prow__fill" style="width:50%"></div><div class="prow__thumb" style="left:50%"></div></div>
+          </div>
+          <div class="canvas-mock">
+            <span class="canvas-mock__label">toile</span>
+            <div class="canvas-mock__box">
+              <span class="canvas-mock__h" style="left:0;top:0"></span>
+              <span class="canvas-mock__h" style="left:100%;top:0"></span>
+              <span class="canvas-mock__h" style="left:0;top:100%"></span>
+              <span class="canvas-mock__h" style="left:100%;top:100%"></span>
+            </div>
+            <div class="canvas-mock__hud"><span class="hud">2496 × 1664 px</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="plate__verdict v-warn">une seule surface, donc pas le cas qu'ADR-0001 refuse — mais la lecture au repos reste la fraction</div>
+      <div class="plate__sub" style="margin-top:var(--space-2)">
+        La ligne active est celle qu'on manipule. Le panneau et la toile disent alors le même nombre, au même instant.
+      </div>
+    </div>
+
+  </div>
+
+  <h2>Ce que chaque voie coûte et rend</h2>
+  <table>
+    <tr>
+      <th>Voie</th><th>ADR-0001</th><th>Presets</th><th>Répond à « quelle taille ai-je faite ? »</th><th>Portée des 5 effets</th>
+    </tr>
+    <tr>
+      <td>A · fraction seule</td>
+      <td class="good">respecté</td>
+      <td class="good">intacts</td>
+      <td class="bad">pendant le geste seulement</td>
+      <td>rien à changer</td>
+    </tr>
+    <tr>
+      <td>B · pixels</td>
+      <td class="good">respecté</td>
+      <td class="good">intacts (fraction toujours stockée)</td>
+      <td class="good">oui, à tout instant</td>
+      <td>chaque champ spatial lit <code>imageSize</code></td>
+    </tr>
+    <tr>
+      <td>C · les deux champs</td>
+      <td class="bad">violé</td>
+      <td class="good">intacts</td>
+      <td class="good">oui</td>
+      <td>+1 colonne par ligne</td>
+    </tr>
+    <tr>
+      <td>D · une surface, deux lectures</td>
+      <td class="good">respecté</td>
+      <td class="good">intacts</td>
+      <td class="good">oui, pendant et juste après</td>
+      <td>une règle d'affichage, partagée</td>
+    </tr>
+  </table>
+
+  <h2>La question qui reste, et elle n'est pas graphique</h2>
+  <p>
+    La règle doit valoir pour les <b>cinq</b> effets à contrôle spatial — <code>aplat</code>, <code>lensFlare</code>,
+    <code>lightLeak</code>, <code>motionBlur</code>, <code>pixelStretch</code> — sinon on crée deux conventions.
+    Or trois d'entre eux ont des étendues qui <b>peuvent sortir du cadre</b> (<code>sourceX</code> va de −0,5 à 1,5) :
+    en pixels, cela donne des valeurs négatives et des valeurs au-delà de la largeur de la photo.
+    <b>C'est lisible</b> — Photoshop le fait — mais il faut le vouloir.
+  </p>
+</div>

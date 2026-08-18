@@ -1,0 +1,358 @@
+<title>Wireframe — la colonne du dock à 1280 × 720, trois voies</title>
+<style>
+  /* ---- Tokens réels shaderlab, inlinés (primitives.css + semantic.css +
+     components.css, src/design/) — self-contained, même convention que les
+     autres wireframes du dossier. Fragment sans doctype/html/head/body. ---- */
+  :root {
+    --primitive-neutral-100: #f2f2f2;
+    --primitive-neutral-200: #dbdbdb;
+    --primitive-neutral-700: #383431;
+    --primitive-neutral-850: #323232;
+    --primitive-neutral-900: #2c2c2c;
+    --primitive-neutral-950: #222222;
+    --primitive-neutral-1000: #1b1b1b;
+    --primitive-accent-blue: #4069fd;
+
+    --space-1: 2px;
+    --space-2: 4px;
+    --space-3: 6px;
+    --space-4: 8px;
+    --space-5: 12px;
+    --space-6: 16px;
+    --space-7: 24px;
+
+    --font-ui: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+    --font-mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+    --font-size-xs: 11px;
+    --font-size-sm: 12px;
+    --font-size-md: 13px;
+    --font-size-lg: 14px;
+    --font-size-xl: 16px;
+    --font-weight-semibold: 600;
+
+    --radius-control: 5px;
+    --radius-panel: 8px;
+    --radius-round: 999px;
+
+    --surface-window: var(--primitive-neutral-1000);
+    --surface-workspace: var(--primitive-neutral-950);
+    --surface-panel: var(--primitive-neutral-900);
+    --surface-selected: rgba(242, 242, 242, .10);
+
+    --text-primary: rgba(242, 242, 242, .94);
+    --text-secondary: rgba(242, 242, 242, .72);
+    --text-tertiary: rgba(242, 242, 242, .53);
+
+    --border-subtle: rgba(242, 242, 242, .07);
+    --border-default: rgba(242, 242, 242, .11);
+    --border-strong: rgba(242, 242, 242, .28);
+    --focus-color: var(--primitive-accent-blue);
+
+    --panel-bg: var(--surface-panel);
+    --panel-border: var(--border-default);
+    --panel-dock-width: 320px;
+    --layer-row-height: 36px;
+
+    /* Propres à ce wireframe : rouge de débord, vert de conformité. Ils ne
+       sont PAS des tokens du produit — ils annotent la planche, ils ne
+       proposent aucune couleur d'interface. */
+    --annot-bad: #e5484d;
+    --annot-good: #3d9a50;
+    --annot-dead: #8a8a8a;
+  }
+
+  .wf, .wf *, .wf *::before, .wf *::after { box-sizing: border-box; }
+  .wf {
+    font-family: var(--font-ui);
+    -webkit-font-smoothing: antialiased;
+    background: var(--surface-window);
+    color: var(--text-primary);
+    padding: var(--space-7);
+    min-height: 100vh;
+  }
+
+  .wf h1 { font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin: 0 0 var(--space-3); }
+  .wf h2 { font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin: var(--space-7) 0 var(--space-4); }
+  .wf p  { font-size: var(--font-size-md); color: var(--text-secondary); margin: 0 0 var(--space-4); max-width: 96ch; line-height: 1.55; }
+  .wf code { font-family: var(--font-mono); font-size: var(--font-size-sm); color: var(--text-primary); }
+  .wf .lede { color: var(--text-primary); }
+
+  /* ---- Bandeau de mesure ---- */
+  .measure {
+    display: inline-flex; gap: var(--space-6); flex-wrap: wrap;
+    border: 1px solid var(--border-default); border-radius: var(--radius-panel);
+    padding: var(--space-4) var(--space-6); margin-bottom: var(--space-6);
+    background: var(--surface-workspace);
+    font-size: var(--font-size-sm); font-family: var(--font-mono); color: var(--text-secondary);
+  }
+  .measure b { color: var(--text-primary); font-weight: var(--font-weight-semibold); }
+
+  /* ---- Rangée de planches ---- */
+  .board { display: flex; gap: var(--space-7); flex-wrap: wrap; align-items: flex-start; }
+  .plate { width: var(--panel-dock-width); }
+  .plate__head { margin-bottom: var(--space-3); }
+  .plate__title { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); }
+  .plate__verdict { font-size: var(--font-size-sm); font-family: var(--font-mono); margin-top: var(--space-1); }
+  .plate__verdict--bad  { color: var(--annot-bad); }
+  .plate__verdict--good { color: var(--annot-good); }
+
+  /* La grille du dock, À L'ÉCHELLE : 556 px de haut, la hauteur réellement
+     disponible mesurée à 1280 × 720. Ce qui dépasse est VISIBLE, en rouge,
+     hors du cadre — c'est le défaut lui-même. */
+  .grid {
+    position: relative;
+    width: 100%;
+    height: 556px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-panel);
+    background: var(--surface-workspace);
+    padding: var(--space-5) var(--space-4);
+  }
+  .grid__stack { display: flex; flex-direction: column; gap: var(--space-4); }
+  .grid--overflow { border-color: var(--annot-bad); }
+
+  /* Filet marquant le bord de la fenêtre quand la colonne déborde. */
+  .grid__edge {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    border-bottom: 2px dashed var(--annot-bad);
+    pointer-events: none;
+  }
+  .grid__edge span {
+    position: absolute; right: var(--space-2); bottom: var(--space-2);
+    font-family: var(--font-mono); font-size: var(--font-size-xs); color: var(--annot-bad);
+  }
+
+  /* ---- Carte dockée ---- */
+  .card {
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-panel);
+    background: var(--panel-bg);
+    overflow: hidden;
+    flex: 0 0 auto;
+    display: flex; flex-direction: column;
+  }
+  .card--clipped { border-color: var(--annot-bad); }
+  .card__bar {
+    height: 52px; flex: 0 0 52px;
+    display: flex; align-items: center; gap: var(--space-3);
+    padding: 0 var(--space-5);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .card--collapsed .card__bar { border-bottom: none; }
+  .card__chev { color: var(--text-tertiary); font-size: 10px; width: 10px; }
+  .card__name { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); }
+  .card__h { margin-left: auto; font-family: var(--font-mono); font-size: var(--font-size-xs); color: var(--text-tertiary); }
+  .card__body { padding: var(--space-4) var(--space-5); overflow: hidden; flex: 1 1 auto; }
+
+  /* Lignes génériques de contenu — des barres, pas du faux texte : la planche
+     arbitre des HAUTEURS, elle ne propose pas un contenu. */
+  .rows { display: flex; flex-direction: column; gap: var(--space-4); }
+  .row { height: var(--layer-row-height); border-radius: var(--radius-control); background: var(--surface-selected); }
+  .row--sel { background: rgba(64, 105, 253, .22); border: 1px solid var(--focus-color); }
+  .slab { border-radius: var(--radius-control); background: var(--surface-selected); }
+
+  .card__cut {
+    font-family: var(--font-mono); font-size: var(--font-size-xs);
+    color: var(--annot-bad); padding: var(--space-2) var(--space-5) var(--space-4);
+  }
+
+  /* ---- Table de mesure ---- */
+  table { border-collapse: collapse; font-size: var(--font-size-sm); margin-top: var(--space-4); }
+  th, td { text-align: left; padding: var(--space-3) var(--space-6) var(--space-3) 0; border-bottom: 1px solid var(--border-subtle); }
+  th { color: var(--text-tertiary); font-weight: var(--font-weight-semibold); }
+  td { font-family: var(--font-mono); color: var(--text-secondary); }
+  td.name { font-family: var(--font-ui); color: var(--text-primary); }
+  td.good { color: var(--annot-good); }
+  td.bad  { color: var(--annot-bad); }
+  td.dead { color: var(--annot-dead); }
+
+  .dead-note {
+    border-left: 3px solid var(--annot-dead);
+    padding: var(--space-4) var(--space-6);
+    background: var(--surface-workspace);
+    border-radius: 0 var(--radius-control) var(--radius-control) 0;
+    margin: var(--space-6) 0;
+  }
+  .dead-note p:last-child { margin-bottom: 0; }
+</style>
+
+<div class="wf">
+  <h1>La colonne du dock à 1280 × 720 — trois voies, mesurées</h1>
+  <p class="lede">
+    Scénario reproduit : document ouvert, aplat tracé et <b>sélectionné</b>, fenêtre 1280 × 720
+    (<code>--window-min-height</code> vaut 600, donc cette taille est pleinement supportée).
+    Toutes les hauteurs de cette planche sont <b>relevées dans l'app</b>, pas dessinées au jugé.
+  </p>
+
+  <div class="measure">
+    <span>hauteur disponible <b>556 px</b></span>
+    <span>hauteur demandée <b>630 px</b></span>
+    <span>débord <b style="color:var(--annot-bad)">74 px</b></span>
+    <span>toutes les cartes sont <b>déjà posées sur leur plancher</b></span>
+  </div>
+
+  <div class="dead-note">
+    <p><b style="color:var(--annot-dead)">La voie « baisser le plancher des listes » est morte — mesurée à 0 px.</b></p>
+    <p>
+      <code>--dock-card-list-rows</code> forcé de 5 à 3 dans la page vivante : <b>débord 74 px avant, 74 px après</b>.
+      <code>PanelColumn.css:138</code> borne le plancher par <code>min(plancher nominal, hauteur naturelle du contenu)</code> —
+      et aucune liste n'atteint ici son plancher de 5 lignes : Presets tient 132 px de contenu naturel, Pile 172 px,
+      Textures 0 px. Elles sont bornées par leur <b>contenu</b>, jamais par le plancher. Le baisser ne leur rend rien.
+      La note de <code>CLAUDE.md</code> — « la borne à 5 lignes est voulue » — n'a donc pas à être défaite : elle
+      n'était pas le problème.
+    </p>
+  </div>
+
+  <h2>Ce que chaque voie donne</h2>
+
+  <div class="board">
+
+    <!-- ── État actuel ── -->
+    <div class="plate">
+      <div class="plate__head">
+        <div class="plate__title">État actuel</div>
+        <div class="plate__verdict plate__verdict--bad">630 / 556 · DÉFILE +74 px</div>
+      </div>
+      <div class="grid grid--overflow">
+        <div class="grid__stack">
+          <div class="card" style="height:184px">
+            <div class="card__bar"><span class="card__chev">▾</span><span class="card__name">Presets</span><span class="card__h">184</span></div>
+            <div class="card__body"><div class="rows"><div class="row"></div><div class="row"></div></div></div>
+          </div>
+          <div class="card" style="height:224px">
+            <div class="card__bar"><span class="card__chev">▾</span><span class="card__name">Pile</span><span class="card__h">224</span></div>
+            <div class="card__body"><div class="rows"><div class="row"></div><div class="row row--sel"></div><div class="row"></div></div></div>
+          </div>
+          <div class="card card--collapsed" style="height:52px">
+            <div class="card__bar"><span class="card__chev">▸</span><span class="card__name">Textures</span><span class="card__h">52</span></div>
+          </div>
+          <div class="card card--clipped" style="height:112px">
+            <div class="card__bar"><span class="card__chev">▾</span><span class="card__name">Propriétés · Aplat</span><span class="card__h">112</span></div>
+            <div class="card__body"><div class="slab" style="height:36px"></div></div>
+            <div class="card__cut">contenu naturel 551 px — étranglé à 60 px</div>
+          </div>
+        </div>
+        <div class="grid__edge"><span>bord de la fenêtre</span></div>
+      </div>
+    </div>
+
+    <!-- ── Voie A ── -->
+    <div class="plate">
+      <div class="plate__head">
+        <div class="plate__title">Voie A — Presets se replie</div>
+        <div class="plate__verdict plate__verdict--good">556 / 556 · tient</div>
+      </div>
+      <div class="grid">
+        <div class="grid__stack">
+          <div class="card card--collapsed" style="height:52px">
+            <div class="card__bar"><span class="card__chev">▸</span><span class="card__name">Presets</span><span class="card__h">52</span></div>
+          </div>
+          <div class="card" style="height:224px">
+            <div class="card__bar"><span class="card__chev">▾</span><span class="card__name">Pile</span><span class="card__h">224</span></div>
+            <div class="card__body"><div class="rows"><div class="row"></div><div class="row row--sel"></div><div class="row"></div></div></div>
+          </div>
+          <div class="card card--collapsed" style="height:52px">
+            <div class="card__bar"><span class="card__chev">▸</span><span class="card__name">Textures</span><span class="card__h">52</span></div>
+          </div>
+          <div class="card" style="height:204px">
+            <div class="card__bar"><span class="card__chev">▾</span><span class="card__name">Propriétés · Aplat</span><span class="card__h">204</span></div>
+            <div class="card__body"><div class="rows"><div class="slab" style="height:36px"></div><div class="slab" style="height:36px"></div><div class="slab" style="height:36px"></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Voie B ── -->
+    <div class="plate">
+      <div class="plate__head">
+        <div class="plate__title">Voie B — Pile se replie</div>
+        <div class="plate__verdict plate__verdict--good">556 / 556 · tient</div>
+      </div>
+      <div class="grid">
+        <div class="grid__stack">
+          <div class="card" style="height:184px">
+            <div class="card__bar"><span class="card__chev">▾</span><span class="card__name">Presets</span><span class="card__h">184</span></div>
+            <div class="card__body"><div class="rows"><div class="row"></div><div class="row"></div></div></div>
+          </div>
+          <div class="card card--collapsed card--clipped" style="height:52px">
+            <div class="card__bar"><span class="card__chev">▸</span><span class="card__name">Pile</span><span class="card__h">52</span></div>
+          </div>
+          <div class="card card--collapsed" style="height:52px">
+            <div class="card__bar"><span class="card__chev">▸</span><span class="card__name">Textures</span><span class="card__h">52</span></div>
+          </div>
+          <div class="card" style="height:244px">
+            <div class="card__bar"><span class="card__chev">▾</span><span class="card__name">Propriétés · Aplat</span><span class="card__h">244</span></div>
+            <div class="card__body"><div class="rows"><div class="slab" style="height:36px"></div><div class="slab" style="height:36px"></div><div class="slab" style="height:36px"></div><div class="slab" style="height:36px"></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Voie C ── -->
+    <div class="plate">
+      <div class="plate__head">
+        <div class="plate__title">Voie C — Propriétés se replie</div>
+        <div class="plate__verdict plate__verdict--good">536 / 536 · tient</div>
+      </div>
+      <div class="grid">
+        <div class="grid__stack">
+          <div class="card" style="height:184px">
+            <div class="card__bar"><span class="card__chev">▾</span><span class="card__name">Presets</span><span class="card__h">184</span></div>
+            <div class="card__body"><div class="rows"><div class="row"></div><div class="row"></div></div></div>
+          </div>
+          <div class="card" style="height:224px">
+            <div class="card__bar"><span class="card__chev">▾</span><span class="card__name">Pile</span><span class="card__h">224</span></div>
+            <div class="card__body"><div class="rows"><div class="row"></div><div class="row row--sel"></div><div class="row"></div></div></div>
+          </div>
+          <div class="card card--collapsed" style="height:52px">
+            <div class="card__bar"><span class="card__chev">▸</span><span class="card__name">Textures</span><span class="card__h">52</span></div>
+          </div>
+          <div class="card card--collapsed card--clipped" style="height:52px">
+            <div class="card__bar"><span class="card__chev">▸</span><span class="card__name">Propriétés · Aplat</span><span class="card__h">52</span></div>
+          </div>
+          <div class="card__cut" style="padding-left:0">on replie exactement ce qu'on vient de sélectionner</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <h2>Le même relevé, en chiffres</h2>
+  <table>
+    <tr>
+      <th>Voie</th><th>Presets</th><th>Pile</th><th>Textures</th><th>Propriétés</th><th>colonne</th><th>ce que ça coûte</th>
+    </tr>
+    <tr>
+      <td class="name">Actuelle</td><td>184</td><td>224</td><td>52</td><td class="bad">112</td><td class="bad">630 / 556</td>
+      <td class="name">Propriétés coupée, la colonne défile — ADR-0001 l'interdit</td>
+    </tr>
+    <tr>
+      <td class="name">A · Presets</td><td class="good">52</td><td>224</td><td>52</td><td class="good">204</td><td class="good">556 / 556</td>
+      <td class="name">La liste de presets, consultée par intermittence</td>
+    </tr>
+    <tr>
+      <td class="name">B · Pile</td><td>184</td><td class="bad">52</td><td>52</td><td class="good">244</td><td class="good">556 / 556</td>
+      <td class="name">La pile de calques — la navigation même du document</td>
+    </tr>
+    <tr>
+      <td class="name">C · Propriétés</td><td>184</td><td>224</td><td>52</td><td class="bad">52</td><td class="good">536 / 536</td>
+      <td class="name">Le panneau de ce qu'on vient de sélectionner</td>
+    </tr>
+    <tr>
+      <td class="name">Plancher listes 5 → 3</td><td class="dead">184</td><td class="dead">224</td><td class="dead">52</td><td class="dead">112</td><td class="dead">630 / 556</td>
+      <td class="name" style="color:var(--annot-dead)">Rien. Aucune liste n'est bornée par ce plancher</td>
+    </tr>
+  </table>
+
+  <h2>Ce que la mesure ne tranche pas</h2>
+  <p>
+    Les trois voies rendent exactement les 74 px manquants — le choix n'est donc <b>pas</b> une question de place,
+    et aucune n'est techniquement meilleure. Ce qui les sépare est <b>ce qu'on accepte de perdre de vue pendant
+    qu'on travaille</b> : une liste consultée par intermittence (A), la navigation du document (B), ou le panneau
+    de l'objet sélectionné (C).
+  </p>
+  <p>
+    Les pixels libérés ne disparaissent pas : ils vont à Propriétés, qui réclame 551 px et n'en a que 112.
+    <b>A lui en donne 204, B lui en donne 244.</b> C ne lui en donne aucun, puisque c'est elle qu'on replie.
+  </p>
+</div>

@@ -1,7 +1,7 @@
 # Le verrou est binaire là où Photoshop en a quatre
 
 Type: grilling
-Status: open
+Status: resolved
 Parent: ../map.md
 
 ## Question
@@ -73,3 +73,71 @@ réglable.
 Une décision écrite sur le NOMBRE de verrous et sur ce que chacun refuse,
 opposable au chemin vivant. Si la réponse est « un seul suffit », elle doit dire
 ce qu'on répond au cas « je tiens la position, je cherche la couleur ».
+
+---
+
+## Answer — TRANCHÉ le 2026-08-18 : QUATRE verrous
+
+Arbitrage d'Antoine : quatre verrous, comme Photoshop. Ce que ce ticket devait
+donc résoudre n'est plus le nombre, mais le faux ami qu'il avait lui-même nommé.
+
+### Le faux ami se lève par une lecture de domaine
+
+Le ticket posait « Lock Image Pixels n'a pas de sens direct ici : un calque
+d'effet n'a pas de pixels propres ». C'est vrai des pixels, et ça rate ce que le
+calque possède réellement :
+
+> **Le MASQUE d'un calque d'effet EST son canal alpha.**
+
+Là où Photoshop distingue « pixels transparents » et « pixels d'image », nous
+distinguons **le masque à zéro** et **le masque tout court**. La correspondance
+est exacte, et il n'y a aucun vocabulaire à inventer — c'était la crainte du
+ticket, et elle tombe.
+
+### Le partage des opérations
+
+⚠️ **Elles sont DIX-SEPT, pas quatorze.** Ce ticket et `CLAUDE.md` annoncent tous
+deux « quatorze opérations » ; mesuré sur `layerStack.ts`, il y a dix-sept gardes
+`isLocked`. Troisième dénombrement de prose pris en défaut sur cette carte.
+
+| Verrou | Ce qu'il refuse | Opérations |
+| --- | --- | --- |
+| **Position** | la géométrie, et rien d'autre | `updateLayerTransform`, plus `updateParams` restreint aux paramètres cités par `canvasControls` (`centreX`, `centreY`, `largeur`, `hauteur`, `rotation`) |
+| **Masque** | ce que le calque COUVRE | `updateBrushMask`, `fillBrushMask`, `addMaskSource`, `removeMaskSource`, `updateMaskSourceParams`, `setMaskSourceCombineMode`, `updateRefineEdge`, `setMaskInvert`, `setMaskEnabled`, `setMaskSourceEnabled`, `setLayerImageSource` |
+| **Transparence** | l'EXTENSION du masque — on peint dedans, jamais dehors | écrêtage de `updateBrushMask` / `fillBrushMask` aux texels déjà non nuls |
+| **Tout** | les dix-sept | les trois ci-dessus, plus `setLayerEffect`, `setLayerClip`, `removeLayer`, `reorderLayer` |
+
+### ⚠️ « Transparence » n'est pas de la même nature que les trois autres
+
+Les trois autres **refusent** une opération : un test, un `return false`. Le
+verrou de transparence **laisse passer l'opération en modifiant son résultat** —
+le pinceau écrit, mais borné. Deux conséquences qui doivent être tenues à
+l'écriture :
+
+1. Il ne peut pas se poser au même endroit que les autres dans `LayerStack`.
+2. Il doit s'exprimer **aussi dans `MaskPainter`**, qui est le chemin réel du
+   pinceau vivant — même piège que `replaceLiveLayers`, la porte que les gardes
+   ne couvraient pas. Une règle posée au seul endroit propre ne protège que ce
+   que personne ne fait.
+
+### Ce que la mesure a réglé sans débat
+
+- **Les presets ne bougent pas.** `locked` n'apparaît pas une seule fois dans
+  `presetDocument.ts` (0 occurrence). Passer d'un booléen à quatre drapeaux n'y
+  casse rien.
+- **Les deux garde-fous durs tiennent** : le déverrouillage reste toujours
+  atteignable, et la visibilité du calque n'est jamais bloquée, quel que soit le
+  verrou.
+
+### Ce qui reste à confirmer avant d'écrire
+
+Deux points que la planche pose et que la mesure ne tranche pas :
+
+- **La lisibilité du plein/creux à 12 px.** Le cadenas de statut fait
+  `--icon-size-xs`, soit 12 px. La convention d'Adobe (plein = tout verrouillé,
+  creux = partiellement) doit se lire à cette taille, pas seulement en principe.
+  Les deux glyphes sont rendus à leur taille réelle sur la planche.
+- **L'indépendance des quatre bascules**, « Tout » allumant les trois autres —
+  c'est le modèle d'Adobe, mais il n'a pas été confirmé ici.
+
+Planche : [`docs/wireframes/quatre-verrous.html`](../../../docs/wireframes/quatre-verrous.html).

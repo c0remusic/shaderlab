@@ -56,3 +56,69 @@ Donc la question n'est pas « quelle unité stocker » — elle est tranchée �
 
 Une règle écrite sur **ce que montre le panneau et ce que montre la toile**,
 valable pour les cinq effets à contrôle spatial et pas seulement pour l'aplat.
+
+---
+
+## Mesure du 2026-08-18 — la question se déplace
+
+Relevé sur le registre avant de proposer quoi que ce soit, et il change l'énoncé
+du ticket.
+
+### Le panneau parle DÉJÀ deux unités
+
+Sur les 27 effets : **183 paramètres en `percent`, 19 en `pixels`, 42 en
+`degrees`** — et **onze effets mélangent `percent` et `pixels` dans le même
+panneau** : `aplat`, `dither`, `glass`, `grain`, `halftone`, `hatching`,
+`isolines`, `lensBlur`, `lensDistortion`, `outlines`, `sliceShift`.
+
+`aplat` lui-même en est : neuf paramètres en fraction, et `adoucissement` en
+pixels.
+
+**Ajouter une lecture en pixels n'introduit donc aucun mélange — il est là.** Ce
+qui manque n'est pas une unité commune, c'est une **règle** qui dise lequel des
+deux se montre, et quand.
+
+### Le défaut que ce mélange produit aujourd'hui, et que personne n'avait nommé
+
+Un adoucissement de `200 px` sur une forme de `0.4` : est-il large ou fin par
+rapport à elle ? **Le panneau ne permet pas de le savoir**, les deux nombres
+n'étant pas dans la même unité. Ce n'est pas la symétrie panneau/toile — c'est
+une incohérence interne au panneau, et elle existe indépendamment des poignées.
+
+### La portée est bien de cinq effets, vérifiée
+
+`aplat`, `lensFlare`, `lightLeak`, `motionBlur`, `pixelStretch` portent des
+`canvasControls`. Tous déclarent leurs étendues et positions en `percent`, leurs
+rotations en `degrees`.
+
+⚠️ **Trois d'entre eux ont des étendues qui SORTENT du cadre** — `sourceX` de
+`lensFlare` va de −0,5 à 1,5, `regionX`/`regionY` de `pixelStretch` aussi. En
+pixels, cela donne des valeurs négatives et des valeurs au-delà de la largeur de
+la photo. C'est lisible, et Photoshop le fait, mais il faut le vouloir.
+
+### Une quatrième voie, que le ticket n'avait pas envisagée
+
+Le ticket posait trois issues : fraction seule, pixels, ou deux champs (refusée
+par ADR-0001). Il en existe une quatrième :
+
+> **Une seule surface, deux lectures.** Un seul champ, qui lit la fraction au
+> repos et **bascule en pixels pendant qu'on tire** le curseur ou la poignée.
+
+Elle n'est pas le cas qu'ADR-0001 refuse : il interdit **deux surfaces pour une
+même valeur**, et il n'y en a qu'une. Le panneau et la toile disent alors le même
+nombre au même instant, ce qui est exactement la symétrie demandée — sans coûter
+une colonne sur une carte déjà étranglée à 112 px (voir le ticket 04).
+
+### Les quatre voies, et ce que chacune coûte
+
+| voie | ADR-0001 | Presets | répond à « quelle taille ai-je faite ? » | portée |
+| --- | --- | --- | --- | --- |
+| A · fraction seule | respecté | intacts | pendant le geste seulement | rien à changer |
+| B · pixels | respecté | intacts (fraction toujours stockée) | oui, à tout instant | chaque champ spatial lit `imageSize` |
+| C · les deux champs | **violé** | intacts | oui | +1 colonne par ligne |
+| D · une surface, deux lectures | respecté | intacts | oui, pendant et juste après | une règle d'affichage partagée |
+
+Aucune ne casse les presets : la fraction reste ce qui est stocké dans les quatre
+cas. C'était la crainte du ticket, et elle ne discrimine pas.
+
+Planche : [`docs/wireframes/unite-panneau-toile.html`](../../../docs/wireframes/unite-panneau-toile.html).

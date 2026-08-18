@@ -1,0 +1,388 @@
+<title>Wireframe — les quatre verrous</title>
+<style>
+  /* ---- Tokens réels shaderlab, inlinés (primitives.css + semantic.css +
+     components.css, src/design/) — self-contained, même convention que les
+     autres wireframes du dossier. Fragment sans doctype/html/head/body. ---- */
+  :root {
+    --primitive-neutral-100: #f2f2f2;
+    --primitive-neutral-850: #323232;
+    --primitive-neutral-900: #2c2c2c;
+    --primitive-neutral-950: #222222;
+    --primitive-neutral-1000: #1b1b1b;
+    --primitive-accent-blue: #4069fd;
+
+    --space-1: 2px;
+    --space-2: 4px;
+    --space-3: 6px;
+    --space-4: 8px;
+    --space-5: 12px;
+    --space-6: 16px;
+    --space-7: 24px;
+
+    --font-ui: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+    --font-mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+    --font-size-xs: 11px;
+    --font-size-sm: 12px;
+    --font-size-md: 13px;
+    --font-size-lg: 14px;
+    --font-size-xl: 16px;
+    --font-weight-semibold: 600;
+
+    --radius-control: 5px;
+    --radius-panel: 8px;
+    --radius-round: 999px;
+
+    --surface-window: var(--primitive-neutral-1000);
+    --surface-workspace: var(--primitive-neutral-950);
+    --surface-panel: var(--primitive-neutral-900);
+    --surface-raised: var(--primitive-neutral-850);
+    --surface-selected: rgba(242, 242, 242, .10);
+
+    --text-primary: rgba(242, 242, 242, .94);
+    --text-secondary: rgba(242, 242, 242, .72);
+    --text-tertiary: rgba(242, 242, 242, .53);
+    --text-muted-foreground: rgba(242, 242, 242, .53);
+
+    --border-subtle: rgba(242, 242, 242, .07);
+    --border-default: rgba(242, 242, 242, .11);
+    --border-strong: rgba(242, 242, 242, .28);
+    --focus-color: var(--primitive-accent-blue);
+
+    --panel-bg: var(--surface-panel);
+    --panel-dock-width: 320px;
+    --layer-row-height: 36px;
+    --control-height-md: 30px;
+    --icon-size-xs: 12px;
+    --icon-size-sm: 14px;
+
+    --annot-good: #3d9a50;
+    --annot-bad: #e5484d;
+    --annot-warn: #d98324;
+  }
+
+  .wf, .wf *, .wf *::before, .wf *::after { box-sizing: border-box; }
+  .wf {
+    font-family: var(--font-ui); -webkit-font-smoothing: antialiased;
+    background: var(--surface-window); color: var(--text-primary);
+    padding: var(--space-7); min-height: 100vh;
+  }
+  .wf h1 { font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin: 0 0 var(--space-3); }
+  .wf h2 { font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin: var(--space-7) 0 var(--space-4); }
+  .wf p  { font-size: var(--font-size-md); color: var(--text-secondary); margin: 0 0 var(--space-4); max-width: 96ch; line-height: 1.55; }
+  .wf code { font-family: var(--font-mono); font-size: var(--font-size-sm); color: var(--text-primary); }
+  .wf .lede { color: var(--text-primary); }
+
+  .measure {
+    display: inline-flex; gap: var(--space-6); flex-wrap: wrap;
+    border: 1px solid var(--border-default); border-radius: var(--radius-panel);
+    padding: var(--space-4) var(--space-6); margin-bottom: var(--space-6);
+    background: var(--surface-workspace);
+    font-size: var(--font-size-sm); font-family: var(--font-mono); color: var(--text-secondary);
+  }
+  .measure b { color: var(--text-primary); font-weight: var(--font-weight-semibold); }
+
+  .board { display: flex; gap: var(--space-7); flex-wrap: wrap; align-items: flex-start; }
+
+  /* ---- La lisibilité à 12 px : le seul point que la prose ne peut pas trancher ---- */
+  .glyphs { display: flex; gap: var(--space-7); flex-wrap: wrap; align-items: flex-start; }
+  .glyph-case {
+    border: 1px solid var(--border-default); border-radius: var(--radius-panel);
+    background: var(--surface-workspace); padding: var(--space-6);
+    min-width: 210px;
+  }
+  .glyph-case__title { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-2); }
+  .glyph-case__sub { font-size: var(--font-size-sm); color: var(--text-tertiary); margin-bottom: var(--space-5); line-height: 1.4; }
+  .glyph-row { display: flex; align-items: center; gap: var(--space-6); }
+  .glyph-real {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: calc(var(--icon-size-xs) + var(--space-2));
+    height: calc(var(--icon-size-xs) + var(--space-2));
+    border-radius: var(--radius-round); background: var(--surface-raised);
+  }
+  .glyph-real svg { width: var(--icon-size-xs); height: var(--icon-size-xs); display: block; }
+  .glyph-big svg { width: 60px; height: 60px; display: block; }
+  .glyph-cap { font-family: var(--font-mono); font-size: var(--font-size-xs); color: var(--text-tertiary); margin-top: var(--space-2); }
+
+  /* ---- Ligne de pile, à l'échelle ---- */
+  .stack-mock {
+    width: var(--panel-dock-width);
+    border: 1px solid var(--border-default); border-radius: var(--radius-panel);
+    background: var(--panel-bg); overflow: hidden;
+  }
+  .stack-mock__bar { height: 52px; display: flex; align-items: center; gap: var(--space-3); padding: 0 var(--space-5); border-bottom: 1px solid var(--border-subtle); }
+  .stack-mock__name { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); }
+  .stack-mock__rows { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4); }
+  .lrow {
+    height: var(--layer-row-height); border-radius: var(--radius-control);
+    display: flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-4);
+    background: var(--surface-selected);
+  }
+  .lrow--sel { background: rgba(64, 105, 253, .20); border: 1px solid var(--focus-color); }
+  .lrow__state { position: relative; width: 28px; height: 28px; border-radius: var(--radius-control); background: rgba(242,242,242,.06); flex: 0 0 28px; }
+  .lrow__pastille { position: absolute; right: -2px; bottom: -2px; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: var(--radius-round); background: var(--surface-raised); }
+  .lrow__pastille svg { width: var(--icon-size-xs); height: var(--icon-size-xs); display: block; }
+  .lrow__name { font-size: var(--font-size-sm); color: var(--text-primary); }
+
+  /* ---- Zone de contrôles fixe (ADR-0001) ---- */
+  .ctrl-zone {
+    border-top: 1px solid var(--border-subtle);
+    padding: var(--space-4) var(--space-5);
+    display: flex; align-items: center; gap: var(--space-2);
+    background: var(--surface-workspace);
+  }
+  .ctrl-zone__label { font-size: var(--font-size-xs); color: var(--text-tertiary); margin-right: var(--space-2); }
+  .lockbtn {
+    width: var(--control-height-md); height: var(--control-height-md);
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid transparent; border-radius: var(--radius-control);
+    background: transparent; color: var(--text-muted-foreground);
+  }
+  .lockbtn svg { width: var(--icon-size-sm); height: var(--icon-size-sm); display: block; }
+  .lockbtn--on { background: var(--surface-selected); border-color: var(--border-strong); color: var(--text-primary); }
+
+  table { border-collapse: collapse; font-size: var(--font-size-sm); margin-top: var(--space-4); width: 100%; max-width: 1100px; }
+  th, td { text-align: left; padding: var(--space-3) var(--space-5) var(--space-3) 0; border-bottom: 1px solid var(--border-subtle); vertical-align: top; }
+  th { color: var(--text-tertiary); font-weight: var(--font-weight-semibold); }
+  td { color: var(--text-secondary); }
+  td.mono { font-family: var(--font-mono); font-size: var(--font-size-xs); }
+  td.name { color: var(--text-primary); font-weight: var(--font-weight-semibold); white-space: nowrap; }
+
+  .note {
+    border-left: 3px solid var(--border-strong);
+    padding: var(--space-4) var(--space-6); background: var(--surface-workspace);
+    border-radius: 0 var(--radius-control) var(--radius-control) 0; margin: var(--space-6) 0;
+  }
+  .note--warn { border-left-color: var(--annot-warn); }
+  .note--bad  { border-left-color: var(--annot-bad); }
+  .note p:last-child { margin-bottom: 0; }
+</style>
+
+<div class="wf">
+  <h1>Les quatre verrous — ce que chacun refuse, et l'icône qui le dit</h1>
+  <p class="lede">
+    Quatre verrous arbitrés. Le faux ami nommé par le ticket — « un calque d'effet n'a pas de pixels » — se lève
+    par une lecture de domaine : <b>le MASQUE d'un calque d'effet EST son canal alpha.</b> Là où Photoshop distingue
+    « pixels transparents » et « pixels d'image », nous distinguons <b>le masque à zéro</b> et <b>le masque tout court</b>.
+    Rien à inventer : la correspondance est exacte.
+  </p>
+
+  <div class="measure">
+    <span>opérations gardées aujourd'hui : <b>17</b></span>
+    <span>cadenas de statut : <b>12 px</b> (<code>--icon-size-xs</code>)</span>
+    <span><code>locked</code> absent des presets : <b>0 occurrence</b></span>
+  </div>
+
+  <div class="note note--warn">
+    <p>
+      <b>Le compte de 17 corrige une prose périmée.</b> Le ticket et <code>CLAUDE.md</code> annoncent tous deux
+      « quatorze opérations ». Mesuré sur <code>layerStack.ts</code> : <b>dix-sept</b> gardes <code>isLocked</code>.
+      Rien ne relit ce nombre — c'est le troisième dénombrement de prose pris en défaut sur cette carte.
+    </p>
+  </div>
+
+  <h2>1. Le partage des dix-sept opérations</h2>
+  <table>
+    <tr><th style="width:150px">Verrou</th><th style="width:230px">Ce qu'il refuse</th><th>Opérations</th><th style="width:210px">Le geste qu'il débloque</th></tr>
+    <tr>
+      <td class="name">Position</td>
+      <td>La géométrie, et rien d'autre</td>
+      <td class="mono">updateLayerTransform · updateParams restreint aux paramètres cités par <code>canvasControls</code> (centreX, centreY, largeur, hauteur, rotation)</td>
+      <td>« Je tiens le placement, je cherche encore la couleur » — le cas nommé par Adobe</td>
+    </tr>
+    <tr>
+      <td class="name">Masque</td>
+      <td>Ce que le calque COUVRE</td>
+      <td class="mono">updateBrushMask · fillBrushMask · addMaskSource · removeMaskSource · updateMaskSourceParams · setMaskSourceCombineMode · updateRefineEdge · setMaskInvert · setMaskEnabled · setMaskSourceEnabled · setLayerImageSource</td>
+      <td>Le masque est fini ; on règle encore l'effet sans risquer un coup de pinceau</td>
+    </tr>
+    <tr>
+      <td class="name">Transparence</td>
+      <td>L'EXTENSION du masque — on peint dedans, jamais dehors</td>
+      <td class="mono">Ce n'est pas un refus mais un ÉCRÊTAGE de <code>updateBrushMask</code> / <code>fillBrushMask</code> aux texels déjà non nuls</td>
+      <td>Affiner un masque sans jamais le faire déborder</td>
+    </tr>
+    <tr>
+      <td class="name">Tout</td>
+      <td>Les dix-sept</td>
+      <td class="mono">les trois ci-dessus, plus setLayerEffect · setLayerClip · removeLayer · reorderLayer</td>
+      <td>Le calque est fini, on n'y touche plus</td>
+    </tr>
+  </table>
+
+  <div class="note note--bad">
+    <p>
+      <b>« Transparence » n'est pas de la même nature que les trois autres, et c'est le point à trancher.</b>
+      Les trois autres <b>refusent</b> une opération — un test, une valeur de retour <code>false</code>.
+      Celui-ci <b>laisse passer l'opération en modifiant son résultat</b> : le pinceau écrit, mais borné.
+      Il ne peut donc pas se poser au même endroit que les autres dans <code>LayerStack</code>, et il doit
+      s'exprimer AUSSI dans <code>MaskPainter</code>, qui est le chemin réel du pinceau vivant.
+      C'est le même piège que <code>replaceLiveLayers</code> : une règle posée au seul endroit propre ne
+      protège que ce que personne ne fait.
+    </p>
+  </div>
+
+  <h2>2. L'icône à 12 px — plein contre creux</h2>
+  <p>
+    Convention Adobe : <b>plein quand le calque est entièrement verrouillé, creux quand il l'est partiellement.</b>
+    Notre cadenas de statut fait 12 px. La question n'est pas de savoir si la convention est bonne : c'est de savoir
+    si elle se <b>lit</b> à cette taille. Les glyphes ci-dessous sont à leur taille RÉELLE, dans leur pastille réelle.
+  </p>
+
+  <div class="glyphs">
+    <div class="glyph-case">
+      <div class="glyph-case__title">Verrouillé entièrement</div>
+      <div class="glyph-case__sub">Corps PLEIN</div>
+      <div class="glyph-row">
+        <div>
+          <span class="glyph-real">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+              <rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/>
+            </svg>
+          </span>
+          <div class="glyph-cap">12 px</div>
+        </div>
+        <div>
+          <span class="glyph-big">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+              <rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/>
+            </svg>
+          </span>
+          <div class="glyph-cap">×5</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="glyph-case">
+      <div class="glyph-case__title">Verrouillé partiellement</div>
+      <div class="glyph-case__sub">Corps CREUX (contour seul)</div>
+      <div class="glyph-row">
+        <div>
+          <span class="glyph-real">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+              <rect x="4" y="10" width="16" height="11" rx="2.5" stroke="currentColor" stroke-width="2.2"/>
+            </svg>
+          </span>
+          <div class="glyph-cap">12 px</div>
+        </div>
+        <div>
+          <span class="glyph-big">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+              <rect x="4" y="10" width="16" height="11" rx="2.5" stroke="currentColor" stroke-width="2.2"/>
+            </svg>
+          </span>
+          <div class="glyph-cap">×5</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="glyph-case">
+      <div class="glyph-case__title">Les deux côte à côte</div>
+      <div class="glyph-case__sub">À la taille réelle, dans une vraie pile — c'est le seul test qui compte</div>
+      <div class="stack-mock" style="width:auto">
+        <div class="stack-mock__rows">
+          <div class="lrow">
+            <span class="lrow__state">
+              <span class="lrow__pastille">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                  <rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/>
+                </svg>
+              </span>
+            </span>
+            <span class="lrow__name">Glow</span>
+          </div>
+          <div class="lrow">
+            <span class="lrow__state">
+              <span class="lrow__pastille">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                  <rect x="4" y="10" width="16" height="11" rx="2.5" stroke="currentColor" stroke-width="2.2"/>
+                </svg>
+              </span>
+            </span>
+            <span class="lrow__name">Aplat</span>
+          </div>
+          <div class="lrow">
+            <span class="lrow__state"></span>
+            <span class="lrow__name">photo-1.jpg</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>3. Où se posent les quatre contrôles</h2>
+  <p>
+    ADR-0001 exige <b>une</b> zone de contrôles fixe, hors du conteneur défilant, agissant sur le calque sélectionné.
+    Quatre verrous, c'est quatre bascules dans cette zone — ce que l'ADR n'interdit pas, mais n'a jamais tranché non plus.
+  </p>
+
+  <div class="board">
+    <div>
+      <div class="stack-mock">
+        <div class="stack-mock__bar"><span class="stack-mock__name">Pile</span></div>
+        <div class="stack-mock__rows">
+          <div class="lrow">
+            <span class="lrow__state">
+              <span class="lrow__pastille">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                  <rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/>
+                </svg>
+              </span>
+            </span>
+            <span class="lrow__name">Glow</span>
+          </div>
+          <div class="lrow lrow--sel">
+            <span class="lrow__state">
+              <span class="lrow__pastille">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                  <rect x="4" y="10" width="16" height="11" rx="2.5" stroke="currentColor" stroke-width="2.2"/>
+                </svg>
+              </span>
+            </span>
+            <span class="lrow__name">Aplat</span>
+          </div>
+          <div class="lrow"><span class="lrow__state"></span><span class="lrow__name">photo-1.jpg</span></div>
+        </div>
+        <div class="ctrl-zone">
+          <span class="ctrl-zone__label">Verrouiller</span>
+          <span class="lockbtn lockbtn--on" title="Position">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </span>
+          <span class="lockbtn" title="Masque">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
+          </span>
+          <span class="lockbtn" title="Transparence">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" stroke-width="2" stroke-dasharray="3 2.5"/></svg>
+          </span>
+          <span class="lockbtn" title="Tout">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg>
+          </span>
+        </div>
+      </div>
+      <div class="glyph-cap" style="margin-top:var(--space-3)">Quatre bascules dans la zone fixe · 4 × 30 px + libellé = 152 px de large sur 320</div>
+    </div>
+
+    <div style="max-width:44ch">
+      <p>
+        <b>Ce que cette disposition suppose et qu'il faut confirmer :</b> que les quatre bascules soient
+        <b>indépendantes</b>, « Tout » allumant les trois autres. C'est le modèle d'Adobe.
+      </p>
+      <p>
+        <b>Deux garde-fous qui ne se négocient pas</b>, et le wireframe les respecte :
+        le déverrouillage reste toujours atteignable (sans quoi le verrou est une trappe sans sortie),
+        et la <b>visibilité</b> du calque n'est jamais bloquée, quel que soit le verrou.
+      </p>
+      <p>
+        <b>Sur les presets, rien à faire :</b> <code>locked</code> n'apparaît pas une seule fois dans
+        <code>presetDocument.ts</code>. Passer d'un booléen à quatre drapeaux n'y casse rien.
+      </p>
+    </div>
+  </div>
+</div>

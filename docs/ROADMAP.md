@@ -57,11 +57,32 @@ sujet qu'elle a tranché ne se rouvre pas sans une raison neuve.
 Lightroom et de Photoshop qui facilite le travail créatif — le GESTE et la
 LISIBILITÉ, pas le rendu, qui reste ici.
 
-Cinq des sept points de son énoncé ont été corrigés le jour même (le verrou qui
-ne verrouillait pas, l'icône de cadenas, le double-clic de retour au défaut, sa
-marque, le sélecteur de couleur de la forme, et ce que le pinceau dit faire).
-Quatre tickets restent ouverts : le geste de la forme, le verrou binaire, la
-symétrie panneau/toile, et le layout.
+Les sept points de son énoncé sont traités le jour même : le verrou qui ne
+verrouillait pas, l'icône de cadenas, le double-clic de retour au défaut, sa
+marque, le sélecteur de couleur de la forme, ce que le pinceau dit faire, le
+geste de la forme et le layout.
+
+**Sur ses quatre tickets, deux sont `resolved` et deux restent OUVERTS** :
+
+- ✅ **Le geste de la forme** — on trace et on ajuste sans quitter l'outil, et la
+  mesure s'affiche pendant le tracé. ⚠️ Un des cinq écarts n'en était pas un : le
+  rectangle noir **est** la convention de Photoshop (couleur de premier plan).
+- ✅ **Le layout** — pas de refonte, un défaut : voir « la colonne du dock défile
+  à 1280 × 720 » plus bas. Le diagnostic est complet ; ce qui reste est un
+  arbitrage entre deux règles écrites.
+- ⚠️ **[Le verrou est binaire](../.scratch/hybride-lightroom-photoshop/issues/02-le-verrou-binaire.md)**
+  là où Photoshop en a QUATRE, avec un cadenas **plein** (total) contre **creux**
+  (partiel). Le geste qu'Adobe nomme — tenir la position pendant qu'on cherche
+  encore la couleur — n'a aucune expression ici, et il devient courant maintenant
+  que la couleur se règle depuis la barre d'options. ⚠️ Faux ami à ne pas
+  transposer : « Lock Image Pixels » n'a pas de sens pour un calque d'effet, qui
+  n'a pas de pixels propres.
+- ⚠️ **[La symétrie panneau / toile](../.scratch/hybride-lightroom-photoshop/issues/03-symetrie-panneau-toile.md)**
+  — notre panneau donne des fractions du cadre, la toile des poignées qu'on tire
+  en pixels. La fraction n'est pas un caprice (c'est ce qui rend un preset
+  indépendant de la définition), donc la question n'est pas quelle unité STOCKER
+  mais quelle unité MONTRER. Déborde l'aplat : cinq effets ont des contrôles
+  spatiaux en pourcentage.
 
 ⚠️ **Sa recherche a établi une chose qui vaut d'être sue avant d'en lancer une
 autre** : la documentation Adobe ne donne AUCUN gabarit chiffré de layout. Elle
@@ -576,12 +597,37 @@ Corrigé aussi : la formule de `recenterForCrop` du design est **fausse à deux
 sujet saute dès qu'une photo est étirée, ce que §3.1 existe précisément pour
 empêcher.
 
-### ⚠️ OUVERT le 2026-08-18 — recadrer la TOILE, un second geste qui n'a aucun design
+### ⚠️ OUVERT le 2026-08-18 — recadrer la TOILE : ARBITRÉ et MODÉLISÉ, reste le CÂBLAGE
 
-Antoine a tranché « les deux, gestes distincts ». Rogner un CALQUE est le design
-§3.1 ci-dessus. **Recadrer la TOILE n'est spécifié nulle part** — il est différé
-dans le design montage du 2026-07-29 §9, avec un déclencheur qui vient d'être
-tiré. [Ticket 28](../.scratch/prochain-palier/issues/28-recadrer-la-toile-deja-ouverte.md).
+✅ **Antoine a tranché le 2026-08-18 : le recadrage n'est PAS destructif.** Cette
+réponse-là fait disparaître les trois issues du design montage au lieu d'en
+choisir une — si on change le CADRE et pas les données, il n'y a aucun raster à
+découper, à invalider ni à rééchantillonner. **L'empreinte d'historique tombe à
+zéro**, là où la découpe valait 104 → 156 Mo sur 512 à 26 Mpx.
+
+✅ **Modèle livré en TDD le même jour** : `src/layers/canvasFrame.ts`,
+`LayerStack.cadre`, `DocumentSession.recadrerToile / cadreToile /
+annulerRecadrage`, 7 tests. Trois choses sont sorties de la boucle rouge→vert :
+un CADRE et non de nouvelles dimensions (c'est ce qui rend l'annulation
+gratuite) ; la COMPOSITION est le vrai piège — un recadrage d'un recadrage est
+exprimé dans le cadre COURANT alors que le cadre stocké est ABSOLU ; et le cadre
+vit sur `LayerStack`, donc `History` l'annule sans second canal d'undo.
+
+✅ **Le second défaut silencieux du ticket tombe avec** : le dégradé de masque qui
+glissait (points en UV) n'a plus rien à remapper, puisque rien ne quitte l'espace
+d'origine. Conséquence, pas seconde décision — écrite dans le ticket pour que la
+tranche de câblage ne réintroduise pas le remappage « parce que le ticket le
+disait ».
+
+⚠️ **CE QUI RESTE : le CÂBLAGE.** `Renderer.allocateDocument` alloue toujours la
+toile entière, il n'y a pas d'outil de recadrage, et le renderer devra évaluer
+les masques dans l'espace d'ORIGINE — l'évaluer dans l'espace du cadre rouvrirait
+le défaut du dégradé exactement tel qu'il était décrit. Passe par les gates GPU.
+[Ticket 28](../.scratch/prochain-palier/issues/28-recadrer-la-toile-deja-ouverte.md).
+
+Le constat de mesure qui a mené là est conservé ci-dessous : il porte les chiffres
+qui rendaient la découpe coûteuse, et c'est lui qui a fait poser la bonne
+question.
 
 Mesuré le 2026-08-18, et l'énoncé du différé est trop grossier — **« le sort des
 masques » est TROIS questions, dont une seule porte des pixels** :
@@ -612,8 +658,8 @@ zéro. C'est elle qui gouverne les autres.
 ⚠️ **C'est le seul item de ce bloc qui ne dépende pas du design de
 `contentSource`** : formes et typographie l'attendent, le recadrage non. Ce
 paragraphe disait « le SEUL item prêt à coder » — retiré le 2026-08-11 pour la
-raison ci-dessus : il a un design, pas un modèle à jour. C'est aussi le dernier trou FONCTIONNEL de l'app — **vingt-quatre**
-effets et pas de recadrage. En contrepartie il touche `LayerState`, la couche la
+raison ci-dessus : il a un design, pas un modèle à jour. C'est aussi le dernier
+trou FONCTIONNEL de l'app — **vingt-sept** effets et pas de recadrage. En contrepartie il touche `LayerState`, la couche la
 plus partagée du projet (`render/`, `mask/`, `export/`, `components/`,
 `application/`) : plan écrit avant la première ligne.
 
@@ -1031,39 +1077,82 @@ ligne d'un pixel au mip le plus grossier. Non mesuré, non corrigé.
   `dock-largeur-saute-avec-barre-defilement` porte le bug voisin, non résolu :
   326 px pour 320 annoncés dès que la colonne défile, `flex-shrink` et
   `scrollbar-gutter` tous deux testés inefficaces.
+  ⚠️ **CE BUG ET « la colonne du dock défile à 1280 × 720 » (plus bas) SONT LE
+  MÊME**, constaté le 2026-08-18 : la mesure qui trouve 326 px trouve aussi
+  `scrollHeight` 630 pour 556. Les 6 px sont la barre de défilement d'une colonne
+  **qui ne devrait pas défiler du tout** — ADR-0001 l'interdit. Chercher un
+  correctif de largeur (`flex-shrink`, `scrollbar-gutter`) traitait donc le
+  symptôme ; les deux items se ferment ensemble ou pas du tout.
 - **`docs/design-qa/2026-08-04-dock-flat-workspace.md`** porte deux findings
   P1 ouverts, dont « sens de *plein écran* non déterminé », qui demande
   explicitement un arbitrage avant toute mutation de layout.
 
-### ⚠️ OUVERT le 2026-08-17 — la palette d'outils SAUTE quand on clique dedans
+### ✅ SOLDÉ le 2026-08-18 — la palette d'outils ne saute plus, mesurée à 0 px
 
-Trouvé en cherchant où loger les options de l'outil Forme. Mesuré dans la vraie
-fenêtre à 1280 × 720, en passant de *Déplacer* au *Pinceau* :
+La barre d'options est PERMANENTE et à hauteur constante (voie A,
+[ticket 27](../.scratch/prochain-palier/issues/27-la-barre-d-options-regle-l-outil-ou-le-calque.md)),
+et ses valeurs appartiennent à l'OUTIL — « le prochain rectangle sera bleu ».
+Re-mesuré par CDP dans la vraie fenêtre, document ouvert, sur les quatre outils :
+haut de la palette **identique (0 px d'écart)** contre +75 px avant, hauteur de
+toile identique, barre à 75 px constants.
 
-| | Déplacer | Pinceau | écart |
-| --- | --- | --- | --- |
-| haut de la toile | y 57 | y 132 | +75 px |
-| hauteur de la toile | 663 | 588 | −75 px (−11,3 %) |
-| **haut de la palette d'outils** | **y 73** | **y 148** | **+75 px** |
+Le coût qu'ADR-0001 refuse — deux surfaces pour une même valeur — n'est pas
+dissous mais **borné par le typage** : le modèle ne connaît aucun calque, et son
+seul canal vers un calque est `paramsPourNouveauCalque`, appelé à la création.
 
-**Le troisième chiffre est le défaut, pas les deux premiers.** Une toile qui se
-réduit quand une barre apparaît est un arbitrage discutable ; une palette
-d'outils qui se déplace de 75 px **au moment où on clique dedans** n'en est pas
-un — on choisit un outil, la rangée de boutons glisse sous le curseur, et le
-suivant n'est plus là où on pointait.
+⚠️ **Deux défauts trouvés en câblant, aucun par un test.** La hauteur constante
+ne l'était pas aux deux premiers essais (36 px puis 68 px contre 75 px de contenu
+réel), et le sélecteur de primitive affichait « 0 » — le défaut de `borne` dans
+`aplat` vaut « aucune borne », une valeur absente de sa propre liste de choix.
+Celui-là s'est vu sur une CAPTURE, pas dans le code.
 
-Cause : `BrushToolbar` s'insère dans le flux quand le mode masque s'active. Et
-elle est la SEULE barre d'options du projet, alors qu'elle se décrit elle-même
-comme « style barre d'outils Photoshop » — le pinceau et la gomme l'ont,
-*Déplacer* et *Forme* n'ont rien.
+⚠️ **ET LA BARRE A UN SECOND PRIX, QUI EST RESTÉ OUVERT** — voir « la colonne du
+dock défile à 1280 × 720 » plus bas. Le prix de la voie A ne se paie pas que sur
+la toile, et personne ne l'avait mesuré de ce côté-là.
 
-Trois voies dessinées dans `docs/wireframes/barre-options-outil.html` ; deux sont
-écartées par la mesure. Ce qui reste à trancher est **une seule question** : une
-valeur réglée dans la barre appartient-elle à l'OUTIL (le prochain tracé,
-réponse de Photoshop, mais deux surfaces pour une même valeur — ce qu'ADR-0001
-refuse) ou au CALQUE sélectionné (une seule surface, mais on ne peut plus rien
-régler avant de tracer) ?
-[Ticket 27](../.scratch/prochain-palier/issues/27-la-barre-d-options-regle-l-outil-ou-le-calque.md).
+### ⚠️ OUVERT le 2026-08-18 — la colonne du dock DÉFILE à 1280 × 720, et ADR-0001 l'interdit
+
+Trouvé en mesurant le layout, et **causé par la barre d'options permanente** de
+la veille : ses 75 px sortent de la hauteur de la colonne.
+
+Reproduit dans l'état exact où il apparaît — document ouvert, aplat tracé et
+SÉLECTIONNÉ, donc carte Propriétés chargée de ses dix-huit réglages :
+
+```
+grille : hauteur 556  ·  scrollHeight 630  ·  clientHeight 556
+cartes : Presets 184 · Pile 224 · Textures 52 · Propriétés 112  (572 + 24 de gouttières)
+→ « Propriétés · Aplat » finit 24 px SOUS le bord de la fenêtre, hors de la grille
+```
+
+À 1440 × 810 tout rentre (646 disponibles pour 622 nécessaires) : le défaut
+n'existe qu'en dessous d'un seuil. ⚠️ Et 1280 × 720 est une taille **pleinement
+supportée** — `--window-min-height` vaut 600 px — donc ce n'est pas un cas limite.
+
+**Le mécanisme est clair, et ce n'est pas une compression qui manque** : la chaîne
+fonctionne, Propriétés est déjà à son plancher. C'est que la SOMME des planchers
+dépasse la hauteur disponible, et la colonne retombe sur son `overflow-y: auto`.
+ADR-0001 l'interdit dans sa lettre : « jamais un défilement de colonne ».
+
+⚠️ **Baisser la barre ne corrige pas, et l'essai a été fait plutôt que supposé** :
+les libellés en ligne la ramènent à 55 px, soit **20 px rendus pour 40
+manquants**, et cassent le nom accessible des quatre curseurs (Base UI porte
+`aria-labelledby` sur le POUCE, pas sur l'input) — la garde d'accessibilité l'a
+attrapé. Piste abandonnée, mesure conservée dans le token.
+
+**Ce qui reste est un ARBITRAGE, pas un correctif**, parce que chaque voie défait
+une décision écrite :
+
+1. **Baisser le plancher des listes sous pression** — `--dock-card-list-rows: 5`
+   libérerait les ~70 px manquants à 3 lignes. Mais `CLAUDE.md` note que la borne
+   à 5 lignes est VOULUE, pas un défaut.
+2. **Replier une carte plutôt que laisser la colonne défiler** — conforme à
+   ADR-0001, mais il faut dire LAQUELLE, et replier celle qu'on vient de
+   sélectionner serait absurde.
+
+[Ticket layout](../.scratch/hybride-lightroom-photoshop/issues/04-le-layout.md),
+qui porte aussi les proportions mesurées aux trois tailles de fenêtre (le
+pasteboard tient plus de quatre cinquièmes partout — **la disposition n'a pas
+d'écart de principe**).
 
 ### ✅ SOLDÉ le 2026-08-18 — le sélecteur de fichier accepte ce que la toile acceptait
 
@@ -1123,14 +1212,51 @@ après création : pas une limite du matériel, une ligne de notre code.
 **Trou n°1, non comblé et le plus lourd : aucun chiffre de latence Windows grand
 public n'existe pour aucun de ces modèles.**
 
-### La rationalisation des contrôles est OUVERTE sur trois fronts
+### ✅ SOLDÉ le 2026-08-18 — les trois fronts des contrôles, et deux n'avaient rien à faire
 
-⚠️ Ce document, `CLAUDE.md` et `docs/INDEX.json` déclaraient tous les trois ce
-chantier **soldé le 2026-08-05**. Constat d'Antoine le 2026-08-12, puis mesure
-sur les modules réels
+⚠️ Ce document, `CLAUDE.md` et `docs/INDEX.json` avaient déjà déclaré ce chantier
+soldé le 2026-08-05, à tort. **Il l'est cette fois, et sur mesure** — mais le
+détail compte, parce que deux des trois fronts se sont révélés beaucoup plus
+petits que ce bloc ne le disait.
+
+**Front 1 (applicabilité) — le champ était COUVERT.** Il ne restait qu'UNE
+déclaration à écrire, pas six effets. Le cadrage confondait trois choses : un
+`choices` qui nomme un ESPACE (`transferSpace`) ou une ENTRÉE (`inputMode`) ne
+gouverne rien — il change comment TOUS les réglages agissent, pas lesquels
+existent. Seul un `choices` qui nomme un MODE peut rendre un paramètre inerte, et
+les deux vrais modes restants (`halftone.rotation`, `grain.size`) ont été mesurés
+VIVANTS. La seule dette était `glass.flat`, **seul VIVANT des 41 déclarations
+depuis quatorze jours**, sur une déclaration que le code ne portait plus.
+Sortie : **41/41 inertes**, le gate propre pour la première fois.
+⚠️ **Le couple de valeurs a produit un FAUX « inerte »** : `0` vs `90` sur un
+réseau CARRÉ le ramène sur lui-même. C'est le sens DANGEREUX de l'erreur —
+masquer un curseur vivant ne fait rougir personne.
+
+**Front 2 (sections) — le levier était le GABARIT, pas le découpage.** Quatre
+sections passées en `grille`, **aucune scindée ni renommée**, zéro code écrit. Le
+tableau de densité portait un SECOND dénominateur faux, propre à ce front : la
+ligne VISUELLE, pas la rangée. `grille` et `paire` posent deux colonnes, ce qui
+inversait le classement (`glass.pave` 8 rangées = 4 lignes contre
+`gooeyMerge.fusion` 7 rangées = 7 lignes). Plafond opposable à **6 lignes**,
+exception écrite pour `outlines.encre`. Garde `densiteSections.test.ts` : 16
+orphelins déclarés avec leur raison, `duotone` corrigé.
+
+**Front 3 (outils sur la toile) — livré avec sa portée DÉCLARÉE.** Les trois
+écarts d'overlay étaient IDENTIQUES dans les quatre fichiers, donc un défaut de
+SOCLE (`canvasHandle.css`) et non quatre défauts. Cible tactile à 24 px, peinture
+à 12 : la recommandation porte sur la CIBLE. Plus le quatrième genre `box`, qui
+débloque les poignées de l'aplat sans demander aucun manipulateur neuf.
+**Hors portée, dit** : les 14 lignes qui supposent un manipulateur-OBJET (mur
+partagé avec la typographie et les formes), et deux écarts séparables — l'origine
+d'un `axis` clouée au centre, le magnétisme hors `TransformHandles`. Le troisième
+(valeur affichée pendant le geste) est tombé le même jour pour l'outil Forme.
+
+⚠️ **Le contexte historique de ce bloc, conservé** : c'est le constat d'Antoine du
+2026-08-12 puis la mesure sur les modules réels
 (`.scratch/prochain-palier/assets/mesure-controles.ts` — le grep ment, les
-paramètres de `curves` sortent d'un `flatMap`) : **les trois fronts sont
-ouverts.** Le mécanisme est livré ; le chantier ne l'est pas.
+paramètres de `curves` sortent d'un `flatMap`) qui avaient rouvert les trois
+fronts après une clôture prématurée. Le mécanisme était livré ; le chantier ne
+l'était pas.
 
 ⚠️ **RE-MESURÉ le 2026-08-18, et le DÉNOMINATEUR de ce bloc était faux.** Un
 `EffectParam` n'est pas une rangée de panneau : **76 des 365 sont consommés par
@@ -1239,18 +1365,33 @@ Photoshop » veut dire — il a un critère de sortie vérifiable.
 **11 des 42 lignes sont déjà faites** chez nous en tout ou partie : le socle
 n'est pas à refaire, il est inégal. Écarts mesurés indépendamment :
 
-- **zéro règle `:hover`** dans les quatre CSS d'overlay (`AxisHandles`,
-  `PointHandles`, `RegionHandles`, `TransformHandles` — 0 chacun) ;
-- **poignées de 12 px** pour 24×24 recommandés — et ⚠️ elles réutilisent
-  `--slider-thumb-size` (`design/components.css:58`), **le token du pouce de
-  slider** : à découpler AVANT toute mise à la cible, sinon agrandir l'un
-  déforme l'autre ;
+- ✅ **zéro règle `:hover`** dans les quatre CSS d'overlay — CORRIGÉ le
+  2026-08-18 : les trois écarts étaient IDENTIQUES dans les quatre fichiers, donc
+  un défaut de SOCLE (`canvasHandle.css`) et non quatre défauts ;
+- ✅ **poignées de 12 px** pour 24×24 recommandés — CORRIGÉ, et la lecture
+  comptait : **la recommandation porte sur la CIBLE, jamais sur la peinture**.
+  Deux tokens désormais — `--canvas-handle-size` (12 px, ce qu'on voit) et
+  `--canvas-handle-target` (24 px, ce qu'on attrape, par un pseudo-élément qui
+  déborde). Une poignée de 24 px peinte sur une petite forme la recouvrirait.
+  ⚠️ Le découplage d'avec `--slider-thumb-size` — le token du POUCE DE SLIDER,
+  que les quatre lisaient — était bien le préalable qu'annonçait ce bloc : sans
+  lui, agrandir la poignée d'un manipulateur grossissait le pouce de tous les
+  curseurs du dock ;
 - `src/ui/snap.ts` **existe déjà** (`SNAP_THRESHOLD_SCREEN_PX = 8`,
   `SnapGuide`, `boundingBox`) et calcule la géométrie du magnétisme qui manque
   partout sauf dans `TransformHandles` ;
-- aucune **valeur de paramètre** affichée pendant le geste ; l'origine d'un
-  `axis` est clouée au centre, d'où dans `lightLeak` une « Entrée de la
-  lumière » et un « Trajet » sans aucun lien géométrique.
+- ⚠️ **valeur de paramètre pendant le geste** : tombée pour l'outil FORME le
+  2026-08-18 (dimensions en pixels de l'image pendant le tracé), **toujours
+  absente pour les quatre genres de `CanvasControl`**. Ce n'est pas une
+  correction de socle mais un ajout : il demande de décider CE QU'ON MONTRE pour
+  chacun, et en quelle unité ;
+- ⚠️ l'origine d'un `axis` est **toujours** clouée au centre, d'où dans
+  `lightLeak` une « Entrée de la lumière » et un « Trajet » sans aucun lien
+  géométrique. C'est un changement de CONTRAT (un axe gagnerait une origine,
+  donc un cinquième rôle de paramètre), pas un réglage de CSS ;
+- ⚠️ le **magnétisme hors `TransformHandles`** reste à faire : `src/ui/snap.ts`
+  calcule la géométrie, mais les cibles d'accroche d'un point d'effet ne sont pas
+  celles d'une photo, et personne n'a dit lesquelles.
 
 Trois pièges contraires à l'intuition, à ne pas réapprendre : l'accroche
 d'angle n'est **pas** un seul nombre (15° en rotation, **45°** sur un point de

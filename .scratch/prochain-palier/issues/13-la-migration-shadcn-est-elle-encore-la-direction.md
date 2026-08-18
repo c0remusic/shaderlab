@@ -1,7 +1,7 @@
 # La migration shadcn est-elle encore la direction
 
 Type: grilling
-Status: open
+Status: resolved
 Parent: ../map.md
 
 ## Question
@@ -83,6 +83,100 @@ d'arrêter la migration ; personne n'a décidé de la continuer non plus.
   qui suppose un dock redimensionnable.
 - Ne pas citer `FloatingPanel` ni `src/components/floatingPanel/` — supprimés.
 - Le style shadcn de ce dépôt est **`base-nova`, PAS Radix** (`components.json`).
+
+---
+
+## Answer — RÉSOLU le 2026-08-18
+
+**Ni oui ni non : on NOMME le patron qui a déjà gagné** (arbitrage d'Antoine).
+Et la mesure a corrigé le ticket dans les deux sens — la dette est pire qu'il ne
+disait sur un axe, et **quatre fois moindre** sur celui qui compte.
+
+### La règle, telle qu'elle doit être écrite
+
+> **Un composant compose les primitives `src/components/ui/` pour tout ce qui
+> est un CONTRÔLE — bouton, curseur, sélecteur, case, bascule — et habille sa
+> MISE EN PAGE en CSS classique à noms BEM.**
+>
+> Ce n'est ni « migrer vers Tailwind » ni « rester en CSS » : les deux couches
+> ont chacune leur travail. Un contrôle écrit à la main est le défaut ; une
+> grille de panneau écrite en utilitaires ne l'est pas.
+
+Elle se pose comme ADR-0001 : **au moment où le composant s'écrit, jamais dans
+un lot de rattrapage.** C'est cette forme-là qui manquait, et c'est pourquoi
+cinq composants sont arrivés en trois semaines dans un style que la
+documentation déclarait en cours d'abandon.
+
+### Ce que la re-mesure du 2026-08-18 a trouvé, et qui n'était pas dans le ticket
+
+Le ticket comptait 27 composants et 17 en CSS classique (mesure du 2026-08-12).
+Re-mesuré sur 30 composants applicatifs, hors stories et hors les 13 primitives
+`ui/` :
+
+| | Composants |
+| --- | --- |
+| CSS classique (noms BEM) | **24** |
+| Hybride (BEM + utilitaires Tailwind) | 3 — `EffectPicker`, `ErrorBanner`, `Toolbar` |
+| **Tailwind PUR** | **0** |
+| Sans style propre | 3 |
+
+⚠️ **Zéro composant n'a jamais été entièrement migré.** Ce que le plan de
+2026-07-20 a produit, ce sont **trois hybrides**, pas trois migrés — et
+`CLAUDE.md` annonce `BrushToolbar` parmi eux alors qu'il porte son propre
+`BrushToolbar.css` et n'a aucun utilitaire. La phrase « ErrorBanner / Toolbar /
+BrushToolbar migrés » est fausse sur un tiers et généreuse sur le reste.
+
+⚠️ **Et mon premier comptage était faux, pour la troisième fois de la journée
+sur le même schéma.** J'ai d'abord testé « le composant importe-t-il un
+`.css` ? », ce qui range `ToolPalette`, `BrushToolbar` et `EmptyWorkspace` en
+« ni l'un ni l'autre » alors qu'ils portent des classes BEM dont la feuille est
+ailleurs. **Un test qui interroge la forme du CODE au lieu de la nature de la
+CHOSE se trompe silencieusement.** Le test juste regarde ce que les classes
+SONT, pas d'où le fichier les importe.
+
+### Le payoff, et c'est la raison de répondre ça plutôt qu'autre chose
+
+Mesuré sous la règle ci-dessus — un composant est conforme s'il compose des
+primitives `ui/` :
+
+| | Composants |
+| --- | --- |
+| **Déjà conformes** | **24 / 30** |
+| **Contrôles écrits à la main** (le vrai reste) | **4** |
+| Aucun contrôle, rien à migrer par construction | 2 |
+
+**La dette passe de 17 à 4.** Elle ne diminue pas parce qu'on baisse la barre —
+elle diminue parce que la barre était mal placée : elle mesurait le style de
+l'habillage au lieu de la provenance des contrôles.
+
+Les quatre : **`CurveControl`**, **`EffectPicker`**, **`PropertiesPanel`**,
+**`TexturePicker`**.
+
+⚠️ Et `EffectPicker` est **l'un des trois hybrides** — celui qui avait l'air le
+plus avancé. Son champ de recherche est un `<input>` écrit à la main sous des
+classes utilitaires. Sous l'ancienne grille il passait pour migré ; sous la
+bonne, il fait partie du reste à faire. C'est le meilleur argument pour la
+règle : elle range différemment, et mieux.
+
+### Ce que ça ne dit pas, et qu'il ne faut pas lui faire dire
+
+- **Ce n'est pas un verdict sur Tailwind.** Les 13 primitives `ui/` sont en
+  Tailwind, utilisées par 24 composants sur 30, et rien ici ne les remet en
+  cause. Le socle est porteur.
+- **La dette n'a jamais été une dette de design system.** `lint:tokens` est vert
+  sur les 261 fichiers, CSS classique compris : aucun style ne contourne un
+  token. C'était une dette d'homogénéité, et la règle la requalifie plutôt
+  qu'elle ne l'efface.
+- **Les trois hybrides ne deviennent pas des anomalies à corriger.** Rien
+  n'oblige à retirer leurs utilitaires ; la règle porte sur les CONTRÔLES.
+
+### Ce qui doit se corriger dans le même geste
+
+`CLAUDE.md` § Stack annonce depuis le 2026-07-20 une « migration en cours
+composant par composant » et, depuis le 2026-08-12, une dette de 17. Les deux
+formulations tombent. Corrigé dans le commit qui porte cette résolution — laisser
+le document dire « en cours » est précisément la faute que ce ticket
+diagnostique.
 
 ## Une sortie de portée est une réponse valide
 

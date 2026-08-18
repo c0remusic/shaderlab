@@ -68,20 +68,41 @@ Vite · **WebGPU/WGSL brut** (pas de lib de rendu) · Vitest (deux projets :
 **UI** : Tailwind v4 (`@tailwindcss/vite`) + `shadcn/ui` (style `base-nova`,
 PAS Radix — `components.json`). Tokens de marque = `src/design/{primitives,
 semantic,components}.css`, mappés dans `src/design/tailwind-theme.css`
-(jamais redéfinis). ⚠️ **La migration shadcn n'est PAS « en cours », et la dette
-n'est pas de trois composants — c'est un arbitrage OUVERT.** Ce paragraphe a dit
-« migration en cours composant par composant : `ErrorBanner`/`Toolbar`/
-`BrushToolbar` migrés ; `LayerPanel`/`ParamPanel`/`Canvas` encore en CSS
-classique » jusqu'au 2026-08-12. Mesuré ce jour-là : **17 composants sur 27 sont
-en CSS classique PUR**, 1 hybride, 20 fichiers `.css` dans `src/components/`.
-Le plan de migration ne visait que ces trois-là et a été fini comme prévu — mais
-tout ce qui a été livré depuis (`ToolPalette` 07-31, `CurveControl`,
-`PropertiesPanel`, `ColorRampControl` 08-04, `TexturePicker` 08-05) est arrivé
-en CSS classique. **Elle n'a pas calé, elle s'est fait dépasser**, et l'écart
-grandit à chaque chantier. Nuance qui compte : `npm run lint:tokens` est vert
-sur les 250 fichiers, donc le CSS classique **ne contourne pas les tokens** —
-c'est une dette d'homogénéité, pas de design system. Se tranche dans
-`.scratch/prochain-palier/issues/13-la-migration-shadcn-est-elle-encore-la-direction.md`.
+(jamais redéfinis).
+
+✅ **IL N'Y A PAS DE « MIGRATION SHADCN », et il ne faut pas la réintroduire.**
+Arbitrage TRANCHÉ le 2026-08-18 (ticket 13 de `.scratch/prochain-palier/`) : ni
+« migrer vers Tailwind », ni « rester en CSS » — **les deux couches ont chacune
+leur travail** :
+
+> **Un composant COMPOSE les primitives `src/components/ui/` pour tout ce qui
+> est un CONTRÔLE** — bouton, curseur, sélecteur, case, bascule — **et habille
+> sa MISE EN PAGE en CSS classique à noms BEM.** Un contrôle écrit à la main est
+> le défaut ; une grille de panneau en CSS classique n'en est pas un.
+
+Elle se pose comme ADR-0001 : **au moment où le composant s'écrit, jamais dans
+un lot de rattrapage** — c'est la forme qui manquait, et c'est pourquoi cinq
+composants sont arrivés en trois semaines dans un style que ce paragraphe
+déclarait en cours d'abandon.
+
+Mesuré le 2026-08-18 sur 30 composants applicatifs (hors stories, hors les 13
+primitives `ui/`) : **24 sont DÉJÀ conformes**, **4** portent des contrôles
+écrits à la main (`CurveControl`, `EffectPicker`, `PropertiesPanel`,
+`TexturePicker`), 2 n'ont aucun contrôle. La dette est de **4, pas de 17** — non
+qu'on baisse la barre, mais qu'elle était mal placée : elle mesurait le style de
+l'HABILLAGE au lieu de la provenance des CONTRÔLES.
+
+⚠️ Deux chiffres que ce paragraphe a portés et qui étaient FAUX. **« 17 sur 27
+en CSS classique PUR »** venait d'un test « le composant importe-t-il un
+`.css` ? », qui rate tout composant dont la feuille BEM vit ailleurs
+(`ToolPalette`, `BrushToolbar`, `EmptyWorkspace`). Et **« `ErrorBanner` /
+`Toolbar` / `BrushToolbar` migrés »** : `BrushToolbar` porte son propre
+`BrushToolbar.css` et zéro utilitaire, les deux autres sont des HYBRIDES —
+**aucun composant n'a jamais été entièrement migré**, le plan de 2026-07-20 a
+produit trois hybrides et non trois migrés.
+Nuance qui reste vraie : `npm run lint:tokens` est vert sur les 261 fichiers,
+CSS classique compris, donc **aucun style ne contourne un token**. Ce n'a jamais
+été une dette de design system.
 `Inspector.tsx` (aside dockée fixe)
 supprimé le 2026-07-20, remplacé par `FloatingPanel`
 (panneaux déplaçables/repliables/dockables), lui-même **supprimé le

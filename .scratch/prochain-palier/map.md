@@ -98,6 +98,26 @@ Aucun n'est un reste de ces deux sessions.
 
 
 
+- [La migration shadcn est-elle encore la direction](issues/13-la-migration-shadcn-est-elle-encore-la-direction.md)
+  — **RÉSOLU le 2026-08-18. Ni oui ni non : on NOMME le patron qui avait déjà
+  gagné** — primitives `ui/` pour tout CONTRÔLE, CSS classique à noms BEM pour
+  la MISE EN PAGE. Posée comme ADR-0001, au moment où le composant s'écrit.
+  **La dette passe de 17 à 4** (`CurveControl`, `EffectPicker`,
+  `PropertiesPanel`, `TexturePicker`) : 24 des 30 composants applicatifs sont
+  déjà conformes. Elle ne baisse pas parce qu'on baisse la barre — la barre
+  mesurait le style de l'HABILLAGE au lieu de la provenance des CONTRÔLES.
+  ⚠️ **Aucun composant n'a jamais été entièrement migré** : zéro Tailwind pur,
+  et les « trois migrés » de `CLAUDE.md` sont trois hybrides — dont
+  `BrushToolbar`, qui porte en fait son propre `.css` et zéro utilitaire.
+  ⚠️ Et `EffectPicker`, celui qui avait l'air le plus avancé, fait partie des
+  quatre à reprendre : son champ de recherche est écrit à la main. La règle
+  range différemment, et mieux.
+  ⚠️ **Mon premier comptage était faux, 3ᵉ fois de la journée sur le même
+  schéma** : tester « importe-t-il un `.css` ? » rate tout composant dont la
+  feuille BEM vit ailleurs. Un test qui interroge la FORME DU CODE au lieu de la
+  NATURE DE LA CHOSE se trompe en silence. `CLAUDE.md` § Stack corrigé dans le
+  même geste.
+
 - [Quelles fonctions retenir, et dans quel ordre](issues/12-quelles-fonctions-retenir.md)
   — **RÉSOLU le 2026-08-18. Périmètre : tout, netteté comprise** (Antoine), et
   l'inverse d'`aplat` adopté (un booléen en fin de `params[]`, qui rend

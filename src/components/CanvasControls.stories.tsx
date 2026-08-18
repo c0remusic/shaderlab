@@ -18,9 +18,9 @@ interface HarnessProps {
 function Harness({ controls, params, values, portrait = false, light = false, disabled = false, onChange, onCommit }: HarnessProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const size = portrait ? { width: 240, height: 360 } : { width: 480, height: 300 };
-  return <div style={{ position: "relative", width: size.width, height: size.height, background: "var(--surface-canvas)" }}>
+  return <div style={{ position: "relative", width: size.width, height: size.height, background: "var(--surface-workspace)" }}>
     <canvas ref={canvasRef} width={size.width} height={size.height}
-      style={{ display: "block", width: size.width, height: size.height, background: light ? "var(--gray-300)" : "var(--gray-900)" }} />
+      style={{ display: "block", width: size.width, height: size.height, background: light ? "var(--primitive-neutral-300)" : "var(--primitive-neutral-900)" }} />
     <CanvasControls controls={controls} params={params} values={values} imageSize={size} canvasRef={canvasRef}
       effectName="Effet de démonstration" disabled={disabled} onChange={onChange} onCommit={onCommit} />
   </div>;

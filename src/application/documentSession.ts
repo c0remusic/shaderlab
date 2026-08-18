@@ -68,8 +68,48 @@ export class DocumentSession {
     return this.current.clone();
   }
 
+  /**
+   * Remplace les calques SANS entrée d'historique — le chemin de tout geste
+   * vivant (glissement de poignée, de curseur, coup de pinceau).
+   *
+   * ⚠️ C'EST LA SEULE PORTE QUE LES GARDES DE `LayerStack` NE COUVRENT PAS, et
+   * le verrou fuyait par là. `LayerStack` refuse quatorze opérations sur un
+   * calque verrouillé, chacune derrière `isLocked`, et un test les couvre une
+   * par une — mais **aucun geste à la souris ne passe par ces mutateurs**.
+   * Pendant un glissement, `App.tsx` construit le tableau à la main et appelle
+   * cette méthode, délibérément et pour une raison mesurée : `clone()` fabrique
+   * un objet frais pour chaque calque, ce qui re-rend la liste entière à chaque
+   * frame (34,2 ms de CPU par `pointermove`, 2026-07-30).
+   *
+   * Le commit ne rattrapait rien : `handleParamCommit` commite `currentStack()`,
+   * c'est-à-dire l'état vivant DÉJÀ modifié.
+   *
+   * ── CE QUE LE FILTRE LAISSE PASSER, ET POURQUOI ─────────────────────────
+   *
+   * Il ne refuse pas l'envoi, il retient le CONTENU d'un calque verrouillé.
+   * Refuser l'envoi entier figerait le document dès qu'un seul calque est
+   * verrouillé, alors que le tableau vivant les porte tous à chaque frame.
+   *
+   * Trois choses restent autorisées, exactement comme dans `LayerStack` :
+   * - le DÉVERROUILLAGE, sinon le verrou serait irréversible ;
+   * - la VISIBILITÉ — masquer n'est pas modifier, c'est un confort de lecture
+   *   de la pile, et le verrouiller rendrait le verrou hostile ;
+   * - l'arrivée et le départ d'un calque : le verrou porte sur le CONTENU d'un
+   *   calque, pas sur la composition de la pile.
+   */
   replaceLiveLayers(layers: LayerState[]): void {
-    this.current.layers = layers;
+    const verrouilles = new Map(
+      this.current.layers.filter((layer) => layer.locked).map((layer) => [layer.id, layer]),
+    );
+    this.current.layers = verrouilles.size === 0
+      ? layers
+      : layers.map((entrant) => {
+          const verrouille = verrouilles.get(entrant.id);
+          if (!verrouille) return entrant;
+          // Le calque D'AVANT, plus les deux champs dont le verrou ne décide
+          // pas. Reconstruire depuis l'entrant laisserait passer tout le reste.
+          return { ...verrouille, locked: entrant.locked, enabled: entrant.enabled };
+        });
     this.normalizeSelection();
   }
 

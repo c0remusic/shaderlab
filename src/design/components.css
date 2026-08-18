@@ -57,6 +57,20 @@
   --layer-count-badge-size: calc(var(--layer-thumbnail-size) - var(--space-3));
   --section-header-height: 28px;
 
+  /* ⚠️ AJOUTÉ le 2026-08-18, et il était DÉJÀ CONSOMMÉ. `LayerPanel.css` lisait
+     `--icon-size-xs` pour le cadenas de statut d'une ligne, sans que personne
+     l'ait jamais défini : la propriété était donc invalide, `width` et `height`
+     retombaient à `auto`, et le cadenas se rendait à la taille INTRINSÈQUE de
+     son SVG — ~24 px dans une cellule de 28, par-dessus l'icône de nature.
+     C'est ce que « problème de placement et de taille » désignait.
+
+     Une variable absente ne casse rien de bruyant : la règle est simplement
+     ignorée, et `lint:tokens` ne regardait que les valeurs EN DUR, pas les
+     tokens INEXISTANTS. Il les regarde depuis le même jour.
+
+     12 px : le cran sous `--icon-size-sm`, dans la même progression que
+     14 / 16 / 20 — pas un nombre choisi pour que ça rentre. */
+  --icon-size-xs: 12px;
   --icon-size-sm: 14px;
   --icon-size-md: 16px;
   --icon-size-lg: 20px;
@@ -196,6 +210,18 @@
   --menu-duration: var(--duration-fast);
   --control-focus-ring-width: 3px;
   --select-listbox-max-height: 240px;
+  /* ⚠️ AJOUTE le 2026-08-18, et il etait LU PAR SIX FEUILLES sans exister :
+     les quatre overlays de toile, `CurveControl` (deux fois) et le panneau de
+     calques. Toute regle `opacity: var(--disabled-opacity)` etait donc invalide
+     et IGNOREE — un controle desactive se rendait exactement comme un controle
+     actif. Le seul signal restant etait le curseur `default`, que personne ne
+     regarde.
+     Meme classe de defaut que `--icon-size-xs`, trouve le meme jour et par la
+     meme garde : une variable absente n'echoue pas, elle disparait.
+     .38 et non .5 : `--dragging-opacity` (.5) dit « ceci se deplace, tu le vois
+     a travers » ; un controle inerte doit descendre plus bas que ca, sinon les
+     deux etats se confondent. */
+  --disabled-opacity: .38;
   --dragging-opacity: .5;
   --drag-grip-opacity: .7;
   --drag-ghost-opacity: .85;

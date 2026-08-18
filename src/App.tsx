@@ -2004,7 +2004,13 @@ export default function App() {
             EN ENFANT DU CANVAS depuis le zoom : la zone visible clippe, et
             zoomé le canvas déborde d'elle — posées plus haut dans l'arbre, les
             poignées se dessineraient par-dessus le dock. */}
-        {showTransformHandles && selectedLayer?.imageSource && selectedLayer.transform && (
+        {/* ⚠️ `!selectedLayer.locked` — LA MOITIÉ VISIBLE DU VERROU. Le modèle
+            refuse désormais toute mutation d'un calque verrouillé, y compris sur
+            le chemin vivant (`DocumentSession.replaceLiveLayers`) ; sans cette
+            garde, les poignées resteraient là, attrapables, et ne feraient
+            rien. Un manipulateur qui accepte la prise et ne bouge pas se lit
+            comme une app cassée, pas comme un verrou. */}
+        {showTransformHandles && !selectedLayer?.locked && selectedLayer?.imageSource && selectedLayer.transform && (
           <TransformHandles
             transform={selectedLayer.transform}
             photoSize={selectedPhotoSize}
@@ -2041,7 +2047,7 @@ export default function App() {
             Les deux overlays peuvent coexister — un calque photo sélectionné
             n'a pas de région, un calque d'effet n'a pas de transform, donc les
             conditions sont en pratique exclusives sans avoir à l'écrire. */}
-        {showTransformHandles && canvasControls.length > 0 && selectedLayer && selectedEffect && (
+        {showTransformHandles && !selectedLayer?.locked && canvasControls.length > 0 && selectedLayer && selectedEffect && (
           <CanvasControls
             controls={canvasControls}
             params={selectedEffect.params}

@@ -18,6 +18,10 @@ const TOKEN_FILES = [
   path.join(ROOT, 'src', 'design', 'primitives.css'),
   path.join(ROOT, 'src', 'design', 'semantic.css'),
   path.join(ROOT, 'src', 'design', 'components.css'),
+  // AJOUTE le 2026-08-18 : il declare de vrais tokens (`--radius-sm` et la
+  // famille du theme Tailwind), et son absence de cette liste les faisait
+  // passer pour jamais declares.
+  path.join(ROOT, 'src', 'design', 'tailwind-theme.css'),
 ].map((p) => path.resolve(p));
 
 const EXCLUDE_DIRS = new Set(['node_modules', 'dist', '.git', 'target']);
@@ -70,7 +74,21 @@ for (const file of TOKEN_FILES) {
     console.error(`Could not read token file ${file}: ${err.message}`);
     process.exit(1);
   }
+  // ⚠️ COMMENTAIRES RETIRES AVANT EXTRACTION (2026-08-18), et leur absence
+  // rendait cette table INCOMPLETE depuis toujours. `[^;]+` traverse les sauts
+  // de ligne : un `--token` cite dans un commentaire ouvrait une declaration
+  // fantome qui avalait tout jusqu'au prochain `;`, c'est-a-dire la VRAIE
+  // declaration qui suivait. Mesure : 78 tokens vus dans `components.css` au
+  // lieu de la totalite, et `--rail-item-size`, `--tool-options-bar-height`,
+  // `--layer-count-badge-size` manquaient — tous declares juste apres un
+  // commentaire qui nomme un token.
+  //
+  // Le defaut etait MUET pour les regles d'origine : un token absent de la
+  // table ne produit pas de finding, il en empeche un. C'est en ajoutant la
+  // detection des tokens jamais declares qu'il est sorti, sous la forme de
+  // trente-deux faux positifs.
   let m;
+  content = stripComments(content);
   DECL_RE.lastIndex = 0;
   while ((m = DECL_RE.exec(content))) {
     const name = m[1].trim();
@@ -330,15 +348,106 @@ for (const file of files) {
 }
 
 // ---------- Step 4: report ----------
+// ---------- Step 3: tokens LUS mais jamais DECLARES ----------
+//
+// ⚠️ AJOUTE LE 2026-08-18, APRES UN DEFAUT REEL. `LayerPanel.css` lisait
+// `--icon-size-xs` pour dimensionner le cadenas de statut d'une ligne, et ce
+// token n'a JAMAIS existe. Une variable CSS absente ne casse rien de bruyant :
+// la declaration devient invalide a la valeur calculee, `width` et `height`
+// retombent a `auto`, et l'icone se rend a la taille intrinseque de son SVG —
+// ~24 px dans une cellule de 28, par-dessus l'icone de nature.
+//
+// Le linter ne regardait que les valeurs EN DUR, c'est-a-dire le contournement
+// d'un token qui existe. Le cas inverse — un token qui n'existe pas — passait
+// donc entre les mailles, et rien d'autre ne le voyait : ni `tsc` (le CSS lui
+// est opaque), ni le lint CSS de commentaires, ni une story (elle rend la meme
+// page, simplement fausse).
+//
+// La detection est BORNEE aux fichiers scannes et aux tokens du depot : un
+// `var(--quelque-chose)` dont le nom n'apparait dans AUCUN fichier de tokens.
+// Les variables locales a un composant (declarees dans le fichier meme, souvent
+// posees en style inline par React) sont donc a exclure — d'ou la collecte des
+// declarations LOCALES de chaque fichier avant de conclure.
+/** Nommee plutot qu'ecrite en litteral : ce fichier est edite par des scripts,
+ *  et un saut de ligne litteral dans une chaine casse le parsing sans que le
+ *  message d'erreur dise pourquoi (paye deux fois le 2026-08-18). */
+const NOUVELLE_LIGNE = String.fromCharCode(10);
+const USAGE_RE = /var\(\s*--([a-zA-Z0-9-]+)/g;
+const LOCAL_DECL_RE = /--([a-zA-Z0-9-]+)\s*:/g;
+// Variables posees a l'EXECUTION par React, en style inline ou via
+// `setProperty`. Elles ne sont declarees dans aucun `.css` et c'est correct :
+// leur valeur depend de l'etat (largeur du dock, hauteur mesuree d'une carte,
+// durete du pinceau). Sans cette collecte, le garde crierait sur huit d'entre
+// elles — et un linter qui crie au loup est pire que pas de linter.
+// Tout NOM DE VARIABLE cite en chaine dans un `.ts`/`.tsx`, pas seulement en
+// cle de style inline : `PanelColumn` pose les siennes par `setProperty(name,
+// ...)` ou `name` est une variable, et seul le `removeProperty("--x")` en garde
+// le litteral. Chercher la forme exacte de la pose raterait donc trois
+// variables sur huit, et cette detection n'a pas a comprendre le code — il lui
+// suffit de savoir qu'un fichier de logique nomme cette variable.
+const RUNTIME_DECL_RE = /["'`]--([a-zA-Z0-9-]+)["'`]/g;
+// Fournies par une bibliotheque tierce, donc jamais dans nos fichiers. Liste
+// EXPLICITE : une exception muette est une exception qu'on ne relit plus.
+const TOKENS_TIERS = new Set([
+  // Base UI la pose sur le positionneur d'un `Select` pour que le menu prenne
+  // la largeur de son ancre (`ui/select.tsx`).
+  'anchor-width',
+]);
+
+const poseesALExecution = new Set();
+for (const file of files) {
+  if (!['.ts', '.tsx'].includes(path.extname(file))) continue;
+  let contenu;
+  try {
+    contenu = readFileSync(file, 'utf8');
+  } catch {
+    continue;
+  }
+  RUNTIME_DECL_RE.lastIndex = 0;
+  let r;
+  while ((r = RUNTIME_DECL_RE.exec(contenu))) poseesALExecution.add(r[1]);
+}
+
+for (const file of files) {
+  let content;
+  try {
+    content = readFileSync(file, 'utf8');
+  } catch {
+    continue;
+  }
+  const nu = stripComments(content);
+  const locaux = new Set();
+  LOCAL_DECL_RE.lastIndex = 0;
+  let d;
+  while ((d = LOCAL_DECL_RE.exec(nu))) locaux.add(d[1]);
+
+  const lignes = nu.split(NOUVELLE_LIGNE);
+  lignes.forEach((ligne, index) => {
+    USAGE_RE.lastIndex = 0;
+    let m;
+    while ((m = USAGE_RE.exec(ligne))) {
+      const nom = m[1];
+      if (tokens.has(nom) || locaux.has(nom) || poseesALExecution.has(nom) || TOKENS_TIERS.has(nom)) continue;
+      addFinding(path.relative(ROOT, file).split(path.sep).join('/'), {
+        line: index + 1,
+        category: 'token-absent',
+        value: `var(--${nom})`,
+        suggestion: `token jamais declare — la propriete est ignoree en silence`,
+      });
+    }
+  });
+}
+
 const CATEGORY_LABEL = {
   color: 'Color',
   'z-index': 'z-index',
   'px-spacing': 'px spacing',
   'font-size': 'font-size',
+  'token-absent': 'token absent',
 };
 
 let total = 0;
-const counts = { color: 0, 'z-index': 0, 'px-spacing': 0, 'font-size': 0 };
+const counts = { color: 0, 'z-index': 0, 'px-spacing': 0, 'font-size': 0, 'token-absent': 0 };
 
 const sortedFiles = [...findingsByFile.keys()].sort();
 for (const file of sortedFiles) {
@@ -355,7 +464,7 @@ for (const file of sortedFiles) {
 
 console.log('\n' + '-'.repeat(60));
 console.log(
-  `Findings: ${total}  (colors: ${counts.color}, z-index: ${counts['z-index']}, px-spacing: ${counts['px-spacing']}, font-size: ${counts['font-size']})`,
+  `Findings: ${total}  (colors: ${counts.color}, z-index: ${counts['z-index']}, px-spacing: ${counts['px-spacing']}, font-size: ${counts['font-size']}, tokens absents: ${counts['token-absent']})`,
 );
 console.log(`Files scanned: ${files.length}`);
 

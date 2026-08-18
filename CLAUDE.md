@@ -1039,4 +1039,13 @@ Single-context : `CONTEXT.md` à la racine, plus DEUX dossiers d'ADR — `.claud
 
 Chantier trop gros pour une session : `/wayfinder` charte la carte sur le tracker ci-dessus. Le tracker étant LOCAL, la carte est `.scratch/<effort>/map.md` et ses tickets sont des fichiers numérotés sous `issues/` — blocage par une ligne `Blocked by: NN` en tête de fichier, type par `Type: research|prototype|grilling|task`, réclamation par `Status: claimed`. ⚠️ Cette entrée a annoncé « sous-issues et blocage natif GitHub disponibles — pas de repli par convention de corps » jusqu'au 2026-08-12 : **il n'y a ni sous-issue ni blocage natif ici**, et le repli par convention de corps EST le mécanisme (`docs/agents/issue-tracker.md` § Wayfinding operations).
 
-**Carte active : `.scratch/prochain-palier/`** — le prochain palier (composition, recadrage, lisibilité de l'interface, dormants), 12 tickets dont 3 recherches résolues. Ses `## Notes` portent les contraintes permanentes de l'effort ; `docs/ROADMAP.md` y renvoie. Un arbitrage ouvert se tranche là, pas dans le ROADMAP.
+**Carte ACTIVE : `.scratch/hybride-lightroom-photoshop/`** — chartée le
+2026-08-18 sur un retour d'usage d'Antoine : atteindre le geste et la lisibilité
+d'un hybride Lightroom/Photoshop. Cinq des sept points de son énoncé ont été
+corrigés le jour même ; quatre tickets restent (geste de la forme, verrou
+binaire, symétrie panneau/toile, layout). Sa recherche a établi que **la
+documentation Adobe ne donne AUCUN gabarit chiffré de layout** — descriptive,
+jamais dimensionnelle : ce ticket-là se mesure sur notre app, il ne se lit pas.
+
+**Carte CLOSE, et toujours la référence des arbitrages rendus :
+`.scratch/prochain-palier/`** — le prochain palier (composition, recadrage, lisibilité de l'interface, dormants), 12 tickets dont 3 recherches résolues. Ses `## Notes` portent les contraintes permanentes de l'effort ; `docs/ROADMAP.md` y renvoie. Un arbitrage ouvert se tranche là, pas dans le ROADMAP.

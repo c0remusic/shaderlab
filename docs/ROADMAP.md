@@ -45,7 +45,30 @@ commencé (3), et des chantiers dormants retrouvés par mesure (4).
 
 ---
 
-## ⚠️ Lire d'abord : une CARTE tient désormais les arbitrages ouverts
+## ⚠️ DEUX cartes, et la première est CLOSE
+
+**`.scratch/prochain-palier/` est SOLDÉE le 2026-08-18** — 29 tickets sur 29
+`resolved`. Elle reste la référence des arbitrages rendus (formes, typographie,
+masquage, lisibilité, les trois fronts des contrôles, le coût du verre) : un
+sujet qu'elle a tranché ne se rouvre pas sans une raison neuve.
+
+**`.scratch/hybride-lightroom-photoshop/` est la carte ACTIVE**, chartée le
+2026-08-18 sur un retour d'usage d'Antoine. Destination : un hybride de
+Lightroom et de Photoshop qui facilite le travail créatif — le GESTE et la
+LISIBILITÉ, pas le rendu, qui reste ici.
+
+Cinq des sept points de son énoncé ont été corrigés le jour même (le verrou qui
+ne verrouillait pas, l'icône de cadenas, le double-clic de retour au défaut, sa
+marque, le sélecteur de couleur de la forme, et ce que le pinceau dit faire).
+Quatre tickets restent ouverts : le geste de la forme, le verrou binaire, la
+symétrie panneau/toile, et le layout.
+
+⚠️ **Sa recherche a établi une chose qui vaut d'être sue avant d'en lancer une
+autre** : la documentation Adobe ne donne AUCUN gabarit chiffré de layout. Elle
+est descriptive, jamais dimensionnelle. Le ticket layout se résoudra donc par des
+mesures sur notre app, pas par de la lecture.
+
+## ⚠️ Lire aussi : la carte close tient les arbitrages rendus
 
 **`.scratch/prochain-palier/map.md`** — chartée le 2026-08-11 par `/wayfinder`.
 Douze tickets, dont trois de recherche déjà résolus. **Ce fichier-ci dit ce qui

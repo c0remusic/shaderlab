@@ -42,6 +42,23 @@
 // des valeurs, pas une propriete du parametre. Ces cas prennent 0 vs 37 — un
 // angle qui n'est la symetrie d'aucun diaphragme a lames entieres.
 //
+// ⚠️ ELARGI le 2026-08-18, et la regle ci-dessus etait trop etroite. Elle ne
+// nomme que la periodicite du PARAMETRE — un intervalle qui deborde d'une
+// periode. Le cas inverse est plus frequent et plus traitre : quand
+// l'intervalle EST exactement une periode de ce sur quoi le parametre agit.
+// `halftone.rotation` va de 0 a 90 degres, parce que 90 degres est la symetrie
+// d'une trame carree ; ses deux bornes sont donc la MEME trame, et la regle
+// « prendre les bornes » y rend 0 % d'ecart sur un controle bien vivant.
+// Mesure du jour : 0 vs 90 rend « inerte », 0 vs 37 rend VIVANT a 34,2 %.
+//
+// C'est le sens DANGEREUX de l'erreur. Un faux « vivant » ne coute qu'une
+// declaration non posee ; un faux « inerte » fait masquer un controle qui
+// agit, et rien ne rougit — un curseur cache ne bouge plus aucun pixel, donc
+// aucune reference ne peut le trahir. Avant de choisir deux valeurs, se
+// demander non pas « quelle est la periode du parametre » mais « de quelle
+// symetrie l'OBJET qu'il transforme dispose-t-il ». Un intervalle bien choisi
+// par l'auteur de l'effet est precisement celui qui rend ses bornes egales.
+//
 // ─────────────────────────────────────────────────────────────────────────
 // Ce qu'une configuration de base doit contenir
 // ─────────────────────────────────────────────────────────────────────────

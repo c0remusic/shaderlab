@@ -410,6 +410,62 @@ const INSTALL = `(async () => {
     return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
   };
 
+  // Mire A BANDES, pour les six modes de fusion du 2026-08-18.
+  //
+  // POURQUOI AUCUNE MIRE EXISTANTE NE PEUT LES MONTRER. Quatre des six modes
+  // (Teinte, Saturation, Couleur, Luminosite) DECOMPOSENT la couleur du dessus
+  // en trois attributs et n en reprennent qu un ou deux. Un calque du dessus
+  // qui ne fait pas varier ces attributs INDEPENDAMMENT rend donc les quatre
+  // modes visuellement proches, et le verrou ne saurait pas dire lequel est
+  // branche sur lequel. La mire commune ne le peut pas : sa teinte, sa
+  // saturation et sa luminosite bougent toutes les trois avec x et y.
+  //
+  // Quatre bandes horizontales, et le couple des deux premieres EST le temoin :
+  //
+  //   0  rouge sature      Lum  86   Sat 170
+  //   1  gris              Lum  86   Sat   0   <- MEME luminosite que la 0
+  //   2  bleu peu sature   Lum 129   Sat  70
+  //   3  vert sature clair Lum 173   Sat 125
+  //
+  // Les bandes 0 et 1 ne different QUE par la chromaticite, a luminosite egale
+  // (coefficients 0,3 / 0,59 / 0,11, ceux des modes eux-memes) : 0,3 x 205 +
+  // 0,59 x 35 + 0,11 x 35 = 86, exactement la valeur du gris.
+  //
+  // ⚠️ CE TEMOIN NE SE LIT PAS DANS CES REFERENCES, et l avoir cru est le
+  // defaut que la mesure a corrige. Le fond varie lui aussi avec y (son canal
+  // vert EST y, plus le damier) : aucun couple de pixels de l image n a le meme
+  // dessous, donc comparer la bande 0 a la bande 1 melange la reponse du mode a
+  // la variation du fond. La premiere lecture rendait 41,1 de moyenne et ne
+  // prouvait rien.
+  //
+  // MESURE A PART, le 2026-08-18, par quatre scenarios TEMPORAIRES retires
+  // apres lecture (meme patron que les conditions de section de \`lensFlare\`) :
+  // un dessus UNI rouge (205,35,35) contre un dessus UNI gris (86,86,86), sur
+  // le meme fond, dans les deux modes.
+  //
+  //   Luminosite : max 1, moyenne 0,136 — 86 % des canaux identiques au bit
+  //                pres, le reste a 1 LSB (l aller-retour sRGB de la voie
+  //                photo, pas le mode). Le mode ne voit QUE la luminosite.
+  //   Couleur    : max 120, moyenne 51,2. Le mode ne voit QUE la chromaticite.
+  //
+  // Ce que ces references verrouillent, elles, est l ecart ENTRE modes — voir
+  // la chaine des \`contre\` plus bas, qui est ce que le harnais sait mesurer.
+  //
+  // Bandes horizontales et non verticales : le degrade rouge de la mire de
+  // fond suit x, donc chaque bande voit toute son etendue.
+  const mireFusion = (w, h) => {
+    const d = new Uint8ClampedArray(w * h * 4);
+    const bandes = [[205, 35, 35], [86, 86, 86], [110, 130, 180], [120, 215, 90]];
+    for (let y = 0; y < h; y++) {
+      const bande = bandes[Math.min(3, Math.floor((y * 4) / h))];
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        d[i] = bande[0]; d[i + 1] = bande[1]; d[i + 2] = bande[2]; d[i + 3] = 255;
+      }
+    }
+    return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
+  };
+
   // Six teintes plates, en sRGB. Elles sont posees ici plutot que dans la mire
   // parce que le scenario du range couleur doit ECHANTILLONNER exactement les
   // memes valeurs : deux listes se seraient desaccordees au premier ajustement,
@@ -3294,6 +3350,111 @@ const INSTALL = `(async () => {
         });
       },
     },
+
+    // ── LES SIX MODES DE FUSION DU 2026-08-18 (ticket 12, tranche 1) ──────
+    //
+    // Le registre en portait onze et n en verrouillait que TROIS, tous en
+    // passagers d un scenario d effet (\`screen\`, \`overlay\`, \`multiply\`). Les six
+    // qui arrivent sont les quatre non separables et les deux signes.
+    //
+    // MONTAGE COMMUN : la mire a bandes en calque photo par-dessus le fond, et
+    // rien d autre. Aucun effet dans la pile — ce qu on verrouille est le
+    // COMPOSITING, et un effet interpose melangerait sa propre reponse a la
+    // mesure. C est la raison pour laquelle ces scenarios ne reutilisent pas
+    // \`photo-double-exposure\`, qui porte un \`lensDistortion\` en passager.
+    //
+    // CHAINE DES \`contre\`, et c est le point du montage : chacun se mesure
+    // contre le scenario dont il doit se DISTINGUER, pas contre la photo nue.
+    // Un \`contre\` sur la photo nue prouverait seulement que le mode agit ; ici
+    // l ecart mesure repond a la question qui separe deux modes voisins.
+
+    // COULEUR : chromaticite du dessus, luminosite du dessous.
+    // Contre la photo nue, parce que c est le premier de la chaine.
+    "fusion-couleur": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const bandes = await mireFusion(W, H);
+        const sourceId = await r.photoSources.register(bandes);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bandes");
+        at(stack, p).blendMode = "color";
+      },
+    },
+
+    // LUMINOSITE : l EXACT INVERSE du precedent — luminosite du dessus,
+    // chromaticite du dessous. Meme montage au mode pres, donc l ecart entre
+    // les deux images EST le sens de la reprise, et rien d autre. Deux modes
+    // branches sur la meme moitie rendraient un ecart nul ici, et c est le
+    // defaut le plus facile a commettre en recopiant quatre formules qui ne
+    // different que par l ordre de leurs arguments.
+    "fusion-luminosite": {
+      contre: "fusion-couleur",
+      build: async (r, stack) => {
+        const bandes = await mireFusion(W, H);
+        const sourceId = await r.photoSources.register(bandes);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bandes");
+        at(stack, p).blendMode = "luminosity";
+      },
+    },
+
+    // TEINTE : teinte du dessus, mais saturation ET luminosite du dessous.
+    // Contre COULEUR, qui prend la teinte AVEC la saturation : leur seul ecart
+    // est donc l origine de la saturation. Sur la bande grise du dessus, les
+    // deux doivent converger vers du neutre (une teinte sans saturation n est
+    // pas une teinte) — ce qui borne l ecart par en haut et le rend lisible.
+    "fusion-teinte": {
+      contre: "fusion-couleur",
+      build: async (r, stack) => {
+        const bandes = await mireFusion(W, H);
+        const sourceId = await r.photoSources.register(bandes);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bandes");
+        at(stack, p).blendMode = "hue";
+      },
+    },
+
+    // SATURATION : saturation du dessus, teinte et luminosite du dessous.
+    // Contre TEINTE, dont il est le complementaire exact sur les deux memes
+    // attributs. C est le couple qui attrape une inversion d arguments dans
+    // \`blend_set_sat\`, que le couple Couleur/Luminosite ne verrait pas.
+    "fusion-saturation": {
+      contre: "fusion-teinte",
+      build: async (r, stack) => {
+        const bandes = await mireFusion(W, H);
+        const sourceId = await r.photoSources.register(bandes);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bandes");
+        at(stack, p).blendMode = "saturation";
+      },
+    },
+
+    // DIFFERENCE : abs(dessous - dessus), en LUMIERE et non en valeurs codees
+    // (voir l en-tete du groupe signe dans \`render/blend/modes.ts\`). La mire de
+    // fond porte a la fois un disque creme tres clair et des rayures presque
+    // noires, donc les deux sens de la soustraction sont exerces par
+    // construction — c est ce que la paire suivante exploite.
+    "fusion-difference": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const bandes = await mireFusion(W, H);
+        const sourceId = await r.photoSources.register(bandes);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bandes");
+        at(stack, p).blendMode = "difference";
+      },
+    },
+
+    // SOUSTRACTION : max(dessous - dessus, 0). Contre DIFFERENCE, dont elle ne
+    // se distingue QUE la ou le dessus depasse le dessous — partout ailleurs
+    // les deux formules rendent le meme octet. L ecart mesure est donc
+    // exactement la surface ou la valeur absolue a replie une valeur negative,
+    // et un mode qui aurait recopie l autre rendrait zero pour cent.
+    "fusion-soustraction": {
+      contre: "fusion-difference",
+      build: async (r, stack) => {
+        const bandes = await mireFusion(W, H);
+        const sourceId = await r.photoSources.register(bandes);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bandes");
+        at(stack, p).blendMode = "subtract";
+      },
+    },
+
   };
 
   const b64 = (u8) => {

@@ -78,6 +78,14 @@
 const argvGsc = process.argv.slice(2);
 const iOrigin = argvGsc.indexOf("--origin");
 const ORIGIN = iOrigin === -1 ? null : argvGsc[iOrigin + 1];
+// `--port`, comme `render-check.mjs` (ajoute le 2026-08-18). Le commentaire
+// ci-dessous raconte deja le cas ou 9222 est tenu par un AUTRE programme ; il
+// s est reproduit, et sans ce drapeau la seule issue etait de fermer le
+// programme fautif — ici un DAW, qui pouvait avoir du travail non enregistre.
+// L app se lance alors avec `--remote-debugging-port=<port>` et les deux gates
+// recoivent le meme `--port`.
+const iPort = argvGsc.indexOf("--port");
+const PORT_CDP = iPort === -1 ? 9222 : Number(argvGsc[iPort + 1]);
 
 // QUELLE PAGE, ET POURQUOI CA DEPEND DE `--origin` (corrige le 2026-08-03).
 //
@@ -92,14 +100,14 @@ const ORIGIN = iOrigin === -1 ? null : argvGsc[iOrigin + 1];
 // AUTRE projet, la gate refusait de tourner, et le message accusait shaderlab
 // d etre absent alors que le script n avait besoin d aucune page shaderlab. Une
 // gate qui echoue pour une raison qui n est pas la sienne finit par etre ignoree.
-const targets = await (await fetch("http://localhost:9222/json")).json();
+const targets = await (await fetch(`http://localhost:${PORT_CDP}/json`)).json();
 const page = ORIGIN
   ? targets.find((t) => t.type === "page" && t.webSocketDebuggerUrl)
   : targets.find((t) => t.type === "page" && t.url.includes("1420"));
 if (!page) {
   throw new Error(
     ORIGIN
-      ? "aucune page CDP sur le port 9222 (l'iframe a besoin d'un hote de GPU, quel qu'il soit)"
+      ? `aucune page CDP sur le port ${PORT_CDP} (l'iframe a besoin d'un hote de GPU, quel qu'il soit)`
       : "aucune page shaderlab sur le port 1420 — ou passer --origin pour compiler le worktree dans un iframe",
   );
 }

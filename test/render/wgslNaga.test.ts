@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { effectRegistry } from "../../src/render/effects/registry";
 import { composeShader } from "../../src/render/shaderCompose";
-import { getBlendMode } from "../../src/render/blend/registry";
+import { blendRegistry, getBlendMode } from "../../src/render/blend/registry";
 
 /**
  * VALIDATION STATIQUE DU WGSL, SANS GPU — le seul gate de shader qui puisse
@@ -159,6 +159,31 @@ function variantes(): Variante[] {
       });
     });
   }
+
+  // ── LES MODES DE FUSION, UN PAR UN ──────────────────────────────────────
+  //
+  // La boucle ci-dessus n'injecte QUE `normal` — dont le corps est un `return
+  // top;`. Seize des dix-sept modes n'étaient donc validés par rien : leur WGSL
+  // n'apparaît dans aucun shader composé de ce gate, et `test:gpu-shaders` ne
+  // tourne pas en CI. Trou constaté le 2026-08-18, en ajoutant les six modes du
+  // ticket 12 — dont quatre portent des helpers et des branches.
+  //
+  // Un seul effet suffit : ce qu'on valide ici est le corps du MODE, et le
+  // reste du shader est déjà couvert vingt-quatre fois au-dessus. `grain` est
+  // pris parce qu'il n'a ni passe interne ni texture de bibliothèque — le
+  // support le plus mince possible autour de la pièce mesurée.
+  const support = effectRegistry.find((e) => e.id === "grain");
+  if (!support) throw new Error("effet `grain` introuvable : choisir un autre support de fusion");
+  for (const mode of blendRegistry) {
+    sortie.push({
+      nom: `fusion ${mode.id}`,
+      source: composeShader(support.wgsl, {
+        applyMask: true,
+        hasPrevPass: false,
+        blendWgsl: mode.wgsl,
+      }),
+    });
+  }
   return sortie;
 }
 
@@ -204,6 +229,14 @@ describe("dérogation `params` — bornes", () => {
 });
 
 describe("WGSL composé — validation statique par naga", () => {
+  // Attendu DÉRIVÉ du registre, jamais un littéral : un mode ajouté sans
+  // variante ferait rougir ce test au lieu de passer inaperçu — ce qui est
+  // exactement ce qui s'est produit pour les seize modes non-`normal`.
+  it("chaque mode de fusion a sa variante", () => {
+    const noms = new Set(variantes().map((v) => v.nom));
+    for (const m of blendRegistry) expect(noms.has(`fusion ${m.id}`), m.id).toBe(true);
+  });
+
   it("naga est installé", () => {
     expect(
       nagaDisponible(),

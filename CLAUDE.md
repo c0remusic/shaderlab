@@ -455,7 +455,24 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   photo, pas un effet choisissable.
 - Modes de fusion = modules autonomes dans `src/render/blend/registry.ts`
   (même principe, Tranche 1 2026-07-19) — chaque calque a `opacity`/
-  `blendMode` sur `LayerState`.
+  `blendMode` sur `LayerState`. **Dix-sept depuis le 2026-08-18** : les six du
+  ticket 12 (Différence, Soustraction, Teinte, Saturation, Couleur, Luminosité)
+  se sont ajoutés aux onze, **sans toucher l'interface** — `fn blend(base, top)`
+  recevait déjà les deux couleurs entières, ce qu'un mode non séparable demande.
+  `blendMode` étant une CHAÎNE, ajouter ou réordonner ne déplace aucun index de
+  preset (l'ordre du registre EST celui du sélecteur).
+  ⚠️ **L'ESPACE se décide par mode, et le critère n'est PAS « ce que fait
+  Photoshop »** — qui calcule tout en gamma — mais « l'opérateur a-t-il une
+  lecture physique ? ». `multiply` est en linéaire parce que multiplier deux
+  transmittances FILTRE de la lumière ; `difference`/`subtract` le sont pour la
+  même raison. `overlay` et sa famille n'ont aucune lecture physique et décodent
+  donc en sRGB, et les quatre non séparables aussi — leurs coefficients de
+  luminosité (0,3 / 0,59 / 0,11) sont une luma perçue posée sur des valeurs
+  ENCODÉES.
+  ⚠️ **Le gate `test:wgsl` ne validait QUE `normal`** jusqu'au 2026-08-18 : seize
+  modes sur dix-sept n'apparaissaient dans aucun shader composé, et
+  `test:gpu-shaders` ne tourne pas en CI. Une variante par mode est désormais
+  composée, avec un attendu DÉRIVÉ du registre.
 - **Toute lecture de `libraryTexture` DÉCLARE son espace d'échantillonnage.**
   Les scans portent une pyramide de mipmaps (`src/render/mipmapGenerator.ts` —
   WebGPU n'a aucune génération intégrée, il faut la chaîne de blits). ✅ **Sur
@@ -500,7 +517,7 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   d'une piste à la ligne a laissé `FiveRowDocumentHidesNoRow` — l'une des DEUX
   gardes que l'ADR-0001 nomme pour son point 6 — rouge sur `master` une journée
   entière, parce que seul `LayerPanel.stories.tsx` a été relancé.
-- Shaders GPU : `node scripts/gpu-shader-check.mjs --origin http://localhost:1421` — prouve que les shaders COMPILENT. ⚠️ **`npm run test:gpu-shaders` SANS `--origin` compile les modules FIGÉS en cache de la fenêtre, pas ton édition** : vert ET rouge faux (un `import()` d'une URL déjà évaluée rend l'instance en cache). Même prérequis Vite que `test:render` ci-dessous. Avec `--origin`, la page CDP n'est qu'un HÔTE DE GPU — n'importe laquelle fait l'affaire, y compris celle d'un autre projet.
+- Shaders GPU : `node scripts/gpu-shader-check.mjs --origin http://localhost:1421` — prouve que les shaders COMPILENT. ⚠️ **`npm run test:gpu-shaders` SANS `--origin` compile les modules FIGÉS en cache de la fenêtre, pas ton édition** : vert ET rouge faux (un `import()` d'une URL déjà évaluée rend l'instance en cache). Même prérequis Vite que `test:render` ci-dessous. Avec `--origin`, la page CDP n'est qu'un HÔTE DE GPU — n'importe laquelle fait l'affaire, y compris celle d'un autre projet. ⚠️ **Le port CDP n'est pas forcément libre** : il a été trouvé tenu par Ableton Live le 2026-08-18, qui expose son propre CEF sur 9222. Les DEUX gates prennent désormais `--port` (ajouté à `gpu-shader-check` ce jour-là, `render-check` l'avait déjà) — lancer l'app avec `--remote-debugging-port=<port>` et le passer aux deux, plutôt que fermer le programme fautif.
 - Non-régression du **rendu** : `npm run test:render` (`scripts/render-check.mjs`) — prouve que le pipeline produit les MÊMES PIXELS qu'avant. Prérequis : l'app tourne avec le port CDP 9222, ET un Vite du worktree courant sur 1421 (`npx vite --port 1421`). Références versionnées dans `test/render-refs/` ; `--update` les réécrit (les relire à l'œil avant de committer), `--diagnostic` mesure la dépendance à l'horloge de la surface de présentation. Lit les pixels de `Renderer.exportFrame()`, jamais une capture d'écran — voir l'en-tête du script pour pourquoi.
 - Validation **statique** du WGSL, sans GPU : `npm run test:wgsl`
   (`test/render/wgslNaga.test.ts`, aussi inclus dans `npm run test`). Prérequis :
@@ -529,9 +546,10 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Ce qu'elle laisse passer : notre uniform `params: array<f32, 48>` n'est pas
   conforme (stride 4 pour un alignement requis de 16 en espace uniform), Dawn
   l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 23
-  effets, index gelés par les presets ET par **102** références de pixels
-  (re-mesuré le 2026-08-18 : 102 PNG dans `test/render-refs/`, tous déclarés,
-  zéro orphelin ; ce nombre disait 97 et le ROADMAP 77).
+  effets, index gelés par les presets ET par **108** références de pixels
+  (re-mesuré le 2026-08-18 : 108 PNG dans `test/render-refs/`, tous déclarés,
+  zéro orphelin — 102 le matin, plus les six modes de fusion ; ce nombre disait
+  97 et le ROADMAP 77).
   ⚠️ **Compter les scénarios par un grep sur les clés littérales SOUS-COMPTE de
   quatre** : les quatre trames de `dither` sont générées par un
   `Object.fromEntries([...].map(...))` étalé (`render-check.mjs:1095-1099`), pas

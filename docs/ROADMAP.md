@@ -651,15 +651,36 @@ Périmètre arbitré par Antoine : **tout, netteté comprise**
 Trois tranches, du moins cher au plus cher — l'ordre porte de l'information que
 la liste ne porte pas.
 
-**Tranche 1 — le socle de fusion.** SIX modes d'un coup : les quatre non
-séparables (Couleur, Luminosité, Teinte, Saturation) et les deux signés
-(Différence, Soustraction).
-Mesuré : l'interface est `fn blend(base: vec3<f32>, top: vec3<f32>) -> vec3<f32>`
-— elle reçoit **déjà les deux couleurs entières**, ce qu'un mode non séparable
-demande. **Zéro changement d'interface.** Le registre porte 7 modes, tous canal
-par canal, aucun signé ; et `blendMode` est une CHAÎNE, donc en ajouter six **ne
-déplace aucun index de preset**. Solde le **split-tone**, différé depuis le
-2026-07-20 dans `PRD-print-export.md`.
+✅ **Tranche 1 — le socle de fusion : LIVRÉE le 2026-08-18.** Les six modes sont
+au registre, qui passe de **onze à dix-sept**. Zéro changement d'interface, comme
+annoncé : `fn blend(base, top)` recevait déjà les deux couleurs entières. Six
+références de pixels neuves (`fusion-*`), les 102 anciennes inchangées, et le
+**split-tone** différé depuis le 2026-07-20 devient atteignable par la pile.
+
+⚠️ **L'annonce disait « le registre porte 7 modes » — il en portait onze.** Le
+chiffre venait du ticket, pas d'un comptage ; il ne changeait aucune conclusion,
+mais c'est le troisième dénombrement de prose pris en défaut sur cette carte.
+
+⚠️ **Ce que la livraison a corrigé et qui n'était pas au plan** : `test:wgsl` ne
+validait QUE `normal` — seize modes sur dix-sept n'apparaissaient dans aucun
+shader composé du gate, et `test:gpu-shaders` ne tourne pas en CI. Une variante
+par mode y est désormais composée.
+
+⚠️ **Un témoin écrit dans un commentaire n'était pas lisible dans l'image qu'il
+commentait.** Les bandes 0 et 1 de la mire de fusion ont la même luminosité, donc
+en Luminosité elles devaient rendre la même chose — sauf que le FOND varie lui
+aussi avec y, si bien qu'aucun couple de pixels de la référence n'a le même
+dessous. Mesuré à part par quatre scénarios temporaires (dessus UNI rouge contre
+dessus UNI gris, même fond) : **Luminosité max 1 / moyenne 0,136** contre
+**Couleur max 120 / moyenne 51,2**. Le témoin tient ; c'est l'endroit où le lire
+qui était faux.
+
+**Décision d'espace, à connaître avant de comparer une capture à Photoshop** :
+`difference` et `subtract` calculent en LUMIÈRE, pas en valeurs codées. Le critère
+du dépôt n'est pas « ce que fait Photoshop » (qui fait tout en gamma) mais
+« l'opérateur a-t-il une lecture physique ? » — `multiply` est déjà en linéaire
+pour cette raison. Les quatre non séparables, eux, décodent en sRGB : leurs
+coefficients 0,3 / 0,59 / 0,11 sont une luma perçue sur des valeurs encodées.
 
 **Tranche 2 — les contraintes à lever.** Deux gestes qui ne créent rien :
 courbe libre / solarisation (le shader l'évalue déjà, c'est

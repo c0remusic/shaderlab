@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Faner ou masquer — planche de densité</title>
+<style>
+/* Tokens RECOPIÉS de src/design/{primitives,semantic,components}.css, mesurés le
+   2026-08-18. Un wireframe ne doit jamais inventer une valeur : si un écart
+   apparaît avec l'app, c'est le CSS du dépôt qui fait foi. */
+:root {
+  --primitive-neutral-100: #f2f2f2;
+  --primitive-neutral-200: #dbdbdb;
+  --primitive-neutral-850: #323232;
+  --primitive-neutral-900: #2c2c2c;
+  --primitive-neutral-1000: #1b1b1b;
+  --primitive-accent-blue-400: #6b90ff;
+
+  --surface-panel: var(--primitive-neutral-900);
+  --surface-raised: var(--primitive-neutral-850);
+  --surface-inset: var(--primitive-neutral-1000);
+  --text-primary: var(--primitive-neutral-100);
+  --text-secondary: color-mix(in srgb, var(--primitive-neutral-100) 68%, transparent);
+  --text-tertiary: color-mix(in srgb, var(--primitive-neutral-100) 58%, transparent);
+  --border-subtle: color-mix(in srgb, var(--primitive-neutral-100) 7%, transparent);
+  --border-default: color-mix(in srgb, var(--primitive-neutral-100) 11%, transparent);
+  --border-strong: color-mix(in srgb, var(--primitive-neutral-100) 28%, transparent);
+
+  --space-1: 2px; --space-2: 4px; --space-3: 6px; --space-4: 8px;
+  --space-5: 12px; --space-6: 16px; --space-7: 20px; --space-8: 24px;
+  --radius-control: 5px;
+  --control-height-sm: 28px;
+  --control-height-md: 30px;
+  --slider-track-height: var(--space-2);
+  --slider-thumb-size: 12px;
+  --slider-value-width: 9ch;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: var(--space-8);
+  background: var(--primitive-neutral-1000);
+  color: var(--text-primary);
+  font: 13px/1.45 "Segoe UI", system-ui, sans-serif;
+}
+h1 { font-size: 18px; margin: 0 0 var(--space-3); font-weight: 600; }
+h2 { font-size: 13px; margin: 0; font-weight: 600; }
+.preambule { max-width: 92ch; color: var(--text-secondary); margin-bottom: var(--space-8); }
+.preambule p { margin: 0 0 var(--space-4); }
+.preambule strong { color: var(--text-primary); }
+code {
+  font-family: Consolas, "Cascadia Mono", monospace; font-size: 12px;
+  background: var(--surface-inset); padding: 1px 4px; border-radius: 3px;
+  border: 1px solid var(--border-subtle);
+}
+
+.planches { display: flex; gap: var(--space-7); align-items: flex-start; flex-wrap: wrap; }
+.colonne { width: 320px; flex: 0 0 320px; } /* largeur réelle du dock */
+
+.entete-variante {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  margin-bottom: var(--space-4); padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-default);
+}
+.badge {
+  align-self: flex-start; font-size: 11px; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--text-tertiary);
+}
+.badge.actuel { color: var(--primitive-accent-blue-400); }
+.sous-titre { font-size: 12px; color: var(--text-secondary); }
+
+/* ---- carte dockée, content-sized (pas de splitter — retiré le 2026-07-21) ---- */
+.carte {
+  background: var(--surface-panel);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+.carte-titre {
+  height: 36px; display: flex; align-items: center; gap: var(--space-3);
+  padding: 0 var(--space-5); background: var(--surface-raised);
+  border-bottom: 1px solid var(--border-default);
+  font-size: 12px; font-weight: 600;
+}
+.carte-corps { padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-5); }
+
+.section-titre {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-tertiary); padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.section { display: flex; flex-direction: column; gap: var(--space-4); }
+
+.rangee { display: flex; flex-direction: column; gap: var(--space-2); }
+.rangee-tete { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); }
+.rangee-nom { font-size: 12px; color: var(--text-secondary); }
+.rangee-valeur {
+  width: var(--slider-value-width); text-align: right;
+  font-size: 11px; color: var(--text-tertiary);
+  font-family: Consolas, monospace;
+}
+.piste {
+  height: var(--slider-track-height); border-radius: 999px;
+  background: var(--surface-inset); position: relative;
+}
+.piste::after {
+  content: ""; position: absolute; top: 50%; transform: translate(-50%, -50%);
+  width: var(--slider-thumb-size); height: var(--slider-thumb-size);
+  border-radius: 50%; background: var(--primitive-neutral-200);
+}
+.remplissage { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--border-strong); }
+.choix {
+  height: var(--control-height-sm); display: flex; align-items: center;
+  padding: 0 var(--space-4); background: var(--surface-inset);
+  border: 1px solid var(--border-default); border-radius: var(--radius-control);
+  font-size: 12px; justify-content: space-between; color: var(--text-primary);
+}
+.chevron { color: var(--text-tertiary); font-size: 10px; }
+
+/* ---- l'état FANÉ, c'est tout l'objet de la planche ---- */
+.fane { opacity: .38; }
+.fane .rangee-nom { font-style: italic; }
+.fane .piste::after { background: var(--text-tertiary); }
+.raison {
+  font-size: 11px; font-style: italic; color: var(--text-tertiary);
+  padding-left: var(--space-4); border-left: 2px solid var(--border-subtle);
+}
+.section-repliee {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-3) 0; opacity: .5;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.section-repliee .compte { font-size: 11px; color: var(--text-tertiary); font-family: Consolas, monospace; }
+
+/* ---- mesure ---- */
+.mesure {
+  margin-top: var(--space-5); padding: var(--space-4) var(--space-5);
+  background: var(--surface-inset); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control); font-size: 11px; color: var(--text-secondary);
+  font-family: Consolas, monospace; line-height: 1.7;
+}
+.mesure b { color: var(--text-primary); font-weight: 600; }
+.mesure .depasse { color: #ff8a7a; }
+
+table { border-collapse: collapse; margin-top: var(--space-8); font-size: 12px; }
+th, td { text-align: left; padding: var(--space-3) var(--space-6) var(--space-3) 0; border-bottom: 1px solid var(--border-subtle); }
+th { color: var(--text-tertiary); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+td.n { font-family: Consolas, monospace; text-align: right; padding-right: var(--space-8); }
+.note { margin-top: var(--space-8); max-width: 92ch; color: var(--text-secondary); }
+.note h2 { margin-bottom: var(--space-3); color: var(--text-primary); }
+.note ul { margin: 0 0 var(--space-5); padding-left: var(--space-7); }
+.note li { margin-bottom: var(--space-3); }
+</style>
+</head>
+<body>
+
+<h1>Faner ou masquer — un curseur sans objet</h1>
+<div class="preambule">
+  <p>
+    Aujourd'hui, un paramètre sans objet <strong>disparaît</strong>
+    (<code>EffectParam.appliesWhen</code>). Lightroom fait l'inverse : il
+    <strong>fane et met en italique</strong>, et fait du retrait une préférence.
+    Cette troisième voie n'a jamais été instruite ici — c'est ce que cette
+    planche donne à voir, une fois, plutôt que de la redécouvrir dans six mois.
+  </p>
+  <p>
+    Cas montré : l'effet <code>glass</code> réglé sur la matière
+    <strong>Poli</strong>. Ce n'est pas un cas choisi pour impressionner, c'est
+    le plus conditionné du registre — <strong>22 paramètres, 3 sections, 14
+    conditions</strong>, dont la section <em>Pavé</em> entière. À « Poli »,
+    <strong>13 des 22 paramètres n'ont aucun objet</strong>.
+  </p>
+  <p>
+    Les libellés, les conditions et les tokens sont extraits du code réel le
+    2026-08-18, pas reconstitués. La colonne fait 320 px, la largeur du dock.
+    <strong>Les hauteurs affichées sous chaque variante sont mesurées par la
+    page elle-même</strong>, pas écrites à la main.
+  </p>
+</div>
+
+<div class="planches">
+
+  <!-- ======================= A — MASQUER (ACTUEL) ======================= -->
+  <div class="colonne">
+    <div class="entete-variante">
+      <span class="badge actuel">Variante A · en vigueur</span>
+      <h2>Masquer</h2>
+      <span class="sous-titre">Ce qui n'a pas d'objet n'existe pas à l'écran.</span>
+    </div>
+    <div class="carte" id="carte-a">
+      <div class="carte-titre">Propriétés · Verre</div>
+      <div class="carte-corps">
+        <div class="section">
+          <div class="section-titre"><span>Matière</span></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Matière</span></div>
+            <div class="choix">Poli <span class="chevron">▾</span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Creux</span><span class="rangee-valeur">0,42</span></div>
+            <div class="piste"><span class="remplissage" style="width:42%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Part plate</span><span class="rangee-valeur">0,18</span></div>
+            <div class="piste"><span class="remplissage" style="width:18%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Micro-relief</span><span class="rangee-valeur">0,25</span></div>
+            <div class="piste"><span class="remplissage" style="width:25%"></span></div></div>
+        </div>
+        <div class="section">
+          <div class="section-titre"><span>Optique</span></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Épaisseur</span><span class="rangee-valeur">0,60</span></div>
+            <div class="piste"><span class="remplissage" style="width:60%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Reflet spéculaire</span><span class="rangee-valeur">0,30</span></div>
+            <div class="piste"><span class="remplissage" style="width:30%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Dispersion</span><span class="rangee-valeur">0,22</span></div>
+            <div class="piste"><span class="remplissage" style="width:22%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Diffusion</span><span class="rangee-valeur">0,15</span></div>
+            <div class="piste"><span class="remplissage" style="width:15%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Présence du relief</span><span class="rangee-valeur">0,50</span></div>
+            <div class="piste"><span class="remplissage" style="width:50%"></span></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="mesure" id="mesure-a"></div>
+  </div>
+
+  <!-- ======================= B — FANER TOUT ======================= -->
+  <div class="colonne">
+    <div class="entete-variante">
+      <span class="badge">Variante B</span>
+      <h2>Faner, tout</h2>
+      <span class="sous-titre">Rien ne disparaît. On voit ce qui dort, et pourquoi.</span>
+    </div>
+    <div class="carte" id="carte-b">
+      <div class="carte-titre">Propriétés · Verre</div>
+      <div class="carte-corps">
+        <div class="section">
+          <div class="section-titre"><span>Matière</span></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Matière</span></div>
+            <div class="choix">Poli <span class="chevron">▾</span></div></div>
+          <div class="rangee fane"><div class="rangee-tete"><span class="rangee-nom">Densité du motif</span><span class="rangee-valeur">0,50</span></div>
+            <div class="piste"><span class="remplissage" style="width:50%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Creux</span><span class="rangee-valeur">0,42</span></div>
+            <div class="piste"><span class="remplissage" style="width:42%"></span></div></div>
+          <div class="rangee fane"><div class="rangee-tete"><span class="rangee-nom">Profil de section</span></div>
+            <div class="choix">Arc doux <span class="chevron">▾</span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Part plate</span><span class="rangee-valeur">0,18</span></div>
+            <div class="piste"><span class="remplissage" style="width:18%"></span></div></div>
+          <div class="rangee fane"><div class="rangee-tete"><span class="rangee-nom">Congé de raccord</span><span class="rangee-valeur">0,10</span></div>
+            <div class="piste"><span class="remplissage" style="width:10%"></span></div></div>
+          <div class="rangee fane"><div class="rangee-tete"><span class="rangee-nom">Orientation</span></div>
+            <div class="choix">Verticale <span class="chevron">▾</span></div></div>
+          <div class="rangee fane"><div class="rangee-tete"><span class="rangee-nom">Irrégularité</span><span class="rangee-valeur">0,08</span></div>
+            <div class="piste"><span class="remplissage" style="width:8%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Micro-relief</span><span class="rangee-valeur">0,25</span></div>
+            <div class="piste"><span class="remplissage" style="width:25%"></span></div></div>
+          <div class="raison">Cinq réglages en sommeil : « Poli » n'a pas de motif.</div>
+        </div>
+        <div class="section">
+          <div class="section-titre"><span>Optique</span></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Épaisseur</span><span class="rangee-valeur">0,60</span></div>
+            <div class="piste"><span class="remplissage" style="width:60%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Reflet spéculaire</span><span class="rangee-valeur">0,30</span></div>
+            <div class="piste"><span class="remplissage" style="width:30%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Dispersion</span><span class="rangee-valeur">0,22</span></div>
+            <div class="piste"><span class="remplissage" style="width:22%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Diffusion</span><span class="rangee-valeur">0,15</span></div>
+            <div class="piste"><span class="remplissage" style="width:15%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Présence du relief</span><span class="rangee-valeur">0,50</span></div>
+            <div class="piste"><span class="remplissage" style="width:50%"></span></div></div>
+        </div>
+        <div class="section fane">
+          <div class="section-titre"><span>Pavé</span></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Taille du pavé</span><span class="rangee-valeur">132</span></div>
+            <div class="piste"><span class="remplissage" style="width:44%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Largeur du mortier</span><span class="rangee-valeur">8,0</span></div>
+            <div class="piste"><span class="remplissage" style="width:12%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Chaleur du mortier</span><span class="rangee-valeur">0,35</span></div>
+            <div class="piste"><span class="remplissage" style="width:35%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Clarté du mortier</span><span class="rangee-valeur">0,55</span></div>
+            <div class="piste"><span class="remplissage" style="width:55%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Profondeur de l'arête</span><span class="rangee-valeur">0,20</span></div>
+            <div class="piste"><span class="remplissage" style="width:20%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Largeur de l'arête</span><span class="rangee-valeur">0,14</span></div>
+            <div class="piste"><span class="remplissage" style="width:14%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Biseau</span><span class="rangee-valeur">0,28</span></div>
+            <div class="piste"><span class="remplissage" style="width:28%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Moulage interne</span><span class="rangee-valeur">0,40</span></div>
+            <div class="piste"><span class="remplissage" style="width:40%"></span></div></div>
+          <div class="raison">Section entière en sommeil : réservée aux cinq matières « Pavé ».</div>
+        </div>
+      </div>
+    </div>
+    <div class="mesure" id="mesure-b"></div>
+  </div>
+
+  <!-- ======================= C — MIXTE ======================= -->
+  <div class="colonne">
+    <div class="entete-variante">
+      <span class="badge">Variante C</span>
+      <h2>Faner en SECTION seulement</h2>
+      <span class="sous-titre">Le paramètre isolé disparaît ; le bloc reste, replié et fané.</span>
+    </div>
+    <div class="carte" id="carte-c">
+      <div class="carte-titre">Propriétés · Verre</div>
+      <div class="carte-corps">
+        <div class="section">
+          <div class="section-titre"><span>Matière</span></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Matière</span></div>
+            <div class="choix">Poli <span class="chevron">▾</span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Creux</span><span class="rangee-valeur">0,42</span></div>
+            <div class="piste"><span class="remplissage" style="width:42%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Part plate</span><span class="rangee-valeur">0,18</span></div>
+            <div class="piste"><span class="remplissage" style="width:18%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Micro-relief</span><span class="rangee-valeur">0,25</span></div>
+            <div class="piste"><span class="remplissage" style="width:25%"></span></div></div>
+        </div>
+        <div class="section">
+          <div class="section-titre"><span>Optique</span></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Épaisseur</span><span class="rangee-valeur">0,60</span></div>
+            <div class="piste"><span class="remplissage" style="width:60%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Reflet spéculaire</span><span class="rangee-valeur">0,30</span></div>
+            <div class="piste"><span class="remplissage" style="width:30%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Dispersion</span><span class="rangee-valeur">0,22</span></div>
+            <div class="piste"><span class="remplissage" style="width:22%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Diffusion</span><span class="rangee-valeur">0,15</span></div>
+            <div class="piste"><span class="remplissage" style="width:15%"></span></div></div>
+          <div class="rangee"><div class="rangee-tete"><span class="rangee-nom">Présence du relief</span><span class="rangee-valeur">0,50</span></div>
+            <div class="piste"><span class="remplissage" style="width:50%"></span></div></div>
+        </div>
+        <div class="section-repliee">
+          <span>Pavé</span>
+          <span class="compte">8 réglages · dort</span>
+        </div>
+      </div>
+    </div>
+    <div class="mesure" id="mesure-c"></div>
+  </div>
+
+</div>
+
+<table>
+  <thead><tr><th>Variante</th><th>Contrôles à l'écran</th><th>Hauteur de carte</th><th>Écart vs A</th><th>Ce qu'on perd</th></tr></thead>
+  <tbody id="tableau"></tbody>
+</table>
+
+<div class="note">
+  <h2>Ce que la planche ne dit pas, et qu'il faut savoir en la regardant</h2>
+  <ul>
+    <li>
+      <strong>La hauteur n'est pas le seul coût, et c'est peut-être le moindre.</strong>
+      Un panneau où un tiers des lignes est inerte demande à l'œil de trier
+      avant de viser. La variante B est plus <em>informative</em> et moins
+      <em>rapide</em> — aucune mesure ne tranche ça, seul l'usage.
+    </li>
+    <li>
+      <strong>ADR-0001 borne la hauteur de carte, pas le nombre de contrôles.</strong>
+      Si B tient dans le budget, la règle n'est pas violée — mais la colonne
+      porte plusieurs cartes, et c'est leur SOMME qui déborde. La planche montre
+      une carte ; l'app en empile trois ou quatre.
+    </li>
+    <li>
+      <strong>Le cas montré est le pire du registre.</strong> 15 effets sur 24
+      n'ont aucune condition : pour eux, les trois variantes sont identiques.
+      L'écart ne se paye que sur <code>glass</code>, <code>aplat</code> et
+      <code>outlines</code>.
+    </li>
+    <li>
+      <strong>C existe en deux formes, et seule la repliée est dessinée ici.</strong>
+      « Section fanée » peut vouloir dire repliée (ce qu'on voit) ou dépliée
+      avec ses huit lignes fanées — cette seconde forme coûte presque autant
+      que B. Choisir C, c'est aussi choisir laquelle.
+    </li>
+    <li>
+      <strong>Masquer ne borne pas.</strong> Quelle que soit la variante, le
+      shader garde ses clamps : un preset n'entre pas par le panneau. Rien de ce
+      qui est décidé ici ne change un pixel — et
+      <code>npm run test:render</code> doit rendre zéro écart après, c'est le
+      gate qui le prouve.
+    </li>
+  </ul>
+</div>
+
+<script>
+// La planche se MESURE elle-même. Écrire les hauteurs à la main, c'est le genre
+// de chiffre qui se périme au premier ajustement de padding sans que personne
+// ne le voie.
+const variantes = [
+  { id: "a", nom: "A · Masquer (en vigueur)", perte: "La découvrabilité : on ignore que 13 réglages existent." },
+  { id: "b", nom: "B · Faner tout", perte: "De la densité, et de la vitesse de visée." },
+  { id: "c", nom: "C · Faner en section", perte: "La découvrabilité des 5 réglages isolés ; le bloc, lui, se voit." },
+];
+const controles = { a: 9, b: 22, c: 9 };
+const BUDGET = 1345; // px disponibles dans la colonne, mesuré le 2026-07-28 (ADR-0001)
+
+const hauteurs = {};
+for (const v of variantes) hauteurs[v.id] = document.getElementById("carte-" + v.id).getBoundingClientRect().height;
+
+for (const v of variantes) {
+  const h = Math.round(hauteurs[v.id]);
+  const ecart = Math.round(hauteurs[v.id] - hauteurs.a);
+  const part = ((h / BUDGET) * 100).toFixed(1);
+  document.getElementById("mesure-" + v.id).innerHTML =
+    "<b>" + controles[v.id] + "</b> contrôles · carte <b>" + h + " px</b><br>" +
+    (v.id === "a" ? "référence" : (ecart >= 0 ? "+" : "") + ecart + " px vs A") +
+    " · <b>" + part + " %</b> du budget de colonne";
+}
+
+document.getElementById("tableau").innerHTML = variantes.map((v) => {
+  const h = Math.round(hauteurs[v.id]);
+  const ecart = Math.round(hauteurs[v.id] - hauteurs.a);
+  return "<tr><td>" + v.nom + "</td><td class='n'>" + controles[v.id] + "</td>" +
+    "<td class='n'>" + h + " px</td><td class='n'>" + (v.id === "a" ? "—" : (ecart >= 0 ? "+" : "") + ecart + " px") +
+    "</td><td>" + v.perte + "</td></tr>";
+}).join("");
+</script>
+
+</body>
+</html>

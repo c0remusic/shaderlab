@@ -222,7 +222,23 @@ export const glass: EffectModule = {
     // dit inerte (Poli, Dépoli, Cathédrale, les cinq Pavé) : masquer là est un
     // arbitrage d'affichage qui n'a pas été rendu, et c'est le sens PRUDENT de
     // l'erreur — un curseur inerte visible se voit, l'inverse pas.
-    { name: "flat", label: "Part plate", unit: "percent", min: 0, max: 0.9, default: 0, step: 0.01, hint: "Un curseur, trois sens selon la matière : sur les trois cannelures, la largeur du méplat entre deux stries — 0 = elles se touchent ; en Aluminium brossé, la profondeur du BROSSAGE ; en Martelé et en Écorce, la largeur de la RAINURE entre cellules, où il déplace près de la moitié de l'image (mesuré le 2026-08-05). Sans effet sur les autres matières" },
+    // ⚠️ LE DERNIER PARAMÈTRE DE `glass` À RECEVOIR SA CONDITION, et il l'a
+    // attendue deux semaines pour une raison instructive : son infobulle
+    // déclarait une inertie DEPUIS TOUJOURS (« sans effet sur les autres
+    // matières »), mais la première mesure du 2026-08-04 l'a trouvé VIVANT là où
+    // elle le disait mort — 47 % des canaux en Martelé. La déclaration était
+    // fausse, pas le curseur.
+    //
+    // Elle a été corrigée le 2026-08-05 (Martelé et Écorce nommés), et personne
+    // n'a reporté la correction dans un `appliesWhen` : le gate d'applicabilité
+    // a donc affiché « 40 inertes, 1 VIVANT » pendant deux semaines sur une
+    // déclaration qui n'était plus celle du code. Un VIVANT qu'on s'habitue à
+    // voir cesse d'être un signal.
+    //
+    // SIX matières le lisent, chacune pour un sens différent : la largeur du
+    // méplat sur les trois cannelures, la profondeur du brossage en Aluminium,
+    // la largeur de la rainure entre cellules en Martelé et en Écorce.
+    { name: "flat", label: "Part plate", unit: "percent", min: 0, max: 0.9, default: 0, step: 0.01, appliesWhen: { param: "material", equals: [MAT_CANNELE, MAT_CROISE, MAT_GAUFRE, MAT_MARTELE, MAT_ECORCE, MAT_ALU] }, hint: "Un curseur, trois sens selon la matière : sur les trois cannelures, la largeur du méplat entre deux stries — 0 = elles se touchent ; en Aluminium brossé, la profondeur du BROSSAGE ; en Martelé et en Écorce, la largeur de la RAINURE entre cellules, où il déplace près de la moitié de l'image (mesuré le 2026-08-05). Sans effet sur les autres matières" },
     { name: "fillet", label: "Congé de raccord", unit: "percent", min: 0, max: 0.5, default: 0.12, step: 0.01, hint: "Adoucit le raccord au bord de chaque strie. Sans lui, les profils en arc ont une pente qui DIVERGE au bord puis retombe net : un trait dur et un escalier de pixels à chaque limite. Un verre réel a toujours un congé là. Sans objet hors des trois premières matières", appliesWhen: { param: "material", equals: [MAT_CANNELE, MAT_CROISE, MAT_GAUFRE] } },
     { name: "orientation", label: "Orientation", unit: "none", min: 0, max: 1, default: 0, step: 1, choices: ["Verticale", "Horizontale"], hint: "Axe du motif. Sans objet sur les matières sans direction — Cannelé croisé, Gaufré, Martelé, Aluminium, Poli, Dépoli", appliesWhen: { param: "material", equals: MATIERES_SAUF(MAT_CROISE, MAT_GAUFRE, MAT_MARTELE, MAT_ALU, MAT_POLI, MAT_DEPOLI) } },
     { name: "irregularity", label: "Irrégularité", unit: "percent", min: 0, max: 1, default: 0.25, step: 0.01, hint: "Chaque strie prend son propre creux et sa propre position, au lieu d'un peigne parfait. Sur les matières à cellules, c'est le basculement propre à chaque plaque. Sans objet en Poli et en Dépoli", appliesWhen: { param: "material", equals: MATIERES_SAUF(MAT_POLI, MAT_DEPOLI) } },

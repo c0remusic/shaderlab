@@ -85,14 +85,27 @@ describe("glass — la surface de contrôle", () => {
     }
   });
 
-  it("laisse `flat` VISIBLE partout — c'est le seul des trente-neuf qui mentait", () => {
-    // LA RAISON D'ÊTRE DE LA CAMPAGNE DE MESURE. `flat` disait « Sans objet
-    // ailleurs » et déplace 47,1 % des canaux en Martelé, 49,0 % en Écorce, où
-    // il règle la largeur de la rainure entre cellules. Le masquer sur la foi de
-    // cette phrase l'aurait effacé SANS RIEN FAIRE ROUGIR : un curseur masqué ne
-    // bouge plus aucun pixel, donc aucune référence de rendu ne l'aurait vu.
+  it("masque `flat` sur les huit matières MESURÉES inertes, et pas une de plus", () => {
+    // LA RAISON D'ÊTRE DE LA CAMPAGNE DE MESURE, et son aboutissement.
+    //
+    // `flat` disait « Sans objet ailleurs » et déplace 47,1 % des canaux en
+    // Martelé, 49,0 % en Écorce, où il règle la largeur de la rainure entre
+    // cellules. Le masquer sur la foi de cette phrase l'aurait effacé SANS RIEN
+    // FAIRE ROUGIR : un curseur masqué ne bouge plus aucun pixel, donc aucune
+    // référence de rendu ne l'aurait vu. Ce test a donc gardé `flat` VISIBLE
+    // PARTOUT du 2026-08-04 au 2026-08-18 — la seule position tenable tant que
+    // personne ne savait où il agissait vraiment.
+    //
+    // Il est masqué aujourd'hui parce que la question a été MESURÉE, pas parce
+    // qu'on a fini par croire l'infobulle : `node scripts/render-check.mjs
+    // --applicabilite --declaration glass.flat` éprouve les HUIT matières
+    // exclues une par une — Poli, Dépoli, Cathédrale et les cinq pavés — et rend
+    // « inerte » sur les huit. 14 matières, 6 qui le lisent, 8 mesurées : la
+    // couverture est complète par construction, aucune n'est masquée sur une
+    // déduction.
     const flat = glass.params.find((p) => p.name === "flat");
-    expect(flat?.appliesWhen, "flat n'est masqué nulle part").toBeUndefined();
+    expect(flat?.appliesWhen?.param).toBe("material");
+    expect(flat?.appliesWhen?.equals, "les six matières qui LISENT flat").toEqual([0, 1, 2, 3, 4, 5]);
     // Et son infobulle ne redit plus le mensonge : elle nomme ses trois sens.
     expect(flat?.hint).not.toMatch(/Sans objet ailleurs/);
     expect(flat?.hint).toMatch(/RAINURE/);

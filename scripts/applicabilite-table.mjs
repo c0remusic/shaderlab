@@ -208,19 +208,26 @@ export const DECLARATIONS = [
       },
       {
         id: "glass.flat",
-        declare: "Sans objet ailleurs (regle le brossage en Aluminium)",
+        declare: "Sans objet hors des six matieres qui le lisent",
         param: "flat",
         a: 0,
         b: 0.9,
-        // « Ailleurs » = ni les trois matieres a stries (0,1,2, ou ce curseur
-        // EST le meplat), ni l'Aluminium brosse (5, ou il regle le brossage).
-        // Restent DIX matieres, toutes eprouvees : la premiere passe en a
-        // trouve une vivante (Martele, 47 % des canaux) et le Martele partage
-        // sa primitive avec l'Ecorce — donc la question « ou exactement » ne
-        // se devine pas, elle se mesure.
+        // ⚠️ LA DECLARATION A CHANGE, ET C'EST POURQUOI CETTE LISTE A MAIGRI DE
+        // DEUX ENTREES. Elle disait « sans objet ailleurs » en ne comptant que
+        // les trois cannelures et l'Aluminium ; la premiere passe du 2026-08-04
+        // a trouve le curseur VIVANT en Martele (47 % des canaux) puis en Ecorce
+        // (49 %), et l'infobulle de l'effet a ete corrigee le lendemain pour les
+        // nommer. Personne n'a reporte la correction ICI : le gate a donc
+        // affiche « 1 VIVANT » pendant deux semaines sur une declaration que le
+        // code ne portait plus.
+        //
+        // Ce n'est pas un `expect` tordu jusqu'a passer : Martele et Ecorce
+        // sortent parce que le curseur y AGIT et que plus rien ne pretend le
+        // contraire — c'est meme la mesure qui a fait changer la declaration.
+        // Ce qui reste teste est ce que le code declare aujourd'hui, et
+        // `flat` porte desormais son `appliesWhen` sur les six matieres qui le
+        // lisent (2026-08-18, ticket 15).
         configs: [
-          { label: "Martele", base: feuille(3) },
-          { label: "Ecorce", base: feuille(4) },
           { label: "Poli", base: { ...optique, material: 6, depth: 1, thickness: 1.6 } },
           { label: "Depoli", base: { ...optique, material: 7, diffusion: 0.4, grain: 0.6 } },
           { label: "Cathedrale", base: feuille(8) },
@@ -411,4 +418,5 @@ export const DECLARATIONS = [
     b: 1,
     configs: [{ label: "repetition 1", base: { repeat: 1, blackPoint: 0, whitePoint: 1, blendSpace: 1 } }],
   },
+
 ];

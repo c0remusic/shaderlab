@@ -260,3 +260,29 @@ Le rendu ne lit pas encore le cadre : `Renderer.allocateDocument` alloue toujour
 la toile entière. La tranche suivante est ce câblage — passe de présentation,
 dimensions d'export, et l'outil de recadrage lui-même — et elle passe par les
 gates GPU. Le modèle, lui, ne bougera plus.
+
+⚠️ **Constat de méthode noté le 2026-08-20, avant la première ligne du câblage.**
+La tranche a DEUX moitiés qui ne se prouvent PAS de la même façon :
+
+- **L'EXPORT** se prouve au harnais. `test:render` lit `Renderer.exportFrame()`
+  (jamais une capture d'écran — voir l'en-tête de `render-check.mjs`), donc un
+  scénario qui pose un cadre et vérifie que l'export est découpé au bon rectangle
+  est un garde franc. À faire : le readback de `exportFrame` ne relit que le
+  sous-rectangle du cadre.
+- **L'ÉCRAN n'est PAS prouvable au harnais.** La passe de présentation
+  (`presentPass.ts`) échantillonne en `in.uv` plein cadre ; la recadrer demande
+  un remappage UV vers le sous-rectangle du cadre, plus un canvas redimensionné
+  au cadre. Or `presentPass` écrit le CANVAS, que `render-check` ne lit jamais —
+  seule une capture par le pilote (`/run-shaderlab shot`) le montre, et c'est du
+  jugement visuel, pas un octet gelé. Et c'est le chemin le PLUS CHAUD (toutes
+  les frames, tous les calques) : un bug d'uv-remap y casse tout l'écran sans
+  qu'aucune référence ne rougisse.
+
+Conséquence pour le plan : commencer par l'export (prouvable), puis l'écran sous
+checkpoint visuel. Ne pas livrer le remappage d'écran sur la seule foi d'un
+`test:render` vert — il ne le regarde pas.
+
+⚠️ **Contrainte déjà écrite plus haut, rappelée ici parce qu'elle gouverne les
+deux moitiés** : le pipeline évalue les masques en espace d'ORIGINE, le cadre ne
+s'applique QU'à la présentation et à l'export. Évaluer dans l'espace du cadre
+rouvrirait le glissement du dégradé (§ « second défaut silencieux »).

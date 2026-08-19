@@ -77,6 +77,17 @@ de suite, et c'est là que sont les tickets.
 - [09 — Masque par bande de fréquence](issues/09-masque-bandpass.md) · `prototype`
 - [10 — Pinceau d'effet](issues/10-pinceau-d-effet.md) · `prototype`
 
+### Débloquer un chantier ARRÊTÉ ailleurs
+
+- [11 — Débloquer le 16 bits](issues/11-debloquer-le-16-bit.md) · `grilling`
+  ⭐ **Le relevé a débloqué un arbitrage que le dépôt avait laissé ouvert en
+  toutes lettres.** L'export print bute sur « sRGB par le FORMAT » contre
+  « aucun format flottant n'a de variante `-srgb` », et
+  `01-16-bit-hors-du-depot.md` §1.7 conclut « ce document ne choisit pas lequel
+  céder ». Affinity montre une TROISIÈME voie : ne pas choisir, retirer au
+  format le rôle de porter l'espace. Détail :
+  [`research/01-comment-affinity-fait-le-16-bit`](research/01-comment-affinity-fait-le-16-bit.md).
+
 ## Notes — contraintes permanentes de cet effort
 
 **Lecture seule sur les binaires.** Recherche d'interopérabilité sur une copie

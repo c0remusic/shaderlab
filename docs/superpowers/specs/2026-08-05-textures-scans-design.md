@@ -6,6 +6,16 @@
 > bibliothèque, les vignettes, la mesure du contraste des scans, le budget VRAM,
 > la contrainte de licence — et il est conservé tel quel, avec ses raisonnements
 > d'origine visibles. Seule la FORME du livrable a changé.
+>
+> ⚠️ **ET LE 2026-08-19, LA CARTE « TEXTURES » DU DOCK A ÉTÉ SUPPRIMÉE**
+> (demande d'Antoine). Avec elle part `importTextureFromPath`, qui posait un
+> scan en CALQUE PHOTO — ce que le renversement d'ADR-0018 avait déjà vidé de
+> son sens. **Tout ce que ce document dit de la carte du dock et de l'ajout en
+> calque décrit donc du code qui n'existe plus** : les paragraphes sont
+> conservés pour leur raisonnement, pas comme carte du code. Ce qui reste
+> vivant : la bibliothèque (`useTextureLibrary`), les vignettes, le catalogue
+> côté Rust, et le `TexturePicker` de l'effet — qui porte désormais AUSSI le
+> choix du dossier.
 
 > Écrit et livré le 2026-08-05, sur demande d'Antoine (« je voudrais qu'on
 > puisse ajouter des textures du type aussi », référence : *Surface Supply
@@ -212,9 +222,22 @@ pas une dépendance du produit.
 | Vignettes hors GPU, concurrence bornée | `src/textures/thumbnailCache.ts` |
 | Défaut de fusion et sa raison | `src/textures/textureLayer.ts` |
 | État de la bibliothèque | `src/hooks/useTextureLibrary.ts` |
-| Ajout d'une texture en calque | `src/hooks/usePhotoLayer.ts` — `importTextureFromPath` |
-| Carte du dock | `src/components/TextureLibrary.tsx` + `.css` |
+| ~~Ajout d'une texture en calque~~ | ~~`usePhotoLayer.ts` — `importTextureFromPath`~~ — **RETIRÉ le 2026-08-19** |
+| ~~Carte du dock~~ | ~~`src/components/TextureLibrary.tsx` + `.css`~~ — **SUPPRIMÉE le 2026-08-19** |
+| Sélecteur de texture d'un effet | `src/components/TexturePicker.tsx` — porte désormais AUSSI le choix du dossier |
 | Seuil GPU réel exposé | `src/render/renderer.ts` — `maxTextureDimension` |
+
+> ⚠️ **Deux lignes barrées le 2026-08-19, sur demande d'Antoine.** La carte
+> « Textures » du dock et `importTextureFromPath` sont supprimées : leur geste —
+> ajouter un scan comme CALQUE PHOTO — a perdu sa raison d'être depuis
+> qu'ADR-0018 fait échantillonner la bibliothèque par l'effet lui-même
+> (binding 7). Le geste n'est pas perdu, un scan restant un fichier image que
+> l'import photo ordinaire ouvre.
+>
+> ⚠️ Le CHOIX DU DOSSIER ne vivait que sur cette carte : il a migré dans
+> `TexturePicker`, avec l'état d'erreur de la bibliothèque. Sans ce déplacement
+> la bibliothèque serait restée figée sur le dossier livré, sans aucun moyen
+> d'en changer.
 
 `list_texture_files` **rejette au-delà de 5000 fichiers au lieu de tronquer** :
 une liste coupée se lit exactement comme un dossier complet.

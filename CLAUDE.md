@@ -109,7 +109,19 @@ supprimé le 2026-07-20, remplacé par `FloatingPanel`
 2026-07-20/21** et remplacé par `PanelColumn`/`DockedPanelCard`
 (`src/components/dockedPanel/`, dock fixe **content-sized**, sans splitter —
 `react-resizable-panels` a ete RETIRE le 2026-07-21 par `0efdfe4` : chaque carte
-prend la hauteur de son contenu et c'est la colonne qui defile
+prend la hauteur de son contenu.
+⚠️ **Depuis le 2026-08-19 la colonne porte des GROUPES À ONGLETS** (modèle
+Photoshop, `ui/dockLayout.ts` : `DockGroup { tabs, active, collapsed }`). Un
+groupe montre ses panneaux en onglets, un seul visible, un clic pour passer à
+l'autre — et **la colonne NE DÉFILE PAS**, ADR-0001 l'interdit en toutes
+lettres. Ce fichier a dit « c'est la colonne qui defile » jusqu'à cette date :
+c'était la description d'un défaut, pas d'une intention.
+⚠️ **DEUX mécanismes ont été construits puis RETIRÉS le même jour** — un
+auto-repli déclenché par la hauteur disponible (sans précédent chez Photoshop ni
+Lightroom) et le **Solo mode** de Lightroom (qui tenait la colonne mais rendait
+Pile et Propriétés exclusives alors qu'on les lit ensemble). **Ne pas les
+reproposer comme des idées neuves** ; raisons dans
+`.scratch/hybride-lightroom-photoshop/issues/04-le-layout.md`.
 — voir `docs/superpowers/specs/2026-07-20-shaderlab-docked-panels-design.md`)
 — ne plus citer `FloatingPanel`/`src/components/floatingPanel/` comme
 composant existant ou à migrer, le dossier n'existe plus. Voir aussi
@@ -715,8 +727,15 @@ Points structurants qu'on ne devine pas en lisant un fichier isolé :
   deux vues : `layers()` (complet, pour le GPU) et `displayLayers()`
   (projection sans raster, pour React — c'est l'invariant anti-OOM).
   ⚠️ **`replaceLiveLayers` est la porte que les gardes de `LayerStack` NE
-  COUVRENT PAS.** `LayerStack` refuse quatorze opérations sur un calque
-  verrouillé, chacune derrière `isLocked` — mais AUCUN geste vivant ne passe par
+  COUVRENT PAS.** `LayerStack` refuse **dix-sept** opérations sur un calque
+  verrouillé — réparties entre **QUATRE verrous** depuis le 2026-08-19 :
+  `isLocked` (structure : effet, écrêtage, ordre, suppression),
+  `refuseGeometrie`, `refuseMasque`. ⚠️ Le verrou de TRANSPARENCE ne vit même
+  pas là : il **ÉCRÊTE au lieu de refuser**, donc il est dans `MaskPainter`, sur
+  le chemin réel du pinceau vivant. **`grep isLocked` ne donne donc plus la
+  liste complète des refus** — lire les quatre gardes, et
+  `layers/layerLocks.ts`, seul endroit où « `all` implique les autres » est
+  écrit. Mais AUCUN geste vivant ne passe par
   ses mutateurs : pendant un glissement, `App.tsx` construit le tableau à la main
   et appelle `replaceLiveLayers`, délibérément (`clone()` re-rend la liste
   entière, 34,2 ms de CPU par `pointermove`). Le verrou fuyait donc par là, et le

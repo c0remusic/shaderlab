@@ -24,6 +24,7 @@ quatre verrous) est intact sur `master`.
 | [`affinity-full-scope`](../../docs/design-system/affinity-full-scope-2026-08-19.md) | outils, masques, sélections, UX, UI |
 | [`affinity-ce-quon-peut-lui-prendre`](../../docs/design-system/affinity-ce-quon-peut-lui-prendre-2026-08-19.md) | six idées à prendre, trois où nous sommes devant |
 | ⭐ [`affinity-plugin-verdict`](../../docs/design-system/affinity-plugin-verdict-2026-08-19.md) | **le verdict mesuré** : perfs, qualité, et ce qui a été pris |
+| ⭐ [`affinity-audit`](../../docs/design-system/affinity-audit-2026-08-19.md) | **LE CHAPEAU** — l'audit full scope consolidé par axe (outillage, effets, code, UI, UX), avec niveaux de preuve, chemins d'implémentation, et NEUF candidats sans ticket que les catalogues portaient sans qu'aucun relevé ne les ait synthétisés (export, historique visible, raccourcis) |
 
 ⚠️ **QUATRE conclusions fausses dans ce fil, toutes du même type** : conclure
 d'une ABSENCE constatée à l'endroit où j'avais regardé. Détail dans le document
@@ -128,6 +129,15 @@ de suite, et c'est là que sont les tickets.
 
 - [09 — Masque par bande de fréquence](issues/09-masque-bandpass.md) · `prototype`
 - [10 — Pinceau d'effet](issues/10-pinceau-d-effet.md) · `prototype`
+
+### Candidats SANS ticket — relevés par l'audit du 2026-08-19, à charter si voulus
+
+L'[audit](../../docs/design-system/affinity-audit-2026-08-19.md) § Récapitulatif
+en liste neuf (export réglable/PNG, panneau Historique, raccourcis centralisés,
+presets de masque, copie de masque entre calques, snapping système, deux zones
+fixes du panneau Calques, Glitch par canal sur `sliceShift`, LUT 3D). Aucun
+n'est ouvert d'office : la règle des notes s'applique — un geste nommé chez
+NOUS, sinon rien.
 
 ### Débloquer un chantier ARRÊTÉ ailleurs
 

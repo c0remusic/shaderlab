@@ -94,22 +94,32 @@ geste de la forme et le layout.
 - ✅ **Le geste de la forme** — on trace et on ajuste sans quitter l'outil, et la
   mesure s'affiche pendant le tracé. ⚠️ Un des cinq écarts n'en était pas un : le
   rectangle noir **est** la convention de Photoshop (couleur de premier plan).
-- ✅ **Le layout** — pas de refonte, un défaut : voir « la colonne du dock défile
-  à 1280 × 720 » plus bas. Le diagnostic est complet ; ce qui reste est un
-  arbitrage entre deux règles écrites.
-- ⚠️ **[Le verrou est binaire](../.scratch/hybride-lightroom-photoshop/issues/02-le-verrou-binaire.md)**
-  là où Photoshop en a QUATRE, avec un cadenas **plein** (total) contre **creux**
-  (partiel). Le geste qu'Adobe nomme — tenir la position pendant qu'on cherche
-  encore la couleur — n'a aucune expression ici, et il devient courant maintenant
-  que la couleur se règle depuis la barre d'options. ⚠️ Faux ami à ne pas
-  transposer : « Lock Image Pixels » n'a pas de sens pour un calque d'effet, qui
-  n'a pas de pixels propres.
-- ⚠️ **[La symétrie panneau / toile](../.scratch/hybride-lightroom-photoshop/issues/03-symetrie-panneau-toile.md)**
-  — notre panneau donne des fractions du cadre, la toile des poignées qu'on tire
-  en pixels. La fraction n'est pas un caprice (c'est ce qui rend un preset
-  indépendant de la définition), donc la question n'est pas quelle unité STOCKER
-  mais quelle unité MONTRER. Déborde l'aplat : cinq effets ont des contrôles
-  spatiaux en pourcentage.
+- ✅ **Le layout** — RÉSOLU le 2026-08-19 par des groupes à ONGLETS (modèle
+  Photoshop), après deux mécanismes construits puis retirés. La colonne tient
+  sans toucher au plancher des listes ; la carte « Textures » est partie avec.
+- ✅ **[Le verrou](../.scratch/hybride-lightroom-photoshop/issues/02-le-verrou-binaire.md) —
+  QUATRE verrous LIVRÉS le 2026-08-19** (Position, Masque, Transparence, Tout),
+  avec le cadenas **plein** (total) contre **creux** (partiel) d'Adobe.
+  ⚠️ **Le faux ami s'est levé par une lecture de domaine, pas par une analogie** :
+  « un calque d'effet n'a pas de pixels » est vrai des pixels et rate ce qu'il
+  possède — **le MASQUE d'un calque d'effet EST son canal alpha**. Là où
+  Photoshop distingue pixels transparents et pixels d'image, nous distinguons le
+  masque à ZÉRO et le masque tout court.
+  ⚠️ Et le verrou de TRANSPARENCE n'est pas de la même nature que les trois
+  autres : il ÉCRÊTE au lieu de refuser, donc il vit dans `MaskPainter` et non
+  dans `LayerStack` — même piège que `replaceLiveLayers`.
+- ⚠️ **[La symétrie panneau / toile](../.scratch/hybride-lightroom-photoshop/issues/03-symetrie-panneau-toile.md)
+  — TRANCHÉE le 2026-08-19, PAS ÉCRITE.** Arbitrage d'Antoine : **le panneau
+  passe en PIXELS**, conversion à l'affichage ET en saisie, la fraction restant
+  stockée — donc les presets ne bougent pas. Vaut pour les CINQ effets à
+  contrôle spatial (`aplat`, `lensFlare`, `lightLeak`, `motionBlur`,
+  `pixelStretch`). **C'est le seul reste de code de cette carte.**
+  ⚠️ Mesure qui a déplacé la question et qui doit servir à l'écriture : le
+  panneau parle DÉJÀ deux unités — 183 paramètres en `percent`, 19 en `pixels`,
+  42 en `degrees`, et ONZE effets mélangent `percent` et `pixels` dans le même
+  panneau. Ajouter une lecture en pixels n'introduit aucun mélange, il est là.
+  Et le défaut que ce mélange produit n'avait jamais été nommé : un adoucissement
+  de 200 px sur une forme de 0,4 n'est comparable à rien.
 
 ⚠️ **Sa recherche a établi une chose qui vaut d'être sue avant d'en lancer une
 autre** : la documentation Adobe ne donne AUCUN gabarit chiffré de layout. Elle
@@ -1150,7 +1160,36 @@ Celui-là s'est vu sur une CAPTURE, pas dans le code.
 dock défile à 1280 × 720 » plus bas. Le prix de la voie A ne se paie pas que sur
 la toile, et personne ne l'avait mesuré de ce côté-là.
 
-### ⚠️ OUVERT le 2026-08-18 — la colonne du dock DÉFILE à 1280 × 720, et ADR-0001 l'interdit
+### ✅ SOLDÉ le 2026-08-19 — la colonne du dock ne défile plus : des groupes à ONGLETS
+
+**Résolu par le modèle Photoshop, pas par l'arbitrage que ce bloc annonçait.**
+`DockLayout` passe de « colonnes de lignes » à « colonnes de GROUPES à
+onglets » ; disposition livrée : Presets et Propriétés en onglets d'un groupe,
+la Pile seule dans le sien. La carte « Textures » est partie le même jour
+(demande d'Antoine — son geste avait perdu sa raison d'être depuis ADR-0018).
+
+**Débord 194 px sur sept calques → la colonne TIENT**, et
+`--dock-card-list-rows` n'a PAS eu à être abaissé : la note « la borne à 5
+lignes est voulue » reste intacte. Aucune des deux voies que ce bloc opposait
+n'a été prise.
+
+⚠️ **DEUX mécanismes ont été construits puis RETIRÉS avant celui-là**, chacun
+sur une mesure : un auto-repli déclenché par la hauteur disponible (sans
+précédent chez Photoshop ni Lightroom — une carte qui se referme pendant qu'on
+travaille est un mouvement qu'on n'a pas demandé), et le **Solo mode** de
+Lightroom, qui TENAIT la colonne mais rendait Pile et Propriétés mutuellement
+exclusives alors qu'on les lit ensemble. Son coût n'était pas des pixels mais un
+geste.
+
+⚠️ **Et un constat de ce bloc était FAUX** : « baisser le plancher des listes
+libérerait les ~70 px manquants » valait sur DEUX calques et pas sur SEPT, où
+chaque ligne retirée rend exactement 60 px (194 → 134 → 74 → 14 de 5 à 2
+lignes). Un relevé borné à un scénario, présenté comme général — et il a failli
+faire trancher de travers.
+
+Détail et mesures : [ticket 04 de la carte hybride](../.scratch/hybride-lightroom-photoshop/issues/04-le-layout.md).
+
+#### Le diagnostic d'origine, conservé pour ses mesures
 
 Trouvé en mesurant le layout, et **causé par la barre d'options permanente** de
 la veille : ses 75 px sortent de la hauteur de la colonne.

@@ -1,7 +1,7 @@
 # La symétrie panneau / toile
 
 Type: grilling
-Status: open
+Status: resolved
 Parent: ../map.md
 Blocked by: 01
 
@@ -122,3 +122,29 @@ Aucune ne casse les presets : la fraction reste ce qui est stocké dans les quat
 cas. C'était la crainte du ticket, et elle ne discrimine pas.
 
 Planche : [`docs/wireframes/unite-panneau-toile.html`](../../../docs/wireframes/unite-panneau-toile.html).
+
+---
+
+## Answer — TRANCHÉ le 2026-08-19 : le panneau passe en PIXELS
+
+Arbitrage d'Antoine devant la planche
+[`docs/wireframes/unite-panneau-toile.html`](../../../docs/wireframes/unite-panneau-toile.html) :
+**voie B**. Conversion à l'affichage ET en saisie ; la fraction reste ce qui est
+STOCKÉ, donc les presets gardent leur indépendance à la définition.
+
+Vaut pour les **cinq** effets à contrôle spatial : `aplat`, `lensFlare`,
+`lightLeak`, `motionBlur`, `pixelStretch`.
+
+⚠️ **Pas encore écrit.** C'est le seul reste de CODE de cette carte.
+
+### Ce que la mesure du jour ajoute à l'écriture
+
+Le panneau parle **déjà** deux unités — 183 paramètres en `percent`, 19 en
+`pixels`, 42 en `degrees`, et **onze effets** mélangent `percent` et `pixels`
+dans le même panneau (dont `aplat` : neuf en fraction, l'adoucissement en
+pixels). Ajouter une lecture en pixels n'introduit donc aucun mélange.
+
+⚠️ Et trois des cinq effets ont des étendues qui **sortent du cadre**
+(`sourceX` de `lensFlare` va de −0,5 à 1,5). En pixels, ça donne des valeurs
+négatives et des valeurs au-delà de la largeur. C'est lisible, Photoshop le
+fait, mais il faut le vouloir.

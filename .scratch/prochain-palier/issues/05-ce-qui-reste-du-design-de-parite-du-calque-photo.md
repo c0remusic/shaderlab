@@ -4,6 +4,34 @@ Type: grilling
 Status: resolved
 Parent: ../map.md
 
+## LIVRÉ le 2026-08-20 — le MIROIR (échelles signées)
+
+L'arbitrage §4 est codé. Le miroir est une échelle NÉGATIVE, pas un booléen :
+
+- `clampTransformScale` borne la MAGNITUDE en conservant le signe ; `withScaleSign`
+  reporte le signe courant sur une magnitude recalculée (§4b). Testé `< 0` et non
+  `Math.sign` (le zéro et le NaN retombent sur `+MIN`).
+- `constrainRatio` travaille sur les magnitudes (§4a) ; les deux drags (coin et
+  côté) et `fitToCanvas`/`coverCanvas` reportent le signe courant plutôt que de
+  dé-miroiter en silence (§7). `resetTransform` reste positif — c'est un retour à
+  l'import.
+- WGSL `photoLayerInput.ts` : le feather passe en `abs(scaleX)`/`abs(scaleY)` — le
+  DÉFAUT MUET du §5. La division inverse-transform garde le signe (c'est elle qui
+  miroite). Les deux côtés du contrat sont gardés par `photoLayerInput.test`.
+- `PhotoPanel` : Largeur/Hauteur affichent la MAGNITUDE (jamais « −100 % ») et
+  reprennent le signe en saisie ; deux boutons **Miroir H / V** portent le signe,
+  `aria-pressed` sur l'axe miroité (§4c, §7).
+
+**Preuve** : une paire de références de pixels posée AVANT le geste, comme la règle
+l'exige (§5) — `photo-miroir-temoin` / `photo-miroir`, photo plus petite que la
+toile pour montrer le bord ET le passe-partout. Le miroir rend la mire retournée
+avec une couverture INTACTE (aucun trou, aucune bande). Gates : tsc, lint, unit
+(2087), storybook (330), `test:render` (126 scénarios, aucune régression) verts.
+
+⚠️ **Ce qui reste HORS de ce livrable** : les prérequis de CROP (`transformsEqual`,
+`clone()` qui recopie `transform`) et le recadrage lui-même — ils sont dans le
+[ticket 28](28-recadrer-la-toile-deja-ouverte.md), pas dans le miroir.
+
 ## Question
 
 Le ROADMAP dit du recadrage qu'il « ne dépend d'aucun arbitrage » et qu'il est

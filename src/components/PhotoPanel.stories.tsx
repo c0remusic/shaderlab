@@ -105,6 +105,11 @@ export const TabOrderFollowsVisualOrder: Story = {
       await userEvent.tab();
       await expect(document.activeElement).toBe(canvas.getByLabelText(label));
     }
+    // Les deux boutons Miroir ferment la section Placement (ticket 05).
+    await userEvent.tab();
+    await expect(document.activeElement).toBe(canvas.getByRole("button", { name: "Miroir H" }));
+    await userEvent.tab();
+    await expect(document.activeElement).toBe(canvas.getByRole("button", { name: "Miroir V" }));
     await userEvent.tab();
     await expect(document.activeElement).toBe(canvas.getByRole("button", { name: "Actions" }));
     await userEvent.tab();
@@ -151,6 +156,40 @@ export const ReplaceImageFiresItsHandler: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Remplacer l'image…" }));
     await expect(args.onReplaceImage).toHaveBeenCalledWith("layer-photo");
+  },
+};
+
+/**
+ * MIROIR (ticket 05, échelles signées). Un calque miroité porte une échelle
+ * négative. Deux garanties d'affichage : les champs Largeur/Hauteur montrent la
+ * MAGNITUDE (jamais « −100 % »), et le bouton Miroir de l'axe concerné est
+ * `aria-pressed`.
+ */
+export const MirroredLayerShowsMagnitudeAndPressedButton: Story = {
+  args: { layer: makePhotoLayer({ transform: { x: 500, y: 400, scaleX: -1, scaleY: 1, rotation: 0 } }) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // Magnitude, pas le signe : −1 s'affiche « 100 », pas « −100 ».
+    await expect(canvas.getByLabelText("Largeur")).toHaveValue("100");
+    // Le bouton de l'axe miroité est enfoncé, l'autre non.
+    await expect(canvas.getByRole("button", { name: "Miroir H" })).toHaveAttribute("aria-pressed", "true");
+    await expect(canvas.getByRole("button", { name: "Miroir V" })).toHaveAttribute("aria-pressed", "false");
+  },
+};
+
+/** Cliquer Miroir H bascule le SIGNE de l'échelle X (le miroir est un négatif de
+ *  l'échelle courante), et valide une entrée d'historique. */
+export const MirrorButtonFlipsScaleSign: Story = {
+  args: { onTransformChange: fn(), onTransformCommit: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Miroir H" }));
+    await expect(args.onTransformChange).toHaveBeenCalledTimes(1);
+    await expect(args.onTransformCommit).toHaveBeenCalledTimes(1);
+    const [, transform] = (args.onTransformChange as ReturnType<typeof fn>).mock.calls[0];
+    // Le calque par défaut est à scaleX = 1 → devient −1, scaleY intact.
+    await expect(transform.scaleX).toBe(-1);
+    await expect(transform.scaleY).toBe(1);
   },
 };
 

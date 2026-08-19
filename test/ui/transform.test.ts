@@ -3,6 +3,7 @@ import {
   MIN_TRANSFORM_SCALE,
   CORNER_INDICES,
   clampTransformScale,
+  withScaleSign,
   compositeUvToPhotoUv,
   computeHandleGeometry,
   overlayRectFromClientRects,
@@ -25,9 +26,86 @@ describe("clampTransformScale", () => {
     expect(clampTransformScale(1.5)).toBe(1.5);
   });
 
-  it("clampe à MIN_TRANSFORM_SCALE une échelle nulle ou négative", () => {
+  // ⚠️ CONTRAT CHANGÉ (ticket 05, échelles signées). Avant, une échelle négative
+  // était ramenée à `+MIN` — le miroir était impossible. Désormais le signe est
+  // CONSERVÉ, seule la magnitude est bornée : `−3` reste `−3` (calque miroité).
+  it("conserve le signe d'une échelle négative de magnitude suffisante", () => {
+    expect(clampTransformScale(-3)).toBe(-3);
+  });
+
+  it("borne la MAGNITUDE en gardant le signe : une échelle miroité minuscule reste négative", () => {
+    expect(clampTransformScale(-0.001)).toBe(-MIN_TRANSFORM_SCALE);
+  });
+
+  it("zéro retombe sur +MIN (jamais −MIN : un zéro n'a pas de sens miroité)", () => {
     expect(clampTransformScale(0)).toBe(MIN_TRANSFORM_SCALE);
-    expect(clampTransformScale(-3)).toBe(MIN_TRANSFORM_SCALE);
+  });
+
+  it("NaN retombe sur +MIN — la division par zéro reste fermée des deux côtés", () => {
+    expect(clampTransformScale(NaN)).toBe(MIN_TRANSFORM_SCALE);
+  });
+});
+
+describe("withScaleSign", () => {
+  it("reporte le signe négatif d'une référence miroité sur une magnitude positive", () => {
+    expect(withScaleSign(1.4, -2)).toBe(-1.4);
+  });
+
+  it("laisse une magnitude positive quand la référence est positive", () => {
+    expect(withScaleSign(1.4, 2)).toBe(1.4);
+  });
+
+  it("prend la magnitude, quel que soit le signe d'entrée de la valeur", () => {
+    expect(withScaleSign(-1.4, -2)).toBe(-1.4);
+    expect(withScaleSign(-1.4, 2)).toBe(1.4);
+  });
+});
+
+describe("miroir — échelles signées (ticket 05)", () => {
+  const bgSize = { width: 1000, height: 1000 };
+
+  it("une échelle X négative retourne l'échantillonnage sur l'axe X", () => {
+    const photoSize = { width: 200, height: 100 };
+    const point = { u: 0.41, v: 0.5 }; // dans la box [400,600) sur X, au centre en Y
+    const droit = compositeUvToPhotoUv(point, bgSize, { x: 500, y: 500, scaleX: 1, scaleY: 1, rotation: 0 }, photoSize);
+    const miroir = compositeUvToPhotoUv(point, bgSize, { x: 500, y: 500, scaleX: -1, scaleY: 1, rotation: 0 }, photoSize);
+    expect(droit).not.toBeNull();
+    expect(miroir).not.toBeNull();
+    // Le même point composite tombe côté GAUCHE de la photo à l'endroit, côté
+    // DROIT une fois miroité — les deux u sont symétriques autour de 0,5.
+    expect(droit!.u).toBeCloseTo(0.05, 6);
+    expect(miroir!.u).toBeCloseTo(0.95, 6);
+    expect(miroir!.v).toBeCloseTo(droit!.v, 6); // l'axe Y non miroité ne bouge pas
+  });
+
+  it("un drag de coin sur un calque miroité GARDE le signe et la magnitude du geste", () => {
+    const photoSize = { width: 200, height: 200 };
+    const base = { x: 500, y: 500, scaleY: 1, rotation: 0 };
+    const miroir = transformFromCornerDrag({ ...base, scaleX: -1 }, photoSize, { x: 650, y: 650 }, 2, "center");
+    const droit = transformFromCornerDrag({ ...base, scaleX: 1 }, photoSize, { x: 650, y: 650 }, 2, "center");
+    expect(miroir.scaleX).toBeLessThan(0); // le miroir survit au redimensionnement
+    expect(Math.abs(miroir.scaleX)).toBeCloseTo(droit.scaleX, 6); // même magnitude que sans miroir
+    expect(miroir.scaleY).toBeCloseTo(droit.scaleY, 6); // l'axe non miroité est identique
+  });
+
+  it("un drag de côté sur un calque miroité ne dé-miroite pas l'axe touché", () => {
+    const photoSize = { width: 200, height: 200 };
+    // Côté droit (edgeIndex 1 = normale +X) sur un calque miroité en X.
+    const miroir = transformFromEdgeDrag({ x: 500, y: 500, scaleX: -1, scaleY: 1, rotation: 0 }, photoSize, { x: 680, y: 500 }, 1, "center");
+    expect(miroir.scaleX).toBeLessThan(0);
+  });
+
+  it("« Ajuster à la toile » reporte le signe plutôt que de dé-miroiter", () => {
+    const photoSize = { width: 2000, height: 1000 };
+    const fitted = fitToCanvas({ x: 0, y: 0, scaleX: -3, scaleY: 3, rotation: 0 }, bgSize, photoSize);
+    expect(fitted.scaleX).toBeLessThan(0);
+    expect(fitted.scaleY).toBeGreaterThan(0);
+    // Homothétique en MAGNITUDE : un miroir ne change pas l'empreinte.
+    expect(Math.abs(fitted.scaleX)).toBeCloseTo(Math.abs(fitted.scaleY), 6);
+  });
+
+  it("« Réinitialiser » remet une échelle positive : c'est un retour à l'import, pas un report", () => {
+    expect(resetTransform(bgSize)).toEqual({ x: 500, y: 500, scaleX: 1, scaleY: 1, rotation: 0 });
   });
 });
 

@@ -4,6 +4,8 @@ import { Disclosure } from "./ui/collapsible";
 import { NumberField, type NumberFieldClassNames } from "./ui/number-field";
 import "./PhotoPanel.css";
 import { isMaskLocked } from "../layers/layerLocks";
+import { withScaleSign } from "../ui/transform";
+import { FlipHorizontal2, FlipVertical2 } from "lucide-react";
 
 /** Bornes de saisie des champs de placement. Larges à dessein : une photo
  *  peut légitimement être positionnée hors du fond (seule la partie qui
@@ -143,25 +145,30 @@ export function PhotoPanel({ layer, thumbnailUrl, onTransformChange, onTransform
               MODÈLE. Un photographe étire une largeur et une hauteur ; il ne
               pense pas en axes. L'unité reste le pourcentage, donc le champ
               continue de dire ce qu'il fait — une proportion, pas des pixels. */}
+          {/* MAGNITUDE affichée, jamais le signe : un calque miroité porte une
+              échelle négative (ticket 05), et le champ ne s'appelle plus
+              « Échelle X » mais « Largeur » — afficher « −100 % » n'aurait aucun
+              sens. La saisie reprend le signe courant (`withScaleSign`), les
+              boutons Miroir ci-dessous sont la seule surface qui le change. */}
           <NumberField
             classNames={PHOTO_FIELD_CLASSES}
             label="Largeur"
             unit="%"
-            value={Math.round(transform.scaleX * 100)}
+            value={Math.round(Math.abs(transform.scaleX) * 100)}
             min={SCALE_MIN_PERCENT}
             max={SCALE_MAX_PERCENT}
             step={1}
-            onCommit={(percent) => commitTransform({ ...transform, scaleX: percent / 100 })}
+            onCommit={(percent) => commitTransform({ ...transform, scaleX: withScaleSign(percent / 100, transform.scaleX) })}
           />
           <NumberField
             classNames={PHOTO_FIELD_CLASSES}
             label="Hauteur"
             unit="%"
-            value={Math.round(transform.scaleY * 100)}
+            value={Math.round(Math.abs(transform.scaleY) * 100)}
             min={SCALE_MIN_PERCENT}
             max={SCALE_MAX_PERCENT}
             step={1}
-            onCommit={(percent) => commitTransform({ ...transform, scaleY: percent / 100 })}
+            onCommit={(percent) => commitTransform({ ...transform, scaleY: withScaleSign(percent / 100, transform.scaleY) })}
           />
           <NumberField
             classNames={PHOTO_FIELD_CLASSES}
@@ -173,6 +180,32 @@ export function PhotoPanel({ layer, thumbnailUrl, onTransformChange, onTransform
             step={1}
             onCommit={(degrees) => commitTransform({ ...transform, rotation: (degrees * Math.PI) / 180 })}
           />
+        </div>
+        {/* MIROIR — la seule surface qui change le SIGNE d'une échelle
+            (ticket 05). Un clic bascule ; l'état actif (échelle négative) se lit
+            sur le bouton. Le miroir est un négatif de l'échelle courante, sa
+            magnitude est donc préservée sans passer par un clamp. */}
+        <div className="photo-panel__actions">
+          <Button
+            size="sm"
+            variant={transform.scaleX < 0 ? "default" : "secondary"}
+            aria-pressed={transform.scaleX < 0}
+            title="Miroir horizontal"
+            onClick={() => commitTransform({ ...transform, scaleX: -transform.scaleX })}
+          >
+            <FlipHorizontal2 aria-hidden="true" />
+            Miroir H
+          </Button>
+          <Button
+            size="sm"
+            variant={transform.scaleY < 0 ? "default" : "secondary"}
+            aria-pressed={transform.scaleY < 0}
+            title="Miroir vertical"
+            onClick={() => commitTransform({ ...transform, scaleY: -transform.scaleY })}
+          >
+            <FlipVertical2 aria-hidden="true" />
+            Miroir V
+          </Button>
         </div>
       </Disclosure>
 

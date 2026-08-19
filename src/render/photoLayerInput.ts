@@ -77,9 +77,16 @@ fn fs_photo_input(in: VertexOut) -> @location(0) vec4<f32> {
   // une photo étirée, un bord antialiasé correctement sur un axe et faux sur
   // l'autre — trop dur d'un côté, flou de l'autre. On ramène donc chaque
   // distance en espace écran AVANT de prendre le minimum.
+  // MAGNITUDE de l'échelle, jamais son signe. Une échelle NÉGATIVE miroite le
+  // calque (la division lignes 46-47 la veut signée) ; ici on ramène une
+  // DISTANCE au bord en espace écran, et une distance n'a pas de signe. Sans
+  // abs(), une échelle négative retourne la couverture : trou à la place de
+  // l'image, bande opaque à côté, borné à l'axe miroité (ticket 05 §5). Ça
+  // compile et valide sous naga — seule une référence de pixels qui miroite
+  // l'attrape.
   let edgeDistScreen = min(
-    min(photoPx, photoWidth - photoPx) * scaleX,
-    min(photoPy, photoHeight - photoPy) * scaleY
+    min(photoPx, photoWidth - photoPx) * abs(scaleX),
+    min(photoPy, photoHeight - photoPy) * abs(scaleY)
   );
   let coverage = clamp(edgeDistScreen + 0.5, 0.0, 1.0);
 

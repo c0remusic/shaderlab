@@ -122,8 +122,35 @@ export const MIN_TRANSFORM_SCALE = 0.02;
 
 const ROTATION_HANDLE_OFFSET_PX = 32;
 
+/**
+ * Borne la MAGNITUDE d'une échelle à `MIN_TRANSFORM_SCALE`, en CONSERVANT son
+ * signe. Une échelle négative miroite le calque : l'inverse-transform divise par
+ * l'échelle (`compositeUvToPhotoUv`, et le WGSL de `photoLayerInput.ts`), donc un
+ * signe négatif retourne l'échantillonnage — c'est le miroir, gratuitement
+ * (arbitrage du ticket 05, échelles signées).
+ *
+ * ⚠️ TESTER `< 0` ET NON `Math.sign` : `Math.sign(0)` vaut 0 et ferait perdre son
+ * signe au zéro (qui doit retomber sur `+MIN`, pas `−MIN`). Et `NaN`
+ * (atteignable par import de preset, `photoLayerInput.ts`) retombe sur `+MIN` :
+ * `Math.abs(NaN) > MIN` est faux, donc magnitude `= MIN`, et `NaN < 0` est faux,
+ * donc positif. La division par zéro reste fermée des DEUX côtés.
+ */
 export function clampTransformScale(scale: number): number {
-  return scale > MIN_TRANSFORM_SCALE ? scale : MIN_TRANSFORM_SCALE;
+  const magnitude = Math.abs(scale) > MIN_TRANSFORM_SCALE ? Math.abs(scale) : MIN_TRANSFORM_SCALE;
+  return scale < 0 ? -magnitude : magnitude;
+}
+
+/**
+ * Reporte le SIGNE de `reference` sur la magnitude de `value`. Un geste qui
+ * RECALCULE une échelle depuis une distance (drag, saisie au clavier, ajuster à
+ * la toile) produit une magnitude positive ; sans ce report il dé-miroiterait un
+ * calque en silence. Seuls les boutons Miroir changent le signe (ticket 05 §7).
+ *
+ * `reference` nul (jamais produit — les échelles sont clampées) compte comme
+ * positif.
+ */
+export function withScaleSign(value: number, reference: number): number {
+  return reference < 0 ? -Math.abs(value) : Math.abs(value);
 }
 
 /**
@@ -222,7 +249,10 @@ export function fitToCanvas(transform: LayerTransform, bgSize: PixelSize, photoS
   // pour la remplir. C'est aussi le seul geste qui redresse une photo étirée
   // sans passer par la saisie au clavier.
   const scale = clampTransformScale(Math.min(bgSize.width / photoSize.width, bgSize.height / photoSize.height));
-  return { ...transform, x: bgSize.width / 2, y: bgSize.height / 2, scaleX: scale, scaleY: scale };
+  // Reporte le signe courant : « Ajuster » ne dé-miroite pas en silence un
+  // calque miroité (ticket 05 §7 — reporter, et le dire). « Réinitialiser »,
+  // lui, remet une échelle positive : c'est un retour à l'état d'import.
+  return { ...transform, x: bgSize.width / 2, y: bgSize.height / 2, scaleX: withScaleSign(scale, transform.scaleX), scaleY: withScaleSign(scale, transform.scaleY) };
 }
 
 /** Quart de tour, en radians. Les deux seules orientations que `coverCanvas`
@@ -271,8 +301,9 @@ export function coverCanvas(transform: LayerTransform, bgSize: PixelSize, photoS
     ...transform,
     x: bgSize.width / 2,
     y: bgSize.height / 2,
-    scaleX: scale,
-    scaleY: scale,
+    // Comme `fitToCanvas` : reporte le signe courant plutôt que de dé-miroiter.
+    scaleX: withScaleSign(scale, transform.scaleX),
+    scaleY: withScaleSign(scale, transform.scaleY),
     rotation: useTurned ? QUARTER_TURN : 0,
   };
 }
@@ -374,7 +405,7 @@ export function transformFromCornerDrag(
       scaleX: clampTransformScale(Math.abs(local.x) / (photoSize.width / 2)),
       scaleY: clampTransformScale(Math.abs(local.y) / (photoSize.height / 2)),
     };
-    return { ...transform, ...constrainRatio(free, transform, proportional) };
+    return { ...transform, ...withScaleSigns(constrainRatio(free, transform, proportional), transform) };
   }
 
   // Ancre = position ÉCRAN du coin opposé à l'échelle courante, donc là où sa
@@ -393,6 +424,9 @@ export function transformFromCornerDrag(
   };
   const scale = constrainRatio(free, transform, proportional);
 
+  // La MAGNITUDE positive dimensionne la box et ancre le coin opposé — le miroir
+  // ne change pas l'empreinte écran, seulement le sens d'échantillonnage. Le
+  // signe courant n'est reporté que sur l'échelle RENDUE.
   const nextOffset = scaledCornerOffset(cornerIndex, photoSize, scale);
   const cos = Math.cos(transform.rotation);
   const sin = Math.sin(transform.rotation);
@@ -400,7 +434,7 @@ export function transformFromCornerDrag(
     ...transform,
     x: anchorPoint.x + nextOffset.x * cos - nextOffset.y * sin,
     y: anchorPoint.y + nextOffset.x * sin + nextOffset.y * cos,
-    ...scale,
+    ...withScaleSigns(scale, transform),
   };
 }
 
@@ -420,14 +454,30 @@ export function transformFromCornerDrag(
  */
 function constrainRatio(free: AxisScale, current: LayerTransform, proportional: boolean): AxisScale {
   if (!proportional) return free;
-  const ratio = current.scaleX > 0 ? current.scaleY / current.scaleX : 1;
-  const changeX = current.scaleX > 0 ? Math.abs(free.scaleX / current.scaleX - 1) : 0;
-  const changeY = current.scaleY > 0 ? Math.abs(free.scaleY / current.scaleY - 1) : 0;
+  // MAGNITUDES : `free` est positif (le drag prend `Math.abs`), et un `current`
+  // miroité porte un signe négatif. Un ratio `scaleY / scaleX` sur signes mixtes
+  // deviendrait négatif et ferait tomber les deux mesures de changement à zéro
+  // (ticket 05 §4a) — le signe est reporté par l'appelant, pas ici.
+  const ax = Math.abs(current.scaleX);
+  const ay = Math.abs(current.scaleY);
+  const ratio = ax > 0 ? ay / ax : 1;
+  const changeX = ax > 0 ? Math.abs(free.scaleX / ax - 1) : 0;
+  const changeY = ay > 0 ? Math.abs(free.scaleY / ay - 1) : 0;
   if (changeX >= changeY) {
     return { scaleX: free.scaleX, scaleY: clampTransformScale(free.scaleX * ratio) };
   }
   const inverse = ratio > 0 ? 1 / ratio : 1;
   return { scaleX: clampTransformScale(free.scaleY * inverse), scaleY: free.scaleY };
+}
+
+/** Reporte les signes de `reference` sur une paire d'échelles positives. Un drag
+ *  recalcule des magnitudes (invariant de continuité, `Math.abs` ci-dessous) ;
+ *  ce report garde un calque miroité miroité pendant qu'on le redimensionne. */
+function withScaleSigns(scale: AxisScale, reference: LayerTransform): AxisScale {
+  return {
+    scaleX: withScaleSign(scale.scaleX, reference.scaleX),
+    scaleY: withScaleSign(scale.scaleY, reference.scaleY),
+  };
 }
 
 /**
@@ -454,27 +504,37 @@ export function transformFromEdgeDrag(
 
   if (anchor === "center") {
     const local = toLocal({ x: pointer.x - transform.x, y: pointer.y - transform.y }, transform.rotation);
+    // Seul l'axe TOUCHÉ change ; il reprend le signe courant de son axe pour ne
+    // pas dé-miroiter, l'autre reste intact via `...transform`.
     return horizontal
-      ? { ...transform, scaleX: clampTransformScale(Math.abs(local.x) / (photoSize.width / 2)) }
-      : { ...transform, scaleY: clampTransformScale(Math.abs(local.y) / (photoSize.height / 2)) };
+      ? { ...transform, scaleX: withScaleSign(clampTransformScale(Math.abs(local.x) / (photoSize.width / 2)), transform.scaleX) }
+      : { ...transform, scaleY: withScaleSign(clampTransformScale(Math.abs(local.y) / (photoSize.height / 2)), transform.scaleY) };
   }
 
   const draggedOffset = scaledEdgeOffset(edgeIndex, photoSize, transform);
   const anchorPoint = rotatePoint({ x: -draggedOffset.x, y: -draggedOffset.y }, transform);
   const local = toLocal({ x: pointer.x - anchorPoint.x, y: pointer.y - anchorPoint.y }, transform.rotation);
 
-  const scale: AxisScale = horizontal
-    ? { scaleX: clampTransformScale(Math.abs(local.x) / photoSize.width), scaleY: transform.scaleY }
-    : { scaleX: transform.scaleX, scaleY: clampTransformScale(Math.abs(local.y) / photoSize.height) };
+  // MAGNITUDES pour la géométrie de la box et l'ancrage : le miroir ne change
+  // pas l'empreinte écran. L'axe non touché garde sa magnitude courante.
+  const touchedMag = horizontal
+    ? clampTransformScale(Math.abs(local.x) / photoSize.width)
+    : clampTransformScale(Math.abs(local.y) / photoSize.height);
+  const scaleMag: AxisScale = horizontal
+    ? { scaleX: touchedMag, scaleY: Math.abs(transform.scaleY) }
+    : { scaleX: Math.abs(transform.scaleX), scaleY: touchedMag };
 
-  const nextOffset = scaledEdgeOffset(edgeIndex, photoSize, scale);
+  const nextOffset = scaledEdgeOffset(edgeIndex, photoSize, scaleMag);
   const cos = Math.cos(transform.rotation);
   const sin = Math.sin(transform.rotation);
   return {
     ...transform,
     x: anchorPoint.x + nextOffset.x * cos - nextOffset.y * sin,
     y: anchorPoint.y + nextOffset.x * sin + nextOffset.y * cos,
-    ...scale,
+    // L'axe touché reprend le signe courant de son axe ; l'autre reste intact.
+    ...(horizontal
+      ? { scaleX: withScaleSign(touchedMag, transform.scaleX) }
+      : { scaleY: withScaleSign(touchedMag, transform.scaleY) }),
   };
 }
 

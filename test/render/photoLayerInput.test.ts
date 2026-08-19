@@ -114,10 +114,22 @@ describe("PhotoLayerInputResolver", () => {
     // par SON echelle AVANT le minimum. Prendre le minimum des distances PHOTO
     // puis multiplier par une echelle unique donnerait, sur une photo etiree,
     // un bord juste sur un axe et faux sur l'autre.
-    expect(PHOTO_LAYER_INPUT_WGSL).toContain("min(photoPx, photoWidth - photoPx) * scaleX");
-    expect(PHOTO_LAYER_INPUT_WGSL).toContain("min(photoPy, photoHeight - photoPy) * scaleY");
+    //
+    // MAGNITUDE, jamais le signe (ticket 05, echelles signees) : une echelle
+    // NEGATIVE miroite le calque, et une distance au bord n'a pas de signe.
+    // Sans abs() la couverture s'inversait sur l'axe miroite (trou a la place de
+    // l'image, bande opaque a cote). C'est le contrat qui change ici.
+    expect(PHOTO_LAYER_INPUT_WGSL).toContain("min(photoPx, photoWidth - photoPx) * abs(scaleX)");
+    expect(PHOTO_LAYER_INPUT_WGSL).toContain("min(photoPy, photoHeight - photoPy) * abs(scaleY)");
     expect(PHOTO_LAYER_INPUT_WGSL).toContain("clamp(edgeDistScreen + 0.5, 0.0, 1.0)");
     expect(PHOTO_LAYER_INPUT_WGSL).not.toContain("clamp(edgeDistPx, 0.0, 1.0)");
+  });
+
+  // Contre-partie du contrat a DEUX cotes : la DIVISION garde le signe, c'est
+  // elle qui produit le miroir. Un abs() ici annulerait le geste.
+  it("garde le SIGNE de l'echelle dans la division inverse-transform (le miroir vient de la)", () => {
+    expect(PHOTO_LAYER_INPUT_WGSL).toContain("let lx = rx / scaleX;");
+    expect(PHOTO_LAYER_INPUT_WGSL).toContain("let ly = ry / scaleY;");
   });
 
   // I5 — la rampe de couverture doit être CENTRÉE sur le bord de la photo.

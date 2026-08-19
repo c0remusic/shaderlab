@@ -950,6 +950,41 @@ const INSTALL = `(async () => {
       },
     },
 
+    // MIROIR — echelle NEGATIVE (ticket 05, echelles signees). Le calque photo
+    // est retourne sur X par scaleX = -1. La mire generique est asymetrique
+    // gauche/droite (degrade rouge horizontal, tics sombres en bas a GAUCHE),
+    // donc le retournement se VOIT : le temoin (scaleX +1) et le miroir
+    // (scaleX -1) ne different que par ce basculement de contenu.
+    //
+    // Mais le vrai sujet est la COUVERTURE, pas le contenu. Le feather de bord
+    // multipliait une distance par l'echelle SIGNEE ; a scaleX < 0 l'alpha
+    // s'inversait sur l'axe miroite — trou a la place de l'image, bande opaque
+    // a cote (mesure §5). Corrige en \`abs()\`. Sans la correction, le miroir
+    // ci-dessous rendrait la photo quasi transparente au lieu de la mire
+    // retournee : un ecart massif, donc un garde franc.
+    //
+    // Photo PLUS PETITE que la toile (176x132 sur 256x256), et \`fond: false\` :
+    // ses quatre bords ET le passe-partout autour sont dans le cadre. Une mire
+    // cadree sur l'image seule verrait le trou de l'inversion mais pas la
+    // bande, et c'est la bande le vrai piege (§5).
+    "photo-miroir-temoin": {
+      fond: false,
+      build: async (r, stack) => {
+        const photo = await mire(176, 132, 0);
+        const sourceId = await r.photoSources.register(photo);
+        stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "miroir");
+      },
+    },
+    "photo-miroir": {
+      contre: "photo-miroir-temoin",
+      fond: false,
+      build: async (r, stack) => {
+        const photo = await mire(176, 132, 0);
+        const sourceId = await r.photoSources.register(photo);
+        stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: -1, scaleY: 1, rotation: 0 }, "miroir");
+      },
+    },
+
     // Lens blur : le seul effet dont la sortie depend d'une COLLECTE sur une
     // ouverture (48 taps en spirale d'angle d'or, tournee par un tirage par
     // pixel) et d'une geometrie de champ lue par DEUX passes a des resolutions

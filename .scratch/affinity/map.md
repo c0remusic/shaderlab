@@ -50,6 +50,14 @@ de suite, et c'est là que sont les tickets.
   filtre live ? La différence décide de Q1 à elle seule.
 - [02 — Le langage de la texture procédurale](issues/02-langage-texture-procedurale.md) · `research`
   Combien de nos 27 effets s'y expriment ?
+- [12 — Un plugin améliorerait-il les PERFS ? La QUALITÉ ?](issues/12-plugin-perfs-et-qualite.md) · `research`
+  ⭐ Question d'Antoine, et **ce n'est pas le ticket 01** : celui-là demande si
+  c'est possible, celui-ci si ce serait MEILLEUR. Deux axes indépendants — le
+  gain de perf viendrait de notre code, le gain de qualité de l'HÔTE.
+  ⚠️ L'hypothèse « du natif, donc plus rapide » est probablement fausse : notre
+  coût dominant mesuré est la cohérence de CACHE, pas la couche d'abstraction.
+  Et un `.8bf` par effet ferait N allers-retours CPU↔GPU là où notre pile en
+  fait zéro.
 
 ### Prendre — le mécanisme existe déjà chez nous
 

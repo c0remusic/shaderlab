@@ -45,7 +45,34 @@ commencé (3), et des chantiers dormants retrouvés par mesure (4).
 
 ---
 
-## ⚠️ DEUX cartes, et la première est CLOSE
+## ⚠️ TROIS cartes désormais, et une seule question ouvre le reste
+
+⭐ **`.scratch/affinity/` est chartée le 2026-08-19**, sur quatre relevés faits
+dans l'application Affinity et dans ses binaires. Elle porte onze tickets, et
+surtout **une question qui déborde tout le reste de cette feuille** :
+
+> **Faire un plugin Affinity améliorerait-il les PERFS de nos effets ? Leur
+> QUALITÉ ?**
+
+Elle est posée en [ticket 12](../.scratch/affinity/issues/12-plugin-perfs-et-qualite.md)
+et elle n'est PAS la même que « peut-on porter nos effets » (ticket 01). Celle-ci
+demande si l'hôte serait MEILLEUR que notre coquille — pas s'il est possible.
+Les deux axes sont indépendants et se mesurent séparément :
+
+- **PERF** — nous rendons en WebGPU dans une WebView2. Un plugin natif parle au
+  pilote sans navigateur. Le gain n'est pas mesuré, et il pourrait être nul :
+  notre coût dominant mesuré est la COHÉRENCE DE CACHE, pas la couche
+  d'abstraction (§ le coût du verre).
+- **QUALITÉ** — Affinity a `RGB96Mode` (32 bits flottants), l'ICC, OCIO, le soft
+  proof et les LUT 3D. **Nous n'avons rien de tout ça**, et l'export print bute
+  précisément là. Ce gain-là n'a AUCUN rapport avec nos shaders : il vient de
+  l'hôte.
+
+⚠️ **Ne pas répondre de tête.** La réponse « oui, du natif c'est plus rapide »
+est exactement le genre de raisonnement que ce dépôt a déjà payé trois fois
+aujourd'hui. Le ticket dit quoi mesurer.
+
+## ⚠️ DEUX cartes de plus, et la première est CLOSE
 
 **`.scratch/prochain-palier/` est SOLDÉE le 2026-08-18** — 29 tickets sur 29
 `resolved`. Elle reste la référence des arbitrages rendus (formes, typographie,
@@ -817,6 +844,19 @@ Scatter, la famille « écran » (ASCII / LED / CRT / VHS / NTSC — une DA, pas
 fonction, à décider en bloc), Risograph, palette adaptative.
 
 ## 3. Export print — un PRD entier, jamais commencé
+
+> ⭐ **DÉBLOQUÉ le 2026-08-19, au moins sur le papier.** Ce chantier butait sur
+> une contradiction que `01-16-bit-hors-du-depot.md` §1.7 a mesurée puis laissée
+> ouverte en toutes lettres (« ce document ne choisit pas lequel céder ») :
+> « sRGB par le FORMAT » contre « aucun format flottant n'a de variante
+> `-srgb` ». Le relevé du binaire d'Affinity montre une **troisième voie** —
+> retirer au FORMAT le rôle de porter l'espace, chaîne linéaire de bout en bout
+> et encodage explicite unique à la sortie. Détail et ce qu'il reste à mesurer :
+> [ticket 11](../.scratch/affinity/issues/11-debloquer-le-16-bit.md).
+>
+> ⚠️ Trois mesures avant d'y toucher : le coût de l'encodage explicite en build
+> de PRODUCTION, les sept modules qui consomment `srgbFormat`, et si les **119**
+> références de pixels se déplacent TOUTES ou AUCUNE.
 
 **`PRD-print-export.md`** (racine, 151 lignes, cadré le 2026-07-20). Il se
 termine par « à lancer quand Antoine valide ce document ». **Jamais lancé, et

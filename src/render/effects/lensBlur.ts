@@ -181,6 +181,10 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let radiusPx = max(params[0], 0.0) * lens_field(uv, dims);
   let blades = params[1];
   let rotation = params[2] * 0.017453292519943295;
+  // Courbure des lames — index 11, ajouté EN FIN de params[] pour ne déplacer
+  // aucun index déjà persisté dans un preset ou gelé par une référence de
+  // pixels. Défaut 0 : arêtes droites, donc rendu inchangé au bit près.
+  let curvature = clamp(params[11], 0.0, 1.0);
   // Seuil DÉCODÉ vers le linéaire : c'est une valeur de curseur, donc
   // perceptuelle, comparée à une luminance qui vient du format -srgb et est
   // donc linéaire. Sans ce décodage, un curseur à 0.5 poserait la bascule à
@@ -231,7 +235,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     // sous-échantillonné — c'est-à-dire crénelé, exactement là où il se voit.
     let t = (fi + 0.5) / tapsF;
     let theta = fi * GOLDEN_ANGLE + jitter;
-    let r = sqrt(t) * aperture_radius(theta, blades, rotation);
+    let r = sqrt(t) * aperture_radius(theta, blades, rotation, curvature);
     let off = vec2<f32>(cos(theta), sin(theta)) * r * step;
     // \`textureSampleLevel\` et non \`textureSample\` : le court-circuit de rayon
     // nul juste au-dessus rend le flux de contrôle NON UNIFORME, et
@@ -290,10 +294,23 @@ export const lensBlur: EffectModule = {
     { name: "fieldAngle", label: "Orientation du champ", unit: "degrees", min: 0, max: 360, default: 0, step: 1, appliesWhen: { param: "fieldShape", equals: [1, 2] }, hint: "Oriente la bande nette (Linéaire) ou l'ellipse (Iris). Sans objet en Uniforme et en Radial." },
     { name: "fieldRange", label: "Étendue nette", unit: "percent", min: 0.01, max: 1.5, default: 0.35, step: 0.01, hint: "Demi-largeur de la bande ou rayon de l'ellipse, en fraction de la plus petite dimension de la toile" },
     { name: "fieldFeather", label: "Fondu du champ", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Longueur de la transition entre net et flou — 0 = bascule franche, 1 = dégradé long. En Radial, règle la raideur de la montée." },
+    // ⚠️ AJOUTÉ EN FIN DE TABLEAU, et c'est la seule place possible. Sa place
+    // LOGIQUE est juste après `bladeRotation` ; l'y insérer décalerait de un
+    // tous les index suivants, qui sont persistés dans les presets et gelés par
+    // les cinq références de pixels de cet effet. L'ordre d'AFFICHAGE le remet
+    // à sa place — c'est le rôle des sections, et c'est pour ça que celle du
+    // Noyau n'est plus un bloc contigu de `params[]`.
+    //
+    // Même raison d'`appliesWhen` absent que `bladeRotation` juste au-dessus :
+    // ce qui l'éteint est `blades` sous 3, un SEUIL sur un curseur continu, et
+    // `appliesWhen` exige une cible à `choices`.
+    { name: "bladeCurvature", label: "Courbure des lames", unit: "percent", min: 0, max: 1, default: 0, step: 0.01, hint: "Bombe les arêtes du diaphragme vers le cercle : 0 = polygone à arêtes droites, 1 = ouverture ronde. Une lame réelle est un arc, et l'ouverture s'arrondit quand le diaphragme s'ouvre. Sans objet sur un diaphragme circulaire." },
   ],
   /**
-   * DEUX SECTIONS, parce que cet effet est deux réglages SUPERPOSÉS et non un :
-   * le NOYAU — ce dont le flou est fait — et le CHAMP — où il s'applique.
+   * TROIS SECTIONS depuis le 2026-08-19 (deux jusque-là), parce que cet effet
+   * est deux réglages SUPERPOSÉS et non un : le NOYAU — ce dont le flou est
+   * fait, aujourd'hui scindé en Diaphragme et Bokeh — et le CHAMP, où il
+   * s'applique.
    * L'en-tête de ce fichier range déjà les géométries ainsi (§ GÉOMÉTRIE DE
    * CHAMP) : elles « ne changent pas la nature du flou, elles modulent son
    * RAYON ». Le découpage ne fait que rendre visible une frontière qui existait.
@@ -313,9 +330,14 @@ export const lensBlur: EffectModule = {
    * vit donc dans la seule section toujours présente, et il y est en DERNIER,
    * immédiatement au-dessus du titre de la section qu'il ouvre.
    *
-   * ⚠️ AUCUN INDEX N'A BOUGÉ : les deux sections sont deux blocs CONTIGUS de
-   * `params[]` (0..5 et 6..10), cités dans leur ordre d'index. Il n'y avait rien
-   * à réordonner — ce fichier rangeait déjà ses paramètres comme il les affiche.
+   * ⚠️ AUCUN INDEX N'A JAMAIS BOUGÉ, mais les sections ne sont PLUS deux blocs
+   * contigus de `params[]` depuis le 2026-08-19. Elles l'étaient (0..5 et 6..10)
+   * tant que l'ordre de déclaration était aussi l'ordre d'affichage ;
+   * `bladeCurvature` a dû s'ajouter en index 11 — un index se persiste dans les
+   * presets et se gèle dans les références de pixels, donc il s'APPEND, il ne
+   * s'insère pas — alors que sa place d'affichage est au milieu du Noyau. C'est
+   * exactement le travail des sections : elles rangent ce que `params[]` ne peut
+   * plus ranger. Le Noyau cite donc 0..5 puis 11.
    *
    * GABARIT `liste` DES DEUX CÔTÉS. `paire` demande deux réglages qui vont par
    * deux (deux bornes, deux points) : le seuil et son intensité sont un seuil et
@@ -327,9 +349,36 @@ export const lensBlur: EffectModule = {
    */
   sections: [
     {
-      id: "noyau",
-      label: "Noyau",
-      params: ["radius", "blades", "bladeRotation", "highlightThreshold", "highlightBoost", "fieldShape"],
+      // ⚠️ `noyau` A ÉTÉ SCINDÉ EN DEUX le 2026-08-19, et le plafond de densité
+      // est ce qui l'a demandé : `bladeCurvature` en faisait sa septième ligne,
+      // une de trop (`densiteSections.test.ts`). Le gabarit, qui est la première
+      // réponse à chercher, ne pouvait rien ici — `grille` veut des curseurs
+      // COURTS en deux colonnes et cette section porte un sélecteur.
+      //
+      // La frontière n'est donc pas un rangement de dépannage : le diaphragme
+      // est un OBJET, et ses quatre réglages décrivent la même ouverture — sa
+      // taille, son nombre de lames, leur orientation, leur courbure. C'est la
+      // frontière que l'en-tête de ce fichier nommait déjà en appelant le nombre
+      // de lames « la signature d'un objectif ».
+      id: "diaphragme",
+      label: "Diaphragme",
+      params: ["radius", "blades", "bladeRotation", "bladeCurvature"],
+      layout: "liste",
+    },
+    {
+      // Ce qui sépare un bokeh d'un gaussien : la pondération des hautes
+      // lumières. L'en-tête l'appelle « la moitié du bokeh », et à `boost` nul
+      // ce flou EST un gaussien — c'est-à-dire le flou que ce dépôt garde hors
+      // du registre (ADR-0010).
+      //
+      // ⚠️ `fieldShape` reste ici pour la raison qu'il avait déjà dans `noyau`,
+      // inchangée : placé dans la section qu'il commande, il partirait AVEC elle
+      // dès qu'on choisit Uniforme et plus rien ne le ramènerait. Il vit donc
+      // dans la dernière section toujours présente, et il y est en DERNIER,
+      // immédiatement au-dessus du titre de la section qu'il ouvre.
+      id: "bokeh",
+      label: "Bokeh",
+      params: ["highlightThreshold", "highlightBoost", "fieldShape"],
       layout: "liste",
     },
     {

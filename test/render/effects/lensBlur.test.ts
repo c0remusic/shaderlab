@@ -49,7 +49,8 @@ describe("lensBlur — la forme du diaphragme", () => {
   });
 
   it("porte la MÊME formule côté WGSL", () => {
-    expect(gather?.wgsl).toContain("return cos(3.141592653589793 / blades) / cos(k);");
+    expect(gather?.wgsl).toContain("let droit = cos(3.141592653589793 / blades) / cos(k);");
+    expect(gather?.wgsl).toContain("return mix(droit, 1.0, clamp(curvature, 0.0, 1.0));");
     expect(gather?.wgsl).toContain("let k = a - seg * floor(a / seg) - seg * 0.5;");
     expect(gather?.wgsl).toContain("if (blades < 2.5) {");
   });
@@ -87,7 +88,7 @@ describe("lensBlur — l'échantillonnage du disque", () => {
   it("répartit les taps en sqrt du rang (densité constante sur l'aire)", () => {
     // Sans la racine, les taps s'entassent au centre et le BORD du bokeh est
     // sous-échantillonné — c'est-à-dire crénelé, là où il se voit le plus.
-    expect(gather?.wgsl).toContain("let r = sqrt(t) * aperture_radius(theta, blades, rotation);");
+    expect(gather?.wgsl).toContain("let r = sqrt(t) * aperture_radius(theta, blades, rotation, curvature);");
   });
 
   it("fait suivre le NOMBRE de taps à l'aire du disque", () => {
@@ -176,10 +177,16 @@ describe("lensBlur — registre et paramètres", () => {
       "fieldAngle",
       "fieldRange",
       "fieldFeather",
+      // ⚠️ EN FIN DE LISTE ET PAS À SA PLACE LOGIQUE (après `bladeRotation`).
+      // Un index de paramètre est persisté dans les presets et gelé par les
+      // références de pixels : il s'append, il ne s'insère pas. C'est la section
+      // `diaphragme` qui le remet à sa place à l'affichage.
+      "bladeCurvature",
     ]);
     expect(gather?.wgsl).toContain("let radiusPx = max(params[0], 0.0) * lens_field(uv, dims);");
     expect(gather?.wgsl).toContain("let blades = params[1];");
     expect(gather?.wgsl).toContain("let boost = max(params[4], 0.0);");
+    expect(gather?.wgsl).toContain("let curvature = clamp(params[11], 0.0, 1.0);");
     expect(lensBlur.passes?.[0].wgsl).toContain("let shape = params[5];");
     expect(lensBlur.passes?.[0].wgsl).toContain("let feather = clamp(params[10], 0.0, 1.0);");
   });

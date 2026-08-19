@@ -532,7 +532,12 @@ fn ghost_cover(p: vec2<f32>, rayon: f32, versAxe: vec2<f32>, decoupe: f32, douce
   // Distance NORMALISÉE au bord du polygone : 1 sur l'arête, quel que soit
   // l'angle. C'est \`aperture_radius\` qui porte la forme du diaphragme, et c'est
   // le même que celui de \`lensBlur\` — un objectif n'a qu'un diaphragme.
-  let rPoly = length(p) / max(rayon * aperture_radius(theta, params[6], radians(params[7])), 1e-6);
+  // Courbure 0 : ce flare n'expose pas encore de courbure de lames, et le zéro
+  // rend la géométrie d'avant l'ajout du quatrième argument, au bit près (ses
+  // sept références de pixels le vérifient). Le jour où il l'expose, c'est le
+  // MÊME diaphragme que celui de \`lensBlur\` qu'il doit lire — un objectif n'en
+  // a qu'un — donc un paramètre, pas une constante remise en dur ici.
+  let rPoly = length(p) / max(rayon * aperture_radius(theta, params[6], radians(params[7]), 0.0), 1e-6);
   let dansPoly = 1.0 - smoothstep(1.0 - douceur, 1.0, rPoly);
 
   // ─── LA COUPE EST UN DEMI-PLAN, PAS UN DISQUE ──────────────────────────

@@ -1002,6 +1002,92 @@ const INSTALL = `(async () => {
       },
     },
 
+    // COURBURE DES LAMES — meme mire, memes reglages, une seule valeur change.
+    // Le scenario ci-dessus est son TEMOIN : il tourne a courbure 0, donc
+    // l ecart entre les deux references EST l effet du parametre, et rien
+    // d autre. C est la seule facon de prouver qu un curseur ajoute agit, un
+    // curseur mort ne deplacant aucun pixel precisement parce qu il est mort.
+    //
+    // Six lames et non trois : c est le diaphragme des objectifs courants, et
+    // c est aussi la ou le modele est le plus juste (l ecart a l arc exact
+    // tombe a 0,16 % des six lames, contre 3,16 % au triangle — mesure dans
+    // aperture.test.ts). Un scenario a trois lames verrouillerait le pire cas
+    // du modele au lieu de son cas d usage.
+    //
+    // La mire est celle du temoin, mireBokeh : des points lumineux ISOLES sur
+    // du sombre. Une tache de bokeh est l image de l ouverture elle-meme, donc
+    // seule une source quasi ponctuelle la montre — sur un damier, une
+    // ouverture ronde et une ouverture hexagonale rendent la meme bouillie.
+    "effet-lens-blur-bokeh-courbe": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const points = await mireBokeh(W, H);
+        const sourceId = await r.photoSources.register(points);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "points");
+        const a = stack.addLayer("lensBlur", p);
+        stack.updateParams(a, {
+          radius: 22,
+          blades: 6,
+          bladeRotation: 0,
+          bladeCurvature: 1,
+          highlightThreshold: 0.35,
+          highlightBoost: 14,
+          fieldShape: 0,
+        });
+      },
+    },
+
+    // RETENUE DES NOIRS DU GLOW — le temoin, a retenue nulle.
+    //
+    // La mire est mireLampes, et le choix est la mesure : sa moitie gauche est
+    // DENSE (valeur 10) et sa moitie droite CLAIRE (valeur 160), avec les memes
+    // quatre lampes saturees des deux cotes. C est la seule mire du script qui
+    // porte les deux densites sous des sources identiques — donc la seule ou
+    // une porte qui depend de la densite du fond puisse se lire sans confondre
+    // son effet avec une difference de source.
+    //
+    // A retenue nulle, le halo se pose des deux cotes : c est le Pro-Mist, et
+    // c est le rendu d avant le 2026-08-19. La reference suivante ne change que
+    // shadowHold.
+    "effet-glow-retenue-temoin": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const lampes = await mireLampes(W, H);
+        const sourceId = await r.photoSources.register(lampes);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "lampes");
+        const a = stack.addLayer("glow", p);
+        stack.updateParams(a, {
+          threshold: 0.45, knee: 0.6, intensity: 2.2, spread: 1.2,
+          shadowHold: 0, shadowHoldPoint: 0.35,
+        });
+      },
+    },
+
+    // RETENUE DES NOIRS DU GLOW — a fond. Le halo doit disparaitre de la moitie
+    // DENSE et rester entier sur la moitie claire : c est le Black Pro-Mist,
+    // dont les particules noires absorbent la lumiere diffusee qui retomberait
+    // dans les zones denses.
+    //
+    // Ce que la paire verrouille, et qui ne se verrouille pas autrement : que
+    // la porte lit la densite de ce qui est SOUS le halo. Un shader qui lirait
+    // la luminance du HALO rendrait aussi une image differente du temoin — donc
+    // une reference seule ne separerait pas les deux. C est la moitie GAUCHE de
+    // cette reference qui les separe : sous le halo elle est dense, dans le
+    // halo elle ne l est pas.
+    "effet-glow-retenue": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const lampes = await mireLampes(W, H);
+        const sourceId = await r.photoSources.register(lampes);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "lampes");
+        const a = stack.addLayer("glow", p);
+        stack.updateParams(a, {
+          threshold: 0.45, knee: 0.6, intensity: 2.2, spread: 1.2,
+          shadowHold: 1, shadowHoldPoint: 0.35,
+        });
+      },
+    },
+
     // Hatching, TEMOIN DE PROGRESSION TONALE : une rampe de gris neutre du noir
     // au blanc. C'est le seul scenario capable de montrer ce que cet effet
     // pretend faire — trois couches de tailles qui se relaient quand la

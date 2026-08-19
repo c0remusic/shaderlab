@@ -43,7 +43,9 @@ describe("glow — seuil de bright-pass décodé vers le linéaire", () => {
 describe("glow — bloom NEUTRE depuis le retrait de la teinte (2026-08-01)", () => {
   it("n'expose plus aucun paramètre de teinte", () => {
     const noms = glow.params.map((p) => p.name);
-    expect(noms).toEqual(["threshold", "knee", "intensity", "spread"]);
+    // Les deux derniers sont la RETENUE DES NOIRS (2026-08-19), pas une teinte :
+    // ils décident OÙ le halo se repose, jamais de quelle couleur il est.
+    expect(noms).toEqual(["threshold", "knee", "intensity", "spread", "shadowHold", "shadowHoldPoint"]);
     // Aucun groupe de couleur : la pastille du panneau disparaît avec la teinte.
     expect(glow.params.some((p) => p.colorGroup)).toBe(false);
   });
@@ -51,8 +53,27 @@ describe("glow — bloom NEUTRE depuis le retrait de la teinte (2026-08-01)", ()
   it("compose le halo SANS le recolorer", () => {
     // Un bloom étale la lumière présente, il ne la teinte pas. Une recoloration
     // relève de la halation, qui est un autre effet depuis le 2026-08-01.
-    expect(glow.wgsl).toContain("return vec4<f32>(color.rgb + bloom * intensity, color.a);");
+    // La retenue module l'INTENSITÉ du dépôt, canal par canal identiquement —
+    // donc elle ne peut pas déplacer une teinte, quelle que soit sa valeur.
+    expect(glow.wgsl).toContain("return vec4<f32>(color.rgb + bloom * (intensity * porte), color.a);");
     expect(glow.wgsl).not.toMatch(/hsl2rgb|tint|gain/);
+  });
+
+  it("la retenue des noirs est NEUTRE à son défaut", () => {
+    // L'invariant qui protège les références de pixels : à `shadowHold` = 0, la
+    // porte vaut exactement 1 et le composite est l'additif d'avant. Ce n'est
+    // pas une approximation — `mix(a, b, 0.0)` rend `a` au bit près.
+    const hold = glow.params.find((p) => p.name === "shadowHold");
+    expect(hold?.default).toBe(0);
+    expect(glow.wgsl).toContain("mix(1.0, ouverture, clamp(params[4], 0.0, 1.0))");
+  });
+
+  it("lit la densité de ce qui est SOUS le halo, pas du halo", () => {
+    // Le sens de l'effet : ce sont les particules noires du support qui
+    // absorbent, donc la porte se calcule sur `color`, jamais sur `bloom`. Un
+    // shader qui lirait la luminance du halo rendrait un tout autre effet —
+    // le halo s'éteindrait là où il est faible, pas là où le fond est dense.
+    expect(glow.wgsl).toContain("let luma = dot(color.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));");
   });
 });
 

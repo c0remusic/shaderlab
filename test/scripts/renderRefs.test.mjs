@@ -176,6 +176,18 @@ const ATTENDU = {
   // rendait des nuees granuleuses au lieu d'hexagones.
   "effet-lens-blur.png": { width: 256, height: 256, valeurs: null },
   "effet-lens-blur-bokeh.png": { width: 256, height: 256, valeurs: null },
+  // COURBURE DES LAMES (2026-08-19). Le scenario ci-dessus est son temoin : il
+  // tourne a courbure 0, celui-ci a 1, et rien d autre ne change. L ecart entre
+  // les deux images EST l effet du parametre — un curseur mort ne deplacerait
+  // aucun pixel, precisement parce qu il est mort.
+  "effet-lens-blur-bokeh-courbe.png": { width: 256, height: 256, valeurs: null },
+  // RETENUE DES NOIRS DU GLOW (2026-08-19), et la paire est indissociable. La
+  // mire est mireLampes : moitie gauche DENSE, moitie droite CLAIRE, memes
+  // sources des deux cotes. Le temoin est a retenue nulle (Pro-Mist, le halo se
+  // pose partout et delave les noirs), l autre a fond (Black Pro-Mist, la
+  // moitie dense reste dense pendant que les lampes fleurissent).
+  "effet-glow-retenue-temoin.png": { width: 256, height: 256, valeurs: null },
+  "effet-glow-retenue.png": { width: 256, height: 256, valeurs: null },
   // HATCHING (2026-08-01) : pose sur une rampe de gris NEUTRE et non sur la
   // mire commune, pour la meme raison que le temoin de bokeh a sa propre mire.
   // Le sujet de cet effet est sa REPONSE TONALE — trois couches de tailles qui

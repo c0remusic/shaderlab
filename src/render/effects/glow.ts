@@ -69,6 +69,31 @@ export const glow: EffectModule = {
     // avant que l'utilisateur ne le juge trop fort.
     { name: "intensity", label: "Intensité", unit: "none", min: 0, max: 6, default: 1.6, step: 0.05 },
     { name: "spread", label: "Portée du halo", unit: "none", min: 0.4, max: 3, default: 1.2, step: 0.05, hint: "Écartement des taps de remontée — rayon ≈ 62 + 124 x portée, en pixels pleine résolution" },
+    // ─── PRO-MIST CONTRE *BLACK* PRO-MIST (2026-08-19) ────────────────────
+    //
+    // L'en-tête de ce module nomme depuis toujours trois filtres de référence —
+    // Pro-Mist, **Black** Pro-Mist, Glimmerglass — et n'en rendait qu'UN. Ce
+    // qui sépare le Pro-Mist du Black Pro-Mist n'est pas un dosage : les
+    // particules noires du second ABSORBENT la lumière diffusée qui retomberait
+    // dans les zones denses, si bien que les hautes lumières fleurissent
+    // pendant que les noirs restent noirs. Un composite purement additif — ce
+    // qu'était celui-ci — ne peut rendre que le premier : il repose son halo
+    // partout où il tombe, y compris dans les ombres, qu'il délave.
+    //
+    // MESURÉ CHEZ AFFINITY, pas déduit d'un catalogue. Leur Bloom porte trois
+    // curseurs de plage tonale, et le relevé du 2026-08-19 (escalier de tons
+    // unis, seize marches, filtre appliqué par script puis pixels relus) montre
+    // qu'ils ne gatent PAS la source du halo : ils décident dans quels tons du
+    // RECEVEUR la lumière est reposée — et sous une certaine densité, le lift
+    // mesuré est exactement 0,000 quelle que soit la position des trois. Un
+    // plancher, pas une pente. C'est ce plancher qui est repris ici ; leurs
+    // trois bandes ne le sont pas, faute d'un geste qui les demande.
+    //
+    // ⚠️ DEUX PARAMÈTRES ET NON TROIS, ET AJOUTÉS EN FIN DE TABLEAU. Un index
+    // se persiste dans les presets et se gèle dans les références de pixels :
+    // il s'append, il ne s'insère pas. Les sections les remettent à leur place.
+    { name: "shadowHold", label: "Retenue des noirs", unit: "percent", min: 0, max: 1, default: 0, step: 0.01, hint: "Combien les zones denses REFUSENT le halo. À 0, le halo se pose partout où il tombe — c'est un Pro-Mist, et c'est le rendu d'avant ce réglage. À 1, les noirs sous la limite ci-dessous restent noirs pendant que les hautes lumières fleurissent — c'est un Black Pro-Mist" },
+    { name: "shadowHoldPoint", label: "Limite des noirs", unit: "percent", min: 0.01, max: 1, default: 0.25, step: 0.01, hint: "Ton au-dessus duquel le halo se repose entièrement. En dessous, il s'efface progressivement jusqu'au noir. Sans objet tant que la retenue est à 0" },
     // TEINTE DU HALO RETIRÉE le 2026-08-01 (quatre paramètres : tintHue,
     // tintSaturation, tintLightness, tintStrength) — voir l'en-tête du module.
     //
@@ -163,17 +188,39 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
    */
   sections: [
     { id: "seuil", label: "Seuil", layout: "liste", params: ["threshold", "knee"] },
-    { id: "diffusion", label: "Diffusion", layout: "liste", params: ["intensity", "spread"] },
+    // Les deux réglages de retenue lisent le COMPOSITE — ils décident où le halo
+    // se repose — donc ils sont du côté « ce que le halo devient », comme le dit
+    // la frontière ci-dessus. Ils sont cités après `spread` alors que leurs index
+    // sont 4 et 5 : la section range ce que `params[]` ne peut plus ranger.
+    { id: "diffusion", label: "Diffusion", layout: "liste", params: ["intensity", "spread", "shadowHold", "shadowHoldPoint"] },
   ],
-  // Composite ADDITIF et NEUTRE. Le halo garde la couleur de sa source — c'est
-  // ce que fait une diffusion : elle étale la lumière présente, elle ne la
-  // colore pas. Toute recoloration relève de `halation.ts`, qui est un autre
-  // phénomène et désormais un autre effet.
-  wgsl: `
+  // Composite ADDITIF et NEUTRE EN TEINTE. Le halo garde la couleur de sa
+  // source — c'est ce que fait une diffusion : elle étale la lumière présente,
+  // elle ne la colore pas. Toute recoloration relève de `halation.ts`, qui est
+  // un autre phénomène et désormais un autre effet.
+  //
+  // Additif SANS CONDITION jusqu'au 2026-08-19 ; il porte depuis une RETENUE
+  // dans les zones denses (voir les deux derniers paramètres). À retenue nulle,
+  // `mix(1.0, ouverture, 0.0)` rend exactement 1.0 et le composite est celui
+  // d'avant, au bit près — c'est ce que vérifient les références de pixels.
+  wgsl: `${SRGB_TO_LINEAR_WGSL}
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let intensity = params[2];
   let bloom = textureSample(prevPass, srcSampler, uv).rgb;
-  return vec4<f32>(color.rgb + bloom * intensity, color.a);
+
+  // La luminance lue est celle de ce qui est SOUS le halo, pas celle du halo :
+  // c'est la densité du support qui décide s'il absorbe, exactement comme les
+  // particules noires d'un Black Pro-Mist absorbent la lumière qui y retombe.
+  let luma = dot(color.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
+  // Limite DÉCODÉE vers le linéaire : c'est une valeur de curseur, donc
+  // perceptuelle, comparée à une luminance qui vient du format -srgb et est
+  // donc linéaire. Sans ce décodage, le curseur serait tassé dans son quart
+  // haut — le défaut exact qui rendait le seuil du bright-pass inerte.
+  let limite = max(srgb_to_linear(clamp(params[5], 0.0, 1.0)), 0.0001);
+  let ouverture = smoothstep(0.0, limite, luma);
+  let porte = mix(1.0, ouverture, clamp(params[4], 0.0, 1.0));
+
+  return vec4<f32>(color.rgb + bloom * (intensity * porte), color.a);
 }
 `,
 };

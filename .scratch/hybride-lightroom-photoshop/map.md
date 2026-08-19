@@ -103,12 +103,31 @@ Chaque voie défait une décision écrite — à Antoine de trancher.
 
 ## Ce qui RESTE
 
-- [Le verrou est binaire là où Photoshop en a quatre](issues/02-le-verrou-binaire.md)
-  — le verrou VERROUILLE depuis le 2026-08-18 ; la question est s'il faut le
-  scinder, et le faux ami à ne pas transposer est nommé.
-- [La symétrie panneau / toile](issues/03-symetrie-panneau-toile.md) — quelle
-  unité MONTRER, sachant que la fraction stockée est ce qui rend un preset
-  indépendant de la définition.
+Les quatre tickets sont TRANCHES ; ce qui reste est du CODE, pas des decisions.
+
+- **Verrous : QUATRE, arbitres le 2026-08-18**
+  ([ticket 02](issues/02-le-verrou-binaire.md), resolu). Le faux ami se leve par
+  une lecture de domaine — le MASQUE d'un calque d'effet EST son canal alpha.
+  Les 17 operations gardees (et non 14) se partagent en Position, Masque,
+  Transparence, Tout. ⚠️ « Transparence » ecrete au lieu de refuser, donc il doit
+  s'exprimer AUSSI dans `MaskPainter`. **Pas encore ecrit.** Deux points a
+  confirmer devant la planche : la lisibilite du plein/creux a 12 px, et
+  l'independance des quatre bascules.
+- **Unite : le panneau passe en PIXELS, arbitre le 2026-08-19**
+  ([ticket 03](issues/03-symetrie-panneau-toile.md)). Conversion a l'affichage
+  ET en saisie, la fraction restant stockee — les presets ne bougent pas. Vaut
+  pour les CINQ effets a controle spatial. **Pas encore ecrit.**
+
+## Ce qui a ete livre le 2026-08-19
+
+- **[Le layout](issues/04-le-layout.md) — RESOLU par des groupes a ONGLETS**,
+  modele Photoshop, apres deux mecanismes construits puis retires (un auto-repli
+  sous pression, et le Solo mode de Lightroom). Debord 194 px -> la colonne
+  tient, sans toucher au plancher de 5 lignes. La carte Textures est partie avec.
+  ⚠️ Regle qui sort de ce ticket et vaut pour la carte entiere : **un choix
+  d'interaction ou de layout se compare d'abord a Photoshop et Lightroom**
+  ([recherche 02](research/02-la-colonne-trop-haute.md)), et la doc Adobe est
+  DESCRIPTIVE — elle donne la convention, jamais des chiffres.
 
 ## Notes
 

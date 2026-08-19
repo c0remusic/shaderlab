@@ -216,3 +216,68 @@ réclamer plus que son plancher. Replier Presets lui en donne 204, replier Pile
 244.
 
 Planche : [`docs/wireframes/dock-1280-arbitrage.html`](../../../docs/wireframes/dock-1280-arbitrage.html).
+
+---
+
+## Résolu le 2026-08-19 — des groupes à ONGLETS, modèle Photoshop
+
+Arbitrage d'Antoine, après avoir demandé « comment faire photoshop ? » devant
+deux mécanismes qui marchaient tous les deux.
+
+### Le relevé qui a décidé
+
+[Recherche 02](../research/02-la-colonne-trop-haute.md) : **ni Photoshop ni
+Lightroom ne replient un panneau sur une mesure de place.** Lightroom a le Solo
+mode, déclenché par un GESTE et opt-in ; Photoshop met les panneaux en ONGLETS
+dans des groupes empilés. La raison de préférer les onglets n'est pas
+esthétique — **avec un onglet on VOIT que l'autre panneau existe et il est à un
+clic** ; un repli le cache et en demande deux.
+
+### Deux mécanismes construits puis retirés
+
+Aucun n'a été écarté sur une intuition :
+
+1. **L'auto-repli sous pression** — la colonne mesure, détecte le débord,
+   replie une carte désignée. Sans précédent chez les deux outils, et pour une
+   bonne raison : une carte qui se referme pendant qu'on travaille est un
+   mouvement qu'on n'a pas demandé, et l'utilisateur qui la rouvre la verrait se
+   refermer.
+2. **Le Solo mode de Lightroom** — construit, fonctionnel, Alt-clic pour
+   basculer, et il TENAIT la colonne au plancher de 5 lignes inchangé. Retiré
+   parce qu'il rendait **Pile et Propriétés mutuellement exclusives**, alors
+   qu'on les lit ensemble : sélectionner un calque puis régler ses paramètres
+   devenait deux clics avec un aller-retour. Son coût n'était pas des pixels
+   mais un geste. Le solo de Lightroom s'applique à des panneaux qui SE
+   REMPLACENT (Basique, Courbe, TSL), pas à deux compagnons.
+
+### Livré
+
+`DockLayout` passe de `string[][]` à des colonnes de GROUPES
+(`{ tabs, active, collapsed }`). Disposition de départ : **Presets et Propriétés
+en onglets d'un groupe, la Pile seule dans le sien.**
+
+Deux zones de dépôt, comme Photoshop : les bandes haute et basse ouvrent une
+ligne, le milieu rejoint le groupe en onglet. Le guide passe du filet au CADRE
+quand on groupe.
+
+Et **la carte Textures est partie** (demande d'Antoine) : son geste — ajouter un
+scan comme calque photo — n'a plus de raison d'être depuis qu'un effet
+échantillonne la bibliothèque lui-même (ADR-0018).
+
+### Le résultat, mesuré
+
+Débord **194 px → la colonne TIENT**, et `--dock-card-list-rows` n'a **pas** eu à
+être abaissé : la note de `CLAUDE.md` (« la borne à 5 lignes est voulue ») reste
+intacte. C'est la propriété que ni l'auto-repli ni le colmatage n'avaient — la
+colonne est bornée par construction, une seule carte de chaque groupe portant du
+contenu.
+
+### ⚠️ Le constat intermédiaire qui était FAUX
+
+L'amendement ci-dessus affirme « baisser le plancher des listes rend 0 px,
+la voie est morte ». **Vrai sur 2 calques, faux sur 7** — où chaque ligne retirée
+rend exactement 60 px (194 → 134 → 74 → 14 de 5 à 2 lignes). Le relevé était
+juste ; c'est de l'avoir présenté comme général qui ne l'était pas, et il a
+failli faire trancher de travers. Un scénario de ticket n'est pas le scénario
+d'usage : le ticket décrivait un document à trois calques, un vrai document en a
+sept.

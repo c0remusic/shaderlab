@@ -236,7 +236,16 @@ Protocole : `Document.create(512, 512)`, calque pixel noir posé par
 lecture du canal alpha par `rasterInterface.createCompatibleBuffer(true)`.
 L'alpha après suppression EST le masque de l'opération.
 
-**1. Leur feather est une courbe en S ; le nôtre est une rampe.**
+**1. ✅ PRIS le soir même — leur feather est une courbe en S ; le nôtre était une rampe.**
+Livré : lookup à quatre fenêtres pondérées sur la MÊME SAT
+(`FEATHER_WINDOWS`, `buildFeatherLookupWgsl` — mask/refineEdgeWgsl.ts), une
+passe, cache intact, coût toujours plat au rayon. L'itération de la passe,
+promise par la première version de cette section, aurait DÉTRUIT le cache de
+la table (les passes 2-3 dépendraient du rayon) : le S est obtenu dans le
+lookup, pas par itération. Écart au erf cible ≤ 0,045 L∞ borné par
+test/mask/featherProfile.test.ts (r=8..64) ; mire GPU dédiée
+`masque-feather-fort` (bord franc + feather 24 — les trois scénarios refine
+existants travaillaient à feather 2-6, où la différence tient dans 9 LSB).
 Profil mesuré à `featherRasterSelection(32)`, ligne y=256 (alpha/255, bord
 nominal à x=128) :
 
@@ -257,7 +266,13 @@ pour garder la course du curseur. Les références de pixels des masques
 adoucis bougent — c'est un changement d'apparence ASSUMÉ, à valider sur photo
 avant `--update`.
 
-**2. Leur grow est un disque euclidien ; le nôtre est un carré.**
+**2. ✅ PRIS le soir même — leur grow est un disque euclidien ; le nôtre était un carré.**
+Livré : élément OCTOGONAL séparable (`octagonRadii`, deux passes diagonales
+D1/D2 ajoutées aux H/V — mask/refinePlan.ts, refineEdgeWgsl.ts). Extension
+axiale EXACTE au rayon du curseur, écart diagonal ≤ ±14 % (pire cas r=5,
+quantification pure ; ±6,1 % dès r=7), extension bornée sur 32 directions par
+preuve de Minkowski (test/mask/morphologySeparable.test.ts) — contre +41 % à
+45° pour l'ancien carré, à tout rayon.
 `growShrinkRasterSelection(radius, circular)` — le flag est dans la
 signature. Mesuré à +32 : le coin du rectangle devient un ARC à ~32 px de
 distance EUCLIDIENNE du coin. Notre morphologie
@@ -526,9 +541,9 @@ nommé) :
 
 | Candidat | Le geste | Coût |
 | --- | --- | --- |
-| ⭐ Feather en 3 passes SAT (profil en S mesuré chez eux) | un bord adouci sans les deux cassures de la rampe | S — passes déjà écrites, itération + recalibrage |
-| ⭐ Morphologie octogonale (leur grow est un disque, mesuré) | contract/dilate qui ne déforme plus les coins de 41 % | M — deux passes diagonales de plus |
-| Smooth géométrique (close∘open, leur nature mesurée) | arrondir la forme sans flouter les bords droits | M — dépend du précédent |
+| ✅ ~~Feather en S~~ — **LIVRÉ le 2026-08-19 au soir** (quatre fenêtres sur la SAT, pas l'itération : le cache survit) | un bord adouci sans les deux cassures de la rampe | fait — profil borné par test, mire `masque-feather-fort` |
+| ✅ ~~Morphologie octogonale~~ — **LIVRÉ le 2026-08-19 au soir** (passes D1/D2, `octagonRadii`) | contract/dilate qui ne déforme plus les coins de 41 % | fait — preuve de Minkowski au test |
+| Smooth géométrique (close∘open, leur nature mesurée) | arrondir la forme sans flouter les bords droits | M — les passes D1/D2 existent désormais ; ⚠️ change le SENS du curseur `smooth` (d'itérations à rayon), arbitrage d'Antoine requis |
 | Stabilisateur de trait (corde/moyenne) | détourer à main levée sans tremblement | S–M |
 | Lot « développement » : WhiteBalance, Exposure, Vibrance, HSL | développer la photo dans l'app (moitié Lightroom de l'hybride) | M — par-pixel, patron `curves`/`channelMixer`, aucun mécanisme neuf |
 | ⚠️ CHANTIER calque de retouche (pixels peints) | clone, healing, inpainting patch, dodge/burn | L — nouveau genre de contenu, ADR d'abord ; les pinceaux suivent le support |
@@ -570,10 +585,24 @@ masque symétrique manque un jour).
   par le même chemin `PixelBuffer` que les mesures de sélection — le profil
   radial dit si leur dureté est la rampe que nous avons ou la courbe en S que
   leur feather laisse attendre.
-- **Le chemin LIVE est désormais mesurable** (`nodes.js`, axe 5 point 7) et
-  ne l'a pas encore été : coût d'un live filter pendant un drag de paramètre,
-  à quelle résolution d'aperçu — la dernière réserve du verdict perfs peut
-  tomber par une mesure, dans un sens ou dans l'autre.
+- **Le chemin LIVE, mesuré le soir même — à moitié.** Ce qui a été mesuré :
+  poser un live filter est instantané (11 ms — il ne calcule rien), changer
+  son paramètre par SDK coûte 0 ms (l'aperçu se rend en ASYNCHRONE, cette
+  voie ne le voit pas), et **forcer l'évaluation à résolution native
+  (`flatten`) coûte le prix du filtre destructif d'hier** : 173 ms pour le
+  gaussien live sur 26 Mpx (destructif : 173-184), ~306 ms pour le lens blur
+  live r=64. Même moteur, même plancher — le live n'a pas de moteur miracle.
+  Ce qui reste non mesurable par SDK : le rendu d'APERÇU pendant un drag
+  (asynchrone, résolution d'aperçu inconnue). Au passage, la structure live
+  du lens blur porte bien `bladeCurvature` — la prise du matin visait la
+  bonne cible.
+- **Le Halftone LIVE n'a pas pu être basculé en couleur par SDK** :
+  `HalftoneScreenType` énumère `Mono · Colour · Line · Circular`, mais
+  l'écriture de `screenType` échoue EN SILENCE par les trois voies essayées
+  (objet enum, valeur nue, structure fraîche) — les autres champs s'écrivent.
+  « Leur halftone est monochrome » reste donc mesuré sur le chemin SDK
+  seulement, destructif ET live ; l'interface, elle, ne se tranche qu'à la
+  main.
 - **Rien sur la beauté de leurs rendus.** Les mesures portent des temps et des
   comportements ; « est-ce beau » se juge sur une photo d'Antoine.
 - **Les dimensions relevées à l'écran ne sont pas transposables** (facteur

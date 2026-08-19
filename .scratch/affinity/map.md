@@ -120,6 +120,18 @@ de suite, et c'est là que sont les tickets.
 
 ### Pris hors ticket, parce que la mesure l'a fait apparaître
 
+- ✅ **Feather en S** (2026-08-19 au soir). Leur feather mesuré au pixel est
+  un erf (σ ≈ 0,4·rayon) ; le nôtre était une rampe box à deux cassures.
+  Livré en UNE passe — quatre fenêtres pondérées sur la MÊME SAT
+  (`FEATHER_WINDOWS`, mask/refineEdgeWgsl.ts), le cache de la table et le
+  coût plat au rayon survivent. Écart au erf ≤ 0,045 borné par test ; mire
+  dédiée `masque-feather-fort` (les scénarios existants, à feather 2-6, ne
+  MONTRAIENT pas le S — leçon du verrou aveugle).
+- ✅ **Morphologie octogonale** (2026-08-19 au soir). Leur grow est un disque
+  euclidien (flag `circular` mesuré) ; notre contract/dilate était un carré
+  qui débordait de 41 % en diagonale. Livré : passes D1/D2 + `octagonRadii`
+  (extension axiale exacte, ±14 % au pire en diagonale, preuve de Minkowski
+  au test).
 - ✅ **Courbure des lames sur `lensBlur`** (2026-08-19). Leur
   `LensBlurFilterParameters` porte un `bladeCurvature` qu'aucun ticket n'avait
   relevé — le décompte de paramètres de la veille comparait des NOMBRES
@@ -137,18 +149,20 @@ de suite, et c'est là que sont les tickets.
 ### Candidats SANS ticket — relevés par l'audit du 2026-08-19, à charter si voulus
 
 L'[audit](../../docs/design-system/affinity-audit-2026-08-19.md) § Récapitulatif
-en liste quinze. Les neuf du relevé initial (export réglable/PNG, panneau
+les liste. Les neuf du relevé initial (export réglable/PNG, panneau
 Historique, raccourcis centralisés, presets de masque, copie de masque entre
 calques, snapping système, deux zones fixes du panneau Calques, Glitch par
-canal sur `sliceShift`, LUT 3D), plus six de l'audit des outils internes du
-soir — dont **trois adossés à une MESURE au pixel** (feather en S contre notre
-rampe, grow en disque contre notre carré, smooth géométrique contre notre
-flou), le stabilisateur de trait, le lot « développement »
+canal sur `sliceShift`, LUT 3D), plus ceux de l'audit des outils internes du
+soir : le **smooth géométrique** (mesuré chez eux — arrondit la FORME en
+gardant le bord net ; ⚠️ change le sens du curseur `smooth`, arbitrage
+d'Antoine requis, les passes D1/D2 dont il a besoin existent depuis les
+prises ci-dessus), le stabilisateur de trait, le lot « développement »
 (WhiteBalance/Exposure/Vibrance/HSL, moitié Lightroom de l'hybride), et le
 **chantier calque de retouche** (pixels peints — le préalable structurel de
-clone/healing/inpainting/dodge/burn, ADR d'abord). Aucun n'est ouvert
-d'office : la règle des notes s'applique — un geste nommé chez NOUS, sinon
-rien.
+clone/healing/inpainting/dodge/burn, ADR d'abord). Les deux autres mesures au
+pixel du soir (feather en S, grow en disque) sont PRISES — voir « Pris hors
+ticket ». Aucun candidat n'est ouvert d'office : la règle des notes
+s'applique — un geste nommé chez NOUS, sinon rien.
 
 ### Débloquer un chantier ARRÊTÉ ailleurs
 

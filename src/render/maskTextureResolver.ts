@@ -17,7 +17,7 @@ import type {
   RefineEdgeParams,
 } from "../mask/types";
 import { buildCombineWgsl, buildInvertWgsl } from "../mask/maskFoldWgsl";
-import { buildMorphologyWgsl } from "../mask/refineEdgeWgsl";
+import { buildMorphologyWgsl, buildFeatherLookupWgsl } from "../mask/refineEdgeWgsl";
 import { planRefine } from "../mask/refinePlan";
 import { getMaskSourceModule } from "../mask/sources/registry";
 import {
@@ -1184,7 +1184,10 @@ export class MaskTextureResolver {
         // La SAT resume l'etat COURANT du ping-pong, donc apres la morphologie
         // — d'ou sa dependance a `contract` et non au seul contenu du masque.
         const sat = this.buildRefineSat(id, acc, x.contract, this.revision(id), e, p);
-        this.runLoadPass(e, buildSatLookupWgsl(), "fs_satLookup", next, [sat.createView()], u(passe.radius));
+        // Lookup dedie au feather (profil en S, quatre fenetres) — PAS le
+        // `fs_satLookup` d'edgeAwareWgsl, qui reste un box pur pour le guided
+        // filter. Meme table, meme cache, meme cout plat au rayon.
+        this.runLoadPass(e, buildFeatherLookupWgsl(), "fs_featherLookup", next, [sat.createView()], u(passe.radius));
         [acc, next] = [next, acc];
         featherEncode = true;
       } else {

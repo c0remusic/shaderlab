@@ -623,9 +623,11 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Ce qu'elle laisse passer : notre uniform `params: array<f32, 48>` n'est pas
   conforme (stride 4 pour un alignement requis de 16 en espace uniform), Dawn
   l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 27
-  effets, index gelés par les presets ET par **122** références de pixels
-  (re-mesuré le 2026-08-19 : 122 PNG dans `test/render-refs/`, tous déclarés,
-  zéro orphelin — 119 la veille, plus les trois du relevé Affinity :
+  effets, index gelés par les presets ET par **124** références de pixels
+  (re-compté le 2026-08-19 au soir : 124 PNG dans `test/render-refs/`, tous
+  déclarés — 122 plus la paire `masque-feather-fort-temoin` /
+  `masque-feather-fort`, la mire qui MONTRE le profil en S du feather ; les
+  trois du relevé Affinity du même jour étaient
   `effet-lens-blur-bokeh-courbe`, `effet-glow-retenue-temoin`,
   `effet-glow-retenue`).
   ⚠️ **Compter les scénarios par un grep sur les clés littérales SOUS-COMPTE de

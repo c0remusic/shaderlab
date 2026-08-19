@@ -2940,6 +2940,38 @@ const INSTALL = `(async () => {
       },
     },
 
+    // FEATHER A GRAND RAYON : la paire qui MONTRE le profil en S (2026-08-19).
+    // Les trois scenarios refine ci-dessus travaillent a feather 2 et 6, ou la
+    // difference rampe/S tient dans 9 LSB — un verrou qui ne montre pas la
+    // propriete ne verrouille que du bruit (lecon lensBlur du 2026-08-01).
+    // Ici : masque a bord FRANC (rectangle net, pas brushRaster dont le bord
+    // est deja doux), feather 24 — la transition s etale sur ~48 px et le S
+    // se lit. Le profil vise est celui mesure chez Affinity (erf,
+    // sigma = 0,4 rayon), approche par quatre fenetres pondereees sur la SAT
+    // (FEATHER_WINDOWS, src/mask/refineEdgeWgsl.ts) — ecart au erf borne par
+    // test/mask/featherProfile.test.ts.
+    "masque-feather-fort-temoin": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("duotone");
+        const m = new Uint8Array(W * H);
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
+          m[y * W + x] = (x >= W * 0.25 && x < W * 0.75 && y >= H * 0.25 && y < H * 0.75) ? 255 : 0;
+        stack.updateBrushMask(a, m);
+      },
+    },
+    "masque-feather-fort": {
+      contre: "masque-feather-fort-temoin",
+      build: async (r, stack) => {
+        const a = stack.addLayer("duotone");
+        const m = new Uint8Array(W * H);
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
+          m[y * W + x] = (x >= W * 0.25 && x < W * 0.75 && y >= H * 0.25 && y < H * 0.75) ? 255 : 0;
+        stack.updateBrushMask(a, m);
+        stack.updateRefineEdge(a, { feather: 24 });
+      },
+    },
+
     // L OVERLAY DE MASQUE (safelight : voile rouge + contour pointille), et
     // QUATRE scenarios pour lui — deux paires temoin/overlay.
     //

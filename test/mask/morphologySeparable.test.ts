@@ -217,3 +217,71 @@ describe("morphologie séparable — structure du WGSL généré", () => {
     expect(sources.size).toBe(4);
   });
 });
+
+/** OCTOGONE (2026-08-19) : la dilatation par segments H, V, D1, D2 est une
+ *  somme de Minkowski — carré (H⊕V) ⊕ losange (D1⊕D2). Ce bloc prouve sur un
+ *  point isolé que la forme atteinte a l'extension promise par
+ *  `octagonRadii` : exacte sur les axes, bornée partout ailleurs — là où
+ *  l'ancien carré débordait de +41 % à 45°. Modèle par ENSEMBLES (pas par
+ *  grille) : la dilatation d'un indicateur est exactement la somme de
+ *  Minkowski, et l'extension se lit en maximisant ⟨p, u⟩. */
+import { octagonRadii } from "../../src/mask/refinePlan";
+
+describe("morphologie octogonale — extension par direction (Minkowski sur point isolé)", () => {
+  type Pt = [number, number];
+  const dilateSegment = (pts: Pt[], dx: number, dy: number, r: number): Pt[] => {
+    if (r <= 0) return pts;
+    const out = new Map<string, Pt>();
+    for (const [x, y] of pts)
+      for (let k = -r; k <= r; k++) {
+        const p: Pt = [x + dx * k, y + dy * k];
+        out.set(`${p[0]},${p[1]}`, p);
+      }
+    return [...out.values()];
+  };
+
+  const octagonOf = (r: number): Pt[] => {
+    const { axial, diagonal } = octagonRadii(r);
+    let pts: Pt[] = [[0, 0]];
+    pts = dilateSegment(pts, 1, 0, axial);
+    pts = dilateSegment(pts, 0, 1, axial);
+    pts = dilateSegment(pts, 1, 1, diagonal);
+    pts = dilateSegment(pts, 1, -1, diagonal);
+    return pts;
+  };
+
+  const support = (pts: Pt[], angleRad: number): number => {
+    const ux = Math.cos(angleRad);
+    const uy = Math.sin(angleRad);
+    let best = -Infinity;
+    for (const [x, y] of pts) best = Math.max(best, x * ux + y * uy);
+    return best;
+  };
+
+  for (const r of [8, 20, 50]) {
+    it(`r=${r} : extension EXACTE sur les axes, ≤ +8,3 % (+arrondi) sur 32 directions`, () => {
+      const pts = octagonOf(r);
+      expect(support(pts, 0)).toBe(r);
+      expect(support(pts, Math.PI / 2)).toBe(r);
+      for (let i = 0; i < 32; i++) {
+        const a = (i / 32) * Math.PI * 2;
+        const s = support(pts, a);
+        // Borne haute : le sommet théorique de l'octogone est à 1,0824·r
+        // (support à 22,5° = 1,307·axial + 1,848·diagonal pour les rayons
+        // réels idéaux) ; +1 px absorbe la quantification des rayons.
+        expect(s, `angle=${((a * 180) / Math.PI).toFixed(1)}°`).toBeLessThanOrEqual(1.0824 * r + 1);
+        // Borne basse : jamais plus rentrant que l'écart diagonal borné par
+        // refinePlan.test.ts (±14 %), moins 1 px de quantification.
+        expect(s).toBeGreaterThanOrEqual(0.86 * r - 1);
+      }
+    });
+  }
+
+  it("r=1 dégénère en carré (extension diagonale √2·r, l'ancien monde), r=2 en losange", () => {
+    const carre = octagonOf(1);
+    expect(support(carre, Math.PI / 4)).toBeCloseTo(Math.SQRT2, 10);
+    const losange = octagonOf(2);
+    expect(support(losange, 0)).toBe(2);
+    expect(support(losange, Math.PI / 4)).toBeCloseTo(Math.SQRT2, 10);
+  });
+});

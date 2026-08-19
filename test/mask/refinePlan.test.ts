@@ -1,16 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { planRefine, type RefinePass } from "../../src/mask/refinePlan";
-import { MORPHOLOGY_PASS_AXES } from "../../src/mask/refineEdgeWgsl";
+import { planRefine, octagonRadii, type RefinePass } from "../../src/mask/refinePlan";
 import { defaultRefineEdge, type RefineEdgeParams } from "../../src/mask/types";
 
 /** Ce fichier ferme un trou laissé ouvert par morphologySeparable.test.ts :
- *  celui-là prouve que DEUX passes 1D équivalent à la fenêtre carrée, mais ne
- *  regarde jamais combien de passes sont réellement planifiées. Réduire la
- *  morphologie à UN seul axe le laissait entièrement vert, pour un masque
- *  érodé sur un seul axe — faux, et silencieux.
+ *  celui-là prouve l'équivalence des passes 1D avec leur élément structurant,
+ *  mais ne regarde jamais combien de passes sont réellement planifiées.
+ *  Réduire la morphologie à un sous-ensemble d'axes le laissait entièrement
+ *  vert, pour un masque érodé sur une partie des axes — faux, et silencieux.
  *
- *  Les assertions ci-dessous sont donc écrites pour ROUGIR sur ce scénario
- *  précis : nombre de passes de morphologie, axes distincts, ordre. */
+ *  Depuis le 2026-08-19 l'élément est un OCTOGONE (carré H/V ⊕ losange
+ *  D1/D2) : quatre passes au rayon courant, deux aux rayons dégénérés
+ *  (r=1 : carré seul ; r=2 : losange seul). Les assertions verrouillent le
+ *  compte de passes, les axes, ET le contrat géométrique d'octagonRadii —
+ *  extension axiale EXACTE, écart diagonal borné, balayés sur toute la
+ *  course du curseur (mesurer un seul point a déjà produit une borne fausse,
+ *  voir effects/aperture.ts). */
 
 const params = (over: Partial<RefineEdgeParams> = {}): RefineEdgeParams => ({
   ...defaultRefineEdge(),
@@ -19,41 +23,69 @@ const params = (over: Partial<RefineEdgeParams> = {}): RefineEdgeParams => ({
 
 const morph = (plan: RefinePass[]) => plan.filter((p) => p.kind === "morphology");
 
-describe("planRefine — morphologie : DEUX passes 1D, jamais une seule", () => {
-  for (const contract of [-50, -7, -1, 1, 7, 50]) {
-    it(`contract=${contract} : exactement 2 passes de morphologie`, () => {
-      expect(morph(planRefine(params({ contract })))).toHaveLength(2);
-    });
+describe("planRefine — morphologie octogonale : les passes suivent octagonRadii", () => {
+  it("contract=±1 : carré seul (2 passes H/V rayon 1 — la quantification ne laisse pas mieux)", () => {
+    for (const contract of [-1, 1]) {
+      const plan = morph(planRefine(params({ contract })));
+      expect(plan.map((p) => p.axis)).toEqual(["H", "V"]);
+      expect(plan.every((p) => p.radius === 1)).toBe(true);
+    }
+  });
 
-    it(`contract=${contract} : un axe H et un axe V, DISTINCTS`, () => {
-      const axes = morph(planRefine(params({ contract }))).map((p) => p.axis);
-      expect(new Set(axes).size).toBe(2);
-      expect(axes).toEqual([...MORPHOLOGY_PASS_AXES]);
+  it("contract=±2 : losange seul (2 passes D1/D2 rayon 1)", () => {
+    for (const contract of [-2, 2]) {
+      const plan = morph(planRefine(params({ contract })));
+      expect(plan.map((p) => p.axis)).toEqual(["D1", "D2"]);
+      expect(plan.every((p) => p.radius === 1)).toBe(true);
+    }
+  });
+
+  for (const contract of [-50, -7, 7, 50]) {
+    it(`contract=${contract} : 4 passes, axes H·V·D1·D2 dans cet ordre`, () => {
+      const plan = morph(planRefine(params({ contract })));
+      expect(plan.map((p) => p.axis)).toEqual(["H", "V", "D1", "D2"]);
+      const { axial, diagonal } = octagonRadii(Math.abs(contract));
+      expect(plan[0].radius).toBe(axial);
+      expect(plan[1].radius).toBe(axial);
+      expect(plan[2].radius).toBe(diagonal);
+      expect(plan[3].radius).toBe(diagonal);
     });
   }
 
-  it("le plan couvre les deux axes déclarés, sans en oublier ni en inventer", () => {
-    const axes = morph(planRefine(params({ contract: 12 }))).map((p) => p.axis);
-    expect([...axes].sort()).toEqual([...MORPHOLOGY_PASS_AXES].sort());
-    expect(axes).toHaveLength(MORPHOLOGY_PASS_AXES.length);
+  it("contract NÉGATIF -> erode partout, POSITIF -> dilate partout", () => {
+    expect(morph(planRefine(params({ contract: -8 }))).every((p) => p.mode === "erode")).toBe(true);
+    expect(morph(planRefine(params({ contract: 8 }))).every((p) => p.mode === "dilate")).toBe(true);
+  });
+});
+
+describe("octagonRadii — le contrat géométrique, balayé sur toute la course", () => {
+  it("extension AXIALE exacte : axial + 2·diagonal === r, et aucun rayon négatif (r=1..50)", () => {
+    for (let r = 1; r <= 50; r++) {
+      const { axial, diagonal } = octagonRadii(r);
+      expect(axial + 2 * diagonal).toBe(r);
+      expect(axial).toBeGreaterThanOrEqual(0);
+      expect(diagonal).toBeGreaterThanOrEqual(0);
+    }
   });
 
-  it("contract NÉGATIF -> erode, rayon positif (le signe est consommé par le mode)", () => {
-    const plan = morph(planRefine(params({ contract: -8 })));
-    expect(plan.every((p) => p.mode === "erode")).toBe(true);
-    expect(plan.every((p) => p.radius === 8)).toBe(true);
+  it("extension DIAGONALE euclidienne ((axial+diagonal)·√2) dans ±14 % du rayon dès r=3", () => {
+    // L'ancien carré débordait de +41 % à 45°, à TOUT rayon. Le pire du
+    // balayage est r=5 (+13,1 %) : à ce rayon, k=1 donne +13,1 % et k=2
+    // donne −15,2 % — aucune décomposition entière ne fait mieux, c'est la
+    // quantification. Dès r=7, l'écart tient dans ±6,1 %.
+    for (let r = 3; r <= 50; r++) {
+      const { axial, diagonal } = octagonRadii(r);
+      const diag = (axial + diagonal) * Math.SQRT2;
+      expect(Math.abs(diag / r - 1), `r=${r} diag=${diag.toFixed(2)}`).toBeLessThanOrEqual(0.14);
+    }
   });
 
-  it("contract POSITIF -> dilate, même rayon sur les deux axes", () => {
-    const plan = morph(planRefine(params({ contract: 8 })));
-    expect(plan.every((p) => p.mode === "dilate")).toBe(true);
-    expect(plan.every((p) => p.radius === 8)).toBe(true);
-  });
-
-  it("les deux passes portent le MÊME mode et le MÊME rayon", () => {
-    const [a, b] = morph(planRefine(params({ contract: -3 })));
-    expect(a.mode).toBe(b.mode);
-    expect(a.radius).toBe(b.radius);
+  it("dès r=7, l'écart diagonal tient dans ±6,1 %", () => {
+    for (let r = 7; r <= 50; r++) {
+      const { axial, diagonal } = octagonRadii(r);
+      const diag = (axial + diagonal) * Math.SQRT2;
+      expect(Math.abs(diag / r - 1), `r=${r}`).toBeLessThanOrEqual(0.061);
+    }
   });
 });
 
@@ -105,8 +137,8 @@ describe("planRefine — feather et smooth", () => {
   it("ordre global : morphologie, puis feather, puis smooth", () => {
     const plan = planRefine(params({ contract: -2, feather: 5, smooth: 1 }));
     expect(plan).toEqual([
-      { kind: "morphology", mode: "erode", axis: "H", radius: 2 },
-      { kind: "morphology", mode: "erode", axis: "V", radius: 2 },
+      { kind: "morphology", mode: "erode", axis: "D1", radius: 1 },
+      { kind: "morphology", mode: "erode", axis: "D2", radius: 1 },
       { kind: "featherSat", radius: 5 },
       { kind: "boxFilter", axis: "H", radius: 1 },
       { kind: "boxFilter", axis: "V", radius: 1 },

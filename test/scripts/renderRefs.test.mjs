@@ -52,6 +52,12 @@ const ATTENDU = {
   // que le guide du calque du bas etait la toile VIDE. Voir
   // docs/adr/0004-image-de-guide-du-masque-edge-aware.md.
   "masque-edge-aware-calque-du-bas.png": { width: 256, height: 256, valeurs: null },
+  // FEATHER A GRAND RAYON (2026-08-19) : la paire qui MONTRE le profil en S
+  // du feather (quatre fenetres sur la SAT, FEATHER_WINDOWS) — les scenarios
+  // refine ci-dessus travaillent a feather 2-6, ou la difference rampe/S
+  // tient dans 9 LSB. Bord FRANC au temoin, transition ~48 px au feather 24.
+  "masque-feather-fort-temoin.png": { width: 256, height: 256, valeurs: null },
+  "masque-feather-fort.png": { width: 256, height: 256, valeurs: null },
   // L'OVERLAY DE MASQUE (safelight), et QUATRE références pour lui — deux
   // paires témoin/overlay. Il n'en avait AUCUNE jusqu'au 2026-08-14, et pas par
   // oubli : `maskOverlayFor` le refuse à la destination d'export par

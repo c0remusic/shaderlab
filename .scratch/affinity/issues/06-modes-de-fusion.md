@@ -50,6 +50,21 @@ lumière ; `overlay` et sa famille n'en ont aucune et décodent donc en sRGB.
    plage de valeurs, du calque source OU de celui du dessous. Aucun équivalent
    chez nous, et c'est un mécanisme, pas un mode de plus.
 
+✅ **La FORME exacte de leur mécanisme est lue le 2026-08-19 au soir**
+(`blendmodeinterface.js` du SDK, lisible en clair) — et ce n'est PAS le Blend
+If à quatre poignées fendues de Photoshop : `BlendOptions` porte des
+**SPLINES** — `masterSourceLayerRanges` (contribution en fonction de la
+valeur du calque SOURCE), `masterUnderlyingCompositionRanges` (en fonction de
+la composition du DESSOUS), leurs variantes PAR CANAL
+(`getChannelSourceLayerRanges(channel)`), plus `gamma`. Le modèle est donc
+« opacité = f(luminance source) × g(luminance dessous) », f et g étant des
+COURBES — strictement plus général que les deux seuils à épaulement de
+Photoshop. Conséquence pour nous : le jour où ce ticket s'implémente,
+l'infrastructure de courbes existe déjà (`EffectModule.curveControls`,
+utilisée par `curves`) — c'est une courbe de plus, pas un widget neuf. La
+mesure pixel de leur interpolation reste à faire à l'implémentation, pas
+avant.
+
 ⚠️ **Quinze modes de plus, c'est quinze entrées dans une liste. Les plages de
 fusion changent ce qu'on peut faire avec les dix-sept qu'on a déjà.** Si le
 ticket doit être découpé, commencer par là.

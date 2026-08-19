@@ -575,10 +575,12 @@ masque symétrique manque un jour).
 ## Ce que cet audit ne dit pas
 
 - **Tout item `[symbole]` reste à regarder dans Affinity avant d'écrire du
-  code** — en particulier : le comportement réel de `BlendRanges`, le langage
-  de la texture procédurale, ce que le cadenas unique refuse. (`MaskTexture`
-  est sorti de cette liste : ses trois modes sont lus dans l'app —
-  `None · Nozzle · Final`.)
+  code** — en particulier : le langage de la texture procédurale, ce que le
+  cadenas unique refuse. (`MaskTexture` est sorti de cette liste : ses trois
+  modes sont lus dans l'app — `None · Nozzle · Final`. `BlendRanges` aussi :
+  sa forme est lue dans `blendmodeinterface.js` — des SPLINES par plage,
+  source ET dessous, maître ET par canal, plus `gamma` ; le détail est au
+  ticket 06.)
 - **Le profil du TAMPON de pinceau n'a pas pu être mesuré** : aucune API de
   trait dans le SDK. Protocole manuel, cinq minutes avec Antoine : un dab
   isolé à dureté 0 %, 50 %, 100 % sur un document vierge, lecture des pixels

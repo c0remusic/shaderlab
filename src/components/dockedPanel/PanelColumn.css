@@ -192,6 +192,16 @@
   width: var(--focus-width);
 }
 
+/* REJOINDRE UN GROUPE (2026-08-19) : un CADRE autour de la carte visee, pas un
+   filet a sa frontiere. Les deux gestes du dock ne doivent pas se ressembler —
+   un trait dit « une nouvelle ligne ici », un contour dit « dedans, en onglet ».
+   Photoshop les distingue exactement pareil, ligne bleue contre contour bleu. */
+.panel-column__alignment-guide--group {
+  border: var(--focus-width) solid var(--focus-color);
+  border-radius: var(--radius-panel);
+  background: color-mix(in srgb, var(--focus-color) 12%, transparent);
+}
+
 .panel-column__ghost {
   position: fixed;
   top: 0;

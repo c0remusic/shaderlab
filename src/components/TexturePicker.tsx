@@ -1,13 +1,24 @@
 import { useEffect, useRef } from "react";
 import type { TextureThumbnail } from "../textures/thumbnailCache";
+import { Button } from "./ui/button";
 import "./TexturePicker.css";
 
 export interface TexturePickerProps {
   label: string;
+  /** Dossier courant, ou `null` si aucun n'a pu être résolu.
+   *
+   *  Arrivé ici le 2026-08-19 avec `onPickFolder`, en même temps que la carte
+   *  « Textures » du dock partait : le choix du dossier ne vivait QUE sur elle,
+   *  et ce picker serait resté figé sur le dossier livré. */
+  dir: string | null;
   /** Chemins ABSOLUS, triés — le catalogue de la bibliothèque. L'INDEX dans ce
    *  tableau EST la valeur du paramètre (`EffectModule.libraryTexture`). */
   files: readonly string[];
   thumbnails: ReadonlyMap<string, TextureThumbnail>;
+  /** Erreur de la bibliothèque (dossier illisible, listing refusé). Montrée
+   *  ici pour la même raison que `dir` : plus aucune autre surface ne la dit. */
+  error: string | null;
+  onPickFolder: () => void;
   /** Rang courant. Peut pointer hors du catalogue — un preset enregistré sur un
    *  autre dossier, ou un fichier retiré depuis. */
   value: number;
@@ -39,11 +50,14 @@ function fileName(path: string): string {
  */
 export function TexturePicker({
   label,
+  dir,
   files,
   thumbnails,
+  error,
   value,
   disabled,
   onChange,
+  onPickFolder,
   onRequestThumbnail,
 }: TexturePickerProps) {
   const gridRef = useRef<HTMLUListElement>(null);
@@ -73,12 +87,28 @@ export function TexturePicker({
     return () => observer.disconnect();
   }, [files, onRequestThumbnail]);
 
+  /* Le bouton de dossier est le MÊME dans les deux branches, vide ou non : il
+     agit sur la bibliothèque entière et pas sur une texture, donc il ne peut
+     pas disparaître avec la grille — sans lui un dossier vide serait sans
+     issue. C'est la zone de contrôles unique d'ADR-0001, réduite à un bouton. */
+  const boutonDossier = (
+    <Button variant="secondary" size="sm" disabled={disabled} onClick={onPickFolder}>
+      Dossier…
+    </Button>
+  );
+
   if (files.length === 0) {
     return (
       <div className="texture-picker">
-        <span className="texture-picker__label">{label}</span>
+        <div className="texture-picker__head">
+          <span className="texture-picker__label">{label}</span>
+          {boutonDossier}
+        </div>
+        {error !== null && <p className="texture-picker__error">{error}</p>}
         <p className="texture-picker__empty">
-          Aucune texture. Choisis un dossier dans la carte Textures.
+          {dir === null
+            ? "Aucun dossier de textures. Choisis-en un : scans de papier, grain, rayures, matières."
+            : "Ce dossier ne contient aucune image (JPEG ou PNG, sous-dossiers compris)."}
         </p>
       </div>
     );
@@ -94,7 +124,9 @@ export function TexturePicker({
               d'afficher un vide qui se lirait comme « aucune ». */}
           {files[value] === undefined ? "hors catalogue" : fileName(files[value])}
         </span>
+        {boutonDossier}
       </div>
+      {error !== null && <p className="texture-picker__error">{error}</p>}
       <ul ref={gridRef} className="texture-picker__grid">
         {files.map((path, index) => {
           const thumb = thumbnails.get(path) ?? null;

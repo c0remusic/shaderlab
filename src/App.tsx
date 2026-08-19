@@ -65,7 +65,7 @@ import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterS
 import type { BrushSettings } from "./mask/maskPainter";
 import { getBrushRaster } from "./mask/brushSource";
 import { PanelColumn } from "./components/dockedPanel/PanelColumn";
-import { movePanelInDock, toFullDockTarget, visibleDockLayout, type DockDropTarget, type DockLayout } from "./ui/dockLayout";
+import { isPanelShown, movePanelInDock, setActiveTab, setGroupCollapsed, singleGroup, toFullDockTarget, visibleDockLayout, type DockDropTarget, type DockLayout } from "./ui/dockLayout";
 import { clampDockWidth } from "./components/dockedPanel/dockWidth";
 import { LayerControls, LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
@@ -89,9 +89,7 @@ import { usePresetWorkflow } from "./hooks/usePresetWorkflow";
 import { useLayerIsolation } from "./hooks/useLayerIsolation";
 import { useCollapsedGroups } from "./hooks/useCollapsedGroups";
 import { PresetPanel } from "./components/PresetPanel";
-import { TextureLibrary } from "./components/TextureLibrary";
 import { useTextureLibrary } from "./hooks/useTextureLibrary";
-import { DEFAULT_MAX_TEXTURE_DIMENSION } from "./render/limits";
 import { TauriPresetStore } from "./presets/presetStore";
 import { withPhotoLayersPreserved } from "./presets/preservePhotoLayers";
 import { Button } from "./components/ui/button";
@@ -195,19 +193,12 @@ export default function App() {
   // réellement changé (un simple clic sans mouvement ne crée pas d'entrée).
   const paramDirtyRef = useRef(false);
 
-  const [presetsFolded, setPresetsFolded] = useState(false);
-  const [layersFolded, setLayersFolded] = useState(false);
-  // Repliée par défaut, contrairement aux trois autres : la grille de
-  // vignettes est le contenu le plus haut du dock, et la déplier d'office
-  // repousserait la Pile hors de vue sur une fenêtre de hauteur minimale
-  // (600 px, `tauri.conf.json`). Le chantier densité (ADR-0001) a déjà été payé
-  // une fois sur ce dock.
-  const [texturesFolded, setTexturesFolded] = useState(true);
-  /** Seuil réel de `assertImageFitsGpu`, lu sur le device au chargement d'un
-   *  document. Vaut la limite par défaut de la spec WebGPU tant qu'aucun
-   *  renderer n'existe — jamais plus, sinon la bibliothèque proposerait une
-   *  texture que l'import refuserait ensuite. */
-  const [maxTextureDimension, setMaxTextureDimension] = useState(DEFAULT_MAX_TEXTURE_DIMENSION);
+  /* Le repli et l'onglet actif vivent désormais DANS `dockLayout` et non plus
+   * en trois `useState` séparés (`presetsFolded`, `layersFolded`,
+   * `propertiesFolded`, retirés le 2026-08-19). Un groupe à onglets a besoin
+   * des deux ensemble — quel onglet est devant, et si le groupe est replié — et
+   * les tenir à part rendait exprimables des états qui n'existent pas, comme
+   * « Presets déplié » alors que Presets n'est pas l'onglet au premier plan. */
   /** Incrémenté à CHAQUE création de renderer. Sert d'unique dépendance
    *  « le GPU vient de repartir de zéro » pour les effets qui doivent alors
    *  repousser un état que le renderer ne conserve pas — aujourd'hui le
@@ -219,7 +210,6 @@ export default function App() {
    *  state — c'est un raster de plusieurs dizaines de Mo, et l'invariant
    *  anti-OOM du dépôt interdit qu'un raster entre dans React (`e3c7584`). */
   const referenceFrameRef = useRef<ExportedFrame | null>(null);
-  const [propertiesFolded, setPropertiesFolded] = useState(false);
   const [overlayForceHidden, setOverlayForceHidden] = useState(false);
   /** Cible d'un sélecteur de couleur ouvert. Deux formes, et la distinction
    *  n'est pas cosmétique : le dock règle la couleur d'un CALQUE posé, la barre
@@ -248,7 +238,29 @@ export default function App() {
   // Le dock porte désormais deux rôles : la Pile navigue, Propriétés inspecte
   // la facette sélectionnée (photo/effet/masque). Les trois anciennes cartes
   // contextuelles ont été fusionnées sans changer leurs contenus métier.
-  const [dockLayout, setDockLayout] = useState<DockLayout>([["presets", "layers", "textures", "properties"]]);
+  // DISPOSITION DE DÉPART (2026-08-19) : deux GROUPES empilés, modèle Photoshop.
+  //
+  //   ┌ Presets │ Propriétés ┐  ← un groupe, deux onglets
+  //   └ Pile ────────────────┘  ← son propre groupe, toujours visible
+  //
+  // Pourquoi ce découpage précis, et pas trois cartes empilées comme avant :
+  // à 1280 × 720 sur un document de sept calques, trois cartes ouvertes
+  // débordaient de 194 px et la colonne défilait — ce qu'ADR-0001 interdit.
+  // Les onglets ferment ça sans rien cacher.
+  //
+  // La PILE reste seule dans son groupe parce qu'on la lit EN MÊME TEMPS que
+  // Propriétés : on sélectionne un calque puis on règle ses paramètres. Les
+  // mettre en onglets ferait de deux compagnons des alternatives. Presets et
+  // Propriétés, eux, ne se consultent jamais ensemble — l'un applique un état
+  // complet, l'autre règle le calque courant.
+  //
+  // La carte « Textures » a été retirée le même jour (voir `useTextureLibrary`).
+  const [dockLayout, setDockLayout] = useState<DockLayout>(() => [
+    [
+      { tabs: ["presets", "properties"], active: "properties", collapsed: false },
+      singleGroup("layers"),
+    ],
+  ]);
 
   // Task 4 : id du preset en attente de confirmation de remplacement — non
   // nul seulement quand la pile courante n'est pas vide (voir
@@ -550,11 +562,6 @@ export default function App() {
       canvasRef.current.height = documentSize.height;
       rendererRef.current?.dispose();
       rendererRef.current = candidate;
-      // Recopié en STATE ici et pas lu sur la ref au rendu : `rendererRef` ne
-      // déclenche aucun rendu quand il se remplit, donc la bibliothèque de
-      // textures resterait sur sa valeur d'attente jusqu'au prochain rendu
-      // fortuit. C'est le seul site où le renderer change.
-      setMaxTextureDimension(candidate.maxTextureDimension);
       // Réveille l'effet qui pousse le catalogue de textures : un renderer frais
       // naît avec un `TextureLibraryStore` VIDE, alors que la bibliothèque a
       // résolu son dossier bien avant, au montage. Sans ce compteur, l'effet
@@ -773,10 +780,13 @@ export default function App() {
   const showEffectControls = showsEffectControls(photoLayer.canvasMode);
 
   /** Bibliothèque de textures. Le hook ne connaît ni la pile ni le renderer :
-   *  il ne sait que résoudre un dossier et produire des vignettes. C'est
-   *  `photoLayer.importTextureFromPath` qui transforme un chemin en calque —
-   *  même séparation qu'entre `usePresets` (le disque) et `usePresetWorkflow`
-   *  (ce qu'on en fait). */
+   *  il ne sait que résoudre un dossier et produire des vignettes.
+   *
+   *  ⚠️ Son unique consommateur est désormais le `TexturePicker` du panneau de
+   *  paramètres. La carte « Textures » du dock, qui transformait un chemin en
+   *  CALQUE PHOTO (`importTextureFromPath`, retiré avec elle), a été supprimée
+   *  le 2026-08-19 : depuis ADR-0018 un effet échantillonne la bibliothèque
+   *  lui-même, et poser la même image en calque photo faisait double emploi. */
   const textureLibrary = useTextureLibrary();
 
   /** Le CATALOGUE descend au renderer, pas les pixels : c'est lui qui donne un
@@ -1765,6 +1775,25 @@ export default function App() {
     [isPanelVisible]
   );
 
+  /** Clic sur un onglet : il passe au premier plan et son groupe se déplie. */
+  const handleSetActiveTab = useCallback((id: string) => {
+    setDockLayout((previous) => setActiveTab(previous, id));
+  }, []);
+
+  /** Chevron d'un groupe. `id` est l'onglet ACTIF ; c'est son GROUPE qui se
+   *  replie, pas lui seul. */
+  const handleGroupCollapsedChange = useCallback((id: string, collapsed: boolean) => {
+    setDockLayout((previous) => setGroupCollapsed(previous, id, collapsed));
+  }, []);
+
+  /** Le panneau Propriétés montre-t-il son contenu ?
+   *
+   *  Remplace l'ancien `!propertiesFolded`, qui ne connaissait qu'une des trois
+   *  façons de ne pas être visible. Depuis les onglets il y en a trois — absent
+   *  du dock, pas l'onglet au premier plan, ou groupe replié — et l'overlay de
+   *  masque ne doit s'armer que quand le panneau est RÉELLEMENT lisible. */
+  const propertiesShown = useMemo(() => isPanelShown(dockLayout, "properties"), [dockLayout]);
+
   // Overlay du masque (rouge + contour animé) : affiché tant qu'on travaille
   // réellement sur le masque du calque sélectionné (panneau Masque ouvert OU
   // pinceau actif) ET qu'il y a un masque actif à montrer — pas en continu
@@ -1774,7 +1803,7 @@ export default function App() {
   // doit pouvoir l'éteindre explicitement. Voir
   // docs/superpowers/specs/2026-07-23-shaderlab-mask-overlay-visibility-design.md.
   const hasActiveMask = selectedLayer ? planFold(selectedLayer.mask).length > 0 : false;
-  const wantsOverlay = ((propertiesPanel.visible && !propertiesFolded && propertiesTarget?.kind === "mask") || maskPaintMode) && hasActiveMask && !!selectedId;
+  const wantsOverlay = ((propertiesPanel.visible && propertiesShown && propertiesTarget?.kind === "mask") || maskPaintMode) && hasActiveMask && !!selectedId;
 
   // Délai de grâce de 750ms avant extinction : quand on ferme le panneau
   // Masque, change de calque, ou que le calque perd son masque actif,
@@ -2127,7 +2156,7 @@ export default function App() {
         <PanelColumn
           panels={[
             {
-              id: "presets", title: "Presets", collapsed: presetsFolded, onCollapsedChange: setPresetsFolded,
+              id: "presets", title: "Presets",
               // Liste de longueur variable : c'est elle qui se comprime et
               // défile quand la colonne manque de place, pas les cartes à
               // contenu fixe (Photo, Réglages) — voir `variableLength`.
@@ -2164,7 +2193,7 @@ export default function App() {
               )
             },
             {
-              id: "layers", title: "Pile", collapsed: layersFolded, onCollapsedChange: setLayersFolded,
+              id: "layers", title: "Pile",
               // La pile de calques est LA liste longue du dock.
               variableLength: true,
               content: <LayerPanel
@@ -2184,27 +2213,7 @@ export default function App() {
                 />
             },
             {
-              id: "textures", title: "Textures", collapsed: texturesFolded, onCollapsedChange: setTexturesFolded,
-              // Grille de longueur variable, comme Presets et Pile : c'est
-              // elle qui se comprime quand la colonne manque de place.
-              variableLength: true,
-              content: <TextureLibrary
-                  dir={textureLibrary.dir}
-                  files={textureLibrary.files}
-                  thumbnails={textureLibrary.thumbnails}
-                  error={textureLibrary.error}
-                  maxTextureDimension={maxTextureDimension}
-                  // Une texture EST un calque photo : même plafond, même garde
-                  // que le bouton d'import de la Toolbar.
-                  canAdd={canAddPhotoLayer(layers)}
-                  onPickFolder={textureLibrary.pickFolder}
-                  onRequestThumbnail={textureLibrary.requestThumbnail}
-                  onAdd={photoLayer.importTextureFromPath}
-                />
-            },
-            {
               id: "properties", title: currentPropertiesTitle,
-              collapsed: propertiesFolded, onCollapsedChange: setPropertiesFolded,
               // Propriétés est un contenu de formulaire, pas une liste de
               // lignes. Le classer `variableLength` lui appliquait le
               // plancher « cinq lignes » réservé aux listes : avec Courbes,
@@ -2240,12 +2249,23 @@ export default function App() {
                   layer={selectedLayer}
                   // La bibliothèque descend au panneau de paramètres pour que
                   // l'effet `texture` choisisse par VIGNETTE et non par un rang
-                  // numérique. Même source que la carte du dock — un seul cache
-                  // de vignettes, donc pas de second décodage.
+                  // numérique.
+                  //
+                  // C'est désormais sa SEULE surface : la carte « Textures » du
+                  // dock a été retirée le 2026-08-19, son geste (ajouter une
+                  // texture comme calque photo) ayant perdu sa raison d'être
+                  // depuis qu'un effet échantillonne la bibliothèque lui-même
+                  // (ADR-0018). `dir` et `onPickFolder` descendent avec le reste
+                  // parce que le choix du dossier ne vivait QUE sur cette carte
+                  // — sans eux la bibliothèque resterait figée sur le dossier
+                  // livré, sans aucun moyen d'en changer.
                   textureLibrary={{
+                    dir: textureLibrary.dir,
                     files: textureLibrary.files,
                     thumbnails: textureLibrary.thumbnails,
+                    error: textureLibrary.error,
                     onRequestThumbnail: textureLibrary.requestThumbnail,
+                    onPickFolder: textureLibrary.pickFolder,
                   }}
                   onParamChange={handleParamChange}
                   onParamCommit={handleParamCommit}
@@ -2299,6 +2319,8 @@ export default function App() {
           onMove={handlePanelMove}
           width={dockWidth}
           onWidthChange={handleDockWidthChange}
+          onSetActiveTab={handleSetActiveTab}
+          onGroupCollapsedChange={handleGroupCollapsedChange}
         />
         <PanelRail items={railItems} />
         {colorPicker && (colorPicker.layerId === null || (selectedLayer?.id === colorPicker.layerId && selectedLayer.effectId === colorPicker.effectId)) && (

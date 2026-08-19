@@ -259,9 +259,12 @@ interface Props {
    *  un composant ne connaît ni la bibliothèque ni le renderer
    *  (`ARCHITECTURE.md`). Absente, le paramètre retombe sur son curseur. */
   textureLibrary?: {
+    dir: string | null;
     files: readonly string[];
     thumbnails: ReadonlyMap<string, TextureThumbnail>;
+    error: string | null;
     onRequestThumbnail: (path: string) => void;
+    onPickFolder: () => void;
   };
 }
 
@@ -452,10 +455,13 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
               <TexturePicker
                 key={item.reactKey}
                 label={item.param.label}
+                dir={textureLibrary.dir}
                 files={textureLibrary.files}
                 thumbnails={textureLibrary.thumbnails}
+                error={textureLibrary.error}
                 value={Math.round(layer.params[item.param.name] ?? item.param.default)}
                 disabled={locked}
+                onPickFolder={textureLibrary.onPickFolder}
                 onRequestThumbnail={textureLibrary.onRequestThumbnail}
                 onChange={(index) => {
                   onParamChange(layer.id, { [item.param.name]: index });

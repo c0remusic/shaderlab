@@ -9,8 +9,11 @@ import "./PanelColumn.css";
 export interface DockedPanelSpec {
   id: string;
   title: string;
-  collapsed: boolean;
-  onCollapsedChange: (collapsed: boolean) => void;
+  /* NI `collapsed` NI `onCollapsedChange` (retirés le 2026-08-19) : le repli
+   * est une propriété du GROUPE, pas du panneau, depuis le passage aux onglets.
+   * Un panneau qui n'est pas l'onglet au premier plan n'est pas « replié » — il
+   * est simplement derrière, et confondre les deux rendait exprimables des
+   * états qui n'existent pas. Voir `DockGroup.collapsed` dans `ui/dockLayout.ts`. */
   content: React.ReactNode;
   /** Optionnel : zone de contrôles fixe (non défilante) de la carte, voir
    *  `DockedPanelCardProps.controls` / `controlsPlacement`. */
@@ -46,6 +49,10 @@ export interface PanelColumnProps {
   onMove: (id: string, target: DockDropTarget) => void;
   width: number;
   onWidthChange: (width: number) => void;
+  /** Porte un onglet au premier plan de son groupe (et déplie le groupe). */
+  onSetActiveTab: (id: string) => void;
+  /** Replie ou déplie le GROUPE qui contient `id`. */
+  onGroupCollapsedChange: (id: string, collapsed: boolean) => void;
 }
 
 interface DockDragState {
@@ -77,7 +84,7 @@ interface PendingDockDrag {
   origin: { x: number; y: number };
 }
 
-export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: PanelColumnProps) {
+export function PanelColumn({ panels, layout, onMove, width, onWidthChange, onSetActiveTab, onGroupCollapsedChange }: PanelColumnProps) {
   const [dragState, setDragStateRaw] = useState<DockDragState | null>(null);
   // `pendingDrag` est un ÉTAT et pas seulement une ref : les handlers de
   // mouvement du conteneur ne sont attachés que lorsqu'il y a quelque chose à
@@ -107,6 +114,7 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
   }, []);
   const draggedPanel = dragState ? panels.find((panel) => panel.id === dragState.draggedId) : null;
 
+
   // PLANCHER DE COMPRESSION (2026-07-27) — publie sur chaque .panel-column__item
   // les deux hauteurs que CSS ne sait pas calculer seul (voir le commentaire
   // de PanelColumn.css § PLANCHER) :
@@ -116,9 +124,11 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
   // La règle CSS en fait `chrome + min(contenu naturel, plancher)` : une carte
   // ne peut jamais être écrasée sous son chrome, ni gonflée par le plancher si
   // son contenu est plus court que lui.
-  const cardShape = `${layout.map((column) => column.join(">")).join("|")}#${panels
-    .map((panel) => `${panel.id}:${panel.collapsed ? "c" : "o"}`)
-    .join(",")}`;
+  // La SIGNATURE inclut l'onglet actif et le repli de chaque groupe : ce sont
+  // eux qui decident quel contenu est monte, donc ce qu'il y a a mesurer.
+  const cardShape = layout
+    .map((column) => column.map((g) => `${g.tabs.join(">")}@${g.active}${g.collapsed ? "!" : ""}`).join("/"))
+    .join("|");
   useLayoutEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
@@ -227,7 +237,7 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
 
   const handleWidthPointerCancel = handleWidthPointerUp;
 
-  const handlePointerDown = useCallback((id: string, event: React.PointerEvent<HTMLDivElement>) => {
+  const handlePointerDown = useCallback((id: string, event: React.PointerEvent<HTMLElement>) => {
     const card = event.currentTarget.closest<HTMLElement>(".panel-column__item");
     if (!card) return;
     if (dragStateRef.current || pendingDragRef.current) return;
@@ -307,7 +317,20 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
   // — `targetBounds` et `dockOrigin` — ont été capturés dans handlePointerMove.
   if (dragState?.target && dragState.targetBounds && dragState.dockOrigin) {
     const dockOrigin = dragState.dockOrigin;
-    if (dragState.target.kind === "vertical") {
+    if (dragState.target.kind === "tab") {
+      // REJOINDRE UN GROUPE : le guide n'est plus un FILET mais un CADRE autour
+      // de la carte visée. Un trait à sa frontière dirait « une nouvelle ligne
+      // ici », soit exactement le contraire du geste — Photoshop distingue les
+      // deux de la même façon, une ligne bleue pour insérer et un contour bleu
+      // pour grouper.
+      guideClassName += " panel-column__alignment-guide--group";
+      guideStyle = {
+        left: dragState.targetBounds.left - dockOrigin.left,
+        top: dragState.targetBounds.top - dockOrigin.top,
+        width: dragState.targetBounds.right - dragState.targetBounds.left,
+        height: dragState.targetBounds.bottom - dragState.targetBounds.top,
+      };
+    } else if (dragState.target.kind === "vertical") {
       guideStyle = {
         left: (dragState.targetBounds.left + dragState.targetBounds.right) / 2 - dockOrigin.left,
         top: (dragState.target.position === "before" ? dragState.targetBounds.top : dragState.targetBounds.bottom) - dockOrigin.top,
@@ -362,27 +385,35 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
                 tabIndex={0}
               />
             )}
-            {column.map((id, rowIndex) => {
-              const panel = panels.find((candidate) => candidate.id === id);
-              if (!panel) return null;
+            {column.map((group, rowIndex) => {
+              const onglets = group.tabs
+                .map((id) => panels.find((candidate) => candidate.id === id))
+                .filter((panel): panel is DockedPanelSpec => panel !== undefined);
+              if (onglets.length === 0) return null;
+              const actif = onglets.find((panel) => panel.id === group.active) ?? onglets[0];
               return (
                 <div
                   className="panel-column__item"
                   data-dock-column={columnIndex}
                   data-dock-row={rowIndex}
-                  data-variable-length={panel.variableLength || undefined}
-                  key={panel.id}
+                  // Le drapeau de longueur variable est celui de l'onglet
+                  // ACTIF : c'est son contenu qui occupe la carte, donc c'est
+                  // lui qui décide du rang auquel elle cède de la hauteur.
+                  data-variable-length={actif.variableLength || undefined}
+                  key={group.tabs.join(">")}
                 >
                   <DockedPanelCard
-                    title={panel.title}
-                    collapsed={panel.collapsed}
-                    onCollapsedChange={panel.onCollapsedChange}
-                    controls={panel.controls}
-                    controlsPlacement={panel.controlsPlacement}
-                    dragging={dragState?.draggedId === panel.id}
-                    titlebarProps={{ onPointerDown: (event) => handlePointerDown(panel.id, event) }}
+                    tabs={onglets.map((panel) => ({ id: panel.id, title: panel.title }))}
+                    activeTab={actif.id}
+                    onActiveTabChange={onSetActiveTab}
+                    collapsed={group.collapsed}
+                    onCollapsedChange={(collapsed) => onGroupCollapsedChange(actif.id, collapsed)}
+                    controls={actif.controls}
+                    controlsPlacement={actif.controlsPlacement}
+                    dragging={dragState?.draggedId !== undefined && group.tabs.includes(dragState.draggedId)}
+                    tabPointerDown={handlePointerDown}
                   >
-                    {panel.content}
+                    {actif.content}
                   </DockedPanelCard>
                 </div>
               );
@@ -402,11 +433,11 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange }: Pa
             {/* Le fantôme reconstruit la carte à la main : il doit respecter le
                 MÊME placement de la zone de contrôles, sinon l'aperçu de
                 glisser-déposer ne ressemble pas au panneau déplacé. */}
-            {!draggedPanel.collapsed && draggedPanel.controls && draggedPanel.controlsPlacement !== "bottom" && (
+            {draggedPanel.controls && draggedPanel.controlsPlacement !== "bottom" && (
               <div className={dockedPanelControlsClass("top")}>{draggedPanel.controls}</div>
             )}
-            {!draggedPanel.collapsed && <div className="docked-panel-card__content">{draggedPanel.content}</div>}
-            {!draggedPanel.collapsed && draggedPanel.controls && draggedPanel.controlsPlacement === "bottom" && (
+            <div className="docked-panel-card__content">{draggedPanel.content}</div>
+            {draggedPanel.controls && draggedPanel.controlsPlacement === "bottom" && (
               <div className={dockedPanelControlsClass("bottom")}>{draggedPanel.controls}</div>
             )}
           </div>

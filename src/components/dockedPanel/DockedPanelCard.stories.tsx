@@ -6,7 +6,9 @@ const meta: Meta<typeof DockedPanelCard> = {
   title: "Components/DockedPanel/DockedPanelCard",
   component: DockedPanelCard,
   args: {
-    title: "Calques",
+    tabs: [{ id: "layers", title: "Calques" }],
+    activeTab: "layers",
+    onActiveTabChange: () => {},
     collapsed: false,
     onCollapsedChange: () => {},
     children: <p style={{ margin: 0 }}>Contenu du panneau.</p>,
@@ -29,12 +31,13 @@ export const Dragging: Story = {
 // --- Content / title variants ---
 
 export const LongTitle: Story = {
-  args: { title: "Paramètres avancés du calque de correction colorimétrique" },
+  args: { tabs: [{ id: "long", title: "Paramètres avancés du calque de correction colorimétrique" }], activeTab: "long" },
 };
 
 export const RichContent: Story = {
   args: {
-    title: "Paramètres",
+    tabs: [{ id: "params", title: "Paramètres" }],
+    activeTab: "params",
     children: (
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <label style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
@@ -51,7 +54,8 @@ export const RichContent: Story = {
 
 export const OverflowContent: Story = {
   args: {
-    title: "Journal",
+    tabs: [{ id: "log", title: "Journal" }],
+    activeTab: "log",
     children: (
       <p style={{ margin: 0 }}>
         {Array.from({ length: 20 }, (_, i) => `Ligne ${i + 1} du contenu long qui teste le débordement vertical.`).join(" ")}

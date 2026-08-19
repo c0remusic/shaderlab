@@ -6,9 +6,26 @@
 
 .texture-picker__head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  /* `center` et non `baseline` depuis le 2026-08-19 : la tete porte desormais
+   * le bouton de dossier, et une baseline calee sur du texte fait flotter un
+   * controle de 24px de haut au-dessus de sa ligne. */
+  align-items: center;
   gap: var(--space-2);
+}
+
+/* Le nom courant absorbe la place restante et pousse le bouton a droite. Sans
+ * lui, `space-between` sur trois enfants ferait deriver le nom au milieu. */
+.texture-picker__head .texture-picker__current {
+  margin-right: auto;
+}
+
+.texture-picker__error {
+  margin: 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-xs);
+  color: var(--text-primary);
+  background: var(--status-warning-bg);
 }
 
 .texture-picker__label {

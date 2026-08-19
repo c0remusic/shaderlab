@@ -69,6 +69,60 @@
   white-space: nowrap;
 }
 
+/* BARRE D'ONGLETS (2026-08-19, modele Photoshop). Conteneur des onglets d'un
+   groupe. A un seul onglet il ne porte qu'un titre et ne se voit pas : c'est
+   le cas de la plupart des cartes, et le rendu doit y rester identique a ce
+   qu'il etait avant les groupes. */
+.docked-panel-card__tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  /* `min-width: 0` sur un enfant flex, sinon un titre long pousse la poignee
+     et le chevron hors de la carte au lieu de s'ellipser. */
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.docked-panel-card__tab {
+  /* Les onglets se PARTAGENT la largeur et s'ellipsent chacun de leur cote —
+     un onglet ne doit jamais chasser son voisin hors de la barre. */
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  padding: var(--space-1) var(--space-3);
+  border: none;
+  border-radius: var(--radius-control);
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  /* L'onglet INACTIF est en retrait, pas desactive : il reste lisible et
+     cliquable, et c'est precisement ce qui fait la valeur des onglets contre
+     un repli — on VOIT que l'autre panneau existe. */
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-standard),
+              background-color var(--duration-fast) var(--ease-standard);
+}
+
+.docked-panel-card__tab:hover {
+  color: var(--text-secondary);
+  background: var(--surface-hover);
+}
+
+.docked-panel-card__tab[data-active] {
+  color: var(--text-primary);
+  background: var(--surface-selected);
+}
+
+.docked-panel-card__tab:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
 /* Zone de CONTRÔLES FIXE : `flex-shrink: 0`, donc elle ne se comprime pas et
    ne défile pas avec le contenu. C'est ce qui permet aux contrôles de
    l'élément sélectionné (LayerControls) de rester visibles quelle que soit la

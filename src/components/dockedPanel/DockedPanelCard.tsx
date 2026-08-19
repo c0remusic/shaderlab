@@ -2,8 +2,26 @@ import { ChevronDown, ChevronRight, GripHorizontal } from "lucide-react";
 import { IconButton } from "../ui/icon-button";
 import "./DockedPanelCard.css";
 
-export interface DockedPanelCardProps {
+/** Un onglet de la barre : ce qu'il faut pour le dessiner et le désigner. */
+export interface DockedPanelTab {
+  id: string;
   title: string;
+}
+
+export interface DockedPanelCardProps {
+  /** Les onglets du GROUPE, dans leur ordre d'affichage. Un seul élément = une
+   *  carte ordinaire, dont la barre porte simplement son titre.
+   *
+   *  MODÈLE PHOTOSHOP (2026-08-19) : un groupe montre ses panneaux en onglets,
+   *  un seul visible, un clic pour passer à l'autre. Ce qui a fait choisir les
+   *  onglets contre un repli — avec un onglet on VOIT que l'autre panneau
+   *  existe et il est à un clic ; un repli le cache et en demande deux. Voir
+   *  `ui/dockLayout.ts` pour le modèle et la mesure qui l'a motivé. */
+  tabs: DockedPanelTab[];
+  /** Onglet dont le contenu se rend. Doit être un `id` de `tabs`. */
+  activeTab: string;
+  onActiveTabChange: (id: string) => void;
+  /** Le GROUPE est replié : seule la barre d'onglets se rend. */
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
   children: React.ReactNode;
@@ -24,7 +42,10 @@ export interface DockedPanelCardProps {
   controlsPlacement?: "top" | "bottom";
   className?: string;
   dragging?: boolean;
-  titlebarProps?: React.HTMLAttributes<HTMLDivElement>;
+  /** Appui sur un onglet — ouvre le glissement de CE panneau, pas du groupe.
+   *  C'est ce qui permet de sortir un onglet de son groupe en le tirant, geste
+   *  exact de Photoshop (« drag the panel by its tab outside the group »). */
+  tabPointerDown?: (id: string, event: React.PointerEvent<HTMLElement>) => void;
 }
 
 /** Classes de la zone de contrôles pour un placement donné. Partagée avec le
@@ -34,14 +55,61 @@ export function dockedPanelControlsClass(placement: "top" | "bottom" = "top"): s
   return `docked-panel-card__controls docked-panel-card__controls--${placement}`;
 }
 
-export function DockedPanelCard({ title, collapsed, onCollapsedChange, children, controls, controlsPlacement = "top", className = "", dragging = false, titlebarProps }: DockedPanelCardProps) {
+export function DockedPanelCard({
+  tabs,
+  activeTab,
+  onActiveTabChange,
+  collapsed,
+  onCollapsedChange,
+  children,
+  controls,
+  controlsPlacement = "top",
+  className = "",
+  dragging = false,
+  tabPointerDown,
+}: DockedPanelCardProps) {
   const controlsNode = !collapsed && controls
     ? <div className={dockedPanelControlsClass(controlsPlacement)}>{controls}</div>
     : null;
+  const groupe = tabs.length > 1;
   return (
     <div className={`docked-panel-card ${dragging ? "docked-panel-card--dragging" : ""} ${className}`.trim()}>
-      <div className="docked-panel-card__titlebar" data-collapsed={collapsed || undefined} {...titlebarProps}>
-        <span className="docked-panel-card__title">{title}</span>
+      <div className="docked-panel-card__titlebar" data-collapsed={collapsed || undefined} data-grouped={groupe || undefined}>
+        {/* `role="tablist"` seulement quand il Y A plusieurs onglets : un
+            tablist d'un seul onglet annonce une navigation qui n'existe pas,
+            et un lecteur d'écran l'énoncerait « onglet 1 sur 1 » à chaque
+            carte du dock. À un seul, la barre reste un simple titre. */}
+        <div
+          className="docked-panel-card__tabs"
+          role={groupe ? "tablist" : undefined}
+          aria-label={groupe ? "Panneaux du groupe" : undefined}
+        >
+          {tabs.map((tab) => {
+            const actif = tab.id === activeTab;
+            return groupe ? (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={actif}
+                className="docked-panel-card__tab"
+                data-active={actif || undefined}
+                onPointerDown={(event) => tabPointerDown?.(tab.id, event)}
+                onClick={() => onActiveTabChange(tab.id)}
+              >
+                {tab.title}
+              </button>
+            ) : (
+              <span
+                key={tab.id}
+                className="docked-panel-card__title"
+                onPointerDown={(event) => tabPointerDown?.(tab.id, event)}
+              >
+                {tab.title}
+              </span>
+            );
+          })}
+        </div>
         <GripHorizontal className="docked-panel-card__drag-grip icon-sm icon-stroke" aria-hidden="true" />
         <IconButton
           label={collapsed ? "Déplier le panneau" : "Replier le panneau"}

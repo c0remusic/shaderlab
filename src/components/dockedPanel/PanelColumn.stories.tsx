@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { PanelColumn, type DockedPanelSpec } from "./PanelColumn";
+import { singleGroup } from "../../ui/dockLayout";
 import type { DockLayout } from "../../ui/dockLayout";
 // La garde de densité ci-dessous mesure la carte Effets REELLE (liste de
 // calques + zone de contrôles en pied) : un contenu factice n'aurait ni la même
@@ -22,11 +23,11 @@ function makeStoryLayer(overrides: Partial<LayerState>): LayerState {
   };
 }
 
-const layout: DockLayout = [["layers", "properties"]];
+const layout: DockLayout = [[singleGroup("layers"), singleGroup("properties")]];
 
 const panels: DockedPanelSpec[] = [
-  { id: "layers", title: "Pile", collapsed: false, onCollapsedChange: () => {}, content: <p style={{ margin: 0 }}>Structure du document.</p> },
-  { id: "properties", title: "Propriétés · Glow", collapsed: false, onCollapsedChange: () => {}, content: <p style={{ margin: 0 }}>Effet ou masque de la cible.</p> },
+  { id: "layers", title: "Pile", content: <p style={{ margin: 0 }}>Structure du document.</p> },
+  { id: "properties", title: "Propriétés · Glow", content: <p style={{ margin: 0 }}>Effet ou masque de la cible.</p> },
 ];
 
 const meta: Meta<typeof PanelColumn> = {
@@ -38,6 +39,8 @@ const meta: Meta<typeof PanelColumn> = {
     onMove: () => {},
     width: 320,
     onWidthChange: () => {},
+    onSetActiveTab: () => {},
+    onGroupCollapsedChange: () => {},
   },
 };
 
@@ -47,27 +50,27 @@ type Story = StoryObj<typeof PanelColumn>;
 export const Default: Story = {};
 
 export const SingleColumn: Story = {
-  args: { layout: [["layers", "properties"]] },
+  args: { layout: [[singleGroup("layers"), singleGroup("properties")]] },
 };
 
 // --- State variants ---
 
 export const AllCollapsed: Story = {
   args: {
-    panels: panels.map((p) => ({ ...p, collapsed: true })),
+    layout: [[{ ...singleGroup("layers"), collapsed: true }, { ...singleGroup("properties"), collapsed: true }]],
   },
 };
 
 export const AllExpanded: Story = {
   args: {
-    panels: panels.map((p) => ({ ...p, collapsed: false })),
+    layout: [[singleGroup("layers"), singleGroup("properties")]],
   },
 };
 
 export const SinglePanel: Story = {
   args: {
     panels: [panels[0]],
-    layout: [["layers"]],
+    layout: [[singleGroup("layers")]],
   },
 };
 
@@ -88,13 +91,11 @@ export const Narrow: Story = {
 // se vérifie.
 export const ListCardHasCompressionFloor: Story = {
   args: {
-    layout: [["layers"]],
+    layout: [[singleGroup("layers")]],
     panels: [
       {
         id: "layers",
         title: "Pile",
-        collapsed: false,
-        onCollapsedChange: () => {},
         variableLength: true,
         content: (
           <ul data-dock-list="" style={{ listStyle: "none", margin: 0, padding: 0 }}>
@@ -154,8 +155,6 @@ const OTHER_PANEL_CONTENT_HEIGHTS = { presets: 88, properties: 334 };
 const fillerPanel = (id: string, title: string, height: number, variableLength = false): DockedPanelSpec => ({
   id,
   title,
-  collapsed: false,
-  onCollapsedChange: () => {},
   variableLength,
   content: <div style={{ height }} />,
 });
@@ -192,17 +191,22 @@ export const FiveRowDocumentHidesNoRow: Story = {
     <div className="sb-dock-viewport" style={{ position: "relative", height: DOCK_VIEWPORT_HEIGHT }}>
       <style>{`.sb-dock-viewport .panel-column__grid { max-height: ${DOCK_VIEWPORT_HEIGHT - DOCK_VIEWPORT_MARGIN}px; }`}</style>
       <PanelColumn
-        layout={[["presets", "layers", "properties"]]}
+        // TROIS GROUPES d'un onglet chacun, et pas un groupe a trois onglets :
+        // cette story est l'une des deux gardes qu'ADR-0001 nomme pour son
+        // point 6, et elle mesure la GRILLE DE LIGNE sur trois cartes ouvertes
+        // EN MEME TEMPS. En onglets, une seule se rendrait et la garde ne
+        // garderait plus rien.
+        layout={[[singleGroup("presets"), singleGroup("layers"), singleGroup("properties")]]}
         onMove={() => {}}
         width={320}
         onWidthChange={() => {}}
+        onSetActiveTab={() => {}}
+        onGroupCollapsedChange={() => {}}
         panels={[
           fillerPanel("presets", "Presets", OTHER_PANEL_CONTENT_HEIGHTS.presets, true),
           {
             id: "layers",
             title: "Pile",
-            collapsed: false,
-            onCollapsedChange: () => {},
             variableLength: true,
             controlsPlacement: "bottom",
             controls: (
@@ -326,15 +330,13 @@ export const FiveRowDocumentHidesNoRow: Story = {
 
 // --- Interaction test (play) ---
 
-// PanelColumn délègue le repli de chaque carte à la DockedPanelCard sous-jacente ;
-// cliquer le bouton "Replier le panneau" de la première carte dépliée (Calques)
-// doit remonter à SON callback onCollapsedChange avec true.
+// Le repli remonte par `onGroupCollapsedChange`, avec l'id de l'onglet ACTIF
+// du groupe — c'est le GROUPE qui se replie, pas un panneau. Cliquer le bouton
+// de la seule carte depliee (Calques) doit donc rapporter ("layers", true).
 export const CollapsePanelCallsSpec: Story = {
   args: {
-    panels: [
-      { ...panels[0], onCollapsedChange: fn() },
-      { ...panels[1], collapsed: true },
-    ],
+    layout: [[singleGroup("layers"), { ...singleGroup("properties"), collapsed: true }]],
+    onGroupCollapsedChange: fn(),
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
@@ -343,8 +345,33 @@ export const CollapsePanelCallsSpec: Story = {
     const collapse = canvas.getByRole("button", { name: "Replier le panneau" });
     await userEvent.click(collapse);
 
-    const layersSpec = args.panels.find((p) => p.id === "layers");
-    await expect(layersSpec?.onCollapsedChange).toHaveBeenCalledTimes(1);
-    await expect(layersSpec?.onCollapsedChange).toHaveBeenCalledWith(true);
+    await expect(args.onGroupCollapsedChange).toHaveBeenCalledTimes(1);
+    await expect(args.onGroupCollapsedChange).toHaveBeenCalledWith("layers", true);
+  },
+};
+
+// GARDE DU MODELE A ONGLETS (2026-08-19). Deux panneaux dans UN groupe : la
+// barre porte deux onglets, un seul contenu se rend, et cliquer l'onglet
+// inactif remonte `onSetActiveTab` avec son id. C'est ce qui distingue un
+// groupe d'une pile de cartes, et rien d'autre ne le verifie.
+export const TabGroupShowsOneContent: Story = {
+  args: {
+    layout: [[{ tabs: ["layers", "properties"], active: "layers", collapsed: false }]],
+    onSetActiveTab: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    // Les DEUX onglets sont visibles — c'est tout l'interet du modele : on
+    // voit que l'autre panneau existe.
+    const onglets = canvas.getAllByRole("tab");
+    await expect(onglets).toHaveLength(2);
+
+    // Mais un seul CONTENU se rend.
+    await expect(canvas.getByText("Structure du document.")).toBeVisible();
+    await expect(canvas.queryByText("Effet ou masque de la cible.")).toBeNull();
+
+    await userEvent.click(canvas.getByRole("tab", { name: "Propriétés · Glow" }));
+    await expect(args.onSetActiveTab).toHaveBeenCalledWith("properties");
   },
 };

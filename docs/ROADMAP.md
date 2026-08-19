@@ -32,10 +32,12 @@
   retouchent ce qui existe.
 - `glass` **complet** : 14 matières (9 de feuille + 5 de pavé), 5 profils de
   section, **18 références de pixels — toutes les branches verrouillées**.
-- **385 paramètres, 124 références de pixels** au 2026-08-19 (relancés, pas
-  recopiés — deux des chiffres que ce dépôt portait en prose étaient déjà faux
-  avant qu'on y touche : 51 conditions au lieu de 52, 63 gabarits `liste` sur 83
-  au lieu de 60 sur 84). Le +3 de paramètres est le relevé Affinity :
+- **385 paramètres, 126 références de pixels** (124 au 2026-08-19, +2 le
+  2026-08-20 : la paire `photo-miroir-temoin` / `photo-miroir` du miroir). Ces
+  chiffres sont relancés, pas recopiés — deux des chiffres que ce dépôt portait
+  en prose étaient déjà faux avant qu'on y touche : 51 conditions au lieu de 52,
+  63 gabarits `liste` sur 83 au lieu de 60 sur 84. Le +3 de paramètres du
+  2026-08-19 est le relevé Affinity :
   `glow.shadowHold` / `shadowHoldPoint` et `lensBlur.bladeCurvature`. Les +2
   références (122 → 124) sont la paire `masque-feather-fort` qui MONTRE le
   profil en S du feather — les prises masque de l'après-midi ne touchent pas
@@ -208,18 +210,17 @@ geste de la forme et le layout.
   ⚠️ Et le verrou de TRANSPARENCE n'est pas de la même nature que les trois
   autres : il ÉCRÊTE au lieu de refuser, donc il vit dans `MaskPainter` et non
   dans `LayerStack` — même piège que `replaceLiveLayers`.
-- ⚠️ **[La symétrie panneau / toile](../.scratch/hybride-lightroom-photoshop/issues/03-symetrie-panneau-toile.md)
-  — TRANCHÉE le 2026-08-19, PAS ÉCRITE.** Arbitrage d'Antoine : **le panneau
-  passe en PIXELS**, conversion à l'affichage ET en saisie, la fraction restant
-  stockée — donc les presets ne bougent pas. Vaut pour les CINQ effets à
-  contrôle spatial (`aplat`, `lensFlare`, `lightLeak`, `motionBlur`,
-  `pixelStretch`). **C'est le seul reste de code de cette carte.**
-  ⚠️ Mesure qui a déplacé la question et qui doit servir à l'écriture : le
-  panneau parle DÉJÀ deux unités — 183 paramètres en `percent`, 19 en `pixels`,
-  42 en `degrees`, et ONZE effets mélangent `percent` et `pixels` dans le même
-  panneau. Ajouter une lecture en pixels n'introduit aucun mélange, il est là.
-  Et le défaut que ce mélange produit n'avait jamais été nommé : un adoucissement
-  de 200 px sur une forme de 0,4 n'est comparable à rien.
+- ✅ **[La symétrie panneau / toile](../.scratch/hybride-lightroom-photoshop/issues/03-symetrie-panneau-toile.md)
+  — LIVRÉE le 2026-08-20.** Le panneau montre les contrôles spatiaux en PIXELS
+  (affichage ET saisie), la fraction reste stockée (presets inchangés). Source
+  unique de l'axe pixel dans `render/effects/spatialPixels.ts` (× W, × H,
+  × √(W·H)), calquée sur la toile et liée par test ; `LabeledSlider` reçoit une
+  prop `parseDisplayValue`, le curseur reste en fraction (round-trip et défaut
+  exacts, `test:render` inchangé). Portée : quatre effets sur cinq entièrement
+  (`aplat`, `lensFlare`, `pixelStretch`, centre de `motionBlur`) plus l'origine
+  de `lightLeak`. La longueur d'axe est exclue et documentée — `amount` est déjà
+  en pixels, `portee` a une convention non réconciliée qu'un affichage pixel
+  rendrait faux. **C'était le seul reste de code de cette carte.**
 
 ⚠️ **Sa recherche a établi une chose qui vaut d'être sue avant d'en lancer une
 autre** : la documentation Adobe ne donne AUCUN gabarit chiffré de layout. Elle
@@ -695,10 +696,24 @@ moitié** : les deux échelles sont arrivées, mais `clampTransformScale`
 (`src/ui/transform.ts:125-127`) les borne au positif, donc le signe ne peut pas
 porter le flip — et les booléens n'ont jamais été écrits.
 
-### ✅ TRANCHÉ le 2026-08-18 — le modèle est confirmé, et il manquait une TRANCHE entière
+### ✅ LIVRÉ le 2026-08-20 — le MIROIR (échelles signées)
 
 [Ticket 05](../.scratch/prochain-palier/issues/05-ce-qui-reste-du-design-de-parite-du-calque-photo.md).
-Le design §3.1 reste écrivable, moyennant trois corrections nommées.
+Le miroir est codé de bout en bout : `clampTransformScale` conserve le signe en
+bornant la magnitude, `withScaleSign` reporte le signe courant (drag, saisie,
+« Ajuster »), `constrainRatio` travaille sur les magnitudes, le WGSL de
+`photoLayerInput.ts` passe le feather en `abs()` (le DÉFAUT MUET du §5, corrigé),
+et `PhotoPanel` porte deux boutons Miroir H/V avec l'affichage en magnitude. La
+paire de références `photo-miroir-temoin` / `photo-miroir` est posée AVANT le
+geste, mire plus petite que la toile pour montrer le bord ET le passe-partout —
+elle prouve la couverture intacte et gèle l'abs(). Gates verts : tsc, lint, unit
+(2087), storybook (330), `test:render` (126 scénarios, aucune régression).
+
+⚠️ **Ce qui RESTE du ticket 05, hors miroir** : les prérequis de CROP
+(`transformsEqual`, `clone()` qui recopie `transform`) — ils vivent avec le
+recadrage de toile ([ticket 28](../.scratch/prochain-palier/issues/28-recadrer-la-toile-deja-ouverte.md)),
+pas avec le miroir. Le design §3.1 (rogner un CALQUE photo) reste écrivable,
+moyennant trois corrections nommées.
 
 ⚠️ **Ce n'est pas « le miroir est tombé entre les deux » : c'est la tranche T3
 ENTIÈRE qui n'a jamais été livrée**, et elle portait **trois prérequis du CROP**
@@ -719,15 +734,16 @@ livrable le plus risqué de T3 (branche de flip CPU + WGSL,
 `PHOTO_INVERSE_TRANSFORM_WGSL`, harnais `gpu-parity.mjs`), l'inverse-transform
 divisant déjà par l'échelle.
 
-⚠️ **Mais il porte un défaut MUET, et c'est le seul.** Le feather de couverture
-multiplie une DISTANCE par l'échelle (`photoLayerInput.ts:80-84`). À échelle
-négative, **l'alpha s'INVERSE sur l'axe miroité** — mesuré : couverture 0,000 au
-centre de la photo et **1,000 à dix pixels EN DEHORS**. Un trou à la place de
-l'image, une bande opaque à côté. Ça compile, ça valide sous naga, ça rend.
-Correction d'un mot (`abs`), mais **aucune des 102 références ne l'attraperait**,
-puisqu'aucune ne miroite. **La référence de pixels du miroir se pose AVANT le
-geste, et sa mire doit montrer le bord ET quelques pixels autour** — une mire
-cadrée sur l'image seule verrait le trou et raterait la bande.
+✅ **Le défaut MUET a été trouvé et corrigé (§5).** Le feather de couverture
+multipliait une DISTANCE par l'échelle (`photoLayerInput.ts`). À échelle
+négative, **l'alpha s'INVERSAIT sur l'axe miroité** — couverture 0,000 au centre
+de la photo, 1,000 à dix pixels EN DEHORS : un trou à la place de l'image, une
+bande opaque à côté. Ça compilait, validait sous naga, rendait — et aucune des
+références d'alors ne l'attrapait, puisqu'aucune ne miroitait. Corrigé en
+`abs()`, gardé par `photoLayerInput.test` (les deux côtés du contrat : feather
+en magnitude, division signée) ET par la nouvelle référence `photo-miroir`, dont
+la mire montre le bord ET le passe-partout autour — une mire cadrée sur l'image
+seule aurait vu le trou et raté la bande.
 
 Corrigé aussi : la formule de `recenterForCrop` du design est **fausse à deux
 échelles** — il faut mettre à l'échelle par axe AVANT la rotation, sinon le

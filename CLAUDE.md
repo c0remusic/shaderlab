@@ -315,13 +315,19 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   que ce paragraphe a dit du 2026-08-05 au 2026-08-12** (« chantier soldé »).
   Mesuré sur les modules réels, d'abord le 2026-08-12 puis le 2026-08-15
   (instrument : `.scratch/prochain-palier/assets/mesure-controles.ts`), puis
-  re-mesuré le 2026-08-18 (après la tranche 3) : sur **382 paramètres**, 51
-  portent une condition (13 %) et **16 effets sur 27 n'en ont AUCUNE** — dont
+  re-mesuré le 2026-08-19 : sur **385 paramètres**, **52**
+  portent une condition (14 %) et **16 effets sur 27 n'en ont AUCUNE** — dont
   `curves` (37 params), `lensFlare` (33), `channelMixer` (22),
   `gradientMap` (20).
+  ⚠️ **Le chiffre « 51 » qu'a porté cette phrase était DÉJÀ faux avant la
+  session du 2026-08-19**, et c'est vérifié et non supposé : l'instrument
+  relancé sur l'arbre d'AVANT les changements du jour rend 52, pas 51. Le
+  2026-08-19 a ajouté 3 paramètres (`glow` ×2, `lensBlur` ×1) et **zéro
+  condition** — 382 → 385 est donc entièrement à lui, 51 → 52 ne l'est pas.
+  Un compte de prose ne se recopie pas : il se relance.
   ⚠️ **Le ratio n'a PAS bougé et le compte a monté deux fois de suite pour la
   même raison — un effet neuf, pas une correction.** 36 → 48 le 2026-08-17
-  (`aplat` seul en apportait 12), 48 → 51 le 2026-08-18 (`nettete` 1,
+  (`aplat` seul en apportait 12), 48 → 52 le 2026-08-18 (`nettete` 1,
   `displacementMap` 1, `aplat` 1 de plus avec son inverse). Et le
   DÉNOMINATEUR monte avec : 16 effets sans condition contre 15, `emboss` entrant
   sans aucune — délibérément, il n'a pas d'état caché (point 2 du ticket 15).
@@ -332,8 +338,10 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   blocs dont les paramètres ne font rien quand leur bloc est éteint). Le
   registre porte 9 conditions de SECTION en tout. Les sections
   existent partout mais ne sectionnent pas (`duotone` 11 params pour 1 section,
-  `outlines` 8,7 par section ; `liste` = **63 des 83** gabarits, d'où le
-  défilement), et **5 effets sur 27 seulement** portent un outil sur la toile,
+  `outlines` 8,7 par section ; `liste` = **61 des 85** gabarits au 2026-08-19,
+  d'où le défilement — et ce chiffre-là aussi était faux avant d'être relancé,
+  il disait 63 des 83 quand l'arbre en portait 60 des 84), et
+  **5 effets sur 27 seulement** portent un outil sur la toile,
   en trois genres (`disk` ×2, `point` ×3, `axis` ×2) — `aplat` s'y est ajouté le
   2026-08-17 avec un `point` sur le centre de sa forme. Se tranche dans
   `.scratch/prochain-palier/issues/14-la-fusion-des-reglages-redondants.md`.
@@ -388,6 +396,17 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Noyaux de flou pyramidal partagés par glow/halation : `effects/blurChain.ts`.
   Les deux flous ci-dessus n'en sont PAS : un noyau pyramidal ne sait produire
   ni bord franc, ni polygone, ni poids de valeur.
+  ⚠️ **Le diaphragme n'est plus un polygone à arêtes DROITES depuis le
+  2026-08-19** : `effects/aperture.ts` porte une COURBURE (`bladeCurvature`,
+  index 11 de `lensBlur`, défaut 0 donc rendu inchangé au bit près), parce
+  qu'une lame réelle est un arc et que l'ouverture s'arrondit en s'ouvrant.
+  Le modèle est une interpolation du rayon, PAS un arc exact, et l'écart est
+  **borné par `aperture.test.ts`** — 0,16 % à six lames, 3,16 % au pire (le
+  triangle). L'arc exact est dans le fichier, en TS seulement : il coûterait un
+  `sqrt` et une division PAR TAP dans la boucle la plus chaude de l'app (jusqu'à
+  256 taps par pixel), et son rayon part à l'infini à courbure nulle. `lensFlare`
+  partage la fonction et passe 0.0 — un objectif n'a qu'un diaphragme, donc le
+  jour où il expose la courbure, c'est un paramètre qu'il lit, pas une constante.
 - ⚠️ **Demander les photos de l'utilisateur AVANT de raffiner sur des références
   publiques.** Leçon la plus chère du 2026-08-03 : trois passes de raffinement de
   `lensFlare` ont été faites sur des références générales, puis cinq photos
@@ -418,6 +437,17 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   assez pour valoir une entrée et non un mode ; les trois autres partent tous
   des hautes lumières DE L'IMAGE et les transforment, une fuite vient d'un jeu
   du boîtier — en aval de l'objectif, en amont de l'émulsion. Ils s'empilent.
+  ⚠️ **`glow` rend DEUX filtres depuis le 2026-08-19, et il n'en rendait qu'un
+  pendant que son en-tête en citait trois.** Son composite était purement
+  additif : le halo se posait partout où il tombait, donc il délavait les noirs
+  — c'est un Pro-Mist. Ce qui sépare le *Black* Pro-Mist n'est pas un dosage,
+  ce sont des particules noires qui ABSORBENT la lumière diffusée retombant sur
+  les zones denses. D'où `shadowHold` / `shadowHoldPoint` (index 4 et 5, défaut
+  0 donc rendu inchangé au bit près) : une porte calculée sur la luminance de ce
+  qui est SOUS le halo, jamais sur celle du halo. Idée mesurée chez Affinity
+  (leur Bloom a un plancher : sous une certaine densité, exactement rien) mais
+  pas leur découpage en trois bandes — voir
+  `docs/design-system/affinity-plugin-verdict-2026-08-19.md`.
   La famille a fait l'aller-retour dans la même
   journée : `anamorphicStreak` en est sorti le matin pour `lensDistortion`
   (ADR-0014, une traînée sur un seul axe est ce que fait un verre CYLINDRIQUE),
@@ -593,10 +623,11 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Ce qu'elle laisse passer : notre uniform `params: array<f32, 48>` n'est pas
   conforme (stride 4 pour un alignement requis de 16 en espace uniform), Dawn
   l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 27
-  effets, index gelés par les presets ET par **119** références de pixels
-  (re-mesuré le 2026-08-18 : 119 PNG dans `test/render-refs/`, tous déclarés,
-  zéro orphelin — 102 le matin, plus six modes de fusion et onze scénarios des
-  tranches 2 et 3 ; ce nombre disait 97 et le ROADMAP 77).
+  effets, index gelés par les presets ET par **122** références de pixels
+  (re-mesuré le 2026-08-19 : 122 PNG dans `test/render-refs/`, tous déclarés,
+  zéro orphelin — 119 la veille, plus les trois du relevé Affinity :
+  `effet-lens-blur-bokeh-courbe`, `effet-glow-retenue-temoin`,
+  `effet-glow-retenue`).
   ⚠️ **Compter les scénarios par un grep sur les clés littérales SOUS-COMPTE de
   quatre** : les quatre trames de `dither` sont générées par un
   `Object.fromEntries([...].map(...))` étalé (`render-check.mjs:1095-1099`), pas
@@ -1086,6 +1117,24 @@ corrigés le jour même ; quatre tickets restent (geste de la forme, verrou
 binaire, symétrie panneau/toile, layout). Sa recherche a établi que **la
 documentation Adobe ne donne AUCUN gabarit chiffré de layout** — descriptive,
 jamais dimensionnelle : ce ticket-là se mesure sur notre app, il ne se lit pas.
+
+**Carte ACTIVE : `.scratch/affinity/`** — chartée le 2026-08-19 (« se baser sur
+Affinity », « porter nos effets dans Affinity ? », « full scope »). Sa question
+principale — **un plugin `.8bf` améliorerait-il les perfs ou la qualité ?** — est
+✅ **CLOSE le 2026-08-19, par mesure des deux côtés : non aux deux, et sur les
+perfs c'est l'INVERSE** (leur filtre natif le moins cher coûte 136 ms sur
+26 Mpx quand notre pile entière à cinq effets recompose en 23 ms). Verdict et
+protocole : `docs/design-system/affinity-plugin-verdict-2026-08-19.md`.
+⚠️ **Ne pas rouvrir « porter dans Affinity » sans lire ce document d'abord** :
+la question a été posée trois fois et a reçu trois réponses différentes, les
+deux premières fausses pour la même raison — une absence conclue à l'endroit où
+on avait regardé. Reste ouvert et non bloquant : le contrat `.8bf` (ticket 01),
+le langage de la texture procédurale (02), et les prises côté interface
+(03, 05 à 11).
+⚠️ **Méthode imposée par cet effort** : ce qu'on prend d'Affinity se mesure en
+BOÎTE NOIRE — piloter leurs filtres par le SDK (`commands.js` en expose une
+trentaine), relire les pixels, réimplémenter chez nous. Recopier leur
+implémentation embarquée serait du dérivé, pas de l'interopérabilité.
 
 **Carte CLOSE, et toujours la référence des arbitrages rendus :
 `.scratch/prochain-palier/`** — le prochain palier (composition, recadrage, lisibilité de l'interface, dormants), 12 tickets dont 3 recherches résolues. Ses `## Notes` portent les contraintes permanentes de l'effort ; `docs/ROADMAP.md` y renvoie. Un arbitrage ouvert se tranche là, pas dans le ROADMAP.

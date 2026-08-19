@@ -36,10 +36,34 @@ C'est la famille « styles de calque » de Photoshop. Aucun recoupement avec ce 
 nous faisons : ni grain, ni halation, ni tramage, ni trame CMJN, ni verre, ni
 courbes par canal, ni flare, ni aberration.
 
-⚠️ **Et les LIVE FILTERS d'Affinity — ses filtres non destructifs, ceux qui font
-le vrai travail de pixels, et qui sont sur GPU — n'apparaissent nulle part dans
-l'API `Document`.** Même les siens ne sont pas pilotables. Le SDK ne donne accès
-qu'aux styles de calque.
+⚠️ **CE PARAGRAPHE ÉTAIT FAUX ET IL EST CORRIGÉ CI-DESSOUS** (2026-08-19, le
+soir même). Il disait : « les LIVE FILTERS d'Affinity — ses filtres non
+destructifs, ceux qui font le vrai travail de pixels, et qui sont sur GPU —
+n'apparaissent nulle part dans l'API `Document`. Même les siens ne sont pas
+pilotables. Le SDK ne donne accès qu'aux styles de calque. »
+
+> **Le SDK pilote une trentaine de filtres et une vingtaine d'ajustements.** Ils
+> ne sont pas des méthodes de `Document` — ils sont des `DocumentCommand`
+> passées à `doc.executeCommand()`, et ils vivent dans `commands.js`, un autre
+> fichier du même SDK : `createBloomFilter`, `createLensBlurFilter`,
+> `createHalftoneFilter`, `createVoronoiFilter`, `createSetCurvesAdjustmentParameters`,
+> `createSetBlendRanges`, `createDetectDepth`… Liste complète dans
+> [`affinity-plugin-verdict`](affinity-plugin-verdict-2026-08-19.md).
+>
+> ⚠️ **QUATRIÈME conclusion tirée d'une absence dans ce fil**, même mécanique que
+> les trois autres : j'avais listé l'API `Document`, je n'y avais pas trouvé de
+> filtre, j'en avais conclu que le SDK n'en avait pas. La liste des fichiers du
+> SDK était sous les yeux depuis le début — `commands.js` y était.
+>
+> **C'est l'erreur qui a coûté le plus cher du fil**, parce qu'elle fermait le
+> seul instrument capable de répondre honnêtement à la question d'Antoine :
+> piloter leurs filtres, relire les pixels, comparer aux nôtres. Le verdict du
+> ticket 12 en sort entièrement, et deux améliorations de nos effets avec.
+>
+> Ce qui reste vrai du paragraphe d'origine : **les filtres du SDK sont
+> DESTRUCTIFS**. Ils écrivent dans le raster, l'annulation les nomme
+> (« Croissance », « Demi-ton »), et aucun calque de filtre n'apparaît dans
+> l'arbre du document. Le chemin LIVE, lui, n'est toujours pas pilotable.
 
 ### 3. Le coût par pixel, mesuré
 

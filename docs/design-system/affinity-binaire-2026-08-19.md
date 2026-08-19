@@ -69,6 +69,19 @@ pour une passe sur 26 Mpx contre 63 ms pour la pile complète de shaderlab.
 > ...V?$Counted@VPhotoshopPlugin@@@Kernel@@AEAUFilterRecord@PSP@@...
 > ```
 >
+> ⚠️ **CORRECTION DU 2026-08-19 AU SOIR, SUR LE MODULE.** Ces symboles ne sont
+> PAS dans `libpersona.dll`. Recompté en cherchant les chaînes en ASCII *et* en
+> UTF-16 (un assembly .NET stocke les siennes en UTF-16, et le premier comptage
+> ne regardait que l'ASCII) : `libpersona.dll` porte **une** occurrence de
+> `FilterRecord` et **zéro** de `PhotoshopPluginWrapper`,
+> `RasterFilterPluginWrapper`, `SupportsPhotoshopPlugins`, `AllowUnknownPlugins`
+> ou `LiveFilter`. Tous vivent dans **`Serif.Affinity.dll`**, qui porte aussi
+> 172 occurrences de `LiveFilter` et 42 de `PhotoshopPlugin`.
+>
+> **Le fait tient — l'hôte de plugins Photoshop existe** — mais le module cité
+> était faux, et c'est exactement le genre d'erreur qui a déjà mordu trois fois
+> dans ce fil : la mesure était juste, l'endroit était mauvais.
+>
 > Et `Serif.Affinity.dll` porte une page de préférences ENTIÈRE :
 > `PhotoshopPluginsPreferencesPage` avec dossiers de recherche, dossiers
 > détectés, bouton d'ajout de répertoire, colonne de statut

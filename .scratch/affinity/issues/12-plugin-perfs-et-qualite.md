@@ -1,10 +1,49 @@
 # Un plugin Affinity améliorerait-il les PERFS de nos effets ? Leur QUALITÉ ?
 
 Type: research
-Status: open
+Status: closed
 Parent: ../map.md
 
-Question d'Antoine, le 2026-08-19.
+Question d'Antoine, le 2026-08-19. **Répondue le même jour, par mesure des deux
+côtés** : [`affinity-plugin-verdict-2026-08-19.md`](../../../docs/design-system/affinity-plugin-verdict-2026-08-19.md).
+
+## Verdict
+
+**Non sur les perfs, et c'est le sens INVERSE de l'intuition.** Un seul filtre
+natif d'Affinity coûte 136 à 565 ms sur 26,0 Mpx (mesuré à chaud, dix filtres,
+trois essais chacun). Notre pile ENTIÈRE — cinq calques d'effet sur la même
+photo, en build de production, pendant un vrai glissement — recompose en 23 ms
+(43,2 images/s). Un calque seul : 8,4 ms (119,7 images/s). **Nous sommes 6 à 25
+fois plus rapides que le moteur natif dont on voulait s'approcher.**
+
+L'hypothèse à écarter en premier — les N allers-retours CPU↔GPU — est
+CONFIRMÉE, et par leur propre moteur : leur plancher est à ~140 ms quel que
+soit le filtre, ce qui est la trace du trajet. Un `.8bf` reçoit 104 Mo et rend
+104 Mo par effet et par invocation sur 26 Mpx ; notre pile fait zéro
+aller-retour.
+
+Et la part de l'abstraction dans notre coût, qui était l'étape 1 : **93 % de fil
+principal à un calque, 43 % à cinq.** La part qu'un portage natif remplacerait
+est exactement celle qui RÉTRÉCIT quand le travail augmente.
+
+**Non sur la qualité non plus, mais pour une autre raison.** Le tableau de ce
+ticket reste juste : le gain viendrait de l'HÔTE, pas de leurs filtres. Sauf
+que ce gain est disponible chez nous (ticket 11) pour bien moins cher qu'un
+`.8bf` — qui nous ferait en plus perdre notre pile, nos masques par calque et
+nos presets. Sur les filtres eux-mêmes, la mesure dit qu'on est devant sur notre
+territoire.
+
+## Ce que le ticket n'avait pas prévu
+
+L'instrument. Le relevé de la veille concluait que le SDK ne pilote pas les
+filtres d'Affinity ; **c'est faux**, `commands.js` en expose une trentaine, plus
+une vingtaine d'ajustements. C'est ce qui a permis de mesurer au lieu de
+raisonner — et deux améliorations de NOS effets en sont sorties le même jour
+(courbure des lames sur `lensBlur`, retenue des noirs sur `glow`).
+
+---
+
+Énoncé d'origine, conservé :
 
 ## Pourquoi ce n'est PAS le ticket 01
 

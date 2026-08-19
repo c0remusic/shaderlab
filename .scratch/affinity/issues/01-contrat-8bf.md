@@ -4,6 +4,41 @@ Type: research
 Status: open
 Parent: ../map.md
 
+## ⚠️ Ce ticket a PERDU son enjeu le 2026-08-19, sans avoir été répondu
+
+Il s'ouvrait sur « pourquoi ce ticket décide de tout ». Ce n'est plus vrai :
+le [ticket 12](12-plugin-perfs-et-qualite.md) a mesuré qu'un plugin serait plus
+LENT que notre pile — 6 à 25 fois — et que le gain de qualité est disponible
+chez nous pour moins cher. **La question « live ou destructif » ne décide plus
+de Q1, quel que soit son résultat** : elle ne peut plus que rendre un « non »
+un peu moins net ou un peu plus net.
+
+Ce qui a quand même été trouvé, et qui n'est qu'un INDICE :
+
+- Deux corrections de module. `PhotoshopPluginWrapper`,
+  `RasterFilterPluginWrapper`, `SupportsPhotoshopPlugins`, `AllowUnknownPlugins`
+  et `.8bf` ne sont pas dans `libpersona.dll` comme l'écrivait le relevé, mais
+  dans `Serif.Affinity.dll`. Le fait tient, le module cité était faux.
+- Dans leur vocabulaire, un « RasterFilter » est la famille DESTRUCTIVE (celle
+  du menu Filtres) et un filtre non destructif est un « LiveFilter »
+  (172 occurrences dans le même assembly). Le plugin Photoshop est enveloppé par
+  un `RasterFilterPluginWrapper`. **Ça penche vers « appliqué une fois ».**
+- Vérifié au passage : les commandes de filtre du SDK sont bien DESTRUCTIVES —
+  l'annulation dit « Croissance », « Demi-ton », « Flou de l'objectif », et
+  aucun calque n'apparaît dans l'arbre du document.
+
+⚠️ **Deux noms voisins dans un tas de chaînes ne prouvent pas un héritage.** Ce
+qui trancherait reste ce que dit ce ticket : poser un `.8bf` libre et regarder
+la pile de calques. Ça demande l'accord d'Antoine — c'est du code tiers exécuté
+dans son application, et tout le relevé est resté en lecture seule.
+
+**Le ticket reste donc ouvert, mais il n'est plus bloquant.** À faire seulement
+si Antoine veut la réponse pour elle-même.
+
+---
+
+Énoncé d'origine, conservé :
+
 ## Pourquoi ce ticket décide de tout
 
 Affinity 3 héberge les plugins Photoshop — établi au symbole dans

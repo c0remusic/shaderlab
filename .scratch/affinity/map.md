@@ -23,48 +23,81 @@ quatre verrous) est intact sur `master`.
 | [`affinity-binaire`](../../docs/design-system/affinity-binaire-2026-08-19.md) | OpenCL, et **deux** portes ouvertes |
 | [`affinity-full-scope`](../../docs/design-system/affinity-full-scope-2026-08-19.md) | outils, masques, sélections, UX, UI |
 | [`affinity-ce-quon-peut-lui-prendre`](../../docs/design-system/affinity-ce-quon-peut-lui-prendre-2026-08-19.md) | six idées à prendre, trois où nous sommes devant |
+| ⭐ [`affinity-plugin-verdict`](../../docs/design-system/affinity-plugin-verdict-2026-08-19.md) | **le verdict mesuré** : perfs, qualité, et ce qui a été pris |
 
-⚠️ **TROIS conclusions fausses dans ce fil, toutes du même type** : conclure
+⚠️ **QUATRE conclusions fausses dans ce fil, toutes du même type** : conclure
 d'une ABSENCE constatée à l'endroit où j'avais regardé. Détail dans le document
 `affinity-binaire`, § « La leçon ». La règle qui en sort et qui vaut pour toute
 la carte : **une absence ne se conclut que si on peut dire OÙ on a cherché et
 pourquoi c'était le bon endroit.**
 
+**La quatrième est la plus chère du lot** (2026-08-19, corrigée le soir même) :
+« le SDK ne pilote pas les filtres d'Affinity, même les siens ». Faux —
+`commands.js` en expose une trentaine, plus une vingtaine d'ajustements. Ils ne
+sont pas des méthodes de `Document` mais des `DocumentCommand`, dans un AUTRE
+fichier du même SDK. Corollaire à ajouter aux trois autres : **une absence
+constatée dans un fichier de SDK ne se conclut qu'après avoir cherché dans les
+autres fichiers du même SDK.**
+
+Ce que cette correction a débloqué : **on peut piloter leurs filtres, relire les
+pixels et comparer aux nôtres.** Tout ce qui suit en sort — et c'est la seule
+méthode admissible ici, puisque recopier leur implémentation serait du dérivé et
+non de l'interopérabilité.
+
 ## La destination
 
 Deux questions, et elles ne se répondent pas ensemble.
 
-**Q1 — shaderlab doit-il exister ?** Rouverte par les relevés, pas fermée. Un
-plugin `.8bf` est techniquement possible ; ce qu'on y gagnerait et perdrait
-n'est pas chiffré.
+**Q1 — shaderlab doit-il exister ?** ✅ **REFERMÉE le 2026-08-19, par mesure des
+deux côtés** (ticket 12). Un plugin `.8bf` reste techniquement possible et il
+serait **plus LENT** : leur filtre natif le moins cher coûte 136 ms sur 26 Mpx
+quand notre pile entière à cinq effets recompose en 23 ms. Le gain de qualité,
+lui, vient de leur HÔTE et est atteignable chez nous pour moins cher
+(ticket 11). Ce qui restait à trancher — le contrat `.8bf` du ticket 01 — ne
+décide donc plus de rien.
+
+⚠️ Ce que la mesure NE dit pas : elle ne compare pas notre pile à leur aperçu de
+filtre LIVE, qui n'est pas pilotable par le SDK. Elle compare une recomposition
+à résolution native à une application destructive, qui est justement le régime
+d'un `.8bf`.
 
 **Q2 — que prendre à Affinity, dans shaderlab tel qu'il est ?** Répondable tout
 de suite, et c'est là que sont les tickets.
 
 ## Ce qui RESTE — les tickets
 
-### Décider (Q1)
+### Décider (Q1) — ✅ SOLDÉ
 
+- ✅ [12 — Un plugin améliorerait-il les PERFS ? La QUALITÉ ?](issues/12-plugin-perfs-et-qualite.md) · `research`
+  **Fermé le 2026-08-19 : non aux deux.** L'hypothèse « du natif, donc plus
+  rapide » n'était pas seulement fausse, elle était inversée — 6 à 25 fois en
+  notre faveur. Verdict et protocole :
+  [`affinity-plugin-verdict`](../../docs/design-system/affinity-plugin-verdict-2026-08-19.md).
 - [01 — Le contrat `.8bf` réel](issues/01-contrat-8bf.md) · `research`
-  Un filtre Photoshop est-il appliqué UNE FOIS chez Affinity, ou enveloppé en
-  filtre live ? La différence décide de Q1 à elle seule.
+  Ouvert, mais **plus bloquant** : le ticket 12 a répondu à Q1 sans lui. Un
+  indice penche vers « appliqué une fois » (leur plugin est enveloppé par un
+  `RasterFilterPluginWrapper`, et « RasterFilter » est chez eux la famille
+  destructive). Trancher demande d'installer un `.8bf` tiers — accord d'Antoine
+  requis, et à faire seulement s'il veut la réponse pour elle-même.
 - [02 — Le langage de la texture procédurale](issues/02-langage-texture-procedurale.md) · `research`
-  Combien de nos 27 effets s'y expriment ?
-- [12 — Un plugin améliorerait-il les PERFS ? La QUALITÉ ?](issues/12-plugin-perfs-et-qualite.md) · `research`
-  ⭐ Question d'Antoine, et **ce n'est pas le ticket 01** : celui-là demande si
-  c'est possible, celui-ci si ce serait MEILLEUR. Deux axes indépendants — le
-  gain de perf viendrait de notre code, le gain de qualité de l'HÔTE.
-  ⚠️ L'hypothèse « du natif, donc plus rapide » est probablement fausse : notre
-  coût dominant mesuré est la cohérence de CACHE, pas la couche d'abstraction.
-  Et un `.8bf` par effet ferait N allers-retours CPU↔GPU là où notre pile en
-  fait zéro.
+  Combien de nos 27 effets s'y expriment ? ⚠️ Sa valeur a changé de nature : il
+  ne sert plus Q1 (close) mais l'idée de sa dernière section — **prototyper un
+  effet avant de l'écrire en WGSL**. Et une mesure de plus le rend moins
+  probable : le filtre n'a **aucune commande dans le SDK**, donc il n'est
+  ouvert qu'à un humain dans l'interface.
 
 ### Prendre — le mécanisme existe déjà chez nous
 
 - [03 — Texturer le masque](issues/03-texturer-le-masque.md) · `task`
   ⭐ La plus alignée du relevé. Le binding 7 charge déjà des images.
-- [04 — Plage tonale sur `glow`](issues/04-plage-tonale-glow.md) · `task`
-  ⭐ `tonalRangeControl` existe, utilisé par `curves`.
+- ✅ [04 — Plage tonale sur `glow`](issues/04-plage-tonale-glow.md) · `task`
+  **Livré le 2026-08-19, mais PAS ce que le ticket décrivait.** La mesure a
+  démenti sa prémisse : leurs trois curseurs ne gatent pas la SOURCE du halo,
+  ils décident dans quels tons du RECEVEUR la lumière est reposée, avec un
+  PLANCHER sous lequel il ne se passe rien. C'est le plancher qui a été repris,
+  sur un seul axe — la **retenue des noirs**, qui donne à `glow` le *Black*
+  Pro-Mist que son propre en-tête citait sans le rendre. `tonalRangeControl`
+  n'a PAS servi : il décrit quatre bornes, il en fallait deux.
 - [05 — Couleur de surimpression du masque](issues/05-couleur-surimpression.md) · `task`
   La nôtre est rouge en dur, invisible sur une photo rouge.
 - [06 — Les modes de fusion manquants](issues/06-modes-de-fusion.md) · `task`
@@ -79,6 +112,17 @@ de suite, et c'est là que sont les tickets.
 - [08 — Ajustement contre filtre](issues/08-ajustement-contre-filtre.md) · `grilling`
   Ils séparent « par pixel » de « par voisinage ». Nos six catégories
   éditoriales ne portent pas cette frontière.
+
+### Pris hors ticket, parce que la mesure l'a fait apparaître
+
+- ✅ **Courbure des lames sur `lensBlur`** (2026-08-19). Leur
+  `LensBlurFilterParameters` porte un `bladeCurvature` qu'aucun ticket n'avait
+  relevé — le décompte de paramètres de la veille comparait des NOMBRES
+  (lensBlur 11 contre 7) sans regarder lesquels. Rendu sur cinq sources
+  ponctuelles : pentagone à arêtes droites à 0, disque à 1. Une lame réelle est
+  un arc. Livré dans `effects/aperture.ts`, donc partagé avec `lensFlare` — un
+  objectif n'a qu'un diaphragme. Écart au vrai arc **borné par un test** :
+  0,16 % à six lames, 3,16 % au pire (le triangle).
 
 ### Chantiers
 

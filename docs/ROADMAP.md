@@ -45,32 +45,54 @@ commencé (3), et des chantiers dormants retrouvés par mesure (4).
 
 ---
 
-## ⚠️ TROIS cartes désormais, et une seule question ouvre le reste
+## ⚠️ TROIS cartes désormais, et la question qui débordait tout est CLOSE
 
 ⭐ **`.scratch/affinity/` est chartée le 2026-08-19**, sur quatre relevés faits
-dans l'application Affinity et dans ses binaires. Elle porte onze tickets, et
-surtout **une question qui déborde tout le reste de cette feuille** :
+dans l'application Affinity et dans ses binaires. Elle portait douze tickets, et
+surtout **une question qui débordait tout le reste de cette feuille** :
 
 > **Faire un plugin Affinity améliorerait-il les PERFS de nos effets ? Leur
 > QUALITÉ ?**
 
-Elle est posée en [ticket 12](../.scratch/affinity/issues/12-plugin-perfs-et-qualite.md)
-et elle n'est PAS la même que « peut-on porter nos effets » (ticket 01). Celle-ci
-demande si l'hôte serait MEILLEUR que notre coquille — pas s'il est possible.
-Les deux axes sont indépendants et se mesurent séparément :
+✅ **RÉPONDUE LE MÊME JOUR, ET C'EST NON AUX DEUX.**
+[Ticket 12](../.scratch/affinity/issues/12-plugin-perfs-et-qualite.md), verdict
+et protocole complets dans
+[`affinity-plugin-verdict`](design-system/affinity-plugin-verdict-2026-08-19.md).
 
-- **PERF** — nous rendons en WebGPU dans une WebView2. Un plugin natif parle au
-  pilote sans navigateur. Le gain n'est pas mesuré, et il pourrait être nul :
-  notre coût dominant mesuré est la COHÉRENCE DE CACHE, pas la couche
-  d'abstraction (§ le coût du verre).
-- **QUALITÉ** — Affinity a `RGB96Mode` (32 bits flottants), l'ICC, OCIO, le soft
-  proof et les LUT 3D. **Nous n'avons rien de tout ça**, et l'export print bute
-  précisément là. Ce gain-là n'a AUCUN rapport avec nos shaders : il vient de
-  l'hôte.
+- **PERF — et le résultat est l'INVERSE de l'intuition.** Mesuré sur la même
+  photo des deux côtés (26,0 Mpx) : un SEUL filtre natif d'Affinity coûte
+  **136 à 565 ms** ; notre pile ENTIÈRE, cinq calques d'effet en build de
+  production pendant un vrai glissement, recompose en **23 ms**. Nous sommes
+  6 à 25 fois plus rapides que le moteur natif dont on voulait s'approcher.
+  L'hypothèse à écarter en premier — les allers-retours CPU↔GPU d'un `.8bf` —
+  est confirmée par leur propre plancher de ~140 ms.
+  Et la part de l'abstraction dans NOTRE coût : 93 % de fil principal à un
+  calque, **43 % à cinq**. Ce qu'un portage natif remplacerait est exactement
+  ce qui rétrécit quand le travail augmente.
+- **QUALITÉ — le tableau reste juste, la conclusion change.** Affinity a
+  `RGB96Mode`, l'ICC, OCIO, le soft proof, les LUT 3D, et exporte en TIFF 16
+  bits comme en OpenEXR 32 bits linéaire. **Nous n'avons rien de tout ça.**
+  Mais ce gain vient de l'HÔTE, il est atteignable chez nous
+  ([ticket 11](../.scratch/affinity/issues/11-debloquer-le-16-bit.md)) pour
+  bien moins qu'un `.8bf` — qui nous ferait en plus perdre notre pile, nos
+  masques par calque et nos presets.
 
-⚠️ **Ne pas répondre de tête.** La réponse « oui, du natif c'est plus rapide »
-est exactement le genre de raisonnement que ce dépôt a déjà payé trois fois
-aujourd'hui. Le ticket dit quoi mesurer.
+⚠️ **La réponse « oui, du natif c'est plus rapide » était fausse, et elle
+l'était de 6 à 25 fois.** C'est le quatrième raisonnement de tête démenti par la
+mesure dans ce fil.
+
+**Ce que la carte a rapporté au passage, et qui est livré** : deux améliorations
+de nos effets, mesurées en boîte noire chez eux puis réimplémentées chez nous —
+la **courbure des lames** du diaphragme (`lensBlur`, partagée avec `lensFlare`)
+et la **retenue des noirs** du `glow`, qui lui donne enfin le *Black* Pro-Mist
+que son en-tête citait sans le rendre.
+
+**Ce qui RESTE de cette carte** : le contrat `.8bf` (ticket 01, plus bloquant),
+le langage de la texture procédurale (02), et les prises côté interface — les
+masques texturés (03), la couleur de surimpression (05), les modes de fusion
+manquants et `BlendRanges` (06), sélection contre masque (07), ajustement contre
+filtre (08), masque par bande de fréquence (09), pinceau d'effet (10), et le
+16 bits (11).
 
 ## ⚠️ DEUX cartes de plus, et la première est CLOSE
 

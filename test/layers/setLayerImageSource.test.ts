@@ -47,7 +47,7 @@ describe("setLayerImageSource", () => {
 
   it("REFUSE un calque VERROUILLÉ, sans muter la source", () => {
     const { stack, id } = photoStack();
-    expect(stack.setLayerLocked(id, true)).toBe(true);
+    expect(stack.setLayerLock(id, "all", true)).toBe(true);
     expect(stack.setLayerImageSource(id, "photo-2")).toBe(false);
     expect(stack.layers[0].imageSource).toEqual({ sourceId: "photo-1" });
   });

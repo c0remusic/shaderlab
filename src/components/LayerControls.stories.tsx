@@ -65,7 +65,7 @@ export const NoSelection: Story = {
     // Les actions migrées depuis les lignes (2026-07-29) suivent la même
     // règle : montées mais inertes. Les faire disparaître ferait sauter la
     // liste au-dessus à chaque désélection (ADR-0001, § Conséquences).
-    await expect(canvas.getByRole("button", { name: "Verrouiller le calque" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Verrouiller — Tout" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "Dupliquer le calque" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "Supprimer le calque" })).toBeDisabled();
   },
@@ -82,8 +82,14 @@ export const ToggleLock: Story = {
   args: { selectedId: "layer-2", onToggleLock: fn() },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Verrouiller le calque" }));
-    await expect(args.onToggleLock).toHaveBeenCalledWith("layer-2", true);
+    await userEvent.click(canvas.getByRole("button", { name: "Verrouiller — Tout" }));
+    await expect(args.onToggleLock).toHaveBeenCalledWith("layer-2", "all", true);
+
+    // LES QUATRE VERROUS (2026-08-19) : la rangee en porte quatre, et chacun
+    // rapporte SA cle. Sans ce second cas, trois boutons sur quatre
+    // pourraient rapporter "all" sans que rien ne rougisse.
+    await userEvent.click(canvas.getByRole("button", { name: "Verrouiller — Position — la géométrie" }));
+    await expect(args.onToggleLock).toHaveBeenCalledWith("layer-2", "position", true);
   },
 };
 
@@ -113,7 +119,7 @@ export const RemoveSelectedLayer: Story = {
 // dont la mutation est refusée en silence serait un échec silencieux.
 export const LockedLayerKeepsOnlyItsWayOut: Story = {
   args: {
-    layers: [makeLayer({ id: "layer-1", effectId: "glow", locked: true })],
+    layers: [makeLayer({ id: "layer-1", effectId: "glow", locks: { all: true } })],
     selectedId: "layer-1",
     onToggleLock: fn(),
   },
@@ -124,10 +130,10 @@ export const LockedLayerKeepsOnlyItsWayOut: Story = {
     await expect(canvas.getByRole("textbox", { name: "Opacité" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "Supprimer le calque" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "Dupliquer le calque" })).not.toBeDisabled();
-    const unlock = canvas.getByRole("button", { name: "Déverrouiller le calque" });
+    const unlock = canvas.getByRole("button", { name: "Déverrouiller — Tout" });
     await expect(unlock).not.toBeDisabled();
     await userEvent.click(unlock);
-    await expect(args.onToggleLock).toHaveBeenCalledWith("layer-1", false);
+    await expect(args.onToggleLock).toHaveBeenCalledWith("layer-1", "all", false);
   },
 };
 

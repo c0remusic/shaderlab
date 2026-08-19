@@ -133,7 +133,7 @@ describe("hitTestPhotoLayer — ce qui n'est pas saisissable", () => {
     // verrouillée, du travail au-dessus, et chaque clic qui rate son calque
     // tombe sur le fond. Signalé par Antoine — « le lock de calque ne permet pas
     // de lock la sélection d'un calque/d'une photo ».
-    const layers = [photoLayer("verrouille", {}, { locked: true })];
+    const layers = [photoLayer("verrouille", {}, { locks: { all: true } })];
     expect(hitTestPhotoLayer(layers, { x: 500, y: 500 }, BG, sizeOf)).toBeNull();
   });
 
@@ -142,7 +142,7 @@ describe("hitTestPhotoLayer — ce qui n'est pas saisissable", () => {
     // le clic, il devient transparent pour lui. Sans ça, verrouiller un fond
     // rendrait inatteignable tout ce qui est dessous — on aurait remplacé une
     // gêne par une autre.
-    const layers = [photoLayer("dessous"), photoLayer("verrouille", {}, { locked: true })];
+    const layers = [photoLayer("dessous"), photoLayer("verrouille", {}, { locks: { all: true } })];
     expect(hitTestPhotoLayer(layers, { x: 500, y: 500 }, BG, sizeOf)).toBe("dessous");
   });
 

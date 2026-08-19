@@ -73,7 +73,7 @@ const meta: Meta<typeof MaskPanel> = {
   args: {
     layerId: layerWithMask.id,
     mask: layerWithMask.mask,
-    locked: false,
+    
     maskPaintMode: false,
     onToggleMaskPaint: () => {},
     onAddMaskSource: () => {},

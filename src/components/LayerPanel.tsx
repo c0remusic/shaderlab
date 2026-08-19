@@ -1,7 +1,7 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import { usePointerReorder, type DropPosition } from "../ui/dragReorder";
 import "../ui/dragReorder.css";
-import { ChevronDown, ChevronRight, Copy, CornerLeftUp, Eye, EyeOff, GripVertical, Image as PhotoLayerIcon, Lock, LockOpen, Plus, Sparkles as EffectLayerIcon, Trash2 } from "lucide-react";
+import { Brush, ChevronDown, ChevronRight, Copy, CornerLeftUp, Eye, EyeOff, Grid2x2, GripVertical, Image as PhotoLayerIcon, Lock, Move, Plus, Sparkles as EffectLayerIcon, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
 import { eyeButtonLabels, isLayerVisible, isolationRole, isolationVisibleIds, type IsolationRole } from "../layers/isolation";
 import { resolveClipping } from "../layers/clipping";
@@ -26,6 +26,33 @@ import { IconButton } from "./ui/icon-button";
 import { EffectPicker } from "./EffectPicker";
 import { layerControlsModel, opacityToPercent, parseOpacityPercent } from "./layerControlsModel";
 import "./LayerPanel.css";
+import { isFullyLocked, isPartiallyLocked } from "../layers/layerLocks";
+import type { LayerLocks } from "../layers/types";
+
+/** État du verrou tel que la LIGNE le montre. Trois valeurs, parce que
+ *  Photoshop en distingue trois : rien, partiel (cadenas creux), tout (plein). */
+export type LockState = "none" | "partial" | "full";
+
+/** Réduit les quatre verrous d'un calque à ce que sa ligne doit rendre. */
+export function lockStateOf(layer: Pick<LayerState, "locks">): LockState {
+  if (isFullyLocked(layer)) return "full";
+  if (isPartiallyLocked(layer)) return "partial";
+  return "none";
+}
+
+/** LES QUATRE VERROUS, dans l'ordre de Photoshop : transparence, image,
+ *  position, tout. L'ordre est celui d'Adobe et pas un choix — un utilisateur
+ *  qui connaît la rangée la retrouve au même endroit.
+ *
+ *  Les icônes disent CE QUI est gelé, pas « verrouillé » : un damier pour la
+ *  transparence (la zone hors masque), un pinceau pour ce que le calque couvre,
+ *  une croix de déplacement pour la géométrie, et le cadenas pour « tout ». */
+const VERROUS: readonly { cle: keyof LayerLocks; label: string; Icone: typeof Lock }[] = [
+  { cle: "transparency", label: "Transparence — peindre dedans, jamais dehors", Icone: Grid2x2 },
+  { cle: "mask", label: "Masque — ce que le calque couvre", Icone: Brush },
+  { cle: "position", label: "Position — la géométrie", Icone: Move },
+  { cle: "all", label: "Tout", Icone: Lock },
+];
 
 interface Props {
   layers: LayerState[];
@@ -94,7 +121,8 @@ export interface LayerControlsProps {
    *  doit pouvoir comparer sans sélectionner chaque calque. Un verrou ouvert
    *  n'est rien à voir ; sur la ligne, c'est un MARQUEUR (`role="img"`), le
    *  contrôle vit ici. */
-  onToggleLock: (id: string, locked: boolean) => void;
+  /** `which` désigne LEQUEL des quatre verrous bascule. */
+  onToggleLock: (id: string, which: keyof LayerLocks, value: boolean) => void;
   onDuplicate: (id: string) => void;
   onRemove: (id: string) => void;
 }
@@ -134,12 +162,16 @@ interface LayerRowProps {
    *  et la flèche ne doit pas apparaître. Booléen déjà réduit à ce calque pour
    *  ne pas casser la mémoïsation de la ligne (`memo`). */
   clipped: boolean;
-  /** Ce calque est-il VERROUILLÉ ? Booléen déjà réduit à ce calque (et non
-   *  `layer.locked`, qui est optionnel) pour que la ligne ne raisonne jamais
-   *  sur l'absence du champ. Depuis le 2026-07-29 il ne pilote plus un bouton
-   *  mais la PRÉSENCE d'un marqueur : le contrôle a migré dans la zone de
-   *  contrôles (voir `LayerControlsProps.onToggleLock`). */
-  locked: boolean;
+  /** État du VERROU de ce calque, déjà réduit à la ligne (et non `layer.locks`,
+   *  qui est optionnel) pour qu'elle ne raisonne jamais sur l'absence du champ.
+   *
+   *  TROIS valeurs et non un booléen depuis le 2026-08-19 : Photoshop marque la
+   *  ligne d'un cadenas **plein quand le calque est entièrement verrouillé,
+   *  creux quand il l'est partiellement**, et un booléen ne peut pas porter la
+   *  différence. Depuis le 2026-07-29 le marqueur ne pilote plus un bouton mais
+   *  dit seulement un ÉTAT : le contrôle vit dans la zone de contrôles (voir
+   *  `LayerControlsProps.onToggleLock`). */
+  lockState: LockState;
   /** Profondeur d'IMBRICATION (0 racine, 1 sous une photo) et bornes du groupe,
    *  décidées par `toLayerTreeRows` (src/components/layerTree.ts). Passées
    *  RÉDUITES à cette ligne — jamais l'arbre entier — pour ne pas casser la
@@ -193,7 +225,7 @@ const LayerRow = memo(function LayerRow({
   visible,
   role,
   clipped,
-  locked,
+  lockState,
   depth,
   firstChild,
   lastChild,
@@ -455,11 +487,15 @@ const LayerRow = memo(function LayerRow({
               la veille.
               `role="img"` et non un bouton : un lecteur d'écran n'annonce pas
               une action qui n'existe plus ici. */}
-            {locked && (
+            {lockState !== "none" && (
+              // PLEIN = tout verrouillé, CREUX = partiellement (convention
+              // Adobe, `research/01-conventions-adobe.md`). Le glyphe de lucide
+              // est un contour : c'est donc le cas PLEIN qui ajoute un
+              // remplissage, via `--full` (voir LayerPanel.css).
               <Lock
-                className="layer-panel__row-lock--active icon-sm icon-stroke"
+                className={`layer-panel__row-lock--active icon-sm icon-stroke${lockState === "full" ? " layer-panel__row-lock--full" : ""}`}
                 role="img"
-                aria-label="Calque verrouillé"
+                aria-label={lockState === "full" ? "Calque verrouillé" : "Calque partiellement verrouillé"}
               />
             )}
           </span>
@@ -586,18 +622,29 @@ export function LayerControls({
             bouton actif dont le modèle refuse l'effet serait l'échec silencieux
             que ce dépôt proscrit. */}
         <div className="layer-controls__actions">
-          <IconButton
-            label={model.locked ? "Déverrouiller le calque" : "Verrouiller le calque"}
-            size="compact"
-            disabled={model.layerId === null}
-            onClick={() => model.layerId !== null && onToggleLock(model.layerId, !model.locked)}
-          >
-            {model.locked ? (
-              <Lock className="layer-panel__row-lock--active icon-sm icon-stroke" aria-hidden="true" />
-            ) : (
-              <LockOpen className="icon-sm icon-stroke" aria-hidden="true" />
-            )}
-          </IconButton>
+          {/* LES QUATRE VERROUS (2026-08-19), rangée reprise de Photoshop : Lock
+              Transparent Pixels, Lock Image Pixels, Lock Position, Lock All.
+              Ils sont INDÉPENDANTS — « Tout » n'écrase pas les trois autres,
+              pour que le relâcher rende au calque les verrous partiels qu'il
+              avait avant (comportement d'Adobe, voir `withLock`).
+              Tous restent CLIQUABLES sur un calque verrouillé : un verrou
+              irréversible est hostile, et c'est la seule exception que
+              `LayerStack.setLayerLock` s'autorise. */}
+          {VERROUS.map(({ cle, label, Icone }) => (
+            <IconButton
+              key={cle}
+              label={`${model.locks[cle] === true ? "Déverrouiller" : "Verrouiller"} — ${label}`}
+              tooltip={label}
+              size="compact"
+              disabled={model.layerId === null}
+              onClick={() => model.layerId !== null && onToggleLock(model.layerId, cle, model.locks[cle] !== true)}
+            >
+              <Icone
+                className={`icon-sm icon-stroke${model.locks[cle] === true ? " layer-panel__row-lock--active" : ""}`}
+                aria-hidden="true"
+              />
+            </IconButton>
+          ))}
           <IconButton
             label="Dupliquer le calque"
             size="compact"
@@ -856,7 +903,7 @@ export function LayerPanel({
             visible={isLayerVisible(layer, visibleIds)}
             role={isolationRole(layer.id, isolatedLayerId)}
             clipped={clipResolutions.get(layer.id)?.kind === "active"}
-            locked={layer.locked === true}
+            lockState={lockStateOf(layer)}
             depth={depth}
             firstChild={firstChild}
             lastChild={lastChild}

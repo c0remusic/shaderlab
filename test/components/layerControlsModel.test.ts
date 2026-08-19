@@ -18,7 +18,7 @@ function layer(overrides: Partial<LayerState> & { id: string }): LayerState {
 describe("layerControlsModel", () => {
   it("sans sélection, l'en-tête est désactivé et n'emprunte aucune valeur à la pile", () => {
     const model = layerControlsModel([layer({ id: "a", opacity: 0.2, blendMode: "screen" })], null);
-    expect(model).toEqual({ enabled: false, locked: false, layerId: null, opacity: 1, blendMode: null, effectId: null, effectSelectable: true });
+    expect(model).toEqual({ enabled: false, locked: false, locks: {}, layerId: null, opacity: 1, blendMode: null, effectId: null, effectSelectable: true });
   });
 
   it("sur pile vide, l'en-tête est désactivé", () => {
@@ -33,6 +33,7 @@ describe("layerControlsModel", () => {
     expect(layerControlsModel(layers, "b")).toEqual({
       enabled: true,
       locked: false,
+      locks: {},
       layerId: "b",
       opacity: 0.4,
       blendMode: "screen",
@@ -48,10 +49,11 @@ describe("layerControlsModel", () => {
   // contrôles. Les VALEURS restent rendues — le verrou empêche de modifier,
   // pas de consulter.
   it("un calque VERROUILLÉ désactive la zone de contrôles tout en gardant ses valeurs lisibles", () => {
-    const layers = [layer({ id: "a", effectId: "grain", opacity: 0.4, blendMode: "screen", locked: true })];
+    const layers = [layer({ id: "a", effectId: "grain", opacity: 0.4, blendMode: "screen", locks: { all: true } })];
     expect(layerControlsModel(layers, "a")).toEqual({
       enabled: false,
       locked: true,
+      locks: { all: true },
       layerId: "a",
       opacity: 0.4,
       blendMode: "screen",
@@ -65,7 +67,7 @@ describe("layerControlsModel", () => {
   // dire POURQUOI elle est inerte.
   it("locked distingue « verrouillé » de « rien de sélectionné »", () => {
     expect(layerControlsModel([layer({ id: "a" })], null).locked).toBe(false);
-    expect(layerControlsModel([layer({ id: "a", locked: true })], "a").locked).toBe(true);
+    expect(layerControlsModel([layer({ id: "a", locks: { all: true } })], "a").locked).toBe(true);
   });
 
   it("un selectedId périmé (calque supprimé) retombe sur l'état désactivé", () => {
@@ -95,7 +97,7 @@ describe("layerControlsModel", () => {
   // Un calque photo VERROUILLÉ n'a pas non plus de sélecteur : la garde photo
   // ne dépend pas du verrou, et les deux se cumulent sans s'annuler.
   it("un calque photo verrouillé n'en propose pas davantage", () => {
-    const layers = [layer({ id: "p", imageSource: { sourceId: "s1" }, locked: true })];
+    const layers = [layer({ id: "p", imageSource: { sourceId: "s1" }, locks: { all: true } })];
     const model = layerControlsModel(layers, "p");
     expect(model.effectSelectable).toBe(false);
     expect(model.enabled).toBe(false);

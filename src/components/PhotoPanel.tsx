@@ -3,6 +3,7 @@ import { Button } from "./ui/button";
 import { Disclosure } from "./ui/collapsible";
 import { NumberField, type NumberFieldClassNames } from "./ui/number-field";
 import "./PhotoPanel.css";
+import { isMaskLocked } from "../layers/layerLocks";
 
 /** Bornes de saisie des champs de placement. Larges à dessein : une photo
  *  peut légitimement être positionnée hors du fond (seule la partie qui
@@ -103,7 +104,7 @@ export function PhotoPanel({ layer, thumbnailUrl, onTransformChange, onTransform
               une source » de MaskPanel — le refus du modèle
               (`LayerStack.setLayerImageSource`) reste la garde réelle. */}
           <div className="photo-panel__actions">
-            <Button size="sm" variant="secondary" disabled={layer.locked === true} onClick={() => onReplaceImage(layerId)}>
+            <Button size="sm" variant="secondary" disabled={isMaskLocked(layer)} onClick={() => onReplaceImage(layerId)}>
               Remplacer l'image…
             </Button>
           </div>

@@ -83,16 +83,73 @@ export interface LayerState {
    *  Champ SCALAIRE : présent par construction dans chaque snapshot
    *  d'historique, aucun risque pour l'invariant OOM. */
   clipToBelow?: boolean;
-  /** VERROU du calque (arbitrage n°2 du design « le fond devient un calque »,
-   *  2026-07-28). Propriété de calque ORDINAIRE, posable sur n'importe quel
-   *  calque — ce n'est PAS un statut d'arrière-plan : c'est précisément ce qui
-   *  évite de réintroduire un cas particulier par l'UI tout en gardant le
-   *  garde-fou contre la modification accidentelle.
-   *  Absent/false = calque modifiable (défaut : rien n'est verrouillé à la
-   *  création). Le respect du verrou vit dans `LayerStack` — chaque mutateur
-   *  bloqué y porte sa garde, sur le modèle de `setLayerClip` ; la liste
-   *  exacte est documentée sur `LayerStack.isLocked`.
-   *  Champ SCALAIRE : présent par construction dans chaque snapshot
-   *  d'historique, aucun risque pour l'invariant OOM. */
-  locked?: boolean;
+  /** VERROUS du calque (arbitrage n°2 du design « le fond devient un calque »,
+   *  2026-07-28 ; passé de UN booléen à QUATRE le 2026-08-19). Propriété de
+   *  calque ORDINAIRE, posable sur n'importe quel calque — ce n'est PAS un
+   *  statut d'arrière-plan : c'est précisément ce qui évite de réintroduire un
+   *  cas particulier par l'UI tout en gardant le garde-fou contre la
+   *  modification accidentelle.
+   *
+   *  Absent = rien n'est verrouillé (défaut à la création). Le respect des
+   *  verrous vit dans `LayerStack` — chaque mutateur bloqué y porte sa garde,
+   *  sur le modèle de `setLayerClip` — ET dans `MaskPainter` pour le seul qui
+   *  écrête au lieu de refuser (voir `LayerLocks.transparency`).
+   *  Champ d'objet à champs SCALAIRES : présent par construction dans chaque
+   *  snapshot d'historique, aucun raster, aucun risque pour l'invariant OOM. */
+  locks?: LayerLocks;
+}
+
+/**
+ * Les QUATRE verrous, modèle Photoshop.
+ *
+ * Adobe expose Lock Transparent Pixels, Lock Image Pixels, Lock Position et
+ * Lock All, et marque la ligne d'un cadenas **plein quand tout est verrouillé,
+ * creux quand ça l'est partiellement**
+ * (`.scratch/hybride-lightroom-photoshop/research/01-conventions-adobe.md`).
+ *
+ * ⚠️ **Le faux ami se lève par une lecture de domaine, pas par une analogie.**
+ * « Un calque d'effet n'a pas de pixels » est vrai des pixels et rate ce qu'il
+ * possède : **le MASQUE d'un calque d'effet EST son canal alpha.** Là où
+ * Photoshop distingue pixels transparents et pixels d'image, nous distinguons
+ * le masque à ZÉRO et le masque tout court. La correspondance est exacte, et
+ * c'est ce qui évite d'inventer un vocabulaire.
+ *
+ * Les quatre drapeaux sont INDÉPENDANTS et `all` n'en dérive pas : c'est un
+ * cinquième geste chez Adobe (un bouton « Lock All » distinct), et le fusionner
+ * avec « les trois autres sont vrais » rendrait impossible de tout verrouiller
+ * puis de relâcher un seul cran. Lire l'état passe donc TOUJOURS par les
+ * helpers de `layers/layerLocks.ts`, jamais par un champ nu.
+ */
+export interface LayerLocks {
+  /** Gèle la GÉOMÉTRIE : `centreX`, `centreY`, `largeur`, `hauteur`,
+   *  `rotation` — c'est-à-dire les paramètres qu'un `canvasControls` cite — et
+   *  le `transform` d'un calque photo.
+   *
+   *  C'est le seul des quatre qui se transpose sans débat, et le cas d'usage
+   *  est nommé par Adobe : garder la bonne transparence et les bons styles
+   *  pendant qu'on hésite encore sur le placement. Chez nous : « je tiens le
+   *  placement, je cherche encore la couleur ». */
+  position?: boolean;
+  /** Gèle CE QUE LE CALQUE COUVRE : pinceau, sources de masque, affinage de
+   *  bord, inversion, et l'image source d'un calque photo. L'équivalent de
+   *  Lock Image Pixels, une fois admis que le masque est notre canal alpha. */
+  mask?: boolean;
+  /** Le pinceau ne peut plus ÉTENDRE le masque, seulement l'affiner dedans.
+   *
+   *  ⚠️ **Il n'est PAS de la même nature que les trois autres, et c'est la
+   *  seule chose à ne pas approximer en l'implémentant.** Les trois autres
+   *  REFUSENT une opération — un test, un `return false`. Celui-ci la laisse
+   *  passer en modifiant son résultat : le pinceau écrit, mais borné aux texels
+   *  déjà non nuls. Il ne peut donc pas vivre au même endroit dans
+   *  `LayerStack`, et il doit s'exprimer AUSSI dans `MaskPainter`, qui est le
+   *  chemin réel du pinceau vivant — même piège que `replaceLiveLayers`, la
+   *  porte que les gardes ne couvraient pas. */
+  transparency?: boolean;
+  /** TOUT. Implique les trois autres, plus ce qu'aucun ne couvre : changer
+   *  l'effet, écrêter, réordonner, supprimer.
+   *
+   *  Le déverrouillage et la visibilité restent TOUJOURS autorisés, quel que
+   *  soit le verrou : un verrou irréversible, ou qui empêche de masquer, est
+   *  hostile. */
+  all?: boolean;
 }

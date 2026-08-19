@@ -17,6 +17,8 @@ import { ColorRampControl } from "./ColorRampControl";
 import type { CurvePoint } from "../ui/curveControl";
 import { TexturePicker } from "./TexturePicker";
 import type { TextureThumbnail } from "../textures/thumbnailCache";
+import { isPositionLocked, isStructureLocked } from "../layers/layerLocks";
+import { effectSpatialParams } from "../render/effects/spatialParams";
 
 export type ParamRenderItem =
   | { kind: "single"; reactKey: string; param: EffectParam; spatialId?: string }
@@ -325,7 +327,12 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
   // inerte mais d'apparence vive. Il emporterait de surcroît les replis
   // (`Disclosure`) et la pastille de couleur, donc la LISIBILITÉ des valeurs,
   // qui est précisément ce qu'un verrou doit préserver.
-  const locked = layer.locked === true;
+  const locked = isStructureLocked(layer);
+  // La GEOMETRIE s'eteint a part : le verrou Position gele les parametres
+  // cites par `canvasControls` et laisse les autres vivants — c'est le
+  // geste « je tiens le placement, je cherche encore la couleur ».
+  const geometrieGelee = isPositionLocked(layer);
+  const paramsSpatiaux = new Set(effectSpatialParams(effect));
   // `title` plutôt qu'une ligne de texte : la hauteur des cartes est sous
   // budget (ADR-0001, la carte Effets déborde déjà à six lignes). Même
   // traitement que la zone de contrôles du panneau Calques
@@ -529,7 +536,19 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
                       max={plafond}
                       step={item.param.step}
                       displayValue={formatEffectParamValue(valeur, item.param)}
-                      disabled={locked}
+                      // Le verrou POSITION n'éteint QUE les paramètres cités par
+                      // un `canvasControls` — la géométrie. Les autres restent
+                      // vivants : c'est tout l'intérêt d'un verrou partiel, et
+                      // éteindre le panneau entier reviendrait à n'avoir qu'un
+                      // seul verrou déguisé en quatre.
+                      // ⚠️ Mesuré le 2026-08-19 : sur 5 effets à contrôle
+                      // spatial, 3 mélangent spatial et non-spatial dans la MÊME
+                      // section (`motionBlur`, `pixelStretch`, `aplat`). Le
+                      // panneau y sera donc en DAMIER — des curseurs éteints
+                      // entre des vifs. C'est le prix d'éteindre exactement ce
+                      // qui est gelé ; griser la section entière griserait des
+                      // curseurs encore modifiables, ce qui serait un mensonge.
+                      disabled={locked || (geometrieGelee && paramsSpatiaux.has(item.param.name))}
                       // LE DÉFAUT VIENT DU MODULE D'EFFET, sa seule source de
                       // vérité (ticket 11). C'est lui qui arme le double-clic de
                       // retour au défaut et la marque sur la piste — recopier

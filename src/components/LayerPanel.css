@@ -820,6 +820,15 @@
   color: var(--text-primary);
 }
 
+/* PLEIN = entierement verrouille, CREUX = partiellement (convention Adobe,
+   `research/01-conventions-adobe.md`). Le glyphe de lucide est un CONTOUR :
+   c'est donc l'etat PLEIN qui ajoute un remplissage, et pas l'inverse.
+   Le `rect` seul est rempli — c'est le corps du cadenas. L'anse est un `path`
+   ouvert, que remplir barbouillerait sa courbe. */
+.layer-panel__row-lock--full rect {
+  fill: currentColor;
+}
+
 .layer-panel__grip-handle {
   display: inline-flex;
   cursor: grab;

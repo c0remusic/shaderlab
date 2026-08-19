@@ -1055,7 +1055,7 @@ export const CollapseChevronDoesNotSelect: Story = {
 // à voir, et le montrer partout coûtait une colonne de 28 px prise au nom.
 export const LockedLayerShowsMarkerOnly: Story = {
   args: {
-    layers: [backgroundLayer(), makeLayer({ id: "layer-1", effectId: "glow", locked: true }), makeLayer({ id: "layer-2", effectId: "grain" })],
+    layers: [backgroundLayer(), makeLayer({ id: "layer-1", effectId: "glow", locks: { all: true } }), makeLayer({ id: "layer-2", effectId: "grain" })],
     selectedId: "layer-1",
   },
   play: async ({ canvasElement }) => {
@@ -1077,7 +1077,7 @@ export const LockedLayerShowsMarkerOnly: Story = {
 export const BackgroundCanBeLocked: Story = {
   args: {
     layers: [
-      makeLayer({ ...backgroundLayer(), locked: true }),
+      makeLayer({ ...backgroundLayer(), locks: { all: true } }),
       makeLayer({ id: "layer-1", effectId: "glow" }),
     ],
     selectedId: "layer-background",

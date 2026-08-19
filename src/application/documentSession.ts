@@ -3,6 +3,7 @@ import { History } from "../layers/history";
 import { LayerStack } from "../layers/layerStack";
 import type { LayerState } from "../layers/types";
 import { composerCadre, type CanvasFrame, type CanvasFrameState } from "../layers/canvasFrame";
+import { hasAnyLock, isFullyLocked, isMaskLocked, isPositionLocked } from "../layers/layerLocks";
 
 /** Framework-free application state for one non-destructive image document. */
 export class DocumentSession {
@@ -97,18 +98,16 @@ export class DocumentSession {
    * - l'arrivée et le départ d'un calque : le verrou porte sur le CONTENU d'un
    *   calque, pas sur la composition de la pile.
    */
-  replaceLiveLayers(layers: LayerState[]): void {
+  replaceLiveLayers(layers: LayerState[], geometryParams?: ReadonlyMap<string, readonly string[]>): void {
     const verrouilles = new Map(
-      this.current.layers.filter((layer) => layer.locked).map((layer) => [layer.id, layer]),
+      this.current.layers.filter((layer) => hasAnyLock(layer)).map((layer) => [layer.id, layer]),
     );
     this.current.layers = verrouilles.size === 0
       ? layers
       : layers.map((entrant) => {
           const verrouille = verrouilles.get(entrant.id);
           if (!verrouille) return entrant;
-          // Le calque D'AVANT, plus les deux champs dont le verrou ne décide
-          // pas. Reconstruire depuis l'entrant laisserait passer tout le reste.
-          return { ...verrouille, locked: entrant.locked, enabled: entrant.enabled };
+          return fusionnerSousVerrous(verrouille, entrant, geometryParams?.get(entrant.id));
         });
     this.normalizeSelection();
   }
@@ -148,4 +147,62 @@ export class DocumentSession {
       this.selectedLayerId = null;
     }
   }
+}
+
+/**
+ * Ce qu'un calque VERROUILLÉ garde de lui-même et ce qu'il accepte de l'entrant,
+ * verrou par verrou. Cœur du filtre de `replaceLiveLayers`.
+ *
+ * ⚠️ **Elle est champ par champ et non « tout ou rien », et c'est le passage
+ * des quatre verrous (2026-08-19) qui l'exige.** Tant que le verrou était un
+ * booléen, retenir le calque ENTIER était juste. Avec des verrous partiels ça
+ * devient faux dans le sens le plus coûteux : un calque à position gelée
+ * refuserait aussi sa couleur, et le geste que ce verrou existe pour permettre
+ * — « je tiens le placement, je cherche encore la couleur » — ne marcherait
+ * nulle part, puisque le panneau écrit par ce chemin-là.
+ *
+ * `geometryParams` nomme les paramètres qu'un `canvasControls` de CET effet
+ * cite. Il arrive du haut pour la même raison que dans
+ * `LayerStack.updateParams` : `application/` ne connaît pas `render/effects/`.
+ * Absent sur un calque à position verrouillée, TOUS les paramètres sont
+ * retenus — un no-op visible vaut mieux qu'un verrou qui laisse passer parce
+ * que personne n'a déclaré.
+ */
+function fusionnerSousVerrous(
+  verrouille: LayerState,
+  entrant: LayerState,
+  geometryParams: readonly string[] | undefined,
+): LayerState {
+  // « Tout » : rien ne passe, sauf les deux champs qu'aucun verrou ne couvre.
+  if (isFullyLocked(verrouille)) {
+    return { ...verrouille, locks: entrant.locks, enabled: entrant.enabled };
+  }
+
+  const fusion: LayerState = { ...entrant };
+
+  if (isPositionLocked(verrouille)) {
+    // La transform d'un calque photo, et les seuls paramètres spatiaux.
+    fusion.transform = verrouille.transform;
+    if (geometryParams === undefined) {
+      fusion.params = verrouille.params;
+    } else if (geometryParams.length > 0) {
+      const params = { ...entrant.params };
+      for (const nom of geometryParams) {
+        if (nom in verrouille.params) params[nom] = verrouille.params[nom];
+        else delete params[nom];
+      }
+      fusion.params = params;
+    }
+  }
+
+  if (isMaskLocked(verrouille)) {
+    fusion.mask = verrouille.mask;
+    fusion.imageSource = verrouille.imageSource;
+  }
+
+  // Le verrou de TRANSPARENCE n'apparaît pas ici, et son absence est voulue :
+  // il ÉCRÊTE le pinceau au lieu de refuser une écriture, donc il s'exprime
+  // dans `MaskPainter`, là où les texels se posent. Le retenir ici bloquerait
+  // aussi l'affinage DEDANS, soit exactement ce qu'il autorise.
+  return fusion;
 }

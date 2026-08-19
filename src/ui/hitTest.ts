@@ -1,5 +1,6 @@
 import type { LayerState } from "../layers/types";
 import { compositeUvToPhotoUv, type PixelPoint, type PixelSize } from "./transform";
+import { isPositionLocked } from "../layers/layerLocks";
 
 /** Taille en pixels de la photo SOURCE d'un `sourceId`, ou `null` si elle
  *  n'est pas (encore) connue. L'implémentation réelle est
@@ -78,7 +79,7 @@ export function hitTestPhotoLayer(
     // Verrouillé : transparent au clic, exactement comme un calque éteint. Voir
     // la règle 3 de l'en-tête — et le `continue` plutôt qu'un `return null` est
     // le point : le clic passe au travers et atteint ce qui est dessous.
-    if (layer.locked === true) continue;
+    if (isPositionLocked(layer)) continue;
     const photoSize = photoSizeOf(layer.imageSource.sourceId);
     // Taille inconnue ou dégénérée : on ne peut pas décider, on n'invente pas
     // un hit — le clic continue de descendre la pile.

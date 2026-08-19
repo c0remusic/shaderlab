@@ -78,6 +78,28 @@ export class MaskPainter {
    *  ancré) de « premier tampon d'un nouveau trait » (le plafond se réancre). */
   private strokeActive = false;
 
+  /**
+   * VERROU DE TRANSPARENCE (2026-08-19) — le pinceau ne peut plus ÉTENDRE le
+   * masque, seulement l'affiner dedans. Équivalent de « Lock Transparent
+   * Pixels » de Photoshop, une fois admis que le masque d'un calque d'effet EST
+   * son canal alpha.
+   *
+   * ⚠️ **IL VIT ICI ET PAS DANS `LayerStack`, et ce n'est pas un choix
+   * d'organisation.** Les trois autres verrous REFUSENT une opération : un
+   * test, un `return false`. Celui-ci la laisse passer en modifiant son
+   * RÉSULTAT. Le poser en refus interdirait aussi de peindre DEDANS, soit
+   * exactement ce qu'il autorise ; et le poser sur le seul chemin poli ne
+   * protégerait rien, puisque le pinceau vivant écrit ici, tampon par tampon —
+   * la leçon de `replaceLiveLayers`, payée le 2026-08-18.
+   *
+   * Le texel de référence est celui d'AVANT le trait (`strokeBase`) et non
+   * l'état courant : sinon le premier tampon élargirait le masque d'un cheveu,
+   * et le tampon suivant prendrait ce cheveu pour de la matière existante — le
+   * masque s'étendrait de proche en proche, à petits pas, ce qui est
+   * précisément ce que ce verrou interdit.
+   */
+  private transparencyLocked = false;
+
   constructor(width: number, height: number) {
     this.width = width;
     this.height = height;
@@ -104,6 +126,15 @@ export class MaskPainter {
   beginStroke(): void {
     this.ensureStrokeBase().set(this.data);
     this.strokeActive = true;
+  }
+
+  /** Arme ou désarme le verrou de transparence pour les traits À VENIR.
+   *
+   *  Posé par `App` à chaque geste depuis les verrous du calque : le peintre ne
+   *  connaît pas `LayerState` (il ne dépend que de sa propre géométrie), donc
+   *  l'état descend, il ne se lit pas. */
+  setTransparencyLocked(locked: boolean): void {
+    this.transparencyLocked = locked;
   }
 
   /** Ferme le trait courant : le prochain tampon réancrera le plafond.
@@ -135,6 +166,11 @@ export class MaskPainter {
           strength = 1.0 - (dist - falloffStart) / falloffSpan;
         }
         const idx = py * this.width + px;
+        // ÉCRÊTAGE DU VERROU DE TRANSPARENCE : un texel que le masque ne
+        // couvrait pas AVANT ce trait reste hors du masque. `base` et non
+        // `data` — voir `transparencyLocked` pour pourquoi lire l'état courant
+        // ferait déborder le masque de proche en proche.
+        if (this.transparencyLocked && base[idx] === 0) continue;
         const current = this.data[idx];
         // Ce que CE tampon dépose, indépendamment de ce que le trait a déjà
         // posé : c'est le débit. À 1 on retrouve exactement le `strength * 255`

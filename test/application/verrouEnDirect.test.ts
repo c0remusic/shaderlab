@@ -31,8 +31,8 @@ const documentVerrouille = () => {
   const photo = stack.addPhotoLayer("src-1", { x: 100, y: 100, scaleX: 1, scaleY: 1, rotation: 0 }, "photo");
   const effet = stack.addLayer("aplat", photo);
   stack.updateParams(effet, { centreX: 0.5, largeur: 0.4 });
-  stack.setLayerLocked(effet, true);
-  stack.setLayerLocked(photo, true);
+  stack.setLayerLock(effet, "all", true);
+  stack.setLayerLock(photo, "all", true);
   return { session: new DocumentSession(stack), photo, effet };
 };
 
@@ -64,7 +64,7 @@ describe("verrou — le chemin vivant", () => {
     const stack = new LayerStack();
     const a = stack.addLayer("glow");
     const b = stack.addLayer("grain");
-    stack.setLayerLocked(a, true);
+    stack.setLayerLock(a, "all", true);
     const session = new DocumentSession(stack);
     session.replaceLiveLayers(
       session.layers().map((l) => ({ ...l, params: { ...l.params, intensity: 0.42 } })),
@@ -75,8 +75,8 @@ describe("verrou — le chemin vivant", () => {
 
   it("laisse le DÉVERROUILLAGE passer, sinon le verrou serait irréversible", () => {
     const { session, effet } = documentVerrouille();
-    session.replaceLiveLayers(session.layers().map((l) => (l.id === effet ? { ...l, locked: false } : l)));
-    expect(session.layers().find((l) => l.id === effet)!.locked).toBe(false);
+    session.replaceLiveLayers(session.layers().map((l) => (l.id === effet ? { ...l, locks: {} } : l)));
+    expect(session.layers().find((l) => l.id === effet)!.locks?.all ?? false).toBe(false);
   });
 
   it("laisse la VISIBILITÉ passer — masquer n'est pas modifier", () => {

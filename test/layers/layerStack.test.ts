@@ -860,7 +860,7 @@ describe("LayerStack — fillBrushMask (remplir / vider, gate v1 §Masquage)", (
   it("refuse un calque VERROUILLÉ, comme le reste de la famille masque", () => {
     const stack = new LayerStack();
     const id = stack.addLayer("glow");
-    stack.setLayerLocked(id, true);
+    stack.setLayerLock(id, "all", true);
     expect(stack.fillBrushMask(id, 255, 4)).toBe(false);
     expect(stack.layers.find((l) => l.id === id)!.mask.sources).toEqual([]);
   });

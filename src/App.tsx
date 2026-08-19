@@ -58,6 +58,9 @@ import {
 } from "./launch";
 import { useGlobalControlWheel } from "./ui/activeControl";
 import { openDocument } from "./layers/openedDocument";
+import { isMaskLocked, isPositionLocked, isTransparencyLocked } from "./layers/layerLocks";
+import { effectSpatialParams } from "./render/effects/spatialParams";
+import type { LayerLocks } from "./layers/types";
 import { hitTestPhotoLayer } from "./ui/hitTest";
 import { showsEffectControls } from "./ui/canvasMode";
 import { aplatParamsFromRect, type DrawnRect } from "./ui/shapeDraw";
@@ -1015,6 +1018,11 @@ export default function App() {
           sourceId: l.imageSource?.sourceId ?? null,
           name: l.name ?? null,
           enabled: l.enabled,
+          // Les QUATRE verrous (2026-08-19). Exposés parce qu'une sonde qui les
+          // cherchait ici a lu `null` sur un calque réellement verrouillé, et
+          // s'est racontée que le câblage était cassé — la marque de la ligne
+          // disait le contraire au même instant.
+          locks: l.locks ?? null,
         })),
       }),
     };
@@ -1194,7 +1202,14 @@ export default function App() {
       paramDirtyRef.current = true;
     }
     const full = sessionRef.current.layers().map((l) => (l.id === id ? { ...l, params: { ...l.params, ...params } } : l));
-    sessionRef.current.replaceLiveLayers(full);
+    // Les paramètres SPATIAUX du calque écrit, pour le verrou de POSITION.
+    // Sans eux, `replaceLiveLayers` retombe sur son repli « refuse tout » et le
+    // verrou de position tuerait le panneau entier au lieu de geler la seule
+    // géométrie — soit exactement le geste qu'il existe pour permettre.
+    const geometrie = previous
+      ? new Map([[id, effectSpatialParams(getEffect(previous.effectId))]])
+      : undefined;
+    sessionRef.current.replaceLiveLayers(full, geometrie);
     // Coalescé sur rAF — voir `syncSchedulerRef`. Geste le plus cher mesuré
     // (34,2 ms de CPU par `pointermove`, 13 tâches longues pour un seul
     // glissement de curseur).
@@ -1268,15 +1283,15 @@ export default function App() {
   );
 
   const handleToggleLock = useCallback(
-    (id: string, locked: boolean) => {
+    (id: string, which: keyof LayerLocks, value: boolean) => {
       const stack = currentStack();
       // Même discipline que handleClipChange : calque absent ou valeur
       // inchangée -> pas d'entrée d'historique. Verrouiller/déverrouiller EST
       // en revanche annulable comme le reste (commit direct), sinon un verrou
       // posé par erreur ne se retire qu'à la main.
-      // Le mutateur `setLayerLocked` est le SEUL de LayerStack à ne pas
-      // consulter le verrou : un verrou qu'on ne peut pas retirer n'en est pas un.
-      if (!stack.setLayerLocked(id, locked)) return;
+      // `setLayerLock` est le SEUL mutateur de LayerStack à ne consulter aucun
+      // verrou : un verrou qu'on ne peut pas retirer n'en est pas un.
+      if (!stack.setLayerLock(id, which, value)) return;
       commit(stack);
     },
     [currentStack, commit]
@@ -1438,6 +1453,13 @@ export default function App() {
       imageSize.width,
       imageSize.height
     );
+    // VERROU DE TRANSPARENCE, armé à CHAQUE échantillon et pas une fois à
+    // l'ouverture du trait : le verrou peut être posé ou retiré pendant qu'un
+    // trait est en cours (la rangée de bascules reste cliquable), et le peintre
+    // n'a aucun moyen de l'apprendre autrement. Le coût est un booléen.
+    // ⚠️ Le verrou du MASQUE, lui, ne se lit pas ici : il REFUSE, et son refus
+    // vit dans `LayerStack.updateBrushMask` — le chemin du commit.
+    entry.painter.setTransparencyLocked(layer !== undefined && isTransparencyLocked(layer));
     // Interpolate from the last painted point when one exists (a real drag
     // fires far fewer coalesced samples than the raw pointer path — without
     // this, fast strokes leave visible gaps between isolated brush dabs,
@@ -2090,7 +2112,7 @@ export default function App() {
             garde, les poignées resteraient là, attrapables, et ne feraient
             rien. Un manipulateur qui accepte la prise et ne bouge pas se lit
             comme une app cassée, pas comme un verrou. */}
-        {showTransformHandles && !selectedLayer?.locked && selectedLayer?.imageSource && selectedLayer.transform && (
+        {showTransformHandles && !(selectedLayer && isPositionLocked(selectedLayer)) && selectedLayer?.imageSource && selectedLayer.transform && (
           <TransformHandles
             transform={selectedLayer.transform}
             photoSize={selectedPhotoSize}
@@ -2132,7 +2154,7 @@ export default function App() {
             qu'on vient de tracer sans quitter l'outil qui l'a créé. Voir
             `showsEffectControls` — c'est la correction du geste que l'énoncé du
             2026-08-18 appelait « le petit problème de forme ». */}
-        {showEffectControls && !selectedLayer?.locked && canvasControls.length > 0 && selectedLayer && selectedEffect && (
+        {showEffectControls && !(selectedLayer && isPositionLocked(selectedLayer)) && canvasControls.length > 0 && selectedLayer && selectedEffect && (
           <CanvasControls
             controls={canvasControls}
             params={selectedEffect.params}
@@ -2295,7 +2317,7 @@ export default function App() {
                   // l'en-tête de `MaskPanel.tsx`.
                   layerId={selectedLayer?.id ?? null}
                   mask={selectedLayer?.mask ?? null}
-                  locked={selectedLayer?.locked === true}
+                  locked={selectedLayer !== null && selectedLayer !== undefined && isMaskLocked(selectedLayer)}
                   maskPaintMode={maskPaintMode}
                   onToggleMaskPaint={photoLayer.toggleMaskPaintMode}
                   overlayForceHidden={overlayForceHidden}

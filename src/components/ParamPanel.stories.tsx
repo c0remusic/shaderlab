@@ -186,7 +186,7 @@ export const PhotoLayerHasNoClipToggle: Story = {
  *  `groupEffectParams` sont donc couverts par une seule story. */
 export const LockedLayer: Story = {
   args: {
-    layer: makeLayer({ id: "layer-locked", effectId: "duotone", params: { contrast: 0.8 }, locked: true }),
+    layer: makeLayer({ id: "layer-locked", effectId: "duotone", params: { contrast: 0.8 }, locks: { all: true } }),
     onParamChange: fn(),
     onClipChange: fn(),
   },

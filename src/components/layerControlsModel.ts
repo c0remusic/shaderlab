@@ -1,4 +1,5 @@
-import type { LayerState } from "../layers/types";
+import type { LayerLocks, LayerState } from "../layers/types";
+import { isFullyLocked } from "../layers/layerLocks";
 
 /**
  * Modèle de la ZONE DE CONTRÔLES du panneau Calques : les contrôles qui étaient répétés
@@ -20,11 +21,15 @@ export interface LayerControlsModel {
    *  couvre donc pas, et un contrôle qui reste actif en ne faisant rien serait
    *  exactement l'échec silencieux que ce dépôt refuse. */
   enabled: boolean;
-  /** Le calque sélectionné est-il verrouillé ? Distinct de `!enabled`, qui
-   *  vaut aussi quand rien n'est sélectionné : c'est ce booléen qui permet à la
-   *  zone de contrôles de DIRE pourquoi elle est inerte plutôt que de la
-   *  laisser passer pour une absence de sélection. */
+  /** Le calque sélectionné est-il ENTIÈREMENT verrouillé ? Distinct de
+   *  `!enabled`, qui vaut aussi quand rien n'est sélectionné : c'est ce booléen
+   *  qui permet à la zone de contrôles de DIRE pourquoi elle est inerte plutôt
+   *  que de la laisser passer pour une absence de sélection. */
   locked: boolean;
+  /** L'état des QUATRE verrous du calque sélectionné (modèle Photoshop,
+   *  2026-08-19), pour que la rangée de bascules montre lesquels sont posés.
+   *  Objet vide quand rien n'est sélectionné. */
+  locks: LayerLocks;
   /** Cible des callbacks de mutation. `null` quand `enabled` est false. */
   layerId: string | null;
   /** Opacité du MODÈLE (0..1) ; la zone de contrôles l'affiche en pourcentage entier via
@@ -61,6 +66,7 @@ const EMPTY: LayerControlsModel = {
   blendMode: null,
   effectId: null,
   effectSelectable: true,
+  locks: {},
 };
 
 /**
@@ -72,13 +78,19 @@ export function layerControlsModel(layers: readonly LayerState[], selectedId: st
   if (selectedId === null) return EMPTY;
   const layer = layers.find((candidate) => candidate.id === selectedId);
   if (layer === undefined) return EMPTY;
-  const locked = layer.locked === true;
+  const locks = layer.locks ?? {};
+  // `isFullyLocked` et pas « au moins un verrou » : seul « Tout » rend la zone
+  // ENTIERE inerte. Un verrou partiel laisse vivants les controles qu'il ne
+  // gele pas — c'est tout son interet, et le confondre avec « verrouille »
+  // reviendrait a n'avoir qu'un seul verrou avec quatre boutons.
+  const locked = isFullyLocked(layer);
   return {
     // Un calque verrouillé garde ses VALEURS affichées (opacité, fusion, effet
     // restent lisibles) mais ses contrôles sont inertes : le verrou empêche de
     // modifier, pas de consulter.
     enabled: !locked,
     locked,
+    locks,
     layerId: layer.id,
     opacity: layer.opacity,
     blendMode: layer.blendMode,

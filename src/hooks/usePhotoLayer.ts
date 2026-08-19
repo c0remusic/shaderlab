@@ -7,6 +7,7 @@ import type { Renderer } from "../render/renderer";
 import { pickImageFile, readImageFile } from "../launch";
 import { messageFromUnknown } from "../lib/errors";
 import { centerTransform, fitToCanvas, resetTransform } from "../ui/transform";
+import { isMaskLocked } from "../layers/layerLocks";
 import {
   IDLE_CANVAS_MODE,
   isMaskPaint,
@@ -163,7 +164,7 @@ export function usePhotoLayer({
     if (!rendererRef.current?.photoSources) return;
     const layer = sessionRef.current.layers().find((l) => l.id === id);
     if (!layer?.imageSource) return;
-    if (layer.locked === true) {
+    if (isMaskLocked(layer)) {
       setError("Calque verrouillé : déverrouille-le pour remplacer son image.");
       return;
     }

@@ -94,13 +94,13 @@ describe("withPhotoLayersPreserved — cas que le design ne couvrait pas", () =>
     // calque photo pourrait perdre le verrou sans qu'aucun test ne bronche.
     const stack = new LayerStack();
     const id = stack.addPhotoLayer("src-fond", IDENTITY, "fond.jpg");
-    stack.setLayerLocked(id, true);
+    stack.setLayerLock(id, "all", true);
     const photoBefore = stack.layers[0];
 
     const merged = withPhotoLayersPreserved(stack.layers, presetLayers());
 
     expect(merged[0]).toBe(photoBefore);
-    expect(merged[0].locked).toBe(true);
+    expect(merged[0].locks?.all).toBe(true);
   });
 
   it("regroupe en bas une photo qui était AU MILIEU de la pile", () => {

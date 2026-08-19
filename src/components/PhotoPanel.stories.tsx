@@ -157,7 +157,7 @@ export const ReplaceImageFiresItsHandler: Story = {
 /** Un calque VERROUILLÉ ne peut pas changer d'image (`LayerStack.isLocked`) :
  *  l'UI le montre au lieu de laisser cliquer puis refuser en silence. */
 export const ReplaceImageDisabledWhenLocked: Story = {
-  args: { layer: makePhotoLayer({ locked: true }), onReplaceImage: fn() },
+  args: { layer: makePhotoLayer({ locks: { all: true } }), onReplaceImage: fn() },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const button = canvas.getByRole("button", { name: "Remplacer l'image…" });

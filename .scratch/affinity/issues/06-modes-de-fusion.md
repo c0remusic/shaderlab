@@ -6,20 +6,24 @@ Parent: ../map.md
 
 ## Le compte
 
-Nous en avons **dix-sept** depuis le 2026-08-18. Affinity en expose une
-trentaine, relevés un par un dans `Serif.Affinity.dll` (`SetBlendMode*Command`) :
+Nous en avons **dix-sept** — recompté sur disque le 2026-08-19 au soir
+(`src/render/blend/registry.ts`, 17 entrées). Affinity en expose **33**, lus
+dans l'app par l'enum du SDK le même soir (`BlendMode.keys` — plus fiable que
+le relevé de symboles, qui en avait trouvé 32) :
 
 ```
-Add · Average · Colour · ColourBurn · ColourDodge · ContrastInvert · Darken
-DarkerColour · Difference · Divide · Erase · Exclusion · Glow · HardLight
-HardMix · Hue · Lighten · LighterColour · LinearBurn · LinearLight
-Luminosity · Multiply · Negation · Normal · Overlay · PinLight · Reflect
-Saturation · Screen · SoftLight · Subtract · VividLight
+Normal · Pigment · Darken · DarkerColour · Multiply · ColourBurn · LinearBurn
+Lighten · LighterColour · Screen · ColourDodge · Add · Overlay · SoftLight
+HardLight · VividLight · PinLight · LinearLight · HardMix · Difference
+Exclusion · Subtract · Divide · Hue · Saturation · Luminosity · Colour
+Average · Negation · Reflect · Glow · ContrastInvert · Erase
 ```
 
-⚠️ **Refaire notre compte sur disque avant d'agir.** `CLAUDE.md` dit dix-sept, et
-ce fichier a déjà porté des comptes périmés. Lire
-`src/render/blend/registry.ts`.
+Manquants chez nous : **quinze** utiles (`Average`, `ContrastInvert`,
+`DarkerColour`, `Divide`, `Erase`, `Exclusion`, `Glow`, `HardMix`,
+`LighterColour`, `LinearBurn`, `LinearLight`, `Negation`, `PinLight`,
+`Reflect`, `VividLight`) — `Pigment` est Mixbox, écarté (nous ne peignons pas
+de couleur).
 
 ## Pourquoi c'est peu cher
 

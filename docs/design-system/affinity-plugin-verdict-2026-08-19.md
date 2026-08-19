@@ -299,6 +299,23 @@ identiques.
 
 ## Ce que ce document ne dit pas
 
+> ⚠️ **CORRIGÉ le soir même (audit des outils internes)** : la phrase
+> ci-dessous « le SDK n'applique que des filtres destructifs » décrit les
+> `DocumentCommand` de `commands.js`, et ELLE SEULE. **`nodes.js` expose un
+> `*FilterRasterNodeDefinition` par live filter et par ajustement**
+> (`BloomFilterRasterNodeDefinition`, `LensBlurFilterRasterNodeDefinition`,
+> avec structures `*Parameters` typées), posables par `doc.addNode` dans
+> l'arbre non destructif — **le chemin live EST pilotable.** Cinquième
+> conclusion tirée d'une absence dans ce fil, même mécanique : j'avais
+> regardé `document.js` et `commands.js`, la réponse était dans `nodes.js`.
+> La réserve ci-dessous reste vraie sur un point : le coût du live pendant un
+> drag n'a toujours PAS été mesuré — mais il est devenu mesurable.
+> Et une sixième, du même passage : « aucun accès buffer, un pixel à la
+> fois » — `PixelBuffer.buffer` et `rasterInterface.createCompatibleBuffer`
+> transportent les pixels d'un bloc ; la borne 5,2 s ne vaut que pour
+> `readPixel`. Le verdict de CE document tient — il mesure leurs filtres
+> natifs, pas le pont — mais l'argument du pont est mort.
+
 - **Rien sur leur chemin de filtre LIVE.** Le SDK n'applique que des filtres
   destructifs (l'annulation dit « Croissance », « Demi-ton », « Flou de
   l'objectif » — et aucun calque n'apparaît dans l'arbre). Leur aperçu

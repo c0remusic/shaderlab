@@ -19,10 +19,20 @@ et sans pouvoir le refaire deux fois pareil.
 Trois champs relevés dans `Serif.Affinity.dll` : `MaskTexture`,
 `MaskTextureMode`, `MaskTextureScale`.
 
-⚠️ **Trois noms, et rien d'autre.** Le relevé ne dit ni comment la texture se
-combine (multiplication ? seuil ? modulation du bord seul ?), ni ce que
-`Mode` énumère. **À REGARDER dans Affinity avant d'écrire une ligne** — c'est la
-règle de la carte, et un symbole ne prouve que l'existence.
+✅ **`Mode` est ÉNUMÉRÉ depuis le 2026-08-19 au soir** — lu dans l'app par le
+SDK (`rasterbrush.js`, enum `RasterBrushTextureMode`) : **`None · Nozzle ·
+Final`**, et le porteur est le PINCEAU (`RasterBrush.maskTextureMode` /
+`maskTextureScale`). `Nozzle` texture chaque TAMPON ; `Final` ancre la texture
+à la TOILE et le trait la révèle. Deux conséquences pour la forme à choisir
+ci-dessous : chez la référence, texturer est (d'abord) une propriété du
+pinceau, pas un post-traitement du masque résolu ; et le mode `Final` est
+exactement le geste « bord sale reproductible » que ce ticket vise — repasser
+au même endroit re-révèle la MÊME texture.
+
+⚠️ Reste non regardé : la LOI de combinaison exacte (multiplication de
+l'intensité ? seuillage ?) — mesurable par le protocole de l'audit
+(PixelBuffer sur un trait texturé posé à la main, le trait n'étant pas
+scriptable).
 
 ## Pourquoi c'est peu cher chez nous
 

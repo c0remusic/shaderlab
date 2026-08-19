@@ -24,13 +24,32 @@ relevés ; la décision vit dans les tickets de `.scratch/affinity/`.
 code.** Quatre conclusions fausses dans ce fil sont toutes venues de sauter
 cette étape ou son inverse (conclure d'une absence).
 
+> ⚠️ **AMENDÉ le soir même, deux fois.**
+> **(1) Le territoire.** La première version écartait les ajustements
+> photographiques et les pinceaux de retouche au motif que « notre territoire
+> est l'effet d'auteur, pas la retouche ». Antoine a corrigé : **la retouche
+> EST notre territoire — l'app est un hybride Photoshop/Lightroom.** Les
+> sections marquées « territoire » ci-dessous sont réécrites en conséquence.
+> **(2) Le compte des absences fausses passe de quatre à SIX**, découvertes en
+> auditant les outils internes : « le chemin live n'est pas pilotable par le
+> SDK » (faux — `nodes.js` expose un `*FilterRasterNodeDefinition` par live
+> filter et par ajustement, posables par `doc.addNode`) et « pas d'accès
+> buffer, un pixel à la fois » (faux — `PixelBuffer.buffer` est un
+> `ArrayBuffer` plein bloc, lisible et inscriptible en `Uint8Array`, et
+> `rasterInterface.createCompatibleBuffer(true)` rend les pixels d'un calque
+> d'un coup). Même mécanique que les quatre premières : l'absence était dans
+> le fichier où je regardais. La seconde révise la borne « 5,2 s par passe »
+> du relevé SDK — elle ne vaut que pour `readPixel` ; le verdict perfs, lui,
+> tient toujours, car il est mesuré sur leurs filtres natifs, pas sur le pont.
+
 ---
 
 ## Réponse courte, par axe
 
 | Axe | Verdict |
 | --- | --- |
-| **Effets** | Sur NOTRE territoire (optique, analogique, imprimé) : ils ne font pas mieux — 18 de nos effets n'ont aucun équivalent chez eux, et leur Halftone piloté par SDK est monochrome quand le nôtre fait la quadrichromie. Sur LEUR territoire (retouche photographique) : oui — ajustements, flou par carte de profondeur, éclairage, équations utilisateur. Deux idées déjà prises et livrées le jour même. |
+| **Effets** | Sur l'optique, l'analogique et l'imprimé : ils ne font pas mieux — 18 de nos effets n'ont aucun équivalent chez eux, et leur Halftone piloté par SDK est monochrome quand le nôtre fait la quadrichromie. Sur la retouche photographique — **qui est AUSSI notre territoire** (hybride Photoshop/Lightroom, Antoine, 2026-08-19) : oui — ajustements, flou par carte de profondeur, éclairage, équations utilisateur. Deux idées déjà prises et livrées le jour même. |
+| **Outils internes** | Pinceau, sélections, retouche : **l'écart le plus profond après les masques, et trois différences de NATURE mesurées au pixel ce jour** — leur feather est une courbe en S quand le nôtre est une rampe, leur grow est un disque euclidien quand le nôtre est un carré, leur smooth arrondit la géométrie quand le nôtre floute tout. Leur pinceau est un moteur (12 contrôleurs de dynamique par propriété) quand le nôtre est 5 scalaires. Et toute la famille retouche (clone, healing, inpainting, dodge/burn) manque — désormais dans le territoire. |
 | **Masques** | **Le plus gros écart en notre défaveur, tous axes confondus.** Six mécanismes absents chez nous, dont deux alignés sur notre positionnement (texturer le masque, bande de fréquence). |
 | **UI** | Trois idées mesurées à l'écran : deux zones fixes aux rôles distincts, hiérarchie de valeurs inversée sur le chrome, sélection en aplat franc. Notre dock à onglets du jour est validé par leur colonne de Studios. |
 | **UX** | Le geste en UN coup (pinceau d'effet), le magnétisme comme système, les raccourcis configurables, l'historique VISIBLE. Notre modèle couvre déjà leur `FadeRewind` gratuitement. |
@@ -88,10 +107,20 @@ cette étape ou son inverse (conclure d'une absence).
    outils sur toile) ; à regarder à l'écran d'abord.
 7. `[symbole]` **Les ajustements photographiques** que nous n'avons pas :
    `Levels`, `Exposure`, `WhiteBalance`, `Vibrance`, `SelectiveColour`,
-   `SplitToning`, `Threshold`. ⚠️ Notre territoire est l'effet d'auteur, pas la
-   retouche — `curves` couvre déjà l'essentiel de `Levels`, `gradientMap` et
-   `duotone` mordent sur `SplitToning`. La carte interdit de copier sans
-   nommer le geste débloqué : aucun de ces sept n'en a un aujourd'hui.
+   `SplitToning`, `Threshold`, `HSL`.
+   ⚠️ **Réécrit le soir même** : la première version les écartait (« notre
+   territoire est l'effet d'auteur, pas la retouche ») ; Antoine a corrigé —
+   **hybride Photoshop/Lightroom, la retouche est dedans**. Le geste est donc
+   nommé : développer la photo dans l'app au lieu d'y arriver déjà développée.
+   Ils deviennent des candidats réels, à trier en deux paquets :
+   — couverts en partie par l'existant : `Levels` ⊂ `curves`, `SplitToning`
+   proche de `gradientMap`/`duotone` — à ne prendre que si le geste dédié
+   manque à l'usage ;
+   — sans recouvrement : `WhiteBalance` (température/teinte), `Exposure`,
+   `Vibrance` (saturation qui protège peaux et tons déjà saturés), `HSL` par
+   plage de teinte, `SelectiveColour`. Tous par-pixel, une passe, aucun
+   mécanisme neuf — le patron `curves`/`channelMixer` les loge. C'est un LOT
+   à charter, pas huit tickets.
 8. `[symbole]` **Les équations écrites par l'utilisateur**
    (`EquationTransform`, `ApplyImage`, `ProceduralTexture`) — trois filtres où
    l'utilisateur écrit du code, sur le même chemin OpenCL que les filtres
@@ -148,6 +177,143 @@ Et deux familles entières :
 
 L'`ObjectSelectionMask` (sélection du sujet par IA, `SelectSubject` dans le
 SDK) est noté et écarté : modèle embarqué, un autre produit.
+
+---
+
+## Axe 2 bis — Outils internes : pinceau, sélection, retouche
+
+Ajouté le soir du 2026-08-19, sur deux demandes d'Antoine : « Outillage c'est
+aussi les outils internes de l'app » et « regarde leur code pour améliorer le
+nôtre ». **Méthode tenue** : leur code compilé reste fermé — ce qui a été lu
+est ce qui se lit légitimement (les fichiers JS du SDK, les enums exposés dans
+l'app, les symboles des binaires en lecture seule), et ce qui a été mesuré
+l'a été en boîte noire : **sélections raster pilotées par le SDK sur un
+document de test, pixels relus par `PixelBuffer` — zéro export, zéro capture,
+zéro décompilation.**
+
+### Le pinceau — un moteur contre cinq scalaires
+
+`[SDK lu]` Leur pinceau raster (`rasterbrush.js`) n'est pas une liste de
+réglages : **onze propriétés** (`size`, `flow`, `accumulation`, `hardness`,
+`angle`, `scatterX/Y`, `shape`, `hueShift`/`satShift`/`lumShift`) **sont
+chacune une `BrushDynamic`** — un quadruplet `{ value, variance,
+controllerType, spline }` : la valeur de base, un aléa, un CONTRÔLEUR parmi
+douze (lu dans l'app : `None · Random · Pressure · Angle · Tilt · Rotation ·
+Cyclic · Velocity · VelocityInverse · Direction · Wheel · Distance`), et une
+courbe de réponse. S'y ajoutent des scalaires : `spacing` RÉGLABLE, `opacity`,
+un `blendMode` PAR PINCEAU, `wetEdges` (avec spline personnalisable —
+`[symbole]`), `shouldInterpolateTips`. Et `[symbole]` : un stabilisateur de
+trait à DEUX modes (corde avec `StringLength`, moyenne avec `SampleSize`), une
+symétrie de peinture (N axes, miroir, verrou) appliquée au NOZZLE, des
+pointes bitmap avec générateur, des profils de pression enregistrés PAR TRAIT
+et optimisables.
+
+⭐ `[SDK lu]` **`maskTextureMode` vaut `None · Nozzle · Final`** — c'est la
+réponse au « comment » que le [ticket 03](../../.scratch/affinity/issues/03-texturer-le-masque.md)
+attendait : `Nozzle` texture chaque TAMPON, `Final` ancre la texture à la
+TOILE et le trait la révèle. « Texturer le masque » chez eux est d'abord une
+propriété du pinceau — la forme « modificateur du masque résolu » que le
+ticket privilégiait reste défendable, mais elle a maintenant une alternative
+mesurée chez la référence.
+
+**Le nôtre en face** ([maskPainter.ts](../../src/mask/maskPainter.ts)) : cinq
+scalaires (`radius`, `hardness`, `erase`, `opacity`, `flow`), un falloff
+LINÉAIRE (`1 − (d − r·hardness)/span`), un spacing FIGÉ à 25 % du rayon. Deux
+choses à dire pour l'honnêteté : notre couple `opacity`/`flow`
+(plafond/débit, plafond réancré par trait) est la BONNE sémantique — là-dessus
+nous ne sommes pas en retard ; et nous ne peignons que des masques, donc les
+dynamiques de couleur (`hueShift`…) sont hors sujet. Ce qui vaut pour un
+masque : le PROFIL du tampon (le leur n'est pas scriptable — protocole
+manuel noté en fin de document), le `scatter` et la texture de tampon (bords
+organiques — la matière du ticket 03), le stabilisateur (un détourage à main
+levée en profite directement), le spacing réglable.
+
+### La sélection — trois différences de NATURE, mesurées au pixel
+
+Protocole : `Document.create(512, 512)`, calque pixel noir posé par
+`PixelBuffer`, sélection rectangulaire NETTE par
+`setRasterSelectionFromPolygon` (128..384), UNE opération, `deleteSelection`,
+lecture du canal alpha par `rasterInterface.createCompatibleBuffer(true)`.
+L'alpha après suppression EST le masque de l'opération.
+
+**1. Leur feather est une courbe en S ; le nôtre est une rampe.**
+Profil mesuré à `featherRasterSelection(32)`, ligne y=256 (alpha/255, bord
+nominal à x=128) :
+
+```
+x     100   104   108   112   116   120   124   128   132   136   140   144   148   152
+alpha 0.99  0.97  0.93  0.86  0.75  0.62  0.48  0.34  0.22  0.12  0.06  0.02  0.008 0
+```
+
+Pentes douces aux DEUX extrémités, maximum au centre, ~50 % au bord nominal —
+un profil gaussien (erf), pas une rampe. Notre `featherSat`
+([refinePlan.ts](../../src/mask/refinePlan.ts)) est un box UNE passe : rampe
+linéaire, deux coins durs (C0) visibles sur un bord franc.
+*Chemin chez nous, petit* : itérer la passe SAT — deux passes rendent un
+triangle (C1), **trois passes une B-spline quadratique visuellement
+indistinguable d'une gaussienne** ; le coût par passe est un lookup par pixel,
+toujours indépendant du rayon, et le rayon par passe se recalibre (≈ r/√n)
+pour garder la course du curseur. Les références de pixels des masques
+adoucis bougent — c'est un changement d'apparence ASSUMÉ, à valider sur photo
+avant `--update`.
+
+**2. Leur grow est un disque euclidien ; le nôtre est un carré.**
+`growShrinkRasterSelection(radius, circular)` — le flag est dans la
+signature. Mesuré à +32 : le coin du rectangle devient un ARC à ~32 px de
+distance EUCLIDIENNE du coin. Notre morphologie
+([refineEdgeWgsl.ts](../../src/mask/refineEdgeWgsl.ts)) est un min/max
+séparable H/V : élément CARRÉ — un coin dilaté déborde à 45 px sur la
+diagonale, **41 % de trop**, et ça se voit sur tout masque à coins ou à
+pointes (`contract`/dilate du panneau Affiner).
+*Chemin chez nous, moyen* : ajouter deux passes DIAGONALES au plan de
+morphologie (élément octogonal, écart au disque ~8 %, même patron de passes
+1D, coût ×2) ; si l'octogone se lit encore, passer au champ de distance.
+
+**3. Leur smooth est GÉOMÉTRIQUE et net ; le nôtre est un flou.**
+Mesuré à `smoothRasterSelection(24)` : le bord DROIT reste strictement net
+(255→0 sur un pixel, inchangé) et le COIN est arrondi — c'est une
+ouverture/fermeture morphologique (la géométrie change, l'alpha reste
+binaire). Notre `smooth` est N itérations de box 3×3 : il ADOUCIT tout, bords
+droits compris — une différence de nature, pas de dosage.
+*Chemin chez nous, moyen* : `close ∘ open` avec l'élément circulaire du
+point 2 — réutilise la morphologie existante ; notre `smooth` actuel garde
+son rôle d'anti-crénelage léger.
+
+**4. `[symbole]` Leur affinage est un PIPELINE avec matting.**
+`RefineSelection` : Initialise → brosse LOCALE → PostProcess →
+`ShowMattingArea` → Tidy → Commit. Le matting (extraction douce — cheveux,
+poils) n'a aucun équivalent chez nous ; notre `edgeAware` (guided filter) est
+l'amorce la plus proche, et il est GLOBAL au masque là où leur brosse affine
+LOCALEMENT. À regarder à l'écran avant tout ticket.
+
+### La retouche — absente chez nous, et le territoire la revendique
+
+Reclassée par l'amendement de territoire (hybride Photoshop/Lightroom). Ce
+qu'ils ont `[symbole+catalogue]` :
+
+- **Clone multi-SOURCES** : des sources NOMMÉES, avec vignettes, une page
+  dédiée (`CloneSourceCount`, `GetCloneBrushSourceName/Thumbnail`) — pas un
+  simple point d'ancrage Alt-clic.
+- **Healing / blemish / patch** : clone + égalisation de luminosité et de
+  couleur au raccord.
+- **Inpainting, DEUX familles** : par synthèse de patchs (`InpaintMontage`,
+  sans IA) et génératif (IA — écarté, autre produit).
+- **Dodge / burn / sponge / tone** avec `ProtectTones` et `Range` — le geste
+  porte sa PLAGE TONALE (le catalogue du 2026-08-19 les listait déjà :
+  BurnBrush 4 params dont `ProtectTones`, ToneBrush 9 dont
+  `ToneBrushTonalRange`).
+
+⚠️ **Le préalable est STRUCTUREL, pas un outil de plus.** Tous ces gestes
+écrivent des PIXELS ; notre modèle n'a aucun calque de pixels peints — le
+seul buffer peint du dépôt est `BrushMaskSource.raster` (un masque). Un
+« calque de retouche » est un nouveau GENRE de contenu (raster RGBA peint,
+composité dans la pile, hors du chemin des effets), avec ses verrous, son
+historique (le refcount de `History` sait déjà compter des buffers partagés),
+et une position à prendre face à ADR-0008. **C'est le premier ticket à
+charter si la retouche entre au roadmap — les pinceaux viennent après le
+support.** Nuance Lightroom : `WhiteBalance`/`Exposure`/`Vibrance` (axe 1,
+point 7) sont la moitié LIGHTROOM de l'hybride et n'ont PAS ce préalable —
+ce sont des effets par pixel ordinaires, disponibles tout de suite.
 
 ---
 
@@ -274,6 +440,30 @@ SDK) est noté et écarté : modèle embarqué, un autre produit.
    nous, textures pleines + `MAX_CANVAS_PIXELS = 64 Mpx` (ADR-0007). Position
    tenue tant que la borne existe — pas un manque, un choix différent avec un
    garde-fou.
+6. `[binaire]` **Le masque est une entrée de PREMIÈRE CLASSE de chaque noyau.**
+   Le gabarit OpenCL de `libraster.dll` signe TOUT filtre avec
+   `mask_pixels` ET `secondary_mask_pixels` à côté des pixels source — le
+   masquage n'est pas un composite après coup, chaque noyau peut le lire.
+   Chez nous le masque gate le COMPOSITE du calque
+   (`MaskTextureResolver` → fusion), et aucun effet ne peut le lire pendant
+   son calcul. Ce n'est pas un défaut aujourd'hui — aucun effet du registre
+   n'en a eu besoin — mais c'est la pièce qui rendrait un jour un effet
+   « conscient du masque » (une diffusion qui s'arrête au bord du masque au
+   lieu d'être coupée par lui). À noter, pas à faire.
+7. `[mesuré au SDK]` **Deux corrections du relevé d'hier, même famille que
+   les quatre premières.** (a) Les LIVE FILTERS et les ajustements SONT
+   pilotables : `nodes.js` expose `BloomFilterRasterNodeDefinition`,
+   `LensBlurFilterRasterNodeDefinition`, `CurvesAdjustmentRasterNodeDefinition`…
+   avec leurs structures `*Parameters` typées — posables par `doc.addNode`,
+   modifiables, dans l'arbre non destructif. La réserve du verdict (« rien
+   sur leur chemin live ») est donc LEVABLE par mesure ; personne ne l'a
+   encore prise. (b) L'accès aux pixels par BUFFER existe
+   (`PixelBuffer.buffer`, `rasterInterface.createCompatibleBuffer`) — la
+   borne « 5,2 s par passe » du relevé SDK ne vaut que pour `readPixel`
+   pixel-à-pixel. Le verdict perfs tient (il mesure leurs filtres NATIFS,
+   ~140 ms de plancher), mais l'argument « le SDK ne sait pas transporter des
+   pixels » tombe : c'est par cette voie que toutes les mesures de ce
+   document ont relu leurs rendus.
 
 ---
 
@@ -336,6 +526,12 @@ nommé) :
 
 | Candidat | Le geste | Coût |
 | --- | --- | --- |
+| ⭐ Feather en 3 passes SAT (profil en S mesuré chez eux) | un bord adouci sans les deux cassures de la rampe | S — passes déjà écrites, itération + recalibrage |
+| ⭐ Morphologie octogonale (leur grow est un disque, mesuré) | contract/dilate qui ne déforme plus les coins de 41 % | M — deux passes diagonales de plus |
+| Smooth géométrique (close∘open, leur nature mesurée) | arrondir la forme sans flouter les bords droits | M — dépend du précédent |
+| Stabilisateur de trait (corde/moyenne) | détourer à main levée sans tremblement | S–M |
+| Lot « développement » : WhiteBalance, Exposure, Vibrance, HSL | développer la photo dans l'app (moitié Lightroom de l'hybride) | M — par-pixel, patron `curves`/`channelMixer`, aucun mécanisme neuf |
+| ⚠️ CHANTIER calque de retouche (pixels peints) | clone, healing, inpainting patch, dodge/burn | L — nouveau genre de contenu, ADR d'abord ; les pinceaux suivent le support |
 | Export : qualité réglable + PNG | sortir autre chose qu'un JPEG 0,95 | XS |
 | Panneau Historique (libellés d'entrées) | voir et viser un état d'annulation | M (libellés sur `History.push` d'abord) |
 | Raccourcis centralisés, puis configurables | table touche→commande unique | S puis M |
@@ -347,21 +543,37 @@ nommé) :
 | LUT 3D | appliquer un look `.cube` partagé | M |
 
 **Écartés, avec raison** : bilatéral (ADR-0011, décision inverse déjà prise) ·
-moteur de pinceau/Mixbox (nous peignons des masques) · macros générales
-(les presets couvrent le cas) · branches d'historique (geste non identifié) ·
-IA (sélection sujet, super-résolution, portrait — un autre produit) ·
-`FadeRewind` (déjà couvert par `opacity`/`blendMode`) · personas (un seul
-métier ici) · tuiles (ADR-0007 borne autrement) · les trois bandes tonales du
-Bloom (un axe suffisait — pris sous forme de retenue des noirs).
+Mixbox et les dynamiques de COULEUR du pinceau (`hueShift`… — nous ne
+peignons pas de couleur ; les dynamiques de FORME, scatter et texture de
+tampon, elles, sont reclassées côté masque) · macros générales (les presets
+couvrent le cas) · branches d'historique (geste non identifié) · IA
+(sélection sujet, inpainting génératif, super-résolution, portrait — un autre
+produit ; l'inpainting par PATCHS, lui, est reclassé dans le chantier
+retouche) · `FadeRewind` (déjà couvert par `opacity`/`blendMode`) · personas
+(un seul métier ici) · tuiles (ADR-0007 borne autrement) · les trois bandes
+tonales du Bloom (un axe suffisait — pris sous forme de retenue des noirs) ·
+symétrie de peinture (aucun geste nommé sur un masque ; à rouvrir si un
+masque symétrique manque un jour).
 
 ---
 
 ## Ce que cet audit ne dit pas
 
 - **Tout item `[symbole]` reste à regarder dans Affinity avant d'écrire du
-  code** — en particulier : le mode de combinaison de `MaskTexture`, le
-  comportement réel de `BlendRanges`, le langage de la texture procédurale,
-  ce que le cadenas unique refuse.
+  code** — en particulier : le comportement réel de `BlendRanges`, le langage
+  de la texture procédurale, ce que le cadenas unique refuse. (`MaskTexture`
+  est sorti de cette liste : ses trois modes sont lus dans l'app —
+  `None · Nozzle · Final`.)
+- **Le profil du TAMPON de pinceau n'a pas pu être mesuré** : aucune API de
+  trait dans le SDK. Protocole manuel, cinq minutes avec Antoine : un dab
+  isolé à dureté 0 %, 50 %, 100 % sur un document vierge, lecture des pixels
+  par le même chemin `PixelBuffer` que les mesures de sélection — le profil
+  radial dit si leur dureté est la rampe que nous avons ou la courbe en S que
+  leur feather laisse attendre.
+- **Le chemin LIVE est désormais mesurable** (`nodes.js`, axe 5 point 7) et
+  ne l'a pas encore été : coût d'un live filter pendant un drag de paramètre,
+  à quelle résolution d'aperçu — la dernière réserve du verdict perfs peut
+  tomber par une mesure, dans un sens ou dans l'autre.
 - **Rien sur la beauté de leurs rendus.** Les mesures portent des temps et des
   comportements ; « est-ce beau » se juge sur une photo d'Antoine.
 - **Les dimensions relevées à l'écran ne sont pas transposables** (facteur

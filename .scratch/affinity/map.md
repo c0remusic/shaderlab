@@ -26,11 +26,15 @@ quatre verrous) est intact sur `master`.
 | ⭐ [`affinity-plugin-verdict`](../../docs/design-system/affinity-plugin-verdict-2026-08-19.md) | **le verdict mesuré** : perfs, qualité, et ce qui a été pris |
 | ⭐ [`affinity-audit`](../../docs/design-system/affinity-audit-2026-08-19.md) | **LE CHAPEAU** — l'audit full scope consolidé par axe (outillage, effets, code, UI, UX), avec niveaux de preuve, chemins d'implémentation, et NEUF candidats sans ticket que les catalogues portaient sans qu'aucun relevé ne les ait synthétisés (export, historique visible, raccourcis) |
 
-⚠️ **QUATRE conclusions fausses dans ce fil, toutes du même type** : conclure
-d'une ABSENCE constatée à l'endroit où j'avais regardé. Détail dans le document
-`affinity-binaire`, § « La leçon ». La règle qui en sort et qui vaut pour toute
-la carte : **une absence ne se conclut que si on peut dire OÙ on a cherché et
-pourquoi c'était le bon endroit.**
+⚠️ **SIX conclusions fausses dans ce fil, toutes du même type** : conclure
+d'une ABSENCE constatée à l'endroit où j'avais regardé. Détail des quatre
+premières dans `affinity-binaire` § « La leçon » ; les cinquième et sixième
+(« le chemin live n'est pas pilotable », « aucun accès buffer aux pixels »)
+sont tombées le soir même en auditant les outils internes — les réponses
+étaient dans `nodes.js` et `rasterobject.js`, deux fichiers du même SDK
+(voir l'encadré du verdict et l'audit, axe 5 point 7). La règle qui en sort
+et qui vaut pour toute la carte : **une absence ne se conclut que si on peut
+dire OÙ on a cherché et pourquoi c'était le bon endroit.**
 
 **La quatrième est la plus chère du lot** (2026-08-19, corrigée le soir même) :
 « le SDK ne pilote pas les filtres d'Affinity, même les siens ». Faux —
@@ -133,11 +137,18 @@ de suite, et c'est là que sont les tickets.
 ### Candidats SANS ticket — relevés par l'audit du 2026-08-19, à charter si voulus
 
 L'[audit](../../docs/design-system/affinity-audit-2026-08-19.md) § Récapitulatif
-en liste neuf (export réglable/PNG, panneau Historique, raccourcis centralisés,
-presets de masque, copie de masque entre calques, snapping système, deux zones
-fixes du panneau Calques, Glitch par canal sur `sliceShift`, LUT 3D). Aucun
-n'est ouvert d'office : la règle des notes s'applique — un geste nommé chez
-NOUS, sinon rien.
+en liste quinze. Les neuf du relevé initial (export réglable/PNG, panneau
+Historique, raccourcis centralisés, presets de masque, copie de masque entre
+calques, snapping système, deux zones fixes du panneau Calques, Glitch par
+canal sur `sliceShift`, LUT 3D), plus six de l'audit des outils internes du
+soir — dont **trois adossés à une MESURE au pixel** (feather en S contre notre
+rampe, grow en disque contre notre carré, smooth géométrique contre notre
+flou), le stabilisateur de trait, le lot « développement »
+(WhiteBalance/Exposure/Vibrance/HSL, moitié Lightroom de l'hybride), et le
+**chantier calque de retouche** (pixels peints — le préalable structurel de
+clone/healing/inpainting/dodge/burn, ADR d'abord). Aucun n'est ouvert
+d'office : la règle des notes s'applique — un geste nommé chez NOUS, sinon
+rien.
 
 ### Débloquer un chantier ARRÊTÉ ailleurs
 
@@ -164,11 +175,15 @@ d'écrire une ligne — la règle du dépôt sur les apparences
 
 **Nous ne sommes pas en retard partout, et le relevé le prouve** : `motionBlur`
 7 paramètres contre 2, `texture` 9 contre 3, `lensBlur` 11 contre 7, et
-**dix-huit** de nos effets sans équivalent chez eux. Les deux bibliothèques ne
-visent pas la même chose — la leur est photographique et retouche, la nôtre
-optique, analogique et imprimée. **Un ticket qui propose de copier une
+**dix-huit** de nos effets sans équivalent chez eux.
+⚠️ **AMENDÉ le 2026-08-19 au soir** : cette note disait « les deux
+bibliothèques ne visent pas la même chose — la leur est photographique et
+retouche, la nôtre optique, analogique et imprimée ». Antoine a corrigé :
+**la retouche est AUSSI notre territoire — l'app est un hybride
+Photoshop/Lightroom.** La frontière qui reste vraie est plus étroite : pas
+d'IA embarquée, pas de peinture COULEUR. **Un ticket qui propose de copier une
 fonctionnalité doit dire quel GESTE elle débloque chez NOUS**, sinon il n'a rien
-à faire ici.
+à faire ici — la règle tient, le périmètre des gestes recevables s'est élargi.
 
 **Deux choses sont ÉCARTÉES, pas oubliées** : le flou bilatéral (retiré par
 ADR-0011 sur arbitrage d'usage — leur `Bilateral` n'est donc pas un manque), et

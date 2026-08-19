@@ -1,0 +1,55 @@
+outils : 52
+parametres distincts : 423
+
+Glitch                        25  AdditionalStrength, Angle, AssociatedToolID, Channel, ChannelCoefficients, Description, GlitchChannel, GlitchMethod, GlitchNumChannels, GlitchStrength, GlitchStrengthHorizontal, GlitchStrengthVertical, Intensity, InvertDirection, NumChannels, ObjectClassProperties, Origin, ProgressType, RadiusX, RadiusY, ShredSpacing, StackTargets, Stagger, ToolID, TypeClassProperties
+ProceduralTexture             25  AssociatedToolID, Config, ConstantValues, CurrentInputsPresetIndex, Description, HasAlternateFutures, HistoryDescription, HistoryIndex, HistorySnapshotIndex, HistoryThumbnail, HistoryTime, InputsPresetDisplayString, InputsPresetMode, NumberOfHistoryStates, ObjectClassProperties, Origin, PresetDisplayString, PresetsFilter, PresetsFilters, RedoDescription, State, SupportsHistorySnapshots, ToolID, TypeClassProperties, UndoDescription
+PortraitLighting              22  Ambient, AmbientColour, ClassUID, Contribution, CurrentLight, Description, Diffuse, Lights, ModelRequirementText, ModelType, ObjectClassProperties, Params, SchemaVersion, Shininess, Specular, SpecularColour, ssscattering, Strength, ToolElements, ToolID, TypeClassProperties, zdepth
+Lighting                      21  Ambient, AmbientColour, AssociatedToolID, BumpMapOpacity, ClassUID, CurrentLight, Depth, Description, Diffuse, Lights, ObjectClassProperties, Params, ScaleXToFit, ScaleYToFit, SchemaVersion, Shininess, Specular, SpecularColour, ToolElements, ToolID, TypeClassProperties
+Bloom                         16  AssociatedToolID, Colour, ColourValue, Description, HighlightBlend, HighlightValue, Method, MidtoneBlend, MidtoneValue, ObjectClassProperties, ProgressType, ShadowBlend, ShadowValue, Strong, ToolID, TypeClassProperties
+ApplyImage                    14  BlendMode, C1, C2, C3, C4, C5, EquationsEnabled, EquationsMode, ImagePath, Opacity, ScaleXToFit, ScaleYToFit, SourceMode, ToolID
+DiffuseGlow                   14  AssociatedToolID, Description, DiffuseIntensity, DiffuseOpacity, DiffuseRadius, DiffuseThreshold, Intensity, ObjectClassProperties, Opacity, ProgressType, Radius, Threshold, ToolID, TypeClassProperties
+AstroRemoveBackground         13  CurrentNodeBlue, CurrentNodeGreen, CurrentNodeGrey, CurrentNodeRed, CurrentNodeSample, Description, Field, ObjectClassProperties, OutputBlackLevel, ProgressType, SampleRadius, ToolID, TypeClassProperties
+TiltShiftDepthOfField         13  AssociatedToolID, Bottom, Centre, Description, InFocusBottom, InFocusTop, ObjectClassProperties, Rotation, ToolElements, Top, Transform, TypeClassProperties, UntransformedHandlePos
+Deform                        13  Constraint, Factor, HasAlternateFutures, HistoryDescription, HistoryIndex, HistorySnapshotIndex, HistoryThumbnail, HistoryTime, NumberOfHistoryStates, RedoDescription, SupportsHistorySnapshots, ToolID, UndoDescription
+LensBlur                      12  AllowScaleCheating, ApertureBlades, AssociatedToolID, BloomColour, BloomFactor, BloomThreshold, Description, DF, ObjectClassProperties, Radius, ToolID, TypeClassProperties
+EllipticalDepthOfField        12  AssociatedToolID, Centre, Description, InFocus, ObjectClassProperties, RadiusX, RadiusY, Rotation, ToolElements, Transform, TypeClassProperties, UntransformedHandlePos
+SuperResolve                  11  Description, InitialDownsample, ModelRequirementText, ModelType, ObjectClassProperties, ProgressAbortPointer, ProgressType, ResizeDocument, Scale, ToolID, TypeClassProperties
+DepthOfField                  11  AssociatedToolID, Clarity, Description, Mode, ObjectClassProperties, Params, ProgressType, Radius, ToolID, TypeClassProperties, Vibrance
+Twirl                          9  AssociatedToolID, Description, ObjectClassProperties, Origin, ProgressType, Radius, ToolID, Twirl, TypeClassProperties
+ToneBrush                      9  Description, ObjectClassProperties, OutputColour, ToneBrushBlendMode, ToneBrushInsertion, ToneBrushMode, ToneBrushTonalRange, ToolID, TypeClassProperties
+Texture                        9  AssociatedToolID, Blend, Compression, Description, ObjectClassProperties, ProgressType, Radius, ToolID, TypeClassProperties
+EquationTransform              9  AnglesInDegrees, ExtendType, FactorA, FactorB, FactorC, Polar, ToolID, XEquation, YEquation
+UnsharpMask                    9  AssociatedToolID, Description, Factor, ObjectClassProperties, ProgressType, Radius, Threshold, ToolID, TypeClassProperties
+Colourise                      9  Description, GlobalSaturation, GlobalTemperature, ModelRequirementText, ModelType, ObjectClassProperties, ProgressType, ToolID, TypeClassProperties
+Sphere                         9  AssociatedToolID, Description, Intensity, ObjectClassProperties, Origin, ProgressType, Radius, ToolID, TypeClassProperties
+AddNoise                       8  AssociatedToolID, Description, Gaussian, Intensity, Mono, ObjectClassProperties, ProgressType, TypeClassProperties
+Voronoi                        8  AssociatedToolID, Description, LineWidth, ObjectClassProperties, ProgressType, Size, ToolID, TypeClassProperties
+RadialBlur                     8  AngleInDegrees, AssociatedToolID, Description, ObjectClassProperties, Origin, ProgressType, ToolID, TypeClassProperties
+MotionBlur                     8  AssociatedToolID, Description, ObjectClassProperties, ProgressType, Radians, Radius, ToolID, TypeClassProperties
+Diffuse                        7  AssociatedToolID, Description, Intensity, ObjectClassProperties, ProgressType, ToolID, TypeClassProperties
+Affine                         7  ExtendType, OffsetX, OffsetY, Rotation, ScaleX, ScaleY, ToolID
+FilterBrush                    6  FilterBlendMode, FilterTonalRange, FilterTypeToAdd, GlitchMethod, HalftoneType, ToolID
+FieldDepthOfField              6  AssociatedToolID, Description, Field, ObjectClassProperties, ToolElements, TypeClassProperties
+Emboss                         5  Amount, Monochrome, Radians, Radius, ToolID
+ZMapDepthOfField               5  AssociatedToolID, Description, ObjectClassProperties, ToolElements, TypeClassProperties
+PaintBrush                     4  Colour, Haptic, SqueezeModifier, ToolID
+BurnBrush                      4  ProtectTones, Range, SqueezeModifier, ToolID
+Pixel                          4  AlternateMode, AlternateModes, Colour, ToolID
+FieldBlur                      4  CurrentNodeLevel, CurrentNodePower, Radius, ToolID
+AdjustmentBrush                4  AdjustmentBlendMode, AdjustmentTonalRange, AdjustmentTypeToAdd, ToolID
+PortraitBlur                   4  Far, KernelSmoothness, Radius, ToolID
+OutlineSelection               4  Alignment, Circular, Radius, ToolID
+AstroStretch                   4  Description, ObjectClassProperties, ProgressType, TypeClassProperties
+Noise                          4  Gaussian, Intensity, Mono, ToolID
+DodgeBrush                     4  ProtectTones, Range, SqueezeModifier, ToolID
+GenerateToneBrush              3  Description, ObjectClassProperties, TypeClassProperties
+VerticalEdgeDetect             3  Description, ObjectClassProperties, TypeClassProperties
+GrowShrinkSelection            3  Circular, Radius, ToolID
+FadeRewind                     3  BlendMode, Fade, ToolID
+ClearChannel                   3  Description, ObjectClassProperties, TypeClassProperties
+LinearFit                      3  Description, ObjectClassProperties, TypeClassProperties
+Deinterlace                    3  Description, ObjectClassProperties, TypeClassProperties
+AstroColourMap                 3  Description, ObjectClassProperties, TypeClassProperties
+ZoomBlur                       2  Radius, ToolID
+ZMapBlur                       2  Radius, ToolID
+SharpenBrush                   2  Mode, ToolID

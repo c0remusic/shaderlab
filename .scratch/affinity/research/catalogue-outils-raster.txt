@@ -1,0 +1,9 @@
+### classes *Tool* dans RasterTools
+Affine, ApplyImage, AstroRemoveBackground, Bloom, Colourise, Deform, DepthOfField, Diffuse, DiffuseGlow, Emboss, EquationTransform, FieldBlur, Glitch, GrowShrinkSelection, LensBlur, Lighting, MotionBlur, Noise, OutlineSelection, PortraitBlur, PortraitLighting, ProceduralTexture, RadialBlur, RasterAdjustmentBrush, RasterBurnBrush, RasterDodgeBrush, RasterEraseBrush, RasterFadeRewind, RasterFilterBrush, RasterInpaintingBrush, RasterPaintBrush, RasterPixel, RasterSharpenBrush, RasterToneBrush, RasterUndoBrush, Sphere, SuperResolve, Texture, Twirl, UnsharpMask, Voronoi, ZMapBlur, ZoomBlur
+
+### classes *Command* dans RasterTools
+AstroRemoveBackground, GenerateToneBrush, ProceduralTexture, RasterAddNoise, RasterAffine, RasterApplyImage, RasterAstroColourMap, RasterAstroStretch, RasterBloom, RasterClearChannel, RasterColourise, RasterDeform, RasterDeinterlace, RasterDepthOfField, RasterDiffuse, RasterDiffuseGlow, RasterEmboss, RasterEquationTransform, RasterGlitch, RasterGrowShrinkSelection, RasterLensBlur, RasterLighting, RasterLinearFit, RasterMotionBlur, RasterOutlineSelection, RasterPixelBrush, RasterPortraitBlur, RasterPortraitLighting, RasterRadialBlur, RasterSphere, RasterSuperResolve, RasterTexture, RasterToneBrush, RasterTwirl, RasterUnsharpMask, RasterVerticalEdgeDetect, RasterVoronoi, RasterZoomBlur, VRasterColourise, VRasterPortraitBlur, VRasterPortraitLighting, VRasterSuperResolve
+
+### DeformTool  (2)
+Constraint, Factor
+

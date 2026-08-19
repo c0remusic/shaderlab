@@ -1,4 +1,8 @@
-# Lire le binaire d'Affinity — trois portes, et une seule est ouverte
+# Lire le binaire d'Affinity — trois portes, et DEUX sont ouvertes
+
+> ⚠️ Le titre a dit « une seule est ouverte » pendant quelques heures. Faux :
+> la porte des plugins Photoshop est ouverte aussi, et c'est la plus large.
+> Voir la correction en porte 2.
 
 Suite de [`affinity-porter-les-effets-2026-08-19.md`](affinity-porter-les-effets-2026-08-19.md),
 qui répondait « non » sur la foi du SDK JavaScript seul. Antoine : « et en
@@ -50,7 +54,44 @@ zéro). Rien à remplacer sur disque.
 Déjà mesurée : `readPixel`/`writePixel` un pixel à la fois, plancher **5,2 s**
 pour une passe sur 26 Mpx contre 63 ms pour la pile complète de shaderlab.
 
-## Porte 2 — un hôte de plugins tiers : FERMÉE
+## Porte 2 — un hôte de plugins tiers : ⚠️ **OUVERTE** (correction du 2026-08-19)
+
+> **CE PARAGRAPHE ÉTAIT FAUX ET IL EST CORRIGÉ CI-DESSOUS.** Il concluait
+> « FERMÉE » parce que j'avais cherché les marqueurs Photoshop dans
+> `libplugins.dll`. **Ce n'est pas le bon module** : `libplugins.dll` est le
+> sous-système de CODECS. L'hôte de plugins Photoshop vit dans
+> `libpersona.dll`, et il y est sans ambiguïté :
+>
+> ```
+> .8bf   PIPL   PIMI   PluginMain
+> RGBMode   RGB48Mode   RGB96Mode   CMYKMode
+> ?LoadPiPL@PhotoshopPluginFile@@QEAA_NPEAX_K@Z
+> ...V?$Counted@VPhotoshopPlugin@@@Kernel@@AEAUFilterRecord@PSP@@...
+> ```
+>
+> Et `Serif.Affinity.dll` porte une page de préférences ENTIÈRE :
+> `PhotoshopPluginsPreferencesPage` avec dossiers de recherche, dossiers
+> détectés, bouton d'ajout de répertoire, colonne de statut
+> (`Working` / `WorkingWithSandboxException` / `Broken` / `Unknown`), et une
+> case `AllowUnknownPlugins`. Plus `SupportsPhotoshopPlugins`,
+> `PhotoshopPluginWrapper`, `RasterFilterPluginWrapper`.
+>
+> **Conséquence : « porter nos effets dans Affinity » redevient possible**, par
+> un plugin de filtre au format Photoshop — un DLL natif exposant `PluginMain`
+> et recevant un `FilterRecord` avec les pointeurs de pixels. Un tel plugin peut
+> tout faire, y compris ouvrir son propre device GPU. Les modes de pixels
+> annoncés incluent `RGB96Mode`, donc **32 bits flottants**.
+>
+> ⚠️ Ce que ça coûterait n'est pas mesuré : C++ contre TypeScript, WGSL à
+> reporter sur une API que le plugin peut ouvrir lui-même, et un filtre `.8bf`
+> est appliqué UNE FOIS — la pile de calques non destructive resterait celle
+> d'Affinity, pas la nôtre. À chiffrer avant d'y croire.
+>
+> **Troisième fois dans ce fil que je conclus d'une absence** — et les trois
+> fois, l'absence était dans l'endroit où j'avais regardé, pas dans le produit.
+
+### Ce que disait la version fausse, conservé pour mémoire
+
 
 `libplugins.dll` ne contient **aucun** marqueur de plugin Photoshop — ni `8bf`,
 ni `PiPL`, ni `SPBasic`, ni `FilterRecord`. Ses classes de plugin sont ses
@@ -100,17 +141,40 @@ VerticalEdgeDetect · Deinterlace · EquationTransform · SuperResolve
    passaient, on aurait dix équations collées dans un filtre, sans nos presets,
    sans notre pile, sans nos masques par calque — et sans les dix-sept autres.
 
-## Verdict
+## Verdict, après correction
 
-**Porter la BIBLIOTHÈQUE d'effets dans Affinity : toujours non.** Deux portes
-sur trois sont fermées à clé, et la troisième n'accepte que ce qui tient en une
-expression par pixel.
+**Une porte fermée, deux ouvertes.**
 
-**Mais la question méritait d'être posée, et le relevé a corrigé une erreur du
-document précédent** : celui-ci concluait « aucun chemin GPU programmable ». Il y
-en a un — la texture procédurale — et je ne l'avais pas cherché parce que le SDK
-ne le mentionne pas. Lire le SDK d'un outil ne dit pas ce que l'outil sait faire.
+| Porte | État | Ce qu'elle permet |
+| --- | --- | --- |
+| SDK JavaScript | fermée | 5,2 s par passe : automatiser, pas calculer |
+| **Plugin Photoshop `.8bf`** | **ouverte** | du code natif, son propre GPU, 8/16/32 bits |
+| Texture procédurale | ouverte | des équations par pixel, dans leur interface |
 
-**Ce qui vaudrait le coup d'être mesuré ensuite**, si la question revient : le
-langage exact de la texture procédurale, et combien de nos vingt-sept effets s'y
-exprimeraient. C'est une demi-journée, et ça trancherait pour de bon.
+**« Porter nos effets dans Affinity » n'est donc PLUS un non technique.** C'est
+un arbitrage de produit, et il se pose autrement : un plugin `.8bf` nous fait
+écrire du C++ et rendre nos shaders sur une API que le plugin ouvre lui-même,
+pour hériter de LEUR pile de calques, de LEURS masques, de LEUR export — et
+perdre les nôtres.
+
+**Ce qu'il reste à mesurer**, et c'est chiffrable :
+
+1. **Le contrat `.8bf` réel** — un filtre est-il appliqué une fois (destructif)
+   ou Affinity l'enveloppe-t-il en filtre live ? La différence décide de tout.
+2. **Le langage de la texture procédurale**, et combien de nos vingt-sept
+   effets s'y expriment.
+
+## La leçon, et c'est la troisième fois
+
+J'ai conclu **trois fois** d'une absence, et les trois fois l'absence était à
+l'endroit où j'avais regardé, pas dans le produit :
+
+1. « aucun chemin GPU programmable » — lu dans le SDK, démenti par le binaire ;
+2. « pas d'hôte de plugins » — cherché dans `libplugins.dll`, qui est le
+   sous-système de CODECS ; l'hôte est dans `libpersona.dll` ;
+3. « Affinity 3 ne charge plus les `.8bf` » — inventé pour expliquer le point 2.
+
+**Le point 3 est le pire** : il ne venait d'aucune mesure. Il rationalisait un
+résultat négatif en lui fabriquant une histoire plausible — « la porte s'est
+refermée entre les versions » — et cette histoire était assez crédible pour que
+je l'écrive dans un commit.

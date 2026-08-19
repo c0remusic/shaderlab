@@ -467,7 +467,7 @@ ce sont des effets par pixel ordinaires, disponibles tout de suite.
    [ticket 11](../../.scratch/affinity/issues/11-debloquer-le-16-bit.md), qui
    débloque l'export print arrêté en toutes lettres. Trois mesures avant de
    trancher : coût de l'encodage explicite en prod, les sept modules qui
-   consomment `srgbFormat`, le sort des 122 références de pixels.
+   consomment `srgbFormat`, le sort des 124 références de pixels.
 3. `[binaire]` **Un même source de filtre compile en OpenCL OU en C++ CPU**
    (gabarit `KERNEL_PREAMBLE`). C'est leur portabilité, pas un manque chez
    nous : notre WGSL est validé CPU par naga (`test:wgsl`) et exécuté par un

@@ -32,11 +32,14 @@
   retouchent ce qui existe.
 - `glass` **complet** : 14 matières (9 de feuille + 5 de pavé), 5 profils de
   section, **18 références de pixels — toutes les branches verrouillées**.
-- **385 paramètres, 122 références de pixels** au 2026-08-19 (relancés, pas
+- **385 paramètres, 124 références de pixels** au 2026-08-19 (relancés, pas
   recopiés — deux des chiffres que ce dépôt portait en prose étaient déjà faux
   avant qu'on y touche : 51 conditions au lieu de 52, 63 gabarits `liste` sur 83
   au lieu de 60 sur 84). Le +3 de paramètres est le relevé Affinity :
-  `glow.shadowHold` / `shadowHoldPoint` et `lensBlur.bladeCurvature`.
+  `glow.shadowHold` / `shadowHoldPoint` et `lensBlur.bladeCurvature`. Les +2
+  références (122 → 124) sont la paire `masque-feather-fort` qui MONTRE le
+  profil en S du feather — les prises masque de l'après-midi ne touchent pas
+  `params[]`, elles vivent dans `RefineEdgeParams`, déjà compté.
 - **Les 27 effets portent des sections** et leurs applicabilités déclarées
   (`EffectModule.sections`, `EffectParam.appliesWhen`) — chantier de
   rationalisation des contrôles **soldé le 2026-08-05**, statut dans
@@ -86,11 +89,40 @@ et protocole complets dans
 l'était de 6 à 25 fois.** C'est le quatrième raisonnement de tête démenti par la
 mesure dans ce fil.
 
-**Ce que la carte a rapporté au passage, et qui est livré** : deux améliorations
-de nos effets, mesurées en boîte noire chez eux puis réimplémentées chez nous —
-la **courbure des lames** du diaphragme (`lensBlur`, partagée avec `lensFlare`)
-et la **retenue des noirs** du `glow`, qui lui donne enfin le *Black* Pro-Mist
-que son en-tête citait sans le rendre.
+**Ce que la carte a rapporté au passage, et qui est livré** : **QUATRE**
+améliorations de nos effets, mesurées en boîte noire chez eux puis
+réimplémentées chez nous. Deux le matin — la **courbure des lames** du
+diaphragme (`lensBlur`, partagée avec `lensFlare`) et la **retenue des noirs**
+du `glow`, qui lui donne enfin le *Black* Pro-Mist que son en-tête citait sans
+le rendre. Deux l'après-midi, sur les OUTILS INTERNES (pinceau/masque/
+sélection) mesurés au pixel — le **feather en S** (leur profil est un erf, le
+nôtre était une rampe box ; livré en une passe par quatre fenêtres pondérées
+sur la SAT, cache intact, écart borné par test) et la **morphologie
+octogonale** (leur grow est un disque euclidien, notre carré débordait de 41 %
+en diagonale ; passes D1/D2 + `octagonRadii`, preuve de Minkowski au test).
+
+**Et l'audit full scope a été REFAIT en v2 l'après-midi**, sur le constat
+d'Antoine que la première passe manquait des choses — elle consolidait des
+sondages. La v2 balaie six canaux en entier : le SDK JavaScript lu
+intégralement (105 fichiers BSD-3), les 22 773 identifiants de
+`Serif.Affinity.dll`, l'inventaire vivant de la surface API, les ajustements
+du territoire retouche mesurés au pixel. Trois documents chapeau :
+[`affinity-audit`](design-system/affinity-audit-2026-08-19.md) (le récap par
+axe), [`affinity-code`](design-system/affinity-code-2026-08-19.md) (leur
+architecture mappée sur la nôtre — preview transactionnel, commande-valeur,
+historique-arbre, spline universelle) et
+[`affinity-angles-morts`](design-system/affinity-angles-morts-2026-08-19.md)
+(Develop RAW, métadonnées XMP/IPTC/EXIF, scopes vidéo, avant/après…).
+**Vingt candidats sans ticket** en sortent, aucun ouvert d'office (la règle
+tient : un geste nommé chez nous) — métadonnées d'export et réification du
+geste vivant (mort de `replaceLiveLayers`) en tête.
+
+⚠️ **Reste OUVERT à l'arbitrage d'Antoine, créé cet après-midi** : le
+**smooth géométrique** (leur `smooth` arrondit la FORME en gardant le bord
+net, le nôtre floute tout — c'est une différence de nature, pas de dosage).
+Il change le SENS du curseur `smooth` (d'itérations de box à rayon d'arrondi),
+donc c'est une décision, pas un correctif — et les passes diagonales D1/D2
+dont il a besoin existent depuis les prises ci-dessus.
 
 **Ce qui RESTE de cette carte** : le contrat `.8bf` (ticket 01, plus bloquant),
 le langage de la texture procédurale (02), et les prises côté interface — les
@@ -133,6 +165,12 @@ trancher plus tard, pas le souvenir de la session.
    grise par du noir reste une idée du domaine de l'imprimé que nous n'avons
    pas. Ce qui manque pour trancher : **l'ouvrir dans l'interface d'Affinity, à
    la main**. Mesuré sur le chemin SDK ne veut pas dire mesuré.
+   ⚠️ Confirmé le soir du 2026-08-19 : le chemin LIVE ne se laisse pas piloter
+   non plus — `HalftoneScreenType` énumère bien `Mono · Colour · Line ·
+   Circular`, mais l'écriture de `screenType` échoue EN SILENCE par les trois
+   voies essayées (le setter direct est inerte, seul
+   `createSetXxxParameters(selection, params)` écrit). L'interface à la main
+   reste la seule voie ouverte.
 
 ## ⚠️ DEUX cartes de plus, et la première est CLOSE
 

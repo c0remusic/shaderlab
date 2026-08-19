@@ -19,6 +19,7 @@ import { TexturePicker } from "./TexturePicker";
 import type { TextureThumbnail } from "../textures/thumbnailCache";
 import { isPositionLocked, isStructureLocked } from "../layers/layerLocks";
 import { effectSpatialParams } from "../render/effects/spatialParams";
+import { spatialPixelAxes, pixelFactorForAxis, type SpatialAxis } from "../render/effects/spatialPixels";
 
 export type ParamRenderItem =
   | { kind: "single"; reactKey: string; param: EffectParam; spatialId?: string }
@@ -247,6 +248,12 @@ export function ParamSection({ label, layout, children }: { label: string | null
 
 interface Props {
   layer: LayerState | null;
+  /** Dimensions du cadre en pixels, pour lire les contrôles spatiaux en pixels
+   *  plutôt qu'en fraction (voie B, symétrie panneau/toile). La MÊME valeur que
+   *  celle passée à `CanvasControls`, pour que panneau et toile disent le même
+   *  nombre. `{0,0}` (aucun document) ou absente = affichage en pourcentage,
+   *  inchangé — les stories qui ne la passent pas rendent comme avant. */
+  imageSize?: { width: number; height: number };
   onParamChange: (id: string, params: Record<string, number>) => void;
   onParamCommit: () => void;
   /** Bascule l'écrêtage du calque SÉLECTIONNÉ (design 2026-07-27 §3.7). En
@@ -287,7 +294,7 @@ function formatEffectParamValue(
   }
 }
 
-export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, onOpenColorPicker, textureLibrary }: Props) {
+export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onClipChange, onOpenColorPicker, textureLibrary }: Props) {
   const [activeCurveChannel, setActiveCurveChannel] = useState("master");
   if (!layer) {
     return <p className="param-panel__empty">Sélectionne un calque.</p>;
@@ -333,6 +340,13 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
   // geste « je tiens le placement, je cherche encore la couleur ».
   const geometrieGelee = isPositionLocked(layer);
   const paramsSpatiaux = new Set(effectSpatialParams(effect));
+  // Contrôles spatiaux montrés en PIXELS (voie B). L'axe (× W, × H, ou
+  // × sqrt(W·H)) vient de la structure du `canvasControls`, jamais du nom, et
+  // il MATCHE la toile — voir `spatialPixels.ts`. La conversion ne s'arme que
+  // pour un cadre réel : `{0,0}` retombe sur l'affichage en pourcentage.
+  const pixelAxes: Map<string, SpatialAxis> = imageSize && imageSize.width > 0 && imageSize.height > 0
+    ? spatialPixelAxes(effect)
+    : new Map();
   // `title` plutôt qu'une ligne de texte : la hauteur des cartes est sous
   // budget (ADR-0001, la carte Effets déborde déjà à six lignes). Même
   // traitement que la zone de contrôles du panneau Calques
@@ -527,6 +541,31 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
                   ? Math.min(item.param.max, item.param.maxFrom(resolvedParams))
                   : item.param.max;
                 const valeur = Math.min(brut, plafond);
+                // CONTRÔLE SPATIAL EN PIXELS (voie B). Le curseur reste en
+                // FRACTION — min/max/step/défaut inchangés, donc le double-clic
+                // de retour au défaut, la marque et le round-trip sont EXACTS et
+                // `test:render` ne bouge pas. Seuls le texte affiché et la
+                // saisie passent en pixels, via le même facteur que la toile.
+                const axeSpatial = pixelAxes.get(item.param.name);
+                const facteurPx = axeSpatial && imageSize ? pixelFactorForAxis(axeSpatial, imageSize) : null;
+                const displayValue = facteurPx
+                  ? `${Math.round(valeur * facteurPx)} px`
+                  : formatEffectParamValue(valeur, item.param);
+                // Saisie en pixels : lue, ramenée en fraction, bornée aux bornes
+                // du CURSEUR (celles-là peuvent sortir du cadre — sourceX va de
+                // −0,5 à 1,5 — donc en pixels aussi, ce qui est voulu), puis
+                // calée sur le même pas que le glissement.
+                const parseDisplayValue = facteurPx
+                  ? (raw: string): number | null => {
+                      const found = raw.trim().replace(",", ".").match(/[-+]?\d*\.?\d+/);
+                      if (!found) return null;
+                      const px = Number(found[0]);
+                      if (!Number.isFinite(px)) return null;
+                      const frac = px / facteurPx;
+                      const borne = Math.min(plafond, Math.max(item.param.min, frac));
+                      return item.param.min + Math.round((borne - item.param.min) / item.param.step) * item.param.step;
+                    }
+                  : undefined;
                 return (
                   <div key={item.reactKey} title={item.param.hint}>
                     <LabeledSlider
@@ -535,7 +574,8 @@ export function ParamPanel({ layer, onParamChange, onParamCommit, onClipChange, 
                       min={item.param.min}
                       max={plafond}
                       step={item.param.step}
-                      displayValue={formatEffectParamValue(valeur, item.param)}
+                      displayValue={displayValue}
+                      parseDisplayValue={parseDisplayValue}
                       // Le verrou POSITION n'éteint QUE les paramètres cités par
                       // un `canvasControls` — la géométrie. Les autres restent
                       // vivants : c'est tout l'intérêt d'un verrou partiel, et

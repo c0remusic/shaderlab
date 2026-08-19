@@ -2269,6 +2269,7 @@ export default function App() {
                 />}
                 effectContent={<ParamPanel
                   layer={selectedLayer}
+                  imageSize={imageSize}
                   // La bibliothèque descend au panneau de paramètres pour que
                   // l'effet `texture` choisisse par VIGNETTE et non par un rang
                   // numérique.

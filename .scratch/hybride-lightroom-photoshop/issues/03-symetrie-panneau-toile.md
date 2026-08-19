@@ -5,6 +5,31 @@ Status: resolved
 Parent: ../map.md
 Blocked by: 01
 
+## LIVRÉ le 2026-08-20 — voie B codée
+
+Le panneau montre les contrôles spatiaux en PIXELS (affichage ET saisie), la
+fraction reste stockée. Pièces :
+
+- `src/render/effects/spatialPixels.ts` — source unique de l'axe pixel de chaque
+  paramètre spatial (× W, × H, × sqrt(W·H)), dérivée de la STRUCTURE du
+  `canvasControls` et filtrée aux paramètres `percent`. Facteur calqué sur la
+  toile (`canvasControls`, `regionHandles`, `boxControl`), lié par test.
+- `LabeledSlider` reçoit une prop `parseDisplayValue` : le curseur reste en
+  fraction (double-clic défaut, marque, round-trip EXACTS ; `test:render`
+  inchangé), seuls le texte affiché et la saisie passent en pixels.
+- `ParamPanel` reçoit `imageSize` (la même valeur que `CanvasControls`).
+  `{0,0}` = affichage en pourcentage, inchangé.
+
+**Portée effective : quatre effets sur cinq, entièrement** (`aplat`, `lensFlare`,
+`pixelStretch`, `motionBlur` centre) plus `lightLeak` origine. La LONGUEUR D'AXE
+est exclue et documentée : `amount` (`motionBlur`) est déjà en pixels (unit
+`none`), et `portee` (`lightLeak`) a une convention canvas/shader non réconciliée
+— lui imposer un affichage pixel imprimerait un nombre plausible-mais-faux. Sa
+réconciliation est un reste mineur, hors de ce ticket.
+
+Gates : tsc, lint, unit (2075), storybook (328) verts ; `test:render` zéro-écart
+par construction (aucun pixel, aucun ordre de `params[]` touché).
+
 ## Question
 
 Chez Photoshop, une forme se règle **au même titre** depuis le panneau

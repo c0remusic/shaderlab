@@ -428,6 +428,71 @@ export const DefaultMarkerAppearsOnlyOffDefault: Story = {
   },
 };
 
+/**
+ * CONTRÔLES SPATIAUX EN PIXELS (voie B, symétrie panneau/toile — tranchée le
+ * 2026-08-19). Quand `imageSize` est réel, un paramètre spatial (position,
+ * étendue, rayon) s'affiche en PIXELS, du même nombre que la toile — plus en
+ * fraction. La rotation reste en DEGRÉS : c'est déjà une unité qu'on ne convertit
+ * pas.
+ *
+ * `aplat` porte une boîte (`box`) : centre, largeur, hauteur, rotation. On la
+ * rend à 6000×4000, où `centreX = 0.5` doit se lire « 3000 px », `largeur = 0.4 »
+ * « 2400 px » (× LARGEUR), et `rotation` rester « 0° ». `borne = 1` rend le bloc
+ * visible (les contrôles de forme sont conditionnés par un mode ≠ « aucune »).
+ */
+export const SpatialControlsShowPixels: Story = {
+  args: {
+    layer: makeLayer({ effectId: "aplat", params: { borne: 1, centreX: 0.5, centreY: 0.5, largeur: 0.4, hauteur: 0.4, rotation: 0 } }),
+    imageSize: { width: 6000, height: 4000 },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // Position × LARGEUR, étendue × LARGEUR — le même facteur que la toile.
+    await expect(canvas.getByLabelText("Centre X (valeur)")).toHaveValue("3000 px");
+    await expect(canvas.getByLabelText("Largeur (valeur)")).toHaveValue("2400 px");
+    // Hauteur × HAUTEUR : 0.4 × 4000 = 1600 px, pas 2400 — l'axe compte.
+    await expect(canvas.getByLabelText("Hauteur (valeur)")).toHaveValue("1600 px");
+    // La rotation n'est PAS convertie : elle reste en degrés.
+    await expect(canvas.getByLabelText("Rotation (valeur)")).toHaveValue("0°");
+  },
+};
+
+/** Contre-épreuve : SANS `imageSize` (aucun document), le même paramètre reste
+ *  en POURCENTAGE. Sans elle, une conversion toujours active passerait la story
+ *  ci-dessus tout en cassant les panneaux ordinaires. */
+export const SpatialControlsStayPercentWithoutImageSize: Story = {
+  args: {
+    layer: makeLayer({ effectId: "aplat", params: { borne: 1, centreX: 0.5, largeur: 0.4 } }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByLabelText("Centre X (valeur)")).toHaveValue("50 %");
+    await expect(canvas.getByLabelText("Largeur (valeur)")).toHaveValue("40 %");
+  },
+};
+
+/** Saisie en PIXELS : le champ accepte des pixels, les ramène en fraction (la
+ *  seule chose stockée, ce qui garde les presets indépendants de la définition)
+ *  et remonte la fraction. Taper « 1500 » dans Centre X à 6000 px de large donne
+ *  0.25. */
+export const SpatialPixelInputConvertsToFraction: Story = {
+  args: {
+    layer: makeLayer({ effectId: "aplat", params: { borne: 1, centreX: 0.5, largeur: 0.4 } }),
+    imageSize: { width: 6000, height: 4000 },
+    onParamChange: fn(),
+    onParamCommit: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByLabelText("Centre X (valeur)");
+    await userEvent.clear(input);
+    await userEvent.type(input, "1500");
+    await userEvent.keyboard("{Enter}");
+    await expect(args.onParamChange).toHaveBeenCalledTimes(1);
+    await expect(args.onParamChange).toHaveBeenCalledWith("layer-1", { centreX: 0.25 });
+  },
+};
+
 /** Double-cliquer sur le LIBELLE ramene au defaut, et en UN geste : une seule
  *  entree d'historique, comme un relachement de glissement. */
 export const DoubleClickOnLabelResetsToDefault: Story = {

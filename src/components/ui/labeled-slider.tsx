@@ -45,6 +45,20 @@ export interface LabeledSliderProps {
    * geste qui ramène ailleurs qu'on ne croit.
    */
   defaultValue?: number;
+  /**
+   * Lecture INVERSE d'une saisie texte, quand `displayValue` montre une autre
+   * unité que celle du curseur. Rend une valeur DANS LES UNITÉS DU CURSEUR
+   * (min..max), déjà bornée, ou `null` si la frappe n'est pas un nombre.
+   *
+   * D'OÙ ÇA VIENT (voie B, symétrie panneau/toile). Un paramètre spatial montre
+   * des pixels (`displayValue = "1234 px"`) mais son curseur reste en FRACTION —
+   * c'est ce qui garde le double-clic de retour au défaut, la marque du défaut
+   * et le round-trip EXACTS, et laisse `test:render` inchangé. Le champ texte
+   * doit alors ACCEPTER des pixels : sans cette closure il passerait par
+   * `parseControlValue` avec les bornes de fraction, et « 1500 » serait écrêté à
+   * 1. Absente = comportement d'origine (parse sur les bornes du curseur).
+   */
+  parseDisplayValue?: (raw: string) => number | null;
   className?: string;
 }
 
@@ -66,6 +80,7 @@ export function LabeledSlider({
   onChange,
   onCommit,
   defaultValue,
+  parseDisplayValue,
   className,
 }: LabeledSliderProps) {
   const id = useId();
@@ -131,7 +146,12 @@ export function LabeledSlider({
   }, [id, disabled, value, min, max, onChange, onCommit]);
 
   function commitTypedValue() {
-    const nextValue = parseControlValue(draftValue, min, max, step);
+    // Quand le champ montre une autre unité que le curseur (pixels d'un
+    // paramètre spatial), sa lecture inverse rend déjà une valeur en unités du
+    // curseur, bornée. Sinon, parse standard sur les bornes du curseur.
+    const nextValue = parseDisplayValue
+      ? parseDisplayValue(draftValue)
+      : parseControlValue(draftValue, min, max, step);
     setIsEditing(false);
 
     if (nextValue === null) {

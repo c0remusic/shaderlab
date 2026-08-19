@@ -289,6 +289,42 @@
       "date": "2026-07-13",
       "topic": "gouvernance et validation du design system",
       "summary": "Structure cible, règles d'ajout et de versionnement, itération de thème, validation visuelle/accessibilité, garde-fous automatisés et dette de migration actuelle."
+    },
+    {
+      "path": "docs/design-system/affinity-observations-2026-08-19.md",
+      "date": "2026-08-19",
+      "topic": "l'interface reelle d'Affinity, capturee sur la fenetre d'Antoine",
+      "summary": "Premier des quatre releves. Ce que l'application MONTRE — panneaux, outils, disposition — capture sur la fenetre reelle et non lu dans une documentation."
+    },
+    {
+      "path": "docs/design-system/affinity-porter-les-effets-2026-08-19.md",
+      "date": "2026-08-19",
+      "topic": "porter nos effets dans Affinity ? mesure du SDK JavaScript",
+      "summary": "Repond NON sur la foi du SDK JS : readPixel/writePixel un pixel a la fois, plancher 5,2 s par passe sur 26 Mpx contre 63 ms pour la pile shaderlab, soit ~83x. ⚠️ Son constat 2 (« meme les live filters d'Affinity ne sont pas pilotables ») est FAUX et corrige en place le 2026-08-19 au soir : commands.js expose une trentaine de filtres et une vingtaine d'ajustements en DocumentCommand. C'est la 4e conclusion tiree d'une absence de ce fil, et celle qui a coute le plus cher — elle fermait le seul instrument de mesure."
+    },
+    {
+      "path": "docs/design-system/affinity-binaire-2026-08-19.md",
+      "date": "2026-08-19",
+      "topic": "lire le binaire d'Affinity — trois portes, deux ouvertes",
+      "summary": "Le calcul GPU d'Affinity est en OpenCL (gabarit de kernel en clair dans libraster.dll), aucun shader livre en fichier. Trois portes : le SDK JS (fermee), l'hote de plugins Photoshop .8bf (OUVERTE), la Texture procedurale (OUVERTE). ⚠️ Deux corrections en place : l'hote de plugins n'est pas dans libpersona.dll mais dans Serif.Affinity.dll (recompte en ASCII ET en UTF-16), et le document porte lui-meme la lecon des trois conclusions tirees d'une absence."
+    },
+    {
+      "path": "docs/design-system/affinity-full-scope-2026-08-19.md",
+      "date": "2026-08-19",
+      "topic": "outils, masques, selections, UX et UI d'Affinity",
+      "summary": "Le releve en pleine largeur demande par Antoine : ce que l'application fait au-dela des filtres — outils raster, modele de masques et de selections, gestes, disposition."
+    },
+    {
+      "path": "docs/design-system/affinity-ce-quon-peut-lui-prendre-2026-08-19.md",
+      "date": "2026-08-19",
+      "topic": "le sens inverse — six idees a prendre, trois ou nous sommes devant",
+      "summary": "Extraction par regex des symboles C++ de librastertools.dll : 52 outils, 423 parametres. ⚠️ Le document COMPTE des parametres, et il le dit lui-meme ; c'est exactement ce qui lui a fait rater une idee a prendre — leurs sept parametres de LensBlur portent un bladeCurvature que nos onze n'avaient pas. Son idee 1 (plage tonale sur glow) a ete DEMENTIE par la mesure le soir meme et prise sous une autre forme. Reste ouvert et en tete de sa liste : lever libraryTexture + passes internes dans validateEffect."
+    },
+    {
+      "path": "docs/design-system/affinity-plugin-verdict-2026-08-19.md",
+      "date": "2026-08-19",
+      "topic": "un plugin Affinity ameliorerait-il les perfs ? la qualite ? — verdict mesure",
+      "summary": "Reponse aux tickets 12 et (en partie) 01 de la carte .scratch/affinity/. NON aux deux, et sur les perfs c'est l'INVERSE de l'intuition : un seul filtre natif d'Affinity coute 136 a 565 ms sur 26,0 Mpx quand notre pile entiere a cinq calques d'effet recompose en 23 ms en build de production (43,2 img/s ; 8,4 ms a un calque). Leur plancher ~140 ms est la trace de l'aller-retour CPU/GPU qu'un .8bf paierait — 104 Mo dans chaque sens, par effet. Part de l'abstraction dans notre cout : 93 % de fil principal a un calque, 43 % a cinq — la part qu'un portage natif remplacerait est celle qui RETRECIT quand le travail augmente. Cote qualite, le gain vient de l'HOTE et est atteignable chez nous (ticket 11). Porte aussi la mesure en boite noire de leur Bloom (redistribution tonale signee, avec plancher) et de leur Halftone (monochrome par la voie SDK), et documente les deux ameliorations livrees le meme jour : courbure des lames sur lensBlur, retenue des noirs sur glow."
     }
   ],
   "plans": [

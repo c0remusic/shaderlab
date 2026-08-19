@@ -32,6 +32,11 @@
   retouchent ce qui existe.
 - `glass` **complet** : 14 matières (9 de feuille + 5 de pavé), 5 profils de
   section, **18 références de pixels — toutes les branches verrouillées**.
+- **385 paramètres, 122 références de pixels** au 2026-08-19 (relancés, pas
+  recopiés — deux des chiffres que ce dépôt portait en prose étaient déjà faux
+  avant qu'on y touche : 51 conditions au lieu de 52, 63 gabarits `liste` sur 83
+  au lieu de 60 sur 84). Le +3 de paramètres est le relevé Affinity :
+  `glow.shadowHold` / `shadowHoldPoint` et `lensBlur.bladeCurvature`.
 - **Les 27 effets portent des sections** et leurs applicabilités déclarées
   (`EffectModule.sections`, `EffectParam.appliesWhen`) — chantier de
   rationalisation des contrôles **soldé le 2026-08-05**, statut dans
@@ -93,6 +98,41 @@ masques texturés (03), la couleur de surimpression (05), les modes de fusion
 manquants et `BlendRanges` (06), sélection contre masque (07), ajustement contre
 filtre (08), masque par bande de fréquence (09), pinceau d'effet (10), et le
 16 bits (11).
+
+### ⚠️ OUVERT le 2026-08-19 — quatre restes que la session a créés, pas hérités
+
+Aucun n'est bloquant, et chacun porte sa mesure : c'est elle qui permettra de
+trancher plus tard, pas le souvenir de la session.
+
+1. **`validateEffect` refuse `libraryTexture` sur un effet à passes internes**,
+   et ce verrou est maintenant en TÊTE de la liste des prises. Il gouverne deux
+   effets d'un coup : le **ZMap** sur `lensBlur` (un flou dont le rayon se lit
+   dans une carte au lieu d'une géométrie — Affinity en fait son quatrième mode
+   de champ, et leur SDK expose même un `createDetectDepth` qui la fabrique par
+   IA) et la texture de bibliothèque sur `lensFlare`. La pièce existe déjà chez
+   nous : `displacementMap` lit une image par le binding 7 d'ADR-0018, et le
+   mécanisme est générique dès son écriture. Le blocage n'est pas la capacité,
+   c'est la validation.
+2. **`lensFlare` passe une courbure de lames de `0.0` en dur.** Volontaire — ses
+   sept références de pixels sont d'avant l'ajout du quatrième argument — mais
+   c'est une incohérence de domaine tant que ça dure : `aperture.ts` est partagé
+   parce qu'**un objectif n'a qu'un diaphragme**, donc celui qui décide de la
+   forme du bokeh décide aussi de celle des fantômes. Le jour où `lensFlare`
+   l'expose, c'est un paramètre qu'il lit, pas une constante remise en dur.
+3. **Leur bloom est un opérateur SIGNÉ, et nous n'avons pris que sa moitié.**
+   Mesuré sur un escalier de seize tons unis : `shadowBlend` à 1 assombrit les
+   tons 28 à 102 (−0,001 à −0,012 en linéaire) pendant qu'il éclaircit au-dessus
+   — il DÉPLACE de la lumière au lieu d'en ajouter, ce qui préserve le contraste
+   au lieu de le laver. Notre `glow` reste purement additif ; sa `shadowHold`
+   retient le halo, elle ne compense pas. À décider si ça vaut un second axe.
+4. **GCR / UCR de leur `halftone` : NON TRANCHÉ, et l'absence ne se conclut pas.**
+   Piloté par le SDK, leur demi-ton est monochrome et les quatre combinaisons
+   (GCR 0/100 × UCR 0/100) rendent des images **identiques au pixel**, vérifié
+   sur un nuancier de 36 cases. Notre `halftone` fait déjà la quadrichromie, ses
+   quatre angles d'écran et sa rosette — mais le remplacement de la composante
+   grise par du noir reste une idée du domaine de l'imprimé que nous n'avons
+   pas. Ce qui manque pour trancher : **l'ouvrir dans l'interface d'Affinity, à
+   la main**. Mesuré sur le chemin SDK ne veut pas dire mesuré.
 
 ## ⚠️ DEUX cartes de plus, et la première est CLOSE
 

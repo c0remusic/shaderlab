@@ -44,6 +44,19 @@ Pro-Mist / Black Pro-Mist / Glimmerglass. Distinct de l'**effet Orton**, qui agi
 sur toute l'image, clairs comme sombres. Source : `src/render/effects/glow.ts`.
 _Avoid_ : appeler « glow » un halo coloré — c'est une halation (ci-dessous).
 
+**Pro-Mist contre Black Pro-Mist** — la différence n'est PAS un dosage, et c'est
+pourquoi elle mérite un terme. Un Pro-Mist diffuse : le halo se pose partout où
+il tombe, donc il **délave les noirs**. Un **Black** Pro-Mist porte des
+particules noires qui **absorbent** la lumière diffusée retombant sur les zones
+denses : les hautes lumières fleurissent pendant que les noirs restent noirs.
+Portée par `glow.shadowHold` (« Retenue des noirs ») depuis le 2026-08-19 ; à 0
+c'est le premier, à 1 le second. La porte se calcule sur la luminance de ce qui
+est **sous** le halo, jamais sur celle du halo. Source :
+`src/render/effects/glow.ts`,
+`docs/design-system/affinity-plugin-verdict-2026-08-19.md`.
+_Avoid_ : « bloom plus doux » — un Black Pro-Mist n'est pas un bloom atténué,
+son halo est aussi fort, il ne se dépose simplement pas au même endroit.
+
 **Halation** (effet `halation`, livré 2026-08-01) — RÉ-EXPOSITION chimique : sur
 un film couleur, la lumière traverse l'émulsion, se réfléchit sur les surfaces
 internes de l'appareil, revient filtrée de ses composantes bleues et vertes, et
@@ -78,8 +91,19 @@ Ce n'est pas « du flou » : sa signature est qu'un point plus petit donne une
 tache de MÊME diamètre, seulement plus transparente et à bords plus nets. Un
 flou gaussien n'en produit aucun — il moyenne, donc il dilue. Deux propriétés le
 font exister : la pondération des hautes lumières et la forme du diaphragme
-(polygone à N lames). Porté par **lens blur**. Source :
-`src/render/effects/lensBlur.ts`, référence §6ter. _Avoid_ : "flou d'arrière-plan".
+(polygone à N lames, **aux arêtes plus ou moins bombées**). Porté par
+**lens blur**. Source : `src/render/effects/lensBlur.ts`, référence §6ter.
+_Avoid_ : "flou d'arrière-plan".
+
+**Courbure des lames** — une lame de diaphragme réelle est un **arc**, pas un
+segment : l'ouverture est un polygone à côtés bombés, et elle s'arrondit en
+s'ouvrant. Un bokeh à arêtes strictement droites est donc le cas particulier
+d'un vieux diaphragme, pas le cas général. Portée par `lensBlur.bladeCurvature`
+(0 = arêtes droites, 1 = ouverture ronde) depuis le 2026-08-19, dans
+`effects/aperture.ts` — donc partagée avec `lensFlare`, **un objectif n'ayant
+qu'un diaphragme** : c'est le même qui décide de la forme du bokeh et de celle
+des fantômes de flare. _Avoid_ : « arrondi » seul, qui se confond avec le fondu
+du bord de la tache (`softness`), une autre propriété.
 
 **Rosette** — la petite fleur de points d'un imprimé offset, née de ce que les
 quatre encres sont tramées à des angles DIFFÉRENTS (C 15°, M 75°, J 0°, N 45°).

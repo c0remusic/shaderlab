@@ -1,0 +1,439 @@
+<title>Wireframe — marquer un verrou partiel</title>
+<style>
+  /* ---- Tokens réels shaderlab, inlinés (primitives.css + semantic.css +
+     components.css, src/design/) — self-contained, même convention que les
+     autres wireframes du dossier. Fragment sans doctype/html/head/body. ---- */
+  :root {
+    --primitive-neutral-100: #f2f2f2;
+    --primitive-neutral-850: #323232;
+    --primitive-neutral-900: #2c2c2c;
+    --primitive-neutral-950: #222222;
+    --primitive-neutral-1000: #1b1b1b;
+    --primitive-accent-blue: #4069fd;
+
+    --space-1: 2px;
+    --space-2: 4px;
+    --space-3: 6px;
+    --space-4: 8px;
+    --space-5: 12px;
+    --space-6: 16px;
+    --space-7: 24px;
+
+    --font-ui: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+    --font-mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+    --font-size-xs: 11px;
+    --font-size-sm: 12px;
+    --font-size-md: 13px;
+    --font-size-lg: 14px;
+    --font-size-xl: 16px;
+    --font-weight-semibold: 600;
+
+    --radius-control: 5px;
+    --radius-panel: 8px;
+    --radius-round: 999px;
+
+    --surface-window: var(--primitive-neutral-1000);
+    --surface-workspace: var(--primitive-neutral-950);
+    --surface-panel: var(--primitive-neutral-900);
+    --surface-raised: var(--primitive-neutral-850);
+    --surface-selected: rgba(242, 242, 242, .10);
+    --surface-hover: rgba(242, 242, 242, .07);
+
+    --text-primary: rgba(242, 242, 242, .94);
+    --text-secondary: rgba(242, 242, 242, .72);
+    --text-tertiary: rgba(242, 242, 242, .53);
+    --text-value: var(--primitive-neutral-100);
+    --text-muted: rgba(242, 242, 242, .53);
+
+    --border-subtle: rgba(242, 242, 242, .07);
+    --border-default: rgba(242, 242, 242, .11);
+    --border-emphasis: rgba(242, 242, 242, .18);
+    --border-strong: rgba(242, 242, 242, .28);
+    --focus-color: var(--primitive-accent-blue);
+
+    --panel-bg: var(--surface-panel);
+    --panel-dock-width: 320px;
+    --layer-row-height: 36px;
+    --control-height-md: 30px;
+    --icon-size-xs: 12px;
+    --icon-size-sm: 14px;
+    --slider-track-height: var(--space-2);
+    --slider-thumb-size: 12px;
+    --disabled-opacity: .38;
+
+    --annot-good: #3d9a50;
+    --annot-bad: #e5484d;
+    --annot-warn: #d98324;
+  }
+
+  .wf, .wf *, .wf *::before, .wf *::after { box-sizing: border-box; }
+  .wf {
+    font-family: var(--font-ui); -webkit-font-smoothing: antialiased;
+    background: var(--surface-window); color: var(--text-primary);
+    padding: var(--space-7); min-height: 100vh;
+  }
+  .wf h1 { font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin: 0 0 var(--space-3); }
+  .wf h2 { font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin: var(--space-7) 0 var(--space-4); }
+  .wf p  { font-size: var(--font-size-md); color: var(--text-secondary); margin: 0 0 var(--space-4); max-width: 96ch; line-height: 1.55; }
+  .wf code { font-family: var(--font-mono); font-size: var(--font-size-sm); color: var(--text-primary); }
+  .wf .lede { color: var(--text-primary); }
+
+  .measure {
+    display: inline-flex; gap: var(--space-6); flex-wrap: wrap;
+    border: 1px solid var(--border-default); border-radius: var(--radius-panel);
+    padding: var(--space-4) var(--space-6); margin-bottom: var(--space-6);
+    background: var(--surface-workspace);
+    font-size: var(--font-size-sm); font-family: var(--font-mono); color: var(--text-secondary);
+  }
+  .measure b { color: var(--text-primary); font-weight: var(--font-weight-semibold); }
+
+  /* ---- Pile à l'échelle ---- */
+  .stack {
+    width: var(--panel-dock-width);
+    border: 1px solid var(--border-default); border-radius: var(--radius-panel);
+    background: var(--panel-bg); overflow: hidden;
+  }
+  .stack__bar { height: 52px; display: flex; align-items: center; padding: 0 var(--space-5); border-bottom: 1px solid var(--border-subtle); }
+  .stack__name { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); }
+  .stack__rows { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4); }
+  .lrow {
+    height: var(--layer-row-height); border-radius: var(--radius-control);
+    display: flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-4);
+    background: var(--surface-hover);
+  }
+  .lrow--sel { background: rgba(64, 105, 253, .20); box-shadow: inset 0 0 0 1px var(--focus-color); }
+  .lrow__state { position: relative; width: 28px; height: 28px; border-radius: var(--radius-control); background: rgba(242,242,242,.06); flex: 0 0 28px; }
+  .lrow__name { font-size: var(--font-size-sm); color: var(--text-primary); }
+  .lrow__tag { margin-left: auto; font-family: var(--font-mono); font-size: var(--font-size-xs); color: var(--text-tertiary); }
+
+  /* Pastille de statut — géométrie EXACTE de LayerPanel.css:743 :
+     --icon-size-xs de glyphe, --space-1 de padding, coin bas-droit décalé. */
+  .pastille {
+    position: absolute; right: calc(var(--space-1) * -1); bottom: calc(var(--space-1) * -1);
+    box-sizing: content-box;
+    width: var(--icon-size-xs); height: var(--icon-size-xs);
+    padding: var(--space-1);
+    border-radius: var(--radius-round);
+    background: var(--surface-raised);
+    color: var(--text-primary);
+  }
+  .pastille svg { width: var(--icon-size-xs); height: var(--icon-size-xs); display: block; }
+
+  /* ---- Table de variantes ---- */
+  .variants { display: flex; gap: var(--space-6); flex-wrap: wrap; }
+  .variant {
+    border: 1px solid var(--border-default); border-radius: var(--radius-panel);
+    background: var(--surface-workspace); padding: var(--space-6);
+    width: 246px;
+  }
+  .variant__id { font-family: var(--font-mono); font-size: var(--font-size-xs); color: var(--text-tertiary); }
+  .variant__title { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); margin: var(--space-1) 0 var(--space-2); }
+  .variant__note { font-size: var(--font-size-sm); color: var(--text-tertiary); line-height: 1.45; min-height: 62px; }
+  .variant__pair { display: flex; gap: var(--space-4); margin: var(--space-5) 0 var(--space-3); }
+  .cell {
+    flex: 1 1 0; text-align: center;
+    border: 1px solid var(--border-subtle); border-radius: var(--radius-control);
+    padding: var(--space-4) 0 var(--space-3);
+    background: var(--surface-panel);
+  }
+  .cell__box { position: relative; width: 28px; height: 28px; margin: 0 auto; border-radius: var(--radius-control); background: rgba(242,242,242,.06); }
+  .cell__cap { font-family: var(--font-mono); font-size: var(--font-size-xs); color: var(--text-tertiary); margin-top: var(--space-3); }
+  .variant__zoom { display: flex; gap: var(--space-4); justify-content: center; padding-top: var(--space-3); border-top: 1px solid var(--border-subtle); }
+  .variant__zoom svg { width: 44px; height: 44px; color: var(--text-primary); }
+
+  /* ---- Panneau de propriétés ---- */
+  .card { border: 1px solid var(--border-default); border-radius: var(--radius-panel); background: var(--panel-bg); overflow: hidden; width: var(--panel-dock-width); }
+  .card__bar { height: 52px; display: flex; align-items: center; gap: var(--space-3); padding: 0 var(--space-5); border-bottom: 1px solid var(--border-subtle); }
+  .card__name { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); }
+  .card__body { padding: var(--space-5); }
+  .sect { font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: .04em; color: var(--text-tertiary); margin: var(--space-5) 0 var(--space-4); }
+  .sect:first-child { margin-top: 0; }
+  .prow { margin-bottom: var(--space-5); }
+  .prow--off { opacity: var(--disabled-opacity); }
+  .prow__head { display: flex; align-items: baseline; margin-bottom: var(--space-3); }
+  .prow__label { font-size: var(--font-size-sm); color: var(--text-muted); }
+  .prow__value { margin-left: auto; font-family: var(--font-mono); font-size: var(--font-size-sm); color: var(--text-value); }
+  .prow__track { position: relative; height: var(--slider-track-height); background: var(--border-emphasis); border-radius: var(--radius-round); }
+  .prow__fill { position: absolute; inset: 0 auto 0 0; background: var(--border-strong); border-radius: var(--radius-round); }
+  .prow__thumb { position: absolute; top: 50%; width: var(--slider-thumb-size); height: var(--slider-thumb-size); margin-top: -6px; margin-left: -6px; border-radius: var(--radius-round); background: var(--text-value); border: 1px solid var(--border-strong); }
+  .swatch { width: 14px; height: 14px; border-radius: var(--radius-control); background: #8f31b3; border: 1px solid var(--border-strong); margin-right: var(--space-3); }
+
+  /* Zone de contrôles : les quatre bascules de verrou. */
+  .ctrl { border-top: 1px solid var(--border-subtle); padding: var(--space-4) var(--space-5); display: flex; align-items: center; gap: var(--space-2); background: var(--surface-workspace); }
+  .ctrl__label { font-size: var(--font-size-xs); color: var(--text-tertiary); margin-right: var(--space-2); }
+  .tgl { width: var(--control-height-md); height: var(--control-height-md); display: inline-flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: var(--radius-control); background: transparent; color: var(--text-muted); }
+  .tgl svg { width: var(--icon-size-sm); height: var(--icon-size-sm); display: block; }
+  .tgl--on { background: var(--surface-selected); border-color: var(--border-strong); color: var(--text-primary); }
+
+  /* ---- Toile ---- */
+  .canvas { position: relative; height: 150px; border: 1px solid var(--border-default); border-radius: var(--radius-control); background: linear-gradient(135deg, rgba(242,242,242,.05), rgba(242,242,242,.01)), var(--surface-workspace); overflow: hidden; }
+  .canvas__shape { position: absolute; left: 24%; top: 22%; width: 46%; height: 48%; background: rgba(143, 49, 179, .55); border: 1px solid rgba(143, 49, 179, .9); }
+  .canvas__h { position: absolute; width: 7px; height: 7px; background: var(--text-value); border: 1px solid var(--focus-color); margin: -4px 0 0 -4px; }
+  .canvas__cap { position: absolute; right: var(--space-3); top: var(--space-2); font-size: var(--font-size-xs); color: var(--text-tertiary); }
+
+  .col { display: flex; flex-direction: column; gap: var(--space-4); width: var(--panel-dock-width); }
+  .col__head { min-height: 68px; }
+  .col__title { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); }
+  .col__sub { font-size: var(--font-size-sm); color: var(--text-tertiary); margin-top: var(--space-1); line-height: 1.45; }
+  .board { display: flex; gap: var(--space-7); flex-wrap: wrap; align-items: flex-start; }
+
+  .note { border-left: 3px solid var(--border-strong); padding: var(--space-4) var(--space-6); background: var(--surface-workspace); border-radius: 0 var(--radius-control) var(--radius-control) 0; margin: var(--space-6) 0; }
+  .note--warn { border-left-color: var(--annot-warn); }
+  .note p:last-child { margin-bottom: 0; }
+</style>
+
+<div class="wf">
+  <h1>Marquer un verrou PARTIEL — les variantes, à 12 px</h1>
+  <p class="lede">
+    Deux choses à regarder, et aucune ne se juge en prose : <b>quel glyphe dit « partiellement verrouillé »</b>
+    à la taille réelle de la pastille, et <b>à quoi ressemble un calque dans cet état</b>.
+    Tout ci-dessous est rendu à la géométrie exacte de <code>LayerPanel.css:743</code> —
+    12 px de glyphe, 2 px de padding, pastille au coin bas-droit d'une cellule de 28.
+  </p>
+
+  <div class="measure">
+    <span>glyphe <b>12 px</b> (<code>--icon-size-xs</code>)</span>
+    <span>cellule d'état <b>28 px</b></span>
+    <span>ligne <b>36 px</b> (<code>--layer-row-height</code>)</span>
+  </div>
+
+  <h2>1. Cinq façons de dire « partiel », chacune contre le cadenas PLEIN</h2>
+  <p>
+    Dans chaque case, à gauche le calque <b>entièrement</b> verrouillé (cadenas plein, la convention Adobe),
+    à droite le <b>partiellement</b> verrouillé. Ce qui compte est de les distinguer <b>sans les comparer</b> —
+    dans une vraie pile on n'en voit qu'un à la fois.
+  </p>
+
+  <div class="variants">
+
+    <!-- A -->
+    <div class="variant">
+      <div class="variant__id">A</div>
+      <div class="variant__title">Corps creux</div>
+      <div class="variant__note">La convention littérale d'Adobe. Le corps du cadenas perd son remplissage.</div>
+      <div class="variant__pair">
+        <div class="cell">
+          <div class="cell__box"><span class="pastille"><svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg></span></div>
+          <div class="cell__cap">tout</div>
+        </div>
+        <div class="cell">
+          <div class="cell__box"><span class="pastille"><svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" stroke="currentColor" stroke-width="2.2"/></svg></span></div>
+          <div class="cell__cap">partiel</div>
+        </div>
+      </div>
+      <div class="variant__zoom">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg>
+        <svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" stroke="currentColor" stroke-width="2.2"/></svg>
+      </div>
+    </div>
+
+    <!-- B -->
+    <div class="variant">
+      <div class="variant__id">B</div>
+      <div class="variant__title">Plein, anse OUVERTE</div>
+      <div class="variant__note">Le corps reste plein — la différence est portée par l'ANSE, qui se relève d'un côté.</div>
+      <div class="variant__pair">
+        <div class="cell">
+          <div class="cell__box"><span class="pastille"><svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg></span></div>
+          <div class="cell__cap">tout</div>
+        </div>
+        <div class="cell">
+          <div class="cell__box"><span class="pastille"><svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0V5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg></span></div>
+          <div class="cell__cap">partiel</div>
+        </div>
+      </div>
+      <div class="variant__zoom">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg>
+        <svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0V5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg>
+      </div>
+    </div>
+
+    <!-- C -->
+    <div class="variant">
+      <div class="variant__id">C</div>
+      <div class="variant__title">Plein, corps ENTAMÉ</div>
+      <div class="variant__note">Le corps reste plein mais lui manque un quart — « une partie tient, pas tout ».</div>
+      <div class="variant__pair">
+        <div class="cell">
+          <div class="cell__box"><span class="pastille"><svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg></span></div>
+          <div class="cell__cap">tout</div>
+        </div>
+        <div class="cell">
+          <div class="cell__box"><span class="pastille"><svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M6.5 10h13a2.5 2.5 0 0 1 2.5 2.5v6a2.5 2.5 0 0 1-2.5 2.5H12V10H6.5z" fill="currentColor" transform="translate(-2 0)"/><rect x="4" y="10" width="16" height="11" rx="2.5" stroke="currentColor" stroke-width="2.2"/></svg></span></div>
+          <div class="cell__cap">partiel</div>
+        </div>
+      </div>
+      <div class="variant__zoom">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg>
+        <svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M6.5 10h13a2.5 2.5 0 0 1 2.5 2.5v6a2.5 2.5 0 0 1-2.5 2.5H12V10H6.5z" fill="currentColor" transform="translate(-2 0)"/><rect x="4" y="10" width="16" height="11" rx="2.5" stroke="currentColor" stroke-width="2.2"/></svg>
+      </div>
+    </div>
+
+    <!-- D -->
+    <div class="variant">
+      <div class="variant__id">D</div>
+      <div class="variant__title">Plein, en DEMI-TEINTE</div>
+      <div class="variant__note">Même glyphe, même forme — seule l'intensité change. Le plus discret, et le plus fragile : c'est aussi comme ça qu'on rend un état désactivé.</div>
+      <div class="variant__pair">
+        <div class="cell">
+          <div class="cell__box"><span class="pastille"><svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg></span></div>
+          <div class="cell__cap">tout</div>
+        </div>
+        <div class="cell">
+          <div class="cell__box"><span class="pastille" style="color:var(--text-tertiary)"><svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg></span></div>
+          <div class="cell__cap">partiel</div>
+        </div>
+      </div>
+      <div class="variant__zoom">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" style="color:var(--text-tertiary)"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg>
+      </div>
+    </div>
+
+    <!-- E -->
+    <div class="variant">
+      <div class="variant__id">E</div>
+      <div class="variant__title">Plein + PICTOGRAMME</div>
+      <div class="variant__note">Le cadenas plein ne dit plus QUE « verrouillé » ; c'est un second glyphe qui dit QUOI — ici la croix de déplacement, pour « position ».</div>
+      <div class="variant__pair">
+        <div class="cell">
+          <div class="cell__box"><span class="pastille"><svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg></span></div>
+          <div class="cell__cap">tout</div>
+        </div>
+        <div class="cell">
+          <div class="cell__box"><span class="pastille"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></span></div>
+          <div class="cell__cap">position</div>
+        </div>
+      </div>
+      <div class="variant__zoom">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg>
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
+      </div>
+    </div>
+
+  </div>
+
+  <h2>Les cinq dans une vraie pile, sans étiquette pour aider</h2>
+  <p>
+    C'est le test qui compte : en balayant une pile, sait-on lequel est entièrement verrouillé ?
+  </p>
+  <div class="stack">
+    <div class="stack__bar"><span class="stack__name">Pile</span></div>
+    <div class="stack__rows">
+      <div class="lrow"><span class="lrow__state"><span class="pastille"><svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg></span></span><span class="lrow__name">Glow</span><span class="lrow__tag">tout</span></div>
+      <div class="lrow"><span class="lrow__state"><span class="pastille"><svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" stroke="currentColor" stroke-width="2.2"/></svg></span></span><span class="lrow__name">Halation</span><span class="lrow__tag">A · creux</span></div>
+      <div class="lrow"><span class="lrow__state"><span class="pastille"><svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0V5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg></span></span><span class="lrow__name">Grain</span><span class="lrow__tag">B · anse</span></div>
+      <div class="lrow"><span class="lrow__state"><span class="pastille" style="color:var(--text-tertiary)"><svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg></span></span><span class="lrow__name">Duotone</span><span class="lrow__tag">D · demi-teinte</span></div>
+      <div class="lrow lrow--sel"><span class="lrow__state"><span class="pastille"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></span></span><span class="lrow__name">Aplat</span><span class="lrow__tag">E · pictogramme</span></div>
+      <div class="lrow"><span class="lrow__state"></span><span class="lrow__name">photo-1.jpg</span><span class="lrow__tag">libre</span></div>
+    </div>
+  </div>
+
+  <h2>2. À quoi ressemble un calque partiellement verrouillé</h2>
+  <p>
+    Le tableau du partage des dix-sept opérations n'était qu'un tableau. Voici ce qu'il donne à l'écran :
+    trois états du <b>même</b> calque Aplat, avec sa zone de contrôles, son panneau et sa toile.
+  </p>
+
+  <div class="board">
+
+    <div class="col">
+      <div class="col__head">
+        <div class="col__title">Libre</div>
+        <div class="col__sub">Tout se règle, les poignées sont là.</div>
+      </div>
+      <div class="card">
+        <div class="card__bar"><span class="card__name">Propriétés · Aplat</span></div>
+        <div class="card__body">
+          <div class="sect">Géométrie</div>
+          <div class="prow"><div class="prow__head"><span class="prow__label">Largeur</span><span class="prow__value">2496 px</span></div><div class="prow__track"><div class="prow__fill" style="width:40%"></div><div class="prow__thumb" style="left:40%"></div></div></div>
+          <div class="prow"><div class="prow__head"><span class="prow__label">Rotation</span><span class="prow__value">0°</span></div><div class="prow__track"><div class="prow__fill" style="width:50%"></div><div class="prow__thumb" style="left:50%"></div></div></div>
+          <div class="sect">Couleur</div>
+          <div class="prow"><div class="prow__head"><span class="swatch"></span><span class="prow__label">Teinte</span><span class="prow__value">288°</span></div><div class="prow__track"><div class="prow__fill" style="width:80%"></div><div class="prow__thumb" style="left:80%"></div></div></div>
+        </div>
+        <div class="ctrl">
+          <span class="ctrl__label">Verrouiller</span>
+          <span class="tgl" title="Position"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+          <span class="tgl" title="Masque"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg></span>
+          <span class="tgl" title="Transparence"><svg viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" stroke-width="2" stroke-dasharray="3 2.5"/></svg></span>
+          <span class="tgl" title="Tout"><svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg></span>
+        </div>
+      </div>
+      <div class="canvas">
+        <span class="canvas__cap">toile</span>
+        <div class="canvas__shape">
+          <span class="canvas__h" style="left:0;top:0"></span><span class="canvas__h" style="left:100%;top:0"></span>
+          <span class="canvas__h" style="left:0;top:100%"></span><span class="canvas__h" style="left:100%;top:100%"></span>
+          <span class="canvas__h" style="left:50%;top:0"></span><span class="canvas__h" style="left:50%;top:100%"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="col__head">
+        <div class="col__title">Verrou POSITION</div>
+        <div class="col__sub">« Je tiens le placement, je cherche encore la couleur » — le cas nommé par Adobe. La géométrie s'éteint, la couleur reste vivante, <b>les poignées disparaissent</b>.</div>
+      </div>
+      <div class="card">
+        <div class="card__bar"><span class="card__name">Propriétés · Aplat</span></div>
+        <div class="card__body">
+          <div class="sect">Géométrie</div>
+          <div class="prow prow--off"><div class="prow__head"><span class="prow__label">Largeur</span><span class="prow__value">2496 px</span></div><div class="prow__track"><div class="prow__fill" style="width:40%"></div><div class="prow__thumb" style="left:40%"></div></div></div>
+          <div class="prow prow--off"><div class="prow__head"><span class="prow__label">Rotation</span><span class="prow__value">0°</span></div><div class="prow__track"><div class="prow__fill" style="width:50%"></div><div class="prow__thumb" style="left:50%"></div></div></div>
+          <div class="sect">Couleur</div>
+          <div class="prow"><div class="prow__head"><span class="swatch"></span><span class="prow__label">Teinte</span><span class="prow__value">288°</span></div><div class="prow__track"><div class="prow__fill" style="width:80%"></div><div class="prow__thumb" style="left:80%"></div></div></div>
+        </div>
+        <div class="ctrl">
+          <span class="ctrl__label">Verrouiller</span>
+          <span class="tgl tgl--on" title="Position"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+          <span class="tgl" title="Masque"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg></span>
+          <span class="tgl" title="Transparence"><svg viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" stroke-width="2" stroke-dasharray="3 2.5"/></svg></span>
+          <span class="tgl" title="Tout"><svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg></span>
+        </div>
+      </div>
+      <div class="canvas">
+        <span class="canvas__cap">toile — aucune poignée</span>
+        <div class="canvas__shape"></div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="col__head">
+        <div class="col__title">Verrou TOUT</div>
+        <div class="col__sub">Le calque est fini. Seules la visibilité et le déverrouillage restent atteignables — un verrou irréversible serait hostile.</div>
+      </div>
+      <div class="card">
+        <div class="card__bar"><span class="card__name">Propriétés · Aplat</span></div>
+        <div class="card__body">
+          <div class="sect">Géométrie</div>
+          <div class="prow prow--off"><div class="prow__head"><span class="prow__label">Largeur</span><span class="prow__value">2496 px</span></div><div class="prow__track"><div class="prow__fill" style="width:40%"></div><div class="prow__thumb" style="left:40%"></div></div></div>
+          <div class="prow prow--off"><div class="prow__head"><span class="prow__label">Rotation</span><span class="prow__value">0°</span></div><div class="prow__track"><div class="prow__fill" style="width:50%"></div><div class="prow__thumb" style="left:50%"></div></div></div>
+          <div class="sect">Couleur</div>
+          <div class="prow prow--off"><div class="prow__head"><span class="swatch"></span><span class="prow__label">Teinte</span><span class="prow__value">288°</span></div><div class="prow__track"><div class="prow__fill" style="width:80%"></div><div class="prow__thumb" style="left:80%"></div></div></div>
+        </div>
+        <div class="ctrl">
+          <span class="ctrl__label">Verrouiller</span>
+          <span class="tgl tgl--on" title="Position"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+          <span class="tgl tgl--on" title="Masque"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg></span>
+          <span class="tgl tgl--on" title="Transparence"><svg viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" stroke-width="2" stroke-dasharray="3 2.5"/></svg></span>
+          <span class="tgl tgl--on" title="Tout"><svg viewBox="0 0 24 24" fill="none"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="11" rx="2.5" fill="currentColor"/></svg></span>
+        </div>
+      </div>
+      <div class="canvas">
+        <span class="canvas__cap">toile — aucune poignée</span>
+        <div class="canvas__shape"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="note note--warn">
+    <p>
+      <b>Ce que ces trois colonnes montrent et que le tableau ne montrait pas :</b> le verrou Position
+      n'éteint pas « la moitié du panneau » — il éteint <b>une section entière et laisse l'autre intacte</b>.
+      C'est lisible parce que <code>aplat</code> range déjà sa géométrie et sa couleur dans deux sections
+      séparées. Sur un effet dont les sections mélangent les deux, le même verrou donnerait un panneau
+      en damier — <b>à vérifier sur <code>lensFlare</code> et <code>motionBlur</code> avant d'écrire.</b>
+    </p>
+  </div>
+</div>

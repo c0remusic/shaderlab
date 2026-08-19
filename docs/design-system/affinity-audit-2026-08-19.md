@@ -4,13 +4,32 @@ Question d'Antoine, le 2026-08-19 : « qu'est-ce qu'Affinity fait mieux que
 shaderlab : outillage, effets, code, UI, UX — comment il le fait, comment
 implémenter ça dans shaderlab ? »
 
-**Ce document est le chapeau.** Il consolide les six relevés du jour et les
-cinq catalogues bruts (`.scratch/affinity/research/`), ordonne la réponse par
-les cinq axes de la question, et pour chaque écart donne : ce qu'ils font,
-comment, et le chemin d'implémentation chez nous. Il ajoute trois morceaux que
-les catalogues portaient et qu'aucun relevé n'avait synthétisés (raccourcis
-clavier, historique à instantanés, système d'export). Le détail vit dans les
-relevés ; la décision vit dans les tickets de `.scratch/affinity/`.
+**Ce document est le chapeau — VERSION 2, refaite le soir même sur le
+constat d'Antoine que la première passe manquait des choses.** Elle
+manquait en effet : la v1 consolidait des SONDAGES ; la v2 ajoute une passe
+SYSTÉMATIQUE sur six canaux — le SDK JavaScript lu EN ENTIER (105 fichiers,
+licence BSD-3, trois agents), l'inventaire VIVANT de toute la surface API
+(60 modules, 384 classes, 200 enums —
+[`catalogue-api-sdk.json`](../../.scratch/affinity/research/catalogue-api-sdk.json)),
+les 22 773 identifiants de `Serif.Affinity.dll` lus en entier, le scan des
+kernels des binaires moteur, et la caractérisation AU PIXEL des ajustements
+du territoire retouche. Trois documents en sortent, qui font partie du
+chapeau :
+
+- [`affinity-code-2026-08-19.md`](affinity-code-2026-08-19.md) — **le code
+  d'Affinity, lu** : leur architecture (commandes, preview transactionnel,
+  historique-arbre, splines, facettes) mappée sur la nôtre, prise par prise ;
+- [`affinity-angles-morts-2026-08-19.md`](affinity-angles-morts-2026-08-19.md)
+  — ce que les cinq relevés n'avaient PAS vu : Develop RAW cartographié,
+  **métadonnées XMP/IPTC/EXIF (le plus gros manque du fil)**, scopes vidéo,
+  fusions multi-images, avant/après, points de vue nommés, softproof en
+  calque, macros à échelle réinterprétable, export LUT 3D…
+- [`02-ajustements-mesures.md`](../../.scratch/affinity/research/02-ajustements-mesures.md)
+  — WhiteBalance, Vibrance, SplitToning, ShadowsHighlights, ToneCompression
+  MESURÉS sur mires : la spec comportementale du lot « développement ».
+
+Le reste de ce document ordonne la réponse par axes ; le détail vit dans les
+relevés, la décision dans les tickets de `.scratch/affinity/`.
 
 **Niveaux de preuve, à lire sur chaque item** — la carte l'exige :
 
@@ -53,8 +72,8 @@ cette étape ou son inverse (conclure d'une absence).
 | **Masques** | **Le plus gros écart en notre défaveur, tous axes confondus.** Six mécanismes absents chez nous, dont deux alignés sur notre positionnement (texturer le masque, bande de fréquence). |
 | **UI** | Trois idées mesurées à l'écran : deux zones fixes aux rôles distincts, hiérarchie de valeurs inversée sur le chrome, sélection en aplat franc. Notre dock à onglets du jour est validé par leur colonne de Studios. |
 | **UX** | Le geste en UN coup (pinceau d'effet), le magnétisme comme système, les raccourcis configurables, l'historique VISIBLE. Notre modèle couvre déjà leur `FadeRewind` gratuitement. |
-| **Code / moteur** | Ils sont devant sur la PROFONDEUR (16/32 bits, ICC, OCIO, épreuvage) — et c'est l'HÔTE, pas les filtres. Nous sommes devant sur la LATENCE : 6 à 25× plus rapides, mesuré des deux côtés. |
-| **Outillage** | Côté utilisateur, ils ont ce que nous n'avons pas du tout : export multi-formats avec presets, batch, macros, scripting. Côté développement, rien à copier — leur SDK nous sert d'instrument de mesure, et notre outillage de preuve (122 références de pixels, gates) n'a pas d'équivalent visible chez eux. |
+| **Code / moteur** | Ils sont devant sur la PROFONDEUR (16/32 bits, ICC, OCIO, épreuvage) — et c'est l'HÔTE, pas les filtres. Nous sommes devant sur la LATENCE : 6 à 25× plus rapides, mesuré des deux côtés. **V2 : leur ARCHITECTURE lue en entier** — quatre inventions à prendre (preview transactionnel = notre plaie `replaceLiveLayers` réglée à la racine, commande-valeur à libellés, historique-arbre, spline universelle) et un trou central où c'est NOUS la référence (zéro introspection chez eux, bornes par écrêtage silencieux — notre registre déclaratif fait l'inverse). Détail : [`affinity-code`](affinity-code-2026-08-19.md). |
+| **Outillage** | Côté utilisateur, ils ont ce que nous n'avons pas du tout : export multi-formats avec presets, batch NON bloquant, macros (à échelle réinterprétable — le défaut n° 1 des Actions Photoshop, résolu), scripting, **et les angles morts de la v1 : métadonnées XMP/IPTC/EXIF, scopes vidéo, avant/après, points de vue nommés** ([`affinity-angles-morts`](affinity-angles-morts-2026-08-19.md)). Côté développement, rien à copier — leur SDK nous sert d'instrument de mesure, et notre outillage de preuve (124 références de pixels, gates) n'a pas d'équivalent visible chez eux. |
 
 ---
 
@@ -67,6 +86,10 @@ cette étape ou son inverse (conclure d'une absence).
    citait sans le rendre. Leur mécanisme réel — redistribution tonale signée,
    pas halo à seuil — est documenté dans le
    [verdict](affinity-plugin-verdict-2026-08-19.md).
+   ⚠️ Précision v2 : la structure LIVE porte `method: Contrast | Bright` et
+   `isStrong` (absents de la voie destructive mesurée) — le comportement
+   relevé est celui d'UNE des deux méthodes. Sans conséquence sur la prise
+   (le plancher est le mécanisme commun), mais à savoir si on re-mesure.
 2. ✅ `[mesuré]` **La courbure des lames** (`bladeCurvature`) → `effects/aperture.ts`,
    partagé `lensBlur`/`lensFlare`, écart au vrai arc borné par test.
 
@@ -556,6 +579,21 @@ nommé) :
 | Deux zones fixes dans le panneau Calques | séparer décrire/agir | S + amendement ADR-0001 |
 | Glitch par canal sur `sliceShift` | franges RVB décalées séparément | S |
 | LUT 3D | appliquer un look `.cube` partagé | M |
+
+**Candidats v2 — issus de la passe systématique du soir** (mêmes règles) :
+
+| Candidat | Le geste | Coût |
+| --- | --- | --- |
+| ⭐ Métadonnées à l'export : préserver EXIF/XMP de la source, case « retirer le GPS » | un JPEG exporté qui garde copyright et réglages boîtier | S–M |
+| ⭐ Réifier le geste vivant (mort de `replaceLiveLayers`) | les verrous et règles métier écrits UNE fois | M — la prise n° 1 du relevé code |
+| Avant/après (split ou miroir) | juger un réglage sans éteindre l'œil du calque | M |
+| Lot développement — la SPEC est mesurée (`02-ajustements-mesures.md`) | WhiteBalance/Vibrance/SplitToning fidèles au comportement relevé | M (inchangé, mais dé-risqué) |
+| Waveform/parade + stats d'histogramme | juger une correction tonale en pro | M |
+| Points de vue nommés | revenir d'un clic au zoom 100 % sur le visage | S |
+| Export LUT 3D (miroir de la LUT d'entrée) | partager un look shaderlab comme .cube | S une fois la LUT d'entrée faite |
+| Libellés d'historique portés par le geste | préalable du panneau Historique | S–M |
+| `enableIfDisabled` (bouger un curseur rallume l'effet éteint) | un geste au lieu de deux | XS |
+| Layer States (variantes nommées de la pile) | comparer deux versions d'une retouche | M |
 
 **Écartés, avec raison** : bilatéral (ADR-0011, décision inverse déjà prise) ·
 Mixbox et les dynamiques de COULEUR du pinceau (`hueShift`… — nous ne

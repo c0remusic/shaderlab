@@ -282,7 +282,16 @@ function formatEffectParamValue(
 ): string {
   switch (param.unit) {
     case "percent":
-      return `${Math.round(value * 100)} %`;
+      // Les décimales se dérivent du PAS ×100, comme `formatControlValue` le
+      // fait déjà pour l'unité du curseur — 49 paramètres du registre ont un pas
+      // plus fin que 0,01 (39 × 0,001, 1 × 0,002, 9 × 0,005), et un
+      // `Math.round(value * 100)` ne sait pas les MONTRER : 0,505 s'affichait
+      // « 50 % ». Le champ commettait alors son propre arrondi — un focus + blur
+      // SANS frappe reparsait le brouillon gelé en 0,50, donc un `onChange` et
+      // une entrée d'historique pour un geste nul. Un pas ≥ 0,01 donne un
+      // `step × 100` entier, donc exactement le rendu d'avant (mesuré : zéro
+      // divergence sur la course entière des 169 paramètres concernés).
+      return `${formatControlValue(value * 100, param.step * 100)} %`;
     case "pixels":
       return `${formatControlValue(value, param.step)} px`;
     case "degrees":

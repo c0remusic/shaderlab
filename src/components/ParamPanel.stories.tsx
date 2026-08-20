@@ -462,15 +462,19 @@ export const SpatialControlsShowPixels: Story = {
 
 /** Contre-épreuve : SANS `imageSize` (aucun document), le même paramètre reste
  *  en POURCENTAGE. Sans elle, une conversion toujours active passerait la story
- *  ci-dessus tout en cassant les panneaux ordinaires. */
+ *  ci-dessus tout en cassant les panneaux ordinaires.
+ *
+ *  Une décimale, et elle n'est pas cosmétique : `centreX` a un pas de 0,001 et
+ *  `largeur` de 0,005, donc le champ MONTRE ce que le curseur sait régler (voir
+ *  `FineStepPercentShowsItsPrecisionAndHoldsOnBlur`). */
 export const SpatialControlsStayPercentWithoutImageSize: Story = {
   args: {
     layer: makeLayer({ effectId: "aplat", params: { borne: 1, centreX: 0.5, largeur: 0.4 } }),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByLabelText("Centre X (valeur)")).toHaveValue("50 %");
-    await expect(canvas.getByLabelText("Largeur (valeur)")).toHaveValue("40 %");
+    await expect(canvas.getByLabelText("Centre X (valeur)")).toHaveValue("50.0 %");
+    await expect(canvas.getByLabelText("Largeur (valeur)")).toHaveValue("40.0 %");
   },
 };
 
@@ -510,7 +514,7 @@ export const PercentInputConvertsToFraction: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const input = canvas.getByLabelText("Centre X (valeur)");
-    await expect(input).toHaveValue("50 %");
+    await expect(input).toHaveValue("50.0 %");
     await userEvent.clear(input);
     await userEvent.type(input, "60");
     await userEvent.keyboard("{Enter}");
@@ -532,6 +536,34 @@ export const PercentFieldRoundTripsOnBlur: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByLabelText("Centre X (valeur)"));
+    await userEvent.tab();
+    await expect(args.onParamChange).not.toHaveBeenCalled();
+  },
+};
+
+/** L'affichage percent porte les décimales de SON PAS — et c'est ce qui éteint
+ *  une dérive au blur. Le champ arrondissait au pourcent entier
+ *  (`Math.round(value * 100)`) alors que 49 paramètres du registre ont un pas
+ *  plus fin que 0,01 : `aplat.centreX` va par 0,001, donc 0,505 s'affichait
+ *  « 50 % ». Deux conséquences, et la seconde mordait — le champ ne savait pas
+ *  MONTRER ce que le curseur sait régler, et un focus + blur SANS frappe
+ *  reparsait le brouillon gelé « 50 % » en 0,50 ≠ 0,505 : `onChange` et une
+ *  entrée d'historique pour un geste nul. `PercentFieldRoundTripsOnBlur` ne
+ *  l'attrapait pas, sa valeur (0,5) étant un multiple du pourcent.
+ *
+ *  Le round-trip est donc éprouvé sur une valeur que l'arrondi TRAHIT, seule
+ *  forme qui distingue le correctif de son absence. */
+export const FineStepPercentShowsItsPrecisionAndHoldsOnBlur: Story = {
+  args: {
+    layer: makeLayer({ effectId: "aplat", params: { borne: 1, centreX: 0.505, largeur: 0.4 } }),
+    onParamChange: fn(),
+    onParamCommit: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByLabelText("Centre X (valeur)");
+    await expect(input).toHaveValue("50.5 %");
+    await userEvent.click(input);
     await userEvent.tab();
     await expect(args.onParamChange).not.toHaveBeenCalled();
   },

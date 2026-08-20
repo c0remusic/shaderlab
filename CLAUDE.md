@@ -596,6 +596,11 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   entière, parce que seul `LayerPanel.stories.tsx` a été relancé.
 - Shaders GPU : `node scripts/gpu-shader-check.mjs --origin http://localhost:1421` — prouve que les shaders COMPILENT. ⚠️ **`npm run test:gpu-shaders` SANS `--origin` compile les modules FIGÉS en cache de la fenêtre, pas ton édition** : vert ET rouge faux (un `import()` d'une URL déjà évaluée rend l'instance en cache). Même prérequis Vite que `test:render` ci-dessous. Avec `--origin`, la page CDP n'est qu'un HÔTE DE GPU — n'importe laquelle fait l'affaire, y compris celle d'un autre projet. ⚠️ **Le port CDP n'est pas forcément libre** : il a été trouvé tenu par Ableton Live le 2026-08-18, qui expose son propre CEF sur 9222. Les DEUX gates prennent désormais `--port` (ajouté à `gpu-shader-check` ce jour-là, `render-check` l'avait déjà) — lancer l'app avec `--remote-debugging-port=<port>` et le passer aux deux, plutôt que fermer le programme fautif.
 - Non-régression du **rendu** : `npm run test:render` (`scripts/render-check.mjs`) — prouve que le pipeline produit les MÊMES PIXELS qu'avant. Prérequis : l'app tourne avec le port CDP 9222, ET un Vite du worktree courant sur 1421 (`npx vite --port 1421`). Références versionnées dans `test/render-refs/` ; `--update` les réécrit (les relire à l'œil avant de committer), `--diagnostic` mesure la dépendance à l'horloge de la surface de présentation. Lit les pixels de `Renderer.exportFrame()`, jamais une capture d'écran — voir l'en-tête du script pour pourquoi.
+  ⚠️ **Un PNG de référence a DEUX points d'enregistrement, dans le MÊME commit** :
+  son scénario dans `render-check.mjs` ET la table `ATTENDU` de
+  `test/scripts/renderRefs.test.mjs`. Payé le 2026-08-20 : la paire miroir
+  committée sans l'entrée ATTENDU a laissé `npm run test` rouge sur master une
+  journée — aucun autre gate ne voit l'omission.
 - Validation **statique** du WGSL, sans GPU : `npm run test:wgsl`
   (`test/render/wgslNaga.test.ts`, aussi inclus dans `npm run test`). Prérequis :
   `cargo install naga-cli --locked`. **Seul gate de shader qui tourne en CI** ; il

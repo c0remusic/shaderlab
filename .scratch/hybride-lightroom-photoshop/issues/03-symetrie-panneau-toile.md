@@ -161,7 +161,9 @@ STOCKÉ, donc les presets gardent leur indépendance à la définition.
 Vaut pour les **cinq** effets à contrôle spatial : `aplat`, `lensFlare`,
 `lightLeak`, `motionBlur`, `pixelStretch`.
 
-⚠️ **Pas encore écrit.** C'est le seul reste de CODE de cette carte.
+✅ **Écrit le 2026-08-20** — voir la section « LIVRÉ » en tête de ce fichier.
+(Cette ligne a dit « pas encore écrit » une journée après la livraison : la
+section de tête avait été mise à jour, pas celle-ci.)
 
 ### Ce que la mesure du jour ajoute à l'écriture
 

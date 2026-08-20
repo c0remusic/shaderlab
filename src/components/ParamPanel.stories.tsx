@@ -336,9 +336,12 @@ export const ChangeParamFiresChange: Story = {
     const canvas = within(canvasElement);
     // "Seuil" is the label of the glow `threshold` param; its numeric input is
     // labeled "Seuil (valeur)". Enter commits parsed value → onParamChange.
+    // `threshold` est un paramètre `percent` : le champ montre « 55 % », la
+    // frappe se lit donc en POURCENTS (« 50 » → 0.5) — la story tapait « 0.5 »
+    // du temps où la saisie passait, à tort, par les bornes fraction.
     const input = canvas.getByLabelText("Seuil (valeur)");
     await userEvent.clear(input);
-    await userEvent.type(input, "0.5");
+    await userEvent.type(input, "50");
     await userEvent.keyboard("{Enter}");
     // Enter must commit exactly once. Regression guard: Enter previously
     // called commitTypedValue() AND blur() (whose onBlur re-commits),
@@ -490,6 +493,69 @@ export const SpatialPixelInputConvertsToFraction: Story = {
     await userEvent.keyboard("{Enter}");
     await expect(args.onParamChange).toHaveBeenCalledTimes(1);
     await expect(args.onParamChange).toHaveBeenCalledWith("layer-1", { centreX: 0.25 });
+  },
+};
+
+/** Saisie en POURCENTS : un paramètre `percent` montre « 50 % » pendant que son
+ *  curseur reste en fraction, la frappe se lit donc en pourcents et se stocke en
+ *  fraction. Taper « 60 » donne 0.6 — sans le parse par unité, elle passait par
+ *  les bornes FRACTION du curseur et s'écrêtait à 1 (= 100 %). Bug préexistant
+ *  trouvé par l'audit de la voie B (ROADMAP, 2026-08-20). */
+export const PercentInputConvertsToFraction: Story = {
+  args: {
+    layer: makeLayer({ effectId: "aplat", params: { borne: 1, centreX: 0.5, largeur: 0.4 } }),
+    onParamChange: fn(),
+    onParamCommit: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByLabelText("Centre X (valeur)");
+    await expect(input).toHaveValue("50 %");
+    await userEvent.clear(input);
+    await userEvent.type(input, "60");
+    await userEvent.keyboard("{Enter}");
+    await expect(args.onParamChange).toHaveBeenCalledTimes(1);
+    await expect(args.onParamChange).toHaveBeenCalledWith("layer-1", { centreX: 0.6 });
+  },
+};
+
+/** Contre-épreuve du même bug : focus puis blur SANS frapper ne change RIEN.
+ *  Avant le parse par unité, le brouillon « 50 % » repassait par les bornes
+ *  fraction au blur et posait 1 (= 100 %) — la valeur sautait à son maximum
+ *  sans qu'aucun chiffre ait été tapé. */
+export const PercentFieldRoundTripsOnBlur: Story = {
+  args: {
+    layer: makeLayer({ effectId: "aplat", params: { borne: 1, centreX: 0.5, largeur: 0.4 } }),
+    onParamChange: fn(),
+    onParamCommit: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByLabelText("Centre X (valeur)"));
+    await userEvent.tab();
+    await expect(args.onParamChange).not.toHaveBeenCalled();
+  },
+};
+
+/** Même bug, TROISIÈME câblage : les curseurs Saturation/Luminosité d'un groupe
+ *  de couleur (`ColorGroupControl`) affichent des % sur une fraction 0..1. Le
+ *  groupe « Ombres » de `duotone` est le premier rendu, donc déplié d'entrée —
+ *  son champ Saturation est le seul monté (les panneaux repliés ne sont pas
+ *  dans le DOM). Taper « 60 » écrit 0.6, jamais 1. */
+export const ColorGroupPercentInputConvertsToFraction: Story = {
+  args: {
+    layer: makeLayer({ effectId: "duotone" }),
+    onParamChange: fn(),
+    onParamCommit: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByLabelText("Saturation (valeur)");
+    await userEvent.clear(input);
+    await userEvent.type(input, "60");
+    await userEvent.keyboard("{Enter}");
+    await expect(args.onParamChange).toHaveBeenCalledTimes(1);
+    await expect(args.onParamChange).toHaveBeenCalledWith("layer-1", { shadowSaturation: 0.6 });
   },
 };
 

@@ -2,6 +2,7 @@ import { Brush, Eraser } from "lucide-react";
 import { LabeledSlider } from "./ui/labeled-slider";
 import { Toggle } from "./ui/toggle";
 import { Button } from "./ui/button";
+import { parsePercentValue } from "../ui/formatValue";
 
 interface Props {
   brushSize: number;
@@ -100,6 +101,9 @@ export function BrushToolbar({
         />
       </div>
       <div className="brush-toolbar__control">
+        {/* Les trois curseurs en % restent en FRACTION 0..1 : la saisie se lit
+            donc en pourcents (`parse`, ÷100) — sans lui, taper « 60 » dans un
+            champ montrant « 50 % » s'écrêtait à 1 sur les bornes fraction. */}
         <LabeledSlider
           label="Dureté"
           displayValue={`${Math.round(brushHardness * 100)} %`}
@@ -107,6 +111,7 @@ export function BrushToolbar({
           min={0}
           max={1}
           step={0.05}
+          parse={(raw) => parsePercentValue(raw, 0, 1, 0.05)}
           onChange={onBrushHardnessChange}
         />
       </div>
@@ -118,6 +123,7 @@ export function BrushToolbar({
           min={0}
           max={1}
           step={0.01}
+          parse={(raw) => parsePercentValue(raw, 0, 1, 0.01)}
           onChange={onBrushOpacityChange}
         />
       </div>
@@ -129,6 +135,7 @@ export function BrushToolbar({
           min={0.01}
           max={1}
           step={0.01}
+          parse={(raw) => parsePercentValue(raw, 0.01, 1, 0.01)}
           onChange={onBrushFlowChange}
         />
       </div>

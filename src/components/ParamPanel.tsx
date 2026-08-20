@@ -9,7 +9,7 @@ import { Disclosure } from "./ui/collapsible";
 import { Checkbox } from "./ui/checkbox";
 import { Select } from "./ui/select";
 import { ColorGroupControl } from "./ui/color-group-control";
-import { formatControlValue } from "../ui/formatValue";
+import { formatControlValue, parsePercentValue } from "../ui/formatValue";
 import { useState, type ReactNode } from "react";
 import { CurveControl } from "./CurveControl";
 import { TonalRangeControl } from "./TonalRangeControl";
@@ -550,13 +550,20 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onC
                 const displayValue = facteurPx !== undefined
                   ? formatEffectParamValue(valeur * facteurPx, { unit: "pixels", step: 1 })
                   : formatEffectParamValue(valeur, item.param);
-                // Saisie en pixels : lue puis ramenée en fraction par
-                // `parsePixelInput`, qui borne sur les bornes du CURSEUR et cale
-                // sur son pas — la fonction est nommée et testée à côté du
-                // facteur, cette closure ne fait que lui passer les bornes.
-                const parsePx = facteurPx !== undefined
+                // Saisie dans l'UNITÉ AFFICHÉE, ramenée en fraction avant de
+                // borner sur les bornes du CURSEUR et de caler sur son pas :
+                // pixels d'un contrôle spatial via `parsePixelInput`, pourcents
+                // d'un paramètre `percent` via `parsePercentValue` (l'affichage
+                // est ×100 pendant que le curseur reste en fraction). Sans le
+                // second, la frappe passait par `parseControlValue` avec les
+                // bornes FRACTION : « 60 » tapé dans un champ montrant « 50 % »
+                // s'écrêtait à 1 (= 100 %). `pixels`/`degrees`/`none` affichent
+                // l'unité du curseur, le parse standard leur suffit.
+                const parseSaisie = facteurPx !== undefined
                   ? (raw: string) => parsePixelInput(raw, facteurPx, { min: item.param.min, max: plafond, step: item.param.step })
-                  : undefined;
+                  : item.param.unit === "percent"
+                    ? (raw: string) => parsePercentValue(raw, item.param.min, plafond, item.param.step)
+                    : undefined;
                 return (
                   <div key={item.reactKey} title={item.param.hint}>
                     <LabeledSlider
@@ -566,7 +573,7 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onC
                       max={plafond}
                       step={item.param.step}
                       displayValue={displayValue}
-                      parse={parsePx}
+                      parse={parseSaisie}
                       // Le verrou POSITION n'éteint QUE les paramètres cités par
                       // un `canvasControls` — la géométrie. Les autres restent
                       // vivants : c'est tout l'intérêt d'un verrou partiel, et

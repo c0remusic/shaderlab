@@ -228,21 +228,6 @@ autre** : la documentation Adobe ne donne AUCUN gabarit chiffré de layout. Elle
 est descriptive, jamais dimensionnelle. Le ticket layout se résoudra donc par des
 mesures sur notre app, pas par de la lecture.
 
-### ⚠️ OUVERT le 2026-08-20 — la saisie clavier des paramètres `percent` est écrêtée à tort
-
-Trouvé par l'audit /simplify de la voie B, PRÉEXISTANT (pas introduit par elle) :
-dans `labeled-slider.tsx`, le brouillon d'édition est initialisé sur la chaîne
-AFFICHÉE (`shownValue`), donc un champ `percent` montre « 50 % » — mais sans
-prop `parse`, le commit passe par `parseControlValue` avec les bornes FRACTION
-du curseur. **Taper « 60 » dans un champ qui montre « 50 % » écrête à 1
-(= 100 %) au lieu de donner 0,6.** Dénominateur : 183 paramètres `percent` au
-registre. Le mécanisme du fix existe depuis la voie B (la prop `parse`, même
-contrat que celle de `NumberField`) ; il manque un parse par unité à côté de
-`formatEffectParamValue` (percent ÷ 100), branché pour tout paramètre dont
-l'unité affichée diffère de celle du curseur. Changement de COMPORTEMENT, donc
-hors de l'audit qui l'a trouvé — à couvrir par stories (modèle :
-`SpatialPixelInputConvertsToFraction`), `test:render` doit rendre zéro écart.
-
 ## ⚠️ Lire aussi : la carte close tient les arbitrages rendus
 
 **`.scratch/prochain-palier/map.md`** — chartée le 2026-08-11 par `/wayfinder`.

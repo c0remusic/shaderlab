@@ -3,6 +3,7 @@ import { ChevronRight } from "lucide-react";
 
 import type { EffectParam } from "../../render/effects/types";
 import { hslToHex } from "../../ui/hsl";
+import { parsePercentValue } from "../../ui/formatValue";
 import { LabeledSlider } from "./labeled-slider";
 
 export interface ColorGroupControlProps {
@@ -89,6 +90,11 @@ export function ColorGroupControl({
           onChange={(v) => onChange(hueParam.name, v)}
           onCommit={onCommit}
         />
+        {/* Saturation et luminosité s'affichent en % mais leurs curseurs
+            restent en FRACTION : la saisie se lit donc en pourcents (`parse`,
+            ÷100) — sans lui, la frappe passait par les bornes fraction et
+            « 60 » s'écrêtait à 1. La teinte affiche l'unité de son curseur
+            (degrés), le parse standard lui suffit. */}
         <LabeledSlider
           label="Saturation"
           value={saturation}
@@ -96,6 +102,7 @@ export function ColorGroupControl({
           max={saturationParam.max}
           step={saturationParam.step}
           displayValue={`${Math.round(saturation * 100)} %`}
+          parse={(raw) => parsePercentValue(raw, saturationParam.min, saturationParam.max, saturationParam.step)}
           disabled={disabled}
           onChange={(v) => onChange(saturationParam.name, v)}
           onCommit={onCommit}
@@ -107,6 +114,7 @@ export function ColorGroupControl({
           max={lightnessParam.max}
           step={lightnessParam.step}
           displayValue={`${Math.round(lightness * 100)} %`}
+          parse={(raw) => parsePercentValue(raw, lightnessParam.min, lightnessParam.max, lightnessParam.step)}
           disabled={disabled}
           onChange={(v) => onChange(lightnessParam.name, v)}
           onCommit={onCommit}

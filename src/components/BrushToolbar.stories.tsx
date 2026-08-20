@@ -131,3 +131,22 @@ export const TypeBrushSizeCommitsValue: Story = {
     await expect(args.onBrushSizeChange).toHaveBeenCalledWith(80);
   },
 };
+
+/** Saisie en POURCENTS : Opacité montre « 50 % » pendant que son curseur reste
+ *  en fraction 0..1 — la frappe se lit donc en pourcents (parse ÷100). Taper
+ *  « 60 » donne 0.6 ; sans le parse, elle passait par les bornes fraction et
+ *  s'écrêtait à 1 (= 100 %). Même bug et même correctif que les paramètres
+ *  `percent` du `ParamPanel` (ROADMAP, 2026-08-20). */
+export const TypePercentValueConvertsToFraction: Story = {
+  args: { brushOpacity: 0.5, onBrushOpacityChange: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByLabelText("Opacité (valeur)");
+    await expect(input).toHaveValue("50 %");
+    await userEvent.clear(input);
+    await userEvent.type(input, "60");
+    await userEvent.keyboard("{Enter}");
+    await expect(args.onBrushOpacityChange).toHaveBeenCalledTimes(1);
+    await expect(args.onBrushOpacityChange).toHaveBeenCalledWith(0.6);
+  },
+};

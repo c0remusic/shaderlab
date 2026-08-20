@@ -42,3 +42,19 @@ export function parseControlValue(rawValue: string, min: number, max: number, st
   const parsed = parseTypedNumber(rawValue);
   return parsed === null ? null : snapToControlRange(parsed, min, max, step);
 }
+
+/** Parses a value typed into a field that DISPLAYS percent ("50 %") while its
+ * slider stays in FRACTIONS: the typed number is read as a percentage, divided
+ * by 100, then bounded and snapped in fraction space — the same contract as
+ * `parsePixelInput` for spatial fields shown in pixels.
+ *
+ * Without it such a field fell back to `parseControlValue` with the slider's
+ * fraction bounds, so typing "60" into a field showing "50 %" clamped to 1
+ * (= 100 %) instead of giving 0.6 — and a mere focus+blur re-parsed the shown
+ * "50 %" as 50 and silently pushed the value to its max. Percent is the only
+ * unit whose display differs from the slider's own scale; pixels and degrees
+ * fields display the slider's unit and keep the standard parse. */
+export function parsePercentValue(rawValue: string, min: number, max: number, step: number): number | null {
+  const percent = parseTypedNumber(rawValue);
+  return percent === null ? null : snapToControlRange(percent / 100, min, max, step);
+}

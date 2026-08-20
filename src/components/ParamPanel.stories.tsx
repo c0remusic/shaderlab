@@ -336,7 +336,7 @@ export const ChangeParamFiresChange: Story = {
     const canvas = within(canvasElement);
     // "Seuil" is the label of the glow `threshold` param; its numeric input is
     // labeled "Seuil (valeur)". Enter commits parsed value → onParamChange.
-    // `threshold` est un paramètre `percent` : le champ montre « 55 % », la
+    // `threshold` est un paramètre `percent` : le champ montre « 70 % », la
     // frappe se lit donc en POURCENTS (« 50 » → 0.5) — la story tapait « 0.5 »
     // du temps où la saisie passait, à tort, par les bornes fraction.
     const input = canvas.getByLabelText("Seuil (valeur)");
@@ -556,6 +556,27 @@ export const ColorGroupPercentInputConvertsToFraction: Story = {
     await userEvent.keyboard("{Enter}");
     await expect(args.onParamChange).toHaveBeenCalledTimes(1);
     await expect(args.onParamChange).toHaveBeenCalledWith("layer-1", { shadowSaturation: 0.6 });
+  },
+};
+
+/** Contre-épreuve des bornes : l'écrêtage se fait dans l'espace AFFICHÉ. Taper
+ *  « 150 » dans un percent borné à 1 donne le maximum (1, soit « 100 % »), pas
+ *  1,5 — et pas non plus un écrêtage de « 150 » lu comme une fraction. Story
+ *  héritée de la ligne parallèle du même fix (fd4538d), gardée au merge. */
+export const PercentInputClampsInDisplaySpace: Story = {
+  args: {
+    layer: makeLayer({ effectId: "glow", params: { threshold: 0.5 } }),
+    onParamChange: fn(),
+    onParamCommit: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByLabelText("Seuil (valeur)");
+    await userEvent.clear(input);
+    await userEvent.type(input, "150");
+    await userEvent.keyboard("{Enter}");
+    await expect(args.onParamChange).toHaveBeenCalledTimes(1);
+    await expect(args.onParamChange).toHaveBeenCalledWith("layer-1", { threshold: 1 });
   },
 };
 

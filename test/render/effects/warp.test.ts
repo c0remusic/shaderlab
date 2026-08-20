@@ -161,16 +161,45 @@ describe("warp — les dix réglages rangés en trois sections", () => {
     expect(sections.map((s) => s.layout)).toEqual(["liste", "liste", "liste"]);
   });
 
-  it("ne masque RIEN de plus que ce qui a été mesuré", () => {
-    // Les deux conditions tentantes — le bruit hors du type 0, la forme
-    // restreinte aux huit types centrés — porteraient sur des déclarations que
-    // la campagne du 2026-08-05 n'a jamais éprouvées, et la seconde emporterait
-    // `centerY`, laissé visible pour cette raison exacte. Un curseur masqué à
-    // tort ne bouge plus aucun pixel : aucune référence de rendu ne peut le
-    // dire, ce test est le seul endroit qui le tienne.
+  it("masque exactement les réglages mesurés inertes, et rien d'autre", () => {
+    // ⚠️ CHANGEMENT VOULU (2026-08-21). Ce test attendait auparavant que SEUL
+    // `centerX` porte une condition et que `centerY` et le trio du bruit n'en
+    // portent aucune — parce que la campagne du 2026-08-05 n'avait éprouvé que
+    // `centerX`. Les quatre autres ont depuis été passés au banc
+    // (`node scripts/render-check.mjs --applicabilite`, entrées temporaires
+    // retirées), et la mesure justifie chaque masque au canal près :
+    //  - octaves/roughness/seed : lus par la seule branche `if (kind == 0)` du
+    //    FBM, 0 canal d'écart en types 1/3/8, 44 à 54 % en type 0 → masqués
+    //    hors du type 0 ;
+    //  - centerY : inerte en type 0 (pas de centre) ET en type 6 (le Drapeau
+    //    ne lit que q.x), VIVANT 44–64 % sur les sept autres → [1,2,3,4,5,7,8] ;
+    //  - centerX : inchangé, VIVANT jusqu'en type 6 inclus → [1..8].
+    // Un curseur masqué à tort ne bouge plus aucun pixel : aucune référence de
+    // rendu ne peut le dire, ce test est le seul endroit qui tienne la frontière.
+    const cond = (nom: string) => warp.params.find((p) => p.name === nom)?.appliesWhen;
+    const brancheBruit = { param: "type", equals: [0] };
+    expect(cond("octaves")).toEqual(brancheBruit);
+    expect(cond("roughness")).toEqual(brancheBruit);
+    expect(cond("seed")).toEqual(brancheBruit);
+    expect(cond("centerX")).toEqual({ param: "type", equals: [1, 2, 3, 4, 5, 6, 7, 8] });
+    expect(cond("centerY")).toEqual({ param: "type", equals: [1, 2, 3, 4, 5, 7, 8] });
+    // Les réglages communs aux neuf types ne portent AUCUNE condition : ils sont
+    // lus après le branchement, sur le vecteur déjà fabriqué.
+    for (const nom of ["scale", "amplitude", "anisotropy", "twist", "type"]) {
+      expect(cond(nom)).toBeUndefined();
+    }
+    // Le masque reste au PARAMÈTRE, jamais à la section (les titres restent
+    // stables quand le type change ; une section dont tout est masqué disparaît).
     for (const section of sections) expect(section.appliesWhen).toBeUndefined();
-    // Le seul masquage de l'effet reste celui qui a été mesuré, au paramètre.
-    expect(warp.params.find((p) => p.name === "centerX")?.appliesWhen).toEqual({ param: "type", equals: [1, 2, 3, 4, 5, 6, 7, 8] });
-    expect(warp.params.find((p) => p.name === "centerY")?.appliesWhen).toBeUndefined();
+  });
+
+  it("plafonne la rugosité au clamp du shader (0.95), pas en deçà", () => {
+    // Le plafond du curseur (0.8 → 0.95) rejoint la borne haute que `fs_main`
+    // clampe déjà (`clamp(params[3], 0.05, 0.95)`), sinon la part la plus
+    // turbulente de la course reste morte. C'est une borne d'AFFICHAGE : le
+    // rendu ne bouge pas (test:render à zéro écart), seule la course du curseur
+    // s'allonge. Le lier au clamp empêche un futur plafond au-delà du shader.
+    expect(warp.params[index("roughness")].max).toBe(0.95);
+    expect(warp.wgsl).toContain("clamp(params[3], 0.05, 0.95)");
   });
 });

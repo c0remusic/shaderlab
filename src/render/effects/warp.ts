@@ -1,4 +1,4 @@
-import type { EffectModule } from "./types";
+import type { DisplayCondition, EffectModule } from "./types";
 import { UV_SPACE_WGSL } from "./uvSpace";
 
 /**
@@ -39,6 +39,15 @@ const WARP_TYPES = [
 ] as const;
 const WARP_NOISE = 0;
 
+// octaves, roughness et seed ne sont lus QUE par la branche du bruit fractal
+// (`if (kind == WARP_NOISE)` dans `fs_main`) ; les huit formes analytiques n'en
+// touchent aucun. Mesure du 2026-08-21 (`node scripts/render-check.mjs
+// --applicabilite`, entrees temporaires retirees depuis) : a 1 vs 4 octaves,
+// 0.25 vs 0.95 de rugosite, 0 vs 100 de graine, l'ecart est de 0 canal en types
+// 1, 3 et 8, et de 44 a 54 % des canaux en type 0. La condition les montre donc
+// dans le seul type ou ils agissent.
+const EN_BRUIT = { param: "type", equals: [WARP_NOISE] } satisfies DisplayCondition;
+
 export const warp: EffectModule = {
   id: "warp",
   name: "Warp",
@@ -50,35 +59,40 @@ export const warp: EffectModule = {
     // frémissement. Le FBM culmine autour de ±0.5, donc à 0.045 sur 6240 px de
     // large le déplacement crête est de l'ordre de 140 px (contre ~60 avant).
     { name: "amplitude", label: "Amplitude", unit: "percent", min: 0, max: 0.25, default: 0.045, step: 0.002 },
-    { name: "octaves", label: "Détails", unit: "none", min: 1, max: 4, default: 3, step: 1 },
+    { name: "octaves", label: "Détails", unit: "none", min: 1, max: 4, default: 3, step: 1, appliesWhen: EN_BRUIT },
     // Persistance du FBM : elle était FIGÉE à 0.5 dans `fbm`. C'est le
     // paramètre qui décide si le warp est une houle lisse (0.25) ou une
-    // turbulence granuleuse (0.8), à échelle et amplitude identiques — le seul
+    // turbulence granuleuse (0.95), à échelle et amplitude identiques — le seul
     // réglage qui change la MATIÈRE du warp plutôt que sa taille.
-    { name: "roughness", label: "Rugosité", unit: "none", min: 0.25, max: 0.8, default: 0.5, step: 0.01, hint: "Poids des octaves fines — bas = houle lisse, haut = turbulence" },
+    // Plafond 0.8 → 0.95 (2026-08-21) : `fs_main` clampe déjà `params[3]` à
+    // [0.05, 0.95], donc les 0,15 les plus turbulents de la course VIVANTE
+    // restaient hors d'atteinte du curseur. Sans risque de preset — la plus
+    // haute valeur qu'un preset ait pu porter (0.8) est incluse dans [0.05, 0.95].
+    { name: "roughness", label: "Rugosité", unit: "none", min: 0.25, max: 0.95, default: 0.5, step: 0.01, appliesWhen: EN_BRUIT, hint: "Poids des octaves fines — bas = houle lisse, haut = turbulence" },
     { name: "anisotropy", label: "Anisotropie", unit: "none", min: -1, max: 1, default: 0, step: 0.01, hint: "Déséquilibre horizontal/vertical du déplacement — négatif = étire en vertical, positif = en horizontal" },
     { name: "twist", label: "Torsion", unit: "degrees", min: 0, max: 180, default: 0, step: 1, hint: "Fait pivoter le champ de déplacement : 0 = pousse, 90° = cisaille le long des lignes de niveau du bruit" },
-    { name: "seed", label: "Graine", unit: "none", min: 0, max: 100, default: 0, step: 1 },
+    { name: "seed", label: "Graine", unit: "none", min: 0, max: 100, default: 0, step: 1, appliesWhen: EN_BRUIT },
     { name: "type", label: "Type", unit: "none", min: 0, max: WARP_TYPES.length - 1, default: WARP_NOISE, step: 1, choices: [...WARP_TYPES], hint: "Bruit fractal : la houle organique, sans centre. Les huit autres sont des déformations CENTRÉES : Sinusoïde, Torsion, Bulle, Pincement, Ondulation, Drapeau, Compression, Tourbillon. Reprendre Échelle et Amplitude après un changement de type — chaque formule y répond autrement." },
     // LA CONDITION EST ÉNUMÉRÉE EN POSITIF, et c'est la seule forme possible :
     // `appliesWhen` ne sait dire que « vaut l'un de ces choix », jamais « sauf
-    // celui-là ». Ici la déclaration est pourtant une exclusion — « sans objet
-    // en Bruit fractal » — donc les HUIT autres types se citent un par un.
+    // celui-là ». Les déclarations sont pourtant des exclusions — « sans objet
+    // en Bruit fractal », « sans objet en Drapeau » — donc chaque type gardé se
+    // cite un par un.
     // ⚠️ Corollaire : une dixième forme ajoutée à `WARP_TYPES` devra s'ajouter
-    // ICI aussi, faute de quoi son centre restera masqué sans que rien ne le
-    // signale. C'est le prix de la voie déclarative, assumé (design §3).
-    // Mesuré le 2026-08-05
-    // (`docs/superpowers/plans/2026-08-05-applicabilite-task1-resultats.md`) :
-    // le FBM n'a pas de centre, sa branche ne lit donc jamais `center`.
-    // ⚠️ `centerY` NE PORTE PAS LA CONDITION, alors que son infobulle renvoie à
-    // celle de `centerX`. Seul `centerX` a été éprouvé, et masquer sur une
-    // déclaration non mesurée est exactement ce que la campagne existait pour
-    // empêcher : un curseur masqué ne bouge plus aucun pixel, donc aucune
-    // référence de rendu ne peut rougir de l'erreur. Même arbitrage en attente
-    // que sur `motionBlur.centerY`. En l'état, le panneau montrera « Centre Y »
-    // seul en Bruit fractal.
+    // ICI aussi — aux DEUX listes ci-dessous —, faute de quoi son centre
+    // restera masqué sans que rien ne le signale. C'est le prix de la voie
+    // déclarative, assumé (design §3).
+    // ⚠️ `centerX` et `centerY` NE PORTENT PAS LA MÊME LISTE, et l'écart est
+    // MESURÉ (2026-08-21), pas inféré. Le FBM (type 0) n'a pas de centre : sa
+    // branche ne lit jamais `center`, les deux y sont donc inertes (0 canal,
+    // mesuré 2026-08-05 pour centerX, 2026-08-21 pour centerY). La différence
+    // est le Drapeau (type 6), dont la formule ne lit que `q.x` : son centre
+    // HORIZONTAL agit (centerX VIVANT, 42,3 % des canaux) mais son centre
+    // VERTICAL est inerte (centerY, 0 canal). D'où `centerX` sur [1..8] et
+    // `centerY` sur [1, 2, 3, 4, 5, 7, 8]. Sur les sept formes qui lisent `q.y`,
+    // centerY est VIVANT de 44 à 64 % des canaux.
     { name: "centerX", label: "Centre X", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, appliesWhen: { param: "type", equals: [1, 2, 3, 4, 5, 6, 7, 8] }, hint: "Point d'où la déformation irradie. Sans objet en Bruit fractal, qui n'a pas de centre." },
-    { name: "centerY", label: "Centre Y", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Voir Centre X." },
+    { name: "centerY", label: "Centre Y", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, appliesWhen: { param: "type", equals: [1, 2, 3, 4, 5, 7, 8] }, hint: "Voir Centre X. Sans objet aussi en Drapeau, qui ne déplace que selon le centre horizontal." },
   ],
   /**
    * TROIS SECTIONS POUR NEUF RÉGIMES, découpées sur la question « qui lit
@@ -100,17 +114,19 @@ export const warp: EffectModule = {
    *   des neuf types sont CENTRÉS, et le centre n'a de sens que par le type
    *   choisi.
    *
-   * ⚠️ AUCUNE SECTION NE PORTE DE CONDITION, et c'est délibéré. Les deux
-   * candidates évidentes masqueraient sur une déclaration JAMAIS MESURÉE :
-   * `Bruit fractal` hors du type 0, et `Forme` restreinte aux huit formes
-   * centrées — cette dernière emporterait `centerY`, dont la note ci-dessus
-   * explique précisément pourquoi il reste visible. La campagne du 2026-08-05
-   * n'a éprouvé qu'une déclaration sur cet effet (`centerX`), et le masquage
-   * est l'unique décision d'affichage qu'aucune référence de rendu ne peut
-   * rattraper : un curseur masqué ne bouge plus aucun pixel. Le groupement,
-   * lui, ne cache rien — il dit à quel régime chaque réglage appartient, ce qui
-   * était le vrai manque. Le jour où `centerY` et le trio du bruit passent au
-   * banc, ces deux conditions tiennent en une ligne chacune.
+   * ⚠️ AUCUNE SECTION NE PORTE DE CONDITION — le masquage se fait au PARAMÈTRE.
+   * Le trio du bruit (`octaves`, `roughness`, `seed`, via `EN_BRUIT`) et
+   * `centerY` ont été passés au banc le 2026-08-21 puis masqués un par un (voir
+   * leurs déclarations). Porter la condition au réglage plutôt qu'à la section
+   * est délibéré : les titres `Bruit fractal` et `Forme` restent stables quand
+   * le type change, pendant que les curseurs sans objet s'effacent dessous —
+   * et une section dont TOUS les paramètres sont masqués disparaît d'elle-même
+   * à l'affichage (c'est le cas de `Bruit fractal` hors du type 0), ce que
+   * `validateEffect` documente. La section reste donc un pur GROUPE : elle dit à
+   * quel régime chaque réglage appartient, sans rien cacher. Le masquage, lui,
+   * est la seule décision d'affichage qu'aucune référence de rendu ne peut
+   * rattraper — un curseur masqué à tort ne bouge plus aucun pixel —, d'où la
+   * mesure préalable systématique.
    *
    * ⚠️ L'ordre des blocs n'est PAS celui de la lecture idéale. `Forme` vient en
    * dernier alors que le type se choisit en premier, parce qu'une section

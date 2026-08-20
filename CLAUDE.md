@@ -624,8 +624,10 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   conforme (stride 4 pour un alignement requis de 16 en espace uniform), Dawn
   l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 27
   effets, index gelés par les presets ET par **124** références de pixels
-  (re-compté le 2026-08-19 au soir : 124 PNG dans `test/render-refs/`, tous
-  déclarés — 122 plus la paire `masque-feather-fort-temoin` /
+  (126 PNG dans `test/render-refs/` au 2026-08-20 ; les DEUX de plus,
+  `photo-miroir-temoin` / `photo-miroir`, gèlent le miroir du calque photo et
+  NON un index de `params`, donc le compte qui gèle les index reste 124 —
+  re-compté le 2026-08-19 au soir : 122 plus la paire `masque-feather-fort-temoin` /
   `masque-feather-fort`, la mire qui MONTRE le profil en S du feather ; les
   trois du relevé Affinity du même jour étaient
   `effet-lens-blur-bokeh-courbe`, `effet-glow-retenue-temoin`,

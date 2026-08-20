@@ -719,8 +719,10 @@ mais seulement sur un run à froid, et le message ne contient ni `FAIL` ni
 installer à la main après un clone (`cp` vers `$(git rev-parse
 --git-common-dir)/hooks/`, instructions en tête du fichier). Aujourd'hui
 **non bloquant** (`BLOCKING=0`) : il affiche les erreurs ESLint et laisse
-passer. Les worktrees partagent `.git/hooks`, une seule installation couvre
-tout le dépôt.
+passer. ⚠️ **En worktree il ne trouve pas `node_modules/.bin/eslint` et saute
+le lint en silence** — `npm run lint` y tourne pourtant (résolution par
+répertoires parents) : le lancer soi-même avant commit. Les worktrees
+partagent `.git/hooks`, une seule installation couvre tout le dépôt.
 
 ## Architecture
 

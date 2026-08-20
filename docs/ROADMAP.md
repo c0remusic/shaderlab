@@ -222,6 +222,34 @@ geste de la forme et le layout.
   en pixels, `portee` a une convention non réconciliée qu'un affichage pixel
   rendrait faux. **C'était le seul reste de code de cette carte.**
 
+### ⚠️ OUVERT le 2026-08-20 — la saisie percent est corrigée, l'affichage à pas fin reste au pourcent entier
+
+Bug latent corrigé (`fd4538d`) : le champ texte d'un paramètre `unit: "percent"`
+affichait « 50 % » mais lisait la frappe dans les bornes FRACTION du curseur —
+taper « 60 » s'écrêtait à 1 (= 100 %), champ inutilisable sur les 186 paramètres
+percent du registre. `parseEffectParamValue` (`ParamPanel.tsx`), lecture inverse
+de `formatEffectParamValue` par unité, généralise le mécanisme de la voie B ;
+deux stories le gardent (`PercentInputConvertsToFraction`,
+`PercentInputClampsInDisplaySpace`).
+
+Ce qui RESTE : `formatEffectParamValue` arrondit percent au POURCENT ENTIER
+(`Math.round(value * 100)`) alors que **19 paramètres du registre ont un pas
+plus fin que 0,01** (9 × 0,001, 1 × 0,002, 9 × 0,005 — mesuré au grep le
+2026-08-20). Deux conséquences, la seconde active :
+
+- le champ ne sait pas MONTRER ce que le curseur sait régler — 0,123 s'affiche
+  « 12 % » ;
+- **un focus + blur SANS frappe commite l'arrondi** : le brouillon gelé
+  « 12 % » se reparse en 0,12 ≠ 0,123, donc `onChange` + une entrée
+  d'historique pour un geste qui n'a rien changé. (Avant le correctif c'était
+  pire — le même blur écrêtait au maximum.)
+
+Correctif désigné : dériver les décimales de l'affichage du pas ×100, comme
+`formatControlValue` le fait déjà pour l'unité du curseur. Le même
+arrondi-au-rond existe côté pixels spatiaux, où il est inoffensif tant que 1 px
+vaut moins que le pas en fraction — vrai dès que le cadre dépasse 1 000 px de
+large pour un pas de 0,001, donc sur toute photo réelle.
+
 ⚠️ **Sa recherche a établi une chose qui vaut d'être sue avant d'en lancer une
 autre** : la documentation Adobe ne donne AUCUN gabarit chiffré de layout. Elle
 est descriptive, jamais dimensionnelle. Le ticket layout se résoudra donc par des

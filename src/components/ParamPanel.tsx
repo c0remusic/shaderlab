@@ -9,7 +9,7 @@ import { Disclosure } from "./ui/collapsible";
 import { Checkbox } from "./ui/checkbox";
 import { Select } from "./ui/select";
 import { ColorGroupControl } from "./ui/color-group-control";
-import { formatControlValue } from "../ui/formatValue";
+import { formatControlValue, parseControlValue } from "../ui/formatValue";
 import { useState, type ReactNode } from "react";
 import { CurveControl } from "./CurveControl";
 import { TonalRangeControl } from "./TonalRangeControl";
@@ -294,6 +294,28 @@ function formatEffectParamValue(
   }
 }
 
+/** Lecture INVERSE de `formatEffectParamValue`, pour le champ texte du curseur.
+ *  Seul « percent » affiche une AUTRE unité que le curseur : le champ montre
+ *  « 50 % » pour une valeur 0,5, donc taper « 60 » doit rendre 0,6 — sans cette
+ *  lecture, la frappe passait par les bornes FRACTION du curseur et « 60 »
+ *  s'écrêtait au maximum. Le parse se fait dans l'espace AFFICHÉ (bornes et pas
+ *  ×100, mêmes règles d'écrêtage et d'arrondi que `parseControlValue`), puis
+ *  revient en fraction. `max` est le plafond effectif (`maxFrom` compris) : la
+ *  saisie s'arrête là où le curseur s'arrête.
+ *  `undefined` pour les autres unités — pixels, degrés et « none » affichent
+ *  l'unité du curseur, le parse standard suffit ; les contrôles spatiaux ont
+ *  leur propre lecture (facteur pixels), prioritaire. */
+function parseEffectParamValue(
+  param: { unit?: "percent" | "pixels" | "degrees" | "none"; min: number; step: number },
+  max: number,
+): ((raw: string) => number | null) | undefined {
+  if (param.unit !== "percent") return undefined;
+  return (raw) => {
+    const affiche = parseControlValue(raw, param.min * 100, max * 100, param.step * 100);
+    return affiche === null ? null : affiche / 100;
+  };
+}
+
 export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onClipChange, onOpenColorPicker, textureLibrary }: Props) {
   const [activeCurveChannel, setActiveCurveChannel] = useState("master");
   if (!layer) {
@@ -565,7 +587,7 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onC
                       const borne = Math.min(plafond, Math.max(item.param.min, frac));
                       return item.param.min + Math.round((borne - item.param.min) / item.param.step) * item.param.step;
                     }
-                  : undefined;
+                  : parseEffectParamValue(item.param, plafond);
                 return (
                   <div key={item.reactKey} title={item.param.hint}>
                     <LabeledSlider

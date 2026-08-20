@@ -336,9 +336,11 @@ export const ChangeParamFiresChange: Story = {
     const canvas = within(canvasElement);
     // "Seuil" is the label of the glow `threshold` param; its numeric input is
     // labeled "Seuil (valeur)". Enter commits parsed value → onParamChange.
+    // The field displays percent ("70 %"), so the typed value is percent too :
+    // « 50 » commits 0.5 (see PercentInputConvertsToFraction below).
     const input = canvas.getByLabelText("Seuil (valeur)");
     await userEvent.clear(input);
-    await userEvent.type(input, "0.5");
+    await userEvent.type(input, "50");
     await userEvent.keyboard("{Enter}");
     // Enter must commit exactly once. Regression guard: Enter previously
     // called commitTypedValue() AND blur() (whose onBlur re-commits),
@@ -490,6 +492,49 @@ export const SpatialPixelInputConvertsToFraction: Story = {
     await userEvent.keyboard("{Enter}");
     await expect(args.onParamChange).toHaveBeenCalledTimes(1);
     await expect(args.onParamChange).toHaveBeenCalledWith("layer-1", { centreX: 0.25 });
+  },
+};
+
+/** Saisie en POURCENTAGE : le champ montre « 50 % » pour une valeur 0,5, donc
+ *  taper « 60 » doit rendre 0,6. Sans lecture inverse par unité, la frappe
+ *  passait par les bornes FRACTION du curseur et « 60 » s'écrêtait à 1 — le
+ *  champ était inutilisable pour tout paramètre percent (bug latent constaté
+ *  le 2026-08-20). */
+export const PercentInputConvertsToFraction: Story = {
+  args: {
+    layer: makeLayer({ effectId: "glow", params: { threshold: 0.5 } }),
+    onParamChange: fn(),
+    onParamCommit: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByLabelText("Seuil (valeur)");
+    await expect(input).toHaveValue("50 %");
+    await userEvent.clear(input);
+    await userEvent.type(input, "60");
+    await userEvent.keyboard("{Enter}");
+    await expect(args.onParamChange).toHaveBeenCalledTimes(1);
+    await expect(args.onParamChange).toHaveBeenCalledWith("layer-1", { threshold: 0.6 });
+  },
+};
+
+/** Contre-épreuve des bornes : l'écrêtage se fait dans l'espace AFFICHÉ. Taper
+ *  « 150 » dans un percent borné à 1 donne le maximum (1, soit « 100 % »), pas
+ *  1,5 — et pas non plus un écrêtage de « 150 » lu comme une fraction. */
+export const PercentInputClampsInDisplaySpace: Story = {
+  args: {
+    layer: makeLayer({ effectId: "glow", params: { threshold: 0.5 } }),
+    onParamChange: fn(),
+    onParamCommit: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByLabelText("Seuil (valeur)");
+    await userEvent.clear(input);
+    await userEvent.type(input, "150");
+    await userEvent.keyboard("{Enter}");
+    await expect(args.onParamChange).toHaveBeenCalledTimes(1);
+    await expect(args.onParamChange).toHaveBeenCalledWith("layer-1", { threshold: 1 });
   },
 };
 

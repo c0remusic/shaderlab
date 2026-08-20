@@ -44,6 +44,12 @@ const ATTENDU = {
   "effets-glow-dither.png": { width: 256, height: 256, valeurs: null },
   "grain-graine-fixe.png": { width: 256, height: 256, valeurs: null },
   "photo-double-exposure.png": { width: 256, height: 256, valeurs: null },
+  // MIROIR DU CALQUE PHOTO (2026-08-19, echelles signees) : la paire temoin/
+  // miroir gele le retournement horizontal d'une source posee. Les PNG et les
+  // scenarios sont entres par 2a80e91 SANS cette entree de contrat — le geste
+  // conscient que ce fichier exige est arrive un commit plus tard.
+  "photo-miroir-temoin.png": { width: 256, height: 256, valeurs: null },
+  "photo-miroir.png": { width: 256, height: 256, valeurs: null },
   "masque-pinceau-degrade.png": { width: 256, height: 256, valeurs: null },
   "masque-edge-aware.png": { width: 256, height: 256, valeurs: null },
   // Meme chaine edge-aware, mais sur le calque le PLUS BAS (le calque photo de

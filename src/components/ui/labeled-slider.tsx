@@ -57,8 +57,11 @@ export interface LabeledSliderProps {
    * doit alors ACCEPTER des pixels : sans cette closure il passerait par
    * `parseControlValue` avec les bornes de fraction, et « 1500 » serait écrêté à
    * 1. Absente = comportement d'origine (parse sur les bornes du curseur).
+   *
+   * MÊME NOM ET MÊME CONTRAT que le `parse` de `NumberField` : un seul point
+   * d'extension pour la lecture d'une saisie, deux composants qui l'exposent.
    */
-  parseDisplayValue?: (raw: string) => number | null;
+  parse?: (raw: string) => number | null;
   className?: string;
 }
 
@@ -80,7 +83,7 @@ export function LabeledSlider({
   onChange,
   onCommit,
   defaultValue,
-  parseDisplayValue,
+  parse,
   className,
 }: LabeledSliderProps) {
   const id = useId();
@@ -149,9 +152,7 @@ export function LabeledSlider({
     // Quand le champ montre une autre unité que le curseur (pixels d'un
     // paramètre spatial), sa lecture inverse rend déjà une valeur en unités du
     // curseur, bornée. Sinon, parse standard sur les bornes du curseur.
-    const nextValue = parseDisplayValue
-      ? parseDisplayValue(draftValue)
-      : parseControlValue(draftValue, min, max, step);
+    const nextValue = parse ? parse(draftValue) : parseControlValue(draftValue, min, max, step);
     setIsEditing(false);
 
     if (nextValue === null) {

@@ -18,8 +18,8 @@ import type { CurvePoint } from "../ui/curveControl";
 import { TexturePicker } from "./TexturePicker";
 import type { TextureThumbnail } from "../textures/thumbnailCache";
 import { isPositionLocked, isStructureLocked } from "../layers/layerLocks";
-import { effectSpatialParams } from "../render/effects/spatialParams";
-import { spatialPixelAxes, pixelFactorForAxis, type SpatialAxis } from "../render/effects/spatialPixels";
+import { controlFieldRoles, effectSpatialParams } from "../render/effects/spatialParams";
+import { spatialPixelFactors, parsePixelInput } from "../render/effects/spatialPixels";
 
 export type ParamRenderItem =
   | { kind: "single"; reactKey: string; param: EffectParam; spatialId?: string }
@@ -113,10 +113,9 @@ export function groupEffectParams(
   const spatialFirstIndex = new Map<string, number>();
   const nomsParControle = new Map<string, string[]>();
   for (const control of controls) {
-    const names = control.kind === "point" ? [control.x, control.y]
-      : control.kind === "disk" ? [control.x, control.y, control.radius]
-      : control.kind === "box" ? [control.x, control.y, control.width, control.height, control.rotation]
-      : [control.angle, control.length];
+    // Les champs du genre viennent de la table unique de `spatialParams.ts` —
+    // même énumération, même ordre, aucune recopie à tenir à jour.
+    const names = controlFieldRoles(control).map(([nom]) => nom);
     nomsParControle.set(control.id, names);
     for (const name of names) {
       if (spatialByParam.has(name)) throw new Error(`Paramètre spatial partagé par plusieurs contrôles : "${name}".`);
@@ -340,13 +339,11 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onC
   // geste « je tiens le placement, je cherche encore la couleur ».
   const geometrieGelee = isPositionLocked(layer);
   const paramsSpatiaux = new Set(effectSpatialParams(effect));
-  // Contrôles spatiaux montrés en PIXELS (voie B). L'axe (× W, × H, ou
+  // Contrôles spatiaux montrés en PIXELS (voie B). Le facteur (× W, × H, ou
   // × sqrt(W·H)) vient de la structure du `canvasControls`, jamais du nom, et
   // il MATCHE la toile — voir `spatialPixels.ts`. La conversion ne s'arme que
   // pour un cadre réel : `{0,0}` retombe sur l'affichage en pourcentage.
-  const pixelAxes: Map<string, SpatialAxis> = imageSize && imageSize.width > 0 && imageSize.height > 0
-    ? spatialPixelAxes(effect)
-    : new Map();
+  const pixelFactors = spatialPixelFactors(effect, imageSize);
   // `title` plutôt qu'une ligne de texte : la hauteur des cartes est sous
   // budget (ADR-0001, la carte Effets déborde déjà à six lignes). Même
   // traitement que la zone de contrôles du panneau Calques
@@ -546,25 +543,19 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onC
                 // de retour au défaut, la marque et le round-trip sont EXACTS et
                 // `test:render` ne bouge pas. Seuls le texte affiché et la
                 // saisie passent en pixels, via le même facteur que la toile.
-                const axeSpatial = pixelAxes.get(item.param.name);
-                const facteurPx = axeSpatial && imageSize ? pixelFactorForAxis(axeSpatial, imageSize) : null;
-                const displayValue = facteurPx
-                  ? `${Math.round(valeur * facteurPx)} px`
+                const facteurPx = pixelFactors.get(item.param.name);
+                // Le pixel est une unité DÉJÀ connue du formateur : la valeur
+                // convertie passe par la même branche que n'importe quel
+                // paramètre déclaré en `pixels`, plutôt qu'un « px » recollé ici.
+                const displayValue = facteurPx !== undefined
+                  ? formatEffectParamValue(valeur * facteurPx, { unit: "pixels", step: 1 })
                   : formatEffectParamValue(valeur, item.param);
-                // Saisie en pixels : lue, ramenée en fraction, bornée aux bornes
-                // du CURSEUR (celles-là peuvent sortir du cadre — sourceX va de
-                // −0,5 à 1,5 — donc en pixels aussi, ce qui est voulu), puis
-                // calée sur le même pas que le glissement.
-                const parseDisplayValue = facteurPx
-                  ? (raw: string): number | null => {
-                      const found = raw.trim().replace(",", ".").match(/[-+]?\d*\.?\d+/);
-                      if (!found) return null;
-                      const px = Number(found[0]);
-                      if (!Number.isFinite(px)) return null;
-                      const frac = px / facteurPx;
-                      const borne = Math.min(plafond, Math.max(item.param.min, frac));
-                      return item.param.min + Math.round((borne - item.param.min) / item.param.step) * item.param.step;
-                    }
+                // Saisie en pixels : lue puis ramenée en fraction par
+                // `parsePixelInput`, qui borne sur les bornes du CURSEUR et cale
+                // sur son pas — la fonction est nommée et testée à côté du
+                // facteur, cette closure ne fait que lui passer les bornes.
+                const parsePx = facteurPx !== undefined
+                  ? (raw: string) => parsePixelInput(raw, facteurPx, { min: item.param.min, max: plafond, step: item.param.step })
                   : undefined;
                 return (
                   <div key={item.reactKey} title={item.param.hint}>
@@ -575,7 +566,7 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onC
                       max={plafond}
                       step={item.param.step}
                       displayValue={displayValue}
-                      parseDisplayValue={parseDisplayValue}
+                      parse={parsePx}
                       // Le verrou POSITION n'éteint QUE les paramètres cités par
                       // un `canvasControls` — la géométrie. Les autres restent
                       // vivants : c'est tout l'intérêt d'un verrou partiel, et

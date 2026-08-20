@@ -215,7 +215,8 @@ geste de la forme et le layout.
   (affichage ET saisie), la fraction reste stockée (presets inchangés). Source
   unique de l'axe pixel dans `render/effects/spatialPixels.ts` (× W, × H,
   × √(W·H)), calquée sur la toile et liée par test ; `LabeledSlider` reçoit une
-  prop `parseDisplayValue`, le curseur reste en fraction (round-trip et défaut
+  prop `parse` (le même nom et le même contrat que celle de `NumberField`), le
+  curseur reste en fraction (round-trip et défaut
   exacts, `test:render` inchangé). Portée : quatre effets sur cinq entièrement
   (`aplat`, `lensFlare`, `pixelStretch`, centre de `motionBlur`) plus l'origine
   de `lightLeak`. La longueur d'axe est exclue et documentée — `amount` est déjà

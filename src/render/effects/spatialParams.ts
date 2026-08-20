@@ -1,6 +1,52 @@
 import type { CanvasControl, EffectModule } from "./types";
 
 /**
+ * Le RÔLE d'un champ de `CanvasControl` — ce que MESURE le paramètre dont ce
+ * champ porte le nom. C'est la seule chose qui distingue les champs d'un genre
+ * les uns des autres, et elle ne se devine pas au nom du paramètre.
+ *
+ * - `x` / `y` — position ou étendue sur un axe du cadre : fraction de sa
+ *   LARGEUR (`x`), de sa HAUTEUR (`y`).
+ * - `iso`     — rayon d'un disque, mesuré en espace ISOTROPE. Un disque reste un
+ *   disque quel que soit le rapport d'aspect, ce qu'un facteur par axe casserait.
+ * - `degrees` — un angle (`box.rotation`, `axis.angle`), déjà dans une unité qui
+ *   ne se convertit pas.
+ * - `length`  — la longueur d'un axe (`axis.length`), dont la convention est
+ *   propre à l'effet qui la déclare — voir `spatialPixels.ts`, qui l'exclut de
+ *   la lecture en pixels pour cette raison.
+ */
+export type SpatialFieldRole = "x" | "y" | "iso" | "degrees" | "length";
+
+/**
+ * LA TABLE — les champs de chaque genre de `CanvasControl`, chacun avec son
+ * rôle, dans l'ordre de déclaration du genre.
+ *
+ * ⚠️ **C'est la SEULE énumération des champs par genre, et c'est délibéré.** Tout
+ * ce qui a besoin de savoir quels paramètres un contrôle de toile cite — et à
+ * quel titre — en dérive : `spatialParamNames` ci-dessous, les facteurs pixel de
+ * `spatialPixels.ts`, le regroupement atomique de `ParamPanel`. Recopier la
+ * liste garantissait qu'un cinquième genre en oublierait un champ quelque part,
+ * silencieusement.
+ *
+ * DÉCLARATIF, jamais deviné au nom : la tentation de repérer `centreX`/`regionX`
+ * par motif est la même que celle qu'`EffectModule.canvasControls` documente
+ * avoir écartée — ça marche jusqu'au jour où un effet nomme autrement, et ça
+ * échoue alors sans rien dire.
+ */
+export function controlFieldRoles(control: CanvasControl): Array<[name: string, role: SpatialFieldRole]> {
+  switch (control.kind) {
+    case "point":
+      return [[control.x, "x"], [control.y, "y"]];
+    case "disk":
+      return [[control.x, "x"], [control.y, "y"], [control.radius, "iso"]];
+    case "box":
+      return [[control.x, "x"], [control.y, "y"], [control.width, "x"], [control.height, "y"], [control.rotation, "degrees"]];
+    case "axis":
+      return [[control.angle, "degrees"], [control.length, "length"]];
+  }
+}
+
+/**
  * Les paramètres qu'un effet manipule SUR LA TOILE — ceux qu'un `canvasControls`
  * cite, et rien d'autre.
  *
@@ -15,30 +61,14 @@ import type { CanvasControl, EffectModule } from "./types";
  * `ParamPanel` (pour éteindre les bons curseurs). Recopier la liste des champs
  * de chaque genre de `CanvasControl` à trois endroits garantissait qu'un
  * cinquième genre en oublierait un — silencieusement, puisqu'un paramètre
- * oublié reste simplement modifiable sous un verrou censé le geler.
- *
- * DÉCLARATIF, jamais deviné au nom : la tentation de repérer `centreX`/`regionX`
- * par motif est la même que celle qu'`EffectModule.canvasControls` documente
- * avoir écartée — ça marche jusqu'au jour où un effet nomme autrement, et ça
- * échoue alors sans rien dire.
+ * oublié reste simplement modifiable sous un verrou censé le geler. D'où la
+ * dérivation depuis `controlFieldRoles` : les noms sont ceux de la table, dans
+ * son ordre, et rien ne se recopie.
  */
 export function spatialParamNames(controls: readonly CanvasControl[] | undefined): string[] {
   const noms: string[] = [];
   for (const control of controls ?? []) {
-    switch (control.kind) {
-      case "point":
-        noms.push(control.x, control.y);
-        break;
-      case "disk":
-        noms.push(control.x, control.y, control.radius);
-        break;
-      case "box":
-        noms.push(control.x, control.y, control.width, control.height, control.rotation);
-        break;
-      case "axis":
-        noms.push(control.angle, control.length);
-        break;
-    }
+    for (const [nom] of controlFieldRoles(control)) noms.push(nom);
   }
   return noms;
 }

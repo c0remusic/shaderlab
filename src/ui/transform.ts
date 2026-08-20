@@ -132,12 +132,15 @@ const ROTATION_HANDLE_OFFSET_PX = 32;
  * ⚠️ TESTER `< 0` ET NON `Math.sign` : `Math.sign(0)` vaut 0 et ferait perdre son
  * signe au zéro (qui doit retomber sur `+MIN`, pas `−MIN`). Et `NaN`
  * (atteignable par import de preset, `photoLayerInput.ts`) retombe sur `+MIN` :
- * `Math.abs(NaN) > MIN` est faux, donc magnitude `= MIN`, et `NaN < 0` est faux,
- * donc positif. La division par zéro reste fermée des DEUX côtés.
+ * `magnitude > MIN` est faux pour `NaN`, donc la magnitude bornée vaut `MIN`, et
+ * `NaN < 0` est faux, donc positif. La division par zéro reste fermée des DEUX
+ * côtés — d'où la comparaison explicite plutôt qu'un `Math.max`, que `NaN`
+ * traverserait.
  */
 export function clampTransformScale(scale: number): number {
-  const magnitude = Math.abs(scale) > MIN_TRANSFORM_SCALE ? Math.abs(scale) : MIN_TRANSFORM_SCALE;
-  return scale < 0 ? -magnitude : magnitude;
+  const magnitude = Math.abs(scale);
+  const bornee = magnitude > MIN_TRANSFORM_SCALE ? magnitude : MIN_TRANSFORM_SCALE;
+  return scale < 0 ? -bornee : bornee;
 }
 
 /**
@@ -516,25 +519,25 @@ export function transformFromEdgeDrag(
   const local = toLocal({ x: pointer.x - anchorPoint.x, y: pointer.y - anchorPoint.y }, transform.rotation);
 
   // MAGNITUDES pour la géométrie de la box et l'ancrage : le miroir ne change
-  // pas l'empreinte écran. L'axe non touché garde sa magnitude courante.
-  const touchedMag = horizontal
-    ? clampTransformScale(Math.abs(local.x) / photoSize.width)
-    : clampTransformScale(Math.abs(local.y) / photoSize.height);
-  const scaleMag: AxisScale = horizontal
-    ? { scaleX: touchedMag, scaleY: Math.abs(transform.scaleY) }
-    : { scaleX: Math.abs(transform.scaleX), scaleY: touchedMag };
+  // pas l'empreinte écran. L'axe non touché garde sa magnitude courante — sa
+  // valeur est de toute façon indifférente ici, `scaledEdgeOffset` la multipliant
+  // par la composante NULLE de la normale du côté.
+  const scale: AxisScale = horizontal
+    ? { scaleX: clampTransformScale(Math.abs(local.x) / photoSize.width), scaleY: Math.abs(transform.scaleY) }
+    : { scaleX: Math.abs(transform.scaleX), scaleY: clampTransformScale(Math.abs(local.y) / photoSize.height) };
 
-  const nextOffset = scaledEdgeOffset(edgeIndex, photoSize, scaleMag);
+  const nextOffset = scaledEdgeOffset(edgeIndex, photoSize, scale);
   const cos = Math.cos(transform.rotation);
   const sin = Math.sin(transform.rotation);
   return {
     ...transform,
     x: anchorPoint.x + nextOffset.x * cos - nextOffset.y * sin,
     y: anchorPoint.y + nextOffset.x * sin + nextOffset.y * cos,
-    // L'axe touché reprend le signe courant de son axe ; l'autre reste intact.
-    ...(horizontal
-      ? { scaleX: withScaleSign(touchedMag, transform.scaleX) }
-      : { scaleY: withScaleSign(touchedMag, transform.scaleY) }),
+    // Chaque axe reprend le signe COURANT du sien, comme au drag de coin :
+    // l'axe touché ne se dé-miroite pas, et l'axe non touché retrouve exactement
+    // sa valeur signée, `withScaleSign(|s|, s)` valant `s` pour toute échelle
+    // clampée (jamais nulle, jamais `NaN`, par construction).
+    ...withScaleSigns(scale, transform),
   };
 }
 

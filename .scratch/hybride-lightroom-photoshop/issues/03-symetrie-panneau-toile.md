@@ -14,7 +14,8 @@ fraction reste stockée. Pièces :
   paramètre spatial (× W, × H, × sqrt(W·H)), dérivée de la STRUCTURE du
   `canvasControls` et filtrée aux paramètres `percent`. Facteur calqué sur la
   toile (`canvasControls`, `regionHandles`, `boxControl`), lié par test.
-- `LabeledSlider` reçoit une prop `parseDisplayValue` : le curseur reste en
+- `LabeledSlider` reçoit une prop `parse` (même nom et même contrat que celle de
+  `NumberField`) : le curseur reste en
   fraction (double-clic défaut, marque, round-trip EXACTS ; `test:render`
   inchangé), seuls le texte affiché et la saisie passent en pixels.
 - `ParamPanel` reçoit `imageSize` (la même valeur que `CanvasControls`).

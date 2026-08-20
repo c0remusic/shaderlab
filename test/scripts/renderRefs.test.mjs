@@ -44,6 +44,13 @@ const ATTENDU = {
   "effets-glow-dither.png": { width: 256, height: 256, valeurs: null },
   "grain-graine-fixe.png": { width: 256, height: 256, valeurs: null },
   "photo-double-exposure.png": { width: 256, height: 256, valeurs: null },
+  // MIROIR — la paire qui gele l echelle NEGATIVE du calque photo (ticket 05).
+  // Le temoin est a scaleX +1, le miroir a -1 ; la mire etant asymetrique
+  // gauche/droite, le retournement se VOIT. Photo 176x132 sur une toile 256x256
+  // et `fond: false` : le passe-partout autour est dans le cadre, ce qui est le
+  // vrai sujet — c est la COUVERTURE que l inversion cassait.
+  "photo-miroir-temoin.png": { width: 256, height: 256, valeurs: null },
+  "photo-miroir.png": { width: 256, height: 256, valeurs: null },
   "masque-pinceau-degrade.png": { width: 256, height: 256, valeurs: null },
   "masque-edge-aware.png": { width: 256, height: 256, valeurs: null },
   // Meme chaine edge-aware, mais sur le calque le PLUS BAS (le calque photo de

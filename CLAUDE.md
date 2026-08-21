@@ -189,7 +189,15 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `glass`, `warp`, `displacementMap`, `grain`, `duotone`, `hatching`,
   `halftone`, `dither`, `gooeyMerge`, `channelMixer`, `curves`, `nettete`,
   `outlines`, `isolines`, `emboss`, `pixelStretch`, `sliceShift`,
-  `gradientMap`, `texture`, `aplat` — **vingt-sept**.
+  `gradientMap`, `texture`, `noise`, `aplat` — **vingt-huit**.
+  ⚠️ `noise` (Bruit fractal, 2026-08-21) est le 28ᵉ : un GÉNÉRATEUR de champ fBm
+  procédural (domain warping pour le fluide organique), pendant de `texture` mais
+  SYNTHÉTISÉ au lieu d'être lu. Né d'un retour d'usage sur `isolines` — la
+  référence topographique d'Antoine demandait un relief CONTINU qu'une photo n'a
+  pas (aplats), et qu'un champ fBm porte partout. Comme `texture`/`lightLeak`/
+  `aplat`, il ne lit pas ce qui est en dessous : sortie GRISE brute, colorée par
+  `gradientMap`/`duotone` ou tracée par `isolines` empilé dessus. Aucun mécanisme
+  neuf — `HASH_WGSL`/`VALUE_NOISE_WGSL` de `hash.ts` existaient.
   Les trois derniers arrivés (2026-08-18) sont la TRANCHE 3 du ticket 12, et
   aucun n'a demandé de mécanisme neuf :
   - `nettete` — accentuation et clarté, un seul opérateur à deux BANDES de
@@ -315,8 +323,10 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   que ce paragraphe a dit du 2026-08-05 au 2026-08-12** (« chantier soldé »).
   Mesuré sur les modules réels, d'abord le 2026-08-12 puis le 2026-08-15
   (instrument : `.scratch/prochain-palier/assets/mesure-controles.ts`), puis
-  re-mesuré le 2026-08-19 : sur **385 paramètres**, **52**
-  portent une condition (14 %) et **16 effets sur 27 n'en ont AUCUNE** — dont
+  re-mesuré le 2026-08-19, puis **+7 pour `noise`** le 2026-08-21 : sur
+  **392 paramètres**, **52**
+  portent une condition (13 %) et **17 effets sur 28 n'en ont AUCUNE** — dont
+  `noise` (7 params, délibérément sans condition : ses sept servent à tout motif) —
   `curves` (37 params), `lensFlare` (33), `channelMixer` (22),
   `gradientMap` (20).
   ⚠️ **Le chiffre « 51 » qu'a porté cette phrase était DÉJÀ faux avant la
@@ -627,11 +637,13 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   le compteur, pas en lançant le gate.
   Ce qu'elle laisse passer : notre uniform `params: array<f32, 48>` n'est pas
   conforme (stride 4 pour un alignement requis de 16 en espace uniform), Dawn
-  l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 27
-  effets, index gelés par les presets ET par **124** références de pixels
-  (126 PNG dans `test/render-refs/` au 2026-08-20 ; les DEUX de plus,
+  l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 28
+  effets, index gelés par les presets ET par **126** références de pixels
+  (128 PNG dans `test/render-refs/` au 2026-08-21 ; +2 le 2026-08-21,
+  `effet-noise` / `effet-noise-cretes`, qui gèlent BIEN les params[0..6] du
+  générateur `noise` ; les DEUX autres, non gelantes,
   `photo-miroir-temoin` / `photo-miroir`, gèlent le miroir du calque photo et
-  NON un index de `params`, donc le compte qui gèle les index reste 124 —
+  NON un index de `params`, donc le compte qui gèle les index est 124 + 2 = 126 —
   re-compté le 2026-08-19 au soir : 122 plus la paire `masque-feather-fort-temoin` /
   `masque-feather-fort`, la mire qui MONTRE le profil en S du feather ; les
   trois du relevé Affinity du même jour étaient

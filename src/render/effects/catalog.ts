@@ -47,6 +47,9 @@ export const effectCategoryById: Readonly<Record<string, EffectCategory>> = {
   emboss: "Impression",
   grain: "Texture",
   texture: "Texture",
+  // Pendant procédural de `texture` : il ne lit aucune image, il GÉNÈRE un champ
+  // de bruit fractal. Matière fabriquée par le shader — sa place est ici.
+  noise: "Texture",
   // ⚠️ PROTOTYPE (ticket 23). Rangé en Couleur et non en Texture : il ne
   // fabrique aucune matière, il pose UNE couleur — la question qu'il sert est
   // « de quoi une forme a-t-elle besoin », pas « quel grain ».

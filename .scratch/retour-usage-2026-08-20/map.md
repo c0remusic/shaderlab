@@ -51,6 +51,18 @@ pas au harnais (le harnais prouve qu'un effet agit, jamais qu'il est beau).
   devient une grille 25 taps qu'il ÉCARTE : bas = grené intact, haut = carte
   nette. Défaut 3→12. `largeursDeTraits` vert (échelle du gradient intacte),
   refs régénérées (26/25), gates verts. Défaut à confirmer à l'œil par Antoine.
+- **noise — nouvel effet « Bruit fractal », 28ᵉ du registre** (né du ticket 02) :
+  Antoine, référence topo en main, « on ne retrouve pas cet effet là ». Diagnostic
+  au pixel : sa réf n'est pas isolines-sur-photo (aplats) mais isolines sur un
+  RELIEF CONTINU — un champ fBm. Prouvé en générant un PNG de bruit hors app.
+  Antoine tranche « bruit procédural intégré ». Livré : générateur fBm (octaves
+  dynamiques, variantes Nuageux/Crêtes/Bulles, domain warping = l'organique),
+  sortie grise brute réutilisable (isolines/gradientMap/duotone dessus). Patron
+  `lightLeak` (synthétise, ne lit rien), `HASH_WGSL`/`VALUE_NOISE_WGSL` existaient.
+  Empilé sous isolines dark-topo = la réf d'Antoine, nativement. 2 refs de pixels
+  (`effet-noise` + témoin Crêtes), gates verts (2103 tests). Grille/chemin
+  pointillé de la réf = overlays graphiques séparés, hors périmètre. Nom et
+  densité par défaut à confirmer par Antoine.
 - **lensDistortion — déjà corrigé** : les 3 params inertes en longi/anamorphique
   sont masqués (vérifié en direct, 15→12 curseurs). Rien à faire.
 - **icônes pinceau/transparence — PAS mortes** : ce sont des verrous (masque,

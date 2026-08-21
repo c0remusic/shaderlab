@@ -100,6 +100,10 @@ const ATTENDU = {
   // en font une mesure et pas une intention.
   "effet-light-leak.png": { width: 256, height: 256, valeurs: null },
   "effet-light-leak-neutre.png": { width: 256, height: 256, valeurs: null },
+  // Bruit fractal : un champ genere, riche (valeurs: null), qui ecrase le fond.
+  // Le temoin Cretes fige que la variante Motif transforme bien le champ.
+  "effet-noise.png": { width: 256, height: 256, valeurs: null },
+  "effet-noise-cretes.png": { width: 256, height: 256, valeurs: null },
   // APLAT (2026-08-17), trois références pour trois propriétés distinctes.
   //
   // La paire rectangle/ellipse partage TOUTE sa géométrie : leur écart est donc

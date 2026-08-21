@@ -3161,6 +3161,40 @@ const INSTALL = `(async () => {
       },
     },
 
+    // ── BRUIT FRACTAL : UN CHAMP GENERE, PAS LU ───────────────────────────
+    //
+    // Le generateur ignore ce qui est en dessous (Normal a 1, il ecrase) : la
+    // mire n'est la que pour porter le calque. Ce qu'il faut prouver tient en
+    // deux points, et chacun a son scenario :
+    //  - il PRODUIT un champ riche et non un aplat (s'ecarte fortement du fond) ;
+    //  - la variante Motif change la FORME du champ, elle n'est pas decorative
+    //    (le temoin Cretes s'ecarte du Nuageux a memes autres reglages).
+    "effet-noise": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("noise", p);
+        stack.updateParams(a, { echelle: 6, octaves: 6, roughness: 0.5, warp: 0.35, contraste: 1, type: 0, graine: 0 });
+      },
+    },
+
+    // MEME CHAMP, MOTIF CRETES (type 1). Tout est identique par ailleurs — meme
+    // echelle, meme graine, meme warp — donc l'ecart avec le Nuageux EST la
+    // transformation par octave (1 - |2n-1|), et rien d'autre. Sans ce temoin, un
+    // Motif inerte figerait la meme image que Nuageux sans que rien ne rougisse.
+    "effet-noise-cretes": {
+      contre: "effet-noise",
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("noise", p);
+        stack.updateParams(a, { echelle: 6, octaves: 6, roughness: 0.5, warp: 0.35, contraste: 1, type: 1, graine: 0 });
+      },
+    },
+
     // ── APLAT : UNE COULEUR UNIE, BORNEE ──────────────────────────────────
     //
     // Trois scenarios pour trois proprietes distinctes, et le troisieme est le

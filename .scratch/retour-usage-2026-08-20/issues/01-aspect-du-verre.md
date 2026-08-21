@@ -1,6 +1,14 @@
 Type: prototype
 Status: open
 
+> 🔵 **Grilling 2026-08-21** : front = **reflet spéculaire du Poli d'abord**.
+> Recherche large glass shading LIVRÉE : `research/01-glass-shading.md` — diagnostic
+> confirmé (Blinn-Phong = mauvais opérateur, **Fresnel gelé à 0,04 = l'erreur
+> centrale**), 5 idées de refonte (reflet d'environnement fabriqué sans cubemap,
+> Fresnel rampant, patron Apple « Liquid Glass » = énergie au BORD), licences
+> triées (MIT réutilisables listés), 15 références Wikimedia vérifiées. Refonte
+> jugée devant photo avec Antoine — c'est de l'apparence. Détail : `../map.md`.
+
 ## Question
 
 Comment rendre le verre CRÉDIBLE, en particulier le mode Poli — refusé quatre

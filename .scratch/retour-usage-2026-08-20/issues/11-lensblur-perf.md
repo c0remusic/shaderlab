@@ -1,6 +1,12 @@
 Type: research
 Status: open
 
+> 🔵 **Grilling 2026-08-21** : cible **60 img/s SOUPLE** (qualité d'abord — bokeh
+> propre = raison d'être ; 60 seulement si le mipmap le donne gratis). **Mesurer
+> AVANT de coder** (règle du ticket + leçon glass). Analyse de coût faite (voir plus
+> bas) ; mesure prod bloquée par le sandbox (`target/`), à lancer par Antoine.
+> Détail : `../map.md`.
+
 ## Question
 
 « Lens blur est très laggy » (retour d'Antoine). Connu et déjà instruit

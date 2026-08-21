@@ -1,6 +1,12 @@
 Type: prototype
 Status: open
 
+> 🔵 **Grilling 2026-08-21** : tranché — modes de fusion en **aperçu live** sur la
+> toile (cheap, comme PS scrub la liste) + effets en **vignette de galerie**
+> basse-déf. Séquence : fusion d'abord (le code attend une validation live, il
+> disturberait l'app dev). Coût des 27 vignettes d'effet à mesurer avant impl.
+> Détail : `../map.md`.
+
 ## Question
 
 « On peut ajouter une prévisualisation de l'effet en hover ? Pareil pour les

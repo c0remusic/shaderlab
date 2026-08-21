@@ -1,5 +1,9 @@
 Type: grilling
-Status: open
+Status: resolved
+
+> ✅ **Grilling 2026-08-21** : reste en Déformation (déjà comme PS met *Displace*),
+> nom gardé, amplitude défaut 24 → 100 (codé, `db9777e`). Détail : `../map.md`
+> § Décisions du grilling.
 
 ## Question
 

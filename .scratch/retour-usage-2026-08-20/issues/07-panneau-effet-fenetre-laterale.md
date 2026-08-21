@@ -1,6 +1,13 @@
 Type: prototype
 Status: open
 
+> 🔵 **Grilling 2026-08-21** : tranché — réglages en **panneau à côté** de la pile
+> (deuxième colonne, comme PS *Properties* / Lightroom). Accordéon sous la ligne
+> (ticket 10) ÉCARTÉ (pas PS, casse ADR-0001). Wireframe envoyé :
+> `docs/wireframes/reglages-panneau-lateral.html` (3 questions ouvertes : côté de
+> la colonne, sort de l'onglet Masque, validation du libellé « Verrous : »).
+> Attend ta réaction avant code. Détail : `../map.md`.
+
 ## Question
 
 « C'est bizarre que les effets s'ouvrent au-dessus des calques, la fenêtre

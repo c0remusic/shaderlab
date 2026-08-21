@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Réglages en panneau latéral — ticket 07</title>
+<style>
+  :root {
+    --n100:#f2f2f2; --n200:#dbdbdb; --n400:#918980; --n500:#6e6861; --n600:#514c47;
+    --n700:#383431; --n800:#292522; --n850:#323232; --n900:#2c2c2c; --n950:#222222; --n1000:#1b1b1b;
+    --accent:#4069fd; --accent-400:#6b90ff;
+    --surface-workspace:var(--n950); --surface-panel:var(--n900); --surface-raised:var(--n850);
+    --surface-inset:var(--n1000); --surface-window:var(--n1000);
+    --surface-hover:color-mix(in srgb,var(--n100) 7%,transparent);
+    --surface-selected:color-mix(in srgb,var(--n100) 10%,transparent);
+    --text-primary:color-mix(in srgb,var(--n100) 94%,transparent);
+    --text-secondary:color-mix(in srgb,var(--n100) 68%,transparent);
+    --text-tertiary:color-mix(in srgb,var(--n100) 58%,transparent);
+    --text-muted:color-mix(in srgb,var(--n100) 40%,transparent);
+    --border-subtle:color-mix(in srgb,var(--n100) 7%,transparent);
+    --border-default:color-mix(in srgb,var(--n100) 11%,transparent);
+    --border-strong:color-mix(in srgb,var(--n100) 28%,transparent);
+    --radius-control:5px; --radius-group:7px; --radius-panel:8px;
+    --font-sans:"Inter","Segoe UI",system-ui,sans-serif; --font-mono:"Cascadia Mono","Consolas",monospace;
+    --ok:#4ea86b; --warn:#d9a441; --bad:#d9614b;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:32px 24px 80px; background:var(--surface-workspace); color:var(--text-primary);
+    font-family:var(--font-sans); font-size:14px; line-height:1.5; }
+  .wrap { max-width:1240px; margin:0 auto; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  h2 { font-size:16px; margin:36px 0 14px; padding-bottom:8px; border-bottom:1px solid var(--border-default); }
+  h3 { font-size:12px; margin:0 0 10px; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.05em; }
+  .meta { color:var(--text-muted); font-size:12px; font-family:var(--font-mono); margin-bottom:8px; }
+  .lede { color:var(--text-secondary); max-width:74ch; margin:0 0 8px; }
+  code { font-family:var(--font-mono); font-size:12px; background:var(--surface-inset); padding:1px 5px; border-radius:4px; color:var(--n200); }
+
+  /* Maquette de l'app : toile + dock */
+  .app { display:flex; gap:10px; background:var(--surface-window); border:1px solid var(--border-strong);
+    border-radius:var(--radius-panel); padding:10px; align-items:stretch; }
+  .toolbar { display:flex; flex-direction:column; gap:6px; width:36px; flex:0 0 auto;
+    background:var(--surface-inset); border-radius:var(--radius-group); padding:5px; }
+  .tool { width:26px; height:26px; border-radius:4px; background:var(--surface-raised); }
+  .tool.on { background:var(--accent); }
+  .canvas { flex:1 1 auto; min-width:120px; border-radius:var(--radius-group);
+    background:
+      repeating-conic-gradient(var(--n800) 0% 25%, var(--n850) 0% 50%) 0/22px 22px;
+    display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:12px; min-height:300px; }
+  .dock { display:flex; gap:8px; flex:0 0 auto; }
+  .col { width:230px; display:flex; flex-direction:column; gap:8px; flex:0 0 auto; }
+  .card { background:var(--surface-panel); border:1px solid var(--border-default); border-radius:var(--radius-group); }
+  .card__tabs { display:flex; gap:2px; padding:6px 6px 0; }
+  .tab { font-size:11px; padding:5px 9px; border-radius:5px 5px 0 0; color:var(--text-tertiary); background:transparent; }
+  .tab.on { color:var(--text-primary); background:var(--surface-raised); }
+  .card__body { padding:8px; }
+  .row { display:flex; align-items:center; gap:6px; padding:6px 5px; border-radius:5px; }
+  .row.sel { background:var(--surface-selected); box-shadow:inset 2px 0 0 var(--accent); }
+  .chip { width:16px; height:16px; border-radius:3px; background:var(--surface-raised); flex:0 0 auto; }
+  .nm { font-size:12px; color:var(--text-secondary); flex:1 1 auto; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mini { width:12px; height:12px; border-radius:3px; background:var(--surface-inset); flex:0 0 auto; }
+  .field { display:flex; align-items:center; justify-content:space-between; padding:5px 4px; font-size:11px; color:var(--text-tertiary); }
+  .field .val { color:var(--text-secondary); font-family:var(--font-mono); }
+  .slider { height:4px; border-radius:2px; background:var(--surface-inset); position:relative; margin:2px 4px 8px; }
+  .slider::after { content:""; position:absolute; left:38%; top:-4px; width:12px; height:12px; border-radius:50%; background:var(--accent-400); }
+  .settings-inline { border:1px dashed var(--warn); border-radius:5px; padding:6px; margin-top:6px; }
+
+  .cols2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start; margin-top:12px; }
+  .callout { margin-top:12px; padding:10px 12px; border-radius:var(--radius-control); background:var(--surface-inset);
+    border-left:3px solid var(--warn); font-size:12.5px; color:var(--text-secondary); }
+  .callout--ok { border-left-color:var(--ok); }
+  .callout--bad { border-left-color:var(--bad); }
+  .callout strong { color:var(--text-primary); }
+  .q { margin-top:14px; padding:10px 12px; background:color-mix(in srgb,var(--accent) 12%,var(--surface-inset));
+    border:1px solid color-mix(in srgb,var(--accent) 35%,transparent); border-radius:var(--radius-control); font-size:13px; }
+  .q b { color:#b8c9ff; }
+  ul.tight { margin:8px 0 0; padding-left:18px; } ul.tight li { margin:4px 0; color:var(--text-secondary); font-size:13px; }
+  .tag { display:inline-block; font-size:10px; font-family:var(--font-mono); text-transform:uppercase; letter-spacing:.05em;
+    padding:2px 7px; border-radius:999px; margin-bottom:10px; }
+  .tag--now { background:color-mix(in srgb,var(--bad) 20%,transparent); color:#f0b3a6; }
+  .tag--new { background:color-mix(in srgb,var(--ok) 20%,transparent); color:#a6e3bd; }
+  .locks { display:flex; align-items:center; gap:4px; margin-top:8px; padding:5px; background:var(--surface-inset); border-radius:5px; }
+  .locks__label { font-size:10px; color:var(--text-tertiary); font-family:var(--font-mono); }
+  .lk { width:22px; height:22px; border-radius:4px; background:var(--surface-raised); }
+  .lk.on { background:color-mix(in srgb,var(--accent) 22%,transparent); border:1px solid color-mix(in srgb,var(--accent) 50%,transparent); }
+  .foot { color:var(--text-muted); font-size:11px; margin-top:6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Réglages d'effet en panneau latéral</h1>
+  <div class="meta">ticket 07 (+10) · retour-usage-2026-08-20 · wireframe pour réaction</div>
+  <p class="lede">« C'est bizarre que les effets s'ouvrent au-dessus des calques, la fenêtre devrait s'ouvrir sur le côté,
+  plus instinctif. » Aujourd'hui le panneau <strong>Propriétés</strong> (réglages de l'effet sélectionné) est un
+  onglet DANS la colonne de dock, au-dessus / à côté de la Pile. Tu le veux À CÔTÉ — comme le panneau
+  <em>Properties</em> de Photoshop et le panneau <em>Develop</em> de Lightroom, jamais sous la ligne du calque.</p>
+
+  <!-- AVANT -->
+  <h2>1 · Aujourd'hui — une seule colonne, tout empilé</h2>
+  <div class="app">
+    <div class="toolbar"><div class="tool on"></div><div class="tool"></div><div class="tool"></div><div class="tool"></div></div>
+    <div class="canvas">toile</div>
+    <div class="dock">
+      <div class="col">
+        <div class="card">
+          <div class="card__tabs"><span class="tab on">Propriétés</span><span class="tab">Masque</span></div>
+          <div class="card__body">
+            <div class="field"><span>Rayon</span><span class="val">24 px</span></div><div class="slider"></div>
+            <div class="field"><span>Intensité</span><span class="val">1.6</span></div><div class="slider"></div>
+            <div class="field"><span>Seuil</span><span class="val">0.55</span></div><div class="slider"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card__tabs"><span class="tab on">Pile</span></div>
+          <div class="card__body">
+            <div class="row sel"><span class="chip"></span><span class="nm">Glow</span><span class="mini"></span></div>
+            <div class="row"><span class="chip"></span><span class="nm">Carte de déplacement</span><span class="mini"></span></div>
+            <div class="row"><span class="chip"></span><span class="nm">Photo</span><span class="mini"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="callout callout--bad">Les réglages « s'ouvrent au-dessus » des calques — c'est ce qui te paraît bizarre.
+  Et la ligne de l'effet sélectionné partage sa largeur avec le sélecteur + les 4 verrous : pas de place pour un libellé <code>Verrous :</code>.</div>
+
+  <!-- APRÈS -->
+  <h2>2 · Proposé — deux colonnes, réglages à côté</h2>
+  <div class="app">
+    <div class="toolbar"><div class="tool on"></div><div class="tool"></div><div class="tool"></div><div class="tool"></div></div>
+    <div class="canvas">toile</div>
+    <div class="dock">
+      <div class="col" style="width:210px">
+        <div class="card">
+          <div class="card__tabs"><span class="tab on">Pile</span><span class="tab">Masque</span></div>
+          <div class="card__body">
+            <div class="row sel"><span class="chip"></span><span class="nm">Glow</span><span class="mini"></span></div>
+            <div class="row"><span class="chip"></span><span class="nm">Carte de déplacement</span><span class="mini"></span></div>
+            <div class="row"><span class="chip"></span><span class="nm">Photo</span><span class="mini"></span></div>
+            <!-- la ligne de contrôle du calque sélectionné, LIBÉRÉE du sélecteur -->
+            <div class="locks">
+              <span class="locks__label">Verrous&nbsp;:</span>
+              <span class="lk"></span><span class="lk on" title="masque verrouillé, enfoncé"></span><span class="lk"></span><span class="lk"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col" style="width:236px">
+        <div class="card">
+          <div class="card__tabs"><span class="tab on">Propriétés — Glow</span></div>
+          <div class="card__body">
+            <div class="field"><span>Rayon</span><span class="val">24 px</span></div><div class="slider"></div>
+            <div class="field"><span>Intensité</span><span class="val">1.6</span></div><div class="slider"></div>
+            <div class="field"><span>Seuil</span><span class="val">0.55</span></div><div class="slider"></div>
+            <div class="field"><span>Retenue des noirs</span><span class="val">0.0</span></div><div class="slider"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="cols2">
+    <div class="callout callout--ok"><span class="tag tag--new">gagné</span><br>
+      Les réglages sont À CÔTÉ (comme PS <em>Properties</em> / Lightroom). Et la ligne de contrôle du calque, libérée du
+      panneau de réglages, a enfin la place du libellé <strong>Verrous :</strong> + les 4 verrous enfoncés (ticket 05, B).</div>
+    <div class="callout"><span class="tag tag--now">à décider</span><br>
+      La colonne Propriétés se remplit avec l'effet sélectionné. Vide s'il n'y a pas d'effet sélectionné (ou montre le calque photo).
+      Reste content-sized et NE DÉFILE PAS (ADR-0001) — un effet à 37 params (curves) tient parce que la colonne prend la hauteur de son contenu.</div>
+  </div>
+
+  <h2>3 · Contraintes & questions ouvertes</h2>
+  <ul class="tight">
+    <li><strong>ADR-0001 tient</strong> : chaque colonne reste content-sized, aucune ne défile. Les groupes à onglets (déjà tranchés, hybride ticket 04) sont préservés — on AJOUTE une colonne, on ne rouvre pas le modèle.</li>
+    <li><strong>Côté de la colonne Propriétés</strong> : à DROITE de la Pile (ci-dessus), ou à GAUCHE (collée à la toile, comme Lightroom Develop) ? PS la met à droite ; Lightroom à droite aussi.</li>
+    <li><strong>Largeur totale</strong> : deux colonnes ~210 + ~236 = ~450 px de dock. Sur un petit écran, ça mange la toile. Repli d'une colonne possible ?</li>
+    <li><strong>Masque</strong> : reste onglet de la colonne Pile, ou passe avec Propriétés ? (il décrit le calque sélectionné, comme les réglages).</li>
+  </ul>
+
+  <div class="q"><b>Q pour toi :</b> (1) colonne Propriétés à DROITE de la Pile ou à GAUCHE (côté toile) ?
+  (2) l'onglet <b>Masque</b> reste avec la Pile, ou part avec les Propriétés (tout ce qui décrit le calque sélectionné ensemble) ?
+  (3) le libellé <b>Verrous :</b> validé une fois la ligne libérée ?</div>
+</div>
+</body>
+</html>

@@ -1,5 +1,11 @@
 Type: grilling
-Status: open
+Status: resolved
+
+> ✅ **Grilling 2026-08-21** : direction tranchée — `aplat` devient un **outil
+> Forme** dessiné (comme PS shape layer), quitte la liste d'effets, et unifie le
+> trou de sélection géométrique (`mask/sources`). Changement de modèle → **chantier
+> séparé à charter en /wayfinder** (concept cadré : `docs/wireframes/aplat-outil-forme.html`).
+> Détail : `../map.md` § Décisions du grilling.
 
 ## Question
 

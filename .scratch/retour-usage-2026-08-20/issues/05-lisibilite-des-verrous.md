@@ -1,6 +1,12 @@
 Type: prototype
 Status: open
 
+> 🔵 **Grilling 2026-08-21** : cause = le SILENCE, pas le glyphe. A : garder
+> `Brush` (double-brosse comme PS). B : verrou actif **enfoncé** — CODÉ (`db9777e`) ;
+> libellé « Verrous : » attend le layout deux-colonnes (ticket 07 libère la ligne).
+> C : blocage gardé, pas de curseur ni grisage — l'état enfoncé porte tout.
+> Reste : le libellé, une fois 07 tranché. Détail : `../map.md`.
+
 ## Question
 
 « L'icône pinceau dans le screen ne fait rien. Pareil pour la transparence »

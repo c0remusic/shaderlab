@@ -1,5 +1,10 @@
 Type: grilling
-Status: open
+Status: resolved
+
+> ✅ **Grilling 2026-08-21** : l'encre-par-texture (pré-baked) est refusée →
+> **encre PROCÉDURALE** (shader) dans la famille Impression, chantier séparé à
+> charter. `Texture` (plaquer un scan) RESTE et s'enrichit (« plus de textures »,
+> pack/procédural, chantier séparé). Détail : `../map.md` § Décisions du grilling.
 
 ## Question
 

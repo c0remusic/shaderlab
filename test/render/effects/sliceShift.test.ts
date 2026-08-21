@@ -227,20 +227,25 @@ describe("sliceShift — la loi d'adoption, et les deux choses qu'elle NE fait p
 });
 
 describe("sliceShift — le fondu n'a plus de course morte", () => {
-  it("borne le CURSEUR à l'épaisseur d'une tranche, pas à une constante", () => {
-    // DÉFAUT RÉEL relevé le 2026-08-02 et corrigé le 2026-08-03 : le maximum
-    // déclaré était 200 px, l'effectif `sliceSize` — 48 par défaut. Les trois
-    // quarts du curseur ne faisaient rien, sans aucun retour dans le panneau.
+  it("borne le CURSEUR au TIERS de l'épaisseur, pas à l'épaisseur entière", () => {
+    // DÉFAUT RÉEL relevé le 2026-08-02, corrigé en DEUX temps :
+    //  - 2026-08-03 : maximum déclaré 200 px alors que l'effectif était
+    //    `sliceSize` — les trois quarts du curseur morts. Borné à `sliceSize`.
+    //  - 2026-08-21 : `sliceSize` bornait encore trop HAUT. Le fondu mélange les
+    //    deux tranches sur `f/2` de chaque côté, donc à `f = sliceSize` la bande
+    //    couvre TOUTE la tranche et le contenu se lit comme un flou (retour
+    //    d'Antoine). Borné au TIERS : au max, le cœur reste net.
     const feather = sliceShift.params.find((p) => p.name === "edgeFeather")!;
     const defauts: Record<string, number> = {};
     for (const p of sliceShift.params) defauts[p.name] = p.default;
 
     expect(feather.maxFrom).toBeDefined();
-    // À l'épaisseur par défaut, la course s'arrête à l'épaisseur.
-    expect(feather.maxFrom!(defauts)).toBe(48);
+    // À l'épaisseur par défaut (48), la course s'arrête au tiers (16).
+    expect(feather.maxFrom!(defauts)).toBe(16);
     // Et elle SUIT l'épaisseur, c'est tout l'intérêt d'un maximum dynamique.
-    expect(feather.maxFrom!({ ...defauts, sliceSize: 120 })).toBe(120);
-    expect(feather.maxFrom!({ ...defauts, sliceSize: 4 })).toBe(4);
+    expect(feather.maxFrom!({ ...defauts, sliceSize: 120 })).toBe(40);
+    // Plancher à 2 : une tranche très fine garde une course minimale utilisable.
+    expect(feather.maxFrom!({ ...defauts, sliceSize: 4 })).toBe(2);
     // Jamais au-dessus de la borne déclarée, que `validateEffect` impose.
     expect(feather.maxFrom!({ ...defauts, sliceSize: 400 })).toBeLessThanOrEqual(feather.max);
   });

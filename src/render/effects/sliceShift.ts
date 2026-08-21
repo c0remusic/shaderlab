@@ -123,7 +123,20 @@ export const sliceShift: EffectModule = {
     // px et n'en servait que 48 par défaut — trois quarts de course morts,
     // silencieux, relevés le 2026-08-02 et corrigés le 2026-08-03 le jour où le
     // système de paramètres a su l'exprimer.
-    { name: "edgeFeather", label: "Fondu des bords", unit: "pixels", min: 0, max: 400, default: 0, step: 1, maxFrom: (p) => Math.max(2, Math.min(400, p.sliceSize)), hint: "Adoucit la frontière entre deux tranches, en pixels pleine résolution. À 0 la coupure est franche — c'est la signature de l'effet. Sa course suit l'épaisseur des tranches : au-delà, deux fondus se recouvriraient au milieu d'une tranche" },
+    // COURSE BORNÉE AU TIERS DE L'ÉPAISSEUR, et non à l'épaisseur entière
+    // (2026-08-21). Le fondu mélange les deux tranches sur `f/2` de chaque côté
+    // de la frontière (voir `fs_main`) : à `f = sliceSize` la bande couvre TOUTE
+    // la tranche, les deux tranches se superposent partout et le contenu se lit
+    // comme un flou général — le retour d'Antoine « ça rend flou tout le
+    // contenu, pas juste les bords ». Mesuré à l'œil : net à `sliceSize/6`,
+    // dédoublement naissant à `sliceSize/2`, flou total à `sliceSize`. À
+    // `sliceSize/3` le fondu ne gagne qu'un sixième de tranche de chaque côté,
+    // donc le cœur reste toujours à son décalage plein — c'est un bord adouci,
+    // jamais une surimpression. Même famille que le remappage de `displace` sur
+    // son flanc croissant : une course dont le HAUT dégradait l'effet.
+    // Borne de CURSEUR seule (`maxFrom`) : le clamp shader reste à `sliceSize`,
+    // donc aucun rendu ne change et `test:render` ne bouge pas.
+    { name: "edgeFeather", label: "Fondu des bords", unit: "pixels", min: 0, max: 400, default: 0, step: 1, maxFrom: (p) => Math.max(2, Math.min(400, p.sliceSize / 3)), hint: "Adoucit la frontière entre deux tranches, en pixels pleine résolution. À 0 la coupure est franche — c'est la signature de l'effet. Sa course est bornée au tiers de l'épaisseur des tranches : au-delà, le fondu gagnerait le cœur de la tranche et le contenu se lirait comme un flou, plus comme un bord adouci" },
   ],
   /**
    * TROIS SECTIONS, TROIS QUESTIONS, ET AUCUNE CONDITION.

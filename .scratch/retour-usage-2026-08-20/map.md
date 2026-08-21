@@ -98,6 +98,48 @@ GARDÉ de la session (commit `d3d7390`) — défaut de lissage 12 à confirmer �
 - **icônes pinceau/transparence — PAS mortes** : ce sont des verrous (masque,
   transparence) câblés. Le défaut est de lisibilité, pas de code → ticket 05.
 
+## Décisions du grilling — 2026-08-21 (Antoine, 16 questions)
+
+Toutes tranchées, principe récurrent : **« comme photoshop/affinity »**.
+
+- **05 verrous** — la vraie cause du « ça marche pas » = le SILENCE, pas le
+  glyphe. A : garder `Brush` sur le verrou de masque ET l'outil (double-brosse,
+  comme PS ; zéro swap). B : libellé **« Verrous : »** groupant les quatre +
+  verrou actif en **bouton enfoncé** (plus la teinte seule). C : blocage gardé
+  (correct — verrouiller transparence sur masque vide = rien à peindre, par
+  définition) ; PAS de curseur spécial, PAS de grisage contextuel — l'état
+  enfoncé (B) rend le verrou inratable, le silence cesse de surprendre. c3 du
+  wireframe (« laisser le premier trait ») ÉCARTÉ : faux, pas PS.
+- **11 lensBlur** — cible **60 img/s SOUPLE** : qualité d'abord (bokeh propre =
+  raison d'être de l'effet), 60 seulement si le mipmap le donne gratis, sinon
+  moins de 60 à grand rayon mais bokeh intact. **Mesurer AVANT de coder** (règle
+  du ticket + leçon glass) : Antoine lance le probe préparé, code seulement si un
+  levier se confirme.
+- **04 displacementMap** — reste en **Déformation** (déjà là où PS/Affinity
+  mettent *Displace* ; « à côté de Texture » était FAUX). Nom gardé (« Carte de
+  déplacement », plus clair que « Dispersion » du PS FR). Vrai fix = **amplitude
+  défaut 24 → 100** (l'invisible au défaut le faisait lire comme cassé).
+- **07 + 10 réglages d'effet** — **panneau à CÔTÉ** de la pile (deuxième colonne,
+  comme PS *Properties* / Lightroom), pas au-dessus. Accordéon sous la ligne (10)
+  **écarté** : pas PS, et 37 params de `curves` casseraient ADR-0001. → wireframe
+  layout deux-colonnes.
+- **08 hover** — modes de fusion en **aperçu live** sur la toile (cheap, PS scrub
+  la liste) + effets en **vignette de galerie** basse-déf (coût des 27 passes à
+  mesurer). Séquence : fusion d'abord.
+- **09 aplat** — devient **outil Forme** de la barre, dessiné directement (comme
+  PS shape layer), **quitte la liste d'effets**, et unifie le TROU de sélection
+  géométrique (`mask/sources` n'a aucune source géométrique). Changement de
+  modèle → **prototype/wayfinder séparé**, pas un fix.
+- **06 encre/textures** — l'encre-par-texture (`inkTexture` + `encreRang`, tous
+  deux pré-baked) est refusée : **encre PROCÉDURALE** (shader) à la place, dans la
+  famille Impression. Chantier séparé (lien `affinity/` ticket 02). L'effet
+  `Texture` (plaquer un scan) **RESTE**, et **s'enrichit** — « plus de textures »
+  (pack intégré et/ou procédural). Deux chantiers séparés.
+- **01 verre** — front **spéculaire Poli d'abord** (l'analyse le désigne : reflet
+  1000× sous perception, le plus lisse porte le reflet le plus mort). Recherche
+  large glass shading + références lancée AFK. Jugé devant photo avec Antoine —
+  ne se grille pas jusqu'au bout, c'est de l'apparence.
+
 ## Not yet specified
 
 - Le TEST D'USAGE FINAL d'Antoine devant l'app, une fois les tickets résolus —

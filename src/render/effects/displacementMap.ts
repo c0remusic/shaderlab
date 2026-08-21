@@ -94,7 +94,7 @@ export const displacementMap: EffectModule = {
       choices: ["Pente du gris", "Canaux R et V"],
       hint: "Pente = la carte est un relief, le décalage suit sa pente. Canaux = convention Photoshop, le rouge pousse à l'horizontale et le vert à la verticale",
     },
-    { name: "amplitude", label: "Amplitude", unit: "pixels", min: 0, max: 200, default: 24, step: 1, hint: "Décalage maximum, en pixels de l'image pleine résolution" },
+    { name: "amplitude", label: "Amplitude", unit: "pixels", min: 0, max: 200, default: 100, step: 1, hint: "Décalage maximum, en pixels de l'image pleine résolution" },
     { name: "echelle", label: "Échelle de la carte", unit: "none", min: 0.1, max: 4, default: 1, step: 0.05, hint: "1 = la carte couvre le cadre une fois. En dessous elle se répète" },
     { name: "angle", label: "Orientation de la carte", unit: "degrees", min: 0, max: 360, default: 0, step: 1 },
     {

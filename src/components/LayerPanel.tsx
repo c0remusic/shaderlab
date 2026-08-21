@@ -637,6 +637,13 @@ export function LayerControls({
               tooltip={label}
               size="compact"
               disabled={model.layerId === null}
+              // ÉTAT ENFONCÉ (2026-08-21, grilling ticket 05). La teinte seule
+              // était trop muette — un verrou actif ne se lisait pas, d'où le
+              // « l'icône pinceau ne fait rien » d'Antoine (le verrou avalait ses
+              // traits en silence). `aria-pressed` porte l'état à l'assistive
+              // tech ET sert d'ancre au style enfoncé (fond + bord accent).
+              aria-pressed={model.locks[cle] === true}
+              className={model.locks[cle] === true ? "layer-controls__lock--active" : undefined}
               onClick={() => model.layerId !== null && onToggleLock(model.layerId, cle, model.locks[cle] !== true)}
             >
               <Icone

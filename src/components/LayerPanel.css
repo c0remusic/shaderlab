@@ -85,6 +85,18 @@
   flex: 0 0 auto;
 }
 
+/* VERROU ACTIF — état ENFONCÉ (2026-08-21, grilling ticket 05). La teinte seule
+   de l'icône (`--row-lock--active`) ne suffisait pas : un verrou actif passait
+   inaperçu, et son blocage silencieux se lisait comme une panne (« l'icône
+   pinceau ne fait rien »). Le bouton prend un fond et un bord accent — la
+   grammaire du bouton pressé de Photoshop/Affinity, portée par `aria-pressed`.
+   Coût de densité nul : c'est le même bouton, seul son remplissage change. */
+.layer-controls__lock--active {
+  background: color-mix(in srgb, var(--focus-color) 22%, transparent);
+  border-color: color-mix(in srgb, var(--focus-color) 50%, transparent);
+  color: var(--text-primary);
+}
+
 /* CALQUE PHOTO : la phrase qui remplace le sélecteur d'effet (décision produit
    du 2026-07-31 — un effet est un calque à part, écrêté à la photo, jamais posé
    sur elle). Elle hérite du `flex: 1 1 0; min-width: 0` de `.layer-controls__row

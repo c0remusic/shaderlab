@@ -49,13 +49,24 @@ pas au harnais (le harnais prouve qu'un effet agit, jamais qu'il est beau).
    d'`edgeGradient.ts` (son en-tête le disait déjà). Presets non cassés.
 
 **Puis les fix, dans cet ordre :**
-- **05 verrous** — le seul « ça marche pas » ressenti (« l'icône pinceau ne fait
-  rien » = verrou de masque mal signalé). Fix de lisibilité, prototypable en
-  storybook sans lancer l'app.
+- **05 verrous** — 🔵 **WIREFRAME LIVRÉ le 2026-08-21**, envoyé à Antoine pour
+  réaction (`docs/wireframes/verrous-lisibilite.html`). Collision `Brush`/`Brush`
+  montrée (verrou de masque = glyphe de l'outil pinceau), + trois directions
+  cumulables à trancher : A (glyphe du verrou de masque), B (feedback d'état
+  actif — plein/creux comme le badge de ligne), C (affordance du masque vide :
+  curseur qui refuse / bandeau / comportement Photoshop). **En attente de la
+  réaction d'Antoine sur chaque direction, puis code.**
 - **04 displacementMap** — marche en fait ; renommer (nom à demander à Antoine) +
   monter le défaut d'amplitude.
-- **11 lensBlur** — mesure perf en build PRODUCTION d'abord (ferme l'app dev),
-  puis levier.
+- **11 lensBlur** — 🔵 **ANALYSE DE COÛT FAITE le 2026-08-21** (lue au code, voir
+  le ticket). Deux passes, collecte déjà en demi-def, taps `= clamp(π·rt²/3, 24,
+  256)` saturant à ~31 px. Coût = DISPERSION des lectures à grand rayon, même
+  signature que `glass`. Levier probable = pyramide de mips sur la source de
+  collecte (mêmes caveats que glass : source ping-pong par frame). **La mesure de
+  cadence PROD n'a pas pu tourner** : le sandbox de session refuse l'accès à
+  `src-tauri/target/`, donc le binaire release ne se lance pas d'ici. Build release
+  fait, photo synthétique 26 Mpx prête, protocole écrit dans le ticket — run en un
+  geste dès que le sandbox l'autorise ou qu'Antoine le lance.
 - **06 doublon encre/textures**, puis les grillings de layout **07+10** (réglages
   à côté / dans la section calque, à griller ensemble), **08** (hover), **09**
   (aplat en outil), et l'esthétique **01** (verre, refusé 4×, références + œil).

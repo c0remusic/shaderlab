@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lisibilité des verrous — ticket 05</title>
+<style>
+  /* Tokens RÉELS du dépôt (src/design/primitives.css + semantic.css), thème sombre. */
+  :root {
+    --n0:#fffdf9; --n100:#f2f2f2; --n200:#dbdbdb; --n300:#b3aa9e; --n400:#918980;
+    --n500:#6e6861; --n600:#514c47; --n700:#383431; --n800:#292522; --n850:#323232;
+    --n900:#2c2c2c; --n950:#222222; --n1000:#1b1b1b;
+    --accent:#4069fd; --accent-400:#6b90ff;
+    --surface-window:var(--n1000); --surface-workspace:var(--n950);
+    --surface-panel:var(--n900); --surface-raised:var(--n850); --surface-inset:var(--n1000);
+    --surface-hover:color-mix(in srgb, var(--n100) 7%, transparent);
+    --surface-active:color-mix(in srgb, var(--n100) 11%, transparent);
+    --surface-selected:color-mix(in srgb, var(--n100) 10%, transparent);
+    --text-primary:color-mix(in srgb, var(--n100) 94%, transparent);
+    --text-secondary:color-mix(in srgb, var(--n100) 68%, transparent);
+    --text-tertiary:color-mix(in srgb, var(--n100) 58%, transparent);
+    --text-muted:color-mix(in srgb, var(--n100) 40%, transparent);
+    --border-subtle:color-mix(in srgb, var(--n100) 7%, transparent);
+    --border-default:color-mix(in srgb, var(--n100) 11%, transparent);
+    --border-strong:color-mix(in srgb, var(--n100) 28%, transparent);
+    --radius-control:5px; --radius-group:7px; --radius-panel:8px; --radius-round:999px;
+    --font-sans:"Inter","Segoe UI",system-ui,sans-serif;
+    --font-mono:"Cascadia Mono","Consolas",monospace;
+    --ok:#4ea86b; --warn:#d9a441; --bad:#d9614b;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; padding:32px 24px 80px; background:var(--surface-workspace);
+    color:var(--text-primary); font-family:var(--font-sans); font-size:14px; line-height:1.5;
+  }
+  .wrap { max-width:1180px; margin:0 auto; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  h2 { font-size:16px; margin:40px 0 12px; padding-bottom:8px; border-bottom:1px solid var(--border-default); }
+  h3 { font-size:13px; margin:0 0 10px; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.04em; }
+  .lede { color:var(--text-secondary); max-width:70ch; margin:0 0 8px; }
+  .meta { color:var(--text-muted); font-size:12px; font-family:var(--font-mono); margin-bottom:8px; }
+  code { font-family:var(--font-mono); font-size:12px; background:var(--surface-inset); padding:1px 5px; border-radius:4px; color:var(--n200); }
+  .cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:18px; align-items:start; }
+  .card {
+    background:var(--surface-panel); border:1px solid var(--border-default);
+    border-radius:var(--radius-panel); padding:16px;
+  }
+  .card--bad { border-color:color-mix(in srgb,var(--bad) 45%, var(--border-default)); }
+  .card--ok  { border-color:color-mix(in srgb,var(--ok) 45%, var(--border-default)); }
+  .tag { display:inline-block; font-size:10px; font-family:var(--font-mono); text-transform:uppercase;
+    letter-spacing:.05em; padding:2px 7px; border-radius:var(--radius-round); margin-bottom:12px; }
+  .tag--bad { background:color-mix(in srgb,var(--bad) 22%, transparent); color:#f0b3a6; }
+  .tag--ok  { background:color-mix(in srgb,var(--ok) 22%, transparent); color:#a6e3bd; }
+  .tag--ref { background:color-mix(in srgb,var(--accent) 24%, transparent); color:#b8c9ff; }
+
+  /* ── Reproduction fidèle de la zone de contrôles du dock ─────────────── */
+  .dock { width:320px; background:var(--surface-panel); border:1px solid var(--border-strong);
+    border-radius:var(--radius-group); padding:10px; }
+  .dock__title { font-size:11px; color:var(--text-tertiary); margin:0 0 8px; font-family:var(--font-mono); }
+  .lockrow { display:flex; gap:6px; align-items:center; }
+  .lockrow__label { font-size:11px; color:var(--text-tertiary); margin-right:2px; }
+  .iconbtn {
+    width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;
+    border-radius:var(--radius-control); border:1px solid transparent; background:transparent;
+    color:var(--text-muted); cursor:pointer; position:relative;
+  }
+  .iconbtn:hover { background:var(--surface-hover); }
+  .iconbtn svg { width:16px; height:16px; }
+  .iconbtn.sep { margin-left:6px; }
+  /* état ACTUEL du verrou actif : teinte seule (ce que fait le code aujourd'hui) */
+  .iconbtn--active-tint { color:var(--text-primary); }
+  /* direction B : fond plein + anneau, comme le badge de ligne plein/creux */
+  .iconbtn--active-fill {
+    color:var(--text-primary); background:color-mix(in srgb,var(--accent) 30%, transparent);
+    border-color:color-mix(in srgb,var(--accent) 60%, transparent);
+  }
+  .iconbtn--danger:hover { background:color-mix(in srgb,var(--bad) 20%, transparent); color:#f0b3a6; }
+  .divider { width:1px; height:18px; background:var(--border-default); margin:0 3px; }
+
+  .toolbar { display:flex; flex-direction:column; gap:6px; width:44px; background:var(--surface-window);
+    border:1px solid var(--border-default); border-radius:var(--radius-group); padding:6px; }
+  .tool { width:32px; height:32px; display:flex; align-items:center; justify-content:center;
+    border-radius:var(--radius-control); color:var(--text-secondary); }
+  .tool--active { background:var(--accent); color:#fff; }
+  .tool svg { width:18px; height:18px; }
+
+  .callout { margin-top:14px; padding:10px 12px; border-radius:var(--radius-control);
+    background:var(--surface-inset); border-left:3px solid var(--warn); font-size:12.5px; color:var(--text-secondary); }
+  .callout strong { color:var(--text-primary); }
+  .callout--bad { border-left-color:var(--bad); }
+  .callout--ok { border-left-color:var(--ok); }
+
+  ul.tight { margin:8px 0 0; padding-left:18px; }
+  ul.tight li { margin:4px 0; color:var(--text-secondary); font-size:13px; }
+  .q { margin-top:12px; padding:10px 12px; background:color-mix(in srgb,var(--accent) 12%, var(--surface-inset));
+    border:1px solid color-mix(in srgb,var(--accent) 35%, transparent); border-radius:var(--radius-control);
+    font-size:13px; }
+  .q b { color:#b8c9ff; }
+  .flex { display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start; }
+  .glyphrow { display:flex; gap:10px; flex-wrap:wrap; margin-top:6px; }
+  .glyphopt { display:flex; flex-direction:column; align-items:center; gap:6px; width:74px;
+    padding:10px 6px; background:var(--surface-inset); border:1px solid var(--border-default);
+    border-radius:var(--radius-control); text-align:center; }
+  .glyphopt svg { width:20px; height:20px; color:var(--text-primary); }
+  .glyphopt span { font-size:10px; color:var(--text-tertiary); font-family:var(--font-mono); }
+  .badge-empty { position:absolute; right:-3px; bottom:-3px; width:12px; height:12px; border-radius:var(--radius-round);
+    background:var(--surface-raised); display:flex; align-items:center; justify-content:center; }
+  .badge-empty svg { width:8px; height:8px; color:var(--warn); }
+  .footnote { color:var(--text-muted); font-size:11px; margin-top:6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Lisibilité des verrous</h1>
+  <div class="meta">ticket 05 · retour-usage-2026-08-20 · wireframe pour réaction — ne code rien</div>
+  <p class="lede">« L'icône pinceau dans le screen ne fait rien. Pareil pour la transparence. » — le seul
+  « ça marche pas » ressenti du retour. Diagnostic : les icônes ne sont pas mortes, ce sont les
+  <strong>verrous</strong> (masque, transparence, position, tout), câblés. Le défaut est de <strong>lisibilité</strong>,
+  en trois points. Ci-dessous l'état actuel, puis trois directions à trancher.</p>
+
+  <!-- ════════════════ LE PROBLÈME ════════════════ -->
+  <h2>1 · Ce qui se passe aujourd'hui</h2>
+  <div class="flex">
+    <div>
+      <h3>Barre d'outils (bord gauche)</h3>
+      <div class="toolbar">
+        <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 12l5 5 10-10z"/><path d="m7 17-4 4"/></svg></div>
+        <div class="tool tool--active" title="Outil Pinceau (P)">
+          <!-- lucide Brush -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/></svg>
+        </div>
+        <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20 4 4"/><rect x="3" y="3" width="8" height="8" rx="1"/></svg></div>
+      </div>
+      <p class="footnote">Outil Pinceau =<br>glyphe <code>Brush</code></p>
+    </div>
+
+    <div style="flex:1; min-width:340px">
+      <h3>Zone de contrôles du calque (dock)</h3>
+      <div class="dock">
+        <div class="dock__title">Calque d'effet — Glow</div>
+        <div class="lockrow">
+          <span class="lockrow__label">verrous</span>
+          <!-- transparence : Grid2x2 -->
+          <button class="iconbtn" title="Verrouiller — Transparence">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </button>
+          <!-- masque : Brush (LE MÊME GLYPHE que l'outil) -->
+          <button class="iconbtn" title="Verrouiller — Masque" style="outline:1.5px dashed var(--bad); outline-offset:1px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/></svg>
+          </button>
+          <!-- position : Move -->
+          <button class="iconbtn" title="Verrouiller — Position">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 9 2 12l3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></svg>
+          </button>
+          <!-- tout : Lock -->
+          <button class="iconbtn sep" title="Verrouiller — Tout">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </button>
+          <span class="divider"></span>
+          <button class="iconbtn" title="Dupliquer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+          <button class="iconbtn iconbtn--danger" title="Supprimer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+        </div>
+        <div class="callout callout--bad" style="margin-top:12px">
+          Le verrou de <strong>Masque</strong> (encadré) porte le glyphe <code>Brush</code> —
+          exactement l'outil Pinceau à gauche.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cols" style="margin-top:18px">
+    <div class="card card--bad">
+      <span class="tag tag--bad">défaut 1 — collision</span>
+      <p style="margin:0">Un seul glyphe <code>Brush</code> pour DEUX gestes très différents et proches à l'écran :
+      l'outil qui peint, et le verrou qui empêche de peindre. Antoine clique en attendant de peindre → il bascule un verrou.</p>
+    </div>
+    <div class="card card--bad">
+      <span class="tag tag--bad">défaut 2 — feedback muet</span>
+      <p style="margin:0">Le seul retour d'un verrou actif est une <strong>teinte</strong> un cran plus claire
+      (<code>--text-primary</code> vs <code>--text-muted</code>). Rien ne « bouge » : contrairement à Dupliquer/Supprimer
+      dont l'effet est immédiat, un verrou ne montre son effet que quand on tente le geste qu'il bloque.</p>
+    </div>
+    <div class="card card--bad">
+      <span class="tag tag--bad">défaut 3 — masque vide</span>
+      <p style="margin:0">Verrou de <strong>Transparence</strong> actif + masque <strong>vide</strong> = tout dépôt du pinceau
+      est écrêté (« peindre dedans, jamais dehors », et il n'y a pas de dedans). Se lit comme « le pinceau est cassé ».
+      C'est le point qui a produit la remarque.</p>
+    </div>
+  </div>
+
+  <!-- ════════════════ DIRECTION A ════════════════ -->
+  <h2>2 · Direction A — désambigüer le glyphe du verrou de masque</h2>
+  <p class="lede">Le verrou de masque ne doit pas porter le glyphe de l'outil qui peint.
+  ⚠️ Nuance à trancher : Photoshop met LUI-MÊME un pinceau sur « Lock image pixels » — mais son outil Pinceau vit
+  dans une barre lointaine, jamais à côté. Chez nous les deux se touchent, d'où la collision. Candidats de glyphe
+  (le masque = « ce que le calque couvre », son alpha) :</p>
+  <div class="glyphrow">
+    <div class="glyphopt">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg>
+      <span>Contrast<br>(demi-masque)</span>
+    </div>
+    <div class="glyphopt">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5S12.5 4 12 2c-.5 2-2 4-4 6.5S5 13 5 15a7 7 0 0 0 7 7z" fill="currentColor" fill-opacity=".55"/></svg>
+      <span>Droplet<br>(couvre)</span>
+    </div>
+    <div class="glyphopt">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h18" opacity=".4"/><path d="M3 12a9 9 0 0 1 18 0" fill="currentColor" fill-opacity=".5" stroke="none"/></svg>
+      <span>Masque<br>alpha</span>
+    </div>
+    <div class="glyphopt">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7l10 5 10-5z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></svg>
+      <span>Layers<br>(couche)</span>
+    </div>
+  </div>
+  <div class="q"><b>À trancher A :</b> garder <code>Brush</code> (fidèle à Photoshop, collision assumée) ·
+  ou basculer sur un glyphe de masque ? Si bascule, lequel ?</div>
+
+  <!-- ════════════════ DIRECTION B ════════════════ -->
+  <h2>3 · Direction B — rendre l'état actif lisible sans survol</h2>
+  <div class="flex">
+    <div>
+      <h3>Actuel — teinte seule</h3>
+      <div class="dock" style="width:250px">
+        <div class="lockrow">
+          <span class="lockrow__label">verrous</span>
+          <button class="iconbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></button>
+          <button class="iconbtn iconbtn--active-tint" title="masque VERROUILLÉ (teinte)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg></button>
+          <button class="iconbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 9 2 12l3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></svg></button>
+          <button class="iconbtn sep"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>
+        </div>
+        <p class="footnote">Le verrou de masque est actif — le voyez-vous ?</p>
+      </div>
+    </div>
+    <div>
+      <h3>Proposé — fond plein + anneau</h3>
+      <div class="dock" style="width:250px">
+        <div class="lockrow">
+          <span class="lockrow__label">verrous</span>
+          <button class="iconbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></button>
+          <button class="iconbtn iconbtn--active-fill" title="masque VERROUILLÉ (fond plein)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg></button>
+          <button class="iconbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 9 2 12l3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></svg></button>
+          <button class="iconbtn sep"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>
+        </div>
+        <p class="footnote">Actif = pastille pleine, comme le badge plein/creux de la ligne.</p>
+      </div>
+    </div>
+  </div>
+  <div class="callout callout--ok">
+    Cohérent avec ce qui existe déjà : le badge de verrou de la LIGNE utilise <strong>plein = total, creux = partiel</strong>
+    (convention Adobe, <code>research/01-conventions-adobe.md</code>). La zone de contrôles porterait la même grammaire.
+  </div>
+  <div class="q"><b>À trancher B :</b> fond plein + anneau accent · ou un simple point sous le glyphe ·
+  ou un libellé « Verrous : » groupant façon Photoshop ? Cumulables.</div>
+
+  <!-- ════════════════ DIRECTION C ════════════════ -->
+  <h2>4 · Direction C — l'affordance du masque vide</h2>
+  <p class="lede">Le cas qui a produit la remarque : verrou de Transparence + masque vide → le pinceau ne dépose rien,
+  et rien ne le dit. Trois façons de le SIGNALER (au lieu de laisser croire à une panne) :</p>
+  <div class="cols">
+    <div class="card">
+      <h3>c1 — curseur qui refuse</h3>
+      <p style="margin:0 0 8px">Sur la toile, le curseur pinceau prend un ⃠ tant que le dépôt est écrêté à zéro.
+      Le geste est visiblement inerte AVANT le clic.</p>
+      <div style="display:flex; gap:10px; align-items:center; color:var(--text-secondary)">
+        <span class="iconbtn" style="position:relative">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/></svg>
+          <span class="badge-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="9"/><path d="M5 5l14 14"/></svg></span>
+        </span>
+        <span style="font-size:12px">pinceau écrêté</span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>c2 — bandeau d'indice</h3>
+      <p style="margin:0 0 8px">Une ligne d'aide sous la zone de contrôles, seulement quand le cas se produit :</p>
+      <div class="callout" style="margin:0">
+        <strong>Transparence verrouillée</strong> — rien à peindre tant que le masque est vide.
+        <span style="color:var(--accent-400); text-decoration:underline; cursor:pointer">Déverrouiller</span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>c3 — laisser le premier trait</h3>
+      <p style="margin:0">Convention Photoshop : « Lock transparent pixels » ne bloque QUE là où il y a déjà des pixels.
+      Sur un masque vide, le tout premier trait pose la matière, ensuite seulement le verrou mord.
+      Change le comportement, pas seulement l'affichage — donc décision, pas correctif.</p>
+    </div>
+  </div>
+  <div class="q"><b>À trancher C :</b> signaler (c1/c2) · ou aligner le comportement sur Photoshop (c3, plus profond) ?</div>
+
+  <!-- ════════════════ RÉFÉRENCE ════════════════ -->
+  <h2>5 · Référence — comment Photoshop groupe ses verrous</h2>
+  <div class="card" style="max-width:560px">
+    <span class="tag tag--ref">Photoshop / Lightroom</span>
+    <ul class="tight">
+      <li>Les quatre verrous sont groupés derrière un libellé <b>« Lock: »</b>, jamais dispersés.</li>
+      <li>Glyphes : damier (transparence), pinceau (pixels d'image), flèches (position), cadenas (tout).</li>
+      <li>L'outil Pinceau vit dans la barre d'outils, <b>loin</b> du panneau Calques — pas de collision spatiale.</li>
+      <li>Un verrou actif s'enfonce (état pressé), il ne change pas qu'une teinte.</li>
+    </ul>
+    <p class="footnote">Référence imposée du projet (mémoire <code>referencer-photoshop-lightroom</code>).
+    Notre contrainte en plus : ADR-0001 (zone de contrôles unique, hors-scroller, colonne content-sized).</p>
+  </div>
+
+  <div class="q" style="margin-top:24px; max-width:760px">
+    <b>Décision d'ensemble attendue :</b> A (glyphe) × B (feedback) × C (masque vide) sont cumulables et indépendants.
+    Dis-moi ce que tu retiens sur chacun — je code la retenue (avec relecture visuelle par capture CDP, aucun rendu changé sans ton œil).
+  </div>
+</div>
+</body>
+</html>

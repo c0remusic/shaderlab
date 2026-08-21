@@ -364,7 +364,16 @@ export const outlines: EffectModule = {
     // demanderait un gamma manuel, interdit ici. C'est pour ça qu'une petite
     // valeur agit déjà beaucoup — 0,20 en linéaire remonte un gris moyen de
     // ~0,48 à ~0,63 en perceptuel.
-    { name: "wash", label: "Effacement du fond", unit: "percent", min: 0, max: 1, default: 0.2, step: 0.01, hint: "Fait disparaître la photo sous le trait au profit de la couleur de fond — 0 = contours sur la photo intacte, 1 = contours seuls" },
+    // DÉFAUT 0.2 → 0 (2026-08-21). Le mélange est ADDITIF en linéaire vers la
+    // couleur de fond, dont le défaut est le BLANC : sur une image sombre, un
+    // wash de 0,2 posait déjà un voile blanchâtre visible à l' APPLICATION —
+    // « blanchit tout l'écran quand appliqué » (retour d'Antoine), le plus
+    // frappant en mode Échos où le reste du cadre reste sombre. Le point de
+    // départ naturel d'un effet de CONTOUR est la photo intacte SOUS le trait ;
+    // l'effacement est un geste que l'on demande, pas un défaut. Les trois modes
+    // en profitent. Aucune référence de pixels ne bouge : tous les scénarios
+    // d'outlines fixent `wash` explicitement (1, 0.7…), jamais par le défaut.
+    { name: "wash", label: "Effacement du fond", unit: "percent", min: 0, max: 1, default: 0, step: 0.01, hint: "Fait disparaître la photo sous le trait au profit de la couleur de fond — 0 = contours sur la photo intacte, 1 = contours seuls" },
     inputSourceParam(),
 
     // ── CE QUI VIENT DE `coloredEdges` (fusion du 2026-08-03) ────────────────

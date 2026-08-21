@@ -27,7 +27,6 @@ import { aplat } from "./aplat";
 import { nettete } from "./nettete";
 import { emboss } from "./emboss";
 import { displacementMap } from "./displacementMap";
-import { noise } from "./noise";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 
 // Les six du milieu suivent l'ordre de priorité du backlog d'effets confirmé par
@@ -230,15 +229,6 @@ export const effectRegistry: EffectModule[] = [
   // (`libraryTexture`), et les pixels arrivent par le binding 7 — voir
   // `render/textureLibraryStore.ts`.
   texture,
-  // `noise` (2026-08-21) est le pendant PROCÉDURAL de `texture` : là où celui-ci
-  // LIT une image de la bibliothèque, celui-ci GÉNÈRE un champ de bruit fractal.
-  // Posé juste après lui pour ça — les deux fournissent une matière, l'une venue
-  // du disque, l'autre du shader. Né d'un retour d'usage sur `isolines` : sa
-  // référence topographique demandait un relief continu qu'une photo n'a pas, et
-  // qu'un champ fBm porte partout. Comme `texture`, `lightLeak` et `aplat`, il ne
-  // lit pas ce qui est en dessous — il écrit un champ gris que les autres effets
-  // colorent ou dont ils tirent des courbes.
-  noise,
   // `aplat` (2026-08-17) est le VINGT-QUATRIÈME, et le premier à entrer par une
   // question à laquelle il n'a pas répondu. Né prototype pour rendre le ticket
   // 03 décidable (« une forme a-t-elle besoin d'un troisième genre de calque »),

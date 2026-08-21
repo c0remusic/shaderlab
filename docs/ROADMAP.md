@@ -16,11 +16,9 @@
 
 ## Où en est le code — mesuré sur disque le 2026-08-05, pas de mémoire
 
-- **28 effets** au registre (`src/render/effects/registry.ts`) — `texture` puis
-  `lightLeak` le 2026-08-05, `aplat` le 2026-08-17, la tranche 3 du ticket 12
-  le 2026-08-18 (`nettete`, `emboss`, `displacementMap`), et `noise` (Bruit
-  fractal, générateur fBm procédural) le 2026-08-21, né du retour d'usage sur
-  `isolines` (carte de `.scratch/retour-usage-2026-08-20/`).
+- **27 effets** au registre (`src/render/effects/registry.ts`) — `texture` puis
+  `lightLeak` le 2026-08-05, `aplat` le 2026-08-17, et la tranche 3 du ticket 12
+  le 2026-08-18 : `nettete`, `emboss`, `displacementMap`.
   ✅ `aplat` (couleur unie bornée par un masque ou une primitive posée) a reçu
   **deux des trois fronts de son upgrade qualité** le 2026-08-17 : remplissage en
   DÉGRADÉ (linéaire et radial, arrêts interpolés en lumière linéaire) et

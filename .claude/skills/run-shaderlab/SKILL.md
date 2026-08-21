@@ -41,6 +41,26 @@ for ($i=0; $i -lt 90; $i++) { Start-Sleep -Seconds 4; if (Get-NetTCPConnection -
 Premier build Rust : ~4 min. Ensuite ~5 s. Si rien n'écoute sur 9222 au bout de
 6 min, lire `.dev-logs\relance-err.log`.
 
+⚠️ **« Ouvre shaderlab » veut dire « montre-la-moi », pas « démarre le process ».
+Le port CDP présent et une capture `Page.captureScreenshot` réussie NE prouvent
+PAS que la fenêtre est visible à l'écran** — la WebView2 rend et se capture même
+en arrière-plan, et même une fenêtre qui va se fermer. Vécu le 2026-08-21 :
+annoncé « ouvert » sur la foi d'une capture, la fenêtre n'était pas devant
+Antoine (« ?? c'est pas ouvert »), et le premier process s'était refermé seul
+sans erreur au log. Après lancement, vérifier `Get-Process -Name shaderlab`
+(PID + `MainWindowHandle` non nul), attendre ~10 s qu'il tienne, puis le forcer
+au premier plan avant de dire « ouvert » :
+
+```powershell
+$p = Get-Process -Name shaderlab -ErrorAction SilentlyContinue
+Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class W{[DllImport("user32.dll")]public static extern bool IsWindowVisible(IntPtr h);[DllImport("user32.dll")]public static extern bool SetForegroundWindow(IntPtr h);[DllImport("user32.dll")]public static extern bool ShowWindow(IntPtr h,int c);}'
+[W]::ShowWindow($p.MainWindowHandle, 9) | Out-Null   # 9 = SW_RESTORE
+[W]::SetForegroundWindow($p.MainWindowHandle) | Out-Null
+```
+
+Le `-WindowStyle Hidden` du `Start-Process` cache la console npm, pas la fenêtre
+Tauri — mais rien ne garantit qu'elle passe au premier plan seule.
+
 Il existe aussi `npm run dev:debug` (script maison, même effet) — ⚠️ **il tue
 TOUT process nommé `shaderlab` sur la machine**, y compris celui d'une autre
 session ou d'un autre worktree.

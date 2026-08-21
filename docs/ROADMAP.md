@@ -174,6 +174,34 @@ trancher plus tard, pas le souvenir de la session.
    `createSetXxxParameters(selection, params)` écrit). L'interface à la main
    reste la seule voie ouverte.
 
+## ⚠️ NOUVELLE carte ACTIVE — le retour d'usage du 2026-08-20
+
+**`.scratch/retour-usage-2026-08-20/` est chartée le 2026-08-21**, sur ~23
+remarques d'Antoine lâchées devant l'app. Diagnostic complet au pixel (Fable +
+4 sous-agents) : sur les ~8 « bugs francs » supposés, **UN SEUL** était un bug de
+code. Le reste est calibration, lisibilité ou esthétique.
+
+**Trois calibrations LIVRÉES** (Decisions-so-far de la carte, `test:render` zéro
+écart chacune) :
+- `warp` (`6e44dd0`) — courses mortes masquées hors mode Bruit fractal
+  (octaves/roughness/seed mesurés inertes dans 8 modes sur 9), centerY sur les 7
+  formes qui le lisent, rugosité 0.8→0.95 (le shader tolérait déjà).
+- `sliceShift` (`b5f4c2b`) — « Fondu des bords » borné à `sliceSize/3` : à
+  `sliceSize` il couvrait toute la tranche (« floute tout »).
+- `outlines` (`ad3e76c`) — défaut d'effacement du fond `wash` 0,2→0 : le voile
+  blanc (« blanchit tout l'écran », surtout en Échos) venait de ce seul défaut,
+  ni du SDF ni des échos.
+- Et `lensDistortion` était **déjà corrigé** (masquage vérifié en direct) ; les
+  icônes pinceau/transparence ne sont pas mortes, ce sont des **verrous**.
+
+**Onze tickets, huit OUVERTS** — esthétique verre (01, le gros, refusé 3×, à
+faire devant références visuelles), isolines noisy (02), emboss à supprimer ou
+refaire (03), displacementMap nom/attente (04), lisibilité des verrous (05),
+doublon encre/textures (06), et QUATRE décisions produit à griller : fenêtre
+latérale des réglages (07), prévisualisation en hover (08), aplat dessinable en
+barre d'outils (09), params en section calque (10), plus lensBlur perf (11). La
+carte se reprend par `/wayfinder`.
+
 ## ⚠️ DEUX cartes de plus, et la première est CLOSE
 
 **`.scratch/prochain-palier/` est SOLDÉE le 2026-08-18** — 29 tickets sur 29

@@ -1,6 +1,14 @@
 Type: grilling
 Status: open
 
+## Décision (2026-08-21) : SUPPRIMER
+
+Antoine a redit « horrible » — l'option « supprime-le » est tranchée, pas
+« fais mieux ». À faire prochaine session : retrait de `emboss` du registre
+(`registry.ts` + `catalog.ts`), ADR de retrait, et vérifier qu'`outlines`
+redevient le seul lecteur d'`edgeGradient.ts`. Le retrait ne casse pas les
+presets (`presetDocument.ts` avertit au lieu de lever). Non fait cette session.
+
 ## Question
 
 « Relief est horrible, supprime-le ou fais quelque chose de mieux avec » (retour

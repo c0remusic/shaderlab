@@ -32,6 +32,41 @@ pas au harnais (le harnais prouve qu'un effet agit, jamais qu'il est beau).
   décidant seulement. Les tickets de DÉCISION produit (fenêtre latérale, hover,
   aplat dessinable…) se grillent d'abord, puis se planifient.
 
+## Reprise — prochaine session (noté le 2026-08-21, sur demande d'Antoine)
+
+⚠️ **DEUX suppressions décidées par Antoine, À FAIRE en premier :**
+
+1. **`noise` (Bruit fractal) est REFUSÉ** — « dégueulasse ton effet » (2026-08-21).
+   Livré et poussé quand même (commit `f336ac9`), donc encore sur `master`.
+   → **`git revert f336ac9`** en premier : le commit contient l'effet ET ses
+   docs (CLAUDE.md 28→27, ROADMAP, entrée map.md), donc le revert nettoie tout
+   d'un geste et remet le registre à 27 effets. Vérifier après : `npm run test`,
+   `gpu-shader-check`, `test:render` (les 2 refs `effet-noise*` disparaissent avec
+   le scénario — le revert défait aussi render-check.mjs et renderRefs.test.mjs).
+   Leçon de la session : un COMMENTAIRE d'usage d'Antoine (« on ne retrouve pas
+   cet effet là », réf topo en main) a été transformé en CHANTIER (nouvel effet)
+   alors qu'il avait donné une LISTE DE FIX. Il a dû recadrer. Rester sur les fix.
+
+2. **`emboss` (ticket 03) : SUPPRIMER** — grilling tranché, Antoine a redit
+   « horrible ». Retrait du registre + ADR (le retrait ne casse pas les presets,
+   `presetDocument.ts` pousse un avertissement). C'est le 3ᵉ lecteur
+   d'`edgeGradient.ts` — vérifier qu'`outlines` reste le seul lecteur après.
+
+**Puis les fix, dans cet ordre :**
+- **05 verrous** — le seul « ça marche pas » ressenti (« l'icône pinceau ne fait
+  rien » = verrou de masque mal signalé). Fix de lisibilité, prototypable en
+  storybook sans lancer l'app.
+- **04 displacementMap** — marche en fait ; renommer (nom à demander à Antoine) +
+  monter le défaut d'amplitude.
+- **11 lensBlur** — mesure perf en build PRODUCTION d'abord (ferme l'app dev),
+  puis levier.
+- **06 doublon encre/textures**, puis les grillings de layout **07+10** (réglages
+  à côté / dans la section calque, à griller ensemble), **08** (hover), **09**
+  (aplat en outil), et l'esthétique **01** (verre, refusé 4×, références + œil).
+
+`isolines` (ticket 02, lissage 5×5 grain optionnel) est le seul fix LIVRÉ ET
+GARDÉ de la session (commit `d3d7390`) — défaut de lissage 12 à confirmer à l'œil.
+
 ## Decisions so far
 
 - **warp — courses mortes masquées + rugosité ouverte** (`6e44dd0`) : octaves/

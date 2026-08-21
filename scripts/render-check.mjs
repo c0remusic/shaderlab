@@ -1164,7 +1164,7 @@ const INSTALL = `(async () => {
     // une assertion de plus, et un changement d antialiasing le fera rougir.
     "effet-isolines": {
       contre: "photo-de-fond-seule",
-      valeurs: 23,
+      valeurs: 26,
       build: async (r, stack) => {
         const rampe = await mireRampe(W, H);
         const sourceId = await r.photoSources.register(rampe);
@@ -1189,7 +1189,7 @@ const INSTALL = `(async () => {
     // deux invisible a la mesure de l autre.
     "effet-isolines-maitresses": {
       contre: "effet-isolines",
-      valeurs: 27,
+      valeurs: 25,
       build: async (r, stack) => {
         const rampe = await mireRampe(W, H);
         const sourceId = await r.photoSources.register(rampe);

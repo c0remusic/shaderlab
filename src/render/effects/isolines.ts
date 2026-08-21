@@ -54,17 +54,19 @@ import {
  *    lumière linéaire se tasseraient tous dans les hautes lumières : les ombres
  *    n'auraient aucune courbe et les clairs en auraient dix. Même correctif que
  *    le seuil d'`outlines` et les bascules de `duotone`.
- * 2. **Le ton est LISSÉ avant d'être découpé**, par l'écartement des taps.
+ * 2. **Le ton est LISSÉ avant d'être découpé**, par une grille gaussienne 5×5.
  *    Sans ça, le grain d'une photo franchit les niveaux des centaines de fois
- *    par centimètre et la carte devient une bouillie. Le curseur de lissage est
- *    donc le vrai réglage de niveau de détail, et il ne coûte aucun tap
- *    supplémentaire — ce sont les mêmes quatre lectures qui servent au gradient.
+ *    par centimètre et la carte devient une bouillie. Le curseur de lissage ne
+ *    multiplie PAS les taps — il ÉCARTE la grille : à son minimum le grain reste
+ *    grené (« ça peut être sympa »), à son maximum la carte devient nette. C'est
+ *    le vrai réglage de niveau de détail, et le grain n'y est plus subi mais
+ *    optionnel. Les mêmes vingt-cinq lectures servent au ton ET au gradient.
  * 3. **Les courbes se colorent par ALTITUDE, en OKLCH.** C'est la lecture d'une
  *    carte, et la raison de l'espace est celle mesurée sur `coloredEdges` la
  *    veille : en HSL, parcourir la teinte fait varier la clarté perçue de 0,290
  *    alors qu'un seul curseur la règle.
  *
- * COÛT : 4 taps, une seule passe.
+ * COÛT : 25 taps (grille de lissage), une seule passe.
  */
 export const isolines: EffectModule = {
   id: "isolines",
@@ -75,7 +77,7 @@ export const isolines: EffectModule = {
     // Écartement des taps : lissage ET base de mesure du gradient, d'un seul
     // geste. Un noyau serré redessinerait le grain ; un noyau large simplifie
     // le relief, ce qui est le réglage qu'on cherche sur une photo.
-    { name: "smoothing", label: "Lissage du relief", unit: "pixels", min: 0.5, max: 24, default: 3, step: 0.1, hint: "Simplifie le ton avant d'en tirer les courbes. Sans lui, le grain franchit les niveaux des centaines de fois et la carte devient une bouillie" },
+    { name: "smoothing", label: "Lissage du relief", unit: "pixels", min: 0.5, max: 24, default: 12, step: 0.1, hint: "Simplifie le ton avant d'en tirer les courbes : bas = grené (le grain reste, « ça peut être sympa »), haut = carte nette. Sans lui, le grain franchit les niveaux des centaines de fois et la carte devient une bouillie" },
     inputModeParam({
       hint: "Quel champ porte le relief — la luminance, son inverse (les ombres deviennent les sommets), ou la couverture alpha de la toile",
     }),
@@ -192,24 +194,61 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let wash = clamp(params[14], 0.0, 1.0);
 
   let dims = vec2<f32>(textureDimensions(srcTexture));
-  // Écartement des taps EN PIXELS : le lissage a la même finesse sur les deux
-  // axes, ce qu'un pas en UV ne donnerait pas sur une photo non carrée.
+  // Écartement d'UN pas de grille EN PIXELS : le lissage a la même finesse sur
+  // les deux axes, ce qu'un pas en UV ne donnerait pas sur une photo non carrée.
   let pas = smoothing / dims;
 
-  // QUATRE TAPS, DEUX USAGES. La moyenne des quatre est le ton LISSÉ (c'est le
-  // lissage du relief) ; leurs différences sont le gradient. Mesurer les deux
-  // sur les mêmes lectures n'est pas une économie mais une nécessité : un
-  // gradient pris sur un autre voisinage que le ton qu'il accompagne
-  // désignerait une pente qui n'est pas celle de la surface qu'on découpe.
-  let gauche = iso_tone(uv - vec2<f32>(pas.x, 0.0), mode);
-  let droite = iso_tone(uv + vec2<f32>(pas.x, 0.0), mode);
-  let haut = iso_tone(uv - vec2<f32>(0.0, pas.y), mode);
-  let bas = iso_tone(uv + vec2<f32>(0.0, pas.y), mode);
-  let tone = (gauche + droite + haut + bas) * 0.25;
+  // ── LISSAGE GAUSSIEN 5×5, ET C'EST TOUT LE RÉGLAGE grené ↔ carte propre ──
+  //
+  // Quatre taps en croix ne moyennent que quatre échantillons : le grain d'une
+  // photo n'en ressort atténué que d'un facteur deux (√4), et une carte de
+  // niveaux tracée dessus reste un semis de points À TOUS les réglages — mesuré
+  // sur photo le 2026-08-21, le lissage au maximum laissait encore le grésillement
+  // (retour d'usage « très noisy »). Une grille de vingt-cinq taps le divise par
+  // cinq (√25), assez pour une carte nette.
+  //
+  // Le curseur Lissage n'ajoute AUCUN tap, il ÉCARTE la grille : à son minimum
+  // elle est sub-pixel, les vingt-cinq taps retombent sur le même texel et le
+  // grain est rendu quasi INTACT — le bruit reste donc disponible (« ça peut être
+  // sympa », retour d'Antoine), il ne se subit plus. Une seule lecture par tap,
+  // pondérée deux fois : le ton lissé et son gradient, sur le même voisinage
+  // (l'invariant du fichier — un gradient pris ailleurs que le ton qu'il
+  // accompagne désignerait une pente qui n'est pas celle de la surface découpée).
+  let poidsAxe = array<f32, 5>(exp(-2.0), exp(-0.5), 1.0, exp(-0.5), exp(-2.0));
+  var tone = 0.0;
+  var poids = 0.0;
+  // Colonnes / lignes extrêmes, pondérées sur l'axe TRANSVERSE seulement : leur
+  // différence est un gradient LISSÉ à l'échelle EXACTE (différence centrée sur
+  // une distance connue), et non une dérivée gaussienne approchée dont le facteur
+  // d'échelle ferait dériver la largeur du trait (verrouillée par un test).
+  var colGauche = 0.0;
+  var colDroite = 0.0;
+  var ligHaut = 0.0;
+  var ligBas = 0.0;
+  for (var j = -2; j < 3; j = j + 1) {
+    let wj = poidsAxe[j + 2];
+    for (var i = -2; i < 3; i = i + 1) {
+      let wi = poidsAxe[i + 2];
+      let s = iso_tone(uv + vec2<f32>(f32(i) * pas.x, f32(j) * pas.y), mode);
+      tone = tone + s * wi * wj;
+      poids = poids + wi * wj;
+      if (i == -2) { colGauche = colGauche + s * wj; }
+      if (i == 2)  { colDroite = colDroite + s * wj; }
+      if (j == -2) { ligHaut = ligHaut + s * wi; }
+      if (j == 2)  { ligBas = ligBas + s * wi; }
+    }
+  }
+  tone = tone / poids;
+  // Somme des poids transverses d'une colonne (le même jeu sur les deux axes).
+  let poidsBord = 2.0 * exp(-2.0) + 2.0 * exp(-0.5) + 1.0;
 
-  // Gradient PAR PIXEL : les taps sont écartés de \`smoothing\` pixels, donc la
-  // différence entre les deux couvre \`2 * smoothing\` pixels.
-  let pente = length(vec2<f32>(droite - gauche, bas - haut)) / (2.0 * smoothing);
+  // Gradient PAR PIXEL : les colonnes extrêmes sont écartées de quatre pas, soit
+  // 4 × smoothing pixels. Le plancher évite la division par zéro à smoothing nul.
+  let spanColonnesPx = max(4.0 * smoothing, 0.0001);
+  let pente = length(vec2<f32>(
+    (colDroite - colGauche) / poidsBord,
+    (ligBas - ligHaut) / poidsBord,
+  )) / spanColonnesPx;
 
   let etendue = whitePoint - blackPoint;
   let t = clamp((tone - blackPoint) / etendue, 0.0, 1.0);

@@ -45,6 +45,12 @@ pas au harnais (le harnais prouve qu'un effet agit, jamais qu'il est beau).
   défaut posait un voile blanc (« blanchit tout l'écran », surtout en Échos). La
   nappe n'était NI le SDF ni les échos. Défaut → 0, zéro écart (scénarios fixent
   wash explicitement).
+- **isolines — lissage gaussien 5×5, grain OPTIONNEL** (ticket 02) : mesuré au
+  pixel, 4 taps ne domptaient le grain à AUCUN réglage (bruit /2). Sur le steer
+  d'Antoine (« le bruit peut être sympa mais optionnel »), le curseur Lissage
+  devient une grille 25 taps qu'il ÉCARTE : bas = grené intact, haut = carte
+  nette. Défaut 3→12. `largeursDeTraits` vert (échelle du gradient intacte),
+  refs régénérées (26/25), gates verts. Défaut à confirmer à l'œil par Antoine.
 - **lensDistortion — déjà corrigé** : les 3 params inertes en longi/anamorphique
   sont masqués (vérifié en direct, 15→12 curseurs). Rien à faire.
 - **icônes pinceau/transparence — PAS mortes** : ce sont des verrous (masque,

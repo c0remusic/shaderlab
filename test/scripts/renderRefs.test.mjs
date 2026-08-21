@@ -474,8 +474,8 @@ const ATTENDU = {
   // ISOLINES (2026-08-03). Peu de valeurs, et c'est CONFORME : des traits noirs
   // antialiases sur un fond blanc uni n'en produisent qu'une par palier
   // d'antialiasing. Le compte declare devient une assertion de plus.
-  "effet-isolines.png": { width: 256, height: 256, valeurs: 23 },
-  "effet-isolines-maitresses.png": { width: 256, height: 256, valeurs: 27 },
+  "effet-isolines.png": { width: 256, height: 256, valeurs: 26 },
+  "effet-isolines-maitresses.png": { width: 256, height: 256, valeurs: 25 },
   // LES QUATRE EFFETS QUI N'AVAIENT AUCUN VERROU PROPRE (2026-08-03), trouves
   // par un audit de couverture effet par effet. Deux n'avaient RIEN (`halation`,
   // `gradientMap`) ; les deux autres n'etaient que PASSAGERS d'un scenario bati

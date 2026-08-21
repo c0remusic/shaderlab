@@ -25,7 +25,6 @@ import { texture } from "./texture";
 import { lightLeak } from "./lightLeak";
 import { aplat } from "./aplat";
 import { nettete } from "./nettete";
-import { emboss } from "./emboss";
 import { displacementMap } from "./displacementMap";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
 
@@ -211,16 +210,6 @@ export const effectRegistry: EffectModule[] = [
   // suit le gradient local (une bande dans un ciel doux, un cheveu sur une
   // arête), ici elle est constante par construction.
   isolines,
-  // `emboss` (2026-08-18) est le TROISIÈME lecteur d'`edgeGradient.ts`, et il
-  // est posé juste après les deux autres parce que ce qui l'en sépare tient en
-  // une ligne : `outlines` et le mode Échos prennent la MAGNITUDE du gradient et
-  // jettent sa direction, celui-ci ne garde que la direction. Un produit
-  // scalaire contre une direction de lampe, et le détecteur devient un relief.
-  //
-  // Rangé en Impression avec eux, et pas en Texture : le gaufrage EST un procédé
-  // d'impression, et cet effet ne fabrique aucune matière — il éclaire celle que
-  // l'image porte déjà.
-  emboss,
   pixelStretch,
   sliceShift,
   gradientMap,

@@ -188,10 +188,14 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `lensFlare`, `lightLeak`, `lensDistortion`, `lensBlur`, `motionBlur`,
   `glass`, `warp`, `displacementMap`, `grain`, `duotone`, `hatching`,
   `halftone`, `dither`, `gooeyMerge`, `channelMixer`, `curves`, `nettete`,
-  `outlines`, `isolines`, `emboss`, `pixelStretch`, `sliceShift`,
-  `gradientMap`, `texture`, `aplat` — **vingt-sept**.
-  Les trois derniers arrivés (2026-08-18) sont la TRANCHE 3 du ticket 12, et
-  aucun n'a demandé de mécanisme neuf :
+  `outlines`, `isolines`, `pixelStretch`, `sliceShift`,
+  `gradientMap`, `texture`, `aplat` — **vingt-six**.
+  ⚠️ `emboss` (le Relief) EST SORTI le 2026-08-21 sur verdict d'usage
+  (ADR-0019, « relief est horrible ») — 27 → 26. Et `noise`, poussé la veille,
+  a été REVERTÉ le même jour, aussi refusé (28 → 27). Les deux retraits sont
+  indépendants ; ne pas recompter de tête, relire le registre sur disque.
+  La TRANCHE 3 du ticket 12 (2026-08-18) n'a donc plus que DEUX effets vivants
+  sur trois — `emboss` est le seul à ne pas avoir survécu à l'usage :
   - `nettete` — accentuation et clarté, un seul opérateur à deux BANDES de
     fréquence. Il était donné « doublement bloqué » (pas de mode de fusion
     signé, un effet ne peut lire aucun autre calque) et les deux blocages
@@ -202,10 +206,6 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
     les passes sautent reçoit la texture SOURCE en `prevPass`**
     (`effectPassRunner.ts:247`). C'est ce qui loge deux rayons très différents
     dans un seul effet sans pyramide conditionnelle.
-  - `emboss` — TROISIÈME lecteur d'`edgeGradient.ts`, dont l'en-tête annonçait
-    « le prochain effet à bords ». Ce qui le sépare d'`outlines` tient en une
-    ligne : celui-là prend la MAGNITUDE du gradient et jette sa direction,
-    celui-ci ne garde que la direction.
   - `displacementMap` — le champ de déplacement devient une DONNÉE au lieu
     d'être du code (`warp` et `glass` calculent le leur). Rendu bon marché par
     le binding 7 d'ADR-0018, générique dès son écriture.
@@ -331,6 +331,10 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `displacementMap` 1, `aplat` 1 de plus avec son inverse). Et le
   DÉNOMINATEUR monte avec : 16 effets sans condition contre 15, `emboss` entrant
   sans aucune — délibérément, il n'a pas d'état caché (point 2 du ticket 15).
+  ⚠️ **Ces comptes datent du 2026-08-18 et le 2026-08-21 les a fait DESCENDRE** :
+  `emboss` retiré (ADR-0019) et `noise` reverté, deux effets sans condition en
+  moins. Ne pas les prendre pour l'état courant — RE-MESURER avec
+  `.scratch/prochain-palier/assets/mesure-controles.ts`, ne jamais recopier.
   RE-MESURER avant de s'en servir pour juger l'état du chantier, sinon un ajout
   se lit comme un progrès. ✅ `lensFlare` en est SORTI le 2026-08-14 : ses trois
   phénomènes ont désormais leurs trois interrupteurs, et ses trois sections
@@ -627,14 +631,17 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   le compteur, pas en lançant le gate.
   Ce qu'elle laisse passer : notre uniform `params: array<f32, 48>` n'est pas
   conforme (stride 4 pour un alignement requis de 16 en espace uniform), Dawn
-  l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 27
-  effets, index gelés par les presets ET par **124** références de pixels
-  (126 PNG dans `test/render-refs/` au 2026-08-20 ; les DEUX de plus,
-  `photo-miroir-temoin` / `photo-miroir`, gèlent le miroir du calque photo et
-  NON un index de `params`, donc le compte qui gèle les index reste 124 —
-  re-compté le 2026-08-19 au soir : 122 plus la paire `masque-feather-fort-temoin` /
-  `masque-feather-fort`, la mire qui MONTRE le profil en S du feather ; les
-  trois du relevé Affinity du même jour étaient
+  l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 26
+  effets, index gelés par les presets ET par **121** références de pixels
+  (123 PNG dans `test/render-refs/` au 2026-08-21 ; les DEUX qui ne gèlent PAS
+  un index, `photo-miroir-temoin` / `photo-miroir`, gèlent le miroir du calque
+  photo, donc le compte qui gèle les index est 123 − 2 = 121. ⚠️ **−3 le
+  2026-08-21** : les trois références d'`emboss` (`effet-emboss`, `-oppose`,
+  `-sur-image`) sont parties avec l'effet retiré (ADR-0019), et le revert de
+  `noise` le même jour a défait ses 2. Historique : 126 PNG au 2026-08-20, 124
+  gelantes — re-compté le 2026-08-19 au soir : 122 plus la paire
+  `masque-feather-fort-temoin` / `masque-feather-fort`, la mire qui MONTRE le
+  profil en S du feather ; les trois du relevé Affinity du même jour étaient
   `effet-lens-blur-bokeh-courbe`, `effet-glow-retenue-temoin`,
   `effet-glow-retenue`).
   ⚠️ **Compter les scénarios par un grep sur les clés littérales SOUS-COMPTE de
@@ -798,7 +805,7 @@ Points structurants qu'on ne devine pas en lisant un fichier isolé :
 
 `.claude/decisions/INDEX.md` — une ligne par ADR avec son statut. Un ADR
 `superseded` (ADR-0003, renversé par ADR-0004) n'est PAS une contrainte active.
-Actifs au 2026-08-04 (ADR-0017 reste le dernier écrit) : densité UI (0001),
+Actifs (ADR-0019 est le dernier écrit, 2026-08-21) : densité UI (0001),
 abandon round-trip (0002), sens causal
 de la pile (0004), rattachement par proximité (0005), fond d'export blanc
 (0006), format de toile à la création + `MAX_CANVAS_PIXELS = 64 Mpx` (0007),
@@ -808,7 +815,7 @@ est caduque), retrait de `surfaceBlur` (0011), retrait de `posterize` (0012),
 `outlines` absorbe `coloredEdges` (0013), `lensDistortion` absorbe
 `anamorphicStreak` (0014), `outlines` absorbe `echoOutlines` (0015),
 `lensDistortion` absorbe `chromaticBleed` (0016), `lensFlare` rouvre la famille
-des halos (0017), la texture de bibliothèque (0018).
+des halos (0017), la texture de bibliothèque (0018), retrait de `emboss` (0019).
 
 ⚠️ Cette liste a dit « ADR-0017 reste le dernier écrit » jusqu'au 2026-08-15
 alors qu'ADR-0018 était sur disque **et cité deux fois plus haut dans ce même

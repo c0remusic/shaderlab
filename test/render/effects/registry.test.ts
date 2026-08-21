@@ -25,6 +25,17 @@ describe("effectRegistry", () => {
     expect(effectRegistry.some((e) => e.id === "passthrough")).toBe(false);
   });
 
+  it("ne contient plus emboss, retiré sur verdict d'usage (ADR-0019)", () => {
+    // Le gaufrage directionnel gris (« relief est horrible », Antoine
+    // 2026-08-21) est sorti du registre. Même geste que surfaceBlur : ce test
+    // rend le retrait CONSCIENT — le réintroduire demande de supprimer cette
+    // ligne, donc de relire l'ADR. Conséquence à garder vraie : `edgeGradient.ts`
+    // redevient à un seul lecteur, `outlines`, qui garde la MAGNITUDE du gradient
+    // quand emboss n'en gardait que la direction.
+    expect(effectRegistry.some((e) => e.id === "emboss")).toBe(false);
+    expect(() => getEffect("emboss")).toThrow();
+  });
+
   it("exposes French display metadata for lens aberration parameters", () => {
     // CE TEST VISAIT `chromaticBleed`, absorbé par `lensDistortion` le
     // 2026-08-03 (ADR-0016). Il est reporté et non supprimé : ce qu'il garde

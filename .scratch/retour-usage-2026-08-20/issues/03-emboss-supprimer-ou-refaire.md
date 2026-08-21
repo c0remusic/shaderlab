@@ -1,13 +1,16 @@
 Type: grilling
-Status: open
+Status: resolved
 
-## Décision (2026-08-21) : SUPPRIMER
+## Décision (2026-08-21) : SUPPRIMER — ✅ FAIT le 2026-08-21
 
 Antoine a redit « horrible » — l'option « supprime-le » est tranchée, pas
-« fais mieux ». À faire prochaine session : retrait de `emboss` du registre
-(`registry.ts` + `catalog.ts`), ADR de retrait, et vérifier qu'`outlines`
-redevient le seul lecteur d'`edgeGradient.ts`. Le retrait ne casse pas les
-presets (`presetDocument.ts` avertit au lieu de lever). Non fait cette session.
+« fais mieux ». Livré : retrait de `emboss` du registre (`registry.ts` +
+`catalog.ts`), module `src/render/effects/emboss.ts` supprimé, ses 3 scénarios
+et 3 références de pixels retirés de `render-check.mjs` / `renderRefs.test.mjs`,
+[ADR-0019](../../../.claude/decisions/ADR-0019-retrait-de-emboss.md) écrit, garde
+de retrait posé dans `registry.test.ts`. `outlines` est confirmé seul lecteur
+d'`edgeGradient.ts` (son en-tête l'annonçait déjà). Presets non cassés
+(`presetDocument.ts` avertit au lieu de lever). Gates verts : tsc, unit.
 
 ## Question
 

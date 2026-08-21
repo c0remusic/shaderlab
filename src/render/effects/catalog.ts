@@ -41,10 +41,6 @@ export const effectCategoryById: Readonly<Record<string, EffectCategory>> = {
   dither: "Impression",
   outlines: "Impression",
   isolines: "Impression",
-  // Le gaufrage est un procédé d'impression, et cet effet ne fabrique aucune
-  // matière — il éclaire celle que l'image porte déjà. D'où Impression et non
-  // Texture, où l'on aurait pu le ranger sur son seul nom.
-  emboss: "Impression",
   grain: "Texture",
   texture: "Texture",
   // ⚠️ PROTOTYPE (ticket 23). Rangé en Couleur et non en Texture : il ne

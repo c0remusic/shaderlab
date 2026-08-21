@@ -590,16 +590,9 @@ const ATTENDU = {
   // differentes des neuf autres, est la trace qu'une reference n'est plus
   // forcement 256 x 256.
   "toile-plus-grande-que-la-photo.png": { width: 320, height: 320, valeurs: null },
-  // ── LES TROIS EFFETS DE LA TRANCHE 3 (2026-08-18, ticket 12) ─────────────
+  // ── DEUX DES TROIS EFFETS DE LA TRANCHE 3 (2026-08-18, ticket 12) ────────
+  // `emboss` retire du registre le 2026-08-21 (refuse par Antoine).
   //
-  // RELIEF. Le couple `effet-emboss` / `effet-emboss-oppose` porte la seule
-  // propriete qu aucun pourcentage global ne pourrait exprimer autrement :
-  // retourner la lampe doit INVERSER le modele. Un noyau qui ne garderait que la
-  // MAGNITUDE du gradient — c est-a-dire `outlines`, dont cet effet partage le
-  // detecteur — rendrait ici deux images IDENTIQUES.
-  "effet-emboss.png": { width: 256, height: 256, valeurs: null },
-  "effet-emboss-oppose.png": { width: 256, height: 256, valeurs: null },
-  "effet-emboss-sur-image.png": { width: 256, height: 256, valeurs: null },
   // CARTE DE DEPLACEMENT, un scenario par mode de lecture. La carte est
   // `mireEncre`, servie par le port de decodage du harnais.
   //

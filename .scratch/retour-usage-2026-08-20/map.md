@@ -34,23 +34,19 @@ pas au harnais (le harnais prouve qu'un effet agit, jamais qu'il est beau).
 
 ## Reprise — prochaine session (noté le 2026-08-21, sur demande d'Antoine)
 
-⚠️ **DEUX suppressions décidées par Antoine, À FAIRE en premier :**
+✅ **LES DEUX SUPPRESSIONS SONT FAITES le 2026-08-21** (registre 28 → 27 → 26) :
 
-1. **`noise` (Bruit fractal) est REFUSÉ** — « dégueulasse ton effet » (2026-08-21).
-   Livré et poussé quand même (commit `f336ac9`), donc encore sur `master`.
-   → **`git revert f336ac9`** en premier : le commit contient l'effet ET ses
-   docs (CLAUDE.md 28→27, ROADMAP, entrée map.md), donc le revert nettoie tout
-   d'un geste et remet le registre à 27 effets. Vérifier après : `npm run test`,
-   `gpu-shader-check`, `test:render` (les 2 refs `effet-noise*` disparaissent avec
-   le scénario — le revert défait aussi render-check.mjs et renderRefs.test.mjs).
+1. ✅ **`noise` (Bruit fractal) REVERTÉ** — « dégueulasse ton effet ».
+   `git revert f336ac9` (commit `828c226`) : effet ET docs nettoyés d'un geste,
+   registre remis à 27, les 2 refs `effet-noise*` parties avec leur scénario.
    Leçon de la session : un COMMENTAIRE d'usage d'Antoine (« on ne retrouve pas
    cet effet là », réf topo en main) a été transformé en CHANTIER (nouvel effet)
    alors qu'il avait donné une LISTE DE FIX. Il a dû recadrer. Rester sur les fix.
 
-2. **`emboss` (ticket 03) : SUPPRIMER** — grilling tranché, Antoine a redit
-   « horrible ». Retrait du registre + ADR (le retrait ne casse pas les presets,
-   `presetDocument.ts` pousse un avertissement). C'est le 3ᵉ lecteur
-   d'`edgeGradient.ts` — vérifier qu'`outlines` reste le seul lecteur après.
+2. ✅ **`emboss` (ticket 03) SUPPRIMÉ** — retrait du registre + `catalog.ts`,
+   module supprimé, 3 scénarios/refs render-check retirés, ADR-0019 écrit, garde
+   de retrait dans `registry.test.ts`. `outlines` redevient seul lecteur
+   d'`edgeGradient.ts` (son en-tête le disait déjà). Presets non cassés.
 
 **Puis les fix, dans cet ordre :**
 - **05 verrous** — le seul « ça marche pas » ressenti (« l'icône pinceau ne fait

@@ -3561,48 +3561,6 @@ const INSTALL = `(async () => {
       },
     },
 
-    // ── RELIEF (emboss) : TROIS SCENARIOS ────────────────────────────────
-    //
-    // Sur la mire commune, et c est le bon choix ici : un relief se lit sur des
-    // PENTES, et elle en porte de toutes les sortes — les aretes franches du
-    // damier, la pente douce des deux degrades, le bord courbe du disque. C est
-    // l inverse du cas \`nettete\`, qui reclamait du plat.
-
-    // GRIS : le modele seul. Lampe en haut a gauche (135 degres), l orientation
-    // par defaut de tous les reliefs d interface.
-    "effet-emboss": {
-      contre: "photo-de-fond-seule",
-      build: async (r, stack) => {
-        const a = stack.addLayer("emboss");
-        stack.updateParams(a, { rendu: 0, angle: 135, force: 1.4, epaisseur: 1, entree: 0 });
-      },
-    },
-
-    // LA LAMPE A L OPPOSE (315 degres), tout le reste identique. C est LE
-    // scenario du lot, et il tient une propriete qu aucun pourcentage global ne
-    // pourrait exprimer autrement : le relief doit s INVERSER, creux et bosses
-    // echanges. Un noyau qui ne garderait que la MAGNITUDE du gradient — c est
-    // a dire \`outlines\` — rendrait ici EXACTEMENT la meme image que ci-dessus.
-    // L ecart mesure est donc la preuve que la direction est lue.
-    "effet-emboss-oppose": {
-      contre: "effet-emboss",
-      build: async (r, stack) => {
-        const a = stack.addLayer("emboss");
-        stack.updateParams(a, { rendu: 0, angle: 315, force: 1.4, epaisseur: 1, entree: 0 });
-      },
-    },
-
-    // SUR L IMAGE : le meme relief, ajoute a la photo au lieu de la remplacer.
-    // Contre le rendu Gris, dont il ne change que la base — l ecart est donc ce
-    // que l image apporte, et rien du relief.
-    "effet-emboss-sur-image": {
-      contre: "effet-emboss",
-      build: async (r, stack) => {
-        const a = stack.addLayer("emboss");
-        stack.updateParams(a, { rendu: 1, angle: 135, force: 1.4, epaisseur: 1, entree: 0 });
-      },
-    },
-
     // ── CARTE DE DEPLACEMENT : DEUX SCENARIOS, UN PAR MODE DE LECTURE ─────
     //
     // La carte est \`mireEncre\`, la meme que celle qui sert \`effet-texture\` — le

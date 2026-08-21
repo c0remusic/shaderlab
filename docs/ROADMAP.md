@@ -16,9 +16,12 @@
 
 ## Où en est le code — mesuré sur disque le 2026-08-05, pas de mémoire
 
-- **27 effets** au registre (`src/render/effects/registry.ts`) — `texture` puis
+- **26 effets** au registre (`src/render/effects/registry.ts`) — `texture` puis
   `lightLeak` le 2026-08-05, `aplat` le 2026-08-17, et la tranche 3 du ticket 12
-  le 2026-08-18 : `nettete`, `emboss`, `displacementMap`.
+  le 2026-08-18 : `nettete`, `displacementMap` (`emboss` en faisait partie, RETIRÉ
+  le 2026-08-21, ADR-0019). ⚠️ Deux retraits le 2026-08-21, indépendants :
+  `emboss` (verdict « relief est horrible ») et `noise`, poussé la veille puis
+  reverté (refusé aussi). 28 → 27 → 26. Mesurer sur disque, ne pas recompter.
   ✅ `aplat` (couleur unie bornée par un masque ou une primitive posée) a reçu
   **deux des trois fronts de son upgrade qualité** le 2026-08-17 : remplissage en
   DÉGRADÉ (linéaire et radial, arrêts interpolés en lumière linéaire) et
@@ -32,8 +35,9 @@
   retouchent ce qui existe.
 - `glass` **complet** : 14 matières (9 de feuille + 5 de pavé), 5 profils de
   section, **18 références de pixels — toutes les branches verrouillées**.
-- **385 paramètres, 126 références de pixels** (124 au 2026-08-19, +2 le
-  2026-08-20 : la paire `photo-miroir-temoin` / `photo-miroir` du miroir). Ces
+- **385 paramètres, 123 références de pixels** (126 au 2026-08-20, −3 le
+  2026-08-21 : les trois d'`emboss` parties avec l'effet retiré ; le revert de
+  `noise` le même jour a défait ses 2). Ces
   chiffres sont relancés, pas recopiés — deux des chiffres que ce dépôt portait
   en prose étaient déjà faux avant qu'on y touche : 51 conditions au lieu de 52,
   63 gabarits `liste` sur 83 au lieu de 60 sur 84. Le +3 de paramètres du
@@ -42,7 +46,7 @@
   références (122 → 124) sont la paire `masque-feather-fort` qui MONTRE le
   profil en S du feather — les prises masque de l'après-midi ne touchent pas
   `params[]`, elles vivent dans `RefineEdgeParams`, déjà compté.
-- **Les 27 effets portent des sections** et leurs applicabilités déclarées
+- **Les 26 effets portent des sections** et leurs applicabilités déclarées
   (`EffectModule.sections`, `EffectParam.appliesWhen`) — chantier de
   rationalisation des contrôles **soldé le 2026-08-05**, statut dans
   `INDEX.json`. Ce qu'il en reste est du jugement, donc dans le bloc 1.
@@ -194,13 +198,16 @@ code. Le reste est calibration, lisibilité ou esthétique.
 - Et `lensDistortion` était **déjà corrigé** (masquage vérifié en direct) ; les
   icônes pinceau/transparence ne sont pas mortes, ce sont des **verrous**.
 
-**Onze tickets, huit OUVERTS** — esthétique verre (01, le gros, refusé 3×, à
-faire devant références visuelles), isolines noisy (02), emboss à supprimer ou
-refaire (03), displacementMap nom/attente (04), lisibilité des verrous (05),
+**Onze tickets, sept OUVERTS** — esthétique verre (01, le gros, refusé 3×, à
+faire devant références visuelles), isolines noisy (02), displacementMap
+nom/attente (04), lisibilité des verrous (05),
 doublon encre/textures (06), et QUATRE décisions produit à griller : fenêtre
 latérale des réglages (07), prévisualisation en hover (08), aplat dessinable en
 barre d'outils (09), params en section calque (10), plus lensBlur perf (11). La
 carte se reprend par `/wayfinder`.
+✅ **`emboss` (03) RÉSOLU le 2026-08-21** — grilling tranché SUPPRIMER,
+effet retiré du registre (ADR-0019). Et `noise`, né du ticket 02 la veille,
+REVERTÉ le même jour (refusé). Prochain fix de la file : les verrous (05).
 
 ## ⚠️ DEUX cartes de plus, et la première est CLOSE
 
@@ -950,7 +957,8 @@ aurait très bien pu être le seul des deux à savoir descendre, et les tests
 unitaires seraient restés verts. D'où `effet-courbes-solarisation`.
 
 ✅ **Tranche 3 — LIVRÉE le 2026-08-18.** Trois effets, aucun mécanisme neuf, le
-registre passe de 24 à **27**.
+registre passe de 24 à **27** (⚠️ `emboss` depuis RETIRÉ le 2026-08-21, ADR-0019 —
+il ne reste que `nettete` et `displacementMap` de cette tranche).
 
 - **`nettete`** — accentuation et clarté, un seul opérateur à deux BANDES. Il
   exploite une propriété que `effectPassRunner.ts:247` documente et que rien
@@ -962,13 +970,12 @@ registre passe de 24 à **27**.
   compresseur doux sur l'amplitude, masquage des zones plates, et correction sur
   la LUMINANCE seule — additive, jamais multiplicative, la forme `sortie/entrée`
   ayant déjà explosé dans les ombres de `curves` le 2026-08-13.
-- **`emboss`** — troisième lecteur d'`edgeGradient.ts`, dont l'en-tête annonçait
-  « le prochain effet à bords ». `outlines` prend la MAGNITUDE du gradient et
-  jette sa direction ; celui-ci ne garde que la direction.
-  ⚠️ **Son signe a été pris à l'envers, et rien ne l'a dit** : le shader
-  compilait, la référence était forte, la gate de signal verte. C'est en OUVRANT
-  l'image qu'on a vu le disque crème s'assombrir du côté de la lampe — un
-  plateau vu en cuvette. **Un relief inversé ressemble à un relief.**
+- ~~**`emboss`**~~ — ⚠️ **RETIRÉ le 2026-08-21** (ADR-0019, « relief est
+  horrible »). Il était le troisième lecteur d'`edgeGradient.ts` (gardait la
+  DIRECTION du gradient, `outlines` en garde la MAGNITUDE). La leçon qu'il a
+  payée survit à son retrait — son signe pris à l'envers a passé shader, référence
+  et gate de signal, vu seulement à l'œil (« un relief inversé ressemble à un
+  relief »), consignée en mémoire `un-verrou-fort-ne-dit-pas-le-sens`.
 - **`displacementMap`** — le champ de déplacement devient une DONNÉE au lieu
   d'être du code. Son défaut n'est PAS la convention Photoshop (rouge = X,
   vert = Y) mais la pente du gris, et c'est mesurable dans le dossier : la
@@ -1498,6 +1505,11 @@ pas bougé — les trois effets neufs apportent 2 conditions et 16 paramètres, 
 le numérateur et le dénominateur montent ensemble. Le décompte des RANGÉES (celui
 qui compte, un contrôle composite ne faisant qu'une ligne) n'a pas été refait :
 il demande le tableau de `--applicabilite`, pas ce script.
+
+⚠️ **Ces chiffres du 2026-08-18 sont eux aussi périmés depuis le 2026-08-21** :
+`emboss` retiré (ADR-0019) et `noise` reverté — deux effets sans condition en
+moins, 27 → 26 effets. Ne pas les prendre pour l'état courant ; relancer
+`.scratch/prochain-palier/assets/mesure-controles.ts`, jamais recopier.
 
 Deux corrections qui changent le travail, pas seulement les chiffres :
 

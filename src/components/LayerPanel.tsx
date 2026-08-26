@@ -1,10 +1,9 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import { usePointerReorder, type DropPosition } from "../ui/dragReorder";
 import "../ui/dragReorder.css";
-import { Brush, ChevronDown, ChevronRight, Copy, CornerLeftUp, Eye, EyeOff, Grid2x2, GripVertical, Image as PhotoLayerIcon, Lock, Move, Plus, Sparkles as EffectLayerIcon, Trash2 } from "lucide-react";
+import { Brush, ChevronDown, ChevronRight, Copy, Eye, EyeOff, Grid2x2, GripVertical, Image as PhotoLayerIcon, Lock, Move, Plus, Sparkles as EffectLayerIcon, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
 import { eyeButtonLabels, isLayerVisible, isolationRole, isolationVisibleIds, type IsolationRole } from "../layers/isolation";
-import { resolveClipping } from "../layers/clipping";
 import { displayInsertToModelInsert } from "./layerDisplayOrder";
 import { toPileRows } from "./pileModel";
 import {
@@ -160,13 +159,6 @@ interface LayerRowProps {
    *  que l'id isolé, pour ne pas casser la mémoïsation de la ligne (`memo`)
    *  sur un calque non concerné. */
   role: IsolationRole;
-  /** L'écrêtage de ce calque est-il EFFECTIF (une base photo existe sous lui) ?
-   *  Déjà résolu par `resolveClipping` côté panneau plutôt que dérivé de
-   *  `layer.clipToBelow` ici : l'attribut peut être posé sans qu'aucune base
-   *  n'existe (calque écrêté en bas de pile), auquel cas le rendu est linéaire
-   *  et la flèche ne doit pas apparaître. Booléen déjà réduit à ce calque pour
-   *  ne pas casser la mémoïsation de la ligne (`memo`). */
-  clipped: boolean;
   /** État du VERROU de ce calque, déjà réduit à la ligne (et non `layer.locks`,
    *  qui est optionnel) pour qu'elle ne raisonne jamais sur l'absence du champ.
    *
@@ -229,7 +221,6 @@ const LayerRow = memo(function LayerRow({
   dropPosition,
   visible,
   role,
-  clipped,
   lockState,
   depth,
   firstChild,
@@ -255,13 +246,6 @@ const LayerRow = memo(function LayerRow({
   // selon la ligne, et une infobulle qui annonce la mauvaise action est pire
   // qu'une absence d'infobulle.
   const eyeLabels = eyeButtonLabels(visible, role);
-  // Écrêtage : la flèche coudée, et RIEN d'autre. L'indentation livrée le
-  // 2026-07-27 a été retirée après observation directe de Photoshop web
-  // (docs/design-system/photoshop-web-observations-2026-07-27.md §5ter) : une
-  // ligne écrêtée y reste alignée sur les autres, seule une petite flèche
-  // apparaît entre l'œil et la vignette. L'indentation avait été validée sur
-  // une maquette qui la présentait à tort comme la convention Photoshop.
-  // `clipped` arrive RÉSOLU en prop — voir `LayerRowProps.clipped`.
   const rowClass = [
     "layer-panel__row",
     depth > 0 && "layer-panel__row--nested",
@@ -400,30 +384,12 @@ const LayerRow = memo(function LayerRow({
               <EyeOff className="icon-sm icon-stroke" aria-hidden="true" />
             )}
           </IconButton>
-          {/* MARQUE — une seule colonne pour la flèche d'écrêtage ET la
-              vignette (fusion du 2026-07-29). Elles sont MUTUELLEMENT
-              EXCLUSIVES par invariant du modèle : `LayerStack.setLayerClip`
-              refuse un calque portant `imageSource`, donc aucune ligne ne peut
-              porter les deux. Deux colonnes distinctes coûtaient 18 px de
-              largeur (--icon-size-sm + une gouttière) prélevés sur le nom, sur
-              un dock où le nom tombait à 52 px. L'invariant est verrouillé par
-              `test/layers/layerStack.test.ts` — si cette garde tombe, la fusion
-              n'est plus légitime et le test le dit avant l'écran.
-
-              La flèche : la base est le calque appliqué AVANT dans la pile.
-              Depuis le sens causal (ADR-0004, `layerDisplayOrder.ts`) c'est la
-              ligne du DESSUS dans la LISTE — la flèche pointe donc vers le HAUT
-              (elle pointait vers le bas sous l'ADR-0003). Elle ne s'affiche que
-              si une base EXISTE : un calque écrêté en bas de pile n'a rien avant
-              lui, `resolveClipping` le rend `inert` (il rend linéairement), et
-              une flèche qui désigne une base inexistante est un mensonge. */}
-          {clipped && (
-            <CornerLeftUp
-              className="layer-panel__clip-arrow layer-panel__col--mark icon-sm icon-stroke"
-              role="img"
-              aria-label="Écrêté sur le calque du dessus"
-            />
-          )}
+          {/* MARQUE — la colonne de la vignette. Elle a été PARTAGÉE avec la
+              flèche d'écrêtage du 2026-07-29 au 2026-08-21 (fusion légitimée
+              par leur exclusion mutuelle : un calque photo ne pouvait pas être
+              écrêté). L'écrêtage retiré (ADR-0020), la piste ne porte plus
+              qu'un contenu — sa largeur, elle, était DÉJÀ celle de la vignette,
+              le plus large des deux, donc la grille ne bouge pas. */}
           {layer.imageSource &&
             (thumbnail ? (
               <img className="layer-panel__thumbnail layer-panel__col--mark" src={thumbnail} alt="" aria-hidden="true" />
@@ -540,8 +506,8 @@ const LayerRow = memo(function LayerRow({
  * découpage de Photoshop entre son panneau *Properties* et son panneau Calques.
  *
  * Le sélecteur N'EST PAS proposé sur un calque PHOTO (décision produit du
- * 2026-07-31) : un effet ne se pose jamais sur une photo, c'est un calque à
- * part, écrêté à elle. `LayerStack.setLayerEffect` porte le refus côté modèle ;
+ * 2026-07-31, ADR-0008) : un effet ne se pose jamais sur une photo, c'est un
+ * calque à part, posé au-dessus. `LayerStack.setLayerEffect` porte le refus côté modèle ;
  * cette garde-ci retire l'affordance, sans quoi le contrôle resterait à l'écran
  * en ne faisant plus rien.
  */
@@ -567,7 +533,7 @@ export function EffectSelector({ layers, selectedId, onEffectChange }: Pick<Laye
              remplacement. */
           <p
             className="layer-controls__effect-na"
-            title="Un effet ne se pose pas sur un calque photo. Ajoutez un calque d'effet au-dessus, puis écrêtez-le à la photo."
+            title="Un effet ne se pose pas sur un calque photo. Ajoutez un calque d'effet au-dessus d'elle."
           >
             Aucun effet sur un calque photo
           </p>
@@ -841,21 +807,11 @@ export function LayerPanel({
     handleReorderFromDisplay
   );
 
-  // Écrêtage EFFECTIF de toute la pile, calculé une fois par render. L'ensemble
-  // « rendu » passé ici est la pile ENTIÈRE : la flèche marque un ATTACHEMENT
-  // structurel, qui ne doit pas clignoter selon qu'un œil est fermé (même
-  // invariance que `clipBaseId`, voir src/layers/clipping.ts). Seul le cas
-  // `inert` — aucune base photo en dessous — retire la flèche.
-  const clipResolutions = useMemo(
-    () => resolveClipping(layers, new Set(layers.map((l) => l.id))),
-    [layers]
-  );
-
-  // Visibilité effective de TOUTE la pile, calculée une fois par render plutôt
-  // qu'une fois par ligne : isoler un calque écrêté rend aussi visible sa base
-  // photo (`isolationVisibleIds`), donc la réponse dépend de la pile entière,
-  // plus seulement de l'id isolé.
-  const visibleIds = useMemo(() => isolationVisibleIds(layers, isolatedLayerId), [layers, isolatedLayerId]);
+  // Visibilité effective, calculée une fois par render plutôt qu'une fois par
+  // ligne. ⚠️ Elle a dépendu de la pile ENTIÈRE jusqu'au 2026-08-21 : isoler un
+  // calque écrêté rendait aussi visible sa base photo. L'écrêtage retiré
+  // (ADR-0020), `isolationVisibleIds` ne lit plus que l'id isolé.
+  const visibleIds = useMemo(() => isolationVisibleIds(isolatedLayerId), [isolatedLayerId]);
 
   const handleGripPointerDown = useCallback(
     (id: string, pointerId: number, target: Element, clientX: number, clientY: number) => {
@@ -941,7 +897,6 @@ export function LayerPanel({
             maskEnabled={mask.enabled}
             visible={isLayerVisible(layer, visibleIds)}
             role={isolationRole(layer.id, isolatedLayerId)}
-            clipped={clipResolutions.get(layer.id)?.kind === "active"}
             lockState={lockStateOf(layer)}
             depth={depth}
             firstChild={firstChild}

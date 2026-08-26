@@ -22,7 +22,8 @@ const layers: LayerState[] = [
   makeLayer({ id: "layer-1", effectId: "glow", opacity: 1 }),
   makeLayer({ id: "layer-2", effectId: "grain", opacity: 0.35, blendMode: "screen" }),
   // Calque PHOTO : le sélecteur d'effet ne doit PAS être proposé dessus
-  // (décision produit du 2026-07-31 — un effet est un calque à part, écrêté).
+  // (décision produit du 2026-07-31, ADR-0008 — un effet est un calque à part,
+  // posé au-dessus).
   makeLayer({
     id: "photo-layer",
     effectId: "passthrough",

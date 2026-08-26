@@ -10,6 +10,16 @@
 > recommandait, et clôt **R4** (§ 7) et le **point 1 du § 8**. Encadré daté en
 > tête du § 4.3 — texte d'origine conservé. La pré-passe (C2) n'est PAS déposée.
 >
+> ⚠️ **AMENDEMENT DU 2026-08-21 — L'ÉCRÊTAGE N'EXISTE PLUS**
+> ([ADR-0020](.claude/decisions/ADR-0020-retrait-de-l-ecretage.md), retrait sec).
+> La décision ci-dessus reste ACTIVE (c'est ADR-0008) ; seule sa formulation
+> vieillit : un effet est un calque à part **posé AU-DESSUS** de la photo. Partout
+> où ce document dit « écrêté à la photo », lire cela. Et partout où il dit que le
+> **binding 6** (`coverageTexture`) est partagé entre le calque photo et
+> l'écrêtage — § 1.3 et § 9.2 point 3 — il n'a plus qu'un fournisseur, le calque
+> photo lui-même : l'exclusion mutuelle levée en erreur par `composeShader` est
+> partie avec l'option. Rien d'autre du § 4.3 ne bouge.
+>
 > ⚠️ **Le § 9 AUTO-VÉRIFICATION a été RÉ-EXÉCUTÉ EN ENTIER le 2026-07-31** sur
 > l'arbre de `ba81271` : chaque fichier qu'il cite est recompté, chaque plage de
 > lignes rouverte, et trois de ses affirmations sont tombées (§ 9.3). Le § 4.6
@@ -162,8 +172,8 @@ sur les pixels.
 
 **Contrat de bindings du groupe 0** — ⚠️ **table de l'état du 2026-07-25,
 PÉRIMÉE.** Recomptée le 2026-07-31 (§ 9.2) : un **binding 6** (`coverageTexture`,
-calque photo ou écrêtage) existe depuis, et la formule de compositing ne se
-contente plus de mélanger le RGB. Lire `shaderCompose.ts:77-107` et `:166-172`
+calque photo — et l'écrêtage jusqu'au 2026-08-21, ADR-0020) existe depuis, et la
+formule de compositing ne se contente plus de mélanger le RGB. Lire `shaderCompose.ts:77-107` et `:166-172`
 avant de s'appuyer sur ce qui suit ; la table n'a pas été réécrite ici, cette
 passe ne couvrait que le § 9.
 
@@ -740,8 +750,10 @@ ce qui les a démenties.
    qu'ils ne le sont plus.
 
 3. **« Bindings 0-5, 3/4/5 conditionnels »**. Un **binding 6**
-   (`coverageTexture`) existe, partagé par le calque photo et l'écrêtage
-   (`shaderCompose.ts:102-107`, exclusion mutuelle levée en erreur `:92-96`). La
+   (`coverageTexture`) existe. Il était PARTAGÉ par le calque photo et
+   l'écrêtage, avec une exclusion mutuelle levée en erreur par `composeShader` ;
+   depuis ADR-0020 (2026-08-21) il n'a plus qu'un fournisseur, le calque photo,
+   et la levée est partie avec l'option. La
    table du § 1.3 n'a PAS été réécrite : cette passe ne couvrait que le § 9, donc
    la table porte un avertissement de péremption et renvoie ici.
 

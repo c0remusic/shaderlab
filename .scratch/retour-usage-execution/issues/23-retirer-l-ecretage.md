@@ -44,12 +44,13 @@ Le dépôt a une doctrine explicite là-dessus (ADR-0016) : un doublon se MESURE
 avant de se retirer, et la mesure répond souvent deux choses. Ici elle en dit
 deux : le retrait est bon marché, et il enlève une capacité sans équivalent.
 
-**Blocked by:** la décision de portée ci-dessus. En (b), aussi bloqué par 11.
+**Blocked by:** rien — la portée est tranchée.
 
-**Status:** ready-for-human
-**HITL — portée (a) ou (b) à trancher par Antoine.**
+**Status:** done
 
-- [ ] Portée tranchée : retrait sec, ou après remplaçant.
-- [ ] ADR de retrait écrit (patron des ADR-0011 / 0012 / 0019), disant ce qui est perdu.
-- [ ] Champ, machinerie, UI et tests retirés ; garde de retrait posée comme pour `surfaceBlur`.
-- [ ] `test:render` vert SANS régénération (c'est le gate discriminant : un écart prouverait qu'on a touché autre chose que l'écrêtage).
+Portée retenue : **(a), retrait SEC** (Antoine, 2026-08-21).
+
+- [x] Portée tranchée : retrait sec.
+- [x] ADR de retrait écrit : `.claude/decisions/ADR-0020-retrait-de-l-ecretage.md`, indexé.
+- [x] Champ, machinerie, UI et tests retirés ; garde de retrait posée dans `test/layers/layerStack.test.ts`, sur le patron de `surfaceBlur`.
+- [x] `test:render` vert SANS régénération.

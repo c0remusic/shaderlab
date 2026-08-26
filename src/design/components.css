@@ -194,7 +194,7 @@
      456px — exactement son plancher à 4 lignes — pendant que Photo et Réglages
      gardaient 161px de compressible inutilisé, et la 5e ligne restait hors
      champ. Or 5 lignes est la taille du plus PETIT document réel qui ait deux
-     photos : arrière-plan + un effet + une photo importée + son effet écrêté.
+     photos : arrière-plan + un effet + une photo importée + un second effet.
      Un plancher à 4 ne pouvait donc pas montrer un tel document en entier. */
   --dock-card-list-rows: 5;
   --dock-card-list-rows-height: calc(

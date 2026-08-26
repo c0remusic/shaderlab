@@ -547,9 +547,9 @@ describe("LayerStack — setLayerEffect (T6)", () => {
     expect(layer.mask.invert).toBe(true);
   });
 
-  // GARDE STRUCTURANTE (décision produit du 2026-07-31, Antoine) : un effet ne
-  // se pose JAMAIS sur un calque photo. Un effet est un calque À PART, écrêté à
-  // la photo (`setLayerClip`). L'affordance inverse existait et rendait un
+  // GARDE STRUCTURANTE (décision produit du 2026-07-31, ADR-0008) : un effet ne
+  // se pose JAMAIS sur un calque photo. Un effet est un calque À PART, posé
+  // AU-DESSUS d'elle. L'affordance inverse existait et rendait un
   // ÉCRAN NOIR, constaté en usage réel. Ce test est le témoin de la garde :
   // sans elle il rend `true` et l'effectId devient "glow".
   it("REFUSE un calque portant imageSource, sans rien muter", () => {
@@ -714,69 +714,40 @@ describe("LayerStack.duplicateLayer", () => {
   });
 });
 
-describe("LayerStack — setLayerClip (écrêtage, 2026-07-27)", () => {
-  it("pose l'écrêtage sur un calque d'effet et le retire", () => {
+/**
+ * GARDE DE RETRAIT de l'ÉCRÊTAGE (ADR-0020, 2026-08-21). Même geste que celui
+ * de `surfaceBlur` dans `test/render/effects/registry.test.ts` : ce n'est pas
+ * une tautologie, c'est ce qui rend le retrait CONSCIENT. Réintroduire
+ * `clipToBelow` ou `setLayerClip` demande de supprimer ces lignes, donc de
+ * relire l'ADR — et de reprendre la question qu'il laisse ouverte (borner un
+ * effet à la couverture d'une photo n'a plus AUCUN équivalent, aucune source de
+ * masque ne sachant le faire).
+ *
+ * Un bloc `describe("setLayerClip")` de sept tests vivait ici ; il a été
+ * supprimé avec le mutateur, y compris son invariant « aucun calque ne porte à
+ * la fois `imageSource` et `clipToBelow` » — cet invariant légitimait le
+ * partage d'une piste de grille entre la vignette et la flèche d'écrêtage
+ * (`.layer-panel__col--mark`), et la flèche est partie avec le reste.
+ */
+describe("l'écrêtage est RETIRÉ du modèle (ADR-0020)", () => {
+  it("`LayerStack` n'expose plus de mutateur d'écrêtage", () => {
+    const stack = new LayerStack();
+    // `in` traverse le prototype : c'est bien la MÉTHODE qu'on cherche, pas une
+    // propriété d'instance.
+    expect("setLayerClip" in stack).toBe(false);
+  });
+
+  it("aucun calque ne porte le champ, ni neuf, ni dupliqué, ni cloné", () => {
     const stack = new LayerStack();
     const id = stack.addLayer("glow");
-    expect(stack.layers[0].clipToBelow).toBeUndefined();
-    expect(stack.setLayerClip(id, true)).toBe(true);
-    expect(stack.layers[0].clipToBelow).toBe(true);
-    expect(stack.setLayerClip(id, false)).toBe(true);
-    expect(stack.layers[0].clipToBelow).toBe(false);
-  });
-
-  it("REFUSE un calque photo — la garde vit dans le mutateur, pas au rendu", () => {
-    const stack = new LayerStack();
-    const id = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
-    expect(stack.setLayerClip(id, true)).toBe(false);
-    expect(stack.layers[0].clipToBelow).toBeUndefined();
-  });
-
-  // CE QUI DÉPEND DE CETTE GARDE, AU-DELÀ DU RENDU (2026-07-29) : la ligne de
-  // calque fait PARTAGER une seule piste de grille à la vignette et à la flèche
-  // d'écrêtage (`.layer-panel__col--mark`, LayerPanel.css), précisément parce
-  // qu'un calque ne peut pas porter les deux. Le partage a rendu 18 px de
-  // largeur au nom, sur un dock où il était tombé à 52 px.
-  // Si cette garde tombe, la fusion devient un empilement silencieux de deux
-  // contenus dans la même cellule — ce test le dit avant l'écran.
-  it("aucun calque ne peut porter À LA FOIS `imageSource` et `clipToBelow` (invariant dont dépend la fusion de colonnes)", () => {
-    const stack = new LayerStack();
-    // Sens 1 : une photo ne devient jamais écrêtée.
-    const photo = stack.addPhotoLayer("photo-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
-    stack.setLayerClip(photo, true);
-    // Sens 2 : un calque écrêté ne devient jamais une photo — `imageSource`
-    // n'est écrit qu'à la création et à la duplication, aucun mutateur ne
-    // transforme un calque d'effet existant en photo.
-    const effect = stack.addLayer("glow");
-    expect(stack.setLayerClip(effect, true)).toBe(true);
-    for (const layer of stack.layers) {
-      expect(layer.imageSource !== undefined && layer.clipToBelow === true).toBe(false);
+    stack.addPhotoLayer("photo-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
+    stack.duplicateLayer(id);
+    // Le champ n'existe plus dans `LayerState` : on interroge donc la FORME
+    // réelle des objets, seule chose qu'un test Node puisse voir (le type, lui,
+    // est déjà tenu par `tsc`).
+    for (const layer of stack.clone().layers) {
+      expect(Object.keys(layer)).not.toContain("clipToBelow");
     }
-  });
-
-  it("no-op sur un id absent ou sur une valeur inchangée (pas d'entrée d'historique vide)", () => {
-    const stack = new LayerStack();
-    const id = stack.addLayer("glow");
-    expect(stack.setLayerClip("no-such-id", true)).toBe(false);
-    // Absent ≡ false : reposer false ne change rien.
-    expect(stack.setLayerClip(id, false)).toBe(false);
-    expect(stack.setLayerClip(id, true)).toBe(true);
-    expect(stack.setLayerClip(id, true)).toBe(false);
-  });
-
-  it("le duplicata hérite de l'écrêtage sans code supplémentaire (spread)", () => {
-    const stack = new LayerStack();
-    const id = stack.addLayer("glow");
-    stack.setLayerClip(id, true);
-    const copyId = stack.duplicateLayer(id)!;
-    expect(stack.layers.find((l) => l.id === copyId)!.clipToBelow).toBe(true);
-  });
-
-  it("clone() transporte l'écrêtage (snapshot d'historique)", () => {
-    const stack = new LayerStack();
-    const id = stack.addLayer("glow");
-    stack.setLayerClip(id, true);
-    expect(stack.clone().layers.find((l) => l.id === id)!.clipToBelow).toBe(true);
   });
 });
 

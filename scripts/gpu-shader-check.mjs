@@ -21,16 +21,20 @@
 // passer par `composeShader` avec les MEMES options que le renderer, y compris
 // `hasPrevPass` coherent avec le nombre de passes internes de l'effet.
 //
-// Compte attendu (a tenir a jour si le registre bouge) :
+// Compte — ⚠️ CE BLOC N'AVAIT PAS ETE TENU A JOUR et annoncait 64 shaders : il
+// parlait de 6 effets et de 11 modes de fusion quand le registre en porte 26 et
+// 17. MESURE le 2026-08-21 en lancant le script : **156 shaders compiles**,
+// 0 en echec. Ne pas recopier ce chiffre de tete au prochain effet — le relancer.
+// Ce qui ne se perime pas est la STRUCTURE des categories ci-dessous.
 //
 //   A. Shaders COMPOSES (via `composeShader`, a partir de FRAGMENTS) :
 //     passes internes (glow: 5)
-//   + 3 variantes de compositing x 6 effets (composite, +photo, +clip) = 18
-//   + 11 modes de fusion sur un effet neutre
-//   + 1 passe neutre passthrough (court-circuit « 0 calque » et neutralisation
-//     d'un calque ecrete `suppressed`) — variante SANS masque depuis T0
-//     (2026-07-28) : c'est une copie stricte, alpha inclus, pas un compositing
-//   = 35
+//   + 2 variantes de compositing par effet (composite, +photo) — il y en avait
+//     TROIS jusqu'au 2026-08-21, la 3e etant l'ecretage (ADR-0020)
+//   + un shader par mode de fusion, sur un effet neutre
+//   + 1 passe neutre passthrough (court-circuit « 0 calque ») — variante SANS
+//     masque depuis T0 (2026-07-28) : c'est une copie stricte, alpha inclus,
+//     pas un compositing
 //
 //   B. Sources WGSL COMPLETES du masque / de la pre-passe photo (elles
 //      embarquent deja FULLSCREEN_VERTEX_WGSL, donc se compilent telles
@@ -45,16 +49,12 @@
 //   + 1 pre-passe d'entree d'un calque photo (PHOTO_LAYER_INPUT_WGSL)
 //   + 2 passes de presentation (buildPresentWgsl : damier / blanc) — l'unique
 //       ecrivain du canvas et de la cible d'export depuis T0 (2026-07-28)
-//   = 26
 //
 //   C. Sources de masque PARAMETRIQUES : ce sont des FRAGMENTS `fs_generate`
 //      (comme les effets, mais avec un autre wrapper — `wrapMaskSourceWgsl`,
 //      PAS `composeShader`), un par module de `mask/sources/registry.ts`,
 //      chacun avec son propre nombre de slots `PARAM_COUNT_BY_TYPE` (un N
 //      different = une source differente) = 3
-//
-// = 64 shaders compiles au total, + 1 garde d'exclusion mutuelle (non
-//   compilee).
 //
 // DEUX CATEGORIES, a ne pas confondre (2e piege) : les `wgsl` du registre
 // d'effets et le `wgsl` d'un module de source de masque sont des FRAGMENTS et
@@ -183,15 +183,6 @@ const script = `(async () => {
     // compiler), on verifie qu'elle leve. Comptee a part des shaders composes,
     // mais elle FAIT ECHOUER le script si la levee disparait — sans quoi la
     // regression passerait inapercue.
-    out.gardes = [];
-    const garde = (nom, fn) => {
-      let leve = null;
-      try { fn(); } catch (e) { leve = String(e && e.message ? e.message : e); }
-      const ok = leve !== null;
-      out.gardes.push({ nom, ok, leve });
-      if (!ok) out.echecs.push("garde:" + nom);
-    };
-
     const compile = async (nom, code) => {
       device.pushErrorScope("validation");
       const mod = device.createShaderModule({ code });
@@ -227,10 +218,6 @@ const script = `(async () => {
           composeShader(e.wgsl, { applyMask: true, hasPrevPass: (e.passes || []).length > 0, blendWgsl: normal, hasLibraryTexture }));
         await compile(e.id + " composite+photo",
           composeShader(e.wgsl, { applyMask: true, hasPrevPass: (e.passes || []).length > 0, blendWgsl: normal, hasImageSource: true, hasLibraryTexture }));
-        // Écrêtage (2026-07-27) : même binding 6, autre expression de poids —
-        // une variante de pipeline distincte, donc à compiler séparément.
-        await compile(e.id + " composite+clip",
-          composeShader(e.wgsl, { applyMask: true, hasPrevPass: (e.passes || []).length > 0, blendWgsl: normal, clipToCoverage: true, hasLibraryTexture }));
       }
     }
 
@@ -243,15 +230,15 @@ const script = `(async () => {
         composeShader(neutre.wgsl, { applyMask: true, hasPrevPass: neutrePrev, blendWgsl: b.wgsl }));
     }
 
-    // 4) passe NEUTRE : celle qu'encode le court-circuit « 0 calque active »
-    // et, depuis P2, la neutralisation d'un calque ecrete \`suppressed\`
-    // (framePipelineExecutor.ts:251-267). \`passthrough\` n'est PAS dans
-    // effectRegistry (il n'est pas choisissable par l'utilisateur), donc la
-    // boucle ci-dessus ne le voyait pas — et \`runEffectPass\` a
-    // \`applyMask = true\` PAR DEFAUT (effectPassRunner.ts:155) — mais depuis
-    // T0 (2026-07-28) l'executeur passe explicitement \`{ applyMask: false }\`
-    // pour ces deux sites : c'est une COPIE (alpha inclus), pas un
-    // compositing. Le chemin de compositing forcerait l'alpha de sortie a 1.
+    // 4) passe NEUTRE : celle qu'encode le court-circuit « 0 calque active ».
+    // Elle avait un SECOND site jusqu'au 2026-08-21, la neutralisation d'un
+    // calque ecrete dont la base photo n'etait pas rendue ; il est parti avec
+    // l'ecretage (ADR-0020). \`passthrough\` n'est PAS dans effectRegistry (il
+    // n'est pas choisissable par l'utilisateur), donc la boucle ci-dessus ne le
+    // voyait pas — et \`runEffectPass\` a \`applyMask = true\` PAR DEFAUT
+    // (effectPassRunner.ts) — mais depuis T0 (2026-07-28) l'executeur passe
+    // explicitement \`{ applyMask: false }\` : c'est une COPIE (alpha inclus),
+    // pas un compositing. Le chemin de compositing forcerait l'alpha a 1.
     await compile("passthrough neutre (copie, sans masque)",
       composeShader(PASSTHROUGH_EFFECT.wgsl, { applyMask: false, hasPrevPass: false }));
 
@@ -327,13 +314,6 @@ const script = `(async () => {
     const present = await import("/src/render/presentPass.ts");
     for (const bg of ["checker", "white"])
       await compile("presentation:" + bg, present.buildPresentWgsl(bg));
-
-    // 6) garde : un calque photo ne peut pas etre ecrete. Les deux drapeaux
-    // partagent le binding 6 mais n'ont pas le meme sens — \`composeShader\`
-    // leve plutot que de replier silencieusement (shaderCompose.ts:87-91), et
-    // \`LayerStack.setLayerClip\` refuse deja un calque photo en amont.
-    garde("hasImageSource+clipToCoverage rejete", () =>
-      composeShader(neutre.wgsl, { applyMask: true, hasPrevPass: neutrePrev, blendWgsl: normal, hasImageSource: true, clipToCoverage: true }));
   } catch (e) {
     out.fatal = String(e && e.stack ? e.stack : e);
   }
@@ -350,9 +330,7 @@ const val = r.result?.result?.value ?? JSON.stringify(r.result?.exceptionDetails
 const d = typeof val === "string" ? JSON.parse(val) : val;
 
 console.log(`GPU: ${d.device} | ${d.nbEffets} effets, ${d.nbBlend} modes de fusion`);
-console.log(`${d.cas.length} shaders composes compiles, ${(d.gardes ?? []).length} garde(s) d'exclusion, ${d.echecs.length} en echec\n`);
+console.log(`${d.cas.length} shaders composes compiles, ${d.echecs.length} en echec\n`);
 for (const c of d.cas) console.log(`${c.ok ? "OK  " : "FAIL"}  ${c.nom}${c.ok ? "" : "\n      " + (c.errs.join("\n      ") || c.scope)}`);
-for (const g of d.gardes ?? [])
-  console.log(`${g.ok ? "OK  " : "FAIL"}  garde: ${g.nom}${g.ok ? " (leve: " + g.leve + ")" : "\n      AUCUNE LEVEE — la combinaison interdite a produit un shader"}`);
 if (d.fatal) console.log("\nFATAL: " + d.fatal);
 ws.close();

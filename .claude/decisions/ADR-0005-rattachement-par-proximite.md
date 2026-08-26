@@ -46,10 +46,14 @@ Deux clauses indissociables :
    d'affichage reste la propriété du panneau, qui le rendait déjà
    (`backgroundName`) — l'exiger ici ferait porter à l'interface une donnée
    qu'elle ne lit pas.
-2. **L'écrêtage garde la priorité.** Un effet écrêté nomme explicitement sa base
-   (`clipBaseId`) et ce rattachement l'emporte sur la proximité. Sauf écrêtage
-   `inert` (aucune base photo), où l'on retombe sur la proximité : une ligne ne
-   désigne jamais une base inexistante.
+2. ~~**L'écrêtage garde la priorité.** Un effet écrêté nomme explicitement sa
+   base (`clipBaseId`) et ce rattachement l'emporte sur la proximité. Sauf
+   écrêtage `inert` (aucune base photo), où l'on retombe sur la proximité : une
+   ligne ne désigne jamais une base inexistante.~~
+   ⚠️ **CADUC depuis le 2026-08-21** : l'écrêtage est retiré du dépôt
+   ([ADR-0020](ADR-0020-retrait-de-l-ecretage.md)). Il n'y a plus qu'une règle
+   de rattachement, la proximité — ce qui ne change RIEN au rendu de ce point,
+   puisqu'il retombait déjà sur elle dans le seul cas où il ne s'appliquait pas.
 
 C'est un changement d'**affichage uniquement**. L'ORDRE des lignes reste
 exactement `toDisplayOrder(layers)` — l'imbrication est une profondeur portée par

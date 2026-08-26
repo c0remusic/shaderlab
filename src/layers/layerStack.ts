@@ -80,7 +80,7 @@ export class LayerStack {
   }
 
   /** Le calque `id` refuse-t-il une opération de STRUCTURE — changer d'effet,
-   *  écrêter, réordonner, supprimer ?
+   *  réordonner, supprimer ?
    *
    *  ⚠️ **Ce fichier avait UNE garde ; il en a QUATRE depuis le 2026-08-19**
    *  (modèle Photoshop, ticket 02 de la carte hybride). `isLocked` ne couvre
@@ -92,8 +92,7 @@ export class LayerStack {
    *
    *  **Opérations REFUSÉES par ce verrou-ci** (toutes rendent le même no-op
    *  `false` que le reste du fichier — donc aucune entrée d'historique vide
-   *  côté `App.tsx`) : `setLayerEffect`, `setLayerClip`, `removeLayer`,
-   *  `reorderLayer`.
+   *  côté `App.tsx`) : `setLayerEffect`, `removeLayer`, `reorderLayer`.
    *
    *  **Opérations AUTORISÉES quel que soit le verrou, et pourquoi.**
    *  - `setLayerLock` : sinon le verrou serait irréversible.
@@ -134,7 +133,7 @@ export class LayerStack {
   /** Pose/retire UN des quatre verrous du calque (modèle Photoshop, 2026-08-19 ;
    *  arbitrage d'origine n°2 du design
    *  `2026-07-28-shaderlab-fond-comme-calque-design.md` §7). Unique chemin
-   *  d'écriture de `locks`, sur le modèle de `setLayerClip`.
+   *  d'écriture de `locks`, sur le modèle de `setLayerEffect`.
    *
    *  Contrairement à tous les autres mutateurs, il ne consulte AUCUN verrou :
    *  un verrou qu'on ne peut pas retirer n'est pas un verrou.
@@ -184,11 +183,11 @@ export class LayerStack {
    *  `undefined` posé explicitement), l'affichage retombe alors sur le nom
    *  de l'effet.
    *  `afterId` : calque sélectionné au moment de l'import — la photo s'insère
-   *  juste AU-DESSUS de lui (voir `insertIndexAfter`). Insérer au MILIEU d'une
-   *  chaîne d'écrêtage est autorisé et non exceptionnel : `clipBaseId`
-   *  s'arrêtant à la première photo rencontrée en descendant, le calque écrêté
-   *  au-dessus voit simplement sa base basculer sur la photo qui vient d'être
-   *  insérée (`clipping.ts`, cas couvert par
+   *  juste AU-DESSUS de lui (voir `insertIndexAfter`). Insérer au MILIEU d'un
+   *  groupe existant est autorisé et non exceptionnel : le rattachement des
+   *  lignes se fait par PROXIMITÉ (ADR-0005), donc les effets qui suivent la
+   *  photo insérée basculent simplement dans son groupe — aucun attribut de
+   *  calque n'est touché (cas couvert par
    *  `test/layers/insertAboveSelection.test.ts`). */
   addPhotoLayer(sourceId: string, transform: LayerTransform, name?: string, afterId?: string | null): string {
     const id = freshId();
@@ -211,10 +210,9 @@ export class LayerStack {
    *  aux défauts du nouvel effet.
    *
    *  **Garde structurante : un calque portant `imageSource` est REFUSÉ**
-   *  (décision produit du 2026-07-31). Un effet ne se pose JAMAIS sur un calque
-   *  photo : un effet est un calque À PART, écrêté à la photo (`setLayerClip`,
-   *  ci-dessous, qui porte la garde SYMÉTRIQUE — un calque photo ne peut pas
-   *  être écrêté). Cette méthode a été écrite en 2026-07-26 (T6) sur la
+   *  (décision produit du 2026-07-31, ADR-0008). Un effet ne se pose JAMAIS sur
+   *  un calque photo : un effet est un calque À PART, posé au-dessus d'elle.
+   *  Cette méthode a été écrite en 2026-07-26 (T6) sur la
    *  prémisse inverse, « le moteur sait router la photo transformée comme
    *  entrée d'effet du calque » : c'est vrai du moteur, et faux du produit —
    *  l'affordance rendait un ÉCRAN NOIR, constaté en usage réel.
@@ -267,32 +265,6 @@ export class LayerStack {
     if (layer.effectId === effectId) return false;
     layer.effectId = effectId;
     layer.params = {};
-    return true;
-  }
-
-  /** Bascule l'ÉCRÊTAGE d'un calque d'effet (design 2026-07-27 §3.2) : l'effet
-   *  ne s'applique alors qu'à la couverture du calque photo situé en dessous.
-   *
-   *  **Garde structurante : un calque portant `imageSource` est REFUSÉ.** Elle
-   *  vit ICI, dans l'unique chemin d'écriture de `clipToBelow`, et nulle part
-   *  ailleurs : un calque écrêté qui serait lui-même une photo casserait
-   *  l'invariant d'ordre des passes dont dépend le partage de la cible de
-   *  résolution photo (`photoLayerInput.ts`), et rendrait atteignable en un
-   *  clic l'exclusion mutuelle que `composeShader` traite en assert. Un calque
-   *  ne peut jamais acquérir les deux attributs : `imageSource` n'est écrit
-   *  qu'à la création (`addPhotoLayer`) et à la duplication, aucun chemin ne
-   *  transforme un calque d'effet existant en photo.
-   *
-   *  Returns `true` iff `id` existe, n'est PAS un calque photo, et `clip`
-   *  diffère réellement de la valeur courante (même discipline no-op que le
-   *  reste du fichier : pas d'entrée d'historique vide). */
-  setLayerClip(id: string, clip: boolean): boolean {
-    const layer = this.layers.find((l) => l.id === id);
-    if (!layer) return false;
-    if (this.isLocked(id)) return false;
-    if (layer.imageSource !== undefined) return false;
-    if ((layer.clipToBelow ?? false) === clip) return false;
-    layer.clipToBelow = clip;
     return true;
   }
 

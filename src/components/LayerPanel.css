@@ -113,8 +113,8 @@
 }
 
 /* CALQUE PHOTO : la phrase qui remplace le sélecteur d'effet (décision produit
-   du 2026-07-31 — un effet est un calque à part, écrêté à la photo, jamais posé
-   sur elle). Elle hérite du `flex: 1 1 0; min-width: 0` de `.layer-controls__row
+   du 2026-07-31, ADR-0008 — un effet est un calque à part, posé AU-DESSUS de la
+   photo, jamais sur elle). Elle hérite du `flex: 1 1 0; min-width: 0` de `.layer-controls__row
    > *`, donc elle occupe exactement la place que prenait le Select et tient les
    trois icônes d'action à droite de la ligne.
    `--text-secondary` et non `--text-primary` : c'est un état, pas une valeur
@@ -211,15 +211,6 @@
 .layer-panel__row:hover {
   background: var(--surface-hover);
 }
-
-/* Calque ÉCRÊTÉ : AUCUNE indentation. La règle qui vivait ici
-   (.layer-panel__row--clipped, padding-left majoré) a été retirée le
-   2026-07-27 après observation directe de Photoshop web
-   (docs/design-system/photoshop-web-observations-2026-07-27.md §5ter) : une
-   ligne écrêtée y reste alignée sur les autres et ne gagne qu'une petite
-   flèche coudée. Ne pas la réintroduire : elle coûtait de la largeur utile
-   sur un dock déjà étroit, et elle avait été validée sur une maquette qui la
-   présentait à tort comme la convention Photoshop. */
 
 /* IMBRICATION sous la photo parente (2026-07-28) — DIVERGENCE ASSUMÉE d'avec
    Photoshop, qui n'indente rien (observations §5ter). Décision d'Antoine prise
@@ -526,16 +517,11 @@
   height: calc(var(--space-4) + var(--space-3));
 }
 
-/* Icône de NATURE (effet ou photo) : même traitement que la poignée et la
-   flèche d'écrêtage — --text-tertiary, jamais comprimée. Elle tient dans la
-   hauteur de ligne existante (--layer-row-height, 36px) : --icon-size-sm vaut
-   14px, la ligne ne grandit pas. */
+/* Icône de NATURE (effet ou photo) : même traitement que la poignée —
+   --text-tertiary, jamais comprimée. Elle tient dans la hauteur de ligne
+   existante (--layer-row-height, 36px) : --icon-size-sm vaut 14px, la ligne ne
+   grandit pas. */
 .layer-panel__row-nature {
-  flex-shrink: 0;
-  color: var(--text-tertiary);
-}
-
-.layer-panel__clip-arrow {
   flex-shrink: 0;
   color: var(--text-tertiary);
 }
@@ -552,9 +538,9 @@
 }
 
 /* La barre est en pseudo-élément à `left: 0` : elle couvre la ligne ENTIÈRE.
-   Depuis le retrait de l'indentation d'écrêtage (§5ter), toutes les lignes ont
-   le même padding, donc lavis et barre couvrent la même surface d'une ligne à
-   l'autre — sans décalage. Coins arrondis côté gauche seulement, pour épouser le
+   Toutes les lignes ont le même padding, donc lavis et barre couvrent la même
+   surface d'une ligne à l'autre — sans décalage. Coins arrondis côté gauche
+   seulement, pour épouser le
    --radius-control de la ligne au lieu de dépasser de sa courbe. */
 .layer-panel__row--selected::before {
   content: "";
@@ -600,7 +586,9 @@
  * simple avait 4 éléments avant son nom, une photo 5, un effet écrêté 5 — le
  * nom ne tombait jamais à la même abscisse d'une ligne à l'autre. Le
  * commentaire de LayerPanel.tsx revendiquait pourtant une « position FIXE » de
- * l'icône de nature : l'intention était écrite, pas obtenue.
+ * l'icône de nature : l'intention était écrite, pas obtenue. (La flèche
+ * d'écrêtage est partie le 2026-08-21, ADR-0020 ; la grille, elle, reste — elle
+ * ne dépendait pas d'elle.)
  *
  * GRILLE PLUTÔT QUE FLEX + CALES : avec la grille, chaque élément déclare sa
  * COLONNE (`layer-panel__col--*`) et un élément absent laisse simplement sa
@@ -612,9 +600,9 @@
  * est né : la cale existait pour la vignette manquante d'un calque PHOTO
  * (`--empty`) et n'a jamais été posée pour un calque d'effet.
  *
- * Les quatre formes de ligne — effet simple, effet écrêté, photo, arrière-plan
- * — partagent cette seule et même définition de colonnes. Vérifié par mesure
- * dans la story `AllRowFormsShareOneGrid` (LayerPanel.stories.tsx).
+ * Les formes de ligne — effet simple, photo, arrière-plan — partagent cette
+ * seule et même définition de colonnes. Vérifié par mesure dans la story
+ * `AllRowFormsShareOneGrid` (LayerPanel.stories.tsx).
  *
  * `flex: 1 1 auto` + `min-width: 0` : la grille occupe la largeur restante de
  * `.layer-panel__row-top` (le groupe d'actions ne cède jamais, voir plus haut)
@@ -641,7 +629,7 @@
     var(--control-height-sm)
     var(--icon-size-sm)          /* 2 poignée de réordonnancement */
     var(--control-height-sm)     /* 3 œil (visibilité) */
-    var(--layer-thumbnail-size)  /* 4 marque : vignette OU flèche d'écrêtage */
+    var(--layer-thumbnail-size)  /* 4 marque : vignette */
     minmax(0, 1fr)               /* 5 nom */
     var(--control-height-sm)     /* 6 nature + badge verrou */
     var(--control-height-sm);    /* 7 cible masque */
@@ -714,22 +702,18 @@
 .layer-panel__col--collapse { grid-column: 1; }
 .layer-panel__col--grip { grid-column: 2; }
 .layer-panel__col--eye { grid-column: 3; }
-/* MARQUE — vignette et flèche d'écrêtage PARTAGENT cette piste (2026-07-29).
-   Elles sont mutuellement exclusives par invariant du modèle
-   (`LayerStack.setLayerClip` refuse un calque portant `imageSource`), donc
-   aucune ligne ne peut en porter deux. Deux pistes distinctes coûtaient
-   --icon-size-sm + une gouttière, soit 18 px prélevés sur le NOM, sur un dock
-   où le nom était tombé à 52 px. La piste garde la largeur de la vignette, le
-   plus large des deux contenus ; la flèche s'y centre.
-   Si l'invariant tombe, la fusion devient un bug d'affichage silencieux — il
-   est verrouillé par test (test/layers/layerStack.test.ts).
+/* MARQUE — la vignette d'un calque photo. Elle a PARTAGÉ cette piste avec la
+   flèche d'écrêtage du 2026-07-29 au 2026-08-21 : les deux étaient mutuellement
+   exclusives par invariant du modèle (un calque photo ne pouvait pas être
+   écrêté), et deux pistes distinctes auraient coûté --icon-size-sm plus une
+   gouttière, soit 18 px prélevés sur le NOM, sur un dock où le nom était tombé
+   à 52 px. La flèche est partie avec l'écrêtage (ADR-0020) ; la piste ne bouge
+   pas d'un pixel — sa largeur était DÉJÀ celle de la vignette, le plus large
+   des deux contenus.
 
-   Elle RESTE À GAUCHE alors que la nature part à droite (2026-07-29), pour deux
-   raisons. La flèche pointe vers le HAUT, vers la ligne qui la précède : elle
-   appartient au chemin de lecture du rattachement (poignée → œil → marque →
-   nom), pas à la zone d'état. Et lui donner sa propre piste à droite coûterait
-   `--icon-size-sm` plus une gouttière, soit 18 px prélevés sur le nom, qui
-   repasserait sous le plancher de 152 px posé par l'ADR-0001 (point 6). */
+   Elle RESTE À GAUCHE alors que la nature part à droite (2026-07-29) : elle
+   appartient au chemin de lecture de l'identité (poignée → œil → marque →
+   nom), pas à la zone d'état. */
 .layer-panel__col--mark {
   grid-column: 4;
   justify-self: center;

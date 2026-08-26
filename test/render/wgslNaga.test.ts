@@ -31,7 +31,9 @@ import { blendRegistry, getBlendMode } from "../../src/render/blend/registry";
  *
  * Couvre la catégorie A de `scripts/gpu-shader-check.mjs` : les shaders COMPOSÉS
  * à partir des fragments du registre d'effets — passe finale de chaque effet,
- * plus chacune de ses passes internes, plus les variantes photo et écrêtage.
+ * plus chacune de ses passes internes, plus la variante photo. (Il y avait une
+ * variante ÉCRÊTAGE jusqu'au 2026-08-21 ; elle est partie avec l'option, voir
+ * ADR-0020.)
  *
  * NE couvre PAS les catégories B et C de ce script (sources complètes de masque,
  * sources paramétriques) : elles ont leurs propres wrappers, et les inclure
@@ -142,11 +144,6 @@ function variantes(): Variante[] {
       nom: `${effet.id} composite+photo`,
       source: composeShader(effet.wgsl, { ...base, hasImageSource: true }),
     });
-    sortie.push({
-      nom: `${effet.id} composite+clip`,
-      source: composeShader(effet.wgsl, { ...base, clipToCoverage: true }),
-    });
-
     // Passes INTERNES : pas de compositing, donc pas de masque ni de fusion.
     passesInternes.forEach((passe, index) => {
       sortie.push({

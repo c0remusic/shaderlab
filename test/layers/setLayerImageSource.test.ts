@@ -64,8 +64,8 @@ describe("setLayerImageSource", () => {
     const id = stack.addPhotoLayer("photo-1", { ...TRANSFORM }, "plage.jpg", below);
     stack.addLayer("grain", id);
     // Pas de `setLayerEffect` ici : un calque photo est TOUJOURS `passthrough`
-    // depuis la décision du 2026-07-31 (un effet est un calque à part, écrêté),
-    // et le mutateur le refuse désormais. C'est donc `passthrough` que le
+    // depuis la décision du 2026-07-31 (ADR-0008 — un effet est un calque à
+    // part, posé au-dessus), et le mutateur le refuse. C'est donc `passthrough` que le
     // remplacement d'image doit préserver.
     stack.updateParams(id, { amount: 0.7 });
     stack.layers[1].opacity = 0.4;

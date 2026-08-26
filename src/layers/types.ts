@@ -74,15 +74,6 @@ export interface LayerState {
    *  snapshot d'historique par construction (survie à l'undo automatique) et
    *  sans risque pour l'invariant OOM. */
   name?: string;
-  /** Écrêtage (clipping, 2026-07-27) : cet effet ne s'applique QUE là où le
-   *  calque photo situé en dessous couvre l'image. Absent/false =
-   *  comportement linéaire (défaut historique : l'effet s'applique au
-   *  composite complet en dessous). INTERDIT sur un calque portant
-   *  `imageSource` — la garde vit dans `LayerStack.setLayerClip`, unique
-   *  chemin d'écriture. Résolution : `layers/clipping.ts`.
-   *  Champ SCALAIRE : présent par construction dans chaque snapshot
-   *  d'historique, aucun risque pour l'invariant OOM. */
-  clipToBelow?: boolean;
   /** VERROUS du calque (arbitrage n°2 du design « le fond devient un calque »,
    *  2026-07-28 ; passé de UN booléen à QUATRE le 2026-08-19). Propriété de
    *  calque ORDINAIRE, posable sur n'importe quel calque — ce n'est PAS un
@@ -92,7 +83,7 @@ export interface LayerState {
    *
    *  Absent = rien n'est verrouillé (défaut à la création). Le respect des
    *  verrous vit dans `LayerStack` — chaque mutateur bloqué y porte sa garde,
-   *  sur le modèle de `setLayerClip` — ET dans `MaskPainter` pour le seul qui
+   *  sur le modèle de `setLayerEffect` — ET dans `MaskPainter` pour le seul qui
    *  écrête au lieu de refuser (voir `LayerLocks.transparency`).
    *  Champ d'objet à champs SCALAIRES : présent par construction dans chaque
    *  snapshot d'historique, aucun raster, aucun risque pour l'invariant OOM. */
@@ -146,7 +137,7 @@ export interface LayerLocks {
    *  porte que les gardes ne couvraient pas. */
   transparency?: boolean;
   /** TOUT. Implique les trois autres, plus ce qu'aucun ne couvre : changer
-   *  l'effet, écrêter, réordonner, supprimer.
+   *  l'effet, réordonner, supprimer.
    *
    *  Le déverrouillage et la visibilité restent TOUJOURS autorisés, quel que
    *  soit le verrou : un verrou irréversible, ou qui empêche de masquer, est

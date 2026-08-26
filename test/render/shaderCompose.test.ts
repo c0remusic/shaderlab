@@ -139,62 +139,10 @@ describe("composeShader — composition de l'alpha (T0)", () => {
 
   it("le chemin SANS masque reste une copie verbatim (alpha inclus)", () => {
     // C'est ce chemin qu'emprunte la passe neutre `passthrough` depuis T0 :
-    // court-circuit « 0 calque activé » et neutralisation d'un écrêté supprimé.
-    // Le chemin de compositing forcerait leur alpha de sortie à 1.
+    // le court-circuit « 0 calque activé ». Le chemin de compositing forcerait
+    // son alpha de sortie à 1.
     const code = composeShader(FS, { applyMask: false, hasPrevPass: false });
     expect(code).toContain("return effected;");
     expect(code).not.toContain("outAlpha");
-  });
-});
-
-const BLEND = "fn blend(base: vec3<f32>, top: vec3<f32>) -> vec3<f32> { return top; }";
-
-describe("composeShader clipToCoverage (écrêtage, 2026-07-27)", () => {
-  it("déclare le binding de couverture quand clipToCoverage est vrai", () => {
-    const clipped = composeShader(FS, { applyMask: true, hasPrevPass: false, clipToCoverage: true, blendWgsl: BLEND });
-    const plain = composeShader(FS, { applyMask: true, hasPrevPass: false, blendWgsl: BLEND });
-    expect(clipped).toContain("@group(0) @binding(6) var coverageTexture");
-    expect(plain).not.toContain("coverageTexture");
-  });
-
-  it("garde `color` comme entrée d'effet — l'effet doit voir les pixels qu'il traite", () => {
-    const clipped = composeShader(FS, { applyMask: true, hasPrevPass: false, clipToCoverage: true, blendWgsl: BLEND });
-    expect(clipped).toContain("let effectInput = color;");
-  });
-
-  it("borne le POIDS du mix par l'alpha de la couverture (le défaut le plus probable est de l'oublier)", () => {
-    const clipped = composeShader(FS, { applyMask: true, hasPrevPass: false, clipToCoverage: true, blendWgsl: BLEND });
-    // Depuis T0 le poids s'appelle `srcAlpha` et sert AUSSI d'alpha du calque
-    // dans le source-over — la borne par la couverture doit donc y rester, sans
-    // quoi un écrêté rendrait la zone hors silhouette opaque.
-    expect(clipped).toContain(
-      "let srcAlpha = compositing.x * maskValue * textureSample(coverageTexture, srcSampler, in.uv).a;",
-    );
-    expect(clipped).toContain("mix(color.rgb, blended, srcAlpha / outAlpha)");
-  });
-
-  it("clipToCoverage=true SANS applyMask ne déclare pas le binding (passes internes)", () => {
-    const code = composeShader(FS, { applyMask: false, hasPrevPass: false, clipToCoverage: true });
-    expect(code).not.toContain("coverageTexture");
-  });
-
-  it("lève quand hasImageSource et clipToCoverage sont tous deux vrais (assert inatteignable)", () => {
-    expect(() =>
-      composeShader(FS, { applyMask: true, hasPrevPass: false, hasImageSource: true, clipToCoverage: true, blendWgsl: BLEND }),
-    ).toThrow(/mutuellement exclusifs/);
-    // Lève même hors chemin de compositing : la garde porte sur les drapeaux
-    // bruts, pas sur leur version filtrée par applyMask.
-    expect(() =>
-      composeShader(FS, { applyMask: false, hasPrevPass: false, hasImageSource: true, clipToCoverage: true }),
-    ).toThrow(/mutuellement exclusifs/);
-  });
-
-  it("produit une variante de pipeline distincte (pas de collision de clé de cache)", () => {
-    const variants = [
-      composeShader(FS, { applyMask: true, hasPrevPass: false, blendWgsl: BLEND }),
-      composeShader(FS, { applyMask: true, hasPrevPass: false, clipToCoverage: true, blendWgsl: BLEND }),
-      composeShader(FS, { applyMask: true, hasPrevPass: false, hasImageSource: true, blendWgsl: BLEND }),
-    ];
-    expect(new Set(variants).size).toBe(3);
   });
 });

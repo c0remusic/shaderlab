@@ -70,15 +70,6 @@ export interface ComposeOptions {
    *  comme `srcTexture` — pas besoin d'un second binding, voir
    *  `framePipelineExecutor.ts`). */
   hasImageSource?: boolean;
-  /** Écrêtage (design 2026-07-27 §3.3) : ce calque est un calque d'EFFET
-   *  écrêté à la couverture du calque photo situé en dessous. Partage le
-   *  binding 6 (`coverageTexture`) avec `hasImageSource`, mais n'a pas le même
-   *  sens : l'entrée d'effet reste le composite en dessous (`color`), seule la
-   *  BORNE du poids de compositing change. Mutuellement exclusif avec
-   *  `hasImageSource` — un calque photo ne peut pas être écrêté
-   *  (`LayerStack.setLayerClip` le refuse), donc la levée ci-dessous est un
-   *  assert inatteignable, pas un chemin utilisateur. */
-  clipToCoverage?: boolean;
   /** Corps `fn blend(base, top)` du mode de fusion du calque. Requis quand
    *  applyMask=true. Ignoré sinon (les passes internes ne compositent pas). */
   blendWgsl?: string;
@@ -91,7 +82,12 @@ export interface ComposeOptions {
    *  le binding porte les pixels.
    *
    *  Contrairement au binding 6, il vaut sur les DEUX chemins — une passe
-   *  interne d'un effet à texture en a besoin autant que sa passe finale. */
+   *  interne d'un effet à texture en a besoin autant que sa passe finale.
+   *
+   *  ⚠️ Le binding 6 a eu un SECOND lecteur, l'écrêtage (`clipToCoverage`), qui
+   *  bornait le poids de compositing par la couverture du calque photo du
+   *  dessous. Il est parti avec lui (ADR-0020, 2026-08-21) — le binding, son
+   *  nom neutre et le chemin `hasImageSource` restent, intacts. */
   hasLibraryTexture?: boolean;
 }
 
@@ -130,25 +126,14 @@ export function composeShader(effectWgsl: string, opts: ComposeOptions): string 
   const compositingBinding = opts.applyMask
     ? "@group(0) @binding(5) var<uniform> compositing: vec4<f32>;"
     : "";
-  // Exclusion mutuelle : un calque est SOIT une photo (sa propre couverture
-  // sert aussi d'entrée d'effet), SOIT un calque d'effet écrêté à la couverture
-  // d'un AUTRE calque. Les deux à la fois n'a pas de sens et n'est pas
-  // atteignable (`LayerStack.setLayerClip` refuse un calque photo) — d'où une
-  // levée, jamais un repli silencieux.
-  if ((opts.hasImageSource ?? false) && (opts.clipToCoverage ?? false)) {
-    throw new Error(
-      "composeShader: hasImageSource et clipToCoverage sont mutuellement exclusifs (un calque photo ne peut pas être écrêté).",
-    );
-  }
   // Le binding de couverture n'a de sens QUE sur le chemin de compositing
   // (applyMask) — les passes internes d'effet reçoivent directement la
   // texture résolue comme srcTexture (binding 0), voir framePipelineExecutor.ts.
   const hasImageSource = opts.applyMask && (opts.hasImageSource ?? false);
-  const clipToCoverage = opts.applyMask && (opts.clipToCoverage ?? false);
-  // Binding 6 partagé par les deux chemins, d'où son nom neutre : sur le chemin
-  // écrêté, l'appeler `imageSourceTexture` serait un mensonge (la texture
-  // appartient au calque photo du DESSOUS, pas à celui-ci).
-  const coverageBinding = hasImageSource || clipToCoverage
+  // Binding 6. Son nom est NEUTRE parce qu'il a eu deux lecteurs jusqu'au
+  // 2026-08-21 (le calque photo et l'écrêtage, ADR-0020) ; il n'en a plus qu'un,
+  // et le nom reste tel quel — c'est bien une couverture qu'il porte.
+  const coverageBinding = hasImageSource
     ? "@group(0) @binding(6) var coverageTexture: texture_2d<f32>;"
     : "";
   // Binding 7, sur les DEUX chemins (contrairement au 6) : une passe interne
@@ -157,27 +142,18 @@ export function composeShader(effectWgsl: string, opts: ComposeOptions): string 
     ? "@group(0) @binding(7) var libraryTexture: texture_2d<f32>;"
     : "";
   const blendBlock = opts.applyMask ? SRGB_HELPERS_WGSL + "\n" + (opts.blendWgsl ?? "") : "";
-  // Écrêté : l'entrée d'effet reste `color` (le composite en dessous) — l'effet
-  // doit voir les pixels qu'il traite. Seul le POIDS est borné par la couverture.
   const effectInputExpr = hasImageSource
     ? "textureSample(coverageTexture, srcSampler, in.uv);"
     : "color;";
   const coverageMixWeight = hasImageSource
     ? "compositing.x * maskValue * effectInput.a"
-    : clipToCoverage
-      ? "compositing.x * maskValue * textureSample(coverageTexture, srcSampler, in.uv).a"
-      : "compositing.x * maskValue";
+    : "compositing.x * maskValue";
   const coverageComment = hasImageSource
     ? `  // Calque photo (hasImageSource) : effectInput.a porte la COUVERTURE de
   // la pré-passe (ARCHITECTURE.md §4.3) — hors des bornes de la photo A,
   // effectInput.a=0 -> poids nul -> color.rgb (le fond) reste inchangé,
   // jamais un bord répété/clampé visible.\n`
-    : clipToCoverage
-      ? `  // Calque écrêté (clipToCoverage) : le poids est borné par l'alpha de la
-  // couverture du calque photo du DESSOUS. Produit de bornes indépendantes —
-  // opacité x masque peint x couverture — donc hors de la silhouette le poids
-  // est nul et color.rgb ressort intact, quel que soit le mode de fusion.\n`
-      : "";
+    : "";
   const fsBody = opts.applyMask
     ? `let maskValue = textureSample(maskTexture, srcSampler, in.uv).r;
   // Alpha du CALQUE (la source du source-over) : opacité × masque peint ×

@@ -776,10 +776,12 @@ Points structurants qu'on ne devine pas en lisant un fichier isolé :
   deux vues : `layers()` (complet, pour le GPU) et `displayLayers()`
   (projection sans raster, pour React — c'est l'invariant anti-OOM).
   ⚠️ **`replaceLiveLayers` est la porte que les gardes de `LayerStack` NE
-  COUVRENT PAS.** `LayerStack` refuse **dix-sept** opérations sur un calque
+  COUVRENT PAS.** `LayerStack` refuse **seize** opérations sur un calque
   verrouillé — réparties entre **QUATRE verrous** depuis le 2026-08-19 :
-  `isLocked` (structure : effet, écrêtage, ordre, suppression),
-  `refuseGeometrie`, `refuseMasque`. ⚠️ Le verrou de TRANSPARENCE ne vit même
+  `isLocked` (structure : effet, ordre, suppression), `refuseGeometrie`,
+  `refuseMasque`. (Dix-sept jusqu'au 2026-08-21 : `setLayerClip` est parti avec
+  l'écrêtage, ADR-0020. Compte RE-MESURÉ sur les sites d'appel, pas décrémenté
+  de tête.) ⚠️ Le verrou de TRANSPARENCE ne vit même
   pas là : il **ÉCRÊTE au lieu de refuser**, donc il est dans `MaskPainter`, sur
   le chemin réel du pinceau vivant. **`grep isLocked` ne donne donc plus la
   liste complète des refus** — lire les quatre gardes, et
@@ -805,9 +807,11 @@ Points structurants qu'on ne devine pas en lisant un fichier isolé :
 
 `.claude/decisions/INDEX.md` — une ligne par ADR avec son statut. Un ADR
 `superseded` (ADR-0003, renversé par ADR-0004) n'est PAS une contrainte active.
-Actifs (ADR-0019 est le dernier écrit, 2026-08-21) : densité UI (0001),
+Actifs (ADR-0020 est le dernier écrit, 2026-08-21) : densité UI (0001),
 abandon round-trip (0002), sens causal
-de la pile (0004), rattachement par proximité (0005), fond d'export blanc
+de la pile (0004), rattachement par proximité (0005, ⚠️ son point 2 —
+« l'écrêtage garde la priorité » — est CADUC depuis ADR-0020 : la proximité est
+seule), fond d'export blanc
 (0006), format de toile à la création + `MAX_CANVAS_PIXELS = 64 Mpx` (0007),
 un effet ne se pose jamais sur un calque photo (0008), déplacement libre du
 viewport (0009), le gaussien reste hors du registre (0010, ⚠️ sa 3ᵉ conséquence
@@ -815,7 +819,22 @@ est caduque), retrait de `surfaceBlur` (0011), retrait de `posterize` (0012),
 `outlines` absorbe `coloredEdges` (0013), `lensDistortion` absorbe
 `anamorphicStreak` (0014), `outlines` absorbe `echoOutlines` (0015),
 `lensDistortion` absorbe `chromaticBleed` (0016), `lensFlare` rouvre la famille
-des halos (0017), la texture de bibliothèque (0018), retrait de `emboss` (0019).
+des halos (0017), la texture de bibliothèque (0018), retrait de `emboss` (0019),
+**retrait de l'ÉCRÊTAGE (0020)**.
+
+⚠️ **L'ÉCRÊTAGE N'EXISTE PLUS** (ADR-0020, 2026-08-21, retrait SEC). La case
+« Écrêter sur la photo du dessus », `LayerState.clipToBelow`, `layers/clipping.ts`,
+`LayerStack.setLayerClip`, l'option `clipToCoverage` de `shaderCompose` et la
+flèche coudée de la ligne sont partis ensemble. Ne pas les citer comme existants,
+et ne pas reproposer la case : le libellé contredisait le modèle (« du dessus »
+contre « en dessous », les deux vrais dans leur repère depuis qu'ADR-0004 a
+inversé l'affichage) ET le geste ne servait pas. **Ce qui est PERDU et n'a aucun
+équivalent : borner un effet à la COUVERTURE d'une photo** — les sources de
+masque sont une union fermée (`gradient · luminosity · colorRange`), aucune
+géométrique. Ça se retrouvera par la sélection géométrique du ticket 11, par un
+MASQUE, jamais par une case. Le binding 6 (`coverageTexture`) et le chemin
+`hasImageSource` de la double exposure sont INTACTS — ils partageaient le binding,
+ils ne partageaient rien d'autre.
 
 ⚠️ Cette liste a dit « ADR-0017 reste le dernier écrit » jusqu'au 2026-08-15
 alors qu'ADR-0018 était sur disque **et cité deux fois plus haut dans ce même

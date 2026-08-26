@@ -6,7 +6,6 @@ import { CircleDot, MoveRight } from "lucide-react";
 import "./ParamPanel.css";
 import { LabeledSlider } from "./ui/labeled-slider";
 import { Disclosure } from "./ui/collapsible";
-import { Checkbox } from "./ui/checkbox";
 import { Select } from "./ui/select";
 import { ColorGroupControl } from "./ui/color-group-control";
 import { formatControlValue, parsePercentValue } from "../ui/formatValue";
@@ -255,12 +254,6 @@ interface Props {
   imageSize?: { width: number; height: number };
   onParamChange: (id: string, params: Record<string, number>) => void;
   onParamCommit: () => void;
-  /** Bascule l'écrêtage du calque SÉLECTIONNÉ (design 2026-07-27 §3.7). En
-   *  en-tête plutôt qu'une case par ligne de la pile : un contrôle qui se
-   *  répète sur chaque ligne devient un contrôle unique agissant sur la
-   *  sélection. Jamais rendu pour un calque photo — c'est le calque d'EFFET qui
-   *  porte l'attribut, une photo ne peut pas être écrêtée. */
-  onClipChange: (id: string, clip: boolean) => void;
   onOpenColorPicker: (group: { layerId: string; effectId: string; key: string; label: string; hue: EffectParam; saturation: EffectParam; lightness: EffectParam; anchorTop: number }) => void;
   /** Bibliothèque de textures, pour les effets qui déclarent
    *  `EffectModule.libraryTexture`. Injectée depuis `App` plutôt que lue ici :
@@ -302,7 +295,7 @@ function formatEffectParamValue(
   }
 }
 
-export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onClipChange, onOpenColorPicker, textureLibrary }: Props) {
+export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onOpenColorPicker, textureLibrary }: Props) {
   const [activeCurveChannel, setActiveCurveChannel] = useState("master");
   if (!layer) {
     return <p className="param-panel__empty">Sélectionne un calque.</p>;
@@ -330,10 +323,9 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onC
   const resolvedParams: Record<string, number> = {};
   for (const p of effect.params) resolvedParams[p.name] = layer.params[p.name] ?? p.default;
 
-  // Calque VERROUILLÉ. `LayerStack.isLocked` refuse `setLayerClip` et
-  // `updateParams` : les DEUX seules mutations que ce panneau déclenche sont
-  // donc mortes, et un contrôle qui bouge sans rien changer est exactement
-  // l'échec silencieux que ce dépôt proscrit.
+  // Calque VERROUILLÉ. `LayerStack.isLocked` refuse `updateParams` : la seule
+  // mutation que ce panneau déclenche est donc morte, et un contrôle qui bouge
+  // sans rien changer est exactement l'échec silencieux que ce dépôt proscrit.
   //
   // `disabled` par CONTRÔLE, et non un `<fieldset disabled>` englobant : le
   // fieldset natif rend inertes tous ses descendants d'un bloc, sans poser le
@@ -363,31 +355,15 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onC
   // 2026-07-27 §3.7) : un calque photo porte `passthrough`, dont la liste de
   // paramètres est vide — le cadre vide ne disait pas pourquoi. Deux causes
   // distinctes, deux phrases : aucun effet du tout, ou un effet sans réglage.
-  // L'écrêtage est une propriété du CALQUE, pas de son effet : il reste donc
-  // accessible même quand l'effet n'a aucun paramètre. Le sortir du chemin
-  // « avec paramètres » corrige un piège sans issue — un calque écrêté repassé
-  // à « Aucun effet » gardait `clipToBelow: true` sans plus aucun moyen de le
-  // décocher, l'état vide étant retourné avant la case (seul un undo en
-  // sortait).
-  const clipRow = layer.imageSource === undefined && (
-    <div className="param-panel__clip-row">
-      <Checkbox
-        // « du dessus » depuis l'ADR-0004 : la base d'un écrêtage est le calque
-        // appliqué AVANT, qui est la ligne du dessus dans la liste causale (elle
-        // était en dessous sous l'ADR-0003). Le libellé décrit ce que
-        // l'utilisateur VOIT, comme la flèche d'écrêtage de `LayerPanel`.
-        label="Écrêter sur la photo du dessus"
-        checked={layer.clipToBelow ?? false}
-        disabled={locked}
-        onChange={(clip) => onClipChange(layer.id, clip)}
-      />
-    </div>
-  );
-
+  //
+  // ⚠️ Une case d'en-tête « Écrêter sur la photo du dessus » vivait AVANT ce
+  // chemin, précisément pour rester atteignable ici : l'écrêtage était une
+  // propriété du CALQUE, pas de son effet, et l'état vide retourné avant elle
+  // avait produit un piège sans issue. Elle est partie avec l'écrêtage
+  // (ADR-0020, 2026-08-21) — ce panneau ne rend plus que des réglages d'effet.
   if (effect.params.length === 0) {
     return (
       <div className="param-panel" title={lockedTitle}>
-        {clipRow}
         <p className="param-panel__empty">
           {layer.effectId === "passthrough" ? "Aucun effet appliqué à ce calque." : "Cet effet n'a pas de paramètres."}
         </p>
@@ -397,7 +373,6 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onC
 
   return (
     <div className="param-panel" title={lockedTitle}>
-      {clipRow}
       <Disclosure title="Effet" defaultOpen>
         <div className="param-panel__group">
           {(effect.curveControls ?? []).map((control) => {

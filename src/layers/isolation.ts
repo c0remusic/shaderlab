@@ -1,4 +1,3 @@
-import { clipBaseId } from "./clipping";
 import type { LayerState } from "./types";
 
 /**
@@ -26,31 +25,20 @@ import type { LayerState } from "./types";
 /**
  * Ensemble des calques VISIBLES pendant l'isolation, ou `null` hors isolation.
  *
- * = { le calque isolé } ∪ { sa base d'écrêtage, si c'est un calque photo }.
+ * = { le calque isolé }, et rien d'autre.
  *
- * **La règle d'écrêtage vit ICI, pas dans la résolution d'écrêtage** (design
- * 2026-07-27 §3.5). Isoler un calque écrêté sans tirer sa base photo le rendrait
- * `suppressed` — donc un ÉCRAN VIDE, exactement le piège que ce fichier se donne
- * pour règle d'éviter. Et l'inverse (une exception d'isolation dans
- * `clipping.ts`) détruirait l'invariance par projection : entrer en isolation
- * changerait alors À QUOI un calque est écrêté, c'est-à-dire le sens du
- * document. `isolation.ts` importe `clipping.ts` ; jamais l'inverse.
- *
- * La visibilité n'est étendue que **vers le bas** : isoler la PHOTO ne tire pas
- * les calques qui lui sont écrêtés au-dessus (elle rend parfaitement seule,
- * aucun écran vide à éviter).
+ * ⚠️ **Cette fonction a porté une exception, et elle est partie avec
+ * l'écrêtage** (ADR-0020, 2026-08-21). Isoler un calque écrêté tirait AUSSI sa
+ * base photo, sans quoi l'écrêtage rendait le calque `suppressed` — donc un
+ * écran vide. La règle vivait ici, jamais dans la résolution d'écrêtage,
+ * précisément pour que l'attachement reste invariant par projection. Plus aucun
+ * calque ne dépend d'un autre pour rendre : le set retourné n'a plus qu'un
+ * élément, et il ne dépend plus de la pile — d'où le paramètre `layers` en
+ * moins.
  */
-export function isolationVisibleIds(
-  layers: LayerState[],
-  isolatedLayerId: string | null,
-): ReadonlySet<string> | null {
+export function isolationVisibleIds(isolatedLayerId: string | null): ReadonlySet<string> | null {
   if (isolatedLayerId === null) return null;
-  const visible = new Set<string>([isolatedLayerId]);
-  const baseId = clipBaseId(layers, isolatedLayerId);
-  if (baseId !== null && layers.find((l) => l.id === baseId)?.imageSource !== undefined) {
-    visible.add(baseId);
-  }
-  return visible;
+  return new Set<string>([isolatedLayerId]);
 }
 
 /** Visibilité EFFECTIVE d'un calque à l'écran compte tenu de l'isolation.
@@ -70,7 +58,7 @@ export function isLayerVisible(layer: LayerState, visibleIds: ReadonlySet<string
  *  copie de raster de masque (le `mask` est partagé par référence, même
  *  discipline que `LayerStack.clone`/`History`). */
 export function projectIsolation(layers: LayerState[], isolatedLayerId: string | null): LayerState[] {
-  const visibleIds = isolationVisibleIds(layers, isolatedLayerId);
+  const visibleIds = isolationVisibleIds(isolatedLayerId);
   if (visibleIds === null) return layers;
   return layers.map((layer) => {
     const visible = isLayerVisible(layer, visibleIds);

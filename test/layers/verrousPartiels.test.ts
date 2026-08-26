@@ -185,8 +185,8 @@ describe("verrou TRANSPARENCE — il ÉCRÊTE, il ne refuse pas", () => {
   });
 
   it("TÉMOIN — sans le verrou, le même trait étend le masque", () => {
-    // Sans ce cas, un écrêtage qui ne marcherait pas et un pinceau qui
-    // n'atteint pas la zone auraient exactement la même tête.
+    // Sans ce cas, un écrêtage de valeur qui ne marcherait pas et un pinceau
+    // qui n'atteint pas la zone auraient exactement la même tête.
     const painter = peintreAvecTrou();
     painter.setTransparencyLocked(false);
     painter.beginStroke();
@@ -212,7 +212,7 @@ describe("verrou TRANSPARENCE — il ÉCRÊTE, il ne refuse pas", () => {
 });
 
 describe("verrou TOUT — la structure", () => {
-  it("refuse effet, écrêtage, ordre et suppression", () => {
+  it("refuse effet, ordre et suppression", () => {
     const stack = new LayerStack();
     const a = stack.addLayer("glow");
     const b = stack.addLayer("grain");

@@ -202,26 +202,6 @@ describe("EffectPassRunner.runEffectPass imageSourceView (binding 6)", () => {
     const bindGroupCall = (device.createBindGroup as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0];
     expect(bindGroupCall.entries.some((e: { binding: number }) => e.binding === 6)).toBe(false);
   });
-
-  it("binde la vue d'écrêtage au MÊME binding 6 (couverture de la photo du dessous)", () => {
-    const { runner, device, encoder, src } = createRunnerWithMaskResolver();
-    const clipCoverageView = {} as GPUTextureView;
-
-    runner.runEffectPass(
-      encoder,
-      { id: "passthrough", name: "Passthrough", params: [], wgsl: "fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> { return color; }" },
-      layer(),
-      src.createView() as unknown as GPUTextureView,
-      {} as GPUTextureView,
-      { applyMask: true, clipCoverageView },
-      [],
-    );
-
-    const bindGroupCall = (device.createBindGroup as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0];
-    expect(bindGroupCall.entries).toContainEqual({ binding: 6, resource: clipCoverageView });
-    const layoutCall = (device.createBindGroupLayout as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0];
-    expect(layoutCall.entries.some((e: { binding: number }) => e.binding === 6)).toBe(true);
-  });
 });
 
 /** Variante de `createRunnerWithMaskResolver` qui ESPIONNE le résolveur de
@@ -277,19 +257,6 @@ describe("EffectPassRunner — image de guide du masque edge-aware", () => {
     runner.runEffectPass(encoder, PASSTHROUGH_MODULE, layer(), toileVide, {} as GPUTextureView, { applyMask: true, imageSourceView: saPhoto }, []);
 
     expect(resolveMask.mock.calls[0][2]).toBe(saPhoto);
-  });
-
-  it("guide = le composite en dessous pour un calque ÉCRÊTÉ sur une photo (il ne porte pas d'image)", () => {
-    // L'écrêtage borne le POIDS de compositing, il ne change pas ce que le
-    // calque dessine : son entrée reste le composite en dessous, qui contient
-    // déjà la photo de base composée. Le guide le suit — donc rien à changer.
-    const { runner, encoder, resolveMask } = createRunnerSpyingGuide();
-    const compositeEnDessous = { nom: "composite" } as unknown as GPUTextureView;
-    const couverture = { nom: "couverture" } as unknown as GPUTextureView;
-
-    runner.runEffectPass(encoder, PASSTHROUGH_MODULE, layer(), compositeEnDessous, {} as GPUTextureView, { applyMask: true, clipCoverageView: couverture }, []);
-
-    expect(resolveMask.mock.calls[0][2]).toBe(compositeEnDessous);
   });
 });
 

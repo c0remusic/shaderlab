@@ -1,5 +1,4 @@
 import type { LayerState } from "../layers/types";
-import { clipBaseId } from "../layers/clipping";
 import { toDisplayOrder } from "./layerDisplayOrder";
 
 /**
@@ -15,11 +14,12 @@ import { toDisplayOrder } from "./layerDisplayOrder";
  * que l'utilisateur se pose. Ne pas « corriger » cette divergence vers
  * Photoshop.
  *
- * RÈGLE EN VIGUEUR (2026-07-29) — PROXIMITÉ. **Un effet appartient à la photo
- * qui le précède dans la chaîne.** Une photo OUVRE son groupe ; tous les effets
- * qui suivent lui appartiennent jusqu'à la photo suivante. En espace modèle
- * (indice supérieur = calque du dessus) : le parent de `layers[i]` est la photo
- * d'indice le plus élevé strictement inférieur à `i`.
+ * RÈGLE EN VIGUEUR (2026-07-29) — PROXIMITÉ, et depuis le 2026-08-21 elle est
+ * la SEULE. **Un effet appartient à la photo qui le précède dans la chaîne.**
+ * Une photo OUVRE son groupe ; tous les effets qui suivent lui appartiennent
+ * jusqu'à la photo suivante. En espace modèle (indice supérieur = calque du
+ * dessus) : le parent de `layers[i]` est la photo d'indice le plus élevé
+ * strictement inférieur à `i`.
  *
  *  - Le FOND DU DOCUMENT est un calque photo COMME LES AUTRES depuis la tranche
  *    T1 (design 2026-07-28 §1.1) : il vit dans `layers`, la proximité le trouve
@@ -31,13 +31,13 @@ import { toDisplayOrder } from "./layerDisplayOrder";
  *  - Un effet placé SOUS toute photo (désormais possible : le fond se déplace)
  *    reste une ligne RACINE. Il ne traite aucune photo — il compose sur la
  *    toile vide, littéralement rien.
- *  - L'ÉCRÊTAGE garde la priorité : un effet écrêté nomme explicitement sa base
- *    (`clipBaseId`), et ce rattachement l'emporte sur la proximité. Sauf
- *    écrêtage INERTE (aucune base photo — `resolveClipping` le fait alors rendre
- *    linéairement), où l'on retombe sur la proximité : une ligne ne désigne
- *    jamais une base inexistante.
- *  - Un calque PHOTO est toujours une ligne racine (l'écrêtage lui est interdit,
- *    garde dans `LayerStack.setLayerClip`).
+ *  - ⚠️ **L'ÉCRÊTAGE avait la priorité ici, et il est RETIRÉ** (ADR-0020,
+ *    2026-08-21). Un effet écrêté nommait explicitement sa base par
+ *    `clipBaseId`, et ce rattachement l'emportait sur la proximité — sauf
+ *    écrêtage inerte, où l'on retombait déjà sur elle. La proximité était donc
+ *    le cas général, elle est maintenant le seul cas : le retrait n'a rien
+ *    laissé sans rattachement.
+ *  - Un calque PHOTO est toujours une ligne racine.
  *
  * NUANCE ASSUMÉE, À NE PAS « CORRIGER ». Un effet NON écrêté s'applique en
  * réalité à TOUT le composite sous lui, pas à cette seule photo — l'imbrication
@@ -47,9 +47,9 @@ import { toDisplayOrder } from "./layerDisplayOrder";
  * propre document. La règle précédente — n'imbriquer que quand la relation est
  * littéralement vraie, donc seulement s'il n'y a qu'UNE photo sous l'effet —
  * était exacte et illisible : sur un document réel (fond + Glow + Grain + photo
- * importée + un écrêté), une seule ligne sur quatre était indentée, les deux
- * effets posés sur le fond n'ayant aucune photo sous eux. Ne pas re-litiger ce
- * point dans le code ; le rouvrir demande de rouvrir la décision.
+ * importée + un quatrième effet), une seule ligne sur quatre était indentée, les
+ * deux effets posés sur le fond n'ayant aucune photo sous eux. Ne pas re-litiger
+ * ce point dans le code ; le rouvrir demande de rouvrir la décision.
  *
  * SÉPARATION STRICTE rattachement / sens d'affichage. Le RATTACHEMENT
  * (`layerParentIds`) raisonne exclusivement en espace MODÈLE : indices du
@@ -71,11 +71,8 @@ import { toDisplayOrder } from "./layerDisplayOrder";
  * Cette invariance n'est pas fortuite : la règle de proximité découpe la pile en
  * TRANCHES contiguës — chaque photo ouvre la sienne et la garde jusqu'à la photo
  * suivante — et le groupe du fond est la tranche qui précède la première photo.
- * Un effet écrêté, lui, ne peut désigner que la photo de sa propre tranche :
- * `clipBaseId` s'arrête au premier calque non écrêté rencontré en descendant, et
- * une photo est terminale (voir src/layers/clipping.ts). Aucun groupe ne peut
- * donc être discontinu, et comparer au voisin immédiat suffit pour en trouver
- * les bornes.
+ * Aucun groupe ne peut donc être discontinu, et comparer au voisin immédiat
+ * suffit pour en trouver les bornes.
  */
 export interface LayerTreeRow {
   layer: LayerState;
@@ -115,15 +112,6 @@ function resolveParentId(layers: LayerState[], index: number): string | null {
   // Une photo n'est jamais imbriquée : elle est le contenu, pas un traitement.
   // Elle n'est pas non plus rattachée au fond — elle OUVRE son propre groupe.
   if (layer.imageSource !== undefined) return null;
-
-  if (layer.clipToBelow) {
-    const baseId = clipBaseId(layers, layer.id);
-    const base = baseId === null ? undefined : layers.find((l) => l.id === baseId);
-    // Base photo trouvée = l'écrêtage est effectif (`active`/`suppressed`), et
-    // il l'emporte sur la proximité. Sinon `inert` : on ne retourne pas ici, on
-    // retombe sur la proximité ci-dessous.
-    if (base?.imageSource !== undefined) return base.id;
-  }
 
   // PROXIMITÉ : la première photo rencontrée en descendant, c'est-à-dire celle
   // d'indice le plus élevé strictement inférieur à `index`.

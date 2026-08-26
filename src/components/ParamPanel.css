@@ -119,14 +119,6 @@
   font-weight: var(--font-weight-regular);
 }
 
-.param-panel__clip-row {
-  /* En-tête du panneau Réglages : l'écrêtage est un attribut du calque, pas un
-     paramètre de son effet — il se lit AVANT le Disclosure « Effet », séparé de
-     lui par le gap --space-4 du conteneur. */
-  display: flex;
-  align-items: center;
-}
-
 .param-panel__mask-toggles {
   display: flex;
   flex-direction: column;

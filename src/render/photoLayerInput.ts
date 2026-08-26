@@ -123,10 +123,10 @@ export class PhotoLayerInputResolver {
    *  alors les pixels du dernier. L'ordre est assuré en Node par
    *  `test/render/framePipelineExecutor.test.ts`, pas seulement par ce
    *  commentaire — trois tests, à ne pas chercher sous un nom unique :
-   *  « calls the port once per photo layer… » (qui assère surtout que les deux
-   *  calques partagent LE MÊME encoder), « feeds every photo layer a view of
-   *  the SAME shared target texture », et « (e) l'ordre resolve(A) → passes(A)
-   *  → passes(écrêtés de A) → resolve(B) est préservé ». */
+   *  « encodes resolve(A) → passes(A) → resolve(B) → passes(B), never hoisting
+   *  the resolves », « calls the port once per photo layer… » (qui assère
+   *  surtout que les deux calques partagent LE MÊME encoder), et « feeds every
+   *  photo layer a view of the SAME shared target texture ». */
   private cachedTarget: GPUTexture | null = null;
   private cachedWidth = 0;
   private cachedHeight = 0;

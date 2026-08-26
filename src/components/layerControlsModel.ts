@@ -41,8 +41,8 @@ export interface LayerControlsModel {
   blendMode: string | null;
   effectId: string | null;
   /** Le SÉLECTEUR D'EFFET est-il proposé ? `false` sur un calque PHOTO, et là
-   *  seulement (décision produit du 2026-07-31 : un effet ne se pose jamais sur
-   *  un calque photo, c'est un calque à part écrêté à la photo).
+   *  seulement (décision produit du 2026-07-31, ADR-0008 : un effet ne se pose
+   *  jamais sur un calque photo, c'est un calque à part posé au-dessus d'elle).
    *
    *  Distinct d'`enabled`, qui dit « inerte » : ici le contrôle n'est pas
    *  affiché du tout. `LayerStack.setLayerEffect` porte déjà le refus côté

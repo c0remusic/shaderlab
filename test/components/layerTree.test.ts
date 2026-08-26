@@ -53,10 +53,6 @@ describe("layerParentIds — espace modèle, indépendant du sens d'affichage", 
     const layers = [effect("A"), photo("P")];
     expect(layerParentIds(layers)).toEqual([null, null]);
   });
-
-  it("un écrêté nomme sa base photo quel que soit le nombre de photos plus bas", () => {
-    expect(layerParentIds([photo("P"), photo("Q"), effect("A", { clipToBelow: true })])).toEqual([null, null, "Q"]);
-  });
 });
 
 /**
@@ -110,7 +106,9 @@ describe("layerParentIds — le fond, désormais calque photo ordinaire", () => 
 /**
  * LE DOCUMENT D'ANTOINE, tel qu'observé sur la vraie fenêtre le 2026-07-29 :
  * fond `DSCF5160.JPG` + Glow + Grain + photo importée `DSCF5160-edited.JPG` +
- * Chromatic bleed écrêté. Une seule ligne sur quatre était indentée.
+ * Chromatic bleed. Une seule ligne sur quatre était indentée. (Ce dernier était
+ * ÉCRÊTÉ à l'époque ; il tient sa place par PROXIMITÉ depuis qu'ADR-0020 a
+ * retiré l'écrêtage, et le rattachement mesuré ci-dessous est le même.)
  *
  * MISE À JOUR T1 : le fond est maintenant une LIGNE de la pile, en tête. Le
  * rattachement des quatre autres lignes est inchangé — c'est ce que ce bloc
@@ -122,7 +120,7 @@ describe("toLayerTreeRows — le document constaté à l'écran", () => {
     effect("glow"),
     effect("grain"),
     photo("edited"),
-    effect("bleed", { clipToBelow: true }),
+    effect("bleed"),
   ];
 
   it("rattache les quatre effets : deux au fond, une à la photo importée", () => {
@@ -147,7 +145,7 @@ describe("toLayerTreeRows — ordre d'affichage", () => {
     // Invariant porteur du glisser-déposer : `data-layer-row-index` reste
     // l'index dans `toDisplayOrder(layers)`, donc `displayInsertToModelInsert`
     // reste valide avec des lignes imbriquées.
-    const layers = [photo("P"), effect("A", { clipToBelow: true }), effect("B"), photo("Q"), effect("C")];
+    const layers = [photo("P"), effect("A"), effect("B"), photo("Q"), effect("C")];
     expect(toLayerTreeRows(layers).map((r) => r.layer.id)).toEqual(toDisplayOrder(layers).map((l) => l.id));
   });
 
@@ -167,17 +165,11 @@ describe("toLayerTreeRows — 0 photo", () => {
     expect(shape([effect("A"), effect("B"), effect("C")])).toEqual(["A", "B", "C"]);
     expect(parents([effect("A"), effect("B"), effect("C")])).toEqual([null, null, null]);
   });
-
-  it("un effet ÉCRÊTÉ sans aucune photo reste à plat (écrêtage inerte)", () => {
-    // `resolveClipping` rend ce cas `inert` : le calque rend LINÉAIREMENT.
-    // L'imbriquer désignerait une base qui n'existe pas.
-    expect(shape([effect("A", { clipToBelow: true }), effect("B")])).toEqual(["A", "B"]);
-  });
 });
 
 describe("toLayerTreeRows — une seule photo", () => {
-  it("imbrique tous les effets appliqués après elle, écrêtés ou non", () => {
-    const layers = [photo("P"), effect("A"), effect("B", { clipToBelow: true }), effect("C")];
+  it("imbrique tous les effets appliqués après elle", () => {
+    const layers = [photo("P"), effect("A"), effect("B"), effect("C")];
     expect(shape(layers)).toEqual(["P", "  A", "  B", "  C"]);
     expect(parents(layers)).toEqual([null, "P", "P", "P"]);
   });
@@ -213,7 +205,7 @@ describe("toLayerTreeRows — une seule photo", () => {
 });
 
 describe("toLayerTreeRows — deux photos", () => {
-  it("un effet NON écrêté au-dessus de DEUX photos rejoint la PLUS PROCHE", () => {
+  it("un effet au-dessus de DEUX photos rejoint la PLUS PROCHE", () => {
     // Ancienne règle (abandonnée le 2026-07-29) : il restait à plat, parce
     // qu'il s'applique en réalité au composite entier. Voir l'en-tête de
     // src/components/layerTree.ts — la lisibilité du groupe l'emporte
@@ -229,24 +221,17 @@ describe("toLayerTreeRows — deux photos", () => {
     expect(parents(layers)).toEqual([null, "P", null, "Q"]);
   });
 
-  it("un effet ÉCRÊTÉ s'imbrique même quand DEUX photos sont sous lui", () => {
-    // C'est la différence de fond entre les deux règles : l'écrêtage nomme sa
-    // base, le non-écrêté ne fait que la déduire quand elle est unique.
-    const layers = [photo("P"), photo("Q"), effect("A", { clipToBelow: true })];
-    expect(shape(layers)).toEqual(["P", "Q", "  A"]);
-    expect(parents(layers)).toEqual([null, null, "Q"]);
-  });
-
-  it("effet écrêté sous la photo du HAUT alors qu'une autre photo existe plus bas", () => {
-    // Pile : P (bas) · B (libre, 1 photo dessous → enfant de P) · Q · A (écrêté
-    // → enfant de Q). Deux groupes distincts, aucun effet à plat.
-    const layers = [photo("P"), effect("B"), photo("Q"), effect("A", { clipToBelow: true })];
+  it("deux photos, un effet chacune : deux groupes distincts, aucun effet à plat", () => {
+    // Pile : P (bas) · B (enfant de P) · Q · A (enfant de Q). Ce cas portait un
+    // A ÉCRÊTÉ sur Q jusqu'au 2026-08-21 (ADR-0020) ; la proximité le range
+    // exactement au même endroit, et c'est ce que ce test garde.
+    const layers = [photo("P"), effect("B"), photo("Q"), effect("A")];
     expect(shape(layers)).toEqual(["P", "  B", "Q", "  A"]);
     expect(parents(layers)).toEqual([null, "P", null, "Q"]);
   });
 
   it("les bornes du filet sont calculées par GROUPE, pas globalement", () => {
-    const layers = [photo("P"), effect("B"), photo("Q"), effect("A", { clipToBelow: true })];
+    const layers = [photo("P"), effect("B"), photo("Q"), effect("A")];
     const rows = toLayerTreeRows(layers, null);
     expect(rows.map((r) => [r.layer.id, r.firstChild, r.lastChild])).toEqual([
       ["P", false, false],
@@ -254,35 +239,6 @@ describe("toLayerTreeRows — deux photos", () => {
       ["Q", false, false],
       ["A", true, true],
     ]);
-  });
-});
-
-describe("toLayerTreeRows — chaînes d'écrêtage", () => {
-  it("une chaîne d'effets écrêtés consécutifs pointe toute entière vers la même photo", () => {
-    // `clipBaseId` traverse les écrêtés consécutifs jusqu'à la photo.
-    const layers = [photo("P"), effect("A", { clipToBelow: true }), effect("B", { clipToBelow: true })];
-    expect(parents(layers)).toEqual([null, "P", "P"]);
-  });
-
-  it("un écrêté dont la base résolue n'est PAS une photo retombe sur la règle du non-écrêté", () => {
-    // Base résolue = A (non écrêté, non photo) → `resolveClipping` dit `inert`.
-    // Il reste néanmoins UNE seule photo sous B, donc B s'imbrique sous elle.
-    const layers = [photo("P"), effect("A"), effect("B", { clipToBelow: true })];
-    expect(parents(layers)).toEqual([null, "P", "P"]);
-  });
-
-  it("un écrêté INERTE retombe sur la règle de proximité, y compris avec deux photos", () => {
-    const layers = [photo("P"), photo("Q"), effect("A"), effect("B", { clipToBelow: true })];
-    // Base résolue de B = A (non photo) → `resolveClipping` dit `inert` → on
-    // retombe sur la proximité, qui désigne Q. Une ligne ne désigne jamais une
-    // base d'écrêtage inexistante ; elle rejoint son groupe comme un effet
-    // ordinaire.
-    expect(parents(layers)).toEqual([null, null, "Q", "Q"]);
-  });
-
-  it("un calque PHOTO portant clipToBelow reste racine (l'attribut y est interdit par LayerStack)", () => {
-    const layers = [photo("P"), photo("Q", { clipToBelow: true })];
-    expect(shape(layers)).toEqual(["P", "Q"]);
   });
 });
 

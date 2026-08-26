@@ -123,7 +123,7 @@ export const ListCardHasCompressionFloor: Story = {
 // sans qu'aucune ligne ne se cache.
 //
 // Cinq lignes : arrière-plan · Glow · Grain · une photo importée · un effet
-// écrêté sur elle. C'est le plus petit
+// posé sur elle. C'est le plus petit
 // document réel comportant deux photos. Mesuré sur la vraie fenêtre puis
 // reproduit ici au byte près : carte Effets gelée à 456px — exactement son
 // plancher à 4 lignes — et `.docked-panel-card__content` débordant de 60px,
@@ -183,7 +183,7 @@ const twoPhotoDocument: LayerState[] = [
     imageSource: { sourceId: "s1" },
     transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
   }),
-  makeStoryLayer({ id: "bleed", effectId: "lensDistortion", clipToBelow: true }),
+  makeStoryLayer({ id: "bleed", effectId: "lensDistortion" }),
 ];
 
 export const FiveRowDocumentHidesNoRow: Story = {
@@ -247,8 +247,8 @@ export const FiveRowDocumentHidesNoRow: Story = {
 
     // Le document mesuré : 5 lignes. Sous la règle de PROXIMITÉ (2026-07-29),
     // TROIS sont imbriquées — Glow et Grain sous le FOND du document (aucun
-    // calque photo n'est appliqué avant eux), l'écrêté sous la photo importée.
-    // Seuls l'arrière-plan et la photo importée sont racine. C'est exactement
+    // calque photo n'est appliqué avant eux), le dernier effet sous la photo
+    // importée. Seuls l'arrière-plan et la photo importée sont racine. C'est exactement
     // le document sur lequel Antoine a constaté qu'une seule ligne sur quatre
     // était indentée : cette assertion est ce qui l'empêche de revenir.
     await expect(rows).toHaveLength(5);

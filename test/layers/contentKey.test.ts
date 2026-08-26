@@ -52,12 +52,15 @@ describe("layerContentKey", () => {
     );
   });
 
-  it("distingue opacite, fusion, activation et ecretage", () => {
+  // REPORTE : ce test citait aussi l ecretage, retire le 2026-08-21
+  // (ADR-0020). Ce qu il garde n est pas ce champ-la mais une REGLE — tout
+  // attribut scalaire du calque qui change l image change la cle — et elle
+  // reste vraie des trois qui restent.
+  it("distingue opacite, fusion et activation", () => {
     const reference = layerContentKey(calque());
     expect(layerContentKey(calque({ opacity: 0.9 }))).not.toBe(reference);
     expect(layerContentKey(calque({ blendMode: "screen" }))).not.toBe(reference);
     expect(layerContentKey(calque({ enabled: false }))).not.toBe(reference);
-    expect(layerContentKey(calque({ clipToBelow: true }))).not.toBe(reference);
   });
 
   it("distingue la transformation d un calque photo", () => {

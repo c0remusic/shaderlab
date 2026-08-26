@@ -699,7 +699,9 @@ un raster, `imageSource` le couvre déjà. Livré **sans toucher `LayerState`**.
 ⚠️ L'option « effet » n'a PAS été écartée par ADR-0008, contrairement à ce qui a
 d'abord été écrit. ADR-0008 interdit d'écrire un `effectId` **sur** le calque
 qui porte `imageSource` ; appliquer un effet à une photo reste le flux normal,
-par un calque d'effet écrêté au-dessus. Ce qui écarte l'effet est structurel :
+par un calque d'effet posé au-dessus (il était ÉCRÊTÉ sur elle jusqu'au
+2026-08-21 — l'écrêtage est retiré, ADR-0020, et le flux ne change pas). Ce qui
+écarte l'effet est structurel :
 `params` est un `Record<string, number>` (uniform `array<f32, 48>`), donc **un
 effet n'a aucun champ par lequel désigner une image** — le même mur que la
 typographie.

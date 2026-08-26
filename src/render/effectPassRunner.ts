@@ -323,10 +323,10 @@ export class EffectPassRunner {
     layer: LayerState,
     sourceView: GPUTextureView,
     targetView: GPUTextureView,
-    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null; guideEpoch?: number; imageSourceView?: GPUTextureView | null; clipCoverageView?: GPUTextureView | null; libraryTextureView?: GPUTextureView | null } = {},
+    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null; guideEpoch?: number; imageSourceView?: GPUTextureView | null; libraryTextureView?: GPUTextureView | null } = {},
     pendingDestroy: PendingDestroy = []
   ): void {
-    const { applyMask = true, prevPassView = null, guideEpoch = 0, imageSourceView = null, clipCoverageView = null, libraryTextureView = null } = options;
+    const { applyMask = true, prevPassView = null, guideEpoch = 0, imageSourceView = null, libraryTextureView = null } = options;
     const paramValues = new Float32Array(MAX_EFFECT_PARAMS);
     effect.params.forEach((p, idx) => { paramValues[idx] = layer.params[p.name] ?? p.default; });
     const paramBuffer = this.device.createBuffer({ size: paramValues.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -335,11 +335,11 @@ export class EffectPassRunner {
 
     const blendMode = getBlendMode(layer.blendMode ?? "normal");
     const hasImageSource = imageSourceView !== null;
-    const clipToCoverage = clipCoverageView !== null;
-    // Binding 6 partagé (voir shaderCompose) : la vue vient du calque lui-même
-    // (photo) ou de la base photo du DESSOUS (écrêtage). `composeShader` lève
-    // si les deux sont posés — assert inatteignable, pas de repli ici.
-    const coverageView = imageSourceView ?? clipCoverageView;
+    // Binding 6 : la vue vient du calque lui-même, et de nulle part ailleurs.
+    // Elle avait un SECOND fournisseur — la couverture de la base photo du
+    // DESSOUS, pour un calque écrêté ; il est parti avec l'écrêtage (ADR-0020,
+    // 2026-08-21).
+    const coverageView = imageSourceView;
     // ⚠️ Suit la DÉCLARATION de l'effet, JAMAIS la présence d'une vue.
     //
     // Le corps WGSL d'un effet est une chaîne FIXE : s'il échantillonne
@@ -353,7 +353,7 @@ export class EffectPassRunner {
     // `textureDimensions` (voir `EffectModule.libraryTexture`).
     const hasLibraryTexture = effect.libraryTexture !== undefined;
     const libraryView = hasLibraryTexture ? (libraryTextureView ?? this.libraryPlaceholderView()) : null;
-    const shaderCode = composeShader(effect.wgsl, { applyMask, hasPrevPass: prevPassView !== null, hasImageSource, clipToCoverage, hasLibraryTexture, blendWgsl: applyMask ? blendMode.wgsl : undefined });
+    const shaderCode = composeShader(effect.wgsl, { applyMask, hasPrevPass: prevPassView !== null, hasImageSource, hasLibraryTexture, blendWgsl: applyMask ? blendMode.wgsl : undefined });
     let compositingBuffer: GPUBuffer | null = null;
     if (applyMask) {
       const compositing = new Float32Array([layer.opacity ?? 1, 0, 0, 0]);
@@ -392,8 +392,8 @@ export class EffectPassRunner {
     ];
     // IMAGE DE GUIDE du masque (filtre edge-aware) — ce n'est PAS forcément
     // `sourceView`. La règle est : le guide est l'image que CE calque dessine.
-    //  - calque ordinaire (effet, écrêté compris) : il travaille le composite
-    //    en dessous, donc `sourceView` — inchangé ;
+    //  - calque ordinaire (effet) : il travaille le composite en dessous, donc
+    //    `sourceView` — inchangé ;
     //  - calque photo : il dessine SA photo, résolue par la pré-passe
     //    (`imageSourceView`). Le composite en dessous ne serait pas seulement
     //    approximatif, il serait faux : ce sont exactement les pixels que la

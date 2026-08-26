@@ -168,12 +168,13 @@ export const BackgroundIsAnOrdinaryLayer: Story = {
   },
 };
 
-// Écrêtage : la ligne écrêtée porte une flèche vers son calque de base — celui
-// appliqué AVANT elle, donc, en sens causal (ADR-0004), la ligne JUSTE
-// AU-DESSUS dans cette liste. Elle n'est PLUS indentée
-// (observation Photoshop web §5ter) : elle est ici SÉLECTIONNÉE pour vérifier
-// que le marquage couvre la ligne entière, alignée sur ses voisines.
-const clippedLayers: LayerState[] = [
+// Une ligne d'effet SÉLECTIONNÉE sous sa photo : le marquage de sélection doit
+// couvrir la ligne entière, alignée sur ses voisines. ⚠️ Ces deux stories
+// portaient l'ÉCRÊTAGE (une flèche coudée vers la base, et son absence quand
+// aucune base n'existait) ; il est retiré (ADR-0020, 2026-08-21). Ce qui reste
+// est ce qu'elles gardaient d'indépendant de lui — une ligne non indentée,
+// sélectionnée, dans un groupe.
+const selectedInGroup: LayerState[] = [
   makeLayer({
     id: "layer-1",
     effectId: "passthrough",
@@ -181,33 +182,15 @@ const clippedLayers: LayerState[] = [
     transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
     name: "plage.jpg",
   }),
-  makeLayer({ id: "layer-2", effectId: "glow", clipToBelow: true }),
+  makeLayer({ id: "layer-2", effectId: "glow" }),
   makeLayer({ id: "layer-3", effectId: "grain" }),
 ];
 
-export const ClippedLayerSelected: Story = {
-  args: { layers: clippedLayers, selectedId: "layer-2" },
+export const EffectRowSelectedUnderItsPhoto: Story = {
+  args: { layers: selectedInGroup, selectedId: "layer-2" },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("img", { name: "Écrêté sur le calque du dessus" })).toBeTruthy();
-  },
-};
-
-// Écrêtage SANS BASE : `clipToBelow` est posé sur `layers[0]`, le bas de pile —
-// il n'y a rien en dessous. `resolveClipping` rend ce cas `inert` (le calque
-// rend linéairement) et la flèche ne doit PAS apparaître : elle désignerait une
-// base inexistante. La ligne reste écrêtable/décochable, seul l'affichage suit
-// l'état résolu.
-const clippedWithoutBase: LayerState[] = [
-  makeLayer({ id: "layer-1", effectId: "glow", clipToBelow: true }),
-  makeLayer({ id: "layer-2", effectId: "grain" }),
-];
-
-export const ClippedWithoutBaseShowsNoArrow: Story = {
-  args: { layers: clippedWithoutBase, selectedId: "layer-1" },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.queryByRole("img", { name: "Écrêté sur le calque du dessus" })).not.toBeInTheDocument();
+    await expect(canvas.getByText("Glow")).toBeTruthy();
   },
 };
 
@@ -418,21 +401,24 @@ export const NoPerRowActions: Story = {
 // avant son nom, une photo 5, un effet écrêté 5 — et le nom ne tombait jamais à
 // la même abscisse d'une ligne à l'autre. Aucun test ne le voyait : les stories
 // existantes vérifient des PRÉSENCES (texte, rôle, classe), jamais une position.
+// (La flèche d'écrêtage est partie le 2026-08-21, ADR-0020 ; l'invariant de
+// grille, lui, reste — il ne dépendait pas d'elle, et cette story continue de
+// le mesurer sur les mêmes cinq lignes.)
 //
-// Les TROIS formes de ligne qui restent depuis la tranche T1 — la quatrième,
-// la ligne d'arrière-plan DÉRIVÉE, a disparu : le fond est une ligne photo
+// Les FORMES de ligne qui restent depuis la tranche T1 — la ligne
+// d'arrière-plan DÉRIVÉE a disparu : le fond est une ligne photo
 // ordinaire, et c'est ce qui rend son alignement gratuit au lieu d'être une
 // grille à tenir d'accord avec une autre.
 //   1. photo de FOND  (`imageSource` -> vignette, comme toute photo)
 //   2. photo importée (`imageSource` -> vignette)
-//   3. photo importée (une seconde, pour que l'effet simple reste à plat)
-//   4. effet ÉCRÊTÉ   (flèche coudée ; imbriqué sous sa base, cf. layerTree.ts)
-//   5. effet simple   (rattaché par proximité à la photo qui le précède)
+//   3. photo importée (une seconde, pour garder DEUX groupes distincts)
+//   4. effet          (rattaché par proximité, donc imbriqué)
+//   5. effet          (même groupe que le précédent)
 const allRowForms: LayerState[] = [
   backgroundLayer(),
   makeLayer({ id: "photo-P", effectId: "passthrough", name: "plage.jpg", imageSource: { sourceId: "s-P" }, transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 } }),
   makeLayer({ id: "photo-Q", effectId: "passthrough", name: "ciel.jpg", imageSource: { sourceId: "s-Q" }, transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 } }),
-  makeLayer({ id: "effet-clip", effectId: "glow", clipToBelow: true }),
+  makeLayer({ id: "effet-glow", effectId: "glow" }),
   makeLayer({ id: "effet-simple", effectId: "grain" }),
 ];
 
@@ -468,9 +454,8 @@ export const AllRowFormsShareOneGrid: Story = {
       "Grain",
     ]);
     // Les formes sont réellement représentées — un témoin qui retirerait la
-    // vignette ou la flèche ferait tomber CE bloc avant les mesures.
+    // vignette ferait tomber CE bloc avant les mesures.
     await expect(canvasElement.querySelectorAll(".layer-panel__thumbnail")).toHaveLength(3); // les 3 calques photo
-    await expect(canvasElement.querySelectorAll(".layer-panel__clip-arrow")).toHaveLength(1);
 
     // ---- L'INVARIANT DE GRILLE ----
     // Le nom démarre au MÊME décalage à l'intérieur de la grille d'identité,

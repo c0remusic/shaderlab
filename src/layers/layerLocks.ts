@@ -75,8 +75,8 @@ export function isPartiallyLocked(layer: Pick<LayerState, "locks">): boolean {
 }
 
 /**
- * Les OPÉRATIONS DE STRUCTURE — changer l'effet, écrêter, réordonner,
- * supprimer — que seul « Tout » refuse.
+ * Les OPÉRATIONS DE STRUCTURE — changer l'effet, réordonner, supprimer — que
+ * seul « Tout » refuse.
  *
  * Alias explicite de `isFullyLocked` plutôt qu'un appel direct : le site de
  * garde dit ainsi POURQUOI il consulte ce verrou-là, et non qu'il a choisi le

@@ -66,12 +66,6 @@ describe("opérations REFUSÉES sur un calque verrouillé", () => {
     expect(stack.layers[0].effectId).toBe("glow");
   });
 
-  it("setLayerClip", () => {
-    const { stack, id } = lockedStack();
-    expect(stack.setLayerClip(id, true)).toBe(false);
-    expect(stack.layers[0].clipToBelow).toBeUndefined();
-  });
-
   it("updateLayerTransform", () => {
     const { stack, id } = lockedPhotoStack();
     expect(stack.updateLayerTransform(id, { x: 50, y: 50, scaleX: 2, scaleY: 2, rotation: 1 })).toBe(false);

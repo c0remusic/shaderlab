@@ -60,3 +60,37 @@ en vert).
   le GPU — rendu direct dans un canvas de vignette, sans retour CPU — devrait
   coûter nettement moins. À vérifier si les 4 ms gênaient un jour ; ils ne gênent
   pas aujourd'hui.
+
+## ⚠️ CORRECTION DU MÊME JOUR — j'ai mesuré le mauvais objet
+
+Le tableau ci-dessus est exact et sa lecture était FAUSSE. J'ai mesuré un
+**petit document** (une image de 200 × 150 ouverte comme document), pas ce que le
+ticket 05 demande : un **aperçu réduit d'un grand document**. Ce ne sont pas le
+même objet, et l'écart entre les deux est le facteur 65 de la troisième ligne.
+
+**Ce que le code dit** : `Renderer.exportFrame` rend à
+`imageResources.width/height`, c'est-à-dire à la taille du DOCUMENT, et le dépôt
+n'a **aucun chemin de rendu à résolution réduite** (décision assumée : « pas de
+distinction preview/export, résolution native, toujours »). Donc aujourd'hui, un
+aperçu de la photo d'Antoine à 26 Mpx coûte **261 ms**, pas 4 ms — et les 26 en
+coûteraient 6,8 s.
+
+**Ce que la mesure prouve quand même, et qui reste utile** : la pile rend en
+~4 ms à 0,03 Mpx, plancher compris, quel que soit l'effet. Donc **si** on ajoute
+un chemin de rendu en taille vignette, l'aperçu au survol est effectivement
+gratuit. La mesure ne dit pas « c'est gratuit », elle dit « c'est gratuit à
+condition d'ajouter cette pièce ».
+
+### Deux conséquences pour le ticket 05
+
+1. **Le vrai travail n'est pas l'UI, c'est un rendu de la pile à taille réduite.**
+   Tant qu'il n'existe pas, l'aperçu au survol n'est pas faisable à ce prix.
+2. **⚠️ FIDÉLITÉ, non mesurée et pas anodine** : plusieurs effets ont des
+   paramètres en PIXELS (rayon de `lensBlur`, taille de grain, pas de trame,
+   épaisseur de trait). Rendus à 1/30 d'échelle, ils ne montrent PAS ce que
+   l'effet fera en pleine définition — un bokeh de 24 px devient sous-pixel. Un
+   aperçu qui ment sur le résultat est pire que pas d'aperçu. À trancher : mettre
+   les paramètres spatiaux à l'échelle de la vignette (l'aperçu devient
+   représentatif mais n'est plus le rendu réel), ou cadrer un DÉTAIL de la photo
+   à l'échelle 1:1 (fidèle, mais ne montre qu'un bout). Photoshop fait le second
+   dans ses galeries de filtres.

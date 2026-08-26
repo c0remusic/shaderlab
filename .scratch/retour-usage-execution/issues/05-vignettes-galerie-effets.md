@@ -9,8 +9,11 @@ ticket 04.
 
 ## Ce que la mesure du ticket 04 a décidé
 
-- **À LA VOLÉE au survol**, pas de pré-calcul : un aperçu coûte **4,0 ms** à
-  taille vignette, et c'est un MAJORANT (mesuré en build de dev).
+- **À LA VOLÉE au survol**, pas de pré-calcul — **à condition** d'avoir un rendu
+  en taille vignette : la pile rend en **4,0 ms** à 0,03 Mpx (majorant, mesuré en
+  dev). ⚠️ Ce chemin N'EXISTE PAS aujourd'hui : `exportFrame` rend à la taille du
+  DOCUMENT, donc un aperçu de la photo réelle coûte **261 ms**, pas 4. Le premier
+  travail de ce ticket est donc le rendu réduit, pas l'UI.
 - **Le coût ne dépend PAS de l'effet** : `glass`, le plus cher du registre, rend
   exactement le même 4,0 ms que la photo nue à cette taille. Inutile de traiter
   les effets chers à part.
@@ -24,6 +27,8 @@ ticket 04.
 **Status:** ready-for-agent
 **Type:** task
 
+- [ ] Un chemin de rendu de la pile à taille VIGNETTE existe (aujourd'hui absent).
+- [ ] La fidélité des paramètres SPATIAUX est tranchée : mise à l'échelle, ou détail 1:1 (façon galerie Photoshop). Un aperçu qui ment sur le résultat est pire que pas d'aperçu.
 - [ ] Survoler un effet dans le sélecteur → une vignette d'aperçu apparaît.
 - [ ] Coût tenu selon le verdict de 04 (aucun gel de l'interface au survol).
 - [ ] Validé à l'œil par Antoine.

@@ -49,7 +49,23 @@ type SpatialAxis = "x" | "y" | "iso";
  *   jusqu'à ce que sa convention soit réconciliée.
  */
 function axeDuRole(role: SpatialFieldRole): SpatialAxis | null {
-  return role === "x" || role === "y" || role === "iso" ? role : null;
+  switch (role) {
+    case "x":
+    case "y":
+    case "iso":
+      return role;
+    // UNE ÉTENDUE SE LIT SUR LE MÊME AXE QUE LA POSITION QUI LA PORTE : la
+    // largeur d'une boîte est une fraction de la LARGEUR du cadre, exactement
+    // comme son centre. Les deux rôles ont été séparés pour la translation
+    // (`ui/effectMove.ts`), qui doit bouger l'un sans toucher l'autre ; ici la
+    // distinction n'existe pas, et ces deux lignes sont ce qui l'annule.
+    case "extentX":
+      return "x";
+    case "extentY":
+      return "y";
+    default:
+      return null;
+  }
 }
 
 /**

@@ -1,0 +1,36 @@
+/* SURFACE DE DÉPLACEMENT D'UN EFFET POSÉ (ticket 20).
+
+   Boîte pilotée en pixels par `EffectMoveSurface.mesurer` (pas d'`inset: 0`
+   ici), pour la même raison que `.transform-handles` : elle doit épouser le
+   rectangle AFFICHÉ du canvas, plus petit que son conteneur (lettreboxage) et
+   décalé par la compensation du dock. Une taille posée en CSS remettrait le
+   repère du conteneur.
+
+   Elle n'a AUCUN décor : ce qu'on déplace, c'est l'effet, et il se voit déjà.
+   Un liseré de plus autour de la toile ne dirait rien qu'on ne sache — la
+   palette annonce déjà l'outil, et les poignées de l'effet sont là. */
+.effect-move-surface {
+  position: absolute;
+  /* SOUS les poignées : l'ordre du DOM le dit déjà (elle est montée avant
+     `CanvasControls`), et le même `z-index` que les autres overlays garde les
+     deux couches ensemble par rapport au reste de la zone visible. */
+  z-index: var(--z-canvas-overlay);
+  pointer-events: auto;
+  cursor: move;
+}
+
+/* LA SURFACE REND LA MAIN PENDANT UN DÉPLACEMENT DE LA VUE (Espace maintenu).
+
+   Même règle et même raison que `.canvas-handle` et `.transform-handles__box`,
+   en plus critique : celle-ci couvre TOUTE la toile, donc sans elle Espace +
+   glisser n'aurait plus un seul pixel d'image où s'exercer dès qu'un effet à
+   ancrage est sélectionné. La classe vient de `Canvas.tsx`, qui détient l'état
+   du geste ; la lire en CSS évite de le faire remonter jusqu'à `App` pour le
+   redescendre en prop.
+
+   Le curseur `move` s'efface avec la prise, donc le `grab` de la vue se lit sur
+   toute la surface — même effet de bord voulu que sur les pastilles. */
+.pasteboard__view--pan .effect-move-surface {
+  pointer-events: none;
+  cursor: inherit;
+}

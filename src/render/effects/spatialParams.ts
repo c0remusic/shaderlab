@@ -5,8 +5,16 @@ import type { CanvasControl, EffectModule } from "./types";
  * champ porte le nom. C'est la seule chose qui distingue les champs d'un genre
  * les uns des autres, et elle ne se devine pas au nom du paramètre.
  *
- * - `x` / `y` — position ou étendue sur un axe du cadre : fraction de sa
- *   LARGEUR (`x`), de sa HAUTEUR (`y`).
+ * - `x` / `y` — POSITION sur un axe du cadre : fraction de sa LARGEUR (`x`), de
+ *   sa HAUTEUR (`y`).
+ * - `extentX` / `extentY` — ÉTENDUE sur le même axe, dans la même unité, mais
+ *   ce n'est pas la même chose et les confondre a un coût précis. Ces deux rôles
+ *   ont vécu sous `x`/`y` jusqu'au 2026-08-26, où le premier consommateur qui
+ *   devait les distinguer est arrivé : `ui/effectMove.ts` TRANSLATE un effet, et
+ *   une translation déplace un centre sans toucher à une largeur. Sous l'ancien
+ *   vocabulaire, tirer sur un `aplat` l'aurait AGRANDI au lieu de le déplacer.
+ *   Ce qui les rapproche — l'axe du cadre dont ils tirent leur facteur pixel —
+ *   reste dérivable (`spatialPixels.axeDuRole`), donc rien n'est perdu.
  * - `iso`     — rayon d'un disque, mesuré en espace ISOTROPE. Un disque reste un
  *   disque quel que soit le rapport d'aspect, ce qu'un facteur par axe casserait.
  * - `degrees` — un angle (`box.rotation`, `axis.angle`), déjà dans une unité qui
@@ -15,7 +23,7 @@ import type { CanvasControl, EffectModule } from "./types";
  *   propre à l'effet qui la déclare — voir `spatialPixels.ts`, qui l'exclut de
  *   la lecture en pixels pour cette raison.
  */
-export type SpatialFieldRole = "x" | "y" | "iso" | "degrees" | "length";
+export type SpatialFieldRole = "x" | "y" | "extentX" | "extentY" | "iso" | "degrees" | "length";
 
 /**
  * LA TABLE — les champs de chaque genre de `CanvasControl`, chacun avec son
@@ -24,9 +32,9 @@ export type SpatialFieldRole = "x" | "y" | "iso" | "degrees" | "length";
  * ⚠️ **C'est la SEULE énumération des champs par genre, et c'est délibéré.** Tout
  * ce qui a besoin de savoir quels paramètres un contrôle de toile cite — et à
  * quel titre — en dérive : `spatialParamNames` ci-dessous, les facteurs pixel de
- * `spatialPixels.ts`, le regroupement atomique de `ParamPanel`. Recopier la
- * liste garantissait qu'un cinquième genre en oublierait un champ quelque part,
- * silencieusement.
+ * `spatialPixels.ts`, le regroupement atomique de `ParamPanel`, la translation
+ * de `ui/effectMove.ts`. Recopier la liste garantissait qu'un cinquième genre en
+ * oublierait un champ quelque part, silencieusement.
  *
  * DÉCLARATIF, jamais deviné au nom : la tentation de repérer `centreX`/`regionX`
  * par motif est la même que celle qu'`EffectModule.canvasControls` documente
@@ -40,7 +48,7 @@ export function controlFieldRoles(control: CanvasControl): Array<[name: string, 
     case "disk":
       return [[control.x, "x"], [control.y, "y"], [control.radius, "iso"]];
     case "box":
-      return [[control.x, "x"], [control.y, "y"], [control.width, "x"], [control.height, "y"], [control.rotation, "degrees"]];
+      return [[control.x, "x"], [control.y, "y"], [control.width, "extentX"], [control.height, "extentY"], [control.rotation, "degrees"]];
     case "axis":
       return [[control.angle, "degrees"], [control.length, "length"]];
   }

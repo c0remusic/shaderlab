@@ -27,10 +27,20 @@ pas de `transform`). Le vrai manque est ce branchement.
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] Déplacer un calque d'effet à ancrage le déplace réellement, à la souris.
-- [ ] Un effet SANS ancrage reste non déplaçable (pas de faux affordance).
-- [ ] Le geste écrit dans les paramètres spatiaux ; aucun `transform` n'apparaît sur un calque d'effet.
-- [ ] Une entrée d'historique par geste (même contrat que le déplacement de photo).
+- [x] Déplacer un calque d'effet à ancrage le déplace réellement, à la souris.
+      (`src/ui/effectMove.ts` + `EffectMoveSurface`, montée derrière les poignées.)
+- [x] Un effet SANS ancrage reste non déplaçable (pas de faux affordance) —
+      `effetDeplacable` dérivé du patch, surface non montée ; couvert aussi :
+      `motionBlur` en Directionnel (axe seul) et `aplat` borné par le masque
+      (`visibleWhen` non rempli).
+- [x] Le geste écrit dans les paramètres spatiaux ; aucun `transform` n'apparaît
+      sur un calque d'effet. La translation ne touche que les rôles `x`/`y` —
+      les rôles `extentX`/`extentY` ont été séparés de `x`/`y` dans
+      `controlFieldRoles` pour que tirer un `aplat` le déplace au lieu de
+      l'agrandir.
+- [x] Une entrée d'historique par geste (chemin vivant existant
+      `handleParamChange`/`handleParamCommit` ; un clic sous 3 px d'écran reste
+      la désignation habituelle et n'écrit rien).
 - [ ] Validé à l'œil par Antoine.

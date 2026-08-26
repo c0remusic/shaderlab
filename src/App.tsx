@@ -27,6 +27,7 @@ import { Canvas } from "./components/Canvas";
 import { Toolbar } from "./components/Toolbar";
 import { TransformHandles } from "./components/TransformHandles";
 import { CanvasControls } from "./components/CanvasControls";
+import { EffectMoveSurface } from "./components/EffectMoveSurface";
 import { ToolPalette } from "./components/ToolPalette";
 import "./components/ToolPalette.css";
 import { DEFAULT_TOOL, activeTool as activeToolOf, escapeAction, isQuitToolEvent, isToolShortcutEvent, selectTool, toolFromShortcut, type ToolId } from "./ui/tools";
@@ -60,6 +61,7 @@ import { useGlobalControlWheel } from "./ui/activeControl";
 import { openDocument } from "./layers/openedDocument";
 import { isMaskLocked, isPositionLocked, isTransparencyLocked } from "./layers/layerLocks";
 import { effectSpatialParams } from "./render/effects/spatialParams";
+import { effetDeplacable } from "./ui/effectMove";
 import type { LayerLocks } from "./layers/types";
 import { hitTestPhotoLayer } from "./ui/hitTest";
 import { showsEffectControls } from "./ui/canvasMode";
@@ -2198,6 +2200,28 @@ export default function App() {
             Les deux overlays peuvent coexister — un calque photo sélectionné
             n'a pas de région, un calque d'effet n'a pas de transform, donc les
             conditions sont en pratique exclusives sans avoir à l'écrire. */}
+        {/* SURFACE DE DÉPLACEMENT DE L'EFFET (ticket 20). AVANT `CanvasControls`
+            dans le JSX, donc DERRIÈRE ses poignées : elles gardent la prise sur
+            les champs précis (rayon, angle, côtés) que la translation ne touche
+            pas.
+
+            `showTransformHandles` et non `showEffectControls` : en outil FORME,
+            un glissement sur la toile TRACE une forme, il n'en déplace pas une.
+            `effetDeplacable` est le critère `canvasControls` du ticket, lu par
+            le module pur — un effet sans ancrage ne monte pas de surface, donc
+            n'annonce aucune prise. */}
+        {showTransformHandles && selectedLayer && selectedEffect && !selectedLayer.imageSource && !isPositionLocked(selectedLayer)
+          && effetDeplacable(canvasControls, selectedEffect.params, selectedLayer.params) && (
+          <EffectMoveSurface
+            controls={canvasControls}
+            params={selectedEffect.params}
+            values={selectedLayer.params}
+            canvasRef={canvasRef}
+            onChange={(patch) => handleParamChange(selectedLayer.id, patch)}
+            onCommit={handleParamCommit}
+            onPick={handleCanvasPick}
+          />
+        )}
         {/* `showEffectControls` et non `showTransformHandles` : les contrôles
             d'un effet survivent à l'outil FORME, pour qu'on puisse ajuster ce
             qu'on vient de tracer sans quitter l'outil qui l'a créé. Voir

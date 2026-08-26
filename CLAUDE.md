@@ -345,10 +345,19 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `outlines` 8,7 par section ; `liste` = **61 des 85** gabarits au 2026-08-19,
   d'où le défilement — et ce chiffre-là aussi était faux avant d'être relancé,
   il disait 63 des 83 quand l'arbre en portait 60 des 84), et
-  **5 effets sur 27 seulement** portent un outil sur la toile,
+  **5 effets sur 26 seulement** portent un outil sur la toile
+  (`aplat`, `lensFlare`, `lightLeak`, `motionBlur`, `pixelStretch`),
   en trois genres (`disk` ×2, `point` ×3, `axis` ×2) — `aplat` s'y est ajouté le
   2026-08-17 avec un `point` sur le centre de sa forme. Se tranche dans
   `.scratch/prochain-palier/issues/14-la-fusion-des-reglages-redondants.md`.
+  ⚠️ **`EffectModule.canvasControls` EST le critère qui sépare un outil de
+  RETOUCHE d'un effet CRÉATIF PLACÉ** (arbitrage d'Antoine, 2026-08-21 : « on
+  veut pouvoir déplacer les calques qui sont des effets créatifs et pas des
+  outils de retouche photo »). Un effet sans ancrage s'applique partout et n'a
+  pas à se déplacer — comme un calque de réglage chez Photoshop. Le critère est
+  DÉCLARATIF, jamais le nom ni la catégorie : `spatialParams.ts` dit pourquoi.
+  ⚠️ Et l'outil Déplacer les ignore encore tous — `usePhotoLayer.ts` sort sur
+  `!layer?.imageSource`, deux fois (tickets 20 et 21 du backlog d'exécution).
   ⚠️ **Troisième clôture prématurée du même chantier** — `INDEX.json` note qu'il
   avait déjà été rouvert une fois pour cette raison exacte. Trois champs,
   un seul type de condition partagé — `DisplayCondition` : `EffectParam.appliesWhen`
@@ -668,7 +677,12 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   (`etat`, `sliders`, `add-effect`, `choisir`, `poser` montent la scène).
   L'app se lance alors en RELEASE avec la photo en ARGUMENT — le pont de debug
   n'existe pas en production, donc `openByPath` non plus, et c'est
-  `get_launch_path` qui ouvre le fichier. La sonde **refuse de mesurer** si le
+  `get_launch_path` qui ouvre le fichier.
+  ⚠️ **Un agent ne peut PAS lancer cette mesure lui-même** : le sandbox de
+  session refuse l'accès à `src-tauri/target/`, donc le binaire release ne se
+  lance pas d'ici (le `cargo build --release`, lui, passe). Préparer le run —
+  build + photo synthétique 26 Mpx — et le passer à Antoine.
+  La sonde **refuse de mesurer** si le
   pont de debug est présent : un chiffre de dev serait relu comme un chiffre de
   prod six mois plus tard. Elle compte les images RÉELLEMENT présentées
   (`GPUCanvasContext.getCurrentTexture`) — pas les tics de `requestAnimationFrame`,

@@ -530,46 +530,25 @@ const LayerRow = memo(function LayerRow({
 });
 
 /**
- * Zone de contrôles FIXE de la carte Calques : opacité, fusion et effet du calque
- * SÉLECTIONNÉ. Monté dans le slot `header` de `DockedPanelCard` (donc hors du
- * conteneur défilant), il reste visible quelle que soit la position dans la
- * liste — modèle observé sur Photoshop web (voir
- * `docs/design-system/photoshop-web-observations-2026-07-27.md` §2 et §5bis).
+ * SÉLECTEUR D'EFFET du calque sélectionné — « ce que FAIT ce calque ».
  *
- * Le sélecteur d'effet N'EST PAS proposé sur un calque PHOTO (décision produit
- * du 2026-07-31) : un effet ne se pose jamais sur une photo, c'est un calque à
+ * ⚠️ IL A QUITTÉ LA ZONE DE CONTRÔLES le 2026-08-21 (arbitrage d'Antoine devant
+ * le wireframe du ticket 07) et vit désormais en TÊTE des Propriétés. Le
+ * rangement suit le NIVEAU du contrôle : l'effet et ses réglages décrivent
+ * l'EFFET, donc ils vont ensemble ; fusion, opacité et verrous décrivent le
+ * CALQUE, donc ils restent avec la pile (`LayerControls` ci-dessous). C'est le
+ * découpage de Photoshop entre son panneau *Properties* et son panneau Calques.
+ *
+ * Le sélecteur N'EST PAS proposé sur un calque PHOTO (décision produit du
+ * 2026-07-31) : un effet ne se pose jamais sur une photo, c'est un calque à
  * part, écrêté à elle. `LayerStack.setLayerEffect` porte le refus côté modèle ;
  * cette garde-ci retire l'affordance, sans quoi le contrôle resterait à l'écran
  * en ne faisant plus rien.
  */
-export function LayerControls({
-  layers,
-  selectedId,
-  onOpacityChange,
-  onOpacityCommit,
-  onBlendModeChange,
-  onBlendModePreview,
-  onBlendModePreviewEnd,
-  onEffectChange,
-  onToggleLock,
-  onDuplicate,
-  onRemove,
-}: LayerControlsProps) {
-  // Aucune sélection : la zone de contrôles reste MONTÉ mais désactivé. Le faire
-  // disparaître ferait sauter la liste de toute sa hauteur à chaque
-  // désélection (et rendrait le panneau instable au clic).
+export function EffectSelector({ layers, selectedId, onEffectChange }: Pick<LayerControlsProps, "layers" | "selectedId" | "onEffectChange">) {
   const model = layerControlsModel(layers, selectedId);
   return (
-    // `title` sur un calque VERROUILLÉ : la zone est inerte et il faut dire
-    // pourquoi, sans ajouter de ligne de texte — la hauteur de cette zone est
-    // sous budget (ADR-0001 : elle existe pour rendre de la hauteur à la liste,
-    // pas pour la lui prendre). Le porteur PRINCIPAL de l'information reste le
-    // cadenas fermé, visible sur la ligne elle-même.
-    <div className="layer-controls" title={model.locked ? "Calque verrouillé" : undefined}>
-      {/* Ligne 1 — EFFET seul, étiquette à gauche. Il ne rejoint pas la ligne
-          suivante : c'est le contrôle aux libellés les plus longs
-          (« Aberration chromatique »), et le partager à trois le réduirait à
-          une poignée de caractères dans une colonne de 240 à 400 px. */}
+    <div className="layer-controls layer-controls--effect">
       <div className="layer-controls__row">
         {model.effectSelectable ? (
           <Select
@@ -582,16 +561,10 @@ export function LayerControls({
             onChange={(v) => model.layerId !== null && onEffectChange(model.layerId, v)}
           />
         ) : (
-          /* CALQUE PHOTO — pas de sélecteur, une PHRASE à sa place. Deux
-             raisons de ne pas laisser le trou : le groupe d'actions est en
-             `flex: 0 0 auto`, donc sans occupant à sa gauche les trois icônes
-             sauteraient d'un bord à l'autre de la ligne au changement de
-             sélection ; et un contrôle qui disparaît sans rien dire se lit
-             comme un bug, pas comme une règle. Le texte porte la règle, le
-             `title` porte le geste de remplacement.
-             Aucune hauteur ajoutée : même ligne, même rangée (ADR-0001 — la
-             zone de contrôles rend de la hauteur à la liste, ne lui en prend
-             pas), et aucun contrôle répété par ligne n'est réintroduit. */
+          /* CALQUE PHOTO — pas de sélecteur, une PHRASE à sa place. Un contrôle
+             qui disparaît sans rien dire se lit comme un bug, pas comme une
+             règle : le texte porte la règle, le `title` porte le geste de
+             remplacement. */
           <p
             className="layer-controls__effect-na"
             title="Un effet ne se pose pas sur un calque photo. Ajoutez un calque d'effet au-dessus, puis écrêtez-le à la photo."
@@ -599,35 +572,83 @@ export function LayerControls({
             Aucun effet sur un calque photo
           </p>
         )}
-        {/* ACTIONS du calque sélectionné (2026-07-29). Elles vivaient sur
-            CHAQUE ligne de la liste ; l'ADR-0001 veut un contrôle unique
-            agissant sur la sélection, et c'est ce qui rend au NOM la largeur
-            qu'elles lui prenaient (52 px mesurés au dock par défaut).
+      </div>
+    </div>
+  );
+}
 
-            POSÉES SUR CETTE LIGNE, pas sur une troisième (mesuré, pas supposé) :
-            une ligne de plus dans la zone de contrôles ajoutait 36 px au pied,
-            et la carte Effets débordait alors de 2 px sur le document minimal à
-            deux photos — soit une ligne de liste redevenue hors champ, très
-            exactement la récidive que garde
-            `PanelColumn.stories.tsx > FiveRowDocumentHidesNoRow`. L'ADR-0001
-            prévient que la zone de contrôles existe pour RENDRE de la hauteur à
-            la liste, pas pour la lui prendre : ces trois icônes se logent donc
-            dans la place libre de la ligne « Effet », qui occupait seule toute
-            sa largeur.
+/**
+ * Zone de contrôles FIXE de la carte PILE : fusion, opacité et VERROUS du calque
+ * SÉLECTIONNÉ, plus dupliquer/supprimer. Montée hors du conteneur défilant, elle
+ * reste visible quelle que soit la position dans la liste — modèle observé sur
+ * Photoshop web (`docs/design-system/photoshop-web-observations-2026-07-27.md`
+ * §2 et §5bis).
+ *
+ * ⚠️ ELLE A DÉMÉNAGÉ DEPUIS LES PROPRIÉTÉS le 2026-08-21, et c'est un défaut de
+ * NIVEAU qui a été corrigé, pas un rangement. Ces contrôles agissent sur le
+ * CALQUE, mais ils vivaient dans le panneau Propriétés, à côté du sélecteur
+ * d'effet — donc dans une carte différente de la pile qu'ils commandent. Relevé
+ * par Antoine (« les verrous devraient être au niveau des calques, pas du
+ * sélecteur d'effets »), et le commentaire d'origine lui donnait raison en
+ * toutes lettres : les quatre verrous avaient été posés sur la ligne « Effet »
+ * parce qu'elle avait de la place libre. Photoshop groupe fusion, opacité et
+ * *Lock:* au même endroit, dans le panneau Calques ; c'est ce qu'on fait ici.
+ */
+export function LayerControls({
+  layers,
+  selectedId,
+  onOpacityChange,
+  onOpacityCommit,
+  onBlendModeChange,
+  onBlendModePreview,
+  onBlendModePreviewEnd,
+  onToggleLock,
+  onDuplicate,
+  onRemove,
+}: Omit<LayerControlsProps, "onEffectChange">) {
+  // Aucune sélection : la zone de contrôles reste MONTÉ mais désactivé. Le faire
+  // disparaître ferait sauter la liste de toute sa hauteur à chaque
+  // désélection (et rendrait le panneau instable au clic).
+  const model = layerControlsModel(layers, selectedId);
+  return (
+    // `title` sur un calque VERROUILLÉ : la zone est inerte et il faut dire
+    // pourquoi, sans ajouter de ligne de texte — la hauteur de cette zone est
+    // sous budget (ADR-0001 : elle existe pour rendre de la hauteur à la liste,
+    // pas pour la lui prendre). Le porteur PRINCIPAL de l'information reste le
+    // cadenas fermé, visible sur la ligne elle-même.
+    <div className="layer-controls" title={model.locked ? "Calque verrouillé" : undefined}>
+      {/* Ligne 1 — VERROUS puis ACTIONS. Elle porte le libellé « Verrous : »,
+          repris de la rangée *Lock:* de Photoshop : quatre icônes nues ne
+          disaient pas ce qu'elles étaient, et un verrou pris pour l'outil
+          pinceau est très exactement ce qu'Antoine a signalé (« l'icône pinceau
+          ne fait rien » — le verrou de masque avalait ses traits en silence).
 
-            Le VERROU reste actionnable sur un calque verrouillé — c'est le seul
-            contrôle de cette zone dans ce cas, sinon le verrou serait une trappe
-            sans sortie, l'affordance ayant quitté la ligne.
-            `layerControlsModel.enabled` vaut `false` dès que le calque est
-            verrouillé : on ne peut donc pas s'en servir ici, d'où la lecture
-            directe de `model.layerId`.
+          ACTIONS du calque sélectionné (2026-07-29). Elles vivaient sur CHAQUE
+          ligne de la liste ; l'ADR-0001 veut un contrôle unique agissant sur la
+          sélection, et c'est ce qui rend au NOM la largeur qu'elles lui prenaient
+          (52 px mesurés au dock par défaut).
 
-            DUPLIQUER reste actif sur un calque verrouillé, SUPPRIMER non —
-            c'est exactement ce que le modèle fait :
-            `LayerStack.duplicateLayer` lit la source sans la muter (la copie
-            hérite du verrou), `removeLayer` consulte `isLocked` et refuse. Un
-            bouton actif dont le modèle refuse l'effet serait l'échec silencieux
-            que ce dépôt proscrit. */}
+          ⚠️ CETTE LIGNE EXISTE MAINTENANT, et elle était refusée avant. Le
+          commentaire d'origine notait qu'une troisième ligne ajoutait 36 px au
+          pied et faisait déborder la carte de 2 px sur le document minimal —
+          d'où les icônes logées dans la place libre de la ligne « Effet ». Ce qui
+          a changé : l'effet est PARTI en Propriétés (colonne séparée depuis le
+          2026-08-21), donc cette zone perd une ligne avant d'en gagner une, et
+          la carte n'est plus dans la même colonne que les Propriétés. Le garde
+          reste `PanelColumn.stories.tsx > FiveRowDocumentHidesNoRow`.
+
+          Le VERROU reste actionnable sur un calque verrouillé — sinon le verrou
+          serait une trappe sans sortie. `layerControlsModel.enabled` vaut
+          `false` dès que le calque est verrouillé : on ne peut donc pas s'en
+          servir ici, d'où la lecture directe de `model.layerId`.
+
+          DUPLIQUER reste actif sur un calque verrouillé, SUPPRIMER non — c'est
+          exactement ce que le modèle fait : `LayerStack.duplicateLayer` lit la
+          source sans la muter (la copie hérite du verrou), `removeLayer`
+          consulte `isLocked` et refuse. Un bouton actif dont le modèle refuse
+          l'effet serait l'échec silencieux que ce dépôt proscrit. */}
+      <div className="layer-controls__row">
+        <span className="layer-controls__locks-label" aria-hidden="true">Verrous&nbsp;:</span>
         <div className="layer-controls__actions">
           {/* LES QUATRE VERROUS (2026-08-19), rangée reprise de Photoshop : Lock
               Transparent Pixels, Lock Image Pixels, Lock Position, Lock All.
@@ -679,7 +700,9 @@ export function LayerControls({
         </div>
       </div>
       {/* Ligne 2 — FUSION + OPACITÉ côte à côte, comme observé sur Photoshop
-          web (§2 des observations du 2026-07-27).
+          web (§2 des observations du 2026-07-27). Avec la ligne des verrous
+          au-dessus, cette carte porte donc les trois attributs du CALQUE que
+          Photoshop groupe au même endroit : fusion, opacité, verrous.
 
           L'opacité est un CHAMP, pas une piste. C'est le contrôle le plus
           utilisé de la zone de contrôles, et une piste partagée à deux sur une ligne de

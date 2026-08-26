@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { LayerControls } from "./LayerPanel";
+import { EffectSelector, LayerControls } from "./LayerPanel";
 import { assertAccessibleNames } from "./ui/accessible-name.test-support";
 import { defaultLayerMask } from "../mask/types";
 import type { LayerState } from "../layers/types";
@@ -41,7 +41,6 @@ const meta: Meta<typeof LayerControls> = {
     onOpacityChange: () => {},
     onOpacityCommit: () => {},
     onBlendModeChange: () => {},
-    onEffectChange: () => {},
     onToggleLock: () => {},
     onDuplicate: () => {},
     onRemove: () => {},
@@ -59,7 +58,8 @@ export const NoSelection: Story = {
   args: { selectedId: null },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("combobox", { name: "Effet" })).toBeDisabled();
+    // L'« Effet » n'est plus ici : il a suivi `EffectSelector` en tête des
+    // Propriétés le 2026-08-21 (voir `EffectSelectorDisabledWithoutSelection`).
     await expect(canvas.getByRole("combobox", { name: "Fusion" })).toBeDisabled();
     await expect(canvas.getByRole("textbox", { name: "Opacité" })).toBeDisabled();
     // Les actions migrées depuis les lignes (2026-07-29) suivent la même
@@ -125,7 +125,6 @@ export const LockedLayerKeepsOnlyItsWayOut: Story = {
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("combobox", { name: "Effet" })).toBeDisabled();
     await expect(canvas.getByRole("combobox", { name: "Fusion" })).toBeDisabled();
     await expect(canvas.getByRole("textbox", { name: "Opacité" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "Supprimer le calque" })).toBeDisabled();
@@ -160,9 +159,11 @@ export const EveryFieldHasAnAccessibleName: Story = {
   args: { selectedId: "layer-2" },
   play: async ({ canvasElement }) => {
     const report = assertAccessibleNames(canvasElement);
-    // Les trois contrôles de la zone : les deux listes déroulantes Base UI
+    // Les deux contrôles de la zone : la liste déroulante Base UI de fusion
     // (`role="combobox"`) et le champ d'opacité à l'étiquette hors écran.
-    await expect(report.map((entry) => entry.name).sort()).toEqual(["Effet", "Fusion", "Opacité"]);
+    // « Effet » a quitté cette zone le 2026-08-21 — il décrit l'effet, pas le
+    // calque, et il est monté en tête des Propriétés.
+    await expect(report.map((entry) => entry.name).sort()).toEqual(["Fusion", "Opacité"]);
   },
 };
 
@@ -216,23 +217,51 @@ export const OpacityFieldEscapeAbandons: Story = {
 // Décision produit du 2026-07-31 : un effet ne se pose jamais sur un calque
 // photo. Le sélecteur n'est pas DÉSACTIVÉ (ce serait l'état d'un calque
 // verrouillé), il est ABSENT, remplacé par la phrase qui dit la règle.
-export const PhotoLayerHasNoEffectSelector: Story = {
-  args: { selectedId: "photo-layer" },
+export const PhotoLayerHasNoEffectSelector: StoryObj<typeof EffectSelector> = {
+  render: (args) => <EffectSelector {...args} />,
+  args: { layers, selectedId: "photo-layer", onEffectChange: () => {} },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("combobox", { name: "Effet" })).toBeNull();
     await expect(canvas.getByText("Aucun effet sur un calque photo")).toBeVisible();
-    // Les actions du calque restent, elles : le verrou, la duplication et la
-    // suppression n'ont rien à voir avec l'effet.
+  },
+};
+
+// Les actions du CALQUE restent montées sur un calque photo : le verrou, la
+// duplication et la suppression n'ont rien à voir avec l'effet. Cette moitié de
+// l'ancienne garde est restée dans `LayerControls`, où elle porte désormais.
+export const PhotoLayerKeepsItsLayerActions: Story = {
+  args: { selectedId: "photo-layer" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
     await expect(canvas.getByRole("button", { name: "Dupliquer le calque" })).toBeVisible();
+    await expect(canvas.getByRole("combobox", { name: "Fusion" })).toBeVisible();
+  },
+};
+
+// Le pendant de `NoSelection` pour le sélecteur : sans sélection il reste MONTÉ
+// mais inerte, même règle et même raison (une zone qui disparaît fait sauter ce
+// qui est au-dessous).
+export const EffectSelectorDisabledWithoutSelection: StoryObj<typeof EffectSelector> = {
+  render: (args) => <EffectSelector {...args} />,
+  args: { layers, selectedId: null, onEffectChange: () => {} },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("combobox", { name: "Effet" })).toBeDisabled();
   },
 };
 
 // Le sélecteur d'effet est la seule UI qui change l'effectId d'un calque DÉJÀ
 // créé (le Select « Ajouter un effet » du panneau ne fait qu'ajouter). Il
 // expose "Aucun effet" (= passthrough), absent du sélecteur d'ajout.
-export const ChangeLayerEffect: Story = {
-  args: { selectedId: "layer-1", onEffectChange: fn() },
+//
+// ⚠️ IL A QUITTÉ `LayerControls` le 2026-08-21 : il décrit l'EFFET, donc il vit
+// en tête des Propriétés, pendant que fusion/opacité/verrous — qui décrivent le
+// CALQUE — restent avec la pile. Cette story rend donc `EffectSelector` et non
+// la zone de contrôles ; c'est la garde du sélecteur, elle suit le composant.
+export const ChangeLayerEffect: StoryObj<typeof EffectSelector> = {
+  render: (args) => <EffectSelector {...args} />,
+  args: { layers, selectedId: "layer-1", onEffectChange: fn() },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("combobox", { name: "Effet" }));

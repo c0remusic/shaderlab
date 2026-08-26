@@ -70,7 +70,7 @@ import { getBrushRaster } from "./mask/brushSource";
 import { PanelColumn } from "./components/dockedPanel/PanelColumn";
 import { isPanelShown, movePanelInDock, setActiveTab, setGroupCollapsed, singleGroup, toFullDockTarget, visibleDockLayout, type DockDropTarget, type DockLayout } from "./ui/dockLayout";
 import { clampDockWidth } from "./components/dockedPanel/dockWidth";
-import { LayerControls, LayerPanel } from "./components/LayerPanel";
+import { EffectSelector, LayerControls, LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
 import { PhotoPanel } from "./components/PhotoPanel";
 import { MaskPanel } from "./components/MaskPanel";
@@ -258,11 +258,22 @@ export default function App() {
   // complet, l'autre règle le calque courant.
   //
   // La carte « Textures » a été retirée le même jour (voir `useTextureLibrary`).
+  // DEUX COLONNES depuis le 2026-08-21 (arbitrage d'Antoine devant le wireframe
+  // du ticket 07) : « c'est bizarre que les effets s'ouvrent au-dessus des
+  // calques, la fenêtre devrait s'ouvrir sur le côté ». Les réglages ne sont plus
+  // EMPILÉS avec la pile, ils sont À CÔTÉ — modèle du panneau *Properties* de
+  // Photoshop et du panneau *Develop* de Lightroom.
+  //
+  // L'ORDRE des colonnes n'est pas indifférent : le dock est à droite de la
+  // toile, donc la PREMIÈRE colonne est celle qui la touche. Propriétés y va
+  // (décision « à gauche, côté toile »), la pile prend la seconde.
+  //
+  // Rien d'autre n'a bougé : `DockLayout` est un `DockGroup[][]` depuis le
+  // 2026-08-19, les colonnes multiples existaient déjà et se déplacent déjà à la
+  // souris. Ce n'est qu'un DÉFAUT.
   const [dockLayout, setDockLayout] = useState<DockLayout>(() => [
-    [
-      { tabs: ["presets", "properties"], active: "properties", collapsed: false },
-      singleGroup("layers"),
-    ],
+    [{ tabs: ["presets", "properties"], active: "properties", collapsed: false }],
+    [singleGroup("layers")],
   ]);
 
   // Task 4 : id du preset en attente de confirmation de remplacement — non
@@ -2258,6 +2269,23 @@ export default function App() {
               id: "layers", title: "Pile",
               // La pile de calques est LA liste longue du dock.
               variableLength: true,
+              // ZONE DE CONTRÔLES DU CALQUE (2026-08-21) : fusion, opacité et
+              // verrous vivaient dans le panneau Propriétés, donc dans une carte
+              // différente de la pile qu'ils commandent. Ils reviennent ici, où
+              // Photoshop les met — voir `LayerControls`.
+              controlsPlacement: "top",
+              controls: <LayerControls
+                layers={layers}
+                selectedId={selectedId}
+                onOpacityChange={handleOpacityChange}
+                onOpacityCommit={handleParamCommit}
+                onBlendModeChange={handleBlendModeChange}
+                onBlendModePreview={handleBlendModePreview}
+                onBlendModePreviewEnd={handleBlendModePreviewEnd}
+                onToggleLock={handleToggleLock}
+                onDuplicate={handleDuplicate}
+                onRemove={handleRemove}
+              />,
               content: <LayerPanel
                   layers={layers}
                   selectedId={selectedId}
@@ -2286,18 +2314,10 @@ export default function App() {
                 target={propertiesTarget}
                 layer={selectedLayer}
                 onTargetChange={handlePropertiesTargetChange}
-                controlsContent={<LayerControls
+                effectSelector={<EffectSelector
                   layers={layers}
                   selectedId={selectedId}
-                  onOpacityChange={handleOpacityChange}
-                  onOpacityCommit={handleParamCommit}
-                  onBlendModeChange={handleBlendModeChange}
-                  onBlendModePreview={handleBlendModePreview}
-                  onBlendModePreviewEnd={handleBlendModePreviewEnd}
                   onEffectChange={handleEffectChange}
-                  onToggleLock={handleToggleLock}
-                  onDuplicate={handleDuplicate}
-                  onRemove={handleRemove}
                 />}
                 photoContent={<PhotoPanel
                   layer={selectedLayer}

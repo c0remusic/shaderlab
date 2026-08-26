@@ -85,6 +85,21 @@
   flex: 0 0 auto;
 }
 
+/* LIBELLÉ DE LA RANGÉE DE VERROUS, repris du « Lock: » de Photoshop (2026-08-21).
+   Quatre icônes nues ne disaient pas ce qu'elles étaient : le verrou de masque
+   porte le glyphe de l'outil pinceau — comme chez Photoshop, où c'est sans
+   ambiguïté parce que l'outil vit dans une barre lointaine. Ici les deux se
+   touchent, donc c'est le MOT qui lève l'ambiguïté, pas un glyphe différent.
+
+   `aria-hidden` sur le libellé : chaque verrou porte déjà son propre nom
+   accessible complet (« Verrouiller — Masque … »), et un mot lu en plus
+   n'ajouterait rien à un lecteur d'écran. Il est là pour l'œil. */
+.layer-controls__locks-label {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
 /* VERROU ACTIF — état ENFONCÉ (2026-08-21, grilling ticket 05). La teinte seule
    de l'icône (`--row-lock--active`) ne suffisait pas : un verrou actif passait
    inaperçu, et son blocage silencieux se lisait comme une panne (« l'icône

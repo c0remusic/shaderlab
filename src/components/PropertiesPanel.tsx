@@ -11,7 +11,12 @@ interface Props {
   photoContent: ReactNode;
   effectContent: ReactNode;
   maskContent: ReactNode;
-  controlsContent?: ReactNode;
+  /** SÉLECTEUR D'EFFET, rendu en TÊTE du contenu (2026-08-21). Ce slot portait
+   *  la zone de contrôles entière — fusion, opacité, verrous compris — jusqu'à
+   *  ce qu'Antoine relève que ces trois-là décrivent le CALQUE et n'ont rien à
+   *  faire ici : ils sont redescendus dans la carte Pile. Ne reste que ce qui
+   *  décrit l'EFFET, au-dessus de ses réglages. */
+  effectSelector?: ReactNode;
 }
 
 export function propertiesPanelTitle(
@@ -33,7 +38,7 @@ export function PropertiesPanel({
   photoContent,
   effectContent,
   maskContent,
-  controlsContent,
+  effectSelector,
 }: Props) {
   if (!target || !layer || target.layerId !== layer.id) {
     return <p className="properties-panel__empty">Sélectionne un élément dans la pile.</p>;
@@ -68,7 +73,7 @@ export function PropertiesPanel({
         </button>
       </div>
       <div className="properties-panel__content" role="tabpanel">
-        {activeKind !== "mask" && controlsContent}
+        {activeKind !== "mask" && effectSelector}
         {activeKind === "mask" ? maskContent : isPhoto ? photoContent : effectContent}
       </div>
     </div>

@@ -216,7 +216,6 @@ export const FiveRowDocumentHidesNoRow: Story = {
                 onOpacityChange={() => {}}
                 onOpacityCommit={() => {}}
                 onBlendModeChange={() => {}}
-                onEffectChange={() => {}}
                 onToggleLock={() => {}}
                 onDuplicate={() => {}}
                 onRemove={() => {}}

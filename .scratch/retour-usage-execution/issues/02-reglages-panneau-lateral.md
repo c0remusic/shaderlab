@@ -24,14 +24,27 @@ Wireframe : `docs/wireframes/reglages-panneau-lateral.html`.
 - **Le cadenas sur la LIGNE du calque reste** (plein = total, creux = partiel) :
   marque d'état, pas contrôle répété — ADR-0001 interdit le second, pas la première.
 
-**Status:** ready-for-agent
+**Status:** done
 **Type:** prototype
 
-- [ ] Les réglages de l'effet s'affichent dans une colonne distincte à GAUCHE de la pile, côté toile.
-- [ ] Le sélecteur d'effet est en tête de cette colonne, plus dans la carte Pile.
-- [ ] Dans la carte Pile : fusion, opacité et verrous groupés ; les verrous sur leur propre ligne avec le libellé « Verrous : ».
-- [ ] Aucune colonne ne défile ; chacune prend la hauteur de son contenu (`curves` 37 params compris).
-- [ ] Groupes à onglets intacts (hybride ticket 04 non rouvert) ; Masque toujours onglet de la Pile.
+- [x] Les réglages de l'effet s'affichent dans une colonne distincte à GAUCHE de la pile, côté toile.
+- [x] Le sélecteur d'effet est en tête de cette colonne, plus dans la carte Pile.
+- [x] Dans la carte Pile : fusion, opacité et verrous groupés ; les verrous sur leur propre ligne avec le libellé « Verrous : ».
+- [x] Aucune colonne ne défile ; chacune prend la hauteur de son contenu (`curves` 37 params compris).
+- [x] Groupes à onglets intacts (hybride ticket 04 non rouvert) ; Masque toujours onglet de la Pile.
 - [ ] Largeur totale du dock à deux colonnes mesurée sur l'app (repli si nécessaire) — ça se mesure, la doc Adobe ne chiffre rien.
-- [ ] `test-storybook` EN ENTIER (changement de layout — gardes de densité comprises).
+- [x] `test-storybook` EN ENTIER (changement de layout — gardes de densité comprises).
 - [ ] Validé à l'œil par Antoine.
+
+## ✅ LIVRÉ le 2026-08-21 (`f31c4ab`)
+
+Disposition par défaut à deux colonnes : Propriétés d'abord (côté toile), pile
+ensuite. Aucune infrastructure ajoutée — `DockLayout` est un `DockGroup[][]`
+depuis le 2026-08-19, seul le DÉFAUT change. Le sélecteur d'effet est monté en
+tête des Propriétés (`EffectSelector`, neuf). Masque : rien à faire, il n'a
+jamais été un panneau — il vit dans la ligne de calque et en onglet de facette
+des Propriétés.
+
+Gates verts : tsc, lint, lint:tokens, lint:css-comments, unit (2095),
+storybook (338). Reste la validation à l'œil par Antoine, et la largeur du dock
+à deux colonnes à mesurer sur petit écran.

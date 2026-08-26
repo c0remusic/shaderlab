@@ -793,6 +793,17 @@ Points structurants qu'on ne devine pas en lisant un fichier isolé :
   commit ne rattrapait rien puisqu'il commite l'état vivant déjà modifié.
   **Toute règle métier posée sur `LayerStack` doit s'exprimer AUSSI sur cette
   porte**, sinon elle ne protège que ce que personne ne fait.
+  ⚠️ **`replaceLiveLayers` NE REDEMANDE AUCUN RENDU**, et c'est la seconde
+  chausse-trappe de cette porte. Il pose l'état vivant, rien de plus : tout
+  chemin vivant doit l'APPAIRER avec `rendererRef.current?.requestRender(...)`,
+  comme `handleOpacityChange` le fait depuis toujours. Sans l'appairage, le
+  modèle change et l'écran ne repeint jamais — défaut livré le 2026-08-21 sur
+  l'aperçu de fusion au survol, invisible à tous les gates (aucun test ne
+  regarde le canvas présenté) et signalé par Antoine devant l'app. ⚠️ Et il a
+  résisté à DEUX sondes : `frameSignature()` re-rend la pile lui-même, donc il
+  voit la mutation du modèle et ne peut rien dire du canvas. Le seul témoin
+  honnête est le compte de frames RÉELLEMENT présentées
+  (`GPUCanvasContext.getCurrentTexture`).
 - **L'espace de coordonnées du masque est celui de la photo de fond**
   (`MaskPainter` alloue aux dimensions de l'image de base), jamais celui d'une
   source d'image transformée.

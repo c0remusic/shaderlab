@@ -110,6 +110,11 @@ export interface LayerControlsProps {
   onOpacityChange: (id: string, opacity: number) => void;
   onOpacityCommit: () => void;
   onBlendModeChange: (id: string, blendMode: string) => void;
+  /** APERÇU AU SURVOL (ticket 01 retour-usage) : survoler un mode le rend sur la
+   *  toile sans l'engager, quitter revient à la valeur engagée. Optionnels — les
+   *  stories qui ne les passent pas gardent le comportement d'avant. */
+  onBlendModePreview?: (id: string, blendMode: string) => void;
+  onBlendModePreviewEnd?: () => void;
   onEffectChange: (id: string, effectId: string) => void;
   /** ACTIONS migrées depuis la ligne le 2026-07-29 (ADR-0001). Elles s'y
    *  répétaient sur chaque calque — trois contrôles × N lignes — et mangeaient
@@ -543,6 +548,8 @@ export function LayerControls({
   onOpacityChange,
   onOpacityCommit,
   onBlendModeChange,
+  onBlendModePreview,
+  onBlendModePreviewEnd,
   onEffectChange,
   onToggleLock,
   onDuplicate,
@@ -697,6 +704,8 @@ export function LayerControls({
           options={blendModeOptions}
           disabled={!model.enabled}
           onChange={(v) => model.layerId !== null && onBlendModeChange(model.layerId, v)}
+          onOptionPreview={onBlendModePreview ? (v) => model.layerId !== null && onBlendModePreview(model.layerId, v) : undefined}
+          onOptionPreviewEnd={onBlendModePreviewEnd}
         />
         <NumberField
           label="Opacité"

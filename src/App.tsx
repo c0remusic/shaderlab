@@ -1246,8 +1246,48 @@ export default function App() {
     [scheduleSync]
   );
 
+  // APERÇU DE MODE DE FUSION AU SURVOL (ticket 01 retour-usage). Survoler un
+  // mode dans le sélecteur recompose le calque dans ce mode SANS engager
+  // (chemin vivant `replaceLiveLayers`, comme un glissement — pas d'entrée
+  // d'historique) ; quitter revient à la valeur ENGAGÉE. On mémorise la valeur
+  // engagée au PREMIER survol, parce que muter le calque vivant l'écrase.
+  const blendPreviewRef = useRef<{ layerId: string; committed: string } | null>(null);
+
+  const handleBlendModePreview = useCallback(
+    (id: string, blendMode: string) => {
+      const stack = currentStack();
+      const layer = stack.layers.find((l) => l.id === id);
+      if (!layer) return;
+      const active = blendPreviewRef.current;
+      if (!active || active.layerId !== id) {
+        // Premier survol de ce calque : le layer vivant porte encore la valeur
+        // engagée (aucun aperçu posé), on la capture avant de la remplacer.
+        blendPreviewRef.current = { layerId: id, committed: layer.blendMode };
+      }
+      layer.blendMode = blendMode;
+      sessionRef.current.replaceLiveLayers(stack.layers);
+    },
+    [currentStack]
+  );
+
+  const handleBlendModePreviewEnd = useCallback(() => {
+    const active = blendPreviewRef.current;
+    if (!active) return;
+    blendPreviewRef.current = null;
+    const stack = currentStack();
+    const layer = stack.layers.find((l) => l.id === active.layerId);
+    if (layer && layer.blendMode !== active.committed) {
+      layer.blendMode = active.committed;
+      sessionRef.current.replaceLiveLayers(stack.layers);
+    }
+  }, [currentStack]);
+
   const handleBlendModeChange = useCallback(
     (id: string, blendMode: string) => {
+      // Une sélection ENGAGE : on annule l'aperçu en cours pour que la fin
+      // d'aperçu (déclenchée par la fermeture du popup, APRÈS ce commit) ne
+      // reverte pas la valeur qu'on vient d'engager.
+      blendPreviewRef.current = null;
       const stack = currentStack();
       const layer = stack.layers.find((l) => l.id === id);
       if (layer) layer.blendMode = blendMode;
@@ -2252,6 +2292,8 @@ export default function App() {
                   onOpacityChange={handleOpacityChange}
                   onOpacityCommit={handleParamCommit}
                   onBlendModeChange={handleBlendModeChange}
+                  onBlendModePreview={handleBlendModePreview}
+                  onBlendModePreviewEnd={handleBlendModePreviewEnd}
                   onEffectChange={handleEffectChange}
                   onToggleLock={handleToggleLock}
                   onDuplicate={handleDuplicate}

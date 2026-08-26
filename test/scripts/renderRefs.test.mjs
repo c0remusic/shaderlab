@@ -602,6 +602,12 @@ const ATTENDU = {
   // celui deja attrape sur `effet-texture`.
   "effet-deplacement-pente.png": { width: 256, height: 256, valeurs: null },
   "effet-deplacement-canaux.png": { width: 256, height: 256, valeurs: null },
+  // SOURCE IMAGE (2026-08-26, ticket 22) : la carte est l'entrée de l'effet, pas
+  // un scan. Son scénario est le SEUL des trois à ne charger AUCUNE texture, et
+  // c'est ce qu'il verrouille — la garde de repli 1x1 ne vaut que pour la source
+  // Bibliothèque. Si elle redevenait inconditionnelle, cette référence rendrait
+  // l'image nue.
+  "effet-deplacement-image.png": { width: 256, height: 256, valeurs: null },
   // NETTETE, sur `mireBruit` — la seule mire qui porte a la fois des MARCHES
   // franches (l accentuation se lit sur un bord) et des plages PLATES bruitees
   // (sans elles, le masquage n aurait rien a epargner et son curseur ne

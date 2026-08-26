@@ -3604,6 +3604,28 @@ const INSTALL = `(async () => {
       },
     },
 
+    // SOURCE IMAGE : la carte est l entree de l effet, pas un scan. L image se
+    // deforme selon son propre relief tonal.
+    //
+    // AUCUN setTextureCatalog, AUCUN ensureTextureLoaded, ET C EST LA PROPRIETE
+    // VERROUILLEE. Les deux scenarios ci-dessus en ont besoin sous peine de
+    // rendre l image inchangee ; celui-ci doit rendre une image DEPLACEE avec un
+    // catalogue vide, le binding 7 servant sa texture de repli 1x1 qu on ne lit
+    // pas. Un jour ou la garde de repli redeviendrait inconditionnelle, ce
+    // scenario rendrait l image nue et son ecart contre la photo tomberait a
+    // zero — c est exactement ce que le harnais refuse.
+    //
+    // Echelle 1 et angle 0 : la carte EST l image alignee sur elle-meme, le cas
+    // d usage. Mode 0 (pente du gris), le defaut, qui lit la meme luminance que
+    // sur un scan.
+    "effet-deplacement-image": {
+      contre: "photo-de-fond-seule",
+      build: async (r, stack) => {
+        const a = stack.addLayer("displacementMap");
+        stack.updateParams(a, { mode: 0, source: 1, amplitude: 60, echelle: 1, angle: 0, finesse: 4 });
+      },
+    },
+
     // ── NETTETE : QUATRE SCENARIOS, TROIS PROPRIETES ─────────────────────
     //
     // SUR \`mireBruit\`, ET CE CHOIX EST LA MOITIE DU VERROU. Cet effet a trois

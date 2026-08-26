@@ -1,4 +1,6 @@
-// Les 39 declarations « Sans objet » du registre, et comment les EPROUVER.
+// Les declarations « Sans objet » du registre, et comment les EPROUVER.
+// (Le compte vit dans la sortie du gate — « sur N declarations » — pas ici :
+// ce titre a dit « 39 » pendant que le gate en eprouvait 41.)
 //
 // ─────────────────────────────────────────────────────────────────────────
 // Pourquoi ce fichier existe
@@ -423,6 +425,24 @@ export const DECLARATIONS = [
     // STYLE_SEUIL vaut 2 dans la liste des sept styles.
     configs: [{ label: "Seuil", base: { style: 2, levels: 3, mono: 1, blackPoint: 0.05, whitePoint: 0.95 } }],
   })),
+
+  // ── displacementMap ──────────────────────────────────────────────────
+  // Declaration posee avec la source Image (ticket 22, 2026-08-26) : en
+  // source Image le catalogue n'est pas lu du tout, donc le rang ne designe
+  // rien. C'est structurel (la branche ne contient aucun textureSample de
+  // libraryTexture), mais la regle du depot ne fait pas d'exception : une
+  // applicabilite se MESURE avant de se declarer, et la structure a deja
+  // menti ici — `glass.flat` etait « structurellement » sans objet aussi.
+  {
+    id: "displacementMap.rang",
+    effet: "displacementMap",
+    mire: "mire",
+    declare: "Sans objet en source Image (le catalogue n'est pas lu)",
+    param: "rang",
+    a: 0,
+    b: 63,
+    configs: [{ label: "source Image", base: { source: 1, mode: 0, amplitude: 60, echelle: 1, angle: 0, finesse: 4 } }],
+  },
 
   // ── gradientMap ──────────────────────────────────────────────────────
   {

@@ -208,7 +208,11 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
     dans un seul effet sans pyramide conditionnelle.
   - `displacementMap` — le champ de déplacement devient une DONNÉE au lieu
     d'être du code (`warp` et `glass` calculent le leur). Rendu bon marché par
-    le binding 7 d'ADR-0018, générique dès son écriture.
+    le binding 7 d'ADR-0018, générique dès son écriture. ✅ Depuis le 2026-08-26
+    (ticket 22), sa carte est au choix un scan de la bibliothèque OU **l'image
+    en dessous** (`source`, `params[6]`, fin de liste) — l'image se déforme
+    selon son propre relief tonal, catalogue vide compris (le repli 1x1 ne vaut
+    qu'en source Bibliothèque, verrouillé par `effet-deplacement-image`).
   `aplat` (2026-08-17) est une COULEUR UNIE bornée par un masque ou par une
   primitive posée. Il est le premier à entrer par une question à laquelle il n'a
   pas répondu : né prototype pour trancher « une forme a-t-elle besoin d'un
@@ -315,10 +319,12 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   que ce paragraphe a dit du 2026-08-05 au 2026-08-12** (« chantier soldé »).
   Mesuré sur les modules réels, d'abord le 2026-08-12 puis le 2026-08-15
   (instrument : `.scratch/prochain-palier/assets/mesure-controles.ts`), puis
-  re-mesuré le 2026-08-19 : sur **385 paramètres**, **52**
-  portent une condition (14 %) et **16 effets sur 27 n'en ont AUCUNE** — dont
+  re-mesuré le 2026-08-19, puis le 2026-08-26 : sur **381 paramètres**, **57**
+  portent une condition (15 %) et **15 effets sur 26 n'en ont AUCUNE** — dont
   `curves` (37 params), `lensFlare` (33), `channelMixer` (22),
-  `gradientMap` (20).
+  `gradientMap` (20). (Le 2026-08-26 : +1 param et +2 conditions par le mode
+  « L'image en dessous » de `displacementMap`, ticket 22 ; les 385/52/27
+  d'avant portaient encore `emboss` et `noise`, retirés le 2026-08-21.)
   ⚠️ **Le chiffre « 51 » qu'a porté cette phrase était DÉJÀ faux avant la
   session du 2026-08-19**, et c'est vérifié et non supposé : l'instrument
   relancé sur l'arbre d'AVANT les changements du jour rend 52, pas 51. Le
@@ -342,13 +348,14 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   blocs dont les paramètres ne font rien quand leur bloc est éteint). Le
   registre porte 9 conditions de SECTION en tout. Les sections
   existent partout mais ne sectionnent pas (`duotone` 11 params pour 1 section,
-  `outlines` 8,7 par section ; `liste` = **61 des 85** gabarits au 2026-08-19,
+  `outlines` 8,7 par section ; `liste` = **59 des 83** gabarits au 2026-08-26,
   d'où le défilement — et ce chiffre-là aussi était faux avant d'être relancé,
   il disait 63 des 83 quand l'arbre en portait 60 des 84), et
   **5 effets sur 26 seulement** portent un outil sur la toile
   (`aplat`, `lensFlare`, `lightLeak`, `motionBlur`, `pixelStretch`),
-  en trois genres (`disk` ×2, `point` ×3, `axis` ×2) — `aplat` s'y est ajouté le
-  2026-08-17 avec un `point` sur le centre de sa forme. Se tranche dans
+  en quatre genres (`disk` ×2, `point` ×2, `axis` ×2, `box` ×1 — mesuré le
+  2026-08-26 ; `aplat` porte une `box` depuis son tracé à la souris, pas un
+  `point`). Se tranche dans
   `.scratch/prochain-palier/issues/14-la-fusion-des-reglages-redondants.md`.
   ⚠️ **`EffectModule.canvasControls` EST le critère qui sépare un outil de
   RETOUCHE d'un effet CRÉATIF PLACÉ** (arbitrage d'Antoine, 2026-08-21 : « on
@@ -356,8 +363,12 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   outils de retouche photo »). Un effet sans ancrage s'applique partout et n'a
   pas à se déplacer — comme un calque de réglage chez Photoshop. Le critère est
   DÉCLARATIF, jamais le nom ni la catégorie : `spatialParams.ts` dit pourquoi.
-  ⚠️ Et l'outil Déplacer les ignore encore tous — `usePhotoLayer.ts` sort sur
-  `!layer?.imageSource`, deux fois (tickets 20 et 21 du backlog d'exécution).
+  ✅ L'outil Déplacer AGIT sur eux depuis le 2026-08-26 (ticket 20) :
+  `EffectMoveSurface` + module pur `src/ui/effectMove.ts`, translation des seuls
+  rôles `x`/`y` de `controlFieldRoles` (les rôles `extentX`/`extentY` en ont été
+  SÉPARÉS ce jour-là — tirer un `aplat` le déplaçait sinon en l'AGRANDISSANT).
+  Reste le ticket 21 (quels effets GAGNENT un lieu, arbitrage d'Antoine) : 21
+  effets sur 26 n'ont toujours aucun ancrage.
   ⚠️ **Troisième clôture prématurée du même chantier** — `INDEX.json` note qu'il
   avait déjà été rouvert une fois pour cette raison exacte. Trois champs,
   un seul type de condition partagé — `DisplayCondition` : `EffectParam.appliesWhen`
@@ -641,10 +652,11 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Ce qu'elle laisse passer : notre uniform `params: array<f32, 48>` n'est pas
   conforme (stride 4 pour un alignement requis de 16 en espace uniform), Dawn
   l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 26
-  effets, index gelés par les presets ET par **121** références de pixels
-  (123 PNG dans `test/render-refs/` au 2026-08-21 ; les DEUX qui ne gèlent PAS
+  effets, index gelés par les presets ET par **122** références de pixels
+  (124 PNG dans `test/render-refs/` au 2026-08-26, `effet-deplacement-image`
+  ajouté par le ticket 22 ; les DEUX qui ne gèlent PAS
   un index, `photo-miroir-temoin` / `photo-miroir`, gèlent le miroir du calque
-  photo, donc le compte qui gèle les index est 123 − 2 = 121. ⚠️ **−3 le
+  photo, donc le compte qui gèle les index est 124 − 2 = 122. ⚠️ **−3 le
   2026-08-21** : les trois références d'`emboss` (`effet-emboss`, `-oppose`,
   `-sur-image`) sont parties avec l'effet retiré (ADR-0019), et le revert de
   `noise` le même jour a défait ses 2. Historique : 126 PNG au 2026-08-20, 124

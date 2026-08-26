@@ -31,10 +31,27 @@ Deux conséquences distinctes, à ne pas confondre :
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] Un mode de source « l'image en dessous » à côté du mode « texture de la bibliothèque ».
-- [ ] Le choix se fait par un paramètre à `choices` (l'index se persiste : nouvelle entrée en FIN de liste, jamais insérée au milieu).
-- [ ] La pente se lit sur la luminance de l'image, avec la même convention que le mode texture (finesse, amplitude, angle inchangés de sens).
-- [ ] Référence de pixels posée pour le mode neuf ; les références existantes du mode texture inchangées au bit près.
-- [ ] Validé à l'œil par Antoine — c'est un geste créatif, le harnais ne dit pas s'il est beau.
+- [x] Un mode de source « l'image en dessous » à côté du mode « texture de la
+      bibliothèque » (`carte_texel` branche sur `params[6]`, les deux sources
+      passent par le même `carte_uv` ; le repli 1x1 ne vaut qu'en Bibliothèque).
+- [x] Le choix se fait par un paramètre à `choices` — `source`, ajouté en FIN de
+      `params[]` (index 6). `rang` porte `appliesWhen: { source: 0 }`, MESURÉ
+      inerte par `--applicabilite` (bornes 0/63 en source Image, 0 écart, effet
+      actif sur 40,5 % des canaux — entrée ajoutée à `applicabilite-table.mjs`).
+- [x] La pente se lit sur la luminance de l'image (même dot Rec.709), finesse,
+      amplitude, échelle et angle inchangés de sens dans les deux sources.
+- [x] Référence `effet-deplacement-image` posée (relue à l'œil : damier
+      auto-déformé, barres cisaillées, aplat du disque immobile — la propriété
+      se voit) ; `test:render` complet : zéro écart sur tout l'existant.
+- [ ] Validé à l'œil par Antoine — c'est un geste créatif, le harnais ne dit pas
+      s'il est beau.
+
+⚠️ Limite d'affichage connue, mesurée dans la vraie fenêtre : « Source de la
+carte » sort en FIN de section Carte, pas en tête — l'ordre d'affichage d'un
+bloc EST celui de `params[]` (jamais réordonné, index gelés par les presets,
+`ParamPanel.groupEffectParams` le dit en toutes lettres), et un paramètre neuf
+va en fin de liste. La section `sections[].params` ne commande PAS l'ordre.
+Si l'ordre gêne à l'usage, c'est un arbitrage (déplacer l'index casserait les
+presets), pas un correctif.

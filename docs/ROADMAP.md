@@ -35,9 +35,10 @@
   retouchent ce qui existe.
 - `glass` **complet** : 14 matières (9 de feuille + 5 de pavé), 5 profils de
   section, **18 références de pixels — toutes les branches verrouillées**.
-- **385 paramètres, 123 références de pixels** (126 au 2026-08-20, −3 le
-  2026-08-21 : les trois d'`emboss` parties avec l'effet retiré ; le revert de
-  `noise` le même jour a défait ses 2). Ces
+- **381 paramètres, 124 références de pixels** — re-mesurés le 2026-08-26
+  (l'instrument, pas la prose : les « 385 » d'avant portaient encore `emboss` et
+  `noise`, retirés le 2026-08-21 ; le +1 param et la +1 référence du 2026-08-26
+  sont le mode « L'image en dessous » de `displacementMap`, ticket 22). Ces
   chiffres sont relancés, pas recopiés — deux des chiffres que ce dépôt portait
   en prose étaient déjà faux avant qu'on y touche : 51 conditions au lieu de 52,
   63 gabarits `liste` sur 83 au lieu de 60 sur 84. Le +3 de paramètres du
@@ -227,10 +228,14 @@ changeait le modèle sans repeindre l'écran), 02 dock à deux colonnes, 03 verr
 redescendus au niveau du calque, 04 coût d'un aperçu mesuré, 23 retrait de
 l'écrêtage (ADR-0020). Détail dans `docs/INDEX.json`.
 
-**Frontière prenable, sans décision préalable** : 20 (brancher l'outil Déplacer
-sur les effets qui ont un lieu), 22 (la carte de déplacement lit l'image
-elle-même), 05 (vignettes de galerie — sa mesure est faite, voir la correction
-ci-dessous), 16 (Fresnel rampant du verre).
+**Frontière prenable, sans décision préalable** : 05 (vignettes de galerie — sa
+mesure est faite, voir la correction ci-dessous), 16 (Fresnel rampant du verre).
+✅ **20 et 22 LIVRÉS le 2026-08-26** (code, tests, références, gates vertes,
+geste vérifié par CDP sur la vraie fenêtre) — il ne leur reste que la validation
+à l'œil d'Antoine (`ready-for-human` sur les deux tickets). Limite connue du
+22 : « Source de la carte » s'affiche en FIN de section (l'ordre d'affichage EST
+celui de `params[]`, jamais réordonné — corollaire (a) du chantier des
+contrôles ; un param neuf va en fin de liste, donc en fin de bloc).
 
 **Bloqué sur un arbitrage d'Antoine** : 21 (quels effets créatifs gagnent un
 lieu — il COMMANDE le 20), 06 (encre procédurale), 09 (source de textures),

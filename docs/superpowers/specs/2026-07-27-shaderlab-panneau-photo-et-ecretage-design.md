@@ -1,5 +1,18 @@
 # Design — Panneau « Photo » + écrêtage d'un calque d'effet sur une photo
 
+> ⚠️ **SA MOITIÉ « ÉCRÊTAGE » EST CADUQUE DEPUIS LE 2026-08-21** — l'écrêtage a
+> été RETIRÉ du dépôt sans remplaçant ([ADR-0020](../../../.claude/decisions/ADR-0020-retrait-de-l-ecretage.md),
+> portée « retrait sec », verdict d'usage d'Antoine). `src/layers/clipping.ts`,
+> `clipBaseId`, `resolveClipping`, `LayerState.clipToBelow`, `setLayerClip`,
+> `clipToCoverage` et la case « Écrêter sur la photo du dessus » **n'existent
+> plus**. Ne rien implanter depuis ce document sur ce volet : ce qu'il décrit a
+> vécu, puis a été mesuré inutile. Le rattachement d'un effet à sa photo est
+> désormais assuré par la seule PROXIMITÉ (ADR-0005), et la capacité perdue —
+> borner un effet à la couverture d'une photo — se retrouvera par la sélection
+> géométrique, jamais par une case.
+>
+> **La moitié « panneau Photo » reste valide** et décrit du code vivant.
+
 > Date : 2026-07-27 · Repo `C:\dev\shaderlab`, base `master@1a09d8d`.
 > Révision 2 (après revue adverse — voir §10 « Historique de revue »).
 > Type : design doc (le COMMENT). Le QUOI est tranché par l'utilisateur et

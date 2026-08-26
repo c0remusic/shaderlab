@@ -348,6 +348,13 @@
   ],
   "plans": [
     {
+      "path": ".scratch/retour-usage-execution/",
+      "status": "en cours",
+      "date": "2026-08-21",
+      "topic": "Backlog d'exécution du retour d'usage — 23 tickets",
+      "summary": "Découpé par /to-tickets après un grilling de 16 questions qui a tranché les huit sujets ouverts de la carte retour-usage-2026-08-20. C'est la FILE de travail ; la carte reste la trace des arbitrages. SOLDÉ le jour même : 01 aperçu de fusion au survol (livré puis corrigé — il changeait le modèle sans repeindre l'écran, `replaceLiveLayers` ne redemande aucun rendu), 02 dock à DEUX COLONNES (Propriétés côté toile, sélecteur d'effet en tête), 03 verrous redescendus au niveau du CALQUE avec le libellé « Verrous : » (ils vivaient dans le panneau Propriétés, donc dans une carte différente de la pile qu'ils commandent — relevé d'Antoine, et le commentaire du code lui donnait raison : ils avaient été posés là pour une raison de PLACE), 04 coût d'un aperçu mesuré, 23 retrait de l'écrêtage (ADR-0020). OUVERT et prenable : 20 (brancher Déplacer sur les effets qui ont un lieu), 22 (la carte de déplacement lit l'image), 05 (vignettes de galerie), 16-19 (refonte du verre Poli). BLOQUÉ sur Antoine : 21 (quels effets créatifs gagnent un lieu — il commande le 20), 06, 09, 10, 14. Principe récurrent du grilling : « comme photoshop/affinity », qui a renversé deux recos non vérifiées."
+    },
+    {
       "path": "docs/superpowers/plans/2026-07-31-remediation-audits.md",
       "status": "🔄 EN COURS — B0 clos par réfutation, E2/E3/E5 corrigés et fusionnés, A3/R3/U2 fusionnés après passe adverse, R1 et U3 réfutés et laissés hors de master, E1 tranché par ADR-0008.",
       "date": "2026-07-31",

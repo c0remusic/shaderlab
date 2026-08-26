@@ -207,7 +207,67 @@ barre d'outils (09), params en section calque (10), plus lensBlur perf (11). La
 carte se reprend par `/wayfinder`.
 ✅ **`emboss` (03) RÉSOLU le 2026-08-21** — grilling tranché SUPPRIMER,
 effet retiré du registre (ADR-0019). Et `noise`, né du ticket 02 la veille,
-REVERTÉ le même jour (refusé). Prochain fix de la file : les verrous (05).
+REVERTÉ le même jour (refusé).
+
+### ⭐ LE TRAVAIL VIT MAINTENANT DANS `.scratch/retour-usage-execution/`
+
+**Chartée le 2026-08-21 par `/to-tickets`**, après un grilling de 16 questions
+qui a tranché les huit sujets ouverts de la carte ci-dessus. **23 tickets**,
+numérotés en ordre de dépendance, `README.md` en tête avec le graphe. C'est là
+qu'on prend le travail — la carte `retour-usage-2026-08-20` reste la trace des
+ARBITRAGES, elle n'est plus la file.
+
+**Principe récurrent du grilling, et il a renversé ma reco deux fois :**
+« comme photoshop/affinity ». Vérifier leur convention AVANT de recommander,
+pas après (`displacementMap` était déjà rangé où PS le range ; le glyphe `Brush`
+du verrou de masque est celui de PS et devait rester).
+
+**Soldé le 2026-08-21** — 01 aperçu de fusion au survol (livré puis CORRIGÉ, il
+changeait le modèle sans repeindre l'écran), 02 dock à deux colonnes, 03 verrous
+redescendus au niveau du calque, 04 coût d'un aperçu mesuré, 23 retrait de
+l'écrêtage (ADR-0020). Détail dans `docs/INDEX.json`.
+
+**Frontière prenable, sans décision préalable** : 20 (brancher l'outil Déplacer
+sur les effets qui ont un lieu), 22 (la carte de déplacement lit l'image
+elle-même), 05 (vignettes de galerie — sa mesure est faite, voir la correction
+ci-dessous), 16 (Fresnel rampant du verre).
+
+**Bloqué sur un arbitrage d'Antoine** : 21 (quels effets créatifs gagnent un
+lieu — il COMMANDE le 20), 06 (encre procédurale), 09 (source de textures),
+10 (modèle de la forme), 14 (mesure lensBlur en prod, que le sandbox interdit à
+l'agent).
+
+### ⚠️ CE QUE LA SESSION DU 2026-08-21 A OUVERT
+
+Quatre restes créés, pas hérités. Chacun porte sa mesure — c'est elle qui
+permettra de trancher, pas le souvenir.
+
+1. **Le retrait de l'écrêtage a coûté une capacité SANS remplaçant** : borner un
+   effet à la COUVERTURE d'une photo. Les sources de masque sont une union
+   fermée (`gradient · luminosity · colorRange`), sans géométrie. Décidé en
+   connaissance de cause (ADR-0020, portée « retrait sec »), à retrouver par la
+   sélection géométrique du ticket 11 — jamais par une case.
+2. **La bibliothèque de textures ne porte AUCUN relief**, et c'est ce qui faisait
+   passer `displacementMap` pour cassé (« l'effet est le même selon les
+   textures »). Ses sept scans sont des albédos PBR d'ambientCG (`Cardboard*`,
+   `Paper*`), mesurés à ~10 niveaux sur 255 par la recherche du ticket 08 —
+   quasi plats. Une carte de déplacement lit une PENTE ; une image plate n'en a
+   pas. L'effet marchait, son entrée ne portait pas d'information. Deux suites :
+   ticket 22 (lire l'image) et ticket 09 (un vrai catalogue — la recherche a
+   nommé la source, Texture Ninja, CC0, scans photographiques).
+3. **L'outil Déplacer ignore les calques d'effet**, y compris les cinq qui ONT un
+   ancrage sur la toile. Mesuré : `if (!layer?.imageSource || !layer.transform)
+   return;` dans `usePhotoLayer.ts`, deux fois. Et **21 effets sur 26 n'ont aucun
+   lieu** — c'est le vrai facteur limitant (tickets 20 et 21).
+4. **Un aperçu d'effet à taille vignette coûte 4,0 ms**, quel que soit l'effet
+   (`glass`, le plus cher du registre, ne se distingue pas de la photo nue à
+   cette taille). ⚠️ **MAIS ce chiffre ne dit PAS que l'aperçu est gratuit** : il
+   n'existe aucun chemin de rendu à résolution réduite dans le dépôt, donc un
+   aperçu de la photo réelle coûte **261 ms** et les 26 en coûteraient 6,8 s. Le
+   premier travail du ticket 05 est cette pièce, pas l'UI. Second reste non
+   mesuré : les effets à paramètres en PIXELS (rayon de `lensBlur`, grain, pas de
+   trame) ne montrent pas la même chose à 1/30 d'échelle — un aperçu peut être
+   bon marché ET mensonger.
 
 ## ⚠️ DEUX cartes de plus, et la première est CLOSE
 

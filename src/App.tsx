@@ -1277,6 +1277,13 @@ export default function App() {
       }
       layer.blendMode = blendMode;
       sessionRef.current.replaceLiveLayers(stack.layers);
+      // ⚠️ `replaceLiveLayers` NE REDEMANDE AUCUN RENDU — il ne fait que poser
+      // l'état vivant. Tout chemin vivant doit l'appairer avec un
+      // `requestRender`, comme le fait `handleOpacityChange`. Sans cette ligne
+      // l'aperçu changeait le MODÈLE sans repeindre l'ÉCRAN : le survol ne
+      // faisait rien de visible (défaut livré le 2026-08-21, relevé par Antoine
+      // devant l'app, corrigé le même jour).
+      rendererRef.current?.requestRender(stack.layers);
     },
     [currentStack]
   );
@@ -1290,6 +1297,9 @@ export default function App() {
     if (layer && layer.blendMode !== active.committed) {
       layer.blendMode = active.committed;
       sessionRef.current.replaceLiveLayers(stack.layers);
+      // Même appairage qu'à la pose : sans lui, quitter le survol laissait
+      // l'écran sur le dernier aperçu rendu.
+      rendererRef.current?.requestRender(stack.layers);
     }
   }, [currentStack]);
 

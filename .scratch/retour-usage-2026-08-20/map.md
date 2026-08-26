@@ -123,6 +123,14 @@ Toutes tranchées, principe récurrent : **« comme photoshop/affinity »**.
   comme PS *Properties* / Lightroom), pas au-dessus. Accordéon sous la ligne (10)
   **écarté** : pas PS, et 37 params de `curves` casseraient ADR-0001. → wireframe
   layout deux-colonnes.
+  ✅ **Détail tranché le 2026-08-21 devant le wireframe** : colonne Propriétés à
+  **GAUCHE** (côté toile), **Masque reste** onglet de la Pile, **le sélecteur
+  d'effet part en tête des Propriétés**, et — relevé par Antoine — **les verrous
+  remontent au niveau du CALQUE** : leur propre ligne avec le libellé « Verrous : »,
+  groupés avec fusion et opacité (modèle PS). ⚠️ Ils étaient sur la ligne « Effet »
+  pour une raison de PLACE, pas de sens — le commentaire du code le dit en toutes
+  lettres. C'est une cause du « l'icône pinceau ne fait rien » (ticket 05), pas un
+  détail de style. Le cadenas de LIGNE (plein/creux) ne bouge pas : marque d'état.
 - **08 hover** — modes de fusion en **aperçu live** sur la toile (cheap, PS scrub
   la liste) + effets en **vignette de galerie** basse-déf (coût des 27 passes à
   mesurer). Séquence : fusion d'abord.

@@ -124,30 +124,23 @@
   Et la ligne de l'effet sélectionné partage sa largeur avec le sélecteur + les 4 verrous : pas de place pour un libellé <code>Verrous :</code>.</div>
 
   <!-- APRÈS -->
-  <h2>2 · Proposé — deux colonnes, réglages à côté</h2>
+  <h2>2 · Retenu — deux colonnes, Propriétés côté toile</h2>
+  <p class="lede">Tranché par Antoine le 2026-08-21. Le rangement suit le NIVEAU de chaque contrôle : ce qui décrit le
+  <strong>calque</strong> (fusion, opacité, verrous) reste dans la carte Pile ; ce qui décrit <strong>l'effet</strong>
+  (son sélecteur et ses réglages) part dans la colonne Propriétés.</p>
   <div class="app">
     <div class="toolbar"><div class="tool on"></div><div class="tool"></div><div class="tool"></div><div class="tool"></div></div>
     <div class="canvas">toile</div>
     <div class="dock">
-      <div class="col" style="width:210px">
-        <div class="card">
-          <div class="card__tabs"><span class="tab on">Pile</span><span class="tab">Masque</span></div>
-          <div class="card__body">
-            <div class="row sel"><span class="chip"></span><span class="nm">Glow</span><span class="mini"></span></div>
-            <div class="row"><span class="chip"></span><span class="nm">Carte de déplacement</span><span class="mini"></span></div>
-            <div class="row"><span class="chip"></span><span class="nm">Photo</span><span class="mini"></span></div>
-            <!-- la ligne de contrôle du calque sélectionné, LIBÉRÉE du sélecteur -->
-            <div class="locks">
-              <span class="locks__label">Verrous&nbsp;:</span>
-              <span class="lk"></span><span class="lk on" title="masque verrouillé, enfoncé"></span><span class="lk"></span><span class="lk"></span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <!-- PROPRIÉTÉS À GAUCHE, collée à la toile -->
       <div class="col" style="width:236px">
         <div class="card">
-          <div class="card__tabs"><span class="tab on">Propriétés — Glow</span></div>
+          <div class="card__tabs"><span class="tab on">Propriétés</span></div>
           <div class="card__body">
+            <!-- le SÉLECTEUR D'EFFET vient ici : « ce que fait ce calque » -->
+            <div class="field" style="border:1px solid var(--border-strong); border-radius:5px; padding:6px 8px; margin-bottom:8px">
+              <span style="color:var(--text-secondary)">Effet</span><span class="val">Glow ▾</span>
+            </div>
             <div class="field"><span>Rayon</span><span class="val">24 px</span></div><div class="slider"></div>
             <div class="field"><span>Intensité</span><span class="val">1.6</span></div><div class="slider"></div>
             <div class="field"><span>Seuil</span><span class="val">0.55</span></div><div class="slider"></div>
@@ -155,28 +148,50 @@
           </div>
         </div>
       </div>
+      <!-- PILE À DROITE, avec les attributs DU CALQUE groupés -->
+      <div class="col" style="width:210px">
+        <div class="card">
+          <div class="card__tabs"><span class="tab on">Pile</span><span class="tab">Masque</span></div>
+          <div class="card__body">
+            <div class="row sel"><span class="chip"></span><span class="nm">Glow</span><span class="mini"></span></div>
+            <div class="row"><span class="chip"></span><span class="nm">Carte de déplacement</span><span class="mini"></span></div>
+            <div class="row"><span class="chip"></span><span class="nm">Photo</span><span class="mini"></span></div>
+            <!-- ZONE D'ATTRIBUTS DU CALQUE : fusion + opacité, puis les verrous sur
+                 LEUR PROPRE LIGNE avec leur libellé (modèle PS « Lock: ») -->
+            <div class="field" style="margin-top:8px"><span>Fusion</span><span class="val">Normal ▾</span></div>
+            <div class="field"><span>Opacité</span><span class="val">100 %</span></div>
+            <div class="locks">
+              <span class="locks__label">Verrous&nbsp;:</span>
+              <span class="lk"></span><span class="lk on" title="masque verrouillé, état enfoncé"></span><span class="lk"></span><span class="lk"></span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
   <div class="cols2">
-    <div class="callout callout--ok"><span class="tag tag--new">gagné</span><br>
-      Les réglages sont À CÔTÉ (comme PS <em>Properties</em> / Lightroom). Et la ligne de contrôle du calque, libérée du
-      panneau de réglages, a enfin la place du libellé <strong>Verrous :</strong> + les 4 verrous enfoncés (ticket 05, B).</div>
-    <div class="callout"><span class="tag tag--now">à décider</span><br>
-      La colonne Propriétés se remplit avec l'effet sélectionné. Vide s'il n'y a pas d'effet sélectionné (ou montre le calque photo).
-      Reste content-sized et NE DÉFILE PAS (ADR-0001) — un effet à 37 params (curves) tient parce que la colonne prend la hauteur de son contenu.</div>
+    <div class="callout callout--ok"><span class="tag tag--new">ce que ça règle</span><br>
+      Les réglages sont À CÔTÉ, côté toile. Et les verrous cessent d'être accrochés au sélecteur d'effet : ils rejoignent
+      fusion et opacité — les autres attributs du CALQUE — sur leur propre ligne, avec leur libellé.</div>
+    <div class="callout callout--bad"><span class="tag tag--now">le défaut d'origine</span><br>
+      Les 4 verrous étaient posés sur la ligne « Effet » pour une raison de PLACE, pas de sens — le commentaire du code le
+      dit en toutes lettres (« se logent dans la place libre de la ligne Effet »). D'où la lecture bancale : ils agissent
+      sur le calque, mais pendent au sélecteur d'effet.</div>
   </div>
 
-  <h2>3 · Contraintes & questions ouvertes</h2>
+  <h2>3 · Décisions arrêtées</h2>
   <ul class="tight">
-    <li><strong>ADR-0001 tient</strong> : chaque colonne reste content-sized, aucune ne défile. Les groupes à onglets (déjà tranchés, hybride ticket 04) sont préservés — on AJOUTE une colonne, on ne rouvre pas le modèle.</li>
-    <li><strong>Côté de la colonne Propriétés</strong> : à DROITE de la Pile (ci-dessus), ou à GAUCHE (collée à la toile, comme Lightroom Develop) ? PS la met à droite ; Lightroom à droite aussi.</li>
-    <li><strong>Largeur totale</strong> : deux colonnes ~210 + ~236 = ~450 px de dock. Sur un petit écran, ça mange la toile. Repli d'une colonne possible ?</li>
-    <li><strong>Masque</strong> : reste onglet de la colonne Pile, ou passe avec Propriétés ? (il décrit le calque sélectionné, comme les réglages).</li>
+    <li><strong>Colonne Propriétés à GAUCHE</strong>, collée à la toile.</li>
+    <li><strong>Masque reste un onglet de la carte Pile</strong> (avec la pile, pas avec les Propriétés).</li>
+    <li><strong>Le sélecteur d'effet part en tête de la colonne Propriétés</strong> — c'est « ce que fait ce calque », pas un attribut de la pile.</li>
+    <li><strong>Les verrous prennent leur propre ligne</strong>, avec le libellé « Verrous : », groupés avec fusion et opacité — modèle Photoshop, qui met fusion, opacité et <em>Lock:</em> au même endroit.</li>
+    <li><strong>Le cadenas sur la LIGNE du calque reste</strong> (plein = total, creux = partiel) : c'est une marque d'état, pas un contrôle répété — ADR-0001 interdit le second, pas la première. Photoshop fait pareil.</li>
+    <li><strong>ADR-0001 tient</strong> : chaque colonne reste content-sized, aucune ne défile ; les groupes à onglets ne sont pas rouverts, on AJOUTE une colonne.</li>
   </ul>
 
-  <div class="q"><b>Q pour toi :</b> (1) colonne Propriétés à DROITE de la Pile ou à GAUCHE (côté toile) ?
-  (2) l'onglet <b>Masque</b> reste avec la Pile, ou part avec les Propriétés (tout ce qui décrit le calque sélectionné ensemble) ?
-  (3) le libellé <b>Verrous :</b> validé une fois la ligne libérée ?</div>
+  <div class="q"><b>Reste à mesurer à l'implémentation, pas à décider :</b> la largeur totale du dock à deux colonnes
+  (~450 px) sur petit écran, et si un repli de colonne devient nécessaire. Ça se mesure sur l'app — la documentation
+  Adobe ne donne aucun gabarit chiffré.</div>
 </div>
 </body>
 </html>

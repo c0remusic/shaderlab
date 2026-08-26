@@ -12,7 +12,7 @@ règle du projet, pas de copie verbatim sans licence permissive citée (précéd
 **Status:** ready-for-agent
 **Type:** research
 
-- [ ] Sources candidates listées (URL, licence exacte, nature du contenu, résolution).
-- [ ] Verdict de licence par source : réutilisable (permissive citée) vs inspiration seulement.
-- [ ] Recommandation : pack embarqué, génération procédurale, ou les deux — avec le coût de chacun.
-- [ ] Note d'attribution/emplacement si un pack est embarqué.
+- [x] Sources candidates listées (URL, licence exacte, nature du contenu, résolution). → `research/08-source-textures.md` §2
+- [x] Verdict de licence par source : réutilisable (permissive citée) vs inspiration seulement. → §2 (tableau embarquable oui/non)
+- [x] Recommandation : pack embarqué, génération procédurale, ou les deux — avec le coût de chacun. → §1 + §4
+- [x] Note d'attribution/emplacement si un pack est embarqué. → §5

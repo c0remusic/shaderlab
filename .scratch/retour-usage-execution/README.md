@@ -23,6 +23,8 @@ Encre/Tex   06 concevoir encre procédurale [LIVE] → 07 encre dans Impression
             08 chercher source textures + licences → 09 plus de textures
 Aplat       10 modèle de la forme [LIVE] → 11 sélection géométrique → 12 outil Forme → 13 poignées
 lensBlur    14 mesurer prod [Antoine] → 15 levier perf
+Déplacer    20 Déplacer agit sur les effets placés (libre)
+            21 quels effets gagnent un lieu [LIVE]
 Verre Poli  16 Fresnel rampant → 17 reflet d'environnement → 18 réfraction de bord → 19 rim + frange
 ```
 

@@ -228,9 +228,12 @@ changeait le modèle sans repeindre l'écran), 02 dock à deux colonnes, 03 verr
 redescendus au niveau du calque, 04 coût d'un aperçu mesuré, 23 retrait de
 l'écrêtage (ADR-0020). Détail dans `docs/INDEX.json`.
 
-**Frontière prenable, sans décision préalable** : 17 (reflet d'environnement du
-verre — première VRAIE tranche de la chaîne, sa méthode s'arrête à l'œil avec
-Antoine ; chaque tranche régénère les 18 références et se juge devant photo).
+**Frontière prenable, sans décision préalable** : AUCUNE au 2026-08-26 au soir —
+tout ce qui restait libre est livré ou posé sur une décision d'Antoine avec sa
+planche. **17 (reflet d'environnement du verre) est PRÊT À TRANCHER** : les
+trois voies sont prototypées et rendues côte à côte, témoin compris
+(<https://claude.ai/code/artifact/842e4df1-7f91-4a33-ab5b-b4ff74a7ee04>, reco :
+auto-réflexion). Le code de la tranche suit le choix.
 ✅ **16 CLOS EN CONSTAT le 2026-08-26, zéro ligne de code** : la rampe de Schlick
 demandée est dans `glass.ts:889` **depuis le premier commit du verre**, par
 pixel, sur le bon `cos θ`. Le voile plat vient de `glass.ts:890` (mélange vers

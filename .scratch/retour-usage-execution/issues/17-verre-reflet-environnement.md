@@ -20,9 +20,21 @@ micro-relief, pas d'une couleur d'environnement uniforme.
 Fresnel existe déjà (`glass.ts:889`), ce ticket est la première vraie tranche de
 code de la chaîne verre. La modulation par la rampe reste la règle, sinon aplat.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human — **le choix de la voie est PRÊT À TRANCHER SUR
+IMAGES** (2026-08-26) :
+<https://claude.ai/code/artifact/842e4df1-7f91-4a33-ab5b-b4ff74a7ee04> — les
+trois voies PROTOTYPÉES au même site du shader (`glass.ts:890`, tout le reste
+inchangé), rendues sur Poli et Pavé nuage à 720 px, témoin compris. Reco :
+**l'auto-réflexion (C)** — le reflet suit la photo, les noirs restent denses
+(le voile disparaît vraiment), aucun asset ni couleur arbitraire ; réserve : un
+reflet screen-space local ne fabrique pas de « fenêtre de studio », A s'y
+combine si besoin. Les prototypes n'ont PAS été commités (`glass.ts` restauré) ;
+régénérables : `assets/planche-17-rendu.mjs` (éditer le site, `npx tsc
+--noEmit`, rendre, restaurer) puis `assets/planche-17-assemble.mjs`.
 
+- [ ] **[Antoine]** Choisir la voie (A studio / B matcap / C auto-réflexion /
+      une combinaison) sur la planche.
 - [ ] Blinn-Phong retiré du chemin Poli.
-- [ ] Un reflet d'environnement fabriqué (méthode arrêtée à l'œil avec Antoine), modulé par Fresnel.
+- [ ] Un reflet d'environnement fabriqué (la voie choisie), modulé par Fresnel.
 - [ ] Pas d'aplat : le reflet porte une structure (bords + micro-normale), vérifié sur une vraie photo.
 - [ ] Les 18 références régénérées et **relues à l'œil** ; jugé devant photo par Antoine.

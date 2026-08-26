@@ -23,7 +23,15 @@ Encre/Tex   06 concevoir encre procédurale [LIVE] → 07 encre dans Impression
             08 chercher source textures + licences → 09 plus de textures
 Aplat       10 modèle de la forme [LIVE] → 11 sélection géométrique → 12 outil Forme → 13 poignées
 lensBlur    14 mesurer prod [Antoine] → 15 levier perf
+Verre Poli  16 Fresnel rampant → 17 reflet d'environnement → 18 réfraction de bord → 19 rim + frange
 ```
+
+⚠️ **Les tickets 16-19 (verre Poli) sont issus de la recherche
+`../retour-usage-2026-08-20/research/01-glass-shading.md`**, sliceés le 2026-08-21
+sur « go pour l'afk » — draft à relire par Antoine. Chacun change le rendu du verre
+et se JUGE devant photo par lui (l'esthétique ne se grille pas ; un banc prouve que
+ça agit, jamais que c'est beau). Chaîne linéaire : une seule évolution du chemin
+`glass.ts` à la fois, chacune régénère les 18 références.
 
 ## Note d'exécution
 

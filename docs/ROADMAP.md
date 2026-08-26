@@ -228,9 +228,15 @@ changeait le modèle sans repeindre l'écran), 02 dock à deux colonnes, 03 verr
 redescendus au niveau du calque, 04 coût d'un aperçu mesuré, 23 retrait de
 l'écrêtage (ADR-0020). Détail dans `docs/INDEX.json`.
 
-**Frontière prenable, sans décision préalable** : 16 (Fresnel rampant du verre
-— chaîne 16→19, chaque tranche régénère les 18 références du verre et se juge
-devant photo par Antoine).
+**Frontière prenable, sans décision préalable** : 17 (reflet d'environnement du
+verre — première VRAIE tranche de la chaîne, sa méthode s'arrête à l'œil avec
+Antoine ; chaque tranche régénère les 18 références et se juge devant photo).
+✅ **16 CLOS EN CONSTAT le 2026-08-26, zéro ligne de code** : la rampe de Schlick
+demandée est dans `glass.ts:889` **depuis le premier commit du verre**, par
+pixel, sur le bon `cos θ`. Le voile plat vient de `glass.ts:890` (mélange vers
+une couleur FIXE — l'environnement est gelé, pas le Fresnel) ; la recherche
+`01-glass-shading.md` affirmait « comme nous le faisons » sans avoir ouvert le
+shader — amendée. Le blocage du 17 est levé de fait.
 ⚠️ **05 (vignettes de galerie) est CADRÉ le 2026-08-26 et attend UNE décision
 d'Antoine** : la fidélité de l'aperçu se tranche sur la planche
 <https://claude.ai/code/artifact/c80e3b93-cfd8-4cb3-863e-928314271ceb>

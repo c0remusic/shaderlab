@@ -30,6 +30,18 @@ second reflète la scène entière (LearnOpenGL, section « specular vs environm
 de la recherche). Sur une surface lisse, seul le second est visible.
 
 ### Idée 2 — Le Fresnel constant à 0,04 est l'erreur centrale : il DOIT ramper avec l'angle de vue. C'est ça qui « fait verre ».
+
+> ⚠️ **AMENDÉ le 2026-08-26 (clôture du ticket 16)** : « comme nous le
+> faisons » ci-dessous est FAUX, écrit sans avoir ouvert le shader. La rampe de
+> Schlick est dans `glass.ts:889` depuis le premier commit du verre, sur
+> `cos θ = N.z` par pixel (`:838`, vue orthographique `:769`). Le symptôme
+> décrit (voile plat) est réel, mais sa cause est la ligne d'à côté :
+> `glass.ts:890` mélange vers une couleur FIXE — c'est l'ENVIRONNEMENT qui est
+> gelé (Idée 3), pas le Fresnel. Mesuré : sur le Poli aux défauts l'inclinaison
+> max de la normale est 2,14° donc F varie de 1,6e-16 (un verre plat de face
+> réfléchit 4 %, c'est juste) ; sur un Pavé nuage à creux 1, la même rampe fait
+> courir F de 0,040 à 0,322. La physique du paragraphe reste bonne ; son
+> constat sur notre code ne l'était pas.
 Schlick : `R(θ) = R₀ + (1 − R₀)·(1 − cos θ)⁵`, avec `R₀ ≈ 0,04` pour le verre
 (IOR 1,5) ([Pete Shirley, Fresnel/Schlick](http://psgraphics.blogspot.com/2020/03/fresnel-equations-schlick-approximation.html)).
 En incidence normale (vue de face) la réflectance vaut **0,04** — le verre est

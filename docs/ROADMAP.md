@@ -228,8 +228,16 @@ changeait le modèle sans repeindre l'écran), 02 dock à deux colonnes, 03 verr
 redescendus au niveau du calque, 04 coût d'un aperçu mesuré, 23 retrait de
 l'écrêtage (ADR-0020). Détail dans `docs/INDEX.json`.
 
-**Frontière prenable, sans décision préalable** : 05 (vignettes de galerie — sa
-mesure est faite, voir la correction ci-dessous), 16 (Fresnel rampant du verre).
+**Frontière prenable, sans décision préalable** : 16 (Fresnel rampant du verre
+— chaîne 16→19, chaque tranche régénère les 18 références du verre et se juge
+devant photo par Antoine).
+⚠️ **05 (vignettes de galerie) est CADRÉ le 2026-08-26 et attend UNE décision
+d'Antoine** : la fidélité de l'aperçu se tranche sur la planche
+<https://claude.ai/code/artifact/c80e3b93-cfd8-4cb3-863e-928314271ceb>
+(composite réduit contre crop 1:1, 14 rendus réels — reco : réduit).
+L'architecture est retenue et écrite dans le ticket (mini-pile + second
+Renderer offscreen, précédent `render-check.mjs`) ; le code n'attend que ce
+choix.
 ✅ **20 et 22 LIVRÉS le 2026-08-26** (code, tests, références, gates vertes,
 geste vérifié par CDP sur la vraie fenêtre) — il ne leur reste que la validation
 à l'œil d'Antoine (`ready-for-human` sur les deux tickets). Limite connue du

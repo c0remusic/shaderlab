@@ -228,6 +228,11 @@ changeait le modèle sans repeindre l'écran), 02 dock à deux colonnes, 03 verr
 redescendus au niveau du calque, 04 coût d'un aperçu mesuré, 23 retrait de
 l'écrêtage (ADR-0020). Détail dans `docs/INDEX.json`.
 
+**Soldé le 2026-08-26** — 20 (Déplacer sur les effets à ancrage), 22
+(`displacementMap` lit l'image en dessous), 16 (clos en CONSTAT : la rampe
+existait). Validation à l'œil d'Antoine encore due sur 20 et 22. Détail dans
+`docs/INDEX.json`.
+
 **Frontière prenable, sans décision préalable** : AUCUNE au 2026-08-26 au soir —
 tout ce qui restait libre est livré ou posé sur une décision d'Antoine avec sa
 planche. **17 (reflet d'environnement du verre) est PRÊT À TRANCHER** : les
@@ -255,9 +260,10 @@ celui de `params[]`, jamais réordonné — corollaire (a) du chantier des
 contrôles ; un param neuf va en fin de liste, donc en fin de bloc).
 
 **Bloqué sur un arbitrage d'Antoine** : 21 (quels effets créatifs gagnent un
-lieu — il COMMANDE le 20), 06 (encre procédurale), 09 (source de textures),
-10 (modèle de la forme), 14 (mesure lensBlur en prod, que le sandbox interdit à
-l'agent).
+lieu — le 20 est LIVRÉ, ce choix décide combien d'effets en profitent), 06
+(encre procédurale), 09 (source de textures), 10 (modèle de la forme), 14
+(mesure lensBlur en prod, que le sandbox interdit à l'agent) — plus les deux
+planches du 2026-08-26 (fidélité des vignettes, voie du reflet du verre).
 
 ### ⚠️ CE QUE LA SESSION DU 2026-08-21 A OUVERT
 
@@ -275,12 +281,12 @@ permettra de trancher, pas le souvenir.
    `Paper*`), mesurés à ~10 niveaux sur 255 par la recherche du ticket 08 —
    quasi plats. Une carte de déplacement lit une PENTE ; une image plate n'en a
    pas. L'effet marchait, son entrée ne portait pas d'information. Deux suites :
-   ticket 22 (lire l'image) et ticket 09 (un vrai catalogue — la recherche a
-   nommé la source, Texture Ninja, CC0, scans photographiques).
-3. **L'outil Déplacer ignore les calques d'effet**, y compris les cinq qui ONT un
-   ancrage sur la toile. Mesuré : `if (!layer?.imageSource || !layer.transform)
-   return;` dans `usePhotoLayer.ts`, deux fois. Et **21 effets sur 26 n'ont aucun
-   lieu** — c'est le vrai facteur limitant (tickets 20 et 21).
+   ✅ ticket 22 (lire l'image — LIVRÉ le 2026-08-26) et ticket 09 (un vrai
+   catalogue — la recherche a nommé la source, Texture Ninja, CC0, scans
+   photographiques).
+3. ✅ ~~**L'outil Déplacer ignore les calques d'effet**~~ — LIVRÉ le 2026-08-26
+   (ticket 20). Reste vrai et limitant : **21 effets sur 26 n'ont aucun
+   lieu** — c'est le ticket 21, arbitrage d'Antoine.
 4. **Un aperçu d'effet à taille vignette coûte 4,0 ms**, quel que soit l'effet
    (`glass`, le plus cher du registre, ne se distingue pas de la photo nue à
    cette taille). ⚠️ **MAIS ce chiffre ne dit PAS que l'aperçu est gratuit** : il
@@ -289,7 +295,9 @@ permettra de trancher, pas le souvenir.
    premier travail du ticket 05 est cette pièce, pas l'UI. Second reste non
    mesuré : les effets à paramètres en PIXELS (rayon de `lensBlur`, grain, pas de
    trame) ne montrent pas la même chose à 1/30 d'échelle — un aperçu peut être
-   bon marché ET mensonger.
+   bon marché ET mensonger. ✅ Ce second reste est MONTRÉ depuis le 2026-08-26 :
+   la planche du ticket 05 rend les deux fidélités côte à côte sur 6 effets, et
+   la décision est chez Antoine.
 
 ## ⚠️ DEUX cartes de plus, et la première est CLOSE
 

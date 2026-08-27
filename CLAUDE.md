@@ -381,7 +381,13 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   **(a)** c'est de l'AFFICHAGE — `params[]` ne se réordonne jamais, ses index
   sont persistés dans les presets, et `test:render` doit rendre **zéro écart**
   après tout travail de panneau (c'est le gate discriminant : un écart prouve
-  qu'on a trié le tableau au lieu des items) ;
+  qu'on a trié le tableau au lieu des items). L'ordre AFFICHÉ dans un bloc est
+  donc celui de `params[]` — `section.params` ASSIGNE, il n'ordonne pas — et un
+  paramètre neuf, forcément en fin de liste, sort en fin de son bloc (vécu sur
+  `displacementMap.source`, voulu en tête, rendu en queue). Et l'ordre des
+  BLOCS suit le premier item RENDU de chaque section : un masquage peut donc
+  réordonner les sections à l'écran (« une section s'ouvre à la place de son
+  premier item », `ParamPanel.groupEffectParams`) ;
   **(b)** masquer ne borne pas — le shader garde ses clamps, un preset ne passe
   pas par le panneau ;
   **(c)** **un paramètre qu'aucune section ne cite n'est PAS un défaut** : quatre
@@ -407,6 +413,12 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   — 0,000 % d'écart les trois fois. Tant que l'instrument ne voit pas les
   sections, le front 1 du chantier des contrôles se terminerait sur des
   déclarations non mesurées.
+  ⚠️ Et l'instrument lit une table STATIQUE (`scripts/applicabilite-table.mjs`),
+  pas le registre : une déclaration `appliesWhen` neuve absente de la table est
+  NON éprouvée en silence — le gate reste vert avec N−1 déclarations, rien ne
+  compare son compte au registre. Vécu le 2026-08-26 (ticket 22). Toute
+  déclaration neuve s'ajoute à la table dans le MÊME commit, comme un scénario
+  s'ajoute à la table ATTENDU de renderRefs.
 - **La famille des flous est CLOSE, et RÉDUITE À DEUX** depuis le 2026-08-03 :
   `lensBlur` est un noyau d'OBJECTIF (intégration sur la surface de l'ouverture —
   pondération des hautes lumières + diaphragme à N lames, plus quatre géométries
@@ -1018,6 +1030,14 @@ les pixels par `drawImage` du canvas rend du NOIR hors frame (passer par
 `Renderer.exportFrame()`), et patcher `window.__TAURI_INTERNALS__.invoke`
 n'intercepte rien (les modules importent `invoke` depuis `@tauri-apps/api/core`,
 une autre référence).
+
+**Look-dev jetable par l'iframe du harnais** (2026-08-26) : la page
+`render-check-page.html` a un module map VIERGE, donc elle sert les modules
+TELS QU'ILS SONT SUR LE DISQUE, édition non commitée comprise — « éditer un
+shader → rendre par un Renderer offscreen → capturer → `git checkout` »
+fabrique une planche de variantes sans rien committer. Scripts réutilisables :
+`.scratch/retour-usage-execution/assets/planche-{05,17}-*.mjs` (photo injectée
+par dataURL, aucun IPC). Planches des tickets 05 et 17 produites ainsi.
 
 ## Moyen de preuve (EFFETS) — un verrou aveugle ne verrouille rien
 

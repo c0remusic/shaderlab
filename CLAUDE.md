@@ -789,6 +789,24 @@ dit lui-même (`For a stable experience, please add mentioned dependencies…`),
 mais seulement sur un run à froid, et le message ne contient ni `FAIL` ni
 `Error` : un log de CI filtré sur ces mots-là ne le montre jamais.
 
+⚠️ **SECOND symptôme du même cache, sens INVERSE, corrigé le 2026-09-02** : à
+cache `node_modules/.cache/storybook` CHAUD dont les sources ont bougé depuis
+sa constitution — un `touch` sans changement de contenu suffit —
+`test-storybook` échouait AVANT tout test : `Failed to connect to the browser
+session … within the timeout`, `Tests no tests`, ~60-115 s. La revalidation du
+cache court contre le timeout de connexion du navigateur (60 s) et perd une
+fois sur trois. Bissection : vider `.cache/storybook` SEUL suffit (`.vite`
+innocent) ; cache frais sans toucher aux sources → vert ; trois `touch` →
+rouge. `browser.connectTimeout` (fichier ET `--browser.connectTimeout` CLI)
+s'est révélé NON APPLIQUÉ dans notre config à projets — prouvé par l'absurde :
+un flag à `1` ms laisse la suite passer. Et la mesure a montré que ce cache ne
+paie RIEN : froid 50-57 s TOTAL contre 43-163 s chaud selon la course. **Le
+script `test-storybook` vide donc lui-même `.cache/storybook` avant chaque
+run** (correction mesurée, pas un rituel : un état qui n'apporte aucun gain et
+perd une course non configurable n'a pas à survivre entre les runs) — durée
+désormais stable à ~47 s. Le bloc PowerShell ci-dessus reste utile pour
+reproduire la CI COMPLÈTE (il vide aussi `.vite`).
+
 **Hook pre-commit** : source versionnée dans `scripts/hooks/pre-commit`, à
 installer à la main après un clone (`cp` vers `$(git rev-parse
 --git-common-dir)/hooks/`, instructions en tête du fichier). Aujourd'hui

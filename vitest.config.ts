@@ -152,6 +152,19 @@ export default defineConfig({
             provider: playwright({}),
             headless: true,
             instances: [{ browser: 'chromium' }],
+            // 240 s ET NON LES 60 PAR DÉFAUT (2026-09-02). À cache
+            // `node_modules/.cache/storybook` CHAUD dont les sources ont bougé
+            // depuis sa constitution — un simple `touch` suffit, mtime sans
+            // changement de contenu — la revalidation au démarrage court contre
+            // ce timeout de connexion du navigateur et PERD : « Failed to
+            // connect to the browser session … within the timeout », zéro test,
+            // exit 1. Mesuré en bissection : `.vite` gardé + cache storybook
+            // vidé → vert ; cache storybook frais sans toucher aux sources →
+            // vert ; trois `touch` → rouge. Le vidage rituel du cache masquait
+            // la course au lieu de la corriger ; la borne large la laisse finir
+            // (setup mesuré jusqu'à 160 s sur cette machine, à froid comme sur
+            // revalidation).
+            connectTimeout: 240_000,
           },
         },
       },

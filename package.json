@@ -17,7 +17,7 @@
     "dev:debug:follow": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1 -Follow",
     "dev:monitor": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/monitor.ps1",
     "test": "vitest run --project=unit",
-    "test-storybook": "vitest run --project=storybook",
+    "test-storybook": "node -e \"require('fs').rmSync('node_modules/.cache/storybook',{recursive:true,force:true})\" && vitest run --project=storybook",
     "test-storybook:watch": "vitest --project=storybook",
     "test:all": "vitest run",
     "coverage": "vitest run --project=storybook --coverage",

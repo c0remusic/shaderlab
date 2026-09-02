@@ -9,7 +9,7 @@ règle du projet, pas de copie verbatim sans licence permissive citée (précéd
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done — recherche rendue (research/08-source-textures.md), toutes cases cochées ; le CHOIX d embarquer un pack (licence, poids) reste à Antoine via le ticket 09
 **Type:** research
 
 - [x] Sources candidates listées (URL, licence exacte, nature du contenu, résolution). → `research/08-source-textures.md` §2

@@ -7,7 +7,7 @@ la liste = aperçu live). Cheap : un seul recompose par survol.
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done — livré le 2026-08-21 (aperçu au survol, corrigé par e1e877c ; statut jamais reporté ici, INDEX.json faisait foi)
 **Type:** task
 
 - [ ] Survoler un mode → la toile montre le calque composé dans ce mode.

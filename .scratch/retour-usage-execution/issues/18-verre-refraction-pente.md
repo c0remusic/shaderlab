@@ -40,9 +40,19 @@ par le shader — les prémisses du 19 sont à vérifier pareil avant de coder.)
    plein cadre. C'est LUI, « l'étalement uniforme ». Levier : porter ce terme
    par la pente, et/ou revoir le défaut.
 
-**Les deux leviers se jugent sur planche avant/après** (même méthode que le
-matcap) — prototypes au site, rendus réels, verdict d'Antoine, puis la
-tranche codée proprement avec les 13 références régénérées.
+**PLANCHE FAITE le 2026-08-27, prête à trancher** :
+<https://claude.ai/code/artifact/e10acfb4-f1f5-443f-ab65-b20f753d11eb> — cinq
+variantes (témoin, L1 micro→étalement, L2 diffusion par la pente, L3 vitrine
+pure, L1+L2) × trois matières (Poli, Cannelé, Dépoli-contrôle), en **crops 1:1
+à pleine résolution** — une planche réduite MOYENNE le micro-relief et ment sur
+son sujet, vécu et corrigé pendant la fabrication. Reco : **L3** — c'est la
+définition du Poli écrite dans le fichier même (« l'image reste NETTE et se
+déplace seulement, par larges masses »), enfin rendue. Le Dépoli est exclu des
+deux corrections par construction (il VIT du micro-relief et de la diffusion
+constante). Régénérable : `assets/planche-18-rendu.mjs` (éditer le site,
+tsc, rendre, restaurer) + `assets/planche-18-assemble.mjs`.
+Une fois la variante choisie : tranche codée proprement, 13 références
+régénérées et relues, gates complètes.
 
 - [ ] La réfraction est concentrée où la pente est forte, ~nulle au centre plat.
 - [ ] Le centre d'un panneau plat montre la photo quasi intacte (déviation nette faible).

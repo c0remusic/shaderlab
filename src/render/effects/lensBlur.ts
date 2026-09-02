@@ -146,8 +146,27 @@ fn lens_field(uv: vec2<f32>, dims: vec2<f32>) -> f32 {
     return smoothstep(1.0 - feather, 1.0 + 0.001, t);
   }
   if (s == 2) {
-    // IRIS : net à l'intérieur d'une ellipse, flou dehors. L'angle fait tourner
-    // l'ellipse, dont l'allongement vient de l'aspect du cadre de réglage.
+    // IRIS : net a l'interieur d'un disque, flou dehors.
+    //
+    // ⚠️ L'ANGLE NE FAIT RIEN ICI, ET CE N'EST PAS UN OUBLI DE CABLAGE : il est
+    // lu, la rotation est calculee, et elle ne change rien parce qu'une rotation
+    // CONSERVE LA NORME — length(r) vaut length(d) quel que soit l'angle. Le
+    // seul terme qui suit est cette longueur.
+    //
+    // Ce commentaire a dit « net a l'interieur d'une ELLIPSE, dont l'allongement
+    // vient de l'aspect du cadre de reglage » jusqu'au 2026-09-02, et la premisse
+    // etait fausse : aspectScale est applique a d AVANT la rotation, donc la
+    // figure est un disque PARFAIT dans cet espace corrige — c'est justement ce
+    // que la correction d'aspect sert a obtenir. En espace ecran elle se relit
+    // comme une ellipse alignee sur les axes du cadre, que tourner un disque
+    // laisse identique.
+    //
+    // Mesure (ticket 25, mire a bokeh 512x340, rayons 8/24/60) : 0 vs 37, 0 vs 90
+    // et 0 vs 180 degres rendent 0,00 % de canaux d'ecart, max 0, les neuf fois.
+    // L'infobulle de fieldAngle et son appliesWhen le declarent donc desormais
+    // sans objet en Iris. Rendre l'iris VRAIMENT elliptique — un allongement
+    // reglable, que l'angle orienterait — est une fonctionnalite a arbitrer, pas
+    // la correction de ce constat.
     let c = cos(angle);
     let sn = sin(angle);
     let r = vec2<f32>(d.x * c + d.y * sn, -d.x * sn + d.y * c);
@@ -278,21 +297,66 @@ export const lensBlur: EffectModule = {
     // ni `validateEffect` ni un relecteur ne rattacheraient à sa cause. Faire de
     // `blades` un `choices` coûterait sa course continue de 0 à 12 pour un
     // masquage. L'infobulle reste donc l'unique porteur de la déclaration.
-    { name: "bladeRotation", label: "Orientation des lames", unit: "degrees", min: 0, max: 360, default: 0, step: 1, hint: "Fait tourner la forme du diaphragme. Sans objet sur un diaphragme circulaire." },
+    // ⚠️ COURSE DÉCLARÉE 0..360, COURSE UTILE 0..360/n — le motif D11 de
+    // `sliceShift.edgeFeather`, mesuré ici le 2026-09-02 (ticket 25) : à six
+    // lames, 0 vs 60°, 0 vs 120° et 0 vs 360° rendent tous 0,00 % d'écart, quand
+    // 0 vs 30° (la demi-période) en rend 4,1 % à rayon 24 et 15,4 % à rayon 60.
+    // Cinq sixièmes de la course rejouent donc le premier sixième, et c'est vrai
+    // à tout n (vérifié aussi à 5 et 3 lames).
+    //
+    // ⚠️ ET `maxFrom` N'EST PAS LE REMÈDE ICI, contrairement à `sliceShift`. Il
+    // ÉCRÊTE la valeur affichée (`ParamPanel`, `Math.min(brut, plafond)`), ce qui
+    // est juste pour une course SATURANTE — au-delà, l'effet ne bouge plus — et
+    // faux pour une course PÉRIODIQUE : 300° à six lames rend l'image de 0°, pas
+    // celle de 60°. Un plafond à 60 montrerait le pouce à fond de course sur un
+    // rendu qui est celui du début. On échangerait un mensonge contre un autre.
+    // Un vrai correctif demande une course périodique déclarable (le pouce
+    // reboucle, la valeur se replie) : c'est un mécanisme à arbitrer, pas une
+    // borne à poser. En attendant, l'infobulle porte la déclaration — même choix
+    // que pour l'absence d'`appliesWhen` juste au-dessus.
+    { name: "bladeRotation", label: "Orientation des lames", unit: "degrees", min: 0, max: 360, default: 0, step: 1, hint: "Fait tourner la forme du diaphragme. La forme se répète tous les 360°/nombre de lames — à 6 lames, 60° ramène exactement l'image de 0°, et la course en rejoue six fois le même sixième. Sans objet sur un diaphragme circulaire." },
     { name: "highlightThreshold", label: "Seuil des hautes lumières", unit: "percent", min: 0, max: 1, default: 0.6, step: 0.01, hint: "À partir de quel ton un point compte comme une haute lumière — c'est ce qui sépare le bokeh du flou gaussien" },
     { name: "highlightBoost", label: "Intensité du bokeh", unit: "none", min: 0, max: 20, default: 6, step: 0.1, hint: "Combien une haute lumière pèse de plus qu'un ton sombre. À 0 le flou est une moyenne — c'est-à-dire un gaussien, et il lave l'image" },
-    { name: "fieldShape", label: "Géométrie du champ", unit: "none", min: 0, max: FIELD_SHAPES.length - 1, default: FIELD_UNIFORM, step: 1, choices: [...FIELD_SHAPES], hint: "Uniforme : tout est flou. Linéaire : bande nette (tilt-shift). Iris : zone nette elliptique. Radial : net au centre, mou dans les coins. Les quatre réglages suivants ne servent qu'aux trois dernières." },
+    // ⚠️ « ELLIPTIQUE » RETIRÉ le 2026-09-02 : l'iris est un DISQUE à l'écran, et
+    // c'est précisément ce que la correction d'aspect de `lens_field` sert à
+    // obtenir. Mesuré sur une toile 512×340 (donc franchement non carrée) à
+    // `fieldRange` 0,35 : demi-largeur nette 142 px, demi-hauteur nette 142 px.
+    // Le même mot était dans l'infobulle de `fieldRange` et dans celle de
+    // `fieldAngle`, où il promettait en plus une orientation qui n'existe pas.
+    // ⚠️ Et « les QUATRE réglages suivants » en comptait un de moins qu'il n'y
+    // en a : le champ en a CINQ (centre X, centre Y, orientation, étendue,
+    // fondu). Ils sont désormais regroupés dans la section `champ`, dont
+    // l'`appliesWhen` porte la condition — l'infobulle n'a plus à la répéter.
+    { name: "fieldShape", label: "Géométrie du champ", unit: "none", min: 0, max: FIELD_SHAPES.length - 1, default: FIELD_UNIFORM, step: 1, choices: [...FIELD_SHAPES], hint: "Uniforme : tout est flou. Linéaire : bande nette (tilt-shift). Iris : zone nette circulaire. Radial : net au centre, mou dans les coins. Les réglages de la section Champ ne servent qu'aux trois dernières." },
     { name: "fieldCenterX", label: "Centre X", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Position horizontale de la zone nette, en fraction de la toile" },
     { name: "fieldCenterY", label: "Centre Y", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Position verticale de la zone nette, en fraction de la toile" },
-    // Les deux seules géométries qui aient une DIRECTION : Linéaire (1) oriente
-    // sa bande, Iris (2) son ellipse. Uniforme n'a pas de champ du tout et
-    // Radial est isotrope par construction — les deux configurations ont été
-    // rendues séparément le 2026-08-05, et le signal le plus faible de toute la
-    // campagne est justement celui-là (Radial, 10,5 % des canaux) : bien
-    // au-dessus du seuil, donc l'effet agissait quand le curseur ne faisait rien.
+    // LA SEULE géométrie qui ait une DIRECTION : Linéaire (1) oriente sa bande.
+    // Les trois autres sont isotropes par construction — Uniforme n'a pas de
+    // champ du tout, Radial ne lit qu'une distance au centre, et Iris n'en lit
+    // pas davantage : sa rotation conserve la norme, donc elle ne change rien
+    // (démonstration et mesure dans la branche IRIS de `FIELD_WGSL`).
+    //
+    // ⚠️ CETTE DÉCLARATION A PORTÉ `[1, 2]` DU 2026-08-05 AU 2026-09-02, et Iris
+    // y était de trop : le curseur s'affichait sur une géométrie où il ne bouge
+    // aucun canal. La campagne d'applicabilité ne pouvait pas l'attraper — elle
+    // éprouve une déclaration là où le paramètre est dit INERTE (Uniforme et
+    // Radial, tous deux justes), jamais là où il est dit VIVANT. Un `appliesWhen`
+    // trop LARGE est donc l'angle mort de cet instrument, et c'est le balayage du
+    // ticket 25 qui l'a trouvé. La configuration Iris est désormais dans
+    // `applicabilite-table.mjs`, du côté où le gate sait regarder.
+    //
     // Valeurs 0 et 37° et non 0 et 360°, qui sont le MÊME angle.
-    { name: "fieldAngle", label: "Orientation du champ", unit: "degrees", min: 0, max: 360, default: 0, step: 1, appliesWhen: { param: "fieldShape", equals: [1, 2] }, hint: "Oriente la bande nette (Linéaire) ou l'ellipse (Iris). Sans objet en Uniforme et en Radial." },
-    { name: "fieldRange", label: "Étendue nette", unit: "percent", min: 0.01, max: 1.5, default: 0.35, step: 0.01, hint: "Demi-largeur de la bande ou rayon de l'ellipse, en fraction de la plus petite dimension de la toile" },
+    { name: "fieldAngle", label: "Orientation du champ", unit: "degrees", min: 0, max: 360, default: 0, step: 1, appliesWhen: { param: "fieldShape", equals: [1] }, hint: "Oriente la bande nette du mode Linéaire. La bande étant symétrique, la forme se répète tous les 180° : la seconde moitié de la course rejoue la première. Sans objet en Uniforme, en Iris et en Radial." },
+    // ⚠️ « rayon de l'ellipse » corrigé en disque le 2026-09-02 (voir `fieldShape`),
+    // et « de la plus petite dimension » corrigé aussi : `lens_field` normalise
+    // par la MOYENNE GÉOMÉTRIQUE sqrt(W·H), pas par min(W,H) — c'est ce que rend
+    // `aspectScale`. Le haut de course est faible quand le champ est CENTRÉ
+    // (mesuré : 1,0→1,5 ne déplace que 0,27 % des canaux à rayon 24, contre
+    // 25,3 % pour 0,01→0,5), parce que tout est déjà net avant 1,0. Ce n'est PAS
+    // un maximum déclaré au-delà du maximum effectif : décentré vers un coin, la
+    // distance double et 1,5 redevient utile. Un `maxFrom` juste devrait lire le
+    // centre ET l'aspect de la toile, or il ne reçoit que des paramètres.
+    { name: "fieldRange", label: "Étendue nette", unit: "percent", min: 0.01, max: 1.5, default: 0.35, step: 0.01, hint: "Demi-largeur de la bande nette (Linéaire) ou rayon du disque net (Iris), en fraction de √(largeur × hauteur) de la toile — c'est cette référence qui rend le disque net vraiment rond quel que soit le format" },
     { name: "fieldFeather", label: "Fondu du champ", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Longueur de la transition entre net et flou — 0 = bascule franche, 1 = dégradé long. En Radial, règle la raideur de la montée." },
     // ⚠️ AJOUTÉ EN FIN DE TABLEAU, et c'est la seule place possible. Sa place
     // LOGIQUE est juste après `bladeRotation` ; l'y insérer décalerait de un
@@ -384,10 +448,11 @@ export const lensBlur: EffectModule = {
     {
       // Les cinq réglages du champ, absents du régime qui n'en a pas. La
       // condition est celle du shader, pas une transcription de mesure.
-      // ⚠️ `fieldAngle` garde EN PLUS son propre `appliesWhen` ([1, 2]) : les
-      // deux se cumulent, et c'est voulu — la section dit « il n'y a pas de
-      // champ ici », le paramètre dit « ce champ-là n'a pas de direction ».
-      // Radial est isotrope par construction, et il est dans la section.
+      // ⚠️ `fieldAngle` garde EN PLUS son propre `appliesWhen` ([1]) : les deux
+      // se cumulent, et c'est voulu — la section dit « il n'y a pas de champ
+      // ici », le paramètre dit « ce champ-là n'a pas de direction ». Iris et
+      // Radial sont isotropes par construction et sont tous deux dans la
+      // section : ils ont un centre, une étendue et un fondu, mais pas d'angle.
       id: "champ",
       label: "Champ",
       params: ["fieldCenterX", "fieldCenterY", "fieldAngle", "fieldRange", "fieldFeather"],

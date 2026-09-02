@@ -146,12 +146,24 @@ export const DECLARATIONS = [
     id: "lensBlur.fieldAngle",
     effet: "lensBlur",
     mire: "mireBokeh",
-    declare: "Sans objet en Uniforme et en Radial",
+    declare: "Sans objet en Uniforme, en Iris et en Radial",
     param: "fieldAngle",
     a: 0,
     b: 37,
     configs: [
       { label: "Uniforme", base: { fieldShape: 0, radius: 24, blades: 6 } },
+      // ⚠️ IRIS AJOUTE LE 2026-09-02 (ticket 25), et son absence etait l'angle
+      // mort de cet instrument. La declaration disait « Sans objet en Uniforme
+      // et en Radial », donc VIVANT en Iris — et cette table n'eprouve une
+      // declaration que du cote ou le parametre est dit INERTE. Un appliesWhen
+      // trop LARGE ne pouvait donc pas rougir ici : les deux configurations
+      // listees etaient justes, et la troisieme n'existait pas.
+      //
+      // Iris est isotrope par construction : lens_field y rotationne l'ecart au
+      // centre puis n'en prend que la LONGUEUR, et une rotation conserve la
+      // norme. Mesure du balayage : 0 vs 37, 0 vs 90 et 0 vs 180 degres rendent
+      // 0,00 % de canaux, max 0, aux rayons 8, 24 et 60.
+      { label: "Iris", base: { fieldShape: 2, radius: 24, blades: 6, fieldRange: 0.35, fieldFeather: 0.5 } },
       { label: "Radial", base: { fieldShape: 3, radius: 24, blades: 6, fieldRange: 0.35, fieldFeather: 0.5 } },
     ],
   },

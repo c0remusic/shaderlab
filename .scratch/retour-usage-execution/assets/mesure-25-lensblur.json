@@ -1,0 +1,921 @@
+{
+  "rayonReference": [
+    {
+      "id": "radius (course entiere)",
+      "ctx": "defaut",
+      "a": 0,
+      "b": 120,
+      "pct": 72.54557291666667,
+      "moy": 14.582982919730393,
+      "max": 229
+    },
+    {
+      "id": "radius 0->8",
+      "ctx": "defaut",
+      "a": 0,
+      "b": 8,
+      "pct": 3.770297181372549,
+      "moy": 1.5128944546568628,
+      "max": 197
+    },
+    {
+      "id": "radius 8->24",
+      "ctx": "defaut",
+      "a": 8,
+      "b": 24,
+      "pct": 11.555032169117647,
+      "moy": 3.207992493872549,
+      "max": 173
+    },
+    {
+      "id": "radius 24->60",
+      "ctx": "defaut",
+      "a": 24,
+      "b": 60,
+      "pct": 36.783088235294116,
+      "moy": 7.110870481004902,
+      "max": 171
+    },
+    {
+      "id": "radius 60->120",
+      "ctx": "defaut",
+      "a": 60,
+      "b": 120,
+      "pct": 73.40245863970588,
+      "moy": 9.630039828431373,
+      "max": 158
+    }
+  ],
+  "parRayon": {
+    "8": [
+      {
+        "id": "blades",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 12,
+        "pct": 0.8160998774509803,
+        "moy": 0.03751914828431373,
+        "max": 13
+      },
+      {
+        "id": "blades 0->3",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 3,
+        "pct": 3.4436274509803924,
+        "moy": 0.5008827359068627,
+        "max": 94
+      },
+      {
+        "id": "blades 3->6",
+        "ctx": "defaut",
+        "a": 3,
+        "b": 6,
+        "pct": 3.040939031862745,
+        "moy": 0.35010148590686274,
+        "max": 82
+      },
+      {
+        "id": "blades 6->12",
+        "ctx": "defaut",
+        "a": 6,
+        "b": 12,
+        "pct": 1.8483838848039216,
+        "moy": 0.1199984681372549,
+        "max": 33
+      },
+      {
+        "id": "bladeRotation",
+        "ctx": "defaut (blades=0)",
+        "a": 0,
+        "b": 37,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "bladeRotation",
+        "ctx": "hexa (blades=6)",
+        "a": 0,
+        "b": 37,
+        "pct": 1.0548789828431373,
+        "moy": 0.06303615196078431,
+        "max": 28
+      },
+      {
+        "id": "bladeCurvature",
+        "ctx": "defaut (blades=0)",
+        "a": 0,
+        "b": 1,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "bladeCurvature",
+        "ctx": "hexa (blades=6)",
+        "a": 0,
+        "b": 1,
+        "pct": 2.149969362745098,
+        "moy": 0.1557827818627451,
+        "max": 44
+      },
+      {
+        "id": "bladeCurvature 0->0.5",
+        "ctx": "hexa",
+        "a": 0,
+        "b": 0.5,
+        "pct": 1.4872472426470589,
+        "moy": 0.0836780024509804,
+        "max": 23
+      },
+      {
+        "id": "bladeCurvature 0.5->1",
+        "ctx": "hexa",
+        "a": 0.5,
+        "b": 1,
+        "pct": 1.4642693014705883,
+        "moy": 0.07405407475490196,
+        "max": 21
+      },
+      {
+        "id": "highlightThreshold",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 1,
+        "pct": 3.1606158088235294,
+        "moy": 0.7327627144607843,
+        "max": 73
+      },
+      {
+        "id": "highlightThreshold 0->0.3",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 0.3,
+        "pct": 0.8702895220588235,
+        "moy": 0.0352117800245098,
+        "max": 4
+      },
+      {
+        "id": "highlightThreshold 0.3->0.6",
+        "ctx": "defaut",
+        "a": 0.3,
+        "b": 0.6,
+        "pct": 2.727673100490196,
+        "moy": 0.23796338848039217,
+        "max": 25
+      },
+      {
+        "id": "highlightThreshold 0.6->1",
+        "ctx": "defaut",
+        "a": 0.6,
+        "b": 1,
+        "pct": 2.2020526960784315,
+        "moy": 0.4636354932598039,
+        "max": 65
+      },
+      {
+        "id": "highlightBoost",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 20,
+        "pct": 2.3305376838235294,
+        "moy": 0.8326956954656862,
+        "max": 100
+      },
+      {
+        "id": "highlightBoost 0->6",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 6,
+        "pct": 2.2020526960784315,
+        "moy": 0.4636354932598039,
+        "max": 65
+      },
+      {
+        "id": "highlightBoost 6->13",
+        "ctx": "defaut",
+        "a": 6,
+        "b": 13,
+        "pct": 2.103439031862745,
+        "moy": 0.230078125,
+        "max": 26
+      },
+      {
+        "id": "highlightBoost 13->20",
+        "ctx": "defaut",
+        "a": 13,
+        "b": 20,
+        "pct": 1.9732306985294117,
+        "moy": 0.13898207720588235,
+        "max": 16
+      },
+      {
+        "id": "fieldShape 0->2 (Iris)",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 2,
+        "pct": 1.623391544117647,
+        "moy": 0.28883463541666665,
+        "max": 143
+      },
+      {
+        "id": "fieldShape 0->3 (Radial)",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 3,
+        "pct": 1.6651348039215685,
+        "moy": 0.21877680759803922,
+        "max": 121
+      },
+      {
+        "id": "fieldCenterX",
+        "ctx": "defaut (Uniforme)",
+        "a": 0,
+        "b": 1,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldCenterX",
+        "ctx": "Iris",
+        "a": 0,
+        "b": 1,
+        "pct": 1.0895373774509804,
+        "moy": 0.3330958946078431,
+        "max": 186
+      },
+      {
+        "id": "fieldCenterY",
+        "ctx": "defaut (Uniforme)",
+        "a": 0,
+        "b": 1,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldCenterY",
+        "ctx": "Iris",
+        "a": 0,
+        "b": 1,
+        "pct": 1.5475643382352942,
+        "moy": 0.3257410386029412,
+        "max": 165
+      },
+      {
+        "id": "fieldAngle",
+        "ctx": "defaut (Uniforme)",
+        "a": 0,
+        "b": 37,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldAngle",
+        "ctx": "Lineaire",
+        "a": 0,
+        "b": 37,
+        "pct": 1.7892156862745099,
+        "moy": 0.47150926776960783,
+        "max": 174
+      },
+      {
+        "id": "fieldAngle",
+        "ctx": "Iris",
+        "a": 0,
+        "b": 37,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldRange",
+        "ctx": "defaut (Uniforme)",
+        "a": 0.01,
+        "b": 1.5,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldRange",
+        "ctx": "Iris",
+        "a": 0.01,
+        "b": 1.5,
+        "pct": 3.770297181372549,
+        "moy": 1.5128944546568628,
+        "max": 197
+      },
+      {
+        "id": "fieldFeather",
+        "ctx": "defaut (Uniforme)",
+        "a": 0,
+        "b": 1,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldFeather",
+        "ctx": "Iris",
+        "a": 0,
+        "b": 1,
+        "pct": 1.4853324142156863,
+        "moy": 0.5012752757352941,
+        "max": 170
+      },
+      {
+        "id": "fieldFeather",
+        "ctx": "Radial",
+        "a": 0,
+        "b": 1,
+        "pct": 1.5557981004901962,
+        "moy": 0.23824103860294119,
+        "max": 156
+      }
+    ],
+    "24": [
+      {
+        "id": "blades",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 12,
+        "pct": 3.5271139705882355,
+        "moy": 0.15930223651960784,
+        "max": 19
+      },
+      {
+        "id": "blades 0->3",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 3,
+        "pct": 10.854013480392156,
+        "moy": 1.9410883884803922,
+        "max": 102
+      },
+      {
+        "id": "blades 3->6",
+        "ctx": "defaut",
+        "a": 3,
+        "b": 6,
+        "pct": 9.324257046568627,
+        "moy": 1.456943167892157,
+        "max": 98
+      },
+      {
+        "id": "blades 6->12",
+        "ctx": "defaut",
+        "a": 6,
+        "b": 12,
+        "pct": 6.516927083333333,
+        "moy": 0.41845511642156863,
+        "max": 42
+      },
+      {
+        "id": "bladeRotation",
+        "ctx": "defaut (blades=0)",
+        "a": 0,
+        "b": 37,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "bladeRotation",
+        "ctx": "hexa (blades=6)",
+        "a": 0,
+        "b": 37,
+        "pct": 3.9192708333333335,
+        "moy": 0.22318282781862744,
+        "max": 29
+      },
+      {
+        "id": "bladeCurvature",
+        "ctx": "defaut (blades=0)",
+        "a": 0,
+        "b": 1,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "bladeCurvature",
+        "ctx": "hexa (blades=6)",
+        "a": 0,
+        "b": 1,
+        "pct": 7.593060661764706,
+        "moy": 0.5628714767156863,
+        "max": 42
+      },
+      {
+        "id": "bladeCurvature 0->0.5",
+        "ctx": "hexa",
+        "a": 0,
+        "b": 0.5,
+        "pct": 5.266161151960785,
+        "moy": 0.27323452818627453,
+        "max": 30
+      },
+      {
+        "id": "bladeCurvature 0.5->1",
+        "ctx": "hexa",
+        "a": 0.5,
+        "b": 1,
+        "pct": 5.5711933210784315,
+        "moy": 0.30986136642156864,
+        "max": 33
+      },
+      {
+        "id": "highlightThreshold",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 1,
+        "pct": 10.47640931372549,
+        "moy": 2.5265452665441175,
+        "max": 80
+      },
+      {
+        "id": "highlightThreshold 0->0.3",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 0.3,
+        "pct": 3.033279718137255,
+        "moy": 0.11757429534313725,
+        "max": 5
+      },
+      {
+        "id": "highlightThreshold 0.3->0.6",
+        "ctx": "defaut",
+        "a": 0.3,
+        "b": 0.6,
+        "pct": 9.29132199754902,
+        "moy": 0.8537300857843138,
+        "max": 23
+      },
+      {
+        "id": "highlightThreshold 0.6->1",
+        "ctx": "defaut",
+        "a": 0.6,
+        "b": 1,
+        "pct": 7.678079044117647,
+        "moy": 1.5566310508578431,
+        "max": 70
+      },
+      {
+        "id": "highlightBoost",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 20,
+        "pct": 8.333524816176471,
+        "moy": 3.1177313112745098,
+        "max": 107
+      },
+      {
+        "id": "highlightBoost 0->6",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 6,
+        "pct": 7.678079044117647,
+        "moy": 1.5566310508578431,
+        "max": 70
+      },
+      {
+        "id": "highlightBoost 6->13",
+        "ctx": "defaut",
+        "a": 6,
+        "b": 13,
+        "pct": 7.479511335784314,
+        "moy": 0.9323759191176471,
+        "max": 31
+      },
+      {
+        "id": "highlightBoost 13->20",
+        "ctx": "defaut",
+        "a": 13,
+        "b": 20,
+        "pct": 7.169117647058823,
+        "moy": 0.6287243412990197,
+        "max": 18
+      },
+      {
+        "id": "fieldShape 0->2 (Iris)",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 2,
+        "pct": 5.121400122549019,
+        "moy": 0.9600260416666667,
+        "max": 190
+      },
+      {
+        "id": "fieldShape 0->3 (Radial)",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 3,
+        "pct": 5.189950980392157,
+        "moy": 0.8364391850490196,
+        "max": 162
+      },
+      {
+        "id": "fieldCenterX",
+        "ctx": "defaut (Uniforme)",
+        "a": 0,
+        "b": 1,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldCenterX",
+        "ctx": "Iris",
+        "a": 0,
+        "b": 1,
+        "pct": 3.4587545955882355,
+        "moy": 0.9806640625,
+        "max": 222
+      },
+      {
+        "id": "fieldCenterY",
+        "ctx": "defaut (Uniforme)",
+        "a": 0,
+        "b": 1,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldCenterY",
+        "ctx": "Iris",
+        "a": 0,
+        "b": 1,
+        "pct": 4.551930147058823,
+        "moy": 1.077981387867647,
+        "max": 167
+      },
+      {
+        "id": "fieldAngle",
+        "ctx": "defaut (Uniforme)",
+        "a": 0,
+        "b": 37,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldAngle",
+        "ctx": "Lineaire",
+        "a": 0,
+        "b": 37,
+        "pct": 5.4296875,
+        "moy": 1.3466241574754902,
+        "max": 213
+      },
+      {
+        "id": "fieldAngle",
+        "ctx": "Iris",
+        "a": 0,
+        "b": 37,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldRange",
+        "ctx": "defaut (Uniforme)",
+        "a": 0.01,
+        "b": 1.5,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldRange",
+        "ctx": "Iris",
+        "a": 0.01,
+        "b": 1.5,
+        "pct": 11.874234068627452,
+        "moy": 4.243175551470588,
+        "max": 222
+      },
+      {
+        "id": "fieldFeather",
+        "ctx": "defaut (Uniforme)",
+        "a": 0,
+        "b": 1,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldFeather",
+        "ctx": "Iris",
+        "a": 0,
+        "b": 1,
+        "pct": 4.2369408700980395,
+        "moy": 1.3565314797794117,
+        "max": 181
+      },
+      {
+        "id": "fieldFeather",
+        "ctx": "Radial",
+        "a": 0,
+        "b": 1,
+        "pct": 4.405828737745098,
+        "moy": 0.8692727481617647,
+        "max": 140
+      }
+    ],
+    "60": [
+      {
+        "id": "blades",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 12,
+        "pct": 10.950712316176471,
+        "moy": 0.5275333180147059,
+        "max": 18
+      },
+      {
+        "id": "blades 0->3",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 3,
+        "pct": 34.71200980392157,
+        "moy": 4.766333486519608,
+        "max": 109
+      },
+      {
+        "id": "blades 3->6",
+        "ctx": "defaut",
+        "a": 3,
+        "b": 6,
+        "pct": 29.896599264705884,
+        "moy": 3.7848556219362743,
+        "max": 93
+      },
+      {
+        "id": "blades 6->12",
+        "ctx": "defaut",
+        "a": 6,
+        "b": 12,
+        "pct": 18.811465992647058,
+        "moy": 1.2059742647058824,
+        "max": 43
+      },
+      {
+        "id": "bladeRotation",
+        "ctx": "defaut (blades=0)",
+        "a": 0,
+        "b": 37,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "bladeRotation",
+        "ctx": "hexa (blades=6)",
+        "a": 0,
+        "b": 37,
+        "pct": 14.824984681372548,
+        "moy": 0.8731617647058824,
+        "max": 33
+      },
+      {
+        "id": "bladeCurvature",
+        "ctx": "defaut (blades=0)",
+        "a": 0,
+        "b": 1,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "bladeCurvature",
+        "ctx": "hexa (blades=6)",
+        "a": 0,
+        "b": 1,
+        "pct": 22.00003829656863,
+        "moy": 1.5299919577205883,
+        "max": 53
+      },
+      {
+        "id": "bladeCurvature 0->0.5",
+        "ctx": "hexa",
+        "a": 0,
+        "b": 0.5,
+        "pct": 15.575980392156863,
+        "moy": 0.8652267156862745,
+        "max": 32
+      },
+      {
+        "id": "bladeCurvature 0.5->1",
+        "ctx": "hexa",
+        "a": 0.5,
+        "b": 1,
+        "pct": 16.318742340686274,
+        "moy": 0.9220492493872549,
+        "max": 33
+      },
+      {
+        "id": "highlightThreshold",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 1,
+        "pct": 34.525888480392155,
+        "moy": 5.885223268995098,
+        "max": 81
+      },
+      {
+        "id": "highlightThreshold 0->0.3",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 0.3,
+        "pct": 5.58804381127451,
+        "moy": 0.28564644607843137,
+        "max": 5
+      },
+      {
+        "id": "highlightThreshold 0.3->0.6",
+        "ctx": "defaut",
+        "a": 0.3,
+        "b": 0.6,
+        "pct": 30.209099264705884,
+        "moy": 2.0541973039215686,
+        "max": 23
+      },
+      {
+        "id": "highlightThreshold 0.6->1",
+        "ctx": "defaut",
+        "a": 0.6,
+        "b": 1,
+        "pct": 26.169194240196077,
+        "moy": 3.5521350337009805,
+        "max": 69
+      },
+      {
+        "id": "highlightBoost",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 20,
+        "pct": 32.39679074754902,
+        "moy": 7.611398973651961,
+        "max": 110
+      },
+      {
+        "id": "highlightBoost 0->6",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 6,
+        "pct": 26.169194240196077,
+        "moy": 3.5521350337009805,
+        "max": 69
+      },
+      {
+        "id": "highlightBoost 6->13",
+        "ctx": "defaut",
+        "a": 6,
+        "b": 13,
+        "pct": 26.020986519607842,
+        "moy": 2.3367110906862747,
+        "max": 30
+      },
+      {
+        "id": "highlightBoost 13->20",
+        "ctx": "defaut",
+        "a": 13,
+        "b": 20,
+        "pct": 24.880131740196077,
+        "moy": 1.722552849264706,
+        "max": 18
+      },
+      {
+        "id": "fieldShape 0->2 (Iris)",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 2,
+        "pct": 15.96258425245098,
+        "moy": 2.025832950367647,
+        "max": 222
+      },
+      {
+        "id": "fieldShape 0->3 (Radial)",
+        "ctx": "defaut",
+        "a": 0,
+        "b": 3,
+        "pct": 16.65115655637255,
+        "moy": 1.8269263174019608,
+        "max": 160
+      },
+      {
+        "id": "fieldCenterX",
+        "ctx": "defaut (Uniforme)",
+        "a": 0,
+        "b": 1,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldCenterX",
+        "ctx": "Iris",
+        "a": 0,
+        "b": 1,
+        "pct": 10.575597426470589,
+        "moy": 2.386548330269608,
+        "max": 227
+      },
+      {
+        "id": "fieldCenterY",
+        "ctx": "defaut (Uniforme)",
+        "a": 0,
+        "b": 1,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldCenterY",
+        "ctx": "Iris",
+        "a": 0,
+        "b": 1,
+        "pct": 13.441521139705882,
+        "moy": 2.3421223958333335,
+        "max": 215
+      },
+      {
+        "id": "fieldAngle",
+        "ctx": "defaut (Uniforme)",
+        "a": 0,
+        "b": 37,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldAngle",
+        "ctx": "Lineaire",
+        "a": 0,
+        "b": 37,
+        "pct": 16.571116727941178,
+        "moy": 2.8020316329656865,
+        "max": 227
+      },
+      {
+        "id": "fieldAngle",
+        "ctx": "Iris",
+        "a": 0,
+        "b": 37,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldRange",
+        "ctx": "defaut (Uniforme)",
+        "a": 0.01,
+        "b": 1.5,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldRange",
+        "ctx": "Iris",
+        "a": 0.01,
+        "b": 1.5,
+        "pct": 37.59937959558823,
+        "moy": 8.962609145220588,
+        "max": 228
+      },
+      {
+        "id": "fieldFeather",
+        "ctx": "defaut (Uniforme)",
+        "a": 0,
+        "b": 1,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldFeather",
+        "ctx": "Iris",
+        "a": 0,
+        "b": 1,
+        "pct": 13.25961243872549,
+        "moy": 2.936232383578431,
+        "max": 220
+      },
+      {
+        "id": "fieldFeather",
+        "ctx": "Radial",
+        "a": 0,
+        "b": 1,
+        "pct": 14.07015931372549,
+        "moy": 1.9896043964460783,
+        "max": 186
+      }
+    ]
+  }
+}

@@ -1,0 +1,370 @@
+{
+  "rayonReference": [],
+  "parRayon": {},
+  "tour2": {
+    "24": [
+      {
+        "id": "bladeRotation 0->30 (demi-periode)",
+        "ctx": "blades=6",
+        "a": 0,
+        "b": 30,
+        "pct": 4.121668198529412,
+        "moy": 0.23889590992647058,
+        "max": 34
+      },
+      {
+        "id": "bladeRotation 0->60 (1 periode)",
+        "ctx": "blades=6",
+        "a": 0,
+        "b": 60,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "bladeRotation 0->120 (2 periodes)",
+        "ctx": "blades=6",
+        "a": 0,
+        "b": 120,
+        "pct": 0,
+        "moy": 0.000022977941176470588,
+        "max": 1
+      },
+      {
+        "id": "bladeRotation 0->360 (6 periodes)",
+        "ctx": "blades=6",
+        "a": 0,
+        "b": 360,
+        "pct": 0,
+        "moy": 0.000022977941176470588,
+        "max": 1
+      },
+      {
+        "id": "bladeRotation 0->72 (1 periode)",
+        "ctx": "blades=5",
+        "a": 0,
+        "b": 72,
+        "pct": 0,
+        "moy": 0.000009574142156862745,
+        "max": 1
+      },
+      {
+        "id": "bladeRotation 0->120 (1 periode)",
+        "ctx": "blades=3",
+        "a": 0,
+        "b": 120,
+        "pct": 0,
+        "moy": 0.00004021139705882353,
+        "max": 1
+      },
+      {
+        "id": "fieldAngle 0->90",
+        "ctx": "Lineaire",
+        "a": 0,
+        "b": 90,
+        "pct": 7.161075367647059,
+        "moy": 2.3141907935049018,
+        "max": 222
+      },
+      {
+        "id": "fieldAngle 0->180 (1 periode)",
+        "ctx": "Lineaire",
+        "a": 0,
+        "b": 180,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldAngle 0->360 (2 periodes)",
+        "ctx": "Lineaire",
+        "a": 0,
+        "b": 360,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldAngle 0->90",
+        "ctx": "Iris",
+        "a": 0,
+        "b": 90,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldAngle 0->180",
+        "ctx": "Iris",
+        "a": 0,
+        "b": 180,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldRange 0.01->0.5",
+        "ctx": "Iris",
+        "a": 0.01,
+        "b": 0.5,
+        "pct": 7.652994791666667,
+        "moy": 2.082071461397059,
+        "max": 190
+      },
+      {
+        "id": "fieldRange 0.5->1.0",
+        "ctx": "Iris",
+        "a": 0.5,
+        "b": 1,
+        "pct": 5.589575674019608,
+        "moy": 2.203130744485294,
+        "max": 221
+      },
+      {
+        "id": "fieldRange 1.0->1.5",
+        "ctx": "Iris",
+        "a": 1,
+        "b": 1.5,
+        "pct": 0.27286305147058826,
+        "moy": 0.1232077205882353,
+        "max": 187
+      },
+      {
+        "id": "highlightThreshold 0.8->1",
+        "ctx": "defaut",
+        "a": 0.8,
+        "b": 1,
+        "pct": 3.76953125,
+        "moy": 0.6413028492647059,
+        "max": 52
+      },
+      {
+        "id": "highlightBoost 15->20",
+        "ctx": "defaut",
+        "a": 15,
+        "b": 20,
+        "pct": 6.679878982843137,
+        "moy": 0.4292758118872549,
+        "max": 13
+      },
+      {
+        "id": "blades 10->12",
+        "ctx": "defaut",
+        "a": 10,
+        "b": 12,
+        "pct": 1.7786841299019607,
+        "moy": 0.08720320159313726,
+        "max": 13
+      },
+      {
+        "id": "blades 12->0 (cercle)",
+        "ctx": "defaut",
+        "a": 12,
+        "b": 0,
+        "pct": 3.5271139705882355,
+        "moy": 0.15930223651960784,
+        "max": 19
+      },
+      {
+        "id": "blades 3->0 (cercle)",
+        "ctx": "defaut",
+        "a": 3,
+        "b": 0,
+        "pct": 10.854013480392156,
+        "moy": 1.9410883884803922,
+        "max": 102
+      },
+      {
+        "id": "bladeCurvature 0.9->1",
+        "ctx": "blades=6",
+        "a": 0.9,
+        "b": 1,
+        "pct": 1.1226639093137254,
+        "moy": 0.06645795036764705,
+        "max": 8
+      }
+    ],
+    "60": [
+      {
+        "id": "bladeRotation 0->30 (demi-periode)",
+        "ctx": "blades=6",
+        "a": 0,
+        "b": 30,
+        "pct": 15.427389705882353,
+        "moy": 0.9113740808823529,
+        "max": 34
+      },
+      {
+        "id": "bladeRotation 0->60 (1 periode)",
+        "ctx": "blades=6",
+        "a": 0,
+        "b": 60,
+        "pct": 0,
+        "moy": 0.00013978247549019607,
+        "max": 1
+      },
+      {
+        "id": "bladeRotation 0->120 (2 periodes)",
+        "ctx": "blades=6",
+        "a": 0,
+        "b": 120,
+        "pct": 0,
+        "moy": 0.00006127450980392157,
+        "max": 1
+      },
+      {
+        "id": "bladeRotation 0->360 (6 periodes)",
+        "ctx": "blades=6",
+        "a": 0,
+        "b": 360,
+        "pct": 0,
+        "moy": 0.00007467830882352942,
+        "max": 1
+      },
+      {
+        "id": "bladeRotation 0->72 (1 periode)",
+        "ctx": "blades=5",
+        "a": 0,
+        "b": 72,
+        "pct": 0,
+        "moy": 0.00012254901960784314,
+        "max": 1
+      },
+      {
+        "id": "bladeRotation 0->120 (1 periode)",
+        "ctx": "blades=3",
+        "a": 0,
+        "b": 120,
+        "pct": 0,
+        "moy": 0.00032743566176470586,
+        "max": 1
+      },
+      {
+        "id": "fieldAngle 0->90",
+        "ctx": "Lineaire",
+        "a": 0,
+        "b": 90,
+        "pct": 21.55407475490196,
+        "moy": 5.476470588235294,
+        "max": 227
+      },
+      {
+        "id": "fieldAngle 0->180 (1 periode)",
+        "ctx": "Lineaire",
+        "a": 0,
+        "b": 180,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldAngle 0->360 (2 periodes)",
+        "ctx": "Lineaire",
+        "a": 0,
+        "b": 360,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldAngle 0->90",
+        "ctx": "Iris",
+        "a": 0,
+        "b": 90,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldAngle 0->180",
+        "ctx": "Iris",
+        "a": 0,
+        "b": 180,
+        "pct": 0,
+        "moy": 0,
+        "max": 0
+      },
+      {
+        "id": "fieldRange 0.01->0.5",
+        "ctx": "Iris",
+        "a": 0.01,
+        "b": 0.5,
+        "pct": 25.320733762254903,
+        "moy": 4.5088848039215685,
+        "max": 222
+      },
+      {
+        "id": "fieldRange 0.5->1.0",
+        "ctx": "Iris",
+        "a": 0.5,
+        "b": 1,
+        "pct": 16.688878676470587,
+        "moy": 5.0272039675245095,
+        "max": 227
+      },
+      {
+        "id": "fieldRange 1.0->1.5",
+        "ctx": "Iris",
+        "a": 1,
+        "b": 1.5,
+        "pct": 0.5635340073529411,
+        "moy": 0.22533318014705883,
+        "max": 203
+      },
+      {
+        "id": "highlightThreshold 0.8->1",
+        "ctx": "defaut",
+        "a": 0.8,
+        "b": 1,
+        "pct": 13.119064031862745,
+        "moy": 1.5086952359068628,
+        "max": 51
+      },
+      {
+        "id": "highlightBoost 15->20",
+        "ctx": "defaut",
+        "a": 15,
+        "b": 20,
+        "pct": 22.217179840686274,
+        "moy": 1.177590762867647,
+        "max": 12
+      },
+      {
+        "id": "blades 10->12",
+        "ctx": "defaut",
+        "a": 10,
+        "b": 12,
+        "pct": 7.535232843137255,
+        "moy": 0.36551968443627453,
+        "max": 19
+      },
+      {
+        "id": "blades 12->0 (cercle)",
+        "ctx": "defaut",
+        "a": 12,
+        "b": 0,
+        "pct": 10.950712316176471,
+        "moy": 0.5275333180147059,
+        "max": 18
+      },
+      {
+        "id": "blades 3->0 (cercle)",
+        "ctx": "defaut",
+        "a": 3,
+        "b": 0,
+        "pct": 34.71200980392157,
+        "moy": 4.766333486519608,
+        "max": 109
+      },
+      {
+        "id": "bladeCurvature 0.9->1",
+        "ctx": "blades=6",
+        "a": 0.9,
+        "b": 1,
+        "pct": 4.427849264705882,
+        "moy": 0.2352270986519608,
+        "max": 11
+      }
+    ]
+  }
+}

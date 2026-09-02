@@ -274,6 +274,18 @@ const ATTENDU = {
   // modules viennent d'un Vite séparé, et Tauri restreint ses commandes à
   // l'origine de l'application.
   "effet-texture.png": { width: 256, height: 256, valeurs: null },
+  // LE SCAN POSÉ DANS UNE BOÎTE (2026-08-27, ticket 21). Elle contre
+  // `effet-texture`, donc l'écart mesuré est exactement ce que la boîte ajoute :
+  // le bornage du tracé, et le re-ancrage du motif sur le centre et l'angle de
+  // la boîte. Décentrée, plus petite que le cadre ET tournée — les trois
+  // ensemble, parce qu'un seul de ces trois réglages laissé à son défaut rendrait
+  // la même image qu'un shader qui l'ignorerait.
+  //
+  // ⚠️ C'est `effet-texture` qui verrouille l'autre moitié du contrat : la boîte
+  // à ses DÉFAUTS (plein cadre, angle nul) est l'identité au bit près, donc
+  // cette référence-là ne doit pas bouger d'un octet en ajoutant les cinq
+  // paramètres.
+  "effet-texture-box.png": { width: 256, height: 256, valeurs: null },
   // ANAMORPHIC STREAK (2026-08-01) : sur la mire a POINTS LUMINEUX ISOLES, la
   // meme que le temoin de bokeh. Une trainee ne se lit que sur une source
   // ponctuelle contre du sombre ; sur un damier, l etalement directionnel se

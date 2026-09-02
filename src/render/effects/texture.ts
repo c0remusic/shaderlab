@@ -31,6 +31,32 @@ import type { EffectModule } from "./types";
  * dossier décale les rangs suivants, donc un preset enregistré avant peut
  * désigner une autre texture. Même classe de problème que l'exclusion
  * d'`imageSource` des presets, et traitée pareil : en le disant.
+ *
+ * ─── LE SCAN SE POSE QUELQUE PART (2026-08-27, ticket 21) ──────────────────
+ *
+ * Il couvrait le cadre entier et n'avait donc aucun LIEU : même l'outil
+ * Déplacer branché (ticket 20) n'avait rien à prendre. Cinq paramètres de boîte
+ * lui en donnent un, et le choix de conception tient en une phrase — **la boîte
+ * BORNE et ANCRE, elle ne DIMENSIONNE pas** :
+ *
+ * - elle BORNE : hors d'elle, `fs_main` rend son entrée telle quelle, le motif
+ *   ne se dessine que dedans ;
+ * - elle ANCRE : son centre et son angle sont le repère où `Échelle`,
+ *   `Rotation` et `Décalage` s'appliquent — donc déplacer la boîte emmène le
+ *   motif avec elle, au lieu de faire glisser une fenêtre sur un motif
+ *   immobile. C'est ce que « poser un scan quelque part » veut dire ;
+ * - elle ne DIMENSIONNE pas : agrandir la boîte montre plus de motif, jamais un
+ *   motif plus gros. C'est `Échelle` qui le dimensionne, et elle existait déjà.
+ *   Les deux façons de dire la même chose auraient été le vrai coût de cet
+ *   ajout, dans un effet qui porte déjà quatre réglages de placement.
+ *
+ * ⚠️ **Ses défauts SONT le comportement d'avant, au bit près** — plein cadre,
+ * angle nul —, et deux détails d'écriture le garantissent plutôt que de
+ * l'espérer : la rotation de la boîte est écrite sans aller-retour par le
+ * facteur d'aspect (une multiplication suivie de sa division n'est pas
+ * l'identité en flottant), et sa rampe d'anticrénelage est posée à l'EXTÉRIEUR
+ * du bord, de sorte que tout pixel dont le centre est dans la boîte reçoive
+ * exactement 1. Voir les commentaires du corps WGSL.
  */
 export const texture: EffectModule = {
   id: "texture",
@@ -147,9 +173,104 @@ export const texture: EffectModule = {
       // matière. Le régler à l'œil est immédiat — l'image répond en direct.
       hint: "Valeur du scan qui ne bouge pas quand on monte le contraste. À caler sur sa teinte dominante. Sans objet tant que le contraste vaut 1, où l'étirement est l'identité.",
     },
+
+    // ─── LA BOÎTE (2026-08-27, ticket 21) ─────────────────────────────────
+    // CINQ PARAMÈTRES, TOUS À LA FIN, sans exception : les index 0 à 8 sont
+    // gelés par la référence `effet-texture` et par les presets. Un ajout au
+    // milieu les décalerait en silence — le shader lirait `params[9]` là où un
+    // preset a écrit autre chose, et aucun test ne le dirait.
+    //
+    // ⚠️ LEURS DÉFAUTS SONT LE COMPORTEMENT ACTUEL, EXACTEMENT : une boîte
+    // centrée (0,5 ; 0,5), de la taille du cadre (1 × 1), non tournée. Le
+    // shader retombe alors sur les mêmes opérations qu'avant — la rotation de
+    // boîte à 0 est l'identité au bit près (`x*1 + y*k*0`), la couverture vaut
+    // exactement 1 sur tout pixel dont le centre est dans la boîte, et
+    // `mix(color, scan, 1.0)` rend `scan` sans arrondi. C'est ce qui permet à
+    // `effet-texture` de ne pas bouger d'un octet.
+    //
+    // ⚠️ Les DEUX ROTATIONS de cet effet ne font pas la même chose et le libellé
+    // le dit : `rotation` (section Placement) tourne le MOTIF dans la boîte,
+    // celle-ci tourne LA BOÎTE et son contenu avec elle. C'est le seul endroit
+    // du registre où deux angles cohabitent, d'où le libellé long plutôt qu'un
+    // second « Rotation » nu.
+    { name: "boiteX", label: "Centre X", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.001, hint: "Où le scan se pose. Se manipule sur l'image" },
+    { name: "boiteY", label: "Centre Y", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.001 },
+    {
+      name: "boiteLargeur",
+      label: "Largeur",
+      unit: "percent",
+      min: 0.01,
+      max: 2,
+      default: 1,
+      step: 0.005,
+      // En fraction de la LARGEUR du cadre, comme `aplat` : un carré à l'écran
+      // demande donc deux valeurs différentes. Au-delà de 1 la boîte déborde,
+      // ce qui est le cas normal d'un scan qu'on veut voir sortir du cadre.
+      //
+      // ⚠️ ELLE NE REDIMENSIONNE PAS LE SCAN. La taille du motif est `Échelle`,
+      // qui existait déjà ; la boîte dit jusqu'où il se dessine. Les confondre
+      // aurait donné deux façons de dire la même chose, et un scan étiré par sa
+      // fenêtre — ce qu'aucun outil de placement ne fait.
+      hint: "Étendue de la boîte, en fraction de la largeur du cadre. Elle borne où le scan se dessine ; sa TAILLE reste réglée par Échelle",
+    },
+    { name: "boiteHauteur", label: "Hauteur", unit: "percent", min: 0.01, max: 2, default: 1, step: 0.005 },
+    {
+      name: "boiteRotation",
+      label: "Rotation de la boîte",
+      unit: "degrees",
+      min: -180,
+      max: 180,
+      default: 0,
+      step: 1,
+      hint: "Tourne la boîte ET le motif qu'elle contient, comme on tournerait une image posée. Distincte de Rotation, qui ne tourne que le motif à l'intérieur",
+    },
   ],
   /**
-   * QUATRE SECTIONS, ET AUCUNE CONDITION — le seul effet du registre qui n'en
+   * LE SCAN SE POSE QUELQUE PART (ticket 21, liste arrêtée par Antoine le
+   * 2026-08-27). C'est le SEUL des quatre effets de ce ticket qui gagne des
+   * paramètres : les trois autres avaient déjà leur centre, celui-ci couvrait le
+   * cadre entier et n'avait aucun lieu.
+   *
+   * ⚠️ POURQUOI UNE `box` ET PAS UN `point`. Poser un scan demande de dire
+   * jusqu'OÙ il se pose, pas seulement où il est centré — c'est une surface, pas
+   * une source. Le genre existe depuis le 2026-08-18 (`aplat`, ticket 25) et
+   * n'a demandé aucun manipulateur neuf ; l'hôte sait déjà rendre huit poignées
+   * et une rotation (`ui/boxControl.ts`).
+   *
+   * ── CE QUE LA BOÎTE FAIT, ET CE QU'ELLE NE FAIT PAS ────────────────────────
+   *
+   * Elle BORNE (hors d'elle, l'image passe telle quelle) et elle ANCRE (son
+   * centre et son angle sont le repère où `Échelle`, `Rotation` et `Décalage`
+   * s'appliquent). Elle ne DIMENSIONNE pas : agrandir la boîte montre plus de
+   * motif, jamais un motif plus gros. C'est ce partage qui évite le doublon avec
+   * les quatre réglages de placement déjà présents — et c'est aussi ce qui fait
+   * qu'un glissement de l'outil Déplacer emmène le motif avec la boîte, au lieu
+   * de faire glisser une fenêtre sur un motif immobile.
+   *
+   * ⚠️ « L'IMAGE PASSE INCHANGÉE » EST VRAI DE CE QUE L'EFFET REND, pas
+   * forcément de ce que le calque compose. Hors de la boîte, `fs_main` rend son
+   * entrée telle quelle — le même geste que le repli 1×1 ci-dessous — mais le
+   * compositing applique ensuite `blend(color, effected)`, et cet effet est posé
+   * en Incrustation par défaut, mode pour lequel `overlay(c, c)` n'est pas
+   * l'identité. Un effet ne peut pas neutraliser son propre calque : sur le
+   * chemin de compositing, `shaderCompose` ne lit que `effected.rgb` et tire son
+   * poids de l'opacité et du masque, jamais de l'alpha rendu. Le repli honnête
+   * reste donc le masque du calque ; à défaut, poser le calque en Normal.
+   */
+  canvasControls: [
+    {
+      id: "boite",
+      kind: "box",
+      x: "boiteX",
+      y: "boiteY",
+      width: "boiteLargeur",
+      height: "boiteHauteur",
+      rotation: "boiteRotation",
+      label: "Boîte du motif",
+    },
+  ],
+  /**
+   * CINQ SECTIONS, ET AUCUNE CONDITION — le seul effet du registre qui n'en
    * portait aucune, faute d'être arrivé pendant le chantier qui les a posées
    * (livré le 2026-08-05 sur `master` pendant que les vingt et une autres se
    * sectionnaient sur une branche ; la fusion l'a signalé plutôt que de le
@@ -170,25 +291,30 @@ export const texture: EffectModule = {
    * blocs s'ouvriront : une section s'ouvre à la place de son PREMIER
    * paramètre.
    *
-   * CE QUE LE DÉCOUPAGE SÉPARE, ce sont quatre questions qui ne se posent pas
-   * au même moment : QUELLE matière (*Scan*), posée COMMENT sur le cadre
-   * (*Placement*), retournée ou décolorée (*Matière*), et étirée jusqu'où
-   * (*Niveaux*). Les deux dernières se ressemblent et ne font pas la même
-   * chose : *Matière* transforme le scan, *Niveaux* le rend simplement VISIBLE
-   * — sans lui, les scans réellement disponibles ont une étendue moyenne de dix
-   * niveaux sur 255 et ne se voient pas (mesure du 2026-08-05, voir le
-   * commentaire de `contraste`).
+   * CE QUE LE DÉCOUPAGE SÉPARE, ce sont cinq questions qui ne se posent pas
+   * au même moment : QUELLE matière (*Scan*), posée COMMENT dans son repère
+   * (*Placement*), retournée ou décolorée (*Matière*), étirée jusqu'où
+   * (*Niveaux*), et posée OÙ sur la photo (*Boîte*). *Matière* et *Niveaux* se
+   * ressemblent et ne font pas la même chose : *Matière* transforme le scan,
+   * *Niveaux* le rend simplement VISIBLE — sans lui, les scans réellement
+   * disponibles ont une étendue moyenne de dix niveaux sur 255 et ne se voient
+   * pas (mesure du 2026-08-05, voir le commentaire de `contraste`).
    *
    * *Placement* est la seule `grille` : quatre libellés courts, deux fois moins
-   * de lignes. Les trois autres sont des `liste` — *Scan* rend un sélecteur à
-   * vignettes et non un curseur, et les deux dernières portent des libellés que
-   * deux colonnes tronqueraient.
+   * de lignes. *Scan* rend un sélecteur à vignettes et non un curseur, et
+   * *Matière* / *Niveaux* portent des libellés que deux colonnes tronqueraient.
+   *
+   * ⚠️ *Boîte* est en `pose` et cite les CINQ champs du contrôle de toile, ni
+   * plus ni moins. Un contrôle de toile est un BLOC ATOMIQUE : une section qui
+   * n'en citerait qu'une partie laisserait l'en-tête « sur la toile » sans ses
+   * réglages, ou l'inverse — `groupEffectParams` lève au lieu de le rendre.
    */
   sections: [
     { id: "scan", label: "Scan", layout: "liste", params: ["rang"] },
     { id: "placement", label: "Placement", layout: "grille", params: ["echelle", "rotation", "decalageX", "decalageY"] },
     { id: "matiere", label: "Matière", layout: "liste", params: ["inversion", "desaturation"] },
     { id: "niveaux", label: "Niveaux", layout: "liste", params: ["contraste", "pivot"] },
+    { id: "boite", label: "Boîte", layout: "pose", params: ["boiteX", "boiteY", "boiteLargeur", "boiteHauteur", "boiteRotation"] },
   ],
   wgsl: `
 // Transferts sRGB LOCAUX, prefixes, plutot que les helpers partages de
@@ -223,13 +349,58 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let inversion = params[5];
   let desaturation = params[6];
 
-  // Rotation autour du CENTRE du cadre, puis echelle, puis decalage. Tourner
+  // ─── LA BOITE : le REPERE du motif, et la borne de son trace ─────────────
+  //
+  // Le cadre vient de srcTexture et non de libraryTexture : c est la photo qui
+  // donne les pixels, donc l anticrenelage et le rapport d aspect.
+  let cadre = vec2<f32>(textureDimensions(srcTexture));
+  let boiteCentre = vec2<f32>(params[9], params[10]);
+  // Demi-etendues en fraction du cadre, bornees comme celles d aplat : une
+  // boite de taille nulle rendrait une division par zero cote manipulateur.
+  let boiteDemi = max(vec2<f32>(params[11], params[12]), vec2<f32>(0.0005)) * 0.5;
+  let boiteAngle = params[13] * 0.017453292;
+  let cb = cos(boiteAngle);
+  let sb = sin(boiteAngle);
+  let ecart = uv - boiteCentre;
+  // ROTATION ISOTROPE, ECRITE SANS ALLER-RETOUR. La forme usuelle du depot
+  // (aplat) multiplie par aspectScale, tourne, puis redivise : cette
+  // multiplication suivie de sa division n est PAS l identite en flottant, et
+  // cet effet a besoin qu elle le soit — sa reference existante est prise a
+  // rotation nulle, ou tout doit retomber au bit pres. Le facteur d aspect est
+  // donc porte par les deux termes CROISES, qui s annulent exactement quand
+  // sin vaut 0 : local devient alors ecart, sans arrondi.
+  let local = vec2<f32>(
+    ecart.x * cb + ecart.y * (cadre.y / cadre.x) * sb,
+    ecart.y * cb - ecart.x * (cadre.x / cadre.y) * sb
+  );
+
+  // COUVERTURE. Distance de Tchebychev au rectangle, ramenee en PIXELS : le
+  // bord s adoucit donc de la meme epaisseur sur les deux axes, quelle que soit
+  // la taille de la boite — meme correction que le bord d aplat.
+  //
+  // ⚠️ LA RAMPE EST POSEE A L EXTERIEUR DU BORD (de 0 a +1 pixel), pas a cheval
+  // dessus. Deux raisons. La premiere est exacte : tout pixel dont le CENTRE
+  // est dans la boite recoit exactement 1, donc la boite par defaut — plein
+  // cadre — rend le scan tel quel et la reference effet-texture ne bouge pas.
+  // Une rampe a cheval poserait la rangee de pixels du bord pile sur la valeur
+  // 1, a l epsilon d interpolation de uv pres, et cet epsilon suffit a deplacer
+  // un octet. La seconde est un demi-pixel de biais vers l exterieur, invisible,
+  // et il va dans le sens sur : une boite ne mange jamais le pixel qu elle
+  // contient.
+  let q = (abs(local) - boiteDemi) * cadre;
+  let couverture = clamp(1.0 - max(q.x, q.y), 0.0, 1.0);
+
+  // Rotation autour du CENTRE de la boite, puis echelle, puis decalage. Tourner
   // autour de l'origine ferait fuir la texture hors du cadre des que l'angle
   // bouge, ce qui rendrait le curseur inutilisable.
-  let centre = uv - vec2<f32>(0.5);
+  //
+  // C est local et non uv - 0.5 : le motif est ancre a la BOITE, donc deplacer
+  // la boite deplace le scan avec elle au lieu de faire glisser une fenetre sur
+  // un motif immobile. Au reglage par defaut (centre 0,5 et angle nul) local
+  // vaut exactement uv - 0.5, l expression d avant.
   let s = sin(angle);
   let c = cos(angle);
-  let tourne = vec2<f32>(centre.x * c - centre.y * s, centre.x * s + centre.y * c);
+  let tourne = vec2<f32>(local.x * c - local.y * s, local.x * s + local.y * c);
   // fract : la texture se REPETE hors de ses bornes. Un clamp etirerait le
   // pixel de bord en trainee, ce qui se voit immediatement sur un papier.
   let tuv = fract(tourne / echelle + vec2<f32>(0.5) + decalage);
@@ -256,10 +427,15 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   scan = mix(scan, vec3<f32>(lum), desaturation);
   scan = mix(scan, vec3<f32>(1.0) - scan, inversion);
 
-  // LE SCAN BRUT, et rien d'autre. Le mode de fusion du calque et son opacite
-  // font le melange, dans le wrapper de shaderCompose — d'ou l'absence de
-  // parametres "Melange" et "Force" ici, qui les doubleraient.
-  return vec4<f32>(scan, color.a);
+  // LE SCAN BRUT DANS LA BOITE, l'entree telle quelle dehors. Le mode de fusion
+  // du calque et son opacite font le melange, dans le wrapper de shaderCompose
+  // — d'ou l'absence de parametres "Melange" et "Force" ici, qui les
+  // doubleraient.
+  //
+  // A couverture 1 — le cas de la boite par defaut, plein cadre — mix rend
+  // exactement scan : WGSL definit mix(x, y, a) par x*(1-a) + y*a, donc x*0 + y,
+  // sans arrondi. C'est ce qui laisse les references existantes intactes.
+  return vec4<f32>(mix(color.rgb, scan, couverture), color.a);
 }
 `,
 };

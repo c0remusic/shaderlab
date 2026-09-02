@@ -29,9 +29,23 @@ outil sur la toile, en trois genres ») — ce ticket lui donne enfin sa décisi
 **Blocked by:** None pour la décision. Le ticket 20 la rend UTILE (sans lui, un
 ancrage neuf ne se déplace toujours pas au geste).
 
-**Status:** ready-for-agent — LISTE ARRÊTÉE par Antoine au grilling du 2026-08-27 (« ok pour tout ») : `warp` → point (centre, hors Bruit fractal), `halftone` → point (origine de trame), `hatching` → point — les trois sur des params EXISTANTS, zéro référence déplacée ; `texture` → box (params neufs en fin de liste). SANS lieu, motivé : `glow`/`halation` (naissent des hautes lumières), `glass` (matière pleine feuille), la retouche (courbes, niveaux, mélangeur…). `gooeyMerge`/`sliceShift`/`dither` : pas retenus à ce tour.
+**Status:** done — LIVRÉ le 2026-08-27. LISTE ARRÊTÉE par Antoine au grilling du 2026-08-27 (« ok pour tout ») : `warp` → point (centre, hors Bruit fractal), `halftone` → point (origine de trame), `hatching` → point — les trois sur des params EXISTANTS, zéro référence déplacée ; `texture` → box (params neufs en fin de liste). SANS lieu, motivé : `glow`/`halation` (naissent des hautes lumières), `glass` (matière pleine feuille), la retouche (courbes, niveaux, mélangeur…). `gooeyMerge`/`sliceShift`/`dither` : pas retenus à ce tour.
 **HITL — Antoine tranche effet par effet. L'agent ne décide pas à sa place.**
 
-- [ ] Liste arrêtée des effets qui gagnent un ancrage, avec le genre de chacun.
-- [ ] Les effets qui restent SANS lieu sont nommés, avec la raison (retouche, ou lieu sans objet).
-- [ ] Coût en références de pixels chiffré avant de coder (un paramètre neuf en fin de `params[]` ne déplace aucun index existant).
+- [x] Liste arrêtée (grilling du 2026-08-27) ET LIVRÉE le jour même : `warp` point
+      (visible types 1-5, 7, 8 — le Drapeau ne lit pas `centerY`, un point y
+      serait à moitié mort), `halftone` point (sans condition, les quatre modes
+      lisent le centre), `hatching` point (Cercles seulement, comme sa section),
+      `texture` box (5 params neufs en fin de liste — la box BORNE et ANCRE le
+      motif, elle ne le dimensionne pas ; hors d'elle l'effet rend son entrée,
+      mais le MODE DE FUSION du calque s'applique encore — Incrustation 0,7 par
+      défaut contraste le fond hors box, documenté dans l'effet, repli : masque
+      ou mode Normal).
+- [x] Les effets SANS lieu nommés : `glow`/`halation` (naissent des hautes
+      lumières), `glass` (matière pleine feuille), la retouche ;
+      `gooeyMerge`/`sliceShift`/`dither` non retenus à ce tour.
+- [x] Coût chiffré ET tenu : zéro référence déplacée (3 ancrages sur params
+      existants ; `effet-texture` inchangé AU BIT PRÈS aux défauts de la box,
+      vérifié par test:render), une référence neuve `effet-texture-box`.
+      Geste vivant vérifié par sonde : drag sur halftone → cible
+      `effect-move-surface`, 1 commit, undo/redo exacts.

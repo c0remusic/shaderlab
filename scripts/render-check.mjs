@@ -1701,6 +1701,46 @@ const INSTALL = `(async () => {
       },
     },
 
+    // TEXTURE, POSEE DANS UNE BOITE (2026-08-27, ticket 21). Il CONTRE
+    // effet-texture, donc l ecart mesure est exactement ce que la boite ajoute :
+    // le bornage du trace, et le re-ancrage du motif sur le centre et l angle de
+    // la boite. A ses defauts (centre 0,5 / 0,5, taille 1 x 1, angle 0) la boite
+    // est l identite au bit pres — c est effet-texture lui-meme qui verrouille
+    // ce cas, et il ne doit PAS bouger.
+    //
+    // TROIS DEGENERESCENCES EVITEES ENSEMBLE, et c est la lecon de lensBlur
+    // (2026-08-01, une reference posee sur un cas degenere verrouille du bruit) :
+    // la boite est DECENTREE (un bug qui ignorerait son centre rendrait la meme
+    // image qu une boite centree), PLUS PETITE que le cadre (sinon rien n est
+    // borne et la couverture vaut 1 partout), et TOURNEE (sinon les deux termes
+    // croises de la rotation isotrope restent nuls et ne sont jamais eprouves).
+    //
+    // CE QU IL VERROUILLE AUSSI, et qui se lit mal sur l image : hors de la
+    // boite, l effet rend son entree telle quelle, mais le calque est en
+    // Incrustation a 0,7 et overlay(c, c) n est pas l identite. Le fond hors
+    // boite est donc CONTRASTE, pas intact. C est le comportement reel de l app
+    // — un effet ne peut pas neutraliser son propre mode de fusion — et le
+    // verrouiller ici evite qu il change sans qu on le decide.
+    "effet-texture-box": {
+      contre: "effet-texture",
+      build: async (r, stack) => {
+        r.setTextureCatalog([TEXTURE_MIRE]);
+        // ATTENDRE le decodage : viewFor ne bloque pas, il sert le repli 1x1
+        // et rend la main.
+        await r.ensureTextureLoaded(0);
+        const a = stack.addLayer("texture");
+        stack.updateParams(a, {
+          rang: 0, echelle: 0.6, rotation: 31, decalageX: 0.17, decalageY: -0.09,
+          inversion: 0, desaturation: 0, contraste: 1, pivot: 0.5,
+          boiteX: 0.38, boiteY: 0.56, boiteLargeur: 0.5, boiteHauteur: 0.35, boiteRotation: 24,
+        });
+        // Memes fusion et opacite que effet-texture : sans elles, le contre
+        // mesurerait le changement de melange en plus de celui de la boite.
+        const calque = stack.layers.find((l) => l.id === a);
+        if (calque) { calque.blendMode = "overlay"; calque.opacity = 0.7; }
+      },
+    },
+
     // TEXTURE, LEVELS POUSSES — SCENARIO RETIRE LE 2026-08-05, ET LA RAISON
     // VAUT D ETRE LUE PLUTOT QUE CONTOURNEE.
     //

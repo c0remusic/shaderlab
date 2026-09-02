@@ -100,7 +100,7 @@ export const halftone: EffectModule = {
     { name: "dotScale", label: "Grosseur du point", unit: "percent", min: 0.2, max: 1.6, default: 1.05, step: 0.01, hint: "Jusqu'où un point peut grossir dans sa cellule. Au-delà de 1 les points se touchent dans les ombres et l'aplat se ferme — ce que fait un vrai engraissement de point" },
     { name: "colorMode", label: "Mode de couleur", unit: "none", min: 0, max: COLOR_MODES.length - 1, default: MODE_CMYK, step: 1, choices: [...COLOR_MODES], hint: "CMJN : quatre encres aux angles d'écran de l'offset, avec la rosette. RVB : trois trames additives, rendu écran. Noir sur blanc et Blanc sur noir : une seule encre" },
     { name: "rotation", label: "Rotation de la trame", unit: "degrees", min: 0, max: 90, default: 0, step: 1, hint: "Fait pivoter les quatre écrans ENSEMBLE, en conservant leurs écarts — donc la rosette survit" },
-    { name: "centerX", label: "Centre X", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Point d'où la grille s'aligne" },
+    { name: "centerX", label: "Centre X", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Point d'où la grille s'aligne. Se manipule sur l'image" },
     { name: "centerY", label: "Centre Y", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Voir Centre X." },
     { name: "softness", label: "Fondu du point", unit: "percent", min: 0, max: 1, default: 0.12, step: 0.01, hint: "0 = points francs (toujours antialiasés), 1 = points fondus qui se dissolvent dans le papier" },
     { name: "blackPoint", label: "Point noir", unit: "percent", min: 0, max: 0.95, default: 0, step: 0.01, hint: "Ton d'entrée qui reçoit l'encre maximale — le monter ferme les ombres" },
@@ -110,6 +110,29 @@ export const halftone: EffectModule = {
     // `encreForce` vaut 0 par défaut, donc le rendu de cet effet est inchangé
     // au bit près tant qu'on n'y touche pas — ce que le verrou de pixels prouve.
     ...inkTextureParams(),
+  ],
+  /**
+   * L'ORIGINE DE LA TRAME SE POSE SUR L'IMAGE (ticket 21, liste arrêtée par
+   * Antoine le 2026-08-27). Aucun paramètre neuf : le point cite les deux
+   * coordonnées qui existent depuis le premier jour, donc aucun index ne bouge
+   * et les deux références de pixels de cet effet (`effet-halftone`,
+   * `effet-halftone-encre`) ne se déplacent pas.
+   *
+   * ⚠️ AUCUN `visibleWhen`, ET C'EST VÉRIFIÉ DANS LE SHADER, pas supposé depuis
+   * le nom du mode. `centerPx` n'a qu'un lecteur — `halftone_dot`, qui s'en sert
+   * pour poser le repère de l'écran (`rel = px - centerPx`) et pour revenir lire
+   * la densité au centre de la cellule. Les QUATRE modes de couleur l'appellent :
+   * quatre fois en CMJN, trois fois en RVB, une fois pour chacune des deux
+   * encres uniques. Il n'existe donc aucun régime où le centre soit inerte, et
+   * une condition y masquerait une poignée qui agit.
+   *
+   * Ce que le point NE porte PAS : `rotation`. Elle fait pivoter les quatre
+   * écrans ensemble autour de ce centre, mais le genre `point` n'a que deux
+   * champs — lui donner un angle demanderait une `box`, dont la largeur et la
+   * hauteur ne voudraient rien dire pour une trame qui couvre tout le cadre.
+   */
+  canvasControls: [
+    { id: "origine", kind: "point", x: "centerX", y: "centerY", label: "Origine de la trame" },
   ],
   /**
    * TROIS SECTIONS, ET AUCUNE CONDITION — c'est le fait notable de cet effet.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { deplacementPatch, effetDeplacable } from "../../src/ui/effectMove";
-import { getEffect } from "../../src/render/effects/registry";
+import { effectRegistry, getEffect } from "../../src/render/effects/registry";
 import type { CanvasControl, EffectParam } from "../../src/render/effects/types";
 
 /**
@@ -189,6 +189,44 @@ describe("les effets RÉELS du registre", () => {
     expect(patch).toEqual({ centreX: expect.closeTo(0.6, 9), centreY: expect.closeTo(0.4, 9) });
   });
 
+  it("les quatre ancrages du ticket 21 se translatent, et rien qu'en position", () => {
+    // DIVIDENDE DU TICKET 20, vérifié plutôt que supposé : l'outil Déplacer ne
+    // connaît aucun effet par son nom, il lit `controlFieldRoles`. Quatre
+    // ancrages neufs y entrent donc sans une ligne de code — ce test est ce qui
+    // le prouve.
+    const patchDe = (id: string, values: Record<string, number>, dx: number, dy: number) => {
+      const effect = getEffect(id);
+      return deplacementPatch(effect?.canvasControls, effect?.params ?? [], values, dx, dy);
+    };
+    // `halftone` : l'origine de la trame est lue par les quatre modes de
+    // couleur, donc rien ne la conditionne et le geste marche toujours.
+    expect(patchDe("halftone", {}, 0.1, -0.1))
+      .toEqual({ centerX: expect.closeTo(0.6, 9), centerY: expect.closeTo(0.4, 9) });
+    // `texture` : SEULES les deux positions bougent. Largeur, hauteur et
+    // rotation sont des rôles `extentX`/`extentY`/`degrees` — tirer la boîte
+    // d'un scan doit la DÉPLACER, jamais l'agrandir ni la tourner.
+    expect(patchDe("texture", {}, 0.2, 0))
+      .toEqual({ boiteX: expect.closeTo(0.7, 9), boiteY: 0.5 });
+  });
+
+  it("`warp` et `hatching` ne se déplacent que dans les modes qui lisent leur centre", () => {
+    const deplacable = (id: string, values: Record<string, number>) => {
+      const effect = getEffect(id);
+      return effetDeplacable(effect?.canvasControls, effect?.params ?? [], values);
+    };
+    // Défauts : Bruit fractal (type 0) et Droites (pattern 0). Ni l'un ni
+    // l'autre ne lit de centre — une houle et une trame droite n'ont pas de
+    // lieu, et refuser de les déplacer est correct, pas cassé.
+    expect(deplacable("warp", {})).toBe(false);
+    expect(deplacable("hatching", {})).toBe(false);
+    expect(deplacable("warp", { type: 8 })).toBe(true);
+    expect(deplacable("hatching", { pattern: 3 })).toBe(true);
+    // ⚠️ LE DRAPEAU (type 6) EST DEHORS, ET C'EST MESURÉ : sa formule ne lit que
+    // `q.x`, donc la moitié verticale d'un glissement ne déplacerait aucun
+    // pixel. Son curseur `Centre X` reste, sa poignée non.
+    expect(deplacable("warp", { type: 6 })).toBe(false);
+  });
+
   it("un effet SANS ancrage n'est pas déplaçable, et c'est correct", () => {
     // Un calque de réglage n'a pas de position chez Photoshop non plus. Le
     // critère est `canvasControls`, jamais le nom ni la catégorie.
@@ -199,13 +237,26 @@ describe("les effets RÉELS du registre", () => {
     }
   });
 
-  it("les cinq effets à ancrage sont exactement ceux qui déclarent un `canvasControls`", () => {
+  it("les neuf effets à ancrage sont exactement ceux qui déclarent un `canvasControls`", () => {
     // Garde de FRONTIÈRE : si un effet neuf déclare un ancrage, cette liste
-    // doit bouger dans le même commit — sinon « les cinq effets » de la doc
-    // dérive de ce que le registre porte, silencieusement.
-    const avecAncrage = ["aplat", "lensFlare", "lightLeak", "motionBlur", "pixelStretch"];
+    // doit bouger dans le même commit — sinon « les N effets » de la doc dérive
+    // de ce que le registre porte, silencieusement.
+    //
+    // ⚠️ ILS ÉTAIENT CINQ JUSQU'AU 2026-08-27. Le ticket 21 en a ajouté quatre
+    // sur liste arrêtée par Antoine : `warp`, `halftone` et `hatching` sur des
+    // paramètres de centre qui EXISTAIENT déjà (zéro index déplacé, zéro
+    // référence de pixels touchée), `texture` sur cinq paramètres de boîte
+    // ajoutés en fin de `params[]`.
+    const avecAncrage = [
+      "aplat", "lensFlare", "lightLeak", "motionBlur", "pixelStretch",
+      "warp", "halftone", "hatching", "texture",
+    ];
     for (const id of avecAncrage) {
       expect(getEffect(id)?.canvasControls?.length ?? 0).toBeGreaterThan(0);
     }
+    // L'autre moitié de la frontière, et c'est elle qui rougit sur un ancrage
+    // AJOUTÉ ailleurs sans venir ici : la liste doit être EXHAUSTIVE.
+    expect(effectRegistry.filter((e) => e.canvasControls?.length).map((e) => e.id).sort())
+      .toEqual([...avecAncrage].sort());
   });
 });

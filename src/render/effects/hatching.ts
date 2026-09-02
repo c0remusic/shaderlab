@@ -99,6 +99,20 @@ const PATTERN_CIRCLES = 3;
  *  masqués ne rend qu'un titre vide, et aucun test de rendu ne peut le voir. */
 const EN_ONDE = { param: "pattern", equals: [PATTERN_WAVES, PATTERN_ZIGZAG] } satisfies DisplayCondition;
 
+/** La SEULE forme qui enroule les tailles autour d'un point, nommée UNE fois.
+ *
+ *  Deux porteurs depuis le 2026-08-27 — la section `Centre` et le point posé sur
+ *  la toile — et la même raison qu'au-dessus de refuser deux écritures : une
+ *  section affichée là où sa poignée ne l'est pas (ou l'inverse) se lit comme un
+ *  bug, et aucun test de rendu ne peut le voir.
+ *
+ *  ⚠️ Elle reste NON MESURÉE, comme le disait déjà la section : elle repose sur
+ *  la lecture complète du flux. `center` n'a qu'un lecteur, `hatch_coord`, et il
+ *  ne s'en sert que dans sa première branche — `if (motif == PATTERN_CIRCLES)`,
+ *  où la phase EST la distance au centre. Les trois autres formes calculent leur
+ *  phase par `dot(px, dir)`, qui ne touche jamais `center`. */
+const EN_CERCLES = { param: "pattern", equals: PATTERN_CIRCLES } satisfies DisplayCondition;
+
 export const hatching: EffectModule = {
   id: "hatching",
   name: "Hatching",
@@ -128,7 +142,7 @@ export const hatching: EffectModule = {
     // L'infobulle reste — le masquage dit QUE, elle seule dit POURQUOI.
     { name: "waveAmplitude", label: "Amplitude de l'onde", unit: "pixels", min: 0, max: 60, default: 12, step: 0.5, appliesWhen: EN_ONDE, hint: "De combien les tailles s'écartent de la ligne droite. Sans objet en Droites et en Cercles." },
     { name: "waveFrequency", label: "Fréquence de l'onde", unit: "none", min: 0.2, max: 40, default: 6, step: 0.2, appliesWhen: EN_ONDE, hint: "Nombre d'oscillations sur la plus petite dimension de la toile. Sans objet en Droites et en Cercles." },
-    { name: "centerX", label: "Centre X", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Point autour duquel les tailles s'enroulent. Ne sert qu'en Cercles." },
+    { name: "centerX", label: "Centre X", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Point autour duquel les tailles s'enroulent. Ne sert qu'en Cercles, où il se manipule sur l'image." },
     { name: "centerY", label: "Centre Y", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, hint: "Voir Centre X." },
     // ── ENCRE RÉELLE (transversal, `inkTexture.ts`), ajoutée À LA FIN le
     // 2026-08-05 : l'index d'un paramètre est persisté dans les presets.
@@ -137,6 +151,20 @@ export const hatching: EffectModule = {
   // Le scan arrive par le binding 7. Interdit les passes internes
   // (`validateEffect`) — sans conséquence, `hatching` est mono-passe.
   libraryTexture: { indexParam: "encreRang" },
+  /**
+   * LE CENTRE DES CERCLES SE POSE SUR L'IMAGE (ticket 21, liste arrêtée par
+   * Antoine le 2026-08-27). Aucun paramètre neuf, donc aucun index déplacé et
+   * aucune référence de pixels touchée : le point cite `centerX`/`centerY` tels
+   * qu'ils sont depuis le 2026-08-01.
+   *
+   * ⚠️ IL PORTE LA MÊME CONDITION QUE SA SECTION, `EN_CERCLES`, et c'est ce qui
+   * les fait apparaître et disparaître ensemble. Une poignée visible sous
+   * `Droites` déplacerait un point dont la formule ne lit jamais la valeur —
+   * exactement la course morte que ce dépôt proscrit (D11, `sliceShift`).
+   */
+  canvasControls: [
+    { id: "centre", kind: "point", x: "centerX", y: "centerY", label: "Centre des cercles", visibleWhen: EN_CERCLES },
+  ],
   /**
    * CINQ SECTIONS, ET LA FORME DES TAILLES EN COMMANDE DEUX.
    *
@@ -216,21 +244,24 @@ export const hatching: EffectModule = {
       // ⚠️ CETTE CONDITION-CI N'EST PAS MESURÉE, contrairement à celle de
       // l'onde. Elle repose sur la lecture complète du flux : `centerPx` n'a
       // qu'un lecteur, `hatch_coord`, qui ne s'en sert que dans sa branche
-      // Cercles. C'est pourquoi elle est portée par la SECTION et par elle
-      // seule — une décision d'affichage se relit ici, alors qu'un
+      // Cercles. C'est pourquoi elle n'est portée que par la SECTION et par le
+      // point posé — une décision d'affichage se relit là, alors qu'un
       // `appliesWhen` posé sur les deux paramètres se lirait comme un verdict
       // de la campagne du 2026-08-05, qui ne les a jamais vus : leur infobulle
       // dit « Ne sert qu'en Cercles », phrase que le relevé des « Sans objet
       // en … » n'a pas ramassée.
       //
-      // Les coordonnées d'un point vont par deux par nature. Pas de gabarit
-      // `pose` malgré leur unité en percent : cet effet ne déclare aucun
-      // `canvasControl`, et une section « posée » sans contrôle sur la toile
-      // serait un titre au-dessus de rien (refusé par `validateEffect`).
+      // ✅ GABARIT `pose` DEPUIS LE 2026-08-27 (ticket 21). Il était refusé, et
+      // la raison écrite ici était exacte au moment où elle a été écrite : « cet
+      // effet ne déclare aucun `canvasControl`, et une section posée sans
+      // contrôle sur la toile serait un titre au-dessus de rien (refusé par
+      // `validateEffect`) ». L'ancrage étant arrivé, la raison est tombée avec
+      // lui — ces deux coordonnées SONT le point qu'on déplace sur l'image,
+      // comme `Centre` chez `motionBlur` et `Fuite` chez `lightLeak`.
       id: "centre",
       label: "Centre",
-      layout: "paire",
-      appliesWhen: { param: "pattern", equals: PATTERN_CIRCLES },
+      layout: "pose",
+      appliesWhen: EN_CERCLES,
       params: ["centerX", "centerY"],
     },
     // SIXIÈME SECTION, venue du module transversal avec ses paramètres. Elle

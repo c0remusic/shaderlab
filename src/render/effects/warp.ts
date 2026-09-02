@@ -48,6 +48,24 @@ const WARP_NOISE = 0;
 // dans le seul type ou ils agissent.
 const EN_BRUIT = { param: "type", equals: [WARP_NOISE] } satisfies DisplayCondition;
 
+/**
+ * LES DEUX LISTES DU CENTRE, ÉCRITES UNE FOIS.
+ *
+ * Elles ne se recopient plus depuis le 2026-08-27 : le point posé sur la toile
+ * (`canvasControls`) a besoin de la seconde, et une TROISIÈME copie de sept
+ * index aurait divergé en silence — un contrôle masqué à tort ne bouge aucun
+ * pixel, donc aucune référence de rendu ne peut le dire.
+ *
+ * - `CENTRE_X_AGIT` — les HUIT formes analytiques. Toutes lisent `q.x`.
+ * - `CENTRE_XY_AGIT` — les SEPT dont la formule lit AUSSI `q.y`. Le Drapeau
+ *   (type 6) en est exclu : `warp_analytic` y rend
+ *   `vec2(0.0, sin(q.x * freq * 6.0) * amp)`, qui ne touche jamais `q.y`.
+ *   Mesuré le 2026-08-21 : centerY à 0 canal d'écart en type 6, 44 à 64 % des
+ *   canaux sur les sept autres.
+ */
+const CENTRE_X_AGIT = { param: "type", equals: [1, 2, 3, 4, 5, 6, 7, 8] } satisfies DisplayCondition;
+const CENTRE_XY_AGIT = { param: "type", equals: [1, 2, 3, 4, 5, 7, 8] } satisfies DisplayCondition;
+
 export const warp: EffectModule = {
   id: "warp",
   name: "Warp",
@@ -79,8 +97,9 @@ export const warp: EffectModule = {
     // en Bruit fractal », « sans objet en Drapeau » — donc chaque type gardé se
     // cite un par un.
     // ⚠️ Corollaire : une dixième forme ajoutée à `WARP_TYPES` devra s'ajouter
-    // ICI aussi — aux DEUX listes ci-dessous —, faute de quoi son centre
-    // restera masqué sans que rien ne le signale. C'est le prix de la voie
+    // aux DEUX listes du haut de fichier (`CENTRE_X_AGIT`, `CENTRE_XY_AGIT`),
+    // faute de quoi son centre restera masqué sans que rien ne le signale — et
+    // la poignée posée sur la toile avec lui. C'est le prix de la voie
     // déclarative, assumé (design §3).
     // ⚠️ `centerX` et `centerY` NE PORTENT PAS LA MÊME LISTE, et l'écart est
     // MESURÉ (2026-08-21), pas inféré. Le FBM (type 0) n'a pas de centre : sa
@@ -91,8 +110,27 @@ export const warp: EffectModule = {
     // VERTICAL est inerte (centerY, 0 canal). D'où `centerX` sur [1..8] et
     // `centerY` sur [1, 2, 3, 4, 5, 7, 8]. Sur les sept formes qui lisent `q.y`,
     // centerY est VIVANT de 44 à 64 % des canaux.
-    { name: "centerX", label: "Centre X", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, appliesWhen: { param: "type", equals: [1, 2, 3, 4, 5, 6, 7, 8] }, hint: "Point d'où la déformation irradie. Sans objet en Bruit fractal, qui n'a pas de centre." },
-    { name: "centerY", label: "Centre Y", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, appliesWhen: { param: "type", equals: [1, 2, 3, 4, 5, 7, 8] }, hint: "Voir Centre X. Sans objet aussi en Drapeau, qui ne déplace que selon le centre horizontal." },
+    { name: "centerX", label: "Centre X", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, appliesWhen: CENTRE_X_AGIT, hint: "Point d'où la déformation irradie. Sans objet en Bruit fractal, qui n'a pas de centre. Se manipule sur l'image." },
+    { name: "centerY", label: "Centre Y", unit: "percent", min: -0.5, max: 1.5, default: 0.5, step: 0.01, appliesWhen: CENTRE_XY_AGIT, hint: "Voir Centre X. Sans objet aussi en Drapeau, qui ne déplace que selon le centre horizontal." },
+  ],
+  /**
+   * LE CENTRE SE POSE SUR L'IMAGE (ticket 21, liste arrêtée par Antoine le
+   * 2026-08-27). Aucun paramètre neuf : le point cite les DEUX coordonnées qui
+   * existent depuis le premier jour, donc aucun index ne bouge et aucune
+   * référence de pixels ne se déplace.
+   *
+   * ⚠️ SA CONDITION EST CELLE DE `centerY`, PAS CELLE DE `centerX`, et l'écart
+   * d'un type est délibéré. Un point se tire en X et en Y d'un même geste : en
+   * Drapeau (type 6), la moitié verticale de ce geste ne déplacerait aucun
+   * pixel — c'est-à-dire la course morte que ce dépôt proscrit (D11,
+   * `sliceShift`). Le Drapeau garde donc son curseur `Centre X`, sans poignée.
+   *
+   * En Bruit fractal (type 0) rien ne s'affiche : cette branche ne lit jamais
+   * `center`, et l'outil Déplacer n'a alors rien à prendre — ce qui est correct,
+   * une houle n'a pas de lieu.
+   */
+  canvasControls: [
+    { id: "centre", kind: "point", x: "centerX", y: "centerY", label: "Centre de la déformation", visibleWhen: CENTRE_XY_AGIT },
   ],
   /**
    * TROIS SECTIONS POUR NEUF RÉGIMES, découpées sur la question « qui lit

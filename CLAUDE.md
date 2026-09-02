@@ -252,21 +252,33 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   de `docs/ROADMAP.md` qui portera la catégorie au paramètre).
   `glass` (2026-08-03/04) est le portage du système de réfraction d'Antoine
   (`C:\dev\portfolio\src\shaders\verre\site.fs.glsl`) — plan
-  `docs/superpowers/specs/2026-08-03-verre-plan-de-portage.md`. **Il est
-  COMPLET** : quatorze matières (les neuf de la feuille + les cinq du PAVÉ,
-  livrées le 2026-08-04 à la fin de la même liste, PAS dans un second effet),
-  cinq profils de section, **dix-huit références de pixels — toutes les
-  branches verrouillées**. Un seul mécanisme décliné quatorze fois : chaque
-  matière ne fait que fabriquer une PENTE de surface, tout ce qui suit
+  `docs/superpowers/specs/2026-08-03-verre-plan-de-portage.md`. Il porte **neuf
+  matières de FEUILLE**, cinq profils de section, **treize références de pixels
+  — toutes les branches verrouillées**. Un seul mécanisme décliné neuf fois :
+  chaque matière ne fait que fabriquer une PENTE de surface, tout ce qui suit
   (réfraction, dispersion, diffusion, Fresnel, absorption) est commun et ne sait
   rien d'elle.
   Sa mire est `mireVerre`, écrite pour lui et **entièrement achromatique** —
   donc toute couleur dans ses références EST la dispersion.
-  ⚠️ Verrouillé ≠ validé, et le jugement est tombé : le **Dépoli** ET les cinq
-  pavés ont été regardés sur une vraie photo le 2026-08-13, et **REFUSÉS** —
-  « très artificiel, 3D des années 90 ». Une référence de pixels prouve qu'un
-  effet porte sa propriété, jamais qu'il est beau (`docs/ROADMAP.md` §1, qui
-  porte les quatre corrections que les photos désignent).
+  ⚠️ **LES CINQ MATIÈRES DE PAVÉ SONT SORTIES le 2026-08-27** (ADR-0021, retrait
+  SEC) — il en portait donc quatorze, et dix-huit références, jusqu'à cette
+  date. Ne pas les citer comme existantes et ne pas les reproposer : c'est un
+  **quatrième refus daté**, après trois corrections livrées entre les refus du
+  2026-08-13 (joint adouci, granulométrie, variation par bloc) qui n'ont pas
+  retourné le verdict. Ce qui est PERDU sans équivalent : le seul verre à
+  CELLULES — aucune autre matière ne sépare l'image en régions, aucun effet ne
+  peint une trame, et les sources de masque n'ont rien de géométrique.
+  Le RETRAIT a été gratuit pour les neuf autres parce que les cinq matières et
+  leurs huit paramètres étaient les DERNIERS de leurs listes — **aucun index
+  déplacé**, treize références inchangées au bit près. C'est le gate
+  discriminant de ce genre de retrait, et il vaut d'être refait tel quel.
+  ⚠️ Verrouillé ≠ validé, et c'est ce que le dossier du verre démontre le mieux :
+  le **Dépoli** ET les cinq pavés ont été regardés sur une vraie photo le
+  2026-08-13 et **REFUSÉS** — « très artificiel, 3D des années 90 » — alors que
+  toutes leurs branches étaient verrouillées au pixel. Une référence de pixels
+  prouve qu'un effet porte sa propriété, jamais qu'il est beau. Le Dépoli, lui,
+  RESTE : son verdict nommait un défaut précis (diffusion directionnelle,
+  corrigée en isotrope par `da86f3d`), pas quatre refus du même mécanisme.
   ⚠️ **Corollaire payé le même jour : sur une question d'APPARENCE, un
   raisonnement physique ne remplace pas une image.** Trois constantes ont été
   écrites dans `glass.ts` sur la foi de specs textuelles (largeur de joint en
@@ -319,12 +331,19 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   que ce paragraphe a dit du 2026-08-05 au 2026-08-12** (« chantier soldé »).
   Mesuré sur les modules réels, d'abord le 2026-08-12 puis le 2026-08-15
   (instrument : `.scratch/prochain-palier/assets/mesure-controles.ts`), puis
-  re-mesuré le 2026-08-19, puis le 2026-08-26 : sur **381 paramètres**, **57**
-  portent une condition (15 %) et **15 effets sur 26 n'en ont AUCUNE** — dont
-  `curves` (37 params), `lensFlare` (33), `channelMixer` (22),
-  `gradientMap` (20). (Le 2026-08-26 : +1 param et +2 conditions par le mode
-  « L'image en dessous » de `displacementMap`, ticket 22 ; les 385/52/27
-  d'avant portaient encore `emboss` et `noise`, retirés le 2026-08-21.)
+  re-mesuré le 2026-08-19, le 2026-08-26, puis le **2026-08-27** : sur
+  **373 paramètres**, **49** portent une condition (13 %) et **15 effets sur 26
+  n'en ont AUCUNE** — dont `curves` (37 params), `lensFlare` (33),
+  `channelMixer` (22), `gradientMap` (20). (Le 2026-08-26 : +1 param et +2
+  conditions par le mode « L'image en dessous » de `displacementMap`,
+  ticket 22 ; les 385/52/27 d'avant portaient encore `emboss` et `noise`,
+  retirés le 2026-08-21.)
+  ⚠️ **381/57 → 373/49 le 2026-08-27, et c'est un RETRAIT, pas un progrès** :
+  les huit réglages de PAVÉ de `glass` portaient huit conditions à eux seuls
+  (ADR-0021), donc le numérateur et le dénominateur tombent du même chiffre et
+  le ratio BAISSE (15 % → 13 %). Le dénominateur est le seul des deux qu'un
+  retrait améliore ; lire « −8 conditions » comme une régression du chantier
+  serait aussi faux que lire « +12 » comme un progrès quand `aplat` est entré.
   ⚠️ **Le chiffre « 51 » qu'a porté cette phrase était DÉJÀ faux avant la
   session du 2026-08-19**, et c'est vérifié et non supposé : l'instrument
   relancé sur l'arbre d'AVANT les changements du jour rend 52, pas 51. Le
@@ -348,9 +367,10 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   blocs dont les paramètres ne font rien quand leur bloc est éteint). Le
   registre porte 9 conditions de SECTION en tout. Les sections
   existent partout mais ne sectionnent pas (`duotone` 11 params pour 1 section,
-  `outlines` 8,7 par section ; `liste` = **59 des 83** gabarits au 2026-08-26,
-  d'où le défilement — et ce chiffre-là aussi était faux avant d'être relancé,
-  il disait 63 des 83 quand l'arbre en portait 60 des 84), et
+  `outlines` 8,7 par section ; `liste` = **59 des 82** gabarits au 2026-08-27,
+  d'où le défilement — le total perd la `grille` de la section « Pavé » retirée
+  par ADR-0021, et ce chiffre-là aussi était faux avant d'être relancé, il
+  disait 63 des 83 quand l'arbre en portait 60 des 84), et
   **5 effets sur 26 seulement** portent un outil sur la toile
   (`aplat`, `lensFlare`, `lightLeak`, `motionBlur`, `pixelStretch`),
   en quatre genres (`disk` ×2, `point` ×2, `axis` ×2, `box` ×1 — mesuré le
@@ -664,14 +684,18 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Ce qu'elle laisse passer : notre uniform `params: array<f32, 48>` n'est pas
   conforme (stride 4 pour un alignement requis de 16 en espace uniform), Dawn
   l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 26
-  effets, index gelés par les presets ET par **122** références de pixels
-  (124 PNG dans `test/render-refs/` au 2026-08-26, `effet-deplacement-image`
-  ajouté par le ticket 22 ; les DEUX qui ne gèlent PAS
-  un index, `photo-miroir-temoin` / `photo-miroir`, gèlent le miroir du calque
-  photo, donc le compte qui gèle les index est 124 − 2 = 122. ⚠️ **−3 le
+  effets, index gelés par les presets ET par **117** références de pixels
+  (**119 PNG** dans `test/render-refs/` au 2026-08-27 ; les DEUX qui ne gèlent
+  PAS un index, `photo-miroir-temoin` / `photo-miroir`, gèlent le miroir du
+  calque photo, donc le compte qui gèle les index est 119 − 2 = 117.
+  ⚠️ **−5 le 2026-08-27** : les cinq références de pavé
+  (`effet-verre-pave-nuage`, `-ondule`, `-quadrille`, `-alveolaire`, `-lisse`)
+  sont parties avec les matières retirées (ADR-0021) — le verre passe de 18
+  références à 13. ⚠️ **−3 le
   2026-08-21** : les trois références d'`emboss` (`effet-emboss`, `-oppose`,
   `-sur-image`) sont parties avec l'effet retiré (ADR-0019), et le revert de
-  `noise` le même jour a défait ses 2. Historique : 126 PNG au 2026-08-20, 124
+  `noise` le même jour a défait ses 2. Historique : 124 PNG au 2026-08-26
+  (`effet-deplacement-image` ajouté par le ticket 22), 126 au 2026-08-20, 124
   gelantes — re-compté le 2026-08-19 au soir : 122 plus la paire
   `masque-feather-fort-temoin` / `masque-feather-fort`, la mire qui MONTRE le
   profil en S du feather ; les trois du relevé Affinity du même jour étaient

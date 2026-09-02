@@ -3,42 +3,54 @@ import { glass } from "../../../src/render/effects/glass";
 import { getEffect, effectRegistry } from "../../../src/render/effects/registry";
 
 /**
- * GLASS — feuille et pavés.
+ * GLASS — la feuille, et rien d'autre depuis ADR-0021.
  *
- * Ce que ces tests gardent n'est PAS le rendu : six références de pixels s'en
+ * Ce que ces tests gardent n'est PAS le rendu : treize références de pixels s'en
  * chargent, toutes posées sur `mireVerre`. Ils gardent ce que le fichier
  * AFFIRME et qu'aucune image ne dirait — les applicabilités, les facteurs repris
  * de la source, et les deux corrections payées à la première exécution.
+ *
+ * ⚠️ LES CINQ MATIÈRES DE PAVÉ SONT SORTIES LE 2026-08-27, sur verdict d'usage
+ * après quatre refus datés. Ce fichier en portait le contrat à SIX endroits, et
+ * c'est la mesure de ce qu'une tranche coûte à retirer.
  */
 
 const wgsl = glass.wgsl;
 
 describe("glass — la surface de contrôle", () => {
-  it("déclare vingt-deux paramètres, pavés ajoutés à la fin pour préserver les presets", () => {
-    // Les cinq matières de PAVÉ de la tranche 2 s'ajouteront à la fin de la
-    // liste de CHOIX, et leurs huit paramètres à la fin de celle-ci : l'index
-    // est persisté dans les presets.
+  it("déclare quatorze paramètres, les huit de pavé retirés PAR LA FIN", () => {
+    // LE POINT QUI REND LE RETRAIT NEUTRE. Les huit réglages de pavé occupaient
+    // les index 14 à 21, les huit DERNIERS : les retirer ne déplace donc aucun
+    // des quatorze qui restent, ni dans les presets, ni dans le tableau
+    // `params` du shader, ni dans les treize références de pixels.
     expect(glass.params.map((p) => p.name)).toEqual([
       "material", "density", "depth", "profile", "flat", "fillet",
       "orientation", "irregularity", "grain", "thickness",
       "specular", "dispersion", "diffusion", "relief",
-      "blockSize", "mortar", "mortarHue", "mortarLightness",
-      "edgeDepth", "edgeWidth", "bevel", "inner",
     ]);
   });
 
-  it("propose les neuf feuilles puis les cinq pavés, sans déplacer les anciens indices", () => {
-    // Dix branches dans la source, moins `beton` que son auteur a retiré. Le
-    // compte de la note (« 8 matières ») venait d'un souvenir, pas du code, et
-    // il aurait fait livrer une matière de moins sans que rien ne le signale.
+  it("ne propose plus AUCUNE matière de pavé, et garde les neuf feuilles à leur index", () => {
+    // GARDE DE RETRAIT, même rôle que celui de `surfaceBlur` et d'`emboss` dans
+    // `registry.test.ts` : il rend le retrait CONSCIENT. Réintroduire un pavé
+    // oblige à supprimer ces lignes, donc à relire ADR-0021 — qui dit pourquoi
+    // quatre refus datés n'ont pas été rattrapés par trois corrections.
+    //
+    // Les neuf feuilles viennent de dix branches de la source, moins `beton` que
+    // son auteur a retiré. Le compte de la note (« 8 matières ») venait d'un
+    // souvenir, pas du code, et il aurait fait livrer une matière de moins sans
+    // que rien ne le signale.
     const mat = glass.params.find((p) => p.name === "material");
-    expect(mat?.choices).toHaveLength(14);
+    expect(mat?.choices).toHaveLength(9);
     expect(mat?.choices?.[0]).toBe("Cannelé simple");
     expect(mat?.choices?.[8]).toBe("Cathédrale");
-    expect(mat?.choices?.slice(9)).toEqual([
-      "Pavé · Nuage", "Pavé · Ondulé", "Pavé · Quadrillé", "Pavé · Alvéolaire", "Pavé · Lisse",
-    ]);
+    expect(mat?.choices?.some((c) => /Pav/.test(c)), "aucun pavé au registre (ADR-0021)").toBe(false);
     expect(mat?.choices).not.toContain("Béton");
+    // Et le shader ne porte plus une ligne de leur mécanisme : ni la grille de
+    // blocs, ni le mortier, ni le moulage interne.
+    for (const mort of ["verre_hauteurPave", "verre_mosaiquePave", "masqueMortier", "distanceBord"]) {
+      expect(wgsl, `${mort} est parti avec les pavés`).not.toContain(mort);
+    }
   });
 
   it("propose cinq profils de section, et non six", () => {
@@ -60,19 +72,21 @@ describe("glass — la surface de contrôle", () => {
   });
 
   it("masque chaque réglage restreint sur EXACTEMENT les matières mesurées", () => {
-    // Les quatorze déclarations éprouvées le 2026-08-05 (74 rendus,
-    // `scripts/applicabilite-table.mjs`). On assère la LISTE COMPLÈTE des index
-    // et non « contient » : ce qui se perd en masquant trop ne se voit nulle
-    // part, donc un test qui n'attrape que l'oubli ne garde que la moitié du
-    // risque.
+    // Les déclarations éprouvées le 2026-08-05 (`scripts/applicabilite-table.mjs`).
+    // On assère la LISTE COMPLÈTE des index et non « contient » : ce qui se perd
+    // en masquant trop ne se voit nulle part, donc un test qui n'attrape que
+    // l'oubli ne garde que la moitié du risque.
+    //
+    // ⚠️ ELLES ÉTAIENT QUATORZE ; il en reste SIX. Les huit qui manquent sont
+    // les réglages de pavé, tous conditionnés aux cinq matières retirées par
+    // ADR-0021 — une condition dont la liste positive serait devenue vide.
     const applicabilite = (nom: string) => {
       const condition = glass.params.find((p) => p.name === nom)?.appliesWhen;
       expect(condition?.param, `${nom} doit être commandé par la matière`).toBe("material");
       return condition?.equals;
     };
     const CANNELURES = [0, 1, 2];
-    const PAVES = [9, 10, 11, 12, 13];
-    const SAUF = (...exclues: number[]) => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].filter((i) => !exclues.includes(i));
+    const SAUF = (...exclues: number[]) => [0, 1, 2, 3, 4, 5, 6, 7, 8].filter((i) => !exclues.includes(i));
 
     expect(applicabilite("density")).toEqual(SAUF(6, 7));       // ni Poli ni Dépoli
     expect(applicabilite("depth")).toEqual(SAUF(7));            // pas de galbe au Dépoli
@@ -80,8 +94,9 @@ describe("glass — la surface de contrôle", () => {
     expect(applicabilite("fillet")).toEqual(CANNELURES);
     expect(applicabilite("orientation")).toEqual(SAUF(1, 2, 3, 5, 6, 7));
     expect(applicabilite("irregularity")).toEqual(SAUF(6, 7));
-    for (const nom of ["blockSize", "mortar", "mortarHue", "mortarLightness", "edgeDepth", "edgeWidth", "bevel", "inner"]) {
-      expect(applicabilite(nom), `${nom} n'existe que sur un pavé`).toEqual(PAVES);
+    // Et aucun réglage de pavé ne subsiste pour en porter une.
+    for (const mort of ["blockSize", "mortar", "mortarHue", "mortarLightness", "edgeDepth", "edgeWidth", "bevel", "inner"]) {
+      expect(glass.params.find((p) => p.name === mort), `${mort} est parti avec les pavés`).toBeUndefined();
     }
   });
 
@@ -98,11 +113,16 @@ describe("glass — la surface de contrôle", () => {
     //
     // Il est masqué aujourd'hui parce que la question a été MESURÉE, pas parce
     // qu'on a fini par croire l'infobulle : `node scripts/render-check.mjs
-    // --applicabilite --declaration glass.flat` éprouve les HUIT matières
-    // exclues une par une — Poli, Dépoli, Cathédrale et les cinq pavés — et rend
-    // « inerte » sur les huit. 14 matières, 6 qui le lisent, 8 mesurées : la
-    // couverture est complète par construction, aucune n'est masquée sur une
-    // déduction.
+    // --applicabilite --declaration glass.flat` a éprouvé les HUIT matières
+    // exclues une par une — Poli, Dépoli, Cathédrale et les cinq pavés — et rendu
+    // « inerte » sur les huit. La couverture était complète par construction,
+    // aucune n'était masquée sur une déduction.
+    //
+    // ⚠️ ADR-0021 a emporté cinq des huit. Il en reste TROIS à masquer (6, 7, 8),
+    // et ce sont trois de celles que la mesure a vues : le retrait n'a donc pas
+    // laissé une seule exclusion non mesurée derrière lui. La liste positive,
+    // elle, est INCHANGÉE — `flat` est lu par les matières 0 à 5, qui restent
+    // toutes.
     const flat = glass.params.find((p) => p.name === "flat");
     expect(flat?.appliesWhen?.param).toBe("material");
     expect(flat?.appliesWhen?.equals, "les six matières qui LISENT flat").toEqual([0, 1, 2, 3, 4, 5]);
@@ -115,34 +135,33 @@ describe("glass — la surface de contrôle", () => {
     expect(wgsl).toContain("let rainure = mix(0.06, 0.40, 1.0 - plat);");
   });
 
-  it("range ses vingt-deux réglages en trois sections, sans toucher à params[]", () => {
+  it("range ses quatorze réglages en deux sections, sans toucher à params[]", () => {
     // Les sections sont une donnée d'AFFICHAGE : l'index d'un paramètre est
-    // persisté dans les presets. Ce qui se vérifie ici est que les trois
-    // sections sont trois blocs CONTIGUS de `params[]` dans son ordre d'origine
+    // persisté dans les presets. Ce qui se vérifie ici est que les deux
+    // sections sont deux blocs CONTIGUS de `params[]` dans son ordre d'origine
     // — la condition posée par `groupEffectParams`, qui s'appuie sur cet ordre
     // en deux endroits et ne survivrait pas à une section qui en traverse une
     // autre.
     const noms = glass.params.map((p) => p.name);
     const sections = glass.sections!;
-    expect(sections.map((s) => s.id)).toEqual(["matiere", "optique", "pave"]);
+    expect(sections.map((s) => s.id)).toEqual(["matiere", "optique"]);
     expect(sections.flatMap((s) => s.params)).toEqual(noms);
 
-    // Seule la troisième a une condition : les quatorze matières ont toutes une
-    // matière et une optique, cinq seulement ont un pavé.
-    expect(sections[0].appliesWhen).toBeUndefined();
-    expect(sections[1].appliesWhen).toBeUndefined();
-    expect(sections[2].appliesWhen).toEqual({ param: "material", equals: [9, 10, 11, 12, 13] });
-    // GRILLE pour la matière ET pour le pavé, liste pour l'optique.
+    // ⚠️ PLUS AUCUNE CONDITION DE SECTION. La troisième, « Pavé », était la
+    // seule à en porter une, et elle est partie avec les cinq matières qui la
+    // rendaient vraie (ADR-0021) : les neuf qui restent ont toutes une matière
+    // et une optique, donc les deux sections s'appliquent toujours.
+    expect(sections.every((s) => s.appliesWhen === undefined)).toBe(true);
+    // GRILLE pour la matière, liste pour l'optique.
     //
     // ⚠️ « Matière » est passée de `liste` à `grille` le 2026-08-18 (ticket 16) :
     // ses neuf rangées en une colonne en faisaient la deuxième section la plus
     // haute du parc, et le levier du front s'est révélé être le GABARIT et non le
-    // découpage — deux colonnes rendent les mêmes réglages en cinq lignes. Les
-    // deux sections à réglages courts du même effet se lisent désormais pareil.
+    // découpage — deux colonnes rendent les mêmes réglages en cinq lignes.
     //
     // « Optique » reste en liste : cinq lignes, sous le plafond, et rien à gagner
     // à la resserrer.
-    expect(sections.map((s) => s.layout)).toEqual(["grille", "liste", "grille"]);
+    expect(sections.map((s) => s.layout)).toEqual(["grille", "liste"]);
   });
 });
 
@@ -164,11 +183,16 @@ describe("glass — les deux corrections payées à la première exécution", ()
     expect(poli).not.toMatch(/\bn\b/);
   });
 
-  it("porte le biseau, l'arête et le mortier des pavés", () => {
-    expect(wgsl).toContain("fn verre_hauteurPave");
-    expect(wgsl).toContain("distanceBord");
-    expect(wgsl).toContain("masqueMortier");
-    expect(wgsl).toContain("params[21]");
+  it("ne lit plus AUCUN index au-delà du quatorzième paramètre", () => {
+    // CE TEST REMPLACE « porte le biseau, l'arête et le mortier des pavés ».
+    // Ce qu'il garde est ce que la garde de câblage ne dit pas : elle vérifie
+    // que chaque paramètre DÉCLARÉ est lu à son index, jamais qu'aucun index
+    // ORPHELIN ne survit. Un `params[18]` resté dans le shader après le retrait
+    // lirait un uniform que plus personne n'écrit — donc la valeur du calque
+    // précédent, ou zéro, sans qu'aucun gate ne bronche.
+    const index = [...wgsl.matchAll(/params\[(\d+)\]/g)].map((m) => Number(m[1]));
+    expect(index.length, "le shader lit toujours ses paramètres").toBeGreaterThan(0);
+    expect(Math.max(...index)).toBeLessThan(glass.params.length);
   });
 
   it("laisse à l'épaisseur la course qu'exigent les matières à FACETTES", () => {
@@ -285,8 +309,9 @@ describe("glass — sa place au registre", () => {
   it("est enregistré, et sans passe interne", () => {
     expect(getEffect("glass")).toBe(glass);
     expect(effectRegistry).toContain(glass);
-    // Mono-passe : l'optique n'a besoin d'aucune texture intermédiaire, et la
-    // tranche 2 n'en demandera pas non plus.
+    // Mono-passe : l'optique n'a besoin d'aucune texture intermédiaire — la
+    // tranche 2 des pavés n'en avait pas demandé non plus, et elle est partie
+    // sans rien laisser derrière elle (ADR-0021).
     expect(glass.passes).toBeUndefined();
   });
 

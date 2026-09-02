@@ -2724,54 +2724,15 @@ const INSTALL = `(async () => {
       },
     },
 
-    // TRANCHE 2 DU VERRE : cinq paves, sur la meme mire et avec le meme bloc.
-    // Chaque scenario ne change que le moulage interne ; la chaine contre
-    // garantit que deux branches ne peuvent pas converger silencieusement.
-    "effet-verre-pave-nuage": {
-      contre: "effet-verre-cannele",
-      build: async (r, stack) => {
-        const m = await mireVerre(W, H); const sourceId = await r.photoSources.register(m);
-        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
-        const a = stack.addLayer("glass", p);
-        stack.updateParams(a, { material: 9, depth: 0.7, thickness: 1.1, dispersion: 0.35, diffusion: 0.04, blockSize: 64, mortar: 6, mortarHue: 0.35, mortarLightness: 1, edgeDepth: 0.55, edgeWidth: 0.18, bevel: 0.28, inner: 0.5 });
-      },
-    },
-    "effet-verre-pave-ondule": {
-      contre: "effet-verre-pave-nuage",
-      build: async (r, stack) => {
-        const m = await mireVerre(W, H); const sourceId = await r.photoSources.register(m);
-        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
-        const a = stack.addLayer("glass", p);
-        stack.updateParams(a, { material: 10, depth: 0.7, thickness: 1.1, dispersion: 0.35, diffusion: 0.04, blockSize: 64, mortar: 6, mortarHue: 0.35, mortarLightness: 1, edgeDepth: 0.55, edgeWidth: 0.18, bevel: 0.28, inner: 0.5 });
-      },
-    },
-    "effet-verre-pave-quadrille": {
-      contre: "effet-verre-pave-ondule",
-      build: async (r, stack) => {
-        const m = await mireVerre(W, H); const sourceId = await r.photoSources.register(m);
-        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
-        const a = stack.addLayer("glass", p);
-        stack.updateParams(a, { material: 11, depth: 0.7, thickness: 1.1, dispersion: 0.35, diffusion: 0.04, blockSize: 64, mortar: 6, mortarHue: 0.35, mortarLightness: 1, edgeDepth: 0.55, edgeWidth: 0.18, bevel: 0.28, inner: 0.5 });
-      },
-    },
-    "effet-verre-pave-alveolaire": {
-      contre: "effet-verre-pave-quadrille",
-      build: async (r, stack) => {
-        const m = await mireVerre(W, H); const sourceId = await r.photoSources.register(m);
-        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
-        const a = stack.addLayer("glass", p);
-        stack.updateParams(a, { material: 12, depth: 0.7, thickness: 1.1, dispersion: 0.35, diffusion: 0.04, blockSize: 64, mortar: 6, mortarHue: 0.35, mortarLightness: 1, edgeDepth: 0.55, edgeWidth: 0.18, bevel: 0.28, inner: 0.5 });
-      },
-    },
-    "effet-verre-pave-lisse": {
-      contre: "effet-verre-pave-alveolaire",
-      build: async (r, stack) => {
-        const m = await mireVerre(W, H); const sourceId = await r.photoSources.register(m);
-        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
-        const a = stack.addLayer("glass", p);
-        stack.updateParams(a, { material: 13, depth: 0.7, thickness: 1.1, dispersion: 0.35, diffusion: 0.04, blockSize: 64, mortar: 6, mortarHue: 0.35, mortarLightness: 1, edgeDepth: 0.55, edgeWidth: 0.18, bevel: 0.28, inner: 0.5 });
-      },
-    },
+    // TRANCHE 2 DU VERRE : les cinq paves avaient leurs cinq scenarios ici, sur
+    // la meme mire et avec le meme bloc, chaines par contre pour qu'aucune de
+    // leurs branches ne puisse converger en silence. Elles sont RETIREES le
+    // 2026-08-27 avec les matieres (ADR-0021).
+    //
+    // Le retrait n'a demande AUCUN reancrage : la chaine pave etait fermee sur
+    // elle-meme — nuage tenait a effet-verre-cannele, les quatre autres a leur
+    // voisin de pave, et aucun scenario reste ne pointait vers un pave. Le verre
+    // passe donc de dix-huit a treize references, toutes de feuille.
 
     // COURBES, SUR UNE RAMPE NEUTRE PUIS AVEC UNE CORRECTION VOLONTAIREMENT
     // VISIBLE. La premiere reference verrouille l'identite byte-for-byte du

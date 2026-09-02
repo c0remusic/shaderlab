@@ -184,15 +184,18 @@ export const DECLARATIONS = [
   // ── glass ────────────────────────────────────────────────────────────
   // Base commune : ce qui fait qu'un verre REFRACTE. Sans epaisseur ni
   // dispersion, toutes les matieres rendraient la photo intacte et la garde
-  // de signal tirerait sur les quinze.
+  // de signal tirerait sur les sept.
+  //
+  // ⚠️ ELLES ETAIENT QUINZE JUSQU'AU 2026-08-27. Les huit reglages de PAVE
+  // (blockSize, mortar, mortarHue, mortarLightness, edgeDepth, edgeWidth,
+  // bevel, inner) declaraient tous « Sans objet hors des cinq matieres Pave » ;
+  // ils sont partis avec les matieres (ADR-0021), et avec eux les configs Pave
+  // qu'eprouvaient glass.profile, glass.flat et glass.fillet. Aucune entree
+  // restante ne cite plus une matiere au-dela de 8 — c'est la seule chose a
+  // verifier en relisant ce bloc.
   ...(() => {
     const optique = { thickness: 0.5, specular: 0.35, dispersion: 0.35, diffusion: 0.03, relief: 1, grain: 0.2 };
-    const pave = (m) => ({ ...optique, material: m, blockSize: 96, mortar: 8, edgeDepth: 0.45, edgeWidth: 0.18, bevel: 0.28, inner: 0.5 });
     const feuille = (m) => ({ ...optique, material: m, density: 42, depth: 0.6, irregularity: 0.25 });
-    const horsPave = [
-      { label: "Cannele simple", base: feuille(0) },
-      { label: "Martele", base: feuille(3) },
-    ];
     return [
       {
         id: "glass.density",
@@ -222,7 +225,6 @@ export const DECLARATIONS = [
         configs: [
           { label: "Martele", base: feuille(3) },
           { label: "Poli", base: { ...optique, material: 6, depth: 1, thickness: 1.6 } },
-          { label: "Pave Nuage", base: pave(9) },
         ],
       },
       {
@@ -250,11 +252,6 @@ export const DECLARATIONS = [
           { label: "Poli", base: { ...optique, material: 6, depth: 1, thickness: 1.6 } },
           { label: "Depoli", base: { ...optique, material: 7, diffusion: 0.4, grain: 0.6 } },
           { label: "Cathedrale", base: feuille(8) },
-          { label: "Pave Nuage", base: pave(9) },
-          { label: "Pave Ondule", base: pave(10) },
-          { label: "Pave Quadrille", base: pave(11) },
-          { label: "Pave Alveolaire", base: pave(12) },
-          { label: "Pave Lisse", base: pave(13) },
         ],
       },
       {
@@ -265,7 +262,6 @@ export const DECLARATIONS = [
         b: 0.5,
         configs: [
           { label: "Martele", base: feuille(3) },
-          { label: "Pave Nuage", base: pave(9) },
         ],
       },
       {
@@ -291,26 +287,6 @@ export const DECLARATIONS = [
           { label: "Depoli", base: { ...optique, material: 7, diffusion: 0.4, grain: 0.6 } },
         ],
       },
-      // Les huit reglages de PAVE, tous « Sans objet hors des cinq matieres
-      // Pave » : eprouves sur une matiere de feuille et sur une autre, pour
-      // qu'un « inerte » ne tienne pas a une seule branche.
-      ...[
-        ["blockSize", 24, 512],
-        ["mortar", 0, 24],
-        ["mortarHue", 0, 1],
-        ["mortarLightness", 0.5, 2],
-        ["edgeDepth", 0, 1],
-        ["edgeWidth", 0.04, 0.5],
-        ["bevel", 0.04, 0.95],
-        ["inner", 0, 1],
-      ].map(([param, a, b]) => ({
-        id: `glass.${param}`,
-        declare: "Sans objet hors des cinq matieres Pave",
-        param,
-        a,
-        b,
-        configs: horsPave,
-      })),
     ].map((d) => ({ ...d, effet: "glass", mire: "mireVerre" }));
   })(),
 

@@ -33,12 +33,19 @@
   Il était né avec un rectangle réglé à quatre curseurs ; verdict d'Antoine :
   « la pire façon de créer un rectangle ». Un rectangle se trace, les curseurs
   retouchent ce qui existe.
-- `glass` **complet** : 14 matières (9 de feuille + 5 de pavé), 5 profils de
-  section, **18 références de pixels — toutes les branches verrouillées**.
-- **381 paramètres, 124 références de pixels** — re-mesurés le 2026-08-26
+- `glass` : **9 matières de FEUILLE**, 5 profils de section, **13 références de
+  pixels — toutes les branches verrouillées**. ⚠️ Il en portait 14 et 18 jusqu'au
+  2026-08-27 : les cinq matières de PAVÉ sont RETIRÉES (ADR-0021, quatrième refus
+  daté).
+- **373 paramètres, 119 références de pixels** — re-mesurés le **2026-08-27**
   (l'instrument, pas la prose : les « 385 » d'avant portaient encore `emboss` et
   `noise`, retirés le 2026-08-21 ; le +1 param et la +1 référence du 2026-08-26
-  sont le mode « L'image en dessous » de `displacementMap`, ticket 22). Ces
+  sont le mode « L'image en dessous » de `displacementMap`, ticket 22 ; le −8 et
+  le −5 du 2026-08-27 sont les huit réglages et les cinq références de PAVÉ,
+  ADR-0021). ⚠️ Les conditions d'applicabilité tombent de **57 à 49** dans le
+  même geste, et le ratio BAISSE de 15 % à 13 % : les huit réglages retirés en
+  portaient huit. Un retrait déplace les deux termes, il ne fait pas avancer le
+  chantier des contrôles. Ces
   chiffres sont relancés, pas recopiés — deux des chiffres que ce dépôt portait
   en prose étaient déjà faux avant qu'on y touche : 51 conditions au lieu de 52,
   63 gabarits `liste` sur 83 au lieu de 60 sur 84. Le +3 de paramètres du
@@ -199,8 +206,10 @@ code. Le reste est calibration, lisibilité ou esthétique.
 - Et `lensDistortion` était **déjà corrigé** (masquage vérifié en direct) ; les
   icônes pinceau/transparence ne sont pas mortes, ce sont des **verrous**.
 
-**Onze tickets, sept OUVERTS** — esthétique verre (01, le gros, refusé 3×, à
-faire devant références visuelles), isolines noisy (02), displacementMap
+**Onze tickets, sept OUVERTS** — esthétique verre (01, le gros, refusé 4× et
+**partiellement CLOS PAR RETRAIT** : les cinq pavés sont sortis le 2026-08-27,
+ADR-0021 ; ce qui reste porte sur les neuf feuilles, à faire devant références
+visuelles), isolines noisy (02), displacementMap
 nom/attente (04), lisibilité des verrous (05),
 doublon encre/textures (06), et QUATRE décisions produit à griller : fenêtre
 latérale des réglages (07), prévisualisation en hover (08), aplat dessinable en
@@ -394,12 +403,16 @@ preuve (UI).
 pixels prouve qu'un effet porte **sa propriété**, jamais qu'il est **beau**. Les
 deux sont des questions distinctes ; le harnais ne répond qu'à la première, et
 c'est la seconde qui est ouverte ici. Ne pas lire « 18 références vertes » comme
-« le verre est validé ».
+« le verre est validé » — ADR-0021 en est la démonstration la plus nette : les
+cinq pavés avaient TOUTES leurs branches verrouillées au pixel, et ils ont été
+retirés sur un quatrième refus à l'œil.
 
 **Les six sujets sont montés et capturés** — planche de contact publiée le
 2026-08-05 : <https://claude.ai/code/artifact/5158aad0-3e3d-44d7-b670-17d099bf963c>
 (privée, sur le compte d'Antoine). Elle porte les 14 matières de verre
-cliquables, la paire avant/après des courbes, le dock à 2 contre 7 calques, les
+cliquables — dont **cinq qui n'existent plus** (les pavés, ADR-0021) : la
+planche date du 2026-08-05 et n'a pas été régénérée, la relire comme un document
+d'époque —, la paire avant/après des courbes, le dock à 2 contre 7 calques, les
 panneaux sectionnés et la paire de références du light leak. Chaque vignette
 porte sa mesure. Elle se régénère par `/run-shaderlab` puis le pilote de la
 skill ; les images sources vivent dans le scratchpad de session, donc elles ne
@@ -413,8 +426,8 @@ fallait juger.
 | --- | --- | --- |
 | 1 | **Courbes** | ✅ **JUGÉ ET CORRIGÉ.** Verdict : « pas les points rouges ni l'effet délavé ». `curves` travaille en perçu depuis `ffe47c2`, et le gain du canal maître est borné — c'était lui, la vraie cause des pixels colorés. Détail et mesures : [ticket 06](../.scratch/prochain-palier/issues/06-curves-en-lineaire-ou-en-percu.md) |
 | 2 | **Pile / Propriétés / Masque** | ⚠️ **DÉFAUT CORRIGÉ, WIREFRAME ÉCRIT — reste le choix.** La sélection est ramenée dans la vue depuis le 2026-08-14 (`scrollIntoView({ block: "nearest" })` au changement de sélection, story `SelectionScrollsIntoView` qui rougit sans le correctif). Le **wireframe pour 7 calques et plus** est écrit ET tranché : trois planches, Antoine retient le **repli des groupes** avec le filet, barre et lavis partant de l'axe du filet (variante C/c1). Reste à coder, et deux points de modèle à décider — voir le bloc « trois restes » plus bas. La borne à 5 lignes (`--dock-card-list-rows: 5`) est voulue, pas un défaut |
-| 3 | **Verre** | ⚠️ **REFUSÉ, partiellement corrigé.** Le Dépoli rendait des paquets : sa diffusion était directionnelle (9 taps sur un axe), elle est isotrope depuis `da86f3d`. Mais l'ensemble reste jugé « très artificiel, 3D des années 90 » — voir le bloc dédié plus bas |
-| 4 | **Les cinq pavés** | ⚠️ **REFUSÉ.** « Les espacements sont très moches », puis « je n'aime pas l'aspect du mortier ». Trois corrections livrées (joint adouci, variation par pavé, granulométrie), le verdict reste négatif. Ce qui manque est identifié par PHOTOS, voir plus bas |
+| 3 | **Verre** | ⚠️ **REFUSÉ, partiellement corrigé, et RECENTRÉ SUR LES FEUILLES.** Le Dépoli rendait des paquets : sa diffusion était directionnelle (9 taps sur un axe), elle est isotrope depuis `da86f3d`. Le « très artificiel, 3D des années 90 » visait le Dépoli ET les pavés ; les pavés sont partis (ligne 4, ADR-0021), le chantier continue sur les neuf feuilles — voir le bloc dédié plus bas |
+| 4 | **Les cinq pavés** | ✅ **CLOS PAR RETRAIT le 2026-08-27** (ADR-0021). « Les espacements sont très moches », puis « je n'aime pas l'aspect du mortier », puis « Pavé nuage est horrible » : quatre refus datés, trois corrections livrées entre eux (joint adouci, variation par pavé, granulométrie), verdict jamais retourné. Antoine a choisi le retrait parmi les options proposées. Les quatre points « identifiés par PHOTOS » plus bas tombent avec les matières |
 | 5 | **Sections des panneaux** | Inchangé — le découpage en blocs titrés, livré le 2026-08-05 sur les 23 effets, n'a toujours pas été regardé sujet par sujet |
 | 6 | **Light leak** | ⚠️ **REFUSÉ, reformé.** Les deux défauts prédits étaient réels et sont corrigés (`6fdc1da`), mais le verdict portait plus loin : « très lampe torche, très grossier » désignait la FORME, pas les valeurs. Le profil latéral n'a plus de contour. **Reste du goût** : la zone dense tire vers le rose pâle là où les sources décrivent un orange franc |
 
@@ -517,23 +530,33 @@ ouverte**, dont une (« un joint opaque est forcément sombre ») que la premiè
 photo venue a démentie et qui a amputé de moitié la course d'un curseur. Une
 APPARENCE ne se déduit pas d'une spécification.
 
-Ce que les photos établissent, et qui reste à faire :
+Ce que les photos établissaient, et **ce qu'il en reste après ADR-0021** — un
+quatrième refus le 2026-08-27 (« Pavé nuage est horrible ») a fait RETIRER les
+cinq matières de pavé au lieu de les corriger une quatrième fois :
 
-1. **Un pavé ne transmet pas une image, il transmet de la lumière.** Sur toutes
-   les références, aucune scène n'est reconnaissable derrière — seulement des
-   carrés lumineux à dégradés doux. Notre `Diffusion` vaut **8 %** par défaut,
-   ce qui laisse tout lisible. C'est probablement le point structurant.
-2. **Le cadre lisse périphérique** — une bordure de verre lisse et brillante
-   encadre le motif, qui n'occupe que le carré central. Nous étalons le motif
-   jusqu'au joint. `Biseau` existe mais ne produit pas ça.
-3. **Baisser le contraste général** : sur un mur réel vu à distance, les joints
-   sont une trame fine et l'ensemble est sourd. Le nôtre individualise trop.
-4. **Atténuer la variation par cellule** ajoutée le 2026-08-13, trop marquée au
-   vu des murs réels.
+1. ~~**Un pavé ne transmet pas une image, il transmet de la lumière.**~~
+   ⚠️ **TOMBE AVEC LES MATIÈRES.** Mais la moitié générale du constat SURVIT et
+   se reporte sur les feuilles : notre `Diffusion` vaut **8 %** par défaut, ce
+   qui laisse tout lisible sur toutes les matières, pas seulement sur les pavés.
+   C'est l'un des deux fronts qui restent ouverts ci-dessous.
+2. ~~**Le cadre lisse périphérique**~~ — ⚠️ **TOMBE.** C'était une propriété du
+   bloc (bordure lisse encadrant le motif central), et `Biseau` est parti avec.
+3. **Baisser le contraste général.** ⚠️ **SURVIT, reformulé** : le constat visait
+   un mur de pavés vu à distance, mais « le nôtre individualise trop » se
+   vérifie aussi sur les feuilles, dont le relief ressort plus dur que sur les
+   références. Second front ouvert.
+4. ~~**Atténuer la variation par cellule**~~ — ⚠️ **TOMBE.** La variation par
+   bloc ajoutée le 2026-08-13 est partie avec la branche qui la tirait.
 
-⚠️ **Le joint peut être clair OU sombre** — ciment blanc en intérieur moderne,
-mortier sali à l'ombre. C'est le curseur `Clarté du mortier` qui en décide, et
-aucune constante ne doit trancher à sa place.
+⚠️ ~~**Le joint peut être clair OU sombre**~~ — sans objet, il n'y a plus de
+joint. La LEÇON, elle, reste et n'a rien de propre au verre : une constante ne
+doit jamais trancher à la place d'un curseur, et une apparence ne se déduit pas
+d'une spécification (c'est le raisonnement « un joint opaque est forcément
+sombre » qui avait amputé de moitié la course de `Clarté du mortier`).
+
+**Les deux fronts qui restent sont donc la DIFFUSION et le CONTRASTE**, tous
+deux sur les neuf feuilles, plus les tickets 17 à 19 de
+`.scratch/retour-usage-execution/`.
 
 Cinq photos de référence ont été récupérées dans le scratchpad de session
 (`refs-verre/`) ; **elles ne survivront pas à la session** — les retélécharger
@@ -553,6 +576,21 @@ quadrillé à 26 Mpx.
 Complété le 2026-08-15 par un **coût GPU par matière** (14 matières, facteur 7,
 Dépoli 15,5 ms contre Pavé quadrillé 108,3 ms), rendu possible par le
 chronométrage par passe livré le même jour (`src/render/gpuTiming.ts`).
+
+⚠️ **CES CHIFFRES SONT HISTORIQUES DEPUIS ADR-0021 (2026-08-27), et il faut les
+lire en sachant lesquels ont disparu — sans réécrire l'histoire.** Les cinq
+matières de pavé sont retirées, dont **les trois les plus chères du relevé**
+(Quadrillé, Alvéolaire, Nuage) : le pire cas mesuré, le « 10 à 12 images/s » et
+le « facteur 7 » portaient tous sur des matières qui n'existent plus. Le
+classement par matière est donc à REFAIRE sur les neuf feuilles avant de servir
+d'argument, et le cas le plus défavorable du parc courant n'est PAS connu.
+
+Ce qui SURVIT intact, et c'est l'essentiel du bloc : **la CAUSE**. Elle a été
+établie par l'ablation `Creux` — un facteur à la fois — et non par le
+classement, précisément parce qu'un classement dit ce qui est cher et jamais
+pourquoi. La dispersion des adresses de lecture reste le poste dominant sur une
+feuille comme elle l'était sur un pavé ; les deux pistes condamnées ci-dessous
+le restent aussi.
 
 ⚠️ **Deux pistes sont désormais CONDAMNÉES par la mesure, ne pas les redémarrer** :
 réduire le nombre de prélèvements, et réécrire les fonctions de matière en
@@ -578,16 +616,21 @@ mesuré. Le gain/coût est à refaire entièrement — le verdict valide le MÉC
 pas son prix dans ce contexte.
 
 ⚠️ **Rien n'est écrit côté code, et le prix est connu d'avance** : le rendu
-CHANGE, donc les **18 références de pixels du verre** sont à régénérer et à
-relire à l'œil, et le résultat est à juger devant une photo — une référence
-prouve qu'un effet porte sa propriété, jamais qu'il est beau. La question de
-CIBLE reste ouverte : 10 images/s est inutilisable au pointeur, 60 demanderait
-de diviser par six, et rien ne dit lequel des deux vise juste.
+CHANGE, donc les **13 références de pixels du verre** (18 avant ADR-0021) sont à
+régénérer et à relire à l'œil, et le résultat est à juger devant une photo — une
+référence prouve qu'un effet porte sa propriété, jamais qu'il est beau. La
+question de CIBLE est elle aussi à REPOSER : le « 10 images/s inutilisable au
+pointeur » était le chiffre d'un Pavé quadrillé, et les feuilles n'ont jamais été
+mesurées comme le pire cas.
 
-⚠️ **Croisement avec le bloc « aspect du verre » ci-dessus** : trois des quatre
-matières les plus chères — Quadrillé, Alvéolaire, Nuage — sont exactement celles
-qu'Antoine a refusées à l'œil. Même code, même fenêtre. Et le **Dépoli est la
-moins chère de toutes** : son problème est esthétique, pas de coût.
+⚠️ **Croisement avec le bloc « aspect du verre » ci-dessus, et il s'est résolu
+tout seul** : trois des quatre matières les plus chères — Quadrillé, Alvéolaire,
+Nuage — étaient exactement celles qu'Antoine a refusées à l'œil. Même code, même
+fenêtre. Le verdict d'usage a tranché avant l'optimisation, et le retrait a donc
+emporté l'essentiel du problème de coût sans qu'une ligne de perf soit écrite.
+Reste vrai et instructif : le **Dépoli est la moins chère de toutes**, son
+problème était esthétique et non de coût — un classement par coût n'aurait
+jamais désigné la matière qu'il fallait corriger.
 
 Tout le détail, les protocoles et les ablations :
 [19 — Le coût du verre](../.scratch/prochain-palier/issues/19-le-cout-du-verre.md).
@@ -1332,7 +1375,8 @@ cinq captures par point :
 **Ce qui a tranché n'est pas le gain, c'est la FORME** : avec la pyramide le coût
 est PLAT quelle que soit la minification, sans elle il CROÎT avec. Signature d'un
 coût de cache — donc ce verdict valide sur un cas réel le levier que le mipmap de
-diffusion de `glass` doit appliquer, avant qu'il coûte 18 références.
+diffusion de `glass` doit appliquer, avant qu'il coûte 13 références (18 jusqu'à
+ADR-0021).
 
 ⚠️ **La prémisse de la branche était fausse, et le geste restait bon.** Elle
 annonçait « échantillonné à l'échelle de l'écran, un rapport de l'ordre de 1:8 » ;

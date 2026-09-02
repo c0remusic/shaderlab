@@ -124,9 +124,12 @@ export const effectRegistry: EffectModule[] = [
   // relief qui distingue ses neuf matières, et rien d'autre : l'optique en aval
   // est commune aux neuf.
   //
-  // TRANCHE 1 : la feuille. Les cinq matières de PAVÉ (grille de blocs,
-  // mortier, arête biseautée) sont la tranche 2 et viendront à la FIN de sa
-  // liste de matières, pas dans un second effet — plan validé le 2026-08-03.
+  // ⚠️ IL N'A PLUS QUE SA TRANCHE 1, LA FEUILLE. La tranche 2 — cinq matières
+  // de PAVÉ (grille de blocs, mortier, arête biseautée), livrées le 2026-08-04
+  // à la fin de sa liste de matières et jamais dans un second effet — a été
+  // RETIRÉE le 2026-08-27 sur verdict d'usage, après quatre refus datés
+  // (ADR-0021). Le plan de portage du 2026-08-03 la nomme encore : il décrit ce
+  // qui a été construit, pas ce qui reste.
   glass,
   warp,
   // `displacementMap` (2026-08-18) suit `warp` parce qu'il pose exactement sa

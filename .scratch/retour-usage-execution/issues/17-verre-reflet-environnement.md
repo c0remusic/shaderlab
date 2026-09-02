@@ -1,5 +1,14 @@
 # 17: Retirer Blinn-Phong, poser un reflet d'environnement fabriqué (verre Poli)
 
+> ⚠️ **2026-08-27 — LE CHOIX DE VOIE SE PREND DÉSORMAIS SUR LES FEUILLES SEULES.**
+> Les cinq matières de PAVÉ sont retirées (ADR-0021, quatrième refus d'usage), et
+> la planche de variantes liée plus bas montre un **Pavé nuage** : ses vignettes
+> de pavé sont périmées, celles de feuille valent toujours. La décision porte sur
+> les neuf matières restantes ; refaire la planche sur une feuille si le pavé y
+> était le cas décisif. Les deux lignes citées ci-dessous ont bougé avec le
+> retrait : la rampe de Fresnel est en `glass.ts:832`, la couleur fixe qu'il
+> s'agit de remplacer en `glass.ts:833`.
+
 **What to build:** Retirer le highlight ponctuel Blinn-Phong du Poli — mauvais
 opérateur : sur une surface lisse le lobe se resserre en un point invisible (notre
 bug, reflet à 0,0004). À la place, un **reflet d'environnement fabriqué sans

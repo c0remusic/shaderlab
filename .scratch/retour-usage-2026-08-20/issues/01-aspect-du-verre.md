@@ -1,6 +1,19 @@
 Type: prototype
 Status: open
 
+> ⚠️ **2026-08-27 — UNE PART DE CE TICKET EST CLOSE PAR RETRAIT (ADR-0021).**
+> « les séparations des pavés sont toujours horribles » et les trois refus
+> antérieurs qui visaient les pavés ne se corrigent plus : après un quatrième
+> refus (« Pavé nuage est horrible »), Antoine a choisi de **retirer les cinq
+> matières de PAVÉ** plutôt que de les corriger une quatrième fois. Partent avec
+> elles les huit réglages de bloc/mortier/arête et les cinq références de pixels.
+>
+> **Ce qui reste ouvert est tout le reste, et c'est la majorité du ticket** — il
+> porte sur le mode **Poli** et sur les feuilles : reflet spéculaire, dispersion,
+> présence du relief, creux, et les options inertes en Poli. Le front nommé par le
+> grilling (reflet spéculaire du Poli d'abord) est INCHANGÉ, et sa tranche de code
+> est le ticket 17 de `.scratch/retour-usage-execution/`.
+
 > 🔵 **Grilling 2026-08-21** : front = **reflet spéculaire du Poli d'abord**.
 > Recherche large glass shading LIVRÉE : `research/01-glass-shading.md` — diagnostic
 > confirmé (Blinn-Phong = mauvais opérateur, **Fresnel gelé à 0,04 = l'erreur

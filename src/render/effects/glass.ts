@@ -10,10 +10,31 @@ import { SRGB_TO_LINEAR_VEC3_WGSL, SRGB_TO_LINEAR_WGSL } from "./srgbTransfer";
  *
  * Portage du système de réfraction d'Antoine, `C:\dev\portfolio\src\shaders\
  * verre\site.fs.glsl` (1 405 lignes GLSL), plan de portage validé le 2026-08-03
- * (`docs/superpowers/specs/2026-08-03-verre-plan-de-portage.md`). C'est la
- * Les deux tranches sont livrées : feuille puis cinq pavés de verre (grille de
- * blocs, mortier, arête biseautée, moulage interne), ajoutés à la FIN de la
- * liste — jamais comme un second effet.
+ * (`docs/superpowers/specs/2026-08-03-verre-plan-de-portage.md`).
+ *
+ * ⚠️ IL N'Y A PLUS QU'UNE TRANCHE : LA FEUILLE. La tranche 2 — cinq matières de
+ * PAVÉ (grille de blocs, mortier, arête biseautée, moulage interne) livrées le
+ * 2026-08-04 à la fin de la même liste — est RETIRÉE depuis le 2026-08-27, sur
+ * verdict d'usage d'Antoine et après quatre refus datés (ADR-0021). Ne pas la
+ * reproposer comme une idée neuve ; l'ADR dit ce qui part, ce qui est perdu et
+ * pourquoi les trois corrections livrées n'ont pas suffi.
+ *
+ * DEUX CONSÉQUENCES QUI SE LISENT DANS LE CODE ET PAS AILLEURS :
+ * - les cinq matières et leurs HUIT paramètres étaient les DERNIERS de leurs
+ *   listes, donc le retrait ne déplace AUCUN index — ni de matière, ni de
+ *   paramètre. Les treize références de pixels de la feuille rendent le même
+ *   bit qu'avant, et c'est le gate discriminant du retrait ;
+ * - un preset qui cite `material` 9 à 13 ne casse pas et ne retombe pas non plus
+ *   sur une matière voisine. ⚠️ IL N'Y A AUCUN CLAMP SUR LE CHEMIN : ni
+ *   `LayerStack.updateParams`, ni `EffectPassRunner`, ni le shader n'écrêtent
+ *   `params[0]` — `max` ne borne que le CURSEUR. La valeur 9 traverse donc
+ *   `verre_pentes` sans reconnaître aucune branche et sort par le bloc des
+ *   cannelures, où `p` reste `vec2(0.0)` : une feuille PLANE, qui n'a plus que
+ *   son micro-relief, et sur laquelle toute l'optique (réfraction, absorption,
+ *   Fresnel, spéculaire) continue de s'appliquer. Un preset qui cite
+ *   `blockSize` ou l'un des sept autres pose, lui, une clé que le shader ne lit
+ *   plus. Aucun des deux ne jette : c'est la convention du dépôt, la même que
+ *   pour un effet retiré (`presetDocument.ts` avertit, il ne jette jamais).
  *
  * DEUX CHIFFRES DE LA NOTE DE REPRISE ÉTAIENT FAUX, et les compter a changé le
  * découpage : la source porte NEUF matières de feuille utilisables (dix
@@ -121,8 +142,10 @@ const DISP_K = 0.175;
 /** Part de la demi-cellule qui reste PLATE au fond du profil « Fond plat ». */
 const FOND_PLAT = 0.38;
 
-/** Matières. ⚠️ L'index est PERSISTÉ dans les presets : les cinq pavés ont été
- *  ajoutés après `Cathédrale`, sans déplacer les neuf indices historiques. */
+/** Matières. ⚠️ L'index est PERSISTÉ dans les presets : on ajoute à la FIN, on
+ *  ne réordonne jamais. C'est ce contrat qui a rendu le retrait des cinq PAVÉ
+ *  (ADR-0021, 2026-08-27) gratuit pour les neuf autres — ils étaient les cinq
+ *  DERNIERS, donc aucun index historique n'a bougé. */
 const MATERIALS = [
   "Cannelé simple",
   "Cannelé croisé",
@@ -133,11 +156,6 @@ const MATERIALS = [
   "Poli",
   "Dépoli",
   "Cathédrale",
-  "Pavé · Nuage",
-  "Pavé · Ondulé",
-  "Pavé · Quadrillé",
-  "Pavé · Alvéolaire",
-  "Pavé · Lisse",
 ] as const;
 
 const MAT_CANNELE = 0;
@@ -149,8 +167,6 @@ const MAT_ALU = 5;
 const MAT_POLI = 6;
 const MAT_DEPOLI = 7;
 const MAT_CATHEDRALE = 8;
-const MAT_PAVE_NUAGE = 9;
-const MAT_PAVE_LISSE = 13;
 
 /** Profils de section — la FORME de la strie, vue en coupe. Lus par `pente()`
  *  et `bosse()` seules, donc sans objet hors des trois premières matières.
@@ -167,11 +183,12 @@ const PROF_FOND_PLAT = 3;
  * ci-dessous.
  *
  * `DisplayCondition.equals` est une liste POSITIVE : « sans objet en Poli et en
- * Dépoli » s'écrit donc en énumérant les douze AUTRES. Deux fonctions plutôt
- * que douze nombres recopiés, et ce n'est pas de l'esthétique — une quinzième
- * matière ajoutée à la fin de `MATERIALS` doit arriver avec ses réglages
- * VISIBLES. Recopiée à la main, chaque liste l'aurait masquée en silence, et un
- * contrôle absent ne se plaint pas.
+ * Dépoli » s'écrit donc en énumérant les sept AUTRES. Deux fonctions plutôt que
+ * sept nombres recopiés, et ce n'est pas de l'esthétique — une dixième matière
+ * ajoutée à la fin de `MATERIALS` doit arriver avec ses réglages VISIBLES.
+ * Recopiée à la main, chaque liste l'aurait masquée en silence, et un contrôle
+ * absent ne se plaint pas. Le retrait des cinq PAVÉ (ADR-0021) l'a vérifié par
+ * l'autre bout : les listes se sont raccourcies toutes seules.
  *
  * ⚠️ CHAQUE `appliesWhen` DE CE FICHIER TRANSCRIT UNE MESURE, PAS UNE LECTURE DU
  * SHADER. Les configurations sont celles de la campagne du 2026-08-05
@@ -184,8 +201,6 @@ const PROF_FOND_PLAT = 3;
  */
 const MATIERES = MATERIALS.map((_, index) => index);
 const MATIERES_SAUF = (...exclues: number[]) => MATIERES.filter((index) => !exclues.includes(index));
-/** Les cinq PAVÉ — même frontière que le shader, qui teste `mat >= MAT_PAVE_NUAGE`. */
-const MATIERES_PAVE = MATIERES.filter((index) => index >= MAT_PAVE_NUAGE);
 
 export const glass: EffectModule = {
   id: "glass",
@@ -193,9 +208,18 @@ export const glass: EffectModule = {
   // SOURCE À PYRAMIDE (ticket 19, 2026-08-17). Cet effet est le seul du registre
   // à la demander, et pour une raison mesurée : ce qui le rend cher n'est ni son
   // calcul ni sa géométrie mais la DISPERSION de ses adresses de lecture — à
-  // `Creux = 0` un pavé coûte exactement ce que coûte une feuille. Lire un
+  // `Creux = 0` un pavé coûtait exactement ce que coûte une feuille. Lire un
   // niveau plus grossier rend ces lectures locales : 98,6 ms → 25,6 ms sur un
   // Pavé quadrillé à 26 Mpx.
+  //
+  // ⚠️ CETTE MESURE EST HISTORIQUE DEPUIS ADR-0021 — elle a été prise sur des
+  // matières qui n'existent plus, et les trois plus chères du relevé étaient des
+  // pavés. LE DRAPEAU RESTE, et le retirer serait un changement de RENDU, pas un
+  // ménage : `verre_niveau` dérive encore un niveau > 0 dès que l'étalement d'une
+  // feuille dépasse le texel (forte Épaisseur, forte Diffusion), et sans pyramide
+  // ce niveau retomberait sur le mip 0 — donc d'autres pixels, donc les treize
+  // références de la feuille. Ce que le retrait des pavés change est le GAIN
+  // qu'il apporte, plus jamais son exactitude.
   //
   // ⚠️ Le niveau est DÉRIVÉ de l'étalement réel et borné à 2 (`verre_niveau`),
   // donc les matières qui déplacent peu restent au niveau 0 et rendent le même
@@ -207,7 +231,10 @@ export const glass: EffectModule = {
     { name: "density", label: "Densité du motif", unit: "none", min: 1, max: 200, default: 42, step: 1, hint: "Combien de stries, de cellules ou d'accidents sur la largeur de l'image. Sans objet en Poli, dont l'ondulation tient plusieurs fois l'écran par construction, et en Dépoli, qui n'a aucun motif", appliesWhen: { param: "material", equals: MATIERES_SAUF(MAT_POLI, MAT_DEPOLI) } },
     { name: "depth", label: "Creux", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Amplitude du relief, donc de la déviation. Sans objet en Dépoli : un verre sablé n'a pas de galbe, il n'a qu'une rugosité — c'est la Diffusion qui le règle", appliesWhen: { param: "material", equals: MATIERES_SAUF(MAT_DEPOLI) } },
     { name: "profile", label: "Profil de section", unit: "none", min: 0, max: PROFILES.length - 1, default: PROF_ARC_DOUX, step: 1, choices: [...PROFILES], hint: "La forme de la strie vue en coupe. Arc doux et Arc plein bombent ; Prisme est un V à pente constante ; Fond plat a un plateau au centre et des flancs en S ; Bourrelet est une nervure ronde jointive, tangente à sa voisine. Sans objet hors de Cannelé simple, Cannelé croisé et Gaufré", appliesWhen: { param: "material", equals: [MAT_CANNELE, MAT_CROISE, MAT_GAUFRE] } },
-    // ⚠️ `flat` N'A PAS D'`appliesWhen`, ET C'EST LE SEUL DES QUINZE.
+    // ⚠️ `flat` A ÉTÉ LE SEUL RÉGLAGE RESTREINT DE `glass` SANS `appliesWhen`,
+    // du 2026-08-04 au 2026-08-18 — il en porte un depuis, et le paragraphe le
+    // plus bas raconte pourquoi il l'a attendu deux semaines. Cette phrase est
+    // gardée pour ça et pour rien d'autre : elle est HISTORIQUE.
     //
     // Son infobulle a dit « Sans objet ailleurs » jusqu'au 2026-08-05, où la
     // mesure l'a démentie : en Martelé il déplace 47,1 % des canaux, en Écorce
@@ -218,10 +245,10 @@ export const glass: EffectModule = {
     // plus aucun pixel, donc aucune référence de rendu n'aurait bronché.
     //
     // Il porte donc TROIS sens sous un curseur, et l'infobulle les nomme tous
-    // les trois. Il reste aussi affiché sur les huit matières où la mesure le
-    // dit inerte (Poli, Dépoli, Cathédrale, les cinq Pavé) : masquer là est un
-    // arbitrage d'affichage qui n'a pas été rendu, et c'est le sens PRUDENT de
-    // l'erreur — un curseur inerte visible se voit, l'inverse pas.
+    // les trois. La mesure du 2026-08-05 l'a éprouvé inerte sur HUIT matières
+    // — Poli, Dépoli, Cathédrale et les cinq Pavé ; les cinq derniers sont
+    // partis avec ADR-0021, donc il n'en reste que TROIS à masquer, et ce sont
+    // les trois que la mesure a vues.
     // ⚠️ LE DERNIER PARAMÈTRE DE `glass` À RECEVOIR SA CONDITION, et il l'a
     // attendue deux semaines pour une raison instructive : son infobulle
     // déclarait une inertie DEPUIS TOUJOURS (« sans effet sur les autres
@@ -255,38 +282,38 @@ export const glass: EffectModule = {
     { name: "dispersion", label: "Dispersion", unit: "percent", min: 0, max: 1, default: 0.25, step: 0.01, hint: "Frange colorée aux endroits inclinés — le verre ne dévie pas toutes les longueurs d'onde pareil. Nulle sur les parties planes, par construction : c'est l'INDICE qui varie, pas le déplacement" },
     { name: "diffusion", label: "Diffusion", unit: "percent", min: 0, max: 1, default: 0.08, step: 0.005, hint: "Étalement de la lecture — le verre translucide au lieu du verre transparent. C'est le réglage principal du Dépoli, qui ne déforme rien et ne fait que ça" },
     { name: "relief", label: "Présence du relief", unit: "percent", min: 0, max: 1, default: 1, step: 0.01, hint: "N'atténue QUE la déviation de l'image : reflets, absorption et spéculaire restent à pleine force. À 0, une dalle plane qui brille encore — ce qu'on ne peut pas obtenir en baissant le Creux, qui éteint la matière en même temps que la déformation" },
-    // LES HUIT RÉGLAGES DE PAVÉ. Même condition sur les huit, et elle est aussi
-    // portée par la section « Pavé » plus bas — ce n'est pas un doublon oublié.
-    // Ici, c'est une propriété du SHADER, mesurée : hors des cinq matières Pavé,
-    // aucun des huit ne touche un canal. Là-bas, c'est une décision
-    // d'AFFICHAGE : ces huit-là se lisent ensemble, en grille. Réorganiser les
-    // sections un jour ne doit pas rouvrir un curseur prouvé inerte.
-    { name: "blockSize", label: "Taille du pavé", unit: "pixels", min: 24, max: 512, default: 132, step: 1, hint: "Côté d'un bloc en pixels natifs. Sans objet hors des cinq matières Pavé", appliesWhen: { param: "material", equals: MATIERES_PAVE } },
-    { name: "mortar", label: "Largeur du mortier", unit: "pixels", min: 0, max: 24, default: 8, step: 0.5, hint: "Joint opaque entre les blocs. Sans objet hors des cinq matières Pavé", appliesWhen: { param: "material", equals: MATIERES_PAVE } },
-    { name: "mortarHue", label: "Chaleur du mortier", unit: "percent", min: 0, max: 1, default: 0.35, step: 0.01, hint: "Du gris froid au crème chaud. Sans objet hors des cinq matières Pavé", appliesWhen: { param: "material", equals: MATIERES_PAVE } },
-    { name: "mortarLightness", label: "Clarté du mortier", unit: "percent", min: 0.5, max: 2, default: 1, step: 0.01, hint: "Clarté relative à l'ambiante de la scène. Sans objet hors des cinq matières Pavé", appliesWhen: { param: "material", equals: MATIERES_PAVE } },
-    { name: "edgeDepth", label: "Profondeur de l'arête", unit: "percent", min: 0, max: 1, default: 0.45, step: 0.01, hint: "Allonge le trajet optique au bord du bloc. Sans objet hors des cinq matières Pavé", appliesWhen: { param: "material", equals: MATIERES_PAVE } },
-    { name: "edgeWidth", label: "Largeur de l'arête", unit: "percent", min: 0.04, max: 0.5, default: 0.18, step: 0.01, hint: "Part de la demi-cellule occupée par l'arête arrondie. Sans objet hors des cinq matières Pavé", appliesWhen: { param: "material", equals: MATIERES_PAVE } },
-    { name: "bevel", label: "Biseau", unit: "percent", min: 0.04, max: 0.95, default: 0.28, step: 0.01, hint: "Largeur du chanfrein de verre autour du bloc. Sans objet hors des cinq matières Pavé", appliesWhen: { param: "material", equals: MATIERES_PAVE } },
-    { name: "inner", label: "Moulage interne", unit: "percent", min: 0, max: 1, default: 0.5, step: 0.01, hint: "Échelle ou densité du relief moulé dans chaque bloc. Sans objet hors des cinq matières Pavé", appliesWhen: { param: "material", equals: MATIERES_PAVE } },
+    // ⚠️ LA LISTE S'ARRÊTE ICI, ET C'EST LE POINT LE PLUS UTILE DU RETRAIT.
+    // Huit réglages de PAVÉ (`blockSize`, `mortar`, `mortarHue`,
+    // `mortarLightness`, `edgeDepth`, `edgeWidth`, `bevel`, `inner`) occupaient
+    // les index 14 à 21 — les huit DERNIERS. Les retirer (ADR-0021) ne déplace
+    // donc aucun des quatorze index qui restent, et c'est ce qui rend le retrait
+    // neutre au bit près pour les treize références de la feuille.
   ],
   /**
-   * TROIS SECTIONS, ET ELLES SUIVENT UNE FRONTIÈRE DU SHADER.
+   * DEUX SECTIONS, ET ELLES SUIVENT UNE FRONTIÈRE DU SHADER.
    *
    * Ce fichier tient en deux étages : chaque matière ne fait QUE fabriquer une
    * pente de surface, et tout ce qui suit — réfraction, dispersion, diffusion,
    * Fresnel, spéculaire, absorption — est commun et ne sait rien d'elle. Les
-   * deux premières sections sont exactement ces deux étages, et la troisième
-   * est le bloc que seules cinq matières sur quatorze possèdent. Ce n'est donc
-   * pas un rangement de goût : un réglage change de section le jour où il
-   * change de côté dans `verre_pentes`, pas avant.
+   * deux sections sont exactement ces deux étages. Ce n'est donc pas un
+   * rangement de goût : un réglage change de section le jour où il change de
+   * côté dans `verre_pentes`, pas avant.
    *
-   * CE QUE ÇA CHANGE POUR QUI S'EN SERT : en Poli, quinze des vingt-deux
-   * curseurs sont sans objet. La liste plate les montrait tous.
+   * ⚠️ UNE TROISIÈME SECTION A EXISTÉ — « Pavé », huit réglages en grille,
+   * conditionnée aux cinq matières qui les possédaient. Elle est partie AVEC
+   * elles (ADR-0021, 2026-08-27) : une section dont la condition ne peut plus
+   * être vraie n'est pas une section, c'est du code mort. Elle était aussi le
+   * seul endroit de l'effet où une condition était portée DEUX fois — sur les
+   * huit paramètres ET sur leur section — parce que les deux disaient des choses
+   * différentes (une propriété mesurée du shader d'un côté, une décision
+   * d'affichage de l'autre). C'est un précédent qui reste valable.
+   *
+   * CE QUE ÇA CHANGE POUR QUI S'EN SERT : en Poli, sept des quatorze curseurs
+   * sont sans objet. La liste plate les montrait tous.
    *
    * ⚠️ AUCUN RÉORDONNANCEMENT — l'index d'un paramètre est persisté dans les
-   * presets. Les trois sections sont trois blocs CONTIGUS de `params[]` (0..8,
-   * 9..13, 14..21) dans leur ordre d'origine, ce qui est la condition posée par
+   * presets. Les deux sections sont deux blocs CONTIGUS de `params[]` (0..8,
+   * 9..13) dans leur ordre d'origine, ce qui est la condition posée par
    * `groupEffectParams` : il s'appuie sur l'ordre du tableau en deux endroits
    * (`spatialFirstIndex`, `firstIndexByKey`), donc une section déplace un bloc
    * entier et ne le traverse jamais.
@@ -295,9 +322,9 @@ export const glass: EffectModule = {
     {
       id: "matiere",
       label: "Matière",
-      // `grille` (2026-08-18, ticket 16), comme la section « Pavé » juste en
-      // dessous : neuf rangées en une colonne étaient la deuxième section la plus
-      // haute du parc. Les deux sections du même effet lisent désormais pareil.
+      // `grille` (2026-08-18, ticket 16) : neuf rangées en une colonne étaient la
+      // deuxième section la plus haute du parc. Le gabarit les rend en cinq
+      // lignes sans rien scinder ni renommer.
       layout: "grille",
       params: ["material", "density", "depth", "profile", "flat", "fillet", "orientation", "irregularity", "grain"],
     },
@@ -306,17 +333,6 @@ export const glass: EffectModule = {
       label: "Optique",
       layout: "liste",
       params: ["thickness", "specular", "dispersion", "diffusion", "relief"],
-    },
-    {
-      // GRILLE et non liste : huit réglages courts qui se lisent ensemble
-      // (dimension du bloc, mortier, arête, biseau), et qui n'apparaissent que
-      // sur cinq matières — les empiler en huit lignes pleine largeur ferait
-      // sauter la carte de huit lignes à chaque passage feuille -> pavé.
-      id: "pave",
-      label: "Pavé",
-      layout: "grille",
-      appliesWhen: { param: "material", equals: MATIERES_PAVE },
-      params: ["blockSize", "mortar", "mortarHue", "mortarLightness", "edgeDepth", "edgeWidth", "bevel", "inner"],
     },
   ],
   wgsl: `
@@ -446,52 +462,20 @@ fn verre_fractal2(q: vec2<f32>, dens: f32) -> f32 {
        + valueNoise(q * dens * 2.3 + vec2<f32>(5.9, 1.7)) * 0.30;
 }
 
-fn verre_mosaiquePave(f: vec2<f32>, dens: f32) -> f32 {
-  let p = f * dens;
-  let i = floor(p);
-  let g = fract(p) - 0.5;
-  let r = vec2<f32>(0.36 + hash(i) * 0.11, 0.36 + hash(i + vec2<f32>(7.1, 3.3)) * 0.11);
-  let a = abs(g) / r;
-  let carre = 1.0 - smoothstep(0.78, 1.04, max(a.x, a.y));
-  let dome = max(1.0 - dot(a, a) * 0.55, 0.0);
-  return carre * (0.42 + 0.58 * dome);
-}
-
-/** Hauteur dans un pavé : cadre périphérique en saillie, champ central creux,
- *  puis moulage interne éteint dans le biseau. */
-fn verre_hauteurPave(f: vec2<f32>, mat: i32) -> f32 {
-  let s = (f - 0.5) * 2.0;
-  let b = clamp(params[20], 0.04, 0.95);
-  let champ = (1.0 - smoothstep(1.0 - b, 1.0, abs(s.x))) * (1.0 - smoothstep(1.0 - b, 1.0, abs(s.y)));
-  var moulage = 0.0;
-  let interne = clamp(params[21], 0.0, 1.0);
-  if (mat == ${MAT_PAVE_LISSE}) {
-    moulage = 0.0;
-  } else if (mat == 12) {
-    moulage = (verre_mosaiquePave(f, mix(11.0, 6.0, interne)) - 0.5) * 0.30;
-  } else if (mat == 11) {
-    let k = mix(8.0, 20.0, interne);
-    moulage = cos(6.2832 * f.y * k) * 0.13 + cos(6.2832 * f.x * k * 1.8) * 0.03;
-  } else if (mat == 10) {
-    let d = mix(1.8, 4.2, interne);
-    let w = select(f, f.yx, params[6] > 0.5);
-    moulage = (valueNoise(vec2<f32>(w.x * d, w.y * d * 0.34)) * 0.64
-      + valueNoise(vec2<f32>(w.x * d * 2.3 + 3.1, w.y * d * 0.78 + 7.7)) * 0.36 - 0.5) * 0.17;
-  } else {
-    let d = mix(1.8, 9.0, interne);
-    moulage = (valueNoise(f * d) * 0.62 + valueNoise(f * d * 2.3 + vec2<f32>(3.1, 7.7)) * 0.38 - 0.5) * 1.5;
-  }
-  return 1.0 - champ + moulage * champ;
-}
-
 /** LA PENTE DE SURFACE, pour la matière choisie. C'est le seul endroit où les
  *  neuf matières diffèrent ; tout ce qui suit est commun.
  *
  *  \`q\` est CENTRÉ et CORRIGÉ DE L'ASPECT (voir \`uvSpace.ts\`) : une même
  *  distance y vaut le même nombre de pixels en x et en y, donc les stries ont
  *  le même pas sur les deux axes et les cellules du martelé sont rondes sur une
- *  photo 3:2. Sans ça, tourner l'orientation changerait la densité. */
-fn verre_pentes(q: vec2<f32>, uv: vec2<f32>, dims: vec2<f32>) -> vec2<f32> {
+ *  photo 3:2. Sans ça, tourner l'orientation changerait la densité.
+ *
+ *  ⚠️ IL A PRIS \`uv\` ET \`dims\` EN PLUS DE \`q\` JUSQU'AU 2026-08-27, et rien que
+ *  pour la branche des pavés : eux seuls raisonnaient en pixels NATIFS (une
+ *  taille de bloc en pixels, une grille alignée sur le cadre) là où toutes les
+ *  matières de feuille vivent dans l'espace corrigé de l'aspect. Les pavés
+ *  partis (ADR-0021), les deux arguments n'avaient plus de lecteur. */
+fn verre_pentes(q: vec2<f32>) -> vec2<f32> {
   let mat = i32(params[0] + 0.5);
   let n = max(params[1], 1.0);
   let creux = clamp(params[2], 0.0, 1.0);
@@ -504,17 +488,6 @@ fn verre_pentes(q: vec2<f32>, uv: vec2<f32>, dims: vec2<f32>) -> vec2<f32> {
   // n'ont aucun relief macroscopique. C'est lui, et lui seul, qui porte le
   // Dépoli.
   let micro = verre_microRelief(q) * grain * 0.00035;
-
-  if (mat >= ${MAT_PAVE_NUAGE}) {
-    let cell = vec2<f32>(max(params[14], 24.0));
-    let f = fract(uv * dims / cell);
-    let e = 0.012;
-    let h0 = verre_hauteurPave(f, mat);
-    let hx = verre_hauteurPave(f + vec2<f32>(e, 0.0), mat);
-    let hy = verre_hauteurPave(f + vec2<f32>(0.0, e), mat);
-    let gr = vec2<f32>(hx - h0, -(hy - h0)) / e;
-    return -gr * dims / cell * 0.0060 * creux + micro;
-  }
 
   if (mat == ${MAT_DEPOLI}) {
     // DÉPOLI. Aucun galbe, aucune maille, aucune direction : un verre sablé n'a
@@ -764,7 +737,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
 
   // NORMALE de la surface, depuis la pente. \`z = 1\` : la pente est une dérivée,
   // donc le vecteur (-dh/dx, -dh/dy, 1) est normal au graphe de la hauteur.
-  let dh = verre_pentes(q, uv, dims);
+  let dh = verre_pentes(q);
   let N = normalize(vec3<f32>(-dh.x, -dh.y, 1.0));
   let I = vec3<f32>(0.0, 0.0, -1.0);
 
@@ -842,44 +815,15 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // soit — rendait un vert bouteille sur toute l'image. À 1,2, le défaut est à
   // peine teinté et le maximum de la course donne un verre franchement vert
   // sans devenir opaque.
-  // Arête du pavé : au ras du mortier, le rayon traverse davantage de verre.
-  // Ce n'est pas un contour peint ; la même absorption physique s'intensifie.
-  var distanceBord = 1e9;
-  var profilArete = 0.0;
-  var creteArete = 0.0;
-  var normaleArete = vec2<f32>(0.0);
-  // VARIATION D'UN PAVE A L'AUTRE. Sans elle, toutes les plaques ont exactement
-  // la meme teinte et le meme eclat : c'est la regularite parfaite qui trahit le
-  // synthetique, et Antoine l'a nommee « tres artificiel, 3D des annees 90 » le
-  // 2026-08-13. Un vrai mur n'a jamais deux paves identiques — la pose, le bain
-  // de fabrication et l'epaisseur varient d'une plaque a la suivante.
   //
-  // Pilotees par l'IRREGULARITE, qui existe deja et dont l'infobulle annonce
-  // presque ce comportement (« sur les matieres a cellules, c'est le basculement
-  // propre a chaque plaque ») : aucun curseur ajoute, donc aucun index de
-  // parametre deplace. A irregularite 0 les deux facteurs valent exactement 1 et
-  // le rendu est celui d'avant, au bit pres.
-  var varieteTeinte = 1.0;
-  var varieteEclat = 1.0;
-  if (mat >= ${MAT_PAVE_NUAGE}) {
-    let cell = vec2<f32>(max(params[14], 24.0));
-    let idCell = floor(uv * dims / cell);
-    let irregPave = clamp(params[7], 0.0, 1.0);
-    // Deux tirages DECORRELES : une plaque plus verte n'est pas plus brillante.
-    varieteTeinte = 1.0 + (hash(idCell + vec2<f32>(3.7, 9.1)) - 0.5) * irregPave * 0.85;
-    varieteEclat = 1.0 + (hash(idCell + vec2<f32>(17.3, 5.9)) - 0.5) * irregPave * 1.1;
-    let fCell = fract(uv * dims / cell);
-    let bord = (vec2<f32>(0.5) - abs(fCell - 0.5)) * cell;
-    distanceBord = min(bord.x, bord.y);
-    let largeur = max(params[19] * cell.x * 0.5, 1.0);
-    let tArete = clamp((distanceBord - params[15] * 0.5) / largeur, 0.0, 1.0);
-    profilArete = (1.0 - tArete) * (1.0 - tArete);
-    creteArete = exp(-pow((tArete - 0.20) * 5.2, 2.0));
-    let signe = sign(fCell - vec2<f32>(0.5));
-    normaleArete = select(vec2<f32>(0.0, -signe.y), vec2<f32>(signe.x, 0.0), bord.x < bord.y);
-  }
-  let trajet = epaisseur * 1.2 * (1.0 + (1.0 - cosi) * 2.2)
-    * (1.0 + params[18] * 7.0 * profilArete) * varieteTeinte;
+  // ⚠️ LE TRAJET ETAIT MODULE PAR DEUX TERMES DE PAVE, PARTIS AVEC EUX
+  // (ADR-0021) : l'arete du bloc, qui l'allongeait au ras du mortier, et une
+  // variation de teinte tiree par bloc. Les deux valaient exactement 1 sur une
+  // matiere de feuille — le premier parce que \`profilArete\` restait nul, le
+  // second parce qu'il n'etait tire que sous la branche pave. Leur retrait est
+  // donc neutre au bit pres pour les treize references de la feuille, et c'est
+  // ce que le gate de rendu verifie.
+  let trajet = epaisseur * 1.2 * (1.0 + (1.0 - cosi) * 2.2);
   c = c * exp(-trajet * vec3<f32>(0.055, 0.018, 0.042));
 
   // FRESNEL. Le reflet du ciel sur la surface, d'autant plus fort que
@@ -896,68 +840,21 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let Hv = normalize(L - I);
   c = c + pow(max(dot(N, Hv), 0.0), 120.0) * spec;
 
-  if (mat >= ${MAT_PAVE_NUAGE}) {
-    let lisere = creteArete * max(dot(normaleArete, vec2<f32>(-0.567, 0.823)), 0.0) * params[18] * spec * 1.7 * varieteEclat;
-    c = c + lisere;
-    let joint = max(params[15], 0.0);
-    // TRANSITION PROPORTIONNELLE AU JOINT, et non 1,4 pixel NATIF fixe. A 26
-    // Mpx affichee a 13 %, une transition de 1,4 pixel natif vaut 0,18 pixel
-    // ecran : le bord du joint sortait donc dur et crenele, et la grille se
-    // lisait comme un quadrillage peint. C'est ce qu'Antoine a resume par
-    // « les espacements entre les paves sont tres moches ».
-    //
-    // Le RATIO joint/pave, lui, etait deja juste : 8 px pour 132, soit 6,1 %,
-    // quand un joint de mortier reel fait 9 a 15 mm pour un pave de 190 a 200,
-    // soit 5 a 8 %. Ce n'etait pas la largeur, c'etait le bord.
-    let adoucissement = max(joint * 0.22, 1.0);
-    let masqueMortier = 1.0 - smoothstep(joint * 0.5 - adoucissement, joint * 0.5 + adoucissement, distanceBord);
-    if (masqueMortier > 0.001) {
-      // NIVEAU 0 DELIBERE, contre la tentation. Ces cinq taps ont des decalages
-      // FIXES, donc leurs adresses sont coherentes d un pixel au suivant — c est
-      // exactement ce que la mesure du ticket 19 a constate en les ablatant :
-      // ils ne coutent RIEN. Un niveau grossier les rendrait plus lisses et ne
-      // gagnerait aucune milliseconde, au prix des 18 references du verre.
-      let amb = (verre_lire(uv + vec2<f32>(0.050, 0.028), 0.0)
-        + verre_lire(uv + vec2<f32>(-0.050, 0.028), 0.0)
-        + verre_lire(uv + vec2<f32>(0.050, -0.028), 0.0)
-        + verre_lire(uv + vec2<f32>(-0.050, -0.028), 0.0)
-        + verre_lire(uv, 0.0)) * 0.2;
-      let lum = dot(amb, vec3<f32>(0.2126, 0.7152, 0.0722));
-      let froid = srgb_to_linear3(vec3<f32>(0.97, 1.0, 0.98));
-      let chaud = srgb_to_linear3(vec3<f32>(1.0, 0.95, 0.89));
-      // ⚠️ UN JOINT PEUT ETRE CLAIR OU SOMBRE, ET LE CURSEUR EST LA POUR CA.
-      // J'ai d'abord force le sombre ici (facteur 0,55) sur un raisonnement —
-      // « il est opaque, donc il ne peut pas etre plus clair que le verre ».
-      // Les photos disent l'inverse la moitie du temps : ciment blanc en
-      // interieur moderne, mortier sali et noirci a l'ombre. Les deux existent,
-      // et le facteur 0,55 avait ampute la course de Clarte de moitie (0,5..2
-      // devenait 0,275..1,1), donc rendu le cas clair inatteignable.
-      //
-      // Ce qui restait vrai du constat d'origine : le plancher additif. A 0,07
-      // le joint restait visible dans le NOIR absolu, ou rien ne l'eclaire —
-      // c'est lui qui faisait de la grille le point le plus lumineux des zones
-      // sombres. Reduit d'un facteur cinq, il ne sert plus qu'a ne pas rendre
-      // un joint parfaitement noir, ce qu'aucun materiau diffus n'est.
-      var couleurMortier = mix(froid, chaud, clamp(params[16], 0.0, 1.0)) * (lum * params[17] + 0.015);
-      // Granulometrie a DEUX echelles, et six fois plus marquee : un mortier a
-      // du sable dedans. A 0,022 sur une seule frequence, le joint restait un
-      // aplat parfait — l'autre marque du synthetique.
-      couleurMortier = couleurMortier
-        + (valueNoise(uv * dims * 0.30) - 0.5) * 0.075
-        + (valueNoise(uv * dims * 1.70) - 0.5) * 0.055;
-      let retrait = clamp(distanceBord / max(joint * 0.5, 0.5), 0.0, 1.0);
-      couleurMortier = couleurMortier * (1.0 - 0.18 * smoothstep(0.30, 1.0, retrait));
-      // OMBRE DE CONTACT. Le pave est en SAILLIE et le joint en creux : le bord
-      // du pave porte donc une ombre dans le joint, du cote oppose a la lumiere
-      // (meme direction que le lisere d'arete, quelques lignes plus haut). Sans
-      // elle, le joint reste un aplat et la grille flotte au lieu d'etre
-      // encastree — l'autre moitie du « tres moche ».
-      let versLumiere = dot(normaleArete, vec2<f32>(-0.567, 0.823));
-      let ombreContact = clamp(-versLumiere, 0.0, 1.0) * (1.0 - retrait) * 0.35;
-      couleurMortier = couleurMortier * (1.0 - ombreContact);
-      c = mix(c, clamp(couleurMortier, vec3<f32>(0.0), vec3<f32>(1.0)), masqueMortier);
-    }
-  }
+  // ⚠️ SOIXANTE-DEUX LIGNES DE MORTIER ONT DISPARU ICI (ADR-0021), et c'est le seul
+  // bloc du fichier qui PEIGNAIT au lieu de refracter : un joint opaque, sa
+  // granulometrie, son ombre de contact et le lisere d'arete du bloc. Il ne
+  // lisait rien de la pente de surface — il posait une couleur par-dessus, sous
+  // le masque de la grille.
+  //
+  // C'est aussi pourquoi il ne laisse RIEN derriere lui sur une feuille : sa
+  // condition (matiere superieure ou egale a 9) etait fausse sur les neuf
+  // matieres qui restent, donc le bloc ne s'executait jamais pour elles. Le
+  // retrait est neutre au bit pres.
+  //
+  // Ce qui est PERDU et n'a aucun equivalent : le seul verre A CELLULES du
+  // registre, celui qui decoupe l'image en blocs separes par un joint. Ni un
+  // masque ni une autre matiere ne le rendent — l'ADR le dit sans le
+  // relativiser.
 
   return vec4<f32>(c, color.a);
 }

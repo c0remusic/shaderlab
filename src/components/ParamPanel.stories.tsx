@@ -248,11 +248,17 @@ export const GabaritPaire: Story = {
 };
 
 /** GABARIT `grille` — curseurs courts en deux colonnes, pour les blocs longs
- *  (les huit réglages de pavé de `glass`). Le gain est de la HAUTEUR : huit
- *  lignes deviennent quatre. */
+ *  (les neuf réglages de la section « Matière » de `glass`). Le gain est de la
+ *  HAUTEUR : huit rangées deviennent quatre lignes.
+ *
+ *  ⚠️ Ce commentaire a cité les huit réglages de PAVÉ de `glass` jusqu'au
+ *  2026-08-27 ; ils sont partis avec les cinq matières (ADR-0021). La story,
+ *  elle, ne lit aucun module — ses curseurs sont écrits à la main et ne
+ *  décrivent aucun effet réel : ce qu'elle éprouve est le GABARIT, pas son
+ *  occupant. */
 export const GabaritGrille: Story = {
   render: () => (
-    <SectionSeule label="Pavé" layout="grille"
+    <SectionSeule label="Bloc" layout="grille"
       curseurs={["Largeur", "Hauteur", "Chanfrein", "Mortier", "Décalage", "Irrégularité", "Grain", "Relief"]} />
   ),
   play: async ({ canvasElement }) => attendreDeuxColonnes(canvasElement),

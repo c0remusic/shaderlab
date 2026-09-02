@@ -290,10 +290,25 @@ describe("glass — l'optique, et ce qui la sépare d'un portage naïf", () => {
 
   it("traite l'absorption en LINÉAIRE et la couleur du reflet en PERCEPTUEL", () => {
     // Deux termes, deux natures. Beer-Lambert est une loi physique : elle
-    // multiplie du linéaire tel quel. La couleur du reflet de Fresnel est un ton
-    // choisi à l'œil : décodée avant mélange, comme l'encre de duotone.
+    // multiplie du linéaire tel quel. Ce que le reflet de Fresnel RÉFLÉCHIT est
+    // choisi à l'œil : décodé avant mélange, comme l'encre de duotone.
+    //
+    // ⚠️ CE N'EST PLUS UNE COULEUR FIXE depuis le 2026-08-27 (ticket 17, voie B
+    // — matcap procédural), donc l'assertion ne cite plus `vec3(0.86, 0.89,
+    // 0.95)`. Elle vérifie que CHAQUE ton de l'environnement passe par
+    // `srgb_to_linear3` et qu'aucun littéral brut n'entre dans le mélange :
+    // geler les trois valeurs interdirait de RÉGLER le matcap, ce que le ticket
+    // laisse ouvert. Ce que ce test protège est la CONVERSION, pas le ton.
     expect(wgsl).toContain("exp(-trajet * vec3<f32>(0.055, 0.018, 0.042))");
-    expect(wgsl).toContain("srgb_to_linear3(vec3<f32>(0.86, 0.89, 0.95))");
+
+    const env = wgsl.match(/ {2}let env =[\s\S]*?;\n/)?.[0];
+    expect(env).toBeDefined();
+    const tons = env!.match(/vec3<f32>\([^)]*\)/g) ?? [];
+    expect(tons.length).toBeGreaterThan(0);
+    for (const ton of tons) {
+      expect(env).toContain(`srgb_to_linear3(${ton})`);
+    }
+    expect(wgsl).toContain("c = mix(c, env, F * 0.55);");
   });
 
   it("n'atténue que la DÉVIATION quand la présence du relief baisse", () => {

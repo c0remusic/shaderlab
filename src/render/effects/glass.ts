@@ -108,16 +108,31 @@ import { SRGB_TO_LINEAR_VEC3_WGSL, SRGB_TO_LINEAR_WGSL } from "./srgbTransfer";
  * confondre est le genre d'erreur qu'aucun test ne voit :
  * - L'absorption de Beer-Lambert est PHYSIQUE. Elle multiplie du linéaire, tel
  *   quel, sans conversion.
- * - La couleur du reflet de Fresnel est une valeur PERCEPTUELLE (c'est un ton
- *   qu'on choisit à l'œil). Elle est décodée vers le linéaire avant mélange,
- *   comme l'encre de `duotone` et le fond d'`outlines`.
+ * - Ce que le reflet de Fresnel RÉFLÉCHIT est PERCEPTUEL (des tons qu'on
+ *   choisit à l'œil). Décodé vers le linéaire avant mélange, comme l'encre de
+ *   `duotone` et le fond d'`outlines`.
+ *
+ *   ⚠️ CE N'EST PLUS UNE COULEUR FIXE depuis le 2026-08-27, mais un MATCAP
+ *   PROCÉDURAL — une sphère d'environnement évaluée par la NORMALE (ambiance +
+ *   source large + liseré rasant), voie B du ticket 17, choisie par Antoine sur
+ *   planche de prototypes. La règle de conversion, elle, ne bouge pas : les
+ *   trois tons du matcap sont décodés un par un avant d'entrer dans le mélange.
+ *   Ce que ça corrige : une réflectance quasi uniforme (le Poli, dont la normale
+ *   ne s'incline que de 2,14°) multipliée par un environnement uniforme ne
+ *   pouvait rendre qu'un voile plat — le gel était dans la couleur, pas dans la
+ *   rampe de Schlick (constat du ticket 16). Le mélange reste modulé par `F`, le
+ *   facteur `0,55` et le Blinn-Phong sont inchangés : une seule évolution du
+ *   chemin verre à la fois.
  *
  * ─── COÛT ───────────────────────────────────────────────────────────────────
  *
  * Trois évaluations de la fonction de matière (différences finies pour la
  * normale — de l'ALU, pas des lectures), puis 9 taps pour la traversée diffuse
  * et 3 de plus quand la dispersion est active. **9 ou 12 lectures**, une seule
- * passe, aucune texture intermédiaire.
+ * passe, aucune texture intermédiaire. Le matcap de Fresnel n'y ajoute RIEN : il
+ * est fonction de `N` seule, donc de l'ALU pur (2 `dot`, 2 `clamp`, 2 `pow`,
+ * 3 décodages sRGB de constantes, 2 multiplications et 2 additions de `vec3`),
+ * et zéro lecture de texture.
  *
  * La dispersion ne coûte pas 27 lectures — trois flous complets — mais 12 : un
  * SEUL flou à neuf taps au décalage du vert, plus trois taps simples dont on ne
@@ -828,10 +843,44 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
 
   // FRESNEL. Le reflet du ciel sur la surface, d'autant plus fort que
   // l'incidence est rasante — approximation de Schlick, F0 = 0.04 pour du verre.
-  // La couleur, elle, est PERCEPTUELLE (un ton choisi à l'œil) : décodée vers le
-  // linéaire avant mélange, comme l'encre de duotone.
+  // La rampe, son facteur 0,55 et le speculaire ci-dessous sont INTACTS : une
+  // seule evolution du chemin verre a la fois (regle du backlog verre).
   let F = 0.04 + 0.96 * pow(1.0 - cosi, 5.0);
-  c = mix(c, srgb_to_linear3(vec3<f32>(0.86, 0.89, 0.95)), F * 0.55);
+
+  // CE QUE LE REFLET REFLECHIT — un MATCAP PROCEDURAL, plus une couleur fixe.
+  //
+  // Jusqu'au 2026-08-27 cette ligne melangeait vers \`vec3(0.86, 0.89, 0.95)\`,
+  // gele. Reflectance quasi uniforme x environnement uniforme = voile uniforme :
+  // c'est ce gel-la, et NON la rampe de Fresnel, qui fabriquait le voile plat du
+  // Poli (constat du ticket 16 — mesure par port CPU des fonctions de pente :
+  // sur le Poli aux defauts la normale s'incline de 2,14 deg au maximum, donc F
+  // varie de 1,6e-16 sur toute l'image ; la rampe travaillait deja).
+  //
+  // A la place, une sphere d'environnement EVALUEE, lue par la NORMALE : un ton
+  // d'ambiance, une source principale large, un lisere rasant. C'est la voie B
+  // de la planche de prototypes du 2026-08-26, choisie par Antoine le
+  // 2026-08-27 CONTRE la reco de la planche (voie C, auto-reflexion de la photo
+  // elle-meme) — sa decision, actee.
+  //
+  // CE QUE CA CHANGE, ET OU. Le melange reste module par F, donc :
+  // - sur le POLI quasi plat, F vaut ~0,04 partout et le matcap n'y est qu'un
+  //   voile FAIBLE — mais il SUIT desormais la normale, micro-relief compris, au
+  //   lieu d'etre le meme ton en chaque pixel ;
+  // - sur les matieres texturees (Cannele, Martele, Cathedrale...) les normales
+  //   varient fort, et le reflet s'y STRUCTURE tout seul.
+  // C'est la reponse au piege ecrit dans la recherche : la structure d'un reflet
+  // fabrique vient du bord (Fresnel) et du micro-relief, jamais de la couleur
+  // d'environnement — laquelle, uniforme, ne peut rendre qu'un aplat.
+  //
+  // AUCUN PARAMETRE NOUVEAU : le matcap est fonction de N seule, en ALU pur, et
+  // ses trois tons restent PERCEPTUELS — decodes vers le lineaire avant melange,
+  // exactement comme la couleur fixe qu'ils remplacent, comme l'encre de duotone.
+  let key = pow(clamp(dot(N, normalize(vec3<f32>(-0.45, -0.55, 0.70))), 0.0, 1.0), 3.0);
+  let rim = pow(clamp(dot(N, normalize(vec3<f32>(0.55, 0.35, 0.45))), 0.0, 1.0), 6.0);
+  let env = srgb_to_linear3(vec3<f32>(0.42, 0.44, 0.48))
+    + srgb_to_linear3(vec3<f32>(1.0, 0.99, 0.94)) * key * 0.9
+    + srgb_to_linear3(vec3<f32>(0.75, 0.82, 0.95)) * rim * 0.5;
+  c = mix(c, env, F * 0.55);
 
   // SPÉCULAIRE. Blinn-Phong à exposant élevé : un point serré sur les flancs
   // orientés vers la source, pas un voile. C'est une ÉMISSION, donc une

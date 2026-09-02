@@ -96,13 +96,16 @@ régénérables : `assets/planche-17-rendu.mjs` (éditer le site, `npx tsc
       une fois le matcap vu sur photo.
 - [x] Un reflet d'environnement fabriqué (la voie choisie), modulé par Fresnel.
       — matcap procédural, voie B, livré le 2026-08-27 (bloc ci-dessus).
-- [ ] Pas d'aplat : le reflet porte une structure (bords + micro-normale),
-      vérifié sur une vraie photo. — **AVAL** : ce que le code garantit est que
-      le mélange n'est plus uniforme (il suit `N`) ; qu'il ne rende pas un aplat
-      À L'ŒIL se constate sur capture, pas sur du texte.
-- [ ] Les **13** références du verre régénérées et **relues à l'œil** ; jugé
-      devant photo par Antoine. — **AVAL** (app requise ; rien n'a été régénéré
-      ici). ⚠️ **13 et non 18** : les cinq références de Pavé sont parties avec
-      les matières (ADR-0021). Elles vont TOUTES bouger — le mélange de Fresnel
-      est commun aux neuf matières — et c'est assumé. Aucune référence hors verre
-      ne doit bouger : rien de partagé n'a été touché.
+- [x] Pas d'aplat : le reflet porte une structure (bords + micro-normale),
+      vérifié sur une vraie photo — planche avant/après du 2026-08-27
+      (<https://claude.ai/code/artifact/db9b4d38-9190-44ab-9bb5-0a5368d6270a>,
+      Poli · Cannelé · Martelé sur photo-1) : sur le Martelé, le réseau de
+      cellules se lit dans les OMBRES, qui étaient des aplats morts avant.
+- [x] Les **13** références du verre régénérées et **relues à l'œil** le
+      2026-08-27 (commit `30dfd5b`) ; seules elles ont bougé, vérifié par
+      `git status` après un `--update` global ; `test:render` complet vert.
+      ⚠️ **13 et non 18** : les cinq références de Pavé sont parties avec
+      les matières (ADR-0021).
+- [ ] **[Antoine]** Jugé devant photo : la planche avant/après ci-dessus. Si
+      les lobes sont à régler (direction, chaleur, force), ça se fait sur
+      captures ; le sort du Blinn-Phong (différé) se tranche au même regard.

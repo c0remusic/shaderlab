@@ -242,12 +242,22 @@ l'écrêtage (ADR-0020). Détail dans `docs/INDEX.json`.
 existait). Validation à l'œil d'Antoine encore due sur 20 et 22. Détail dans
 `docs/INDEX.json`.
 
-**Frontière prenable, sans décision préalable** : AUCUNE au 2026-08-26 au soir —
-tout ce qui restait libre est livré ou posé sur une décision d'Antoine avec sa
-planche. **17 (reflet d'environnement du verre) est PRÊT À TRANCHER** : les
-trois voies sont prototypées et rendues côte à côte, témoin compris
-(<https://claude.ai/code/artifact/842e4df1-7f91-4a33-ab5b-b4ff74a7ee04>, reco :
-auto-réflexion). Le code de la tranche suit le choix.
+**⭐ LE GRILLING DU 2026-08-27 A TOUT DÉBLOQUÉ** (8 décisions rendues en trois
+rounds). Frontière prenable : **18** (réfraction par la pente — le 17 est livré
+en voie B matcap ET jugé gardé), puis 19 ; **05** (vignettes — fidélité
+tranchée : RÉDUIT) ; **21** (lieux — liste arrêtée : warp/halftone/hatching en
+point sur params existants, texture en box) ; **11→12→13** (le 10 est résolu :
+`aplat` EST notre calque de forme comme chez Photoshop, la sélection
+géométrique vit en source de masque) ; **06** (encre : mode supplémentaire,
+famille AQUARELLE — planche de références d'abord) ; **09** (textures : voie
+double, pack CC0 ~20-30 Mo axé relief) ; **25** (neuf — lensBlur : « les
+autres paramètres ne font virtuellement rien », tri au pixel) ; **24** (neuf —
+transform complet des effets placés : étirer/aplatir façon Photoshop, scale
+générique du rendu, cadrage d'abord). Le 20 est VALIDÉ à l'œil (« je peux
+déplacer le light leak ») ; deux suites du même test : le raccourci **V en
+panne** chez Antoine (diagnostic en cours) et le ticket 24. Le 22 reste à
+regarder (pas bloquant). Le 14 (probe prod) est déprioritisé — la
+préoccupation réelle est l'ergonomie (25), pas la cadence.
 ✅ **16 CLOS EN CONSTAT le 2026-08-26, zéro ligne de code** : la rampe de Schlick
 demandée est dans `glass.ts:889` **depuis le premier commit du verre**, par
 pixel, sur le bon `cos θ`. Le voile plat vient de `glass.ts:890` (mélange vers

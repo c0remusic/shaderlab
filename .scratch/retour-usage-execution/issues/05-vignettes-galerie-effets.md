@@ -24,7 +24,7 @@ ticket 04.
   CPU d'`exportFrame` ; un aperçu qui reste sur le GPU coûterait moins. Non
   mesuré, pas nécessaire aujourd'hui.
 
-**Status:** ready-for-human
+**Status:** ready-for-agent — FIDÉLITÉ TRANCHÉE au grilling du 2026-08-27 : **RÉDUIT** (le composite entier, rétréci). L'architecture du ticket s'exécute telle quelle.
 **Type:** task
 
 ## Cadrage du 2026-08-26 — architecture retenue, décision de fidélité PRÉPARÉE
@@ -60,8 +60,7 @@ fichier:ligne dans l'historique de session, résumé) :
 - **La piste « rester sur le GPU »** (ticket 04) est notée non nécessaire :
   4 ms par survol suffisent.
 
-- [ ] **[Antoine]** Trancher la fidélité sur la planche : réduit, crop 1:1, ou
-      autre chose que la planche fait surgir.
+- [x] **[Antoine]** Fidélité tranchée le 2026-08-27 : RÉDUIT.
 - [ ] Un chemin de rendu de la pile à taille VIGNETTE existe (architecture
       ci-dessus ; la décision de fidélité choisit la SOURCE, pas le mécanisme).
 - [ ] Survoler un effet dans le sélecteur → une vignette d'aperçu apparaît

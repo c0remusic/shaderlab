@@ -43,4 +43,4 @@ pas de `transform`). Le vrai manque est ce branchement.
 - [x] Une entrée d'historique par geste (chemin vivant existant
       `handleParamChange`/`handleParamCommit` ; un clic sous 3 px d'écran reste
       la désignation habituelle et n'écrit rien).
-- [ ] Validé à l'œil par Antoine.
+- [x] Validé à l'œil par Antoine (grilling du 2026-08-27) : « je peux déplacer le light leak ». Deux suites ouvertes le même jour : le raccourci V en panne chez lui (diagnostic session du 27) et la demande d'ÉTIRER/APLATIR — ticket 24.

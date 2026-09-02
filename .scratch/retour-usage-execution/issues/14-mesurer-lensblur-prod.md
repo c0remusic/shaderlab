@@ -9,7 +9,7 @@ release fait, photo synthétique 26 Mpx générée, protocole complet dans
 
 **Blocked by:** None — can start immediately (Antoine lance).
 
-**Status:** ready-for-human
+**Status:** ready-for-human (déprioritisé le 2026-08-27) — au grilling, la préoccupation réelle d'Antoine sur lensBlur est l'ERGONOMIE (« les autres paramètres ne font virtuellement rien » → ticket 25), pas la cadence. Le probe reste prêt, à lancer quand il veut, sans relance.
 **Type:** task
 **HITL — Antoine lance le probe (sandbox bloque `target/` pour l'agent).**
 

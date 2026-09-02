@@ -9,7 +9,7 @@ pas d'une spec). Lien : `affinity/` ticket 02 (langage de texture procédurale).
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-human
+**Status:** ready-for-agent (planche) — CADRÉ au grilling du 2026-08-27 : mode SUPPLÉMENTAIRE à côté des scans (l'encre-scan reste, gelée par ses références), famille visée **AQUARELLE** (bavure qui fuse, bord granuleux). Prochain pas : une planche de références RÉELLES sur laquelle Antoine pointe — puis le design du mécanisme, jamais avant.
 **Type:** grilling
 **HITL — Antoine tranche live. L'agent ne décide pas à sa place.**
 

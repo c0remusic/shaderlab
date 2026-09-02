@@ -6,7 +6,7 @@ l'union FERMÉE de `mask/sources/types.ts` — aujourd'hui `gradient` / `luminos
 ROADMAP et sert de prefactor à l'outil Forme (ticket 12). « Make the change easy,
 then make the easy change. »
 
-**Blocked by:** 10 — le modèle de la forme décide si la géométrie vit ici ou ailleurs.
+**Blocked by:** None — le 10 est tranché (2026-08-27) : la géométrie vit ICI, en source de masque (rectangle/ellipse/polygone), le marquee de Photoshop chez nous.
 
 **Status:** ready-for-agent
 **Type:** task

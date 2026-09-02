@@ -29,7 +29,7 @@ outil sur la toile, en trois genres ») — ce ticket lui donne enfin sa décisi
 **Blocked by:** None pour la décision. Le ticket 20 la rend UTILE (sans lui, un
 ancrage neuf ne se déplace toujours pas au geste).
 
-**Status:** ready-for-human
+**Status:** ready-for-agent — LISTE ARRÊTÉE par Antoine au grilling du 2026-08-27 (« ok pour tout ») : `warp` → point (centre, hors Bruit fractal), `halftone` → point (origine de trame), `hatching` → point — les trois sur des params EXISTANTS, zéro référence déplacée ; `texture` → box (params neufs en fin de liste). SANS lieu, motivé : `glow`/`halation` (naissent des hautes lumières), `glass` (matière pleine feuille), la retouche (courbes, niveaux, mélangeur…). `gooeyMerge`/`sliceShift`/`dither` : pas retenus à ce tour.
 **HITL — Antoine tranche effet par effet. L'agent ne décide pas à sa place.**
 
 - [ ] Liste arrêtée des effets qui gagnent un ancrage, avec le genre de chacun.

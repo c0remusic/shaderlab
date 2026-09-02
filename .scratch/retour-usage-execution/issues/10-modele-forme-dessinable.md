@@ -13,7 +13,7 @@ Concept cadrant : `docs/wireframes/aplat-outil-forme.html`.
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-human
+**Status:** resolved — TRANCHÉ au grilling du 2026-08-27 : « comme Photoshop ». Traduction actée par Antoine : `aplat` EST notre calque de forme (il RESTE au registre, avec ses poignées et son tracé) ; la sélection géométrique est un OUTIL DISTINCT — le ticket 11, en source de masque `mask/sources`. Rien à démolir, deux outils comme chez eux.
 **Type:** grilling
 **HITL — Antoine tranche live. L'agent ne décide pas à sa place.**
 

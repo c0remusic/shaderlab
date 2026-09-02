@@ -35,8 +35,7 @@ micro-relief, pas d'une couleur d'environnement uniforme.
 Fresnel existe déjà (`glass.ts:889`), ce ticket est la première vraie tranche de
 code de la chaîne verre. La modulation par la rampe reste la règle, sinon aplat.
 
-**Status:** ready-for-human — **VOIE B TRANCHÉE ET LIVRÉE EN CODE le 2026-08-27 ;
-reste le JUGEMENT sur captures.**
+**Status:** resolved — **VOIE B LIVRÉE le 2026-08-27, et JUGÉE le jour même au grilling : matcap GARDÉ** (le doute d'Antoine — « les carreaux » — visait les pavés, déjà retirés par ADR-0021, pas le reflet). Blinn-Phong CONSERVÉ. Débloque le 18.
 
 ## Ce qui est livré (2026-08-27)
 
@@ -88,7 +87,7 @@ régénérables : `assets/planche-17-rendu.mjs` (éditer le site, `npx tsc
 - [x] **[Antoine]** Choisir la voie (A studio / B matcap / C auto-réflexion /
       une combinaison) sur la planche. — **voie B**, le 2026-08-27, contre la
       reco C.
-- [ ] ~~Blinn-Phong retiré du chemin Poli.~~ — **DIFFÉRÉ, délibérément.** Une
+- [x] ~~Blinn-Phong retiré du chemin Poli.~~ — **CONSERVÉ, tranché au grilling du 2026-08-27.** Une
       seule évolution du chemin verre à la fois : cette tranche ne change QUE la
       couleur d'environnement. Le Blinn-Phong reste en place (émission additive
       séparée, quasi inerte sur le Poli par géométrie, utile sur les flancs des
@@ -106,6 +105,4 @@ régénérables : `assets/planche-17-rendu.mjs` (éditer le site, `npx tsc
       `git status` après un `--update` global ; `test:render` complet vert.
       ⚠️ **13 et non 18** : les cinq références de Pavé sont parties avec
       les matières (ADR-0021).
-- [ ] **[Antoine]** Jugé devant photo : la planche avant/après ci-dessus. Si
-      les lobes sont à régler (direction, chaleur, force), ça se fait sur
-      captures ; le sort du Blinn-Phong (différé) se tranche au même regard.
+- [x] **[Antoine]** Jugé au grilling du 2026-08-27 : GARDÉ tel quel (aucune objection sur le reflet — son doute visait les pavés, retirés). Les lobes restent réglables plus tard si l'usage le demande.

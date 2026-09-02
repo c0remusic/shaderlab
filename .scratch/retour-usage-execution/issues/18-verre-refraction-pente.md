@@ -7,7 +7,7 @@ devient **portée par le champ de pente** que le matériau calcule déjà, forte
 la pente est forte (bords, relief), quasi nulle au centre plat. Le centre montre
 alors la photo quasi intacte, comportement d'un vrai verre plat.
 
-**Blocked by:** 17 — jugée sur le modèle Poli déjà passé au reflet d'environnement, pas sur un modèle à moitié changé (une seule évolution du chemin `glass.ts` à la fois).
+**Blocked by:** None — le 17 est livré ET jugé (grilling du 2026-08-27, matcap gardé). « Une seule évolution du chemin glass.ts à la fois » reste la règle.
 
 **Status:** ready-for-agent
 

@@ -95,6 +95,7 @@ import { useLayerIsolation } from "./hooks/useLayerIsolation";
 import { useCollapsedGroups } from "./hooks/useCollapsedGroups";
 import { PresetPanel } from "./components/PresetPanel";
 import { useTextureLibrary } from "./hooks/useTextureLibrary";
+import { useEffectThumbnails } from "./hooks/useEffectThumbnails";
 import { TauriPresetStore } from "./presets/presetStore";
 import { withPhotoLayersPreserved } from "./presets/preservePhotoLayers";
 import { Button } from "./components/ui/button";
@@ -804,6 +805,12 @@ export default function App() {
    *  le 2026-08-19 : depuis ADR-0018 un effet échantillonne la bibliothèque
    *  lui-même, et poser la même image en calque photo faisait double emploi. */
   const textureLibrary = useTextureLibrary();
+
+  /** Vignettes de la galerie d'effets (ticket 05) : survoler un effet dans
+   *  « Ajouter un effet » montre ce qu'il ferait. Le hook possède son propre
+   *  renderer offscreen et ne lit d'ici que le renderer de l'application (pour
+   *  composer la source) et la session (pour la pile). */
+  const effectThumbnails = useEffectThumbnails({ rendererRef, sessionRef });
 
   /** Le CATALOGUE descend au renderer, pas les pixels : c'est lui qui donne un
    *  sens au RANG que porte le paramètre d'un effet `texture`
@@ -2326,6 +2333,7 @@ export default function App() {
                   collapseState={collapse.collapseState}
                   onToggleGroup={collapse.handleToggleGroup}
                   thumbnailUrl={photoLayer.thumbnailUrl}
+                  effectPreview={effectThumbnails}
                 />
             },
             {

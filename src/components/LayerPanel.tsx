@@ -23,6 +23,7 @@ import { Select } from "./ui/select";
 import { NumberField } from "./ui/number-field";
 import { IconButton } from "./ui/icon-button";
 import { EffectPicker } from "./EffectPicker";
+import type { EffectThumbnailPicker } from "../hooks/useEffectThumbnails";
 import { layerControlsModel, opacityToPercent, parseOpacityPercent } from "./layerControlsModel";
 import "./LayerPanel.css";
 import { isFullyLocked, isPartiallyLocked } from "../layers/layerLocks";
@@ -85,6 +86,12 @@ interface Props {
    *  DOIT être référentiellement stable (`useCallback`) : elle traverse la
    *  mémoïsation de `LayerRow`. */
   thumbnailUrl?: (sourceId: string) => string | null;
+  /** APERÇU AU SURVOL DE LA GALERIE D'EFFETS (ticket 05). Transporté d'un BLOC
+   *  et non en quatre props séparées — même patron que `textureLibrary` sur
+   *  `ParamPanel` — parce que ce panneau ne fait que le faire suivre à
+   *  `EffectPicker` : il n'en lit aucun champ. Absent = sélecteur sans zone
+   *  d'aperçu (stories, et tout montage sans GPU). */
+  effectPreview?: EffectThumbnailPicker;
 }
 
 /* LA LIGNE D'ARRIÈRE-PLAN DÉRIVÉE A ÉTÉ SUPPRIMÉE (tranche T1 du design
@@ -735,6 +742,7 @@ export function LayerPanel({
   collapseState = EMPTY_COLLAPSE_STATE,
   onToggleGroup,
   thumbnailUrl,
+  effectPreview,
 }: Props) {
   // SENS D'AFFICHAGE (ADR-0004, 2026-07-28) : la liste se lit de haut en bas
   // dans l'ordre du TRAITEMENT. Le modèle ne bouge pas — `layers[0]` reste le
@@ -867,7 +875,7 @@ export function LayerPanel({
 
   return (
     <div className="layer-panel">
-      <EffectPicker disabled={!hasImage} onSelect={onAdd} />
+      <EffectPicker disabled={!hasImage} onSelect={onAdd} preview={effectPreview} />
       <ul
         ref={listRef}
         // `data-dock-list` : marque la LISTE dans la zone défilante de la

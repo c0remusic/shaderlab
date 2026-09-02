@@ -24,7 +24,7 @@ ticket 04.
   CPU d'`exportFrame` ; un aperçu qui reste sur le GPU coûterait moins. Non
   mesuré, pas nécessaire aujourd'hui.
 
-**Status:** ready-for-agent — FIDÉLITÉ TRANCHÉE au grilling du 2026-08-27 : **RÉDUIT** (le composite entier, rétréci). L'architecture du ticket s'exécute telle quelle.
+**Status:** ready-for-human — LIVRÉ le 2026-08-27, reste ton œil. FIDÉLITÉ TRANCHÉE au grilling du 2026-08-27 : **RÉDUIT** (le composite entier, rétréci). L'architecture du ticket s'exécute telle quelle.
 **Type:** task
 
 ## Cadrage du 2026-08-26 — architecture retenue, décision de fidélité PRÉPARÉE
@@ -61,10 +61,17 @@ fichier:ligne dans l'historique de session, résumé) :
   4 ms par survol suffisent.
 
 - [x] **[Antoine]** Fidélité tranchée le 2026-08-27 : RÉDUIT.
-- [ ] Un chemin de rendu de la pile à taille VIGNETTE existe (architecture
-      ci-dessus ; la décision de fidélité choisit la SOURCE, pas le mécanisme).
-- [ ] Survoler un effet dans le sélecteur → une vignette d'aperçu apparaît
-      (câblage : `EffectPicker.tsx:44-51`, même paire de props que
-      `onOptionPreview`/`onOptionPreviewEnd` du select des modes de fusion).
-- [ ] Coût tenu selon le verdict de 04 (aucun gel de l'interface au survol).
+- [x] Un chemin de rendu à taille VIGNETTE existe (2026-08-27) :
+      `effectThumbnailCache.ts` (pur) + `effectThumbnails.ts` (second Renderer
+      offscreen) + `useEffectThumbnails.ts` — file de profondeur 1 avec abandon
+      (un balayage ne rend que le dernier survolé).
+- [x] Survol → vignette (zone 240×160 à droite de la liste, parité clavier
+      par `onFocus`). Vérifié en vraie fenêtre : premier survol 130 ms
+      (source + device + pipeline à froid), ~40 ms à chaud, cache immédiat,
+      invalidation après modification de la pile PROUVÉE par sonde.
+      Limite documentée : `texture`/`displacementMap`-Bibliothèque rendent le
+      repli 1×1 (pas de catalogue sur le mini-renderer).
+- [x] Aucun gel : tout asynchrone, la liste reste réactive pendant les rendus
+      (la cible littérale de 4 ms était le pipeline nu ; le coût réel à chaud
+      ~40 ms reste imperceptible sous un survol humain).
 - [ ] Validé à l'œil par Antoine.

@@ -30,7 +30,7 @@ import { CanvasControls } from "./components/CanvasControls";
 import { EffectMoveSurface } from "./components/EffectMoveSurface";
 import { ToolPalette } from "./components/ToolPalette";
 import "./components/ToolPalette.css";
-import { DEFAULT_TOOL, activeTool as activeToolOf, escapeAction, isQuitToolEvent, isToolShortcutEvent, selectTool, toolFromShortcut, type ToolId } from "./ui/tools";
+import { DEFAULT_TOOL, activeTool as activeToolOf, escapeAction, isQuitToolEvent, isTextEntryTarget, isToolShortcutEvent, selectTool, toolFromShortcut, type ToolId } from "./ui/tools";
 import {
   ZOOM_STEP_FACTOR,
   fitViewport,
@@ -871,11 +871,15 @@ export default function App() {
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       const target = event.target;
-      if (target instanceof HTMLElement) {
-        if (target.isContentEditable) return;
-        const tag = target.tagName;
-        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      }
+      // `isTextEntryTarget` et non `tag === "INPUT"` : un range garde le focus
+      // après un réglage à la souris, et la garde large rendait la palette
+      // muette juste après le geste le plus fréquent de l'app (bug du
+      // 2026-08-27, « V ne fonctionne pas » — voir le prédicat).
+      if (target instanceof HTMLElement && isTextEntryTarget({
+        tag: target.tagName,
+        inputType: target instanceof HTMLInputElement ? target.type : undefined,
+        isContentEditable: target.isContentEditable,
+      })) return;
       // ÉCHAP DÉFAIT UNE COUCHE : l'outil courant d'abord, la sélection
       // ensuite (`escapeAction`, où l'ordre est justifié). C'est à la fois
       // l'équivalent clavier du bouton « Quitter » de `BrushToolbar` — qui

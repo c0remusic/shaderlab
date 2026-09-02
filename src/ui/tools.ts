@@ -155,6 +155,34 @@ export function toolFromShortcut(code: string): ToolId | null {
   return TOOLS.find((t) => t.shortcut === code)?.id ?? null;
 }
 
+/** Types d'`<input>` où une frappe de lettre N'ÉCRIT RIEN : un raccourci
+ *  d'outil peut y passer sans voler de saisie. Tout type ABSENT de cette liste
+ *  est traité comme textuel — le sens sûr : avaler un raccourci coûte un
+ *  agacement, écrire un « v » dans un champ coûte une donnée. */
+const TYPES_INPUT_NON_TEXTUELS = new Set(["range", "checkbox", "radio", "button", "color", "file", "submit", "reset", "image"]);
+
+/**
+ * Vrai ssi la cible d'une frappe est un champ de SAISIE DE TEXTE — le seul
+ * endroit où les raccourcis d'outil doivent se taire.
+ *
+ * ⚠️ ELLE EXISTE PARCE QUE LA GARDE DISAIT `tag === "INPUT"`, TOUT COURT — et
+ * un `input[type="range"]` GARDE le focus après un réglage à la souris. La
+ * palette devenait donc muette précisément après le geste le plus fréquent de
+ * l'app (toucher un curseur) : « V ne fonctionne pas » (Antoine, 2026-08-27),
+ * reproduit par sonde CDP — focus sur un range, V envoyé, outil inchangé ;
+ * même frappe focus ailleurs, outil changé. Photoshop bascule d'outil juste
+ * après un réglage de curseur ; nous aussi désormais.
+ *
+ * Module pur : la cible arrive en données extraites (pas d'élément DOM), donc
+ * testable en env Node comme le reste du fichier.
+ */
+export function isTextEntryTarget(cible: { tag: string; inputType?: string; isContentEditable: boolean }): boolean {
+  if (cible.isContentEditable) return true;
+  if (cible.tag === "TEXTAREA" || cible.tag === "SELECT") return true;
+  if (cible.tag !== "INPUT") return false;
+  return !TYPES_INPUT_NON_TEXTUELS.has((cible.inputType ?? "").toLowerCase());
+}
+
 /**
  * Vrai ssi un évènement clavier doit être interprété comme un raccourci
  * d'outil.

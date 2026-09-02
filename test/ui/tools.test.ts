@@ -6,6 +6,7 @@ import {
   activeTool,
   escapeAction,
   isQuitToolEvent,
+  isTextEntryTarget,
   isToolShortcutEvent,
   selectTool,
   toolFromShortcut,
@@ -187,6 +188,32 @@ describe("Échap quitte l'outil", () => {
       const second = premier === "quitTool" ? escapeAction(DEFAULT_TOOL, true) : escapeAction(DEFAULT_TOOL, false);
       expect([premier, second]).toContain("deselect");
     }
+  });
+
+  it("un raccourci passe depuis un curseur, jamais depuis un champ de texte", () => {
+    // LE BUG DU 2026-08-27 : la garde disait tag === "INPUT" tout court, et un
+    // range GARDE le focus après un réglage à la souris — la palette devenait
+    // muette après le geste le plus fréquent de l'app. Reproduit par sonde CDP
+    // avant correction : focus range, V envoyé, outil inchangé.
+    const cible = (tag: string, inputType?: string, editable = false) =>
+      isTextEntryTarget({ tag, inputType, isContentEditable: editable });
+    // Non textuels : les raccourcis passent.
+    expect(cible("INPUT", "range")).toBe(false);
+    expect(cible("INPUT", "checkbox")).toBe(false);
+    expect(cible("INPUT", "color")).toBe(false);
+    expect(cible("BODY")).toBe(false);
+    expect(cible("BUTTON")).toBe(false);
+    // Textuels : les raccourcis se taisent.
+    expect(cible("INPUT", "text")).toBe(true);
+    expect(cible("INPUT", "number")).toBe(true);
+    expect(cible("INPUT", "search")).toBe(true);
+    expect(cible("TEXTAREA")).toBe(true);
+    expect(cible("SELECT")).toBe(true);
+    expect(cible("DIV", undefined, true)).toBe(true);
+    // Type inconnu ou absent : BLOQUANT, le sens sûr — avaler un raccourci
+    // coûte un agacement, écrire un « v » dans un champ coûte une donnée.
+    expect(cible("INPUT", "un-type-futur")).toBe(true);
+    expect(cible("INPUT")).toBe(true);
   });
 
   it("Échap n'entre pas en conflit avec le geste de déplacement", () => {

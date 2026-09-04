@@ -43,6 +43,7 @@ export const PARAM_COUNT_BY_TYPE: Record<Exclude<MaskSourceType, "brush">, numbe
   gradient: 8,
   luminosity: 8,
   colorRange: 32,
+  shape: 8,
 };
 
 /** Enveloppe le fragment `fs_generate` d'un module de source paramétrique

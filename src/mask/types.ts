@@ -1,4 +1,4 @@
-export type MaskSourceType = "brush" | "gradient" | "luminosity" | "colorRange";
+export type MaskSourceType = "brush" | "gradient" | "luminosity" | "colorRange" | "shape";
 export type CombineMode = "add" | "subtract" | "intersect";
 
 /** Réglages de refine edge (§4/§4bis du design). En Tranche 2, ce type existe

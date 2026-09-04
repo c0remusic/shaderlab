@@ -1362,7 +1362,7 @@ export default function App() {
   // Les onze handlers de masque ci-dessous sont les props de `MaskPanel`,
   // désormais mémoïsé (2026-07-30). Une seule d'entre elles recréée à chaque
   // rendu suffirait à annuler la mémoïsation — sans aucun signe visible.
-  const handleAddMaskSource = useCallback((layerId: string, type: "gradient" | "luminosity" | "colorRange") => {
+  const handleAddMaskSource = useCallback((layerId: string, type: "gradient" | "luminosity" | "colorRange" | "shape") => {
     const stack = currentStack();
     stack.addMaskSource(layerId, type);
     commit(stack); // ajout d'une source = action discrète, une entrée directe

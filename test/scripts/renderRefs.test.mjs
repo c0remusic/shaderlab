@@ -176,6 +176,18 @@ const ATTENDU = {
   // canaux.
   "masque-pastilles-temoin.png": { width: 256, height: 256, valeurs: null },
   "masque-range-couleur.png": { width: 256, height: 256, valeurs: null },
+  // LA SOURCE GEOMETRIQUE (ticket 11) : rectangle et ellipse, chacune contre le
+  // meme temoin duotone sans masque, sur la MEME rampe. La paire est sur une
+  // toile 320 x 192 A DESSEIN, meme raison que le degrade radial : sur une toile
+  // carree, l ellipse sortirait ronde et le feather isotrope PAR ACCIDENT, sans
+  // que la correction d aspect soit reellement exercee. L ecart au temoin est
+  // l empreinte de la forme, bornee sur les deux axes. Le rectangle porte un
+  // feather de 0,06 (bande adoucie d epaisseur constante, coins compris, SDF de
+  // boite) ; l ellipse une boite CARREE sur la toile (96 x 96 px), donc un
+  // cercle de 48 px de rayon a feather quasi nul.
+  "masque-forme-temoin.png": { width: 320, height: 192, valeurs: null },
+  "masque-forme-rectangle.png": { width: 320, height: 192, valeurs: null },
+  "masque-forme-ellipse.png": { width: 320, height: 192, valeurs: null },
   // LENS BLUR (2026-08-01), et DEUX references pour un seul effet — ce n'est
   // pas une redondance. La premiere pose l'effet sur la mire commune : elle
   // verrouille la geometrie de champ (iris) et le raccord net/flou. La seconde

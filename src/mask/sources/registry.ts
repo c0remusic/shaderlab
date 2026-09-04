@@ -2,8 +2,9 @@ import type { MaskSourceModule } from "./types";
 import { gradientSource } from "./gradient";
 import { luminositySource } from "./luminosity";
 import { colorRangeSource } from "./colorRange";
+import { shapeSource } from "./shape";
 
-export const maskSourceRegistry: MaskSourceModule[] = [gradientSource, luminositySource, colorRangeSource];
+export const maskSourceRegistry: MaskSourceModule[] = [gradientSource, luminositySource, colorRangeSource, shapeSource];
 
 const seen = new Set<string>();
 for (const m of maskSourceRegistry) {

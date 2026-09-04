@@ -1,5 +1,5 @@
 export interface MaskSourceModule {
-  id: "gradient" | "luminosity" | "colorRange";
+  id: "gradient" | "luminosity" | "colorRange" | "shape";
   name: string;
   /** Valeurs par défaut de `MaskSource.params` pour ce type — jamais un
    *  objet vide (voir mask/types.ts, la règle "params reste null tant que

@@ -3562,6 +3562,93 @@ const INSTALL = `(async () => {
       },
     },
 
+    // ── FORME GEOMETRIQUE : UN TEMOIN, DEUX FORMES (ticket 11) ───────────
+    //
+    // La source shape (mask/sources/shape.ts) est le marquee de Photoshop chez
+    // nous : un masque borne par une boite, rectangle ou ellipse. Meme montage
+    // que le degrade radial : les trois scenarios rendent la meme pile duotone
+    // sur une rampe, les deux formes avec le masque en plus. L ecart au temoin
+    // EST l empreinte de la forme, et sa boite englobante est ce que mesure la
+    // garde de renderRefs.test.mjs.
+    //
+    // TOILE 320 x 192, ET C EST LE POINT. L espace UV n est pas isotrope : sans
+    // correction d aspect, une ellipse inscrite dans une boite carree en UV
+    // sortirait aplatie, et le feather d un rectangle serait plus epais sur un
+    // axe. Sur une toile carree le defaut serait invisible. La forme est bornee
+    // sur les DEUX axes (c est une boite), donc son empreinte ne peut pas se
+    // confondre avec la reponse tonale de duotone, quel que soit le sens de la
+    // rampe.
+    "masque-forme-temoin": {
+      fond: false,
+      toile: { width: 320, height: 192 },
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: 160, y: 96, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("duotone", p);
+        stack.updateParams(a, {
+          shadowHue: 350, shadowSaturation: 0.65, shadowLightness: 0.25,
+          midtoneHue: 30, midtoneSaturation: 0.5, midtoneLightness: 0.5,
+          highlightHue: 220, highlightSaturation: 0.55, highlightLightness: 0.6,
+          contrast: 0.55, pivot: 0.5,
+        });
+      },
+    },
+
+    // RECTANGLE, avec un feather non nul : c est ce qui prouve la propriete du
+    // rectangle, un bord adouci d epaisseur CONSTANTE tout autour, coins
+    // compris (SDF de boite, jamais un produit de smoothstep par axe qui
+    // creuserait les coins). Boite 0,2..0,8 en X et 0,25..0,75 en Y : 192 px x
+    // 96 px sur la toile, large fraction du cadre.
+    "masque-forme-rectangle": {
+      fond: false,
+      toile: { width: 320, height: 192 },
+      contre: "masque-forme-temoin",
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: 160, y: 96, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("duotone", p);
+        stack.updateParams(a, {
+          shadowHue: 350, shadowSaturation: 0.65, shadowLightness: 0.25,
+          midtoneHue: 30, midtoneSaturation: 0.5, midtoneLightness: 0.5,
+          highlightHue: 220, highlightSaturation: 0.55, highlightLightness: 0.6,
+          contrast: 0.55, pivot: 0.5,
+        });
+        const s = stack.addMaskSource(a, "shape");
+        stack.updateMaskSourceParams(a, s, {
+          x0: 0.2, y0: 0.25, x1: 0.8, y1: 0.75, feather: 0.06, invert: 0, mode: 0,
+        });
+      },
+    },
+
+    // ELLIPSE, boite CARREE SUR LA TOILE : demi-dimensions 0,15 en X et 0,25 en
+    // Y, soit 0,3 x 320 = 96 px et 0,5 x 192 = 96 px. Corrigee de l aspect, la
+    // forme sort donc en CERCLE de 48 px de rayon, pas en ellipse — c est le
+    // test de l isotropie sur toile non carree. Feather quasi nul pour que la
+    // frontiere soit mesurable au pixel.
+    "masque-forme-ellipse": {
+      fond: false,
+      toile: { width: 320, height: 192 },
+      contre: "masque-forme-temoin",
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: 160, y: 96, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("duotone", p);
+        stack.updateParams(a, {
+          shadowHue: 350, shadowSaturation: 0.65, shadowLightness: 0.25,
+          midtoneHue: 30, midtoneSaturation: 0.5, midtoneLightness: 0.5,
+          highlightHue: 220, highlightSaturation: 0.55, highlightLightness: 0.6,
+          contrast: 0.55, pivot: 0.5,
+        });
+        const s = stack.addMaskSource(a, "shape");
+        stack.updateMaskSourceParams(a, s, {
+          x0: 0.35, y0: 0.25, x1: 0.65, y1: 0.75, feather: 0.0001, invert: 0, mode: 1,
+        });
+      },
+    },
+
     // ── CARTE DE DEPLACEMENT : DEUX SCENARIOS, UN PAR MODE DE LECTURE ─────
     //
     // La carte est \`mireEncre\`, la meme que celle qui sert \`effet-texture\` — le

@@ -30,7 +30,7 @@ interface Props {
   onToggleMaskPaint: () => void;
   overlayForceHidden: boolean;
   onToggleOverlayForceHidden: () => void;
-  onAddMaskSource: (layerId: string, type: "gradient" | "luminosity" | "colorRange") => void;
+  onAddMaskSource: (layerId: string, type: "gradient" | "luminosity" | "colorRange" | "shape") => void;
   onRemoveMaskSource: (layerId: string, sourceId: string) => void;
   onMaskSourceParamsChange: (layerId: string, sourceId: string, params: Record<string, number | number[]>) => void;
   onMaskSourceParamsCommit: () => void;
@@ -57,6 +57,16 @@ const GRADIENT_MODE_OPTIONS = [
   { value: 1, label: "Radial" },
 ];
 
+/** Forme géométrique — rectangle ou ellipse (voir `mask/sources/shape.ts`).
+ *  Deux états, donc un groupe de bascules et non un curseur (même raison que le
+ *  mode du dégradé). Les libellés visibles sont « Rectangle »/« Ellipse » et
+ *  jamais « Forme » : la pastille de section porte déjà ce mot (ADR-0001, un
+ *  libellé ne répète pas sa pastille — défaut vu sur duotone). */
+const SHAPE_MODE_OPTIONS = [
+  { value: 0, label: "Rectangle" },
+  { value: 1, label: "Ellipse" },
+];
+
 /** Les deux points du dégradé ne DÉSIGNENT pas la même chose selon la forme :
  *  en radial, `start` est le centre et `end` un point du bord (voir
  *  `mask/sources/gradient.ts`). Garder « Départ / Arrivée » y ferait chercher
@@ -76,6 +86,10 @@ const MASK_PARAM_LABELS: Record<string, string> = {
   endY: "Arrivée Y",
   feather: "Adoucissement",
   invert: "Inverser",
+  x0: "Bord gauche",
+  y0: "Bord haut",
+  x1: "Bord droit",
+  y1: "Bord bas",
   shadowsMin: "Ombres min.",
   shadowsMax: "Ombres max.",
   highlightsMin: "Hautes lumières min.",
@@ -376,6 +390,33 @@ export const MaskPanel = memo(function MaskPanel({
                   ))}
                 </div>
               )}
+              {/* FORME — rectangle ou ellipse. Même gabarit que le mode du
+                  dégradé au-dessus : deux états, un groupe de bascules, aucun
+                  style nouveau. */}
+              {activeSource.type === "shape" && (
+                <div className="param-panel__combine-mode" role="group" aria-label="Type de forme">
+                  {SHAPE_MODE_OPTIONS.map((option) => (
+                    <Toggle
+                      key={option.value}
+                      size="sm"
+                      title={option.label}
+                      aria-label={option.label}
+                      disabled={locked}
+                      pressed={((activeSource.params.mode as number) ?? 0) === option.value}
+                      onPressedChange={(pressed) => {
+                        if (!pressed) return;
+                        onMaskSourceParamsChange(layerId, activeSource.id, {
+                          ...activeSource.params,
+                          mode: option.value,
+                        });
+                        onMaskSourceParamsCommit();
+                      }}
+                    >
+                      {option.label}
+                    </Toggle>
+                  ))}
+                </div>
+              )}
               {activeSource.type === "colorRange" && (
                 <ColorRangeControl
                   samples={(activeSource.params.samples as number[]) ?? []}
@@ -395,6 +436,8 @@ export const MaskPanel = memo(function MaskPanel({
                 // laisser inerte — un curseur dont la course est morte est un
                 // échec silencieux (CLAUDE.md, leçon `sliceShift`).
                 if (activeSource.type === "gradient" && key === "mode") return null;
+                // `mode` (shape) a son propre groupe de bascules ci-dessus.
+                if (activeSource.type === "shape" && key === "mode") return null;
                 if (radial && key === "angle") return null;
                 if (activeSource.type === "luminosity" && ["shadowsMin", "shadowsMax", "highlightsMin", "highlightsMax"].includes(key)) return null;
                 if (activeSource.type === "colorRange" && ["samples", "tolerance", "hardness"].includes(key)) return null;

@@ -114,7 +114,7 @@ import { SRGB_TO_LINEAR_VEC3_WGSL, SRGB_TO_LINEAR_WGSL } from "./srgbTransfer";
  *
  *   ⚠️ CE N'EST PLUS UNE COULEUR FIXE depuis le 2026-08-27, mais un MATCAP
  *   PROCÉDURAL — une sphère d'environnement évaluée par la NORMALE (ambiance +
- *   source large + liseré rasant), voie B du ticket 17, choisie par Antoine sur
+ *   source large + lobe d'appoint), voie B du ticket 17, choisie par Antoine sur
  *   planche de prototypes. La règle de conversion, elle, ne bouge pas : les
  *   trois tons du matcap sont décodés un par un avant d'entrer dans le mélange.
  *   Ce que ça corrige : une réflectance quasi uniforme (le Poli, dont la normale
@@ -857,7 +857,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // varie de 1,6e-16 sur toute l'image ; la rampe travaillait deja).
   //
   // A la place, une sphere d'environnement EVALUEE, lue par la NORMALE : un ton
-  // d'ambiance, une source principale large, un lisere rasant. C'est la voie B
+  // d'ambiance, une source principale large, un lobe d'APPOINT. C'est la voie B
   // de la planche de prototypes du 2026-08-26, choisie par Antoine le
   // 2026-08-27 CONTRE la reco de la planche (voie C, auto-reflexion de la photo
   // elle-meme) — sa decision, actee.
@@ -876,10 +876,17 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // ses trois tons restent PERCEPTUELS — decodes vers le lineaire avant melange,
   // exactement comme la couleur fixe qu'ils remplacent, comme l'encre de duotone.
   let key = pow(clamp(dot(N, normalize(vec3<f32>(-0.45, -0.55, 0.70))), 0.0, 1.0), 3.0);
-  let rim = pow(clamp(dot(N, normalize(vec3<f32>(0.55, 0.35, 0.45))), 0.0, 1.0), 6.0);
+  // ⚠️ CE SECOND LOBE S'EST APPELE \`rim\` jusqu'au 2026-09-02, ET CE N'ETAIT PAS
+  // UN RIM. Un rim rasant est fonction de 1 - N.z : nul de face, maximal au
+  // bord. Celui-ci est un lobe DIRECTIONNEL (une lumiere d'appoint, maximale
+  // quand N pointe vers une direction fixe inclinee d'environ 63 degres), et
+  // il vaut 0.568^6 = 0.034 sur une normale PLATE — donc non nul de face,
+  // l'inverse d'un rim. Le seul terme rasant de ce bloc est F, qui module le
+  // melange. Constat de la lecture du ticket 19 ; renommage pur, zero pixel.
+  let appoint = pow(clamp(dot(N, normalize(vec3<f32>(0.55, 0.35, 0.45))), 0.0, 1.0), 6.0);
   let env = srgb_to_linear3(vec3<f32>(0.42, 0.44, 0.48))
     + srgb_to_linear3(vec3<f32>(1.0, 0.99, 0.94)) * key * 0.9
-    + srgb_to_linear3(vec3<f32>(0.75, 0.82, 0.95)) * rim * 0.5;
+    + srgb_to_linear3(vec3<f32>(0.75, 0.82, 0.95)) * appoint * 0.5;
   c = mix(c, env, F * 0.55);
 
   // SPÉCULAIRE. Blinn-Phong à exposant élevé : un point serré sur les flancs

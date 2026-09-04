@@ -204,6 +204,14 @@ Chacun a coûté du temps réel.
   le backend **WebGPU**, que Dawn choisit séparément. `chrome://gpu` est
   inaccessible dans WebView2 (page vide, même ouverte dans une cible séparée).
 
+- **`photo-1.jpg` porte un GRAIN dans le fichier, et `vram-test` n'a qu'une
+  photo.** Mesuré le 2026-09-02 : les quatre `photo-N.jpg` ont le même md5
+  (`b99088a6…`), et la zone la plus plate du ciel a un résidu haute fréquence
+  de **12,3 niveaux/255 en luma, 0,3 en chroma** — un grain posé à l'export,
+  pas du bruit capteur (qui serait chromatique). L'app n'ajoute aucun bruit
+  par défaut : tout crop 1:1 d'une planche montre ce grain source, qui domine
+  les effets doux à 100 %. Pour juger un effet à 1:1 ou mesurer du bruit,
+  partir d'une photo propre — ou mesurer le témoin d'abord.
 - **Le dock existe SANS document ouvert.** Les cartes Presets / Pile / Textures
   s'affichent sur l'écran d'accueil. Le seul témoin fiable d'un document est
   `state().layers.length`, pas la présence du dock.

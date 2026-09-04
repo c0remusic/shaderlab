@@ -439,6 +439,12 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   compare son compte au registre. Vécu le 2026-08-26 (ticket 22). Toute
   déclaration neuve s'ajoute à la table dans le MÊME commit, comme un scénario
   s'ajoute à la table ATTENDU de renderRefs.
+  ⚠️ Et il n'éprouve une déclaration que du côté INERTE : un `appliesWhen`
+  trop LARGE — un curseur déclaré applicable dans un mode où il ne fait rien
+  — lui échappe. `lensBlur.fieldAngle` en Iris était mort par construction
+  (`length` d'un vecteur tourné), déclaré applicable, et trouvé par le tri au
+  pixel du ticket 25 (2026-09-02), jamais par le gate. Un « vivant » déclaré
+  se mesure comme un « inerte » : les deux sens de l'erreur sont muets.
 - **La famille des flous est CLOSE, et RÉDUITE À DEUX** depuis le 2026-08-03 :
   `lensBlur` est un noyau d'OBJECTIF (intégration sur la surface de l'ouverture —
   pondération des hautes lumières + diaphragme à N lames, plus quatre géométries
@@ -1000,6 +1006,20 @@ projet vivent là, pas dans les docs de design.
   via CDP (`document.body.innerText`) avant de relancer `dev:debug`/`tauri
   dev`, et confirmer avec Antoine avant d'écraser un état qu'on n'a pas
   soi-même produit (2026-07-25, session double exposure).
+- **Les sous-agents tournent sur Opus 4.8** (Antoine, 2026-09-02). L'alias
+  `opus` de l'outil de dispatch résout vers Opus 5 par défaut — les tranches
+  déléguées avant cette date y ont tourné sans que personne l'ait choisi.
+  Dispatcher avec `subagent_type: opus-4-8` (`.claude/agents/opus-4-8.md`) ;
+  `settings.local.json` force en plus le modèle par
+  `CLAUDE_CODE_SUBAGENT_MODEL` + `_FORCE` (lus au démarrage de session). Le
+  seul témoin du modèle réel d'un sous-agent est `/tasks`, côté Antoine.
+- **Un ticket « corriger X » commence par prouver que X est cassé, dans le
+  code.** Trois tickets d'affilée de la chaîne verre (16, 18, 19 — 2026-08-26
+  et 27) demandaient de corriger ce qui existait déjà : leur recherche
+  décrivait le shader sans l'avoir ouvert, et le symptôme réel avait une autre
+  cause. Le brief d'un sous-agent porte cette garde en tête : prémisse fausse
+  sur pièce → rapport, pas édition. Elle a aussi attrapé une phrase fausse de
+  mon propre brief (« le clamp du shader ramènerait » — il n'y a aucun clamp).
 - **Autonomie terminal de Claude** : Claude est autorisé à lancer lui-même les
   commandes PowerShell nécessaires au développement, aux tests, au diagnostic
   et au monitoring dans ce repo. Ne pas demander à l'utilisateur de recopier
@@ -1102,6 +1122,16 @@ Corollaire : **le verrou sert aussi à rendre un refactor prouvable**. `outlines
 n'avait aucune référence ; en poser une AVANT d'extraire son gradient de Scharr
 vers `effects/edgeGradient.ts` a transformé « ça devrait être neutre » en
 `aucun écart`. Poser la preuve avant le geste, pas après.
+
+**Une planche se rend à l'ÉCHELLE DU PHÉNOMÈNE.** Le micro-relief du verre est
+un déplacement PAR PIXEL natif : rendue à 720 px, la planche des leviers du
+Poli (ticket 18, 2026-08-27) moyennait ce déplacement et deux variantes très
+différentes y paraissaient identiques — refaite en crops 1:1 à pleine
+résolution, le témoin est du givre plaqué et la variante « vitrine pure » une
+image nette qui ondule. Un effet par pixel (grain, micro-relief, trame) se
+juge en crop 1:1 ; un effet par masses (ondulation, halo) se juge réduit.
+Réduire une planche est un choix qui se justifie par le sujet, jamais un
+défaut de fabrication.
 
 **Un CLASSEMENT par coût ne donne pas la CAUSE du coût.** Payé le 2026-08-15 :
 le temps GPU de `glass` a été relevé pour les quatorze matières (facteur 7,

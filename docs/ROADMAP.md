@@ -258,6 +258,23 @@ déplacer le light leak ») ; deux suites du même test : le raccourci **V en
 panne** chez Antoine (diagnostic en cours) et le ticket 24. Le 22 reste à
 regarder (pas bloquant). Le 14 (probe prod) est déprioritisé — la
 préoccupation réelle est l'ergonomie (25), pas la cadence.
+
+✅ **État au 2026-09-02 (fin de la session du grilling)** : **21** livré (9
+effets déplaçables), **05** livré (vignettes au survol, vérifiées en fenêtre),
+**25** livré (tri au pixel : le rayon n'écrase personne, la section
+Diaphragme est morte au défaut `blades=0`, `fieldAngle` en Iris corrigé —
+trois propositions à Antoine dont `blades` défaut 0→6), **bug V** corrigé,
+**18** requalifié (la réfraction est déjà portée par la pente ; les vrais
+leviers du Poli sont sur planche :
+<https://claude.ai/code/artifact/e10acfb4-f1f5-443f-ab65-b20f753d11eb>, reco
+L3), **19** requalifié (la frange de bord existe déjà ; reste un rim
+géométrique de cellule, derrière le 18), gate `test-storybook` rendue
+déterministe (cache storybook vidé par le script — cause mesurée). Frontière
+prenable : **11** (sources géométriques de masque, débloqué par le 10),
+**24** (cadrage du transform des effets), **06** (planche aquarelle), **09**
+(pack textures). ⚠️ **Les sous-agents doivent tourner sur Opus 4.8**
+(demande d'Antoine) : `settings.local.json` + agent `opus-4-8` posés, lus au
+démarrage de session — l'alias `opus` seul résout vers Opus 5.
 ✅ **16 CLOS EN CONSTAT le 2026-08-26, zéro ligne de code** : la rampe de Schlick
 demandée est dans `glass.ts:889` **depuis le premier commit du verre**, par
 pixel, sur le bon `cos θ`. Le voile plat vient de `glass.ts:890` (mélange vers

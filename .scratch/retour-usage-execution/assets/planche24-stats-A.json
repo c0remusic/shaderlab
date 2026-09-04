@@ -1,0 +1,44 @@
+{
+  "lightLeak": {
+    "identite": {
+      "moyenne": 83.77,
+      "ecartType": 82.72
+    },
+    "scaleX2": {
+      "moyenne": 79.35,
+      "ecartType": 74.24
+    },
+    "scaleY04": {
+      "moyenne": 56.86,
+      "ecartType": 74.27
+    }
+  },
+  "texture": {
+    "identite": {
+      "moyenne": 130.19,
+      "ecartType": 35.33
+    },
+    "scaleX2": {
+      "moyenne": 130.8,
+      "ecartType": 34.35
+    },
+    "scaleY04": {
+      "moyenne": 75.54,
+      "ecartType": 69.04
+    }
+  },
+  "glow": {
+    "identite": {
+      "moyenne": 8.19,
+      "ecartType": 9.79
+    },
+    "scaleX2": {
+      "moyenne": 6.98,
+      "ecartType": 7.01
+    },
+    "scaleY04": {
+      "moyenne": 3.45,
+      "ecartType": 9.63
+    }
+  }
+}

@@ -53,9 +53,21 @@ inverse (2×3) dans un uniform ; correction d'aspect comme `uvSpace.ts`.
 - Classe lecteurs d'image : les taps internes partent de l'UV déformé →
   déformation affine locale de l'image dans la sortie de l'effet (une sorte de
   warp), avec le même risque de décalage au raccord. Pour les pyramides
-  (`glow` : passes internes en repère identité, passe finale lisant `prevPass`
-  à l'UV déformé), le halo s'étire EN EMPORTANT la copie d'image qu'il
-  contient.
+  (`glow`), le halo s'étire EN EMPORTANT la copie d'image qu'il contient.
+
+⚠️ **AMENDÉ le 2026-09-04 par le prototype — une prémisse de ce paragraphe
+était fausse sur pièce.** Ce document promettait « passes internes en repère
+identité, seule la passe finale lit `prevPass` à l'UV déformé » comme si
+c'était le comportement de l'édition naïve. Faux : `composeShader` enveloppe
+CHAQUE passe (`effectPassRunner.ts:259` rappelle `runEffectPass` avec
+`pass.wgsl`, qui rappelle `composeShader:356`) — le wrapper transformé est
+donc émis pour TOUTES les passes, pyramide comprise. Mesuré sur `glow` : le
+bloom S'EFFONDRE (scaleX 2 et scaleY 0.4 rendent des PNG byte-identiques,
+moyenne 0,34 — halo disparu, l'énergie sort du cadre à chaque niveau).
+**L'implémentation réelle de la voie B doit donc GATER la transformation
+d'UV sur `opts.applyMask`** (le chemin de compositing, une passe par calque) :
+mesuré, ce variant préserve le halo — étiré et détaché des points de base
+(le fantôme prédit), états distincts, identité au bit près conservée.
 
 Coût : zéro passe en plus, un uniform. **Chemin identité au bit près** : quand
 le transform est absent, la chaîne composée est identique caractère pour
@@ -102,20 +114,22 @@ honnête sur les ponctuels, et son ambiguïté sur les lecteurs d'image est
 locale au calque au lieu d'être un dédoublement garanti partout comme en A.
 Zéro coût mémoire, identité au bit près.
 
-**Prototype jetable** (harnais look-dev, `render-check-page.html` à module map
-vierge — patron `.scratch/retour-usage-execution/assets/planche-{05,17}-*.mjs`,
-rien à committer) : trois effets × deux voies × trois états (identité,
-scaleX 2, scaleY 0.4) :
+✅ **Prototype RENDU le 2026-09-04** (harnais look-dev, scripts
+`assets/planche-24-*.mjs`, planche `assets/planche-24-transform.html` —
+zéro édition moteur commitée, `shaderCompose.ts` restauré). Trois effets ×
+deux voies × trois états, plus un quatrième rang glow (voie B gatée
+`applyMask`). Défauts VUS, pas prédits :
 
-1. `lightLeak` — la classe champ pur, le cas nommé par Antoine ;
-2. `texture` — champ pur avec image de bibliothèque (la trame s'étire-t-elle
-   proprement) ;
-3. `glow` sur la mire bokeh — le pire cas lecteur d'image : montrer le
-   dédoublement de A et l'étirement-avec-fantôme de B, pour que le verdict se
-   rende en connaissance du défaut, pas sur le cas facile.
+1. `lightLeak` — voie B parfaite : photo intacte, seul le champ du leak
+   s'aplatit. Voie A : photo dupliquée à deux échelles, couture franche.
+2. `texture` — la trame s'étire proprement en voie B (scaleX 2 élargit les
+   cellules, scaleY 0.4 les aplatit). Voie A : trame confinée à la bande,
+   photo pleine autour.
+3. `glow` (mire bokeh, pire cas) — voie B naïve : effondrement (voir
+   amendement ci-dessus) ; voie B gatée : halo préservé, étiré, détaché des
+   points (fantôme localisé au calque) ; voie A : dédoublement points/halos.
 
-⚠️ Le harnais demande Vite 1421 + la fenêtre CDP : ne pas le lancer tant que
-la session du ticket 11 tient l'app (dev.ps1 tue tout `shaderlab` par nom).
+Gate vérifié sur les trois effets : voie B identité byte-identique au témoin.
 
 ## Plan de tranches (après verdict d'Antoine sur la planche)
 

@@ -1,0 +1,14 @@
+{
+  "lightLeak": {
+    "moyenne": 83.77,
+    "ecartType": 82.72
+  },
+  "texture": {
+    "moyenne": 130.19,
+    "ecartType": 35.33
+  },
+  "glow": {
+    "moyenne": 8.19,
+    "ecartType": 9.79
+  }
+}

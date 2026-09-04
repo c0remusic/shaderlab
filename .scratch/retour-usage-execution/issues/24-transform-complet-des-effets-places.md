@@ -38,7 +38,11 @@ Un light leak n'a pas de largeur déclarée : l'étirer étire son CHAMP rendu.
       comptés sur les 26 modules), aucune voie générique parfaite pour les
       trois. Reco : voie B (transformer l'UV d'entrée de `fs_main`), champ
       `effectTransform` neuf sur `LayerState`, identité au bit près.
-- [ ] Prototype jetable des deux voies sur un light leak (+ `texture` et
-      `glow` en pire cas), jugé par Antoine — protocole dans le cadrage.
-      ⚠️ Attend que la fenêtre app soit libre (ticket 11 en cours).
+- [x] Prototype jetable RENDU (2026-09-04) : planche
+      `../assets/planche-24-transform.html` — 3 effets × 2 voies × 3 états,
+      crops 1:1 glow, mesures par vignette. Voie B parfaite sur champ pur,
+      dédoublement voie A visible partout. ⚠️ Prémisse du cadrage corrigée
+      sur pièce : `composeShader` enveloppe CHAQUE passe — la voie B réelle
+      se gate sur `opts.applyMask` (variant mesuré : halo glow préservé).
+      **Reste le verdict d'Antoine sur la planche.**
 - [ ] Plan de tranches validé, puis code.

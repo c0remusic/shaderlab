@@ -29,9 +29,16 @@ Un light leak n'a pas de largeur déclarée : l'étirer étire son CHAMP rendu.
 
 **Blocked by:** None pour le cadrage. Le code attend le cadrage.
 
-**Status:** ready-for-agent (cadrage d'abord — un plan, pas du code)
+**Status:** ready-for-human (cadrage écrit, prototype à rendre — verdict d'Antoine sur planche)
 **Type:** research
 
-- [ ] Cadrage écrit : où vit le scale, ce qu'il compose, ce qu'il coûte.
-- [ ] Prototype jetable des deux voies sur un light leak, jugé par Antoine.
+- [x] Cadrage écrit : où vit le scale, ce qu'il compose, ce qu'il coûte —
+      `../research/24-transform-cadrage.md` (2026-09-04). Fait central mesuré :
+      trois classes d'effets (champ pur / ponctuel / lecteurs d'image, taps
+      comptés sur les 26 modules), aucune voie générique parfaite pour les
+      trois. Reco : voie B (transformer l'UV d'entrée de `fs_main`), champ
+      `effectTransform` neuf sur `LayerState`, identité au bit près.
+- [ ] Prototype jetable des deux voies sur un light leak (+ `texture` et
+      `glow` en pire cas), jugé par Antoine — protocole dans le cadrage.
+      ⚠️ Attend que la fenêtre app soit libre (ticket 11 en cours).
 - [ ] Plan de tranches validé, puis code.

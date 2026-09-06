@@ -52,7 +52,12 @@
 
 .effect-picker__body {
   display: flex;
-  align-items: flex-start;
+  /* PAS de align-items: flex-start ici : en flex ROW, un item non étiré prend
+     sa hauteur de CONTENU — la liste montait à sa hauteur pleine (mesuré :
+     903 px dans un corps de 212), clippée par l'overflow du popup, et ne
+     défilait plus. L'étirement par défaut borne la liste à la hauteur du
+     corps, ce qui rend son overflow-y opérant ; l'aperçu, lui, garde son
+     alignement haut par align-self. */
   gap: var(--space-2);
   /* Reprend le `mt-1` que portait la liste avant que le corps existe. */
   margin-top: var(--space-2);
@@ -69,6 +74,7 @@
 
 .effect-picker__preview {
   display: flex;
+  align-self: flex-start;
   flex: 0 0 auto;
   flex-direction: column;
   gap: var(--space-1);

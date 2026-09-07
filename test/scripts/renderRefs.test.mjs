@@ -584,6 +584,9 @@ const ATTENDU = {
   "effet-verre-arc-plein.png": { width: 256, height: 256, valeurs: null },
   "effet-verre-prisme.png": { width: 256, height: 256, valeurs: null },
   "effet-verre-fond-plat.png": { width: 256, height: 256, valeurs: null },
+  // DOSE DE REFLET STRUCTURE (matcap optionnel, index 14) a 1 — gele le pole
+  // dose 1 ; les treize autres verre gelent le pole dose 0 (defaut). 2026-09-07.
+  "effet-verre-matcap.png": { width: 256, height: 256, valeurs: null },
   // COURBES : identite GPU sur rampe, puis S-curve + dominante rouge mesuree
   // contre cette identite. Deux references separent la neutralite du signal.
   "effet-courbes-neutre.png": { width: 256, height: 256, valeurs: null },

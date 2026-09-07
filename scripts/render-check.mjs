@@ -2764,6 +2764,29 @@ const INSTALL = `(async () => {
       },
     },
 
+    // REFLET STRUCTURE (matcap optionnel, index 14). Meme mire, memes params que
+    // effet-verre-cannele au bit pres, SAUF matcap a 1. L ecart entre les deux
+    // images EST donc la contribution du matcap seule, isolee du reste : a dose 0
+    // (le defaut, donc effet-verre-cannele) le reflet est la couleur fixe d avant,
+    // a dose 1 c est la sphere d environnement lue par la normale. Cette reference
+    // GELE le pole dose 1 ; le pole dose 0 est gele par les treize autres, qui
+    // toutes tournent au defaut. Sur le cannele les normales varient, donc F et le
+    // matcap structurent le reflet et l ecart est franc.
+    "effet-verre-matcap": {
+      contre: "effet-verre-cannele",
+      build: async (r, stack) => {
+        const m = await mireVerre(W, H);
+        const sourceId = await r.photoSources.register(m);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "verre");
+        const a = stack.addLayer("glass", p);
+        stack.updateParams(a, {
+          material: 0, density: 28, depth: 0.55, profile: 0, flat: 0, fillet: 0.12,
+          orientation: 0, irregularity: 0, grain: 0.2, thickness: 0.16,
+          specular: 0.35, dispersion: 0.4, diffusion: 0.03, relief: 1, matcap: 1,
+        });
+      },
+    },
+
     // TRANCHE 2 DU VERRE : les cinq paves avaient leurs cinq scenarios ici, sur
     // la meme mire et avec le meme bloc, chaines par contre pour qu'aucune de
     // leurs branches ne puisse converger en silence. Elles sont RETIREES le

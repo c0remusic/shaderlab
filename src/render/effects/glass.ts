@@ -112,17 +112,21 @@ import { SRGB_TO_LINEAR_VEC3_WGSL, SRGB_TO_LINEAR_WGSL } from "./srgbTransfer";
  *   choisit à l'œil). Décodé vers le linéaire avant mélange, comme l'encre de
  *   `duotone` et le fond d'`outlines`.
  *
- *   ⚠️ CE N'EST PLUS UNE COULEUR FIXE depuis le 2026-08-27, mais un MATCAP
- *   PROCÉDURAL — une sphère d'environnement évaluée par la NORMALE (ambiance +
- *   source large + lobe d'appoint), voie B du ticket 17, choisie par Antoine sur
- *   planche de prototypes. La règle de conversion, elle, ne bouge pas : les
- *   trois tons du matcap sont décodés un par un avant d'entrer dans le mélange.
- *   Ce que ça corrige : une réflectance quasi uniforme (le Poli, dont la normale
- *   ne s'incline que de 2,14°) multipliée par un environnement uniforme ne
- *   pouvait rendre qu'un voile plat — le gel était dans la couleur, pas dans la
- *   rampe de Schlick (constat du ticket 16). Le mélange reste modulé par `F`, le
- *   facteur `0,55` et le Blinn-Phong sont inchangés : une seule évolution du
- *   chemin verre à la fois.
+ *   ⚠️ CE REFLET EST UNE DOSE depuis le 2026-09-07 (`matcap`, index 14, défaut
+ *   0), et l'histoire compte pour comprendre le défaut. Du 2026-08-27 au
+ *   2026-09-07 la couleur fixe avait été REMPLACÉE par un MATCAP PROCÉDURAL —
+ *   une sphère d'environnement évaluée par la NORMALE (ambiance + source large +
+ *   lobe d'appoint), voie B du ticket 17. Antoine, sur la chronologie du verre,
+ *   a préféré le rendu d'AVANT : le matcap redevient donc optionnel et se MÉLANGE
+ *   à la couleur fixe par la dose — dose 0 = la couleur fixe seule (le rendu
+ *   d'avant, au bit près), dose 1 = le matcap seul. La règle de conversion ne
+ *   bouge pas : les deux pôles sont décodés vers le linéaire avant mélange. Ce
+ *   que le matcap corrige quand on le dose : une réflectance quasi uniforme (le
+ *   Poli, dont la normale ne s'incline que de 2,14°) multipliée par un
+ *   environnement uniforme ne rendait qu'un voile plat — le gel était dans la
+ *   couleur, pas dans la rampe de Schlick (constat du ticket 16). Le mélange
+ *   final reste modulé par `F`, le facteur `0,55` et le Blinn-Phong sont
+ *   inchangés : la dose ne touche que ce qui est réfléchi.
  *
  * ─── COÛT ───────────────────────────────────────────────────────────────────
  *
@@ -297,12 +301,16 @@ export const glass: EffectModule = {
     { name: "dispersion", label: "Dispersion", unit: "percent", min: 0, max: 1, default: 0.25, step: 0.01, hint: "Frange colorée aux endroits inclinés — le verre ne dévie pas toutes les longueurs d'onde pareil. Nulle sur les parties planes, par construction : c'est l'INDICE qui varie, pas le déplacement" },
     { name: "diffusion", label: "Diffusion", unit: "percent", min: 0, max: 1, default: 0.08, step: 0.005, hint: "Étalement de la lecture — le verre translucide au lieu du verre transparent. C'est le réglage principal du Dépoli, qui ne déforme rien et ne fait que ça" },
     { name: "relief", label: "Présence du relief", unit: "percent", min: 0, max: 1, default: 1, step: 0.01, hint: "N'atténue QUE la déviation de l'image : reflets, absorption et spéculaire restent à pleine force. À 0, une dalle plane qui brille encore — ce qu'on ne peut pas obtenir en baissant le Creux, qui éteint la matière en même temps que la déformation" },
-    // ⚠️ LA LISTE S'ARRÊTE ICI, ET C'EST LE POINT LE PLUS UTILE DU RETRAIT.
-    // Huit réglages de PAVÉ (`blockSize`, `mortar`, `mortarHue`,
-    // `mortarLightness`, `edgeDepth`, `edgeWidth`, `bevel`, `inner`) occupaient
-    // les index 14 à 21 — les huit DERNIERS. Les retirer (ADR-0021) ne déplace
-    // donc aucun des quatorze index qui restent, et c'est ce qui rend le retrait
-    // neutre au bit près pour les treize références de la feuille.
+    // DOSE DE REFLET STRUCTURÉ, index 14, AJOUTÉ EN FIN LE 2026-09-07 (verdict
+    // d'Antoine sur chronologie du verre : il préfère le rendu d'AVANT le matcap,
+    // `30dfd5b`). Le matcap procédural cesse d'être imposé — il devient une dose
+    // qui interpole ENTRE la couleur de reflet fixe d'avant (dose 0) et la sphère
+    // d'environnement évaluée par la normale (dose 1). Défaut 0 : le rendu par
+    // défaut redevient exactement celui d'avant-matcap, au bit près, et c'est le
+    // point de la décision. Pas d'`appliesWhen` : le Fresnel qui module ce mélange
+    // vaut sur TOUTES les matières, plane comprise. Index 14 = les huit ex-PAVÉ
+    // (ADR-0021) libéraient la fin de liste, donc aucun index historique ne bouge.
+    { name: "matcap", label: "Reflet structuré", unit: "percent", min: 0, max: 1, default: 0, step: 0.01, hint: "Dose de reflet qui SUIT le relief de la surface. À 0, le reflet du verre est un ton clair uniforme (le rendu d'origine) ; monté, une sphère d'environnement lue par la normale prend sa place, qui structure le reflet sur le micro-relief et les flancs au lieu d'un voile plat. Le Fresnel module l'ensemble dans les deux cas — le curseur ne change que ce qui est réfléchi, pas la force du reflet" },
   ],
   /**
    * DEUX SECTIONS, ET ELLES SUIVENT UNE FRONTIÈRE DU SHADER.
@@ -323,12 +331,14 @@ export const glass: EffectModule = {
    * différentes (une propriété mesurée du shader d'un côté, une décision
    * d'affichage de l'autre). C'est un précédent qui reste valable.
    *
-   * CE QUE ÇA CHANGE POUR QUI S'EN SERT : en Poli, sept des quatorze curseurs
-   * sont sans objet. La liste plate les montrait tous.
+   * CE QUE ÇA CHANGE POUR QUI S'EN SERT : en Poli, sept des quinze curseurs
+   * sont sans objet. La liste plate les montrait tous. (Le quinzième, `matcap`,
+   * ajouté le 2026-09-07, n'a aucune condition : le Fresnel qu'il module vaut
+   * partout.)
    *
    * ⚠️ AUCUN RÉORDONNANCEMENT — l'index d'un paramètre est persisté dans les
    * presets. Les deux sections sont deux blocs CONTIGUS de `params[]` (0..8,
-   * 9..13) dans leur ordre d'origine, ce qui est la condition posée par
+   * 9..14) dans leur ordre d'origine, ce qui est la condition posée par
    * `groupEffectParams` : il s'appuie sur l'ordre du tableau en deux endroits
    * (`spatialFirstIndex`, `firstIndexByKey`), donc une section déplace un bloc
    * entier et ne le traverse jamais.
@@ -347,7 +357,7 @@ export const glass: EffectModule = {
       id: "optique",
       label: "Optique",
       layout: "liste",
-      params: ["thickness", "specular", "dispersion", "diffusion", "relief"],
+      params: ["thickness", "specular", "dispersion", "diffusion", "relief", "matcap"],
     },
   ],
   wgsl: `
@@ -749,6 +759,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let disp = clamp(params[11], 0.0, 1.0);
   let diffusion = max(params[12], 0.0);
   let relief = clamp(params[13], 0.0, 1.0);
+  let dose = clamp(params[14], 0.0, 1.0);
 
   // NORMALE de la surface, depuis la pente. \`z = 1\` : la pente est une dérivée,
   // donc le vecteur (-dh/dx, -dh/dy, 1) est normal au graphe de la hauteur.
@@ -872,9 +883,17 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // fabrique vient du bord (Fresnel) et du micro-relief, jamais de la couleur
   // d'environnement — laquelle, uniforme, ne peut rendre qu'un aplat.
   //
-  // AUCUN PARAMETRE NOUVEAU : le matcap est fonction de N seule, en ALU pur, et
-  // ses trois tons restent PERCEPTUELS — decodes vers le lineaire avant melange,
-  // exactement comme la couleur fixe qu'ils remplacent, comme l'encre de duotone.
+  // ⚠️ LE MATCAP EST OPTIONNEL DEPUIS LE 2026-09-07, ET C'EST UNE DOSE (params[14],
+  // defaut 0). Verdict d'Antoine sur la chronologie du verre : il prefere le rendu
+  // d'AVANT le matcap. Le matcap ne remplace donc plus la couleur fixe, il est
+  // MELANGE avec elle par \`dose\` — dose 0 rend exactement le mix d'avant (la
+  // couleur fixe seule, au bit pres), dose 1 le matcap seul, entre les deux un
+  // fondu. C'est \`reflet\` qui porte ce fondu, et le \`mix\` vers \`c\` par F * 0.55
+  // est inchange : la dose ne touche QUE ce qui est reflechi, pas la force du
+  // reflet. Les trois tons du matcap restent PERCEPTUELS (decodes vers le lineaire
+  // avant melange), comme la couleur fixe et comme l'encre de duotone. Le matcap
+  // reste fonction de N seule, en ALU pur, zero lecture de texture — il est evalue
+  // meme a dose 0, mais son cout est negligeable (voir en-tete COUT).
   let key = pow(clamp(dot(N, normalize(vec3<f32>(-0.45, -0.55, 0.70))), 0.0, 1.0), 3.0);
   // ⚠️ CE SECOND LOBE S'EST APPELE \`rim\` jusqu'au 2026-09-02, ET CE N'ETAIT PAS
   // UN RIM. Un rim rasant est fonction de 1 - N.z : nul de face, maximal au
@@ -887,7 +906,10 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let env = srgb_to_linear3(vec3<f32>(0.42, 0.44, 0.48))
     + srgb_to_linear3(vec3<f32>(1.0, 0.99, 0.94)) * key * 0.9
     + srgb_to_linear3(vec3<f32>(0.75, 0.82, 0.95)) * appoint * 0.5;
-  c = mix(c, env, F * 0.55);
+  // COULEUR FIXE D'AVANT LE MATCAP (30dfd5b^), telle quelle : c'est le pole dose 0.
+  let couleurFixe = srgb_to_linear3(vec3<f32>(0.86, 0.89, 0.95));
+  let reflet = mix(couleurFixe, env, dose);
+  c = mix(c, reflet, F * 0.55);
 
   // SPÉCULAIRE. Blinn-Phong à exposant élevé : un point serré sur les flancs
   // orientés vers la source, pas un voile. C'est une ÉMISSION, donc une

@@ -18,15 +18,17 @@ import { getEffect, effectRegistry } from "../../../src/render/effects/registry"
 const wgsl = glass.wgsl;
 
 describe("glass — la surface de contrôle", () => {
-  it("déclare quatorze paramètres, les huit de pavé retirés PAR LA FIN", () => {
+  it("déclare quinze paramètres, matcap AJOUTÉ EN FIN et les huit de pavé retirés PAR LA FIN", () => {
     // LE POINT QUI REND LE RETRAIT NEUTRE. Les huit réglages de pavé occupaient
     // les index 14 à 21, les huit DERNIERS : les retirer ne déplace donc aucun
-    // des quatorze qui restent, ni dans les presets, ni dans le tableau
-    // `params` du shader, ni dans les treize références de pixels.
+    // des quatorze qui restaient. `matcap` (dose du reflet structuré, 2026-09-07)
+    // reprend l'index 14 libéré — ajouté EN FIN, il ne déplace non plus aucun
+    // index, ni dans les presets, ni dans le tableau `params` du shader, ni dans
+    // les treize références de pixels de la feuille (elles tournent au défaut 0).
     expect(glass.params.map((p) => p.name)).toEqual([
       "material", "density", "depth", "profile", "flat", "fillet",
       "orientation", "irregularity", "grain", "thickness",
-      "specular", "dispersion", "diffusion", "relief",
+      "specular", "dispersion", "diffusion", "relief", "matcap",
     ]);
   });
 
@@ -135,7 +137,7 @@ describe("glass — la surface de contrôle", () => {
     expect(wgsl).toContain("let rainure = mix(0.06, 0.40, 1.0 - plat);");
   });
 
-  it("range ses quatorze réglages en deux sections, sans toucher à params[]", () => {
+  it("range ses quinze réglages en deux sections, sans toucher à params[]", () => {
     // Les sections sont une donnée d'AFFICHAGE : l'index d'un paramètre est
     // persisté dans les presets. Ce qui se vérifie ici est que les deux
     // sections sont deux blocs CONTIGUS de `params[]` dans son ordre d'origine
@@ -293,12 +295,12 @@ describe("glass — l'optique, et ce qui la sépare d'un portage naïf", () => {
     // multiplie du linéaire tel quel. Ce que le reflet de Fresnel RÉFLÉCHIT est
     // choisi à l'œil : décodé avant mélange, comme l'encre de duotone.
     //
-    // ⚠️ CE N'EST PLUS UNE COULEUR FIXE depuis le 2026-08-27 (ticket 17, voie B
-    // — matcap procédural), donc l'assertion ne cite plus `vec3(0.86, 0.89,
-    // 0.95)`. Elle vérifie que CHAQUE ton de l'environnement passe par
-    // `srgb_to_linear3` et qu'aucun littéral brut n'entre dans le mélange :
-    // geler les trois valeurs interdirait de RÉGLER le matcap, ce que le ticket
-    // laisse ouvert. Ce que ce test protège est la CONVERSION, pas le ton.
+    // ⚠️ LE REFLET EST UNE DOSE depuis le 2026-09-07 (`matcap`, index 14, défaut
+    // 0). Il MÉLANGE deux pôles : la couleur fixe d'avant le matcap (dose 0) et
+    // le matcap procédural `env` (dose 1). Les DEUX sont perceptuels et décodés
+    // avant mélange — c'est ce que ce test protège, la CONVERSION, pas les tons.
+    // À dose 0 le mélange final vers `c` retombe exactement sur la couleur fixe
+    // seule, donc sur le rendu d'avant le matcap : c'est le point de la décision.
     expect(wgsl).toContain("exp(-trajet * vec3<f32>(0.055, 0.018, 0.042))");
 
     const env = wgsl.match(/ {2}let env =[\s\S]*?;\n/)?.[0];
@@ -308,7 +310,12 @@ describe("glass — l'optique, et ce qui la sépare d'un portage naïf", () => {
     for (const ton of tons) {
       expect(env).toContain(`srgb_to_linear3(${ton})`);
     }
-    expect(wgsl).toContain("c = mix(c, env, F * 0.55);");
+    // La couleur fixe (pôle dose 0) est décodée elle aussi, comme avant le matcap.
+    expect(wgsl).toContain("let couleurFixe = srgb_to_linear3(vec3<f32>(0.86, 0.89, 0.95));");
+    // Le matcap n'est plus imposé : il entre par une dose, et c'est `reflet` qui
+    // porte le fondu entre les deux pôles avant le mélange final modulé par F.
+    expect(wgsl).toContain("let reflet = mix(couleurFixe, env, dose);");
+    expect(wgsl).toContain("c = mix(c, reflet, F * 0.55);");
   });
 
   it("n'atténue que la DÉVIATION quand la présence du relief baisse", () => {

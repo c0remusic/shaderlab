@@ -47,6 +47,35 @@ export interface LayerTransform {
   rotation: number;
 }
 
+/** Étirement/aplatissement du RENDU d'un calque d'EFFET placé (ticket 24,
+ *  « déplacer PUIS étirer » — le geste Photoshop sur un calque d'effet). Voie B
+ *  du cadrage : la déformation transforme l'UV d'entrée de `fs_main` sur la
+ *  passe de compositing, elle ne re-échantillonne pas la sortie.
+ *
+ *  ⚠️ **DISTINCT de `LayerTransform`, et ce n'en est pas un doublon.**
+ *  `LayerTransform` est contractuellement couplé à `imageSource` (photo,
+ *  toujours présents ensemble ou absents ensemble) et s'exprime en PIXELS de la
+ *  photo de fond ; celui-ci vit sur un calque d'EFFET et s'exprime en FRACTIONS
+ *  du repère de l'effet — l'ancre de la déformation est la position de l'effet
+ *  (rôles `x`/`y` de `controlFieldRoles`), centre de toile pour un effet sans
+ *  ancrage. La translation reste dans les params (ticket 20) : ce scale déforme
+ *  le repère AUTOUR de la position, il ne la réécrit pas.
+ *
+ *  `scaleX`/`scaleY` sont des fractions (1 = identité). L'identité (les deux à
+ *  1) N'EST PAS émise par le moteur : sans transform actif, la chaîne WGSL
+ *  composée reste byte-identique et le pipeline est inchangé.
+ *
+ *  Champs SCALAIRES : présent par construction dans chaque snapshot
+ *  d'historique (survie à l'undo), aucun raster, aucun risque pour l'invariant
+ *  OOM. Extensible EN FIN (une `rotation?` plus tard, comme `LayerTransform`),
+ *  jamais au milieu — aucun index n'est persisté ici, mais la règle « au bout »
+ *  garde la lecture prévisible. Exclu des presets, comme `transform`
+ *  (`presetTypes.ts`). */
+export interface EffectTransform {
+  scaleX: number;
+  scaleY: number;
+}
+
 export interface LayerState {
   id: string;
   effectId: string;
@@ -67,6 +96,12 @@ export interface LayerState {
    *  jamais l'un sans l'autre). */
   imageSource?: ImageSourceRef;
   transform?: LayerTransform;
+  /** Étirement/aplatissement du rendu d'un calque d'EFFET placé (ticket 24).
+   *  Voir `EffectTransform` : distinct de `transform` (photo, en pixels), en
+   *  fractions du repère de l'effet. Absent = identité, et le moteur n'émet
+   *  alors AUCUN bloc de transformation (chaîne WGSL byte-identique). Gelé par
+   *  le verrou de POSITION, comme la géométrie et le `transform` photo. */
+  effectTransform?: EffectTransform;
   /** Nom affiché du calque (parité calque photo, T1). Générique — pas
    *  réservé aux calques photo : l'affichage retombe sur le nom de l'effet
    *  quand il est absent (`LayerPanel`). Alimenté par le basename du fichier

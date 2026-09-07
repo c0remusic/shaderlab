@@ -1,3 +1,4 @@
+import { conditionRemplie } from "./displayCondition";
 import type { CanvasControl, EffectModule } from "./types";
 
 /**
@@ -84,4 +85,43 @@ export function spatialParamNames(controls: readonly CanvasControl[] | undefined
 /** Raccourci depuis un module d'effet. */
 export function effectSpatialParams(effect: EffectModule | null | undefined): string[] {
   return spatialParamNames(effect?.canvasControls);
+}
+
+/**
+ * L'ANCRE de la déformation d'un `effectTransform` (ticket 24), en FRACTIONS du
+ * cadre : la POSITION de l'effet quand il en a une, le centre de toile sinon.
+ *
+ * C'est le point FIXE de l'étirement — `uvT = (uv - ancre) * inv + ancre`. Le
+ * cadrage l'a tranché : le scale déforme le repère de l'effet AUTOUR de sa
+ * position (ticket 20), il ne la réécrit pas. La position se lit sur les rôles
+ * `x`/`y` de `controlFieldRoles`, seule énumération du dépôt — jamais devinée au
+ * nom.
+ *
+ * MÊME RÉSOLUTION QUE `ui/effectMove.ts` : valeur du calque, sinon défaut du
+ * paramètre, et un contrôle dont le `visibleWhen` n'est pas rempli est SAUTÉ —
+ * ancrer sur un point que l'utilisateur ne voit pas déformerait autour d'un lieu
+ * invisible. On prend le PREMIER `x` et le PREMIER `y` visibles ; un axe seul
+ * (`motionBlur` directionnel) n'a ni l'un ni l'autre, d'où le repli au centre.
+ *
+ * Pur, sans dépendance render/ui : appelé par `EffectPassRunner` pour remplir
+ * l'uniform du binding 8.
+ */
+export function resolveEffectAnchor(
+  effect: Pick<EffectModule, "canvasControls" | "params">,
+  values: Readonly<Record<string, number>>,
+): { x: number; y: number } {
+  const controls = effect.canvasControls;
+  if (!controls?.length) return { x: 0.5, y: 0.5 };
+  const resolues: Record<string, number> = {};
+  for (const param of effect.params) resolues[param.name] = values[param.name] ?? param.default;
+  let x: number | null = null;
+  let y: number | null = null;
+  for (const control of controls) {
+    if (control.visibleWhen && !conditionRemplie(control.visibleWhen, resolues)) continue;
+    for (const [nom, role] of controlFieldRoles(control)) {
+      if (role === "x" && x === null) x = resolues[nom] ?? 0.5;
+      else if (role === "y" && y === null) y = resolues[nom] ?? 0.5;
+    }
+  }
+  return { x: x ?? 0.5, y: y ?? 0.5 };
 }

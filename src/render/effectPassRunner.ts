@@ -2,6 +2,7 @@ import type { LayerState } from "../layers/types";
 import { getBlendMode } from "./blend/registry";
 import type { GpuTiming } from "./gpuTiming";
 import type { EffectModule } from "./effects/types";
+import { resolveEffectAnchor } from "./effects/spatialParams";
 import { MAX_EFFECT_PARAMS, composeShader, FULLSCREEN_VERTEX_WGSL } from "./shaderCompose";
 
 export const PASSTHROUGH_EFFECT: EffectModule = {
@@ -353,13 +354,34 @@ export class EffectPassRunner {
     // `textureDimensions` (voir `EffectModule.libraryTexture`).
     const hasLibraryTexture = effect.libraryTexture !== undefined;
     const libraryView = hasLibraryTexture ? (libraryTextureView ?? this.libraryPlaceholderView()) : null;
-    const shaderCode = composeShader(effect.wgsl, { applyMask, hasPrevPass: prevPassView !== null, hasImageSource, hasLibraryTexture, blendWgsl: applyMask ? blendMode.wgsl : undefined });
+    // ÉTIREMENT DU RENDU (ticket 24, voie B). Seulement sur la passe de
+    // compositing (`applyMask`) — les passes internes restent au repère identité
+    // (déformer les pyramides les effondre, mesuré par le prototype). Et
+    // seulement NON identité : à l'identité, rien n'est émis et la chaîne
+    // composée reste byte-identique — le gate discriminant du chemin identité.
+    const et = layer.effectTransform;
+    const hasEffectTransform =
+      applyMask && et !== undefined && (et.scaleX !== 1 || et.scaleY !== 1);
+    const shaderCode = composeShader(effect.wgsl, { applyMask, hasPrevPass: prevPassView !== null, hasImageSource, hasLibraryTexture, hasEffectTransform, blendWgsl: applyMask ? blendMode.wgsl : undefined });
     let compositingBuffer: GPUBuffer | null = null;
     if (applyMask) {
       const compositing = new Float32Array([layer.opacity ?? 1, 0, 0, 0]);
       compositingBuffer = this.device.createBuffer({ size: compositing.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
       this.device.queue.writeBuffer(compositingBuffer, 0, compositing);
       pendingDestroy.push(compositingBuffer);
+    }
+    // Binding 8 : `vec4(1/scaleX, 1/scaleY, ancreX, ancreY)`. L'échelle INVERSE
+    // parce que le shader échantillonne `fs_main` au point d'où vient le pixel
+    // (`uvT = (uv - ancre) * inv + ancre`) : étirer le champ ×2 comprime le
+    // domaine d'échantillonnage ÷2. L'ancre est la position de l'effet (rôles
+    // `x`/`y`), centre de toile pour un effet sans ancrage.
+    let transformBuffer: GPUBuffer | null = null;
+    if (hasEffectTransform) {
+      const ancre = resolveEffectAnchor(effect, layer.params);
+      const data = new Float32Array([1 / et!.scaleX, 1 / et!.scaleY, ancre.x, ancre.y]);
+      transformBuffer = this.device.createBuffer({ size: data.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      this.device.queue.writeBuffer(transformBuffer, 0, data);
+      pendingDestroy.push(transformBuffer);
     }
 
     let cached = this.pipelineCache.get(shaderCode);
@@ -375,6 +397,7 @@ export class EffectPassRunner {
       if (applyMask) layoutEntries.push({ binding: 5, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } });
       if (applyMask && coverageView) layoutEntries.push({ binding: 6, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
       if (hasLibraryTexture) layoutEntries.push({ binding: 7, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
+      if (hasEffectTransform) layoutEntries.push({ binding: 8, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } });
       const bindGroupLayout = this.device.createBindGroupLayout({ entries: layoutEntries });
       const pipeline = this.device.createRenderPipeline({
         layout: this.device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
@@ -409,6 +432,7 @@ export class EffectPassRunner {
     if (applyMask && compositingBuffer) entries.push({ binding: 5, resource: { buffer: compositingBuffer } });
     if (applyMask && coverageView) entries.push({ binding: 6, resource: coverageView });
     if (libraryView) entries.push({ binding: 7, resource: libraryView });
+    if (transformBuffer) entries.push({ binding: 8, resource: { buffer: transformBuffer } });
     const bindGroup = this.device.createBindGroup({ layout: cached.bindGroupLayout, entries });
     const pass = encoder.beginRenderPass({
       colorAttachments: [{ view: targetView, loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 } }],

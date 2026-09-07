@@ -1,7 +1,9 @@
 # Textures livrées avec l'application
 
 Ce dossier est empaqueté dans le build (`bundle.resources` de
-`tauri.conf.json`). Il sert de **jeu de départ minimal**, et rien d'autre.
+`tauri.conf.json`). Il porte le **pack de départ CC0 curé** — les fichiers
+`sl-*.jpg`, seuls fichiers image versionnés ici (ticket 09, voir plus bas et
+`LICENSES.md`) — et rien d'autre.
 
 ## ⚠️ Ce dossier n'est PAS la bibliothèque
 
@@ -29,8 +31,14 @@ part dans l'installateur : tout ce qu'il contient est REDISTRIBUÉ.
 
 | Source | Licence | Résolution |
 | --- | --- | --- |
+| [Texture Ninja](https://texture.ninja/) | CC0 1.0, usage commercial, sans attribution | scans photo variés — **source du pack `sl-*` livré** |
 | [ambientCG](https://ambientcg.com/) | CC0 1.0, usage commercial, sans attribution | jusqu'à 8K, JPG et PNG |
 | [Poly Haven](https://polyhaven.com/license) | CC0 | 8K minimum |
+
+Le pack `sl-*` vient **entièrement de Texture Ninja** (scans photographiques, à
+lumière cuite — le contraire des albédos PBR plats d'ambientCG/Poly Haven, qui
+rendent un aplat en overlay ; recherche 08 §0.3). Provenance par fichier,
+mesure de relief et URL source : `LICENSES.md`.
 
 ⚠️ **Un pack payant ne va jamais ici** — Fox Rockett Surface Supply, True Grit
 Texture Supply, RetroSupply et les autres se vendent avec une licence
@@ -45,15 +53,33 @@ Le jeu téléchargé ne contient que des `*_Color.jpg`, extraits par requêtes H
 Range depuis les zips (ambientCG ne sert pas les cartes à l'unité — vérifié) :
 2,64 Go tirés au lieu des ~15 Go qu'auraient pesé les zips complets.
 
-## Pourquoi les images ne sont pas versionnées
+## Ce qui est versionné, ce qui ne l'est pas
 
-Le `.gitignore` de ce dossier exclut les images. Un scan 8K pèse de 30 à 100 Mo
-en JPEG ; git ne sait ni compresser ni différencier du binaire, et l'historique
-enflerait définitivement.
+Le `.gitignore` de ce dossier exclut les images **par défaut** (`*.jpg`, etc.) :
+un scan 8K pèse de 30 à 100 Mo en JPEG, git ne sait ni compresser ni différencier
+du binaire, et l'historique enflerait définitivement. Un drop 8K ad hoc reste
+donc ignoré.
 
-Conséquence assumée : **un dépôt fraîchement cloné n'a aucune image**, ici comme
-dans `Images/shaderlab-textures`. Le panneau le dit et invite à désigner un
-dossier — il ne prétend pas qu'il n'y a rien à voir.
+**Exception, une seule : le pack `sl-*`** (ticket 09). Ce sont des 2K ré-encodés
+(~1 Mo pièce, ~20 Mo au total), ré-inclus par des négations `!sl-*.jpg` dans le
+`.gitignore`. Ils SONT versionnés parce qu'un clone frais — et l'installateur —
+doit partir avec des textures (« il faudrait qu'on ait des textures déjà
+chargées », Antoine). Le seuil qui justifiait l'exclusion (un 8K de 30-100 Mo) ne
+s'applique pas à un starter 2K léger.
+
+Hors ce pack, la conséquence reste la même : **un dépôt cloné n'a aucune AUTRE
+image**, ici comme dans `Images/shaderlab-textures`. Le panneau le dit et invite à
+désigner un dossier — il ne prétend pas qu'il n'y a rien à voir.
+
+## Rang et presets — pourquoi le préfixe `sl-NN`
+
+L'effet `Texture` (et `displacementMap`) ne mémorise pas un nom de fichier mais un
+**RANG dans le catalogue trié** (`textureLibraryStore.ts`), et ce rang est
+persisté dans les presets. `list_texture_files` trie les chemins par ordre
+lexicographique. Le préfixe numéroté zéro-padé (`sl-01`, `sl-02`, …) fixe donc un
+ordre déterministe ET permet d'AJOUTER une texture en fin (`sl-20`, …) sans
+décaler le rang des existantes. Ne pas renuméroter les fichiers déjà livrés :
+un preset enregistré désignerait alors une autre matière.
 
 ## Dimensions — la limite est dure, pas indicative
 

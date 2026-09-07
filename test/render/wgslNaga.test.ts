@@ -181,6 +181,24 @@ function variantes(): Variante[] {
       }),
     });
   }
+
+  // ── L'ÉTIREMENT DU RENDU (ticket 24, voie B) ────────────────────────────
+  //
+  // Même leçon que les modes de fusion : le chemin transform (binding 8 +
+  // `uvT`) n'apparaissait dans AUCUN shader composé de ce gate, donc naga ne
+  // validait jamais son WGSL. Un axe énuméré, l'autre figé. On compose donc une
+  // variante avec `hasEffectTransform`, sur le même support minimal (`grain` :
+  // ni passe interne ni texture de bibliothèque). Elle déclare aussi `params`,
+  // donc elle est tolérée comme toutes les autres — le compte global tient.
+  sortie.push({
+    nom: "transform composite",
+    source: composeShader(support.wgsl, {
+      applyMask: true,
+      hasPrevPass: false,
+      hasEffectTransform: true,
+      blendWgsl,
+    }),
+  });
   return sortie;
 }
 
@@ -232,6 +250,11 @@ describe("WGSL composé — validation statique par naga", () => {
   it("chaque mode de fusion a sa variante", () => {
     const noms = new Set(variantes().map((v) => v.nom));
     for (const m of blendRegistry) expect(noms.has(`fusion ${m.id}`), m.id).toBe(true);
+  });
+
+  it("l'étirement du rendu (transform) a sa variante", () => {
+    const noms = new Set(variantes().map((v) => v.nom));
+    expect(noms.has("transform composite")).toBe(true);
   });
 
   it("naga est installé", () => {

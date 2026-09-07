@@ -1,4 +1,4 @@
-import type { LayerLocks, LayerState, LayerTransform } from "./types";
+import type { EffectTransform, LayerLocks, LayerState, LayerTransform } from "./types";
 import { isMaskLocked, isPositionLocked, isStructureLocked, withLock } from "./layerLocks";
 import type { CanvasFrameState } from "./canvasFrame";
 import { defaultLayerMask, createBrushSource, createParametricSource } from "../mask/types";
@@ -388,6 +388,7 @@ export class LayerStack {
       },
       ...(source.imageSource === undefined ? {} : { imageSource: { ...source.imageSource } }),
       ...(source.transform === undefined ? {} : { transform: { ...source.transform } }),
+      ...(source.effectTransform === undefined ? {} : { effectTransform: { ...source.effectTransform } }),
       ...(source.name === undefined ? {} : { name: `${source.name} copie` }),
     };
     this.layers.splice(index + 1, 0, copy);
@@ -403,6 +404,36 @@ export class LayerStack {
     if (this.refuseGeometrie(id)) return false;
     if (layer.transform && paramsEqual(layer.transform, transform)) return false;
     layer.transform = transform;
+    return true;
+  }
+
+  /** Pose/actualise l'étirement du RENDU d'un calque d'effet placé
+   *  (`effectTransform`, ticket 24). Gelé par le verrou de POSITION, au même
+   *  titre que la géométrie et le `transform` d'un calque photo : sa définition
+   *  cite déjà le transform, et `refuseGeometrie` en est l'expression ici. La
+   *  MÊME règle est portée sur la porte `replaceLiveLayers` (`DocumentSession`),
+   *  seule que ce mutateur ne couvre pas sur un geste vivant.
+   *
+   *  Objet FRAIS (`{ ...transform }`) et jamais de mutation en place : `clone()`
+   *  copie les calques par spread shallow, donc `effectTransform` est partagé
+   *  par référence avec les snapshots d'historique. Le remplacer entièrement,
+   *  comme `updateLayerTransform` le fait pour `transform`, défait ce partage
+   *  sans réécrire aucun instantané.
+   *
+   *  S'applique à tout calque : sur un calque photo (passthrough) le champ est
+   *  inerte au rendu (le `fs_main` de passthrough ignore l'UV), donc aucune
+   *  garde « sauf photo » n'est nécessaire — le placement d'une photo passe par
+   *  `transform`, pas par ici.
+   *
+   *  Returns `true` iff `id` existe, n'est pas verrouillé en position, et la
+   *  valeur diffère réellement de l'actuelle (même discipline no-op que le reste
+   *  du fichier : pas d'entrée d'historique vide). */
+  setEffectTransform(id: string, transform: EffectTransform): boolean {
+    const layer = this.layers.find((l) => l.id === id);
+    if (!layer) return false;
+    if (this.refuseGeometrie(id)) return false;
+    if (layer.effectTransform && paramsEqual(layer.effectTransform, transform)) return false;
+    layer.effectTransform = { ...transform };
     return true;
   }
 

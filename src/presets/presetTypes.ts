@@ -1,7 +1,12 @@
 export const PRESET_SCHEMA_VERSION = 1;
 
 /** Sous-ensemble sérialisable de LayerState — délibérément SANS id/mask/
- *  imageSource/transform (design.md §3.1). */
+ *  imageSource/transform/effectTransform (design.md §3.1). C'est une LISTE
+ *  BLANCHE : `capture`/`apply` recopient champ par champ, donc tout champ absent
+ *  d'ici est exclu par construction. `effectTransform` (l'étirement d'un calque
+ *  d'effet placé, ticket 24) l'est pour la même raison que `transform` : c'est
+ *  un placement de session, pas une recette d'effet. Réversible plus tard par
+ *  ajout d'un champ, comme le reste. */
 export interface PresetLayer {
   effectId: string;
   params: Record<string, number>;

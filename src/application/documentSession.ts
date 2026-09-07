@@ -181,8 +181,10 @@ function fusionnerSousVerrous(
   const fusion: LayerState = { ...entrant };
 
   if (isPositionLocked(verrouille)) {
-    // La transform d'un calque photo, et les seuls paramètres spatiaux.
+    // La transform d'un calque photo, l'étirement d'un calque d'effet placé
+    // (`effectTransform`, ticket 24), et les seuls paramètres spatiaux.
     fusion.transform = verrouille.transform;
+    fusion.effectTransform = verrouille.effectTransform;
     if (geometryParams === undefined) {
       fusion.params = verrouille.params;
     } else if (geometryParams.length > 0) {

@@ -8,3 +8,12 @@
 *.JPG
 *.JPEG
 *.PNG
+
+# EXCEPTION : le pack de départ CC0 curé (ticket 09), préfixe `sl-`, EST
+# versionné. Ce sont des 2K ré-encodés (~1 Mo pièce, ~20 Mo au total), pas les
+# 8K que le bloc ci-dessus écarte — un clone frais DOIT partir avec ces
+# textures (« il faudrait qu'on ait des textures déjà chargées », Antoine).
+# Preuve de licence : LICENSES.md. Tout drop 8K ad hoc reste ignoré.
+!sl-*.jpg
+!sl-*.jpeg
+!sl-*.png

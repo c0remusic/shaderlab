@@ -100,6 +100,13 @@ const ATTENDU = {
   // en font une mesure et pas une intention.
   "effet-light-leak.png": { width: 256, height: 256, valeurs: null },
   "effet-light-leak-neutre.png": { width: 256, height: 256, valeurs: null },
+  // TRANSFORM DU RENDU (ticket 24, voie B) : le MÊME light leak qu'au-dessus,
+  // aplati sur l'axe Y (`effectTransform` scaleY 0.4). Son témoin est
+  // `effet-light-leak` — tout est identique par ailleurs, donc l'écart entre les
+  // deux images EST l'étirement, la mire qui le MONTRE. Le light leak est un
+  // effet de CHAMP, donc l'UV déformé aplatit la coulée elle-même, autour de la
+  // position de l'effet (origineX/Y), pas du centre.
+  "effet-transform-lightleak.png": { width: 256, height: 256, valeurs: null },
   // APLAT (2026-08-17), trois références pour trois propriétés distinctes.
   //
   // La paire rectangle/ellipse partage TOUTE sa géométrie : leur écart est donc

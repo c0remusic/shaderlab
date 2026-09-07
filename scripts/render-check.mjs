@@ -3185,6 +3185,39 @@ const INSTALL = `(async () => {
       },
     },
 
+    // TRANSFORM DU RENDU (ticket 24, voie B) : le MEME light leak, APLATI sur
+    // l axe Y (scaleY 0.4). Le temoin est \`effet-light-leak\` : tout est
+    // identique par ailleurs, donc l ecart entre les deux images EST
+    // l etirement, et rien d autre.
+    //
+    // CE QUE LA MIRE PEUT MONTRER, verifie avant d ecrire : le light leak est un
+    // effet de CHAMP (il ne lit aucun texel de l image en dessous), donc son UV
+    // deforme aplatit la coulee elle-meme, visiblement. L ancre est la position
+    // de l effet (origineX 1, origineY 0.32), pas le centre : la coulee se
+    // comprime vers cette ligne. Sur \`mireBokeh\` (essentiellement noire) et en
+    // Ecran, comme les deux references ci-dessus.
+    //
+    // ⚠️ PNG NON GENERE PAR CE COMMIT (un autre agent tient le harnais render).
+    // La session principale generera la reference et l entree ATTENDU tient deja
+    // sa place dans renderRefs.test.mjs.
+    "effet-transform-lightleak": {
+      contre: "effet-light-leak",
+      build: async (r, stack) => {
+        const points = await mireBokeh(W, H);
+        const sourceId = await r.photoSources.register(points);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "bokeh");
+        const a = stack.addLayer("lightLeak", p);
+        stack.updateParams(a, {
+          origineX: 1, origineY: 0.32, direction: 195, portee: 0.62,
+          largeur: 0.13, ouverture: 1.1, attenuation: 1.5,
+          intensite: 1.35, chaleur: 0.55,
+          irregularite: 0.38, echelleBruit: 5.5, graine: 0,
+        });
+        at(stack, a).blendMode = "screen";
+        at(stack, a).effectTransform = { scaleX: 1, scaleY: 0.4 };
+      },
+    },
+
     // ── APLAT : UNE COULEUR UNIE, BORNEE ──────────────────────────────────
     //
     // Trois scenarios pour trois proprietes distinctes, et le troisieme est le

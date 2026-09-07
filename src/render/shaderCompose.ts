@@ -89,6 +89,22 @@ export interface ComposeOptions {
    *  dessous. Il est parti avec lui (ADR-0020, 2026-08-21) — le binding, son
    *  nom neutre et le chemin `hasImageSource` restent, intacts. */
   hasLibraryTexture?: boolean;
+  /** Ce calque porte un `effectTransform` NON identité (ticket 24, voie B) : la
+   *  passe de COMPOSITING échantillonne `fs_main` à un UV déformé autour d'une
+   *  ancre, `effectInput` (le fond) restant échantillonné à l'UV identité.
+   *
+   *  N'a de sens QUE sur le chemin de compositing (`applyMask`) — le prototype
+   *  a montré qu'appliquer la déformation aux passes internes effondre les
+   *  pyramides (l'énergie sort du cadre à chaque niveau). Ignoré quand
+   *  `applyMask` est faux, donc les passes internes restent au repère identité.
+   *
+   *  ⚠️ Le facteur d'échelle et l'ancre NE sont PAS dans la chaîne : ils
+   *  transitent par l'uniform du binding 8 (`effectTransform: vec4`). Le drapeau
+   *  seul décide de l'émission du binding et du calcul d'`uvT` — deux calques
+   *  transformés du même effet partagent donc un pipeline. Quand il est faux,
+   *  RIEN n'est émis et la chaîne est byte-identique à l'actuelle : c'est le
+   *  gate discriminant du chemin identité (la chaîne EST la clé du cache). */
+  hasEffectTransform?: boolean;
 }
 
 /** Conversions sRGB↔linéaire partagées. Exportées parce que la passe de
@@ -141,6 +157,18 @@ export function composeShader(effectWgsl: string, opts: ComposeOptions): string 
   const libraryBinding = (opts.hasLibraryTexture ?? false)
     ? "@group(0) @binding(7) var libraryTexture: texture_2d<f32>;"
     : "";
+  // Binding 8 (ticket 24). Comme `hasImageSource`, il ne vaut que sur le chemin
+  // de compositing — jamais sur une passe interne. `effectTransform.xy` porte
+  // l'échelle INVERSE (1/scaleX, 1/scaleY), `.zw` l'ancre de la déformation.
+  //
+  // ⚠️ NEWLINE EN TÊTE, pas une ligne de template à part : `${transformBinding}`
+  // vaut "" quand l'option est absente, donc la chaîne reste byte-identique à
+  // l'actuelle. Une ligne `\n${transformBinding}` propre ajouterait un saut de
+  // ligne même vide et casserait cette identité.
+  const hasEffectTransform = opts.applyMask && (opts.hasEffectTransform ?? false);
+  const transformBinding = hasEffectTransform
+    ? "\n@group(0) @binding(8) var<uniform> effectTransform: vec4<f32>;"
+    : "";
   const blendBlock = opts.applyMask ? SRGB_HELPERS_WGSL + "\n" + (opts.blendWgsl ?? "") : "";
   const effectInputExpr = hasImageSource
     ? "textureSample(coverageTexture, srcSampler, in.uv);"
@@ -187,6 +215,15 @@ ${coverageComment}  // Alpha DROIT (non prémultiplié) dans toute la chaîne : 
   return vec4<f32>(outRgb, outAlpha);`
     : "return effected;";
 
+  // Chemin identité byte-identique : quand la transformation est absente, cette
+  // expression est EXACTEMENT l'ancienne ligne `let effected = fs_main(in.uv,
+  // effectInput);`. Quand elle est active, `fs_main` lit l'UV déformé autour de
+  // l'ancre (`uvT`) pendant qu'`effectInput` reste échantillonné à `in.uv`.
+  const effectedBlock = hasEffectTransform
+    ? `let uvT = (in.uv - effectTransform.zw) * effectTransform.xy + effectTransform.zw;
+  let effected = fs_main(uvT, effectInput);`
+    : "let effected = fs_main(in.uv, effectInput);";
+
   return `
 ${FULLSCREEN_VERTEX_WGSL}
 
@@ -197,7 +234,7 @@ ${maskBinding}
 ${prevPassBinding}
 ${compositingBinding}
 ${coverageBinding}
-${libraryBinding}
+${libraryBinding}${transformBinding}
 
 ${blendBlock}
 ${effectWgsl}
@@ -206,7 +243,7 @@ ${effectWgsl}
 fn fs_wrapper(in: VertexOut) -> @location(0) vec4<f32> {
   let color = textureSample(srcTexture, srcSampler, in.uv);
   let effectInput = ${effectInputExpr}
-  let effected = fs_main(in.uv, effectInput);
+  ${effectedBlock}
   ${fsBody}
 }
 `;

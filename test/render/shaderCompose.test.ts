@@ -101,6 +101,43 @@ describe("composeShader hasImageSource", () => {
   });
 });
 
+// ÉTIREMENT DU RENDU (ticket 24, voie B). Le gate discriminant est l'IDENTITÉ
+// byte-identique : la chaîne composée EST la clé du cache de pipelines, donc
+// sans transform actif elle ne doit pas changer d'un octet.
+describe("composeShader hasEffectTransform", () => {
+  const BLEND = "fn blend(base: vec3<f32>, top: vec3<f32>) -> vec3<f32> { return top; }";
+
+  it("CHEMIN IDENTITÉ byte-identique : hasEffectTransform:false === option absente", () => {
+    const sansOption = composeShader(FS, { applyMask: true, hasPrevPass: false, blendWgsl: BLEND });
+    const optionFausse = composeShader(FS, { applyMask: true, hasPrevPass: false, hasEffectTransform: false, blendWgsl: BLEND });
+    expect(optionFausse).toBe(sansOption);
+    // Et rien du bloc transform ne fuit dans le chemin identité.
+    expect(sansOption).not.toContain("effectTransform");
+    expect(sansOption).not.toContain("uvT");
+    expect(sansOption).toContain("let effected = fs_main(in.uv, effectInput);");
+  });
+
+  it("variante transform : déclare le binding 8 et déforme l'UV de fs_main, pas effectInput", () => {
+    const avec = composeShader(FS, { applyMask: true, hasPrevPass: false, hasEffectTransform: true, blendWgsl: BLEND });
+    expect(avec).toContain("@group(0) @binding(8) var<uniform> effectTransform: vec4<f32>;");
+    expect(avec).toContain("let uvT = (in.uv - effectTransform.zw) * effectTransform.xy + effectTransform.zw;");
+    expect(avec).toContain("let effected = fs_main(uvT, effectInput);");
+    // effectInput reste échantillonné à l'UV identité (le fond ne bouge pas).
+    expect(avec).toContain("let effectInput = color;");
+    // La chaîne DIFFÈRE de l'identité — sinon même pipeline, effet nul.
+    const identite = composeShader(FS, { applyMask: true, hasPrevPass: false, blendWgsl: BLEND });
+    expect(avec).not.toBe(identite);
+  });
+
+  it("hasEffectTransform=true SANS applyMask n'émet rien (passes internes au repère identité)", () => {
+    const code = composeShader(FS, { applyMask: false, hasPrevPass: false, hasEffectTransform: true });
+    expect(code).not.toContain("effectTransform");
+    expect(code).not.toContain("uvT");
+    // Byte-identique au chemin sans masque ordinaire.
+    expect(code).toBe(composeShader(FS, { applyMask: false, hasPrevPass: false }));
+  });
+});
+
 // Tranche T0 (design 2026-07-28 « le fond devient un calque ») : l'alpha est
 // COMPOSÉ, plus hérité du bas de chaîne. Ces tests verrouillent le texte du
 // WGSL, pas son exécution — la compilation réelle est le rôle de

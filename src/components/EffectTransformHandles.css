@@ -1,0 +1,77 @@
+/* Poignées d'étirement d'un calque d'EFFET placé (ticket 24, tranche 3).
+   Overlay calé sur le rectangle AFFICHÉ du canvas par `measureOverlay` (pas
+   d'`inset: 0`), même raison que `TransformHandles.css` : il doit épouser le
+   canvas lettreboxé, pas son conteneur. */
+.effect-transform-handles {
+  position: absolute;
+  pointer-events: none;
+  z-index: var(--z-canvas-overlay);
+}
+
+.effect-transform-handles__outline {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* Le cadre ne capte JAMAIS la souris : seules les pastilles le font, et le
+     Tab atteint le rect focusable. Le déplacement reste à la surface du dessous
+     (`EffectMoveSurface`/`AutoSelectMoveSurface`), dans les deux modes. */
+  pointer-events: none;
+  /* Le champ étiré peut déborder du cadre : le trait ne doit pas être clippé. */
+  overflow: visible;
+}
+
+/* CADRE EN DEUX TRAITS — un halo sombre large, puis un trait clair fin, pour se
+   lire sur n'importe quel contenu. Même convention que le recadrage
+   (`TransformHandles.css`). */
+.effect-transform-handles__box-halo {
+  fill: none;
+  stroke: var(--outline-contrast);
+  stroke-width: 3;
+  pointer-events: none;
+}
+
+.effect-transform-handles__box {
+  fill: none;
+  stroke: var(--text-value);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+/* Indicateur de focus (WCAG 2.4.7) porté par le TRAIT, jamais un `outline` SVG
+   (rendu non fiable d'un moteur à l'autre) — même choix que `TransformHandles`.
+   `:focus-visible` : un Tab l'annonce, un focus programmatique n'a rien à dire. */
+.effect-transform-handles__box:focus {
+  outline: none;
+}
+
+.effect-transform-handles__box:focus-visible {
+  stroke: var(--focus-color);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+
+/* Repos : seule la couleur ici, le reste (taille, cible tactile, survol, focus,
+   neutralisation pendant le pan de vue) vient de `canvas-handle`
+   (`canvasHandle.css`). */
+.effect-transform-handles__handle {
+  background: var(--text-value);
+}
+
+/* Le curseur dit l'axe AVANT le survol : diagonale pour un coin, horizontale ou
+   verticale pour un côté. */
+.effect-transform-handles__handle--nwse {
+  cursor: nwse-resize;
+}
+
+.effect-transform-handles__handle--nesw {
+  cursor: nesw-resize;
+}
+
+.effect-transform-handles__handle--ew {
+  cursor: ew-resize;
+}
+
+.effect-transform-handles__handle--ns {
+  cursor: ns-resize;
+}

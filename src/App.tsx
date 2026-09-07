@@ -28,6 +28,7 @@ import { Toolbar } from "./components/Toolbar";
 import { TransformHandles } from "./components/TransformHandles";
 import { CanvasControls } from "./components/CanvasControls";
 import { EffectMoveSurface } from "./components/EffectMoveSurface";
+import { EffectTransformHandles } from "./components/EffectTransformHandles";
 import { AutoSelectMoveSurface, type AutoSelectMover } from "./components/AutoSelectMoveSurface";
 import { ToolPalette } from "./components/ToolPalette";
 import "./components/ToolPalette.css";
@@ -61,7 +62,7 @@ import {
 import { useGlobalControlWheel } from "./ui/activeControl";
 import { openDocument } from "./layers/openedDocument";
 import { isMaskLocked, isPositionLocked, isTransparencyLocked } from "./layers/layerLocks";
-import { effectSpatialParams } from "./render/effects/spatialParams";
+import { effectSpatialParams, resolveEffectAnchor } from "./render/effects/spatialParams";
 import { effetDeplacable, deplacementPatch } from "./ui/effectMove";
 import type { LayerLocks } from "./layers/types";
 import { hitTestPhotoLayer } from "./ui/hitTest";
@@ -1274,6 +1275,30 @@ export default function App() {
     commit(currentStack());
   }, [flushSync, commit, currentStack]);
 
+  // ÉTIREMENT VIVANT D'UN CALQUE D'EFFET PLACÉ (ticket 24, tranche 3). Écrit
+  // `effectTransform` sur le calque, exactement le patron de `handleTransformChange`
+  // (photo) : map ciblé plutôt que clone() complet (LayerRow mémoïsé ne re-render
+  // que la ligne touchée), `replaceLiveLayers` APPAIRÉ avec `requestRender` (sans
+  // quoi le modèle change et l'écran ne repeint pas), pas d'entrée d'historique
+  // par frame — le commit passe par `handleParamCommit`, qui flushe et ne commite
+  // que si `paramDirtyRef` a été salie ici.
+  //
+  // Pas de carte de géométrie à passer : la porte `replaceLiveLayers` gèle
+  // `effectTransform` d'office sur un calque à position verrouillée
+  // (`fusionnerSousVerrous`), et un tel calque ne monte de toute façon pas de
+  // poignées. Fonction simple (non mémoïsée), comme `handleParamChange`.
+  function handleEffectTransformChange(id: string, effectTransform: { scaleX: number; scaleY: number }) {
+    const previous = sessionRef.current.layers().find((l) => l.id === id);
+    const avant = previous?.effectTransform;
+    if (previous && (!avant || avant.scaleX !== effectTransform.scaleX || avant.scaleY !== effectTransform.scaleY)) {
+      paramDirtyRef.current = true;
+    }
+    const full = sessionRef.current.layers().map((l) => (l.id === id ? { ...l, effectTransform: { ...effectTransform } } : l));
+    sessionRef.current.replaceLiveLayers(full);
+    scheduleSync();
+    rendererRef.current?.requestRender(full);
+  }
+
   // GESTE DE SÉLECTION AUTO (ticket 26) : ouvert par `AutoSelectMoveSurface` à
   // l'appui. Il hit-teste le pixel, CHANGE la sélection (comme Photoshop en
   // Auto-Select, sur l'appui pour que le glissement qui suit déplace le calque
@@ -2325,6 +2350,29 @@ export default function App() {
             onChange={(patch) => handleParamChange(selectedLayer.id, patch)}
             onCommit={handleParamCommit}
             onPick={handleCanvasPick}
+          />
+        )}
+        {/* POIGNÉES D'ÉTIREMENT DE L'EFFET (ticket 24, tranche 3). APRÈS
+            `EffectMoveSurface` et `AutoSelectMoveSurface` dans le JSX, donc
+            AU-DESSUS d'elles : ces surfaces TRANSLATENT toute la toile, ces
+            pastilles ÉTIRENT. Le reste de l'overlay est `pointer-events: none`,
+            donc rien ne se dispute — le déplacement reste à la surface du dessous
+            dans les DEUX modes, et c'est pourquoi la condition n'a PAS de
+            `!autoSelect` (contrairement à `EffectMoveSurface`).
+
+            Même population que le déplacement : un effet à ancrage
+            (`effetDeplacable`), non verrouillé en position, en mode `idle`
+            (`showTransformHandles`). L'ancre de la déformation est résolue par
+            `resolveEffectAnchor` (position de l'effet, centre sinon). */}
+        {showTransformHandles && selectedLayer && selectedEffect && !selectedLayer.imageSource && !isPositionLocked(selectedLayer)
+          && effetDeplacable(canvasControls, selectedEffect.params, selectedLayer.params) && (
+          <EffectTransformHandles
+            scale={selectedLayer.effectTransform ?? { scaleX: 1, scaleY: 1 }}
+            anchor={resolveEffectAnchor(selectedEffect, selectedLayer.params)}
+            canvasRef={canvasRef}
+            effectName={selectedEffect.name}
+            onChange={(scale) => handleEffectTransformChange(selectedLayer.id, scale)}
+            onCommit={handleParamCommit}
           />
         )}
         {/* `showEffectControls` et non `showTransformHandles` : les contrôles

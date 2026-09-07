@@ -75,6 +75,27 @@ describe("layerContentKey", () => {
     expect(layerContentKey(deplace)).not.toBe(layerContentKey(base));
   });
 
+  // TICKET 24, TRANCHE 3 — le garde qui prouve que la note du moteur est deja
+  // couverte. `computeGuideEpochs` (framePipelineExecutor) detecte qu'un guide
+  // edge-aware est perime en comparant le CONTENU du calque du dessous par
+  // `guideChainKey`. Le craint etait qu'un `effectTransform` qui change pendant
+  // un glissement vivant echappe a cette comparaison et serve une SAT perimee au
+  // calque au-dessus. Il n'y echappe PAS : le parcours structurel de la cle le
+  // voit, exactement comme il voit le `transform` d'un calque photo. Ce test le
+  // FIGE — un futur passage a une liste enumeree de champs le casserait ici
+  // avant de le casser en silence a l'ecran.
+  it("distingue l etirement (effectTransform) d un calque d effet", () => {
+    const reference = layerContentKey(calque());
+    expect(layerContentKey(calque({ effectTransform: { scaleX: 1, scaleY: 0.4 } }))).not.toBe(reference);
+    expect(layerContentKey(calque({ effectTransform: { scaleX: 2, scaleY: 0.4 } }))).not.toBe(
+      layerContentKey(calque({ effectTransform: { scaleX: 1, scaleY: 0.4 } })),
+    );
+    // Et par la cle de chaine, celle que la detection de peremption lit vraiment.
+    expect(guideChainKey(calque({ effectTransform: { scaleX: 1, scaleY: 0.4 } }))).not.toBe(
+      guideChainKey(calque()),
+    );
+  });
+
   it("distingue deux rasters de masque distincts, meme a contenu egal", () => {
     // Les rasters sont IMMUABLES par convention (toujours remplaces, jamais
     // mutes) : leur identite EST leur contenu, et les serialiser couterait

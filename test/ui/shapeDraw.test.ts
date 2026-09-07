@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MIN_DRAW_SIZE_PX,
   aplatParamsFromRect,
+  shapeBoxFromRect,
   isDrawnRectUsable,
   rectFromDrag,
 } from "../../src/ui/shapeDraw";
@@ -96,5 +97,35 @@ describe("aplatParamsFromRect — la traduction en paramètres d'effet", () => {
     // qui ne se répare qu'en le supprimant.
     expect(aplatParamsFromRect({ x: 0, y: 0, width: 10, height: 10 }, { width: 0, height: 500 })).toBeNull();
     expect(aplatParamsFromRect({ x: 0, y: 0, width: 10, height: 10 }, { width: 1000, height: 0 })).toBeNull();
+  });
+});
+
+describe("shapeBoxFromRect — la boîte d'une source de masque shape", () => {
+  const TOILE = { width: 1000, height: 500 };
+
+  it("rend les DEUX COINS en coordonnées image [0,1], pas un centre + demi-dimensions", () => {
+    // ⚠️ Unité différente d'`aplatParamsFromRect` : `shape` sérialise x0,y0,x1,y1
+    // (les coins), le shader en prend min/max. C'est ce que la boîte à deux
+    // coins de `mask/sources/shape.ts` attend, sans conversion.
+    expect(shapeBoxFromRect({ x: 250, y: 125, width: 500, height: 250 }, TOILE)).toEqual({
+      x0: 0.25,
+      y0: 0.25,
+      x1: 0.75,
+      y1: 0.75,
+    });
+  });
+
+  it("place les coins aux bords du rectangle tracé", () => {
+    expect(shapeBoxFromRect({ x: 0, y: 0, width: 200, height: 100 }, TOILE)).toEqual({
+      x0: 0,
+      y0: 0,
+      x1: 0.2,
+      y1: 0.2,
+    });
+  });
+
+  it("rend null sur une toile dégénérée au lieu de coordonnées NaN", () => {
+    expect(shapeBoxFromRect({ x: 0, y: 0, width: 10, height: 10 }, { width: 0, height: 500 })).toBeNull();
+    expect(shapeBoxFromRect({ x: 0, y: 0, width: 10, height: 10 }, { width: 1000, height: 0 })).toBeNull();
   });
 });

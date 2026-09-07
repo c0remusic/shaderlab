@@ -48,6 +48,14 @@ interface Props {
    *  pour un geste d'ampleur suffisante (`isDrawnRectUsable`) : un clic simple
    *  ne crée rien, sinon chaque clic manqué laisserait un calque derrière lui. */
   onShapeDrawn?: (rect: DrawnRect) => void;
+  /** Le rectangle a CHANGÉ pendant le tracé (à chaque mouvement) : l'appelant
+   *  peut poser un APERÇU VIVANT — le marquee sur un calque d'effet sélectionné.
+   *  Optionnel : le tracé d'aplat ne l'écoute pas, il ne crée qu'au relâcher. */
+  onShapeDrawProgress?: (rect: DrawnRect) => void;
+  /** Le tracé s'est terminé SANS créer (clic sans ampleur, ou `pointercancel`) :
+   *  l'appelant défait alors l'aperçu vivant qu'il aurait posé. Sans ce signal,
+   *  un geste rejeté laisserait le marquee prévisualisé à l'écran. */
+  onShapeDrawCancel?: () => void;
 }
 
 export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
@@ -63,6 +71,8 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
     onPick,
     shapeDrawMode,
     onShapeDrawn,
+    onShapeDrawProgress,
+    onShapeDrawCancel,
     viewport,
     contentSize,
     onViewportChange,
@@ -523,7 +533,13 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
           // recommencer le rectangle pour le passer en carré.
           if (shapeDrag && shapeDrag.pointerId === e.pointerId) {
             const pt = toImageCoords(e);
-            if (pt) setShapeDrag({ ...shapeDrag, to: pt, carre: e.shiftKey });
+            if (pt) {
+              setShapeDrag({ ...shapeDrag, to: pt, carre: e.shiftKey });
+              // Aperçu vivant : le rect COURANT, calculé depuis les mêmes
+              // valeurs que la bande élastique (setShapeDrag est asynchrone, on
+              // ne lit donc pas l'état qu'on vient de poser).
+              onShapeDrawProgress?.(rectFromDrag(shapeDrag.from, pt, e.shiftKey));
+            }
             return;
           }
           if (!maskPaintMode || panning) return;
@@ -552,7 +568,11 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
             if (e.currentTarget.hasPointerCapture(e.pointerId)) {
               e.currentTarget.releasePointerCapture(e.pointerId);
             }
+            // Geste d'ampleur suffisante : on crée. Sinon on ANNULE, pour que
+            // l'appelant défasse l'aperçu vivant du marquee (un clic manqué ne
+            // doit rien laisser, ni calque ni sélection prévisualisée).
             if (isDrawnRectUsable(rect)) onShapeDrawn?.(rect);
+            else onShapeDrawCancel?.();
             return;
           }
           endStroke();
@@ -562,7 +582,10 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
         }}
         onPointerCancel={() => {
           // Un tracé annulé ne crée RIEN — même sémantique que le crop
-          // abandonné : `pointercancel` n'est pas une validation.
+          // abandonné : `pointercancel` n'est pas une validation. On prévient
+          // l'appelant pour qu'il défasse l'aperçu vivant du marquee, le cas
+          // échéant.
+          if (shapeDrag) onShapeDrawCancel?.();
           setShapeDrag(null);
           endStroke();
         }}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { initGpu, type GpuContext } from "./render/gpuContext";
 import { Renderer } from "./render/renderer";
-import { LayerStack } from "./layers/layerStack";
+import { LayerStack, freshId } from "./layers/layerStack";
 import type { LayerState } from "./layers/types";
 // `hasImportedPhotoLayer` n'est PLUS importé ici : il gardait le round-trip
 // Lightroom, déposé (ADR-0002). Il vit toujours dans `layers/photoLayer.ts`
@@ -68,7 +68,9 @@ import type { LayerLocks } from "./layers/types";
 import { hitTestPhotoLayer } from "./ui/hitTest";
 import { hitTestAutoSelect } from "./ui/autoSelect";
 import { showsEffectControls } from "./ui/canvasMode";
-import { aplatParamsFromRect, type DrawnRect } from "./ui/shapeDraw";
+import { aplatParamsFromRect, shapeBoxFromRect, type DrawnRect } from "./ui/shapeDraw";
+import { planShapeGesture, applyShapeMarquee } from "./ui/shapeMarquee";
+import { getMaskSourceModule } from "./mask/sources/registry";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
 import type { BrushSettings } from "./mask/maskPainter";
 import { getBrushRaster } from "./mask/brushSource";
@@ -1116,28 +1118,126 @@ export default function App() {
    * est PERSISTÉ dans les presets et ne bouge donc jamais — c'est ce qui rend la
    * citation sûre, pas une négligence.
    */
-  const handleShapeDrawn = useCallback(
-    (rect: DrawnRect) => {
-      const params = aplatParamsFromRect(rect, imageSize);
-      // Toile dégénérée : `aplatParamsFromRect` rend `null` plutôt que des NaN.
-      // On ne crée alors rien — un calque aux paramètres NaN ne se répare qu'en
-      // le supprimant.
-      if (!params) return;
+  // GESTE DE L'OUTIL FORME EN COURS DE POSE D'UN MARQUEE (sélection géométrique
+  // sur un calque d'effet, ticket 12). Capturé au premier mouvement pour figer
+  // la CIBLE et l'instantané COMMITTÉ : chaque frame se reconstruit depuis ce
+  // dernier, jamais depuis l'état vivant — qui porte déjà l'aperçu de la frame
+  // d'avant, et rebâtir dessus doublerait la source (branche « ajout »). `null`
+  // hors geste, comme `blendPreviewRef`.
+  const shapeMarqueeRef = useRef<{ layerId: string; committed: LayerState[]; sourceId: string } | null>(null);
+
+  /** Couches vivantes du marquee pour une boîte donnée, reconstruites depuis
+   *  l'instantané committé — donc idempotent, rejouable à chaque mouvement.
+   *  `null` sur une toile dégénérée (`shapeBoxFromRect` évite les NaN). */
+  function marqueeLayers(
+    ref: { layerId: string; committed: LayerState[]; sourceId: string },
+    rect: DrawnRect,
+  ): LayerState[] | null {
+    const box = shapeBoxFromRect(rect, imageSize);
+    if (!box) return null;
+    const defaults = getMaskSourceModule("shape").defaultParams;
+    return ref.committed.map((l) =>
+      l.id === ref.layerId
+        ? { ...l, mask: { ...l.mask, sources: applyShapeMarquee(l.mask.sources, box, defaults, ref.sourceId) } }
+        : l,
+    );
+  }
+
+  /** Cible du geste depuis l'état COMMITTÉ. Rend un contexte de marquee (calque
+   *  d'effet, masque libre), `"refused"` (masque verrouillé — le geste ne fait
+   *  RIEN), ou `null` (rien de ciblable → aplat). Le `sourceId` est figé pour la
+   *  durée du geste : source `shape` existante réutilisée (le marquee la
+   *  REDESSINE), sinon un `freshId()` unique. */
+  function beginMarquee(): { layerId: string; committed: LayerState[]; sourceId: string } | "refused" | null {
+    const committed = sessionRef.current.layers();
+    const selected = committed.find((l) => l.id === selectedId) ?? null;
+    const plan = planShapeGesture(selected);
+    if (plan === "refused") return "refused";
+    if (plan !== "marquee") return null;
+    const existing = selected!.mask.sources.find((s) => s.type === "shape");
+    return { layerId: selected!.id, committed, sourceId: existing ? existing.id : freshId() };
+  }
+
+  // APERÇU VIVANT du marquee — patron `handleEffectTransformChange` :
+  // `replaceLiveLayers` APPAIRÉ avec `requestRender`, aucune entrée d'historique
+  // par frame. Sur un calque photo, rien de sélectionné, ou un masque
+  // verrouillé : aucun aperçu (le tracé retombera sur l'aplat ou le refus au
+  // relâcher). La porte `replaceLiveLayers` refuse en plus toute écriture de
+  // masque sur un calque verrouillé (`fusionnerSousVerrous`), donc l'aperçu est
+  // gelé même si cette garde-ci laissait passer.
+  function handleShapeDrawProgress(rect: DrawnRect) {
+    let ref = shapeMarqueeRef.current;
+    if (!ref) {
+      const begun = beginMarquee();
+      if (begun === "refused" || begun === null) return;
+      ref = begun;
+      shapeMarqueeRef.current = ref;
+    }
+    const full = marqueeLayers(ref, rect);
+    if (!full) return;
+    sessionRef.current.replaceLiveLayers(full);
+    scheduleSync();
+    rendererRef.current?.requestRender(full);
+  }
+
+  // ANNULATION du geste (clic sans ampleur, `pointercancel`) : on défait
+  // l'aperçu vivant en restaurant l'instantané committé. Sans ça, la source
+  // prévisualisée resterait affichée alors qu'aucun commit ne l'a gardée.
+  function handleShapeDrawCancel() {
+    const ref = shapeMarqueeRef.current;
+    if (!ref) return;
+    shapeMarqueeRef.current = null;
+    sessionRef.current.replaceLiveLayers(ref.committed);
+    scheduleSync();
+    rendererRef.current?.requestRender(ref.committed);
+  }
+
+  /**
+   * Un rectangle vient d'être TRACÉ (relâchement, outil Forme). Deux issues :
+   *
+   * - MARQUEE : un calque d'EFFET est sélectionné (masque non verrouillé) → le
+   *   tracé pose/actualise une source `shape` sur son masque (ticket 10 : « une
+   *   forme SÉLECTIONNE »). L'aperçu vivant porte déjà la source ; on rejoue le
+   *   rect final (idempotent) puis on COMMIT l'état vivant, exactement comme un
+   *   curseur vivant committe `currentStack()`. Trois cas sans écart : source
+   *   `shape` existante mise à jour, source neuve ajoutée, ou masque verrouillé
+   *   → geste sans effet.
+   * - APLAT : rien de ciblable → un nouveau calque `aplat` rempli, comportement
+   *   d'avant, en UNE entrée d'historique.
+   *
+   * ⚠️ `borne: 1` = « Un rectangle » dans `aplat.params[0]`, index PERSISTÉ dans
+   * les presets donc cité en dur sûrement, comme dans les `appliesWhen` de
+   * l'effet. Les réglages de l'outil sèment le tracé d'aplat (ticket 27) ; la
+   * géométrie passe EN DERNIER, rien dans la barre ne doit l'écraser.
+   */
+  function handleShapeDrawn(rect: DrawnRect) {
+    const active = shapeMarqueeRef.current ?? beginMarquee();
+    if (active === "refused") {
+      // Masque verrouillé : le geste ne crée NI marquee NI aplat — le même refus
+      // que `LayerStack.refuseMasque` et que la porte `replaceLiveLayers`.
+      shapeMarqueeRef.current = null;
+      return;
+    }
+    if (active) {
+      const full = marqueeLayers(active, rect);
+      shapeMarqueeRef.current = null;
+      if (!full) return;
+      sessionRef.current.replaceLiveLayers(full);
       clearActivePreset();
-      const stack = currentStack();
-      const id = stack.addLayer("aplat", selectedId);
-      // LES RÉGLAGES DE L'OUTIL SÈMENT LE TRACÉ (ticket 27) — « le prochain
-      // rectangle sera bleu ». `borne: 1` était écrit en dur ici ; c'est
-      // désormais la primitive choisie dans la barre, avec le rectangle pour
-      // défaut, et il vient d'`aplat.params` et non d'une seconde constante.
-      // La géométrie tracée passe EN DERNIER : elle vient du geste, et rien
-      // dans la barre ne doit pouvoir l'écraser.
-      stack.updateParams(id, { borne: 1, ...paramsPourNouveauCalque(toolOptions, "shape"), ...params });
-      commit(stack);
-      selectLayer(id);
-    },
-    [imageSize, selectedId, toolOptions, clearActivePreset, currentStack, commit, selectLayer],
-  );
+      commit(currentStack());
+      return;
+    }
+    // APLAT (aucune sélection, ou calque photo) : `aplatParamsFromRect` rend
+    // `null` sur une toile dégénérée plutôt que des NaN écrits tels quels.
+    const params = aplatParamsFromRect(rect, imageSize);
+    if (!params) return;
+    clearActivePreset();
+    const stack = currentStack();
+    const id = stack.addLayer("aplat", selectedId);
+    stack.updateParams(id, { borne: 1, ...paramsPourNouveauCalque(toolOptions, "shape"), ...params });
+    commit(stack);
+    selectLayer(id);
+  }
 
   /** Paramètre d'`aplat` par son nom — le module est la seule source de vérité
    *  des bornes et du défaut, ici comme dans la barre d'options. */
@@ -2253,6 +2353,8 @@ export default function App() {
           onPick={photoLayer.canvasMode.kind === "idle" ? handleCanvasPick : undefined}
           shapeDrawMode={photoLayer.canvasMode.kind === "shapeDraw"}
           onShapeDrawn={handleShapeDrawn}
+          onShapeDrawProgress={handleShapeDrawProgress}
+          onShapeDrawCancel={handleShapeDrawCancel}
           viewport={viewport}
           contentSize={imageSize}
           onViewportChange={handleViewportChange}

@@ -80,6 +80,44 @@ export function isDrawnRectUsable(rect: DrawnRect): boolean {
   return rect.width >= MIN_DRAW_SIZE_PX && rect.height >= MIN_DRAW_SIZE_PX;
 }
 
+/** Boîte à DEUX COINS d'une source de masque `shape`, en coordonnées image
+ *  normalisées [0,1] — l'unité exacte que `mask/sources/shape.ts` sérialise en
+ *  `params[0..3]` (`x0,y0,x1,y1`). C'est ce que produit le tracé de l'outil
+ *  Forme quand il pose une SÉLECTION géométrique sur un calque d'effet (le
+ *  marquee de Photoshop, ticket 12), par opposition à `AplatRectParams` qui
+ *  décrit un CALQUE `aplat` en fraction du cadre. */
+export interface ShapeBox {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+/**
+ * Traduit le rectangle du geste dans la boîte d'une source de masque `shape`.
+ *
+ * ⚠️ UNITÉ DIFFÉRENTE D'`aplatParamsFromRect` : ici les quatre nombres sont des
+ * coordonnées image [0,1] (les deux coins), pas un centre + demi-dimensions. Le
+ * shader de `shape` prend `min`/`max` des deux coins, donc l'ordre est libre —
+ * mais `rectFromDrag` a déjà normalisé, donc `x0<=x1` et `y0<=y1` ici.
+ *
+ * `maskDims` de la source vient du DOCUMENT ; `canvas` est donc la taille du
+ * document (mêmes pixels que la TOILE où vit `DrawnRect`), ce qui aligne les
+ * deux espaces sans conversion — voir l'en-tête de `mask/sources/shape.ts`.
+ *
+ * Rend `null` sur une toile dégénérée, même garde qu'`aplatParamsFromRect` :
+ * une division par zéro écrirait des NaN dans les params d'une source.
+ */
+export function shapeBoxFromRect(rect: DrawnRect, canvas: PixelSize): ShapeBox | null {
+  if (!(canvas.width > 0) || !(canvas.height > 0)) return null;
+  return {
+    x0: rect.x / canvas.width,
+    y0: rect.y / canvas.height,
+    x1: (rect.x + rect.width) / canvas.width,
+    y1: (rect.y + rect.height) / canvas.height,
+  };
+}
+
 /** Paramètres d'`aplat` décrivant ce rectangle, prêts pour `updateParams`. */
 export interface AplatRectParams {
   centreX: number;

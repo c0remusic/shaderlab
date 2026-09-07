@@ -286,7 +286,12 @@ export const lensBlur: EffectModule = {
     // toute seule (6 = hexagone). Les valeurs intermédiaires modélisent bien
     // quelque chose — le polygone se déforme continûment d'une lame à l'autre,
     // ce qu'un vrai diaphragme fait aussi en s'ouvrant.
-    { name: "blades", label: "Lames du diaphragme", unit: "none", min: 0, max: 12, default: 0, step: 1, hint: "0 à 2 = diaphragme circulaire (taches rondes). À partir de 3, le bokeh prend la forme du polygone : 6 pour l'hexagone des objectifs courants" },
+    // Défaut 6 depuis le 2026-09-07 (proposition 1 du tri du ticket 25, validée
+    // par Antoine) : à 0, les deux curseurs de la section Diaphragme étaient
+    // morts au défaut — l'hexagone des objectifs courants rend la section
+    // vivante à l'ouverture. Zéro référence déplacée : les trois scénarios
+    // effet-lens-blur* posent blades explicitement.
+    { name: "blades", label: "Lames du diaphragme", unit: "none", min: 0, max: 12, default: 6, step: 1, hint: "0 à 2 = diaphragme circulaire (taches rondes). À partir de 3, le bokeh prend la forme du polygone : 6 pour l'hexagone des objectifs courants" },
     // ⚠️ PAS D'`appliesWhen` ICI, ET CE N'EST PAS UN OUBLI. La campagne du
     // 2026-08-05 donne bien ce curseur inerte sur un diaphragme circulaire
     // (`docs/superpowers/plans/2026-08-05-applicabilite-task1-resultats.md`),

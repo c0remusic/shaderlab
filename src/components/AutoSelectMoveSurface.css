@@ -1,0 +1,23 @@
+/* SURFACE DE SÉLECTION AUTOMATIQUE (ticket 26).
+
+   Même géométrie que `.effect-move-surface` : boîte pilotée en pixels par la
+   mesure du composant (pas d'`inset: 0`), pour épouser le rectangle AFFICHÉ du
+   canvas — plus petit que son conteneur (lettreboxage) et décalé par la
+   compensation du dock.
+
+   Aucun décor : ce qu'on sélectionne et déplace se voit déjà (la pile, les
+   poignées, l'effet). Le curseur `move` annonce la prise de déplacement. */
+.auto-select-surface {
+  position: absolute;
+  z-index: var(--z-canvas-overlay);
+  pointer-events: auto;
+  cursor: move;
+}
+
+/* REND LA MAIN AU PAN DE LA VUE (Espace maintenu) — même règle et même raison
+   que `.effect-move-surface` : elle couvre toute la toile, donc sans ça
+   Espace + glisser n'aurait plus un pixel d'image où s'exercer. */
+.pasteboard__view--pan .auto-select-surface {
+  pointer-events: none;
+  cursor: inherit;
+}

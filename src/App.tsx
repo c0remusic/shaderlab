@@ -28,6 +28,7 @@ import { Toolbar } from "./components/Toolbar";
 import { TransformHandles } from "./components/TransformHandles";
 import { CanvasControls } from "./components/CanvasControls";
 import { EffectMoveSurface } from "./components/EffectMoveSurface";
+import { AutoSelectMoveSurface, type AutoSelectMover } from "./components/AutoSelectMoveSurface";
 import { ToolPalette } from "./components/ToolPalette";
 import "./components/ToolPalette.css";
 import { DEFAULT_TOOL, activeTool as activeToolOf, escapeAction, isQuitToolEvent, isTextEntryTarget, isToolShortcutEvent, selectTool, toolFromShortcut, type ToolId } from "./ui/tools";
@@ -61,9 +62,10 @@ import { useGlobalControlWheel } from "./ui/activeControl";
 import { openDocument } from "./layers/openedDocument";
 import { isMaskLocked, isPositionLocked, isTransparencyLocked } from "./layers/layerLocks";
 import { effectSpatialParams } from "./render/effects/spatialParams";
-import { effetDeplacable } from "./ui/effectMove";
+import { effetDeplacable, deplacementPatch } from "./ui/effectMove";
 import type { LayerLocks } from "./layers/types";
 import { hitTestPhotoLayer } from "./ui/hitTest";
+import { hitTestAutoSelect } from "./ui/autoSelect";
 import { showsEffectControls } from "./ui/canvasMode";
 import { aplatParamsFromRect, type DrawnRect } from "./ui/shapeDraw";
 import { getSyncedMaskPainter, type MaskPainterEntry } from "./mask/maskPainterSync";
@@ -859,6 +861,12 @@ export default function App() {
   // Ctrl+Z ne doit pas défaire un choix de couleur qui n'a rien produit encore.
   const [toolOptions, setToolOptions] = useState<ToolOptions>(optionsInitiales);
 
+  // SÉLECTION AUTO (ticket 26) — option de l'outil Déplacer, état d'INTERFACE
+  // (pas de `LayerState`, pas d'historique, pas de preset). Défaut OFF, la
+  // convention Photoshop. Cochée, un clic sur la toile sélectionne le calque le
+  // plus haut qui couvre ce pixel, tous genres confondus.
+  const [autoSelect, setAutoSelect] = useState(false);
+
   const handleSelectTool = useCallback(
     (tool: ToolId) => {
       const brushSourceId = layers.find((layer) => layer.id === selectedId)?.mask.sources.find((source) => source.type === "brush")?.id ?? null;
@@ -936,9 +944,21 @@ export default function App() {
   // Clic dans le vide = DÉSÉLECTION (arbitrage n°4 de la tranche) : geste
   // standard, seule sortie évidente de la sélection, et cohérent avec « ce que
   // je clique est ce que je sélectionne ».
+  //
+  // Deux hit-tests selon la Sélection auto (ticket 26) : OFF (défaut) garde la
+  // désignation PHOTO d'origine (`hitTestPhotoLayer`) ; ON désigne le calque
+  // couvrant le plus haut TOUS genres confondus (`hitTestAutoSelect`), qui a
+  // besoin des rasters pinceau COMMITTÉS — donc de la pile COMPLÈTE
+  // (`sessionRef.current.layers()`), jamais la projection d'affichage qui les
+  // vide (invariant anti-OOM).
   const handleCanvasPick = useCallback(
-    (x: number, y: number) => selectLayer(pickPhotoLayerAt(x, y)),
-    [pickPhotoLayerAt, selectLayer],
+    (x: number, y: number) =>
+      selectLayer(
+        autoSelect
+          ? hitTestAutoSelect(sessionRef.current.layers(), { x, y }, imageSize, photoSizeOf)
+          : pickPhotoLayerAt(x, y),
+      ),
+    [autoSelect, imageSize, photoSizeOf, pickPhotoLayerAt, selectLayer],
   );
 
   // Pont de debug DEV-ONLY. Raison d'être : le dialogue natif de sélection de
@@ -1253,6 +1273,56 @@ export default function App() {
     paramDirtyRef.current = false;
     commit(currentStack());
   }, [flushSync, commit, currentStack]);
+
+  // GESTE DE SÉLECTION AUTO (ticket 26) : ouvert par `AutoSelectMoveSurface` à
+  // l'appui. Il hit-teste le pixel, CHANGE la sélection (comme Photoshop en
+  // Auto-Select, sur l'appui pour que le glissement qui suit déplace le calque
+  // nouvellement sélectionné), puis rend de quoi déplacer ce calque — ou `null`
+  // s'il n'y a rien à déplacer (vide, verrouillé, effet sans ancrage).
+  //
+  // Le mouvement RÉUTILISE les chemins vivants existants — `handleTransformChange`
+  // (photo) et `handleParamChange` (effet), qui appairent tous deux
+  // `replaceLiveLayers` avec `requestRender`. Le calque VERROUILLÉ reste
+  // sélectionnable mais non déplaçable : `null` mover, donc la sélection est
+  // posée et aucun `replaceLiveLayers` non gardé ne le mute.
+  // Fonction simple (non mémoïsée), comme `handleParamChange` : elle est appelée
+  // impérativement à l'appui, jamais lue en dépendance d'effet, et référence
+  // `handleParamChange` qui n'est pas mémoïsé non plus.
+  function beginAutoSelectGesture(imgX: number, imgY: number): AutoSelectMover | null {
+    const full = sessionRef.current.layers();
+    const hitId = hitTestAutoSelect(full, { x: imgX, y: imgY }, imageSize, photoSizeOf);
+    selectLayer(hitId);
+    if (hitId === null) return null;
+    const layer = full.find((l) => l.id === hitId);
+    if (!layer) return null;
+    // Un calque verrouillé en position (ou tout) est sélectionnable mais pas
+    // déplaçable — mêmes gardes que le montage de `TransformHandles` et
+    // `EffectMoveSurface`.
+    if (isPositionLocked(layer)) return null;
+
+    if (layer.imageSource && layer.transform) {
+      const start = layer.transform;
+      return {
+        // Fraction du cadre -> pixels du FOND (repère de `LayerTransform`).
+        move: (fx, fy) =>
+          handleTransformChange(hitId, { ...start, x: start.x + fx * imageSize.width, y: start.y + fy * imageSize.height }),
+        commit: handleTransformCommit,
+      };
+    }
+
+    // Calque d'effet : déplaçable seulement s'il a un ancrage (`canvasControls`).
+    const effect = getEffect(layer.effectId);
+    const controls = effect.canvasControls ?? [];
+    if (!effetDeplacable(controls, effect.params, layer.params)) return null;
+    const startValues = layer.params;
+    return {
+      move: (fx, fy) => {
+        const patch = deplacementPatch(controls, effect.params, startValues, fx, fy);
+        if (patch) handleParamChange(hitId, patch);
+      },
+      commit: handleParamCommit,
+    };
+  }
 
   const handleOpacityChange = useCallback(
     (id: string, opacity: number) => {
@@ -2067,6 +2137,10 @@ export default function App() {
         outil={currentTool}
         options={toolOptions}
         onOptionChange={handleToolOptionChange}
+        autoSelect={autoSelect}
+        // Enveloppé : la Checkbox `ui/` remonte `(checked, eventDetails)` ; on ne
+        // passe que le booléen à `setState`.
+        onAutoSelectChange={(checked) => setAutoSelect(checked)}
         onOpenColorPicker={(anchorTop) =>
           // Bascule, comme la pastille du dock : re-cliquer referme. La cible
           // est l'OUTIL (`layerId: null`) — le réglage sème le prochain tracé
@@ -2159,6 +2233,16 @@ export default function App() {
           onViewportChange={handleViewportChange}
           onViewResize={handleViewResize}
         >
+        {/* SURFACE DE SÉLECTION AUTO (ticket 26). Montée PREMIÈRE, donc DERRIÈRE
+            les poignées précises (`TransformHandles`, `CanvasControls`) qui la
+            suivent : les pastilles d'échelle/rotation et les manipulateurs
+            d'effet gardent la priorité, cette surface capte tout le reste. Elle
+            REMPLACE `EffectMoveSurface` tant qu'elle est active (les deux
+            couvrent toute la toile). Active seulement en mode `idle`
+            (`showTransformHandles`) et Sélection auto cochée. */}
+        {showTransformHandles && autoSelect && imageSize.width > 0 && imageSize.height > 0 && (
+          <AutoSelectMoveSurface canvasRef={canvasRef} begin={beginAutoSelectGesture} />
+        )}
         {/* `showTransformHandles` = mode canvas `idle` (usePhotoLayer/CanvasMode).
             Avant T1, les poignées se montaient sur la seule SÉLECTION : un calque
             photo sélectionné en mode peinture superposait sa boîte de déplacement
@@ -2186,6 +2270,12 @@ export default function App() {
             layerName={selectedLayer.name}
             onTransformChange={(t) => handleTransformChange(selectedLayer.id, t)}
             onTransformCommit={handleTransformCommit}
+            // CORPS INERTE sous Sélection auto (ticket 26) : la surface
+            // auto-select est l'unique propriétaire du déplacement, mais les
+            // poignées d'échelle/rotation restent attrapables (elles sont
+            // au-dessus d'elle). Sans ça, le corps de la box et la surface se
+            // disputeraient le même glissement.
+            corpsInteractif={!autoSelect}
             // La box de déplacement couvre toute la bounding box du calque
             // sélectionné et masque le canvas : un clic sur une image posée
             // par-dessus lui cède la sélection au lieu de déplacer la sélection
@@ -2220,8 +2310,12 @@ export default function App() {
             un glissement sur la toile TRACE une forme, il n'en déplace pas une.
             `effetDeplacable` est le critère `canvasControls` du ticket, lu par
             le module pur — un effet sans ancrage ne monte pas de surface, donc
-            n'annonce aucune prise. */}
-        {showTransformHandles && selectedLayer && selectedEffect && !selectedLayer.imageSource && !isPositionLocked(selectedLayer)
+            n'annonce aucune prise.
+
+            `&& !autoSelect` (ticket 26) : sous Sélection auto, la surface
+            auto-select couvre déjà toute la toile et déplace l'effet
+            sélectionné ; en monter deux se disputerait le pointeur. */}
+        {showTransformHandles && !autoSelect && selectedLayer && selectedEffect && !selectedLayer.imageSource && !isPositionLocked(selectedLayer)
           && effetDeplacable(canvasControls, selectedEffect.params, selectedLayer.params) && (
           <EffectMoveSurface
             controls={canvasControls}

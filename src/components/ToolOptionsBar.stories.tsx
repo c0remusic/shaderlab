@@ -30,6 +30,12 @@ export default meta;
 type Story = StoryObj<typeof ToolOptionsBar>;
 
 export const Deplacer: Story = { args: { outil: "move" } };
+
+/** L'outil Déplacer porte la case « Sélection auto » (ticket 26) dès que l'hôte
+ *  fournit `onAutoSelectChange` — l'état est possédé par `App`, pas par la barre. */
+export const DeplacerAvecSelectionAuto: Story = {
+  args: { outil: "move", autoSelect: false, onAutoSelectChange: () => {} },
+};
 export const Pinceau: Story = { args: { outil: "brush" } };
 export const Gomme: Story = { args: { outil: "eraser", pinceau: { ...pinceau, erase: true } } };
 export const Forme: Story = { args: { outil: "shape" } };
@@ -82,6 +88,45 @@ export const EveryToolKeepsTheSameHeight: Story = {
     // exactement le défaut qu'ADR-0001 nomme pour son point 6.
     await expect(hauteurs).toEqual([hauteurs[0], hauteurs[0], hauteurs[0], hauteurs[0]]);
     await expect(hauteurs[0]).toBeGreaterThan(0);
+  },
+};
+
+/**
+ * LA CASE « SÉLECTION AUTO » BASCULE ET REMONTE À L'HÔTE (ticket 26).
+ *
+ * Contrôle composé depuis `ui/` (ADR-0001) : c'est une vraie case cochable, pas
+ * un libellé. On la coche et on vérifie que le changement remonte bien avec la
+ * nouvelle valeur — la barre ne détient pas l'état, elle le pilote.
+ */
+export const SelectionAutoBascule: Story = {
+  args: { outil: "move", autoSelect: false, onAutoSelectChange: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const checkbox = canvas.getByRole("checkbox", { name: "Sélection auto" });
+    await expect(checkbox).not.toBeChecked();
+    await userEvent.click(checkbox);
+    // `onChange` de la Checkbox `ui/` (base-ui) remonte `(checked, eventDetails)` :
+    // on n'asserte que le PREMIER argument, la nouvelle valeur.
+    await expect(args.onAutoSelectChange).toHaveBeenCalledWith(true, expect.anything());
+  },
+};
+
+/** Cochée, la case le MONTRE — l'état vient de l'hôte, la barre le reflète. */
+export const SelectionAutoCochee: Story = {
+  args: { outil: "move", autoSelect: true, onAutoSelectChange: fn() },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("checkbox", { name: "Sélection auto" })).toBeChecked();
+  },
+};
+
+/** Sans `onAutoSelectChange`, la case ne s'affiche pas : la barre n'invente pas
+ *  un contrôle dont l'hôte ne tient pas l'état. */
+export const DeplacerSansSelectionAuto: Story = {
+  args: { outil: "move" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("checkbox", { name: "Sélection auto" })).toBeNull();
   },
 };
 

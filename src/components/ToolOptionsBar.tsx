@@ -1,5 +1,6 @@
 import { Move, Shapes } from "lucide-react";
 import { Select } from "./ui/select";
+import { Checkbox } from "./ui/checkbox";
 import { ColorGroupControl } from "./ui/color-group-control";
 import { BrushToolbar } from "./BrushToolbar";
 import { aplat } from "../render/effects/aplat";
@@ -61,6 +62,12 @@ interface Props {
   /** Ouvre le sélecteur de couleur, aligné sur la pastille. Même canal que le
    *  dock : la barre ne fabrique pas son propre picker. */
   onOpenColorPicker?: (anchorTop: number) => void;
+  /** SÉLECTION AUTO (ticket 26), option de l'outil Déplacer. Booléen d'INTERFACE
+   *  possédé par `App` — pas un `ToolOptions`, qui ne porte que des réglages
+   *  NUMÉRIQUES semant le prochain calque créé (`toolOptionsModel`), ce que
+   *  l'outil Déplacer ne fait jamais. Défaut OFF, convention Photoshop. */
+  autoSelect?: boolean;
+  onAutoSelectChange?: (checked: boolean) => void;
 }
 
 /** Défaut d'un paramètre d'`aplat`, lu sur le module. */
@@ -104,7 +111,7 @@ const PRIMITIVES = [
   { value: "3", label: "Polygone" },
 ];
 
-export function ToolOptionsBar({ outil, options, onOptionChange, pinceau, onOpenColorPicker }: Props) {
+export function ToolOptionsBar({ outil, options, onOptionChange, pinceau, onOpenColorPicker, autoSelect = false, onAutoSelectChange }: Props) {
   return (
     <div className="tool-options-bar" role="toolbar" aria-label="Options de l'outil">
       {(outil === "brush" || outil === "eraser") && <BrushToolbar {...pinceau} />}
@@ -149,11 +156,19 @@ export function ToolOptionsBar({ outil, options, onOptionChange, pinceau, onOpen
       )}
 
       {outil === "move" && (
-        <span className="brush-toolbar__tool">
-          <Move className="icon-md icon-stroke" aria-hidden="true" />
-          Déplacer — glisser une image, ses poignées la tournent et la
-          redimensionnent
-        </span>
+        <>
+          <span className="brush-toolbar__tool">
+            <Move className="icon-md icon-stroke" aria-hidden="true" />
+            Déplacer — glisser une image, ses poignées la tournent et la
+            redimensionnent
+          </span>
+          {/* SÉLECTION AUTO (ticket 26). Contrôle composé depuis `ui/` (ADR-0001) ;
+              la barre est son habillage BEM. Cochée, un clic sur la toile
+              sélectionne le calque le plus haut qui couvre ce pixel. */}
+          {onAutoSelectChange && (
+            <Checkbox label="Sélection auto" checked={autoSelect} onChange={onAutoSelectChange} />
+          )}
+        </>
       )}
     </div>
   );

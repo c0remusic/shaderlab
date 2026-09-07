@@ -29,6 +29,7 @@ import { TransformHandles } from "./components/TransformHandles";
 import { CanvasControls } from "./components/CanvasControls";
 import { EffectMoveSurface } from "./components/EffectMoveSurface";
 import { EffectTransformHandles } from "./components/EffectTransformHandles";
+import { ShapeTransformHandles } from "./components/ShapeTransformHandles";
 import { AutoSelectMoveSurface, type AutoSelectMover } from "./components/AutoSelectMoveSurface";
 import { ToolPalette } from "./components/ToolPalette";
 import "./components/ToolPalette.css";
@@ -83,7 +84,7 @@ import { PhotoPanel } from "./components/PhotoPanel";
 import { MaskPanel } from "./components/MaskPanel";
 import { PropertiesPanel, propertiesPanelTitle } from "./components/PropertiesPanel";
 import { getEffect } from "./render/effects/registry";
-import type { RefineEdgeParams } from "./mask/types";
+import type { ParametricMaskSource, RefineEdgeParams } from "./mask/types";
 import { MAX_COLOR_RANGE_SAMPLES } from "./mask/sources/colorRange";
 import { planFold } from "./mask/foldPlan";
 import { OverlayAnimationLoop } from "./render/overlayAnimationLoop";
@@ -2003,6 +2004,15 @@ export default function App() {
   /** Contrôles canvas déclarés par l'effet sélectionné, sans convention de nom. */
   const canvasControls = selectedEffect?.canvasControls ?? [];
 
+  /** Source de masque `shape` du calque d'effet sélectionné, s'il en a une — ce
+   *  que les poignées de la forme (ticket 13) retouchent sur la toile. Un calque
+   *  PHOTO n'a pas de marquee d'effet ; le verrou de masque coupe les poignées
+   *  au montage (comme `planShapeGesture`, et la porte `replaceLiveLayers`
+   *  refuse de toute façon l'écriture). */
+  const shapeSource = selectedLayer && !selectedLayer.imageSource
+    ? selectedLayer.mask.sources.find((s): s is ParametricMaskSource => s.type === "shape")
+    : undefined;
+
   const presetsPanel = useContextualPanel(true, "static");
   const layersPanel = useContextualPanel(true, "static");
   const texturesPanel = useContextualPanel(true, "static");
@@ -2494,6 +2504,31 @@ export default function App() {
             // glissement dedans commence une NOUVELLE forme.
             corpsInteractif={photoLayer.canvasMode.kind !== "shapeDraw"}
             onChange={(patch) => handleParamChange(selectedLayer.id, patch)}
+            onCommit={handleParamCommit}
+          />
+        )}
+        {/* POIGNÉES DE LA FORME (ticket 13). La source `shape` d'un calque
+            d'EFFET se retouche par huit pastilles sur la toile, après le tracé,
+            sans quitter l'outil Forme : `showEffectControls` (idle OU
+            shapeDraw), comme `CanvasControls`. `!isMaskLocked` — verrou de
+            masque = pas de poignées, même refus que `planShapeGesture` et que la
+            porte `replaceLiveLayers`. Le chemin vivant réutilise
+            `handleMaskSourceParamsChange` (replaceLiveLayers + requestRender
+            appairés) et `handleParamCommit` au relâcher. La boîte fusionne dans
+            les params EXISTANTS : `updateMaskSourceParams` remplace, donc envoyer
+            la boîte seule perdrait feather/invert/mode. */}
+        {showEffectControls && shapeSource && selectedLayer && selectedEffect && !isMaskLocked(selectedLayer) && (
+          <ShapeTransformHandles
+            box={{
+              x0: shapeSource.params.x0 as number,
+              y0: shapeSource.params.y0 as number,
+              x1: shapeSource.params.x1 as number,
+              y1: shapeSource.params.y1 as number,
+            }}
+            canvasSize={imageSize}
+            canvasRef={canvasRef}
+            effectName={selectedEffect.name}
+            onChange={(b) => handleMaskSourceParamsChange(selectedLayer.id, shapeSource.id, { ...shapeSource.params, ...b })}
             onCommit={handleParamCommit}
           />
         )}

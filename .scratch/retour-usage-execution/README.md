@@ -19,7 +19,7 @@ sa place. **14** (mesure lensBlur prod) est aussi HITL — le sandbox bloque
 UI          01 aperçu fusion (libre)
             02 panneau latéral (libre, réaction wireframe) → 03 libellé « Verrous : »
             04 coût aperçu effet (libre) → 05 vignettes de galerie
-Encre/Tex   06 concevoir encre procédurale [LIVE] → 07 encre dans Impression
+Encre/Tex   06 effet AQUARELLE — la photo bave [LIVE, requalifié 2026-09-09] → ~~07 encre dans Impression~~ (wontfix)
             08 chercher source textures + licences → 09 plus de textures
 Aplat       10 modèle de la forme [LIVE] → 11 sélection géométrique → 12 outil Forme → 13 poignées
 lensBlur    14 mesurer prod [Antoine] → 15 levier perf

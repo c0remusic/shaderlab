@@ -8,7 +8,13 @@ exception.
 
 **Blocked by:** 06 — le design de l'encre procédurale doit être arrêté.
 
-**Status:** ready-for-agent
+**Status:** wontfix — **CADUC le 2026-09-09.** Le pointage d'Antoine sur la planche
+de références du 06 a requalifié le besoin : ce qui doit baver, ce sont les
+COULEURS DE LA PHOTO (un effet plein cadre), pas la marque d'une trame. Ce
+ticket encrait des marques ; personne ne l'a demandé. `inkTexture`, l'encre-scan
+et `encreRang` restent tels quels, gelés par leurs références. Ne pas le
+rouvrir sous un autre nom sans une demande d'usage qui vise explicitement les
+trames.
 **Type:** task
 
 - [ ] `hatching`, `dither`, `halftone` encrent en procédural.

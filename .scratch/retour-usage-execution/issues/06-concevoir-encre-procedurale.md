@@ -9,7 +9,7 @@ pas d'une spec). Lien : `affinity/` ticket 02 (langage de texture procédurale).
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-human — **PLANCHE LIVRÉE le 2026-09-07, Antoine pointe.** CADRÉ au grilling du 2026-08-27 : mode SUPPLÉMENTAIRE à côté des scans (l'encre-scan reste, gelée par ses références), famille visée **AQUARELLE** (bavure qui fuse, bord granuleux). Le design du mécanisme ne commence qu'après le pointage, jamais avant.
+**Status:** ready-for-agent (planche de mécanisme) — **REQUALIFIÉ le 2026-09-09 sur le pointage d'Antoine : un EFFET plein cadre qui fait baver les couleurs de la photo, pas un mode d'encre** (§ ci-dessous). Le cadrage du grilling du 2026-08-27 (« mode SUPPLÉMENTAIRE à côté des scans ») est caduc. Le design du mécanisme ne se fige qu'après le pointage de la planche de mécanisme, jamais avant.
 **Type:** grilling
 **HITL — Antoine tranche live. L'agent ne décide pas à sa place.**
 
@@ -41,8 +41,44 @@ de `halftone` / `dither` / `hatching`. Un phénomène pointé = un mécanisme à
 concevoir ; un phénomène ignoré = hors périmètre. C'est ce pointage qui remplit
 les trois cases ci-dessous.
 
+## Pointage d'Antoine (2026-09-09) — et REQUALIFICATION du ticket
+
+> « en fait on s'en fiche de la texture du papier, le but c'est surtout de
+> faire baver les couleurs type aquarelle »
+
+Lu sur la planche : **A (bavure fusante) est la cible**, E (papier) SORT,
+B (granulation) et D (lavis) secondaires ; C (front de séchage) est gardé comme
+le BORD d'une bavure — ce à quoi elle ressemble une fois sèche, pigment poussé
+au front, dentelé — pas comme un phénomène à part.
+
+Et « faire baver les COULEURS » ne dit pas ce que le ticket chartrait. Question
+posée en gestes (« tu ouvres une photo, tu poses l'effet : qu'est-ce qui
+bave ? ») — réponse : **les couleurs de la PHOTO**, l'image entière fuse comme du
+pigment dans du papier mouillé. Donc :
+
+- **Ce n'est PAS un mode d'`inkTexture`** (encre sur une marque de trame). C'est
+  un **EFFET créatif plein cadre**, le 27ᵉ du registre, qui lit ce qui est en
+  dessous et le fait baver. `inkTexture` et l'encre-scan ne bougent pas.
+- **Le ticket 07 (encre procédurale dans Impression) est CADUC** : il encrait
+  des marques, et personne ne l'a demandé. Il reste dans le dossier, statut
+  `wontfix`, pour que la question ne renaisse pas sous un autre nom.
+- ⚠️ Le grilling du 2026-08-27 avait cadré « mode SUPPLÉMENTAIRE à côté des
+  scans » — c'était MA traduction du mot « encre », jamais interrogée ; le
+  prototype de références l'a fait sortir (même mécanique que « forme » au
+  ticket 10). Un mot du domaine se vérifie sur une image, pas sur une spec.
+
+**Prochain pas : planche de MÉCANISME** — un prototype jetable de l'effet, rendu
+sur les photos de test par l'iframe du harnais, en variantes par ABLATION (un
+facteur à la fois : diffusion seule = le naïf, + ondulation des bords, + front
+de pigment, + front dentelé, diffusion en DENSITÉ plutôt qu'en couleur, portée
+doublée), vue réduite pour la bave (par masses) ET crop 1:1 pour le front (par
+pixel). Antoine pointe la colonne. Le design du mécanisme se fige après, jamais
+avant. Barre : le naïf (photo floutée + ondulée) est la variante témoin qu'on
+DOIT pouvoir distinguer, sinon c'est un filtre 2005.
+
 - [x] Planche de références RÉELLES construite (15 images, 5 phénomènes, crops 1:1).
-- [ ] **[Antoine]** Pointer les vignettes/phénomènes visés sur la planche.
-- [ ] Modèle d'encre procédurale arrêté (mécanisme de diffusion, bord, paramètres exposés).
+- [x] **[Antoine]** Pointé : A, bavure des couleurs de la PHOTO ; E sort (2026-09-09).
+- [ ] Planche de mécanisme (prototype jetable, variantes par ablation) — Antoine pointe.
+- [ ] Modèle arrêté (mécanisme de diffusion, bord, paramètres exposés) — d'après le pointage.
 - [ ] Jugé crédible devant références/photo par Antoine.
 - [ ] Périmètre exact : ce que l'encre procédurale remplace dans `inkTexture` / `encreRang`, et ce qui reste.

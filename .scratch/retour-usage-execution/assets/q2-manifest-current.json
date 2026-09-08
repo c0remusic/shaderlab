@@ -1,0 +1,22 @@
+{
+  "crop": {
+    "x": 293,
+    "y": 230
+  },
+  "poli-d25": {
+    "moyenne": 64.44,
+    "ecartType": 48.78
+  },
+  "poli-d0": {
+    "moyenne": 64.44,
+    "ecartType": 48.78
+  },
+  "depoli-d25": {
+    "moyenne": 64.45,
+    "ecartType": 48.72
+  },
+  "depoli-d0": {
+    "moyenne": 64.45,
+    "ecartType": 48.72
+  }
+}

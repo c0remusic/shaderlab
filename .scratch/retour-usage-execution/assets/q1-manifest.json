@@ -1,0 +1,62 @@
+{
+  "grille": {
+    "defaut": {
+      "moyenne": 2.07,
+      "ecartType": 13.23
+    },
+    "blades6": {
+      "moyenne": 1.91,
+      "ecartType": 13
+    },
+    "blades6-rot30": {
+      "moyenne": 1.91,
+      "ecartType": 13
+    },
+    "blades6-curv": {
+      "moyenne": 2.01,
+      "ecartType": 13.14
+    },
+    "boost0": {
+      "moyenne": 1.36,
+      "ecartType": 8.24
+    },
+    "boost6": {
+      "moyenne": 2.07,
+      "ecartType": 13.23
+    },
+    "iris": {
+      "moyenne": 1.81,
+      "ecartType": 12.93
+    }
+  },
+  "nuit": {
+    "defaut": {
+      "moyenne": 28.82,
+      "ecartType": 25.43
+    },
+    "blades6": {
+      "moyenne": 28.64,
+      "ecartType": 25.58
+    },
+    "blades6-rot30": {
+      "moyenne": 28.64,
+      "ecartType": 25.58
+    },
+    "blades6-curv": {
+      "moyenne": 28.76,
+      "ecartType": 25.5
+    },
+    "boost0": {
+      "moyenne": 28.16,
+      "ecartType": 24.64
+    },
+    "boost6": {
+      "moyenne": 28.82,
+      "ecartType": 25.43
+    },
+    "iris": {
+      "moyenne": 28.51,
+      "ecartType": 25.45
+    }
+  }
+}

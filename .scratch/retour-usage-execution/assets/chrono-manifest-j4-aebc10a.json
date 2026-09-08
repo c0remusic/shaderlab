@@ -1,0 +1,18 @@
+{
+  "crop": {
+    "x": 293,
+    "y": 230
+  },
+  "poli": {
+    "moyenne": 70.48,
+    "ecartType": 45.77,
+    "md5": "351cc7546c3f5f78d7bf491d28f3e29d",
+    "md5crop": "331f3bb2b4ff1eb428505d8af30b127a"
+  },
+  "depoli": {
+    "moyenne": 70.46,
+    "ecartType": 45.74,
+    "md5": "a33c8332ff43285da4e91b4686c62155",
+    "md5crop": "836837ea7bf7ae33e0d936d579cf80f7"
+  }
+}

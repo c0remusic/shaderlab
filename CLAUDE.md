@@ -253,13 +253,30 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   `glass` (2026-08-03/04) est le portage du système de réfraction d'Antoine
   (`C:\dev\portfolio\src\shaders\verre\site.fs.glsl`) — plan
   `docs/superpowers/specs/2026-08-03-verre-plan-de-portage.md`. Il porte **neuf
-  matières de FEUILLE**, cinq profils de section, **treize références de pixels
-  — toutes les branches verrouillées**. Un seul mécanisme décliné neuf fois :
+  matières de FEUILLE**, cinq profils de section, **quatorze références de pixels
+  — toutes les branches verrouillées** (treize jusqu'au 2026-09-07 ;
+  `effet-verre-matcap` est la quatorzième). Un seul mécanisme décliné neuf fois :
   chaque matière ne fait que fabriquer une PENTE de surface, tout ce qui suit
   (réfraction, dispersion, diffusion, Fresnel, absorption) est commun et ne sait
   rien d'elle.
   Sa mire est `mireVerre`, écrite pour lui et **entièrement achromatique** —
   donc toute couleur dans ses références EST la dispersion.
+  ⚠️ **LE MATCAP EST UNE DOSE, DÉFAUT 0, depuis le 2026-09-07** (`ede4b16`,
+  paramètre `matcap`, index 14, dernier de la liste). Le reflet d'environnement
+  procédural du ticket 17 (`30dfd5b`, 2026-09-02) avait été IMPOSÉ ; devant la
+  planche chronologique du verre (six jalons, `3c259b3` → HEAD, même photo,
+  mêmes réglages), Antoine a pointé la colonne d'AVANT le matcap. Dose 0 rend
+  donc la couleur de reflet fixe seule, au bit près le rendu d'avant, dose 1 le
+  matcap seul. Les treize références historiques ont été RÉGÉNÉRÉES avec ce
+  défaut (elles portaient le matcap imposé) ; seule `effet-verre-matcap` le
+  montre à 1. ⚠️ Deux griefs d'usage ont été mesurés avant ce geste, et un seul
+  avait la cause qu'il nommait : « on dirait une texture posée, je préférais
+  avant » visait bien le matcap ; « distortion de la couleur un peu moche » ne
+  pouvait PAS venir de la dispersion sur Poli et Dépoli — elle y est inerte
+  (0,01 % des pixels, 2 niveaux au plus, nulle à plat par construction), elle ne
+  mord qu'au bord d'une matière à pente (Cannelé). Planches et mesures :
+  `.scratch/retour-usage-execution/assets/planche-q2-*.mjs` et
+  `planche-verre-chronologie-*.mjs` (HTML et PNG non versionnés, régénérables).
   ⚠️ **LES CINQ MATIÈRES DE PAVÉ SONT SORTIES le 2026-08-27** (ADR-0021, retrait
   SEC) — il en portait donc quatorze, et dix-huit références, jusqu'à cette
   date. Ne pas les citer comme existantes et ne pas les reproposer : c'est un
@@ -331,8 +348,13 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   que ce paragraphe a dit du 2026-08-05 au 2026-08-12** (« chantier soldé »).
   Mesuré sur les modules réels, d'abord le 2026-08-12 puis le 2026-08-15
   (instrument : `.scratch/prochain-palier/assets/mesure-controles.ts`), puis
-  re-mesuré le 2026-08-19, le 2026-08-26, puis le **2026-08-27** : sur
-  **373 paramètres**, **49** portent une condition (13 %) et **15 effets sur 26
+  re-mesuré le 2026-08-19, le 2026-08-26, le 2026-08-27, puis le
+  **2026-09-09** : sur **379 paramètres**, **49** portent une condition (13 %)
+  et **15 effets sur 26** (le 373 → 379 est entièrement du 2026-09-02 au 09-07 :
+  les quatre params de `box` de `texture` et le `point` de `warp`/`halftone`/
+  `hatching` du ticket 21, et la dose `matcap` de `glass` — zéro condition
+  ajoutée, donc le ratio ne bouge pas, et pour la même raison que d'habitude :
+  un ajout, pas une correction)
   n'en ont AUCUNE** — dont `curves` (37 params), `lensFlare` (33),
   `channelMixer` (22), `gradientMap` (20). (Le 2026-08-26 : +1 param et +2
   conditions par le mode « L'image en dessous » de `displacementMap`,
@@ -371,11 +393,12 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   d'où le défilement — le total perd la `grille` de la section « Pavé » retirée
   par ADR-0021, et ce chiffre-là aussi était faux avant d'être relancé, il
   disait 63 des 83 quand l'arbre en portait 60 des 84), et
-  **5 effets sur 26 seulement** portent un outil sur la toile
-  (`aplat`, `lensFlare`, `lightLeak`, `motionBlur`, `pixelStretch`),
-  en quatre genres (`disk` ×2, `point` ×2, `axis` ×2, `box` ×1 — mesuré le
-  2026-08-26 ; `aplat` porte une `box` depuis son tracé à la souris, pas un
-  `point`). Se tranche dans
+  **9 effets sur 26** portent un outil sur la toile
+  (`aplat`, `lensFlare`, `lightLeak`, `motionBlur`, `pixelStretch`, et depuis le
+  2026-09-02 — ticket 21, `9f118c0` — `warp`, `halftone`, `hatching` en `point`
+  et `texture` en `box`), en quatre genres (`disk` ×2, `point` ×5, `axis` ×2,
+  `box` ×2 — re-mesuré le 2026-09-09 ; c'était 5 sur 26 et `point` ×2 jusqu'au
+  ticket 21). Se tranche dans
   `.scratch/prochain-palier/issues/14-la-fusion-des-reglages-redondants.md`.
   ⚠️ **`EffectModule.canvasControls` EST le critère qui sépare un outil de
   RETOUCHE d'un effet CRÉATIF PLACÉ** (arbitrage d'Antoine, 2026-08-21 : « on
@@ -690,10 +713,14 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Ce qu'elle laisse passer : notre uniform `params: array<f32, 48>` n'est pas
   conforme (stride 4 pour un alignement requis de 16 en espace uniform), Dawn
   l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 26
-  effets, index gelés par les presets ET par **117** références de pixels
-  (**119 PNG** dans `test/render-refs/` au 2026-08-27 ; les DEUX qui ne gèlent
+  effets, index gelés par les presets ET par **123** références de pixels
+  (**125 PNG** dans `test/render-refs/` au 2026-09-09 ; les DEUX qui ne gèlent
   PAS un index, `photo-miroir-temoin` / `photo-miroir`, gèlent le miroir du
-  calque photo, donc le compte qui gèle les index est 119 − 2 = 117.
+  calque photo, donc le compte qui gèle les index est 125 − 2 = 123.
+  ⚠️ **+6 entre le 2026-09-02 et le 09-07**, jamais reportés ici avant le
+  09-09 : `effet-texture-box` (ticket 21), la triplette `masque-forme-*`
+  (ticket 11), `effet-transform-lightleak` (ticket 24) et `effet-verre-matcap`
+  (`ede4b16`). C'était 119 PNG et 117 gelantes au 2026-08-27.
   ⚠️ **−5 le 2026-08-27** : les cinq références de pavé
   (`effet-verre-pave-nuage`, `-ondule`, `-quadrille`, `-alveolaire`, `-lisse`)
   sont parties avec les matières retirées (ADR-0021) — le verre passe de 18

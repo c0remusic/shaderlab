@@ -18,8 +18,9 @@ mesure directe par l'app + signature). `lensBlur` porte 12 params dont
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-human — mesure faite, un défaut corrigé, trois arbitrages
-rendus à Antoine (§ Ce qui est PROPOSÉ).
+**Status:** ready-for-human — mesure faite, un défaut corrigé, la proposition 1
+(`blades` 0 → 6) LIVRÉE et validée le 2026-09-07 (`1d20573`) ; restent les
+propositions 2 à 4 (§ Ce qui est PROPOSÉ), aucune urgente.
 **Type:** research
 
 - [x] Table mesurée : param × rayon → % de canaux d'écart sur mire à bokeh.
@@ -314,7 +315,16 @@ des canaux (donc verdict concluant, pas une configuration morte).
 
 ## Ce qui est PROPOSÉ (décision d'Antoine)
 
-1. **`blades` : défaut 0 → 6.** C'est la correction la plus directe du retour
+1. ✅ **FAIT le 2026-09-07 (`1d20573`), validé par Antoine** sur la planche
+   `assets/planche-q1-lensblur-render.mjs` / `-assemble.mjs` — six variantes sur
+   deux scènes (`mireBokeh` et une nuit urbaine synthétique), crops 1:1 sur un
+   point brillant isolé. Ce qu'elle montre : forme, orientation, courbure et
+   intensité du bokeh ne se lisent QUE sur les points brillants ; sur des
+   masses de ton moyen tous les réglages rendent le même flou — d'où « les
+   autres paramètres ne font virtuellement rien » sur une photo sans hautes
+   lumières isolées. La paire « intensité 0 contre 6 » est celle qui explique
+   l'effet (à 0, un gaussien qui lave).
+   **`blades` : défaut 0 → 6.** C'est la correction la plus directe du retour
    d'usage : elle rend vivants d'un coup les deux curseurs morts de la section
    Diaphragme, et 6 est ce que le fichier appelle lui-même « l'hexagone des
    objectifs courants ». Changer un défaut ne déplace AUCUNE référence (les trois

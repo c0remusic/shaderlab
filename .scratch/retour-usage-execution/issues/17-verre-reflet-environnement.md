@@ -106,3 +106,47 @@ régénérables : `assets/planche-17-rendu.mjs` (éditer le site, `npx tsc
       ⚠️ **13 et non 18** : les cinq références de Pavé sont parties avec
       les matières (ADR-0021).
 - [x] **[Antoine]** Jugé au grilling du 2026-08-27 : GARDÉ tel quel (aucune objection sur le reflet — son doute visait les pavés, retirés). Les lobes restent réglables plus tard si l'usage le demande.
+
+## Retour d'usage du 2026-09-07 — le matcap devient une DOSE, défaut 0 (`ede4b16`)
+
+Le verdict du grilling n'a pas tenu devant l'app. Deux griefs d'Antoine sur le
+verre, en usage réel : **« on dirait une texture posée, je préférais avant »** et
+**« distortion de la couleur un peu moche »**. Les deux ont été instruits PAR
+L'IMAGE avant tout geste (planches jetables, Renderer offscreen via l'iframe du
+harnais, `glass.ts` swappé par `git show <sha>:` puis restauré) :
+
+- `assets/planche-q2-verre-render.mjs` + `planche-q2-cannele-render.mjs` +
+  `planche-q2-mesure-dispersion.mjs` : matcap (HEAD) contre avant (`30dfd5b^`)
+  sur `photo-1`, Poli et Dépoli, et la dispersion 0,25 contre 0. **Mesuré : la
+  dispersion est quasi inerte sur Poli et Dépoli** (0,01 % des pixels, 2 niveaux
+  au plus ; nulle à plat par construction) — le second grief ne peut pas venir
+  d'elle sur ces matières, elle ne mord qu'au bord d'une matière à pente
+  (Cannelé, ajouté hors brief pour le montrer). La couleur qui bouge, c'est le
+  matcap : moyenne globale 70,5 → 64,4, écart-type 45,8 → 48,8 — un voile
+  STRUCTURÉ dans les ombres, là où l'ancien reflet fixe était un voile plat.
+- `assets/planche-verre-chronologie-render.mjs` + `-assemble.mjs` : six jalons
+  de `glass.ts` (`3c259b3` naissance, `da86f3d` diffusion isotrope, `4c7754f`
+  et `aebc10a` mipmap de diffusion, `30dfd5b` matcap, HEAD), Poli et Dépoli,
+  même photo, mêmes réglages. « Pointez la colonne préférée. » Les colonnes de
+  perf ne bougent la moyenne que de 0,2 ; le seul saut visible est le matcap.
+
+**Antoine a pointé la colonne d'AVANT le matcap.** Réponse (`ede4b16`,
+2026-09-07) : le matcap n'est plus imposé, il devient le paramètre `matcap`
+(« Reflet structuré », index 14, dernier de la liste, défaut 0) qui interpole
+entre la couleur de reflet fixe d'avant (dose 0 — le rendu d'avant au bit près)
+et la sphère d'environnement lue par la normale (dose 1). Le Fresnel module les
+deux ; la dose ne change que CE qui est réfléchi. Les 13 références régénérées
+avec le défaut 0 (elles portaient le matcap imposé), `effet-verre-matcap` ajoutée
+à 1 — le verre passe à **14 références**. Blinn-Phong toujours en place.
+
+Ce que ça enseigne, en plus du verdict : un choix de voie fait sur une planche
+de VARIANTES (le 27/08) s'est retourné devant une planche CHRONOLOGIQUE — le
+juge compare à ce qu'il avait, pas à trois candidats côte à côte. Et le second
+grief avait une cause différente de celle qu'il nommait : mesurer avant de
+toucher la dispersion a évité de corriger un curseur inerte.
+
+- [x] **[Antoine]** Colonne pointée sur la chronologie : AVANT le matcap (2026-09-07).
+- [x] Matcap en dose, défaut 0 ; 14 références relues ; `test:render` vert (`ede4b16`).
+- [ ] Le grief « distortion de la couleur » reste SANS cause identifiée sur
+      Poli/Dépoli (ce n'est pas la dispersion) : à ré-instruire devant l'app
+      avec Antoine, sur la photo qui l'a fait dire.

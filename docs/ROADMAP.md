@@ -33,11 +33,16 @@
   Il était né avec un rectangle réglé à quatre curseurs ; verdict d'Antoine :
   « la pire façon de créer un rectangle ». Un rectangle se trace, les curseurs
   retouchent ce qui existe.
-- `glass` : **9 matières de FEUILLE**, 5 profils de section, **13 références de
-  pixels — toutes les branches verrouillées**. ⚠️ Il en portait 14 et 18 jusqu'au
-  2026-08-27 : les cinq matières de PAVÉ sont RETIRÉES (ADR-0021, quatrième refus
-  daté).
-- **373 paramètres, 119 références de pixels** — re-mesurés le **2026-08-27**
+- `glass` : **9 matières de FEUILLE**, 5 profils de section, **14 références de
+  pixels — toutes les branches verrouillées**. ⚠️ Il en portait 14 matières et 18
+  références jusqu'au 2026-08-27 : les cinq matières de PAVÉ sont RETIRÉES
+  (ADR-0021, quatrième refus daté). ✅ Depuis le 2026-09-07 (`ede4b16`) le
+  matcap du ticket 17 est une DOSE à défaut 0 — Antoine a pointé la colonne
+  d'avant sur la planche chronologique — et `effet-verre-matcap` est la 14ᵉ.
+- **379 paramètres, 125 références de pixels** — re-mesurés le **2026-09-09**
+  (373 et 119 au 2026-08-27 ; le +6 et le +6 sont les tickets 21, 11, 24 et la
+  dose `matcap` — un ajout, pas une correction : 49 conditions, ratio inchangé
+  à 13 %). Historique du 2026-08-27 :
   (l'instrument, pas la prose : les « 385 » d'avant portaient encore `emboss` et
   `noise`, retirés le 2026-08-21 ; le +1 param et la +1 référence du 2026-08-26
   sont le mode « L'image en dessous » de `displacementMap`, ticket 22 ; le −8 et

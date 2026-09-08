@@ -4,8 +4,20 @@
     {
       "name": "storybook",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "storybook"],
+      "runtimeArgs": [
+        "run",
+        "storybook"
+      ],
       "port": 6006
+    },
+    {
+      "name": "planche-06",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "serve.mjs"
+      ],
+      "cwd": ".scratch/retour-usage-execution/assets/ref-06",
+      "port": 8099
     }
   ]
 }

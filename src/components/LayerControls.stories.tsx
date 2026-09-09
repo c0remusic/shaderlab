@@ -45,6 +45,8 @@ const meta: Meta<typeof LayerControls> = {
     onToggleLock: () => {},
     onDuplicate: () => {},
     onRemove: () => {},
+    onStamp: () => {},
+    onMergeDown: () => {},
   },
 };
 
@@ -69,6 +71,9 @@ export const NoSelection: Story = {
     await expect(canvas.getByRole("button", { name: "Verrouiller — Tout" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "Dupliquer le calque" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "Supprimer le calque" })).toBeDisabled();
+    // Aplatir/Fusionner (ticket 27) suivent la même règle : montés, inertes.
+    await expect(canvas.getByRole("button", { name: "Aplatir en nouveau calque" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Fusionner avec le dessous" })).toBeDisabled();
   },
 };
 
@@ -109,6 +114,59 @@ export const RemoveSelectedLayer: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Supprimer le calque" }));
     await expect(args.onRemove).toHaveBeenCalledWith("layer-2");
+  },
+};
+
+// APLATIR / FUSIONNER (ticket 27) — les deux gestes « Aplatir » de Photoshop,
+// posés dans la zone de contrôles à côté de Dupliquer/Supprimer (ADR-0001).
+// `layer-2` est au MILIEU de la pile (au-dessus de `layer-1`) : les deux gestes
+// sont donc permis, et chacun rapporte l'id du calque sélectionné.
+export const FlattenActionsActOnSelectedLayer: Story = {
+  args: { selectedId: "layer-2", onStamp: fn(), onMergeDown: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const stampBtn = canvas.getByRole("button", { name: "Aplatir en nouveau calque" });
+    const mergeBtn = canvas.getByRole("button", { name: "Fusionner avec le dessous" });
+    await expect(stampBtn).not.toBeDisabled();
+    await expect(mergeBtn).not.toBeDisabled();
+    await userEvent.click(stampBtn);
+    await expect(args.onStamp).toHaveBeenCalledWith("layer-2");
+    await userEvent.click(mergeBtn);
+    await expect(args.onMergeDown).toHaveBeenCalledWith("layer-2");
+  },
+};
+
+// Sur le calque du FOND (`layer-1`, au bas de la pile), « Fusionner avec le
+// dessous » n'a pas de dessous : elle est grisée. Le Tampon, lui, reste actif
+// (le composite jusqu'au fond = le fond seul, ce qui a un sens).
+export const MergeDisabledOnBottomLayer: Story = {
+  args: { selectedId: "layer-1" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("button", { name: "Fusionner avec le dessous" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Aplatir en nouveau calque" })).not.toBeDisabled();
+  },
+};
+
+// PLAFOND de calques photo atteint (5) : le Tampon CRÉE un calque photo, il est
+// donc grisé. Fusionner, qui RETIRE le lot avant d'ajouter le raster, reste
+// possible.
+const fivePhotoDocument: LayerState[] = Array.from({ length: 5 }, (_, i) =>
+  makeLayer({
+    id: `photo-${i}`,
+    effectId: "passthrough",
+    name: `IMG_${i}.jpg`,
+    imageSource: { sourceId: `s-${i}` },
+    transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
+  }),
+);
+
+export const StampDisabledAtPhotoCap: Story = {
+  args: { layers: fivePhotoDocument, selectedId: "photo-2" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("button", { name: "Aplatir en nouveau calque" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Fusionner avec le dessous" })).not.toBeDisabled();
   },
 };
 

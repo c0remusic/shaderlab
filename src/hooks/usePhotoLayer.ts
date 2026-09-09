@@ -3,7 +3,9 @@ import type { DocumentSession } from "../application/documentSession";
 import type { LayerStack } from "../layers/layerStack";
 import type { LayerState, LayerTransform } from "../layers/types";
 import { MAX_PHOTO_LAYERS, canAddPhotoLayer } from "../layers/photoLayer";
+import { flattenComposite, mergeDownPlan, stampVerdict } from "../layers/flatten";
 import type { Renderer } from "../render/renderer";
+import { getEffect } from "../render/effects/registry";
 import { pickImageFile, readImageFile } from "../launch";
 import { messageFromUnknown } from "../lib/errors";
 import { centerTransform, fitToCanvas, resetTransform } from "../ui/transform";
@@ -25,6 +27,15 @@ import {
 export function basename(path: string): string | null {
   const last = path.split(/[\\/]/).pop();
   return last && last.length > 0 ? last : null;
+}
+
+/** Nom du calque photo créé par un aplatissement (ticket 27) : « Aplati — <nom
+ *  du calque source> ». Le nom source suit la MÊME règle que la ligne de la
+ *  pile (`LayerPanel`) — le nom explicite du calque, sinon le nom de son effet.
+ *  Ce helper vit dans le hook et non dans `layers/flatten.ts` parce qu'il lit le
+ *  registre d'effets (`render/`), interdit au paquet `layers/`. */
+function flattenedName(layer: LayerState): string {
+  return `Aplati — ${layer.name ?? getEffect(layer.effectId).name}`;
 }
 
 interface Deps {
@@ -203,6 +214,94 @@ export function usePhotoLayer({
     }
   }, [replacePhotoImageFromPath, setError]);
 
+  /** Rastérise un composite de calques en une source photo enregistrée, et
+   *  rend son `sourceId`. Chaîne commune au Tampon et à la Fusion : `exportFrame`
+   *  rend N'IMPORTE QUELLE liste de calques en pixels à la taille de la toile,
+   *  aplatis sur fond opaque par la passe de présentation (garanti par
+   *  `assertOpaqueForJpeg` côté export, ADR-0006) — donc les octets sont opaques
+   *  sans forçage. `ImageData` → `createImageBitmap` → `register`, exactement le
+   *  chemin d'`importPhotoFromPath` mais à partir de pixels au lieu d'un
+   *  fichier. `register` est ATTENDU (il produit la vignette) avant tout
+   *  `addPhotoLayer`. */
+  const rasterizeComposite = useCallback(async (composite: LayerState[]): Promise<string> => {
+    const renderer = rendererRef.current!;
+    const frame = await renderer.exportFrame(composite);
+    const imageData = new ImageData(new Uint8ClampedArray(frame.pixels), frame.width, frame.height);
+    const bitmap = await createImageBitmap(imageData);
+    return renderer.photoSources!.register(bitmap);
+  }, [rendererRef]);
+
+  /** Transform d'un raster pleine toile : centré, échelle 1, aligné au pixel sur
+   *  le fond — identique à l'import photo. `imageSize` est la taille de la TOILE
+   *  (posée à l'ouverture, inchangée par le recadrage non destructif `cadre`,
+   *  qui n'entre pas dans le pipeline de rendu ni dans `exportFrame`), donc le
+   *  raster couvre exactement ce qu'`exportFrame` a rendu, cadre ou pas. */
+  const fullCanvasTransform = useCallback(
+    (): LayerTransform => ({ x: imageSize.width / 2, y: imageSize.height / 2, scaleX: 1, scaleY: 1, rotation: 0 }),
+    [imageSize.width, imageSize.height],
+  );
+
+  /** TAMPON (« Aplatir en nouveau calque », ticket 27) : un nouveau calque photo
+   *  opaque, posé JUSTE AU-DESSUS du sélectionné, portant le composite de tout ce
+   *  qui est en dessous PLUS le sélectionné. Rien n'est détruit. UN pas d'undo.
+   *
+   *  Tout est dérivé d'un MÊME instantané `currentStack()` : le verdict, le
+   *  composite rendu et le calque créé voient la même pile, donc aucun décalage
+   *  possible avec un geste concurrent pendant le rendu. */
+  const handleStamp = useCallback(async (id: string) => {
+    if (!rendererRef.current?.photoSources) return;
+    const stack = currentStack();
+    const verdict = stampVerdict(stack.layers, id);
+    if (!verdict.ok) {
+      setError(verdict.reason);
+      return;
+    }
+    const composite = flattenComposite(stack.layers, id);
+    const source = stack.layers.find((l) => l.id === id);
+    if (!composite || !source) return;
+    const name = flattenedName(source);
+    try {
+      const sourceId = await rasterizeComposite(composite);
+      const newId = stack.addPhotoLayer(sourceId, fullCanvasTransform(), name, id);
+      commit(stack);
+      selectLayer(newId);
+      setError(null);
+    } catch (e) {
+      setError(messageFromUnknown(e));
+    }
+  }, [rendererRef, currentStack, setError, rasterizeComposite, fullCanvasTransform, commit, selectLayer]);
+
+  /** FUSIONNER avec le dessous (ticket 27) : le MÊME raster REMPLACE le
+   *  sélectionné et tout ce qui est en dessous (le LOT). Destructif, annulable.
+   *  UN pas d'undo — retrait du lot, ajout du raster et sa descente au fond sont
+   *  committés en une seule fois.
+   *
+   *  Le raster va au FOND (index 0), sous les calques restés AU-DESSUS du
+   *  sélectionné, qui se recomposent par-dessus lui — l'aspect final est
+   *  inchangé. `addPhotoLayer` ne sait insérer qu'au-dessus d'une ancre ou en
+   *  haut de pile, jamais en position 0 : on l'ajoute donc en haut puis on le
+   *  redescend par `reorderLayer(newId, 0)`, dans le même commit. */
+  const handleMergeDown = useCallback(async (id: string) => {
+    if (!rendererRef.current?.photoSources) return;
+    const stack = currentStack();
+    const plan = mergeDownPlan(stack.layers, id);
+    if (!plan) return; // bouton désactivé : ce chemin n'est atteint que sur un état permis
+    const source = stack.layers.find((l) => l.id === id);
+    if (!source) return;
+    const name = flattenedName(source);
+    try {
+      const sourceId = await rasterizeComposite(plan.composite);
+      for (const rid of plan.removedIds) stack.removeLayer(rid);
+      const newId = stack.addPhotoLayer(sourceId, fullCanvasTransform(), name, null);
+      stack.reorderLayer(newId, 0);
+      commit(stack);
+      selectLayer(newId);
+      setError(null);
+    } catch (e) {
+      setError(messageFromUnknown(e));
+    }
+  }, [rendererRef, currentStack, setError, rasterizeComposite, fullCanvasTransform, commit, selectLayer]);
+
   const handleImportPhotoLayer = useCallback(async () => {
     try {
       const path = await pickImageFile();
@@ -321,6 +420,8 @@ export function usePhotoLayer({
     setCanvasMode,
     handleImportPhotoLayer,
     importPhotoFromPath,
+    handleStamp,
+    handleMergeDown,
     handleReplacePhotoImage,
     replacePhotoImageFromPath,
     handleTransformChange,

@@ -219,6 +219,8 @@ export const FiveRowDocumentHidesNoRow: Story = {
                 onToggleLock={() => {}}
                 onDuplicate={() => {}}
                 onRemove={() => {}}
+                onStamp={() => {}}
+                onMergeDown={() => {}}
               />
             ),
             content: (

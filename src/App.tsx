@@ -2597,6 +2597,8 @@ export default function App() {
                 onToggleLock={handleToggleLock}
                 onDuplicate={handleDuplicate}
                 onRemove={handleRemove}
+                onStamp={photoLayer.handleStamp}
+                onMergeDown={photoLayer.handleMergeDown}
               />,
               content: <LayerPanel
                   layers={layers}

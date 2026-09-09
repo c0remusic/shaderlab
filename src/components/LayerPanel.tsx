@@ -1,7 +1,7 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import { usePointerReorder, type DropPosition } from "../ui/dragReorder";
 import "../ui/dragReorder.css";
-import { Brush, ChevronDown, ChevronRight, Copy, Eye, EyeOff, Grid2x2, GripVertical, Image as PhotoLayerIcon, Lock, Move, Plus, Sparkles as EffectLayerIcon, Trash2 } from "lucide-react";
+import { Brush, ChevronDown, ChevronRight, Combine, Copy, Eye, EyeOff, Grid2x2, GripVertical, Image as PhotoLayerIcon, Lock, Move, Plus, Sparkles as EffectLayerIcon, Stamp, Trash2 } from "lucide-react";
 import type { LayerState } from "../layers/types";
 import { eyeButtonLabels, isLayerVisible, isolationRole, isolationVisibleIds, type IsolationRole } from "../layers/isolation";
 import { displayInsertToModelInsert } from "./layerDisplayOrder";
@@ -25,6 +25,7 @@ import { IconButton } from "./ui/icon-button";
 import { EffectPicker } from "./EffectPicker";
 import type { EffectThumbnailPicker } from "../hooks/useEffectThumbnails";
 import { layerControlsModel, opacityToPercent, parseOpacityPercent } from "./layerControlsModel";
+import { mergeDownVerdict, stampVerdict } from "../layers/flatten";
 import "./LayerPanel.css";
 import { isFullyLocked, isPartiallyLocked } from "../layers/layerLocks";
 import type { LayerLocks } from "../layers/types";
@@ -136,6 +137,14 @@ export interface LayerControlsProps {
   onToggleLock: (id: string, which: keyof LayerLocks, value: boolean) => void;
   onDuplicate: (id: string) => void;
   onRemove: (id: string) => void;
+  /** APLATIR EN NOUVEAU CALQUE (Tampon, ticket 27) : rastérise le composite
+   *  jusqu'au calque sélectionné inclus dans un nouveau calque photo posé
+   *  au-dessus. Rien n'est détruit. */
+  onStamp: (id: string) => void;
+  /** FUSIONNER AVEC LE DESSOUS (ticket 27) : rastérise le même composite mais
+   *  REMPLACE le sélectionné et tout ce qui est en dessous. Destructif,
+   *  annulable. */
+  onMergeDown: (id: string) => void;
 }
 
 interface LayerRowProps {
@@ -578,11 +587,18 @@ export function LayerControls({
   onToggleLock,
   onDuplicate,
   onRemove,
+  onStamp,
+  onMergeDown,
 }: Omit<LayerControlsProps, "onEffectChange">) {
   // Aucune sélection : la zone de contrôles reste MONTÉ mais désactivé. Le faire
   // disparaître ferait sauter la liste de toute sa hauteur à chaque
   // désélection (et rendrait le panneau instable au clic).
   const model = layerControlsModel(layers, selectedId);
+  // Verdicts d'APLATISSEMENT (ticket 27), logique pure partagée avec le hook qui
+  // exécute le geste (`layers/flatten.ts`). Un bouton désactivé porte SA raison
+  // en infobulle — un contrôle inerte muet est l'échec silencieux proscrit ici.
+  const stamp = stampVerdict(layers, selectedId);
+  const merge = mergeDownVerdict(layers, selectedId);
   return (
     // `title` sur un calque VERROUILLÉ : la zone est inerte et il faut dire
     // pourquoi, sans ajouter de ligne de texte — la hauteur de cette zone est
@@ -660,6 +676,28 @@ export function LayerControls({
             onClick={() => model.layerId !== null && onDuplicate(model.layerId)}
           >
             <Copy className="icon-sm icon-stroke" aria-hidden="true" />
+          </IconButton>
+          {/* APLATIR / FUSIONNER (ticket 27). Le libellé accessible reste
+              CONSTANT quel que soit l'état — un nom d'action qui change casse la
+              cible des tests et des lecteurs d'écran ; c'est l'infobulle qui
+              porte la raison du refus quand le bouton est grisé. */}
+          <IconButton
+            label="Aplatir en nouveau calque"
+            tooltip={stamp.ok ? "Copie aplatie du composite jusqu'ici, posée au-dessus (Tampon)" : stamp.reason}
+            size="compact"
+            disabled={!stamp.ok || model.layerId === null}
+            onClick={() => model.layerId !== null && onStamp(model.layerId)}
+          >
+            <Stamp className="icon-sm icon-stroke" aria-hidden="true" />
+          </IconButton>
+          <IconButton
+            label="Fusionner avec le dessous"
+            tooltip={merge.ok ? "Remplace ce calque et tout ce qui est en dessous par leur composite aplati" : merge.reason}
+            size="compact"
+            disabled={!merge.ok || model.layerId === null}
+            onClick={() => model.layerId !== null && onMergeDown(model.layerId)}
+          >
+            <Combine className="icon-sm icon-stroke" aria-hidden="true" />
           </IconButton>
           <IconButton
             label="Supprimer le calque"

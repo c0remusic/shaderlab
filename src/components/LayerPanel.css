@@ -66,22 +66,29 @@
   flex: 0 0 auto;
 }
 
-/* ACTIONS du calque sélectionné (2026-07-29) : verrou, dupliquer, supprimer.
-   Elles arrivent des lignes de la liste (ADR-0001) et se logent dans la place
-   libre de la ligne « Effet », qui l'occupait seule — une TROISIÈME ligne de
-   zone de contrôles aurait ajouté 36 px au pied et fait déborder la carte de
-   2 px sur le document à deux photos, soit une ligne de liste hors champ
-   (mesuré, voir LayerPanel.tsx et PanelColumn.stories.tsx).
+/* ACTIONS du calque sélectionné (2026-07-29) : les quatre verrous, puis
+   dupliquer, APLATIR, FUSIONNER (ticket 27) et supprimer. Elles arrivent des
+   lignes de la liste (ADR-0001) et partagent la ligne « Verrous : » — une
+   TROISIÈME ligne de zone de contrôles aurait ajouté 36 px au pied et fait
+   déborder la carte de 2 px sur le document à deux photos, soit une ligne de
+   liste hors champ (mesuré, voir LayerPanel.tsx et PanelColumn.stories.tsx),
+   donc les deux gestes d'aplatissement rejoignent le cluster plutôt que d'y
+   ajouter une rangée.
 
    `flex: 0 0 auto` ÉCRASE le `flex: 1 1 0` du sélecteur générique : le groupe
-   prend la largeur de ses trois icônes et rend TOUT le reste au Select, dont
-   les libellés sont les plus longs de la zone (« Aberration chromatique »).
-   --space-2 = rang « interne à un composant », comme partout ailleurs pour un
-   groupe de boutons solidaires. */
+   prend la largeur de ses icônes et rend TOUT le reste au Select, dont les
+   libellés sont les plus longs de la zone.
+
+   `--space-1` (2 px) et non `--space-2` : le cluster porte HUIT icônes depuis le
+   ticket 27 (quatre verrous + quatre actions). Mesuré sur la vraie fenêtre au
+   dock par défaut (320 px, contenu de carte 296 px) : à --space-2 la ligne
+   sortait à 302 px (label 42 + 8 + huit boutons 28 px à 4 px = 252) — 6 px de
+   trop, barre de défilement horizontale. À --space-1 elle tient à 288 px. La
+   densité reste lisible : ce sont des icônes de 28 px, pas du texte. */
 .layer-controls__actions {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
   flex: 0 0 auto;
 }
 

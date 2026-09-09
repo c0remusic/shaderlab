@@ -27,6 +27,12 @@ Un light leak n'a pas de largeur déclarée : l'étirer étire son CHAMP rendu.
   — la pièce UI existe, c'est le modèle en dessous qui manque.
 - Presets, références de pixels, historique.
 
+> ⚠️ **2026-09-09 — « aplatir » était MAL LU ici.** Antoine : « on ne peut
+> toujours pas aplatir un calque/effet ». Dans sa phrase du 27/08, « aplatir le
+> calque comme photoshop » voulait dire RASTERISER (Photoshop « Aplatir /
+> Fusionner »), pas écraser en Y. Ce ticket a livré un scale du rendu, utile
+> mais à côté ; le raster est le **ticket 27**. Le scale reste (il « étire »).
+
 **Blocked by:** None pour le cadrage. Le code attend le cadrage.
 
 **Status:** ready-for-human (tranches 1-2-3 LIVRÉES ; reste la validation en gestes d'Antoine — voir « Livré » ci-dessous)

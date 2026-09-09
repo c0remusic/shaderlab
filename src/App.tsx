@@ -24,6 +24,7 @@ import { DocumentSession } from "./application/documentSession";
 import { ToolOptionsBar } from "./components/ToolOptionsBar";
 import { optionsDe, optionsInitiales, paramsPourNouveauCalque, reglerOption, type ToolOptions } from "./ui/toolOptionsModel";
 import { Canvas } from "./components/Canvas";
+import { CanvasContextMenu, type CanvasMenuLayer } from "./components/CanvasContextMenu";
 import { Toolbar } from "./components/Toolbar";
 import { TransformHandles } from "./components/TransformHandles";
 import { CanvasControls } from "./components/CanvasControls";
@@ -67,7 +68,7 @@ import { effectSpatialParams, resolveEffectAnchor } from "./render/effects/spati
 import { effetDeplacable, deplacementPatch } from "./ui/effectMove";
 import type { LayerLocks } from "./layers/types";
 import { hitTestPhotoLayer } from "./ui/hitTest";
-import { hitTestAutoSelect } from "./ui/autoSelect";
+import { hitTestAll, hitTestAutoSelect } from "./ui/autoSelect";
 import { showsEffectControls } from "./ui/canvasMode";
 import { aplatParamsFromRect, shapeBoxFromRect, type DrawnRect } from "./ui/shapeDraw";
 import { planShapeGesture, applyShapeMarquee } from "./ui/shapeMarquee";
@@ -871,6 +872,19 @@ export default function App() {
   // plus haut qui couvre ce pixel, tous genres confondus.
   const [autoSelect, setAutoSelect] = useState(false);
 
+  // MENU CONTEXTUEL DE LA TOILE (ticket 29) — état d'INTERFACE. Deux morceaux :
+  //  - `canvasMenu` : les calques sous le curseur au dernier clic droit, déjà
+  //    partagés en placé/photo puis plein cadre (calculé dans
+  //    `handleCanvasContextMenu`, seul endroit qui a le hit-test ET le registre).
+  //  - `effectPickerOpen` : l'ouverture du sélecteur d'effet, LEVÉE depuis
+  //    `LayerPanel` (ticket 28) pour que « Ajouter un effet… » du menu de la
+  //    toile ouvre le MÊME sélecteur que le vide de la pile.
+  const [canvasMenu, setCanvasMenu] = useState<{ placed: CanvasMenuLayer[]; fullFrame: CanvasMenuLayer[] }>({
+    placed: [],
+    fullFrame: [],
+  });
+  const [effectPickerOpen, setEffectPickerOpen] = useState(false);
+
   const handleSelectTool = useCallback(
     (tool: ToolId) => {
       const brushSourceId = layers.find((layer) => layer.id === selectedId)?.mask.sources.find((source) => source.type === "brush")?.id ?? null;
@@ -964,6 +978,55 @@ export default function App() {
       ),
     [autoSelect, imageSize, photoSizeOf, pickPhotoLayerAt, selectLayer],
   );
+
+  // CLIC DROIT SUR LA TOILE (ticket 29) : liste les calques sous le curseur, du
+  // haut vers le bas, TOUS genres confondus (indépendant de la Sélection auto —
+  // c'est Photoshop sous l'outil Déplacement). Le hit-test lit la pile COMPLÈTE
+  // (`sessionRef.current.layers()`) pour ses rasters pinceau committés, jamais
+  // la projection d'affichage qui les vide. Le PARTAGE placé/plein-cadre se fait
+  // ICI et non dans `hitTestAll` : il a besoin de `canvasControls`, propriété du
+  // MODULE d'effet (registre), absente de `LayerState` — la garder hors du module
+  // pur `ui/autoSelect.ts` est délibéré. N'annule pas l'événement : Base UI ouvre
+  // son menu à la position du pointeur, et `main.tsx` retire le menu WebView2.
+  const handleCanvasContextMenu = useCallback((event: React.MouseEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas || canvas.width === 0 || canvas.height === 0) {
+      setCanvasMenu({ placed: [], fullFrame: [] });
+      return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      setCanvasMenu({ placed: [], fullFrame: [] });
+      return;
+    }
+    // Même conversion écran → pixels IMAGE que `Canvas.toImageCoords` et
+    // `EffectMoveSurface.versPixelsImage` : deux conventions divergentes
+    // désigneraient deux calques pour le même clic.
+    const point = {
+      x: (event.clientX - rect.left) * (canvas.width / rect.width),
+      y: (event.clientY - rect.top) * (canvas.height / rect.height),
+    };
+    const full = sessionRef.current.layers();
+    const ids = hitTestAll(full, point, imageSize, photoSizeOf);
+    const byId = new Map(full.map((l) => [l.id, l]));
+    const placed: CanvasMenuLayer[] = [];
+    const fullFrame: CanvasMenuLayer[] = [];
+    for (const id of ids) {
+      const layer = byId.get(id);
+      if (!layer) continue;
+      const isPhoto = !!layer.imageSource;
+      const item: CanvasMenuLayer = {
+        id,
+        name: layer.name ?? getEffect(layer.effectId).name,
+        kind: isPhoto ? "photo" : "effect",
+      };
+      // Placé = photo, OU effet portant un ancrage sur la toile (`canvasControls`).
+      // Un effet sans ancrage couvre tout le cadre : il va dans le second groupe.
+      const estPlace = isPhoto || (getEffect(layer.effectId).canvasControls?.length ?? 0) > 0;
+      (estPlace ? placed : fullFrame).push(item);
+    }
+    setCanvasMenu({ placed, fullFrame });
+  }, [imageSize, photoSizeOf]);
 
   // Pont de debug DEV-ONLY. Raison d'être : le dialogue natif de sélection de
   // fichier (`pick_image_file`, rfd côté Rust) n'est pilotable NI par CDP NI
@@ -2337,6 +2400,28 @@ export default function App() {
           ...(workspaceHeight > 0 ? { "--workspace-height": `${workspaceHeight}px` } : {}),
         } as React.CSSProperties}
       >
+        {/* MENU CONTEXTUEL DE LA TOILE (ticket 29). Enveloppe la toile et ses
+            overlays (un `display: contents`, aucune boîte) : un clic droit
+            n'importe où dedans remonte à son déclencheur. La `ToolPalette` et le
+            dock restent DEHORS, ils ont (ou n'ont pas) leur propre menu. Aucune
+            logique dans le composant — la liste est calculée par
+            `handleCanvasContextMenu`, les actions sont les handlers d'`App`. */}
+        <CanvasContextMenu
+          onContextMenu={handleCanvasContextMenu}
+          placed={canvasMenu.placed}
+          fullFrame={canvasMenu.fullFrame}
+          layers={layers}
+          selectedId={selectedId}
+          onSelectLayer={selectLayer}
+          hasImage={imageSize.width > 0 && imageSize.height > 0}
+          onAddEffect={() => setEffectPickerOpen(true)}
+          onToggle={isolation.handleEyeClick}
+          onDuplicate={handleDuplicate}
+          onStamp={photoLayer.handleStamp}
+          onMergeDown={photoLayer.handleMergeDown}
+          onToggleLock={handleToggleLock}
+          onRemove={handleRemove}
+        >
         <Canvas
           ref={canvasRef}
           onFileDropped={(file) => openFile(file, null)}
@@ -2533,6 +2618,7 @@ export default function App() {
           />
         )}
         </Canvas>
+        </CanvasContextMenu>
         <ToolPalette
           activeTool={currentTool}
           onSelectTool={handleSelectTool}
@@ -2623,6 +2709,10 @@ export default function App() {
                   onToggleGroup={collapse.handleToggleGroup}
                   thumbnailUrl={photoLayer.thumbnailUrl}
                   effectPreview={effectThumbnails}
+                  // OUVERTURE LEVÉE (ticket 29) : « Ajouter un effet… » du menu
+                  // de la toile ouvre ce même sélecteur.
+                  pickerOpen={effectPickerOpen}
+                  onPickerOpenChange={setEffectPickerOpen}
                 />
             },
             {

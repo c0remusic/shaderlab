@@ -145,3 +145,62 @@ export function hitTestAutoSelect(
   }
   return null;
 }
+
+/**
+ * TOUS les calques qui COUVRENT le point, du plus HAUT au plus BAS (menu
+ * contextuel de la toile, ticket 29). Fonction SŒUR de `hitTestAutoSelect` :
+ * MÊME signature, MÊMES règles de couverture (photo par les bornes de son
+ * transform, effet par son masque pinceau committé, source paramétrique traitée
+ * comme couvrant partout, invisible exclu, verrous NON consultés), et MÊME
+ * exigence sur l'argument `layers` — la pile COMPLÈTE (`DocumentSession.layers()`),
+ * jamais la projection d'affichage qui vide les rasters (invariant anti-OOM).
+ *
+ * La différence tient en un mot : `hitTestAutoSelect` s'ARRÊTE au premier
+ * couvrant (le calque à sélectionner au clic), celle-ci les COLLECTE tous (la
+ * liste à présenter au clic droit). L'ordre rendu est celui du regard, du haut
+ * de la pile vers le bas.
+ *
+ * ── CE QU'ELLE NE FAIT PAS ──────────────────────────────────────────────────
+ *
+ * Elle ne SÉPARE PAS les « effets plein cadre » (sans ancrage) des calques
+ * placés/photo : ce partage a besoin de `EffectModule.canvasControls`, propriété
+ * du MODULE d'effet et absente de `LayerState`. Le lire ici forcerait à importer
+ * le registre — exactement ce que l'injection de `photoSizeOf` évite pour garder
+ * ce module pur et testable en Node. Le partage se fait donc chez l'appelant qui
+ * a le registre (`App`), sur cette liste ordonnée ; voir `CanvasContextMenu`.
+ */
+export function hitTestAll(
+  layers: readonly LayerState[],
+  point: PixelPoint,
+  bgSize: PixelSize,
+  photoSizeOf: PhotoSizeLookup,
+): string[] {
+  const ids: string[] = [];
+  // Mêmes gardes dégénérées que `hitTestAutoSelect` : une toile nulle ou un
+  // point non fini rendrait un UV NaN et de faux HIT silencieux.
+  if (!(bgSize.width > 0) || !(bgSize.height > 0)) return ids;
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return ids;
+
+  const compositeUv = { u: point.x / bgSize.width, v: point.y / bgSize.height };
+  const ix = Math.floor(point.x);
+  const iy = Math.floor(point.y);
+  const dansToile = ix >= 0 && iy >= 0 && ix < bgSize.width && iy < bgSize.height;
+  const idx = dansToile ? iy * bgSize.width + ix : -1;
+
+  for (let i = layers.length - 1; i >= 0; i -= 1) {
+    const layer = layers[i];
+    if (!layer.enabled) continue;
+
+    if (layer.imageSource && layer.transform) {
+      const photoSize = photoSizeOf(layer.imageSource.sourceId);
+      if (!photoSize || !(photoSize.width > 0) || !(photoSize.height > 0)) continue;
+      if (compositeUvToPhotoUv(compositeUv, bgSize, layer.transform, photoSize) !== null) {
+        ids.push(layer.id);
+      }
+      continue;
+    }
+
+    if (dansToile && effectCoversAt(layer.mask, idx)) ids.push(layer.id);
+  }
+  return ids;
+}

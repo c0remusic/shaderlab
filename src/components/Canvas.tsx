@@ -424,6 +424,11 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
           beginPan(e);
           return;
         }
+        // BOUTON PRINCIPAL SEULEMENT (ticket 29) : un clic droit sur le pourtour
+        // ou le vide ouvre le menu contextuel de la toile — il ne DÉSÉLECTIONNE
+        // pas. Sans ce garde, `onPick` tombait dans le vide et vidait la
+        // sélection sous le menu qui s'ouvre.
+        if (e.button !== 0) return;
         // La DÉSIGNATION, elle, reste locale : la toile et l'overlay de
         // transformation ont les leurs. Ici on ne traite que le pourtour
         // lui-même et la zone visible autour de la toile.
@@ -470,6 +475,14 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
           // bouillonnement (voir son handler pour ce que coûtaient deux
           // propriétaires). On sort sans rien faire, et surtout sans peindre.
           if (isPanGesture(e)) return;
+          // BOUTON PRINCIPAL SEULEMENT (ticket 29). Un clic droit sur la toile
+          // ouvre le menu contextuel — il ne doit NI peindre, NI tracer une
+          // forme, NI désigner un calque. Sans ce garde, `pointerdown` (qui
+          // précède `contextmenu`) démarrait un trait ou un tracé et capturait le
+          // pointeur, exactement comme le clic droit sur la poignée de pile avant
+          // sa garde `button !== 0` (ticket 28). Le bouton du MILIEU est déjà
+          // parti en déplacement de vue via `isPanGesture` ci-dessus.
+          if (e.button !== 0) return;
           // TRACÉ DE FORME, avant la désignation : les deux partent du même
           // geste (bouton gauche enfoncé sur la toile) et ne peuvent pas
           // coexister. L'ordre suit celui de la palette — un outil choisi passe

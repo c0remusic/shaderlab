@@ -54,6 +54,13 @@ naissent là ; ce ticket les RÉUTILISE, ne les recopie pas.
 - [x] Sur le calque sélectionné : les mêmes actions que le menu de la pile (réutilisées, pas recopiées).
 - [x] En mode pinceau, le clic droit n'entame pas un trait.
 - [x] Stories + gates.
+- [x] **Vérifié live par CDP le 2026-09-09 (session libre)** : photo-1 + Light
+      leak + Grain ; clic droit au centre de la toile → menu `[Light leak,
+      photo-1.jpg] | [Grain ✓]` puis les six actions ; choisir Light leak →
+      Aplatir → la pile devient `[photo-1, Light leak, Aplati — Light leak,
+      Grain]` et le menu suivant coche « Aplati — Light leak ». Capture
+      `assets/menu-29-toile.png` (non versionnée), script
+      `menu29-verif.mjs` (scratchpad de session).
 - [ ] Validé en gestes par Antoine : clic droit sur la photo à travers un light leak → choisir le light leak → Aplatir. (Structure et gestes prouvés en headless chromium par les stories `CanvasContextMenu`, et le composant confirmé monté dans la vraie fenêtre par CDP — mais la scène live + la capture restent à faire par Antoine ou sur session libre, voir Livraison.)
 
 ## Livraison (tranche 2, 2026-09-09)

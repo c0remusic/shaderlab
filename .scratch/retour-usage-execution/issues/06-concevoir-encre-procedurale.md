@@ -175,8 +175,94 @@ planche se rend sur UNE OU DEUX PHOTOS D'ANTOINE, choisies par lui pour cet
 effet, avant tout réglage de plus.
 
 - [x] Planche v3 (chaîne combinée, ablation cumulative) — rendue le 2026-09-09.
-- [ ] **[Antoine]** Une ou deux photos où il poserait l'aquarelle (plusieurs teintes qui se touchent).
-- [ ] Planche v3 re-rendue sur SES photos — il pointe, ou « aucune ».
+**Planche 4 (2026-09-09)** — v3 inchangée sur DEUX photos d'Antoine (« choisis
+dans le dossier dans lequel tu prends toujours » = `Pictures\2018\2018-01-25`,
+planche-contact PIL) : `DSCF5171` (lys blancs, roses rouges, vert) et
+`DSCF5169-edited-2` (main sur bandes — ⚠️ étalonnée bleu/teal, pas
+jaune/orange : le titre du brief décrivait l'original). Fichiers
+`planche-06-mecanisme-4.html`, `-rendu-4.mjs`, `-assemble-4.mjs`, 54 PNG
+`aq4-*`, `aq4-stats.json`. Orientation EXIF vérifiée (6240×4160 = source).
+
+Mesuré : le rouge de la rose ENTRE dans le blanc du pétale dès la col2 (bave),
+les blancs restent blancs, la main reste noire (0,5-0,9/255). Donc le
+mécanisme fait ce qu'il dit. Et pourtant la vignette reste une photo à peine
+adoucie. **Deux défauts de CONCEPTION, pas de goût** :
+1. **Tout est à la mauvaise ÉCHELLE.** Rayon de lavis 5 px, front 8 px, fibres
+   4 px, sur une image de 6240 px : invisibles à l'échelle où on juge (la
+   vignette), visibles seulement au crop. Les réglages sont pensés pour une
+   image de 1200 px. `glow` a réglé ça depuis longtemps (portée en px pleine
+   résolution, « rayon ≈ 62 + 124 × portée ») : les tailles doivent être
+   RELATIVES à l'image (fraction de la largeur), pas en px absolus.
+2. **Le front pose des anneaux au hasard** : `frontThr` (distance à l'iso-ligne
+   du champ fbm de mouillé) domine `max(frontThr, frontEdge)` — un anneau
+   fermé en plein pétale blanc (A crop1 col6/7), un serpentin dans la bande
+   teal (B crop2 col5-8). Un front de pigment vit au BORD D'UN LAVIS (là où la
+   couleur s'arrête), jamais sur une courbe de bruit sans rapport avec l'image.
+   Confirmé sur deux photos ; c'était déjà les « gouttes sur objectif » de la
+   planche 3.
+Et un troisième point, de conception aussi mais à juger : une aquarelle est
+TRANSPARENTE sur papier BLANC — les hautes lumières sont le papier, l'image
+entière est plus claire et moins dense qu'une photo. Un lys en aquarelle est
+blanc-papier avec des ombres teintées, pas un lys photographié. Le « papier »
+qu'Antoine a écarté est la TEXTURE ; le BLANC du papier est une autre chose,
+et c'est peut-être ce qui manque le plus pour que ça lise « aquarelle ».
+
+- [x] **[Antoine]** Photos : « choisis dans le dossier dans lequel tu prends toujours » (2026-09-09).
+- [x] Planche 4 = v3 sur ses photos — rendue, deux défauts de conception isolés.
+- [x] **v4** rendue (planche 5, 2026-09-09) : tailles relatives (`textureDimensions`
+      × fraction, rayon natif constant quel que soit le `scale` de la passe),
+      `frontThr` retiré (plus aucun anneau parasite — vérifié sur les deux
+      photos), curseur `paper` (index 9). 14 passes. Fichiers
+      `planche-06-mecanisme-5.html`, `-rendu-5.mjs`, `-assemble-5.mjs`, 48 PNG
+      `aq5-*`, `aq5-stats.json`. Wall-clock dev indiscernable du témoin (l'export
+      26 Mpx domine), compilation one-shot 1,2 s à la première pose.
+
+**Constat planche 5** : la première image qui ressemble à une PEINTURE est la
+**col4, lavis SEUL** (Kuwahara 4 secteurs à 0,5 % de largeur) — régions
+brossées, bords gardés, roses et lys lisibles. Dès que la bave s'ajoute
+(col1-3, 5-7), la pyramide à 1/32 étale TOUT : l'image redevient un flou, et
+les fibres HF le rendent « poilu » (traînées directionnelles, look verre
+dépoli / filé). Le papier fait ce qu'il dit (A moy 65 → 81 → 100 ; noirs de B
+allégés en gardant leur teinte) mais ne sauve pas un flou. **Défaut de
+conception n° 3** : dans une aquarelle, la bave est LOCALE — deux lavis
+voisins s'échangent leur couleur sur une bande étroite à leur frontière
+(1-3 % de la largeur), l'intérieur de chaque lavis reste plat. Une bave
+GLOBALE de toute l'image n'existe pas ; c'est un flou. Le sous-agent signale
+aussi un « zipper » directionnel du Kuwahara 4×4 à grand rayon, à juger.
+
+- [ ] **v5** : la bave ne vit qu'AUX FRONTIÈRES entre lavis — mélange vers la
+      version diffusée pondéré par la proximité d'un bord de lavis (gradient
+      du lavis, dilaté sur la largeur de bave), intérieur = lavis intact ;
+      pyramide ramenée à 1/8 ; fibres seulement sur ces mêmes frontières ;
+      front et papier inchangés. Colonnes : lavis seul (référence), + bave aux
+      frontières (largeur 1 %, 2 %, 4 %), + fibres, + front, + papier 0/0,5/1,
+      rappel col2 de la planche 5 (bave globale). Antoine pointe.
+      ✅ **RENDUE (planche 6, 2026-09-09)** : `planche-06-mecanisme-6.html`
+      (59 Mo — deux rails mi-échelle en plus), `-rendu-6.mjs`, `-assemble-6.mjs`,
+      72 PNG `aq6-*`, `aq6-stats.json`. 11 params (`bleedWidth` index 10),
+      9 passes max (pyramide 1/8). La carte de frontières E n'est ni empaquetée
+      ni pré-dilatée : la chaîne est linéaire et `blurChain` écrase l'alpha, donc
+      E se calcule DANS la composite par un anneau de 8 taps au rayon
+      `bleedWidth` sur la diffusée (intérieur plat → E = 0 exact). Mesuré : la
+      bave est bien locale (moyenne/écart-type globaux ne dérivent pas quand la
+      largeur monte, 33,89 → 33,54), visible à la frontière rose/pétale de 1 %
+      à 4 % ; au-delà de 4 % ça redevient un flou.
+
+**Constat planche 6 (mes yeux, à mi-échelle)** : la structure y est — lavis
+plats, bave à la frontière, noirs et teintes tenus, papier qui éclaircit. Deux
+défauts restent, tous deux du KUWAHARA : à mi-échelle, le lavis seul (col1)
+montre des BLOCS rectangulaires (le « zipper » directionnel du 4×4 à grand
+rayon, laissé volontairement pour ne pas déplacer la référence) ; et le front
+(col6-8) pose une bordure sombre MOUCHETÉE le long des pétales, qui se lit
+comme de la saleté plus que comme du pigment. **Six planches, trois
+mécanismes, cinq défauts de conception corrigés en mesurant** — le prochain
+pas n'est pas une septième planche à l'aveugle : c'est le pointage d'Antoine
+sur celle-ci (colonne, ou « aucune », ou « col1 mais sans les blocs »). Si le
+Kuwahara est retenu, l'anti-zipper est un Kuwahara ANISOTROPE (Kyprianidis
+2009 : secteurs orientés par le tenseur de structure) — ~2× les taps, à
+mesurer en prod avant de l'adopter.
+
+- [ ] **[Antoine]** Pointer sur la planche 6 — colonne, ou « aucune », ou un défaut précis.
 - [ ] Modèle arrêté (mécanisme de diffusion, bord, paramètres exposés) — d'après le pointage.
 - [ ] Jugé crédible devant références/photo par Antoine.
 - [ ] Périmètre exact : ce que l'encre procédurale remplace dans `inkTexture` / `encreRang`, et ce qui reste.

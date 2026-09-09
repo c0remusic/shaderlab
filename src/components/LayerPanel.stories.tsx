@@ -1086,3 +1086,148 @@ export const UnlockedLayersShowNoLock: Story = {
     await expect(canvas.queryAllByRole("img", { name: "Calque verrouillé" })).toHaveLength(0);
   },
 };
+
+// --- Menu contextuel (clic droit) — ticket 28 ---
+
+// Les handlers du menu sont EXACTEMENT ceux que la zone de contrôles reçoit
+// d'App : passés ici en `fn()` pour prouver qu'une entrée du menu appelle le bon
+// handler avec le bon id, et rien de plus — le menu n'a aucune logique propre.
+const menuArgs = () => ({
+  onSelect: fn(),
+  onToggle: fn(),
+  onDuplicate: fn(),
+  onStamp: fn(),
+  onMergeDown: fn(),
+  onToggleLock: fn(),
+  onRemove: fn(),
+});
+
+// Le menu ouvert sur une ligne d'EFFET. Le clic droit SÉLECTIONNE d'abord la
+// ligne (comme Photoshop), puis le menu s'ouvre — un seul menu, jamais aussi
+// celui du vide de pile (chaque ligne arrête l'événement). Les entrées sont dans
+// l'ordre du ticket, et chacune est branchée sur son handler.
+export const ContextMenuOnEffectRow: Story = {
+  args: { layers, selectedId: "layer-1", ...menuArgs() },
+  play: async ({ canvasElement, args }) => {
+    // layer-2 (Lens distortion, index 1) : ni le fond ni le sommet, donc
+    // Fusionner y est actif. Il est `enabled: false`, d'où « Afficher ».
+    const row = canvasElement.querySelector<HTMLElement>('[data-layer-row-index="1"]')!;
+    fireEvent.contextMenu(row);
+
+    const body = within(document.body);
+    const menu = await body.findByRole("menu");
+    // UN SEUL menu : la propagation vers le déclencheur de la liste est bien
+    // stoppée, sinon le menu du vide s'ouvrirait par-dessus.
+    await expect(body.getAllByRole("menu")).toHaveLength(1);
+    // Clic droit = sélection d'abord.
+    await expect(args.onSelect).toHaveBeenCalledWith("layer-2");
+
+    const m = within(menu);
+    const noms = m.getAllByRole("menuitem").map((el) => el.textContent);
+    await expect(noms).toEqual([
+      "Afficher le calque",
+      "Dupliquer",
+      "Aplatir en nouveau calque",
+      "Fusionner avec le dessous",
+      "Verrous",
+      "Supprimer le calque",
+    ]);
+
+    // Aucun grisé sur cette ligne intermédiaire : Aplatir et Fusionner actifs.
+    await expect(m.getByRole("menuitem", { name: "Fusionner avec le dessous" })).not.toHaveAttribute("aria-disabled", "true");
+
+    // Une entrée appelle son handler avec l'id de la ligne visée, sans logique.
+    await userEvent.click(m.getByRole("menuitem", { name: "Dupliquer" }));
+    await expect(args.onDuplicate).toHaveBeenCalledWith("layer-2");
+  },
+};
+
+// Le menu ouvre AUSSI sur une ligne PHOTO — mêmes entrées. (Ici la photo est au
+// fond, donc Fusionner y est grisé, ce que couvre la story dédiée ci-dessous ;
+// on vérifie surtout que la ligne photo a bien un menu.)
+export const ContextMenuOnPhotoRow: Story = {
+  args: {
+    layers: photoLayers,
+    selectedId: "layer-2",
+    thumbnailUrl: () => PHOTO_THUMB,
+    ...menuArgs(),
+  },
+  play: async ({ canvasElement, args }) => {
+    const row = canvasElement.querySelector<HTMLElement>('[data-layer-row-index="0"]')!; // IMG_1234.jpg
+    fireEvent.contextMenu(row);
+
+    const menu = await within(document.body).findByRole("menu");
+    await expect(args.onSelect).toHaveBeenCalledWith("photo-layer");
+    const m = within(menu);
+    // Une photo se masque, se duplique, s'aplatit (son composite jusqu'à elle a
+    // un sens, ticket 27).
+    await expect(m.getByRole("menuitem", { name: "Masquer le calque" })).toBeTruthy();
+    await expect(m.getByRole("menuitem", { name: "Dupliquer" })).toBeTruthy();
+    await expect(m.getByRole("menuitem", { name: "Aplatir en nouveau calque" })).not.toHaveAttribute("aria-disabled", "true");
+  },
+};
+
+// FUSIONNER EST GRISÉ SUR LE CALQUE DU FOND (index 0) : « fusionner avec le
+// dessous » n'a pas de dessous. Même verdict `mergeDownVerdict` que le bouton de
+// la zone de contrôles, et l'entrée porte SA raison en infobulle (`title`).
+export const ContextMenuMergeDisabledOnBottomLayer: Story = {
+  args: { layers, selectedId: "layer-1", ...menuArgs() },
+  play: async ({ canvasElement }) => {
+    const bottom = canvasElement.querySelector<HTMLElement>('[data-layer-row-index="0"]')!; // Glow, le fond
+    fireEvent.contextMenu(bottom);
+
+    const menu = await within(document.body).findByRole("menu");
+    const fusion = within(menu).getByRole("menuitem", { name: "Fusionner avec le dessous" });
+    await expect(fusion).toHaveAttribute("aria-disabled", "true");
+    // La raison est celle du verdict partagé, pas une chaîne réécrite.
+    await expect(fusion).toHaveAttribute("title", "Rien en dessous : ce calque est déjà au bas de la pile.");
+    // Aplatir, lui, reste actif sur le fond (le Tampon lit le composite jusqu'ici).
+    await expect(within(menu).getByRole("menuitem", { name: "Aplatir en nouveau calque" })).not.toHaveAttribute("aria-disabled", "true");
+  },
+};
+
+// Le menu du VIDE de la pile : « Ajouter un effet… », rien d'autre. Ouvert sur la
+// liste elle-même (sous la dernière ligne, ou pile vide).
+export const ContextMenuOnEmptyStack: Story = {
+  args: { layers: [], selectedId: null, ...menuArgs() },
+  play: async ({ canvasElement }) => {
+    const list = canvasElement.querySelector<HTMLElement>(".layer-panel__list")!;
+    fireEvent.contextMenu(list);
+
+    const menu = await within(document.body).findByRole("menu");
+    const items = within(menu).getAllByRole("menuitem");
+    await expect(items.map((el) => el.textContent)).toEqual(["Ajouter un effet…"]);
+    // hasImage est vrai (args par défaut) : l'entrée est active.
+    await expect(items[0]).not.toHaveAttribute("aria-disabled", "true");
+  },
+};
+
+// Le sous-menu « Verrous » porte les MÊMES quatre verrous que la rangée de la
+// zone de contrôles, et « Tout » IMPLIQUE les trois autres : les cocher se lit
+// sur l'état affiché. Basculer une case appelle `onToggleLock` avec le bon
+// verrou.
+export const ContextMenuLocksSubmenuReflectsAll: Story = {
+  args: {
+    layers: [makeLayer({ id: "layer-1", effectId: "glow", locks: { all: true } }), makeLayer({ id: "layer-2", effectId: "grain" })],
+    selectedId: "layer-1",
+    ...menuArgs(),
+  },
+  play: async ({ canvasElement, args }) => {
+    const row = canvasElement.querySelector<HTMLElement>('[data-layer-row-index="0"]')!; // verrouillé « Tout »
+    fireEvent.contextMenu(row);
+
+    const menu = await within(document.body).findByRole("menu");
+    await userEvent.click(within(menu).getByRole("menuitem", { name: "Verrous" }));
+
+    // Le sous-menu s'ouvre : quatre cases, toutes cochées car « Tout » implique
+    // les trois autres.
+    const cases = await within(document.body).findAllByRole("menuitemcheckbox");
+    await expect(cases).toHaveLength(4);
+    for (const c of cases) await expect(c).toHaveAttribute("aria-checked", "true");
+
+    // Basculer « Transparence » appelle le handler avec ce verrou, valeur false
+    // (il était coché par implication).
+    await userEvent.click(cases[0]);
+    await expect(args.onToggleLock).toHaveBeenCalledWith("layer-1", "transparency", false);
+  },
+};

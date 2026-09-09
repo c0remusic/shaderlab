@@ -2611,6 +2611,14 @@ export default function App() {
                   isolatedLayerId={isolation.isolatedLayerId}
                   onAdd={handleAdd}
                   onReorder={handleReorder}
+                  // MENU CONTEXTUEL DE LIGNE (ticket 28) : EXACTEMENT les
+                  // handlers que `LayerControls` reçoit déjà — un second accès,
+                  // aucun handler neuf.
+                  onDuplicate={handleDuplicate}
+                  onStamp={photoLayer.handleStamp}
+                  onMergeDown={photoLayer.handleMergeDown}
+                  onToggleLock={handleToggleLock}
+                  onRemove={handleRemove}
                   collapseState={collapse.collapseState}
                   onToggleGroup={collapse.handleToggleGroup}
                   thumbnailUrl={photoLayer.thumbnailUrl}

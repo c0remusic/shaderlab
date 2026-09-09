@@ -1,4 +1,4 @@
-import { memo, useCallback, useLayoutEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePointerReorder, type DropPosition } from "../ui/dragReorder";
 import "../ui/dragReorder.css";
 import { Brush, ChevronDown, ChevronRight, Combine, Copy, Eye, EyeOff, Grid2x2, GripVertical, Image as PhotoLayerIcon, Lock, Move, Plus, Sparkles as EffectLayerIcon, Stamp, Trash2 } from "lucide-react";
@@ -27,8 +27,25 @@ import type { EffectThumbnailPicker } from "../hooks/useEffectThumbnails";
 import { layerControlsModel, opacityToPercent, parseOpacityPercent } from "./layerControlsModel";
 import { mergeDownVerdict, stampVerdict } from "../layers/flatten";
 import "./LayerPanel.css";
-import { isFullyLocked, isPartiallyLocked } from "../layers/layerLocks";
+import {
+  isFullyLocked,
+  isMaskLocked,
+  isPartiallyLocked,
+  isPositionLocked,
+  isTransparencyLocked,
+} from "../layers/layerLocks";
 import type { LayerLocks } from "../layers/types";
+import {
+  ContextMenu,
+  ContextMenuCheckboxItem,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from "./ui/context-menu";
 
 /** État du verrou tel que la LIGNE le montre. Trois valeurs, parce que
  *  Photoshop en distingue trois : rien, partiel (cadenas creux), tout (plein). */
@@ -55,6 +72,19 @@ const VERROUS: readonly { cle: keyof LayerLocks; label: string; Icone: typeof Lo
   { cle: "all", label: "Tout", Icone: Lock },
 ];
 
+/** État COCHÉ d'un verrou dans le sous-menu du menu contextuel. On lit le verrou
+ *  IMPLIQUÉ (via les helpers de `layerLocks.ts`), pas le champ brut : « Tout »
+ *  implique les trois autres, donc quand il est posé les trois se montrent
+ *  cochés (exigence du ticket 28). La rangée de la zone de contrôles, elle,
+ *  montre l'état BRUT (`model.locks[cle]`) — deux lectures différentes du même
+ *  modèle pour deux usages différents, aucune n'est une copie de l'autre. */
+const LOCK_IMPLIED: Record<keyof LayerLocks, (layer: Pick<LayerState, "locks">) => boolean> = {
+  transparency: isTransparencyLocked,
+  mask: isMaskLocked,
+  position: isPositionLocked,
+  all: isFullyLocked,
+};
+
 interface Props {
   layers: LayerState[];
   selectedId: string | null;
@@ -74,6 +104,17 @@ interface Props {
   isolatedLayerId?: string | null;
   onAdd: (effectId: string) => void;
   onReorder: (id: string, newIndex: number) => void;
+  /** ACTIONS DU MENU CONTEXTUEL DE LIGNE (ticket 28). Ce sont EXACTEMENT les
+   *  handlers que la zone de contrôles (`LayerControls`) reçoit déjà d'`App.tsx`
+   *  — le menu en donne un SECOND accès, là où le pointeur est déjà, il n'en
+   *  invente aucun. Optionnels : les stories et montages historiques qui ne les
+   *  passent pas gardent des lignes sans menu d'action. `onToggle` (masquer /
+   *  afficher) est déjà au-dessus. */
+  onDuplicate?: (id: string) => void;
+  onStamp?: (id: string) => void;
+  onMergeDown?: (id: string) => void;
+  onToggleLock?: (id: string, which: keyof LayerLocks, value: boolean) => void;
+  onRemove?: (id: string) => void;
   /** REPLI DES GROUPES (2026-08-16). État d'INTERFACE, jamais le modèle —
    *  arbitrage d'Antoine : un repli est une aide de visée, et le passer par
    *  `LayerState` le rendrait annulable par Ctrl+Z. Absent = panneau monté sans
@@ -185,6 +226,20 @@ interface LayerRowProps {
    *  dit seulement un ÉTAT : le contrôle vit dans la zone de contrôles (voir
    *  `LayerControlsProps.onToggleLock`). */
   lockState: LockState;
+  /** VERDICTS D'APLATISSEMENT du menu contextuel (ticket 28), déjà réduits à
+   *  cette ligne par `LayerPanel` — qui seul a la pile — plutôt que passés en
+   *  bloc `layers` à chaque ligne, ce qui casserait la mémoïsation (`memo`) sur
+   *  chaque frame de curseur. Ce sont des PRIMITIVES issues des fonctions PURES
+   *  `stampVerdict` / `mergeDownVerdict` (`layers/flatten.ts`), le même verdict
+   *  que la zone de contrôles, jamais une copie. `reason` est vide quand `ok`. */
+  stampOk: boolean;
+  stampReason: string;
+  mergeOk: boolean;
+  mergeReason: string;
+  /** SUPPRESSION permise ? `removeLayer` la refuse sur un calque entièrement
+   *  verrouillé (`isLocked` = verrou « Tout ») — même garde que le bouton
+   *  Supprimer de la zone de contrôles. */
+  removable: boolean;
   /** Profondeur d'IMBRICATION (0 racine, 1 sous une photo) et bornes du groupe,
    *  décidées par `toLayerTreeRows` (src/components/layerTree.ts). Passées
    *  RÉDUITES à cette ligne — jamais l'arbre entier — pour ne pas casser la
@@ -208,6 +263,14 @@ interface LayerRowProps {
    *  sans repli (stories historiques) : le chevron n'est alors pas rendu. */
   onToggleCollapse?: (parentId: string) => void;
   onToggle: (id: string, altKey: boolean) => void;
+  /** ACTIONS DU MENU CONTEXTUEL (ticket 28), transmises depuis `App.tsx` via
+   *  `LayerPanel`. Optionnelles : sans elles, la ligne n'a pas de menu d'action
+   *  (stories et montages historiques). */
+  onDuplicate?: (id: string) => void;
+  onStamp?: (id: string) => void;
+  onMergeDown?: (id: string) => void;
+  onToggleLock?: (id: string, which: keyof LayerLocks, value: boolean) => void;
+  onRemove?: (id: string) => void;
   onGripPointerDown: (id: string, pointerId: number, target: Element, clientX: number, clientY: number) => void;
   thumbnailUrl?: (sourceId: string) => string | null;
 }
@@ -238,6 +301,11 @@ const LayerRow = memo(function LayerRow({
   visible,
   role,
   lockState,
+  stampOk,
+  stampReason,
+  mergeOk,
+  mergeReason,
+  removable,
   depth,
   firstChild,
   lastChild,
@@ -247,6 +315,11 @@ const LayerRow = memo(function LayerRow({
   onSelect,
   onSelectMask,
   onToggle,
+  onDuplicate,
+  onStamp,
+  onMergeDown,
+  onToggleLock,
+  onRemove,
   onToggleCollapse,
   onGripPointerDown,
   thumbnailUrl,
@@ -281,11 +354,24 @@ const LayerRow = memo(function LayerRow({
     // liste porte `role="listbox"` en regard, sans quoi `option` serait de
     // l'ARIA invalide. Espace est intercepté (`preventDefault`) : sur un
     // élément focusable, il ferait défiler le panneau.
+    <ContextMenu>
+      <ContextMenuTrigger
+        render={
     <li
       role="option"
       aria-selected={selected}
       tabIndex={0}
       onClick={() => onSelect(layer.id)}
+      onContextMenu={(e) => {
+        // CLIC DROIT = SÉLECTIONNER D'ABORD (comme Photoshop), puis le menu
+        // s'ouvre (Base UI, sur ce même `<li>` déclencheur). `stopPropagation`
+        // empêche l'événement d'atteindre le déclencheur de la LISTE (le menu du
+        // vide de pile) : la ligne a son menu, le vide a le sien, jamais les
+        // deux. Le glissement, lui, ne part QUE du bouton principal (garde
+        // `button === 0` sur la poignée) — un clic droit ne le déclenche pas.
+        e.stopPropagation();
+        onSelect(layer.id);
+      }}
       onKeyDown={(e) => {
         // NE RÉAGIR QU'AUX TOUCHES REÇUES PAR LA LIGNE ELLE-MÊME. Sans ce
         // garde, le `preventDefault` ci-dessous ANNULE l'activation clavier du
@@ -373,6 +459,11 @@ const LayerRow = memo(function LayerRow({
           <span
             className="layer-panel__grip-handle layer-panel__col--grip"
             onPointerDown={(e) => {
+              // BOUTON PRINCIPAL SEULEMENT (ticket 28) : un clic droit sur la
+              // poignée ne doit pas démarrer un glissement — il ouvre le menu
+              // contextuel de la ligne. `usePointerReorder` ne filtre pas le
+              // bouton, c'est donc ici que ça se décide.
+              if (e.button !== 0) return;
               e.stopPropagation();
               onGripPointerDown(layer.id, e.pointerId, e.currentTarget, e.clientX, e.clientY);
             }}
@@ -508,6 +599,87 @@ const LayerRow = memo(function LayerRow({
       </div>
       {dropPosition && <span className={`drag-reorder__alignment-guide layer-panel__alignment-guide--${dropPosition}`} aria-hidden="true" />}
     </li>
+        }
+      />
+      {/* MENU CONTEXTUEL DE LA LIGNE (ticket 28). Chaque entrée APPELLE un
+          handler reçu en prop — aucune logique ici — et les états grisés
+          reprennent les verdicts PURS de `layers/flatten.ts` (`stampOk`,
+          `mergeOk`), les mêmes que le bouton de la zone de contrôles, jamais une
+          copie. Les items désactivés gardent leurs événements de pointeur
+          (`data-disabled:pointer-events-auto`) pour que leur `title` porte la
+          RAISON du refus au survol, comme l'infobulle du bouton ; Base UI bloque
+          l'activation malgré tout, et le garde `ok &&` du `onClick` est la
+          seconde barrière. */}
+      <ContextMenuContent aria-label={`Actions du calque ${displayName}`}>
+        <ContextMenuItem onClick={() => onToggle(layer.id, false)}>
+          {layer.enabled ? (
+            <EyeOff className="icon-sm icon-stroke" aria-hidden="true" />
+          ) : (
+            <Eye className="icon-sm icon-stroke" aria-hidden="true" />
+          )}
+          {layer.enabled ? "Masquer le calque" : "Afficher le calque"}
+        </ContextMenuItem>
+        <ContextMenuItem disabled={!onDuplicate} onClick={() => onDuplicate?.(layer.id)}>
+          <Copy className="icon-sm icon-stroke" aria-hidden="true" />
+          Dupliquer
+        </ContextMenuItem>
+        <ContextMenuItem
+          disabled={!stampOk || !onStamp}
+          className="data-disabled:pointer-events-auto data-disabled:cursor-not-allowed"
+          title={stampOk ? undefined : stampReason}
+          onClick={() => { if (stampOk) onStamp?.(layer.id); }}
+        >
+          <Stamp className="icon-sm icon-stroke" aria-hidden="true" />
+          Aplatir en nouveau calque
+        </ContextMenuItem>
+        <ContextMenuItem
+          disabled={!mergeOk || !onMergeDown}
+          className="data-disabled:pointer-events-auto data-disabled:cursor-not-allowed"
+          title={mergeOk ? undefined : mergeReason}
+          onClick={() => { if (mergeOk) onMergeDown?.(layer.id); }}
+        >
+          <Combine className="icon-sm icon-stroke" aria-hidden="true" />
+          Fusionner avec le dessous
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>
+            <Lock className="icon-sm icon-stroke" aria-hidden="true" />
+            Verrous
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent aria-label="Verrous du calque">
+            {/* Les MÊMES quatre verrous que la rangée « Verrous : » de la zone de
+                contrôles, lus dans `layerLocks.ts`. L'état coché reflète le
+                verrou IMPLIQUÉ : « Tout » posé montre les trois autres cochés
+                (`LOCK_IMPLIED`). Le libellé court tient sur une ligne (ADR-0001),
+                le libellé complet passe en infobulle. */}
+            {VERROUS.map(({ cle, label, Icone }) => (
+              <ContextMenuCheckboxItem
+                key={cle}
+                checked={LOCK_IMPLIED[cle](layer)}
+                title={label}
+                disabled={!onToggleLock}
+                onCheckedChange={(next) => onToggleLock?.(layer.id, cle, next)}
+              >
+                <Icone className="icon-sm icon-stroke" aria-hidden="true" />
+                {label.split(" — ")[0]}
+              </ContextMenuCheckboxItem>
+            ))}
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          variant="destructive"
+          disabled={!removable || !onRemove}
+          className="data-disabled:pointer-events-auto data-disabled:cursor-not-allowed"
+          title={removable ? undefined : "Calque verrouillé (Tout) : déverrouille-le pour le supprimer."}
+          onClick={() => { if (removable) onRemove?.(layer.id); }}
+        >
+          <Trash2 className="icon-sm icon-stroke" aria-hidden="true" />
+          Supprimer le calque
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 });
 
@@ -777,6 +949,11 @@ export function LayerPanel({
   isolatedLayerId = null,
   onAdd,
   onReorder,
+  onDuplicate,
+  onStamp,
+  onMergeDown,
+  onToggleLock,
+  onRemove,
   collapseState = EMPTY_COLLAPSE_STATE,
   onToggleGroup,
   thumbnailUrl,
@@ -911,9 +1088,33 @@ export function LayerPanel({
     ligne?.scrollIntoView({ block: "nearest" });
   }, [selectedId]);
 
+  // OUVERTURE DU SÉLECTEUR D'EFFET (ticket 28) : état d'INTERFACE seulement,
+  // piloté par son propre bouton ET par l'entrée « Ajouter un effet… » du menu
+  // du vide de pile. N'entre pas dans le modèle (rien à annuler).
+  const [pickerOpen, setPickerOpen] = useState(false);
+
   return (
     <div className="layer-panel">
-      <EffectPicker disabled={!hasImage} onSelect={onAdd} preview={effectPreview} />
+      <EffectPicker
+        disabled={!hasImage}
+        onSelect={onAdd}
+        preview={effectPreview}
+        // OUVERTURE PILOTÉE (ticket 28) : le menu du vide de la pile ouvre ce
+        // sélecteur. État d'INTERFACE (présentation, pas modèle), donc porté
+        // ici et non remonté à `App`.
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+      />
+      {/* MENU CONTEXTUEL DU VIDE DE LA PILE (ticket 28) : clic droit sous la
+          dernière ligne — ou sur une pile vide — propose « Ajouter un effet… »,
+          qui ouvre le sélecteur existant sans qu'on ait à viser son bouton. La
+          `<ul>` est le déclencheur ; chaque ligne a le sien et arrête
+          l'événement (`stopPropagation` sur son `onContextMenu`), donc un clic
+          droit SUR une ligne n'ouvre jamais CE menu-là, seulement celui de la
+          ligne. Rien d'autre ici (tranche 1). */}
+      <ContextMenu>
+        <ContextMenuTrigger
+          render={
       <ul
         ref={listRef}
         // `data-dock-list` : marque la LISTE dans la zone défilante de la
@@ -931,7 +1132,14 @@ export function LayerPanel({
         onPointerUp={dragState ? handlePointerUp : undefined}
         onPointerCancel={dragState ? handlePointerCancel : undefined}
       >
-        {rows.map(({ layer, depth, firstChild, lastChild, selectedFacet, mask, collapsible, collapsed, hiddenCount }, displayRow) => (
+        {rows.map(({ layer, depth, firstChild, lastChild, selectedFacet, mask, collapsible, collapsed, hiddenCount }, displayRow) => {
+          // VERDICTS par ligne, dérivés ICI (le seul endroit qui a la pile) des
+          // fonctions PURES de `layers/flatten.ts` — le même verdict que la zone
+          // de contrôles, jamais une copie. Réduits en primitives avant d'entrer
+          // dans `LayerRow` (mémoïsée) pour ne pas la re-rendre à chaque frame.
+          const stamp = stampVerdict(layers, layer.id);
+          const merge = mergeDownVerdict(layers, layer.id);
+          return (
           <LayerRow
             key={layer.id}
             layer={layer}
@@ -944,6 +1152,11 @@ export function LayerPanel({
             visible={isLayerVisible(layer, visibleIds)}
             role={isolationRole(layer.id, isolatedLayerId)}
             lockState={lockStateOf(layer)}
+            stampOk={stamp.ok}
+            stampReason={stamp.ok ? "" : stamp.reason}
+            mergeOk={merge.ok}
+            mergeReason={merge.ok ? "" : merge.reason}
+            removable={!isFullyLocked(layer)}
             depth={depth}
             firstChild={firstChild}
             lastChild={lastChild}
@@ -959,12 +1172,27 @@ export function LayerPanel({
             onSelect={handleRowSelect}
             onSelectMask={handleMaskSelect}
             onToggle={onToggle}
+            onDuplicate={onDuplicate}
+            onStamp={onStamp}
+            onMergeDown={onMergeDown}
+            onToggleLock={onToggleLock}
+            onRemove={onRemove}
             onToggleCollapse={onToggleGroup}
             onGripPointerDown={handleGripPointerDown}
             thumbnailUrl={thumbnailUrl}
           />
-        ))}
+          );
+        })}
       </ul>
+          }
+        />
+        <ContextMenuContent aria-label="Ajouter à la pile">
+          <ContextMenuItem disabled={!hasImage} onClick={() => setPickerOpen(true)}>
+            <Plus className="icon-sm icon-stroke" aria-hidden="true" />
+            Ajouter un effet…
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
     </div>
   );
 }

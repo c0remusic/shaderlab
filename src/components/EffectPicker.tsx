@@ -15,6 +15,14 @@ interface Props {
    *  colonne supplémentaire. C'est ce qui laisse les stories et tout appelant
    *  sans GPU monter ce composant tel quel. */
   preview?: EffectThumbnailPicker;
+  /** OUVERTURE CONTRÔLÉE (ticket 28) : l'entrée « Ajouter un effet… » du menu
+   *  contextuel du vide de la pile ouvre CE sélecteur sans que l'utilisateur
+   *  ait à viser son bouton. OPT-IN — absent, le popover garde son état interne
+   *  (déclenché par son propre bouton), donc les stories et tout appelant qui
+   *  ne pilote pas l'ouverture montent le composant tel quel. Base UI traite
+   *  `open={undefined}` comme un popover non contrôlé. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 /** Effet SOUS LE CURSEUR — état purement présentationnel, il ne quitte jamais
@@ -25,7 +33,7 @@ interface HoveredEffect {
   name: string;
 }
 
-export function EffectPicker({ disabled = false, onSelect, preview }: Props) {
+export function EffectPicker({ disabled = false, onSelect, preview, open, onOpenChange }: Props) {
   const [query, setQuery] = useState("");
   const [hovered, setHovered] = useState<HoveredEffect | null>(null);
   const groups = useMemo(() => buildEffectCatalog(effectRegistry, query), [query]);
@@ -45,12 +53,14 @@ export function EffectPicker({ disabled = false, onSelect, preview }: Props) {
 
   return (
     <PopoverPrimitive.Root
-      onOpenChange={(open) => {
-        if (!open) {
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) {
           setQuery("");
           setHovered(null);
         }
-        preview?.onOpenChange(open);
+        preview?.onOpenChange(next);
+        onOpenChange?.(next);
       }}
     >
       <PopoverPrimitive.Trigger

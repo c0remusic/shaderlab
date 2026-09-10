@@ -42,6 +42,21 @@ curseur dans l'app elle-même (plugin Lua `assets/shaderlab-dump.lrdevplugin`).
   contrainte qui peut faire ou défaire le chantier, et elle est mesurable
   avant une ligne (histogramme de sortie sur un dégradé).
 
+## Périmètre tranché par Antoine le 2026-09-11 (avant la carte)
+
+- **Optique : HORS** (« je m'en branle ») — profil d'objectif, distorsion et
+  vignettage manuels, aberration, frange. 8 curseurs sortent.
+- **Transformation : HORS, sauf le recadrage** — Upright, perspectives,
+  rotation/échelle/aspect/décalage sortent. Le recadrage est livré (ticket 32
+  de `retour-usage-execution`) ; ce qui lui manque encore par rapport à
+  « Recadrer et redresser » de Lightroom : l'**angle** (redressement, ±45°) et
+  la règle de redressement. À confirmer comme seul reste de ce panneau.
+- Reste donc : **Réglages de base (15) · Courbe (9) · HSL / N&B (33) · Color
+  Grading (14) · Détail (9) · Effets (vignettage 6 — le grain est livré) ·
+  Étalonnage (7)** = **93 curseurs**, dont 4 existent tels quels. Plus les
+  masques locaux (chaque réglage en version locale) et ce qui entoure le
+  module (histogramme, avant/après, presets dosés) — à trancher au grilling.
+
 ## Ce que le dépôt a DÉJÀ tranché sur ce sujet (ne pas rouvrir)
 
 - `.scratch/prochain-palier/issues/10-quelles-fonctions-completeraient-les-notres.md`

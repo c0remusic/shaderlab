@@ -16,12 +16,14 @@
 
 ## Où en est le code — mesuré sur disque le 2026-08-05, pas de mémoire
 
-- **26 effets** au registre (`src/render/effects/registry.ts`) — `texture` puis
+- **27 effets** au registre (`src/render/effects/registry.ts`) — `texture` puis
   `lightLeak` le 2026-08-05, `aplat` le 2026-08-17, et la tranche 3 du ticket 12
   le 2026-08-18 : `nettete`, `displacementMap` (`emboss` en faisait partie, RETIRÉ
   le 2026-08-21, ADR-0019). ⚠️ Deux retraits le 2026-08-21, indépendants :
   `emboss` (verdict « relief est horrible ») et `noise`, poussé la veille puis
-  reverté (refusé aussi). 28 → 27 → 26. Mesurer sur disque, ne pas recompter.
+  reverté (refusé aussi). 28 → 27 → 26. Puis `etalonnage` le 2026-09-11 (premier
+  effet du chantier `lightroom-develop`, ticket 01) : 26 → 27. Mesurer sur disque,
+  ne pas recompter.
   ✅ `aplat` (couleur unie bornée par un masque ou une primitive posée) a reçu
   **deux des trois fronts de son upgrade qualité** le 2026-08-17 : remplissage en
   DÉGRADÉ (linéaire et radial, arrêts interpolés en lumière linéaire) et
@@ -39,7 +41,9 @@
   (ADR-0021, quatrième refus daté). ✅ Depuis le 2026-09-07 (`ede4b16`) le
   matcap du ticket 17 est une DOSE à défaut 0 — Antoine a pointé la colonne
   d'avant sur la planche chronologique — et `effet-verre-matcap` est la 14ᵉ.
-- **379 paramètres, 125 références de pixels** — re-mesurés le **2026-09-09**
+- **386 paramètres, 125 références de pixels** — le compte de params re-mesuré le
+  **2026-09-11** (+7 pour `etalonnage`, ticket 01) ; la ligne « références » plus
+  bas date du **2026-09-09**
   (373 et 119 au 2026-08-27 ; le +6 et le +6 sont les tickets 21, 11, 24 et la
   dose `matcap` — un ajout, pas une correction : 49 conditions, ratio inchangé
   à 13 %). Historique du 2026-08-27 :
@@ -59,7 +63,7 @@
   références (122 → 124) sont la paire `masque-feather-fort` qui MONTRE le
   profil en S du feather — les prises masque de l'après-midi ne touchent pas
   `params[]`, elles vivent dans `RefineEdgeParams`, déjà compté.
-- **Les 26 effets portent des sections** et leurs applicabilités déclarées
+- **Les 27 effets portent des sections** et leurs applicabilités déclarées
   (`EffectModule.sections`, `EffectParam.appliesWhen`) — chantier de
   rationalisation des contrôles **soldé le 2026-08-05**, statut dans
   `INDEX.json`. Ce qu'il en reste est du jugement, donc dans le bloc 1.

@@ -31,6 +31,10 @@ export const effectCategoryById: Readonly<Record<string, EffectCategory>> = {
   duotone: "Couleur",
   channelMixer: "Couleur",
   curves: "Couleur",
+  // Étalonnage des primaires de Lightroom (ticket 01, lightroom-develop) : une
+  // matrice de recombinaison, comme `channelMixer`, mais dont la lecture est le
+  // système de couleur et non un filtre optique.
+  etalonnage: "Couleur",
   gradientMap: "Couleur",
   // ⚠️ La famille tonale, et non `Optique` près des flous dont il est l'inverse
   // spatial : cette table classe le MÉCANISME, et une accentuation n'est

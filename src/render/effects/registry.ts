@@ -21,6 +21,7 @@ import { motionBlur } from "./motionBlur";
 import { glass } from "./glass";
 import { lensFlare } from "./lensFlare";
 import { curves } from "./curves";
+import { etalonnage } from "./etalonnage";
 import { texture } from "./texture";
 import { lightLeak } from "./lightLeak";
 import { aplat } from "./aplat";
@@ -163,6 +164,15 @@ export const effectRegistry: EffectModule[] = [
   gooeyMerge,
   channelMixer,
   curves,
+  // `etalonnage` (2026-09-11) est le PREMIER effet du chantier « l'éditeur
+  // complet de Lightroom » (`.scratch/lightroom-develop/`, ticket 01). Posé près
+  // de `curves` et `channelMixer` parce qu'il est de la même famille — de la
+  // retouche Couleur, sans ancrage sur la toile. Il porte l'étalonnage des
+  // primaires de Lightroom : une MATRICE 3×3 en lumière linéaire dont les colonnes
+  // sont les trois primaires tournées en OKLCH, renormalisée pour que le blanc
+  // reste blanc, plus une nuance foncée bornée aux ombres. Ce n'est pas un HSL —
+  // il retourne le système de couleur sous l'image, pas les couleurs par bande.
+  etalonnage,
   // `nettete` (2026-08-18) est posé après `curves` parce qu'il pose la même
   // question qu'elle par l'autre bout : `curves` décide de la valeur d'un ton,
   // celui-ci de l'écart entre un ton et son VOISINAGE. Les deux sont tonals ;

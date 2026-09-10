@@ -141,7 +141,7 @@ const EXCEPTIONS_DENSITE: Readonly<Record<string, string>> = {
  * qui vit ici est la LISTE. Ajouter un orphelin sans venir écrire sa ligne fait
  * rougir — « personne ne l'a vu » devient « ça rougit ».
  *
- * Les seize sont MESURÉS, pas recopiés d'un document : la première version de ce
+ * Ils sont MESURÉS, pas recopiés d'un document : la première version de ce
  * fichier en avait deviné dix-sept, dont aucun n'était juste.
  */
 const ORPHELINS_DECLARES: Readonly<Record<string, string>> = {
@@ -171,6 +171,11 @@ const ORPHELINS_DECLARES: Readonly<Record<string, string>> = {
   // `gradientMap` : deux réglages qui portent sur le mappage complet.
   "gradientMap.preserveShading": "porte sur le mappage complet",
   "gradientMap.blendSpace": "espace de mélange de tout l'effet",
+  // `etalonnage` : la nuance foncée n'appartient à aucune primaire. Une section
+  // « Nuance foncée » d'un seul item est exactement ce qu'ADR-0001 proscrit — un
+  // titre pour une ligne. Rendue à sa place (index 0), elle retombe en tête,
+  // comme dans Lightroom.
+  "etalonnage.shadowTint": "vert↔magenta des ombres, hors des trois primaires",
 };
 
 describe("densité des sections", () => {

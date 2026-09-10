@@ -67,8 +67,48 @@ lumière linéaire, dont les colonnes sont les primaires ajustées.
   Bleu ±60 (teinte) · Bleu sat +60 · Nuance ±80 · le look teal-and-orange —
   vignette réduite (par masses). Il compare à SON Lightroom, côte à côte.
 
-- [ ] `etalonnage.ts` : 7 params, matrice de primaires en OKLCH → linéaire, normalisée au blanc, nuance foncée pondérée par les ombres ; identité à 0.
-- [ ] Registre + catalogue + CLAUDE.md/ROADMAP (26 → 27) dans le même commit.
-- [ ] Mire colorée (existante ou `mirePrimaires`), 3 références + ATTENDU, `test:render` zéro écart ailleurs.
-- [ ] Planche sur les photos d'Antoine ; il juge contre son Lightroom.
+- [x] `etalonnage.ts` : 7 params, matrice de primaires tournées dans OKLab → linéaire, normalisée au blanc, nuance foncée pondérée par les ombres ; identité à 0 (garde early-return). Jumeau TS `etalonnageSpec` testé (identité, gris invariant, blanc invariant, rotation du bleu ne touche pas un rouge pur, bipolarité, nuance sur ombres).
+- [x] Registre + catalogue + CLAUDE.md/ROADMAP (26 → 27) dans le même commit.
+- [x] Mire colorée `mirePrimaires` (écrite : 6 aplats 100 %/50 %, bande de peau, rampe de gris), 3 références + ATTENDU (`effet-etalonnage-temoin/-bleu/-nuance`), `test:render` zéro écart sur les 128 (131 au total).
+- [~] Planche rendue sur les deux photos d'Antoine (`assets/planche-01-etalonnage.html`, 11 colonnes × 2 photos) — **en attente du verdict d'Antoine côté à côté avec son Lightroom**.
 - [ ] Bornes RÉELLES depuis `Documents/shaderlab-lightroom-ranges.txt` quand le plugin aura tourné (remplacer ±100 « usuel » si différent).
+
+## Décisions et écarts d'exécution (2026-09-11)
+
+- **`k` (degrés/unité) = 0,30**, soit ±100 → ±30°, la valeur de Lightroom citée par
+  le ticket. Sur la planche, les rotations de teinte sont sobres (la moyenne bouge
+  à peine, le décalage est chromatique) — cohérent avec la subtilité voulue.
+- **`SHADOW_TINT_AMOUNT` = 0,05** (pas 0,10). À 0,10, Nuance foncée +80 lavait tout
+  le fond sombre d'une photo en magenta — très loin de la subtilité de Lightroom.
+  0,05 garde un cast net dans les ombres, hautes lumières épargnées. Reste un
+  candidat à affiner avec Antoine.
+- **Normalisation au blanc : par LIGNE** (chaque ligne divisée par sa somme = la
+  composante du point blanc). Un gris reste gris exact et le blanc reste blanc à
+  tout réglage (testé). C'est la même opération que « ajuster les colonnes pour
+  M·(1,1,1)=(1,1,1) ».
+- **⚠️ ÉCART AU TICKET, prémisse fausse sur pièce : le clamp de gamut est sur la
+  SORTIE, PAS sur les colonnes.** Le ticket demandait de borner chaque primaire
+  tournée à [0,1] avant la matrice. Mesuré : une primaire PURE est un coin de
+  gamut ; la tourner l'envoie hors gamut sur son flanc sombre, et la borner à
+  [0,1] la reprojette EXACTEMENT sur elle-même → colonne = primaire d'origine →
+  matrice = identité → effet INERTE (0 % d'écart sur une peau à Bleu −60/+40).
+  Une matrice de calibration ne borne pas ses colonnes : colonnes non bornées,
+  renormalisation au blanc, puis clamp du RÉSULTAT en linéaire. Le blanc reste
+  blanc (renormalisation sur colonnes non bornées) et un gris n'atteint jamais
+  les bornes.
+- **⚠️ BUG GPU trouvé et contourné : `atan2` de Dawn rend le mauvais signe au 3ᵉ
+  quadrant.** La première implémentation passait par OKLCH (`oklab_to_oklch` /
+  `oklch_to_oklab`, partagés). Sur GPU, le round-trip polaire d'une couleur du 3ᵉ
+  quadrant (bleu, a<0 b<0) N'ÉTAIT PAS l'identité — le bleu sortait orange (hue
+  mesuré 0,262 au lieu de 0,733). Cause isolée par sonde GPU directe : `atan2`
+  renvoie le mauvais signe, donc `oklch_to_oklab` n'inverse plus `oklab_to_oklch`.
+  Les autres effets construisent leur teinte depuis un PARAMÈTRE et n'exercent
+  jamais l'`atan2` d'une couleur arbitraire — d'où leur immunité. Correction :
+  rotation directe du vecteur (a,b) par une matrice 2×2 (a' = a·cosθ − b·sinθ,
+  b' = a·sinθ + b·cosθ, ×k), mathématiquement identique à OKLCH mais SANS `atan2`
+  ni `fract`.
+- **Sections** : « Rouge primaire », « Vert primaire », « Bleu primaire » (Teinte
+  + Saturation chacune, `liste`). `shadowTint` reste ORPHELIN rendu en tête
+  (index 0) — une section « Nuance foncée » d'un seul item viole ADR-0001 ;
+  déclaré dans `ORPHELINS_DECLARES` de `densiteSections.test.ts`. C'est aussi la
+  disposition de Lightroom (Nuance foncée en haut).

@@ -187,9 +187,13 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Registre réel au 2026-08-18, dans l'ordre : `glow`, `halation`,
   `lensFlare`, `lightLeak`, `lensDistortion`, `lensBlur`, `motionBlur`,
   `glass`, `warp`, `displacementMap`, `grain`, `duotone`, `hatching`,
-  `halftone`, `dither`, `gooeyMerge`, `channelMixer`, `curves`, `nettete`,
-  `outlines`, `isolines`, `pixelStretch`, `sliceShift`,
-  `gradientMap`, `texture`, `aplat` — **vingt-six**.
+  `halftone`, `dither`, `gooeyMerge`, `channelMixer`, `curves`, `etalonnage`,
+  `nettete`, `outlines`, `isolines`, `pixelStretch`, `sliceShift`,
+  `gradientMap`, `texture`, `aplat` — **vingt-sept**.
+  ⚠️ `etalonnage` (2026-09-11) est le PREMIER effet du chantier « l'éditeur
+  complet de Lightroom » (`.scratch/lightroom-develop/`, ticket 01) — 26 → 27.
+  Portage du panneau Étalonnage : matrice de primaires tournées dans OKLab +
+  nuance foncée bornée aux ombres.
   ⚠️ `emboss` (le Relief) EST SORTI le 2026-08-21 sur verdict d'usage
   (ADR-0019, « relief est horrible ») — 27 → 26. Et `noise`, poussé la veille,
   a été REVERTÉ le même jour, aussi refusé (28 → 27). Les deux retraits sont
@@ -348,9 +352,11 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   que ce paragraphe a dit du 2026-08-05 au 2026-08-12** (« chantier soldé »).
   Mesuré sur les modules réels, d'abord le 2026-08-12 puis le 2026-08-15
   (instrument : `.scratch/prochain-palier/assets/mesure-controles.ts`), puis
-  re-mesuré le 2026-08-19, le 2026-08-26, le 2026-08-27, puis le
-  **2026-09-09** : sur **379 paramètres**, **49** portent une condition (13 %)
-  et **15 effets sur 26** (le 373 → 379 est entièrement du 2026-09-02 au 09-07 :
+  re-mesuré le 2026-08-19, le 2026-08-26, le 2026-08-27, le 2026-09-09, puis le
+  **2026-09-11** : sur **386 paramètres**, **49** portent une condition (13 %)
+  et **16 effets sur 27** (le 379 → 386 est les sept params d'`etalonnage`,
+  ticket 01, zéro condition — 16ᵉ effet sans condition, un ajout pas une
+  correction ; le 373 → 379 est entièrement du 2026-09-02 au 09-07 :
   les quatre params de `box` de `texture` et le `point` de `warp`/`halftone`/
   `hatching` du ticket 21, et la dose `matcap` de `glass` — zéro condition
   ajoutée, donc le ratio ne bouge pas, et pour la même raison que d'habitude :

@@ -614,6 +614,16 @@ const ATTENDU = {
   "effet-duotone.png": { width: 256, height: 256, valeurs: null },
   "effet-gradient-map.png": { width: 256, height: 256, valeurs: null },
   "effet-gradient-map-repetition.png": { width: 256, height: 256, valeurs: null },
+  // ETALONNAGE (2026-09-11, ticket 01 lightroom-develop), premier effet du module
+  // Developpement de Lightroom porte ici. Trois references sur `mirePrimaires`, une
+  // mire ecrite pour lui (six aplats de teintes franches, bande de peau, rampe de
+  // gris). Le temoin est l identite au bit pres (matrice a reglages nuls = entree),
+  // et les deux autres le contrent : le teal-and-orange par la primaire bleue, et
+  // la nuance foncee qui ne teinte que les ombres. L ecart entre le temoin et
+  // chacune EST la propriete verrouillee.
+  "effet-etalonnage-temoin.png": { width: 256, height: 256, valeurs: null },
+  "effet-etalonnage-bleu.png": { width: 256, height: 256, valeurs: null },
+  "effet-etalonnage-nuance.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

@@ -542,6 +542,55 @@ const INSTALL = `(async () => {
     return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
   };
 
+  // Mire A PRIMAIRES : les six teintes plates (R, V, B et leurs secondaires C, M,
+  // J) a 100 % et 50 % de saturation, une bande de PEAU, et une rampe de gris.
+  //
+  // Elle existe pour l effet etalonnage, et aucune mire existante ne pouvait en
+  // temoigner. L etalonnage tourne les PRIMAIRES du systeme de couleur : ce qui
+  // le montre, ce sont des aplats de couleurs FRANCHES qui basculent en teinte, et
+  // une rampe de gris qui, elle, ne DOIT PAS bouger (c est la preuve de la
+  // renormalisation au blanc). La mire commune fait l inverse — deux degrades
+  // continus ou une rotation de primaire se noie.
+  //
+  // Trois lectures dans une image :
+  //  - deux rangees de six aplats : la rotation d une primaire s y lit d un coup,
+  //    et une secondaire (C = V+B) prouve que l effet agit sur une COMBINAISON et
+  //    pas sur une bande isolee ;
+  //  - la bande de peau (#E0A080) : c est la que tout etalonnage se juge, une
+  //    teinte chair virant au vert ou au magenta se voit avant tout le reste ;
+  //  - la rampe de gris en bas : elle porte les OMBRES (pour la nuance foncee) et
+  //    prouve l invariance des gris de la matrice.
+  const mirePrimaires = (w, h) => {
+    const d = new Uint8ClampedArray(w * h * 4);
+    // 100 % de saturation : primaires puis secondaires.
+    const pleines = [[255, 0, 0], [0, 255, 0], [0, 0, 255], [0, 255, 255], [255, 0, 255], [255, 255, 0]];
+    // 50 % de saturation : le canal manquant remonte a mi-course, la valeur reste
+    // haute. Une teinte moins pure ou l etalonnage agit plus subtilement.
+    const demi = [[255, 128, 128], [128, 255, 128], [128, 128, 255], [128, 255, 255], [255, 128, 255], [255, 255, 128]];
+    const peau = [224, 160, 128];
+    const yA = Math.round(h * 0.36); // fin des aplats pleins
+    const yB = Math.round(h * 0.60); // fin des aplats a demi-saturation
+    const yC = Math.round(h * 0.74); // fin de la bande de peau
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        let c;
+        if (y < yA) {
+          c = pleines[Math.min(5, ((x * 6) / w) | 0)];
+        } else if (y < yB) {
+          c = demi[Math.min(5, ((x * 6) / w) | 0)];
+        } else if (y < yC) {
+          c = peau;
+        } else {
+          const v = ((x * 255) / (w - 1)) | 0;
+          c = [v, v, v];
+        }
+        d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = 255;
+      }
+    }
+    return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
+  };
+
   // sRGB 0..255 vers lumiere lineaire 0..1. Le range couleur compare a
   // \`colorLinear\`, donc un echantillon donne en sRGB viserait a cote — et pas
   // un peu : 220 sur 255 vaut 0,86 en sRGB et 0,72 en lineaire, soit plus de
@@ -2987,6 +3036,50 @@ const INSTALL = `(async () => {
           preserveShading: 0, blendSpace: 1, offset: 0,
           repeat: 4, repeatType: 0, scatter: 0,
         });
+      },
+    },
+
+    // ETALONNAGE (2026-09-11, ticket 01 lightroom-develop), sur mirePrimaires —
+    // une mire ecrite pour lui. Trois references : le temoin (identite au bit
+    // pres, la matrice a reglages nuls renvoie l entree telle quelle), puis deux
+    // qui CONTRENT le temoin et n allument qu une chose chacune.
+    //
+    // Sur mirePrimaires parce que l etalonnage tourne les PRIMAIRES du systeme de
+    // couleur : ses six aplats montrent la rotation, sa bande de peau montre ou
+    // ca se juge, sa rampe de gris prouve que les gris ne bougent pas.
+    "effet-etalonnage-temoin": {
+      build: async (r, stack) => {
+        const src = await mirePrimaires(W, H);
+        const sourceId = await r.photoSources.register(src);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "primaires");
+        stack.addLayer("etalonnage", p);
+      },
+    },
+    // BLEU teinte -60, saturation +40 : le teal-and-orange. Les tons froids
+    // basculent vers le turquoise et gagnent en chroma ; l ecart au temoin se lit
+    // sur les aplats bleu et cyan et sur la peau.
+    "effet-etalonnage-bleu": {
+      contre: "effet-etalonnage-temoin",
+      build: async (r, stack) => {
+        const src = await mirePrimaires(W, H);
+        const sourceId = await r.photoSources.register(src);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "primaires");
+        const a = stack.addLayer("etalonnage", p);
+        stack.updateParams(a, { blueHue: -60, blueSaturation: 40 });
+      },
+    },
+    // NUANCE FONCEE +80 : le decalage magenta ne mord que sur les OMBRES
+    // (ponderation (1 - luminance)^2 de l entree). Il se lit sur la moitie sombre
+    // de la rampe de gris et sur les canaux bas des aplats, pas sur les hautes
+    // lumieres. C est le SEUL reglage qui teinte un gris — mais un gris sombre.
+    "effet-etalonnage-nuance": {
+      contre: "effet-etalonnage-temoin",
+      build: async (r, stack) => {
+        const src = await mirePrimaires(W, H);
+        const sourceId = await r.photoSources.register(src);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "primaires");
+        const a = stack.addLayer("etalonnage", p);
+        stack.updateParams(a, { shadowTint: 80 });
       },
     },
 

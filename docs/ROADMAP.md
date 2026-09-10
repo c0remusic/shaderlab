@@ -302,8 +302,12 @@ l'outil nommé avant de traduire. **06** : six planches de mécanisme d'aquarell
 de conception corrigés en mesurant, prototype `aquarelle.ts` vivant dans
 l'arbre NON commité (sauvegardé dans `assets/ref-06/`), **Antoine n'a pointé
 aucune colonne — la planche 6 attend son mot**. **09** était DÉJÀ livré
-(19 scans, `c554267`) : ne le reprendre pour rien. Reste ouvert : **32
-tranche B** (outil Recadrer `C`, en cours), validation en gestes de 27 à 31,
+(19 scans, `c554267`) : ne le reprendre pour rien. **32 tranche B LIVRÉE le 2026-09-10** (`9900b85`) : outil Recadrer `C`,
+huit poignées, voile hors cadre, ratios, Entrée/Échap, « Annuler le
+recadrage », canvas aux dimensions du cadre, overlays compensés par
+`documentClientRect`, export réel découpé ; prouvé par CDP sur un onglet frais
+(800×600 → 400×300 → outil → Échap → Ctrl+Z). Reste : validation en gestes de
+27 à 32,
 et une question de conception au 06 (le « zipper » du Kuwahara 4 secteurs à
 grand rayon → anisotrope Kyprianidis 2009, ~2× les taps, à mesurer en prod).
 ✅ **16 CLOS EN CONSTAT le 2026-08-26, zéro ligne de code** : la rampe de Schlick
@@ -1017,10 +1021,15 @@ prouvé, pas supposé. ⚠️ La prémisse « l'écran n'est pas prouvable au ha
 était FAUSSE : `render-check.mjs` relit le canvas (`surface: "canvas"`,
 scénarios `toile-damier`, `masque-overlay-*`) — non exploité pour le cadre,
 parce que la tranche A affiche encore le sous-rectangle ÉTIRÉ (canvas DOM aux
-dimensions du document). **Reste la tranche B** : canvas aux dimensions du
-cadre, overlays compensés de l'origine du cadre, `setCadre` à chaque commit,
-export réel avec le cadre, et l'outil Recadrer lui-même (`C`, poignées,
-assombrissement hors cadre, ratio, « Annuler le recadrage »).
+dimensions du document). ✅ **TRANCHE B LIVRÉE le 2026-09-10** (`9900b85`) : canvas aux dimensions du
+cadre, overlays compensés par `documentClientRect` (rectangle virtuel de la
+toile entière), `setCadre` piloté par l'état `cadre` d'`App`, export réel
+découpé, outil Recadrer `C` (`ui/cropTool.ts` pur, `hooks/useCropTool.ts`,
+`CropOverlay`), ratios Libre·D'origine·Carré·4:5·3:2. ⚠️ Deux décisions à
+relire : la validation pose le cadre en ABSOLU (annuler puis recadrer) pour
+qu'on puisse l'AGRANDIR — `composerCadre` seul l'interdit ; et le pont debug
+`recadrer` COMMITE (un pas d'undo). Ce qui reste est humain : recadrer,
+exporter, rouvrir l'outil, agrandir, annuler — en gestes.
 
 Le constat de mesure qui a mené là est conservé ci-dessous : il porte les chiffres
 qui rendaient la découpe coûteuse, et c'est lui qui a fait poser la bonne

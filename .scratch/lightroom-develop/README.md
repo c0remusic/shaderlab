@@ -57,6 +57,18 @@ curseur dans l'app elle-même (plugin Lua `assets/shaderlab-dump.lrdevplugin`).
   masques locaux (chaque réglage en version locale) et ce qui entoure le
   module (histogramme, avant/après, presets dosés) — à trancher au grilling.
 
+## Décisions du 2026-09-11 (Antoine, sur mesure)
+
+- **Étalonnage : GO** (« ok pour étalonnage ») — `issues/01`, en cours.
+- **8 bits, le TON en un seul effet** (« fais comme tu peux », sur la mesure
+  `research/02-huit-bits-mesure.md` : un effet par curseur perd 25 % des
+  niveaux et creuse des trous de 7 ; un effet unique en flottant rend ce que
+  Lightroom rend, à 8 bits, sans toucher l'invariant). `issues/02` = Réglages
+  de base + courbe paramétrique, 22 curseurs, un effet. Le reste (HSL, Color
+  Grading, Détail, Vignettage) reste un effet chacun.
+- Reste à charter (`/wayfinder`) : HSL / N&B (33), Color Grading (14), Détail
+  (9), Vignettage (6), l'angle du recadrage, masques locaux, entourage.
+
 ## Ce que le dépôt a DÉJÀ tranché sur ce sujet (ne pas rouvrir)
 
 - `.scratch/prochain-palier/issues/10-quelles-fonctions-completeraient-les-notres.md`

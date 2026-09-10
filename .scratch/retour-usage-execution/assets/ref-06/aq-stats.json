@@ -1,0 +1,128 @@
+{
+  "cropX": 2496,
+  "cropY": 2496,
+  "cols": [
+    {
+      "i": 0,
+      "key": "temoin",
+      "params": null,
+      "mean": 43.68174024369513,
+      "std": 61.243551024870285,
+      "md5vign": "10237c504f87629931980bca5b141e60",
+      "md5crop": "39b687941c635a03ff4a64e41c927dff"
+    },
+    {
+      "i": 1,
+      "key": "diffusion",
+      "params": {
+        "spread": 1.5,
+        "wetness": 1,
+        "wobble": 0,
+        "edgeDarkening": 0,
+        "lace": 0,
+        "densityMode": 0
+      },
+      "mean": 46.61202579317671,
+      "std": 59.878365511107276,
+      "md5vign": "19aa9444136c8926e96326b4576621f6",
+      "md5crop": "a181ff306cdef66d95f0ad6e5856d973"
+    },
+    {
+      "i": 2,
+      "key": "wobble",
+      "params": {
+        "spread": 1.5,
+        "wetness": 1,
+        "wobble": 16,
+        "edgeDarkening": 0,
+        "lace": 0,
+        "densityMode": 0
+      },
+      "mean": 46.634527337345176,
+      "std": 59.92073515195841,
+      "md5vign": "41d761257c6d1579e9c296dbb6248b50",
+      "md5crop": "e160a786670a45c5faff7c27f3305fd4"
+    },
+    {
+      "i": 3,
+      "key": "front",
+      "params": {
+        "spread": 1.5,
+        "wetness": 1,
+        "wobble": 16,
+        "edgeDarkening": 0.9,
+        "lace": 0,
+        "densityMode": 0
+      },
+      "mean": 42.276171789427956,
+      "std": 55.03772857211124,
+      "md5vign": "486f7fdf63c390b47e2a09952e2f7f8b",
+      "md5crop": "4a4e6849c2db3ba22f56fd07072bb10a"
+    },
+    {
+      "i": 4,
+      "key": "dentelle",
+      "params": {
+        "spread": 1.5,
+        "wetness": 1,
+        "wobble": 16,
+        "edgeDarkening": 0.9,
+        "lace": 0.6,
+        "densityMode": 0
+      },
+      "mean": 42.854792236198016,
+      "std": 55.589514978090094,
+      "md5vign": "3a41b660ab98d996bd4e0264fbc50681",
+      "md5crop": "5a428611e1ef05884d4c7c98d96a43a9"
+    },
+    {
+      "i": 5,
+      "key": "densite",
+      "params": {
+        "spread": 1.5,
+        "wetness": 1,
+        "wobble": 16,
+        "edgeDarkening": 0.9,
+        "lace": 0.6,
+        "densityMode": 1
+      },
+      "mean": 42.801810122630435,
+      "std": 55.59303691219337,
+      "md5vign": "a90a06fd30eab8d3b7953c56315402c2",
+      "md5crop": "f8d789615d64dddafdde509c6ab3749a"
+    },
+    {
+      "i": 6,
+      "key": "portee2x",
+      "params": {
+        "spread": 3,
+        "wetness": 1,
+        "wobble": 16,
+        "edgeDarkening": 0.9,
+        "lace": 0.6,
+        "densityMode": 1
+      },
+      "mean": 45.216710413968336,
+      "std": 56.27045671989392,
+      "md5vign": "71bc125673245cdf104e133c69f7f369",
+      "md5crop": "abd9f5c7e40fcdd69547a002c3316e45"
+    },
+    {
+      "i": 7,
+      "key": "plages",
+      "params": {
+        "spread": 1.5,
+        "wetness": 0.5,
+        "wobble": 16,
+        "edgeDarkening": 0.9,
+        "lace": 0.6,
+        "densityMode": 1
+      },
+      "mean": 43.01842980004963,
+      "std": 57.40390776536544,
+      "md5vign": "bfa2183d4bc1309a80d57582a111e19d",
+      "md5crop": "f8d789615d64dddafdde509c6ab3749a"
+    }
+  ],
+  "native": "?"
+}

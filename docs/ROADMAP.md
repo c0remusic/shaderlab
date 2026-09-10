@@ -280,6 +280,32 @@ prenable : **11** (sources géométriques de masque, débloqué par le 10),
 (pack textures). ⚠️ **Les sous-agents doivent tourner sur Opus 4.8**
 (demande d'Antoine) : `settings.local.json` + agent `opus-4-8` posés, lus au
 démarrage de session — l'alias `opus` seul résout vers Opus 5.
+✅ **État au 2026-09-10 (deux sessions, 09-09 et 09-10)** — six tickets NEUFS
+livrés, tous nés d'une phrase d'Antoine devant l'app, tous prouvés par CDP dans
+la vraie fenêtre : **27** Aplatir (Tampon = nouveau calque photo au-dessus,
+rien détruit ; Fusionner = remplace le lot, un undo — raster de Fusionner au
+FOND ; `layers/flatten.ts`), **28** clic droit sur la pile (primitive
+`ui/context-menu.tsx` sur Base UI, menu natif WebView2 supprimé hors champs de
+saisie), **29** clic droit sur la toile (`hitTestAll`, liste des calques sous
+le curseur, entrées partagées `layerActionsMenu.tsx`), **30** raccourcis
+(`Ctrl+Alt+Maj+E`, `Ctrl+E`, `Ctrl+J`, `Suppr`, `F2`), **31** renommer un
+calque (double-clic, F2, « Renommer… »), **32 tranche A** recadrage de toile
+câblé au moteur (export découpé au cadre, présentation remappée,
+`cadreProjection.ts`, 3 références : 125 → 128, garde « le dégradé ne glisse
+pas » octet pour octet). ⚠️ **Trois mots du domaine mal traduits, même jour,
+même racine** : « aplatir » (lu scale Y au ticket 24 → c'était rasteriser),
+« encre » (lu mode d'`inkTexture` au ticket 06 → c'était faire baver les
+couleurs de la PHOTO, ticket 07 caduc), et plus tôt « forme » (ticket 10).
+Chaque fois « comme Photoshop » était dans sa phrase : ouvrir le MENU de
+l'outil nommé avant de traduire. **06** : six planches de mécanisme d'aquarelle
+(flou → advection → combinée → échelle relative → bave locale), cinq défauts
+de conception corrigés en mesurant, prototype `aquarelle.ts` vivant dans
+l'arbre NON commité (sauvegardé dans `assets/ref-06/`), **Antoine n'a pointé
+aucune colonne — la planche 6 attend son mot**. **09** était DÉJÀ livré
+(19 scans, `c554267`) : ne le reprendre pour rien. Reste ouvert : **32
+tranche B** (outil Recadrer `C`, en cours), validation en gestes de 27 à 31,
+et une question de conception au 06 (le « zipper » du Kuwahara 4 secteurs à
+grand rayon → anisotrope Kyprianidis 2009, ~2× les taps, à mesurer en prod).
 ✅ **16 CLOS EN CONSTAT le 2026-08-26, zéro ligne de code** : la rampe de Schlick
 demandée est dans `glass.ts:889` **depuis le premier commit du verre**, par
 pixel, sur le bon `cos θ`. Le voile plat vient de `glass.ts:890` (mélange vers
@@ -980,6 +1006,21 @@ toile entière, il n'y a pas d'outil de recadrage, et le renderer devra évaluer
 les masques dans l'espace d'ORIGINE — l'évaluer dans l'espace du cadre rouvrirait
 le défaut du dégradé exactement tel qu'il était décrit. Passe par les gates GPU.
 [Ticket 28](../.scratch/prochain-palier/issues/28-recadrer-la-toile-deja-ouverte.md).
+✅ **TRANCHE A du câblage LIVRÉE le 2026-09-10** (`8a094a2`, ticket 32 de
+`retour-usage-execution`) : `Renderer.exportFrame(layers, cadre)` relit le seul
+sous-rectangle (readback à `origin`), `Renderer.setCadre` remappe l'UV de la
+présentation (variante damier seule ; l'export ne découpe qu'à la relecture,
+donc octet-identique), `render/cadreProjection.ts` pur, 3 références
+(`cadre-toile`, `-temoin`, `-degrade`) et une assertion dans le harnais : l'export
+cadré EST le crop octet pour octet de l'export plein — le dégradé ne glisse pas,
+prouvé, pas supposé. ⚠️ La prémisse « l'écran n'est pas prouvable au harnais »
+était FAUSSE : `render-check.mjs` relit le canvas (`surface: "canvas"`,
+scénarios `toile-damier`, `masque-overlay-*`) — non exploité pour le cadre,
+parce que la tranche A affiche encore le sous-rectangle ÉTIRÉ (canvas DOM aux
+dimensions du document). **Reste la tranche B** : canvas aux dimensions du
+cadre, overlays compensés de l'origine du cadre, `setCadre` à chaque commit,
+export réel avec le cadre, et l'outil Recadrer lui-même (`C`, poignées,
+assombrissement hors cadre, ratio, « Annuler le recadrage »).
 
 Le constat de mesure qui a mené là est conservé ci-dessous : il porte les chiffres
 qui rendaient la découpe coûteuse, et c'est lui qui a fait poser la bonne

@@ -1,0 +1,364 @@
+{
+  "photos": {
+    "A": {
+      "file": "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5171.JPG",
+      "srcW": 6240,
+      "srcH": 4160,
+      "frameW": 6240,
+      "frameH": 4160,
+      "crop1": {
+        "x": 2600,
+        "y": 2500,
+        "label": "petale blanc / fleur rouge"
+      },
+      "crop2": {
+        "x": 3600,
+        "y": 720,
+        "label": "brin vert / petale clair"
+      },
+      "cols": [
+        {
+          "i": 0,
+          "key": "temoin",
+          "mean": 63.60897737482176,
+          "std": 34.85411470762796,
+          "ms": 299.90000000037253,
+          "md5vign": "cb1237991abb9749488385c8cecc68ea",
+          "md5crop1": "16de2ececfd862036a4a304c4cb31fe1",
+          "md5crop2": "a7f555838487cba983e1f9f81f3c169e",
+          "dark10": 6.229916572945935
+        },
+        {
+          "i": 1,
+          "key": "lavis",
+          "mean": 64.18545311800612,
+          "std": 34.01285530850518,
+          "ms": 331.7999999988824,
+          "md5vign": "47b59b1d94c499fb7129f83f9da9e32e",
+          "md5crop1": "c8c493a05d8d30d361d02e92ecbbea20",
+          "md5crop2": "b76e72561acf7ec15b69c80a1e9ba3c8",
+          "dark10": 8.775285160887504
+        },
+        {
+          "i": 2,
+          "key": "bave",
+          "mean": 64.69868248456284,
+          "std": 33.43127874341991,
+          "ms": 255.09999999962747,
+          "md5vign": "d2a83255ce55f068f29ebe43e2d177bb",
+          "md5crop1": "edc6525538df618bdd42fa0818e63194",
+          "md5crop2": "817f6e50817a7e2f105e89301b5af416",
+          "dark10": 10.371483606685668
+        },
+        {
+          "i": 3,
+          "key": "fibres",
+          "mean": 64.74791618682002,
+          "std": 33.40168455271551,
+          "ms": 252.90000000037253,
+          "md5vign": "3599a23af03669e543910cf2c1454ce1",
+          "md5crop1": "91781ac954378b639a5442ed737b65db",
+          "md5crop2": "9a58fd63cc8015bbf5a211f31f6cd40d",
+          "dark10": 10.582669782880638
+        },
+        {
+          "i": 4,
+          "key": "plages",
+          "mean": 64.67488787626729,
+          "std": 33.48392555499082,
+          "ms": 353.5,
+          "md5vign": "e1bfbe39598a6ebecad582ba99b9bcf1",
+          "md5crop1": "0254366b748c2a7019d2ed82847e64b7",
+          "md5crop2": "9a58fd63cc8015bbf5a211f31f6cd40d",
+          "dark10": 10.258964714152054
+        },
+        {
+          "i": 5,
+          "key": "front",
+          "mean": 64.1892959642148,
+          "std": 33.23110006848004,
+          "ms": 302,
+          "md5vign": "ef271dcee6785e235e99b958b5ef65d7",
+          "md5crop1": "0fa3f66a73eb5a44ad84300e71f42bbe",
+          "md5crop2": "59c6a58750b94c3b9290f211d9971c7e",
+          "dark10": 10.162015034364472
+        },
+        {
+          "i": 6,
+          "key": "tout",
+          "mean": 63.98292164413416,
+          "std": 33.23809192331363,
+          "ms": 285.90000000037253,
+          "md5vign": "586f5a3acd58f9c884b8d4b0870c6b96",
+          "md5crop1": "edbdc83d02bf2395658931f09d82a123",
+          "md5crop2": "466c62b01da3eff50894df4fd9afa1a9",
+          "dark10": 10.080725007810255
+        },
+        {
+          "i": 7,
+          "key": "portee2x",
+          "mean": 64.35478314534335,
+          "std": 32.74756110753515,
+          "ms": 270.90000000037253,
+          "md5vign": "edfb3d3ea732f9d6f8f45071798ba31c",
+          "md5crop1": "450adc0d2f3e8248882cceb41be19d78",
+          "md5crop2": "c0374d4fe0af79b8a9b1a880db319d6e",
+          "dark10": 11.315150921587495
+        },
+        {
+          "i": 8,
+          "key": "bavemax",
+          "mean": 64.8685873334252,
+          "std": 32.57692531861653,
+          "ms": 266.90000000037253,
+          "md5vign": "4893d6951f160ae12873ca043eb73c55",
+          "md5crop1": "4aa2e43c4074587afa4c58c03199ef32",
+          "md5crop2": "c0374d4fe0af79b8a9b1a880db319d6e",
+          "dark10": 12.118680146829401
+        }
+      ],
+      "dark10Seuil": 11.498800000000001,
+      "dark10N": 25608,
+      "exifOk": true
+    },
+    "B": {
+      "file": "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5169-edited-2.JPG",
+      "srcW": 6240,
+      "srcH": 4160,
+      "frameW": 6240,
+      "frameH": 4160,
+      "crop1": {
+        "x": 2990,
+        "y": 1470,
+        "label": "bord de bande bleue / sombre"
+      },
+      "crop2": {
+        "x": 1500,
+        "y": 2300,
+        "label": "main (noir) / bande"
+      },
+      "cols": [
+        {
+          "i": 0,
+          "key": "temoin",
+          "mean": 32.8999688104331,
+          "std": 36.72137098151882,
+          "ms": 252.89999999850988,
+          "md5vign": "f137224a3880a1af2294cae352745b23",
+          "md5crop1": "bb8b018f1a3da54b8985c6c7323b6430",
+          "md5crop2": "0711acbb4c35a75f9fd0b98561705eaa",
+          "dark10": 0
+        },
+        {
+          "i": 1,
+          "key": "lavis",
+          "mean": 33.527705254234284,
+          "std": 36.2899179172124,
+          "ms": 295.09999999962747,
+          "md5vign": "4fe78ed97c6cf788108eee946ed08eb5",
+          "md5crop1": "a91351646c40ae73ee7397e3ecf40a1f",
+          "md5crop2": "1cc1e9c6c12ffd0d4d54dd2b30e4746f",
+          "dark10": 0.5256552043826404
+        },
+        {
+          "i": 2,
+          "key": "bave",
+          "mean": 33.941166313362785,
+          "std": 36.13309653995512,
+          "ms": 269.6000000014901,
+          "md5vign": "15a2732e6725aacca6b3c8f50f43e7b7",
+          "md5crop1": "5f1081ec08d364dfc7c7632edfcefe36",
+          "md5crop2": "d19484453d0bc61bfe19968113b85ef2",
+          "dark10": 0.8410483424638144
+        },
+        {
+          "i": 3,
+          "key": "fibres",
+          "mean": 33.9808992736073,
+          "std": 36.14075470131382,
+          "ms": 263.30000000074506,
+          "md5vign": "28e8b47adec9a9652c81336b95786570",
+          "md5crop1": "9fbd25df49386d9c3eed239f73ac3cbd",
+          "md5crop2": "188d6ddff1bd125f641346b888d3f273",
+          "dark10": 0.8669759376316706
+        },
+        {
+          "i": 4,
+          "key": "plages",
+          "mean": 33.91343187299789,
+          "std": 36.167250077316815,
+          "ms": 253,
+          "md5vign": "b7ea8c3a80df4942968f8e9f402c7fb1",
+          "md5crop1": "9fbd25df49386d9c3eed239f73ac3cbd",
+          "md5crop2": "0dfc240b1452b2b3eab6bf245a10b2aa",
+          "dark10": 0.7907207121786662
+        },
+        {
+          "i": 5,
+          "key": "front",
+          "mean": 33.65961249082235,
+          "std": 35.92687131051371,
+          "ms": 257.80000000074506,
+          "md5vign": "5f70e777f6dd90ee2174b256cfc36fdd",
+          "md5crop1": "4fbf4e508d5cb1999a94819811663cbd",
+          "md5crop2": "cceb60446a642116f851c50765f665d4",
+          "dark10": 0.7842189422671618
+        },
+        {
+          "i": 6,
+          "key": "tout",
+          "mean": 33.54538008279314,
+          "std": 35.862592053993495,
+          "ms": 287.30000000074506,
+          "md5vign": "5c78916e53486a6b009020332f307686",
+          "md5crop1": "cbecc4d16a25dd834e030c3a24c115ad",
+          "md5crop2": "fd13d4f3d32d1952f2a800d272f6d1a6",
+          "dark10": 0.7705552605702949
+        },
+        {
+          "i": 7,
+          "key": "portee2x",
+          "mean": 33.746685842380316,
+          "std": 35.73665287664881,
+          "ms": 256.2000000011176,
+          "md5vign": "7737574c1b2af13a8afae74f6d22c424",
+          "md5crop1": "226e328981181ce0b16dcf1093c07711",
+          "md5crop2": "a2e096ede3680e4a69f2b8d7a0977f32",
+          "dark10": 0.8161432153392129
+        },
+        {
+          "i": 8,
+          "key": "bavemax",
+          "mean": 34.05558711083352,
+          "std": 35.79544170642998,
+          "ms": 271.90000000037253,
+          "md5vign": "a0aef10d56f1facc7069f741a033d44e",
+          "md5crop1": "226e328981181ce0b16dcf1093c07711",
+          "md5crop2": "807f2afc2ddb77958b316b52b61abe4f",
+          "dark10": 0.9407154305379645
+        }
+      ],
+      "dark10Seuil": 0,
+      "dark10N": 28476,
+      "exifOk": true
+    }
+  },
+  "cols": [
+    {
+      "key": "temoin",
+      "params": null
+    },
+    {
+      "key": "lavis",
+      "params": {
+        "washRadius": 5,
+        "spread": 1.5,
+        "frontWidth": 8,
+        "bloom": 0,
+        "wash": 1,
+        "wetness": 0,
+        "fibers": 0,
+        "edgeDarkening": 0,
+        "lace": 0
+      }
+    },
+    {
+      "key": "bave",
+      "params": {
+        "washRadius": 5,
+        "spread": 1.5,
+        "frontWidth": 8,
+        "bloom": 0.15,
+        "wash": 1,
+        "wetness": 1,
+        "fibers": 0,
+        "edgeDarkening": 0,
+        "lace": 0
+      }
+    },
+    {
+      "key": "fibres",
+      "params": {
+        "washRadius": 5,
+        "spread": 1.5,
+        "frontWidth": 8,
+        "bloom": 0.15,
+        "wash": 1,
+        "wetness": 1,
+        "fibers": 4,
+        "edgeDarkening": 0,
+        "lace": 0
+      }
+    },
+    {
+      "key": "plages",
+      "params": {
+        "washRadius": 5,
+        "spread": 1.5,
+        "frontWidth": 8,
+        "bloom": 0.15,
+        "wash": 1,
+        "wetness": 0.6,
+        "fibers": 4,
+        "edgeDarkening": 0,
+        "lace": 0
+      }
+    },
+    {
+      "key": "front",
+      "params": {
+        "washRadius": 5,
+        "spread": 1.5,
+        "frontWidth": 8,
+        "bloom": 0.15,
+        "wash": 1,
+        "wetness": 0.6,
+        "fibers": 4,
+        "edgeDarkening": 0.9,
+        "lace": 0
+      }
+    },
+    {
+      "key": "tout",
+      "params": {
+        "washRadius": 5,
+        "spread": 1.5,
+        "frontWidth": 8,
+        "bloom": 0.15,
+        "wash": 1,
+        "wetness": 0.6,
+        "fibers": 4,
+        "edgeDarkening": 0.9,
+        "lace": 0.6
+      }
+    },
+    {
+      "key": "portee2x",
+      "params": {
+        "washRadius": 5,
+        "spread": 3,
+        "frontWidth": 8,
+        "bloom": 0.15,
+        "wash": 1,
+        "wetness": 0.6,
+        "fibers": 4,
+        "edgeDarkening": 0.9,
+        "lace": 0.6
+      }
+    },
+    {
+      "key": "bavemax",
+      "params": {
+        "washRadius": 5,
+        "spread": 3,
+        "frontWidth": 8,
+        "bloom": 0.15,
+        "wash": 1,
+        "wetness": 1,
+        "fibers": 4,
+        "edgeDarkening": 0.9,
+        "lace": 0.6
+      }
+    }
+  ]
+}

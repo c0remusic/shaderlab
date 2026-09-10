@@ -26,7 +26,14 @@ lensBlur    14 mesurer prod [Antoine] → 15 levier perf
 Déplacer    20 Déplacer agit sur les effets placés (libre)
             21 quels effets gagnent un lieu [LIVE]
 Verre Poli  16 Fresnel rampant → 17 reflet d'environnement → 18 réfraction de bord → 19 rim + frange
+Transform   24 transform du rendu (livré) · 26 sélection auto au clic (livré)
+Calques     27 Aplatir : Tampon + Fusionner (livré 09-09) → 28 clic droit pile → 29 clic droit toile → 30 raccourcis → 31 renommer (tous livrés 09-09/10)
+Toile       32 recadrage : A moteur (livré 09-10) → B outil Recadrer (en cours)
 ```
+
+⚠️ **Les tickets 27 à 32 sont nés le 2026-09-09/10 d'une phrase d'Antoine chacun**,
+pas du grilling du 21/08 — le README dit « 15 tickets » plus haut, le dossier en
+porte 32. Le 09 (pack de textures) était livré avant qu'on le croie ouvert.
 
 ⚠️ **Les tickets 16-19 (verre Poli) sont issus de la recherche
 `../retour-usage-2026-08-20/research/01-glass-shading.md`**, sliceés le 2026-08-21

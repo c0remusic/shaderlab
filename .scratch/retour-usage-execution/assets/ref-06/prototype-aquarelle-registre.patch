@@ -1,0 +1,38 @@
+diff --git a/src/render/effects/catalog.ts b/src/render/effects/catalog.ts
+index 083cb71..45b3d07 100644
+--- a/src/render/effects/catalog.ts
++++ b/src/render/effects/catalog.ts
+@@ -41,6 +41,10 @@ export const effectCategoryById: Readonly<Record<string, EffectCategory>> = {
+   dither: "Impression",
+   outlines: "Impression",
+   isolines: "Impression",
++  // PROTOTYPE JETABLE (ticket 06). Catégorie OBLIGATOIRE : buildEffectCatalog
++  // lève sans elle et catalog.test exige 1:1 avec le registre. À retirer avec
++  // l'effet s'il n'est pas retenu.
++  aquarelle: "Impression",
+   grain: "Texture",
+   texture: "Texture",
+   // ⚠️ PROTOTYPE (ticket 23). Rangé en Couleur et non en Texture : il ne
+diff --git a/src/render/effects/registry.ts b/src/render/effects/registry.ts
+index d1eaba9..f628f11 100644
+--- a/src/render/effects/registry.ts
++++ b/src/render/effects/registry.ts
+@@ -26,6 +26,8 @@ import { lightLeak } from "./lightLeak";
+ import { aplat } from "./aplat";
+ import { nettete } from "./nettete";
+ import { displacementMap } from "./displacementMap";
++// PROTOTYPE JETABLE (ticket 06) — ne pas committer tel quel.
++import { aquarelle } from "./aquarelle";
+ import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
+ 
+ // Les six du milieu suivent l'ordre de priorité du backlog d'effets confirmé par
+@@ -160,6 +162,9 @@ export const effectRegistry: EffectModule[] = [
+   // réduire l'image à deux encres, et sa force descend à zéro — ce dernier
+   // point étant exactement le rendu que faisait `posterize`.
+   dither,
++  // PROTOTYPE JETABLE (ticket 06, planche de mécanisme aquarelle). Posé dans la
++  // famille Impression, à retirer si non retenu au pointage d'Antoine.
++  aquarelle,
+   gooeyMerge,
+   channelMixer,
+   curves,

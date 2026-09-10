@@ -1,0 +1,199 @@
+{
+  "cropX": 2496,
+  "cropY": 2496,
+  "skyX": 2200,
+  "skyY": 500,
+  "cols": [
+    {
+      "i": 0,
+      "key": "temoin",
+      "params": null,
+      "mean": 43.68174024369513,
+      "std": 61.243551024870285,
+      "ms": 421.80000000074506,
+      "md5vign": "10237c504f87629931980bca5b141e60",
+      "md5crop": "39b687941c635a03ff4a64e41c927dff",
+      "md5sky": "d236d8cded4f8ff79fe7ad2dcd6222fa",
+      "dark10": 0
+    },
+    {
+      "i": 1,
+      "key": "lavis",
+      "params": {
+        "washRadius": 5,
+        "spread": 1.5,
+        "frontWidth": 8,
+        "bloom": 0,
+        "wash": 1,
+        "wetness": 0,
+        "fibers": 0,
+        "edgeDarkening": 0,
+        "lace": 0
+      },
+      "mean": 43.77693154104861,
+      "std": 61.23121740648295,
+      "ms": 863.2999999988824,
+      "md5vign": "bf37359369f850e745d9a9fcc06ca2f7",
+      "md5crop": "60a9de286248c9ef1672e413bd124795",
+      "md5sky": "6851664d196ec00fb79fa335eec4d480",
+      "dark10": 0.05065154574962097
+    },
+    {
+      "i": 2,
+      "key": "bave",
+      "params": {
+        "washRadius": 5,
+        "spread": 1.5,
+        "frontWidth": 8,
+        "bloom": 0.15,
+        "wash": 1,
+        "wetness": 1,
+        "fibers": 0,
+        "edgeDarkening": 0,
+        "lace": 0
+      },
+      "mean": 45.319850849803906,
+      "std": 60.51251844993796,
+      "ms": 276.7000000011176,
+      "md5vign": "b7bc6adfaa87ae879f7181bcebea4952",
+      "md5crop": "92da01b729eb18ac6bb94f22c1de2ab2",
+      "md5sky": "ea7cfc97e2d55ea60ff0c1dc7d1ad989",
+      "dark10": 0.6679173717757864
+    },
+    {
+      "i": 3,
+      "key": "fibres",
+      "params": {
+        "washRadius": 5,
+        "spread": 1.5,
+        "frontWidth": 8,
+        "bloom": 0.15,
+        "wash": 1,
+        "wetness": 1,
+        "fibers": 4,
+        "edgeDarkening": 0,
+        "lace": 0
+      },
+      "mean": 45.389274238072844,
+      "std": 60.489949130963026,
+      "ms": 744.2999999988824,
+      "md5vign": "06356e6728903d8e0c72c2216d3c2a85",
+      "md5crop": "dfb3dbc984dd8211dd01a50b47eddc8b",
+      "md5sky": "ae9c766edd73cec7c269174e2350f9db",
+      "dark10": 0.8098826476022998
+    },
+    {
+      "i": 4,
+      "key": "plages",
+      "params": {
+        "washRadius": 5,
+        "spread": 1.5,
+        "frontWidth": 8,
+        "bloom": 0.15,
+        "wash": 1,
+        "wetness": 0.6,
+        "fibers": 4,
+        "edgeDarkening": 0,
+        "lace": 0
+      },
+      "mean": 45.12993138561649,
+      "std": 60.53580437326375,
+      "ms": 242.39999999850988,
+      "md5vign": "8475f94af0bce2a28bf4d4677c804fbb",
+      "md5crop": "07fbffa7b3667d6295b71972b658f70f",
+      "md5sky": "ae9c766edd73cec7c269174e2350f9db",
+      "dark10": 0.7095267272462972
+    },
+    {
+      "i": 5,
+      "key": "front",
+      "params": {
+        "washRadius": 5,
+        "spread": 1.5,
+        "frontWidth": 8,
+        "bloom": 0.15,
+        "wash": 1,
+        "wetness": 0.6,
+        "fibers": 4,
+        "edgeDarkening": 0.9,
+        "lace": 0
+      },
+      "mean": 43.946147409985116,
+      "std": 58.86409014956738,
+      "ms": 290.3999999985099,
+      "md5vign": "16fc299307405ad0c16664417cd92b38",
+      "md5crop": "630ee7a0f71f1a72c59960dd378fa80e",
+      "md5sky": "3fbc11a4d083f83dadc332258f94d143",
+      "dark10": 0.6710788937872356
+    },
+    {
+      "i": 6,
+      "key": "tout",
+      "params": {
+        "washRadius": 5,
+        "spread": 1.5,
+        "frontWidth": 8,
+        "bloom": 0.15,
+        "wash": 1,
+        "wetness": 0.6,
+        "fibers": 4,
+        "edgeDarkening": 0.9,
+        "lace": 0.6
+      },
+      "mean": 43.982635582288694,
+      "std": 58.92544469909935,
+      "ms": 259.2999999988824,
+      "md5vign": "182df26359d38e819f0aec7c7718f223",
+      "md5crop": "c80431899d7a4160a4966a82f3948ae9",
+      "md5sky": "22d319b995a006ba0e9a55ef22fd7a2d",
+      "dark10": 0.6711120151149143
+    },
+    {
+      "i": 7,
+      "key": "portee2x",
+      "params": {
+        "washRadius": 5,
+        "spread": 3,
+        "frontWidth": 8,
+        "bloom": 0.15,
+        "wash": 1,
+        "wetness": 0.6,
+        "fibers": 4,
+        "edgeDarkening": 0.9,
+        "lace": 0.6
+      },
+      "mean": 44.94884762477809,
+      "std": 58.89479581165755,
+      "ms": 292.90000000037253,
+      "md5vign": "79340e606d4ce202ffbf0e8f25c2da4d",
+      "md5crop": "583720fa9ec746f88c4602439c39d99e",
+      "md5sky": "953718ee94fb26f83dd9d7cf58919174",
+      "dark10": 1.5358982414373263
+    },
+    {
+      "i": 8,
+      "key": "sanslavis",
+      "params": {
+        "washRadius": 5,
+        "spread": 1.5,
+        "frontWidth": 8,
+        "bloom": 0.15,
+        "wash": 0,
+        "wetness": 0.6,
+        "fibers": 4,
+        "edgeDarkening": 0.9,
+        "lace": 0.6
+      },
+      "mean": 44.29967967976463,
+      "std": 59.06172520234078,
+      "ms": 324.7000000011176,
+      "md5vign": "3d755bfd7eca94c7839d5a9733fe374a",
+      "md5crop": "bcfebed7bc2fcf9eb9e1172e61fa0dfa",
+      "md5sky": "ccef574a53efc3593edcc5ab87951139",
+      "dark10": 0.7448141017211916
+    }
+  ],
+  "native": "6240",
+  "dark10Seuil": 0,
+  "dark10N": 144493
+}

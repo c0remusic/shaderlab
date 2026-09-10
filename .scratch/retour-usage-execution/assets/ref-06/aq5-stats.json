@@ -1,0 +1,335 @@
+{
+  "photos": {
+    "A": {
+      "file": "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5171.JPG",
+      "srcW": 6240,
+      "srcH": 4160,
+      "frameW": 6240,
+      "frameH": 4160,
+      "crop1": {
+        "x": 2600,
+        "y": 2500,
+        "label": "petale blanc / fleur rouge"
+      },
+      "crop2": {
+        "x": 3600,
+        "y": 720,
+        "label": "brin vert / petale clair"
+      },
+      "cols": [
+        {
+          "i": 0,
+          "key": "temoin",
+          "mean": 63.60897737482176,
+          "std": 34.85411470762796,
+          "ms": 322.19999999925494,
+          "md5vign": "cb1237991abb9749488385c8cecc68ea",
+          "md5crop1": "16de2ececfd862036a4a304c4cb31fe1",
+          "md5crop2": "a7f555838487cba983e1f9f81f3c169e",
+          "dark10": 6.229916572945935
+        },
+        {
+          "i": 1,
+          "key": "papier0",
+          "mean": 65.02258495272987,
+          "std": 29.424831011920215,
+          "ms": 1241.5,
+          "md5vign": "c5d9a282ef9fbb0a93a4f29273f4e6af",
+          "md5crop1": "78a1f8fa837fb9f2b4c175521e8d9dd4",
+          "md5crop2": "cb8c9bf5e086ee87beefd001f74fac5d",
+          "dark10": 18.599898672288827
+        },
+        {
+          "i": 2,
+          "key": "papierdef",
+          "mean": 81.04757861510464,
+          "std": 33.352380660449505,
+          "ms": 272.90000000037253,
+          "md5vign": "f44688ac6df828a0a1a6f64b71f98122",
+          "md5crop1": "8a516596575a809c7a475dec63fbd086",
+          "md5crop2": "1054d18a4f5f48caac9322c5bcb40803",
+          "dark10": 27.248959637613638
+        },
+        {
+          "i": 3,
+          "key": "papier1",
+          "mean": 100.51548903994691,
+          "std": 37.4677472914596,
+          "ms": 266,
+          "md5vign": "1b4aa724dd89a7b8a82c94993083f855",
+          "md5crop1": "8e9e98f11a8494e23fdd5559796c39b3",
+          "md5crop2": "f45be6e7b81e0f08673a935ea3b8af43",
+          "dark10": 39.048686980631466
+        },
+        {
+          "i": 4,
+          "key": "lavis",
+          "mean": 79.63176072322385,
+          "std": 38.511168899872374,
+          "ms": 233.5,
+          "md5vign": "8d74b2e08999447f03c305de56250bf0",
+          "md5crop1": "b16857ef539524d7e9b1394d632655ed",
+          "md5crop2": "86f5a779531f26a63297999df6c422ef",
+          "dark10": 15.34462153233302
+        },
+        {
+          "i": 5,
+          "key": "sansfront",
+          "mean": 82.59710261650626,
+          "std": 34.33806770165966,
+          "ms": 235.40000000037253,
+          "md5vign": "765bafc5873c5dbbf630d70fdea0cc5e",
+          "md5crop1": "d9271baf6037976ca35bb0a26784a4d2",
+          "md5crop2": "fc1b085d2171930ab793c2143ecccce9",
+          "dark10": 27.808757013433684
+        },
+        {
+          "i": 6,
+          "key": "bave2x",
+          "mean": 83.24297238686502,
+          "std": 30.47560684224654,
+          "ms": 233.5,
+          "md5vign": "5dc54e0ba8d72563e083036e94a32fb1",
+          "md5crop1": "6519155fdca60cec6f358b607c5d6bcd",
+          "md5crop2": "67e77dc324fd42de05d147a8c5840d08",
+          "dark10": 37.595265659169115
+        },
+        {
+          "i": 7,
+          "key": "sanslavis",
+          "mean": 81.63931970078966,
+          "std": 33.2922443488321,
+          "ms": 242.5,
+          "md5vign": "c93acd8fd240ed5566294db3d2cd4013",
+          "md5crop1": "a8b39ff9ea8802d7cd7214d24044c52b",
+          "md5crop2": "10d8767c0c854ee98b1fc9ae43ad08c0",
+          "dark10": 27.755347219619313
+        }
+      ],
+      "dark10Seuil": 11.498800000000001,
+      "dark10N": 25608,
+      "exifOk": true
+    },
+    "B": {
+      "file": "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5169-edited-2.JPG",
+      "srcW": 6240,
+      "srcH": 4160,
+      "frameW": 6240,
+      "frameH": 4160,
+      "crop1": {
+        "x": 2990,
+        "y": 1470,
+        "label": "bord de bande bleue / sombre"
+      },
+      "crop2": {
+        "x": 1500,
+        "y": 2300,
+        "label": "main (noir) / bande"
+      },
+      "cols": [
+        {
+          "i": 0,
+          "key": "temoin",
+          "mean": 32.8999688104331,
+          "std": 36.72137098151882,
+          "ms": 249.2000000011176,
+          "md5vign": "f137224a3880a1af2294cae352745b23",
+          "md5crop1": "bb8b018f1a3da54b8985c6c7323b6430",
+          "md5crop2": "0711acbb4c35a75f9fd0b98561705eaa",
+          "dark10": 0
+        },
+        {
+          "i": 1,
+          "key": "papier0",
+          "mean": 34.32454816449702,
+          "std": 34.05332484395923,
+          "ms": 273.5,
+          "md5vign": "9dcae8bcecb6ef2c1829c6108a8d5a8a",
+          "md5crop1": "6d607f27e6c36994973f7b39e44c8021",
+          "md5crop2": "76ff5499f3392e5ba588b84af0bfed29",
+          "dark10": 1.141216406798623
+        },
+        {
+          "i": 2,
+          "key": "papierdef",
+          "mean": 44.80921687185238,
+          "std": 39.890963021328076,
+          "ms": 216.30000000074506,
+          "md5vign": "6362b638a51469bf18cf0e827b1559dd",
+          "md5crop1": "34d41bee147bfe11a2a291d7bf8d085e",
+          "md5crop2": "1c2a09fc0b9777ddb33b831c3608f083",
+          "dark10": 3.1876056679309444
+        },
+        {
+          "i": 3,
+          "key": "papier1",
+          "mean": 58.44140163478021,
+          "std": 46.359084572436934,
+          "ms": 218.09999999962747,
+          "md5vign": "d1c8e6ce5ee6e0ece6bc9b0ad125cca5",
+          "md5crop1": "2a7aad7943cd7c2b021062c768e8786b",
+          "md5crop2": "11a6e4383da5be608207f3f834e8cce5",
+          "dark10": 6.8780725593485625
+        },
+        {
+          "i": 4,
+          "key": "lavis",
+          "mean": 43.40575872844425,
+          "std": 42.45563208291678,
+          "ms": 212.80000000074506,
+          "md5vign": "695d787b5262365559f2519df0c8c9a8",
+          "md5crop1": "7fe4f2f78cf632756e2c05ded243a3b2",
+          "md5crop2": "e1a23537e4d8c513703e6bac6c573c22",
+          "dark10": 1.7895767944936265
+        },
+        {
+          "i": 5,
+          "key": "sansfront",
+          "mean": 45.92902619076404,
+          "std": 41.118615867438926,
+          "ms": 215.09999999962747,
+          "md5vign": "6b38847eb99adebe2fcadf3c4d607b4a",
+          "md5crop1": "d4001d5f88c6f1cf2eb7e45991180e5e",
+          "md5crop2": "35a8cb50f2301fd7241d27bd55591117",
+          "dark10": 3.1881451467903346
+        },
+        {
+          "i": 6,
+          "key": "bave2x",
+          "mean": 46.62696078499692,
+          "std": 39.216015267567194,
+          "ms": 221.2000000011176,
+          "md5vign": "6d9093f905c0fc0bb319ca65d4f9ae9a",
+          "md5crop1": "d9ad98507acf67ff193f48c33f916fad",
+          "md5crop2": "ec17e56d622ce1715b533dba82c82728",
+          "dark10": 3.718895645455933
+        },
+        {
+          "i": 7,
+          "key": "sanslavis",
+          "mean": 45.1877548691931,
+          "std": 40.091692003013115,
+          "ms": 217,
+          "md5vign": "bd047964e1aa11b4e2d3112b44a23599",
+          "md5crop1": "ffa7f238c955072a4fcda486c7e549a1",
+          "md5crop2": "c5acc0627dcf6b64d6aeb634e75b971c",
+          "dark10": 3.1942095448799694
+        }
+      ],
+      "dark10Seuil": 0,
+      "dark10N": 28476,
+      "exifOk": true
+    }
+  },
+  "cols": [
+    {
+      "key": "temoin",
+      "params": null
+    },
+    {
+      "key": "papier0",
+      "params": {
+        "wash": 0.85,
+        "washRadius": 0.005,
+        "spread": 2,
+        "wetness": 0.7,
+        "fibers": 0.003,
+        "edgeDarkening": 0.9,
+        "frontWidth": 0.003,
+        "lace": 0.6,
+        "bloom": 0.15,
+        "paper": 0
+      }
+    },
+    {
+      "key": "papierdef",
+      "params": {
+        "wash": 0.85,
+        "washRadius": 0.005,
+        "spread": 2,
+        "wetness": 0.7,
+        "fibers": 0.003,
+        "edgeDarkening": 0.9,
+        "frontWidth": 0.003,
+        "lace": 0.6,
+        "bloom": 0.15,
+        "paper": 0.5
+      }
+    },
+    {
+      "key": "papier1",
+      "params": {
+        "wash": 0.85,
+        "washRadius": 0.005,
+        "spread": 2,
+        "wetness": 0.7,
+        "fibers": 0.003,
+        "edgeDarkening": 0.9,
+        "frontWidth": 0.003,
+        "lace": 0.6,
+        "bloom": 0.15,
+        "paper": 1
+      }
+    },
+    {
+      "key": "lavis",
+      "params": {
+        "wash": 0.85,
+        "washRadius": 0.005,
+        "spread": 2,
+        "wetness": 0,
+        "fibers": 0,
+        "edgeDarkening": 0,
+        "frontWidth": 0.003,
+        "lace": 0.6,
+        "bloom": 0.15,
+        "paper": 0.5
+      }
+    },
+    {
+      "key": "sansfront",
+      "params": {
+        "wash": 0.85,
+        "washRadius": 0.005,
+        "spread": 2,
+        "wetness": 0.7,
+        "fibers": 0.003,
+        "edgeDarkening": 0,
+        "frontWidth": 0.003,
+        "lace": 0.6,
+        "bloom": 0.15,
+        "paper": 0.5
+      }
+    },
+    {
+      "key": "bave2x",
+      "params": {
+        "wash": 0.85,
+        "washRadius": 0.005,
+        "spread": 4,
+        "wetness": 0.7,
+        "fibers": 0.003,
+        "edgeDarkening": 0.9,
+        "frontWidth": 0.003,
+        "lace": 0.6,
+        "bloom": 0.15,
+        "paper": 0.5
+      }
+    },
+    {
+      "key": "sanslavis",
+      "params": {
+        "wash": 0,
+        "washRadius": 0.005,
+        "spread": 2,
+        "wetness": 0.7,
+        "fibers": 0.003,
+        "edgeDarkening": 0.9,
+        "frontWidth": 0.003,
+        "lace": 0.6,
+        "bloom": 0.15,
+        "paper": 0.5
+      }
+    }
+  ]
+}

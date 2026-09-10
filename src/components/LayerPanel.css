@@ -899,6 +899,32 @@
   white-space: nowrap;
 }
 
+/* CHAMP DE RENOMMAGE EN PLACE (ticket 31). Il REMPLACE le libellé du nom, dans
+   la même cellule de grille — sa hauteur est `--control-height-sm`, sous la
+   hauteur de ligne (`--layer-row-height`), donc la ligne NE GRANDIT PAS pendant
+   l'édition (ADR-0001, point densité). `flex: 1 1 auto` + `min-width: 0` : il
+   prend la largeur de la piste du nom sans la déborder. Fond/bord/rayon repris
+   des tokens de contrôle, comme les autres champs de l'app. */
+.layer-panel__row-rename {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  height: var(--control-height-sm);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-control);
+  background: var(--surface-inset);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+}
+
+.layer-panel__row-rename:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
 /* PASTILLE du groupe replié : combien de calques on ne voit plus.
    `flex: 0 0 auto` — elle ne se comprime jamais, c'est le NOM qui cède. Quand
    un groupe est replié, combien il cache est plus informatif que la fin de son

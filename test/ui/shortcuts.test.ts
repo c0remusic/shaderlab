@@ -35,6 +35,13 @@ describe("layerActionFromShortcut", () => {
     expect(layerActionFromShortcut(chord({ key: "Backspace" }))).toBe("delete");
   });
 
+  it("F2 renomme (frappe nue, touche nommée)", () => {
+    expect(layerActionFromShortcut(chord({ key: "F2" }))).toBe("rename");
+    // Un modificateur l'annule (ce n'est pas notre raccourci).
+    expect(layerActionFromShortcut(chord({ key: "F2", ctrlKey: true }))).toBeNull();
+    expect(layerActionFromShortcut(chord({ key: "F2", repeat: true }))).toBeNull();
+  });
+
   it("distingue le Tampon de la Fusion par ses deux modificateurs", () => {
     // Sans les deux, `Ctrl+E` reste la Fusion ; avec un seul (Maj OU Alt), aucune
     // commande — surtout pas un Tampon déclenché à moitié.
@@ -75,7 +82,7 @@ describe("layerActionFromShortcut", () => {
   });
 
   it("chaque commande a un libellé de raccourci, sans manque ni surplus", () => {
-    const actions: LayerAction[] = ["stamp", "merge", "duplicate", "delete"];
+    const actions: LayerAction[] = ["stamp", "merge", "duplicate", "delete", "rename"];
     expect(Object.keys(LAYER_SHORTCUT_LABELS).sort()).toEqual([...actions].sort());
     for (const a of actions) expect(LAYER_SHORTCUT_LABELS[a].length).toBeGreaterThan(0);
   });

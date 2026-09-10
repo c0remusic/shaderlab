@@ -887,6 +887,26 @@ export default function App() {
   });
   const [effectPickerOpen, setEffectPickerOpen] = useState(false);
 
+  // RENOMMAGE EN PLACE (ticket 31) : quel calque est en cours d'édition de nom,
+  // ou `null`. État d'INTERFACE seulement — comme l'ouverture du sélecteur ou le
+  // repli des groupes, il n'entre pas dans le modèle (rien à annuler). Déclenché
+  // par le double-clic sur le nom, l'entrée « Renommer… » des deux menus
+  // contextuels, et F2 (via `ui/shortcuts.ts`). Le COMMIT du nom, lui, passe par
+  // `LayerStack.renameLayer` et fait un pas d'undo.
+  const [renamingLayerId, setRenamingLayerId] = useState<string | null>(null);
+  const handleStartRename = useCallback((id: string) => setRenamingLayerId(id), []);
+  const handleCancelRename = useCallback(() => setRenamingLayerId(null), []);
+  const handleRename = useCallback(
+    (id: string, name: string) => {
+      // Sort TOUJOURS du mode édition, même sur un no-op (nom inchangé) : sinon le
+      // champ resterait ouvert après une validation qui n'écrit rien.
+      const stack = currentStack();
+      if (stack.renameLayer(id, name)) commit(stack);
+      setRenamingLayerId(null);
+    },
+    [currentStack, commit],
+  );
+
   const handleSelectTool = useCallback(
     (tool: ToolId) => {
       const brushSourceId = layers.find((layer) => layer.id === selectedId)?.mask.sources.find((source) => source.type === "brush")?.id ?? null;
@@ -1933,6 +1953,11 @@ export default function App() {
         handleRemove(selectedId);
         break;
       }
+      case "rename":
+        // F2 (ticket 31) : ouvre l'édition en place du calque sélectionné. Le
+        // renommage n'est pas structurel, aucun verrou à consulter.
+        setRenamingLayerId(selectedId);
+        break;
     }
   };
   const shortcutsRef = useRef({
@@ -2504,6 +2529,9 @@ export default function App() {
           onMergeDown={photoLayer.handleMergeDown}
           onToggleLock={handleToggleLock}
           onRemove={handleRemove}
+          // « Renommer… » du menu de la toile ouvre l'édition en place de la
+          // ligne du calque sélectionné, dans la pile (ticket 31).
+          onStartRename={handleStartRename}
         >
         <Canvas
           ref={canvasRef}
@@ -2788,6 +2816,14 @@ export default function App() {
                   onMergeDown={photoLayer.handleMergeDown}
                   onToggleLock={handleToggleLock}
                   onRemove={handleRemove}
+                  // RENOMMAGE EN PLACE (ticket 31). `renamingId` dit quelle ligne
+                  // porte le champ d'édition ; le double-clic et « Renommer… »
+                  // OUVRENT (`onStartRename`), Entrée/blur COMMITENT (`onRename`,
+                  // un pas d'undo), Échap ANNULE (`onCancelRename`).
+                  renamingId={renamingLayerId}
+                  onStartRename={handleStartRename}
+                  onRename={handleRename}
+                  onCancelRename={handleCancelRename}
                   collapseState={collapse.collapseState}
                   onToggleGroup={collapse.handleToggleGroup}
                   thumbnailUrl={photoLayer.thumbnailUrl}

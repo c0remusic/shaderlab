@@ -4,6 +4,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fireEvent, fn, userEvent, within } from "storybook/test";
 import { LayerPanel } from "./LayerPanel";
 import { defaultLayerMask } from "../mask/types";
+import { getEffect } from "../render/effects/registry";
 import type { LayerState } from "../layers/types";
 
 function makeLayer(overrides: Partial<LayerState>): LayerState {
@@ -1100,6 +1101,7 @@ const menuArgs = () => ({
   onMergeDown: fn(),
   onToggleLock: fn(),
   onRemove: fn(),
+  onStartRename: fn(),
 });
 
 // Le menu ouvert sur une ligne d'EFFET. Le clic droit SÉLECTIONNE d'abord la
@@ -1128,6 +1130,7 @@ export const ContextMenuOnEffectRow: Story = {
     // présent dans le texte brut. Le voir ici prouve qu'il est rendu.
     const noms = m.getAllByRole("menuitem").map((el) => el.textContent);
     await expect(noms).toEqual([
+      "Renommer…F2",
       "Afficher le calque",
       "DupliquerCtrl+J",
       "Aplatir en nouveau calqueCtrl+Alt+Maj+E",
@@ -1232,5 +1235,80 @@ export const ContextMenuLocksSubmenuReflectsAll: Story = {
     // (il était coché par implication).
     await userEvent.click(cases[0]);
     await expect(args.onToggleLock).toHaveBeenCalledWith("layer-1", "transparency", false);
+  },
+};
+
+// --- Renommage en place (ticket 31) ---
+
+// Deux calques d'effet, le premier NOMMÉ. Le renommage vit sur la ligne ; `App`
+// tient l'état `renamingId` et passe les trois callbacks (ouvrir/commit/annuler).
+const renamableLayers = [
+  makeLayer({ id: "layer-1", effectId: "glow", name: "Halo doux" }),
+  makeLayer({ id: "layer-2", effectId: "grain" }),
+];
+
+// LIGNE EN ÉDITION : le champ remplace le libellé, prérempli du nom explicite et
+// sélectionné. Entrée committe le nouveau nom par `onRename` (un pas d'undo côté
+// App), pas d'autre effet.
+export const RenameRowInEdit: Story = {
+  args: { layers: renamableLayers, selectedId: "layer-1", renamingId: "layer-1", onRename: fn(), onCancelRename: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole("textbox", { name: "Renommer le calque" });
+    // Prérempli du nom EXPLICITE, pas d'une chaîne vide.
+    await expect(input).toHaveValue("Halo doux");
+    await userEvent.clear(input);
+    await userEvent.type(input, "Ciel");
+    await userEvent.keyboard("{Enter}");
+    await expect(args.onRename).toHaveBeenCalledWith("layer-1", "Ciel");
+    await expect(args.onCancelRename).not.toHaveBeenCalled();
+  },
+};
+
+// ÉCHAP ANNULE : `onCancelRename`, jamais `onRename` — la saisie est jetée. Garde
+// contre le piège du `blur` au démontage (le champ ne committe pas ce qu'il
+// affichait), assurée par le drapeau d'annulation dans `LayerNameEdit`.
+export const RenameEscapeCancels: Story = {
+  args: { layers: renamableLayers, selectedId: "layer-1", renamingId: "layer-1", onRename: fn(), onCancelRename: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole("textbox", { name: "Renommer le calque" });
+    await userEvent.clear(input);
+    await userEvent.type(input, "Peu importe");
+    await userEvent.keyboard("{Escape}");
+    await expect(args.onCancelRename).toHaveBeenCalled();
+    await expect(args.onRename).not.toHaveBeenCalled();
+  },
+};
+
+// NOM VIDE → RETOUR AU NOM D'EFFET. Un calque d'effet JAMAIS nommé ouvre un champ
+// VIDE dont le placeholder est le nom d'effet : valider vide transmet une chaîne
+// vide, que `LayerStack.renameLayer` retraduit en `undefined` (testé en unité),
+// donc l'affichage retombe sur le nom d'effet.
+export const RenameEmptyReturnsToEffectName: Story = {
+  args: {
+    layers: [makeLayer({ id: "layer-1", effectId: "glow" }), makeLayer({ id: "layer-2", effectId: "grain" })],
+    selectedId: "layer-1",
+    renamingId: "layer-1",
+    onRename: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole("textbox", { name: "Renommer le calque" });
+    await expect(input).toHaveValue("");
+    await expect(input).toHaveAttribute("placeholder", getEffect("glow").name);
+    await userEvent.keyboard("{Enter}");
+    await expect(args.onRename).toHaveBeenCalledWith("layer-1", "");
+  },
+};
+
+// DOUBLE-CLIC sur le nom → ouvre l'édition (parité Photoshop). Le composant
+// n'ouvre rien lui-même : il appelle `onStartRename`, `App` pose `renamingId`.
+export const RenameStartsFromDoubleClick: Story = {
+  args: { layers: renamableLayers, selectedId: "layer-1", onStartRename: fn() },
+  play: async ({ args, canvasElement }) => {
+    const label = canvasElement.querySelector<HTMLElement>('[data-layer-row-index="0"] .layer-panel__row-label')!;
+    await userEvent.dblClick(label);
+    await expect(args.onStartRename).toHaveBeenCalledWith("layer-1");
   },
 };

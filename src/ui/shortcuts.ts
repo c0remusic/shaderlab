@@ -33,7 +33,7 @@
 /** Une commande de calque qu'un raccourci peut déclencher. Chaque valeur
  *  correspond à un handler déjà existant (ticket 27/28/29), jamais à un chemin
  *  d'exécution neuf. */
-export type LayerAction = "stamp" | "merge" | "duplicate" | "delete";
+export type LayerAction = "stamp" | "merge" | "duplicate" | "delete" | "rename";
 
 /** La frappe, réduite à ce dont le décodage a besoin — mêmes champs qu'un
  *  `KeyboardEvent`, mais en données pures (aucun élément DOM), pour rester
@@ -56,6 +56,9 @@ export const LAYER_SHORTCUT_LABELS: Record<LayerAction, string> = {
   merge: "Ctrl+E",
   duplicate: "Ctrl+J",
   delete: "Suppr",
+  // F2 (ticket 31) : le raccourci de renommage UNIVERSEL sous Windows —
+  // Explorateur, Excel, arbres de projet. Frappe nue, touche nommée.
+  rename: "F2",
 };
 
 /**
@@ -77,5 +80,8 @@ export function layerActionFromShortcut(event: ShortcutChord): LayerAction | nul
   if (!primary && !event.altKey && !event.shiftKey && (event.key === "Delete" || event.key === "Backspace")) {
     return "delete";
   }
+  // F2 (ticket 31) : renommer le calque sélectionné. Frappe NUE, touche nommée
+  // (indépendante de la disposition), comme Suppr.
+  if (!primary && !event.altKey && !event.shiftKey && event.key === "F2") return "rename";
   return null;
 }

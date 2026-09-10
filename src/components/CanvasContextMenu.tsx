@@ -62,6 +62,9 @@ interface Props {
   onMergeDown: (id: string) => void;
   onToggleLock: (id: string, which: keyof LayerLocks, value: boolean) => void;
   onRemove: (id: string) => void;
+  /** OUVRE le renommage en place (ticket 31) de la ligne du calque sélectionné,
+   *  dans la pile — le champ d'édition vit sur la ligne, pas ici. */
+  onStartRename: (id: string) => void;
 }
 
 /**
@@ -91,6 +94,7 @@ export function CanvasContextMenu({
   onMergeDown,
   onToggleLock,
   onRemove,
+  onStartRename,
 }: Props) {
   const hasLayers = placed.length > 0 || fullFrame.length > 0;
   const selectedLayer = selectedId !== null ? layers.find((l) => l.id === selectedId) ?? null : null;
@@ -156,6 +160,7 @@ export function CanvasContextMenu({
                   onMergeDown={onMergeDown}
                   onToggleLock={onToggleLock}
                   onRemove={onRemove}
+                  onStartRename={onStartRename}
                 />
               </>
             )}

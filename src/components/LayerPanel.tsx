@@ -82,6 +82,16 @@ interface Props {
   onMergeDown?: (id: string) => void;
   onToggleLock?: (id: string, which: keyof LayerLocks, value: boolean) => void;
   onRemove?: (id: string) => void;
+  /** RENOMMAGE EN PLACE (ticket 31). `renamingId` désigne la ligne qui porte le
+   *  champ d'édition (ou `null`) — état d'INTERFACE tenu par `App`, jamais le
+   *  modèle (rien à annuler à l'ouverture). Le double-clic sur le nom et
+   *  « Renommer… » OUVRENT (`onStartRename`), Entrée/blur COMMITENT
+   *  (`onRename`, un pas d'undo côté `App`), Échap ANNULE (`onCancelRename`).
+   *  Optionnels : sans eux, la ligne n'a pas de renommage (stories historiques). */
+  renamingId?: string | null;
+  onStartRename?: (id: string) => void;
+  onRename?: (id: string, name: string) => void;
+  onCancelRename?: () => void;
   /** REPLI DES GROUPES (2026-08-16). État d'INTERFACE, jamais le modèle —
    *  arbitrage d'Antoine : un repli est une aide de visée, et le passer par
    *  `LayerState` le rendrait annulable par Ctrl+Z. Absent = panneau monté sans
@@ -245,6 +255,14 @@ interface LayerRowProps {
   onMergeDown?: (id: string) => void;
   onToggleLock?: (id: string, which: keyof LayerLocks, value: boolean) => void;
   onRemove?: (id: string) => void;
+  /** RENOMMAGE (ticket 31), déjà réduit à cette ligne : `renaming` dit si CETTE
+   *  ligne porte le champ d'édition (booléen et non l'id, pour ne pas casser la
+   *  mémoïsation d'une ligne non concernée). `onStartRename` ouvre (double-clic /
+   *  menu), `onRename` commit, `onCancelRename` annule. */
+  renaming?: boolean;
+  onStartRename?: (id: string) => void;
+  onRename?: (id: string, name: string) => void;
+  onCancelRename?: () => void;
   onGripPointerDown: (id: string, pointerId: number, target: Element, clientX: number, clientY: number) => void;
   thumbnailUrl?: (sourceId: string) => string | null;
 }
@@ -257,6 +275,74 @@ const addEffectOptions = effectRegistry.map((e) => ({ value: e.id, label: e.name
  *  `render/effects/registry.ts`), donc il est ajouté ici explicitement. */
 const changeEffectOptions = [{ value: PASSTHROUGH_EFFECT.id, label: "Aucun effet" }, ...addEffectOptions];
 const blendModeOptions = blendRegistry.map((m) => ({ value: m.id, label: m.name }));
+
+/**
+ * Champ d'édition EN PLACE du nom d'un calque (ticket 31). Monté SEULEMENT
+ * pendant l'édition (rendu conditionnel dans `LayerRow`) : son état local naît
+ * et meurt avec l'édition, donc pas de réconciliation d'un brouillon périmé.
+ *
+ * Patron repris de `PresetPanel` (renommage de preset, précédent du repo) :
+ * `autoFocus` + `select()` au focus, Entrée `blur()` pour committer par le même
+ * chemin que le clic ailleurs, Échap annule EXPLICITEMENT. Le `cancelledRef`
+ * existe pour un piège de moteur documenté (CLAUDE.md) : un `blur` dispatché au
+ * DÉMONTAGE de l'élément focalisé ferait passer l'annulation par `onBlur` et
+ * VALIDERAIT à la place — le drapeau rend l'intention explicite quel que soit le
+ * moteur. Le commit et l'annulation ne s'exécutent qu'UNE fois (`doneRef`).
+ *
+ * `stopPropagation` sur pointeur/clic : cliquer DANS le champ ne re-sélectionne
+ * ni ne démarre un glissement de la ligne. `stopPropagation` sur les touches :
+ * Entrée/Échap restent au champ et ne remontent ni à la ligne (`onSelect`) ni
+ * aux écouteurs globaux.
+ *
+ * La HAUTEUR du champ est celle de la ligne (`layer-panel__row-rename`,
+ * `LayerPanel.css`) : ADR-0001 — la ligne ne grandit pas pendant l'édition.
+ */
+function LayerNameEdit({
+  initial,
+  placeholder,
+  onCommit,
+  onCancel,
+}: {
+  initial: string;
+  placeholder: string;
+  onCommit: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(initial);
+  const cancelledRef = useRef(false);
+  const doneRef = useRef(false);
+  const finish = (cancel: boolean) => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    if (cancel) onCancel();
+    else onCommit(value);
+  };
+  return (
+    <input
+      type="text"
+      // eslint-disable-next-line jsx-a11y/no-autofocus -- champ de renommage EN LIGNE qui n'existe que pendant l'edition : il remplace le libelle sur lequel l'utilisateur vient d'agir (double-clic, menu, F2), et sans focus automatique le geste demanderait une tabulation vers un champ qu'il a lui-meme ouvert.
+      autoFocus
+      className="layer-panel__row-rename"
+      aria-label="Renommer le calque"
+      placeholder={placeholder}
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onFocus={(e) => e.currentTarget.select()}
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onBlur={() => finish(cancelledRef.current)}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") {
+          e.currentTarget.blur(); // -> onBlur -> commit
+        } else if (e.key === "Escape") {
+          cancelledRef.current = true;
+          e.currentTarget.blur(); // -> onBlur -> cancel (drapeau)
+        }
+      }}
+    />
+  );
+}
 
 // Mémoïsée : sans ça, un drag de slider (paramètre d'effet, pinceau)
 // re-render (re-diffe) la liste ENTIÈRE des calques à chaque frame — coût qui
@@ -294,6 +380,10 @@ const LayerRow = memo(function LayerRow({
   onMergeDown,
   onToggleLock,
   onRemove,
+  renaming,
+  onStartRename,
+  onRename,
+  onCancelRename,
   onToggleCollapse,
   onGripPointerDown,
   thumbnailUrl,
@@ -484,9 +574,33 @@ const LayerRow = memo(function LayerRow({
             ))}
           <span
             className={`layer-panel__col--name layer-panel__row-name ${selected ? "layer-panel__row-name--selected" : ""}`.trim()}
-            title={displayName}
+            title={renaming ? undefined : displayName}
           >
-            <span className="layer-panel__row-label">{displayName}</span>
+            {renaming ? (
+              // RENOMMAGE EN PLACE (ticket 31). `initial` = le nom EXPLICITE
+              // (vide pour un calque jamais nommé, dont le placeholder montre
+              // alors le nom d'effet grisé) — ainsi valider sans rien taper sur un
+              // calque d'effet est un no-op propre, et vider un calque nommé le
+              // ramène à son nom d'effet.
+              <LayerNameEdit
+                initial={layer.name ?? ""}
+                placeholder={displayName}
+                onCommit={(name) => onRename?.(layer.id, name)}
+                onCancel={() => onCancelRename?.()}
+              />
+            ) : (
+              // DOUBLE-CLIC sur le nom → édition (parité Photoshop). Le premier
+              // clic sélectionne déjà la ligne (`onClick` du <li>).
+              <span
+                className="layer-panel__row-label"
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  onStartRename?.(layer.id);
+                }}
+              >
+                {displayName}
+              </span>
+            )}
             {/* PASTILLE du groupe replié : le nombre de calques qu'on NE VOIT
                 PLUS. Elle vit DANS la piste du nom plutôt que dans une piste à
                 elle — elle n'existe que sur une ligne repliée, donc lui réserver
@@ -603,6 +717,7 @@ const LayerRow = memo(function LayerRow({
           onMergeDown={onMergeDown}
           onToggleLock={onToggleLock}
           onRemove={onRemove}
+          onStartRename={onStartRename}
         />
       </ContextMenuContent>
     </ContextMenu>
@@ -882,6 +997,10 @@ export function LayerPanel({
   onMergeDown,
   onToggleLock,
   onRemove,
+  renamingId = null,
+  onStartRename,
+  onRename,
+  onCancelRename,
   collapseState = EMPTY_COLLAPSE_STATE,
   onToggleGroup,
   thumbnailUrl,
@@ -1113,6 +1232,10 @@ export function LayerPanel({
             onMergeDown={onMergeDown}
             onToggleLock={onToggleLock}
             onRemove={onRemove}
+            renaming={renamingId === layer.id}
+            onStartRename={onStartRename}
+            onRename={onRename}
+            onCancelRename={onCancelRename}
             onToggleCollapse={onToggleGroup}
             onGripPointerDown={handleGripPointerDown}
             thumbnailUrl={thumbnailUrl}

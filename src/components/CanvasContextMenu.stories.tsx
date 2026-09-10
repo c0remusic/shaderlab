@@ -54,6 +54,7 @@ function menuHandlers() {
     onMergeDown: fn(),
     onToggleLock: fn(),
     onRemove: fn(),
+    onStartRename: fn(),
   };
 }
 
@@ -99,6 +100,7 @@ export const TroisCalques: Story = {
     // raccourci affiché compris (ticket 30, `aria-hidden` donc hors nom accessible).
     const actions = m.getAllByRole("menuitem").map((el) => el.textContent);
     await expect(actions).toEqual([
+      "Renommer…F2",
       "Masquer le calque",
       "DupliquerCtrl+J",
       "Aplatir en nouveau calqueCtrl+Alt+Maj+E",

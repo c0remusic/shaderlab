@@ -326,6 +326,38 @@ export class LayerStack {
     return true;
   }
 
+  /** Renomme un calque (ticket 31). Le nom est ROGNÉ ; vidé (chaîne vide ou
+   *  espaces seuls), il retourne à `undefined` — l'affichage retombe alors sur le
+   *  nom de l'effet (`LayerPanel`), exactement comme un calque d'effet jamais
+   *  nommé. Cet unique chemin d'écriture couvre les deux sens : nommer et
+   *  dénommer.
+   *
+   *  **AUCUN verrou consulté, et c'est délibéré.** Renommer n'est pas une
+   *  opération de STRUCTURE (effet, ordre, suppression), ni de géométrie, ni de
+   *  masque : c'est une étiquette. Photoshop autorise le renommage d'un calque
+   *  verrouillé, nous aussi — un garde ici ferait du verrou une trappe de plus.
+   *
+   *  Mutation SCALAIRE en place, comme `setLayerEffect` (`effectId`) et le `name`
+   *  de `setLayerImageSource` : `clone()` recopie les calques par spread shallow,
+   *  donc chaque snapshot d'historique porte SA propre valeur de `name` (les
+   *  scalaires sont copiés par valeur au spread) — muter le calque courant ne
+   *  réécrit aucun snapshot, contrairement à un objet partagé par référence.
+   *
+   *  Returns `true` iff `id` existe ET le nom résultant diffère réellement de
+   *  l'actuel (même discipline no-op que le reste du fichier : pas d'entrée
+   *  d'historique vide — ni quand on retape le même nom, ni quand on « vide » un
+   *  calque déjà sans nom). */
+  renameLayer(id: string, name: string): boolean {
+    const layer = this.layers.find((l) => l.id === id);
+    if (!layer) return false;
+    const trimmed = name.trim();
+    const next = trimmed.length > 0 ? trimmed : undefined;
+    if (layer.name === next) return false;
+    if (next === undefined) delete layer.name;
+    else layer.name = next;
+    return true;
+  }
+
   /** Duplique le calque `id` (équivalent Ctrl+J) et insère la copie JUSTE
    *  AU-DESSUS de l'original, c'est-à-dire à `index + 1` : dans ce projet la
    *  pile est appliquée dans l'ordre du tableau (`framePipelineExecutor.run`

@@ -1,4 +1,4 @@
-import { Brush, Combine, Copy, Eye, EyeOff, Grid2x2, Lock, Move, Stamp, Trash2 } from "lucide-react";
+import { Brush, Combine, Copy, Eye, EyeOff, Grid2x2, Lock, Move, Pencil, Stamp, Trash2 } from "lucide-react";
 import type { LayerLocks, LayerState } from "../layers/types";
 import {
   isFullyLocked,
@@ -74,6 +74,10 @@ export interface LayerActionsMenuItemsProps {
   onMergeDown?: (id: string) => void;
   onToggleLock?: (id: string, which: keyof LayerLocks, value: boolean) => void;
   onRemove?: (id: string) => void;
+  /** OUVRE le renommage en place de ce calque (ticket 31) — le double-clic sur le
+   *  nom et F2 font la même chose. Ouvre seulement ; le commit du nom passe
+   *  ailleurs. Toujours permis, verrou compris (renommer n'est pas structurel). */
+  onStartRename?: (id: string) => void;
 }
 
 /**
@@ -102,9 +106,19 @@ export function LayerActionsMenuItems({
   onMergeDown,
   onToggleLock,
   onRemove,
+  onStartRename,
 }: LayerActionsMenuItemsProps) {
   return (
     <>
+      {/* RENOMMER (ticket 31) — en TÊTE, comme Photoshop. Ouvre le champ
+          d'édition en place sur la ligne du calque ; le raccourci F2 fait la
+          même chose. Toujours actif (renommer n'est pas structurel, un calque
+          verrouillé se renomme). */}
+      <ContextMenuItem disabled={!onStartRename} onClick={() => onStartRename?.(layer.id)}>
+        <Pencil className="icon-sm icon-stroke" aria-hidden="true" />
+        Renommer…
+        <ContextMenuShortcut aria-hidden="true">{LAYER_SHORTCUT_LABELS.rename}</ContextMenuShortcut>
+      </ContextMenuItem>
       <ContextMenuItem onClick={() => onToggle(layer.id, false)}>
         {layer.enabled ? (
           <EyeOff className="icon-sm icon-stroke" aria-hidden="true" />

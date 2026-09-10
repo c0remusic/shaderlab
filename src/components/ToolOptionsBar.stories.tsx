@@ -40,6 +40,29 @@ export const Pinceau: Story = { args: { outil: "brush" } };
 export const Gomme: Story = { args: { outil: "eraser", pinceau: { ...pinceau, erase: true } } };
 export const Forme: Story = { args: { outil: "shape" } };
 
+const recadrage = { ratio: "free" as const, onRatioChange: () => {}, hasCadre: false, onAnnuler: () => {} };
+
+/** OUTIL RECADRER (ticket 32) : sélecteur de ratio, bouton « Annuler le
+ *  recadrage » (grisé sans cadre) et le rappel des gestes clavier. */
+export const Recadrer: Story = {
+  args: { outil: "crop", recadrage },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("combobox", { name: "Ratio" })).toBeInTheDocument();
+    // Sans cadre committé, « Annuler le recadrage » est désactivé.
+    await expect(canvas.getByRole("button", { name: "Annuler le recadrage" })).toBeDisabled();
+  },
+};
+
+/** Avec un cadre committé, le bouton « Annuler le recadrage » devient actif. */
+export const RecadrerAvecCadre: Story = {
+  args: { outil: "crop", recadrage: { ...recadrage, hasCadre: true, ratio: "3:2" } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("button", { name: "Annuler le recadrage" })).toBeEnabled();
+  },
+};
+
 /**
  * LE SÉLECTEUR DE PRIMITIVE MONTRE UN CHOIX DE SA PROPRE LISTE.
  *

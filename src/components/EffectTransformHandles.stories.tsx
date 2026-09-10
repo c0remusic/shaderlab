@@ -37,6 +37,7 @@ function Harness({
         scale={scale}
         anchor={anchor}
         canvasRef={canvasRef}
+        imageSize={CANVAS}
         effectName={effectName}
         onChange={onChange}
         onCommit={onCommit}

@@ -4,6 +4,7 @@ import {
   CORNER_INDICES,
   EDGE_INDICES,
   computeHandleGeometry,
+  documentClientRect,
   overlayRectFromClientRects,
   sameOverlayRect,
   transformFromCornerDrag,
@@ -12,6 +13,7 @@ import {
   snapAngle,
   type CornerIndex,
   type EdgeIndex,
+  type FrameRectLike,
   type OverlayRect,
 } from "../ui/transform";
 import { buildSnapTargets, snapBox, snapScales, type SnapGuide } from "../ui/snap";
@@ -25,6 +27,11 @@ interface Props {
    *  les bords et médianes de la toile servent de cibles. */
   otherPhotoLayers?: readonly { transform: LayerTransform; photoSize: { width: number; height: number } }[];
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  /** Cadre de recadrage courant, ou `null` (toile entière). Sous un cadre, le
+   *  canvas ne couvre plus que le sous-rectangle : `documentClientRect` rend le
+   *  rectangle VIRTUEL de la toile entière pour que les poignées restent en
+   *  coordonnées d'origine (ticket 32, tranche B). */
+  frame?: FrameRectLike | null;
   onTransformChange: (transform: LayerTransform) => void;
   onTransformCommit: () => void;
   /**
@@ -110,7 +117,7 @@ type DragKind =
  * `ui/transform.ts`, ce composant ne fait que traduire écran<->pixels du
  * fond et déléguer.
  */
-export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayers, canvasRef, onTransformChange, onTransformCommit, onPickThrough, layerName, corpsInteractif = true }: Props) {
+export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayers, canvasRef, frame = null, onTransformChange, onTransformCommit, onPickThrough, layerName, corpsInteractif = true }: Props) {
   const dragRef = useRef<DragKind | null>(null);
   /** Vrai entre le premier `keydown` de flèche et le `keyup` qui le relâche.
    *  L'appui MAINTENU répète le `keydown` mais n'émet qu'un seul `keyup` :
@@ -134,9 +141,10 @@ export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayer
     const canvas = canvasRef.current;
     const parent = overlay?.offsetParent;
     if (!overlay || !canvas || !parent) return;
-    const next = overlayRectFromClientRects(canvas.getBoundingClientRect(), parent.getBoundingClientRect());
+    const canvasRect = documentClientRect(canvas.getBoundingClientRect(), frame, bgSize);
+    const next = overlayRectFromClientRects(canvasRect, parent.getBoundingClientRect());
     setOverlayRect((previous) => (previous && sameOverlayRect(previous, next) ? previous : next));
-  }, [canvasRef]);
+  }, [canvasRef, bgSize, frame]);
 
   // Sans tableau de dépendances, DÉLIBÉRÉMENT : un zoom/déplacement du canvas
   // par transform CSS ne change aucune taille de boîte, donc n'émet AUCUN
@@ -165,12 +173,18 @@ export function TransformHandles({ transform, photoSize, bgSize, otherPhotoLayer
     (clientX: number, clientY: number): { x: number; y: number } | null => {
       const canvas = canvasRef.current;
       if (!canvas) return null;
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+      // Via le rectangle document VIRTUEL : sous un cadre, le rect brut du
+      // canvas ne couvre que le sous-rectangle, et `canvas.width` vaut la
+      // largeur du cadre — les deux ensemble rendraient des coordonnées
+      // décalées de l'origine du cadre. Le virtuel les remet en espace
+      // d'origine (ticket 32).
+      const rect = documentClientRect(canvas.getBoundingClientRect(), frame, bgSize);
+      return {
+        x: ((clientX - rect.left) / rect.width) * bgSize.width,
+        y: ((clientY - rect.top) / rect.height) * bgSize.height,
+      };
     },
-    [canvasRef],
+    [canvasRef, bgSize, frame],
   );
 
   /** Pixels ÉCRAN par pixel du FOND — ce qui convertit le seuil d'accroche.

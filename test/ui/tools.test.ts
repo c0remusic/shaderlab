@@ -43,8 +43,13 @@ describe("TOOLS — table de la palette", () => {
     for (const tool of TOOLS) expect(tool.shortcut).toMatch(/^(Key[A-Z]|Digit[0-9]|Space)$/);
   });
 
-  it("n'expose PAS le recadrage — il n'a pas de géométrie derrière", () => {
-    expect(TOOLS.map((t) => t.id)).not.toContain("crop");
+  // RECADRAGE DE LA TOILE (ticket 32) : l'outil `crop` EST exposé désormais,
+  // touche `C` (Photoshop). Il recadre la TOILE (mode `canvasCrop`), câblé de
+  // bout en bout. À NE PAS confondre avec le mode `crop` du rognage d'un CALQUE
+  // photo, qui reste sans outil (testé plus bas : il retombe sur « Déplacer »).
+  it("expose l'outil Recadrer sur la touche C", () => {
+    const crop = TOOLS.find((t) => t.id === "crop");
+    expect(crop?.shortcut).toBe("KeyC");
   });
 
   it("n'expose PAS la main — déplacer la vue est une parenthèse, pas un outil", () => {

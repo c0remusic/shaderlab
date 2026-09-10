@@ -178,9 +178,29 @@ describe("exportImage", () => {
   });
 
   it("`exportImage` n'a AUCUN paramètre de dimension — la divergence n'est pas exprimable", () => {
-    // Quatre arguments : renderer, writer, calques, chemin. Une cinquième place
-    // où glisser une dimension n'existe plus dans la signature.
+    // Quatre arguments requis : renderer, writer, calques, chemin. Le `cadre`
+    // (ticket 32) a un défaut, ne compte donc pas dans `.length`, et n'est PAS
+    // une dimension : celles-ci arrivent toujours avec les octets.
     expect(exportImage.length).toBe(4);
+  });
+
+  // Ticket 32, tranche B : le cadre courant est TRANSMIS au renderer, qui relit
+  // le seul sous-rectangle. `exportImage` ne le lit pas lui-même — il le passe.
+  it("transmet le cadre à `exportFrame`", async () => {
+    vi.stubGlobal(
+      "OffscreenCanvas",
+      class {
+        constructor(_width: number, _height: number) {}
+        getContext() { return { putImageData() {} }; }
+        convertToBlob() { return Promise.resolve({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(4)) } as unknown as Blob); }
+      }
+    );
+    vi.stubGlobal("ImageData", class { constructor(_data: Uint8ClampedArray, _width: number, _height: number) {} });
+    const exportFrame = vi.fn().mockResolvedValue(OPAQUE_FRAME);
+    const cadre = { x: 10, y: 20, width: 30, height: 40 };
+    await exportImage({ exportFrame }, { write: vi.fn().mockResolvedValue(undefined) }, [], "C:\\fake\\p.jpg", cadre);
+    expect(exportFrame).toHaveBeenCalledWith([], cadre);
+    vi.unstubAllGlobals();
   });
 });
 

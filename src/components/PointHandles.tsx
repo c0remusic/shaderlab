@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { pointFromOverlayWithinRanges, pointToOverlay, type NumericRange } from "../ui/canvasControls";
-import { overlayRectFromClientRects, sameOverlayRect, type OverlayRect } from "../ui/transform";
+import { documentClientRect, overlayRectFromClientRects, sameOverlayRect, type FrameRectLike, type OverlayRect } from "../ui/transform";
 import "./PointHandles.css";
 
 interface Props {
@@ -8,6 +8,10 @@ interface Props {
   xRange: NumericRange;
   yRange: NumericRange;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  /** Dimensions du document, pour le rectangle virtuel sous un cadre. */
+  imageSize: { width: number; height: number };
+  /** Cadre de recadrage courant, ou `null` — voir `TransformHandles.frame`. */
+  frame?: FrameRectLike | null;
   label: string;
   disabled?: boolean;
   onChange: (point: { x: number; y: number }) => void;
@@ -17,7 +21,7 @@ interface Props {
 const STEP = 0.005;
 const LARGE_STEP = 0.05;
 
-export function PointHandles({ point, xRange, yRange, canvasRef, label, disabled = false, onChange, onCommit }: Props) {
+export function PointHandles({ point, xRange, yRange, canvasRef, imageSize, frame = null, label, disabled = false, onChange, onCommit }: Props) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const [rect, setRect] = useState<OverlayRect | null>(null);
   const dragging = useRef(false);
@@ -29,9 +33,10 @@ export function PointHandles({ point, xRange, yRange, canvasRef, label, disabled
     const canvas = canvasRef.current;
     const parent = overlay?.offsetParent;
     if (!overlay || !canvas || !parent) return;
-    const next = overlayRectFromClientRects(canvas.getBoundingClientRect(), parent.getBoundingClientRect());
+    const canvasRect = documentClientRect(canvas.getBoundingClientRect(), frame, imageSize);
+    const next = overlayRectFromClientRects(canvasRect, parent.getBoundingClientRect());
     setRect((previous) => previous && sameOverlayRect(previous, next) ? previous : next);
-  }, [canvasRef]);
+  }, [canvasRef, imageSize, frame]);
 
   useLayoutEffect(() => { measure(); });
   useEffect(() => {

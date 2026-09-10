@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { overlayRectFromClientRects, sameOverlayRect, type OverlayRect } from "../ui/transform";
+import { documentClientRect, overlayRectFromClientRects, sameOverlayRect, type FrameRectLike, type OverlayRect } from "../ui/transform";
 import "./AutoSelectMoveSurface.css";
 
 /**
@@ -21,6 +21,10 @@ export interface AutoSelectMover {
 
 interface Props {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  /** Dimensions du document, pour le rectangle virtuel sous un cadre. */
+  imageSize: { width: number; height: number };
+  /** Cadre de recadrage courant, ou `null` — voir `TransformHandles.frame`. */
+  frame?: FrameRectLike | null;
   /**
    * Ouvre le geste : hit-test du pixel `(imgX, imgY)`, CHANGE la sélection
    * (sur l'appui, comme Photoshop en Auto-Select), et rend de quoi déplacer le
@@ -72,22 +76,24 @@ interface Geste {
  * (`.pasteboard__view--pan`) et laisse bouillonner le bouton du milieu (aucun
  * `stopPropagation` hors bouton principal), qui devient un pan au pasteboard.
  */
-export function AutoSelectMoveSurface({ canvasRef, begin }: Props) {
+export function AutoSelectMoveSurface({ canvasRef, imageSize, frame = null, begin }: Props) {
   const surfaceRef = useRef<HTMLDivElement>(null);
   const [rect, setRect] = useState<OverlayRect | null>(null);
   const gesteRef = useRef<Geste | null>(null);
 
   // Même mesure que les autres overlays : deux rects réels (le zoom en transform
   // CSS est déjà dans `getBoundingClientRect`), garde d'égalité pour ne pas
-  // boucler sur un rendu qui ne change rien.
+  // boucler sur un rendu qui ne change rien. Sous un cadre, rectangle document
+  // VIRTUEL (ticket 32).
   const mesurer = useCallback(() => {
     const surface = surfaceRef.current;
     const canvas = canvasRef.current;
     const parent = surface?.offsetParent;
     if (!surface || !canvas || !parent) return;
-    const next = overlayRectFromClientRects(canvas.getBoundingClientRect(), parent.getBoundingClientRect());
+    const canvasRect = documentClientRect(canvas.getBoundingClientRect(), frame, imageSize);
+    const next = overlayRectFromClientRects(canvasRect, parent.getBoundingClientRect());
     setRect((previous) => (previous && sameOverlayRect(previous, next) ? previous : next));
-  }, [canvasRef]);
+  }, [canvasRef, imageSize, frame]);
 
   useLayoutEffect(() => {
     mesurer();
@@ -111,12 +117,15 @@ export function AutoSelectMoveSurface({ canvasRef, begin }: Props) {
       if (!canvas) return null;
       const bounds = canvas.getBoundingClientRect();
       if (bounds.width === 0 || bounds.height === 0) return null;
+      // Rectangle document VIRTUEL : pixels en espace d'origine même sous un
+      // cadre (ticket 32), l'unité qu'attend le hit-test.
+      const rectDoc = documentClientRect(bounds, frame, imageSize);
       return {
-        x: (clientX - bounds.left) * (canvas.width / bounds.width),
-        y: (clientY - bounds.top) * (canvas.height / bounds.height),
+        x: ((clientX - rectDoc.left) / rectDoc.width) * imageSize.width,
+        y: ((clientY - rectDoc.top) / rectDoc.height) * imageSize.height,
       };
     },
-    [canvasRef],
+    [canvasRef, imageSize, frame],
   );
 
   function terminer(event: React.PointerEvent): Geste | null {

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
+  documentClientRect,
   overlayRectFromClientRects,
   sameOverlayRect,
+  type FrameRectLike,
   type OverlayRect,
 } from "../ui/transform";
 import {
@@ -24,6 +26,8 @@ interface Props {
   radiusRange: { min: number; max: number };
   bgSize: { width: number; height: number };
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  /** Cadre de recadrage courant, ou `null` — voir `TransformHandles.frame`. */
+  frame?: FrameRectLike | null;
   /** Pendant le geste — appelé à chaque déplacement, sans entrée d'historique. */
   onRegionChange: (center: RegionCenter, radius: number) => void;
   /** Fin du geste — c'est LUI qui pose l'entrée d'historique. Même séparation
@@ -69,6 +73,7 @@ export function RegionHandles({
   radiusRange,
   bgSize,
   canvasRef,
+  frame = null,
   onRegionChange,
   onRegionCommit,
   effectName,
@@ -92,9 +97,10 @@ export function RegionHandles({
     const canvas = canvasRef.current;
     const parent = overlay?.offsetParent;
     if (!overlay || !canvas || !parent) return;
-    const next = overlayRectFromClientRects(canvas.getBoundingClientRect(), parent.getBoundingClientRect());
+    const canvasRect = documentClientRect(canvas.getBoundingClientRect(), frame, bgSize);
+    const next = overlayRectFromClientRects(canvasRect, parent.getBoundingClientRect());
     setOverlayRect((previous) => (previous && sameOverlayRect(previous, next) ? previous : next));
-  }, [canvasRef]);
+  }, [canvasRef, bgSize, frame]);
 
   // Sans tableau de dépendances, délibérément : un zoom par transform CSS
   // n'émet aucun `ResizeObserver`, seule une mesure à chaque rendu le rattrape.

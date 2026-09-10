@@ -14,10 +14,17 @@ interface Props {
    *  CSS sur le canvas, jamais au pipeline de rendu : le canvas garde la
    *  résolution native du document. */
   viewport: ViewportState;
-  /** Taille du document en pixels image (= `canvas.width/height`). Passée en
+  /** Taille de la surface AFFICHÉE en pixels image (= `canvas.width/height`) :
+   *  celle du cadre recadré s'il y en a un, sinon celle du document. Passée en
    *  prop plutôt que lue sur le ref : la géométrie du viewport doit se
-   *  recalculer au RENDER quand le document change, pas au prochain effet. */
+   *  recalculer au RENDER quand elle change, pas au prochain effet. */
   contentSize: Size;
+  /** Origine du cadre recadré en pixels de la toile d'ORIGINE (ticket 32). Le
+   *  canvas ne montre que le sous-rectangle, donc `toImageCoords` rend des
+   *  coordonnées LOCALES au cadre ; on y ajoute cette origine pour rendre aux
+   *  callbacks (pinceau, désignation, tracé) des coordonnées d'ORIGINE — l'espace
+   *  du masque et des transforms. `{0,0}` sans recadrage : rien ne change. */
+  frameOrigin?: { x: number; y: number };
   onViewportChange: (viewport: ViewportState) => void;
   /** Remonte la taille de la zone visible à chaque redimensionnement. C'est
    *  l'appelant qui détient la taille PRÉCÉDENTE, dont `reconcileViewport` a
@@ -75,12 +82,25 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
     onShapeDrawCancel,
     viewport,
     contentSize,
+    frameOrigin,
     onViewportChange,
     onViewResize,
     children,
   },
   ref
 ) {
+  // Coordonnées LOCALES au cadre (rendues par `toImageCoords`) → coordonnées de
+  // la toile d'ORIGINE, en ajoutant l'origine du cadre. Sans recadrage, l'origine
+  // vaut {0,0} et c'est l'identité.
+  const toDoc = (p: { x: number; y: number }) => ({
+    x: p.x + (frameOrigin?.x ?? 0),
+    y: p.y + (frameOrigin?.y ?? 0),
+  });
+  const toDocRect = (r: DrawnRect): DrawnRect => ({
+    ...r,
+    x: r.x + (frameOrigin?.x ?? 0),
+    y: r.y + (frameOrigin?.y ?? 0),
+  });
   const isPaintingRef = useRef(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -437,7 +457,7 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
         const point = toImageCoords(e);
         // Coordonnées hors bornes attendues : le hit-test n'y trouve aucune
         // photo et rend `null`, ce que l'appelant traduit en désélection.
-        if (point) onPick(point.x, point.y);
+        if (point) { const d = toDoc(point); onPick(d.x, d.y); }
       }}
       onPointerMove={movePan}
       onPointerUp={endPan}
@@ -506,7 +526,7 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
             // inchangée et prioritaire.
             if (onPick) {
               const pickPt = toImageCoords(e);
-              if (pickPt) onPick(pickPt.x, pickPt.y);
+              if (pickPt) { const d = toDoc(pickPt); onPick(d.x, d.y); }
             }
             return;
           }
@@ -532,7 +552,7 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
           const pt = toImageCoords(e);
           // The stroke's first point paints immediately (no coalescing) so
           // there's no visible input lag on press.
-          if (pt) onMaskStroke(pt.x, pt.y);
+          if (pt) { const d = toDoc(pt); onMaskStroke(d.x, d.y); }
         }}
         onPointerMove={(e) => {
           // `movePan` N'EST PLUS APPELÉ ICI : le déplacement de la vue est
@@ -548,10 +568,10 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
             const pt = toImageCoords(e);
             if (pt) {
               setShapeDrag({ ...shapeDrag, to: pt, carre: e.shiftKey });
-              // Aperçu vivant : le rect COURANT, calculé depuis les mêmes
-              // valeurs que la bande élastique (setShapeDrag est asynchrone, on
-              // ne lit donc pas l'état qu'on vient de poser).
-              onShapeDrawProgress?.(rectFromDrag(shapeDrag.from, pt, e.shiftKey));
+              // Aperçu vivant : le rect COURANT en coordonnées d'ORIGINE (le
+              // marquee est en espace document), calculé depuis les mêmes valeurs
+              // que la bande élastique (setShapeDrag est asynchrone).
+              onShapeDrawProgress?.(toDocRect(rectFromDrag(shapeDrag.from, pt, e.shiftKey)));
             }
             return;
           }
@@ -561,7 +581,7 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
           const pt = toImageCoords(e);
           // Pas de clamp ici : un point hors bornes reste valide, les dabs
           // du pinceau se clampent déjà aux bords de l'image (MaskPainter).
-          if (pt) schedulePaint(pt.x, pt.y);
+          if (pt) { const d = toDoc(pt); schedulePaint(d.x, d.y); }
         }}
         onPointerEnter={(e) => {
           if (maskPaintMode && !panning) updateCursor(e);
@@ -581,10 +601,10 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(function Canvas(
             if (e.currentTarget.hasPointerCapture(e.pointerId)) {
               e.currentTarget.releasePointerCapture(e.pointerId);
             }
-            // Geste d'ampleur suffisante : on crée. Sinon on ANNULE, pour que
-            // l'appelant défasse l'aperçu vivant du marquee (un clic manqué ne
-            // doit rien laisser, ni calque ni sélection prévisualisée).
-            if (isDrawnRectUsable(rect)) onShapeDrawn?.(rect);
+            // Geste d'ampleur suffisante : on crée, en coordonnées d'ORIGINE.
+            // Sinon on ANNULE, pour que l'appelant défasse l'aperçu vivant du
+            // marquee (un clic manqué ne doit rien laisser).
+            if (isDrawnRectUsable(rect)) onShapeDrawn?.(toDocRect(rect));
             else onShapeDrawCancel?.();
             return;
           }

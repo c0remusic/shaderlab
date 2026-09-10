@@ -26,6 +26,12 @@ export type CanvasMode =
   // sur un calque, il en crée un. `reconcileCanvasMode` n'a donc rien à
   // rattraper pour lui — il n'a aucune cible à trahir.
   | { kind: "shapeDraw" }
+  // RECADRAGE DE LA TOILE (ticket 32, tranche B). Sans `layerId`, comme
+  // `shapeDraw` : il n'agit sur aucun calque, il change le CADRE de la toile
+  // entière. `reconcileCanvasMode` n'a donc rien à lui rattraper. Distinct du
+  // `crop` ci-dessous, qui vise le rognage d'un CALQUE photo (design de parité,
+  // sans appelant de production à ce jour) — deux gestes, deux cibles.
+  | { kind: "canvasCrop" }
   | { kind: "crop"; layerId: string; original: CropRect | undefined };
 
 export const IDLE_CANVAS_MODE: CanvasMode = { kind: "idle" };

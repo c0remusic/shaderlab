@@ -29,6 +29,13 @@
   white-space: nowrap;
 }
 
+/* Rappel de gestes clavier (outil Recadrer) : prose discrète, pas un contrôle. */
+.brush-toolbar__hint {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
 /* Largeur fixe pour chaque réglage : la barre reste stable quand la valeur
    change et les sliders ne s'étirent pas sur toute la largeur.
 

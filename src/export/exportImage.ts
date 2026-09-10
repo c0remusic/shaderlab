@@ -1,4 +1,5 @@
 import type { LayerState } from "../layers/types";
+import type { CanvasFrameState } from "../layers/canvasFrame";
 
 /**
  * Un frame relu, AVEC les dimensions auxquelles il a été rendu.
@@ -22,9 +23,16 @@ export interface ExportedFrame {
   height: number;
 }
 
-/** Input boundary for the application export use case. */
+/** Input boundary for the application export use case.
+ *
+ *  `cadre` (ticket 32, tranche B) : le sous-rectangle de la toile à exporter, ou
+ *  `null` pour la toile entière. Le renderer compose TOUJOURS la toile entière
+ *  puis relit ce seul sous-rectangle (`Renderer.exportFrame`) — c'est ce qui
+ *  garantit que l'export cadré est le crop octet pour octet de l'export non
+ *  cadré, sans rien évaluer dans l'espace du cadre. Optionnel : un appelant qui
+ *  n'a pas de recadrage n'a rien à passer. */
 export interface FrameRenderer {
-  exportFrame(layers: LayerState[]): Promise<ExportedFrame>;
+  exportFrame(layers: LayerState[], cadre?: CanvasFrameState): Promise<ExportedFrame>;
 }
 
 /** Output boundary for the application export use case. */
@@ -190,12 +198,15 @@ export async function exportImage(
   frameRenderer: FrameRenderer,
   imageWriter: ImageWriter,
   layers: LayerState[],
-  targetPath: string
+  targetPath: string,
+  cadre: CanvasFrameState = null
 ): Promise<void> {
   // Aucun paramètre de dimension : elles arrivent avec les octets — voir
   // `ExportedFrame`. C'est ce qui interdit d'encoder aux dimensions d'une
-  // autre source (le state React, avant la tranche T2).
-  const frame = await frameRenderer.exportFrame(layers);
+  // autre source (le state React, avant la tranche T2). Le `cadre` ne dit PAS
+  // les dimensions : il dit quel sous-rectangle relire, et les dimensions
+  // reviennent quand même AVEC les octets (celles du cadre écrêté).
+  const frame = await frameRenderer.exportFrame(layers, cadre);
   const jpegBytes = await encodeJpeg(frame.pixels, frame.width, frame.height);
   await imageWriter.write(targetPath, jpegBytes);
 }

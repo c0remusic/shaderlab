@@ -109,6 +109,50 @@ export function overlayRectFromClientRects(canvasRect: ClientRectLike, parentRec
   };
 }
 
+/** Rectangle de recadrage de la toile, en pixels de l'espace d'ORIGINE — la
+ *  forme minimale de `CanvasFrame` (`layers/canvasFrame.ts`) dont ce module a
+ *  besoin, gardée locale pour rester testable en Node sans dépendre des
+ *  couches supérieures. */
+export interface FrameRectLike {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Rectangle client où le DOCUMENT ENTIER apparaîtrait à l'écran, à partir du
+ * rect client du `<canvas>` — qui, sous un recadrage, ne couvre plus que le
+ * sous-rectangle du cadre (ticket 32, tranche B).
+ *
+ * POURQUOI. Le canvas prend les dimensions du CADRE (résolution native du
+ * cadre), donc son rect à l'écran ne représente plus toute la toile mais la
+ * seule région recadrée. Or les overlays (poignées, surfaces) placent leurs
+ * repères en coordonnées de la toile d'ORIGINE (fractions ou pixels du
+ * document). Les caler sur le rect brut du canvas les décalerait de l'origine
+ * du cadre. Cette fonction rend le rectangle VIRTUEL de la toile entière : les
+ * overlays s'y calent inchangés, et un repère hors cadre tombe simplement hors
+ * de la zone visible, qui le clippe.
+ *
+ * `cadre` null → le rect du canvas inchangé, donc AUCUN changement de
+ * comportement sans recadrage : les overlays se calent exactement comme avant.
+ */
+export function documentClientRect(
+  canvasRect: ClientRectLike,
+  cadre: FrameRectLike | null,
+  docSize: { width: number; height: number },
+): ClientRectLike {
+  if (!cadre || cadre.width <= 0 || cadre.height <= 0) return canvasRect;
+  const scaleX = canvasRect.width / cadre.width;
+  const scaleY = canvasRect.height / cadre.height;
+  return {
+    left: canvasRect.left - cadre.x * scaleX,
+    top: canvasRect.top - cadre.y * scaleY,
+    width: docSize.width * scaleX,
+    height: docSize.height * scaleY,
+  };
+}
+
 /** Comparaison exacte de deux boîtes d'overlay — sert à ne PAS reposer d'état
  *  React quand une mesure rend les mêmes valeurs, sinon la mesure faite à
  *  chaque rendu se rappellerait elle-même sans fin. */

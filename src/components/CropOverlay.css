@@ -1,0 +1,78 @@
+/* OVERLAY DE L'OUTIL RECADRER (ticket 32, tranche B).
+
+   Boîte pilotée en pixels par `CropOverlay.measure` (pas d'`inset: 0`), même
+   raison que les autres manipulateurs : elle épouse le rectangle AFFICHÉ du
+   canvas, plus petit que son conteneur (lettreboxage) et décalé par la
+   compensation du dock. */
+.crop-overlay {
+  position: absolute;
+  z-index: var(--z-canvas-overlay);
+  /* Le conteneur lui-même ne capte rien : seuls le voile, la surface intérieure
+     et les poignées le font. */
+  pointer-events: none;
+}
+
+/* VOILE hors cadre — un noir semi-transparent posé partout SAUF sur le cadre
+   (règle paire-impaire du path). Il assombrit ce qui sera coupé, sans toucher
+   le rendu. `pointer-events: none` : cliquer dans le voile ne doit rien capter,
+   le geste appartient à la surface intérieure et aux poignées. */
+.crop-overlay__scrim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.crop-overlay__scrim path {
+  /* Voile de mise en retrait — le rôle exact de `--surface-scrim` (overlay
+     assombrissant), plutôt qu'un noir posé à la main. */
+  fill: var(--surface-scrim);
+}
+
+.crop-overlay__frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.crop-overlay__frame rect {
+  fill: none;
+  stroke: var(--focus-color);
+  stroke-width: 1.5;
+}
+/* Tiers — repère de composition (Lightroom), plus discret que le cadre : le
+   filet de contraste translucide, le même que le halo du cadre de transform. */
+.crop-overlay__third {
+  stroke: var(--outline-contrast);
+  stroke-width: 1;
+}
+
+/* SURFACE INTÉRIEURE : déplace le cadre, double-clic pour valider. */
+.crop-overlay__body {
+  position: absolute;
+  pointer-events: auto;
+  cursor: move;
+  /* La cible clavier (focusable) — un cadre ne doit pas avoir d'anneau de focus
+     par-dessus l'image ; le geste principal reste la souris. */
+  outline: none;
+}
+
+.crop-overlay__handle {
+  /* Positionné par une marge négative comme `.canvas-handle` : `handlePos` pose
+     le centre en %. */
+  pointer-events: auto;
+}
+.crop-overlay__handle--nwse { cursor: nwse-resize; }
+.crop-overlay__handle--nesw { cursor: nesw-resize; }
+.crop-overlay__handle--ew { cursor: ew-resize; }
+.crop-overlay__handle--ns { cursor: ns-resize; }
+
+/* REND LA MAIN AU DÉPLACEMENT DE LA VUE (Espace maintenu) — même règle et même
+   raison que les autres overlays : Espace + glisser doit garder toute la toile
+   où s'exercer. */
+.pasteboard__view--pan .crop-overlay__body,
+.pasteboard__view--pan .crop-overlay__handle {
+  pointer-events: none;
+  cursor: inherit;
+}

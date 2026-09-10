@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Brush, Eraser, MousePointer2, Square, type LucideIcon } from "lucide-react";
+import { Brush, Crop, Eraser, MousePointer2, Square, type LucideIcon } from "lucide-react";
 import { Toggle } from "./ui/toggle";
 import { TOOLS, type ToolId } from "../ui/tools";
 
@@ -14,6 +14,7 @@ const TOOL_ICONS: Record<ToolId, LucideIcon> = {
   // qu'un rectangle aujourd'hui, et une icône qui promettrait un choix de
   // primitives mentirait sur ce que le geste fait.
   shape: Square,
+  crop: Crop,
 };
 
 interface Props {

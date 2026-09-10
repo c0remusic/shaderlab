@@ -3,7 +3,7 @@ import { handlePoint, STRETCH_HANDLES, type StretchHandle } from "../ui/effectSt
 import { nudgeShapeBox, resizeShapeBox, shapeFrame } from "../ui/shapeHandles";
 import type { ShapeBox } from "../ui/shapeDraw";
 import type { PixelSize } from "../ui/transform";
-import { overlayRectFromClientRects, sameOverlayRect, type OverlayRect } from "../ui/transform";
+import { documentClientRect, overlayRectFromClientRects, sameOverlayRect, type FrameRectLike, type OverlayRect } from "../ui/transform";
 import "./EffectTransformHandles.css";
 
 interface Props {
@@ -15,6 +15,9 @@ interface Props {
    *  carrée). Même repère que `shapeBoxFromRect`. */
   canvasSize: PixelSize;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  /** Cadre de recadrage courant, ou `null` — voir `TransformHandles.frame`.
+   *  Nommé `cadre` : `frame` est déjà la variable de géométrie locale. */
+  cadre?: FrameRectLike | null;
   /** Nom du calque/effet portant la forme, pour le nom accessible du cadre. */
   effectName: string;
   onChange: (box: ShapeBox) => void;
@@ -78,7 +81,7 @@ interface Drag {
  * `TransformHandles` (flèches déplacent, champs Largeur/Hauteur redimensionnent).
  * Committer sur le `keyup` fait une entrée d'historique par appui.
  */
-export function ShapeTransformHandles({ box, canvasSize, canvasRef, effectName, onChange, onCommit }: Props) {
+export function ShapeTransformHandles({ box, canvasSize, canvasRef, cadre = null, effectName, onChange, onCommit }: Props) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag | null>(null);
   const nudgingRef = useRef(false);
@@ -86,14 +89,16 @@ export function ShapeTransformHandles({ box, canvasSize, canvasRef, effectName, 
 
   // Même mesure que les autres overlays : deux rects réels (le zoom en transform
   // CSS est déjà dans `getBoundingClientRect`), garde d'égalité contre la boucle.
+  // Sous un cadre, on se cale sur le rectangle document VIRTUEL (ticket 32).
   const mesurer = useCallback(() => {
     const overlay = overlayRef.current;
     const canvas = canvasRef.current;
     const parent = overlay?.offsetParent;
     if (!overlay || !canvas || !parent) return;
-    const next = overlayRectFromClientRects(canvas.getBoundingClientRect(), parent.getBoundingClientRect());
+    const canvasRect = documentClientRect(canvas.getBoundingClientRect(), cadre, canvasSize);
+    const next = overlayRectFromClientRects(canvasRect, parent.getBoundingClientRect());
     setRect((previous) => (previous && sameOverlayRect(previous, next) ? previous : next));
-  }, [canvasRef]);
+  }, [canvasRef, canvasSize, cadre]);
 
   useLayoutEffect(() => {
     mesurer();

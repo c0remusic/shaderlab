@@ -32,6 +32,7 @@ import { EffectMoveSurface } from "./components/EffectMoveSurface";
 import { EffectTransformHandles } from "./components/EffectTransformHandles";
 import { ShapeTransformHandles } from "./components/ShapeTransformHandles";
 import { AutoSelectMoveSurface, type AutoSelectMover } from "./components/AutoSelectMoveSurface";
+import { CropOverlay } from "./components/CropOverlay";
 import { ToolPalette } from "./components/ToolPalette";
 import "./components/ToolPalette.css";
 import { DEFAULT_TOOL, activeTool as activeToolOf, escapeAction, isQuitToolEvent, isTextEntryTarget, isToolShortcutEvent, selectTool, toolFromShortcut, type ToolId } from "./ui/tools";
@@ -99,6 +100,10 @@ import { ColorPickerPanel } from "./components/ColorPickerPanel";
 import type { EffectParam } from "./render/effects/types";
 import { usePresets } from "./hooks/usePresets";
 import { usePhotoLayer } from "./hooks/usePhotoLayer";
+import { useCropTool } from "./hooks/useCropTool";
+import { regionDeLecture } from "./render/cadreProjection";
+import type { CanvasFrame, CanvasFrameState } from "./layers/canvasFrame";
+import type { CropRect } from "./ui/cropTool";
 import { usePresetWorkflow } from "./hooks/usePresetWorkflow";
 import { useLayerIsolation } from "./hooks/useLayerIsolation";
 import { useCollapsedGroups } from "./hooks/useCollapsedGroups";
@@ -165,6 +170,12 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [propertiesTarget, setPropertiesTarget] = useState<PropertiesTarget | null>(null);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  // CADRE DE RECADRAGE committé de la toile (ticket 32), ou `null`. Copié ici
+  // depuis la session (source de vérité) pour que l'écran, les overlays et le
+  // viewport suivent : le canvas prend les dimensions du cadre, les poignées se
+  // recalent, l'export découpe. Mis à jour à chaque geste qui touche le cadre
+  // (recadrage, annulation, undo/redo, ouverture).
+  const [cadre, setCadreState] = useState<CanvasFrameState>(null);
   // Zoom/déplacement du canvas (`src/ui/viewport.ts`). Le viewport est un état
   // d'INTERFACE : il ne touche ni le document, ni l'historique, ni l'export —
   // même frontière que l'isolation de calque (`src/layers/isolation.ts`).
@@ -173,6 +184,11 @@ export default function App() {
   // savoir quel point de l'image était au centre avant un redimensionnement ;
   // c'est l'appelant qui la détient, jamais le module de viewport.
   const viewSizeRef = useRef<ViewportSize>({ width: 0, height: 0 });
+  // Taille de la surface AFFICHÉE (cadre recadré s'il y en a un, sinon document).
+  // Lue par ref dans les callbacks de viewport, qui sont définis AVANT que le
+  // cadre soit dérivé (il dépend de `canvasMode`, posé plus bas) : la ref est
+  // mise à jour en fin de rendu, les callbacks la lisent au moment du geste.
+  const displaySizeRef = useRef<ViewportSize>({ width: 0, height: 0 });
   const [sourcePath, setSourcePath] = useState<string | null>(null);
   // Nom AFFICHABLE du document, distinct de `sourcePath` — qui reste le chemin
   // disque, et lui seul, parce que c'est lui qui décide de l'écrasement à
@@ -477,12 +493,14 @@ export default function App() {
     (size: ViewportSize) => {
       const previous = viewSizeRef.current;
       viewSizeRef.current = size;
-      if (imageSize.width <= 0 || imageSize.height <= 0) return;
+      // Contenu AFFICHÉ (cadre ou document), lu par ref — voir `displaySizeRef`.
+      const content = displaySizeRef.current;
+      if (content.width <= 0 || content.height <= 0) return;
       setViewport((current) =>
-        viewportAutoFitRef.current ? fitViewport(imageSize, size) : reconcileViewport(current, imageSize, previous, size),
+        viewportAutoFitRef.current ? fitViewport(content, size) : reconcileViewport(current, content, previous, size),
       );
     },
-    [imageSize],
+    [],
   );
 
   /** Tout zoom/déplacement VOULU par l'utilisateur sort du suivi automatique :
@@ -493,7 +511,7 @@ export default function App() {
     setViewport(next);
   }, []);
 
-  const contentSizeOf = useCallback((): ViewportSize => imageSize, [imageSize]);
+  const contentSizeOf = useCallback((): ViewportSize => displaySizeRef.current, []);
 
   // Les boutons +/- zooment « centrés sur le centre du canvas » (PRD pan/zoom),
   // là où la molette s'ancre sur le curseur. Deux callbacks distincts plutôt
@@ -596,6 +614,9 @@ export default function App() {
       setRendererGeneration((generation) => generation + 1);
 
       setImageSize(documentSize);
+      // Nouveau document : aucun recadrage hérité (la nouvelle pile naît avec
+      // `cadre` null). L'écran repart de la toile entière.
+      setCadreState(null);
       // Nouveau document = nouvelle géométrie : le zoom du document précédent
       // n'a aucun sens sur celui-ci (il pourrait même être hors bornes). On
       // repart de l'ajustement, ce qui est aussi l'état d'avant le viewport.
@@ -918,6 +939,103 @@ export default function App() {
     [photoLayer.canvasMode, erase, layers, selectedId, setCanvasMode],
   );
 
+  // ── RECADRAGE DE LA TOILE (ticket 32, tranche B) ───────────────────────────
+  const cropActive = photoLayer.canvasMode.kind === "canvasCrop";
+  // L'ÉCRAN montre la toile ENTIÈRE pendant l'outil (pour agrandir/déplacer le
+  // cadre), le cadre committé sinon. L'EXPORT, lui, lit toujours le cadre de la
+  // session — jamais cet état d'écran (`performExport`).
+  const screenCadre: CanvasFrameState = cropActive ? null : cadre;
+  const screenRegion = screenCadre ? regionDeLecture(screenCadre, imageSize.width, imageSize.height) : null;
+  const displayWidth = screenRegion ? screenRegion.width : imageSize.width;
+  const displayHeight = screenRegion ? screenRegion.height : imageSize.height;
+  // Mémoïsées sur des PRIMITIVES : identité stable tant que les dimensions ne
+  // bougent pas, pour ne pas refit le viewport (donc réinitialiser le zoom) à
+  // chaque rendu ni à chaque undo qui ne touche pas au cadre.
+  const displaySize = useMemo(() => ({ width: displayWidth, height: displayHeight }), [displayWidth, displayHeight]);
+  // Publie la taille affichée pour les callbacks de viewport (définis plus haut,
+  // qui la lisent par ref). Dans un EFFET, pas pendant le rendu (règle
+  // `react-hooks/refs`).
+  useEffect(() => {
+    displaySizeRef.current = displaySize;
+  }, [displaySize]);
+  const frameOriginX = screenRegion ? screenRegion.x : 0;
+  const frameOriginY = screenRegion ? screenRegion.y : 0;
+  const frameOrigin = useMemo(() => ({ x: frameOriginX, y: frameOriginY }), [frameOriginX, frameOriginY]);
+
+  // Applique le cadre d'écran : le canvas prend les dimensions du cadre (le
+  // sous-rectangle ne s'affiche plus ÉTIRÉ dans un canvas pleine toile), le
+  // renderer remappe la présentation, le viewport se réajuste au cadre. Les
+  // ressources GPU du DOCUMENT ne bougent PAS — seule la surface présentée
+  // change. Ne refit le viewport QUE lorsque les dimensions changent (sinon un
+  // undo qui ne touche pas au cadre réinitialiserait le zoom). `screenCadre` est
+  // soit `null` soit l'objet d'état `cadre` : son identité est stable tant que le
+  // cadre ne change pas, donc l'effet ne re-tourne pas à chaque rendu.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const renderer = rendererRef.current;
+    if (!canvas || !renderer || imageSize.width <= 0 || imageSize.height <= 0) return;
+    if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+      canvas.width = displayWidth;
+      canvas.height = displayHeight;
+      viewportAutoFitRef.current = true;
+      setViewport(fitViewport({ width: displayWidth, height: displayHeight }, viewSizeRef.current));
+    }
+    renderer.setCadre(screenCadre);
+    syncDisplayScale();
+    renderer.requestRender(sessionRef.current.layers());
+  }, [displayWidth, displayHeight, screenCadre, imageSize.width, imageSize.height, syncDisplayScale]);
+
+  /** Valide un recadrage tracé dans l'outil : `rect` est en pixels d'ORIGINE
+   *  (l'image entière est montrée). On pose le cadre en ABSOLU — `annulerRecadrage`
+   *  puis `recadrerToile`, la composition contre `null` étant l'identité —, ce qui
+   *  permet d'AGRANDIR un cadre existant (`composerCadre` seul l'interdirait). Un
+   *  pas d'undo, puis on quitte l'outil ; l'effet ci-dessus recale l'écran. */
+  const commitCrop = useCallback(
+    (rect: CropRect) => {
+      const session = sessionRef.current;
+      session.annulerRecadrage();
+      session.recadrerToile(rect);
+      commit(session.currentStack());
+      setCadreState(session.cadreToile());
+      handleSelectTool(DEFAULT_TOOL);
+    },
+    [commit, handleSelectTool],
+  );
+
+  const cropTool = useCropTool({
+    active: cropActive,
+    imageSize,
+    getCurrentCadre: () => sessionRef.current.cadreToile(),
+    onCommit: commitCrop,
+  });
+
+  /** Annule le recadrage committé (repose `null`), un pas d'undo. Partagé par le
+   *  bouton de la barre d'options, le menu contextuel et le pont de debug. */
+  const handleAnnulerRecadrage = useCallback(() => {
+    const session = sessionRef.current;
+    if (session.cadreToile() === null) return;
+    session.annulerRecadrage();
+    commit(session.currentStack());
+    setCadreState(null);
+    cropTool.resetRectToFull();
+  }, [commit, cropTool]);
+
+  // Refs pour le pont de debug (dev) : lui capturer directement `commit`/
+  // `handleAnnulerRecadrage` le recréerait à chaque rendu ; une ref garde son
+  // câblage stable tout en pointant toujours la dernière version. Écrites dans un
+  // EFFET (règle `react-hooks/refs` : pas d'écriture de ref pendant le rendu).
+  const recadrerCommitRef = useRef<(rect: CanvasFrame) => void>(() => {});
+  const annulerRecadrageRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    recadrerCommitRef.current = (rect: CanvasFrame) => {
+      const session = sessionRef.current;
+      session.recadrerToile(rect);
+      commit(session.currentStack());
+      setCadreState(session.cadreToile());
+    };
+    annulerRecadrageRef.current = handleAnnulerRecadrage;
+  });
+
   // Raccourcis d'outil. Écouteur sur `window` et non sur le canvas : un outil
   // se change depuis n'importe où dans la fenêtre, y compris quand le focus est
   // sur un panneau du dock. Les gardes (modificateurs, répétition, champ de
@@ -1021,12 +1139,14 @@ export default function App() {
       setCanvasMenu({ placed: [], fullFrame: [] });
       return;
     }
-    // Même conversion écran → pixels IMAGE que `Canvas.toImageCoords` et
-    // `EffectMoveSurface.versPixelsImage` : deux conventions divergentes
-    // désigneraient deux calques pour le même clic.
+    // Même conversion écran → pixels IMAGE que `Canvas.toImageCoords`, PLUS
+    // l'origine du cadre (ticket 32) : sous un recadrage, `canvas.width` vaut la
+    // largeur du cadre, donc la conversion rend des coordonnées LOCALES au cadre
+    // qu'il faut décaler en espace d'ORIGINE, sinon le hit-test désignerait le
+    // mauvais calque.
     const point = {
-      x: (event.clientX - rect.left) * (canvas.width / rect.width),
-      y: (event.clientY - rect.top) * (canvas.height / rect.height),
+      x: (event.clientX - rect.left) * (canvas.width / rect.width) + frameOrigin.x,
+      y: (event.clientY - rect.top) * (canvas.height / rect.height) + frameOrigin.y,
     };
     const full = sessionRef.current.layers();
     const ids = hitTestAll(full, point, imageSize, photoSizeOf);
@@ -1048,7 +1168,7 @@ export default function App() {
       (estPlace ? placed : fullFrame).push(item);
     }
     setCanvasMenu({ placed, fullFrame });
-  }, [imageSize, photoSizeOf]);
+  }, [imageSize, photoSizeOf, frameOrigin]);
 
   // Pont de debug DEV-ONLY. Raison d'être : le dialogue natif de sélection de
   // fichier (`pick_image_file`, rfd côté Rust) n'est pilotable NI par CDP NI
@@ -1147,15 +1267,15 @@ export default function App() {
        *  le repousse au renderer pour l'écran, puis redemande un rendu. Seul
        *  point d'entrée du recadrage tant que l'outil (tranche B) n'existe pas —
        *  sert la capture CDP de l'écran recadré. */
+      // TRANCHE B : recadrer COMMITTE désormais (un pas d'undo) et passe par
+      // l'état React `cadre`, donc le canvas se redimensionne au cadre (l'écran
+      // n'affiche plus le sous-rectangle étiré) et l'export découpe. Via des refs
+      // pour garder le câblage stable sans recréer le pont à chaque rendu.
       recadrer: (rect: { x: number; y: number; width: number; height: number }) => {
-        sessionRef.current.recadrerToile(rect);
-        rendererRef.current?.setCadre(sessionRef.current.cadreToile());
-        rendererRef.current?.requestRender(sessionRef.current.layers());
+        recadrerCommitRef.current(rect);
       },
       annulerRecadrage: () => {
-        sessionRef.current.annulerRecadrage();
-        rendererRef.current?.setCadre(null);
-        rendererRef.current?.requestRender(sessionRef.current.layers());
+        annulerRecadrageRef.current();
       },
       state: () => ({
         layers: sessionRef.current.layers().map((l) => ({
@@ -1883,6 +2003,10 @@ export default function App() {
   const handleUndo = useCallback(() => {
     if (sessionRef.current.undo()) {
       syncSession();
+      // Le cadre voyage dans l'historique (`LayerStack.cadre`) : l'écran doit
+      // suivre l'undo. `setCadreState` avec une valeur ÉGALE rend la même clé
+      // (`screenCadreKey`), donc l'effet d'écran ne refit pas le viewport.
+      setCadreState(sessionRef.current.cadreToile());
       // Critique 1 (final-review fix): undo doesn't touch `activePresetId`
       // on its own — without this, undoing back through a preset
       // APPLICATION (e.g. to an empty stack) left the banner pointing at a
@@ -1900,6 +2024,7 @@ export default function App() {
   const handleRedo = useCallback(() => {
     if (sessionRef.current.redo()) {
       syncSession();
+      setCadreState(sessionRef.current.cadreToile());
       reconcileActivePreset(sessionRef.current.layers());
       rendererRef.current?.requestRender(sessionRef.current.layers());
     }
@@ -2050,7 +2175,11 @@ export default function App() {
         rendererRef.current,
         { write: writeImageFile },
         sessionRef.current.layers(),
-        target
+        target,
+        // Le fichier exporté est découpé au cadre courant (ticket 32) : le vrai
+        // export lit le cadre de la session, seule source de vérité du
+        // recadrage, jamais l'état d'écran du renderer.
+        sessionRef.current.cadreToile()
       );
       // Même discipline que openFile : un export réussi efface une erreur
       // laissée par une tentative précédente, plutôt que de laisser un
@@ -2443,6 +2572,12 @@ export default function App() {
         outil={currentTool}
         options={toolOptions}
         onOptionChange={handleToolOptionChange}
+        recadrage={{
+          ratio: cropTool.ratio,
+          onRatioChange: cropTool.setRatio,
+          hasCadre: cadre !== null,
+          onAnnuler: handleAnnulerRecadrage,
+        }}
         autoSelect={autoSelect}
         // Enveloppé : la Checkbox `ui/` remonte `(checked, eventDetails)` ; on ne
         // passe que le booléen à `setState`.
@@ -2532,6 +2667,11 @@ export default function App() {
           // « Renommer… » du menu de la toile ouvre l'édition en place de la
           // ligne du calque sélectionné, dans la pile (ticket 31).
           onStartRename={handleStartRename}
+          // RECADRAGE (ticket 32) : « Recadrer… » ouvre l'outil, « Annuler le
+          // recadrage » repose le cadre (grisé sans cadre).
+          onRecadrer={() => handleSelectTool("crop")}
+          onAnnulerRecadrage={handleAnnulerRecadrage}
+          hasCadre={cadre !== null}
         >
         <Canvas
           ref={canvasRef}
@@ -2562,7 +2702,8 @@ export default function App() {
           onShapeDrawProgress={handleShapeDrawProgress}
           onShapeDrawCancel={handleShapeDrawCancel}
           viewport={viewport}
-          contentSize={imageSize}
+          contentSize={displaySize}
+          frameOrigin={frameOrigin}
           onViewportChange={handleViewportChange}
           onViewResize={handleViewResize}
         >
@@ -2574,7 +2715,7 @@ export default function App() {
             couvrent toute la toile). Active seulement en mode `idle`
             (`showTransformHandles`) et Sélection auto cochée. */}
         {showTransformHandles && autoSelect && imageSize.width > 0 && imageSize.height > 0 && (
-          <AutoSelectMoveSurface canvasRef={canvasRef} begin={beginAutoSelectGesture} />
+          <AutoSelectMoveSurface canvasRef={canvasRef} imageSize={imageSize} frame={cadre} begin={beginAutoSelectGesture} />
         )}
         {/* `showTransformHandles` = mode canvas `idle` (usePhotoLayer/CanvasMode).
             Avant T1, les poignées se montaient sur la seule SÉLECTION : un calque
@@ -2598,6 +2739,7 @@ export default function App() {
             bgSize={imageSize}
             otherPhotoLayers={otherPhotoLayers}
             canvasRef={canvasRef}
+            frame={cadre}
             // Deux photos superposées donnent deux cadres : sans le nom, le
             // lecteur d'écran annoncerait deux fois la même chose.
             layerName={selectedLayer.name}
@@ -2655,6 +2797,8 @@ export default function App() {
             params={selectedEffect.params}
             values={selectedLayer.params}
             canvasRef={canvasRef}
+            imageSize={imageSize}
+            frame={cadre}
             onChange={(patch) => handleParamChange(selectedLayer.id, patch)}
             onCommit={handleParamCommit}
             onPick={handleCanvasPick}
@@ -2678,6 +2822,8 @@ export default function App() {
             scale={selectedLayer.effectTransform ?? { scaleX: 1, scaleY: 1 }}
             anchor={resolveEffectAnchor(selectedEffect, selectedLayer.params)}
             canvasRef={canvasRef}
+            imageSize={imageSize}
+            cadre={cadre}
             effectName={selectedEffect.name}
             onChange={(scale) => handleEffectTransformChange(selectedLayer.id, scale)}
             onCommit={handleParamCommit}
@@ -2695,6 +2841,7 @@ export default function App() {
             values={selectedLayer.params}
             imageSize={imageSize}
             canvasRef={canvasRef}
+            frame={cadre}
             effectName={selectedEffect.name}
             // Dans l'outil Forme, le corps de la boîte n'intercepte pas : un
             // glissement dedans commence une NOUVELLE forme.
@@ -2723,9 +2870,24 @@ export default function App() {
             }}
             canvasSize={imageSize}
             canvasRef={canvasRef}
+            cadre={cadre}
             effectName={selectedEffect.name}
             onChange={(b) => handleMaskSourceParamsChange(selectedLayer.id, shapeSource.id, { ...shapeSource.params, ...b })}
             onCommit={handleParamCommit}
+          />
+        )}
+        {/* OUTIL RECADRER (ticket 32, tranche B). Monté quand l'outil est actif :
+            l'image entière est montrée (l'effet d'écran a posé `setCadre(null)`),
+            l'overlay assombrit le hors-cadre et pose huit poignées. Enfant du
+            canvas comme les autres overlays — clippé par la zone visible. */}
+        {cropActive && cropTool.rect && imageSize.width > 0 && (
+          <CropOverlay
+            rect={cropTool.rect}
+            imageSize={imageSize}
+            ratio={cropTool.ratio}
+            canvasRef={canvasRef}
+            onChange={cropTool.setRect}
+            onValidate={cropTool.validate}
           />
         )}
         </Canvas>

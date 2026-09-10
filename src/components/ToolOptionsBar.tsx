@@ -1,12 +1,14 @@
-import { Move, Shapes } from "lucide-react";
+import { Crop, Move, Shapes } from "lucide-react";
 import { Select } from "./ui/select";
 import { Checkbox } from "./ui/checkbox";
+import { Button } from "./ui/button";
 import { ColorGroupControl } from "./ui/color-group-control";
 import { BrushToolbar } from "./BrushToolbar";
 import { aplat } from "../render/effects/aplat";
 import type { EffectParam } from "../render/effects/types";
 import type { ToolId } from "../ui/tools";
 import { optionsDe, type ToolOptions } from "../ui/toolOptionsModel";
+import { CROP_RATIOS, type CropRatioId } from "../ui/cropTool";
 
 /**
  * BARRE D'OPTIONS DE L'OUTIL — permanente, à hauteur CONSTANTE, contenu suivant
@@ -68,6 +70,14 @@ interface Props {
    *  l'outil Déplacer ne fait jamais. Défaut OFF, convention Photoshop. */
   autoSelect?: boolean;
   onAutoSelectChange?: (checked: boolean) => void;
+  /** OUTIL RECADRER (ticket 32). `ratio` est le ratio choisi, `hasCadre` dit
+   *  s'il y a un cadre committé à annuler (grise le bouton sinon). */
+  recadrage?: {
+    ratio: CropRatioId;
+    onRatioChange: (ratio: CropRatioId) => void;
+    hasCadre: boolean;
+    onAnnuler: () => void;
+  };
 }
 
 /** Défaut d'un paramètre d'`aplat`, lu sur le module. */
@@ -111,10 +121,37 @@ const PRIMITIVES = [
   { value: "3", label: "Polygone" },
 ];
 
-export function ToolOptionsBar({ outil, options, onOptionChange, pinceau, onOpenColorPicker, autoSelect = false, onAutoSelectChange }: Props) {
+export function ToolOptionsBar({ outil, options, onOptionChange, pinceau, onOpenColorPicker, autoSelect = false, onAutoSelectChange, recadrage }: Props) {
   return (
     <div className="tool-options-bar" role="toolbar" aria-label="Options de l'outil">
       {(outil === "brush" || outil === "eraser") && <BrushToolbar {...pinceau} />}
+
+      {outil === "crop" && recadrage && (
+        <>
+          <span className="brush-toolbar__tool">
+            <Crop className="icon-md icon-stroke" aria-hidden="true" />
+            Recadrer
+          </span>
+          <Select
+            label="Ratio"
+            labelPlacement="inline"
+            value={recadrage.ratio}
+            options={CROP_RATIOS.map((r) => ({ value: r.id, label: r.label }))}
+            onChange={(v) => recadrage.onRatioChange(v as CropRatioId)}
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={!recadrage.hasCadre}
+            onClick={recadrage.onAnnuler}
+          >
+            Annuler le recadrage
+          </Button>
+          {/* Rappel des gestes clavier, comme la barre du pinceau nomme les
+              siens. Prose, pas un contrôle. */}
+          <span className="brush-toolbar__hint">Entrée valide · Échap annule</span>
+        </>
+      )}
 
       {outil === "shape" && (
         <>

@@ -1,19 +1,21 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { axisFromOverlay, axisToOverlay } from "../ui/canvasControls";
-import { overlayRectFromClientRects, sameOverlayRect, type OverlayRect } from "../ui/transform";
+import { documentClientRect, overlayRectFromClientRects, sameOverlayRect, type FrameRectLike, type OverlayRect } from "../ui/transform";
 import "./AxisHandles.css";
 
 interface Props {
   angle: number; length: number; lengthRange: { min: number; max: number };
   imageSize: { width: number; height: number };
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  /** Cadre de recadrage courant, ou `null` — voir `TransformHandles.frame`. */
+  frame?: FrameRectLike | null;
   label: string;
   disabled?: boolean;
   onChange: (angle: number, length: number) => void;
   onCommit: () => void;
 }
 
-export function AxisHandles({ angle, length, lengthRange, imageSize, canvasRef, label, disabled = false, onChange, onCommit }: Props) {
+export function AxisHandles({ angle, length, lengthRange, imageSize, canvasRef, frame = null, label, disabled = false, onChange, onCommit }: Props) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const [rect, setRect] = useState<OverlayRect | null>(null);
   const dragging = useRef(false);
@@ -21,9 +23,10 @@ export function AxisHandles({ angle, length, lengthRange, imageSize, canvasRef, 
   const measure = useCallback(() => {
     const overlay = overlayRef.current, canvas = canvasRef.current, parent = overlay?.offsetParent;
     if (!overlay || !canvas || !parent) return;
-    const next = overlayRectFromClientRects(canvas.getBoundingClientRect(), parent.getBoundingClientRect());
+    const canvasRect = documentClientRect(canvas.getBoundingClientRect(), frame, imageSize);
+    const next = overlayRectFromClientRects(canvasRect, parent.getBoundingClientRect());
     setRect((previous) => previous && sameOverlayRect(previous, next) ? previous : next);
-  }, [canvasRef]);
+  }, [canvasRef, imageSize, frame]);
   useLayoutEffect(() => { measure(); });
   useEffect(() => {
     const canvas = canvasRef.current, parent = overlayRef.current?.offsetParent;

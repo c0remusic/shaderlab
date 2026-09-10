@@ -55,6 +55,9 @@ function menuHandlers() {
     onToggleLock: fn(),
     onRemove: fn(),
     onStartRename: fn(),
+    onRecadrer: fn(),
+    onAnnulerRecadrage: fn(),
+    hasCadre: false,
   };
 }
 
@@ -107,6 +110,9 @@ export const TroisCalques: Story = {
       "Fusionner avec le dessousCtrl+E",
       "Verrous",
       "Supprimer le calqueSuppr",
+      // RECADRAGE DE LA TOILE (ticket 32), en fin de menu après un séparateur.
+      "Recadrer…",
+      "Annuler le recadrage",
     ]);
   },
 };
@@ -138,7 +144,13 @@ export const Vide: Story = {
     fireEvent.contextMenu(within(canvasElement).getByTestId("toile"));
     const menu = await within(document.body).findByRole("menu");
     const items = within(menu).getAllByRole("menuitem");
-    await expect(items.map((el) => el.textContent)).toEqual(["Ajouter un effet…"]);
+    // « Ajouter un effet… » seul pour les calques, puis le recadrage de la toile
+    // (ticket 32), qui est présent quelle que soit la sélection.
+    await expect(items.map((el) => el.textContent)).toEqual([
+      "Ajouter un effet…",
+      "Recadrer…",
+      "Annuler le recadrage",
+    ]);
     await expect(items[0]).not.toHaveAttribute("aria-disabled", "true");
     await userEvent.click(items[0]);
     await expect(args.onAddEffect).toHaveBeenCalled();

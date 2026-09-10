@@ -1,5 +1,5 @@
 import type { ReactNode, MouseEvent } from "react";
-import { Image as PhotoLayerIcon, Plus, Sparkles as EffectLayerIcon } from "lucide-react";
+import { Crop, Image as PhotoLayerIcon, Plus, RotateCcw, Sparkles as EffectLayerIcon } from "lucide-react";
 import type { LayerLocks, LayerState } from "../layers/types";
 import { mergeDownVerdict, stampVerdict } from "../layers/flatten";
 import { isFullyLocked } from "../layers/layerLocks";
@@ -65,6 +65,12 @@ interface Props {
   /** OUVRE le renommage en place (ticket 31) de la ligne du calque sélectionné,
    *  dans la pile — le champ d'édition vit sur la ligne, pas ici. */
   onStartRename: (id: string) => void;
+  /** RECADRAGE DE LA TOILE (ticket 32) : « Recadrer… » ouvre l'outil, « Annuler
+   *  le recadrage » repose le cadre (grisé sans cadre). Aucune logique ici — les
+   *  deux sont des handlers d'`App`. */
+  onRecadrer: () => void;
+  onAnnulerRecadrage: () => void;
+  hasCadre: boolean;
 }
 
 /**
@@ -95,6 +101,9 @@ export function CanvasContextMenu({
   onToggleLock,
   onRemove,
   onStartRename,
+  onRecadrer,
+  onAnnulerRecadrage,
+  hasCadre,
 }: Props) {
   const hasLayers = placed.length > 0 || fullFrame.length > 0;
   const selectedLayer = selectedId !== null ? layers.find((l) => l.id === selectedId) ?? null : null;
@@ -164,6 +173,23 @@ export function CanvasContextMenu({
                 />
               </>
             )}
+          </>
+        )}
+        {/* RECADRAGE DE LA TOILE (ticket 32), en fin de menu, après un
+            séparateur — il agit sur la TOILE, pas sur un calque, donc il vit
+            hors des groupes de calques et reste présent même sans calque sous le
+            curseur. Grisé sans image. */}
+        {hasImage && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onClick={onRecadrer}>
+              <Crop className="icon-sm icon-stroke" aria-hidden="true" />
+              Recadrer…
+            </ContextMenuItem>
+            <ContextMenuItem disabled={!hasCadre} onClick={onAnnulerRecadrage}>
+              <RotateCcw className="icon-sm icon-stroke" aria-hidden="true" />
+              Annuler le recadrage
+            </ContextMenuItem>
           </>
         )}
       </ContextMenuContent>

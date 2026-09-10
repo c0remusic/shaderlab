@@ -72,7 +72,7 @@ le non-destructif rendu VISIBLE, et c'est ce que Lightroom fait.
 
 - [x] A1 `Renderer` lit le cadre (API notée — voir Journal).
 - [x] A2 export découpé au cadre, dimensions du cadre.
-- [~] A3 écran : présentation remappée (FAIT) ; canvas aux dimensions du cadre = tranche B (DOM).
+- [x] A3 écran : présentation remappée (tranche A) ; canvas aux dimensions du cadre LIVRÉ en tranche B (DOM, effet d'écran d'`App`).
 - [x] A4 scénarios `cadre-toile` + `cadre-toile-temoin` + `cadre-toile-degrade` (crop octet-exact vérifié dans le harnais ET en assertion Node), `test:render` zéro écart sur les 125, `gpu-shaders --origin` vert.
 - [x] A5 capture CDP mesurée de l'écran recadré.
 
@@ -133,7 +133,61 @@ que render-check ne lit pas) ». FAUX : `render-check.mjs` relit le canvas via
 remappage d'écran au harnais — mais figerait le comportement ÉTIRÉ propre à la
 tranche A (canvas non redimensionné), qui changera en tranche B. Non committé
 pour cette raison ; l'écran reste prouvé par la capture CDP (A5).
-- [ ] B1 outil Recadrer (`C`), poignées, assombrissement hors cadre, `Entrée`/`Échap`, ratio.
-- [ ] B2 barre d'options : Annuler le recadrage, ratio.
-- [ ] B3 stories + gates complets.
+- [x] B1 outil Recadrer (`C`), poignées, assombrissement hors cadre, `Entrée`/`Échap`, ratio — `src/components/CropOverlay.tsx` (+ `.css`), module pur `src/ui/cropTool.ts`, hook `src/hooks/useCropTool.ts`, mode `canvasCrop` (`ui/canvasMode.ts`), outil `crop` (`ui/tools.ts`, touche `C`), icône `ToolPalette`.
+- [x] B2 barre d'options : ratio + « Annuler le recadrage » (grisé sans cadre) + rappel clavier — `ToolOptionsBar` prop `recadrage`.
+- [x] B3 stories (`CropOverlay.stories` deux ratios, `ToolPalette.stories`, `ToolOptionsBar` Recadrer/RecadrerAvecCadre, menu contextuel) + gates complets (tsc, lint, test 2256, test-storybook 379, test:render 128 zéro écart, lint:tokens, lint:css-comments).
+- [x] B écran vivant : canvas aux dims du cadre + viewport/displayScale recalculés (`App` effet d'écran) ; overlays compensent l'origine du cadre (`ui/transform.documentClientRect`) ; export réel `exportImage(...cadre)` → `FrameRenderer.exportFrame(layers, cadre)`.
+- [x] Menu contextuel de la toile (ticket 29) : « Recadrer… » + « Annuler le recadrage ».
 - [ ] Validé en gestes par Antoine : recadrer, exporter (fichier découpé), rouvrir l'outil, agrandir le cadre (rien n'a été perdu), annuler.
+
+## Journal tranche B (livré)
+
+**Décisions prises là où la tranche laissait un choix.**
+- **Pose ABSOLUE du cadre à la validation, pas composition.** L'outil montre
+  l'image ENTIÈRE (`setCadre(null)` le temps de l'outil) pour permettre d'AGRANDIR
+  un cadre existant. `composerCadre` seul l'interdit (il ne fait que rétrécir le
+  cadre courant). La validation fait donc `annulerRecadrage()` PUIS
+  `recadrerToile(rect)` — la composition contre `null` est l'identité — ce qui
+  honore la lettre du brief (« composerCadre fait la composition ») tout en
+  rendant le geste réversible et agrandissable.
+- **Touche `C`** (Photoshop), `KeyC` était libre. `R` (Lightroom) laissé libre :
+  le reste de la palette (V/B/E/U) vient déjà de Photoshop.
+- **Nouveau mode `canvasCrop`**, distinct du `crop` existant (rognage d'un CALQUE
+  photo, sans appelant de production) : deux gestes, deux cibles.
+- **Liste de ratios définie dans `cropTool.ts`** (Libre · D'origine · Carré · 4:5 ·
+  3:2), PAS dérivée d'ADR-0007 : cet ADR dérive des dimensions de CRÉATION par
+  contenance (« A3 » y est un format absolu, pas un ratio), un recadrage choisit
+  une PROPORTION. « Carré »/« 4:5 » partagent les proportions d'ADR-0007 mais le
+  concept vit ici ; ratios relatifs orientés comme la toile (même règle ADR-0007).
+
+**Mécanisme du canvas qui suit le cadre.** `App` porte un état `cadre` (copié de
+la session). `screenCadre = cropActive ? null : cadre` (l'outil montre tout).
+Un effet applique `screenCadre` : `canvas.width/height` = dims du cadre
+(`regionDeLecture`), `renderer.setCadre`, `fitViewport` recalculé UNIQUEMENT quand
+les dims changent (sinon un undo réinitialiserait le zoom). Les ressources GPU du
+document ne bougent pas.
+
+**Compensation des overlays.** `documentClientRect(canvasRect, cadre, docSize)`
+(neuf, `ui/transform.ts`, testé) rend le rectangle VIRTUEL où la toile ENTIÈRE
+apparaîtrait ; sous un cadre le canvas ne couvre que le sous-rectangle, donc les
+overlays s'y calent inchangés (leurs repères restent en coordonnées d'origine) et
+un repère hors cadre est clippé. Threadé (`frame`/`cadre` + `imageSize`) dans
+TransformHandles, CanvasControls (Point/Axis/Region/box), EffectMoveSurface,
+AutoSelectMoveSurface, EffectTransformHandles, ShapeTransformHandles. `Canvas`
+ajoute `frameOrigin` aux conversions écran→document (pinceau, tracé, désignation) ;
+`handleCanvasContextMenu` de même.
+
+**Prémisse corrigée sur pièce.** Le règlement ESLint du projet
+(`react-hooks/refs`) INTERDIT toute écriture/lecture de ref pendant le rendu — le
+patron « latest ref » (`ref.current = prop` en corps de composant) que je visais
+d'abord est refusé (alors que `Canvas.viewportRef` l'utilise et passe : divergence
+non expliquée, contournée). Refonte : les overlays lisent la prop `frame`
+directement (dans les `useCallback`, avec deps) ; `useCropTool` (re)pose son
+rectangle par le patron « ajuster l'état pendant le rendu » et non par effet
+(`set-state-in-effect` aussi interdit) ; les refs du pont de debug sont écrites
+dans un effet.
+
+**Reste.** Validation EN GESTES par Antoine (le hook `[ ]` ci-dessus). La
+poignée d'un `aplat` sous un cadre n'a pas été éprouvée EN LIVE (elle exige
+d'ajouter un effet via l'UI par CDP) — couverte par le test unit de
+`documentClientRect`, les stories de poignées et le mécanisme partagé.

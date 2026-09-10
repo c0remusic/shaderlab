@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CanvasControl, EffectParam } from "../render/effects/types";
 import { deplacementPatch } from "../ui/effectMove";
-import { overlayRectFromClientRects, sameOverlayRect, type OverlayRect } from "../ui/transform";
+import { documentClientRect, overlayRectFromClientRects, sameOverlayRect, type FrameRectLike, type OverlayRect } from "../ui/transform";
 import "./EffectMoveSurface.css";
 
 interface Props {
@@ -9,6 +9,10 @@ interface Props {
   params: readonly EffectParam[];
   values: Readonly<Record<string, number>>;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  /** Dimensions du document, pour le rectangle virtuel sous un cadre. */
+  imageSize: { width: number; height: number };
+  /** Cadre de recadrage courant, ou `null` — voir `TransformHandles.frame`. */
+  frame?: FrameRectLike | null;
   onChange: (patch: Record<string, number>) => void;
   onCommit: () => void;
   /** Le geste n'était qu'un CLIC : rendu à la désignation habituelle de la
@@ -80,22 +84,26 @@ interface Geste {
  * simplement bouillonner (aucun `stopPropagation`), et le pasteboard en fait un
  * déplacement de vue comme partout ailleurs.
  */
-export function EffectMoveSurface({ controls, params, values, canvasRef, onChange, onCommit, onPick }: Props) {
+export function EffectMoveSurface({ controls, params, values, canvasRef, imageSize, frame = null, onChange, onCommit, onPick }: Props) {
   const surfaceRef = useRef<HTMLDivElement>(null);
   const [rect, setRect] = useState<OverlayRect | null>(null);
   const gesteRef = useRef<Geste | null>(null);
 
   // Même mesure que les quatre manipulateurs : deux rects réels, jamais une
   // hypothèse de mise en page. Le zoom posé en transform CSS sur le canvas est
-  // déjà dans `getBoundingClientRect()`.
+  // déjà dans `getBoundingClientRect()`. Sous un cadre, on se cale sur le
+  // rectangle document VIRTUEL (ticket 32) : le rect divisant les deltas devient
+  // celui de la toile ENTIÈRE, donc les fractions restent des fractions de
+  // document — l'unité des paramètres spatiaux.
   const mesurer = useCallback(() => {
     const surface = surfaceRef.current;
     const canvas = canvasRef.current;
     const parent = surface?.offsetParent;
     if (!surface || !canvas || !parent) return;
-    const next = overlayRectFromClientRects(canvas.getBoundingClientRect(), parent.getBoundingClientRect());
+    const canvasRect = documentClientRect(canvas.getBoundingClientRect(), frame, imageSize);
+    const next = overlayRectFromClientRects(canvasRect, parent.getBoundingClientRect());
     setRect((previous) => (previous && sameOverlayRect(previous, next) ? previous : next));
-  }, [canvasRef]);
+  }, [canvasRef, imageSize, frame]);
 
   // Sans tableau de dépendances, comme `TransformHandles` : un zoom par
   // transform CSS ne change aucune taille de boîte, donc n'émet aucun
@@ -124,12 +132,15 @@ export function EffectMoveSurface({ controls, params, values, canvasRef, onChang
       if (!canvas) return null;
       const bounds = canvas.getBoundingClientRect();
       if (bounds.width === 0 || bounds.height === 0) return null;
+      // Via le rectangle document VIRTUEL : rend des pixels en espace d'origine
+      // même sous un cadre (ticket 32), l'unité qu'attend `handleCanvasPick`.
+      const rectDoc = documentClientRect(bounds, frame, imageSize);
       return {
-        x: (clientX - bounds.left) * (canvas.width / bounds.width),
-        y: (clientY - bounds.top) * (canvas.height / bounds.height),
+        x: ((clientX - rectDoc.left) / rectDoc.width) * imageSize.width,
+        y: ((clientY - rectDoc.top) / rectDoc.height) * imageSize.height,
       };
     },
-    [canvasRef],
+    [canvasRef, imageSize, frame],
   );
 
   /** Ferme le geste et le rend, ou `null` si l'évènement vient d'un AUTRE

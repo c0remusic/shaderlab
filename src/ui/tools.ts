@@ -20,11 +20,14 @@ import { IDLE_CANVAS_MODE, type CanvasMode } from "./canvasMode";
  * (`crop`) n'a aujourd'hui aucun outil — les deux notions ne se recouvrent
  * donc pas, et les fondre ferait perdre l'un ou l'autre.
  *
- * `crop` est délibérément ABSENT de la palette : `LayerTransform`
- * (`src/layers/types.ts`) n'a toujours pas de champ `crop` et `enterCrop`
- * n'a aucun appelant de production. Un bouton qui ferait entrer dans un mode
- * sans géométrie derrière serait un bouton qui ment. Il arrivera avec la
- * tranche qui implémente le recadrage, pas avant.
+ * Le mode `crop` (rognage d'un CALQUE photo) reste ABSENT de la palette :
+ * `LayerTransform` (`src/layers/types.ts`) n'a toujours pas de champ `crop` et
+ * `enterCrop` n'a aucun appelant de production. Un bouton qui ferait entrer dans
+ * un mode sans géométrie derrière serait un bouton qui ment.
+ *
+ * L'outil `crop` de la palette (touche `C`, ticket 32) est une AUTRE chose : il
+ * recadre la TOILE (mode `canvasCrop`), geste entièrement câblé — cadre non
+ * destructif, export découpé, écran remappé. Ne pas confondre les deux `crop`.
  *
  * ## La MAIN n'est pas un outil (décision utilisateur, 2026-07-31 soir)
  *
@@ -40,7 +43,7 @@ import { IDLE_CANVAS_MODE, type CanvasMode } from "./canvasMode";
  * précédent puisqu'on ne l'a jamais quitté. C'est la convention de Photoshop,
  * de Figma et de Blender.
  */
-export type ToolId = "move" | "brush" | "eraser" | "shape";
+export type ToolId = "move" | "brush" | "eraser" | "shape" | "crop";
 
 /** L'outil de repos, celui sur lequel `Échap` ramène. « Déplacer » et non
  *  « aucun » : la palette ne doit jamais afficher zéro outil actif (cf.
@@ -98,6 +101,18 @@ export const TOOLS: readonly ToolDefinition[] = [
     shortcutLabel: "U",
     hint: "Tracer un aplat en tirant sur l'image — Maj pour un carré",
   },
+  // RECADRER (ticket 32). `C` est la touche de Photoshop pour l'outil de
+  // recadrage ; `R` (Lightroom) reste libre mais on suit Photoshop, dont le
+  // reste de la palette vient déjà (V/B/E/U). `KeyC` était libre — Ctrl+C (copie)
+  // porte un modificateur et n'est pas un raccourci d'outil (voir
+  // `isToolShortcutEvent`).
+  {
+    id: "crop",
+    label: "Recadrer",
+    shortcut: "KeyC",
+    shortcutLabel: "C",
+    hint: "Recadrer la toile — Maj contraint au ratio, Entrée valide, Échap annule",
+  },
 ] as const;
 
 /** État que la palette pilote. Regroupé en UN objet parce que ces deux champs
@@ -124,6 +139,7 @@ export interface ToolState {
 export function activeTool(state: ToolState): ToolId {
   if (state.mode.kind === "maskPaint") return state.erase ? "eraser" : "brush";
   if (state.mode.kind === "shapeDraw") return "shape";
+  if (state.mode.kind === "canvasCrop") return "crop";
   return "move";
 }
 
@@ -147,6 +163,9 @@ export function selectTool(tool: ToolId, current: ToolState, target?: { layerId:
     // mode retombe en `idle` quand aucun calque n'est sélectionné.
     case "shape":
       return { mode: { kind: "shapeDraw" }, erase: current.erase };
+    // Recadrer n'a pas de cible non plus : il change le CADRE de la toile.
+    case "crop":
+      return { mode: { kind: "canvasCrop" }, erase: current.erase };
   }
 }
 

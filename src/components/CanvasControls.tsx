@@ -5,6 +5,7 @@ import { AxisHandles } from "./AxisHandles";
 import { PointHandles } from "./PointHandles";
 import { TransformHandles } from "./TransformHandles";
 import { boiteVersTransform, transformVersBoite } from "../ui/boxControl";
+import type { FrameRectLike } from "../ui/transform";
 
 interface Props {
   controls: readonly CanvasControl[];
@@ -12,6 +13,9 @@ interface Props {
   values: Readonly<Record<string, number>>;
   imageSize: { width: number; height: number };
   canvasRef: RefObject<HTMLCanvasElement | null>;
+  /** Cadre de recadrage courant, ou `null` — descendu à chaque manipulateur
+   *  pour caler les poignées sur le rectangle document virtuel (ticket 32). */
+  frame?: FrameRectLike | null;
   effectName: string;
   disabled?: boolean;
   /** Le CORPS d'une boîte capte-t-il le pointeur ? Faux dans l'outil Forme :
@@ -24,7 +28,7 @@ interface Props {
 
 /** Hôte déclaratif unique. La première migration porte les disques historiques ;
  * point et axe rejoignent ce dispatch sans branchement par identifiant d'effet. */
-export function CanvasControls({ controls, params, values, imageSize, canvasRef, effectName, disabled = false, corpsInteractif = true, onChange, onCommit }: Props) {
+export function CanvasControls({ controls, params, values, imageSize, canvasRef, frame = null, effectName, disabled = false, corpsInteractif = true, onChange, onCommit }: Props) {
   const value = (name: string) => values[name] ?? params.find((param) => param.name === name)?.default ?? 0;
   return controls.map((control) => {
     if (control.visibleWhen) {
@@ -38,7 +42,7 @@ export function CanvasControls({ controls, params, values, imageSize, canvasRef,
       if (!xParam || !yParam) return null;
       return <PointHandles key={control.id} point={{ x: value(control.x), y: value(control.y) }}
         xRange={{ min: xParam.min, max: xParam.max }} yRange={{ min: yParam.min, max: yParam.max }}
-        canvasRef={canvasRef} label={`${effectName} — ${control.label}`}
+        canvasRef={canvasRef} imageSize={imageSize} frame={frame} label={`${effectName} — ${control.label}`}
         disabled={disabled}
         onChange={(point) => onChange({ [control.x]: point.x, [control.y]: point.y })} onCommit={onCommit} />;
     }
@@ -46,7 +50,7 @@ export function CanvasControls({ controls, params, values, imageSize, canvasRef,
       const lengthParam = params.find((param) => param.name === control.length);
       if (!lengthParam) return null;
       return <AxisHandles key={control.id} angle={value(control.angle)} length={value(control.length)}
-        lengthRange={{ min: lengthParam.min, max: lengthParam.max }} imageSize={imageSize} canvasRef={canvasRef}
+        lengthRange={{ min: lengthParam.min, max: lengthParam.max }} imageSize={imageSize} canvasRef={canvasRef} frame={frame}
         label={`${effectName} — ${control.label}`}
         disabled={disabled}
         onChange={(angle, length) => onChange({ [control.angle]: angle, [control.length]: length })} onCommit={onCommit} />;
@@ -76,6 +80,7 @@ export function CanvasControls({ controls, params, values, imageSize, canvasRef,
           photoSize={photoSize}
           bgSize={imageSize}
           canvasRef={canvasRef}
+          frame={frame}
           layerName={`${effectName} — ${control.label}`}
           corpsInteractif={corpsInteractif}
           onTransformChange={(suivant) => {
@@ -103,6 +108,7 @@ export function CanvasControls({ controls, params, values, imageSize, canvasRef,
         radiusRange={{ min: radiusParam.min, max: radiusParam.max }}
         bgSize={imageSize}
         canvasRef={canvasRef}
+        frame={frame}
         effectName={`${effectName} — ${control.label}`}
         disabled={disabled}
         onRegionChange={(center, radius) => onChange({ [control.x]: center.x, [control.y]: center.y, [control.radius]: radius })}

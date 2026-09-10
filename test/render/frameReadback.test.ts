@@ -68,13 +68,41 @@ describe("FrameReadback", () => {
       .resolves.toEqual(new Uint8Array([1, 2, 3, 4]));
 
     expect(encoder.copyTextureToBuffer).toHaveBeenCalledWith(
-      { texture },
+      { texture, origin: { x: 0, y: 0, z: 0 } },
       { buffer, bytesPerRow: 256 },
       [1, 1],
     );
     expect(device.queue.submit).toHaveBeenCalledWith(["command-buffer"]);
     expect(buffer.unmap).toHaveBeenCalledOnce();
     expect(buffer.destroy).toHaveBeenCalledOnce();
+  });
+
+  it("lit un SOUS-RECTANGLE : l'origine passe au copyTextureToBuffer, la taille reste celle du readback", async () => {
+    // Chemin du recadrage (ticket 32) : le readback est construit aux dimensions
+    // du cadre et reçoit l'origine du cadre. La région copiée est donc le
+    // sous-rectangle exact de la texture d'export pleine — jamais un re-rendu
+    // dans un espace décalé.
+    const buffer = {
+      mapAsync: vi.fn().mockResolvedValue(undefined),
+      getMappedRange: vi.fn().mockReturnValue(new Uint8Array(4).buffer),
+      unmap: vi.fn(),
+      destroy: vi.fn(),
+    };
+    const encoder = { copyTextureToBuffer: vi.fn(), finish: vi.fn().mockReturnValue("cb") };
+    const device = {
+      createBuffer: vi.fn().mockReturnValue(buffer),
+      createCommandEncoder: vi.fn().mockReturnValue(encoder),
+      queue: { submit: vi.fn() },
+    };
+    const texture = {} as GPUTexture;
+
+    await new FrameReadback(device as unknown as GPUDevice, 128, 96).readTextureBytes(texture, { x: 64, y: 32 });
+
+    expect(encoder.copyTextureToBuffer).toHaveBeenCalledWith(
+      { texture, origin: { x: 64, y: 32, z: 0 } },
+      { buffer, bytesPerRow: expect.any(Number) },
+      [128, 96],
+    );
   });
 
   it("destroys the transient buffer when mapAsync rejects", async () => {

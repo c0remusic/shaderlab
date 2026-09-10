@@ -136,16 +136,29 @@ describe("buildPresentWgsl", () => {
 
   it("le damier est posé en pixels de la DESTINATION, pas en UV d'image", () => {
     const code = buildPresentWgsl("checker");
-    expect(code).toContain("let cell = floor(in.position.xy / max(checkerParams.x, 1.0));");
+    expect(code).toContain("let cell = floor(in.position.xy / max(presentParams.cell.x, 1.0));");
     expect(code).toContain("let odd = step(0.5, fract((cell.x + cell.y) * 0.5));");
   });
 
   it("la taille de case est un UNIFORME : un seul pipeline pour toutes les échelles", () => {
     // Compilée dans la source, elle recréerait un pipeline par largeur de
-    // fenêtre traversée pendant un redimensionnement.
+    // fenêtre traversée pendant un redimensionnement. Depuis le câblage du
+    // recadrage (ticket 32) l'uniforme porte DEUX vec4 (case + remappage UV du
+    // cadre), d'où un struct plutôt qu'un `vec4` nu.
     expect(buildPresentWgsl("checker")).toContain(
-      "@group(0) @binding(2) var<uniform> checkerParams: vec4<f32>;",
+      "@group(0) @binding(2) var<uniform> presentParams: PresentParams;",
     );
+  });
+
+  it("la variante damier remappe l'UV du cadre ; la variante blanche échantillonne l'UV brut", () => {
+    // Le recadrage (ticket 32) ne s'applique qu'à l'ÉCRAN par remappage UV. La
+    // variante blanche est celle de l'export, qui découpe à la relecture, pas à
+    // l'échantillonnage — elle ne porte donc aucun remappage.
+    const checker = buildPresentWgsl("checker");
+    expect(checker).toContain("presentParams.uvRemap.xy + in.uv * presentParams.uvRemap.zw");
+    const blanc = buildPresentWgsl("white");
+    expect(blanc).toContain("let sampleUv = in.uv;");
+    expect(blanc).not.toContain("uvRemap");
   });
 
   it("les gris du damier sont décodés depuis sRGB (cible -srgb, sortie linéaire)", () => {

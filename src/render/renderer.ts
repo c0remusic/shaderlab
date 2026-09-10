@@ -29,6 +29,8 @@ import { FrameDiagnostics } from "./frameDiagnostics";
 import type { DirtyRect } from "../mask/maskPainter";
 import type { CanvasPixelSize } from "../layers/canvasFormat";
 import type { ExportedFrame } from "../export/exportImage";
+import type { CanvasFrameState } from "../layers/canvasFrame";
+import { regionDeLecture, remapUvPourCadre, IDENTITY_UV_REMAP, type UvRemap } from "./cadreProjection";
 
 /** Which part of the live-preview mask texture a `MaskPreviewOverride` needs
  *  uploaded this frame. `"full"` re-uploads the whole image — required the
@@ -157,6 +159,18 @@ export class Renderer {
    *  correspond à un canvas affiché à sa taille native : c'est la seule valeur
    *  vraie tant qu'aucune mesure n'a eu lieu. */
   private displayScale = 1;
+  /** Cadre de toile pour la PRÉSENTATION (l'écran), ou `null` (toile entière).
+   *
+   *  État d'ÉCRAN, exactement au même titre que `displayScale`/`isolatedLayerId`
+   *  — posé par `App` (à chaque commit qui touche le cadre) plutôt que passé à
+   *  chaque `requestRender`, dont les sites d'appel se comptent par dizaines.
+   *
+   *  ⚠️ N'est LU QUE par le chemin canvas de `runPipeline` (remappage UV de la
+   *  présentation). L'EXPORT ne le lit JAMAIS : il reçoit son cadre en paramètre
+   *  explicite d'`exportFrame`, donc un champ d'écran resté périmé ne peut pas
+   *  produire un fichier mal découpé. C'est la moitié PROUVABLE au harnais, et
+   *  elle est tenue sans état dupliqué (ticket 32, §4.3 du ticket 28). */
+  private cadre: CanvasFrameState = null;
   constructor(
     ctx: GpuContext,
     diagnosticLogger: DiagnosticLogger = noopDiagnosticLogger,
@@ -266,6 +280,15 @@ export class Renderer {
    *  n'entre dans le pipeline que via le cas `canvas` de `PresentDestination`. */
   setDisplayScale(scale: number): void {
     this.displayScale = scale;
+  }
+
+  /** Pose le cadre de toile visible à l'ÉCRAN (ou `null` pour la toile entière).
+   *  Ne déclenche pas de rendu — même contrat que `setDisplayScale` : l'appelant
+   *  fait un `requestRender()` ensuite, sinon la présentation garde le cadre du
+   *  dernier rendu. N'affecte QUE l'écran ; l'export prend son cadre en
+   *  paramètre. */
+  setCadre(cadre: CanvasFrameState): void {
+    this.cadre = cadre;
   }
 
   /**
@@ -600,6 +623,7 @@ export class Renderer {
       overlayTargetTexture.createView(),
       getSrgbCanvasView(this.ctx),
       presentBackgroundFor(this.canvasDestination()),
+      this.presentUvRemap(this.canvasDestination()),
     );
     this.ctx.device.queue.submit([encoder.finish()]);
   }
@@ -609,6 +633,17 @@ export class Renderer {
    *  donc ils ne peuvent pas diverger sur le facteur d'échelle. */
   private canvasDestination(): PresentDestination {
     return { kind: "canvas", displayScale: this.displayScale };
+  }
+
+  /** Remappage UV de la présentation, dérivé de la destination — pendant de
+   *  `presentBackgroundFor`. À l'ÉCRAN, il vient du cadre courant (`this.cadre`)
+   *  et n'affiche que le sous-rectangle recadré. À l'EXPORT, identité : l'export
+   *  compose la toile entière et découpe à la relecture (voir `exportFrame`),
+   *  donc sa présentation ne remappe jamais. */
+  private presentUvRemap(destination: PresentDestination): UvRemap {
+    return destination.kind === "canvas"
+      ? remapUvPourCadre(this.cadre, this.imageResources.width, this.imageResources.height)
+      : IDENTITY_UV_REMAP;
   }
 
   /**
@@ -637,7 +672,7 @@ export class Renderer {
     return this.framePipelineExecutor?.drainGuideDiagnostics() ?? null;
   }
 
-  async exportFrame(layers: LayerState[]): Promise<ExportedFrame> {
+  async exportFrame(layers: LayerState[], cadre: CanvasFrameState = null): Promise<ExportedFrame> {
     // ⚠️ ATTENDRE LES TEXTURES DE BIBLIOTHÈQUE ENCORE EN VOL. `viewFor` ne
     // bloque JAMAIS — un rendu à l'écran ne s'arrête pas pour un décodage, il
     // sert le repli 1×1 et redemande une frame. Un EXPORT n'a pas cette
@@ -650,20 +685,26 @@ export class Renderer {
     // texture et le verrou serait devenu vert et aveugle.
     await this.textureLibraryStore?.awaitPending();
     const exportTexture = this.imageResources.getExportTexture();
+    // Le pipeline compose TOUJOURS la toile entière, en espace d'origine : le
+    // cadre ne découpe qu'à la RELECTURE, jamais à l'évaluation. C'est ce qui
+    // garantit que l'export cadré est le crop octet pour octet du sous-rectangle
+    // de l'export non cadré — donc que rien (dégradé, masque, transform) n'est
+    // évalué dans l'espace du cadre (ticket 28, § second défaut silencieux).
     this.runPipeline(layers, { kind: "export" });
-    const { width, height } = this.imageResources;
+    const region = regionDeLecture(cadre, this.imageResources.width, this.imageResources.height);
     const readback = new FrameReadback(
       this.ctx.device,
-      width,
-      height,
+      region.width,
+      region.height,
       this.ctx.srgbFormat.startsWith("bgra"),
     );
-    const padded = await readback.readTextureBytes(exportTexture);
+    const padded = await readback.readTextureBytes(exportTexture, { x: region.x, y: region.y });
     const stripped = readback.stripRowPadding(padded);
     // Les dimensions repartent AVEC les octets, prises au même endroit que
     // celles qui ont dimensionné la relecture : l'encodeur JPEG n'a donc aucune
-    // autre source à consulter (design §4.3, `ExportedFrame`).
-    return { pixels: readback.swapRedBlueChannels(stripped), width, height };
+    // autre source à consulter (design §4.3, `ExportedFrame`). Sous cadre, ce
+    // sont celles du cadre écrêté.
+    return { pixels: readback.swapRedBlueChannels(stripped), width: region.width, height: region.height };
   }
 
   /** Encode la frame puis l'APLATIT dans `destination`. `destination` est un
@@ -707,6 +748,7 @@ export class Renderer {
       result.presentTexture.createView(),
       this.destinationView(destination),
       presentBackgroundFor(destination),
+      this.presentUvRemap(destination),
     );
     this.ctx.device.queue.submit([encoder.finish()]);
     this.frameDiagnostics.record(diagStart, result, {
@@ -780,5 +822,6 @@ export class Renderer {
     this.lastOverlayFrame = null;
     this.backgroundSource = null;
     this.currentLayers = [];
+    this.cadre = null;
   }
 }

@@ -878,6 +878,47 @@ const INSTALL = `(async () => {
       build: async () => {},
     },
 
+    // RECADRAGE DE TOILE (ticket 32, tranche A). Le cadre ne decoupe qu a la
+    // presentation et a l export ; le pipeline compose la toile ENTIERE en
+    // espace d origine. Le temoin rend la mire pleine (256x256), la reference
+    // cadree le quart central (128x128) — la MEME pile, seul le cadre change.
+    // Pas de contre entre les deux : ils n ont pas la meme taille. La preuve
+    // du non-glissement est l assertion de crop octet-exact du harnais (voir
+    // \`run\`), pas un ecart de deux references.
+    "cadre-toile-temoin": {
+      build: async () => {},
+    },
+    "cadre-toile": {
+      cadre: { x: 64, y: 64, width: 128, height: 128 },
+      build: async () => {},
+    },
+
+    // LE MEME CADRE SUR UN MASQUE DEGRADE. Ses quatre points vivent en UV de la
+    // TOILE : si le pipeline evaluait dans l espace du cadre, le degrade
+    // glisserait par rapport a la photo. L assertion de crop du harnais prouve
+    // qu il ne bouge pas — l export cadre est le crop octet-exact de l export
+    // plein. La reference committee est le quart central (128x128).
+    "cadre-toile-degrade": {
+      fond: false,
+      cadre: { x: 64, y: 64, width: 128, height: 128 },
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        const p = stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+        const a = stack.addLayer("duotone", p);
+        stack.updateParams(a, {
+          shadowHue: 350, shadowSaturation: 0.65, shadowLightness: 0.25,
+          midtoneHue: 30, midtoneSaturation: 0.5, midtoneLightness: 0.5,
+          highlightHue: 220, highlightSaturation: 0.55, highlightLightness: 0.6,
+          contrast: 0.55, pivot: 0.5,
+        });
+        const g = stack.addMaskSource(a, "gradient");
+        stack.updateMaskSourceParams(a, g, {
+          angle: 90, startX: 0.5, startY: 0.15, endX: 0.5, endY: 0.85, feather: 0.12, invert: 0,
+        });
+      },
+    },
+
     // Multi-passes (glow = 5 passes internes) + effet simple, avec opacite et
     // mode de fusion non triviaux.
     //
@@ -4057,7 +4098,7 @@ const INSTALL = `(async () => {
         // dimensions voyagent AVEC les octets.
         const read = scenario.surface === "canvas"
           ? async () => ({ pixels: (r.render(layers), await readCanvas(pass.ctx, W, H)), width: W, height: H })
-          : () => r.exportFrame(layers);
+          : () => r.exportFrame(layers, scenario.cadre ?? null);
         const first = await read();
         // Deuxieme lecture sur le MEME renderer : separe une instabilite de
         // frame (cache de pipeline, epoque de masque) d'une instabilite de
@@ -4065,6 +4106,35 @@ const INSTALL = `(async () => {
         const second = await read();
         let intra = 0;
         for (let i = 0; i < first.pixels.length; i++) if (first.pixels[i] !== second.pixels[i]) intra++;
+        // PREUVE QUE RIEN N EST EVALUE DANS L ESPACE DU CADRE. L export cadre
+        // doit etre le crop OCTET POUR OCTET du sous-rectangle de l export PLEIN
+        // de la MEME pile — sinon un degrade, un masque ou une transform aurait
+        // glisse avec le cadre (ticket 28, second defaut silencieux). On
+        // recompose la toile entiere et on decoupe cote JS avec le cadre brut,
+        // independamment de \`regionDeLecture\` du produit.
+        if (scenario.cadre && scenario.surface !== "canvas") {
+          const c = scenario.cadre;
+          const plein = await r.exportFrame(layers);
+          const fw = plein.width;
+          let diff = 0;
+          let premier = -1;
+          for (let row = 0; row < c.height; row++) {
+            const baseA = ((c.y + row) * fw + c.x) * 4;
+            const baseB = row * c.width * 4;
+            for (let k = 0; k < c.width * 4; k++) {
+              if (plein.pixels[baseA + k] !== first.pixels[baseB + k]) {
+                diff++;
+                if (premier < 0) premier = baseB + k;
+              }
+            }
+          }
+          if (diff !== 0) {
+            return JSON.stringify({
+              ok: false,
+              error: "cadre " + id + " : export cadre != crop de l export plein (" + diff + " octets, premier @" + premier + ")",
+            });
+          }
+        }
         return JSON.stringify({
           ok: true,
           intra,

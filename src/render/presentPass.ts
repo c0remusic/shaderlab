@@ -1,4 +1,5 @@
 import { FULLSCREEN_VERTEX_WGSL, SRGB_HELPERS_WGSL } from "./shaderCompose";
+import { IDENTITY_UV_REMAP, type UvRemap } from "./cadreProjection";
 
 /**
  * Où vit la séparation « alpha à l'écran / opaque à l'export ».
@@ -125,17 +126,19 @@ export function checkerCellPx(displayScale: number): number {
   return Math.max(1, Math.round(CHECKER_CELL_SCREEN_PX / displayScale));
 }
 
-/** Uniforme de la passe damier : `x` = côté d'une case en px de destination.
+/** Uniforme de la passe damier : deux `vec4` — `cell.x` = côté d'une case en px
+ *  de destination, `uvRemap` = décalage/échelle d'échantillonnage du cadre.
  *  Un uniforme et pas une constante compilée dans le WGSL, parce que la valeur
- *  change à chaque redimensionnement de la fenêtre ou ouverture de panneau —
- *  la compiler recréerait un pipeline par largeur de fenêtre traversée. */
-const CHECKER_UNIFORM_BYTES = 16;
+ *  change à chaque redimensionnement de la fenêtre ou ouverture de panneau (et,
+ *  pour le cadre, à chaque recadrage) — la compiler recréerait un pipeline par
+ *  largeur de fenêtre traversée. */
+const CHECKER_UNIFORM_BYTES = 32;
 
 export function buildPresentWgsl(background: PresentBackgroundKind): string {
   // `in.position.xy` = coordonnées en pixels de la cible — le damier est donc
   // aligné sur la grille de la destination, pas sur l'UV de l'image.
   const backgroundExpr = background === "checker"
-    ? `let cell = floor(in.position.xy / max(checkerParams.x, 1.0));
+    ? `let cell = floor(in.position.xy / max(presentParams.cell.x, 1.0));
   let odd = step(0.5, fract((cell.x + cell.y) * 0.5));
   // Gris posés en valeurs sRGB puis décodés : la cible est une texture -srgb,
   // le fragment doit sortir du linéaire (aucun gamma manuel sur les couleurs
@@ -169,9 +172,24 @@ export function buildPresentWgsl(background: PresentBackgroundKind): string {
     // manuel sur les couleurs du pipeline) parce qu'il n'y a rien à convertir.
     : `let bg = vec3<f32>(1.0);`;
 
+  // Le remappage d'UV vit sur la variante DAMIER (l'ecran) et sur elle seule :
+  // c'est le seul chemin de presentation qui recadre. La variante blanche est
+  // celle de l'export, qui ne remappe jamais — il decoupe a la RELECTURE, pas a
+  // l'echantillonnage (voir cadreProjection.ts). L'ajouter a la variante blanche
+  // lui imposerait un uniforme qu'elle n'a jamais eu, pour une identite.
   const checkerUniform = background === "checker"
-    ? `@group(0) @binding(2) var<uniform> checkerParams: vec4<f32>;`
+    ? `struct PresentParams {
+  cell: vec4<f32>,
+  uvRemap: vec4<f32>,
+};
+@group(0) @binding(2) var<uniform> presentParams: PresentParams;`
     : "";
+
+  // uvRemap.xy = decalage, uvRemap.zw = echelle ; identite (0,0,1,1) => uv
+  // inchange. La variante blanche echantillonne l'uv brut.
+  const uvExpr = background === "checker"
+    ? `let sampleUv = presentParams.uvRemap.xy + in.uv * presentParams.uvRemap.zw;`
+    : `let sampleUv = in.uv;`;
 
   return `
 ${FULLSCREEN_VERTEX_WGSL}
@@ -184,7 +202,8 @@ ${SRGB_HELPERS_WGSL}
 
 @fragment
 fn fs_present(in: VertexOut) -> @location(0) vec4<f32> {
-  let src = textureSample(presentSrc, presentSampler, in.uv);
+  ${uvExpr}
+  let src = textureSample(presentSrc, presentSampler, sampleUv);
   ${backgroundExpr}
   // Source-over d'un composite à alpha DROIT sur un fond OPAQUE : l'alpha de
   // sortie vaut 1 par construction, quelle que soit l'entrée.
@@ -228,6 +247,9 @@ export class PresentPass {
     sourceView: GPUTextureView,
     targetView: GPUTextureView,
     background: PresentBackground,
+    /** Remappage d'UV du cadre de toile — n'a d'effet que sur la variante
+     *  damier (l'écran). Identité par défaut : pas de recadrage. */
+    uvRemap: UvRemap = IDENTITY_UV_REMAP,
   ): void {
     let cached = this.pipelineCache.get(background.kind);
     if (!cached) {
@@ -260,7 +282,10 @@ export class PresentPass {
       this.device.queue.writeBuffer(
         this.checkerUniform,
         0,
-        new Float32Array([background.cellPx, 0, 0, 0]),
+        new Float32Array([
+          background.cellPx, 0, 0, 0,
+          uvRemap.offset[0], uvRemap.offset[1], uvRemap.scale[0], uvRemap.scale[1],
+        ]),
       );
     }
     const bindGroup = this.device.createBindGroup({

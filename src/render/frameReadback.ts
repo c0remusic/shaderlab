@@ -29,15 +29,26 @@ export class FrameReadback {
   /**
    * Returns RGBA pixels with WebGPU row padding intact. Call
    * `stripRowPadding` when a consumer needs tightly-packed rows.
+   *
+   * `origin` selects the top-left texel of the sub-rectangle to read; the
+   * region read is always `this.width × this.height` from there. Default
+   * `(0,0)` reads the whole texture — the pre-crop behaviour. A cropped export
+   * (canvas frame, ticket 32) constructs the readback at the frame's
+   * dimensions and passes the frame's origin, so the bytes returned are exactly
+   * the sub-rectangle of the full composited texture — never a re-render in a
+   * shifted space.
    */
-  async readTextureBytes(texture: GPUTexture): Promise<Uint8Array> {
+  async readTextureBytes(
+    texture: GPUTexture,
+    origin: { x: number; y: number } = { x: 0, y: 0 },
+  ): Promise<Uint8Array> {
     const bytesPerRow = this.paddedBytesPerRow();
     const buffer = this.device.createBuffer({
       size: bytesPerRow * this.height,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
     });
     const encoder = this.device.createCommandEncoder();
-    encoder.copyTextureToBuffer({ texture }, { buffer, bytesPerRow }, [
+    encoder.copyTextureToBuffer({ texture, origin: { x: origin.x, y: origin.y, z: 0 } }, { buffer, bytesPerRow }, [
       this.width,
       this.height,
     ]);

@@ -619,6 +619,13 @@ const ATTENDU = {
   // differentes des neuf autres, est la trace qu'une reference n'est plus
   // forcement 256 x 256.
   "toile-plus-grande-que-la-photo.png": { width: 320, height: 320, valeurs: null },
+  // RECADRAGE DE TOILE (ticket 32, tranche A). Le temoin rend la mire pleine ;
+  // la reference cadree est le QUART CENTRAL (128 x 128) de la MEME pile. Le
+  // degrade en porte autant, avec un masque dont les points vivent en UV de la
+  // toile — l assertion plus bas verifie qu il ne glisse pas sous le cadre.
+  "cadre-toile-temoin.png": { width: 256, height: 256, valeurs: null },
+  "cadre-toile.png": { width: 128, height: 128, valeurs: null },
+  "cadre-toile-degrade.png": { width: 128, height: 128, valeurs: null },
   // ── DEUX DES TROIS EFFETS DE LA TRANCHE 3 (2026-08-18, ticket 12) ────────
   // `emboss` retire du registre le 2026-08-21 (refuse par Antoine).
   //
@@ -777,6 +784,25 @@ describe("references de rendu committees", () => {
         const a = ((y + 32) * 320 + (x + 32)) * 4;
         const b = (y * 256 + x) * 4;
         for (let c = 0; c < 4; c++) if (grande.pixels[a + c] !== nue.pixels[b + c]) differents++;
+      }
+    }
+    expect(differents).toBe(0);
+  });
+
+  // RECADRAGE DE TOILE (ticket 32) : la reference cadree est le CROP EXACT du
+  // quart central du temoin. Gardee sans GPU en plus de l assertion du harnais
+  // (render-check.mjs) : elle survit a un --update de bonne foi, qui figerait
+  // sinon une paire ou le cadre aurait glisse. Cadre = (64, 64, 128, 128).
+  it("cadre-toile est le crop octet-exact du quart central de son temoin", () => {
+    const temoin = decodePng(readFileSync(path.join(REF_DIR, "cadre-toile-temoin.png")));
+    const cadre = decodePng(readFileSync(path.join(REF_DIR, "cadre-toile.png")));
+    expect([cadre.width, cadre.height]).toEqual([128, 128]);
+    let differents = 0;
+    for (let y = 0; y < 128; y++) {
+      for (let x = 0; x < 128; x++) {
+        const a = ((y + 64) * temoin.width + (x + 64)) * 4;
+        const b = (y * 128 + x) * 4;
+        for (let c = 0; c < 4; c++) if (temoin.pixels[a + c] !== cadre.pixels[b + c]) differents++;
       }
     }
     expect(differents).toBe(0);

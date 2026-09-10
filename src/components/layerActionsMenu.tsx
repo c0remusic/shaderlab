@@ -10,10 +10,12 @@ import {
   ContextMenuCheckboxItem,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuShortcut,
   ContextMenuSub,
   ContextMenuSubContent,
   ContextMenuSubTrigger,
 } from "./ui/context-menu";
+import { LAYER_SHORTCUT_LABELS } from "../ui/shortcuts";
 
 /** LES QUATRE VERROUS, dans l'ordre de Photoshop : transparence, image,
  *  position, tout. L'ordre est celui d'Adobe et pas un choix — un utilisateur
@@ -111,9 +113,16 @@ export function LayerActionsMenuItems({
         )}
         {layer.enabled ? "Masquer le calque" : "Afficher le calque"}
       </ContextMenuItem>
+      {/* RACCOURCIS AFFICHÉS (ticket 30). `ContextMenuShortcut` posé
+          `aria-hidden` : le nom accessible de l'item reste l'action seule (les
+          tests et lecteurs d'écran la trouvent par son libellé), le raccourci
+          est une aide VISUELLE, doublée par l'infobulle du bouton de la zone de
+          contrôles. Les libellés viennent de `ui/shortcuts.ts` — une source, le
+          décodage et l'affichage ne divergent pas. */}
       <ContextMenuItem disabled={!onDuplicate} onClick={() => onDuplicate?.(layer.id)}>
         <Copy className="icon-sm icon-stroke" aria-hidden="true" />
         Dupliquer
+        <ContextMenuShortcut aria-hidden="true">{LAYER_SHORTCUT_LABELS.duplicate}</ContextMenuShortcut>
       </ContextMenuItem>
       <ContextMenuItem
         disabled={!stampOk || !onStamp}
@@ -123,6 +132,7 @@ export function LayerActionsMenuItems({
       >
         <Stamp className="icon-sm icon-stroke" aria-hidden="true" />
         Aplatir en nouveau calque
+        <ContextMenuShortcut aria-hidden="true">{LAYER_SHORTCUT_LABELS.stamp}</ContextMenuShortcut>
       </ContextMenuItem>
       <ContextMenuItem
         disabled={!mergeOk || !onMergeDown}
@@ -132,6 +142,7 @@ export function LayerActionsMenuItems({
       >
         <Combine className="icon-sm icon-stroke" aria-hidden="true" />
         Fusionner avec le dessous
+        <ContextMenuShortcut aria-hidden="true">{LAYER_SHORTCUT_LABELS.merge}</ContextMenuShortcut>
       </ContextMenuItem>
       <ContextMenuSeparator />
       <ContextMenuSub>
@@ -169,6 +180,7 @@ export function LayerActionsMenuItems({
       >
         <Trash2 className="icon-sm icon-stroke" aria-hidden="true" />
         Supprimer le calque
+        <ContextMenuShortcut aria-hidden="true">{LAYER_SHORTCUT_LABELS.delete}</ContextMenuShortcut>
       </ContextMenuItem>
     </>
   );

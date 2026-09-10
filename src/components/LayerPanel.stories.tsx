@@ -1123,14 +1123,17 @@ export const ContextMenuOnEffectRow: Story = {
     await expect(args.onSelect).toHaveBeenCalledWith("layer-2");
 
     const m = within(menu);
+    // Le `textContent` inclut le raccourci affiché (ticket 30) — `aria-hidden`,
+    // donc absent du NOM accessible interrogé par `getByRole` plus bas, mais
+    // présent dans le texte brut. Le voir ici prouve qu'il est rendu.
     const noms = m.getAllByRole("menuitem").map((el) => el.textContent);
     await expect(noms).toEqual([
       "Afficher le calque",
-      "Dupliquer",
-      "Aplatir en nouveau calque",
-      "Fusionner avec le dessous",
+      "DupliquerCtrl+J",
+      "Aplatir en nouveau calqueCtrl+Alt+Maj+E",
+      "Fusionner avec le dessousCtrl+E",
       "Verrous",
-      "Supprimer le calque",
+      "Supprimer le calqueSuppr",
     ]);
 
     // Aucun grisé sur cette ligne intermédiaire : Aplatir et Fusionner actifs.

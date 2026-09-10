@@ -35,6 +35,7 @@ import { AutoSelectMoveSurface, type AutoSelectMover } from "./components/AutoSe
 import { ToolPalette } from "./components/ToolPalette";
 import "./components/ToolPalette.css";
 import { DEFAULT_TOOL, activeTool as activeToolOf, escapeAction, isQuitToolEvent, isTextEntryTarget, isToolShortcutEvent, selectTool, toolFromShortcut, type ToolId } from "./ui/tools";
+import { layerActionFromShortcut, type LayerAction } from "./ui/shortcuts";
 import {
   ZOOM_STEP_FACTOR,
   fitViewport,
@@ -63,7 +64,8 @@ import {
 } from "./launch";
 import { useGlobalControlWheel } from "./ui/activeControl";
 import { openDocument } from "./layers/openedDocument";
-import { isMaskLocked, isPositionLocked, isTransparencyLocked } from "./layers/layerLocks";
+import { isFullyLocked, isMaskLocked, isPositionLocked, isTransparencyLocked } from "./layers/layerLocks";
+import { mergeDownVerdict } from "./layers/flatten";
 import { effectSpatialParams, resolveEffectAnchor } from "./render/effects/spatialParams";
 import { effetDeplacable, deplacementPatch } from "./ui/effectMove";
 import type { LayerLocks } from "./layers/types";
@@ -1121,6 +1123,20 @@ export default function App() {
        *  provoque un vrai geste (curseur, ajout de calque). Voir
        *  `Renderer.captureGpuTiming` pour pourquoi ce sens-là. */
       capturerTimingGpu: () => rendererRef.current?.captureGpuTiming() ?? null,
+      /** Recadre la toile (ticket 32, tranche A) : pose le cadre sur la session,
+       *  le repousse au renderer pour l'écran, puis redemande un rendu. Seul
+       *  point d'entrée du recadrage tant que l'outil (tranche B) n'existe pas —
+       *  sert la capture CDP de l'écran recadré. */
+      recadrer: (rect: { x: number; y: number; width: number; height: number }) => {
+        sessionRef.current.recadrerToile(rect);
+        rendererRef.current?.setCadre(sessionRef.current.cadreToile());
+        rendererRef.current?.requestRender(sessionRef.current.layers());
+      },
+      annulerRecadrage: () => {
+        sessionRef.current.annulerRecadrage();
+        rendererRef.current?.setCadre(null);
+        rendererRef.current?.requestRender(sessionRef.current.layers());
+      },
       state: () => ({
         layers: sessionRef.current.layers().map((l) => ({
           id: l.id,
@@ -1883,22 +1899,89 @@ export default function App() {
   // intentionnel) qu'un `useEffect` sans tableau de dépendances produisait ici.
   // Le ref donne la correction fonctionnelle (aucune stale closure) avec un
   // listener attaché UNE seule fois.
+  // GESTES DE CALQUE AU CLAVIER (ticket 30). Une seule commande, décodée par le
+  // module pur `ui/shortcuts.ts`, dispatchée vers le MÊME handler que le bouton
+  // ou l'item de menu — aucun chemin d'exécution neuf. Un refus n'a pas d'état
+  // grisé à montrer : il DIT sa raison dans la bannière (`setError`), avec la
+  // MÊME chaîne que l'infobulle du bouton (verdict PUR partagé), jamais une copie.
+  const runLayerAction = (action: LayerAction) => {
+    if (selectedId === null) return;
+    switch (action) {
+      case "stamp":
+        // `handleStamp` porte son propre `stampVerdict` et affiche la raison.
+        void photoLayer.handleStamp(selectedId);
+        break;
+      case "merge": {
+        const verdict = mergeDownVerdict(sessionRef.current.layers(), selectedId);
+        if (!verdict.ok) {
+          setError(verdict.reason);
+          break;
+        }
+        void photoLayer.handleMergeDown(selectedId);
+        break;
+      }
+      case "duplicate":
+        // `duplicateLayer` affiche la raison d'un refus (plafond photo) lui-même.
+        handleDuplicate(selectedId);
+        break;
+      case "delete": {
+        const layer = sessionRef.current.layers().find((l) => l.id === selectedId);
+        if (layer && isFullyLocked(layer)) {
+          setError("Calque verrouillé (Tout) : déverrouille-le pour le supprimer.");
+          break;
+        }
+        handleRemove(selectedId);
+        break;
+      }
+    }
+  };
   const shortcutsRef = useRef({
     undo: handleUndo,
     redo: handleRedo,
     isolate: () => isolation.toggleIsolation(selectedId),
+    layerAction: runLayerAction,
+    inMaskPaint: maskPaintMode,
   });
   // eslint-disable-next-line react-hooks/refs -- pattern « latest ref » assume et documente juste au-dessus : la ref n'est JAMAIS lue pendant le rendu, seulement dans le handler `keydown`. La deplacer dans un `useEffect` marcherait aussi, mais ferait dependre la fraicheur des raccourcis de l'ordonnancement des effets.
   shortcutsRef.current = {
     undo: handleUndo,
     redo: handleRedo,
     isolate: () => isolation.toggleIsolation(selectedId),
+    layerAction: runLayerAction,
+    inMaskPaint: maskPaintMode,
   };
 
   useEffect(() => {
     function handleWindowKeyDown(event: KeyboardEvent) {
-      if (!event.ctrlKey && !event.metaKey) return;
       const target = event.target as HTMLElement | null;
+      // GESTES DE CALQUE (ticket 30) — décodés AVANT le bloc Ctrl+Z/Y/I, car
+      // `Suppr`/`F2` n'ont pas de modificateur et le bloc ci-dessous exige Ctrl.
+      // Garde champ-de-saisie ROBUSTE (`isTextEntryTarget`) et non le simple
+      // `tag === "INPUT"` : un range garde le focus après un réglage souris —
+      // même raison que le handler d'outils (bug « V ne marche pas », 2026-08-27).
+      const layerAction = layerActionFromShortcut({
+        key: event.key,
+        code: event.code,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+        shiftKey: event.shiftKey,
+        repeat: event.repeat,
+      });
+      if (layerAction) {
+        if (target instanceof HTMLElement && isTextEntryTarget({
+          tag: target.tagName,
+          inputType: target instanceof HTMLInputElement ? target.type : undefined,
+          isContentEditable: target.isContentEditable,
+        })) return;
+        // `Suppr`/`Retour arrière` se taisent en mode pinceau/gomme : sur la
+        // toile, une frappe de suppression appartient au trait, pas au calque.
+        if (layerAction === "delete" && shortcutsRef.current.inMaskPaint) return;
+        event.preventDefault();
+        shortcutsRef.current.layerAction(layerAction);
+        return;
+      }
+      if (!event.ctrlKey && !event.metaKey) return;
       const tagName = target?.tagName;
       const isEditableTarget = tagName === "INPUT" || tagName === "TEXTAREA" || target?.isContentEditable;
       if (isEditableTarget) return;

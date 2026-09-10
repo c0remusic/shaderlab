@@ -39,6 +39,7 @@ import {
   ContextMenuTrigger,
 } from "./ui/context-menu";
 import { LayerActionsMenuItems, VERROUS } from "./layerActionsMenu";
+import { LAYER_SHORTCUT_LABELS } from "../ui/shortcuts";
 
 /** État du verrou tel que la LIGNE le montre. Trois valeurs, parce que
  *  Photoshop en distingue trois : rien, partiel (cadenas creux), tout (plein). */
@@ -768,6 +769,7 @@ export function LayerControls({
           ))}
           <IconButton
             label="Dupliquer le calque"
+            tooltip={`Dupliquer le calque (${LAYER_SHORTCUT_LABELS.duplicate})`}
             size="compact"
             disabled={model.layerId === null}
             onClick={() => model.layerId !== null && onDuplicate(model.layerId)}
@@ -780,7 +782,7 @@ export function LayerControls({
               porte la raison du refus quand le bouton est grisé. */}
           <IconButton
             label="Aplatir en nouveau calque"
-            tooltip={stamp.ok ? "Copie aplatie du composite jusqu'ici, posée au-dessus (Tampon)" : stamp.reason}
+            tooltip={stamp.ok ? `Copie aplatie du composite jusqu'ici, posée au-dessus (Tampon — ${LAYER_SHORTCUT_LABELS.stamp})` : stamp.reason}
             size="compact"
             disabled={!stamp.ok || model.layerId === null}
             onClick={() => model.layerId !== null && onStamp(model.layerId)}
@@ -789,7 +791,7 @@ export function LayerControls({
           </IconButton>
           <IconButton
             label="Fusionner avec le dessous"
-            tooltip={merge.ok ? "Remplace ce calque et tout ce qui est en dessous par leur composite aplati" : merge.reason}
+            tooltip={merge.ok ? `Remplace ce calque et tout ce qui est en dessous par leur composite aplati (${LAYER_SHORTCUT_LABELS.merge})` : merge.reason}
             size="compact"
             disabled={!merge.ok || model.layerId === null}
             onClick={() => model.layerId !== null && onMergeDown(model.layerId)}
@@ -798,6 +800,7 @@ export function LayerControls({
           </IconButton>
           <IconButton
             label="Supprimer le calque"
+            tooltip={`Supprimer le calque (${LAYER_SHORTCUT_LABELS.delete})`}
             size="compact"
             variant="danger"
             disabled={!model.enabled}

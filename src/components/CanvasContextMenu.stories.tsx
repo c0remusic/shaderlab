@@ -95,15 +95,16 @@ export const TroisCalques: Story = {
     await userEvent.click(cases[1]);
     await expect(args.onSelectLayer).toHaveBeenCalledWith("photo");
 
-    // Les ACTIONS du calque sélectionné (les mêmes entrées que le ticket 28).
+    // Les ACTIONS du calque sélectionné (les mêmes entrées que le ticket 28), le
+    // raccourci affiché compris (ticket 30, `aria-hidden` donc hors nom accessible).
     const actions = m.getAllByRole("menuitem").map((el) => el.textContent);
     await expect(actions).toEqual([
       "Masquer le calque",
-      "Dupliquer",
-      "Aplatir en nouveau calque",
-      "Fusionner avec le dessous",
+      "DupliquerCtrl+J",
+      "Aplatir en nouveau calqueCtrl+Alt+Maj+E",
+      "Fusionner avec le dessousCtrl+E",
       "Verrous",
-      "Supprimer le calque",
+      "Supprimer le calqueSuppr",
     ]);
   },
 };

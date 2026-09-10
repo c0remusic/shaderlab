@@ -80,3 +80,8 @@ CONCURRENTE shaderlab qui édite activement `src/render/*`, `scripts/render-chec
 (features « recadrage de toile » ticket 32 + aquarelle). Gates lancés dans un
 worktree isolé sur HEAD + mes seuls fichiers pour ne pas mêler leur travail. Commit
 `git add` par chemins explicites — jamais `-A`.
+
+
+## Vérifié live par CDP (2026-09-10, session parent)
+
+App sur CDP 9223, photo-1 + Light leak sélectionné : `keydown` `Ctrl+Alt+Maj+E` dispatché sur `document` → la pile passe à `[photo-1.jpg, Light leak, Aplati — Light leak]`. Le mécanisme de touches réel (second écouteur `keydown` d'`App.tsx`) est éprouvé dans la vraie fenêtre. Reste : validation en gestes par Antoine.

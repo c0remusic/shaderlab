@@ -64,3 +64,8 @@ Photoshop : double-clic sur le nom → champ de saisie EN PLACE, `Entrée` valid
 Même blocage que le ticket 30 : CDP 9222 = projet Tuple, vite 1421 = session
 concurrente shaderlab active sur `src/render/*`. Gates lancés en worktree isolé
 sur HEAD + mes seuls fichiers. Commit `git add` par chemins explicites, jamais `-A`.
+
+
+## Vérifié live par CDP (2026-09-10, session parent)
+
+Double-clic sur le libellé « Aplati — Light leak » → `input.layer-panel__row-rename` présent, saisie « Fuite rouge », `Entrée` → le libellé ET `layers` (driver) portent « Fuite rouge ». ⚠️ Piège de sonde rencontré, exactement celui de la mémoire projet : fenêtre WebView2 NON focalisée (`document.hasFocus() === false`), donc `input.focus()` ne prend pas, `blur()` est un no-op et `Entrée` ne commite rien — la valeur s'AFFICHE pourtant. Antidote CDP : `Emulation.setFocusEmulationEnabled({enabled:true})` + `Page.bringToFront`, puis `Input.dispatchKeyEvent` Enter. Reste : validation en gestes par Antoine.

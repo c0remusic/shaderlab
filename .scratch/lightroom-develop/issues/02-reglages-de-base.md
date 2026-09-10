@@ -2,7 +2,7 @@
 
 Type: task
 Status: ready-for-agent
-Blocked by: 01 (le registre, le catalogue, CLAUDE.md et ROADMAP sont tenus par le ticket 01 jusqu'à son commit — pas de collision)
+Blocked by: 03 (le module vit dans le registre de DÉVELOPPEMENT de l'étage, pas dans `effects/registry.ts` — Antoine, 2026-09-11 : « en fin de chaîne, après tous les calques », « affiché dans le menu à droite »). Les paragraphes « GELÉ » ci-dessous qui parlent d'entrée `registry.ts`/`catalog.ts` et de compte 27 → 28 sont CADUCS : même contrat `EffectModule`, même shader, même `ParamPanel`, mais enregistré dans `developRegistry.ts` et rendu par l'étage.
 
 **What to build :** l'effet `reglagesDeBase` — le panneau « Réglages de base »
 de Lightroom Classic 14.5.1 (inventaire `../research/01-…` § 1) PLUS la courbe

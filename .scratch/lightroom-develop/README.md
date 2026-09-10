@@ -66,6 +66,14 @@ curseur dans l'app elle-même (plugin Lua `assets/shaderlab-dump.lrdevplugin`).
   Lightroom rend, à 8 bits, sans toucher l'invariant). `issues/02` = Réglages
   de base + courbe paramétrique, 22 curseurs, un effet. Le reste (HSL, Color
   Grading, Détail, Vignettage) reste un effet chacun.
+- **Le module est un ÉTAGE, pas un calque** : « il faudrait que tout ça
+  s'applique en fin de chaîne, après tous les calques d'ailleurs » — « et que
+  ce soit affiché dans le menu à droite ». Les modules (01, 02, et les suivants)
+  vivent dans un registre de développement ordonné, appliqués au composite de
+  la pile avant présentation/export, avec une carte « Développement » permanente
+  dans le dock de droite. `issues/03`. Ça tranche la question 2 de la carte
+  (ni « un effet par panneau » ni « un calque » : un étage) et vide la question
+  de l'ordre (l'ordre est celui de Lightroom, fixe).
 - Reste à charter (`/wayfinder`) : HSL / N&B (33), Color Grading (14), Détail
   (9), Vignettage (6), l'angle du recadrage, masques locaux, entourage.
 

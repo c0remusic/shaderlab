@@ -1,6 +1,7 @@
 import type { EffectModule } from "./effects/types";
 import { validateEffect } from "./effects/validate";
 import { etalonnage } from "./effects/etalonnage";
+import { reglagesDeBase } from "./effects/reglagesDeBase";
 
 /**
  * REGISTRE DE L'ÉTAGE DE DÉVELOPPEMENT (ticket 03 lightroom-develop).
@@ -28,18 +29,21 @@ import { etalonnage } from "./effects/etalonnage";
  *    d'application. C'est délibéré : on règle du plus courant au plus rare, on
  *    APPLIQUE du plus fondamental au plus cosmétique.
  *
- * TRANCHE 1 : seul `etalonnage` existe (ticket 01, qui l'a d'abord livré dans le
- * registre des effets, d'où il DÉMÉNAGE ici). Les deux listes n'ont donc qu'un
- * seul module et coïncident pour l'instant ; les modules suivants (Réglages de
- * base, HSL, Color Grading, Détail, Vignettage) s'y ajouteront chacun à SA place
- * dans CHACUNE des deux listes.
+ * TRANCHE 2 : `etalonnage` (ticket 01) et `reglagesDeBase` (ticket 02, le ton et
+ * la courbe paramétrique en un seul effet). Les deux listes DIVERGENT désormais :
+ * Lightroom APPLIQUE l'étalonnage en premier (il définit les primaires en
+ * entrée), le ton vient après ; mais il AFFICHE les Réglages de base en tête du
+ * panneau et l'Étalonnage tout en bas. Les modules suivants (HSL, Color Grading,
+ * Détail, Vignettage) prendront chacun leur place dans CHACUNE des deux listes.
  */
 
-/** Ordre d'APPLICATION au composite (fin de chaîne). */
-export const developApplyOrder: readonly EffectModule[] = [etalonnage];
+/** Ordre d'APPLICATION au composite (fin de chaîne) : Étalonnage (primaires)
+ *  PUIS Réglages de base (ton). */
+export const developApplyOrder: readonly EffectModule[] = [etalonnage, reglagesDeBase];
 
-/** Ordre d'AFFICHAGE des panneaux dans la carte « Développement ». */
-export const developDisplayOrder: readonly EffectModule[] = [etalonnage];
+/** Ordre d'AFFICHAGE des panneaux dans la carte « Développement » : Réglages de
+ *  base en tête, Étalonnage en bas (comme Lightroom). */
+export const developDisplayOrder: readonly EffectModule[] = [reglagesDeBase, etalonnage];
 
 /** Ensemble CANONIQUE des modules de l'étage, sans doublon — pour la validation
  *  au chargement et pour les gardes qui les énumèrent (câblage, WGSL, densité).

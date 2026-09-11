@@ -23,29 +23,41 @@ const meta: Meta<typeof DevelopPanel> = {
 export default meta;
 type Story = StoryObj<typeof DevelopPanel>;
 
-/** Au défaut : le panneau montre les réglages de l'Étalonnage, et « Réinitialiser »
- *  est inerte (rien à défaire). */
+/** Au défaut : la carte montre les DEUX modules en accordéon — Réglages de base
+ *  en tête, Étalonnage en bas (ordre d'affichage de Lightroom) — et les deux
+ *  « Réinitialiser » sont inertes (rien à défaire). */
 export const AuDefaut: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    // Les deux titres d'accordéon.
+    await expect(canvas.getByText("Réglages de base")).toBeInTheDocument();
     await expect(canvas.getByText("Étalonnage")).toBeInTheDocument();
-    // Le curseur « Nuance foncée » (index 0, orphelin rendu en tête) est là.
+    // Un curseur de chaque module (accordéons ouverts par défaut).
+    await expect(canvas.getByText("Température")).toBeInTheDocument();
     await expect(canvas.getByText("Nuance foncée")).toBeInTheDocument();
-    const reset = canvas.getByRole("button", { name: /Réinitialiser/ });
-    await expect(reset).toBeDisabled();
+    // Deux boutons « Réinitialiser », tous deux inertes au défaut.
+    const resets = canvas.getAllByRole("button", { name: /Réinitialiser/ });
+    await expect(resets).toHaveLength(2);
+    for (const reset of resets) await expect(reset).toBeDisabled();
   },
 };
 
-/** Réglé (Bleu teinte −60, saturation +40 : le teal-and-orange). « Réinitialiser »
- *  devient actif. */
+/** Réglé : Réglages de base (Exposition +1, Vibrance +60) ET Étalonnage
+ *  (teal-and-orange). Chaque « Réinitialiser » réglé devient actif ; l'autre
+ *  reste inerte. */
 export const Regle: Story = {
   args: {
-    develop: { etalonnage: { blueHue: -60, blueSaturation: 40 } },
+    develop: {
+      reglagesDeBase: { exposure: 1, vibrance: 60 },
+      etalonnage: { blueHue: -60, blueSaturation: 40 },
+    },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const reset = canvas.getByRole("button", { name: /Réinitialiser/ });
-    await expect(reset).toBeEnabled();
+    const resets = canvas.getAllByRole("button", { name: /Réinitialiser/ });
+    await expect(resets).toHaveLength(2);
+    // Les deux modules sont réglés -> les deux boutons sont actifs.
+    for (const reset of resets) await expect(reset).toBeEnabled();
   },
 };
 

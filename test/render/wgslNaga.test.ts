@@ -188,12 +188,21 @@ function variantes(): Variante[] {
   // `etalonnage` a quitté `effectRegistry` pour l'étage : son shader n'était donc
   // plus validé par naga. On compose chaque module de l'étage EXACTEMENT comme le
   // moteur le fait — `applyMask: false` (une copie transformée du composite, pas
-  // un compositing), sans passe interne. La variante déclare `params` comme
-  // toutes les autres, donc elle est tolérée et le compte global tient.
+  // un compositing) — passe finale ET passes internes. `hasPrevPass` suit le
+  // nombre de passes internes, comme pour un effet : `reglagesDeBase` porte une
+  // pyramide et lit `prevPass` dans sa composite. Chaque variante déclare `params`
+  // comme toutes les autres, donc elle est tolérée et le compte global tient.
   for (const module of developModules) {
+    const passesInternes = module.passes ?? [];
     sortie.push({
       nom: `develop ${module.id}`,
-      source: composeShader(module.wgsl, { applyMask: false, hasPrevPass: false }),
+      source: composeShader(module.wgsl, { applyMask: false, hasPrevPass: passesInternes.length > 0 }),
+    });
+    passesInternes.forEach((passe, index) => {
+      sortie.push({
+        nom: `develop ${module.id} passe ${index}`,
+        source: composeShader(passe.wgsl, { applyMask: false, hasPrevPass: index > 0 }),
+      });
     });
   }
 

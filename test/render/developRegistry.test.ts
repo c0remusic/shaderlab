@@ -7,6 +7,7 @@ import {
   isDevelopModuleAtDefault,
 } from "../../src/render/developRegistry";
 import { etalonnage } from "../../src/render/effects/etalonnage";
+import { reglagesDeBase } from "../../src/render/effects/reglagesDeBase";
 import { effectRegistry, getEffect } from "../../src/render/effects/registry";
 
 /**
@@ -16,25 +17,32 @@ import { effectRegistry, getEffect } from "../../src/render/effects/registry";
  * choisissable » et « module de l'étage » dérive toute seule.
  */
 describe("registre de l'étage de développement", () => {
-  it("l'ordre d'APPLICATION est celui déclaré (Lightroom : Étalonnage en premier)", () => {
-    // TRANCHE 1 : seul `etalonnage`. Les modules suivants (Réglages de base, HSL,
-    // Color Grading, Détail, Vignettage) prennent leur place à SA place dans
-    // cette liste — l'inverser ou l'élargir sans mettre à jour ce test rougit.
-    expect(developApplyOrder.map((m) => m.id)).toEqual(["etalonnage"]);
+  it("l'ordre d'APPLICATION est celui déclaré (Lightroom : Étalonnage en premier, puis le ton)", () => {
+    // TRANCHE 2 : `etalonnage` PUIS `reglagesDeBase`. Lightroom applique les
+    // primaires avant le ton. Les modules suivants (HSL, Color Grading, Détail,
+    // Vignettage) prennent leur place ici — l'inverser ou l'élargir sans mettre à
+    // jour ce test rougit.
+    expect(developApplyOrder.map((m) => m.id)).toEqual(["etalonnage", "reglagesDeBase"]);
   });
 
-  it("l'ordre d'AFFICHAGE est celui déclaré", () => {
-    expect(developDisplayOrder.map((m) => m.id)).toEqual(["etalonnage"]);
+  it("l'ordre d'AFFICHAGE est celui déclaré (Réglages de base en tête, Étalonnage en bas)", () => {
+    // L'affichage n'est PAS l'application : Lightroom montre les Réglages de base
+    // en premier et l'Étalonnage tout en bas.
+    expect(developDisplayOrder.map((m) => m.id)).toEqual(["reglagesDeBase", "etalonnage"]);
   });
 
-  it("`etalonnage` est dans l'étage et PAS dans le registre des effets", () => {
+  it("les modules de l'étage sont dans l'étage et PAS dans le registre des effets", () => {
     expect(developModules).toContain(etalonnage);
+    expect(developModules).toContain(reglagesDeBase);
     expect(effectRegistry.some((e) => e.id === "etalonnage")).toBe(false);
+    expect(effectRegistry.some((e) => e.id === "reglagesDeBase")).toBe(false);
   });
 
   it("`getEffect` résout un module de l'étage par id, comme `passthrough`", () => {
     expect(getEffect("etalonnage")).toBe(etalonnage);
+    expect(getEffect("reglagesDeBase")).toBe(reglagesDeBase);
     expect(getDevelopModule("etalonnage")).toBe(etalonnage);
+    expect(getDevelopModule("reglagesDeBase")).toBe(reglagesDeBase);
   });
 
   it("`getDevelopModule` rend `undefined` pour un id inconnu", () => {

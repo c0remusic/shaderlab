@@ -3,6 +3,7 @@ import type { DevelopSettings } from "../layers/developSettings";
 import { defaultLayerMask } from "../mask/types";
 import { developDisplayOrder, isDevelopModuleAtDefault } from "../render/developRegistry";
 import { ParamPanel } from "./ParamPanel";
+import { Disclosure } from "./ui/collapsible";
 import { Button } from "./ui/button";
 import { RotateCcw } from "lucide-react";
 import "./DevelopPanel.css";
@@ -27,6 +28,14 @@ import "./DevelopPanel.css";
  *
  * L'ordre des panneaux est celui de l'AFFICHAGE de Lightroom
  * (`developDisplayOrder`), qui n'est pas l'ordre d'application.
+ *
+ * ⚠️ CHAQUE MODULE EST UN ACCORDÉON (`Disclosure`), comme Lightroom replie ses
+ * panneaux. C'est la réponse à ADR-0001 (« la colonne ne défile pas ») quand
+ * l'étage porte plus de curseurs qu'un écran ne tient : 20 (Réglages de base) + 7
+ * (Étalonnage) + les modules à venir. On replie ce qu'on ne règle pas. La CARTE
+ * de dock borne en plus sa hauteur et défile DEDANS (`DevelopPanel.css`), comme
+ * la pile. Le repli « Effet » interne de `ParamPanel` est retiré ici (`flat`) :
+ * le nom du module EST déjà le titre de l'accordéon.
  */
 interface Props {
   /** Réglages courants de l'étage (source : `LayerStack.develop`, projeté). */
@@ -69,32 +78,37 @@ export function DevelopPanel({ develop, hasImage, onDevelopChange, onDevelopComm
         const atDefault = isDevelopModuleAtDefault(module, values);
         return (
           <section className="develop-panel__module" key={module.id}>
-            <header className="develop-panel__module-header">
-              <span className="develop-panel__module-name">{module.name}</span>
-              <Button
-                size="sm"
-                variant="ghost"
-                // Désactivé quand le module est déjà au défaut : réinitialiser
-                // n'aurait rien à défaire (no-op côté App, mais l'inertie doit se
-                // VOIR — un bouton actif qui ne fait rien est l'échec silencieux
-                // que ce dépôt proscrit).
-                disabled={atDefault}
-                onClick={() => onDevelopReset(module.id)}
-                title="Réinitialiser ce module au défaut"
-              >
-                <RotateCcw className="icon-sm icon-stroke" aria-hidden="true" />
-                Réinitialiser
-              </Button>
-            </header>
-            <ParamPanel
-              layer={developLayer(module.id, values)}
-              onParamChange={(_id, patch) => onDevelopChange(module.id, patch)}
-              onParamCommit={onDevelopCommit}
-              // L'étalonnage n'a aucun `colorGroup`, donc ce rappel n'est jamais
-              // appelé ; un module futur de l'étage qui en porterait exigerait de
-              // remonter le sélecteur de couleur ici, comme la carte Propriétés.
-              onOpenColorPicker={() => {}}
-            />
+            <Disclosure title={module.name} defaultOpen>
+              <div className="develop-panel__module-actions">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  // Désactivé quand le module est déjà au défaut : réinitialiser
+                  // n'aurait rien à défaire (no-op côté App, mais l'inertie doit
+                  // se VOIR — un bouton actif qui ne fait rien est l'échec
+                  // silencieux que ce dépôt proscrit).
+                  disabled={atDefault}
+                  onClick={() => onDevelopReset(module.id)}
+                  title="Réinitialiser ce module au défaut"
+                >
+                  <RotateCcw className="icon-sm icon-stroke" aria-hidden="true" />
+                  Réinitialiser
+                </Button>
+              </div>
+              <ParamPanel
+                layer={developLayer(module.id, values)}
+                onParamChange={(_id, patch) => onDevelopChange(module.id, patch)}
+                onParamCommit={onDevelopCommit}
+                // L'étalonnage n'a aucun `colorGroup`, donc ce rappel n'est jamais
+                // appelé ; un module futur de l'étage qui en porterait exigerait
+                // de remonter le sélecteur de couleur ici, comme la carte
+                // Propriétés.
+                onOpenColorPicker={() => {}}
+                // Le nom du module EST le titre de l'accordéon : pas de second
+                // repli « Effet » à l'intérieur.
+                flat
+              />
+            </Disclosure>
           </section>
         );
       })}

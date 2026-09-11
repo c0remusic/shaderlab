@@ -236,8 +236,17 @@ const script = `(async () => {
     // transformee du composite, pas un compositing), sans passe interne.
     const dev = await import("/src/render/developRegistry.ts");
     for (const m of (dev.developModules ?? [])) {
-      if (m.wgsl) await compile("develop " + m.id,
-        composeShader(m.wgsl, { applyMask: false, hasPrevPass: false }));
+      if (!m.wgsl) continue;
+      const passesDev = m.passes || [];
+      // Passes internes de l'etage (la pyramide de reglagesDeBase) : pas de
+      // masque, pas de compositing. \`hasPrevPass\` suit le nombre de passes, comme
+      // pour un effet : la composite d'un module a passes lit prevPass.
+      for (let i = 0; i < passesDev.length; i++) {
+        await compile("develop " + m.id + " passe " + i,
+          composeShader(passesDev[i].wgsl, { applyMask: false, hasPrevPass: i > 0 }));
+      }
+      await compile("develop " + m.id,
+        composeShader(m.wgsl, { applyMask: false, hasPrevPass: passesDev.length > 0 }));
     }
 
     // 4) passe NEUTRE : celle qu'encode le court-circuit « 0 calque active ».

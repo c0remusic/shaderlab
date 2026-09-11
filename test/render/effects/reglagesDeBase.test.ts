@@ -1,0 +1,145 @@
+import { describe, it, expect } from "vitest";
+import { reglagesDeBase, reglagesDeBaseSpec } from "../../../src/render/effects/reglagesDeBase";
+import { srgbToLinear, linearToSrgb } from "../../../src/render/effects/srgbTransfer";
+import { linearSrgbToOklab } from "../../../src/render/effects/oklab";
+
+/**
+ * `reglagesDeBaseSpec` est le jumeau TS du shader (même patron qu'`etalonnageSpec`
+ * / `netteteSpec`) : ces tests portent sur l'ALGÈBRE ponctuelle, pas sur le WGSL,
+ * ni sur le flou SPATIAL de Texture/Clarté (verrouillé par les références
+ * `developpement-reglages-*`). Le spec reçoit une luminance floutée en paramètre ;
+ * sur une rampe elle vaut la luminance du pixel.
+ *
+ * Le test central est « 132 niveaux, pas 109 » : il PROUVE que le module tient sa
+ * raison d'être (le ton d'un bloc, une seule quantification, contre l'empilement
+ * de six effets 8 bits — `../research/02-huit-bits-mesure.md`).
+ */
+
+type Vec3 = [number, number, number];
+
+/** Défauts déclarés, dans l'ordre du uniform. */
+const defauts = (): number[] => reglagesDeBase.params.map((p) => p.default);
+const idx = (nom: string): number => {
+  const i = reglagesDeBase.params.findIndex((p) => p.name === nom);
+  if (i < 0) throw new Error(`paramètre "${nom}" absent de reglagesDeBase`);
+  return i;
+};
+const avec = (modifs: Record<string, number>): number[] => {
+  const p = defauts();
+  for (const [nom, v] of Object.entries(modifs)) p[idx(nom)] = v;
+  return p;
+};
+
+/** Écriture 8 bits sRGB + relecture linéaire, sur un gris — la quantification que
+ *  le format -srgb applique à chaque écriture de cible. */
+const q8 = (lin: number): number => srgbToLinear(Math.round(linearToSrgb(lin) * 255) / 255);
+/** Niveau sRGB 0..255 d'une valeur linéaire. */
+const niveau = (lin: number): number => Math.round(linearToSrgb(lin) * 255);
+
+describe("reglagesDeBase — jumeau du ton d'un bloc", () => {
+  it("réglages au défaut : identité au bit près", () => {
+    for (const c of [[0.2, 0.5, 0.8], [0, 0, 0], [1, 1, 1], [0.37, 0.02, 0.91]] as Vec3[]) {
+      const l = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
+      expect(reglagesDeBaseSpec(c, l, defauts())).toEqual(c);
+    }
+  });
+
+  it("la balance des blancs teinte un gris mais garde sa LUMINANCE (renormalisée au blanc)", () => {
+    // La balance des blancs déplace la couleur d'un gris (c'est un virage
+    // global, comme Lightroom — un gris n'a AUCUNE raison de rester neutre). Ce
+    // que la renormalisation au blanc préserve, c'est la LUMINANCE : sans elle,
+    // chercher un virage donnerait un changement d'exposition.
+    const luma = (c: Vec3) => c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
+    for (const g of [0.1, 0.4, 0.75]) {
+      const out = reglagesDeBaseSpec([g, g, g], g, avec({ temperature: 60, nuance: -40 }));
+      // La couleur A bougé (le virage), la luminance NON.
+      const bouge = Math.abs(out[0] - out[2]) > 1e-3;
+      expect(bouge).toBe(true);
+      expect(Math.abs(luma(out) - g)).toBeLessThan(1e-6);
+    }
+  });
+
+  // ── LE GATE : UNE SEULE QUANTIFICATION ────────────────────────────────────
+  //
+  // La chaîne de `research/02` (Exposition +1, Ombres +60, Noirs −30, HL −50,
+  // Contraste +40, courbe) sur une rampe de gris 8 bits. D'UN BLOC (le module),
+  // une seule quantification finale ; EMPILÉE (six effets 8 bits), une
+  // quantification entre chacun. Le premier garde ~132 niveaux et des trous ≤ 3,
+  // le second en perd un quart et creuse des trous — c'est tout l'intérêt du
+  // module.
+  it("« 132 niveaux, pas 109 » : le ton d'un bloc quantifié une fois garde les niveaux", () => {
+    const reglage = { exposure: 1, shadows: 60, blacks: -30, highlights: -50, contrast: 40, paramShadows: -40, paramHighlights: 40 };
+    const rampe = Array.from({ length: 256 }, (_, i) => srgbToLinear(i / 255));
+
+    // D'UN BLOC : le spec calcule tout en flottant, on quantifie UNE fois.
+    const pAll = avec(reglage);
+    const unBloc = rampe.map((l) => niveau(reglagesDeBaseSpec([l, l, l], l, pAll)[0]));
+
+    // EMPILÉ : un opérateur par étape, quantifié 8 bits entre chacun (l'ordre de
+    // `research/02`). Chaque étape n'active qu'un curseur ; la luminance floutée
+    // suit la valeur courante (rampe lisse).
+    const etapes: Record<string, number>[] = [
+      { exposure: 1 }, { shadows: 60 }, { blacks: -30 }, { highlights: -50 }, { contrast: 40 },
+      { paramShadows: -40, paramHighlights: 40 },
+    ];
+    const empile = rampe.map((l0) => {
+      let l = l0;
+      for (const e of etapes) l = q8(reglagesDeBaseSpec([l, l, l], l, avec(e))[0]);
+      return niveau(l);
+    });
+
+    const distincts = (a: number[]) => new Set(a).size;
+    const trouMax = (a: number[]) => {
+      const u = [...new Set(a)].sort((x, y) => x - y);
+      let g = 0;
+      for (let i = 1; i < u.length; i++) g = Math.max(g, u[i] - u[i - 1]);
+      return g;
+    };
+
+    const nBloc = distincts(unBloc), nEmpile = distincts(empile);
+    const gBloc = trouMax(unBloc);
+    // Journalisé pour l'inspection (comme les mesures notées d'`etalonnage`).
+    console.log(`reglagesDeBase 8 bits — d'un bloc: ${nBloc} niveaux, trou max ${gBloc} ; empilé: ${nEmpile} niveaux`);
+
+    // LE GATE : d'un bloc, au moins 130 niveaux distincts et aucun trou > 3.
+    expect(nBloc).toBeGreaterThanOrEqual(130);
+    expect(gBloc).toBeLessThanOrEqual(3);
+    // Et l'empilement en perd nettement — la démonstration de la raison d'être.
+    expect(nEmpile).toBeLessThan(nBloc - 8);
+  });
+
+  // ── VIBRANCE ≠ SATURATION ─────────────────────────────────────────────────
+  //
+  // La différence DOIT se voir sur la peau : la vibrance protège les carnations,
+  // la saturation non. Sur la carnation de `mirePrimaires` (224,160,128), la
+  // chroma bouge MOINS en vibrance qu'en saturation, à dose égale.
+  it("la vibrance protège la peau là où la saturation ne la protège pas", () => {
+    const peau: Vec3 = [srgbToLinear(224 / 255), srgbToLinear(160 / 255), srgbToLinear(128 / 255)];
+    const l = peau[0] * 0.2126 + peau[1] * 0.7152 + peau[2] * 0.0722;
+    const chroma = (c: Vec3): number => {
+      const lab = linearSrgbToOklab(c);
+      return Math.hypot(lab[1], lab[2]);
+    };
+    const c0 = chroma(peau);
+    const dVib = chroma(reglagesDeBaseSpec(peau, l, avec({ vibrance: 60 }))) - c0;
+    const dSat = chroma(reglagesDeBaseSpec(peau, l, avec({ saturation: 60 }))) - c0;
+    console.log(`peau : +chroma vibrance ${dVib.toFixed(4)} vs saturation ${dSat.toFixed(4)}`);
+    // La saturation pousse la peau ; la vibrance l'y retient nettement.
+    expect(dSat).toBeGreaterThan(0);
+    expect(dVib).toBeLessThan(dSat * 0.6);
+  });
+
+  it("la vibrance pousse une couleur terne plus qu'une couleur déjà vive", () => {
+    // Non-linéarité : à dose égale, un bleu peu saturé gagne plus de chroma qu'un
+    // bleu saturé (hors peau).
+    const terne: Vec3 = [srgbToLinear(0.45), srgbToLinear(0.5), srgbToLinear(0.62)];
+    const vif: Vec3 = [srgbToLinear(0.05), srgbToLinear(0.1), srgbToLinear(0.9)];
+    const chroma = (c: Vec3): number => { const lab = linearSrgbToOklab(c); return Math.hypot(lab[1], lab[2]); };
+    const lT = terne[0] * 0.2126 + terne[1] * 0.7152 + terne[2] * 0.0722;
+    const lV = vif[0] * 0.2126 + vif[1] * 0.7152 + vif[2] * 0.0722;
+    const gainTerne = chroma(reglagesDeBaseSpec(terne, lT, avec({ vibrance: 80 }))) / chroma(terne);
+    const gainVif = chroma(reglagesDeBaseSpec(vif, lV, avec({ vibrance: 80 }))) / chroma(vif);
+    console.log(`vibrance : gain chroma terne ${gainTerne.toFixed(3)} vs vif ${gainVif.toFixed(3)}`);
+    expect(gainTerne).toBeGreaterThan(gainVif);
+  });
+});

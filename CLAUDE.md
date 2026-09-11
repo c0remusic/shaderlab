@@ -722,12 +722,17 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Ce qu'elle laisse passer : notre uniform `params: array<f32, 48>` n'est pas
   conforme (stride 4 pour un alignement requis de 16 en espace uniform), Dawn
   l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 26
-  effets, index gelés par les presets ET par **128** références de pixels
-  (**133 PNG** dans `test/render-refs/` au 2026-09-11 ; CINQ ne gèlent PAS un
+  effets, index gelés par les presets ET par **133** références de pixels
+  (**139 PNG** dans `test/render-refs/` au 2026-09-11 ; SIX ne gèlent PAS un
   index : `photo-miroir-temoin` / `photo-miroir` gèlent le miroir du calque
-  photo, et `cadre-toile` / `cadre-toile-temoin` / `cadre-toile-degrade` gèlent
-  un DÉCOUPAGE de toile et non un `params[N]` — donc le compte qui gèle les index
-  est 133 − 2 − 3 = 128.
+  photo, `cadre-toile` / `cadre-toile-temoin` / `cadre-toile-degrade` gèlent
+  un DÉCOUPAGE de toile, et `developpement-reglages-temoin` est la rampe nue
+  (le module `reglagesDeBase` au défaut est SAUTÉ, aucun `params[N]` lu) — donc
+  le compte qui gèle les index est 139 − 2 − 3 − 1 = 133.
+  ⚠️ **+6 le 2026-09-11 (ticket 02 lightroom-develop)** : les six références
+  `developpement-reglages-{temoin,ton,courbe,couleur,saturation,presence}` du
+  module `reglagesDeBase` (le ton d'un bloc de l'étage). Cinq gèlent ses index,
+  le témoin non (133 → 139 PNG, 128 → 133 gelantes).
   ⚠️ **Ce total a été SOUS-REPORTÉ à 125 jusqu'au 2026-09-11**, et la formule
   d'alors (125 − 2 = 123) oubliait en plus les trois `cadre-toile` : trois
   `cadre-toile` et trois `effet-etalonnage` existaient sur disque sans être

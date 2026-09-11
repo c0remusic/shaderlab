@@ -267,6 +267,12 @@ interface Props {
     onRequestThumbnail: (path: string) => void;
     onPickFolder: () => void;
   };
+  /** RETIRE le repli « Effet » qui enveloppe les sections. Un calque a un effet à
+   *  replier ; un module de l'ÉTAGE (`DevelopPanel`) est DÉJÀ un panneau nommé
+   *  (accordéon Lightroom) — le double repli « Effet » y était cosmétique
+   *  (signalé au ticket 03). Une prop, pas un fork : le contenu est identique,
+   *  seul l'emballage disparaît. */
+  flat?: boolean;
 }
 
 function formatEffectParamValue(
@@ -295,7 +301,7 @@ function formatEffectParamValue(
   }
 }
 
-export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onOpenColorPicker, textureLibrary }: Props) {
+export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onOpenColorPicker, textureLibrary, flat = false }: Props) {
   const [activeCurveChannel, setActiveCurveChannel] = useState("master");
   if (!layer) {
     return <p className="param-panel__empty">Sélectionne un calque.</p>;
@@ -371,10 +377,8 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onO
     );
   }
 
-  return (
-    <div className="param-panel" title={lockedTitle}>
-      <Disclosure title="Effet" defaultOpen>
-        <div className="param-panel__group">
+  const corps = (
+    <div className="param-panel__group">
           {(effect.curveControls ?? []).map((control) => {
             const channels = control.channels.map((channel) => {
               const points: CurvePoint[] = [{ x: 0, y: resolvedParams[channel.startY] }];
@@ -610,8 +614,11 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onO
           )}
           </ParamSection>
           ))}
-        </div>
-      </Disclosure>
+    </div>
+  );
+  return (
+    <div className="param-panel" title={lockedTitle}>
+      {flat ? corps : <Disclosure title="Effet" defaultOpen>{corps}</Disclosure>}
     </div>
   );
 }

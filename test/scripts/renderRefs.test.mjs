@@ -632,6 +632,16 @@ const ATTENDU = {
   // calque), et developpement-apres-pile gele que l etage tourne APRES la pile.
   "developpement-etalonnage.png": { width: 256, height: 256, valeurs: null },
   "developpement-apres-pile.png": { width: 256, height: 256, valeurs: null },
+  // REGLAGES DE BASE + COURBE PARAMETRIQUE (ticket 02) : le ton d un bloc dans
+  // l etage. Le temoin est la rampe nue (module a defaut -> saute) et sert de
+  // baseline ; les cinq autres gelent chacun une part de l operateur (ton,
+  // courbe + separations, balance + vibrance, saturation, presence spatiale).
+  "developpement-reglages-temoin.png": { width: 256, height: 256, valeurs: null },
+  "developpement-reglages-ton.png": { width: 256, height: 256, valeurs: null },
+  "developpement-reglages-courbe.png": { width: 256, height: 256, valeurs: null },
+  "developpement-reglages-couleur.png": { width: 256, height: 256, valeurs: null },
+  "developpement-reglages-saturation.png": { width: 256, height: 256, valeurs: null },
+  "developpement-reglages-presence.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

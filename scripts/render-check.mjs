@@ -3119,6 +3119,83 @@ const INSTALL = `(async () => {
       },
     },
 
+    // REGLAGES DE BASE + COURBE PARAMETRIQUE (2026-09-11, ticket 02
+    // lightroom-develop). Le module reglagesDeBase est le second module de
+    // l etage : tout le ton d un bloc, une seule quantification. Six references.
+    //
+    // temoin : la rampe de gris, module a defaut -> l etage saute reglagesDeBase
+    // (isDevelopModuleAtDefault) et rend la rampe au bit pres. Sert de BASELINE
+    // aux scenarios de ton. L identite au defaut est prouvee par ailleurs :
+    // reglagesDeBase.test.ts (le spec rend la source a tout defaut), la garde de
+    // saut de l etage, et le gate global test:render zero ecart sur les 133.
+    "developpement-reglages-temoin": {
+      fond: false,
+      develop: { reglagesDeBase: {} },
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+      },
+    },
+    // ton : la chaine de research/02 en flottant d un bloc. L ecart au temoin
+    // prouve que le ton agit ; le nombre de niveaux (la raison d etre du module)
+    // est verrouille par le test unit, pas ici.
+    "developpement-reglages-ton": {
+      contre: "developpement-reglages-temoin",
+      develop: { reglagesDeBase: { exposure: 1, highlights: -50, shadows: 50, blacks: -20, whites: 20 } },
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+      },
+    },
+    // courbe : la moitie parametrique, HL +60 / Ombres -60 avec des separations
+    // deplacees (20/50/80). Gele l operateur de courbe ET les separations.
+    "developpement-reglages-courbe": {
+      contre: "developpement-reglages-temoin",
+      develop: { reglagesDeBase: { paramHighlights: -60, paramShadows: 60, shadowSplit: 20, midtoneSplit: 50, highlightSplit: 80 } },
+      build: async (r, stack) => {
+        const rampe = await mireRampe(W, H);
+        const sourceId = await r.photoSources.register(rampe);
+        stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "rampe");
+      },
+    },
+    // couleur : sur mirePrimaires, Temperature +40, Nuance -30, Vibrance +60. Le
+    // contre est le temoin d etalonnage (une mirePrimaires nue, l etalonnage a 0
+    // rend l identite) -> l ecart est ce que la balance des blancs et la vibrance
+    // AJOUTENT. La vibrance se lit sur les aplats ternes, moins sur la peau.
+    "developpement-reglages-couleur": {
+      contre: "effet-etalonnage-temoin",
+      develop: { reglagesDeBase: { temperature: 40, nuance: -30, vibrance: 60 } },
+      build: async (r, stack) => {
+        const src = await mirePrimaires(W, H);
+        const sourceId = await r.photoSources.register(src);
+        stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "primaires");
+      },
+    },
+    // saturation : Saturation +60 seule, sur mirePrimaires. Le couple avec la
+    // reference couleur prouve vibrance != saturation : la bande de peau bouge
+    // MOINS sous vibrance (protection) que sous saturation (mesure notee dans le
+    // rapport ; le test unit la chiffre sur la fonction pure).
+    "developpement-reglages-saturation": {
+      contre: "effet-etalonnage-temoin",
+      develop: { reglagesDeBase: { saturation: 60 } },
+      build: async (r, stack) => {
+        const src = await mirePrimaires(W, H);
+        const sourceId = await r.photoSources.register(src);
+        stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "primaires");
+      },
+    },
+    // presence : sur la PHOTO de fond (detail reel, la ou Texture/Clarte se
+    // lisent — une rampe lisse ne montrerait rien). Texture +60, Clarte +60,
+    // Voile +40. Gele le flou SPATIAL (pyramide + tente fine) que le twin TS ne
+    // mire pas. Se juge en crop 1:1.
+    "developpement-reglages-presence": {
+      contre: "photo-de-fond-seule",
+      develop: { reglagesDeBase: { texture: 60, clarity: 60, dehaze: 40 } },
+      build: async () => {},
+    },
+
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,
     // donc les passes de morphologie separees H/V).

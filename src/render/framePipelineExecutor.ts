@@ -442,21 +442,30 @@ export class FramePipelineExecutor {
       // (`layer.params[p.name] ?? p.default`), donc un `params` partiel suffit —
       // les paramètres non réglés retombent sur leur défaut. Opacité/fusion sont
       // ignorées en `applyMask: false`.
+      const layer: LayerState = {
+        id: "",
+        effectId: module.id,
+        params: values ?? {},
+        enabled: true,
+        opacity: 1,
+        blendMode: "normal",
+        mask: defaultLayerMask(),
+      };
+      // PASSES INTERNES (la pyramide de `reglagesDeBase`) : mêmes règles qu'un
+      // calque d'effet multi-passes — chaque passe lit la sortie de la
+      // précédente, la première lit le composite. `prevPass` porte la dernière.
+      // Un module SANS passe (`etalonnage`) n'en émet aucune ; toutes sautées
+      // (curseurs à 0) → `prevPass` = source, cohérent avec le contrat du runner.
+      const previousPass = module.passes?.length
+        ? this.effects.runInternalPasses(encoder, module, layer, pingPong[ci].createView(), pendingDestroy)
+        : null;
       this.effects.runEffectPass(
         encoder,
         module,
-        {
-          id: "",
-          effectId: module.id,
-          params: values ?? {},
-          enabled: true,
-          opacity: 1,
-          blendMode: "normal",
-          mask: defaultLayerMask(),
-        },
+        layer,
         pingPong[ci].createView(),
         pingPong[wi].createView(),
-        { applyMask: false },
+        { applyMask: false, prevPassView: previousPass?.view ?? null },
         pendingDestroy,
       );
       ci = wi;

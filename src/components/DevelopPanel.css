@@ -9,21 +9,13 @@
   display: flex;
   min-height: 0;
   flex-direction: column;
-  gap: var(--space-2);
 }
 
-.develop-panel__module-header {
+/* Bouton « Réinitialiser » aligné à droite, en tête du corps de l'accordéon
+   (le nom du module est le titre repliable). */
+.develop-panel__module-actions {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.develop-panel__module-name {
-  color: var(--text-primary);
-  font-family: var(--font-ui);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
+  justify-content: flex-end;
 }
 
 .develop-panel__empty {

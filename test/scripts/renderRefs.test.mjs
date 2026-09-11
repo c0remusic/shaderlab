@@ -652,6 +652,15 @@ const ATTENDU = {
   "developpement-hsl-sat-bleu.png": { width: 256, height: 256, valeurs: null },
   "developpement-hsl-lum-vert.png": { width: 256, height: 256, valeurs: null },
   "developpement-hsl-nb.png": { width: 256, height: 256, valeurs: null },
+  // COLOR GRADING (ticket 06 lightroom-develop) : le quatrieme module de l etage,
+  // sur mireBalayage. Quatre references qui gelent les pixels et les index du
+  // uniform du module colorGrading (virage des ombres, des hautes lumieres, la
+  // balance, la fusion). L action du module est prouvee par le twin
+  // colorGrading.test.ts ; ici on GELE le rendu.
+  "developpement-grading-ombres-bleu.png": { width: 256, height: 256, valeurs: null },
+  "developpement-grading-hl-orange.png": { width: 256, height: 256, valeurs: null },
+  "developpement-grading-balance.png": { width: 256, height: 256, valeurs: null },
+  "developpement-grading-fusion-0.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

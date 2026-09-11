@@ -3301,6 +3301,60 @@ const INSTALL = `(async () => {
       },
     },
 
+    // COLOR GRADING (2026-09-11, ticket 06 lightroom-develop). Le quatrieme module
+    // de l etage : quatre roues (ombres, tons moyens, hautes lumieres, globale) qui
+    // AJOUTENT un vecteur de chroma en OKLab pondere par la luminance, plus Fusion
+    // et Balance. Rendu sur mireBalayage : sa rampe de gris (fy 0..0.15) MONTRE le
+    // teintage par plage de luminance, ce qu une couleur saturee cacherait.
+    //
+    // PAS de contre (comme les references HSL) : la mire porte des centaines de
+    // couleurs, la garde de signal passe. L ACTION du module est prouvee AILLEURS et
+    // plus fortement, par le twin colorGrading.test.ts (identite, poids de plage,
+    // balance, fusion, global). Ces references, elles, GELENT les pixels et les
+    // index du uniform params.
+    //
+    // A l oeil : ombres-bleu doit bleuir la MOITIE SOMBRE de la rampe de gris,
+    // hl-orange la MOITIE CLAIRE. NB : les teintes Ombres/Hautes lumieres ne sont
+    // PAS mesurables dans les exports Lightroom (le plugin a ecrit les mauvaises cles
+    // ColorGrade* la ou Lightroom lit SplitToning*) : ces references figent NOTRE
+    // rendu, pas une parite Lightroom sur ces plages (voir le rapport du ticket 06).
+    "developpement-grading-ombres-bleu": {
+      develop: { colorGrading: { shadowHue: 220, shadowSat: 60 } },
+      build: async (r, stack) => {
+        const src = await mireBalayage(W, H);
+        const sourceId = await r.photoSources.register(src);
+        stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "balayage");
+      },
+    },
+    "developpement-grading-hl-orange": {
+      develop: { colorGrading: { highlightHue: 40, highlightSat: 60 } },
+      build: async (r, stack) => {
+        const src = await mireBalayage(W, H);
+        const sourceId = await r.photoSources.register(src);
+        stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "balayage");
+      },
+    },
+    // balance : le duo ombres-bleu + hautes-orange, Balance +100 (tout bascule vers
+    // les hautes lumieres, donc l orange gagne du terrain sur la rampe).
+    "developpement-grading-balance": {
+      develop: { colorGrading: { shadowHue: 220, shadowSat: 60, highlightHue: 40, highlightSat: 60, balance: 100 } },
+      build: async (r, stack) => {
+        const src = await mireBalayage(W, H);
+        const sourceId = await r.photoSources.register(src);
+        stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "balayage");
+      },
+    },
+    // fusion-0 : le meme duo, Fusion 0 (plages tranchees, transitions nettes entre
+    // le bleu des ombres et l orange des hautes lumieres au lieu d un fondu).
+    "developpement-grading-fusion-0": {
+      develop: { colorGrading: { shadowHue: 220, shadowSat: 60, highlightHue: 40, highlightSat: 60, blending: 0 } },
+      build: async (r, stack) => {
+        const src = await mireBalayage(W, H);
+        const sourceId = await r.photoSources.register(src);
+        stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "balayage");
+      },
+    },
+
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,
     // donc les passes de morphologie separees H/V).

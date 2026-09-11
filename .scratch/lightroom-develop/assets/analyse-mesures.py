@@ -28,6 +28,10 @@ def rampe(img):
         out.append(float(r[x0:x1].mean()))  # luminance sRGB moyenne (R=G=B sur une rampe)
     return out
 
+def rampe_rgb(img):
+    r = rows(img, 40, 150)
+    return [[round(float(c), 2) for c in r[v * 8 + 2:v * 8 + 6].mean(axis=0)] for v in range(256)]
+
 def balayage(img, y0, y1):
     r = rows(img, y0 + 30, y1 - 30) / 255.0
     hs = []
@@ -68,7 +72,8 @@ def main():
         img = Image.open(f)
         if img.size != (W, 1280):
             print("dimensions inattendues", nom, img.size); continue
-        d = {"nom": nom, "rampe": rampe(img), "balayage": balayage(img, 192, 384),
+        d = {"nom": nom, "rampe": rampe(img), "rampe_rgb": rampe_rgb(img), "balayage": balayage(img, 192, 384),
+             "balayage_l25": balayage(img, 576, 672), "balayage_l75": balayage(img, 672, 768),
              "balayage_sat50": balayage(img, 384, 576), "patches": patches(img), "bandes": bandes(img)}
         with open(os.path.join(OUT, nom + ".json"), "w", encoding="utf-8") as o:
             json.dump(d, o, ensure_ascii=False)
@@ -77,18 +82,24 @@ def main():
     if temoin is None:
         print("pas de temoin"); sys.exit(1)
     t = np.array(temoin["rampe"])
+    def teinte_gris(d):
+        rgb = np.array(d["rampe_rgb"])
+        return [f"{rgb[v][0]-rgb[v][2]:+.0f}/{rgb[v][1]-(rgb[v][0]+rgb[v][2])/2:+.0f}" for v in (32, 128, 224)]
+    tb25 = np.array([[p[1], p[2], p[3]] for p in temoin["balayage_l25"]])
     lines = ["# Courbes de Lightroom Classic 14.5.1, mesurées en boîte noire", "",
              f"Source : {len(resume)} exports JPEG (sRGB, q100) de la mire, produits par le plugin",
              "`assets/shaderlab-dump.lrdevplugin` (AutoMesures). Données brutes : `research/mesures/<nom>.json`.",
              "Rampe : sortie sRGB pour les entrées 0 · 32 · 64 · 96 · 128 · 160 · 192 · 224 · 255,",
-             "puis écart max à la rampe témoin. Teinte : décalage moyen (°) sur le balayage sat 100 %.", "",
-             "| mesure | 0 | 32 | 64 | 96 | 128 | 160 | 192 | 224 | 255 | écart max | Δteinte moy | Δsat moy | Δlum moy |", "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+             "puis écart max à la rampe témoin. Teinte : décalage moyen (°) sur le balayage sat 100 % L 50 %,",
+             "et sur le balayage sombre (L 25 %). « Gris » : dérive R−B / G−(R+B)/2 de la rampe grise aux niveaux 32, 128, 224", "",
+             "| mesure | 0 | 32 | 64 | 96 | 128 | 160 | 192 | 224 | 255 | écart max | Δteinte moy | Δsat moy | Δlum moy | Δteinte L25 | gris 32 · 128 · 224 |", "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     tb = np.array([[p[1], p[2], p[3]] for p in temoin["balayage"]])
     for d in resume:
         r = np.array(d["rampe"]); b = np.array([[p[1], p[2], p[3]] for p in d["balayage"]])
         dh = ((b[:, 0] - tb[:, 0] + 180) % 360) - 180
         cells = [f"{r[i]:.0f}" for i in (0, 32, 64, 96, 128, 160, 192, 224, 255)]
-        lines.append(f"| {d['nom']} | " + " | ".join(cells) + f" | {np.abs(r - t).max():.1f} | {dh.mean():+.1f} | {(b[:,1]-tb[:,1]).mean():+.3f} | {(b[:,2]-tb[:,2]).mean():+.3f} |")
+        b25 = np.array([[p[1], p[2], p[3]] for p in d["balayage_l25"]]); dh25 = ((b25[:, 0] - tb25[:, 0] + 180) % 360) - 180
+        lines.append(f"| {d['nom']} | " + " | ".join(cells) + f" | {np.abs(r - t).max():.1f} | {dh.mean():+.1f} | {(b[:,1]-tb[:,1]).mean():+.3f} | {(b[:,2]-tb[:,2]).mean():+.3f} | {dh25.mean():+.1f} | {' · '.join(teinte_gris(d))} |")
     md = os.path.join(os.path.dirname(__file__), "..", "research", "03-courbes-lightroom-mesurees.md")
     with open(md, "w", encoding="utf-8") as o:
         o.write("\n".join(lines) + "\n")

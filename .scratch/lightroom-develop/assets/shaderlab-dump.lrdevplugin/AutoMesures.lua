@@ -8,22 +8,40 @@ local LrApplication = import "LrApplication"
 local LrTasks = import "LrTasks"
 local LrPathUtils = import "LrPathUtils"
 local LrFileUtils = import "LrFileUtils"
-local mesures = require "mesures"
+local LrLogger = import "LrLogger"
 
 local docs = LrPathUtils.getStandardFilePath("documents")
 local sentinelle = LrPathUtils.child(docs, "shaderlab-mesures-go.txt")
 local journalPath = LrPathUtils.child(docs, "shaderlab-mesures-journal.txt")
 
+-- Preuve de chargement par les moyens OFFICIELS du SDK, au cas ou io serait
+-- muet dans le bac a sable : un dossier cree, et un LrLogger en fichier
+-- (Documents/LrClassicLogs/shaderlab.log).
+LrFileUtils.createAllDirectories(LrPathUtils.child(docs, "shaderlab-plugin-charge"))
+local log = LrLogger("shaderlab")
+log:enable("logfile")
+
 local function journal(ligne)
+  log:info(ligne)
   local f = io.open(journalPath, "a")
   if f then f:write(os.date("%H:%M:%S ") .. ligne .. "\n"); f:close() end
 end
 
-if LrFileUtils.exists(sentinelle) then
+journal("AutoMesures charge")
+
+local okReq, mesures = pcall(require, "mesures")
+if not okReq then
+  journal("ERREUR require mesures : " .. tostring(mesures))
+  mesures = nil
+end
+
+if mesures and LrFileUtils.exists(sentinelle) then
   LrTasks.startAsyncTask(function()
-    local ok, err = pcall(function()
+    local ok, err = LrTasks.pcall(function()
       journal("sentinelle trouvee")
-      local chemin = (io.open(sentinelle, "r"):read("*l") or ""):gsub("%s+$", "")
+      local fs = io.open(sentinelle, "r")
+      local chemin = (fs:read("*l") or ""):gsub("%s+$", "")
+      fs:close()
       local catalog
       for _ = 1, 60 do
         local okc, c = pcall(LrApplication.activeCatalog)
@@ -47,4 +65,6 @@ if LrFileUtils.exists(sentinelle) then
     if not ok then journal("ERREUR " .. tostring(err)) end
     LrFileUtils.delete(sentinelle)
   end)
+else
+  journal("pas de sentinelle ou module absent")
 end

@@ -1,0 +1,202 @@
+[
+  {
+    "bande": "rouge",
+    "centre": 347,
+    "id": "red",
+    "rgb": [
+      1.0,
+      0.0,
+      0.2167
+    ],
+    "amplitudeDeg": 46,
+    "sigmaLeftDeg": 18,
+    "sigmaRightDeg": 23,
+    "satK": 0.84,
+    "lumK": 0.67,
+    "grayK": 0.54,
+    "rmse_teinte": 3.13,
+    "rmse_sat": 0.0566,
+    "rmse_lum": 0.0474,
+    "lum_amp_pm": {
+      "100": 0.248,
+      "-100": 0.445
+    },
+    "rmse_gris": 0.0504,
+    "gris_incert": 0.258
+  },
+  {
+    "bande": "orange",
+    "centre": 30,
+    "id": "orange",
+    "rgb": [
+      1.0,
+      0.5,
+      0.0
+    ],
+    "amplitudeDeg": 52,
+    "sigmaLeftDeg": 26,
+    "sigmaRightDeg": 23,
+    "satK": 0.88,
+    "lumK": 0.68,
+    "grayK": 1.42,
+    "rmse_teinte": 1.78,
+    "rmse_sat": 0.0721,
+    "rmse_lum": 0.0445,
+    "lum_amp_pm": {
+      "100": 0.246,
+      "-100": 0.516
+    },
+    "rmse_gris": 0.0678,
+    "gris_incert": 0.293
+  },
+  {
+    "bande": "jaune",
+    "centre": 52,
+    "id": "yellow",
+    "rgb": [
+      1.0,
+      0.8667,
+      0.0
+    ],
+    "amplitudeDeg": 36,
+    "sigmaLeftDeg": 18,
+    "sigmaRightDeg": 28,
+    "satK": 0.98,
+    "lumK": 0.47,
+    "grayK": 2.0,
+    "rmse_teinte": 2.05,
+    "rmse_sat": 0.0901,
+    "rmse_lum": 0.0485,
+    "lum_amp_pm": {
+      "100": 0.213,
+      "-100": 0.522
+    },
+    "rmse_gris": 0.107,
+    "gris_incert": 0.168
+  },
+  {
+    "bande": "vert",
+    "centre": 93.5,
+    "id": "green",
+    "rgb": [
+      0.4417,
+      1.0,
+      0.0
+    ],
+    "amplitudeDeg": 82,
+    "sigmaLeftDeg": 10,
+    "sigmaRightDeg": 17,
+    "satK": 1.0,
+    "lumK": 0.49,
+    "grayK": 0.09,
+    "rmse_teinte": 7.35,
+    "rmse_sat": 0.173,
+    "rmse_lum": 0.0622,
+    "lum_amp_pm": {
+      "100": 0.386,
+      "-100": 0.388
+    },
+    "rmse_gris": 0.0154,
+    "gris_incert": 0.015
+  },
+  {
+    "bande": "aqua",
+    "centre": 168,
+    "id": "aqua",
+    "rgb": [
+      0.0,
+      1.0,
+      0.8
+    ],
+    "amplitudeDeg": 24,
+    "sigmaLeftDeg": 41,
+    "sigmaRightDeg": 13,
+    "satK": 0.92,
+    "lumK": 0.4,
+    "grayK": 0.2,
+    "rmse_teinte": 4.12,
+    "rmse_sat": 0.0347,
+    "rmse_lum": 0.0306,
+    "lum_amp_pm": {
+      "100": 0.441,
+      "-100": 0.178
+    },
+    "rmse_gris": 0.0461,
+    "gris_incert": 0.031
+  },
+  {
+    "bande": "bleu",
+    "centre": 212,
+    "id": "blue",
+    "rgb": [
+      0.0,
+      0.4667,
+      1.0
+    ],
+    "amplitudeDeg": 66,
+    "sigmaLeftDeg": 41,
+    "sigmaRightDeg": 52,
+    "satK": 0.62,
+    "lumK": 0.47,
+    "grayK": 0.93,
+    "rmse_teinte": 7.11,
+    "rmse_sat": 0.1192,
+    "rmse_lum": 0.054,
+    "lum_amp_pm": {
+      "100": 0.432,
+      "-100": 0.113
+    },
+    "rmse_gris": 0.0597,
+    "gris_incert": 0.368
+  },
+  {
+    "bande": "violet",
+    "centre": 298,
+    "id": "purple",
+    "rgb": [
+      0.9667,
+      0.0,
+      1.0
+    ],
+    "amplitudeDeg": 52,
+    "sigmaLeftDeg": 9,
+    "sigmaRightDeg": 78,
+    "satK": 0.52,
+    "lumK": 0.39,
+    "grayK": 1.46,
+    "rmse_teinte": 8.44,
+    "rmse_sat": 0.1031,
+    "rmse_lum": 0.0403,
+    "lum_amp_pm": {
+      "100": 0.296,
+      "-100": 0.275
+    },
+    "rmse_gris": 0.0479,
+    "gris_incert": 0.358
+  },
+  {
+    "bande": "magenta",
+    "centre": 320,
+    "id": "magenta",
+    "rgb": [
+      1.0,
+      0.0,
+      0.6667
+    ],
+    "amplitudeDeg": 30,
+    "sigmaLeftDeg": 15,
+    "sigmaRightDeg": 15,
+    "satK": 0.71,
+    "lumK": 0.62,
+    "grayK": 2.0,
+    "rmse_teinte": 1.23,
+    "rmse_sat": 0.0298,
+    "rmse_lum": 0.0255,
+    "lum_amp_pm": {
+      "100": 0.27,
+      "-100": 0.435
+    },
+    "rmse_gris": 0.2165,
+    "gris_incert": 0.04
+  }
+]

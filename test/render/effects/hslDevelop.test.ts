@@ -2,6 +2,13 @@ import { describe, it, expect } from "vitest";
 import { hsl, hslSpec } from "../../../src/render/effects/hslDevelop";
 import { srgbToLinear } from "../../../src/render/effects/srgbTransfer";
 import { linearSrgbToOklab } from "../../../src/render/effects/oklab";
+import { HSL_BANDES } from "../../../src/render/effects/hslBandes";
+
+const bande = (id: string) => {
+  const b = HSL_BANDES.find((x) => x.id === id);
+  if (!b) throw new Error(`bande "${id}" absente`);
+  return b;
+};
 
 /**
  * `hslSpec` est le jumeau TS du shader du module `hsl` de l'étage (même patron
@@ -70,10 +77,13 @@ describe("hsl — jumeau du module de bande", () => {
     const rougeTourne = hslSpec(ROUGE_MI, avec({ redHue: 100 }));
     let dh = teinteDeg(rougeTourne) - h0;
     dh = ((dh + 180) % 360) - 180;
-    // Amplitude usuelle ~30° (table provisoire) ; large tolérance, c'est le
-    // MÉCANISME qu'on éprouve, pas la calibration.
-    expect(Math.abs(dh)).toBeGreaterThan(15);
-    expect(Math.abs(dh)).toBeLessThan(45);
+    // Propriété calibrée : à +100 sur un rouge quasi pur (poids ≈ 1), la rotation
+    // OKLab vaut ≈ `amplitudeDeg` de la bande rouge (lu dans la table, pas un
+    // littéral). Sens POSITIF (rouge → orange), amplitude bornée par le poids ≤ 1.
+    const redAmp = bande("red").amplitudeDeg;
+    expect(dh).toBeGreaterThan(0);
+    expect(dh).toBeGreaterThan(redAmp * 0.85);
+    expect(dh).toBeLessThan(redAmp * 1.05);
 
     // Le bleu ne porte aucun curseur de teinte réglé : il ne bouge pas.
     const bleu2 = hslSpec(BLEU, avec({ redHue: 100 }));
@@ -83,7 +93,12 @@ describe("hsl — jumeau du module de bande", () => {
   it("Saturation bleu −100 désature un bleu, laisse un rouge presque intact", () => {
     const c0 = chromaDe(BLEU);
     const bleuDesat = hslSpec(BLEU, avec({ blueSat: -100 }));
-    expect(chromaDe(bleuDesat)).toBeLessThan(0.1 * c0);
+    // Propriété calibrée : à −100 la chroma est multipliée par ≈ (1 − satK) de la
+    // bande bleue (poids ≈ 1 sur un bleu pur), satK lu dans la table. Lightroom
+    // ne désature pas le bleu totalement (satK < 1), la chroma résiduelle le prouve.
+    const blueSatK = bande("blue").satK;
+    expect(chromaDe(bleuDesat)).toBeLessThan((1 - blueSatK + 0.1) * c0);
+    expect(chromaDe(bleuDesat)).toBeGreaterThan((1 - blueSatK - 0.1) * c0);
 
     const rouge2 = hslSpec(ROUGE, avec({ blueSat: -100 }));
     expect(Math.abs(chromaDe(rouge2) - chromaDe(ROUGE))).toBeLessThan(0.02);

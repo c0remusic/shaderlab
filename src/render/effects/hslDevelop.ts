@@ -1,7 +1,7 @@
 import type { EffectModule, EffectParam, EffectSection } from "./types";
 import { OKLAB_WGSL, linearSrgbToOklab, oklabToLinearSrgb } from "./oklab";
 import { srgbToLinear } from "./srgbTransfer";
-import { HSL_BANDES, HSL_SIGMA_DEG, HSL_CHROMA_REF, type HslBande } from "./hslBandes";
+import { HSL_BANDES, HSL_CHROMA_REF, type HslBande } from "./hslBandes";
 
 /**
  * HSL / Couleur / Noir et blanc — le module `hsl` de l'ÉTAGE de développement
@@ -66,12 +66,15 @@ import { HSL_BANDES, HSL_SIGMA_DEG, HSL_CHROMA_REF, type HslBande } from "./hslB
  * (mode Couleur, tout à 0) l'étage SAUTE le module (`isDevelopModuleAtDefault`) :
  * cette garde n'a donc à couvrir que les états partiels.
  *
- * ── LA TABLE DE BANDES EST PROVISOIRE ────────────────────────────────────────
+ * ── LA TABLE DE BANDES EST CALIBRÉE SUR LIGHTROOM 14.5 ───────────────────────
  *
- * Centres, largeurs et amplitudes viennent de `hslBandes.ts`, aux valeurs USUELLES
- * de Lightroom faute d'exports du plugin (`research/03-…` bloqué). `calibrer-hsl.py`
- * ajuste cette table sur les mesures dès qu'elles existent. Voir l'en-tête de
- * `hslBandes.ts`.
+ * Centres (couleur représentative), largeurs asymétriques (deux σ), amplitudes,
+ * satK/lumK/grayK viennent de `hslBandes.ts`, ajustés par moindres carrés sur les
+ * 146 mesures du plugin (`research/03-…`, `research/04-hsl-profils-mesures.md`) via
+ * `assets/calibrer-hsl.py`. Le poids porte donc DEUX demi-largeurs par bande, le
+ * côté choisi au signe du produit vectoriel `a·cb − b·ca` (toujours sans `atan2`).
+ * Voir l'en-tête de `hslBandes.ts` pour les réserves (grayK bruité, k de luminance
+ * unique alors que Lightroom est asymétrique).
  *
  * ── LE TWIN TS ───────────────────────────────────────────────────────────────
  *
@@ -100,8 +103,6 @@ const BANDE_DIR: readonly (readonly [number, number])[] = HSL_BANDES.map((band) 
   return [lab[1] / c, lab[2] / c] as const;
 });
 
-const SIGMA = deg2rad(HSL_SIGMA_DEG);
-
 /** Vrai quand le module est en mode Couleur et que les 24 curseurs de couleur
  *  sont à 0 (les 8 de mélange N&B n'ont alors aucun objet). */
 function auDefautCouleur(p: readonly number[]): boolean {
@@ -126,11 +127,15 @@ export function hslSpec(rgb: Vec3, p: readonly number[]): Vec3 {
 
   let rot = 0, satMul = 1, lumMul = 1, grayAdj = 0;
   for (let i = 0; i < HSL_BANDES.length; i++) {
+    const band = HSL_BANDES[i];
     const dir = BANDE_DIR[i];
     const cosd = chroma > 1e-5 ? (a * dir[0] + b * dir[1]) / chroma : 0;
     const ang = Math.acos(clamp(cosd, -1, 1));
-    const w = Math.exp(-(ang * ang) / (SIGMA * SIGMA)) * gate;
-    const band = HSL_BANDES[i];
+    // Cote du centre par le SIGNE du produit vectoriel (pas d'atan2) : demi-largeur
+    // gauche/droite. Une bande symetrique a sigmaLeftDeg == sigmaRightDeg.
+    const cross = a * dir[1] - b * dir[0];
+    const sigma = deg2rad(cross >= 0 ? band.sigmaRightDeg : band.sigmaLeftDeg);
+    const w = Math.exp(-(ang * ang) / (sigma * sigma)) * gate;
     rot += w * (p[1 + i] / 100) * deg2rad(band.amplitudeDeg);
     satMul += w * (p[9 + i] / 100) * band.satK;
     lumMul += w * (p[17 + i] / 100) * band.lumK;
@@ -234,7 +239,7 @@ const f = (x: number): string => x.toFixed(8);
 const blocsBandes = HSL_BANDES.map((band, i) => {
   const [da, db] = BANDE_DIR[i];
   return `  {
-    let w = hsl_weight(a, b, chroma, gate, vec2<f32>(${f(da)}, ${f(db)}));
+    let w = hsl_weight(a, b, chroma, gate, vec2<f32>(${f(da)}, ${f(db)}), ${f(deg2rad(band.sigmaLeftDeg))}, ${f(deg2rad(band.sigmaRightDeg))});
     rot = rot + w * (params[${1 + i}] / 100.0) * ${f(deg2rad(band.amplitudeDeg))};
     satMul = satMul + w * (params[${9 + i}] / 100.0) * ${f(band.satK)};
     lumMul = lumMul + w * (params[${17 + i}] / 100.0) * ${f(band.lumK)};
@@ -253,19 +258,21 @@ export const hsl: EffectModule = {
   wgsl: `
 ${OKLAB_WGSL}
 
-const HSL_SIGMA = ${f(SIGMA)};
-
 // Poids d'un pixel sur une bande : cosinus de l'ecart angulaire entre sa
 // direction chromatique (a,b) et celle de la bande (dir), passe dans une
-// gaussienne, module par la porte de chroma. AUCUN atan2 : on ne compare que des
-// directions, jamais l'angle absolu du pixel (voir l'en-tete).
-fn hsl_weight(a: f32, b: f32, chroma: f32, gate: f32, dir: vec2<f32>) -> f32 {
+// gaussienne asymetrique, module par la porte de chroma. AUCUN atan2 : on ne
+// compare que des directions, jamais l'angle absolu du pixel (voir l'en-tete).
+// Le cote du centre se lit au SIGNE du produit vectoriel a*dir.y - b*dir.x, ce
+// qui choisit la demi-largeur gauche ou droite sans jamais calculer d'angle absolu.
+fn hsl_weight(a: f32, b: f32, chroma: f32, gate: f32, dir: vec2<f32>, sigmaL: f32, sigmaR: f32) -> f32 {
   var cosd = 0.0;
   if (chroma > 0.00001) {
     cosd = (a * dir.x + b * dir.y) / chroma;
   }
   let ang = acos(clamp(cosd, -1.0, 1.0));
-  return exp(-(ang * ang) / (HSL_SIGMA * HSL_SIGMA)) * gate;
+  let cross = a * dir.y - b * dir.x;
+  let sigma = select(sigmaL, sigmaR, cross >= 0.0);
+  return exp(-(ang * ang) / (sigma * sigma)) * gate;
 }
 
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {

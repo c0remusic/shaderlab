@@ -76,6 +76,12 @@ curseur dans l'app elle-même (plugin Lua `assets/shaderlab-dump.lrdevplugin`).
   dans le dock de droite. `issues/03`. Ça tranche la question 2 de la carte
   (ni « un effet par panneau » ni « un calque » : un étage) et vide la question
   de l'ordre (l'ordre est celui de Lightroom, fixe).
+- **Parité des CONTRÔLES** : « il faut aussi que la qualité et le layout des
+  contrôles soit de qualité identique » — et « que cette partie ait sa propre
+  fenêtre/onglet, pas qu'elle soit intégrée à presets » — « hésite pas à
+  prendre des screenshots et à comparer ». `issues/07`, référence mesurée dans
+  `assets/reference-ui/` (captures 1:1 de Lightroom 14.5). Le 06 exige une
+  vraie roue chromatique.
 - Reste à charter (`/wayfinder`) : HSL / N&B (33), Color Grading (14), Détail
   (9), Vignettage (6), l'angle du recadrage, masques locaux, entourage.
 

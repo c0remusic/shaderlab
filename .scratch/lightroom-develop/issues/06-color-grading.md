@@ -39,7 +39,21 @@ sans tons moyens) : il n'entre pas — Lightroom lui-même ne le montre plus.
   proportion (mesurer sur le balayage de teinte de la mire : `grading-*`).
 - Une passe finale, aucune passe interne.
 
-## Interface
+## Interface — ⚠️ AMENDÉ le 2026-09-11 : une VRAIE ROUE, parité exigée
+
+Antoine : « il faut aussi que la qualité et le layout des contrôles soit de
+qualité identique ». Donc PAS un sélecteur de couleur par groupe : une **roue
+chromatique** comme celle de Lightroom (teinte sur le pourtour, saturation au
+rayon, un point qu'on tire, la luminance en curseur dessous, les quatre roues
+en rangée « Réglages » avec les icônes Ombres / Tons moyens / Hautes lumières /
+Globale / Tout comme sur la capture `assets/reference-ui/`). Contrôle NEUF
+`ColorWheelControl` dans `src/components/ui/` + déclaration par le module
+(`EffectModule.colorWheelControls`, même patron que `colorRampControls` :
+déclaré par le module, rendu par `ParamPanel` sans branche par id). Voir le
+ticket 07 (parité des contrôles) pour le style. Le paragraphe ci-dessous est
+l'ancienne version, gardée pour la trace.
+
+## Interface (version d'avant l'amendement)
 
 Lightroom montre des ROUES (teinte sur le pourtour, saturation au rayon). Chez
 nous, une roue n'existe pas : `EffectParam.colorGroup` (rôles hue / saturation

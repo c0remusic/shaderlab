@@ -8,9 +8,21 @@ Blocked by: 05 (HSL) et 06 (Color Grading, qui apporte la roue) — le panneau e
 layout des contrôles soit de qualité identique. » Le panneau « Développement »
 doit se lire et se manipuler comme le module Développement de Lightroom
 Classic 14.5 — même densité, mêmes gestes, mêmes formes de contrôle. Référence
-MESURÉE : `assets/reference-ui/lightroom-14.5-developpement-reglages-de-base.png`
-(capture 1:1 de sa fenêtre, 3456×1408) et son crop `panneau-droite-1x.png`
-(la colonne de droite, 346×1150 à l'échelle 1). Les chaînes françaises de tous
+MESURÉE (captures 1:1 de la colonne de droite de Lightroom 14.5, 346 px de large,
+prises par `PrintWindow` sur sa fenêtre — versionnées, ce sont des références) :
+`assets/reference-ui/lightroom-14.5-reglages-de-base-1x.png` (Histogramme,
+bandeau Auto/N&B/HDR, Profil, Balance des blancs, Tonalité, Présence, puis les
+en-têtes repliés Courbe / Mélangeur / Color Grading) et
+`lightroom-14.5-color-grading-et-detail-1x.png` (les roues de Color Grading
+— vue trois roues, Fusion, Balance — et le panneau Détail : Réduire le bruit,
+aperçu 1:1, Netteté Quantité/Rayon/Détail/Masquage, puis les en-têtes
+Corrections / Transformation / Flou / Effets / Étalonnage). ⚠️ Courbe des
+tonalités, Mélangeur de couleurs (les deux vues) et Étalonnage dépliés NE SONT
+PAS capturés : piloter la fenêtre de Lightroom par messages postés ne marche
+pas (clics inertes, mesuré), et la piloter par souris réelle prend la main sur
+la machine d'Antoine — à capturer quand il ouvre lui-même ces panneaux, ou par
+un `LrView`… non : le SDK ne capture pas l'interface. Les libellés, eux, sont
+tous dans `assets/lr-fr-develop-strings.txt`. Les chaînes françaises de tous
 ses libellés sont dans `assets/lr-fr-develop-strings.txt`.
 
 ## Sa propre fenêtre (Antoine, 2026-09-11)

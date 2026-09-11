@@ -1,0 +1,103 @@
+{
+  "adapter": {
+    "vendor": "nvidia",
+    "architecture": "turing",
+    "device": "",
+    "description": ""
+  },
+  "msgs": [],
+  "bugRt": true,
+  "bugLit": true,
+  "rows": [
+    {
+      "label": "Q1 (+,+)",
+      "y": 0.5,
+      "x": 0.5,
+      "ref": 0.7853981633974483,
+      "runtime": 0.7853981852531433,
+      "litteral": 0.7853981852531433,
+      "okRuntime": true,
+      "okLitteral": true
+    },
+    {
+      "label": "Q2 (+,-)",
+      "y": 0.5,
+      "x": -0.5,
+      "ref": 2.356194490192345,
+      "runtime": 2.356194496154785,
+      "litteral": 2.356194496154785,
+      "okRuntime": true,
+      "okLitteral": true
+    },
+    {
+      "label": "Q3 (-,-)",
+      "y": -0.5,
+      "x": -0.5,
+      "ref": -2.356194490192345,
+      "runtime": -2.356194496154785,
+      "litteral": -2.356194496154785,
+      "okRuntime": true,
+      "okLitteral": true
+    },
+    {
+      "label": "Q4 (-,+)",
+      "y": -0.5,
+      "x": 0.5,
+      "ref": -0.7853981633974483,
+      "runtime": -0.7853981852531433,
+      "litteral": -0.7853981852531433,
+      "okRuntime": true,
+      "okLitteral": true
+    },
+    {
+      "label": "Q3 bleu OKLab",
+      "y": -0.1,
+      "x": -0.05,
+      "ref": -2.0344439357957027,
+      "runtime": -2.0344438552856445,
+      "litteral": -2.0344438552856445,
+      "okRuntime": true,
+      "okLitteral": true
+    },
+    {
+      "label": "axe -x, y=+0",
+      "y": 0,
+      "x": -1,
+      "ref": 3.141592653589793,
+      "runtime": 3.1415927410125732,
+      "litteral": 3.1415927410125732,
+      "okRuntime": true,
+      "okLitteral": true
+    },
+    {
+      "label": "axe -x, y=-0",
+      "y": 0,
+      "x": -1,
+      "ref": -3.141592653589793,
+      "runtime": 3.1415927410125732,
+      "litteral": 3.1415927410125732,
+      "okRuntime": false,
+      "okLitteral": false
+    },
+    {
+      "label": "-0,-0",
+      "y": 0,
+      "x": 0,
+      "ref": -3.141592653589793,
+      "runtime": 1.5707963705062866,
+      "litteral": 0,
+      "okRuntime": false,
+      "okLitteral": false
+    },
+    {
+      "label": "Q3 petit",
+      "y": -0.001,
+      "x": -0.002,
+      "ref": -2.677945044588987,
+      "runtime": -2.677945137023926,
+      "litteral": -2.677945137023926,
+      "okRuntime": true,
+      "okLitteral": true
+    }
+  ]
+}

@@ -591,6 +591,62 @@ const INSTALL = `(async () => {
     return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
   };
 
+  // Mire de BALAYAGE pour le module HSL de l'etage (ticket 05 lightroom-develop).
+  // Reproduit en JS la structure de la mire du plugin
+  // (assets/mire/shaderlab-mire-lightroom.jpg, ce que analyse-mesures.py lit),
+  // pour ne dependre d'aucun fichier (le harnais n'a pas d'IPC). Six bandes
+  // horizontales, en fractions de la hauteur :
+  //   0.00-0.15 rampe de gris (montre que les gris ne bougent pas)
+  //   0.15-0.30 balayage de teinte, saturation 100 %, L 50 %
+  //   0.30-0.45 balayage de teinte, saturation 50 %, L 50 %
+  //   0.45-0.60 gris moyen (fond neutre)
+  //   0.60-0.85 huit bandes de LUMINOSITE (une par teinte Lightroom), L 0..1 en x
+  //   0.85-1.00 douze patches (primaires, secondaires, peau, gris)
+  // Les curseurs de teinte/saturation tournent et dosent les deux balayages ; les
+  // curseurs de luminance et de Niveau de gris N&B se lisent sur les huit bandes.
+  const hslToRgb = (hDeg, s, l) => {
+    const hh = (((hDeg % 360) + 360) % 360) / 360;
+    if (s === 0) { const v = Math.round(l * 255); return [v, v, v]; }
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    const hue = (t0) => {
+      let t = t0;
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    };
+    return [Math.round(hue(hh + 1 / 3) * 255), Math.round(hue(hh) * 255), Math.round(hue(hh - 1 / 3) * 255)];
+  };
+  const mireBalayage = (w, h) => {
+    const d = new Uint8ClampedArray(w * h * 4);
+    // Les huit teintes Lightroom (Rouge, Orange, Jaune, Vert, Turquoise, Bleu,
+    // Violet, Magenta), en degres HSL usuels.
+    const bandeHues = [0, 30, 60, 120, 180, 240, 270, 300];
+    const patches = [
+      [255, 0, 0], [255, 128, 0], [255, 255, 0], [0, 255, 0], [0, 255, 255], [0, 0, 255],
+      [128, 0, 255], [255, 0, 255], [224, 160, 128], [64, 64, 64], [128, 128, 128], [200, 200, 200],
+    ];
+    for (let y = 0; y < h; y++) {
+      const fy = y / h;
+      for (let x = 0; x < w; x++) {
+        const fx = w > 1 ? x / (w - 1) : 0;
+        let c;
+        if (fy < 0.15) { const v = Math.round(fx * 255); c = [v, v, v]; }
+        else if (fy < 0.30) { c = hslToRgb(fx * 360, 1.0, 0.5); }
+        else if (fy < 0.45) { c = hslToRgb(fx * 360, 0.5, 0.5); }
+        else if (fy < 0.60) { c = [128, 128, 128]; }
+        else if (fy < 0.85) { const bi = Math.min(7, Math.floor(((fy - 0.60) / 0.25) * 8)); c = hslToRgb(bandeHues[bi], 0.7, 0.15 + fx * 0.7); }
+        else { c = patches[Math.min(11, Math.floor(fx * 12))]; }
+        const i = (y * w + x) * 4;
+        d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = 255;
+      }
+    }
+    return createImageBitmap(new ImageData(d, w, h), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
+  };
+
   // sRGB 0..255 vers lumiere lineaire 0..1. Le range couleur compare a
   // \`colorLinear\`, donc un echantillon donne en sRGB viserait a cote — et pas
   // un peu : 220 sur 255 vaut 0,86 en sRGB et 0,72 en lineaire, soit plus de
@@ -3196,6 +3252,55 @@ const INSTALL = `(async () => {
       build: async () => {},
     },
 
+    // HSL / COULEUR / NOIR ET BLANC (2026-09-11, ticket 05 lightroom-develop). Le
+    // troisieme module de l etage : huit bandes fois teinte/saturation/luminance,
+    // plus le mode Noir et blanc. Rendu sur mireBalayage (rampe de gris, deux
+    // balayages de teinte, huit bandes de luminosite, douze patches) : la mire qui
+    // MONTRE ce qu une bande fait.
+    //
+    // PAS de contre : la mire porte des centaines de couleurs, donc la garde de
+    // signal (compte de couleurs distinctes) passe, comme pour toute reference du
+    // depot sans baseline nue (photo-de-fond-seule, grain-graine-fixe...). L ACTION
+    // du module (un rouge tourne, un bleu se desature, le N&B rend un gris) est
+    // prouvee AILLEURS et plus fortement : par le twin hslDevelop.test.ts et par
+    // la sonde applicabilite (32 declarations eprouvees inertes). Ces references,
+    // elles, GELENT les pixels et les index du uniform params.
+    "developpement-hsl-teinte-rouge": {
+      develop: { hsl: { redHue: 100 } },
+      build: async (r, stack) => {
+        const src = await mireBalayage(W, H);
+        const sourceId = await r.photoSources.register(src);
+        stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "balayage");
+      },
+    },
+    "developpement-hsl-sat-bleu": {
+      develop: { hsl: { blueSat: -100 } },
+      build: async (r, stack) => {
+        const src = await mireBalayage(W, H);
+        const sourceId = await r.photoSources.register(src);
+        stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "balayage");
+      },
+    },
+    "developpement-hsl-lum-vert": {
+      develop: { hsl: { greenLum: 100 } },
+      build: async (r, stack) => {
+        const src = await mireBalayage(W, H);
+        const sourceId = await r.photoSources.register(src);
+        stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "balayage");
+      },
+    },
+    // N&B : mode Noir et blanc, Niveau de gris rouge +60 (eclaircit les rouges),
+    // Niveau de gris bleu -60 (assombrit les bleus). La chroma tombe a 0 ; les
+    // deux curseurs de melange separent visuellement les bandes.
+    "developpement-hsl-nb": {
+      develop: { hsl: { mode: 1, redGray: 60, blueGray: -60 } },
+      build: async (r, stack) => {
+        const src = await mireBalayage(W, H);
+        const sourceId = await r.photoSources.register(src);
+        stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "balayage");
+      },
+    },
+
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,
     // donc les passes de morphologie separees H/V).
@@ -4383,6 +4488,7 @@ const INSTALL = `(async () => {
         mireLampes: () => mireLampes(W, H),
         mireDamierNeutre: () => mireDamierNeutre(W, H),
         mireVerre: () => mireVerre(W, H),
+        mireBalayage: () => mireBalayage(W, H),
       };
       if (!mires[s.mire]) return JSON.stringify({ ok: false, error: "mire inconnue: " + s.mire });
       const r = new Renderer(pass.ctx);
@@ -4390,8 +4496,19 @@ const INSTALL = `(async () => {
         await r.loadImage(await mires[s.mire](), { width: W, height: H });
         // \`openDocument\` est pur : il relit l'etat du renderer et rend une pile
         // NEUVE. Trois appels sur le meme renderer ne s'accumulent donc pas.
+        //
+        // MODULE DE L'ETAGE (\`s.develop\`). L'instrument itere sur les EFFETS
+        // (calques choisissables), mais un module de developpement (hsl,
+        // reglagesDeBase, etalonnage) n'est pas un calque : il s'applique au
+        // composite via \`exportFrame(layers, cadre, develop)\`, sans aucun calque
+        // d'effet. Meme protocole, meme garde de signal — seul le POINT
+        // d'application change. \`s.effet\` porte alors l'id du MODULE.
         const rendre = async (params) => {
           const stack = openDocument(r, "fond").stack;
+          if (s.develop) {
+            const develop = params ? { [s.effet]: params } : {};
+            return (await r.exportFrame(normalize(stack), null, develop)).pixels;
+          }
           if (params) stack.updateParams(stack.addLayer(s.effet), params);
           return (await r.exportFrame(normalize(stack))).pixels;
         };
@@ -4673,7 +4790,7 @@ async function eprouverApplicabilite(cdp) {
     let inerte = true;
     let concluant = false;
     for (const c of d.configs) {
-      const spec = { effet: d.effet, mire: d.mire, base: c.base, param: d.param, a: d.a, b: d.b, images: Boolean(IMAGES) };
+      const spec = { effet: d.effet, mire: d.mire, base: c.base, param: d.param, a: d.a, b: d.b, images: Boolean(IMAGES), develop: Boolean(d.develop) };
       const raw = JSON.parse(
         await cdp.evaluate(`window.__renderCheck.applicabilite(${JSON.stringify(JSON.stringify(spec))})`),
       );

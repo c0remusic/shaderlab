@@ -185,6 +185,12 @@ const ORPHELINS_DECLARES: Readonly<Record<string, string>> = {
   // titre pour une ligne. Rendue à sa place (index 0), elle retombe en tête,
   // comme dans Lightroom.
   "etalonnage.shadowTint": "vert↔magenta des ombres, hors des trois primaires",
+  // `hsl` : le sélecteur Couleur / Noir et blanc commande TOUTES les sections
+  // (il les masque ou les démasque), il n'appartient à aucune. Une section
+  // « Mode » d'un seul item serait un titre pour une ligne (ADR-0001). Rendu à
+  // sa place (index 0), il retombe en tête, comme le bouton Couleur/N&B de
+  // Lightroom.
+  "hsl.mode": "sélecteur qui commande toutes les sections, hors de toute bande",
 };
 
 describe("densité des sections", () => {

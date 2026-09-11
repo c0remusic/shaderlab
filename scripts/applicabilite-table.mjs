@@ -444,4 +444,46 @@ export const DECLARATIONS = [
     configs: [{ label: "repetition 1", base: { repeat: 1, blackPoint: 0, whitePoint: 1, blendSpace: 1 } }],
   },
 
+  // ── hsl (MODULE DE L ETAGE, ticket 05 lightroom-develop) ────────────────
+  // 32 declarations, sur mireBalayage. Ce n est PAS un effet de calque : le
+  // champ `develop` route le rendu par `exportFrame(layers, cadre, develop)` et
+  // non par un calque (voir la fonction `applicabilite` du harnais). L id du
+  // MODULE porte dans `effet`.
+  //
+  // Les 24 curseurs de couleur (teinte/saturation/luminance des 8 bandes) sont
+  // declares sans objet en NOIR ET BLANC : ce mode ne lit aucun curseur de
+  // couleur, il ne lit que les 8 « Niveau de gris ». La config N&B (mode = 1)
+  // agit fort (elle desature toute la mire), donc la garde de signal passe, et
+  // le curseur teste ne deplace rien.
+  //
+  // Les 8 curseurs de melange sont declares sans objet en COULEUR : le mode
+  // Couleur ne lit aucun « Niveau de gris ». La config Couleur allume trois
+  // saturations de bande pour que l effet AGISSE (sinon la garde de signal
+  // tirerait), et le curseur teste ne deplace rien.
+  ...["Hue", "Sat", "Lum"].flatMap((role) =>
+    ["red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta"].map((band) => ({
+      id: `hsl.${band}${role}`,
+      effet: "hsl",
+      develop: true,
+      mire: "mireBalayage",
+      declare: "Sans objet en Noir et blanc",
+      param: `${band}${role}`,
+      a: -100,
+      b: 100,
+      configs: [{ label: "Noir et blanc", base: { mode: 1 } }],
+    })),
+  ),
+  ...["red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta"].map((band) => ({
+    id: `hsl.${band}Gray`,
+    effet: "hsl",
+    develop: true,
+    mire: "mireBalayage",
+    declare: "Sans objet en Couleur",
+    param: `${band}Gray`,
+    a: -100,
+    b: 100,
+    // mode Couleur (0) + trois saturations de bande pour que l effet agisse.
+    configs: [{ label: "Couleur", base: { mode: 0, redSat: 100, greenSat: 100, blueSat: 100 } }],
+  })),
+
 ];

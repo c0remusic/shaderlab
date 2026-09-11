@@ -722,13 +722,19 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Ce qu'elle laisse passer : notre uniform `params: array<f32, 48>` n'est pas
   conforme (stride 4 pour un alignement requis de 16 en espace uniform), Dawn
   l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 26
-  effets, index gelés par les presets ET par **133** références de pixels
-  (**139 PNG** dans `test/render-refs/` au 2026-09-11 ; SIX ne gèlent PAS un
+  effets, index gelés par les presets ET par **137** références de pixels
+  (**143 PNG** dans `test/render-refs/` au 2026-09-11 ; SIX ne gèlent PAS un
   index : `photo-miroir-temoin` / `photo-miroir` gèlent le miroir du calque
   photo, `cadre-toile` / `cadre-toile-temoin` / `cadre-toile-degrade` gèlent
   un DÉCOUPAGE de toile, et `developpement-reglages-temoin` est la rampe nue
   (le module `reglagesDeBase` au défaut est SAUTÉ, aucun `params[N]` lu) — donc
-  le compte qui gèle les index est 139 − 2 − 3 − 1 = 133.
+  le compte qui gèle les index est 143 − 2 − 3 − 1 = 137.
+  ⚠️ **+4 le 2026-09-11 (ticket 05 lightroom-develop)** : les quatre références
+  `developpement-hsl-{teinte-rouge,sat-bleu,lum-vert,nb}` du module `hsl`
+  (TSL / Couleur / Noir et blanc), sur `mireBalayage`. Les quatre gèlent ses index
+  (139 → 143 PNG, 133 → 137 gelantes) ; elles n'ont pas de `contre` (mire à
+  centaines de couleurs, garde de signal sur le compte de couleurs), l'action du
+  module étant prouvée par le twin `hslDevelop.test.ts` et par `--applicabilite`.
   ⚠️ **+6 le 2026-09-11 (ticket 02 lightroom-develop)** : les six références
   `developpement-reglages-{temoin,ton,courbe,couleur,saturation,presence}` du
   module `reglagesDeBase` (le ton d'un bloc de l'étage). Cinq gèlent ses index,
@@ -969,7 +975,13 @@ Points structurants qu'on ne devine pas en lisant un fichier isolé :
   toutes les références tant qu'aucun réglage n'est posé — c'est LE gate
   discriminant. L'interface est une carte « Développement » permanente dans le
   dock de droite (`DevelopPanel`, un `ParamPanel` par module via un calque
-  synthétique, sans forker). `etalonnage` est le premier module ; `presetDocument`
+  synthétique, sans forker). Modules de l'étage au 2026-09-11 : **`etalonnage`,
+  `reglagesDeBase`, `hsl`** (TSL / Couleur / Noir et blanc, ticket 05) — ordre
+  d'APPLICATION `etalonnage → reglagesDeBase → hsl` (Lightroom applique les
+  primaires, puis le ton, puis le HSL), ordre d'AFFICHAGE `reglagesDeBase → hsl →
+  etalonnage`. ⚠️ Le module `hsl` vit dans `render/effects/hslDevelop.ts`, PAS
+  `hsl.ts` (ce nom est le helper de conversion HSL→RGB, listé en helper ci-dessus) ;
+  seul le nom de fichier cède, l'id de module est bien `hsl`. `presetDocument`
   capture/restaure `DevelopSettings` (module inconnu → avertissement).
 
 ## Décisions (ADR)

@@ -2,6 +2,7 @@ import type { EffectModule } from "./effects/types";
 import { validateEffect } from "./effects/validate";
 import { etalonnage } from "./effects/etalonnage";
 import { reglagesDeBase } from "./effects/reglagesDeBase";
+import { hsl } from "./effects/hslDevelop";
 
 /**
  * REGISTRE DE L'ÉTAGE DE DÉVELOPPEMENT (ticket 03 lightroom-develop).
@@ -38,12 +39,13 @@ import { reglagesDeBase } from "./effects/reglagesDeBase";
  */
 
 /** Ordre d'APPLICATION au composite (fin de chaîne) : Étalonnage (primaires)
- *  PUIS Réglages de base (ton). */
-export const developApplyOrder: readonly EffectModule[] = [etalonnage, reglagesDeBase];
+ *  PUIS Réglages de base (ton) PUIS HSL. Lightroom applique le HSL APRÈS le ton
+ *  (une bande agit sur des couleurs déjà exposées et contrastées). */
+export const developApplyOrder: readonly EffectModule[] = [etalonnage, reglagesDeBase, hsl];
 
 /** Ordre d'AFFICHAGE des panneaux dans la carte « Développement » : Réglages de
- *  base en tête, Étalonnage en bas (comme Lightroom). */
-export const developDisplayOrder: readonly EffectModule[] = [reglagesDeBase, etalonnage];
+ *  base, HSL, puis Étalonnage en bas (comme Lightroom). */
+export const developDisplayOrder: readonly EffectModule[] = [reglagesDeBase, hsl, etalonnage];
 
 /** Ensemble CANONIQUE des modules de l'étage, sans doublon — pour la validation
  *  au chargement et pour les gardes qui les énumèrent (câblage, WGSL, densité).

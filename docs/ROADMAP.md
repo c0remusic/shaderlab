@@ -43,15 +43,16 @@
   (ADR-0021, quatrième refus daté). ✅ Depuis le 2026-09-07 (`ede4b16`) le
   matcap du ticket 17 est une DOSE à défaut 0 — Antoine a pointé la colonne
   d'avant sur la planche chronologique — et `effet-verre-matcap` est la 14ᵉ.
-- **379 paramètres, 139 références de pixels** — le compte de params re-mesuré le
+- **379 paramètres, 143 références de pixels** — le compte de params re-mesuré le
   **2026-09-11** (386 → 379 : `etalonnage` et ses 7 params PARTENT vers l'ÉTAGE de
   développement, ticket 03 ; ils étaient ARRIVÉS en calque au ticket 01, 379 →
   386). ⚠️ `mesure-controles.ts` ne compte QUE `effectRegistry` — les modules de
-  l'étage (`etalonnage`, `reglagesDeBase`) n'y entrent PAS, donc le module
-  `reglagesDeBase` (ticket 02, 20 curseurs) ne bouge pas ce 379. Le compte de
+  l'étage (`etalonnage`, `reglagesDeBase`, `hsl`) n'y entrent PAS, donc les 33
+  curseurs du module `hsl` (ticket 05) ne bougent pas ce 379. Le compte de
   références corrigé le 2026-09-11 (le « 125 » était périmé — le vrai total était
   131, plus `developpement-etalonnage` / `developpement-apres-pile` du ticket 03
-  = 133, plus les SIX `developpement-reglages-*` du ticket 02 = **139**). La ligne détaillée plus bas
+  = 133, plus les SIX `developpement-reglages-*` du ticket 02 = 139, plus les
+  QUATRE `developpement-hsl-*` du ticket 05 = **143**). La ligne détaillée plus bas
   date du **2026-09-09**
   (373 et 119 au 2026-08-27 ; le +6 et le +6 sont les tickets 21, 11, 24 et la
   dose `matcap` — un ajout, pas une correction : 49 conditions, ratio inchangé

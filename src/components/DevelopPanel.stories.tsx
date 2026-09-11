@@ -23,28 +23,30 @@ const meta: Meta<typeof DevelopPanel> = {
 export default meta;
 type Story = StoryObj<typeof DevelopPanel>;
 
-/** Au défaut : la carte montre les DEUX modules en accordéon — Réglages de base
- *  en tête, Étalonnage en bas (ordre d'affichage de Lightroom) — et les deux
- *  « Réinitialiser » sont inertes (rien à défaire). */
+/** Au défaut : la carte montre les TROIS modules en accordéon — Réglages de base
+ *  en tête, HSL au milieu, Étalonnage en bas (ordre d'affichage de Lightroom) — et
+ *  les trois « Réinitialiser » sont inertes (rien à défaire). */
 export const AuDefaut: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // Les deux titres d'accordéon.
+    // Les trois titres d'accordéon.
     await expect(canvas.getByText("Réglages de base")).toBeInTheDocument();
+    await expect(canvas.getByText("TSL / Noir et blanc")).toBeInTheDocument();
     await expect(canvas.getByText("Étalonnage")).toBeInTheDocument();
-    // Un curseur de chaque module (accordéons ouverts par défaut).
+    // Un curseur (ou contrôle) de chaque module (accordéons ouverts par défaut).
     await expect(canvas.getByText("Température")).toBeInTheDocument();
+    await expect(canvas.getByText("Traitement")).toBeInTheDocument();
     await expect(canvas.getByText("Nuance foncée")).toBeInTheDocument();
-    // Deux boutons « Réinitialiser », tous deux inertes au défaut.
+    // Trois boutons « Réinitialiser », tous inertes au défaut.
     const resets = canvas.getAllByRole("button", { name: /Réinitialiser/ });
-    await expect(resets).toHaveLength(2);
+    await expect(resets).toHaveLength(3);
     for (const reset of resets) await expect(reset).toBeDisabled();
   },
 };
 
 /** Réglé : Réglages de base (Exposition +1, Vibrance +60) ET Étalonnage
- *  (teal-and-orange). Chaque « Réinitialiser » réglé devient actif ; l'autre
- *  reste inerte. */
+ *  (teal-and-orange), le HSL laissé au défaut. Chaque « Réinitialiser » réglé
+ *  devient actif ; celui du HSL reste inerte. */
 export const Regle: Story = {
   args: {
     develop: {
@@ -55,9 +57,10 @@ export const Regle: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const resets = canvas.getAllByRole("button", { name: /Réinitialiser/ });
-    await expect(resets).toHaveLength(2);
-    // Les deux modules sont réglés -> les deux boutons sont actifs.
-    for (const reset of resets) await expect(reset).toBeEnabled();
+    await expect(resets).toHaveLength(3);
+    // Deux modules réglés (boutons actifs), le HSL au défaut (bouton inerte).
+    const actifs = resets.filter((r) => !(r as HTMLButtonElement).disabled);
+    await expect(actifs).toHaveLength(2);
   },
 };
 

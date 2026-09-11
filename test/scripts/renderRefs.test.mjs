@@ -642,6 +642,16 @@ const ATTENDU = {
   "developpement-reglages-couleur.png": { width: 256, height: 256, valeurs: null },
   "developpement-reglages-saturation.png": { width: 256, height: 256, valeurs: null },
   "developpement-reglages-presence.png": { width: 256, height: 256, valeurs: null },
+  // HSL / COULEUR / NOIR ET BLANC (ticket 05 lightroom-develop) : le troisieme
+  // module de l etage, sur mireBalayage. Quatre references qui gelent les pixels
+  // et les index du uniform du module hsl (teinte d une bande, saturation d une
+  // bande, luminance d une bande, mode Noir et blanc avec melange). L action du
+  // module est prouvee par le twin hslDevelop.test.ts et par --applicabilite ;
+  // ici on GELE le rendu.
+  "developpement-hsl-teinte-rouge.png": { width: 256, height: 256, valeurs: null },
+  "developpement-hsl-sat-bleu.png": { width: 256, height: 256, valeurs: null },
+  "developpement-hsl-lum-vert.png": { width: 256, height: 256, valeurs: null },
+  "developpement-hsl-nb.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

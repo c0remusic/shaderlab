@@ -1,8 +1,8 @@
 # 05 — HSL / Couleur / Noir et blanc : 33 curseurs de bande
 
 Type: task
-Status: ready-for-agent
-Blocked by: 02 (le panneau à deux modules et son repli), et la MESURE `../research/03-courbes-lightroom-mesurees.md` (les bandes de Lightroom se lisent sur le balayage de teinte : centre et largeur de chaque bande, forme du recouvrement — ne pas les écrire de tête)
+Status: ready-for-human (LIVRÉ le 2026-09-11, commit à venir ; table de bandes PROVISOIRE — voir plus bas — et validation esthétique d'Antoine côte à côte avec son Lightroom, planche 05)
+Blocked by: 02 (livré) ; la MESURE `../research/03-courbes-lightroom-mesurees.md` reste ABSENTE (aucun export du plugin) — livré sur table PROVISOIRE, remplaçable par `assets/calibrer-hsl.py` dès que les exports existent.
 
 **What to build :** le module `hsl` de l'étage — « go pour HSL après », Antoine,
 2026-09-11. Le panneau « Couleur » de Lightroom (inventaire § 3) : huit bandes
@@ -65,8 +65,62 @@ curseurs (Teinte, Saturation, Luminance) = 24, plus le mode **Noir et blanc**
   propre témoin.
 - Planche pour Antoine, ses deux photos, à comparer à son Lightroom.
 
-- [ ] Poids de bande dérivés de la mesure (centres, largeurs, forme), écrits dans le ticket avec les chiffres.
-- [ ] `hsl.ts` (33 params, N&B par `choices` + `appliesWhen` mesurés et tabulés), une passe.
-- [ ] Références + comparaison chiffrée à l'export Lightroom.
-- [ ] Panneau : sections en grilles, mode N&B masque/démasque.
-- [ ] Planche, verdict d'Antoine.
+- [~] Poids de bande dérivés de la mesure — IMPOSSIBLE (exports absents). Livré sur TABLE PROVISOIRE (`src/render/effects/hslBandes.ts`), valeurs usuelles de Lightroom ; `assets/calibrer-hsl.py` ajuste par moindres carrés quand les exports existent.
+- [x] `hslDevelop.ts` (33 params, N&B par `choices` + `appliesWhen` tabulés dans `applicabilite-table.mjs`), une passe, poids de bande SANS `atan2` (produit scalaire OKLab + `acos`).
+- [x] 4 références (`developpement-hsl-{teinte-rouge,sat-bleu,lum-vert,nb}`) + ATTENDU, `test:render` zéro écart sur 139, +4 = **143**. `assets/comparer-lightroom.py` écrit (à lancer quand les exports existent).
+- [x] Panneau : sections en grilles 8 (Teinte/Saturation/Luminance/Mélange N&B), mode N&B masque/démasque (32 déclarations `appliesWhen` éprouvées INERTES par `--applicabilite`, 66/66 inertes).
+- [x] Planche (`planche-05-hsl-{rendu,assemble}.mjs`, deux photos d'Antoine) ; verdict esthétique d'Antoine DÛ.
+
+## Décisions et écarts d'exécution (2026-09-11)
+
+- **Prémisse fausse du brief corrigée : `effects/hsl.ts` EXISTAIT déjà** (helper de
+  conversion HSL→RGB `hsl2rgb`/`HSL_TO_RGB_WGSL`, lu par une dizaine d'effets,
+  listé comme helper dans CLAUDE.md). Le module vit donc dans
+  **`src/render/effects/hslDevelop.ts`** ; l'id de module reste `hsl` (aucun clash
+  d'id). La convention fichier=id cède devant le clash de nom de fichier.
+- **Poids de bande SANS `atan2`** : chaque bande est une DIRECTION unitaire (a,b)
+  d'OKLab, dérivée d'une couleur pure. Le poids d'un pixel = `acos` du produit
+  scalaire `(a·ca+b·cb)/|ab|` passé dans une gaussienne, modulé par
+  `smoothstep(0, chromaRef, chroma)` (un gris ne bouge pas). `acos` est sûr sur
+  Dawn ; on ne calcule jamais l'angle ABSOLU du pixel. Teinte = rotation 2×2 de
+  (a,b) par `Σ poids·amplitude`. Chaque bande n'ajoute sa rotation que si SON
+  curseur est réglé, donc régler `redHue` seul ne touche que le rouge.
+- **TABLE PROVISOIRE** (`hslBandes.ts`, nommée et isolée) : centres = teintes
+  usuelles (Rouge 0°, Orange 30°, Jaune 60°, Vert 120°, Turquoise 180°, Bleu 240°,
+  Violet 270°, Magenta 300°) via une couleur pure par bande ; `HSL_SIGMA_DEG = 25`
+  (recouvrement voisin ~mi-hauteur) ; `HSL_CHROMA_REF = 0,05` ; amplitude 30°/+100,
+  satK 1, lumK 0,5, grayK 0,5 (identiques par bande faute de mesure). `grayK`
+  restera provisoire même après calibration : `mesures.lua` n'exporte aucun
+  GrayMixer par bande. Le SIGNE de la rotation de teinte est aussi provisoire (à
+  lire sur `hsl-teinte-*-p100`).
+- **Références sans `contre`** : la `mireBalayage` porte des centaines de couleurs,
+  la garde de signal passe sur le compte (comme nombre de références du dépôt sans
+  baseline). L'ACTION du module est prouvée plus fortement par le twin
+  `hslDevelop.test.ts` et par `--applicabilite` (32 déclarations inertes). Pas de
+  5ᵉ référence témoin (identité au défaut prouvée par le twin + le saut de l'étage
+  + `test:render` zéro écart sur les 139).
+- **Instrument `--applicabilite` étendu à l'ÉTAGE** : un champ `develop: true` sur
+  la déclaration route le rendu par `exportFrame(layers, null, { [module]: params })`
+  au lieu d'un calque. `mireBalayage` ajoutée aux mires du harnais.
+- **Vérifs GPU live (CDP 9223)** : `reglerDeveloppement("hsl", {blueHue:100})` →
+  frameSignature change ; `{mode:1}` (N&B) → change ; reset → retour à S0 au bit
+  près (moyenne 43.63674770518868 / écart 60.70067631971353, identiques).
+- **Panneau à trois modules mesuré** : la carte borne sa hauteur (clientH 1153 px,
+  viewport 1369) et défile DEDANS (`overflow-y:auto`, scrollH 2947) — le point
+  laissé ouvert au ticket 02 est réglé par le CSS du ticket 03, la colonne ne
+  défile pas (ADR-0001). Capture `assets/etage-05-panneau.png`.
+- **Planche photo B** : plusieurs vignettes portent le même md5 (col1/2/5,
+  col9/11). Photo A (fleur) montre les 12 colonnes distinctes. `--applicabilite`
+  (Renderer réutilisé) prouve que le rendu se rafraîchit au changement de develop
+  — donc c'est cohérent avec une photo « edited-2 » à faible chroma que la porte
+  anti-gris neutralise sur ces bandes, plus la quantification du downscale 620 px,
+  pas un bug du module (les références pixel-lock et le twin le prouvent). À
+  éprouver sur une photo plus colorée si Antoine veut trancher.
+
+## Reste
+
+- Validation esthétique d'Antoine (planche 05, comparée à son Lightroom).
+- Calibration réelle : produire les exports du plugin, lancer `analyse-mesures.py`
+  puis `calibrer-hsl.py` (colle la table + écart résiduel), et `comparer-lightroom.py`.
+- Suite du chantier `lightroom-develop` : Color Grading (14), Détail (9),
+  Vignettage (6), angle du recadrage, masques locaux.

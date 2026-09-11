@@ -177,3 +177,7 @@ Les pastilles à réutiliser = couleurs de `hslBandes.ts` (`rgb` par bande, dans
 l'ordre red…magenta). À faire avec le 06.
 
 **Gates** (verdicts en fin de session, section Rapport de l'agent).
+
+## Gates rejoués après redémarrage (2026-09-11, session parent)
+
+Environnement recréé (app relancée CDP 9223, Vite 1421 neuf — l'ancien avait 63 h). Sur l'arbre FUSIONNÉ : `tsc` vert, `npm run test` 2319, `test:render` « Aucune regression de rendu » (143). Sous-gate CDP dans la vraie fenêtre : réglage → signature change ; œil du module éteint → moyenne 43.63674770518868 = source au bit près, rallumé → l'effet revient ; Réinitialiser → `develop` vide + source au bit près ; double-clic sur le libellé « Teinte » → retour au défaut. Poussé sur master.

@@ -2,6 +2,7 @@ import type { EffectModule, EffectSection, EffectPass } from "./types";
 import { DOWNSAMPLE_WGSL } from "./blurChain";
 import { SRGB_TO_LINEAR_WGSL, LINEAR_TO_SRGB_WGSL, srgbToLinear, linearToSrgb } from "./srgbTransfer";
 import { OKLAB_WGSL, linearSrgbToOklab, oklabToLinearSrgb } from "./oklab";
+import { TEMPERATURE_GRADIENT, NUANCE_GRADIENT, RAINBOW_GRADIENT } from "./trackGradients";
 
 /**
  * Réglages de base + courbe paramétrique — le module `reglagesDeBase` de l'ÉTAGE
@@ -299,8 +300,8 @@ export const reglagesDeBase: EffectModule = {
   id: "reglagesDeBase",
   name: "Réglages de base",
   params: [
-    { name: "temperature", label: "Température", ...R100, hint: "Balance des blancs relative : positif réchauffe (jaune), négatif refroidit (bleu). Un gris garde sa luminance" },
-    { name: "nuance", label: "Nuance", ...R100, hint: "Balance des blancs relative : positif vire au magenta, négatif au vert" },
+    { name: "temperature", label: "Température", ...R100, trackGradient: TEMPERATURE_GRADIENT, hint: "Balance des blancs relative : positif réchauffe (jaune), négatif refroidit (bleu). Un gris garde sa luminance" },
+    { name: "nuance", label: "Nuance", ...R100, trackGradient: NUANCE_GRADIENT, hint: "Balance des blancs relative : positif vire au magenta, négatif au vert" },
     { name: "exposure", label: "Exposition", unit: "none", min: -5, max: 5, default: 0, step: 0.05, hint: "Gain global en indices de lumination (IL), 2^valeur en lumière linéaire" },
     { name: "contrast", label: "Contraste", ...R100, hint: "Pente autour du gris moyen, en espace perceptuel" },
     { name: "highlights", label: "Hautes lumières", ...R100, hint: "Récupère (négatif) ou ouvre (positif) les hautes lumières, pondéré par une luminance FLOUTÉE — local, pas une courbe" },
@@ -310,8 +311,8 @@ export const reglagesDeBase: EffectModule = {
     { name: "texture", label: "Texture", ...R100, hint: "Contraste local à PETIT rayon (bande fine), sur la luminance" },
     { name: "clarity", label: "Clarté", ...R100, hint: "Contraste local à MOYEN rayon (bande large), sur la luminance" },
     { name: "dehaze", label: "Correction du voile", ...R100, hint: "Retire (positif) ou ajoute (négatif) un voile estimé à grand rayon" },
-    { name: "vibrance", label: "Vibrance", ...R100, hint: "Dose la chroma NON linéairement : fort sur les couleurs ternes, faible sur les vives, protège les carnations" },
-    { name: "saturation", label: "Saturation", ...R100, hint: "Dose la chroma uniformément" },
+    { name: "vibrance", label: "Vibrance", ...R100, trackGradient: RAINBOW_GRADIENT, hint: "Dose la chroma NON linéairement : fort sur les couleurs ternes, faible sur les vives, protège les carnations" },
+    { name: "saturation", label: "Saturation", ...R100, trackGradient: RAINBOW_GRADIENT, hint: "Dose la chroma uniformément" },
     { name: "paramHighlights", label: "Hautes lumières", ...R100, hint: "Courbe paramétrique : lève ou baisse la région des hautes lumières" },
     { name: "paramLights", label: "Teintes claires", ...R100, hint: "Courbe paramétrique : région des teintes claires" },
     { name: "paramDarks", label: "Teintes sombres", ...R100, hint: "Courbe paramétrique : région des teintes sombres" },

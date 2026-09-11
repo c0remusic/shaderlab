@@ -2,6 +2,12 @@ import type { EffectModule, EffectParam, EffectSection } from "./types";
 import { OKLAB_WGSL, linearSrgbToOklab, oklabToLinearSrgb } from "./oklab";
 import { srgbToLinear } from "./srgbTransfer";
 import { HSL_BANDES, HSL_CHROMA_REF, type HslBande } from "./hslBandes";
+import {
+  hslBandeHueGradient,
+  hslBandeSatGradient,
+  hslBandeLumGradient,
+  hslBandeGrayGradient,
+} from "./trackGradients";
 
 /**
  * HSL / Couleur / Noir et blanc — le module `hsl` de l'ÉTAGE de développement
@@ -192,6 +198,7 @@ const params: EffectParam[] = [
     label: `Variation de la teinte ${LIBELLES[band.id].hue}`,
     ...R100,
     appliesWhen: COULEUR,
+    trackGradient: hslBandeHueGradient(band.id),
     hint: "Tourne la teinte des pixels de cette bande, pondéré par leur appartenance à la bande et leur chroma",
   })),
   ...HSL_BANDES.map((band): EffectParam => ({
@@ -199,6 +206,7 @@ const params: EffectParam[] = [
     label: `Variation de la saturation ${LIBELLES[band.id].satlum}`,
     ...R100,
     appliesWhen: COULEUR,
+    trackGradient: hslBandeSatGradient(band.id),
     hint: "Dose la chroma des pixels de cette bande ; −100 la désature entièrement",
   })),
   ...HSL_BANDES.map((band): EffectParam => ({
@@ -206,6 +214,7 @@ const params: EffectParam[] = [
     label: `Variation de la luminance ${LIBELLES[band.id].satlum}`,
     ...R100,
     appliesWhen: COULEUR,
+    trackGradient: hslBandeLumGradient(band.id),
     hint: "Éclaircit ou assombrit les pixels de cette bande, teinte intacte",
   })),
   ...HSL_BANDES.map((band): EffectParam => ({
@@ -213,6 +222,7 @@ const params: EffectParam[] = [
     label: `Niveau de gris ${LIBELLES[band.id].gray}`,
     ...R100,
     appliesWhen: NB,
+    trackGradient: hslBandeGrayGradient(band.id),
     hint: "En Noir et blanc : éclaircit ou assombrit les gris issus de cette teinte",
   })),
 ];

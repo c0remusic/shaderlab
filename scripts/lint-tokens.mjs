@@ -49,6 +49,19 @@ function isTestPath(fullPath) {
   return EXCLUDE_PATH_SUBSTR_ANYWHERE.some((s) => rel.includes(s));
 }
 
+// Données de couleur du DOMAINE (pistes colorées des curseurs, ticket 08). Les
+// couleurs CSS de `trackGradients.ts` — bouts perceptuels de la Température,
+// couleur mesurée de chaque bande HSL, roue des primaires — sont des DONNÉES,
+// pas des valeurs qui contournent un token : aucun `--token` de design ne les
+// remplacerait. Exclu du scan pour la MÊME raison que les fichiers de test, et
+// pas plus large : un seul fichier nommé, qui centralise toute couleur littérale
+// du chantier pour que rien n'en fuie dans un module d'effet scanné.
+const DOMAIN_COLOR_DATA = [path.join('src', 'render', 'effects', 'trackGradients.ts')];
+function isDomainColorData(fullPath) {
+  const rel = path.relative(ROOT, fullPath);
+  return DOMAIN_COLOR_DATA.includes(rel);
+}
+
 // Strips // and /* */ comments (best-effort, not string-literal-aware — a "//" or
 // "/*" inside a real string could mis-trigger, acceptable for a first-pass lint).
 // Fixes the other half of the same HAUTE finding: a hex color mentioned in a
@@ -174,6 +187,7 @@ function walk(dir) {
       const ext = path.extname(entry.name);
       if (!SCAN_EXTS.has(ext)) continue;
       if (isTestPath(full)) continue;
+      if (isDomainColorData(full)) continue;
       const resolved = path.resolve(full);
       if (TOKEN_FILES.includes(resolved)) continue;
       files.push(full);

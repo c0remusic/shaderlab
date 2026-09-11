@@ -1,6 +1,7 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 
 import { Slider as SliderPrimitive } from "./slider";
+import "./labeled-slider.css";
 import { cn } from "../../lib/utils";
 import { formatControlValue, parseControlValue } from "../../ui/formatValue";
 import {
@@ -77,6 +78,14 @@ export interface LabeledSliderProps {
    *  les curseurs d'effet ; `"right"` pour l'inline Lightroom (les valeurs
    *  signées s'y lisent alignées à droite, comme sur la capture). */
   valueAlign?: "center" | "right";
+  /**
+   * DÉGRADÉ de la PISTE, une donnée du domaine (ticket 08) : les `stops` sont des
+   * couleurs CSS que le module d'effet calcule pour MONTRER ce que le curseur
+   * fait (Température bleu→jaune, saturation d'une bande gris→couleur). Absent =
+   * piste NEUTRE, le défaut. Posé sur la piste seule, le pouce par-dessus, via
+   * `labeled-slider.css` ; ne touche ni les valeurs, ni les bornes, ni le rendu.
+   */
+  trackGradient?: { stops: string[] };
   className?: string;
 }
 
@@ -101,6 +110,7 @@ export function LabeledSlider({
   parse,
   layout = "stacked",
   valueAlign = "center",
+  trackGradient,
   className,
 }: LabeledSliderProps) {
   const id = useId();
@@ -233,8 +243,22 @@ export function LabeledSlider({
   // défaut : c'est la demande d'Antoine devant la planche, et c'est ce qui
   // l'empêche de devenir un point de plus à lire sur chaque ligne d'un panneau
   // qui en compte déjà trop.
+  // DÉGRADÉ DE PISTE (ticket 08). Construit ici à partir des `stops` reçus — le
+  // composant ne connaît AUCUNE couleur, il ne fait qu'assembler la valeur CSS
+  // et la poser en variable ; les couleurs sont des données du module d'effet.
+  const trackGradientCss =
+    trackGradient && trackGradient.stops.length > 0
+      ? `linear-gradient(to right, ${trackGradient.stops.join(", ")})`
+      : undefined;
   const pisteEtMarque = (
-    <span className="relative flex min-w-0 flex-1 items-center">
+    <span
+      className={cn(
+        "relative flex min-w-0 flex-1 items-center",
+        trackGradientCss && "labeled-slider__gradient",
+      )}
+      data-track-gradient={trackGradientCss ? "" : undefined}
+      style={trackGradientCss ? ({ "--track-gradient": trackGradientCss } as CSSProperties) : undefined}
+    >
       {positionDefaut !== undefined && (
         <span
           aria-hidden="true"

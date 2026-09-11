@@ -1,5 +1,6 @@
 import type { EffectModule, EffectSection } from "./types";
 import { OKLAB_WGSL, linearSrgbToOklab, oklabToLinearSrgb } from "./oklab";
+import { etalonnagePrimaryHueGradient, etalonnagePrimarySatGradient } from "./trackGradients";
 
 /**
  * Étalonnage — portage du panneau « Etalonnage » de Lightroom Classic (ticket 01
@@ -183,12 +184,12 @@ export const etalonnage: EffectModule = {
       ...RANGE,
       hint: "Vert ↔ magenta dans les OMBRES seules : positif vire au magenta, négatif au vert, et s'éteint sur les tons clairs",
     },
-    { name: "redHue", label: "Teinte", ...RANGE, hint: "Tourne ce que le ROUGE de l'image désigne — toute l'image glisse, ce n'est pas un HSL" },
-    { name: "redSaturation", label: "Saturation", ...RANGE, hint: "Dose la chroma de la primaire rouge" },
-    { name: "greenHue", label: "Teinte", ...RANGE, hint: "Tourne ce que le VERT de l'image désigne" },
-    { name: "greenSaturation", label: "Saturation", ...RANGE, hint: "Dose la chroma de la primaire verte" },
-    { name: "blueHue", label: "Teinte", ...RANGE, hint: "Tourne ce que le BLEU de l'image désigne — teinte − et saturation + font le teal-and-orange" },
-    { name: "blueSaturation", label: "Saturation", ...RANGE, hint: "Dose la chroma de la primaire bleue" },
+    { name: "redHue", label: "Teinte", ...RANGE, trackGradient: etalonnagePrimaryHueGradient("red"), hint: "Tourne ce que le ROUGE de l'image désigne — toute l'image glisse, ce n'est pas un HSL" },
+    { name: "redSaturation", label: "Saturation", ...RANGE, trackGradient: etalonnagePrimarySatGradient("red"), hint: "Dose la chroma de la primaire rouge" },
+    { name: "greenHue", label: "Teinte", ...RANGE, trackGradient: etalonnagePrimaryHueGradient("green"), hint: "Tourne ce que le VERT de l'image désigne" },
+    { name: "greenSaturation", label: "Saturation", ...RANGE, trackGradient: etalonnagePrimarySatGradient("green"), hint: "Dose la chroma de la primaire verte" },
+    { name: "blueHue", label: "Teinte", ...RANGE, trackGradient: etalonnagePrimaryHueGradient("blue"), hint: "Tourne ce que le BLEU de l'image désigne — teinte − et saturation + font le teal-and-orange" },
+    { name: "blueSaturation", label: "Saturation", ...RANGE, trackGradient: etalonnagePrimarySatGradient("blue"), hint: "Dose la chroma de la primaire bleue" },
   ],
   sections,
   wgsl: `

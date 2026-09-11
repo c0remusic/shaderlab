@@ -3,6 +3,13 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { LabeledSlider } from "./labeled-slider";
 import { assertAccessibleNames } from "./accessible-name.test-support";
+import {
+  TEMPERATURE_GRADIENT,
+  NUANCE_GRADIENT,
+  hslBandeHueGradient,
+  hslBandeSatGradient,
+  hslBandeLumGradient,
+} from "../../render/effects/trackGradients";
 
 const meta: Meta<typeof LabeledSlider> = {
   title: "Components/ui/LabeledSlider",
@@ -163,5 +170,96 @@ export const InlineSignedNegative: Story = {
     // Double-clic sur le libellé = retour au défaut (0), un onChange + un commit.
     await expect(args.onChange).toHaveBeenCalledWith(0);
     await expect(args.onCommit).toHaveBeenCalled();
+  },
+};
+
+// --- Piste colorée (ticket 08) ----------------------------------------------
+// Le dégradé de piste est une DONNÉE du module d'effet : `labeled-slider` ne le
+// fait que rendre. Absent = piste neutre (le témoin ci-dessous). La piste est un
+// indice de lecture, jamais le rendu — `test:render` ne bouge pas.
+
+/** Température : la piste va du bleu au jaune, comme Lightroom. */
+export const TrackGradientTemperature: Story = {
+  args: {
+    label: "Température",
+    value: 0,
+    min: -100,
+    max: 100,
+    step: 1,
+    displayValue: "0",
+    layout: "inline",
+    valueAlign: "right",
+    defaultValue: 0,
+    trackGradient: TEMPERATURE_GRADIENT,
+  },
+  play: async ({ canvasElement }) => {
+    // La piste porte bien le dégradé, posé en variable CSS d'exécution.
+    const marque = canvasElement.querySelector("[data-track-gradient]") as HTMLElement | null;
+    await expect(marque).not.toBeNull();
+    await expect(marque!.style.getPropertyValue("--track-gradient")).toContain("linear-gradient");
+  },
+};
+
+/** Nuance : vert → magenta. */
+export const TrackGradientNuance: Story = {
+  args: {
+    label: "Nuance",
+    value: 0,
+    min: -100,
+    max: 100,
+    step: 1,
+    displayValue: "0",
+    layout: "inline",
+    valueAlign: "right",
+    defaultValue: 0,
+    trackGradient: NUANCE_GRADIENT,
+  },
+};
+
+/** Une bande HSL (rouge), ses trois curseurs empilés : Teinte
+ *  (magenta → rouge → orange), Saturation (gris → rouge), Luminance
+ *  (rouge sombre → rouge clair). */
+export const TrackGradientHslBand: Story = {
+  render: () => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 260 }}>
+      <LabeledSlider
+        label="Teinte du rouge" value={0} min={-100} max={100} step={1}
+        displayValue="0" layout="inline" valueAlign="right" defaultValue={0}
+        trackGradient={hslBandeHueGradient("red")} onChange={() => {}} onCommit={() => {}}
+      />
+      <LabeledSlider
+        label="Saturation du rouge" value={0} min={-100} max={100} step={1}
+        displayValue="0" layout="inline" valueAlign="right" defaultValue={0}
+        trackGradient={hslBandeSatGradient("red")} onChange={() => {}} onCommit={() => {}}
+      />
+      <LabeledSlider
+        label="Luminance du rouge" value={0} min={-100} max={100} step={1}
+        displayValue="0" layout="inline" valueAlign="right" defaultValue={0}
+        trackGradient={hslBandeLumGradient("red")} onChange={() => {}} onCommit={() => {}}
+      />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    // Les trois pistes portent chacune leur dégradé.
+    await expect(canvasElement.querySelectorAll("[data-track-gradient]")).toHaveLength(3);
+  },
+};
+
+/** TÉMOIN : aucun `trackGradient`, la piste reste neutre — le défaut absolu. */
+export const TrackGradientAbsent: Story = {
+  args: {
+    label: "Contraste",
+    value: 0,
+    min: -100,
+    max: 100,
+    step: 1,
+    displayValue: "0",
+    layout: "inline",
+    valueAlign: "right",
+    defaultValue: 0,
+  },
+  play: async ({ canvasElement }) => {
+    // Sans dégradé déclaré, la piste ne porte aucun marqueur de dégradé.
+    await expect(canvasElement.querySelector("[data-track-gradient]")).toBeNull();
   },
 };

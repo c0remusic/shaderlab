@@ -1,0 +1,13 @@
+/* Piste colorée d'un curseur (ticket 08). Le dégradé est une DONNÉE du domaine,
+   passée en variable d'exécution `--track-gradient` par le composant ; ces
+   règles ne font que la POSER sur la piste et neutraliser l'indicateur de
+   remplissage, pour que le dégradé se lise d'un bout à l'autre — comme la piste
+   Température de Lightroom, où le pouce glisse sur un fond bleu→jaune continu.
+   AUCUNE couleur littérale ici : les couleurs vivent dans
+   render/effects/trackGradients.ts (données du domaine, hors lint:tokens). */
+.labeled-slider__gradient [data-slot="slider-track"] {
+  background-image: var(--track-gradient);
+}
+.labeled-slider__gradient [data-slot="slider-range"] {
+  background-color: transparent;
+}

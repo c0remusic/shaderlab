@@ -106,6 +106,28 @@ export interface EffectParam {
    *  intermediate values would model nothing. Validated by `validateEffect`:
    *  `min` must be 0, `step` 1, and `max` exactly `choices.length - 1`. */
   choices?: string[];
+  /**
+   * DÉGRADÉ de la PISTE du curseur (ticket 08 de `.scratch/lightroom-develop/`).
+   * Absent = piste NEUTRE, le défaut absolu de tout le registre — seuls les
+   * paramètres qui déclarent un dégradé en ont un.
+   *
+   * D'OÙ ÇA VIENT. Antoine, 2026-09-11 : « on a pas les couleurs sur
+   * "température" par exemple comme sur lightroom ». Chez Lightroom la piste d'un
+   * curseur de couleur MONTRE ce que le curseur fait : Température va du bleu au
+   * jaune, la saturation d'une bande HSL du gris à sa couleur. C'est un indice de
+   * lecture, pas une donnée du rendu.
+   *
+   * ⚠️ CE SONT DES DONNÉES DU DOMAINE, PAS DES TOKENS DE DESIGN. Les `stops` sont
+   * des couleurs CSS CALCULÉES PAR LE MODULE — mesures perceptuelles (Température),
+   * ou dérivées de `hslBandes.ts` (les bandes HSL). Aucun `--token` de design ne
+   * les remplacerait, et `render/effects/trackGradients.ts` (leur seule source)
+   * est exclu de `lint:tokens` pour cette raison, comme les fichiers de test.
+   *
+   * ⚠️ C'EST DE L'AFFICHAGE PUR. Rien du shader, des index, des bornes ni des
+   * défauts ne bouge — `test:render` doit rendre zéro écart après l'ajout d'un
+   * dégradé. `labeled-slider` le pose sur la PISTE seule, le pouce par-dessus.
+   */
+  trackGradient?: { stops: string[] };
 }
 
 export interface EffectPass {

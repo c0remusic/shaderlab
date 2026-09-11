@@ -625,6 +625,11 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onO
                       parse={parseSaisie}
                       layout={develop ? "inline" : "stacked"}
                       valueAlign={develop ? "right" : "center"}
+                      // PISTE COLORÉE (ticket 08), déclarée par le module d'effet
+                      // (`EffectParam.trackGradient`) et rendue par la primitive,
+                      // sans branche par module ici. Absente = piste neutre. C'est
+                      // de l'affichage : `test:render` inchangé.
+                      trackGradient={item.param.trackGradient}
                       // Le verrou POSITION n'éteint QUE les paramètres cités par
                       // un `canvasControls` — la géométrie. Les autres restent
                       // vivants : c'est tout l'intérêt d'un verrou partiel, et

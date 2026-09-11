@@ -103,8 +103,7 @@ import { usePhotoLayer } from "./hooks/usePhotoLayer";
 import { useCropTool } from "./hooks/useCropTool";
 import { regionDeLecture } from "./render/cadreProjection";
 import type { CanvasFrame, CanvasFrameState } from "./layers/canvasFrame";
-import type { DevelopSettings } from "./layers/developSettings";
-import { developDisplayOrder, isDevelopModuleAtDefault } from "./render/developRegistry";
+import { isDevelopModuleEnabled, setDevelopModuleEnabled, type DevelopSettings } from "./layers/developSettings";
 import { DevelopPanel } from "./components/DevelopPanel";
 import type { CropRect } from "./ui/cropTool";
 import { usePresetWorkflow } from "./hooks/usePresetWorkflow";
@@ -307,16 +306,19 @@ export default function App() {
   // Rien d'autre n'a bougé : `DockLayout` est un `DockGroup[][]` depuis le
   // 2026-08-19, les colonnes multiples existaient déjà et se déplacent déjà à la
   // souris. Ce n'est qu'un DÉFAUT.
-  // « Développement » (ticket 03) entre comme ONGLET du groupe de la PREMIÈRE
-  // colonne (celle qui touche la toile), aux côtés de Presets et Propriétés, et
-  // NON dans le groupe Pile. Trois raisons : Lightroom met son module Develop
-  // dans la colonne de droite, séparé de toute notion de « calque » ; l'étage est
-  // GLOBAL au document (visible sans calque sélectionné), donc il ne se lit pas
-  // « en même temps » que la Pile comme Propriétés le fait ; et un onglet
-  // n'ajoute AUCUNE hauteur — un troisième groupe toujours ouvert risquerait de
-  // faire déborder la colonne, qu'ADR-0001 interdit de faire défiler.
+  // « Développement » a SON PROPRE GROUPE de dock (ticket 07, Antoine 2026-09-11 :
+  // « que cette partie ait sa propre fenêtre/onglet, pas qu'elle soit intégrée à
+  // presets »). Il n'est plus un onglet du groupe Presets/Propriétés : c'est un
+  // `DockGroup` repliable, empilé SOUS ce groupe dans la colonne qui touche la
+  // toile — comme Lightroom pose son module Develop dans la colonne de droite,
+  // séparé de toute notion de « calque ». La carte borne sa hauteur et défile
+  // DEDANS (`overflow-y:auto`), donc la colonne ne défile jamais même avec Pile +
+  // Propriétés + Développement ouverts (ADR-0001 ; mesuré à 1345 px, ticket 07).
   const [dockLayout, setDockLayout] = useState<DockLayout>(() => [
-    [{ tabs: ["presets", "properties", "develop"], active: "properties", collapsed: false }],
+    [
+      { tabs: ["presets", "properties"], active: "properties", collapsed: false },
+      singleGroup("develop"),
+    ],
     [singleGroup("layers")],
   ]);
 
@@ -1653,15 +1655,33 @@ export default function App() {
     rendererRef.current?.requestRender(session.layers());
   }
 
-  /** « Réinitialiser » un module de l'étage : ses valeurs retournent au défaut
-   *  (`{}`), en UN pas d'undo. Geste ATOMIQUE (pas de phase vivante), donc il
-   *  commite tout de suite. No-op si le module est déjà au défaut — pas d'entrée
-   *  d'historique vide, même discipline que le reste du fichier. */
-  const handleDevelopReset = useCallback((moduleId: string) => {
+  /** Bascule l'INTERRUPTEUR (œil) d'un module de l'étage (ticket 07) : actif ↔
+   *  inactif, en UN pas d'undo. Un module inactif garde ses valeurs mais l'étage
+   *  le SAUTE (`framePipelineExecutor.runDevelopStage`). Geste ATOMIQUE : il pose
+   *  l'état vivant, redemande un rendu, puis commite — comme le N&B, pas de phase
+   *  glissée. */
+  const handleDevelopToggleEnabled = useCallback((moduleId: string) => {
     const session = sessionRef.current;
-    const module = developDisplayOrder.find((m) => m.id === moduleId);
-    if (!module || isDevelopModuleAtDefault(module, session.developpement()[moduleId])) return;
-    session.reglerDeveloppement(moduleId, {});
+    const current = session.developpement();
+    const next = setDevelopModuleEnabled(current, moduleId, !isDevelopModuleEnabled(current, moduleId));
+    session.replaceLiveDevelop(next);
+    setDevelopState(next);
+    rendererRef.current?.setDevelop(next);
+    rendererRef.current?.requestRender(session.layers());
+    commit(currentStack());
+  }, [commit, currentStack]);
+
+  /** « Réinitialiser » TOUT l'étage aux défauts (le pied de la carte, ticket 07) :
+   *  vide `develop` — tous les modules reviennent à leur défaut ET tous les œils
+   *  se rallument — en UN pas d'undo. No-op si l'étage est déjà vierge (aucun
+   *  module réglé, aucun œil éteint), pas d'entrée d'historique vide. */
+  const handleDevelopResetAll = useCallback(() => {
+    const session = sessionRef.current;
+    if (Object.keys(session.developpement()).length === 0) return;
+    session.replaceLiveDevelop({});
+    setDevelopState({});
+    rendererRef.current?.setDevelop({});
+    rendererRef.current?.requestRender(session.layers());
     commit(currentStack());
   }, [commit, currentStack]);
 
@@ -3194,8 +3214,28 @@ export default function App() {
                 hasImage={imageSize.width > 0 && imageSize.height > 0}
                 onDevelopChange={handleDevelopChange}
                 onDevelopCommit={handleParamCommit}
-                onDevelopReset={handleDevelopReset}
-              />
+                onDevelopToggleEnabled={handleDevelopToggleEnabled}
+              />,
+              // PIED FIXE (Lightroom : « Précédent » · « Réinitialiser » pleine
+              // largeur). « Réinitialiser » remet tout l'étage aux défauts, un
+              // undo. « Précédent » N'EST PAS porté : chez Lightroom il copie les
+              // réglages de la photo PRÉCÉDEMMENT sélectionnée — une notion qui
+              // n'existe pas dans un éditeur à un seul document ; l'undo global
+              // (Ctrl+Z) et le double-clic-défaut par curseur couvrent le
+              // « revenir en arrière ». Zone fixe hors du défilement (ADR-0001).
+              controls: imageSize.width > 0 && imageSize.height > 0 ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="w-full"
+                  disabled={Object.keys(develop).length === 0}
+                  onClick={handleDevelopResetAll}
+                  title="Remettre tout l'étage de développement à ses valeurs par défaut"
+                >
+                  Réinitialiser
+                </Button>
+              ) : undefined,
+              controlsPlacement: "bottom",
             },
           ]}
           layout={visibleLayout}

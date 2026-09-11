@@ -73,6 +73,20 @@
   gap: var(--space-5);
 }
 
+/* MODE DÉVELOPPEMENT (ticket 07) — les sous-titres de section (« Tonalité »,
+   « Présence ») sont CENTRÉS au-dessus de leurs curseurs, comme la capture 1:1
+   du module Développement de Lightroom. Même registre typographique (2xs gris
+   capitales) : seul l'alignement change. L'interligne des lignes inline se
+   resserre d'un cran — un curseur inline tient sur une ligne, il n'a pas besoin
+   de la gouttière d'un curseur empilé (libellé + piste). */
+.param-panel--develop .param-panel__section-title {
+  text-align: center;
+}
+
+.param-panel--develop .param-panel__section-body {
+  gap: var(--space-3);
+}
+
 /* `paire` — deux curseurs LIÉS sur une ligne (blackPoint/whitePoint, les
    bornes d'une plage). Ils se lisent comme un seul réglage coupé en deux,
    d'où la gouttière la plus étroite de l'échelle qui les sépare encore. Les

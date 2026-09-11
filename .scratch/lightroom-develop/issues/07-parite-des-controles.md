@@ -94,11 +94,86 @@ panneau, à la même échelle, dans `assets/reference-ui/`.
   deux vues), `test-storybook` ENTIER. Capture CDP côte à côte avec le crop
   Lightroom, à la même échelle, pour Antoine.
 
-- [ ] Développement = son propre groupe de dock, hors de Presets/Propriétés, mesuré à 1345 px.
-- [ ] Accordéon avec œil par module (`enabled` dans `DevelopSettings`, sauté si off), Solo proposé.
-- [ ] Ligne de curseur : valeur signée éditable à droite, double-clic libellé = défaut, sous-titres de section.
-- [ ] N&B en bandeau (bascule HSL) ; Auto/HDR/Profil/pipette : non, dit dans le ticket.
-- [ ] Mélangeur : vues Couleur / Mélange, pastilles.
-- [ ] Color Grading : roues (06) en rangée avec icônes, vue Tout.
-- [ ] Précédent / Réinitialiser en bas.
-- [ ] Capture côte à côte à l'échelle 1, validée par Antoine.
+- [x] Développement = son propre groupe de dock, hors de Presets/Propriétés, mesuré à 1345 px.
+- [x] Accordéon avec œil par module (`enabled` dans `DevelopSettings`, sauté si off), Solo proposé.
+- [x] Ligne de curseur : valeur signée éditable à droite, double-clic libellé = défaut, sous-titres de section.
+- [x] N&B en bandeau (bascule HSL) ; Auto/HDR/Profil/pipette : non, dit dans le ticket.
+- [ ] Mélangeur : vues Couleur / Mélange, pastilles. → DIFFÉRÉ (voir Livraison).
+- [ ] Color Grading : roues (06) en rangée avec icônes, vue Tout. → HORS 07 (vient au 06).
+- [x] Précédent / Réinitialiser en bas. → « Réinitialiser » livré ; « Précédent » écarté (voir Livraison).
+- [ ] Capture côte à côte à l'échelle 1, validée par Antoine. → capture produite, validation d'Antoine en attente.
+
+## Livraison 2026-09-11 (agent, sous-agent Opus 4.8)
+
+UN commit. Périmètre : le 07 SAUF la roue chromatique (06) et SAUF le mélangeur
+deux-vues (différé, raison ci-dessous). Aucun shader touché.
+
+**Fichiers.** État/logique : `src/layers/developSettings.ts` (clé réservée
+`__moduleEnabled` + `isDevelopModuleEnabled`/`setDevelopModuleEnabled`),
+`src/render/framePipelineExecutor.ts` (saut d'un module désactivé),
+`src/presets/presetDocument.ts` (la clé réservée traverse l'application de
+preset). UI : `src/components/ui/labeled-slider.tsx` (layout `inline` + valeur
+alignée à droite), `src/ui/formatValue.ts` (`formatSignedValue`/`parseSignedValue`),
+`src/components/ParamPanel.tsx` + `.css` (prop `develop` : inline signé, sections
+en `liste`, sous-titres centrés), `src/components/ui/collapsible.tsx` (Disclosure
+gagne un slot `leading` + `align="end"`, chemin défaut byte-identique),
+`src/components/DevelopPanel.tsx` + `.css` (accordéon à œil, bandeau N&B),
+`src/App.tsx` (dock : Développement en groupe propre ; handlers œil + reset
+d'étage ; pied fixe). Stories : `DevelopPanel.stories.tsx`,
+`ui/labeled-slider.stories.tsx`. Tests : `test/layers/developSettings.test.ts`,
+`test/ui/formatValueSigned.test.ts`, `test/presets/presetDocument.test.ts` (+1).
+
+**Décisions là où le ticket laissait un choix.**
+- **`enabled` par module** : encodé dans une CLÉ RÉSERVÉE de `DevelopSettings`
+  (`__moduleEnabled`, `Record<moduleId, 0|1>`), pas un champ séparé. Raison :
+  l'objet `develop` traverse déjà renderer/executor, History (clone) et les
+  presets (capture) sans plomberie ; un second champ aurait dû être threadé à
+  chacun. Absence de clé = tout activé, donc `test:render` byte-identique. Le
+  SEUL endroit qui itère les clés comme des modules (application de preset) a un
+  cas gardé — sinon la clé aurait déclenché un faux « module inconnu ». Test de
+  round-trip ajouté.
+- **Solo (Alt-clic)** : PROPOSÉ, non implémenté (le ticket demande de proposer,
+  pas d'imposer). C'est le comportement de Lightroom lui-même, mais le Solo a
+  été refusé pour la PILE (`hybride-lightroom-photoshop`, ticket 04) car il
+  rendait des panneaux mutuellement exclusifs qu'on lit ensemble ; ici les
+  modules de l'étage se lisent souvent un à la fois, donc Solo aurait du sens.
+  À trancher par Antoine avant de le poser.
+- **« Précédent »** : écarté. Chez Lightroom il copie les réglages de la photo
+  PRÉCÉDEMMENT sélectionnée — notion absente d'un éditeur à un seul document.
+  L'undo global (Ctrl+Z) et le double-clic-défaut par curseur couvrent le
+  « revenir en arrière ». Seul « Réinitialiser » (tout l'étage aux défauts, un
+  undo) est livré, en pied fixe hors du défilement (ADR-0001).
+- **Hauteur de ligne** : Lightroom fait ~20 px/ligne (mesuré sur le crop 1:1,
+  346 px de large). Aucun token n'existe à ~20 px ; le plus proche est
+  `--control-height-md` (30 px), réutilisé plutôt qu'inventer une valeur (le
+  ticket demande « choisis le plus proche, dis-le »). La ligne inline (une
+  ligne) reste bien plus dense que l'empilée d'avant (~50 px).
+- **Séparateur décimal** : l'app affiche le point (« − 0.46 »), pas la virgule
+  française de Lightroom (« − 0,46 ») — cohérence avec tous les curseurs
+  d'effet ; le parse tolère la virgule à la saisie. Le SIGNE et l'alignement à
+  droite (les traits de parité) sont livrés.
+
+**Mesures sur les captures 1:1 (346 px de large).** Pas de ligne de curseur
+≈ 20 px (pistes Exposition y≈490 / Contraste y≈510, écart 20 ; blocs HL/Ombres/
+Blancs/Noirs et Présence au même pas). En-tête d'accordéon replié ≈ 32 px
+(en-têtes Courbe y≈776 / Mélangeur y≈808 / Color Grading y≈840). Tokens choisis :
+ligne = `--control-height-md` (30 px) + `--font-size-sm` (12 px) ; en-tête =
+`--section-header-height` (28 px) ; valeur = `--slider-value-width` (9ch),
+alignée à droite ; grille de ligne en fractions (`1.1fr / 1fr / 9ch`, aucune
+dimension en dur, pistes alignées d'une ligne à l'autre).
+
+**Curseurs des EFFETS (panneau Propriétés) : INCHANGÉS.** L'inline/signé n'est
+armé que par la prop `develop` de `ParamPanel`, faux par défaut ; le chemin
+empilé de `LabeledSlider` et le chemin par défaut de `Disclosure` sont
+byte-identiques (mêmes sorties). Vu en story (les stories d'effet et de curseur
+empilé passent inchangées).
+
+**Mélangeur deux-vues (item 5) : DIFFÉRÉ.** C'est une présentation bespoke
+(vue par TEINTE avec 8 pastilles + 3 curseurs ; vue par CANAL Teinte/Sat/Lum/
+Tout avec 8 bandes), avec ses propres stories et sa roue chromatique liée au 06.
+Le module HSL rend aujourd'hui correctement ses 33 params en sections
+(Teinte/Saturation/Luminance/Mélange) avec la parité de contrôle (inline signé).
+Les pastilles à réutiliser = couleurs de `hslBandes.ts` (`rgb` par bande, dans
+l'ordre red…magenta). À faire avec le 06.
+
+**Gates** (verdicts en fin de session, section Rapport de l'agent).

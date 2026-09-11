@@ -8,7 +8,7 @@ import { LabeledSlider } from "./ui/labeled-slider";
 import { Disclosure } from "./ui/collapsible";
 import { Select } from "./ui/select";
 import { ColorGroupControl } from "./ui/color-group-control";
-import { formatControlValue, parsePercentValue } from "../ui/formatValue";
+import { formatControlValue, parsePercentValue, formatSignedValue, parseSignedValue } from "../ui/formatValue";
 import { useState, type ReactNode } from "react";
 import { CurveControl } from "./CurveControl";
 import { TonalRangeControl } from "./TonalRangeControl";
@@ -273,6 +273,15 @@ interface Props {
    *  (signalé au ticket 03). Une prop, pas un fork : le contenu est identique,
    *  seul l'emballage disparaît. */
   flat?: boolean;
+  /** Rend les contrôles à la manière du module Développement de Lightroom
+   *  (ticket 07) : curseurs INLINE (libellé gauche, piste centre, valeur droite,
+   *  une ligne) et valeurs SIGNÉES pour les paramètres bipolaires (« + 100 »,
+   *  « − 0,46 »), sous-titres de section en petites capitales grises. C'est une
+   *  variante d'AFFICHAGE — `params[]`, index, défauts, bornes et donc
+   *  `test:render` sont inchangés ; seuls la grille de la ligne et le texte de la
+   *  valeur diffèrent. Faux (défaut) = les curseurs d'effet, empilés, inchangés
+   *  au pixel. */
+  develop?: boolean;
 }
 
 function formatEffectParamValue(
@@ -301,7 +310,7 @@ function formatEffectParamValue(
   }
 }
 
-export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onOpenColorPicker, textureLibrary, flat = false }: Props) {
+export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onOpenColorPicker, textureLibrary, flat = false, develop = false }: Props) {
   const [activeCurveChannel, setActiveCurveChannel] = useState("master");
   if (!layer) {
     return <p className="param-panel__empty">Sélectionne un calque.</p>;
@@ -445,7 +454,12 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onO
             sections: effect.sections,
             values: resolvedParams,
           }).map((bloc) => (
-          <ParamSection key={bloc.reactKey} label={bloc.label} layout={bloc.layout}>
+          // Mode Développement : toutes les sections passent en `liste` (curseurs
+          // pleine largeur, une ligne inline chacun), comme Lightroom empile ses
+          // réglages. `paire`/`grille` cramperaient un curseur inline (libellé +
+          // piste + valeur) dans une demi-colonne. C'est de l'AFFICHAGE — les
+          // sections, leurs titres et l'ordre de `params[]` sont intacts.
+          <ParamSection key={bloc.reactKey} label={bloc.label} layout={develop ? "liste" : bloc.layout}>
           {bloc.items.map((item) =>
             item.kind === "spatial-header" ? (
               <div key={item.reactKey} className="param-panel__spatial-heading">
@@ -532,12 +546,20 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onO
                 // `test:render` ne bouge pas. Seuls le texte affiché et la
                 // saisie passent en pixels, via le même facteur que la toile.
                 const facteurPx = pixelFactors.get(item.param.name);
+                // VALEUR SIGNÉE (mode Développement, ticket 07) : un paramètre
+                // BIPOLAIRE (min < 0, défaut au centre) s'affiche « + 100 » /
+                // « − 0,46 » comme Lightroom ; un unipolaire (séparations de
+                // courbe, min ≥ 0) garde son nombre nu. Ne s'arme qu'hors pixels
+                // (aucun paramètre spatial dans l'étage aujourd'hui).
+                const signe = develop && facteurPx === undefined && item.param.min < 0;
                 // Le pixel est une unité DÉJÀ connue du formateur : la valeur
                 // convertie passe par la même branche que n'importe quel
                 // paramètre déclaré en `pixels`, plutôt qu'un « px » recollé ici.
                 const displayValue = facteurPx !== undefined
                   ? formatEffectParamValue(valeur * facteurPx, { unit: "pixels", step: 1 })
-                  : formatEffectParamValue(valeur, item.param);
+                  : signe
+                    ? formatSignedValue(valeur, item.param.step)
+                    : formatEffectParamValue(valeur, item.param);
                 // Saisie dans l'UNITÉ AFFICHÉE, ramenée en fraction avant de
                 // borner sur les bornes du CURSEUR et de caler sur son pas :
                 // pixels d'un contrôle spatial via `parsePixelInput`, pourcents
@@ -549,9 +571,11 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onO
                 // l'unité du curseur, le parse standard leur suffit.
                 const parseSaisie = facteurPx !== undefined
                   ? (raw: string) => parsePixelInput(raw, facteurPx, { min: item.param.min, max: plafond, step: item.param.step })
-                  : item.param.unit === "percent"
-                    ? (raw: string) => parsePercentValue(raw, item.param.min, plafond, item.param.step)
-                    : undefined;
+                  : signe
+                    ? (raw: string) => parseSignedValue(raw, item.param.min, plafond, item.param.step)
+                    : item.param.unit === "percent"
+                      ? (raw: string) => parsePercentValue(raw, item.param.min, plafond, item.param.step)
+                      : undefined;
                 return (
                   <div key={item.reactKey} title={item.param.hint}>
                     <LabeledSlider
@@ -562,6 +586,8 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onO
                       step={item.param.step}
                       displayValue={displayValue}
                       parse={parseSaisie}
+                      layout={develop ? "inline" : "stacked"}
+                      valueAlign={develop ? "right" : "center"}
                       // Le verrou POSITION n'éteint QUE les paramètres cités par
                       // un `canvasControls` — la géométrie. Les autres restent
                       // vivants : c'est tout l'intérêt d'un verrou partiel, et
@@ -617,7 +643,7 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onO
     </div>
   );
   return (
-    <div className="param-panel" title={lockedTitle}>
+    <div className={develop ? "param-panel param-panel--develop" : "param-panel"} title={lockedTitle}>
       {flat ? corps : <Disclosure title="Effet" defaultOpen>{corps}</Disclosure>}
     </div>
   );

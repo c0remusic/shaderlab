@@ -1,7 +1,7 @@
 import type { LayerState } from "../layers/types";
 import { hasImportedPhotoLayer } from "../layers/photoLayer";
 import { defaultLayerMask } from "../mask/types";
-import { cloneDevelopSettings, type DevelopSettings } from "../layers/developSettings";
+import { cloneDevelopSettings, DEVELOP_ENABLED_KEY, type DevelopSettings } from "../layers/developSettings";
 import type { EffectParam } from "../render/effects/types";
 import { PRESET_SCHEMA_VERSION, type PresetDocument, type PresetLayer, type SkipNotice, type ApplyWarning } from "./presetTypes";
 
@@ -146,6 +146,14 @@ export function apply(
   // applique).
   const develop: DevelopSettings = {};
   for (const [moduleId, values] of Object.entries(migrated.develop ?? {})) {
+    // CLÉ RÉSERVÉE d'activation des modules (l'œil, ticket 07) : ce n'est pas un
+    // module, elle traverse telle quelle — sans quoi l'injecteur la traiterait
+    // comme un « module inconnu » et jetterait un faux avertissement en perdant
+    // l'état des œils du preset.
+    if (moduleId === DEVELOP_ENABLED_KEY) {
+      develop[moduleId] = { ...values };
+      continue;
+    }
     if (developModuleParams === undefined) {
       develop[moduleId] = { ...values };
       continue;

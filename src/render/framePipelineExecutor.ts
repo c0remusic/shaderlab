@@ -7,7 +7,7 @@ import { defaultLayerMask } from "../mask/types";
 import { getEffect } from "./effects/registry";
 import { PASSTHROUGH_EFFECT } from "./effectPassRunner";
 import { developApplyOrder, isDevelopModuleAtDefault } from "./developRegistry";
-import type { DevelopSettings } from "../layers/developSettings";
+import { isDevelopModuleEnabled, type DevelopSettings } from "../layers/developSettings";
 
 type FrameResource = GPUTexture | GPUBuffer;
 
@@ -436,7 +436,11 @@ export class FramePipelineExecutor {
     let ci = compositeIndex;
     for (const module of developApplyOrder) {
       const values = develop[module.id];
-      if (isDevelopModuleAtDefault(module, values)) continue;
+      // Un module DÉSACTIVÉ (œil éteint, ticket 07) est sauté comme un module au
+      // défaut : aucune passe émise, composite byte-identique. Ses valeurs sont
+      // conservées dans `develop` (l'œil ne les efface pas), il ne les applique
+      // simplement pas tant qu'il est éteint.
+      if (!isDevelopModuleEnabled(develop, module.id) || isDevelopModuleAtDefault(module, values)) continue;
       const wi = 1 - ci;
       // Calque SYNTHÉTIQUE : le module lit ses paramètres par NOM
       // (`layer.params[p.name] ?? p.default`), donc un `params` partiel suffit —

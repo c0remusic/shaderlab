@@ -2,7 +2,7 @@
   display: flex;
   min-height: 0;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-2);
 }
 
 .develop-panel__module {
@@ -11,11 +11,21 @@
   flex-direction: column;
 }
 
-/* Bouton « Réinitialiser » aligné à droite, en tête du corps de l'accordéon
-   (le nom du module est le titre repliable). */
-.develop-panel__module-actions {
+/* Module DÉSACTIVÉ (œil éteint) : son corps est estompé pour dire d'un coup
+   d'œil qu'il n'est pas appliqué, sans masquer ses valeurs (elles restent
+   modifiables — c'est l'intérêt d'un interrupteur qui préserve). L'en-tête et
+   l'œil gardent leur pleine opacité pour rester lisibles et cliquables. */
+.develop-panel__module[data-module-disabled] .develop-panel__banner,
+.develop-panel__module[data-module-disabled] .param-panel {
+  opacity: 0.45;
+}
+
+/* BANDEAU des Réglages de base (Lightroom : Auto/N&B/HDR ; chez nous N&B seul).
+   Centré comme sur la capture 1:1. */
+.develop-panel__banner {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
+  padding-bottom: var(--space-3);
 }
 
 .develop-panel__empty {

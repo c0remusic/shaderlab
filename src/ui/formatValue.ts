@@ -58,3 +58,25 @@ export function parsePercentValue(rawValue: string, min: number, max: number, st
   const percent = parseTypedNumber(rawValue);
   return percent === null ? null : snapToControlRange(percent / 100, min, max, step);
 }
+
+/** Formats a value with an EXPLICIT SIGN and a thin gap, the way Lightroom's
+ * Develop sliders read: "+ 100", "− 0.46", and a bare "0" at the default. The
+ * minus is the typographic U+2212 (aligned with the plus), not a hyphen. The
+ * magnitude keeps the step's decimal precision (`formatControlValue`). Used by
+ * the Develop stage's inline sliders; effect sliders keep their unit display. */
+export function formatSignedValue(value: number, step: number): string {
+  const magnitude = formatControlValue(Math.abs(value), step);
+  if (value > 0) return `+ ${magnitude}`;
+  if (value < 0) return `− ${magnitude}`;
+  return magnitude;
+}
+
+/** Reads a value typed into a signed field: tolerates the typographic minus
+ * (U+2212) and the space between sign and digits that `formatSignedValue`
+ * inserts — `parseTypedNumber` alone drops the sign when a space follows it, so
+ * a "− 0,46" re-parsed on blur would flip positive. Normalises both, then bounds
+ * and snaps on the slider's own range. */
+export function parseSignedValue(rawValue: string, min: number, max: number, step: number): number | null {
+  const normalised = rawValue.replace(/−/g, "-").replace(/\s+/g, "");
+  return parseControlValue(normalised, min, max, step);
+}

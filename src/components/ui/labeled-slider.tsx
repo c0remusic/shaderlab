@@ -62,6 +62,21 @@ export interface LabeledSliderProps {
    * d'extension pour la lecture d'une saisie, deux composants qui l'exposent.
    */
   parse?: (raw: string) => number | null;
+  /**
+   * DISPOSITION de la ligne. `"stacked"` (défaut) : libellé AU-DESSUS de la
+   * piste, deux lignes — la forme historique de tous les curseurs d'effet, qui
+   * ne bouge donc pas d'un pixel. `"inline"` : libellé À GAUCHE, piste au
+   * centre, valeur à droite, une seule ligne — la forme du module Développement
+   * de Lightroom (ticket 07). C'est une EXTENSION, pas un fork : mêmes
+   * mécanismes (double-clic défaut, marque, molette, saisie inverse), seule la
+   * grille change. La grille cale ses trois colonnes en FRACTIONS (aucune
+   * dimension en dur), donc les pistes s'alignent d'une ligne à l'autre.
+   */
+  layout?: "stacked" | "inline";
+  /** Alignement du texte de la valeur dans son champ. `"center"` (défaut) pour
+   *  les curseurs d'effet ; `"right"` pour l'inline Lightroom (les valeurs
+   *  signées s'y lisent alignées à droite, comme sur la capture). */
+  valueAlign?: "center" | "right";
   className?: string;
 }
 
@@ -84,6 +99,8 @@ export function LabeledSlider({
   onCommit,
   defaultValue,
   parse,
+  layout = "stacked",
+  valueAlign = "center",
   className,
 }: LabeledSliderProps) {
   const id = useId();
@@ -192,68 +209,106 @@ export function LabeledSlider({
       ? ((Math.min(Math.max(defaultValue, min), max) - min) / (max - min)) * 100
       : undefined;
 
+  // DOUBLE-CLIC SUR LE LIBELLÉ, et pas seulement sur la piste : c'est la cible la
+  // plus large et la plus stable de la ligne, et viser un curseur de 12 px pour
+  // le remettre au défaut serait un geste de précision au service d'une remise à
+  // zéro. Photoshop et Lightroom acceptent les deux.
+  const etiquette = (
+    <label
+      id={labelId}
+      htmlFor={id}
+      className={cn(
+        "text-sm text-muted-foreground",
+        layout === "inline" && "min-w-0 truncate text-right",
+        positionDefaut !== undefined && "cursor-pointer",
+      )}
+      onDoubleClick={revenirAuDefaut}
+      title={positionDefaut !== undefined ? "Double-cliquer pour revenir au défaut" : undefined}
+    >
+      {label}
+    </label>
+  );
+  // MARQUE DU DÉFAUT — un filet vertical sur la piste, posé DERRIÈRE le curseur
+  // et sans capter le pointeur. Elle n'apparaît que lorsque la valeur a quitté le
+  // défaut : c'est la demande d'Antoine devant la planche, et c'est ce qui
+  // l'empêche de devenir un point de plus à lire sur chaque ligne d'un panneau
+  // qui en compte déjà trop.
+  const pisteEtMarque = (
+    <span className="relative flex min-w-0 flex-1 items-center">
+      {positionDefaut !== undefined && (
+        <span
+          aria-hidden="true"
+          data-marque-defaut=""
+          className="pointer-events-none absolute z-0 h-[var(--space-4)] w-px bg-[var(--border-strong)]"
+          style={{ left: `${positionDefaut}%` }}
+        />
+      )}
+      <SliderPrimitive
+        id={id}
+        aria-labelledby={labelId}
+        className="relative z-10 min-w-0 flex-1"
+        value={[value]}
+        min={min}
+        max={max}
+        step={step}
+        disabled={disabled}
+        onValueChange={(next) => {
+          onChange(Array.isArray(next) ? next[0] : next);
+          markControlActive(id);
+        }}
+        onValueCommitted={() => onCommit?.()}
+        onDoubleClick={revenirAuDefaut}
+      />
+    </span>
+  );
+  const champ = (
+    <input
+      aria-label={`${label} (valeur)`}
+      className={cn(
+        "h-[var(--control-height-md)] w-[var(--slider-value-width)] rounded-[var(--radius-control)] border border-border bg-[var(--surface-inset)] px-2 font-mono text-sm tabular-nums text-foreground outline-none transition-colors hover:border-[var(--border-emphasis)] focus-visible:border-[var(--focus-color)] focus-visible:ring-[var(--focus-width)] focus-visible:ring-[var(--focus-color)]/50 disabled:cursor-not-allowed",
+        valueAlign === "right" ? "text-right" : "text-center",
+      )}
+      disabled={disabled}
+      inputMode="decimal"
+      type="text"
+      value={draftValue}
+      onChange={(event) => setDraftValue(event.target.value)}
+      onFocus={(event) => {
+        setIsEditing(true);
+        event.currentTarget.select();
+      }}
+      onBlur={commitTypedValue}
+      onKeyDown={handleValueKeyDown}
+    />
+  );
+
+  // INLINE (Lightroom) : libellé | piste | valeur sur UNE ligne. Les trois
+  // colonnes sont en FRACTIONS + le token de largeur de valeur — aucune dimension
+  // en dur, et les pistes s'alignent d'une ligne à l'autre puisque toutes les
+  // lignes partagent le même gabarit dans un conteneur de même largeur.
+  if (layout === "inline") {
+    return (
+      <div
+        ref={rowRef}
+        className={cn(
+          "grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_var(--slider-value-width)] items-center gap-2",
+          disabled && "opacity-50",
+          className,
+        )}
+      >
+        {etiquette}
+        {pisteEtMarque}
+        {champ}
+      </div>
+    );
+  }
+
   return (
     <div ref={rowRef} className={cn("flex flex-col gap-1", disabled && "opacity-50", className)}>
-      {/* DOUBLE-CLIC SUR LE LIBELLÉ, et pas seulement sur la piste : c'est la
-          cible la plus large et la plus stable de la ligne, et viser un curseur
-          de 12 px pour le remettre au défaut serait un geste de précision au
-          service d'une remise à zéro. Photoshop accepte les deux. */}
-      <label
-        id={labelId}
-        htmlFor={id}
-        className={cn("text-sm text-muted-foreground", positionDefaut !== undefined && "cursor-pointer")}
-        onDoubleClick={revenirAuDefaut}
-        title={positionDefaut !== undefined ? "Double-cliquer pour revenir au défaut" : undefined}
-      >
-        {label}
-      </label>
+      {etiquette}
       <div className="flex items-center gap-2">
-        {/* MARQUE DU DÉFAUT — un filet vertical sur la piste, posé DERRIÈRE le
-            curseur et sans capter le pointeur. Elle n'apparaît que lorsque la
-            valeur a quitté le défaut : c'est la demande d'Antoine devant la
-            planche, et c'est ce qui l'empêche de devenir un point de plus à lire
-            sur chaque ligne d'un panneau qui en compte déjà trop. */}
-        <span className="relative flex min-w-0 flex-1 items-center">
-          {positionDefaut !== undefined && (
-            <span
-              aria-hidden="true"
-              data-marque-defaut=""
-              className="pointer-events-none absolute z-0 h-[var(--space-4)] w-px bg-[var(--border-strong)]"
-              style={{ left: `${positionDefaut}%` }}
-            />
-          )}
-        <SliderPrimitive
-          id={id}
-          aria-labelledby={labelId}
-          className="relative z-10 min-w-0 flex-1"
-          value={[value]}
-          min={min}
-          max={max}
-          step={step}
-          disabled={disabled}
-          onValueChange={(next) => {
-            onChange(Array.isArray(next) ? next[0] : next);
-            markControlActive(id);
-          }}
-          onValueCommitted={() => onCommit?.()}
-          onDoubleClick={revenirAuDefaut}
-        />
-        </span>
-        <input
-          aria-label={`${label} (valeur)`}
-          className="h-[var(--control-height-md)] w-[var(--slider-value-width)] rounded-[var(--radius-control)] border border-border bg-[var(--surface-inset)] px-2 text-center font-mono text-sm tabular-nums text-foreground outline-none transition-colors hover:border-[var(--border-emphasis)] focus-visible:border-[var(--focus-color)] focus-visible:ring-[var(--focus-width)] focus-visible:ring-[var(--focus-color)]/50 disabled:cursor-not-allowed"
-          disabled={disabled}
-          inputMode="decimal"
-          type="text"
-          value={draftValue}
-          onChange={(event) => setDraftValue(event.target.value)}
-          onFocus={(event) => {
-            setIsEditing(true);
-            event.currentTarget.select();
-          }}
-          onBlur={commitTypedValue}
-          onKeyDown={handleValueKeyDown}
-        />
+        {pisteEtMarque}
+        {champ}
       </div>
     </div>
   );

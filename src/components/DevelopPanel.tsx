@@ -1,15 +1,17 @@
 import type { LayerState } from "../layers/types";
-import type { DevelopSettings } from "../layers/developSettings";
+import { isDevelopModuleEnabled, type DevelopSettings } from "../layers/developSettings";
 import { defaultLayerMask } from "../mask/types";
-import { developDisplayOrder, isDevelopModuleAtDefault } from "../render/developRegistry";
+import { developDisplayOrder } from "../render/developRegistry";
 import { ParamPanel } from "./ParamPanel";
 import { Disclosure } from "./ui/collapsible";
-import { Button } from "./ui/button";
-import { RotateCcw } from "lucide-react";
+import { IconButton } from "./ui/icon-button";
+import { Toggle } from "./ui/toggle";
+import { Eye, EyeOff } from "lucide-react";
 import "./DevelopPanel.css";
 
 /**
- * La carte « Développement » de la colonne de droite (ticket 03 lightroom-develop).
+ * La carte « Développement » de la colonne de droite (tickets 03 et 07
+ * lightroom-develop).
  *
  * C'est l'ÉTAGE de développement du document, PAS un calque : ses réglages
  * s'appliquent au composite de toute la pile, en fin de chaîne. Le panneau est
@@ -21,21 +23,21 @@ import "./DevelopPanel.css";
  * calque SYNTHÉTIQUE dont l'`effectId` est l'id du module — que `getEffect`
  * résout (comme `passthrough`), et dont les `params` sont les valeurs de
  * `DevelopSettings[moduleId]`. `ParamPanel` interroge le contrat déclaratif du
- * module, jamais son identité (frontière d'`ARCHITECTURE.md`), donc il rend un
- * module de l'étage exactement comme un effet de calque, sans le savoir. Le
- * `layer.id` synthétique remonte dans `onParamChange` mais on l'ignore : le
- * `moduleId` est capturé dans la fermeture.
+ * module, jamais son identité (frontière d'`ARCHITECTURE.md`). La prop
+ * `develop` lui fait rendre ses contrôles à la manière de Lightroom (curseurs
+ * inline signés, sous-titres centrés) — de l'AFFICHAGE, aucun index ne bouge.
  *
  * L'ordre des panneaux est celui de l'AFFICHAGE de Lightroom
  * (`developDisplayOrder`), qui n'est pas l'ordre d'application.
  *
- * ⚠️ CHAQUE MODULE EST UN ACCORDÉON (`Disclosure`), comme Lightroom replie ses
- * panneaux. C'est la réponse à ADR-0001 (« la colonne ne défile pas ») quand
- * l'étage porte plus de curseurs qu'un écran ne tient : 20 (Réglages de base) + 7
- * (Étalonnage) + les modules à venir. On replie ce qu'on ne règle pas. La CARTE
- * de dock borne en plus sa hauteur et défile DEDANS (`DevelopPanel.css`), comme
- * la pile. Le repli « Effet » interne de `ParamPanel` est retiré ici (`flat`) :
- * le nom du module EST déjà le titre de l'accordéon.
+ * ⚠️ CHAQUE MODULE EST UN ACCORDÉON À LA LIGHTROOM (ticket 07) : en-tête pleine
+ * largeur, TITRE À DROITE, chevron de repli, et un INTERRUPTEUR (œil) à GAUCHE
+ * qui active/désactive le module sans perdre ses valeurs (`isDevelopModuleEnabled`
+ * dans `DevelopSettings` ; un module éteint est SAUTÉ par l'étage comme au
+ * défaut). La CARTE de dock borne sa hauteur et défile DEDANS (`overflow-y:auto`,
+ * ADR-0001 : la colonne ne défile jamais). Le pied « Réinitialiser » de l'étage
+ * vit dans le slot `controls` de la carte (`App.tsx`, `controlsPlacement:
+ * "bottom"`), fixe et hors du défilement — pas dans ce composant.
  */
 interface Props {
   /** Réglages courants de l'étage (source : `LayerStack.develop`, projeté). */
@@ -48,9 +50,9 @@ interface Props {
   /** Fin d'interaction d'un curseur : commit (le même point que tous les
    *  curseurs vivants du document). */
   onDevelopCommit: () => void;
-  /** « Réinitialiser » un module : ses valeurs retournent au défaut, un pas
-   *  d'undo. */
-  onDevelopReset: (moduleId: string) => void;
+  /** Bascule l'INTERRUPTEUR (œil) d'un module : actif ↔ inactif, un pas d'undo.
+   *  Un module inactif garde ses valeurs mais n'est pas appliqué. */
+  onDevelopToggleEnabled: (moduleId: string) => void;
 }
 
 /** Calque SYNTHÉTIQUE pour nourrir `ParamPanel` sans le forker. `effectId` =
@@ -67,45 +69,72 @@ function developLayer(moduleId: string, values: Record<string, number> | undefin
   };
 }
 
-export function DevelopPanel({ develop, hasImage, onDevelopChange, onDevelopCommit, onDevelopReset }: Props) {
+export function DevelopPanel({ develop, hasImage, onDevelopChange, onDevelopCommit, onDevelopToggleEnabled }: Props) {
   if (!hasImage) {
     return <p className="develop-panel__empty">Ouvre une image pour la développer.</p>;
   }
+  // Le mode Noir et blanc est porté par le module HSL (`hsl.mode`), mais son
+  // interrupteur vit — comme chez Lightroom — dans le bandeau des Réglages de
+  // base. Basculer le bouton N&B change ce paramètre du module HSL.
+  const bwOn = (develop.hsl?.mode ?? 0) === 1;
   return (
     <div className="develop-panel">
       {developDisplayOrder.map((module) => {
         const values = develop[module.id];
-        const atDefault = isDevelopModuleAtDefault(module, values);
+        const enabled = isDevelopModuleEnabled(develop, module.id);
         return (
-          <section className="develop-panel__module" key={module.id}>
-            <Disclosure title={module.name} defaultOpen>
-              <div className="develop-panel__module-actions">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  // Désactivé quand le module est déjà au défaut : réinitialiser
-                  // n'aurait rien à défaire (no-op côté App, mais l'inertie doit
-                  // se VOIR — un bouton actif qui ne fait rien est l'échec
-                  // silencieux que ce dépôt proscrit).
-                  disabled={atDefault}
-                  onClick={() => onDevelopReset(module.id)}
-                  title="Réinitialiser ce module au défaut"
+          <section className="develop-panel__module" key={module.id} data-module-disabled={!enabled || undefined}>
+            <Disclosure
+              title={module.name}
+              defaultOpen
+              align="end"
+              leading={
+                <IconButton
+                  label={enabled ? "Désactiver ce module" : "Activer ce module"}
+                  size="compact"
+                  aria-pressed={enabled}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDevelopToggleEnabled(module.id);
+                  }}
                 >
-                  <RotateCcw className="icon-sm icon-stroke" aria-hidden="true" />
-                  Réinitialiser
-                </Button>
-              </div>
+                  {enabled ? (
+                    <Eye className="icon-sm icon-stroke" aria-hidden="true" />
+                  ) : (
+                    <EyeOff className="icon-sm icon-stroke" aria-hidden="true" />
+                  )}
+                </IconButton>
+              }
+            >
+              {module.id === "reglagesDeBase" && (
+                // BANDEAU LIGHTROOM. Chez Lightroom : Auto · N&B · HDR, plus
+                // Profil et la pipette de balance des blancs. Chez nous, SEUL
+                // N&B : Auto exigerait une analyse d'image (hors périmètre), HDR
+                // et le Profil un pipeline flottant/RAW qu'on n'a pas, et la
+                // pipette n'a pas de sens en balance des blancs RELATIVE sur du
+                // JPEG (voir README de `lightroom-develop`). N&B bascule le mode
+                // du module HSL et le reflète.
+                <div className="develop-panel__banner">
+                  <Toggle
+                    size="sm"
+                    variant="outline"
+                    pressed={bwOn}
+                    onPressedChange={() => {
+                      onDevelopChange("hsl", { mode: bwOn ? 0 : 1 });
+                      onDevelopCommit();
+                    }}
+                  >
+                    N&amp;B
+                  </Toggle>
+                </div>
+              )}
               <ParamPanel
                 layer={developLayer(module.id, values)}
                 onParamChange={(_id, patch) => onDevelopChange(module.id, patch)}
                 onParamCommit={onDevelopCommit}
-                // L'étalonnage n'a aucun `colorGroup`, donc ce rappel n'est jamais
-                // appelé ; un module futur de l'étage qui en porterait exigerait
-                // de remonter le sélecteur de couleur ici, comme la carte
-                // Propriétés.
                 onOpenColorPicker={() => {}}
-                // Le nom du module EST le titre de l'accordéon : pas de second
-                // repli « Effet » à l'intérieur.
+                develop
                 flat
               />
             </Disclosure>

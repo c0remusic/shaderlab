@@ -113,3 +113,55 @@ export const DisabledInputsAreDisabled: Story = {
     await expect(args.onChange).not.toHaveBeenCalled();
   },
 };
+
+// --- Disposition INLINE (module Développement, ticket 07) -------------------
+// Libellé à gauche, piste au centre, valeur signée à droite — une seule ligne.
+// C'est une EXTENSION : mêmes contrôles, mêmes noms accessibles, mêmes gestes.
+
+/** Valeur POSITIVE signée, alignée à droite (« + 100 »). */
+export const InlineSignedPositive: Story = {
+  args: {
+    label: "Contraste",
+    value: 100,
+    min: -100,
+    max: 100,
+    step: 1,
+    displayValue: "+ 100",
+    layout: "inline",
+    valueAlign: "right",
+    defaultValue: 0,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByDisplayValue("+ 100")).toBeInTheDocument();
+    // Les deux contrôles gardent leur nom accessible en inline.
+    await expect(canvas.getByRole("slider")).toBeInTheDocument();
+    await expect(canvas.getByLabelText("Contraste (valeur)")).toBeInTheDocument();
+  },
+};
+
+/** Valeur NÉGATIVE signée avec décimales (« − 0.46 »), et double-clic sur le
+ *  libellé qui revient au défaut. */
+export const InlineSignedNegative: Story = {
+  args: {
+    label: "Exposition",
+    value: -0.46,
+    min: -5,
+    max: 5,
+    step: 0.05,
+    displayValue: "− 0.46",
+    layout: "inline",
+    valueAlign: "right",
+    defaultValue: 0,
+    onChange: fn(),
+    onCommit: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByDisplayValue("− 0.46")).toBeInTheDocument();
+    await userEvent.dblClick(canvas.getByText("Exposition"));
+    // Double-clic sur le libellé = retour au défaut (0), un onChange + un commit.
+    await expect(args.onChange).toHaveBeenCalledWith(0);
+    await expect(args.onCommit).toHaveBeenCalled();
+  },
+};

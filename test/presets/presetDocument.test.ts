@@ -269,4 +269,17 @@ describe("étage de développement dans les presets (ticket 03)", () => {
     expect(develop).toEqual({ etalonnage: { blueHue: 10 } });
     expect(warnings.some((w) => w.message.includes("moduleFantome"))).toBe(true);
   });
+
+  it("apply LAISSE PASSER la clé d'activation réservée (l'œil), sans avertissement (ticket 07)", () => {
+    const preset: PresetDocument = {
+      schemaVersion: PRESET_SCHEMA_VERSION, id: "p", name: "n",
+      createdAt: "x", updatedAt: "x", layers: [],
+      // __moduleEnabled n'est pas un module : elle traverse telle quelle, elle ne
+      // doit NI être clampée NI déclencher « module inconnu ».
+      develop: { __moduleEnabled: { etalonnage: 0 }, etalonnage: { blueHue: 10 } },
+    };
+    const { develop, warnings } = apply(preset, effectExists, effectParams, () => "l", developModuleParams);
+    expect(develop).toEqual({ __moduleEnabled: { etalonnage: 0 }, etalonnage: { blueHue: 10 } });
+    expect(warnings.some((w) => w.message.includes("__moduleEnabled"))).toBe(false);
+  });
 });

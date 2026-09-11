@@ -219,6 +219,25 @@ export interface ColorRampControl {
 }
 
 /**
+ * Une ROUE CHROMATIQUE — teinte au pourtour, saturation au rayon, un point qu'on
+ * tire, la luminance en curseur dessous. Le contrôle des roues de Color Grading
+ * (ticket 06), sur le même patron déclaratif que `ColorRampControl` : le module
+ * NOMME les trois paramètres que la roue pilote, `ParamPanel` rend le
+ * `ColorWheelControl` sans jamais interroger l'identité de l'effet. `hue` est en
+ * degrés (0..360), `saturation` en 0..100, `luminance` bipolaire (−100..100).
+ */
+export interface ColorWheelControl {
+  id: string;
+  label: string;
+  /** Paramètre de teinte (0..360), lu comme l'angle du point sur la roue. */
+  hue: string;
+  /** Paramètre de saturation (0..100), lu comme le rayon du point. */
+  saturation: string;
+  /** Paramètre de luminance (bipolaire), le curseur sous la roue. */
+  luminance: string;
+}
+
+/**
  * Régime d'affichage d'une section — COMMENT ses contrôles se disposent.
  *
  * VOCABULAIRE FERMÉ, et c'est tout l'intérêt. « Que les contrôles soient
@@ -309,6 +328,9 @@ export interface EffectModule {
   curveControls?: CurveControl[];
   tonalRangeControl?: TonalRangeEffectControl;
   colorRampControls?: ColorRampControl[];
+  /** Roues chromatiques déclarées par l'effet (Color Grading, ticket 06). Rendu
+   *  par `ParamPanel` comme `colorRampControls`, sans branche par id. */
+  colorWheelControls?: ColorWheelControl[];
   /**
    * Déclare qu'un DISQUE de cet effet se manipule directement sur la toile,
    * en nommant les paramètres qui le portent. `RegionHandles` en dessine alors

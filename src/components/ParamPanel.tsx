@@ -13,6 +13,7 @@ import { useState, type ReactNode } from "react";
 import { CurveControl } from "./CurveControl";
 import { TonalRangeControl } from "./TonalRangeControl";
 import { ColorRampControl } from "./ColorRampControl";
+import { ColorWheelControl } from "./ui/color-wheel-control";
 import type { CurvePoint } from "../ui/curveControl";
 import { TexturePicker } from "./TexturePicker";
 import type { TextureThumbnail } from "../textures/thumbnailCache";
@@ -330,6 +331,9 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onO
       if (stop.position) controlledParams.add(stop.position);
     }
   }
+  for (const control of effect.colorWheelControls ?? []) {
+    controlledParams.add(control.hue); controlledParams.add(control.saturation); controlledParams.add(control.luminance);
+  }
 
   // Paramètres RÉSOLUS (défauts appliqués), pour les `maxFrom` d'en bas. Même
   // forme que ce que `runInternalPasses` passe à `EffectPass.enabled` — un
@@ -438,6 +442,39 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onO
                 onOpenColorPicker({ layerId: layer.id, effectId: layer.effectId, key: declaration.id, label: declaration.label, hue, saturation, lightness, anchorTop });
               }} />;
           })}
+          {(effect.colorWheelControls ?? []).length > 0 && (
+            <div className="param-panel__wheels">
+              {(effect.colorWheelControls ?? []).map((control) => {
+                const hueP = effect.params.find((p) => p.name === control.hue)!;
+                const satP = effect.params.find((p) => p.name === control.saturation)!;
+                const lumP = effect.params.find((p) => p.name === control.luminance)!;
+                return (
+                  <ColorWheelControl
+                    key={`roue:${control.id}`}
+                    label={control.label}
+                    hue={resolvedParams[control.hue]}
+                    saturation={resolvedParams[control.saturation]}
+                    luminance={resolvedParams[control.luminance]}
+                    hueDefault={hueP.default}
+                    saturationDefault={satP.default}
+                    luminanceDefault={lumP.default}
+                    luminanceMin={lumP.min}
+                    luminanceMax={lumP.max}
+                    luminanceStep={lumP.step}
+                    disabled={locked}
+                    onChange={(patch) => {
+                      const out: Record<string, number> = {};
+                      if (patch.hue !== undefined) out[control.hue] = patch.hue;
+                      if (patch.saturation !== undefined) out[control.saturation] = patch.saturation;
+                      if (patch.luminance !== undefined) out[control.luminance] = patch.luminance;
+                      onParamChange(layer.id, out);
+                    }}
+                    onCommit={onParamCommit}
+                  />
+                );
+              })}
+            </div>
+          )}
           {effect.tonalRangeControl && (() => {
             const declaration = effect.tonalRangeControl;
             return <TonalRangeControl key="plage-tonale:effet" kind="effect" disabled={locked} values={{

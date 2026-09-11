@@ -1,0 +1,50 @@
+.color-wheel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-block: var(--space-2);
+}
+
+.color-wheel__head {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+.color-wheel__disk {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  margin-inline: auto;
+  border: 1px solid var(--border-emphasis);
+  border-radius: var(--radius-round);
+  touch-action: none;
+  user-select: none;
+  cursor: crosshair;
+}
+
+.color-wheel__disk:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.color-wheel__point {
+  position: absolute;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+  transform: translate(-50%, -50%);
+  border: 2px solid var(--surface-panel);
+  border-radius: var(--radius-round);
+  background: var(--wheel-point-color);
+  box-shadow: 0 0 0 1px var(--border-strong);
+  pointer-events: none;
+}
+
+.color-wheel[data-disabled] {
+  opacity: 0.5;
+}
+
+.color-wheel[data-disabled] .color-wheel__disk {
+  cursor: not-allowed;
+}

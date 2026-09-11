@@ -23,22 +23,25 @@ const meta: Meta<typeof DevelopPanel> = {
 export default meta;
 type Story = StoryObj<typeof DevelopPanel>;
 
-/** Au défaut : les TROIS modules en accordéon — Réglages de base en tête, HSL au
- *  milieu, Étalonnage en bas (ordre d'affichage de Lightroom), chacun avec son
- *  ŒIL (interrupteur) à gauche de son en-tête. */
+/** Au défaut : les QUATRE modules en accordéon — Réglages de base en tête, HSL,
+ *  Color Grading, Étalonnage en bas (ordre d'affichage de Lightroom), chacun avec
+ *  son ŒIL (interrupteur) à gauche de son en-tête. */
 export const AuDefaut: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("Réglages de base")).toBeInTheDocument();
     await expect(canvas.getByText("TSL / Noir et blanc")).toBeInTheDocument();
+    await expect(canvas.getByText("Color Grading")).toBeInTheDocument();
     await expect(canvas.getByText("Étalonnage")).toBeInTheDocument();
     // Un contrôle de chaque module (accordéons ouverts par défaut).
     await expect(canvas.getByText("Température")).toBeInTheDocument();
     await expect(canvas.getByText("Traitement")).toBeInTheDocument();
     await expect(canvas.getByText("Nuance foncée")).toBeInTheDocument();
-    // Un œil par module — trois au total, tous « actif » au défaut.
+    // La rangée de roues du Color Grading (une roue « Ombres » nommée).
+    await expect(canvas.getByLabelText(/Ombres — teinte/)).toBeInTheDocument();
+    // Un œil par module — quatre au total, tous « actif » au défaut.
     const yeux = canvas.getAllByRole("button", { name: /module/ });
-    await expect(yeux).toHaveLength(3);
+    await expect(yeux).toHaveLength(4);
     for (const oeil of yeux) await expect(oeil).toHaveAttribute("aria-pressed", "true");
     // Le bandeau N&B des Réglages de base, non pressé.
     await expect(canvas.getByRole("button", { name: "N&B" })).toHaveAttribute("aria-pressed", "false");

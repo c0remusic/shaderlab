@@ -82,6 +82,11 @@ function paramsSansLigne(effet: EffectModule): Set<string> {
       consommes.add(arret.lightness);
     }
   }
+  for (const roue of effet.colorWheelControls ?? []) {
+    consommes.add(roue.hue);
+    consommes.add(roue.saturation);
+    consommes.add(roue.luminance);
+  }
   return consommes;
 }
 
@@ -239,8 +244,13 @@ describe("orphelins de section", () => {
       const sections = effet.sections ?? [];
       if (sections.length === 0) continue;
       const cites = new Set(sections.flatMap((s) => s.params));
+      // Un paramètre PILOTÉ par un contrôle composite (courbe, rampe, ROUE, plage
+      // tonale) n'est pas un orphelin de section : il n'a pas de ligne de curseur
+      // du tout, son contrôle le rend. Color Grading (ticket 06) rend ses 12
+      // teinte/sat/lum par ses quatre roues, hors section.
+      const consommes = paramsSansLigne(effet);
       for (const param of effet.params) {
-        if (cites.has(param.name)) continue;
+        if (cites.has(param.name) || consommes.has(param.name)) continue;
         const cle = `${effet.id}.${param.name}`;
         if (!(cle in ORPHELINS_DECLARES)) inattendus.push(cle);
       }

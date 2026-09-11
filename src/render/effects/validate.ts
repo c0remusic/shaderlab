@@ -290,6 +290,22 @@ export function validateEffect(effect: EffectModule): void {
     }
   }
 
+  if (effect.colorWheelControls) {
+    const controlIds = new Set<string>();
+    const usedParams = new Set<string>();
+    for (const control of effect.colorWheelControls) {
+      if (controlIds.has(control.id)) throw new Error(`Effet "${effect.id}" : roue chromatique dupliquée "${control.id}".`);
+      controlIds.add(control.id);
+      const names = [control.hue, control.saturation, control.luminance];
+      if (new Set(names).size !== names.length) throw new Error(`Effet "${effect.id}" : la roue "${control.id}" réutilise un paramètre pour plusieurs rôles.`);
+      for (const name of names) {
+        if (!params.has(name)) throw new Error(`Effet "${effect.id}" : roue "${control.id}" désigne le paramètre absent "${name}".`);
+        if (usedParams.has(name)) throw new Error(`Effet "${effect.id}" : paramètre de roue réutilisé "${name}".`);
+        usedParams.add(name);
+      }
+    }
+  }
+
   if (effect.libraryTexture) {
     // Le rang d'une texture est le seul paramètre du dépôt lu HORS du shader
     // (par `FramePipelineExecutor`, pour choisir quoi lier au binding 7). Il

@@ -246,3 +246,13 @@
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
 }
+
+/* Rangée des roues de Color Grading (ticket 06) : deux par ligne, la colonne du
+   dock (~320 px) ne tient pas quatre roues lisibles côte à côte. Chaque roue se
+   dimensionne sur sa cellule (largeur 100 %, aspect carré). */
+.param-panel__wheels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding-block: var(--space-2) var(--space-4);
+}

@@ -9,6 +9,7 @@ import {
 import { etalonnage } from "../../src/render/effects/etalonnage";
 import { reglagesDeBase } from "../../src/render/effects/reglagesDeBase";
 import { hsl } from "../../src/render/effects/hslDevelop";
+import { colorGrading } from "../../src/render/effects/colorGrading";
 import { effectRegistry, getEffect } from "../../src/render/effects/registry";
 
 /**
@@ -23,31 +24,35 @@ describe("registre de l'étage de développement", () => {
     // les primaires, puis le ton, puis le HSL. Les modules suivants (Color Grading,
     // Détail, Vignettage) prennent leur place ici — l'inverser ou l'élargir sans
     // mettre à jour ce test rougit.
-    expect(developApplyOrder.map((m) => m.id)).toEqual(["etalonnage", "reglagesDeBase", "hsl"]);
+    expect(developApplyOrder.map((m) => m.id)).toEqual(["etalonnage", "reglagesDeBase", "hsl", "colorGrading"]);
   });
 
-  it("l'ordre d'AFFICHAGE est celui déclaré (Réglages de base, HSL, Étalonnage en bas)", () => {
+  it("l'ordre d'AFFICHAGE est celui déclaré (Réglages de base, HSL, Color Grading, Étalonnage en bas)", () => {
     // L'affichage n'est PAS l'application : Lightroom montre les Réglages de base
-    // en premier, le HSL ensuite, et l'Étalonnage tout en bas.
-    expect(developDisplayOrder.map((m) => m.id)).toEqual(["reglagesDeBase", "hsl", "etalonnage"]);
+    // en premier, le HSL, le Color Grading, et l'Étalonnage tout en bas.
+    expect(developDisplayOrder.map((m) => m.id)).toEqual(["reglagesDeBase", "hsl", "colorGrading", "etalonnage"]);
   });
 
   it("les modules de l'étage sont dans l'étage et PAS dans le registre des effets", () => {
     expect(developModules).toContain(etalonnage);
     expect(developModules).toContain(reglagesDeBase);
     expect(developModules).toContain(hsl);
+    expect(developModules).toContain(colorGrading);
     expect(effectRegistry.some((e) => e.id === "etalonnage")).toBe(false);
     expect(effectRegistry.some((e) => e.id === "reglagesDeBase")).toBe(false);
     expect(effectRegistry.some((e) => e.id === "hsl")).toBe(false);
+    expect(effectRegistry.some((e) => e.id === "colorGrading")).toBe(false);
   });
 
   it("`getEffect` résout un module de l'étage par id, comme `passthrough`", () => {
     expect(getEffect("etalonnage")).toBe(etalonnage);
     expect(getEffect("reglagesDeBase")).toBe(reglagesDeBase);
     expect(getEffect("hsl")).toBe(hsl);
+    expect(getEffect("colorGrading")).toBe(colorGrading);
     expect(getDevelopModule("etalonnage")).toBe(etalonnage);
     expect(getDevelopModule("reglagesDeBase")).toBe(reglagesDeBase);
     expect(getDevelopModule("hsl")).toBe(hsl);
+    expect(getDevelopModule("colorGrading")).toBe(colorGrading);
   });
 
   it("`getDevelopModule` rend `undefined` pour un id inconnu", () => {

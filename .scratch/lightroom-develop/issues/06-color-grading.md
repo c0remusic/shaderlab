@@ -1,7 +1,7 @@
 # 06 — Color Grading : trois roues, une globale, fusion et balance
 
 Type: task
-Status: ready-for-agent
+Status: ready-for-human
 Blocked by: 05 (le registre de l'étage et le panneau sont tenus par HSL jusqu'à son commit) ; la MESURE Lightroom (`grading-*` dans les exports du plugin) calibre les amplitudes — table provisoire isolée sinon, comme au 05
 
 **What to build :** le module `colorGrading` de l'étage — « go pour color grading
@@ -84,7 +84,39 @@ l'usage, c'est une suite (une roue est un contrôle, `src/components/ui/` +
   teal-and-orange par grading, à comparer à celui par étalonnage) · tons moyens
   vert · global lum ±50 · balance ±100 · fusion 0 / 100.
 
-- [ ] `colorGrading.ts`, 14 params, une passe, table isolée.
-- [ ] Registre, panneau (groupes couleur), références 143 → 147, applicabilité sans objet (aucun `choices`).
-- [ ] Comparaison à Lightroom si exports ; sinon script prêt.
-- [ ] Planche, verdict d'Antoine.
+- [x] `colorGrading.ts`, 14 params, une passe, table isolée (`colorGradingTable.ts`).
+- [x] Registre (application après HSL, affichage HSL → Color Grading → Étalonnage), panneau (VRAIES ROUES `ColorWheelControl`, pas des groupes couleur — amendement), applicabilité sans objet (aucun `choices`). ⚠️ **Références 143 → 147 NON gravées** : scénarios (`render-check.mjs`) et `ATTENDU` (`renderRefs.test.mjs`) écrits mais NON committés — l'app était morte (CDP 9223 injoignable) et le sandbox bloque `src-tauri/target/`, donc `test:render --update` est impossible d'ici. À graver par Antoine dans l'app vivante, puis committer les 4 PNG + les deux points d'enregistrement ensemble.
+- [x] Comparaison à Lightroom : `assets/calibrer-grading.py` prêt et exécuté (Tons moyens rmse 0,0025 chroma OKLab ; Global luminance rmse 0,0050 dL). Ombres/Hautes lumières/Fusion/Balance **non mesurables** dans les exports (voir Livraison).
+- [ ] Planche, verdict d'Antoine. → NON faite (nécessite l'app + les deux photos d'Antoine).
+
+## Livraison 2026-09-12 (sous-agent Opus 4.8)
+
+UN commit (`242b612`, non poussé). Moteur + UI + twin + registre + story + script de
+calibration. Périmètre livré et vérifié ; références de pixels et planche en attente
+de l'app vivante (voir cases).
+
+**Écart au brief, prémisse fausse sur pièce.** Le brief annonçait `grading-ombres-bleu`
+« PROPRE » et calibrable. Mesuré en OKLab sur `rampe_rgb` : `grading-ombres-bleu`
+(ShadowHue 220/Sat 60) ET `grading-hl-orange` (40/60) rendent une rampe de gris
+**strictement neutre** dans les exports (dch = 0 à tous les niveaux), de même que
+`grading-balance-p100`, `grading-fusion-0/100`. Cause : le plugin a écrit
+`ColorGradeShadowHue`/`ColorGradeHighlightHue`, que Lightroom Classic **ignore** — les
+teintes Ombres/Hautes lumières y vivent sous les clés héritées `SplitToningShadow*`/
+`SplitToningHighlight*`. Donc les teintes Ombres/HL, Balance et Fusion **ne sont pas
+mesurables** dans ces exports. Seuls **Tons moyens** (`grading-moyens-vert`,
+`ColorGradeMidtoneHue/Sat`, clés réelles) et **Global luminance**
+(`grading-global-lum-p50`) le sont.
+
+**Calibré vs borné par twin.**
+- Calibré sur mesure : `chromaK` 0,164 et cloche des tons moyens (`midCenter` 0,61,
+  `midSigma` 0,144) sur `grading-moyens-vert` ; `lumK` 0,074 sur `grading-global-lum-p50`.
+  `chromaK`/`lumK` réutilisés pour les quatre roues (un seul modèle de mélange).
+- Modélisés, bornés par le twin, provisoires : profils de poids Ombres/Hautes lumières
+  (`shadowCenter`, `highCenter`, `softBase`), ouverture de Fusion (`softSpread`,
+  `midSoft`), geste de Balance (`balanceShift`).
+
+**Reste ouvert :** gravure des 4 références + relecture à l'œil ; planche des deux photos
+d'Antoine ; verdict d'usage. Si un re-run Lightroom avec les BONNES clés (`SplitToning*`
+pour Ombres/HL, ou l'UI Color Grading pilotée directement) devient possible, Ombres/HL/
+Balance/Fusion deviendraient calibrables et `colorGradingTable.ts` se recalerait par le
+même script.

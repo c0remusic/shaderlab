@@ -222,3 +222,51 @@ describe("preset Courbes", () => {
     expect(result.layers[0].imageSource).toBeUndefined();
   });
 });
+
+describe("étage de développement dans les presets (ticket 03)", () => {
+  const ETAL_PARAMS: EffectParam[] = [
+    { name: "blueHue", label: "Teinte", min: -100, max: 100, default: 0, step: 1 },
+    { name: "blueSaturation", label: "Saturation", min: -100, max: 100, default: 0, step: 1 },
+  ];
+  function developModuleParams(id: string): EffectParam[] | null {
+    return id === "etalonnage" ? ETAL_PARAMS : null;
+  }
+
+  it("capture écrit `develop` quand l'étage est réglé, et l'omet quand il est vide", () => {
+    const layers = [layer()];
+    const { preset } = capture(layers, "Sans étage");
+    expect("develop" in preset).toBe(false);
+
+    const { preset: avec } = capture(layers, "Avec étage", { etalonnage: { blueHue: -60, blueSaturation: 40 } });
+    expect(avec.develop).toEqual({ etalonnage: { blueHue: -60, blueSaturation: 40 } });
+  });
+
+  it("apply restaure l'étage, clampe ses paramètres, et rend {} sur un preset ancien", () => {
+    const ancien: PresetDocument = {
+      schemaVersion: PRESET_SCHEMA_VERSION, id: "p", name: "ancien",
+      createdAt: "x", updatedAt: "x", layers: [],
+    };
+    expect(apply(ancien, effectExists, effectParams, () => "l", developModuleParams).develop).toEqual({});
+
+    const avec: PresetDocument = {
+      ...ancien,
+      // 999 est hors bornes : `apply` doit le clamper à 100 comme il le fait pour
+      // les paramètres d'effet.
+      develop: { etalonnage: { blueHue: 999, blueSaturation: -60 } },
+    };
+    expect(apply(avec, effectExists, effectParams, () => "l", developModuleParams).develop).toEqual({
+      etalonnage: { blueHue: 100, blueSaturation: -60 },
+    });
+  });
+
+  it("apply ignore un module inconnu avec un AVERTISSEMENT, jamais une exception", () => {
+    const preset: PresetDocument = {
+      schemaVersion: PRESET_SCHEMA_VERSION, id: "p", name: "n",
+      createdAt: "x", updatedAt: "x", layers: [],
+      develop: { moduleFantome: { x: 1 }, etalonnage: { blueHue: 10 } },
+    };
+    const { develop, warnings } = apply(preset, effectExists, effectParams, () => "l", developModuleParams);
+    expect(develop).toEqual({ etalonnage: { blueHue: 10 } });
+    expect(warnings.some((w) => w.message.includes("moduleFantome"))).toBe(true);
+  });
+});

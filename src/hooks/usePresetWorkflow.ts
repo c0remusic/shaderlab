@@ -100,10 +100,13 @@ export function usePresetWorkflow({ sessionRef, presets, setError }: Deps) {
   const { overwrite: overwritePreset, save: savePreset } = presets;
   const commitSavePreset = useCallback(async (name: string, overwriteId: string | null): Promise<boolean> => {
     try {
+      // L'ÉTAGE DE DÉVELOPPEMENT part AVEC le preset (ticket 03) : un preset
+      // Lightroom est d'abord un jeu de réglages globaux.
+      const develop = sessionRef.current.developpement();
       if (overwriteId) {
-        await overwritePreset(overwriteId, sessionRef.current.layers(), name);
+        await overwritePreset(overwriteId, sessionRef.current.layers(), name, develop);
       } else {
-        await savePreset(sessionRef.current.layers(), name);
+        await savePreset(sessionRef.current.layers(), name, develop);
       }
       return true;
     } catch (e) {
@@ -160,7 +163,7 @@ export function usePresetWorkflow({ sessionRef, presets, setError }: Deps) {
     }
     gateOnPhotoLayers(activeSummary.name, async () => {
       try {
-        await presets.updateActive(layers);
+        await presets.updateActive(layers, sessionRef.current.developpement());
         return true;
       } catch (e) {
         setError(messageFromUnknown(e));
@@ -193,7 +196,7 @@ export function usePresetWorkflow({ sessionRef, presets, setError }: Deps) {
     }
     return gateOnPhotoLayers(name, async () => {
       try {
-        await presets.copyActiveAsNew(layers, name);
+        await presets.copyActiveAsNew(layers, name, sessionRef.current.developpement());
         return true;
       } catch (e) {
         setError(messageFromUnknown(e));

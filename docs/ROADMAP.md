@@ -21,9 +21,11 @@
   le 2026-08-18 : `nettete`, `displacementMap` (`emboss` en faisait partie, RETIRÉ
   le 2026-08-21, ADR-0019). ⚠️ Deux retraits le 2026-08-21, indépendants :
   `emboss` (verdict « relief est horrible ») et `noise`, poussé la veille puis
-  reverté (refusé aussi). 28 → 27 → 26. Puis `etalonnage` le 2026-09-11 (premier
-  effet du chantier `lightroom-develop`, ticket 01) : 26 → 27. Mesurer sur disque,
-  ne pas recompter.
+  reverté (refusé aussi). 28 → 27 → 26. ⚠️ `etalonnage`, ajouté en calque le
+  2026-09-11 (ticket 01, 26 → 27), a été DÉPLACÉ le même jour dans l'ÉTAGE de
+  développement (ticket 03) : il n'est plus un effet choisissable mais le premier
+  module de `render/developRegistry.ts` (résolu par `getEffect`, hors registre) —
+  le compte des effets **redescend à 26**. Mesurer sur disque, ne pas recompter.
   ✅ `aplat` (couleur unie bornée par un masque ou une primitive posée) a reçu
   **deux des trois fronts de son upgrade qualité** le 2026-08-17 : remplissage en
   DÉGRADÉ (linéaire et radial, arrêts interpolés en lumière linéaire) et
@@ -41,9 +43,13 @@
   (ADR-0021, quatrième refus daté). ✅ Depuis le 2026-09-07 (`ede4b16`) le
   matcap du ticket 17 est une DOSE à défaut 0 — Antoine a pointé la colonne
   d'avant sur la planche chronologique — et `effet-verre-matcap` est la 14ᵉ.
-- **386 paramètres, 125 références de pixels** — le compte de params re-mesuré le
-  **2026-09-11** (+7 pour `etalonnage`, ticket 01) ; la ligne « références » plus
-  bas date du **2026-09-09**
+- **379 paramètres, 133 références de pixels** — le compte de params re-mesuré le
+  **2026-09-11** (386 → 379 : `etalonnage` et ses 7 params PARTENT vers l'ÉTAGE de
+  développement, ticket 03 ; ils étaient ARRIVÉS en calque au ticket 01, 379 →
+  386) ; le compte de références corrigé le même jour (le « 125 » était périmé —
+  le vrai total était 131, plus `developpement-etalonnage` /
+  `developpement-apres-pile` du ticket 03 = **133**). La ligne détaillée plus bas
+  date du **2026-09-09**
   (373 et 119 au 2026-08-27 ; le +6 et le +6 sont les tickets 21, 11, 24 et la
   dose `matcap` — un ajout, pas une correction : 49 conditions, ratio inchangé
   à 13 %). Historique du 2026-08-27 :
@@ -1069,7 +1075,7 @@ zéro. C'est elle qui gouverne les autres.
 `contentSource`** : formes et typographie l'attendent, le recadrage non. Ce
 paragraphe disait « le SEUL item prêt à coder » — retiré le 2026-08-11 pour la
 raison ci-dessus : il a un design, pas un modèle à jour. C'est aussi le dernier
-trou FONCTIONNEL de l'app — **vingt-sept** effets et pas de recadrage. En contrepartie il touche `LayerState`, la couche la
+trou FONCTIONNEL de l'app — **vingt-six** effets et pas de recadrage. En contrepartie il touche `LayerState`, la couche la
 plus partagée du projet (`render/`, `mask/`, `export/`, `components/`,
 `application/`) : plan écrit avant la première ligne.
 

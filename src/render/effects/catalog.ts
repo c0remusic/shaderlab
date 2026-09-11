@@ -31,10 +31,12 @@ export const effectCategoryById: Readonly<Record<string, EffectCategory>> = {
   duotone: "Couleur",
   channelMixer: "Couleur",
   curves: "Couleur",
-  // Étalonnage des primaires de Lightroom (ticket 01, lightroom-develop) : une
-  // matrice de recombinaison, comme `channelMixer`, mais dont la lecture est le
-  // système de couleur et non un filtre optique.
-  etalonnage: "Couleur",
+  // `etalonnage` a quitté le catalogue le 2026-09-11 en même temps que le
+  // registre des effets (ticket 03 lightroom-develop) : ce n'est plus un calque
+  // mais un module de l'ÉTAGE de développement (`render/developRegistry.ts`), qui
+  // n'est pas catégorisé — l'étage a son propre ordre d'affichage, pas les six
+  // catégories du sélecteur d'effets. `catalog.test` exige d'ailleurs
+  // `effectCategoryById` en 1:1 avec `effectRegistry`, dont il vient de sortir.
   gradientMap: "Couleur",
   // ⚠️ La famille tonale, et non `Optique` près des flous dont il est l'inverse
   // spatial : cette table classe le MÉCANISME, et une accentuation n'est

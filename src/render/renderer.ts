@@ -30,6 +30,7 @@ import type { DirtyRect } from "../mask/maskPainter";
 import type { CanvasPixelSize } from "../layers/canvasFormat";
 import type { ExportedFrame } from "../export/exportImage";
 import type { CanvasFrameState } from "../layers/canvasFrame";
+import type { DevelopSettings } from "../layers/developSettings";
 import { regionDeLecture, remapUvPourCadre, IDENTITY_UV_REMAP, type UvRemap } from "./cadreProjection";
 
 /** Which part of the live-preview mask texture a `MaskPreviewOverride` needs
@@ -171,6 +172,17 @@ export class Renderer {
    *  produire un fichier mal découpé. C'est la moitié PROUVABLE au harnais, et
    *  elle est tenue sans état dupliqué (ticket 32, §4.3 du ticket 28). */
   private cadre: CanvasFrameState = null;
+  /** Réglages de l'ÉTAGE DE DÉVELOPPEMENT pour l'ÉCRAN (ticket 03), ou `{}`.
+   *
+   *  État de rendu posé par `App` (`setDevelop`) plutôt que passé à chaque
+   *  `requestRender`, dont les sites d'appel se comptent par dizaines — même
+   *  statut que `cadre`/`displayScale`/`isolatedLayerId`. Contrairement au
+   *  `cadre`, l'étage s'applique DANS le pipeline (au composite, espace
+   *  d'origine), pas seulement à la présentation ; il vaut donc à l'écran ET à
+   *  l'export. `exportFrame` reçoit néanmoins son étage en PARAMÈTRE explicite,
+   *  comme le cadre : un champ d'écran resté périmé ne peut pas corrompre un
+   *  fichier exporté. */
+  private develop: DevelopSettings = {};
   constructor(
     ctx: GpuContext,
     diagnosticLogger: DiagnosticLogger = noopDiagnosticLogger,
@@ -289,6 +301,14 @@ export class Renderer {
    *  paramètre. */
   setCadre(cadre: CanvasFrameState): void {
     this.cadre = cadre;
+  }
+
+  /** Pose les réglages de l'ÉTAGE DE DÉVELOPPEMENT pour l'écran (ou `{}`). Ne
+   *  déclenche pas de rendu — même contrat que `setCadre` : l'appelant fait un
+   *  `requestRender` ensuite. N'affecte QUE l'écran ; l'export prend son étage en
+   *  paramètre d'`exportFrame`. */
+  setDevelop(develop: DevelopSettings): void {
+    this.develop = develop;
   }
 
   /**
@@ -552,6 +572,8 @@ export class Renderer {
         // change sans nouveau `LayerState` : l'exécuteur ne peut pas le
         // déduire de la pile qu'il reçoit (voir `computeGuideEpochs`).
         preview?.layerId ?? null,
+        // Étage de développement de l'ÉCRAN, posé par `setDevelop`.
+        this.develop,
       );
     } finally {
       this.maskTextureResolver?.setLivePreview(null);
@@ -672,7 +694,15 @@ export class Renderer {
     return this.framePipelineExecutor?.drainGuideDiagnostics() ?? null;
   }
 
-  async exportFrame(layers: LayerState[], cadre: CanvasFrameState = null): Promise<ExportedFrame> {
+  async exportFrame(
+    layers: LayerState[],
+    cadre: CanvasFrameState = null,
+    /** Étage de développement à appliquer à l'export (ticket 03). Pris en
+     *  PARAMÈTRE, comme `cadre`, pour qu'un champ d'écran périmé ne puisse pas
+     *  produire un fichier mal développé. Un seul pipeline : l'étage passe par le
+     *  même `runPipeline` que l'écran. */
+    develop: DevelopSettings = {},
+  ): Promise<ExportedFrame> {
     // ⚠️ ATTENDRE LES TEXTURES DE BIBLIOTHÈQUE ENCORE EN VOL. `viewFor` ne
     // bloque JAMAIS — un rendu à l'écran ne s'arrête pas pour un décodage, il
     // sert le repli 1×1 et redemande une frame. Un EXPORT n'a pas cette
@@ -690,7 +720,7 @@ export class Renderer {
     // garantit que l'export cadré est le crop octet pour octet du sous-rectangle
     // de l'export non cadré — donc que rien (dégradé, masque, transform) n'est
     // évalué dans l'espace du cadre (ticket 28, § second défaut silencieux).
-    this.runPipeline(layers, { kind: "export" });
+    this.runPipeline(layers, { kind: "export" }, null, develop);
     const region = regionDeLecture(cadre, this.imageResources.width, this.imageResources.height);
     const readback = new FrameReadback(
       this.ctx.device,
@@ -715,6 +745,7 @@ export class Renderer {
     layers: LayerState[],
     destination: PresentDestination,
     livePreviewLayerId: string | null = null,
+    develop: DevelopSettings = {},
   ): void {
     if (!this.framePipelineExecutor) throw new Error("Aucune image chargée.");
     const diagStart = performance.now();
@@ -727,6 +758,7 @@ export class Renderer {
       // fichier exporté.
       maskOverlayFor(destination, this.maskOverlayLayerId),
       livePreviewLayerId,
+      develop,
     );
     // `lastOverlayFrame` décrit le dernier frame d'ÉCRAN, seule chose que
     // `tickOverlayAnimation` a le droit de rejouer. Un export ne le remet donc
@@ -823,5 +855,6 @@ export class Renderer {
     this.backgroundSource = null;
     this.currentLayers = [];
     this.cadre = null;
+    this.develop = {};
   }
 }

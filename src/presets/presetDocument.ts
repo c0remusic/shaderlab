@@ -1,6 +1,7 @@
 import type { LayerState } from "../layers/types";
 import { hasImportedPhotoLayer } from "../layers/photoLayer";
 import { defaultLayerMask } from "../mask/types";
+import { cloneDevelopSettings, type DevelopSettings } from "../layers/developSettings";
 import type { EffectParam } from "../render/effects/types";
 import { PRESET_SCHEMA_VERSION, type PresetDocument, type PresetLayer, type SkipNotice, type ApplyWarning } from "./presetTypes";
 
@@ -32,7 +33,15 @@ export { PRESET_SCHEMA_VERSION };
  *  compris : le dialogue les liste par nom, en taire une rendrait
  *  l'énumération fausse. La frontière porte sur le déclenchement, pas sur un
  *  filtrage de la liste. */
-export function capture(layers: LayerState[], name: string): { preset: PresetDocument; skipped: SkipNotice[] } {
+export function capture(
+  layers: LayerState[],
+  name: string,
+  /** Réglages de l'ÉTAGE DE DÉVELOPPEMENT du document (ticket 03). Un preset
+   *  Lightroom EST d'abord un jeu de réglages globaux : on les capture. Absent =
+   *  `{}` (aucun réglage), et le champ `develop` n'est alors PAS écrit dans le
+   *  preset — un preset sans étage garde sa forme d'avant, à l'octet. */
+  develop: DevelopSettings = {},
+): { preset: PresetDocument; skipped: SkipNotice[] } {
   const skipped: SkipNotice[] = [];
   const presetLayers: PresetLayer[] = [];
   const worthReporting = hasImportedPhotoLayer(layers);
@@ -52,6 +61,10 @@ export function capture(layers: LayerState[], name: string): { preset: PresetDoc
   });
 
   const now = new Date().toISOString();
+  // `develop` n'est écrit que s'il porte au moins un module réglé : un document
+  // sans étage rend un preset de forme inchangée, ce qui garde les tests de
+  // capture existants (`toEqual`) et les fichiers déjà sur disque intacts.
+  const developCopy = cloneDevelopSettings(develop);
   return {
     preset: {
       schemaVersion: PRESET_SCHEMA_VERSION,
@@ -60,6 +73,7 @@ export function capture(layers: LayerState[], name: string): { preset: PresetDoc
       createdAt: now,
       updatedAt: now,
       layers: presetLayers,
+      ...(Object.keys(developCopy).length > 0 ? { develop: developCopy } : {}),
     },
     skipped,
   };
@@ -81,8 +95,16 @@ export function apply(
   preset: PresetDocument,
   effectExists: (effectId: string) => boolean,
   effectParams: (effectId: string) => EffectParam[] | null,
-  freshId: () => string
-): { layers: LayerState[]; warnings: ApplyWarning[] } {
+  freshId: () => string,
+  /** Paramètres d'un MODULE de l'étage de développement, ou `null` si le module
+   *  n'existe pas (ticket 03). Injecté comme `effectParams` l'est pour les
+   *  effets, pour que `apply` reste une fonction pure testable sans le registre.
+   *  Absent (anciens appelants, tests d'effet purs) = l'étage est restauré tel
+   *  quel, sans clamp ni avertissement — le cas des presets qui n'en portent
+   *  pas. Un module INCONNU est ignoré avec un avertissement, jamais une
+   *  exception (même contrat qu'un effet inconnu). */
+  developModuleParams?: (moduleId: string) => EffectParam[] | null,
+): { layers: LayerState[]; warnings: ApplyWarning[]; develop: DevelopSettings } {
   if (preset.schemaVersion > PRESET_SCHEMA_VERSION) {
     throw new Error(
       `Preset "${preset.name}" a un schemaVersion (${preset.schemaVersion}) plus récent que celui supporté par cette version de l'app (${PRESET_SCHEMA_VERSION}).`
@@ -115,7 +137,33 @@ export function apply(
     });
   }
 
-  return { layers, warnings };
+  // ÉTAGE DE DÉVELOPPEMENT (ticket 03). Un preset ancien sans `develop` retombe
+  // sur `{}` (les défauts de l'étage). Sans injecteur, on restaure tel quel (le
+  // cas des tests d'effet purs). Avec, chaque module inconnu est IGNORÉ + avis,
+  // et les paramètres des modules connus sont clampés à leurs bornes courantes —
+  // exactement le même traitement que les calques d'effet ci-dessus, pour la
+  // même raison (dérive de bornes entre la version qui capture et celle qui
+  // applique).
+  const develop: DevelopSettings = {};
+  for (const [moduleId, values] of Object.entries(migrated.develop ?? {})) {
+    if (developModuleParams === undefined) {
+      develop[moduleId] = { ...values };
+      continue;
+    }
+    const params = developModuleParams(moduleId);
+    if (params === null) {
+      warnings.push({ message: `Étage de développement ignoré : le module "${moduleId}" n'existe plus.` });
+      continue;
+    }
+    const clamped: Record<string, number> = {};
+    for (const [key, value] of Object.entries(values)) {
+      const paramDef = params.find((p) => p.name === key);
+      clamped[key] = paramDef ? clampParam(value, paramDef) : value;
+    }
+    develop[moduleId] = clamped;
+  }
+
+  return { layers, warnings, develop };
 }
 
 /** No-op today: PRESET_SCHEMA_VERSION === 1 is the only version that has

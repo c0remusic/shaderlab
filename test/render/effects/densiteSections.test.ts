@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { effectRegistry } from "../../../src/render/effects/registry";
+import { developModules } from "../../../src/render/developRegistry";
 import type { EffectModule, SectionLayout } from "../../../src/render/effects/types";
+
+// Densité et orphelins couvrent le registre des effets ET les modules de
+// l'ÉTAGE de développement (ticket 03) : ils portent des sections et des
+// paramètres orphelins comme n'importe quel effet (`etalonnage.shadowTint` est
+// un orphelin déclaré), et sont rendus par le MÊME `ParamPanel`. `etalonnage`
+// ayant quitté `effectRegistry` pour l'étage, sans cette réunion son orphelin
+// déclaré deviendrait « périmé » et le second test rougirait.
+const modulesEtEtage = [...effectRegistry, ...developModules];
 
 /**
  * DENSITÉ DES SECTIONS ET ORPHELINS — le garde du ticket 16.
@@ -181,7 +190,7 @@ const ORPHELINS_DECLARES: Readonly<Record<string, string>> = {
 describe("densité des sections", () => {
   it("aucune section ne dépasse le plafond, sauf exception écrite", () => {
     const depassements: string[] = [];
-    for (const effet of effectRegistry) {
+    for (const effet of modulesEtEtage) {
       for (const section of effet.sections ?? []) {
         const cle = `${effet.id}.${section.id}`;
         const n = lignesVisuelles(effet, section);
@@ -196,7 +205,7 @@ describe("densité des sections", () => {
   it("le plafond MORD — plusieurs sections l'atteignent exactement", () => {
     // Un plafond que rien n'approche ne prouve rien : il pourrait valoir 40. Ce
     // test dit que le chiffre est calé sur le parc réel.
-    const hauteurs = effectRegistry.flatMap((effet) =>
+    const hauteurs = modulesEtEtage.flatMap((effet) =>
       (effet.sections ?? []).map((s) => lignesVisuelles(effet, s)),
     );
     expect(hauteurs.filter((h) => h === PLAFOND_LIGNES).length).toBeGreaterThanOrEqual(3);
@@ -206,7 +215,7 @@ describe("densité des sections", () => {
     // Si la section repasse sous le plafond, sa dérogation doit SORTIR — sinon
     // la liste devient un cimetière et la prochaine vraie exception s'y cache.
     const encoreHautes = new Set(
-      effectRegistry.flatMap((effet) =>
+      modulesEtEtage.flatMap((effet) =>
         (effet.sections ?? [])
           .filter((s) => lignesVisuelles(effet, s) > PLAFOND_LIGNES)
           .map((s) => `${effet.id}.${s.id}`),
@@ -220,7 +229,7 @@ describe("densité des sections", () => {
 describe("orphelins de section", () => {
   it("tout paramètre non cité par une section porte sa raison déclarée", () => {
     const inattendus: string[] = [];
-    for (const effet of effectRegistry) {
+    for (const effet of modulesEtEtage) {
       const sections = effet.sections ?? [];
       if (sections.length === 0) continue;
       const cites = new Set(sections.flatMap((s) => s.params));
@@ -235,7 +244,7 @@ describe("orphelins de section", () => {
 
   it("la liste des orphelins déclarés ne se périme pas en silence", () => {
     const reels = new Set(
-      effectRegistry.flatMap((effet) => {
+      modulesEtEtage.flatMap((effet) => {
         const sections = effet.sections ?? [];
         if (sections.length === 0) return [];
         const cites = new Set(sections.flatMap((s) => s.params));

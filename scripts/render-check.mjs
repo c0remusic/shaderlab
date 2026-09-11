@@ -3083,6 +3083,42 @@ const INSTALL = `(async () => {
       },
     },
 
+    // ETAGE DE DEVELOPPEMENT (2026-09-11, ticket 03 lightroom-develop). Deux
+    // references : que l etage rend ce que rend le meme effet pose en calque, et
+    // que l etage s applique APRES la pile.
+    //
+    // developpement-etalonnage : l etage regle Bleu teinte -60 sat +40 sur
+    // mirePrimaires, SANS aucun calque d effet. L etalonnage vit dans l etage et
+    // transforme le composite (la photo). Il doit rendre EXACTEMENT ce que rend
+    // effet-etalonnage-bleu (le meme etalonnage en CALQUE) : meme entree, meme
+    // shader, deux chemins equivalents (applyMask false rend fs_main tel quel ;
+    // le compositing d un calque a opacite 1, fusion normale, sur un fond opaque
+    // se reduit a fs_main au bit pres). L assertion identiqueA le PROUVE, elle
+    // ne se contente pas d une reference figee.
+    "developpement-etalonnage": {
+      identiqueA: "effet-etalonnage-bleu",
+      develop: { etalonnage: { blueHue: -60, blueSaturation: 40 } },
+      build: async (r, stack) => {
+        const src = await mirePrimaires(W, H);
+        const sourceId = await r.photoSources.register(src);
+        stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "primaires");
+      },
+    },
+    // developpement-apres-pile : un calque grain (memes graine et parametres que
+    // grain-graine-fixe), puis l etage etalonnage bleu. Le contre est le grain
+    // SEUL -> ce qui reste est exactement ce que l etage AJOUTE au composite deja
+    // graine, ce qui prouve que l etage tourne APRES la pile. La reference gele
+    // l ORDRE : appliquer l etalonnage AVANT le grain rendrait d autres pixels et
+    // la ferait rougir (verifie une fois en inversant, puis remis).
+    "developpement-apres-pile": {
+      contre: "grain-graine-fixe",
+      develop: { etalonnage: { blueHue: -60, blueSaturation: 40 } },
+      build: async (r, stack) => {
+        const a = stack.addLayer("grain");
+        stack.updateParams(a, { intensity: 0.3, size: 3, seed: 7 });
+      },
+    },
+
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,
     // donc les passes de morphologie separees H/V).
@@ -4171,6 +4207,13 @@ const INSTALL = `(async () => {
         // aveugle. Le scenario declare donc l id NORMALISE (L1 = le premier
         // calque pose au-dessus du fond).
         if (scenario.overlay) r.setMaskOverlay(scenario.overlay);
+        // ETAGE DE DEVELOPPEMENT (ticket 03) : un champ develop du scenario
+        // devient les reglages de l etage, appliques au composite en fin de
+        // chaine. Pose sur le renderer pour le chemin CANVAS (render), et passe
+        // en parametre a exportFrame pour le chemin EXPORT. Absent -> etage au
+        // defaut, aucune passe emise, rendu inchange au bit pres.
+        const develop = scenario.develop ?? {};
+        r.setDevelop(develop);
         // \`read\` rend un \`{ pixels, width, height }\` — les dimensions du frame
         // REELLEMENT rendu, pas celles que le scenario a declarees. Sur le
         // chemin d'export elles viennent d'\`ExportedFrame\` (le renderer les
@@ -4191,7 +4234,7 @@ const INSTALL = `(async () => {
         // dimensions voyagent AVEC les octets.
         const read = scenario.surface === "canvas"
           ? async () => ({ pixels: (r.render(layers), await readCanvas(pass.ctx, W, H)), width: W, height: H })
-          : () => r.exportFrame(layers, scenario.cadre ?? null);
+          : () => r.exportFrame(layers, scenario.cadre ?? null, develop);
         const first = await read();
         // Deuxieme lecture sur le MEME renderer : separe une instabilite de
         // frame (cache de pipeline, epoque de masque) d'une instabilite de
@@ -4207,7 +4250,7 @@ const INSTALL = `(async () => {
         // independamment de \`regionDeLecture\` du produit.
         if (scenario.cadre && scenario.surface !== "canvas") {
           const c = scenario.cadre;
-          const plein = await r.exportFrame(layers);
+          const plein = await r.exportFrame(layers, null, develop);
           const fw = plein.width;
           let diff = 0;
           let premier = -1;
@@ -4385,7 +4428,7 @@ const INSTALL = `(async () => {
     // Ce que chaque scenario PROMET de montrer — consomme par la gate de
     // signal cote Node (voir \`verifierSignal\`).
     attentes: Object.fromEntries(
-      Object.entries(scenarios).map(([id, s]) => [id, { valeurs: s.valeurs ?? null, contre: s.contre ?? null }]),
+      Object.entries(scenarios).map(([id, s]) => [id, { valeurs: s.valeurs ?? null, contre: s.contre ?? null, identiqueA: s.identiqueA ?? null }]),
     ),
   });
 })()`;
@@ -4443,7 +4486,7 @@ function verifierSignal(results, ids, meta) {
   console.log("Signal (une reference qu'on ne peut plus faire rougir ne prouve rien) :");
   let ok = true;
   for (const id of ids) {
-    const attente = meta.attentes[id] ?? { valeurs: null, contre: null };
+    const attente = meta.attentes[id] ?? { valeurs: null, contre: null, identiqueA: null };
     const pixels = results[id].pixels;
     const couleurs = couleursDistinctes(pixels);
     const notes = [];
@@ -4478,6 +4521,25 @@ function verifierSignal(results, ids, meta) {
           notes.push(`ne s'ecarte de ${attente.contre} que sur ${(part * 100).toFixed(3)} % des canaux`);
         } else {
           notes.push(`s'ecarte de ${attente.contre} sur ${(part * 100).toFixed(1)} % des canaux`);
+        }
+      }
+    }
+
+    // IDENTITE EXIGEE (ticket 03) : un scenario qui declare `identiqueA` doit
+    // rendre EXACTEMENT les memes pixels qu un autre. Sert a prouver que l etage
+    // de developpement (etalonnage applique au composite) rend bit pour bit ce
+    // que rend le meme effet pose en CALQUE — deux chemins, un seul resultat.
+    if (attente.identiqueA) {
+      const ref = results[attente.identiqueA];
+      if (!ref) {
+        notes.push(`identite vs ${attente.identiqueA} non mesuree (hors de ce --scenario)`);
+      } else {
+        const stats = comparePixels(pixels, ref.pixels);
+        if (stats.differing !== 0) {
+          bon = false;
+          notes.push(`DIFFERE de ${attente.identiqueA} sur ${stats.differing} canaux (attendu: identique)`);
+        } else {
+          notes.push(`identique a ${attente.identiqueA}, au bit pres`);
         }
       }
     }

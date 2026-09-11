@@ -1,3 +1,5 @@
+import type { DevelopSettings } from "../layers/developSettings";
+
 export const PRESET_SCHEMA_VERSION = 1;
 
 /** Sous-ensemble sérialisable de LayerState — délibérément SANS id/mask/
@@ -22,6 +24,13 @@ export interface PresetDocument {
   createdAt: string;
   updatedAt: string;
   layers: PresetLayer[];
+  /** Réglages de l'ÉTAGE DE DÉVELOPPEMENT du document (ticket 03). OPTIONNEL et
+   *  ADDITIF : un preset écrit avant l'étage n'a pas ce champ, et `apply` retombe
+   *  alors sur les défauts de l'étage (rendu inchangé). `schemaVersion` reste 1 —
+   *  l'ajout est rétro-compatible (un champ absent est lu comme « aucun réglage »),
+   *  exactement le cas prévu par le versionnement. Un preset Lightroom EST
+   *  d'abord ça : un jeu de réglages globaux. */
+  develop?: DevelopSettings;
 }
 
 /** `layerIndex` names WHICH excluded layer this notice is about (its index in

@@ -21,13 +21,13 @@ import { motionBlur } from "./motionBlur";
 import { glass } from "./glass";
 import { lensFlare } from "./lensFlare";
 import { curves } from "./curves";
-import { etalonnage } from "./etalonnage";
 import { texture } from "./texture";
 import { lightLeak } from "./lightLeak";
 import { aplat } from "./aplat";
 import { nettete } from "./nettete";
 import { displacementMap } from "./displacementMap";
 import { PASSTHROUGH_EFFECT } from "../effectPassRunner";
+import { getDevelopModule } from "../developRegistry";
 
 // Les six du milieu suivent l'ordre de priorité du backlog d'effets confirmé par
 // l'utilisateur (design.md du MVP § « Backlog d'effets futurs ») : Gooey merge,
@@ -164,15 +164,12 @@ export const effectRegistry: EffectModule[] = [
   gooeyMerge,
   channelMixer,
   curves,
-  // `etalonnage` (2026-09-11) est le PREMIER effet du chantier « l'éditeur
-  // complet de Lightroom » (`.scratch/lightroom-develop/`, ticket 01). Posé près
-  // de `curves` et `channelMixer` parce qu'il est de la même famille — de la
-  // retouche Couleur, sans ancrage sur la toile. Il porte l'étalonnage des
-  // primaires de Lightroom : une MATRICE 3×3 en lumière linéaire dont les colonnes
-  // sont les trois primaires tournées en OKLCH, renormalisée pour que le blanc
-  // reste blanc, plus une nuance foncée bornée aux ombres. Ce n'est pas un HSL —
-  // il retourne le système de couleur sous l'image, pas les couleurs par bande.
-  etalonnage,
+  // `etalonnage` a QUITTÉ le registre des effets le 2026-09-11 (ticket 03
+  // lightroom-develop) : il n'est plus un calque choisissable mais le premier
+  // MODULE de l'ÉTAGE DE DÉVELOPPEMENT, appliqué au composite de toute la pile
+  // en fin de chaîne. Il vit désormais dans `render/developRegistry.ts` — résolu
+  // par `getEffect` (comme `passthrough`), mais hors de ce tableau. Le compte
+  // des EFFETS ne bouge donc pas : un étage naît, un effet n'est pas retiré.
   // `nettete` (2026-08-18) est posé après `curves` parce qu'il pose la même
   // question qu'elle par l'autre bout : `curves` décide de la valeur d'un ton,
   // celui-ci de l'écart entre un ton et son VOISINAGE. Les deux sont tonals ;
@@ -254,6 +251,13 @@ effectRegistry.forEach(validateEffect);
 export function getEffect(id: string): EffectModule {
   if (id === PASSTHROUGH_EFFECT.id) return PASSTHROUGH_EFFECT;
   const effect = effectRegistry.find((e) => e.id === id);
-  if (!effect) throw new Error(`Effet inconnu: ${id}`);
-  return effect;
+  if (effect) return effect;
+  // MODULES DE L'ÉTAGE DE DÉVELOPPEMENT (ticket 03) : résolus par id comme
+  // `passthrough`, mais absents d'`effectRegistry` — ils ne sont pas
+  // choisissables comme calque. C'est ce qui permet à `ParamPanel` de leur
+  // demander leurs sections (via un calque synthétique) et au moteur de composer
+  // leur shader, sans qu'ils apparaissent dans le sélecteur « ajouter un effet ».
+  const developModule = getDevelopModule(id);
+  if (developModule) return developModule;
+  throw new Error(`Effet inconnu: ${id}`);
 }

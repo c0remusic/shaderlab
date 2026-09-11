@@ -199,7 +199,27 @@ describe("exportImage", () => {
     const exportFrame = vi.fn().mockResolvedValue(OPAQUE_FRAME);
     const cadre = { x: 10, y: 20, width: 30, height: 40 };
     await exportImage({ exportFrame }, { write: vi.fn().mockResolvedValue(undefined) }, [], "C:\\fake\\p.jpg", cadre);
-    expect(exportFrame).toHaveBeenCalledWith([], cadre);
+    // Le `{}` en 3e argument est l'ÉTAGE de développement (ticket 03) : `exportImage`
+    // le transmet à `exportFrame`, défaut vide ici.
+    expect(exportFrame).toHaveBeenCalledWith([], cadre, {});
+    vi.unstubAllGlobals();
+  });
+
+  it("transmet l'étage de développement à `exportFrame` (ticket 03)", async () => {
+    vi.stubGlobal(
+      "OffscreenCanvas",
+      class {
+        constructor(_width: number, _height: number) {}
+        getContext() { return { putImageData() {} }; }
+        convertToBlob() { return Promise.resolve({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(4)) } as unknown as Blob); }
+      }
+    );
+    vi.stubGlobal("ImageData", class { constructor(_data: Uint8ClampedArray, _width: number, _height: number) {} });
+    const exportFrame = vi.fn().mockResolvedValue(OPAQUE_FRAME);
+    const develop = { etalonnage: { blueHue: -60 } };
+    await exportImage({ exportFrame }, { write: vi.fn().mockResolvedValue(undefined) }, [], "C:\\fake\\p.jpg", null, develop);
+    // L'export porte l'étage : un fichier exporté est l'image DÉVELOPPÉE.
+    expect(exportFrame).toHaveBeenCalledWith([], null, develop);
     vi.unstubAllGlobals();
   });
 });

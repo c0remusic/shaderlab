@@ -230,6 +230,16 @@ const script = `(async () => {
         composeShader(neutre.wgsl, { applyMask: true, hasPrevPass: neutrePrev, blendWgsl: b.wgsl }));
     }
 
+    // 3bis) ETAGE DE DEVELOPPEMENT (ticket 03) : etalonnage a quitte
+    // effectRegistry pour l etage, son shader n etait donc plus compile ici. On
+    // le compose EXACTEMENT comme le moteur (applyMask false : une copie
+    // transformee du composite, pas un compositing), sans passe interne.
+    const dev = await import("/src/render/developRegistry.ts");
+    for (const m of (dev.developModules ?? [])) {
+      if (m.wgsl) await compile("develop " + m.id,
+        composeShader(m.wgsl, { applyMask: false, hasPrevPass: false }));
+    }
+
     // 4) passe NEUTRE : celle qu'encode le court-circuit « 0 calque active ».
     // Elle avait un SECOND site jusqu'au 2026-08-21, la neutralisation d'un
     // calque ecrete dont la base photo n'etait pas rendue ; il est parti avec

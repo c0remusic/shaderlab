@@ -93,7 +93,7 @@ import { MAX_COLOR_RANGE_SAMPLES } from "./mask/sources/colorRange";
 import { planFold } from "./mask/foldPlan";
 import { OverlayAnimationLoop } from "./render/overlayAnimationLoop";
 import { hasValueChanged } from "./ui/valueChange";
-import { Layers, SlidersHorizontal, PackagePlus } from "lucide-react";
+import { Layers, SlidersHorizontal, PackagePlus, Sun } from "lucide-react";
 import { useContextualPanel } from "./ui/contextualPanel";
 import { PanelRail, type PanelRailItem } from "./components/dockedPanel/PanelRail";
 import { ColorPickerPanel } from "./components/ColorPickerPanel";
@@ -103,6 +103,9 @@ import { usePhotoLayer } from "./hooks/usePhotoLayer";
 import { useCropTool } from "./hooks/useCropTool";
 import { regionDeLecture } from "./render/cadreProjection";
 import type { CanvasFrame, CanvasFrameState } from "./layers/canvasFrame";
+import type { DevelopSettings } from "./layers/developSettings";
+import { developDisplayOrder, isDevelopModuleAtDefault } from "./render/developRegistry";
+import { DevelopPanel } from "./components/DevelopPanel";
 import type { CropRect } from "./ui/cropTool";
 import { usePresetWorkflow } from "./hooks/usePresetWorkflow";
 import { useLayerIsolation } from "./hooks/useLayerIsolation";
@@ -176,6 +179,11 @@ export default function App() {
   // recalent, l'export découpe. Mis à jour à chaque geste qui touche le cadre
   // (recadrage, annulation, undo/redo, ouverture).
   const [cadre, setCadreState] = useState<CanvasFrameState>(null);
+  // ÉTAGE DE DÉVELOPPEMENT du document (ticket 03), projeté depuis la session
+  // (source de vérité, `LayerStack.develop`) pour que la carte « Développement »
+  // se rende. Mis à jour par `syncSession` (commit/undo/redo/open) et par la voie
+  // vivante d'un curseur de l'étage. `{}` = tous les modules à leur défaut.
+  const [develop, setDevelopState] = useState<DevelopSettings>({});
   // Zoom/déplacement du canvas (`src/ui/viewport.ts`). Le viewport est un état
   // d'INTERFACE : il ne touche ni le document, ni l'historique, ni l'export —
   // même frontière que l'isolation de calque (`src/layers/isolation.ts`).
@@ -299,8 +307,16 @@ export default function App() {
   // Rien d'autre n'a bougé : `DockLayout` est un `DockGroup[][]` depuis le
   // 2026-08-19, les colonnes multiples existaient déjà et se déplacent déjà à la
   // souris. Ce n'est qu'un DÉFAUT.
+  // « Développement » (ticket 03) entre comme ONGLET du groupe de la PREMIÈRE
+  // colonne (celle qui touche la toile), aux côtés de Presets et Propriétés, et
+  // NON dans le groupe Pile. Trois raisons : Lightroom met son module Develop
+  // dans la colonne de droite, séparé de toute notion de « calque » ; l'étage est
+  // GLOBAL au document (visible sans calque sélectionné), donc il ne se lit pas
+  // « en même temps » que la Pile comme Propriétés le fait ; et un onglet
+  // n'ajoute AUCUNE hauteur — un troisième groupe toujours ouvert risquerait de
+  // faire déborder la colonne, qu'ADR-0001 interdit de faire défiler.
   const [dockLayout, setDockLayout] = useState<DockLayout>(() => [
-    [{ tabs: ["presets", "properties"], active: "properties", collapsed: false }],
+    [{ tabs: ["presets", "properties", "develop"], active: "properties", collapsed: false }],
     [singleGroup("layers")],
   ]);
 
@@ -361,6 +377,11 @@ export default function App() {
     const sessionSelectedId = sessionRef.current.selectedId();
     setLayers(displayLayers);
     setSelectedId(sessionSelectedId);
+    // L'ÉTAGE suit le même chemin que les calques (ticket 03) : projeté à chaque
+    // synchronisation de session. `develop` est un objet frais à chaque commit
+    // (clone de `LayerStack`), donc l'égalité de référence suffit à re-rendre la
+    // carte quand il change, et à ne rien faire quand il ne change pas.
+    setDevelopState(sessionRef.current.developpement());
     setPropertiesTarget((previous) =>
       reconcilePropertiesTarget(previous, displayLayers) ??
       targetForLayerId(displayLayers, sessionSelectedId),
@@ -417,6 +438,10 @@ export default function App() {
       diagCommitsRef.current++;
       sessionRef.current.commit(stack);
       syncSession();
+      // L'ÉTAGE de l'écran suit le modèle (ticket 03), comme `setCadre` : posé
+      // sur le renderer à chaque commit, avant le rendu. Un commit qui ne touche
+      // pas l'étage repose la même valeur — pas de coût.
+      rendererRef.current?.setDevelop(sessionRef.current.developpement());
       rendererRef.current?.requestRender(sessionRef.current.layers());
     },
     [syncSession]
@@ -1227,7 +1252,7 @@ export default function App() {
       frameSignature: async () => {
         const renderer = rendererRef.current;
         if (!renderer) return null;
-        const frame = await renderer.exportFrame(sessionRef.current.layers());
+        const frame = await renderer.exportFrame(sessionRef.current.layers(), null, sessionRef.current.developpement());
         const pixels = frame.pixels;
         let somme = 0;
         let sommeCarres = 0;
@@ -1249,13 +1274,13 @@ export default function App() {
        *  en le posant ici, ses deux cents lignes ont fait ABANDONNER le
        *  compilateur React sur toute la racine de composition. */
       capturerReference: async () => {
-        const frame = await rendererRef.current?.exportFrame(sessionRef.current.layers());
+        const frame = await rendererRef.current?.exportFrame(sessionRef.current.layers(), null, sessionRef.current.developpement());
         referenceFrameRef.current = frame ?? null;
         return frame ? { width: frame.width, height: frame.height } : null;
       },
       structureAjoutee: async () => {
         const reference = referenceFrameRef.current;
-        const frame = await rendererRef.current?.exportFrame(sessionRef.current.layers());
+        const frame = await rendererRef.current?.exportFrame(sessionRef.current.layers(), null, sessionRef.current.developpement());
         return reference && frame ? mesurerStructureAjoutee(reference, frame) : null;
       },
       /** Arme une capture du temps GPU PAR PASSE sur la prochaine frame, et
@@ -1277,6 +1302,17 @@ export default function App() {
       annulerRecadrage: () => {
         annulerRecadrageRef.current();
       },
+      /** Règle un module de l'ÉTAGE DE DÉVELOPPEMENT (ticket 03) et COMMITE (un
+       *  pas d'undo), pour piloter la carte « Développement » par CDP sans passer
+       *  par le DOM du curseur. `params` fusionne dans les valeurs du module.
+       *  Repose l'étage sur le renderer et redemande un rendu via `commit`. */
+      reglerDeveloppement: (moduleId: string, params: Record<string, number>) => {
+        const session = sessionRef.current;
+        const current = session.developpement();
+        session.reglerDeveloppement(moduleId, { ...current[moduleId], ...params });
+        commit(currentStack());
+      },
+      developpement: () => sessionRef.current.developpement(),
       state: () => ({
         layers: sessionRef.current.layers().map((l) => ({
           id: l.id,
@@ -1296,7 +1332,7 @@ export default function App() {
     return () => {
       delete (window as unknown as Record<string, unknown>).__shaderlabDebug;
     };
-  }, [openFile, importPhotoFromPath, replacePhotoImageFromPath]);
+  }, [openFile, importPhotoFromPath, replacePhotoImageFromPath, commit, currentStack]);
 
   function handleAdd(effectId: string) {
     clearActivePreset();
@@ -1594,6 +1630,40 @@ export default function App() {
     paramDirtyRef.current = false;
     commit(currentStack());
   }, [flushSync, commit, currentStack]);
+
+  // ── ÉTAGE DE DÉVELOPPEMENT (ticket 03) ──────────────────────────────────
+  // Chemin VIVANT d'un curseur de module, jumeau de `handleParamChange` : état
+  // vivant sur la session (`replaceLiveDevelop`) APPAIRÉ avec `setDevelop` +
+  // `requestRender`, aucune entrée d'historique par frame. `patch` est PARTIEL
+  // (un ou quelques paramètres), fusionné dans les valeurs du module. Le commit
+  // passe par `handleParamCommit` — un seul point de commit pour tous les
+  // curseurs vivants du fichier, qui flushe et ne commite que si `paramDirtyRef`
+  // a été salie ici.
+  function handleDevelopChange(moduleId: string, patch: Record<string, number>) {
+    const session = sessionRef.current;
+    const current = session.developpement();
+    const before = current[moduleId] ?? {};
+    if (Object.entries(patch).some(([key, value]) => hasValueChanged(before[key], value))) {
+      paramDirtyRef.current = true;
+    }
+    const merged: DevelopSettings = { ...current, [moduleId]: { ...before, ...patch } };
+    session.replaceLiveDevelop(merged);
+    setDevelopState(merged);
+    rendererRef.current?.setDevelop(merged);
+    rendererRef.current?.requestRender(session.layers());
+  }
+
+  /** « Réinitialiser » un module de l'étage : ses valeurs retournent au défaut
+   *  (`{}`), en UN pas d'undo. Geste ATOMIQUE (pas de phase vivante), donc il
+   *  commite tout de suite. No-op si le module est déjà au défaut — pas d'entrée
+   *  d'historique vide, même discipline que le reste du fichier. */
+  const handleDevelopReset = useCallback((moduleId: string) => {
+    const session = sessionRef.current;
+    const module = developDisplayOrder.find((m) => m.id === moduleId);
+    if (!module || isDevelopModuleAtDefault(module, session.developpement()[moduleId])) return;
+    session.reglerDeveloppement(moduleId, {});
+    commit(currentStack());
+  }, [commit, currentStack]);
 
   // ÉTIREMENT VIVANT D'UN CALQUE D'EFFET PLACÉ (ticket 24, tranche 3). Écrit
   // `effectTransform` sur le calque, exactement le patron de `handleTransformChange`
@@ -2017,6 +2087,10 @@ export default function App() {
       // this is a STRUCTURAL check, not the full-value one that drives the
       // dirty banner.
       reconcileActivePreset(sessionRef.current.layers());
+      // L'ÉTAGE voyage dans l'historique (`LayerStack.develop`, ticket 03) :
+      // l'écran doit suivre l'undo. `syncSession` a déjà re-projeté le state
+      // React ; ici on repose l'étage sur le renderer avant de repeindre.
+      rendererRef.current?.setDevelop(sessionRef.current.developpement());
       rendererRef.current?.requestRender(sessionRef.current.layers());
     }
   }, [syncSession, reconcileActivePreset]);
@@ -2026,6 +2100,7 @@ export default function App() {
       syncSession();
       setCadreState(sessionRef.current.cadreToile());
       reconcileActivePreset(sessionRef.current.layers());
+      rendererRef.current?.setDevelop(sessionRef.current.developpement());
       rendererRef.current?.requestRender(sessionRef.current.layers());
     }
   }, [syncSession, reconcileActivePreset]);
@@ -2179,7 +2254,11 @@ export default function App() {
         // Le fichier exporté est découpé au cadre courant (ticket 32) : le vrai
         // export lit le cadre de la session, seule source de vérité du
         // recadrage, jamais l'état d'écran du renderer.
-        sessionRef.current.cadreToile()
+        sessionRef.current.cadreToile(),
+        // ...et il porte l'ÉTAGE DE DÉVELOPPEMENT (ticket 03), pour la même
+        // raison : l'étage est dans l'image, pas une aide d'écran, donc lu sur la
+        // session et appliqué au composite exporté (un seul pipeline).
+        sessionRef.current.developpement()
       );
       // Même discipline que openFile : un export réussi efface une erreur
       // laissée par une tentative précédente, plutôt que de laisser un
@@ -2218,7 +2297,7 @@ export default function App() {
       await applyPresetTo(
         id,
         sessionRef.current.layers(),
-        (newLayers) => {
+        (newLayers, develop) => {
           const stack = new LayerStack();
           // §2.3 du design 2026-07-28 : appliquer un preset ne doit PAS faire
           // disparaître les photos du document — depuis la tranche T1 le fond
@@ -2227,6 +2306,10 @@ export default function App() {
           // pour le choix de position.
           const mergedLayers = withPhotoLayersPreserved(sessionRef.current.layers(), newLayers);
           stack.layers = mergedLayers;
+          // L'ÉTAGE restauré du preset (ticket 03) part dans le MÊME commit que
+          // la pile — un seul pas d'undo restaure les deux. `commit` re-pose
+          // ensuite l'étage sur le renderer et re-synchronise le state React.
+          stack.develop = develop;
           commit(stack);
           // Important 6 (final-review fix): applyPreset replaces the WHOLE
           // stack with FRESH layer ids (LayerStack's freshId counter never
@@ -2317,6 +2400,11 @@ export default function App() {
   const layersPanel = useContextualPanel(true, "static");
   const texturesPanel = useContextualPanel(true, "static");
   const propertiesPanel = useContextualPanel(selectedId !== null, selectedId);
+  // ÉTAGE DE DÉVELOPPEMENT (ticket 03) : toujours accessible depuis le rail, comme
+  // Presets/Pile. Contrairement à Propriétés, il ne dépend PAS d'un calque
+  // sélectionné — c'est un réglage du DOCUMENT, visible dès qu'une image est
+  // ouverte (le panneau montre son propre état d'accueil sinon).
+  const developPanel = useContextualPanel(true, "static");
 
   // Table explicite plutôt qu'une chaîne de ternaires : sans branche par
   // défaut, un id inconnu héritait silencieusement de la visibilité du Masque.
@@ -2331,8 +2419,9 @@ export default function App() {
       layers: layersPanel.visible,
       textures: texturesPanel.visible,
       properties: propertiesPanel.visible,
+      develop: developPanel.visible,
     }),
-    [presetsPanel.visible, layersPanel.visible, texturesPanel.visible, propertiesPanel.visible]
+    [presetsPanel.visible, layersPanel.visible, texturesPanel.visible, propertiesPanel.visible, developPanel.visible]
   );
   const isPanelVisible = useCallback(
     (id: string) => {
@@ -2423,11 +2512,13 @@ export default function App() {
         { id: "presets", icon: PackagePlus, label: "Presets", active: presetsPanel.visible, onClick: presetsPanel.toggleRail },
         { id: "layers", icon: Layers, label: "Pile", active: layersPanel.visible, onClick: layersPanel.toggleRail },
         { id: "properties", icon: SlidersHorizontal, label: "Propriétés", active: propertiesPanel.visible, onClick: propertiesPanel.toggleRail },
+        { id: "develop", icon: Sun, label: "Développement", active: developPanel.visible, onClick: developPanel.toggleRail },
       ] satisfies PanelRailItem[],
     [
       presetsPanel.visible, presetsPanel.toggleRail,
       layersPanel.visible, layersPanel.toggleRail,
       propertiesPanel.visible, propertiesPanel.toggleRail,
+      developPanel.visible, developPanel.toggleRail,
     ],
   );
 
@@ -3090,6 +3181,20 @@ export default function App() {
                   onRefineEdgeCommit={handleParamCommit}
                   onAddColorSample={handleAddColorSample}
                 />}
+              />
+            },
+            {
+              // ÉTAGE DE DÉVELOPPEMENT (ticket 03) : réglages GLOBAUX du document,
+              // appliqués au composite en fin de chaîne — pas un calque. Contenu
+              // de formulaire comme Propriétés, donc PAS `variableLength` (le
+              // plancher « cinq lignes » des listes ferait défiler la carte).
+              id: "develop", title: "Développement",
+              content: <DevelopPanel
+                develop={develop}
+                hasImage={imageSize.width > 0 && imageSize.height > 0}
+                onDevelopChange={handleDevelopChange}
+                onDevelopCommit={handleParamCommit}
+                onDevelopReset={handleDevelopReset}
               />
             },
           ]}

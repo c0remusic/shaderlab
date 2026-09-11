@@ -4,6 +4,7 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { effectRegistry } from "../../src/render/effects/registry";
+import { developModules } from "../../src/render/developRegistry";
 import { composeShader } from "../../src/render/shaderCompose";
 import { blendRegistry, getBlendMode } from "../../src/render/blend/registry";
 
@@ -179,6 +180,20 @@ function variantes(): Variante[] {
         hasPrevPass: false,
         blendWgsl: mode.wgsl,
       }),
+    });
+  }
+
+  // ── L'ÉTAGE DE DÉVELOPPEMENT (ticket 03) ────────────────────────────────
+  //
+  // `etalonnage` a quitté `effectRegistry` pour l'étage : son shader n'était donc
+  // plus validé par naga. On compose chaque module de l'étage EXACTEMENT comme le
+  // moteur le fait — `applyMask: false` (une copie transformée du composite, pas
+  // un compositing), sans passe interne. La variante déclare `params` comme
+  // toutes les autres, donc elle est tolérée et le compte global tient.
+  for (const module of developModules) {
+    sortie.push({
+      nom: `develop ${module.id}`,
+      source: composeShader(module.wgsl, { applyMask: false, hasPrevPass: false }),
     });
   }
 

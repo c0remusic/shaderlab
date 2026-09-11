@@ -1,6 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { effectRegistry } from "../../../src/render/effects/registry";
+import { developModules } from "../../../src/render/developRegistry";
 import type { EffectModule } from "../../../src/render/effects/types";
+
+// La garde couvre le registre des effets ET les modules de l'ÉTAGE de
+// développement (ticket 03) : un module de l'étage est un `EffectModule` dont le
+// shader lit `params[N]` exactement comme un effet, donc un curseur mort y est
+// aussi silencieux. `etalonnage` a quitté `effectRegistry` pour l'étage ; sans
+// cette réunion, il ne serait plus câblé-vérifié par rien.
+const modulesCables = [...effectRegistry, ...developModules];
 
 /**
  * AUCUN PARAMÈTRE DÉCLARÉ NE DOIT RESTER SANS LECTURE — sur TOUT le registre.
@@ -69,7 +77,7 @@ function indicesLus(effet: EffectModule): Set<number> {
 }
 
 describe("registre — chaque paramètre déclaré est lu par son effet", () => {
-  it.each(effectRegistry.map((e) => [e.id, e] as const))("%s", (_id, effet) => {
+  it.each(modulesCables.map((e) => [e.id, e] as const))("%s", (_id, effet) => {
     const lus = indicesLus(effet);
     const morts = effet.params
       .map((p, i) => ({ nom: p.name, index: i }))
@@ -83,7 +91,7 @@ describe("registre — chaque paramètre déclaré est lu par son effet", () => 
     // liste s'arrête à 6 ne lit pas un curseur : il lit un zéro, puisque
     // `effectPassRunner` remplit le reste du tableau de zéros. Panne
     // silencieuse et parfaitement stable — le pire des cas.
-    const fautifs = effectRegistry
+    const fautifs = modulesCables
       .map((e) => ({ id: e.id, trop: [...indicesLus(e)].filter((i) => i >= e.params.length).sort() }))
       .filter((x) => x.trop.length > 0);
     expect(fautifs).toEqual([]);

@@ -4,8 +4,10 @@ import { apply, capture } from "../presets/presetDocument";
 import { presetsDiffer, presetStructureDiffers } from "../presets/presetsDiffer";
 import type { PresetLayer } from "../presets/presetTypes";
 import { getEffect } from "../render/effects/registry";
+import { getDevelopModule } from "../render/developRegistry";
 import { freshId } from "../layers/layerStack";
 import type { LayerState } from "../layers/types";
+import type { DevelopSettings } from "../layers/developSettings";
 import type { EffectParam } from "../render/effects/types";
 
 /** Same 5-field projection as `presetDocument.capture`'s per-layer shape,
@@ -32,6 +34,14 @@ function effectParamsFor(effectId: string): EffectParam[] | null {
   } catch {
     return null;
   }
+}
+
+/** Paramètres d'un module de l'ÉTAGE de développement, ou `null` s'il n'existe
+ *  pas (ticket 03). Distinct d'`effectParamsFor` : `getEffect` résout AUSSI les
+ *  modules de l'étage, donc on interroge le registre de développement pour ne
+ *  restaurer un `develop` que sur des modules réellement de l'étage. */
+function developModuleParamsFor(moduleId: string): EffectParam[] | null {
+  return getDevelopModule(moduleId)?.params ?? null;
 }
 
 export function usePresets(store: PresetStore) {
@@ -90,8 +100,8 @@ export function usePresets(store: PresetStore) {
    *  (`App.tsx`'s `requestSavePreset`) — this function always creates a
    *  fresh id, it never checks for a name collision itself. */
   const save = useCallback(
-    async (layers: LayerState[], name: string) => {
-      const { preset } = capture(layers, name);
+    async (layers: LayerState[], name: string, develop: DevelopSettings = {}) => {
+      const { preset } = capture(layers, name, develop);
       await store.save(preset.id, preset);
       await refresh();
     },
@@ -104,9 +114,9 @@ export function usePresets(store: PresetStore) {
    *  `save` (always a new id) and from `rename` (Task 2's PresetStore method,
    *  changes only the name, never the layer content). */
   const overwrite = useCallback(
-    async (id: string, layers: LayerState[], name: string) => {
+    async (id: string, layers: LayerState[], name: string, develop: DevelopSettings = {}) => {
       const existing = await store.load(id);
-      const { preset } = capture(layers, name);
+      const { preset } = capture(layers, name, develop);
       await store.save(id, { ...preset, id, createdAt: existing.createdAt });
       // Important 4 (final-review fix): overwriting the CURRENTLY ACTIVE
       // preset by name (typing its own name into "Enregistrer" -> "Écraser")
@@ -149,12 +159,12 @@ export function usePresets(store: PresetStore) {
     async (
       id: string,
       _currentLayers: LayerState[],
-      onApply: (layers: LayerState[]) => void,
+      onApply: (layers: LayerState[], develop: DevelopSettings) => void,
       onWarning: (message: string) => void
     ) => {
       const preset = await store.load(id);
-      const { layers: newLayers, warnings } = apply(preset, effectExists, effectParamsFor, freshId);
-      onApply(newLayers);
+      const { layers: newLayers, warnings, develop } = apply(preset, effectExists, effectParamsFor, freshId, developModuleParamsFor);
+      onApply(newLayers, develop);
       setActive({ id, snapshot: toPresetLayers(newLayers) });
       if (warnings.length > 0) {
         onWarning(warnings.map((w) => w.message).join(" "));
@@ -169,10 +179,10 @@ export function usePresets(store: PresetStore) {
    *  (`App.tsx`'s `requestUpdateActive`, same division of labor as `save`/
    *  `overwrite` above): this function always writes immediately. */
   const updateActive = useCallback(
-    async (currentLayers: LayerState[]) => {
+    async (currentLayers: LayerState[], develop: DevelopSettings = {}) => {
       if (!active) return;
       const existing = await store.load(active.id);
-      const { preset } = capture(currentLayers, existing.name);
+      const { preset } = capture(currentLayers, existing.name, develop);
       const updated = { ...preset, id: active.id, createdAt: existing.createdAt };
       await store.save(active.id, updated);
       setActive({ id: active.id, snapshot: toPresetLayers(currentLayers) });
@@ -185,8 +195,8 @@ export function usePresets(store: PresetStore) {
    *  banner action. Same photo-layer-exclusion gating contract as
    *  `updateActive`/`save`. The new copy becomes the active preset. */
   const copyActiveAsNew = useCallback(
-    async (currentLayers: LayerState[], name: string) => {
-      const { preset } = capture(currentLayers, name);
+    async (currentLayers: LayerState[], name: string, develop: DevelopSettings = {}) => {
+      const { preset } = capture(currentLayers, name, develop);
       await store.save(preset.id, preset);
       setActive({ id: preset.id, snapshot: toPresetLayers(currentLayers) });
       await refresh();

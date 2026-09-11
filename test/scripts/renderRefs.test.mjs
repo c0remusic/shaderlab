@@ -624,6 +624,14 @@ const ATTENDU = {
   "effet-etalonnage-temoin.png": { width: 256, height: 256, valeurs: null },
   "effet-etalonnage-bleu.png": { width: 256, height: 256, valeurs: null },
   "effet-etalonnage-nuance.png": { width: 256, height: 256, valeurs: null },
+  // ETAGE DE DEVELOPPEMENT (ticket 03). etalonnage a quitte le registre des
+  // effets pour l etage, mais ses trois references d effet ci-dessus RESTENT :
+  // elles gelent l operateur, qui est le meme, pose en calque. Ces deux-ci gelent
+  // l ETAGE : developpement-etalonnage doit etre identique au bit pres a
+  // effet-etalonnage-bleu (meme operateur, applique au composite au lieu d un
+  // calque), et developpement-apres-pile gele que l etage tourne APRES la pile.
+  "developpement-etalonnage.png": { width: 256, height: 256, valeurs: null },
+  "developpement-apres-pile.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

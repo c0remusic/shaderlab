@@ -1,5 +1,6 @@
 import type { LayerState } from "../layers/types";
 import type { CanvasFrameState } from "../layers/canvasFrame";
+import type { DevelopSettings } from "../layers/developSettings";
 
 /**
  * Un frame relu, AVEC les dimensions auxquelles il a été rendu.
@@ -32,7 +33,7 @@ export interface ExportedFrame {
  *  cadré, sans rien évaluer dans l'espace du cadre. Optionnel : un appelant qui
  *  n'a pas de recadrage n'a rien à passer. */
 export interface FrameRenderer {
-  exportFrame(layers: LayerState[], cadre?: CanvasFrameState): Promise<ExportedFrame>;
+  exportFrame(layers: LayerState[], cadre?: CanvasFrameState, develop?: DevelopSettings): Promise<ExportedFrame>;
 }
 
 /** Output boundary for the application export use case. */
@@ -199,14 +200,18 @@ export async function exportImage(
   imageWriter: ImageWriter,
   layers: LayerState[],
   targetPath: string,
-  cadre: CanvasFrameState = null
+  cadre: CanvasFrameState = null,
+  /** Étage de développement du document (ticket 03) : appliqué au composite en
+   *  fin de chaîne, donc l'export DOIT le porter — un seul pipeline, un fichier
+   *  exporté est l'image développée. Défaut `{}` = aucun réglage. */
+  develop: DevelopSettings = {}
 ): Promise<void> {
   // Aucun paramètre de dimension : elles arrivent avec les octets — voir
   // `ExportedFrame`. C'est ce qui interdit d'encoder aux dimensions d'une
   // autre source (le state React, avant la tranche T2). Le `cadre` ne dit PAS
   // les dimensions : il dit quel sous-rectangle relire, et les dimensions
   // reviennent quand même AVEC les octets (celles du cadre écrêté).
-  const frame = await frameRenderer.exportFrame(layers, cadre);
+  const frame = await frameRenderer.exportFrame(layers, cadre, develop);
   const jpegBytes = await encodeJpeg(frame.pixels, frame.width, frame.height);
   await imageWriter.write(targetPath, jpegBytes);
 }

@@ -187,13 +187,14 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Registre réel au 2026-08-18, dans l'ordre : `glow`, `halation`,
   `lensFlare`, `lightLeak`, `lensDistortion`, `lensBlur`, `motionBlur`,
   `glass`, `warp`, `displacementMap`, `grain`, `duotone`, `hatching`,
-  `halftone`, `dither`, `gooeyMerge`, `channelMixer`, `curves`, `etalonnage`,
+  `halftone`, `dither`, `gooeyMerge`, `channelMixer`, `curves`,
   `nettete`, `outlines`, `isolines`, `pixelStretch`, `sliceShift`,
-  `gradientMap`, `texture`, `aplat` — **vingt-sept**.
-  ⚠️ `etalonnage` (2026-09-11) est le PREMIER effet du chantier « l'éditeur
-  complet de Lightroom » (`.scratch/lightroom-develop/`, ticket 01) — 26 → 27.
-  Portage du panneau Étalonnage : matrice de primaires tournées dans OKLab +
-  nuance foncée bornée aux ombres.
+  `gradientMap`, `texture`, `aplat` — **vingt-six**.
+  ⚠️ `etalonnage` a QUITTÉ le registre des effets le 2026-09-11 (ticket 03
+  lightroom-develop) : ajouté d'abord comme calque (ticket 01, 26 → 27), il est
+  DÉPLACÉ dans l'ÉTAGE de développement (`render/developRegistry.ts`), résolu par
+  `getEffect` mais hors du registre — plus choisissable en calque. Le compte des
+  EFFETS redescend donc à **26** : un étage naît, un effet n'est pas retiré.
   ⚠️ `emboss` (le Relief) EST SORTI le 2026-08-21 sur verdict d'usage
   (ADR-0019, « relief est horrible ») — 27 → 26. Et `noise`, poussé la veille,
   a été REVERTÉ le même jour, aussi refusé (28 → 27). Les deux retraits sont
@@ -353,10 +354,12 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Mesuré sur les modules réels, d'abord le 2026-08-12 puis le 2026-08-15
   (instrument : `.scratch/prochain-palier/assets/mesure-controles.ts`), puis
   re-mesuré le 2026-08-19, le 2026-08-26, le 2026-08-27, le 2026-09-09, puis le
-  **2026-09-11** : sur **386 paramètres**, **49** portent une condition (13 %)
-  et **16 effets sur 27** (le 379 → 386 est les sept params d'`etalonnage`,
-  ticket 01, zéro condition — 16ᵉ effet sans condition, un ajout pas une
-  correction ; le 373 → 379 est entièrement du 2026-09-02 au 09-07 :
+  **2026-09-11** (ticket 03) : sur **379 paramètres**, **49** portent une
+  condition (13 %) et **15 effets sur 26** (le 386 → 379 est le DÉPART
+  d'`etalonnage` et de ses sept params vers l'ÉTAGE de développement — ticket 03,
+  zéro condition, donc le numérateur des conditions ne bouge pas et le ratio non
+  plus ; le 379 → 386 avait été l'ARRIVÉE d'`etalonnage` en calque au ticket 01,
+  et le 373 → 379 est entièrement du 2026-09-02 au 09-07 :
   les quatre params de `box` de `texture` et le `point` de `warp`/`halftone`/
   `hatching` du ticket 21, et la dose `matcap` de `glass` — zéro condition
   ajoutée, donc le ratio ne bouge pas, et pour la même raison que d'habitude :
@@ -719,10 +722,20 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Ce qu'elle laisse passer : notre uniform `params: array<f32, 48>` n'est pas
   conforme (stride 4 pour un alignement requis de 16 en espace uniform), Dawn
   l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 26
-  effets, index gelés par les presets ET par **123** références de pixels
-  (**125 PNG** dans `test/render-refs/` au 2026-09-09 ; les DEUX qui ne gèlent
-  PAS un index, `photo-miroir-temoin` / `photo-miroir`, gèlent le miroir du
-  calque photo, donc le compte qui gèle les index est 125 − 2 = 123.
+  effets, index gelés par les presets ET par **128** références de pixels
+  (**133 PNG** dans `test/render-refs/` au 2026-09-11 ; CINQ ne gèlent PAS un
+  index : `photo-miroir-temoin` / `photo-miroir` gèlent le miroir du calque
+  photo, et `cadre-toile` / `cadre-toile-temoin` / `cadre-toile-degrade` gèlent
+  un DÉCOUPAGE de toile et non un `params[N]` — donc le compte qui gèle les index
+  est 133 − 2 − 3 = 128.
+  ⚠️ **Ce total a été SOUS-REPORTÉ à 125 jusqu'au 2026-09-11**, et la formule
+  d'alors (125 − 2 = 123) oubliait en plus les trois `cadre-toile` : trois
+  `cadre-toile` et trois `effet-etalonnage` existaient sur disque sans être
+  comptés ici (le vrai total était **131**), et le ticket 03 ajoute
+  `developpement-etalonnage` / `developpement-apres-pile` (131 → 133), qui gèlent
+  l'opérateur d'étalonnage — désormais le premier module de l'ÉTAGE, plus un
+  calque. Le compte réel se relit sur disque (`ls test/render-refs/*.png | wc -l`),
+  jamais recopié.
   ⚠️ **+6 entre le 2026-09-02 et le 09-07**, jamais reportés ici avant le
   09-09 : `effet-texture-box` (ticket 21), la triplette `masque-forme-*`
   (ticket 11), `effet-transform-lightleak` (ticket 24) et `effet-verre-matcap`
@@ -932,6 +945,27 @@ Points structurants qu'on ne devine pas en lisant un fichier isolé :
 - `exportImage.ts` définit ses propres ports d'IO et se teste avec des doubles :
   **c'est le patron à reproduire** pour toute nouvelle persistance, pas à
   réinventer.
+- **L'ÉTAGE DE DÉVELOPPEMENT (ticket 03 lightroom-develop) n'est PAS un calque.**
+  C'est un jeu de réglages GLOBAUX du document (portage du module *Develop* de
+  Lightroom), appliqué au COMPOSITE de toute la pile, **en fin de chaîne**, avant
+  la présentation et l'export — un seul pipeline. Antoine, 2026-09-11 : « je ne
+  veux pas que ce soit des "calques à effet", je veux que ce soit des options
+  permanentes pour modifier l'image », « après tous les calques ». Où il vit :
+  l'ÉTAT est `LayerStack.develop` (`DevelopSettings = Record<moduleId,
+  Record<param, number>>`, à côté de `cadre`, donc annulé par le même `History`,
+  cloné frais dans `clone()`, aucun raster) ; les MODULES vivent dans un registre
+  SÉPARÉ, `render/developRegistry.ts` (ordre d'APPLICATION ≠ ordre d'AFFICHAGE,
+  modèle Lightroom), résolus par `getEffect` mais hors d'`effectRegistry` —
+  **même statut que `PASSTHROUGH_EFFECT`**, pas choisissables en calque. Le MOTEUR
+  exécute l'étage dans `FramePipelineExecutor.run`, après la boucle des calques,
+  par le même `runEffectPass` en `applyMask: false`. ⚠️ **Un module au défaut est
+  SAUTÉ avant toute passe** (`isDevelopModuleAtDefault`) : aucune passe émise,
+  donc le ping-pong reste byte-identique et `test:render` est à zéro écart sur
+  toutes les références tant qu'aucun réglage n'est posé — c'est LE gate
+  discriminant. L'interface est une carte « Développement » permanente dans le
+  dock de droite (`DevelopPanel`, un `ParamPanel` par module via un calque
+  synthétique, sans forker). `etalonnage` est le premier module ; `presetDocument`
+  capture/restaure `DevelopSettings` (module inconnu → avertissement).
 
 ## Décisions (ADR)
 

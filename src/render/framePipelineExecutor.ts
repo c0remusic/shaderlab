@@ -6,6 +6,8 @@ import { photoGuideKey } from "../layers/photoLayer";
 import { defaultLayerMask } from "../mask/types";
 import { getEffect } from "./effects/registry";
 import { PASSTHROUGH_EFFECT } from "./effectPassRunner";
+import { developApplyOrder, isDevelopModuleAtDefault } from "./developRegistry";
+import type { DevelopSettings } from "../layers/developSettings";
 
 type FrameResource = GPUTexture | GPUBuffer;
 
@@ -249,6 +251,11 @@ export class FramePipelineExecutor {
     layers: LayerState[],
     maskOverlayLayerId: string | null,
     livePreviewLayerId: string | null = null,
+    /** ÉTAGE DE DÉVELOPPEMENT (ticket 03) : réglages du document appliqués au
+     *  composite de TOUTE la pile, en fin de chaîne, avant la présentation.
+     *  Défaut `{}` = aucun module réglé, donc aucune passe émise et rendu
+     *  inchangé au bit près (le gate discriminant, `test:render` à zéro écart). */
+    develop: DevelopSettings = {},
   ): FramePipelineResult {
     const canvasTexture = this.resources.canvasTexture;
     const pingPong = this.resources.pingPong;
@@ -270,6 +277,7 @@ export class FramePipelineExecutor {
         layers,
         maskOverlayLayerId,
         livePreviewLayerId,
+        develop,
         canvasTexture,
         pingPong,
         encoder,
@@ -400,10 +408,67 @@ export class FramePipelineExecutor {
     return epochs;
   }
 
+  /**
+   * ÉTAGE DE DÉVELOPPEMENT — exécuté APRÈS la boucle des calques et AVANT la
+   * présentation/l'overlay (ticket 03). Chaque module de `developApplyOrder`
+   * dont les valeurs ne sont PAS au défaut transforme le composite par le même
+   * chemin qu'une couche d'effet : `runEffectPass` en `applyMask: false` (une
+   * COPIE transformée, pas un compositing — opacité 1, fusion normale implicite,
+   * aucun masque), en espace d'ORIGINE plein cadre. Le ping-pong est celui de la
+   * boucle : `compositeIndex` désigne le buffer qui porte le composite, l'autre
+   * est libre.
+   *
+   * UN MODULE AU DÉFAUT EST SAUTÉ AVANT TOUTE PASSE — pas seulement neutre au
+   * rendu : aucune passe n'est émise, donc l'état du ping-pong est byte-identique
+   * à ce qu'il était sans étage. C'est ce qui garde `test:render` à zéro écart
+   * sur toutes les références tant qu'aucun réglage n'est posé.
+   *
+   * Retourne l'index du buffer qui porte le composite DÉVELOPPÉ (inchangé si tous
+   * les modules sont au défaut).
+   */
+  private runDevelopStage(
+    encoder: GPUCommandEncoder,
+    develop: DevelopSettings,
+    pingPong: [GPUTexture, GPUTexture],
+    compositeIndex: number,
+    pendingDestroy: FrameResource[],
+  ): number {
+    let ci = compositeIndex;
+    for (const module of developApplyOrder) {
+      const values = develop[module.id];
+      if (isDevelopModuleAtDefault(module, values)) continue;
+      const wi = 1 - ci;
+      // Calque SYNTHÉTIQUE : le module lit ses paramètres par NOM
+      // (`layer.params[p.name] ?? p.default`), donc un `params` partiel suffit —
+      // les paramètres non réglés retombent sur leur défaut. Opacité/fusion sont
+      // ignorées en `applyMask: false`.
+      this.effects.runEffectPass(
+        encoder,
+        module,
+        {
+          id: "",
+          effectId: module.id,
+          params: values ?? {},
+          enabled: true,
+          opacity: 1,
+          blendMode: "normal",
+          mask: defaultLayerMask(),
+        },
+        pingPong[ci].createView(),
+        pingPong[wi].createView(),
+        { applyMask: false },
+        pendingDestroy,
+      );
+      ci = wi;
+    }
+    return ci;
+  }
+
   private runFrame(
     layers: LayerState[],
     maskOverlayLayerId: string | null,
     livePreviewLayerId: string | null,
+    develop: DevelopSettings,
     canvasTexture: GPUTexture,
     pingPong: [GPUTexture, GPUTexture],
     encoder: GPUCommandEncoder,
@@ -421,13 +486,12 @@ export class FramePipelineExecutor {
       : null;
 
     if (enabledLayers.length === 0) {
-      const blitTarget = pingPong[0];
       this.effects.runEffectPass(
         encoder,
         PASSTHROUGH_EFFECT,
         neutralPassLayer(),
         canvasTexture.createView(),
-        blitTarget.createView(),
+        pingPong[0].createView(),
         // `applyMask: false` — c'est une COPIE, pas un compositing. Depuis que
         // l'alpha est réellement composé (shaderCompose.ts), passer cette
         // passe par le chemin de compositing forcerait `outAlpha` à 1 (poids =
@@ -438,8 +502,13 @@ export class FramePipelineExecutor {
         { applyMask: false },
         pendingDestroy,
       );
+      // ÉTAGE : le composite (la copie de la toile) est en pingPong[0], l'autre
+      // buffer est libre. À l'étage au défaut, `composite` reste 0 et rien n'est
+      // émis — byte-identique à avant l'étage.
+      const composite = this.runDevelopStage(encoder, develop, pingPong, 0, pendingDestroy);
+      const compositeTex = pingPong[composite];
       let overlayMaskTexture: GPUTexture | null = null;
-      let presentTexture: GPUTexture = blitTarget;
+      let presentTexture: GPUTexture = compositeTex;
       if (overlayLayer) {
         overlayMaskTexture = this.masks.resolve(
           overlayLayer,
@@ -447,15 +516,17 @@ export class FramePipelineExecutor {
           canvasTexture.createView(),
           pendingDestroy,
           // Guide = la toile seule (aucun calque composité) — exactement le
-          // guide de la position 0, donc son epoch.
+          // guide de la position 0, donc son epoch. L'étage ne change pas le
+          // GUIDE du masque (espace d'origine, plein cadre) ; il ne fait que
+          // développer le composite présenté.
           guideEpochs[0],
         );
-        // L'overlay LIT `blitTarget` (pingPong[0]) et ÉCRIT l'autre buffer :
-        // jamais la même texture en lecture et en écriture.
-        presentTexture = pingPong[1];
+        // L'overlay LIT le composite développé et ÉCRIT l'autre buffer : jamais
+        // la même texture en lecture et en écriture.
+        presentTexture = pingPong[1 - composite];
         this.effects.runOverlayPass(
           encoder,
-          blitTarget,
+          compositeTex,
           overlayMaskTexture,
           presentTexture.createView(),
           overlayTimeSeconds,
@@ -465,7 +536,7 @@ export class FramePipelineExecutor {
         encoder,
         pendingDestroy,
         0,
-        overlayLayer ? blitTarget : null,
+        overlayLayer ? compositeTex : null,
         overlayMaskTexture,
         presentTexture,
       );
@@ -594,10 +665,17 @@ export class FramePipelineExecutor {
       }
     }
 
+    // ÉTAGE DE DÉVELOPPEMENT (ticket 03) : APRÈS la pile, AVANT la présentation.
+    // La boucle n'avance pas le ping-pong après sa dernière passe, donc le
+    // composite est dans `pingPong[writeIndex]`. On le développe, puis on remappe
+    // `writeIndex` sur le buffer qui porte le résultat — tout le bloc de
+    // présentation ci-dessous reste alors inchangé. À l'étage au défaut, aucune
+    // passe n'est émise et `writeIndex` ne bouge pas (byte-identique).
+    writeIndex = this.runDevelopStage(encoder, develop, pingPong, writeIndex, pendingDestroy);
+
     let overlayMaskTexture: GPUTexture | null = null;
     let composedTexture: GPUTexture | null = null;
-    // La boucle n'avance pas le ping-pong après sa dernière passe : le
-    // composite final est donc dans `pingPong[writeIndex]`.
+    // Le composite (développé) est dans `pingPong[writeIndex]`.
     let presentTexture: GPUTexture = pingPong[writeIndex];
     if (overlayLayer) {
       composedTexture = pingPong[writeIndex];

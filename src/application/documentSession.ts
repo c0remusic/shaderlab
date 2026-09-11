@@ -3,6 +3,7 @@ import { History } from "../layers/history";
 import { LayerStack } from "../layers/layerStack";
 import type { LayerState } from "../layers/types";
 import { composerCadre, type CanvasFrame, type CanvasFrameState } from "../layers/canvasFrame";
+import type { DevelopSettings } from "../layers/developSettings";
 import { hasAnyLock, isFullyLocked, isMaskLocked, isPositionLocked } from "../layers/layerLocks";
 
 /** Framework-free application state for one non-destructive image document. */
@@ -23,6 +24,36 @@ export class DocumentSession {
   /** Cadre visible de la toile, ou `null` si elle n'est pas recadrée. */
   cadreToile(): CanvasFrameState {
     return this.current.cadre;
+  }
+
+  /** Réglages de l'ÉTAGE DE DÉVELOPPEMENT du document (ticket 03 lightroom-develop).
+   *  Source de vérité, vit sur `LayerStack`, annulé par le même `History` que le
+   *  reste — `undo`/`redo` restaurent un `LayerStack` clone qui le porte. */
+  developpement(): DevelopSettings {
+    return this.current.develop;
+  }
+
+  /**
+   * Règle un module de l'étage (chemin ENGAGÉ, comme `recadrerToile`) : pose un
+   * jeu de valeurs FRAIS pour `moduleId`. Ne pousse PAS d'entrée d'historique —
+   * l'appelant commite ensuite `currentStack()`, exactement comme le recadrage.
+   * Un jeu `{}` remet le module à ses défauts (aucune passe émise à ce réglage).
+   */
+  reglerDeveloppement(moduleId: string, params: Record<string, number>): void {
+    this.current.develop = { ...this.current.develop, [moduleId]: { ...params } };
+  }
+
+  /**
+   * Remplace TOUT l'étage SANS entrée d'historique — le pendant de
+   * `replaceLiveLayers` pour l'étage, pour un curseur de développement pendant le
+   * glissement. Comme lui, il pose l'état vivant et rien de plus : l'appelant
+   * DOIT l'appairer avec `rendererRef.current?.setDevelop(...)` + `requestRender`,
+   * sinon le modèle change et l'écran ne repeint jamais. Le commit de fin de
+   * geste passe par `commit(currentStack())`, qui clone l'étage vivant dans
+   * l'historique.
+   */
+  replaceLiveDevelop(develop: DevelopSettings): void {
+    this.current.develop = develop;
   }
 
   /**

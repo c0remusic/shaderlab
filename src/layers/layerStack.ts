@@ -1,6 +1,7 @@
 import type { EffectTransform, LayerLocks, LayerState, LayerTransform } from "./types";
 import { isMaskLocked, isPositionLocked, isStructureLocked, withLock } from "./layerLocks";
 import type { CanvasFrameState } from "./canvasFrame";
+import { cloneDevelopSettings, type DevelopSettings } from "./developSettings";
 import { defaultLayerMask, createBrushSource, createParametricSource } from "../mask/types";
 import type { MaskSourceType, CombineMode, RefineEdgeParams, MaskSourceParams } from "../mask/types";
 import { getMaskSourceModule } from "../mask/sources/registry";
@@ -52,6 +53,17 @@ export class LayerStack {
    *  Voir `canvasFrame.ts` pour pourquoi c'est un CADRE et non de nouvelles
    *  dimensions (recadrage non destructif, ticket 28). */
   cadre: CanvasFrameState = null;
+
+  /** Réglages de l'ÉTAGE DE DÉVELOPPEMENT du document (ticket 03 lightroom-develop).
+   *
+   *  IL VIT ICI, à côté de `cadre` et pour la MÊME raison : `LayerStack` est
+   *  l'état que `History` prend en instantané, donc régler l'étage devient
+   *  annulable par le même Ctrl+Z, sans un second canal d'undo. Ce n'est PAS un
+   *  calque — il s'applique au composite de toute la pile, en fin de chaîne
+   *  (voir `render/developRegistry.ts` et `render/framePipelineExecutor.ts`).
+   *  `{}` = tous les modules à leur défaut, donc aucune passe émise et rendu
+   *  inchangé au bit près. */
+  develop: DevelopSettings = {};
 
   /** Index d'insertion d'un NOUVEAU calque, pour `addLayer`/`addPhotoLayer`.
    *
@@ -752,6 +764,9 @@ export class LayerStack {
     // ne doit pas déplacer le cadre de l'original, sinon l'undo rendrait un
     // instantané qui a bougé depuis.
     copy.cadre = this.cadre === null ? null : { ...this.cadre };
+    // Objet FRAIS (copie profonde), comme le cadre ci-dessus : régler l'étage
+    // sur le clone ne doit pas réécrire l'instantané d'historique de l'original.
+    copy.develop = cloneDevelopSettings(this.develop);
     copy.layers = this.layers.map((l) => ({
       ...l,
       params: { ...l.params },

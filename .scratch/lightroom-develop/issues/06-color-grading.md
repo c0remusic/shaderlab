@@ -85,7 +85,7 @@ l'usage, c'est une suite (une roue est un contrôle, `src/components/ui/` +
   vert · global lum ±50 · balance ±100 · fusion 0 / 100.
 
 - [x] `colorGrading.ts`, 14 params, une passe, table isolée (`colorGradingTable.ts`).
-- [x] Registre (application après HSL, affichage HSL → Color Grading → Étalonnage), panneau (VRAIES ROUES `ColorWheelControl`, pas des groupes couleur — amendement), applicabilité sans objet (aucun `choices`). ⚠️ **Références 143 → 147 NON gravées** : scénarios (`render-check.mjs`) et `ATTENDU` (`renderRefs.test.mjs`) écrits mais NON committés — l'app était morte (CDP 9223 injoignable) et le sandbox bloque `src-tauri/target/`, donc `test:render --update` est impossible d'ici. À graver par Antoine dans l'app vivante, puis committer les 4 PNG + les deux points d'enregistrement ensemble.
+- [x] Registre (application après HSL, affichage HSL → Color Grading → Étalonnage), panneau (VRAIES ROUES `ColorWheelControl`, pas des groupes couleur — amendement), applicabilité sans objet (aucun `choices`). ✅ Références 143 → 147 GRAVÉES et committées (`71ca502`, 2026-09-12, session principale, app relancée en CDP 9223) : 143 anciennes byte-identiques après `--update`, les 4 neuves relues à l'œil (bleu dans la moitié sombre, orange dans la claire, balance bascule tout, fusion 0 tranche), suite unitaire 2333 verte, `test:render` complet sans écart.
 - [x] Comparaison à Lightroom : `assets/calibrer-grading.py` prêt et exécuté (Tons moyens rmse 0,0025 chroma OKLab ; Global luminance rmse 0,0050 dL). Ombres/Hautes lumières/Fusion/Balance **non mesurables** dans les exports (voir Livraison).
 - [ ] Planche, verdict d'Antoine. → NON faite (nécessite l'app + les deux photos d'Antoine).
 

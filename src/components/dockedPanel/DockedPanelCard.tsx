@@ -74,7 +74,23 @@ export function DockedPanelCard({
   const groupe = tabs.length > 1;
   return (
     <div className={`docked-panel-card ${dragging ? "docked-panel-card--dragging" : ""} ${className}`.trim()}>
-      <div className="docked-panel-card__titlebar" data-collapsed={collapsed || undefined} data-grouped={groupe || undefined}>
+      {/* Toute la RANGÉE d'en-tête est une prise de glissement, poignée ⋮⋮
+          comprise — pas seulement le mot du titre (23 px sur « Pile », et la
+          poignée décorative promettait un geste qu'elle ne portait pas ;
+          constat d'usage d'Antoine, 2026-09-12 : « les menus ne sont plus
+          déplaçables »). Les contrôles interactifs (onglets, repli) posent
+          leur propre onPointerDown et stopPropagation en dessous ; la rangée
+          n'attrape que ce qui n'est pas déjà une commande, et vise l'onglet
+          ACTIF — tirer le fond d'un groupe déplace le panneau visible. */}
+      <div
+        className="docked-panel-card__titlebar"
+        data-collapsed={collapsed || undefined}
+        data-grouped={groupe || undefined}
+        onPointerDown={(event) => {
+          if ((event.target as HTMLElement).closest("button") && groupe) return;
+          tabPointerDown?.(activeTab, event);
+        }}
+      >
         {/* `role="tablist"` seulement quand il Y A plusieurs onglets : un
             tablist d'un seul onglet annonce une navigation qui n'existe pas,
             et un lecteur d'écran l'énoncerait « onglet 1 sur 1 » à chaque

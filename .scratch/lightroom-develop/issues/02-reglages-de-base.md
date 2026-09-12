@@ -172,3 +172,12 @@ param-darks +100 (13,3), param-ombres +100 (8,4), ombres +100 (8,0), noirs −50
 (7,0) — formes de la courbe paramétrique à revoir si l'œil le demande.
 Références : `developpement-reglages-ton` et `-courbe` régénérées (correction) ;
 témoin et les 145 autres au bit près.
+
+**Addendum présence (même jour)** : « texture et clarté change les couleurs » —
+vérifié dans le BINAIRE de Lightroom (CameraRaw.dll 14.5.1) : Texture = étage
+`cr_stage_texture_direct_gf_ycc` (log-YCC, filtre guidé sur Y seul), Clarté =
+`cr_clarity.cpp` / pipeline GPU `LocalContrastY`. Chroma jamais touchée, et le
+log rend l'opération MULTIPLICATIVE en linéaire. Notre offset égal par canal
+désaturait ; remplacé par un facteur `(L+g)/L` (piédestal 1e-4). Mesure LR à
+l'appui : Texture ±100 sur balayage, dSat max 0,017, dHue max 0,9°. Référence
+`developpement-reglages-presence` régénérée (correction), 146 autres au bit près.

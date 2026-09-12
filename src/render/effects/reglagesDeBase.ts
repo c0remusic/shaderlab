@@ -243,7 +243,16 @@ export function reglagesDeBaseSpec(rgb: Vec3, blurLuma: number, p: readonly numb
     // voile (creuser le contraste autour du voile), négatif = en ajouter.
     const voile = (dehaze / 100) * DEHAZE_AMT * (lp - clamp01(blurLuma));
     const g = gainPresence + voile;
-    c = [Math.max(c[0] + g, 0), Math.max(c[1] + g, 0), Math.max(c[2] + g, 0)];
+    // MULTIPLICATIF sur la luminance, jamais un offset par canal : le binaire de
+    // Lightroom fait Texture en log-YCC (etage texture_direct_gf_ycc, filtre
+    // guide sur Y) et Clarte par le pipeline LocalContrastY — Y seul, chroma
+    // intacte. Y+delta a chroma-LOG constante = rapports R/G/B constants, donc
+    // un FACTEUR ici ; l'offset egal aux trois canaux (differences constantes)
+    // desaturait en eclaircissant et virait la teinte pres de zero — constat
+    // d'Antoine 2026-09-12, et mesure : LR dSat max 0,017 sur le balayage a
+    // Texture ±100. Le piedestal 1e-4 borne les noirs purs comme leur log.
+    const fPres = Math.max((lp + g + 1e-4) / (lp + 1e-4), 0);
+    c = [c[0] * fPres, c[1] * fPres, c[2] * fPres];
   }
 
   // 7. VIBRANCE / SATURATION — dans le plan (a,b) d'OKLab, sans atan2 (bug Dawn,
@@ -508,7 +517,11 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     let gainPresence = params[8] / 100.0 * RB_TEXTURE_AMT * detailFin
       + params[9] / 100.0 * RB_CLARITY_AMT * detailMoyen;
     let voile = params[10] / 100.0 * RB_DEHAZE_AMT * (lp - blurLuma);
-    c = max(c + vec3<f32>(gainPresence + voile), vec3<f32>(0.0));
+    // Facteur sur la luminance, rapports de canaux preserves — Lightroom fait
+    // Texture et Clarte sur Y seul en log-YCC (voir le twin) ; un offset par
+    // canal changeait la saturation et la teinte.
+    let fPres = max((lp + gainPresence + voile + 1e-4) / (lp + 1e-4), 0.0);
+    c = c * fPres;
   }
 
   // 7. VIBRANCE / SATURATION — plan (a,b) d'OKLab, sans atan2.

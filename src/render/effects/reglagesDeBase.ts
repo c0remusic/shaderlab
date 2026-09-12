@@ -3,6 +3,7 @@ import { DOWNSAMPLE_WGSL } from "./blurChain";
 import { SRGB_TO_LINEAR_WGSL, LINEAR_TO_SRGB_WGSL, srgbToLinear, linearToSrgb } from "./srgbTransfer";
 import { OKLAB_WGSL, linearSrgbToOklab, oklabToLinearSrgb } from "./oklab";
 import { TEMPERATURE_GRADIENT, NUANCE_GRADIENT, RAINBOW_GRADIENT } from "./trackGradients";
+import { RB_TABLE } from "./reglagesDeBaseTable";
 
 /**
  * Réglages de base + courbe paramétrique — le module `reglagesDeBase` de l'ÉTAGE
@@ -32,11 +33,24 @@ import { TEMPERATURE_GRADIENT, NUANCE_GRADIENT, RAINBOW_GRADIENT } from "./track
  * L'ordre d'APPLICATION est celui de Lightroom (PV2012), et il n'est pas l'ordre
  * du panneau : balance des blancs → exposition → contraste → hautes lumières /
  * ombres LOCAUX → blancs / noirs → texture / clarté / voile → vibrance /
- * saturation → courbe paramétrique. Le ton perceptuel (contraste, hautes
- * lumières, ombres, blancs, noirs, courbe) se calcule en espace sRGB (encode /
- * opère / redécode, aller-retour FERMÉ — jamais un gamma qui quitte l'expression,
- * voir `srgbTransfer.ts`) ; la balance des blancs et l'exposition en lumière
+ * saturation → courbe paramétrique. Le ton perceptuel (exposition, contraste,
+ * hautes lumières, ombres, blancs, noirs, courbe) se calcule en espace sRGB
+ * (encode / opère / redécode, aller-retour FERMÉ — jamais un gamma qui quitte
+ * l'expression, voir `srgbTransfer.ts`) ; la balance des blancs en lumière
  * linéaire ; vibrance / saturation dans le plan chromatique d'OKLab.
+ *
+ * ── LES FORMES SONT ANCRÉES, ET CALIBRÉES SUR LES RAMPES MESURÉES ────────────
+ *
+ * ✅ CALIBRÉ SUR LIGHTROOM 14.5 le 2026-09-12 (Antoine : « contraste et
+ * luminosité rendent un peu bizarre »). Les constantes de FORME vivent dans
+ * `reglagesDeBaseTable.ts` (`RB_TABLE`), lues ICI par le twin ET interpolées dans
+ * le WGSL — un seul point de vérité, réécrit par `assets/calibrer-ton.py` contre
+ * les rampes `research/mesures/*.json`. Chaque opérateur de ton TIENT les
+ * extrémités (0→0 et 1→1) comme Lightroom : l'ancien contraste effondrait le noir
+ * à 128 à −100, ombres/noirs montaient le noir pur — corrigé. ⚠️ ÉCART au ticket :
+ * l'EXPOSITION passe d'un gain LINÉAIRE 2^EV à un gamma PERCEPTUEL
+ * (`1−(1−s)^γ` / `s^γ`, γ=1 à EV=0) — c'est ce qui reproduit les rampes mesurées ;
+ * détail et écart résiduel (blanc pur tenu à −2 IL) dans `reglagesDeBaseTable.ts`.
  *
  * ── LES FLOUS, ET COMMENT ILS ATTEIGNENT LA COMPOSITE ───────────────────────
  *
@@ -88,23 +102,16 @@ type Vec3 = [number, number, number];
 
 const LUMA = [0.2126, 0.7152, 0.0722] as const;
 
-// AMPLITUDES — ce qu'un curseur à +100 (ou +5 IL pour l'exposition) produit. Les
-// mêmes constantes existent côté WGSL sous ces noms ; toute retouche se fait des
-// deux côtés. Calibrées sur les opérateurs approchés de `research/02` (dont le
-// rapport 132/109 ne dépend pas de leur forme exacte) et affinables sur la
-// planche avec Antoine.
-const WB_TEMP_K = 0.30;   // gain linéaire R (+) / B (−) à Température +100, avant renormalisation au blanc
-const WB_TINT_K = 0.15;   // gain linéaire R+B (+) / G (−) à Nuance +100 (magenta), avant renormalisation
-const HL_AMT = 0.5;       // amplitude perceptuelle des hautes lumières locales à |100|
-const SH_AMT = 0.5;       // amplitude perceptuelle des ombres locales à |100|
-const WHITE_AMT = 0.4;    // déplacement du point blanc à |100|
-const BLACK_AMT = 0.4;    // déplacement du point noir à |100|
-const TEXTURE_AMT = 1.2;  // gain additif linéaire de la bande fine à |100|
-const CLARITY_AMT = 0.9;  // gain additif linéaire de la bande moyenne à |100|
-const DEHAZE_AMT = 0.35;  // amplitude du retrait/ajout de voile à |100|
-const CURVE_AMT = 0.35;   // lift perceptuel maximal d'une région à |100|
-const CURVE_WIN = 0.15;   // demi-largeur des transitions cosinus entre régions (perceptuel)
-const VIB_CHROMA_REF = 0.20; // chroma OKLab au-delà de laquelle la vibrance ne pousse plus
+// AMPLITUDES DE FORME — lues depuis `RB_TABLE` (une seule source, réécrite par
+// `assets/calibrer-ton.py`). Le WGSL interpole les MÊMES valeurs (voir plus bas).
+const WB_TEMP_K = RB_TABLE.wbTempK;
+const WB_TINT_K = RB_TABLE.wbTintK;
+const TEXTURE_AMT = 1.2;  // gain additif linéaire de la bande fine à |100| (flou spatial, hors calibration rampe)
+const CLARITY_AMT = 0.9;  // gain additif linéaire de la bande moyenne à |100| (flou spatial, hors calibration rampe)
+const DEHAZE_AMT = 0.35;  // amplitude du retrait/ajout de voile à |100| (flou spatial, hors calibration rampe)
+const CURVE_AMT = RB_TABLE.curveAmt;   // lift perceptuel maximal d'une région à |100|
+const CURVE_WIN = RB_TABLE.curveWin;   // demi-largeur des transitions cosinus entre régions (perceptuel)
+const VIB_CHROMA_REF = 0.20; // chroma OKLab au-delà de laquelle la vibrance ne pousse plus (couleur, non fitté)
 // Direction « peau/orange » dans le plan (a,b) d'OKLab, normalisée. La vibrance
 // s'éteint quand la chroma d'un pixel pointe par là (protection des carnations,
 // comme Lightroom). Mesurée sur la carnation de `mirePrimaires` (224,160,128).
@@ -117,6 +124,32 @@ const smoothstep = (a: number, b: number, x: number): number => {
   return t * t * (3 - 2 * t);
 };
 const lumaOf = (c: Vec3): number => c[0] * LUMA[0] + c[1] * LUMA[1] + c[2] * LUMA[2];
+
+/** Cloche bêta normalisée (pic 1 au mode `c`, NULLE en 0 et en 1) — la forme de
+ *  région d'Ombres / Hautes lumières / Noirs / Blancs. Jumeau de `rb_bump` WGSL. */
+function bump(v: number, c: number, k: number): number {
+  const ec = k * c, e1 = k * (1 - c);
+  const peak = Math.pow(c, ec) * Math.pow(1 - c, e1);
+  const vv = clamp01(v);
+  return (Math.pow(vv, ec) * Math.pow(1 - vv, e1)) / Math.max(peak, 1e-6);
+}
+
+/** Contraste : gamma double PIVOTÉ, ancré en 0 / pivot / 1. `kC = contraste/100`
+ *  (γ = exp(contrastG·kC)) : γ>1 creuse, γ<1 aplatit — les deux sens. Jumeau de
+ *  `rb_contrast` WGSL. */
+function contrastOp(s: number, kC: number, pv: number): number {
+  if (kC === 0) return s;
+  const gamma = Math.exp(RB_TABLE.contrastG * kC);
+  if (s <= pv) return pv * Math.pow(s / pv, gamma);
+  return 1 - (1 - pv) * Math.pow((1 - s) / (1 - pv), gamma);
+}
+
+/** Exposition : gamma perceptuel ancré, unifié aux deux signes, identité à EV=0.
+ *  `1−(1−s)^γ`, `γ = exp(expoG·EV)`. Jumeau de `rb_expo` WGSL. */
+function exposureOp(s: number, ev: number): number {
+  if (ev === 0) return s;
+  return 1 - Math.pow(1 - s, Math.exp(RB_TABLE.expoG * ev));
+}
 
 /** Vrai quand tous les curseurs sont à leur défaut (séparations à 25/50/75). */
 function auDefaut(p: readonly number[]): boolean {
@@ -168,29 +201,30 @@ export function reglagesDeBaseSpec(rgb: Vec3, blurLuma: number, p: readonly numb
   gR /= norm; gG /= norm; gB /= norm;
   c = [c[0] * gR, c[1] * gG, c[2] * gB];
 
-  // 2. EXPOSITION — gain 2^EV linéaire. Pas de genou : en 8 bits sRGB un genou
-  //    sous 1.0 casse l'identité et au-dessus de 1.0 la quantification l'efface
-  //    (voir en-tête). Clamp sur l'écriture, comme `research/02`.
-  const gain = Math.pow(2, exposure);
-  c = [c[0] * gain, c[1] * gain, c[2] * gain];
-
-  // 3-5. TON PERCEPTUEL — contraste, hautes lumières / ombres LOCAUX, blancs /
-  //      noirs. Aller-retour sRGB fermé, par canal. Poids locaux depuis la
-  //      luminance floutée.
+  // 2-5. TON PERCEPTUEL — exposition (gamma ancré), contraste (sigmoïde ancrée),
+  //      hautes lumières / ombres LOCAUX (cloche sur la luminance floutée),
+  //      blancs / noirs (cloche ponctuelle). Aller-retour sRGB fermé, par canal.
+  //      Toutes les formes tiennent 0 et 1 (voir en-tête et `reglagesDeBaseTable`).
   const sBlur = linearToSrgb(clamp01(blurLuma));
-  const wSh = (1 - sBlur) * (1 - sBlur);
-  const wHl = sBlur * sBlur;
+  const wSh = bump(sBlur, RB_TABLE.shadowCenter, RB_TABLE.shadowKappa);
+  const wHl = bump(sBlur, RB_TABLE.highlightCenter, RB_TABLE.highlightKappa);
   const kC = contrast / 100, kHl = highlights / 100, kSh = shadows / 100;
   const kWh = whites / 100, kBk = blacks / 100;
+  // Amplitude par SIGNE (Lightroom est asymétrique — voir `reglagesDeBaseTable`).
+  const shAmt = kSh >= 0 ? RB_TABLE.shadowAmtPos : RB_TABLE.shadowAmtNeg;
+  const hlAmt = kHl >= 0 ? RB_TABLE.highlightAmtPos : RB_TABLE.highlightAmtNeg;
+  const bkAmt = kBk >= 0 ? RB_TABLE.blackAmtPos : RB_TABLE.blackAmtNeg;
+  const whAmt = kWh >= 0 ? RB_TABLE.whiteAmtPos : RB_TABLE.whiteAmtNeg;
   const ton = (lin: number): number => {
     let s = linearToSrgb(clamp01(lin));
-    s = 0.5 + (s - 0.5) * (1 + kC);                    // contraste
+    s = exposureOp(s, exposure);                                 // exposition (gamma perceptuel ancré)
+    s = contrastOp(s, kC, RB_TABLE.contrastPivot);              // contraste (gamma double pivoté)
     s = clamp01(s);
-    s = s + kSh * SH_AMT * wSh * (1 - s);              // ombres locales
-    s = s + kHl * HL_AMT * wHl * (1 - s);              // hautes lumières locales
+    s = s + kSh * shAmt * wSh;                                   // ombres locales (cloche sur luminance floutée)
+    s = s + kHl * hlAmt * wHl;                                   // hautes lumières locales
     s = clamp01(s);
-    s = s + kBk * BLACK_AMT * (1 - s) * (1 - s) * (1 - s) * (1 - s); // noirs
-    s = s + kWh * WHITE_AMT * s * s * s * s;           // blancs
+    s = s + kBk * bkAmt * bump(s, RB_TABLE.blackCenter, RB_TABLE.blackKappa); // noirs (ponctuel)
+    s = s + kWh * whAmt * bump(s, RB_TABLE.whiteCenter, RB_TABLE.whiteKappa); // blancs (ponctuel)
     return srgbToLinear(clamp01(s));
   };
   c = [ton(c[0]), ton(c[1]), ton(c[2])];
@@ -296,6 +330,11 @@ const passePyramide: EffectPass[] = (() => {
   ];
 })();
 
+/** Formate un nombre en littéral flottant WGSL (toujours un point décimal). Sert
+ *  à interpoler `RB_TABLE` dans le shader — twin et WGSL restent JUMEAUX par
+ *  construction, une seule source de vérité. */
+const wf = (n: number): string => (Number.isInteger(n) ? n.toFixed(1) : String(n));
+
 export const reglagesDeBase: EffectModule = {
   id: "reglagesDeBase",
   name: "Réglages de base",
@@ -329,19 +368,57 @@ ${LINEAR_TO_SRGB_WGSL}
 ${OKLAB_WGSL}
 
 const RB_LUMA = vec3<f32>(0.2126, 0.7152, 0.0722);
-const RB_WB_TEMP_K = 0.30;
-const RB_WB_TINT_K = 0.15;
-const RB_HL_AMT = 0.5;
-const RB_SH_AMT = 0.5;
-const RB_WHITE_AMT = 0.4;
-const RB_BLACK_AMT = 0.4;
+const RB_WB_TEMP_K = ${wf(RB_TABLE.wbTempK)};
+const RB_WB_TINT_K = ${wf(RB_TABLE.wbTintK)};
+const RB_EXPO_G = ${wf(RB_TABLE.expoG)};
+const RB_CONTRAST_G = ${wf(RB_TABLE.contrastG)};
+const RB_CONTRAST_PIVOT = ${wf(RB_TABLE.contrastPivot)};
+const RB_SH_AMT_POS = ${wf(RB_TABLE.shadowAmtPos)};
+const RB_SH_AMT_NEG = ${wf(RB_TABLE.shadowAmtNeg)};
+const RB_SH_CENTER = ${wf(RB_TABLE.shadowCenter)};
+const RB_SH_KAPPA = ${wf(RB_TABLE.shadowKappa)};
+const RB_HL_AMT_POS = ${wf(RB_TABLE.highlightAmtPos)};
+const RB_HL_AMT_NEG = ${wf(RB_TABLE.highlightAmtNeg)};
+const RB_HL_CENTER = ${wf(RB_TABLE.highlightCenter)};
+const RB_HL_KAPPA = ${wf(RB_TABLE.highlightKappa)};
+const RB_BLACK_AMT_POS = ${wf(RB_TABLE.blackAmtPos)};
+const RB_BLACK_AMT_NEG = ${wf(RB_TABLE.blackAmtNeg)};
+const RB_BLACK_CENTER = ${wf(RB_TABLE.blackCenter)};
+const RB_BLACK_KAPPA = ${wf(RB_TABLE.blackKappa)};
+const RB_WHITE_AMT_POS = ${wf(RB_TABLE.whiteAmtPos)};
+const RB_WHITE_AMT_NEG = ${wf(RB_TABLE.whiteAmtNeg)};
+const RB_WHITE_CENTER = ${wf(RB_TABLE.whiteCenter)};
+const RB_WHITE_KAPPA = ${wf(RB_TABLE.whiteKappa)};
 const RB_TEXTURE_AMT = 1.2;
 const RB_CLARITY_AMT = 0.9;
 const RB_DEHAZE_AMT = 0.35;
-const RB_CURVE_AMT = 0.35;
-const RB_CURVE_WIN = 0.15;
+const RB_CURVE_AMT = ${wf(RB_TABLE.curveAmt)};
+const RB_CURVE_WIN = ${wf(RB_TABLE.curveWin)};
 const RB_VIB_CHROMA_REF = 0.20;
 const RB_SKIN_DIR = vec2<f32>(0.52, 0.854);
+
+// Cloche beta normalisee (pic 1 au mode c, nulle en 0 et 1). Jumeau de bump() TS.
+fn rb_bump(v: f32, c: f32, k: f32) -> f32 {
+  let ec = k * c;
+  let e1 = k * (1.0 - c);
+  let peak = pow(c, ec) * pow(1.0 - c, e1);
+  let vv = clamp(v, 0.0, 1.0);
+  return pow(vv, ec) * pow(1.0 - vv, e1) / max(peak, 1e-6);
+}
+
+// Contraste : gamma double pivote, ancre en 0/pivot/1. Jumeau de contrastOp() TS.
+fn rb_contrast(s: f32, kC: f32, pv: f32) -> f32 {
+  if (kC == 0.0) { return s; }
+  let gamma = exp(RB_CONTRAST_G * kC);
+  if (s <= pv) { return pv * pow(s / pv, gamma); }
+  return 1.0 - (1.0 - pv) * pow((1.0 - s) / (1.0 - pv), gamma);
+}
+
+// Exposition : gamma perceptuel ancre, unifie aux deux signes. Jumeau de exposureOp() TS.
+fn rb_expo(s: f32, ev: f32) -> f32 {
+  if (ev == 0.0) { return s; }
+  return 1.0 - pow(1.0 - s, exp(RB_EXPO_G * ev));
+}
 
 fn rb_curve(s: f32, kSh: f32, kDk: f32, kLt: f32, kHi: f32, sSplit: f32, mSplit: f32, hSplit: f32) -> f32 {
   let ts = smoothstep(sSplit - RB_CURVE_WIN, sSplit + RB_CURVE_WIN, s);
@@ -391,29 +468,34 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let wbNorm = RB_LUMA.x * gR + RB_LUMA.y * gG + RB_LUMA.z * gB;
   c = c * vec3<f32>(gR, gG, gB) / wbNorm;
 
-  // 2. EXPOSITION — gain 2^EV lineaire.
-  c = c * pow(2.0, params[2]);
-
-  // 3-5. TON PERCEPTUEL — contraste, HL/ombres locaux (poids depuis prevPass),
-  //      blancs/noirs. La luminance floutee moyenne vient de la pyramide.
+  // 2-5. TON PERCEPTUEL — exposition (gamma ancre), contraste (sigmoide ancree),
+  //      HL/ombres locaux (cloche sur la luminance floutee de prevPass), blancs/
+  //      noirs (cloche ponctuelle). Toutes les formes tiennent 0 et 1.
   let blurLuma = clamp(dot(textureSample(prevPass, srcSampler, uv).rgb, RB_LUMA), 0.0, 1.0);
   let sBlur = linear_to_srgb(blurLuma);
-  let wSh = (1.0 - sBlur) * (1.0 - sBlur);
-  let wHl = sBlur * sBlur;
+  let wSh = rb_bump(sBlur, RB_SH_CENTER, RB_SH_KAPPA);
+  let wHl = rb_bump(sBlur, RB_HL_CENTER, RB_HL_KAPPA);
+  let ev = params[2];
   let kC = params[3] / 100.0;
   let kHl = params[4] / 100.0;
   let kSh = params[5] / 100.0;
   let kWh = params[6] / 100.0;
   let kBk = params[7] / 100.0;
+  // Amplitude par signe (Lightroom est asymetrique — voir reglagesDeBaseTable).
+  let shAmt = select(RB_SH_AMT_NEG, RB_SH_AMT_POS, kSh >= 0.0);
+  let hlAmt = select(RB_HL_AMT_NEG, RB_HL_AMT_POS, kHl >= 0.0);
+  let bkAmt = select(RB_BLACK_AMT_NEG, RB_BLACK_AMT_POS, kBk >= 0.0);
+  let whAmt = select(RB_WHITE_AMT_NEG, RB_WHITE_AMT_POS, kWh >= 0.0);
   for (var i = 0u; i < 3u; i = i + 1u) {
     var s = linear_to_srgb(clamp(c[i], 0.0, 1.0));
-    s = 0.5 + (s - 0.5) * (1.0 + kC);
+    s = rb_expo(s, ev);
+    s = rb_contrast(s, kC, RB_CONTRAST_PIVOT);
     s = clamp(s, 0.0, 1.0);
-    s = s + kSh * RB_SH_AMT * wSh * (1.0 - s);
-    s = s + kHl * RB_HL_AMT * wHl * (1.0 - s);
+    s = s + kSh * shAmt * wSh;
+    s = s + kHl * hlAmt * wHl;
     s = clamp(s, 0.0, 1.0);
-    s = s + kBk * RB_BLACK_AMT * (1.0 - s) * (1.0 - s) * (1.0 - s) * (1.0 - s);
-    s = s + kWh * RB_WHITE_AMT * s * s * s * s;
+    s = s + kBk * bkAmt * rb_bump(s, RB_BLACK_CENTER, RB_BLACK_KAPPA);
+    s = s + kWh * whAmt * rb_bump(s, RB_WHITE_CENTER, RB_WHITE_KAPPA);
     c[i] = srgb_to_linear(clamp(s, 0.0, 1.0));
   }
 

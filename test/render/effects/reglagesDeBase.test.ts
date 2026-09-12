@@ -64,8 +64,12 @@ describe("reglagesDeBase — jumeau du ton d'un bloc", () => {
   // La chaîne de `research/02` (Exposition +1, Ombres +60, Noirs −30, HL −50,
   // Contraste +40, courbe) sur une rampe de gris 8 bits. D'UN BLOC (le module),
   // une seule quantification finale ; EMPILÉE (six effets 8 bits), une
-  // quantification entre chacun. Le premier garde ~132 niveaux et des trous ≤ 3,
-  // le second en perd un quart et creuse des trous — c'est tout l'intérêt du
+  // quantification entre chacun. ⚠️ Valeurs RE-MESURÉES le 2026-09-12 après la
+  // calibration du ton sur Lightroom (formes ancrées) : d'un bloc **160 niveaux,
+  // trou max 3** ; empilé **140** (avant calibration : 130 / trou 3 / 104 empilé).
+  // Les formes ancrées empilent plus DOUCEMENT — l'empilé perd moins qu'avant,
+  // donc la marge bloc-vs-empilé s'est resserrée (20 niveaux), mais le bloc reste
+  // devant : une seule quantification garde plus de niveaux, c'est l'intérêt du
   // module.
   it("« 132 niveaux, pas 109 » : le ton d'un bloc quantifié une fois garde les niveaux", () => {
     const reglage = { exposure: 1, shadows: 60, blacks: -30, highlights: -50, contrast: 40, paramShadows: -40, paramHighlights: 40 };

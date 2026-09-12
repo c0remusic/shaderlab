@@ -154,3 +154,21 @@ Défauts tous à 0 (séparations 25/50/75) → identité au bit près.
   (pas un fork). `DevelopPanel` fait de chaque module un ACCORDÉON (`Disclosure`,
   Lightroom) — réponse ADR-0001 quand l'étage dépasse un écran ; on replie ce
   qu'on ne règle pas.
+
+
+## Calibration — 2026-09-12 (« contraste et luminosité rendent un peu bizarre »)
+
+Le ton du ticket datait d'AVANT le pont de mesure : formes plausibles, jamais
+confrontées aux rampes. Calibré sur les 30 rampes `research/mesures/*.json`
+(`assets/calibrer-ton.py`, table isolée `src/render/effects/reglagesDeBaseTable.ts`,
+lue par le twin ET le WGSL). Écart moyen à Lightroom sur les rampes : **13,1 →
+3,6 niveaux** (contraste −100 : 51,4 → 3,3 ; exposition ±2 : ~13 → ~2,4).
+
+Changements de forme : exposition = gamma perceptuel ancré (le gain 2^EV nu n'a
+pas le genou mesuré — blanc tenu à −2 IL) ; contraste = gamma double pivoté ancré
+0/pivot/1 ; ombres/HL/noirs/blancs = cloches bêta par signe (Lightroom est
+asymétrique). Résidus au-dessus de 5 niveaux : param-lights +100 (16,5),
+param-darks +100 (13,3), param-ombres +100 (8,4), ombres +100 (8,0), noirs −50
+(7,0) — formes de la courbe paramétrique à revoir si l'œil le demande.
+Références : `developpement-reglages-ton` et `-courbe` régénérées (correction) ;
+témoin et les 145 autres au bit près.

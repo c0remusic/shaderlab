@@ -1,0 +1,519 @@
+{
+  "photos": {
+    "A": {
+      "file": "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5171.JPG",
+      "srcW": 6240,
+      "srcH": 4160,
+      "frameW": 6240,
+      "frameH": 4160,
+      "crop": {
+        "x": 2600,
+        "y": 2500,
+        "label": "petale / fleur rouge"
+      },
+      "cols": [
+        {
+          "i": 0,
+          "key": "temoin",
+          "label": "Temoin (tout a 0)",
+          "mean": 63.60897737482176,
+          "std": 34.85411470762796,
+          "md5vign": "cb1237991abb9749488385c8cecc68ea",
+          "md5crop": "16de2ececfd862036a4a304c4cb31fe1"
+        },
+        {
+          "i": 1,
+          "key": "expo-moins",
+          "label": "Exposition -1",
+          "mean": 44.49912102396271,
+          "std": 25.614588319040294,
+          "md5vign": "8793dd95d7acea4bd33f94af5a164438",
+          "md5crop": "74f0d717585a198d09776726f7497e4f"
+        },
+        {
+          "i": 2,
+          "key": "expo-plus",
+          "label": "Exposition +1",
+          "mean": 89.32813322809955,
+          "std": 47.03163814378702,
+          "md5vign": "033adcf019b651c19f04014ab92ac295",
+          "md5crop": "bf9e69a02fbdd1143a0e52bad7617427"
+        },
+        {
+          "i": 3,
+          "key": "hl-moins",
+          "label": "Hautes lumieres -80",
+          "mean": 58.22776738732521,
+          "std": 31.363798636655137,
+          "md5vign": "8709645aaf41efcd2f3a844b53fa77da",
+          "md5crop": "b229695ca9354f76b160d7471c55e6f7"
+        },
+        {
+          "i": 4,
+          "key": "ombres-plus",
+          "label": "Ombres +80",
+          "mean": 109.60164390209871,
+          "std": 13.993499466061149,
+          "md5vign": "2647c91d073df4d8d8d77a9c58cd19a2",
+          "md5crop": "bfbe79dfc1c27eefb81b52639e11d0cb"
+        },
+        {
+          "i": 5,
+          "key": "blancs-noirs",
+          "label": "Blancs +50 / Noirs -50",
+          "mean": 50.88354479731551,
+          "std": 38.95410259475335,
+          "md5vign": "40b71e01bbccdd1ab1e8cc09fff414cc",
+          "md5crop": "1e70d79c18fd9f9528635ccc817c3726"
+        },
+        {
+          "i": 6,
+          "key": "contraste",
+          "label": "Contraste +60",
+          "mean": 38.53199028899485,
+          "std": 39.912505060448915,
+          "md5vign": "8b8cb80be7036ca32c74baf1c0332cbf",
+          "md5crop": "3f26c039c95ed1635043db2e8c19f5ba"
+        },
+        {
+          "i": 7,
+          "key": "texture",
+          "label": "Texture +80",
+          "mean": 62.17926678121118,
+          "std": 35.72027994638788,
+          "md5vign": "8fe6916ef8dc78c3693a34e6fdce7bc1",
+          "md5crop": "7035a23155dcb2fa5b404679d6c1e039"
+        },
+        {
+          "i": 8,
+          "key": "clarte",
+          "label": "Clarte +80",
+          "mean": 61.716760732630114,
+          "std": 36.74133798358885,
+          "md5vign": "e45e3d46d89697eb9de7ccf98398d970",
+          "md5crop": "0ced1fccd1bd2e6dadac1eacd2ec3386"
+        },
+        {
+          "i": 9,
+          "key": "voile-plus",
+          "label": "Correction du voile +60",
+          "mean": 63.09368083885511,
+          "std": 35.41751565314659,
+          "md5vign": "3bac346a648bb014e10a47481fceae15",
+          "md5crop": "64b5bca526729f46cf98b6d2d78ee82e"
+        },
+        {
+          "i": 10,
+          "key": "voile-moins",
+          "label": "Correction du voile -60",
+          "mean": 64.16689088884152,
+          "std": 34.200868794570695,
+          "md5vign": "5bffbb031e33db2dfd23b2b27a3a4f7a",
+          "md5crop": "36044429c66bf369f1dc197f29cb1dae"
+        },
+        {
+          "i": 11,
+          "key": "vibrance",
+          "label": "Vibrance +80",
+          "mean": 63.5259064476733,
+          "std": 34.92790783486265,
+          "md5vign": "46b5769185761cf5b5189eeb0cfde159",
+          "md5crop": "afa23f59bab8aefca237f671775b12c5"
+        },
+        {
+          "i": 12,
+          "key": "saturation",
+          "label": "Saturation +80",
+          "mean": 63.07425202295052,
+          "std": 35.14769371687917,
+          "md5vign": "480aeea33d9e76a83dcbae50e7a9b6df",
+          "md5crop": "ccdaea720d26100e78c164cb2a8db2ca"
+        },
+        {
+          "i": 13,
+          "key": "temp-moins",
+          "label": "Temperature -50",
+          "mean": 63.54139890180225,
+          "std": 34.936898220527425,
+          "md5vign": "65a3fbc118ae5aa7458d64aac332bc6f",
+          "md5crop": "2664a203976658cb31dd5f52f38ce056"
+        },
+        {
+          "i": 14,
+          "key": "temp-plus",
+          "label": "Temperature +50",
+          "mean": 63.597824224014275,
+          "std": 34.689377265693246,
+          "md5vign": "ae3680801ac6842b42e7aa3bc31bf2a7",
+          "md5crop": "4772ffa834c0e4a2755bea5540fd87c5"
+        },
+        {
+          "i": 15,
+          "key": "nuance-moins",
+          "label": "Nuance -50",
+          "mean": 63.54640345854915,
+          "std": 34.902864977053696,
+          "md5vign": "8403e8a5c5e5d24c6196417ad70ab885",
+          "md5crop": "f888cc545a47f7d528f5f1ae23e6ef05"
+        },
+        {
+          "i": 16,
+          "key": "nuance-plus",
+          "label": "Nuance +50",
+          "mean": 63.57965181520226,
+          "std": 34.75190709269014,
+          "md5vign": "bd56d53afe9515f9cc0a1f31a708c2be",
+          "md5crop": "22e240b814424e3b930e097e00ec98c5"
+        },
+        {
+          "i": 17,
+          "key": "courbe",
+          "label": "Courbe param. (HL -60, Ombres +60)",
+          "mean": 90.15540684678558,
+          "std": 16.64278703005592,
+          "md5vign": "01489296516def717921b43009cd1ba5",
+          "md5crop": "4d6aa7ce799a6aac549c5e1eb53ce1d1"
+        },
+        {
+          "i": 18,
+          "key": "look",
+          "label": "Look combine",
+          "mean": 83.85120268449467,
+          "std": 27.697490838237098,
+          "md5vign": "31f259a5d020210b3d93c7c62c251eb7",
+          "md5crop": "e311f132489f0442861565c501a91976"
+        }
+      ],
+      "exifOk": true
+    },
+    "B": {
+      "file": "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5169-edited-2.JPG",
+      "srcW": 6240,
+      "srcH": 4160,
+      "frameW": 6240,
+      "frameH": 4160,
+      "crop": {
+        "x": 1500,
+        "y": 2300,
+        "label": "main (peau) / bande"
+      },
+      "cols": [
+        {
+          "i": 0,
+          "key": "temoin",
+          "label": "Temoin (tout a 0)",
+          "mean": 32.8999688104331,
+          "std": 36.72137098151882,
+          "md5vign": "f137224a3880a1af2294cae352745b23",
+          "md5crop": "0711acbb4c35a75f9fd0b98561705eaa"
+        },
+        {
+          "i": 1,
+          "key": "expo-moins",
+          "label": "Exposition -1",
+          "mean": 22.628274713747846,
+          "std": 26.42539149584388,
+          "md5vign": "fae8af0e1253b77c0697ffe02fba21a9",
+          "md5crop": "83b8d21a3256564164c3bf8e1e04f234"
+        },
+        {
+          "i": 2,
+          "key": "expo-plus",
+          "label": "Exposition +1",
+          "mean": 47.078525423730945,
+          "std": 50.231796497263026,
+          "md5vign": "6f52fe868f74c73ce4d56cd03020050c",
+          "md5crop": "29a133b890be49ceead1ef72778f612f"
+        },
+        {
+          "i": 3,
+          "key": "hl-moins",
+          "label": "Hautes lumieres -80",
+          "mean": 30.08249471061085,
+          "std": 32.886689433958885,
+          "md5vign": "a7f25785744a297d7c96ece86d39edc6",
+          "md5crop": "41571b2b841ad699bf47f679a89da7aa"
+        },
+        {
+          "i": 4,
+          "key": "ombres-plus",
+          "label": "Ombres +80",
+          "mean": 103.49132419599027,
+          "std": 9.8080176369765,
+          "md5vign": "02428cabbef6de954b5e661e494151aa",
+          "md5crop": "1293421e247a3090d366fe1d7a517703"
+        },
+        {
+          "i": 5,
+          "key": "blancs-noirs",
+          "label": "Blancs +50 / Noirs -50",
+          "mean": 23.956061748809226,
+          "std": 35.632831815508574,
+          "md5vign": "20cdabd9bfaa87aed41e3d5e8fe26dec",
+          "md5crop": "9039c8e9e91f74e95a45ffba264c6d81"
+        },
+        {
+          "i": 6,
+          "key": "contraste",
+          "label": "Contraste +60",
+          "mean": 19.62002530813079,
+          "std": 32.98100861043443,
+          "md5vign": "a0f015adcd95d1143df7b7402427f7a2",
+          "md5crop": "626c7288cad399a13c0e493528d21ee8"
+        },
+        {
+          "i": 7,
+          "key": "texture",
+          "label": "Texture +80",
+          "mean": 32.50405031946044,
+          "std": 36.61630097844833,
+          "md5vign": "c101d35537c60b036918fdd266e1eba7",
+          "md5crop": "4e19fd36eb1a2c2cbea55d52634bc875"
+        },
+        {
+          "i": 8,
+          "key": "clarte",
+          "label": "Clarte +80",
+          "mean": 32.19623923143385,
+          "std": 37.03410091807365,
+          "md5vign": "158cf251019c55c63794feeda98a148a",
+          "md5crop": "58d6d0ef21162139be787785a33611cc"
+        },
+        {
+          "i": 9,
+          "key": "voile-plus",
+          "label": "Correction du voile +60",
+          "mean": 32.62155606889126,
+          "std": 36.791023864568004,
+          "md5vign": "223561916c3b03f18602a5be943831f4",
+          "md5crop": "e47d0eba5e45515d6cb6dd23f1469ae3"
+        },
+        {
+          "i": 10,
+          "key": "voile-moins",
+          "label": "Correction du voile -60",
+          "mean": 33.45380970553266,
+          "std": 36.50384033290751,
+          "md5vign": "e7665ac468ce0a1568eb0f23c812cf31",
+          "md5crop": "037e5c5fe7f4c49858dc345cea9fbce4"
+        },
+        {
+          "i": 11,
+          "key": "vibrance",
+          "label": "Vibrance +80",
+          "mean": 30.742755829880355,
+          "std": 34.526289984208844,
+          "md5vign": "e59bd5d7230a2ae729f0d96003b5012a",
+          "md5crop": "6f07ed4307769e5ca78d04c6157288a6"
+        },
+        {
+          "i": 12,
+          "key": "saturation",
+          "label": "Saturation +80",
+          "mean": 30.10387790048927,
+          "std": 34.88312295290192,
+          "md5vign": "25350a7adc9ec15c0a8031c6ef3c1221",
+          "md5crop": "318da571d3804588da81d4a50138f709"
+        },
+        {
+          "i": 13,
+          "key": "temp-moins",
+          "label": "Temperature -50",
+          "mean": 33.240436416461534,
+          "std": 37.0757321328913,
+          "md5vign": "795448fd23f1730d38a1b96ab1aface0",
+          "md5crop": "7512c7e9f14c2f79ef7ba47a4f7d6e13"
+        },
+        {
+          "i": 14,
+          "key": "temp-plus",
+          "label": "Temperature +50",
+          "mean": 32.54427530969199,
+          "std": 36.32577627940314,
+          "md5vign": "2f217c4bef9d35955f65382aeaf9abb4",
+          "md5crop": "ada67de71eac041f132a62fef67593c9"
+        },
+        {
+          "i": 15,
+          "key": "nuance-moins",
+          "label": "Nuance -50",
+          "mean": 33.0333554971516,
+          "std": 36.9086679269685,
+          "md5vign": "52024c4d69427af01ce814e078c21156",
+          "md5crop": "0716a5927fa357a7fe685a88de585449"
+        },
+        {
+          "i": 16,
+          "key": "nuance-plus",
+          "label": "Nuance +50",
+          "mean": 32.72521274700413,
+          "std": 36.47028353232974,
+          "md5vign": "da90cb896447f2d8a7292a81250149cb",
+          "md5crop": "96f946d39b54f72a6e677a9fd35d59e2"
+        },
+        {
+          "i": 17,
+          "key": "courbe",
+          "label": "Courbe param. (HL -60, Ombres +60)",
+          "mean": 74.74742239556463,
+          "std": 19.920358927127328,
+          "md5vign": "fd5d30cd009581ec1fc05c88688452e4",
+          "md5crop": "0653d5d712d11621c8f688601b3e6b0e"
+        },
+        {
+          "i": 18,
+          "key": "look",
+          "label": "Look combine",
+          "mean": 68.06219100524223,
+          "std": 21.472344505025585,
+          "md5vign": "ed7223579c773e956a472868ff9fc9df",
+          "md5crop": "c902f36139ab8aa884feead419ce754d"
+        }
+      ],
+      "exifOk": true
+    }
+  },
+  "cols": [
+    {
+      "key": "temoin",
+      "label": "Temoin (tout a 0)",
+      "params": null
+    },
+    {
+      "key": "expo-moins",
+      "label": "Exposition -1",
+      "params": {
+        "exposure": -1
+      }
+    },
+    {
+      "key": "expo-plus",
+      "label": "Exposition +1",
+      "params": {
+        "exposure": 1
+      }
+    },
+    {
+      "key": "hl-moins",
+      "label": "Hautes lumieres -80",
+      "params": {
+        "highlights": -80
+      }
+    },
+    {
+      "key": "ombres-plus",
+      "label": "Ombres +80",
+      "params": {
+        "shadows": 80
+      }
+    },
+    {
+      "key": "blancs-noirs",
+      "label": "Blancs +50 / Noirs -50",
+      "params": {
+        "whites": 50,
+        "blacks": -50
+      }
+    },
+    {
+      "key": "contraste",
+      "label": "Contraste +60",
+      "params": {
+        "contrast": 60
+      }
+    },
+    {
+      "key": "texture",
+      "label": "Texture +80",
+      "params": {
+        "texture": 80
+      }
+    },
+    {
+      "key": "clarte",
+      "label": "Clarte +80",
+      "params": {
+        "clarity": 80
+      }
+    },
+    {
+      "key": "voile-plus",
+      "label": "Correction du voile +60",
+      "params": {
+        "dehaze": 60
+      }
+    },
+    {
+      "key": "voile-moins",
+      "label": "Correction du voile -60",
+      "params": {
+        "dehaze": -60
+      }
+    },
+    {
+      "key": "vibrance",
+      "label": "Vibrance +80",
+      "params": {
+        "vibrance": 80
+      }
+    },
+    {
+      "key": "saturation",
+      "label": "Saturation +80",
+      "params": {
+        "saturation": 80
+      }
+    },
+    {
+      "key": "temp-moins",
+      "label": "Temperature -50",
+      "params": {
+        "temperature": -50
+      }
+    },
+    {
+      "key": "temp-plus",
+      "label": "Temperature +50",
+      "params": {
+        "temperature": 50
+      }
+    },
+    {
+      "key": "nuance-moins",
+      "label": "Nuance -50",
+      "params": {
+        "nuance": -50
+      }
+    },
+    {
+      "key": "nuance-plus",
+      "label": "Nuance +50",
+      "params": {
+        "nuance": 50
+      }
+    },
+    {
+      "key": "courbe",
+      "label": "Courbe param. (HL -60, Ombres +60)",
+      "params": {
+        "paramHighlights": -60,
+        "paramShadows": 60
+      }
+    },
+    {
+      "key": "look",
+      "label": "Look combine",
+      "params": {
+        "exposure": 0.3,
+        "contrast": 25,
+        "highlights": -40,
+        "shadows": 30,
+        "clarity": 25,
+        "vibrance": 40,
+        "temperature": 15,
+        "paramShadows": 20,
+        "paramHighlights": -15
+      }
+    }
+  ]
+}

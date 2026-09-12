@@ -2,14 +2,14 @@ import type { LayerState } from "../layers/types";
 import { getEffect } from "../render/effects/registry";
 import type { CanvasControl, EffectParam, EffectSection, SectionLayout } from "../render/effects/types";
 import { conditionRemplie } from "../render/effects/displayCondition";
-import { CircleDot, MoveRight } from "lucide-react";
+import { ChevronRight, CircleDot, MoveRight } from "lucide-react";
 import "./ParamPanel.css";
 import { LabeledSlider } from "./ui/labeled-slider";
 import { Disclosure } from "./ui/collapsible";
 import { Select } from "./ui/select";
 import { ColorGroupControl } from "./ui/color-group-control";
 import { formatControlValue, parsePercentValue, formatSignedValue, parseSignedValue } from "../ui/formatValue";
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { CurveControl } from "./CurveControl";
 import { TonalRangeControl } from "./TonalRangeControl";
 import { ColorRampControl } from "./ColorRampControl";
@@ -237,10 +237,46 @@ export function groupEffectParams(
  * qui pose les sections.
  */
 export function ParamSection({ label, layout, children }: { label: string | null; layout: SectionLayout; children: ReactNode }) {
+  // CATÉGORIE INTERNE REPLIABLE (2026-09-12, Antoine : « rends les catégories
+  // internes repliables »). Le titre de section devient un bouton repli/dépli —
+  // chevron + `aria-expanded`, patron visuel des en-têtes de module de
+  // `DevelopPanel` (hover, focus visible), mais la TYPOGRAPHIE et la hauteur du
+  // titre existant sont conservées : ADR-0001, le chevron s'ajoute à l'en-tête
+  // EXISTANT, jamais une rangée de plus.
+  //
+  // État LOCAL UI, jamais dans le document ni les presets : un repli est une
+  // préférence de lecture, pas une donnée du calque. `useState` interne, gardé
+  // frais par la RÉCONCILIATION React — le parent donne à chaque section une clé
+  // qui porte l'effet et l'id de section, donc le repli survit à un re-render du
+  // même effet et se réinitialise (déplié) au changement d'effet.
+  //
+  // Une section SANS titre rendu (bloc libre, `label === null`) reste NON
+  // repliable, telle quelle : rien à quoi accrocher un en-tête.
+  const [open, setOpen] = useState(true);
+  const bodyId = useId();
+  if (label === null) {
+    return (
+      <div className={`param-panel__section param-panel__section--${layout}`}>
+        <div className="param-panel__section-body">{children}</div>
+      </div>
+    );
+  }
   return (
-    <div className={`param-panel__section param-panel__section--${layout}`}>
-      {label !== null && <div className="param-panel__section-title">{label}</div>}
-      <div className="param-panel__section-body">{children}</div>
+    <div className={`param-panel__section param-panel__section--${layout}${open ? "" : " param-panel__section--collapsed"}`}>
+      <button
+        type="button"
+        className="param-panel__section-title param-panel__section-toggle"
+        aria-expanded={open}
+        aria-controls={bodyId}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <ChevronRight className="param-panel__section-chevron icon-sm icon-stroke" aria-hidden="true" />
+        <span>{label}</span>
+      </button>
+      {/* Le corps reste dans le DOM et se masque par une classe (specificité
+          0,3,0) : un `hidden`/`display:none` de faible poids serait défait par
+          `param-panel__section--paire/grille` qui posent `display:grid`. */}
+      <div id={bodyId} className="param-panel__section-body">{children}</div>
     </div>
   );
 }
@@ -496,7 +532,7 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onO
           // réglages. `paire`/`grille` cramperaient un curseur inline (libellé +
           // piste + valeur) dans une demi-colonne. C'est de l'AFFICHAGE — les
           // sections, leurs titres et l'ordre de `params[]` sont intacts.
-          <ParamSection key={bloc.reactKey} label={bloc.label} layout={develop ? "liste" : bloc.layout}>
+          <ParamSection key={`${layer.effectId}:${bloc.reactKey}`} label={bloc.label} layout={develop ? "liste" : bloc.layout}>
           {bloc.items.map((item) =>
             item.kind === "spatial-header" ? (
               <div key={item.reactKey} className="param-panel__spatial-heading">

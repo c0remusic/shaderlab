@@ -562,6 +562,64 @@ export const PercentInputClampsInDisplaySpace: Story = {
   },
 };
 
+/**
+ * CATÉGORIES INTERNES REPLIABLES (2026-09-12). Le titre de chaque section est un
+ * bouton repli/dépli (`aria-expanded`) ; le corps se masque quand la section est
+ * repliée. État par défaut : TOUT DÉPLIÉ, donc le premier regard est inchangé.
+ *
+ * Cette story couvre les trois états demandés en une interaction : déplié
+ * d'entrée, puis MIXTE (« Seuil » replié pendant que « Diffusion » reste
+ * déplié), puis redéplié. `glow` porte deux sections titrées (« Seuil »,
+ * « Diffusion »), c'est le cas minimal qui montre qu'un repli est LOCAL à sa
+ * section et non global au panneau.
+ */
+export const CollapsibleSectionTogglesBody: Story = {
+  args: { layer: glowLayer },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // Le titre de section est un BOUTON, pas un texte inerte. « Seuil » est
+    // aussi un libellé de curseur, mais un libellé n'est pas un bouton.
+    const seuil = canvas.getByRole("button", { name: "Seuil" });
+    const diffusion = canvas.getByRole("button", { name: "Diffusion" });
+    await expect(seuil).toHaveAttribute("aria-expanded", "true");
+    await expect(diffusion).toHaveAttribute("aria-expanded", "true");
+    const seuilBody = document.getElementById(seuil.getAttribute("aria-controls")!)!;
+    await expect(seuilBody).toBeVisible();
+
+    // Replier « Seuil » masque SON corps ; « Diffusion » reste déplié (mixte).
+    await userEvent.click(seuil);
+    await expect(seuil).toHaveAttribute("aria-expanded", "false");
+    await expect(seuilBody).not.toBeVisible();
+    await expect(diffusion).toHaveAttribute("aria-expanded", "true");
+
+    // Re-clic : redéplié, corps de nouveau visible.
+    await userEvent.click(seuil);
+    await expect(seuil).toHaveAttribute("aria-expanded", "true");
+    await expect(seuilBody).toBeVisible();
+  },
+};
+
+/** Une section SANS titre rendu (bloc libre, `label === null`) reste NON
+ *  repliable : aucun bouton d'en-tête, corps toujours visible. Contre-épreuve de
+ *  la story ci-dessus — sans elle, un en-tête orphelin sur un bloc sans titre
+ *  passerait inaperçu. */
+export const SectionWithoutTitleHasNoToggle: Story = {
+  render: () => (
+    <div className="param-panel" style={{ width: "var(--inspector-width-default)" }}>
+      <div className="param-panel__group">
+        <ParamSection label={null} layout="liste">
+          <LabeledSlider label="Libre" value={0.3} min={0} max={1} step={0.01} onChange={() => {}} />
+        </ParamSection>
+      </div>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("button")).toBeNull();
+    await expect(canvas.getByLabelText("Libre")).toBeVisible();
+  },
+};
+
 /** Double-cliquer sur le LIBELLE ramene au defaut, et en UN geste : une seule
  *  entree d'historique, comme un relachement de glissement. */
 export const DoubleClickOnLabelResetsToDefault: Story = {

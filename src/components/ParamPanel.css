@@ -73,6 +73,55 @@
   gap: var(--space-5);
 }
 
+/* EN-TÊTE DE SECTION REPLIABLE (2026-09-12). Le titre devient un bouton :
+   chevron + libellé, survol et focus visible du patron des en-têtes de module
+   (Disclosure). La TYPOGRAPHIE vient de `.param-panel__section-title`, portée
+   sur le même élément ; on n'ajoute qu'un padding minimal pour le survol —
+   pas de hauteur de rangée en plus (ADR-0001, le chevron s'insère dans
+   l'en-tête existant). */
+.param-panel__section-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  margin: 0;
+  padding: var(--space-1);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.param-panel__section-toggle:hover {
+  background: var(--surface-hover);
+}
+
+.param-panel__section-toggle:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.param-panel__section-chevron {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+.param-panel__section-toggle[aria-expanded="true"] .param-panel__section-chevron {
+  transform: rotate(90deg);
+}
+
+/* Corps masqué quand la section est repliée. Specificité 0,3,0 (deux classes
+   sur la section + une sur le corps) pour BATTRE `--paire`/`--grille` qui
+   posent `display: grid` (0,2,0) — un `[hidden]` ou un `display:none` de plus
+   faible poids serait défait par ces gabarits et le corps resterait visible. */
+.param-panel__section.param-panel__section--collapsed .param-panel__section-body {
+  display: none;
+}
+
 /* MODE DÉVELOPPEMENT (ticket 07) — les sous-titres de section (« Tonalité »,
    « Présence ») sont CENTRÉS au-dessus de leurs curseurs, comme la capture 1:1
    du module Développement de Lightroom. Même registre typographique (2xs gris
@@ -81,6 +130,12 @@
    de la gouttière d'un curseur empilé (libellé + piste). */
 .param-panel--develop .param-panel__section-title {
   text-align: center;
+}
+
+/* Le titre replié est un flex (chevron + libellé) : `text-align` ne le centre
+   pas, on centre le contenu du bouton. */
+.param-panel--develop .param-panel__section-toggle {
+  justify-content: center;
 }
 
 .param-panel--develop .param-panel__section-body {

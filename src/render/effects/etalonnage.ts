@@ -73,6 +73,14 @@ import { etalonnagePrimaryHueGradient, etalonnagePrimarySatGradient } from "./tr
  * = vert, comme Lightroom. C'est le seul réglage qui teinte volontairement un
  * gris — mais un gris SOMBRE, et seulement lui.
  *
+ * ⚠️ EXTENSION ASSUMÉE PAR RAPPORT À LIGHTROOM. Dans Lightroom, la Nuance foncée
+ * est `blackBias` (clé `ShadowTintCalibration`) : elle tinte le POINT NOIR de la
+ * matrice CAMÉRA, une opération RAW qui est INERTE sur un JPEG déjà rendu (mesuré :
+ * `etal-nuance ±100` laisse rampe et teinte à 0). Un curseur inerte étant proscrit
+ * ici, on la garde ACTIVE — décalage sur les ombres JPEG. C'est un choix produit
+ * arbitré « go pour tout » (Antoine, 2026-09-12) ; pièce et verdict dans l'audit
+ * binaire `.scratch/lightroom-develop/issues/09-audit-binaire.md` (§ Arbitrages, 3).
+ *
  * IDENTITÉ AU BIT PRÈS À 0. Le round-trip OKLab n'est pas exactement réversible
  * (racine cubique), donc à réglages nuls la matrice reconstruite vaudrait
  * « presque » l'identité et non l'identité exacte. Une garde en tête de shader

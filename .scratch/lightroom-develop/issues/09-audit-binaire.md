@@ -206,6 +206,32 @@ nouvelles passes — présentés ci-dessous.
    de structure locale) ; les amplitudes sont calibrées. À revoir seulement si l'œil
    le demande sur une vraie photo.
 
+### Corrections 02b — « go pour tout » (Antoine, 2026-09-12)
+
+Les trois arbitrages MESURABLES ont été exécutés dans `reglagesDeBase`, calibrés par
+`assets/calibrer-ton.py` (constantes dans `reglagesDeBaseTable.ts`, twin + WGSL
+jumeaux). Détail chiffré et références bougées : ticket 02, section « Parité 02b ».
+
+- [x] **Arbitrage 1 — Balance des blancs.** Renormalisation au blanc RETIRÉE. Gains
+  linéaires par canal, PAR SIGNE, fittés sur `rampe_rgb` (`wbTempPos/Neg`,
+  `wbTintPos/Neg`), appliqués tels quels → les deux extrêmes éclaircissent, comme LR.
+  Modèle diagonal (le seul possible sur un JPEG déjà rendu, sans profil caméra) :
+  résidu par canal aux extrêmes assumé et chiffré au ticket — la réponse en S de la
+  courbe de ton caméra de LR n'est pas reproductible par un gain diagonal. Verdict :
+  ARBITRAGE → **exécuté**.
+- [x] **Arbitrage 2 — Voile.** Composante GLOBALE ajoutée par canal (`veilOp` /
+  `rb_veil`) : récupération ancrée type canal sombre en retrait (d>0), écran vers
+  airlight en ajout (d<0), plus une désaturation OKLab des couleurs en ajout
+  (`dehazeDesatK`, calibrée sur la colonne sat du `balayage`). Le voile DÉPLACE
+  désormais une rampe plate là où il était inerte. Verdict : DIVERGENT → **corrigé**.
+- [x] **Arbitrage 3 — Nuance foncée de l'étalonnage.** RESTE ACTIVE (choix produit :
+  un curseur inerte est proscrit ici ; `blackBias` de LR est raw-only). Note d'extension
+  assumée ajoutée à l'en-tête de `etalonnage.ts`. Verdict : ARBITRAGE → **tranché (garder), documenté**.
+- [x] **Arbitrage 4 — Blancs / Noirs.** Leurs cloches pèsent désormais sur la
+  luminance FLOUTÉE (`sBlur`), LOCALES comme `local_whites_blacks`. Sur une rampe
+  `sBlur = s`, donc l'écart de calibration est INCHANGÉ (la localité ne se voit que
+  sur une vraie image) ; re-vérifié ≤ l'actuel. Verdict : DIVERGENT → **corrigé (localité)**.
+
 ### Indéterminés (structure invisible dans les strings / mesure manquante)
 
 - **Filtre guidé de Texture** (`guided_filter_ycc`) vs notre tente 3×3 : le

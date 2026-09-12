@@ -51,10 +51,17 @@
  * Le mode de la cloche est EXACTEMENT `c` ; `k` la resserre (k grand = étroite).
  */
 export interface ReglagesDeBaseTable {
-  /** Balance des blancs — gain linéaire R(+)/B(−) à Température +100 (renormalisé au blanc). NON fitté ici (couleur). */
-  wbTempK: number;
-  /** Balance des blancs — gain linéaire R+B(+)/G(−) à Nuance +100. NON fitté ici (couleur). */
-  wbTintK: number;
+  /** Balance des blancs — gains linéaires par canal [R,G,B] à Température +100
+   *  (t>0), appliqués SANS renormalisation. Lightroom règle la WB en espace
+   *  CAMÉRA et ne préserve PAS la luminance ; les gains fittés sur `rampe_rgb`
+   *  de `temperature-p100` la font donc dériver (les deux extrêmes éclaircissent). */
+  wbTempPos: number[];
+  /** Balance des blancs — gains [R,G,B] à Température −100 (t<0), sur `temperature-m100`. */
+  wbTempNeg: number[];
+  /** Balance des blancs — gains [R,G,B] à Nuance +100 (n>0), sur `nuance-p100`. */
+  wbTintPos: number[];
+  /** Balance des blancs — gains [R,G,B] à Nuance −100 (n<0), sur `nuance-m100`. */
+  wbTintNeg: number[];
   /** Exposition — coefficient de γ : `γ = exp(expoG·EV)`. */
   expoG: number;
   /** Contraste — coefficient de γ : `γ = exp(contrastG·(contraste/100))`. */
@@ -97,14 +104,28 @@ export interface ReglagesDeBaseTable {
   curveAmt: number;
   /** Courbe paramétrique — demi-largeur des transitions cosinus (perceptuel). */
   curveWin: number;
+  /** Voile (positif = retrait) — force de la récupération type canal sombre à +100 :
+   *  `J = s(1−ω)/(1−ω·s)`, `ω = dehazeOmega·(dehaze/100)`. Ancré (0→0, 1→1). Fitté
+   *  sur la rampe `voile-p100`. */
+  dehazeOmega: number;
+  /** Voile (négatif = ajout) — hauteur du point d'airlight (relèvement du noir) à
+   *  −100 : `J = 1−(1−a)·(1−s)^g`, `a = dehazeAirlight·(−dehaze/100)`. Fitté sur `voile-m100`. */
+  dehazeAirlight: number;
+  /** Voile (négatif = ajout) — exposant de la remontée : `g = 1+(dehazeGamma−1)·(−dehaze/100)`. */
+  dehazeGamma: number;
+  /** Voile (négatif = ajout) — désaturation de la chroma OKLab à −100 (LR blanchit
+   *  les couleurs saturées vers l'airlight). Fitté sur la colonne sat du `balayage` de `voile-m100`. */
+  dehazeDesatK: number;
 }
 
 /** Table calibrée sur Lightroom 14.5 par `assets/calibrer-ton.py` (moindres carrés
  *  forward-model). Écarts par rampe dans le ticket 02 et imprimés par le script.
  *  RELANCER le script plutôt que d'éditer à la main. */
 export const RB_TABLE: ReglagesDeBaseTable = {
-  wbTempK: 0.3,
-  wbTintK: 0.15,
+  wbTempPos: [5.65, 2.58, 0.93],
+  wbTempNeg: [1.35, 1.96, 7.99],
+  wbTintPos: [1.44, 0.99, 4.2],
+  wbTintNeg: [0.8, 2.89, 0.95],
   expoG: 0.57,
   contrastG: 0.5325,
   contrastPivot: 0.62,
@@ -126,4 +147,8 @@ export const RB_TABLE: ReglagesDeBaseTable = {
   whiteKappa: 2.5,
   curveAmt: 0.26,
   curveWin: 0.26,
+  dehazeOmega: 0.745,
+  dehazeAirlight: 0.275,
+  dehazeGamma: 2.9,
+  dehazeDesatK: 0.22,
 };

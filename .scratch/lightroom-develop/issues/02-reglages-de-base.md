@@ -181,3 +181,57 @@ log rend l'opération MULTIPLICATIVE en linéaire. Notre offset égal par canal
 désaturait ; remplacé par un facteur `(L+g)/L` (piédestal 1e-4). Mesure LR à
 l'appui : Texture ±100 sur balayage, dSat max 0,017, dHue max 0,9°. Référence
 `developpement-reglages-presence` régénérée (correction), 146 autres au bit près.
+
+## Parité 02b — trois divergences de l'audit 09 (2026-09-12, « go pour tout »)
+
+Corrigées dans `reglagesDeBase` (twin + WGSL jumeaux), constantes fittées par
+`assets/calibrer-ton.py` (étendu) dans `reglagesDeBaseTable.ts`. Le fit reproduit
+les constantes de TON au bit près (aucun churn dessus) et ajoute WB / voile / desat.
+
+**1. Voile — composante GLOBALE (`veilOp` / `rb_veil`).** Le voile portait un
+contraste LOCAL `(lp − blurLuma)`, inerte sur un ton plat, alors que LR estime un
+canal sombre (composante globale). Ajout, par canal en sRGB : d>0 (retrait) =
+récupération ancrée `s(1−ω)/(1−ω·s)` (ω=`dehazeOmega`=0,745) ; d<0 (ajout) = écran
+vers airlight `1−(1−a)·(1−s)^g` (a=`dehazeAirlight`=0,275, g=`dehazeGamma`=2,9).
+Écart moyen sur la rampe grise : `voile-p100` **54,5 → 5,1** ; `voile-m100`
+**78,0 → 3,0** niveaux (AVANT = voile inerte = identité). Désaturation des couleurs
+en ajout portée par un facteur de chroma OKLab `dehazeDesatK`=0,22, calibré sur la
+colonne sat du `balayage` : **dSat −0,142 vs LR −0,139**. Le contraste LOCAL est
+conservé (il agit sur une vraie image). Écart assumé : le lift de LUMINANCE des
+couleurs saturées (dark-channel + min spatial) reste sous LR (per-canal ancré) — la
+composante spatiale n'est pas mesurable sur rampe et attend les mesures fines /
+une passe dédiée.
+
+**2. Balance des blancs — espace caméra, sans renormalisation.** Renormalisation au
+blanc RETIRÉE. Gains linéaires par canal, PAR SIGNE, fittés sur `rampe_rgb`
+(`wbTempPos` [5,65 / 2,58 / 0,93], `wbTempNeg` [1,35 / 1,96 / 7,99], `wbTintPos`
+[1,44 / 0,99 / 4,2], `wbTintNeg` [0,8 / 2,89 / 0,95]), combinés multiplicativement,
+bornés. Les deux extrêmes éclaircissent : dLum linéaire émergent Température +100
+**+0,25** (LR +0,19), −100 **+0,18** (LR +0,157), Nuance +100 +0,04 (LR +0,031),
+−100 +0,18 (LR +0,140) — direction et signe reproduits. ⚠️ ÉCART ASSUMÉ, chiffré :
+un gain DIAGONAL est le seul opérateur de WB possible sur un JPEG déjà rendu (pas de
+profil caméra), il ne reproduit pas la réponse en S de la courbe de ton caméra de
+LR ; résidu par canal aux extrêmes 5–23 niveaux (`errRGB` imprimé par le script).
+Mesures fines à venir (±25, ±75, nuance ±50) : le fit s'y intègre sans réécriture
+(gains linéaires en |curseur|, un axe/signe par mesure).
+
+**3. Blancs / Noirs — locaux comme Lightroom.** Leurs cloches pèsent sur la
+luminance FLOUTÉE `sBlur` (comme HL/Ombres, `local_whites_blacks`) au lieu du pixel
+ponctuel ; ils réveillent la pyramide (`utile` élargi). Sur une rampe `sBlur = s`,
+donc le fit est INCHANGÉ (garde-fou du brief : écart ≤ l'actuel) — `noirs-p100`
+**0,5**, `blancs-m100` **2,7** niveaux, identiques ; la localité ne se voit que sur
+une vraie image. Le twin « 132 niveaux » passe de 160 à **174 niveaux d'un bloc**
+(trou 3) : porter les Noirs sur la luminance floutée redistribue leur lift.
+
+**4. Nuance foncée (étalonnage) — note doc seule.** Reste ACTIVE (choix produit,
+un curseur inerte est proscrit). Note d'extension assumée ajoutée à l'en-tête de
+`etalonnage.ts`. Aucun changement de comportement.
+
+**Références de rendu.** Bougées (corrections, `--update` + relues) :
+`developpement-reglages-ton` (max 9, moy 3,13 — Blancs/Noirs locaux),
+`developpement-reglages-couleur` (max 93, moy 16,6 — WB sans renorm),
+`developpement-reglages-presence` (max 23, moy 7,26 — voile global à Dehaze +40).
+INCHANGÉES au bit près : `-temoin` (module au défaut, sauté), `-courbe`
+(paramétrique), `-saturation` (saturation seule), et les autres références du dépôt.
+Compte de références inchangé (aucune ajoutée). Planche œil d'Antoine :
+`planche-02b-{rendu,assemble}.mjs` → `planche-02b-reglages.html` (non versionné).

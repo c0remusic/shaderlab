@@ -23,7 +23,7 @@ se fittent INDEPENDAMMENT, groupe par groupe, par grille.
 
 Usage : python calibrer-ton.py [dossier_des_json]   (defaut ../research/mesures)
 """
-import sys, os, json, re, itertools
+import sys, os, json, re, itertools, colorsys
 import numpy as np
 
 def srgb_to_lin(x):
@@ -87,8 +87,11 @@ def forward_new(vin, T, reg):
     s = s + kSh * shAmt * bump(sBlur, T["shadowCenter"], T["shadowKappa"])
     s = s + kHl * hlAmt * bump(sBlur, T["highlightCenter"], T["highlightKappa"])
     s = clamp01(s)
-    s = s + kBk * bkAmt * bump(s, T["blackCenter"], T["blackKappa"])
-    s = s + kWh * whAmt * bump(s, T["whiteCenter"], T["whiteKappa"])
+    # Blancs / Noirs LOCAUX : cloche sur la luminance floutee (sBlur), comme le
+    # shader (parite 02b, LR local_whites_blacks). Sur une rampe sBlur = s, donc
+    # le fit est inchange ; le twin reste jumeau du shader.
+    s = s + kBk * bkAmt * bump(sBlur, T["blackCenter"], T["blackKappa"])
+    s = s + kWh * whAmt * bump(sBlur, T["whiteCenter"], T["whiteKappa"])
     s = clamp01(s)
     kSh2 = reg.get("paramShadows", 0.0) / 100.0
     kDk = reg.get("paramDarks", 0.0) / 100.0
@@ -99,6 +102,39 @@ def forward_new(vin, T, reg):
                          reg.get("midtoneSplit", 50) / 100.0, reg.get("highlightSplit", 75) / 100.0,
                          T["curveAmt"], T["curveWin"])
     return np.rint(clamp01(s) * 255.0)
+
+# ── VOILE : composante GLOBALE par canal (parite 02b, audit 09) ──────────────
+# d = dehaze/100. d>0 : recuperation ancree (canal sombre) ; d<0 : ecran vers
+# airlight. Jumeau de veilOp() TS / rb_veil WGSL.
+def veil_op(s, d, T):
+    s = clamp01(s)
+    if d > 0:
+        w = T["dehazeOmega"] * d
+        return clamp01(s * (1 - w) / (1 - w * s))
+    if d < 0:
+        a = T["dehazeAirlight"] * (-d)
+        g = 1 + (T["dehazeGamma"] - 1) * (-d)
+        return clamp01(1 - (1 - a) * np.power(1 - s, g))
+    return s
+
+# ── OKLab (jumeau de oklab.ts) pour le fit de desaturation du voile ──────────
+def lin_to_oklab(rgb):
+    r, g, b = rgb
+    l = np.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
+    m = np.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
+    s = np.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
+    return (0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+            1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+            0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s)
+
+def oklab_to_lin(lab):
+    L, a, b = lab
+    l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
+    m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
+    s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3
+    return (4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+            -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+            -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s)
 
 # ── formes ANCIENNES (etat AVANT ce ticket), meme convention ─────────────────
 def forward_old(vin, reg):
@@ -191,6 +227,106 @@ def refine(dossier, T, noms, keys, spans, n=9):
     grids = {k: np.linspace(max(lo, T[k] - sp), T[k] + sp, n) for k, (sp, lo) in zip(keys, spans)}
     fit_groupe(dossier, T, noms, keys, grids)
 
+# ── BALANCE DES BLANCS : gains lineaires par canal, PAR SIGNE (parite 02b) ────
+# Fittes sur rampe_rgb (rampe grise par canal) SANS renormalisation : Lightroom
+# regle la WB en espace camera et ne preserve pas la luminance (les deux extremes
+# eclaircissent). Chaque axe/signe isole une mesure ; le gain constant + clamp est
+# un compromis a la reponse en S de la courbe de ton camera de LR (residu note).
+def load_rgb(dossier, nom):
+    p = os.path.join(dossier, nom + ".json")
+    if not os.path.exists(p):
+        return None
+    return np.array(json.load(open(p, encoding="utf-8"))["rampe_rgb"], float)
+
+def fit_wb_triplet(dossier, nom):
+    rgb = load_rgb(dossier, nom)
+    if rgb is None:
+        return None
+    lin_in = srgb_to_lin(VIN / 255.0)
+    gains, errs = [], []
+    for c in range(3):
+        best = None
+        for g in np.arange(0.05, 8.0, 0.01):
+            pred = lin_to_srgb(np.clip(g * lin_in, 0, 1)) * 255.0
+            e = np.abs(pred - rgb[:, c]).mean()
+            if best is None or e < best[0]:
+                best = (e, g)
+        gains.append(round(float(best[1]), 3)); errs.append(round(float(best[0]), 1))
+    return gains, errs
+
+def fit_wb(dossier, T):
+    axes = [("wbTempPos", "temperature-p100"), ("wbTempNeg", "temperature-m100"),
+            ("wbTintPos", "nuance-p100"), ("wbTintNeg", "nuance-m100")]
+    rows = []
+    for key, nom in axes:
+        r = fit_wb_triplet(dossier, nom)
+        if r is None:
+            continue
+        gains, errs = r
+        T[key] = gains
+        rows.append(f"  {key:11s} <- {nom:16s} gains R/G/B={gains}  errRGB={errs}")
+    return rows
+
+# ── VOILE : composante globale, fittee sur les rampes grises voile-p100/m100 ──
+def fit_veil(dossier, T):
+    p = load_rampe(dossier, "voile-p100")
+    m = load_rampe(dossier, "voile-m100")
+    sp = VIN / 255.0
+    rows = []
+    if p is not None:
+        avant = np.abs(VIN - p).mean()  # AVANT : voile inerte sur un ton plat = identite
+        best = None
+        for w in np.arange(0.5, 0.95, 0.005):
+            Tt = dict(T); Tt["dehazeOmega"] = w
+            pred = np.array([veil_op(s, 1.0, Tt) for s in sp]) * 255.0
+            e = np.abs(pred - p).mean()
+            if best is None or e < best[0]:
+                best = (e, w)
+        T["dehazeOmega"] = round(float(best[1]), 3)
+        rows.append(f"  dehazeOmega   <- voile-p100  = {T['dehazeOmega']}  (err moy AVANT {avant:.1f} -> APRES {best[0]:.1f})")
+    if m is not None:
+        avant_m = np.abs(VIN - m).mean()
+        best = None
+        for a in np.arange(0.15, 0.40, 0.005):
+            for g in np.arange(1.5, 4.0, 0.05):
+                Tt = dict(T); Tt["dehazeAirlight"] = a; Tt["dehazeGamma"] = g
+                pred = np.array([veil_op(s, -1.0, Tt) for s in sp]) * 255.0
+                e = np.abs(pred - m).mean()
+                if best is None or e < best[0]:
+                    best = (e, a, g)
+        T["dehazeAirlight"] = round(float(best[1]), 3); T["dehazeGamma"] = round(float(best[2]), 3)
+        rows.append(f"  dehazeAirlight/Gamma <- voile-m100 = {T['dehazeAirlight']}/{T['dehazeGamma']}  (err moy AVANT {avant_m:.1f} -> APRES {best[0]:.1f})")
+    return rows
+
+# ── VOILE : desaturation des couleurs en ajout, fittee sur le balayage ────────
+def fit_desat(dossier, T):
+    tem = load_rgb_col(dossier, "temoin", "balayage")
+    meas = load_rgb_col(dossier, "voile-m100", "balayage")
+    if tem is None or meas is None:
+        return []
+    target = float((meas[:, 2] - tem[:, 2]).mean())  # dSat HSL mesure (colonne 2)
+    def dsat(kc):
+        out = []
+        for row in tem:
+            H, L, S = row[1] / 360.0, row[3], row[2]
+            r, g, b = colorsys.hls_to_rgb(H, L, S)
+            rr = float(veil_op(r, -1.0, T)); gg = float(veil_op(g, -1.0, T)); bb = float(veil_op(b, -1.0, T))
+            lab = list(lin_to_oklab((srgb_to_lin(rr), srgb_to_lin(gg), srgb_to_lin(bb))))
+            lab[1] *= (1 - kc); lab[2] *= (1 - kc)
+            rl, gl, bl = oklab_to_lin(lab)
+            rs, gs, bs = [min(1.0, max(0.0, float(lin_to_srgb(x)))) for x in (rl, gl, bl)]
+            out.append(colorsys.rgb_to_hls(rs, gs, bs)[2])
+        return float(np.mean(out)) - float(tem[:, 2].mean())
+    best = min(np.arange(0.0, 0.5, 0.01), key=lambda k: abs(dsat(k) - target))
+    T["dehazeDesatK"] = round(float(best), 3)
+    return [f"  dehazeDesatK  <- balayage    = {T['dehazeDesatK']}  (dSat {dsat(best):+.3f} vs LR {target:+.3f})"]
+
+def load_rgb_col(dossier, nom, cle):
+    p = os.path.join(dossier, nom + ".json")
+    if not os.path.exists(p):
+        return None
+    return np.array(json.load(open(p, encoding="utf-8"))[cle], float)
+
 def rapport(dossier, Tnew):
     lignes = [f"{'mesure':22s} | {'AVANT moy':>9s} {'max':>5s} | {'APRES moy':>9s} {'max':>5s}"]
     somme_a, somme_b, n = 0.0, 0.0, 0
@@ -206,13 +342,20 @@ def rapport(dossier, Tnew):
     lignes.append(f"{'MOYENNE':22s} | {somme_a/n:9.1f}       | {somme_b/n:9.1f}")
     return "\n".join(lignes)
 
+def fmt_scalar(v):
+    return f"{v:.1f}" if float(v).is_integer() else f"{v}"
+
 def reecrire_table(Tnew):
     path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "src", "render", "effects", "reglagesDeBaseTable.ts")
     txt = open(path, encoding="utf-8").read()
     for k, v in Tnew.items():
-        val = (f"{v:.1f}" if float(v).is_integer() else f"{v}")
-        pat = re.compile(rf"(\n  {re.escape(k)}: )[-\d.]+(,)")
-        new, cnt = pat.subn(rf"\g<1>{val}\g<2>", txt)
+        if isinstance(v, (list, tuple)):
+            val = "[" + ", ".join(fmt_scalar(x) for x in v) + "]"
+            pat = re.compile(rf"(\n  {re.escape(k)}: )\[[^\]]*\](,)")
+        else:
+            val = fmt_scalar(v)
+            pat = re.compile(rf"(\n  {re.escape(k)}: )[-\d.]+(,)")
+        new, cnt = pat.subn(lambda m: m.group(1) + val + m.group(2), txt)
         if cnt != 1:
             raise SystemExit(f"ancre '{k}' trouvee {cnt} fois (attendu 1) — abandon, table intacte")
         txt = new
@@ -221,12 +364,15 @@ def reecrire_table(Tnew):
 
 def main():
     dossier = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "..", "research", "mesures")
-    T = {"wbTempK": 0.3, "wbTintK": 0.15, "expoG": 0.58, "contrastG": 0.72, "contrastPivot": 0.58,
+    T = {"wbTempPos": [1.0, 1.0, 1.0], "wbTempNeg": [1.0, 1.0, 1.0],
+         "wbTintPos": [1.0, 1.0, 1.0], "wbTintNeg": [1.0, 1.0, 1.0],
+         "expoG": 0.58, "contrastG": 0.72, "contrastPivot": 0.58,
          "shadowAmtPos": 0.35, "shadowAmtNeg": 0.2, "shadowCenter": 0.12, "shadowKappa": 6.0,
          "highlightAmtPos": 0.3, "highlightAmtNeg": 0.3, "highlightCenter": 0.8, "highlightKappa": 6.0,
          "blackAmtPos": 0.15, "blackAmtNeg": 0.4, "blackCenter": 0.06, "blackKappa": 10.0,
          "whiteAmtPos": 0.4, "whiteAmtNeg": 0.3, "whiteCenter": 0.85, "whiteKappa": 6.0,
-         "curveAmt": 0.35, "curveWin": 0.15}
+         "curveAmt": 0.35, "curveWin": 0.15,
+         "dehazeOmega": 0.7, "dehazeAirlight": 0.275, "dehazeGamma": 2.9, "dehazeDesatK": 0.2}
 
     fit_groupe(dossier, T, GROUPES["expo"], ["expoG"], {"expoG": np.arange(0.3, 0.901, 0.01)})
     fit_groupe(dossier, T, GROUPES["contrast"], ["contrastG", "contrastPivot"],
@@ -250,6 +396,17 @@ def main():
     fit_groupe(dossier, T, GROUPES["curve"], ["curveAmt", "curveWin"],
                {"curveAmt": np.arange(0.15, 0.801, 0.01), "curveWin": np.arange(0.06, 0.261, 0.01)})
 
+    # PARITE 02b — groupes fittes sur des mesures HORS rampe grise de ton :
+    print("\n// ── BALANCE DES BLANCS (rampe_rgb, sans renormalisation) ──")
+    for r in fit_wb(dossier, T):
+        print(r)
+    print("// ── VOILE (composante globale + desaturation) ──")
+    for r in fit_veil(dossier, T):
+        print(r)
+    for r in fit_desat(dossier, T):
+        print(r)
+
+    print()
     print(rapport(dossier, T))
     print("\n// ── TABLE CALIBREE ──")
     for k in T:

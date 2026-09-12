@@ -44,19 +44,44 @@ describe("reglagesDeBase — jumeau du ton d'un bloc", () => {
     }
   });
 
-  it("la balance des blancs teinte un gris mais garde sa LUMINANCE (renormalisée au blanc)", () => {
-    // La balance des blancs déplace la couleur d'un gris (c'est un virage
-    // global, comme Lightroom — un gris n'a AUCUNE raison de rester neutre). Ce
-    // que la renormalisation au blanc préserve, c'est la LUMINANCE : sans elle,
-    // chercher un virage donnerait un changement d'exposition.
+  it("la balance des blancs teinte un gris ET déplace sa luminance (espace caméra, PAS de renormalisation)", () => {
+    // ⚠️ PARITÉ 02b (audit 09) : Lightroom règle la WB en espace CAMÉRA
+    // (`ABCtoRGB_local_Temp`) et NE préserve PAS la luminance — les DEUX extrêmes
+    // de Température ÉCLAIRCISSENT une rampe grise (mesuré : temperature-p100 Δlum
+    // +0,19 ; m100 +0,23). On a donc RETIRÉ la renormalisation au blanc que ce
+    // test exigeait auparavant. Il vérifie maintenant les deux faits mesurés :
+    // la couleur vire, ET la luminance monte aux deux signes.
     const luma = (c: Vec3) => c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
-    for (const g of [0.1, 0.4, 0.75]) {
-      const out = reglagesDeBaseSpec([g, g, g], g, avec({ temperature: 60, nuance: -40 }));
-      // La couleur A bougé (le virage), la luminance NON.
-      const bouge = Math.abs(out[0] - out[2]) > 1e-3;
-      expect(bouge).toBe(true);
-      expect(Math.abs(luma(out) - g)).toBeLessThan(1e-6);
+    for (const g of [0.1, 0.4]) {
+      const chaud = reglagesDeBaseSpec([g, g, g], g, avec({ temperature: 60 }));
+      const froid = reglagesDeBaseSpec([g, g, g], g, avec({ temperature: -60 }));
+      // La couleur A bougé (le virage) : chaud vers le rouge, froid vers le bleu.
+      expect(chaud[0] - chaud[2]).toBeGreaterThan(1e-3);
+      expect(froid[2] - froid[0]).toBeGreaterThan(1e-3);
+      // Et la luminance MONTE aux deux extrêmes (plus de renormalisation).
+      expect(luma(chaud)).toBeGreaterThan(g + 1e-3);
+      expect(luma(froid)).toBeGreaterThan(g + 1e-3);
     }
+  });
+
+  it("le voile en ajout (dehaze < 0) relève et désature ; en retrait (dehaze > 0) creuse le ton", () => {
+    // ⚠️ PARITÉ 02b : le voile porte désormais une composante GLOBALE (audit 09 —
+    // LR estime un canal sombre, notre voile local était inerte sur un ton plat).
+    // Sur un gris moyen, l'AJOUT (dehaze -100) relève fortement vers l'airlight ;
+    // le RETRAIT (dehaze +100) creuse. Mesuré sur `voile-m100` (in 128 -> 227) et
+    // `voile-p100` (in 128 -> 45).
+    const luma = (c: Vec3) => c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
+    const g = srgbToLinear(128 / 255);
+    const ajout = reglagesDeBaseSpec([g, g, g], g, avec({ dehaze: -100 }));
+    const retrait = reglagesDeBaseSpec([g, g, g], g, avec({ dehaze: 100 }));
+    expect(luma(ajout)).toBeGreaterThan(g + 0.1);   // relève franchement
+    expect(luma(retrait)).toBeLessThan(g - 0.1);     // creuse franchement
+    // La désaturation ne mord que sur une couleur, en ajout : un rouge saturé
+    // perd de la chroma OKLab sous dehaze -100.
+    const rouge: Vec3 = [srgbToLinear(0.9), srgbToLinear(0.1), srgbToLinear(0.1)];
+    const chroma = (c: Vec3): number => { const lab = linearSrgbToOklab(c); return Math.hypot(lab[1], lab[2]); };
+    const lR = rouge[0] * 0.2126 + rouge[1] * 0.7152 + rouge[2] * 0.0722;
+    expect(chroma(reglagesDeBaseSpec(rouge, lR, avec({ dehaze: -100 })))).toBeLessThan(chroma(rouge));
   });
 
   // ── LE GATE : UNE SEULE QUANTIFICATION ────────────────────────────────────
@@ -65,10 +90,11 @@ describe("reglagesDeBase — jumeau du ton d'un bloc", () => {
   // Contraste +40, courbe) sur une rampe de gris 8 bits. D'UN BLOC (le module),
   // une seule quantification finale ; EMPILÉE (six effets 8 bits), une
   // quantification entre chacun. ⚠️ Valeurs RE-MESURÉES le 2026-09-12 après la
-  // calibration du ton sur Lightroom (formes ancrées) : d'un bloc **160 niveaux,
-  // trou max 3** ; empilé **140** (avant calibration : 130 / trou 3 / 104 empilé).
-  // Les formes ancrées empilent plus DOUCEMENT — l'empilé perd moins qu'avant,
-  // donc la marge bloc-vs-empilé s'est resserrée (20 niveaux), mais le bloc reste
+  // parité 02b (Blancs/Noirs LOCAUX sur `sBlur`) : d'un bloc **174 niveaux, trou
+  // max 3** ; empilé **140** (avant 02b : 160 / trou 3 / 140 empilé ; avant
+  // calibration du ton : 130 / trou 3 / 104 empilé). Porter les Noirs sur la
+  // luminance floutée redistribue leur lift et écarte davantage les niveaux d'un
+  // bloc ; l'empilé (chaque étape quantifiée) est inchangé. Le bloc reste très
   // devant : une seule quantification garde plus de niveaux, c'est l'intérêt du
   // module.
   it("« 132 niveaux, pas 109 » : le ton d'un bloc quantifié une fois garde les niveaux", () => {

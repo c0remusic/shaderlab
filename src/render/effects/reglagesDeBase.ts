@@ -39,6 +39,20 @@ import { RB_TABLE } from "./reglagesDeBaseTable";
  * l'expression, voir `srgbTransfer.ts`) ; la balance des blancs en lumière
  * linéaire ; vibrance / saturation dans le plan chromatique d'OKLab.
  *
+ * ⚠️ PARITÉ LIGHTROOM 02b (2026-09-12, audit binaire 09). Trois divergences
+ * prouvées corrigées, toutes calibrées sur les rampes mesurées :
+ *  - BALANCE DES BLANCS : plus de renormalisation au blanc. Lightroom règle la WB
+ *    en espace CAMÉRA (`ABCtoRGB_local_Temp`) et NE préserve PAS la luminance —
+ *    les DEUX extrêmes de Température éclaircissent (mesuré). Gains linéaires par
+ *    canal, PAR SIGNE, fittés sur `rampe_rgb` (table `wbTempPos/Neg`, `wbTintPos/Neg`).
+ *  - VOILE : une composante GLOBALE par canal (`veilOp`) s'ajoute au contraste
+ *    local, qui était inerte sur un ton plat (LR estime un canal sombre —
+ *    `dark_channel`). Plus une désaturation des couleurs en ajout (`dehazeDesatK`).
+ *  - BLANCS / NOIRS : leurs cloches pèsent sur la luminance FLOUTÉE (`sBlur`),
+ *    LOCALES comme LR (`local_whites_blacks`), au lieu du pixel ponctuel. Sur une
+ *    rampe `sBlur = s`, donc le fit ne bouge pas ; la localité ne se voit que sur
+ *    une vraie image.
+ *
  * ── LES FORMES SONT ANCRÉES, ET CALIBRÉES SUR LES RAMPES MESURÉES ────────────
  *
  * ✅ CALIBRÉ SUR LIGHTROOM 14.5 le 2026-09-12 (Antoine : « contraste et
@@ -104,8 +118,6 @@ const LUMA = [0.2126, 0.7152, 0.0722] as const;
 
 // AMPLITUDES DE FORME — lues depuis `RB_TABLE` (une seule source, réécrite par
 // `assets/calibrer-ton.py`). Le WGSL interpole les MÊMES valeurs (voir plus bas).
-const WB_TEMP_K = RB_TABLE.wbTempK;
-const WB_TINT_K = RB_TABLE.wbTintK;
 const TEXTURE_AMT = 1.2;  // gain additif linéaire de la bande fine à |100| (flou spatial, hors calibration rampe)
 const CLARITY_AMT = 0.9;  // gain additif linéaire de la bande moyenne à |100| (flou spatial, hors calibration rampe)
 const DEHAZE_AMT = 0.35;  // amplitude du retrait/ajout de voile à |100| (flou spatial, hors calibration rampe)
@@ -151,6 +163,25 @@ function exposureOp(s: number, ev: number): number {
   return 1 - Math.pow(1 - s, Math.exp(RB_TABLE.expoG * ev));
 }
 
+/** Voile GLOBAL, par canal en espace sRGB (`s`), `d = dehaze/100`. Composante que
+ *  Lightroom porte par un canal sombre et qui DÉPLACE une rampe plate là où notre
+ *  contraste local `(lp−blurLuma)` est inerte (audit binaire 09). Identité à d=0.
+ *   - d>0 (retrait) : récupération ancrée `s(1−ω)/(1−ω·s)`, `ω = dehazeOmega·d` —
+ *     décontraste inverse, creuse les tons, tient 0 et 1.
+ *   - d<0 (ajout) : écran vers un airlight `1−(1−a)·(1−s)^g`, `a = dehazeAirlight·|d|`,
+ *     `g = 1+(dehazeGamma−1)·|d|` — relève le noir vers l'airlight, tient le blanc.
+ *  Jumeau de `rb_veil` WGSL. Formes fittées sur `voile-p100`/`voile-m100`. */
+function veilOp(s: number, d: number): number {
+  s = clamp01(s);
+  if (d > 0) {
+    const w = RB_TABLE.dehazeOmega * d;
+    return clamp01((s * (1 - w)) / (1 - w * s));
+  }
+  const a = RB_TABLE.dehazeAirlight * -d;
+  const g = 1 + (RB_TABLE.dehazeGamma - 1) * -d;
+  return clamp01(1 - (1 - a) * Math.pow(1 - s, g));
+}
+
 /** Vrai quand tous les curseurs sont à leur défaut (séparations à 25/50/75). */
 function auDefaut(p: readonly number[]): boolean {
   for (let i = 0; i < 17; i++) if (p[i] !== 0) return false;
@@ -190,16 +221,19 @@ export function reglagesDeBaseSpec(rgb: Vec3, blurLuma: number, p: readonly numb
 
   let c: Vec3 = [rgb[0], rgb[1], rgb[2]];
 
-  // 1. BALANCE DES BLANCS — gains linéaires par canal, renormalisés au blanc
-  //    (un gris garde sa luminance). Température : R+ / B−. Nuance : magenta
-  //    R+B+ / G−.
-  const tU = temperature / 100, nU = nuance / 100;
-  let gR = 1 + WB_TEMP_K * tU + WB_TINT_K * nU;
-  let gG = 1 - WB_TINT_K * nU;
-  let gB = 1 - WB_TEMP_K * tU + WB_TINT_K * nU;
-  const norm = LUMA[0] * gR + LUMA[1] * gG + LUMA[2] * gB;
-  gR /= norm; gG /= norm; gB /= norm;
-  c = [c[0] * gR, c[1] * gG, c[2] * gB];
+  // 1. BALANCE DES BLANCS — gains linéaires par canal, PAR SIGNE, SANS
+  //    renormalisation. Lightroom règle la WB en espace CAMÉRA et NE préserve PAS
+  //    la luminance : les deux extrêmes de Température éclaircissent (audit 09,
+  //    mesuré temperature-p100 Δlum +0,19 / m100 +0,23). On applique donc les
+  //    gains fittés sur `rampe_rgb` tels quels et on borne le résultat. Un axe à 0
+  //    a un gain de 1 (identité) ; les deux axes se combinent multiplicativement,
+  //    comme deux mises à l'échelle diagonales successives en espace caméra.
+  const tP = Math.max(temperature / 100, 0), tN = Math.max(-temperature / 100, 0);
+  const nP = Math.max(nuance / 100, 0), nN = Math.max(-nuance / 100, 0);
+  const wbGain = (i: number): number =>
+    (1 + (RB_TABLE.wbTempPos[i] - 1) * tP) * (1 + (RB_TABLE.wbTempNeg[i] - 1) * tN) *
+    (1 + (RB_TABLE.wbTintPos[i] - 1) * nP) * (1 + (RB_TABLE.wbTintNeg[i] - 1) * nN);
+  c = [clamp01(c[0] * wbGain(0)), clamp01(c[1] * wbGain(1)), clamp01(c[2] * wbGain(2))];
 
   // 2-5. TON PERCEPTUEL — exposition (gamma ancré), contraste (sigmoïde ancrée),
   //      hautes lumières / ombres LOCAUX (cloche sur la luminance floutée),
@@ -223,8 +257,8 @@ export function reglagesDeBaseSpec(rgb: Vec3, blurLuma: number, p: readonly numb
     s = s + kSh * shAmt * wSh;                                   // ombres locales (cloche sur luminance floutée)
     s = s + kHl * hlAmt * wHl;                                   // hautes lumières locales
     s = clamp01(s);
-    s = s + kBk * bkAmt * bump(s, RB_TABLE.blackCenter, RB_TABLE.blackKappa); // noirs (ponctuel)
-    s = s + kWh * whAmt * bump(s, RB_TABLE.whiteCenter, RB_TABLE.whiteKappa); // blancs (ponctuel)
+    s = s + kBk * bkAmt * bump(sBlur, RB_TABLE.blackCenter, RB_TABLE.blackKappa); // noirs (local, luminance floutée — comme LR local_whites_blacks)
+    s = s + kWh * whAmt * bump(sBlur, RB_TABLE.whiteCenter, RB_TABLE.whiteKappa); // blancs (local, luminance floutée)
     return srgbToLinear(clamp01(s));
   };
   c = [ton(c[0]), ton(c[1]), ton(c[2])];
@@ -239,10 +273,11 @@ export function reglagesDeBaseSpec(rgb: Vec3, blurLuma: number, p: readonly numb
     const gainPresence =
       (texture / 100) * TEXTURE_AMT * 0                   // bande fine = 0 dans le twin
       + (clarity / 100) * CLARITY_AMT * detailMoyen;
-    // Voile : le flou moyen sert d'estimation du voile. Positif = retirer le
-    // voile (creuser le contraste autour du voile), négatif = en ajouter.
-    const voile = (dehaze / 100) * DEHAZE_AMT * (lp - clamp01(blurLuma));
-    const g = gainPresence + voile;
+    // Voile LOCAL : le flou moyen sert d'estimation du contraste de voile (ce que
+    // faisait déjà le module). Inerte sur un ton plat — c'est la limite corrigée
+    // par le terme GLOBAL ci-dessous.
+    const voileLocal = (dehaze / 100) * DEHAZE_AMT * (lp - clamp01(blurLuma));
+    const g = gainPresence + voileLocal;
     // MULTIPLICATIF sur la luminance, jamais un offset par canal : le binaire de
     // Lightroom fait Texture en log-YCC (etage texture_direct_gf_ycc, filtre
     // guide sur Y) et Clarte par le pipeline LocalContrastY — Y seul, chroma
@@ -253,12 +288,27 @@ export function reglagesDeBaseSpec(rgb: Vec3, blurLuma: number, p: readonly numb
     // Texture ±100. Le piedestal 1e-4 borne les noirs purs comme leur log.
     const fPres = Math.max((lp + g + 1e-4) / (lp + 1e-4), 0);
     c = [c[0] * fPres, c[1] * fPres, c[2] * fPres];
+    // Voile GLOBAL, par canal en sRGB : la composante de ton que Lightroom porte
+    // par un canal sombre et qui agit là où le terme local est inerte (rampe
+    // plate). Fittée sur `voile-p100`/`voile-m100`. La désaturation des couleurs
+    // (côté ajout) est portée par `dehazeDesatK` dans le bloc OKLab plus bas.
+    if (dehaze !== 0) {
+      const d = dehaze / 100;
+      c = [
+        srgbToLinear(veilOp(linearToSrgb(clamp01(c[0])), d)),
+        srgbToLinear(veilOp(linearToSrgb(clamp01(c[1])), d)),
+        srgbToLinear(veilOp(linearToSrgb(clamp01(c[2])), d)),
+      ];
+    }
   }
 
   // 7. VIBRANCE / SATURATION — dans le plan (a,b) d'OKLab, sans atan2 (bug Dawn,
   //    voir `etalonnage`). Saturation : facteur uniforme. Vibrance : fort sur les
   //    couleurs peu saturées, faible sur les saturées, éteinte sur la peau.
-  if (vibrance !== 0 || saturation !== 0) {
+  // Le voile en AJOUT (dehaze < 0) désature les couleurs vers l'airlight (LR
+  // blanchit les saturées) — porté ici comme un facteur de chroma OKLab.
+  const veilChroma = dehaze < 0 ? 1 - RB_TABLE.dehazeDesatK * (-dehaze / 100) : 1;
+  if (vibrance !== 0 || saturation !== 0 || veilChroma !== 1) {
     const lab = linearSrgbToOklab(c);
     const a = lab[1], b = lab[2];
     const chroma = Math.sqrt(a * a + b * b);
@@ -270,7 +320,7 @@ export function reglagesDeBaseSpec(rgb: Vec3, blurLuma: number, p: readonly numb
     }
     const falloff = clamp(1 - chroma / VIB_CHROMA_REF, 0, 1);
     const vibFactor = 1 + (vibrance / 100) * falloff * (1 - skin);
-    const scale = satFactor * vibFactor;
+    const scale = satFactor * vibFactor * veilChroma;
     c = oklabToLinearSrgb([lab[0], a * scale, b * scale]);
   }
 
@@ -322,12 +372,16 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
 `;
 
 const passePyramide: EffectPass[] = (() => {
-  // La pyramide ne sert QUE le flou moyen-large (Hautes lumières / Ombres /
-  // Clarté / Voile). Sautée quand ces quatre curseurs sont à 0 : `prevPass` vaut
-  // alors la source, lue seulement par des termes à 0. Structure identique à la
-  // bande Clarté de `nettete`.
+  // La pyramide sert le flou moyen-large lu par Hautes lumières / Ombres / Blancs
+  // / Noirs (poids sur la luminance floutée `sBlur`) et par Clarté / Voile local
+  // (contraste local). Blancs/Noirs SONT désormais locaux comme Lightroom
+  // (`local_whites_blacks`) : ils doivent donc réveiller la pyramide, sinon
+  // `prevPass` resterait la source et ils perdraient leur localité. Sautée quand
+  // les SIX sont à 0 : `prevPass` vaut alors la source, lue seulement par des
+  // termes à 0. Structure identique à la bande Clarté de `nettete`.
   const utile = (params: Record<string, number>) =>
-    params.highlights !== 0 || params.shadows !== 0 || params.clarity !== 0 || params.dehaze !== 0;
+    params.highlights !== 0 || params.shadows !== 0 || params.whites !== 0 ||
+    params.blacks !== 0 || params.clarity !== 0 || params.dehaze !== 0;
   return [
     { scale: 0.5, wgsl: DOWNSAMPLE_WGSL, enabled: utile },
     { scale: 0.25, wgsl: DOWNSAMPLE_WGSL, enabled: utile },
@@ -343,22 +397,24 @@ const passePyramide: EffectPass[] = (() => {
  *  à interpoler `RB_TABLE` dans le shader — twin et WGSL restent JUMEAUX par
  *  construction, une seule source de vérité. */
 const wf = (n: number): string => (Number.isInteger(n) ? n.toFixed(1) : String(n));
+/** Formate un triplet en littéral `vec3<f32>` WGSL (mêmes valeurs que le twin). */
+const wv3 = (a: readonly number[]): string => `vec3<f32>(${wf(a[0])}, ${wf(a[1])}, ${wf(a[2])})`;
 
 export const reglagesDeBase: EffectModule = {
   id: "reglagesDeBase",
   name: "Réglages de base",
   params: [
-    { name: "temperature", label: "Température", ...R100, trackGradient: TEMPERATURE_GRADIENT, hint: "Balance des blancs relative : positif réchauffe (jaune), négatif refroidit (bleu). Un gris garde sa luminance" },
+    { name: "temperature", label: "Température", ...R100, trackGradient: TEMPERATURE_GRADIENT, hint: "Balance des blancs relative : positif réchauffe (jaune), négatif refroidit (bleu). Comme Lightroom, les deux extrêmes éclaircissent l'image" },
     { name: "nuance", label: "Nuance", ...R100, trackGradient: NUANCE_GRADIENT, hint: "Balance des blancs relative : positif vire au magenta, négatif au vert" },
     { name: "exposure", label: "Exposition", unit: "none", min: -5, max: 5, default: 0, step: 0.05, hint: "Gain global en indices de lumination (IL), 2^valeur en lumière linéaire" },
     { name: "contrast", label: "Contraste", ...R100, hint: "Pente autour du gris moyen, en espace perceptuel" },
     { name: "highlights", label: "Hautes lumières", ...R100, hint: "Récupère (négatif) ou ouvre (positif) les hautes lumières, pondéré par une luminance FLOUTÉE — local, pas une courbe" },
     { name: "shadows", label: "Ombres", ...R100, hint: "Ouvre (positif) ou ferme (négatif) les ombres, local (luminance floutée)" },
-    { name: "whites", label: "Blancs", ...R100, hint: "Déplace le point blanc, poids serré à l'extrémité claire" },
-    { name: "blacks", label: "Noirs", ...R100, hint: "Déplace le point noir, poids serré à l'extrémité sombre" },
+    { name: "whites", label: "Blancs", ...R100, hint: "Déplace le point blanc, pondéré par une luminance FLOUTÉE (local, comme Lightroom)" },
+    { name: "blacks", label: "Noirs", ...R100, hint: "Déplace le point noir, pondéré par une luminance FLOUTÉE (local, comme Lightroom)" },
     { name: "texture", label: "Texture", ...R100, hint: "Contraste local à PETIT rayon (bande fine), sur la luminance" },
     { name: "clarity", label: "Clarté", ...R100, hint: "Contraste local à MOYEN rayon (bande large), sur la luminance" },
-    { name: "dehaze", label: "Correction du voile", ...R100, hint: "Retire (positif) ou ajoute (négatif) un voile estimé à grand rayon" },
+    { name: "dehaze", label: "Correction du voile", ...R100, hint: "Retire (positif, contraste) ou ajoute (négatif, brume claire désaturée) un voile — composante globale sur le ton plus contraste local" },
     { name: "vibrance", label: "Vibrance", ...R100, trackGradient: RAINBOW_GRADIENT, hint: "Dose la chroma NON linéairement : fort sur les couleurs ternes, faible sur les vives, protège les carnations" },
     { name: "saturation", label: "Saturation", ...R100, trackGradient: RAINBOW_GRADIENT, hint: "Dose la chroma uniformément" },
     { name: "paramHighlights", label: "Hautes lumières", ...R100, hint: "Courbe paramétrique : lève ou baisse la région des hautes lumières" },
@@ -377,8 +433,10 @@ ${LINEAR_TO_SRGB_WGSL}
 ${OKLAB_WGSL}
 
 const RB_LUMA = vec3<f32>(0.2126, 0.7152, 0.0722);
-const RB_WB_TEMP_K = ${wf(RB_TABLE.wbTempK)};
-const RB_WB_TINT_K = ${wf(RB_TABLE.wbTintK)};
+const RB_WB_TEMP_POS = ${wv3(RB_TABLE.wbTempPos)};
+const RB_WB_TEMP_NEG = ${wv3(RB_TABLE.wbTempNeg)};
+const RB_WB_TINT_POS = ${wv3(RB_TABLE.wbTintPos)};
+const RB_WB_TINT_NEG = ${wv3(RB_TABLE.wbTintNeg)};
 const RB_EXPO_G = ${wf(RB_TABLE.expoG)};
 const RB_CONTRAST_G = ${wf(RB_TABLE.contrastG)};
 const RB_CONTRAST_PIVOT = ${wf(RB_TABLE.contrastPivot)};
@@ -405,6 +463,10 @@ const RB_CURVE_AMT = ${wf(RB_TABLE.curveAmt)};
 const RB_CURVE_WIN = ${wf(RB_TABLE.curveWin)};
 const RB_VIB_CHROMA_REF = 0.20;
 const RB_SKIN_DIR = vec2<f32>(0.52, 0.854);
+const RB_DEHAZE_OMEGA = ${wf(RB_TABLE.dehazeOmega)};
+const RB_DEHAZE_AIRLIGHT = ${wf(RB_TABLE.dehazeAirlight)};
+const RB_DEHAZE_GAMMA = ${wf(RB_TABLE.dehazeGamma)};
+const RB_DEHAZE_DESAT_K = ${wf(RB_TABLE.dehazeDesatK)};
 
 // Cloche beta normalisee (pic 1 au mode c, nulle en 0 et 1). Jumeau de bump() TS.
 fn rb_bump(v: f32, c: f32, k: f32) -> f32 {
@@ -427,6 +489,22 @@ fn rb_contrast(s: f32, kC: f32, pv: f32) -> f32 {
 fn rb_expo(s: f32, ev: f32) -> f32 {
   if (ev == 0.0) { return s; }
   return 1.0 - pow(1.0 - s, exp(RB_EXPO_G * ev));
+}
+
+// Voile GLOBAL par canal, en sRGB. d>0 = recuperation ancree ; d<0 = ecran vers
+// airlight. Identite a d=0. Jumeau de veilOp() TS (voir son en-tete).
+fn rb_veil(sIn: f32, d: f32) -> f32 {
+  let s = clamp(sIn, 0.0, 1.0);
+  if (d > 0.0) {
+    let w = RB_DEHAZE_OMEGA * d;
+    return clamp(s * (1.0 - w) / (1.0 - w * s), 0.0, 1.0);
+  }
+  if (d < 0.0) {
+    let a = RB_DEHAZE_AIRLIGHT * (-d);
+    let g = 1.0 + (RB_DEHAZE_GAMMA - 1.0) * (-d);
+    return clamp(1.0 - (1.0 - a) * pow(1.0 - s, g), 0.0, 1.0);
+  }
+  return s;
 }
 
 fn rb_curve(s: f32, kSh: f32, kDk: f32, kLt: f32, kHi: f32, sSplit: f32, mSplit: f32, hSplit: f32) -> f32 {
@@ -468,14 +546,18 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
 
   var c = color.rgb; // DEJA lineaire (format -srgb) : aucune conversion sur l'image.
 
-  // 1. BALANCE DES BLANCS — gains lineaires renormalises au blanc.
-  let tU = params[0] / 100.0;
-  let nU = params[1] / 100.0;
-  var gR = 1.0 + RB_WB_TEMP_K * tU + RB_WB_TINT_K * nU;
-  var gG = 1.0 - RB_WB_TINT_K * nU;
-  var gB = 1.0 - RB_WB_TEMP_K * tU + RB_WB_TINT_K * nU;
-  let wbNorm = RB_LUMA.x * gR + RB_LUMA.y * gG + RB_LUMA.z * gB;
-  c = c * vec3<f32>(gR, gG, gB) / wbNorm;
+  // 1. BALANCE DES BLANCS — gains lineaires par canal, PAR SIGNE, SANS
+  //    renormalisation (espace camera, luminance non preservee — audit 09). Un
+  //    axe a 0 rend un gain de 1 ; les deux axes se combinent multiplicativement.
+  let tP = max(params[0] / 100.0, 0.0);
+  let tN = max(-params[0] / 100.0, 0.0);
+  let nP = max(params[1] / 100.0, 0.0);
+  let nN = max(-params[1] / 100.0, 0.0);
+  let wbGain = (vec3<f32>(1.0) + (RB_WB_TEMP_POS - vec3<f32>(1.0)) * tP)
+             * (vec3<f32>(1.0) + (RB_WB_TEMP_NEG - vec3<f32>(1.0)) * tN)
+             * (vec3<f32>(1.0) + (RB_WB_TINT_POS - vec3<f32>(1.0)) * nP)
+             * (vec3<f32>(1.0) + (RB_WB_TINT_NEG - vec3<f32>(1.0)) * nN);
+  c = clamp(c * wbGain, vec3<f32>(0.0), vec3<f32>(1.0));
 
   // 2-5. TON PERCEPTUEL — exposition (gamma ancre), contraste (sigmoide ancree),
   //      HL/ombres locaux (cloche sur la luminance floutee de prevPass), blancs/
@@ -503,8 +585,10 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     s = s + kSh * shAmt * wSh;
     s = s + kHl * hlAmt * wHl;
     s = clamp(s, 0.0, 1.0);
-    s = s + kBk * bkAmt * rb_bump(s, RB_BLACK_CENTER, RB_BLACK_KAPPA);
-    s = s + kWh * whAmt * rb_bump(s, RB_WHITE_CENTER, RB_WHITE_KAPPA);
+    // Blancs / Noirs LOCAUX : cloche sur la luminance floutee (sBlur), comme LR
+    // local_whites_blacks — et comme HL/Ombres ci-dessus. Sur une rampe sBlur = s.
+    s = s + kBk * bkAmt * rb_bump(sBlur, RB_BLACK_CENTER, RB_BLACK_KAPPA);
+    s = s + kWh * whAmt * rb_bump(sBlur, RB_WHITE_CENTER, RB_WHITE_KAPPA);
     c[i] = srgb_to_linear(clamp(s, 0.0, 1.0));
   }
 
@@ -516,16 +600,27 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     let detailMoyen = lp - blurLuma;
     let gainPresence = params[8] / 100.0 * RB_TEXTURE_AMT * detailFin
       + params[9] / 100.0 * RB_CLARITY_AMT * detailMoyen;
-    let voile = params[10] / 100.0 * RB_DEHAZE_AMT * (lp - blurLuma);
+    let voileLocal = params[10] / 100.0 * RB_DEHAZE_AMT * (lp - blurLuma);
     // Facteur sur la luminance, rapports de canaux preserves — Lightroom fait
     // Texture et Clarte sur Y seul en log-YCC (voir le twin) ; un offset par
     // canal changeait la saturation et la teinte.
-    let fPres = max((lp + gainPresence + voile + 1e-4) / (lp + 1e-4), 0.0);
+    let fPres = max((lp + gainPresence + voileLocal + 1e-4) / (lp + 1e-4), 0.0);
     c = c * fPres;
+    // Voile GLOBAL par canal (sRGB) — la composante que le contraste local ne
+    // porte pas (rampe plate). Fittee sur voile-p100/m100.
+    if (params[10] != 0.0) {
+      let d = params[10] / 100.0;
+      c = vec3<f32>(
+        srgb_to_linear(rb_veil(linear_to_srgb(clamp(c.x, 0.0, 1.0)), d)),
+        srgb_to_linear(rb_veil(linear_to_srgb(clamp(c.y, 0.0, 1.0)), d)),
+        srgb_to_linear(rb_veil(linear_to_srgb(clamp(c.z, 0.0, 1.0)), d)));
+    }
   }
 
-  // 7. VIBRANCE / SATURATION — plan (a,b) d'OKLab, sans atan2.
-  if (params[11] != 0.0 || params[12] != 0.0) {
+  // 7. VIBRANCE / SATURATION (+ desaturation du VOILE en ajout) — plan (a,b)
+  //    d'OKLab, sans atan2.
+  let veilChroma = select(1.0, 1.0 - RB_DEHAZE_DESAT_K * (-params[10] / 100.0), params[10] < 0.0);
+  if (params[11] != 0.0 || params[12] != 0.0 || veilChroma != 1.0) {
     let lab = linear_srgb_to_oklab(c);
     let a = lab.y;
     let b = lab.z;
@@ -538,7 +633,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     }
     let falloff = clamp(1.0 - chroma / RB_VIB_CHROMA_REF, 0.0, 1.0);
     let vibFactor = 1.0 + params[11] / 100.0 * falloff * (1.0 - skin);
-    let scale = satFactor * vibFactor;
+    let scale = satFactor * vibFactor * veilChroma;
     c = oklab_to_linear_srgb(vec3<f32>(lab.x, a * scale, b * scale));
   }
 

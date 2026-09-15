@@ -120,3 +120,45 @@ d'Antoine ; verdict d'usage. Si un re-run Lightroom avec les BONNES clés (`Spli
 pour Ombres/HL, ou l'UI Color Grading pilotée directement) devient possible, Ombres/HL/
 Balance/Fusion deviendraient calibrables et `colorGradingTable.ts` se recalerait par le
 même script.
+
+## Exploitation des mesures du 2026-09-15 — le virage est enfin mesurable
+
+Les teintes Ombres et Hautes lumières, la Balance, la Fusion et les quatre
+Luminances par plage ont été mesurées sous leurs VRAIES clés (`SplitToning*`
+pour les deux premières — Lightroom ignore `ColorGradeShadowHue`). Treize
+mesures exploitables, témoin `temoin3`.
+
+**Livré — le clip de gamut qui PRÉSERVE LA TEINTE.** L'écrêtage par canal en fin
+de module faisait dériver la teinte là où le virage est le plus fort : il coupe
+le canal qui déborde et laisse les deux autres, ce qui TOURNE la couleur au lieu
+de la désaturer. Remplacé par une réduction de chroma à L constant (bissection
+en seize pas, twin et WGSL jumeaux). Écart aux treize mesures, recalculé par la
+session principale avec le vrai twin : **moyenne 7,50 → 6,51 niveaux, pire cas
+74,8 → 60,7**. Aucune constante nouvelle, aucun champ d'interface. Le pire cas
+était le blanc de `st-hl-orange`, que Lightroom rend blanc et que l'écrêtage par
+canal rendait jaune. Quatre références régénérées et relues.
+
+**Retenu — `tintExp` et le nouveau `softSpread`.** La contre-expertise a montré
+que le constat qui les portait (« la chute aux extrêmes est un vrai poids, pas de
+l'écrêtage ») est faux là où l'enveloppe agirait : aux niveaux concernés le canal
+rouge est déjà à 0 ou à 255. Une partie de l'écart attribué à un poids de plage
+était donc de l'écrêtage — ce que le clip ci-dessus corrige sans constante. Il
+reste à refaire l'ajustement AVEC le clip en place avant de juger s'il subsiste
+un écart qu'une enveloppe expliquerait.
+
+**Retenu — le signe de `softSpread`.** Ces treize mesures ne le déterminent pas :
+0,158 niveau sur toute la plage ±0,4, et deux optimiseurs de part et d'autre de
+zéro à 3 % de coût. Cause identifiée : `soft` sature contre son clamp dès
+Fusion ≤ 18, donc l'optimiseur pousse dans une direction que le clamp absorbe
+gratuitement. Si `softBase` monte un jour, BORNER `softSpread` pour que la course
+reste vivante — sinon le curseur Fusion est mort sur 18 % de sa course.
+
+**Ce que les mesures disent et qui reste à porter** (aucun code écrit dessus) :
+les directions de teinte sont fausses de +15,7° sur l'orange, −12,9° sur le vert
+et +26,8° sur le bleu, et la déformation n'est pas un décalage constant — sept
+hypothèses d'espace ont été testées et rejetées, la nôtre reste la moins mauvaise.
+Les poids de plage mesurés ont des traînées bien plus longues que nos smoothsteps
+(30 % du pic encore à L = 0,60 pour les ombres, là où le nôtre est déjà nul).
+Fusion est un MULTIPLICATEUR centré sur la bascule (×2,25 à la bascule, ×1 aux
+bouts) et non un élargissement, et son sens est l'INVERSE de notre documentation :
+100 rend la transition plus franche.

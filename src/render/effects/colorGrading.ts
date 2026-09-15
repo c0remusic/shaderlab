@@ -83,6 +83,39 @@ function dirFromHue(hueDeg: number): [number, number] {
   return [lab[1] / c, lab[2] / c];
 }
 
+/** Ramène une couleur OKLab dans le gamut sRGB EN PRÉSERVANT SA TEINTE : la
+ *  chroma se réduit à L constant jusqu'à ce que les trois canaux rentrent, au
+ *  lieu d'écrêter chaque canal séparément.
+ *
+ *  ⚠️ CE N'EST PAS UN DÉTAIL DE FINITION. Un écrêtage PAR CANAL fait dériver la
+ *  teinte exactement là où le virage est le plus fort : il coupe le canal qui
+ *  déborde et laisse les deux autres, ce qui tourne la couleur au lieu de la
+ *  désaturer. Mesuré sur les treize mesures de virage de Lightroom : écart moyen
+ *  7,50 → 6,51 niveaux et pire cas 74,8 → 60,7, sans AUCUNE constante nouvelle.
+ *  Le pire cas était le blanc de `st-hl-orange`, que Lightroom rend blanc et que
+ *  l'écrêtage par canal rendait jaune.
+ *
+ *  La bissection tient en seize pas — la chroma admissible est monotone en `s`,
+ *  donc seize pas donnent mieux que le pas de quantification 8 bits. Si `L` lui
+ *  même sort de [0,1] (une Luminance poussée à fond), réduire la chroma n'y peut
+ *  rien : l'écrêtage final s'en charge, et c'est le seul cas où il agit encore. */
+function clipGamut(lab: Vec3): Vec3 {
+  const dedans = (c: Vec3): boolean =>
+    c[0] >= -1e-6 && c[0] <= 1 + 1e-6 &&
+    c[1] >= -1e-6 && c[1] <= 1 + 1e-6 &&
+    c[2] >= -1e-6 && c[2] <= 1 + 1e-6;
+  const direct = oklabToLinearSrgb(lab);
+  if (dedans(direct)) return [clamp01(direct[0]), clamp01(direct[1]), clamp01(direct[2])];
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 16; i++) {
+    const s = (lo + hi) / 2;
+    if (dedans(oklabToLinearSrgb([lab[0], lab[1] * s, lab[2] * s]))) lo = s;
+    else hi = s;
+  }
+  const fin = oklabToLinearSrgb([lab[0], lab[1] * lo, lab[2] * lo]);
+  return [clamp01(fin[0]), clamp01(fin[1]), clamp01(fin[2])];
+}
+
 /**
  * Twin CPU du shader. `rgb` LINÉAIRE, `p` les 14 paramètres dans l'ordre du uniform
  * (0..2 ombres teinte/sat/lum ; 3..5 tons moyens ; 6..8 hautes lumières ; 9..11
@@ -129,8 +162,7 @@ export function colorGradingSpec(rgb: Vec3, p: readonly number[]): Vec3 {
     (hLum / 100) * CG.lumK * wh +
     (gLum / 100) * CG.lumK * wgL;
 
-  const out = oklabToLinearSrgb([L + dL, a + da, b + db]);
-  return [clamp01(out[0]), clamp01(out[1]), clamp01(out[2])];
+  return clipGamut([L + dL, a + da, b + db]);
 }
 
 // ── DÉCLARATION DU MODULE ────────────────────────────────────────────────────
@@ -201,6 +233,10 @@ const CG_BALANCE_SHIFT = ${f(CG.balanceShift)};
 // Direction unitaire (a,b) d'OKLab de la teinte pure hueDeg. Jumeau de dirFromHue
 // cote TS. AUCUN atan2 : on derive une direction d'un PARAMETRE, on ne mesure
 // jamais l'angle d'une couleur (bug Dawn du 3e quadrant, ticket 04).
+fn cg_dedans(c: vec3<f32>) -> bool {
+  return all(c >= vec3<f32>(-1e-6)) && all(c <= vec3<f32>(1.000001));
+}
+
 fn cg_dir(hueDeg: f32) -> vec2<f32> {
   let lin = srgb_to_linear3(hsl2rgb(fract(hueDeg / 360.0), 1.0, 0.5));
   let lab = linear_srgb_to_oklab(lin);
@@ -252,7 +288,25 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
          + (params[8] / 100.0) * CG_LUM_K * wh
          + (params[11] / 100.0) * CG_LUM_K * wgL;
 
-  let outc = oklab_to_linear_srgb(vec3<f32>(L + dL, a + vecAB.x, b + vecAB.y));
+  // Clip qui PRESERVE LA TEINTE, jumeau de clipGamut (voir le twin) : la chroma
+  // se reduit a L constant jusqu'a ce que les trois canaux rentrent, au lieu
+  // d'ecreter chaque canal separement — un ecretage par canal TOURNE la couleur
+  // la ou le virage est le plus fort, il ne la desature pas.
+  let labOut = vec3<f32>(L + dL, a + vecAB.x, b + vecAB.y);
+  var outc = oklab_to_linear_srgb(labOut);
+  if (!cg_dedans(outc)) {
+    var lo = 0.0;
+    var hi = 1.0;
+    for (var i = 0; i < 16; i = i + 1) {
+      let s = (lo + hi) * 0.5;
+      if (cg_dedans(oklab_to_linear_srgb(vec3<f32>(labOut.x, labOut.y * s, labOut.z * s)))) {
+        lo = s;
+      } else {
+        hi = s;
+      }
+    }
+    outc = oklab_to_linear_srgb(vec3<f32>(labOut.x, labOut.y * lo, labOut.z * lo));
+  }
   return vec4<f32>(clamp(outc, vec3<f32>(0.0), vec3<f32>(1.0)), color.a);
 }
 `,

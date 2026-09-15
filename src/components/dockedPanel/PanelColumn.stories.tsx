@@ -376,3 +376,88 @@ export const TabGroupShowsOneContent: Story = {
     await expect(args.onSetActiveTab).toHaveBeenCalledWith("properties");
   },
 };
+
+/**
+ * GARDE DU PIRE CAS QU'UN GLISSEMENT PERMET : les QUATRE cartes dans UNE seule
+ * colonne, carte Développement comprise.
+ *
+ * Pourquoi elle manquait. `FiveRowDocumentHidesNoRow` juste au-dessus garde un
+ * défaut précis et le garde bien — mais sur TROIS cartes, la disposition de
+ * 2026-07-27. L'application en monte QUATRE depuis le 2026-09-11, et la carte
+ * Développement est de très loin la plus lourde. Elle vit normalement dans une
+ * autre colonne que la Pile, ce qui répartit la pression ; rien n'empêche
+ * l'utilisateur de tout glisser dans une seule, et c'est ce cas-là que personne
+ * ne mesurait.
+ *
+ * Les hauteurs de contenu sont MESURÉES sur la vraie fenêtre le 2026-09-15, un
+ * document ouvert et un module de l'étage réglé (sonde CDP) :
+ *   Presets 132 · Pile 112 · Propriétés 334 (relevé 2026-07-27) · Développement
+ *   **2972**.
+ *
+ * Ce dernier chiffre est tout l'objet de la story : l'étage porte trois modules
+ * et des dizaines de curseurs, donc sa hauteur NATURELLE dépasse la fenêtre à
+ * elle seule. Ce qui doit tenir, c'est que la carte le borne et défile DEDANS —
+ * jamais la colonne (ADR-0001). Mesuré le même jour sur la vraie fenêtre :
+ * `scrollHeight === clientHeight === 1205` sur la colonne, avec cette carte
+ * dedans. La chaîne de compression marche ; cette garde est ce qui l'empêche de
+ * cesser de marcher.
+ */
+const DEVELOP_CONTENT_HEIGHT = 2972;
+
+export const FourCardsInOneColumnDoNotScrollTheColumn: Story = {
+  render: () => (
+    <div className="sb-dock-viewport" style={{ position: "relative", height: DOCK_VIEWPORT_HEIGHT }}>
+      <style>{`.sb-dock-viewport .panel-column__grid { max-height: ${DOCK_VIEWPORT_HEIGHT - DOCK_VIEWPORT_MARGIN}px; }`}</style>
+      <PanelColumn
+        layout={[[singleGroup("presets"), singleGroup("layers"), singleGroup("properties"), singleGroup("develop")]]}
+        onMove={() => {}}
+        width={320}
+        onWidthChange={() => {}}
+        onSetActiveTab={() => {}}
+        onGroupCollapsedChange={() => {}}
+        panels={[
+          fillerPanel("presets", "Presets", OTHER_PANEL_CONTENT_HEIGHTS.presets, true),
+          fillerPanel("layers", "Pile", 112, true),
+          fillerPanel("properties", "Propriétés · Lens distortion", OTHER_PANEL_CONTENT_HEIGHTS.properties),
+          // `variableLength` désigne le RANG DE SACRIFICE — qui cède de la
+          // hauteur en premier — et non le fait de céder.
+          //
+          // ⚠️ Vérifié, parce que j'avais écrit l'inverse : retirer ce drapeau
+          // laisse la story VERTE. Ce qui borne réellement la carte est le
+          // couple `min-height: 0` + `overflow-y` de sa zone défilante
+          // (`DockedPanelCard.css`) ; le drapeau ne fait qu'ordonner les
+          // cessions entre cartes. Le témoin qui rougit pour de vrai est plus
+          // bas : casser ce couple par une surcharge fait échouer la story.
+          fillerPanel("develop", "Développement", DEVELOP_CONTENT_HEIGHT, true),
+        ]}
+      />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const grid = canvasElement.querySelector<HTMLElement>(".panel-column__grid")!;
+    const cards = Array.from(canvasElement.querySelectorAll<HTMLElement>(".docked-panel-card"));
+
+    // Témoin de SIGNAL : les quatre cartes sont bien rendues. Sans lui, un
+    // layout qui n'en rendrait qu'une passerait au vert sans rien prouver.
+    await expect(cards).toHaveLength(4);
+
+    // Témoin de PRESSION : la carte Développement porte à elle seule plus que
+    // la fenêtre. Si ce n'était pas le cas, la colonne ne serait pas en déficit
+    // et la garde ne garderait rien — le même piège que les hauteurs des autres
+    // cartes dans la story précédente.
+    await expect(DEVELOP_CONTENT_HEIGHT).toBeGreaterThan(DOCK_VIEWPORT_HEIGHT);
+
+    // L'INVARIANT : la colonne ne défile pas. C'est la carte qui borne.
+    await expect(grid.scrollHeight).toBeLessThanOrEqual(grid.clientHeight);
+
+    // Et elle borne en DÉFILANT DEDANS, ce qui est la seule façon acceptable de
+    // tenir un contenu plus grand que la place — pas en le rognant.
+    //
+    // POUVOIR DISCRIMINANT ÉPROUVÉ, et pas supposé : surcharger la zone
+    // défilante de la carte en `min-height: auto; overflow-y: visible` fait
+    // échouer cette story. C'est ce couple-là qui tient ADR-0001, pas le
+    // `variableLength` ci-dessus — essayé, la story reste verte sans lui.
+    const develop = cards[3].querySelector<HTMLElement>(".docked-panel-card__content")!;
+    await expect(develop.scrollHeight).toBeGreaterThan(develop.clientHeight);
+  },
+};

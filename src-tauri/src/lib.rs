@@ -566,6 +566,49 @@ fn delete_preset(app: tauri::AppHandle, id: String) -> Result<(), String> {
     fs::remove_file(&path).map_err(|e| format!("Suppression du preset {id} échouée: {e}"))
 }
 
+/// Fichier unique de la DISPOSITION DE L'ESPACE DE TRAVAIL — colonnes du dock,
+/// groupes d'onglets, largeur. À côté des presets, dans le dossier de config de
+/// l'app, parce que c'est la même nature de donnée : un choix de l'utilisateur
+/// qui n'appartient à aucun document.
+///
+/// Un SEUL fichier et pas un dossier : il n'y a qu'une disposition à la fois,
+/// et lui donner un dossier inviterait à en collectionner alors que rien dans
+/// le produit ne le demande.
+fn workspace_layout_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("Dossier de config app introuvable: {e}"))?;
+    Ok(dir.join("workspace-layout.json"))
+}
+
+/// `Ok(None)` quand aucune disposition n'a encore été enregistrée — le premier
+/// lancement, et le cas le plus courant. Distinct d'une ERREUR de lecture, qui
+/// remonte : un fichier présent mais illisible est un incident à signaler, pas
+/// un défaut silencieux qui ramènerait l'utilisateur à la disposition d'usine
+/// sans rien dire.
+#[tauri::command]
+fn read_workspace_layout(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let path = workspace_layout_path(&app)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    fs::read_to_string(&path)
+        .map(Some)
+        .map_err(|e| format!("Lecture de la disposition échouée: {e}"))
+}
+
+#[tauri::command]
+fn write_workspace_layout(app: tauri::AppHandle, contents: String) -> Result<(), String> {
+    let path = workspace_layout_path(&app)?;
+    let path_str = path.to_string_lossy().into_owned();
+    ensure_parent_dir(&path_str)?;
+    // Écriture ATOMIQUE (tmp + rename), comme les presets et l'export : une
+    // coupure en pleine écriture laisserait sinon un JSON tronqué, et le
+    // prochain lancement retomberait sur la disposition d'usine.
+    write_atomic(&path_str, contents.as_bytes())
+}
+
 fn is_json_path(path: &str) -> bool {
     path.to_ascii_lowercase().ends_with(".json")
 }
@@ -672,7 +715,9 @@ pub fn run() {
             pick_texture_folder,
             list_texture_files,
             default_texture_dir,
-            get_texture_thumbnail
+            get_texture_thumbnail,
+            read_workspace_layout,
+            write_workspace_layout
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

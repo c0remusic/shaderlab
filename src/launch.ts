@@ -282,3 +282,16 @@ export async function getTextureThumbnail(path: string): Promise<Uint8Array> {
   const data = await invoke<ArrayBuffer>("get_texture_thumbnail", { path });
   return new Uint8Array(data);
 }
+
+/** Disposition de l'espace de travail telle qu'elle est sur disque, ou `null`
+ *  si rien n'a encore été enregistré — le premier lancement. Un fichier présent
+ *  mais illisible LÈVE plutôt que de rendre `null` : retomber en silence sur la
+ *  disposition d'usine effacerait le travail d'arrangement de l'utilisateur
+ *  sans qu'il puisse le savoir. */
+export async function readWorkspaceLayout(): Promise<string | null> {
+  return invoke<string | null>("read_workspace_layout");
+}
+
+export async function writeWorkspaceLayout(contents: string): Promise<void> {
+  return invoke<void>("write_workspace_layout", { contents });
+}

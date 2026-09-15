@@ -85,3 +85,51 @@ describe("DocumentSession.pilePourPreset", () => {
     expect(session.cadreToile()).toEqual({ x: 10, y: 20, width: 100, height: 80 });
   });
 });
+
+describe("DocumentSession.pilePourPreset — calques verrouillés", () => {
+  it("préserve un calque d'effet verrouillé « Tout », comme une photo", () => {
+    const stack = new LayerStack();
+    const photo = stack.addPhotoLayer("src-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, "photo");
+    const protege = stack.addLayer("glow", photo);
+    stack.addLayer("grain", photo);
+    stack.setLayerLock(protege, "all", true);
+    const session = new DocumentSession(stack);
+
+    session.commit(session.pilePourPreset(effetsDuPreset().layers, {}));
+
+    const pile = session.layers();
+    // Le verrouillé survit, le calque d'effet NON verrouillé part.
+    expect(pile.map((l) => l.id)).toContain(protege);
+    expect(pile.filter((l) => l.effectId === "grain" && l.id !== protege)).toHaveLength(1);
+    expect(pile.some((l) => l.effectId === "glow" && l.id !== protege)).toBe(false);
+  });
+
+  it("garde l'ordre RELATIF des calques préservés, verrou et photo mêlés", () => {
+    const stack = new LayerStack();
+    const photoBasse = stack.addPhotoLayer("src-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, "fond");
+    const verrouille = stack.addLayer("glow", photoBasse);
+    stack.setLayerLock(verrouille, "all", true);
+    const photoHaute = stack.addPhotoLayer("src-2", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, "sujet");
+    const session = new DocumentSession(stack);
+
+    session.commit(session.pilePourPreset(effetsDuPreset().layers, {}));
+
+    const ids = session.layers().map((l) => l.id);
+    // Les regrouper par genre réordonnerait un calque que le verrou fige.
+    expect(ids.slice(0, 3)).toEqual([photoBasse, verrouille, photoHaute]);
+  });
+
+  it("laisse partir un calque seulement verrouillé en position ou en masque", () => {
+    const stack = new LayerStack();
+    const photo = stack.addPhotoLayer("src-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, "photo");
+    const partiel = stack.addLayer("glow", photo);
+    stack.setLayerLock(partiel, "position", true);
+    const session = new DocumentSession(stack);
+
+    session.commit(session.pilePourPreset(effetsDuPreset().layers, {}));
+
+    // Seul « Tout » refuse la suppression (`isStructureLocked`) : un verrou
+    // partiel porte sur le CONTENU, pas sur la présence du calque.
+    expect(session.layers().map((l) => l.id)).not.toContain(partiel);
+  });
+});

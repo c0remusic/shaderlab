@@ -7,6 +7,7 @@ import type { LayerState } from "./layers/types";
 // Lightroom, déposé (ADR-0002). Il vit toujours dans `layers/photoLayer.ts`
 // pour `presets/presetDocument.ts` — ne pas le réintroduire ici.
 import { canAddPhotoLayer, countPhotoLayers } from "./layers/photoLayer";
+import { lockedEffectLayerCount } from "./presets/preservePhotoLayers";
 import {
   PHOTO_CANVAS_FORMAT,
   canvasSizeFor,
@@ -81,7 +82,8 @@ import type { BrushSettings } from "./mask/maskPainter";
 import { getBrushRaster } from "./mask/brushSource";
 import { PanelColumn } from "./components/dockedPanel/PanelColumn";
 import { isPanelShown, movePanelInDock, setActiveTab, setGroupCollapsed, singleGroup, toFullDockTarget, visibleDockLayout, type DockDropTarget, type DockLayout } from "./ui/dockLayout";
-import { clampDockWidth } from "./components/dockedPanel/dockWidth";
+import { clampDockWidth, DOCK_WIDTH_DEFAUT } from "./components/dockedPanel/dockWidth";
+import { ECRITURE_DISPOSITION_MS, loadWorkspaceLayout, serializeWorkspaceLayout, tauriWorkspaceLayoutStore } from "./ui/workspaceLayoutStore";
 import { EffectSelector, LayerControls, LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
 import { PhotoPanel } from "./components/PhotoPanel";
@@ -332,7 +334,7 @@ export default function App() {
   // dire ce qui est CONSERVÉ, pas ce qui est perdu : depuis T1 les calques
   // photo survivent à l'application d'un preset — voir
   // `presets/applyPresetImpact.ts`.
-  const [pendingPresetApply, setPendingPresetApply] = useState<{ id: string; photoLayerCount: number } | null>(null);
+  const [pendingPresetApply, setPendingPresetApply] = useState<{ id: string; photoLayerCount: number; lockedEffectCount: number } | null>(null);
 
   // Workflow d'ÉCRITURE des presets (portes de confirmation + les trois points
   // d'entrée qui les traversent) : extrait dans son propre hook, sur le modèle
@@ -356,8 +358,63 @@ export default function App() {
   // Largeur du dock — état session, partagée par toutes les colonnes,
   // pas d'entrée d'historique (disposition d'interface, pas donnée de
   // calque, même principe que dockLayout ci-dessus).
-  const [dockWidth, setDockWidth] = useState(320);
+  const [dockWidth, setDockWidth] = useState(DOCK_WIDTH_DEFAUT);
   const handleDockWidthChange = useCallback((width: number) => setDockWidth(clampDockWidth(width)), []);
+
+  // LA DISPOSITION SURVIT AU REDÉMARRAGE (2026-09-15, arbitrage d'Antoine).
+  // Elle vivait dans ces deux `useState` seuls, donc le dock repartait au défaut
+  // à chaque lancement — pendant que `migrateDockLayout`, écrit et testé dix
+  // fois, affirmait en commentaire qu'elle était persistée et n'avait aucun
+  // appelant. Toute la lecture (JSON, forme, migration, revalidation de l'onglet
+  // actif, bornes de largeur) vit dans `ui/workspaceLayoutStore`, éprouvée sans
+  // Tauri ; il ne reste ici que le branchement.
+  //
+  // Un seul chargement, au montage. Rien à re-lire ensuite : cet état n'a qu'un
+  // écrivain, cette fenêtre.
+  const dispositionChargee = useRef(false);
+  useEffect(() => {
+    let annule = false;
+    void loadWorkspaceLayout(tauriWorkspaceLayoutStore, clampDockWidth)
+      .then((enregistree) => {
+        if (annule) return;
+        if (enregistree) {
+          setDockLayout(enregistree.dock);
+          setDockWidth(enregistree.dockWidth);
+        }
+        // Posé DANS tous les cas, y compris quand rien n'était enregistré :
+        // c'est le feu vert de l'enregistrement ci-dessous, et sans lui un
+        // premier lancement n'enregistrerait jamais rien.
+        dispositionChargee.current = true;
+      })
+      .catch((e) => setError(messageFromUnknown(e)));
+    return () => {
+      annule = true;
+    };
+  }, []);
+
+  // Enregistrement à chaque changement, APRÈS le chargement seulement — sans
+  // cette garde, le premier rendu écraserait le fichier avec la disposition
+  // d'usine avant même de l'avoir lu.
+  //
+  // ⚠️ DIFFÉRÉ, et ce n'est pas un confort : `onWidthChange` part à chaque
+  // `pointermove` du redimensionnement de colonne (`PanelColumn`), donc une
+  // écriture directe ferait des dizaines d'écritures atomiques par seconde
+  // pendant le glissement — chacune un fichier temporaire plus un rename. Le
+  // délai coalesce le geste entier en une écriture ; c'est le même principe que
+  // le coalescing de `syncSession`, pour la même raison mesurée.
+  useEffect(() => {
+    if (!dispositionChargee.current) return;
+    const differe = window.setTimeout(() => {
+      void tauriWorkspaceLayoutStore
+        .write(serializeWorkspaceLayout({ dock: dockLayout, dockWidth }))
+        // Un échec d'écriture ne doit PAS interrompre le travail : la
+        // disposition reste juste à l'écran, elle ne survivra simplement pas au
+        // redémarrage. On le DIT quand même — c'est la différence avec un
+        // fallback silencieux.
+        .catch((e) => setError(messageFromUnknown(e)));
+    }, ECRITURE_DISPOSITION_MS);
+    return () => window.clearTimeout(differe);
+  }, [dockLayout, dockWidth]);
 
   // DocumentSession est la source de vérité COMPLÈTE des calques (avec les
   // rasters de masque), pour le rendu GPU, l'historique et l'export. Le state
@@ -2358,7 +2415,7 @@ export default function App() {
   const requestApplyPreset = useCallback((id: string) => {
     const currentLayers = sessionRef.current.layers();
     if (currentLayers.length > 0) {
-      setPendingPresetApply({ id, photoLayerCount: countPhotoLayers(currentLayers) });
+      setPendingPresetApply({ id, photoLayerCount: countPhotoLayers(currentLayers), lockedEffectCount: lockedEffectLayerCount(currentLayers) });
       return;
     }
     applyPreset(id);

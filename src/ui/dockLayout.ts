@@ -75,6 +75,12 @@ export function singleGroup(id: string): DockGroup {
  * le 2026-08-19 se relit sous l'ancienne forme, et la laisser passer telle
  * quelle ferait planter le rendu sur `group.tabs` indéfini. Une disposition
  * déjà au nouveau format traverse inchangée, donc l'appel est idempotent.
+ *
+ * ⚠️ Cette phrase a été FAUSSE du 2026-08-19 au 2026-09-15 : la disposition
+ * vivait dans un `useState`, donc elle ne survivait à aucun redémarrage et
+ * cette fonction n'avait AUCUN appelant — elle et ses dix cas de test se
+ * validaient mutuellement, hors de tout chemin vivant. Elle en a un depuis que
+ * `ui/workspaceLayoutStore` existe, et c'est lui qui la rend vraie.
  */
 export function migrateDockLayout(raw: unknown): DockLayout | null {
   if (!Array.isArray(raw)) return null;

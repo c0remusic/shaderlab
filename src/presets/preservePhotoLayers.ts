@@ -1,8 +1,10 @@
 import type { LayerState } from "../layers/types";
+import { isStructureLocked } from "../layers/layerLocks";
 
 /**
- * Pile résultant de l'application d'un preset : les calques PHOTO du document
- * courant, suivis des calques du preset.
+ * Pile résultant de l'application d'un preset : les calques PRÉSERVÉS du
+ * document courant — les photos, et les calques verrouillés « Tout » (voir
+ * `estPreserve`) — suivis des calques du preset.
  *
  * Pourquoi cette fonction existe (design 2026-07-28 §2.3, CRITIQUE).
  * `applyPreset` remplace la pile ENTIÈRE (`App.tsx` : `const stack = new
@@ -31,5 +33,31 @@ export function withPhotoLayersPreserved(
   currentLayers: LayerState[],
   presetLayers: LayerState[],
 ): LayerState[] {
-  return [...currentLayers.filter((layer) => layer.imageSource !== undefined), ...presetLayers];
+  return [...currentLayers.filter(estPreserve), ...presetLayers];
+}
+
+/**
+ * Ce qu'un preset ne peut pas emporter : une PHOTO, et un calque verrouillé
+ * « Tout ».
+ *
+ * Le second a été ajouté le 2026-09-15 (arbitrage d'Antoine), et c'était un
+ * défaut : le filtre ne regardait que `imageSource`, donc appliquer un preset
+ * SUPPRIMAIT un calque d'effet portant `locks.all` — là où `removeLayer` et
+ * `mergeDownVerdict` le refusent tous les deux, en citant le même prédicat.
+ * `src/presets/` ne contenait pas une seule occurrence de `locks`, et le
+ * dialogue de confirmation n'en disait rien.
+ *
+ * Les deux genres gardent leur ORDRE RELATIF d'origine, mêlés : un calque
+ * verrouillé qui se trouvait entre deux photos y reste. Les regrouper par genre
+ * réordonnerait des calques que le verrou existe précisément pour figer.
+ */
+function estPreserve(layer: LayerState): boolean {
+  return layer.imageSource !== undefined || isStructureLocked(layer);
+}
+
+/** Combien de calques d'EFFET verrouillés « Tout » un preset va préserver —
+ *  les photos ne comptent pas, elles sont préservées à un autre titre et
+ *  annoncées séparément. Sert la phrase du dialogue de confirmation. */
+export function lockedEffectLayerCount(currentLayers: LayerState[]): number {
+  return currentLayers.filter((l) => l.imageSource === undefined && isStructureLocked(l)).length;
 }

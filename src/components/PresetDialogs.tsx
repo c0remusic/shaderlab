@@ -48,7 +48,7 @@ export interface PresetDialogsProps {
   onCopyConfirm: () => void;
 
   /** Confirmation avant d'appliquer un preset sur une pile non vide. */
-  pendingApply: { id: string; photoLayerCount: number } | null;
+  pendingApply: { id: string; photoLayerCount: number; lockedEffectCount: number } | null;
   onApplyCancel: () => void;
   onApplyConfirm: () => void;
 }
@@ -182,7 +182,7 @@ export function PresetDialogs({
           // (`withPhotoLayersPreserved`). Elle vit maintenant dans une
           // fonction testée — voir `presets/applyPresetImpact.ts` pour
           // pourquoi une fausse menace est aussi grave qu'un avis parasite.
-          pendingApply ? applyPresetImpactMessage(pendingApply.photoLayerCount) : undefined
+          pendingApply ? applyPresetImpactMessage(pendingApply.photoLayerCount, pendingApply.lockedEffectCount) : undefined
         }
         onClose={onApplyCancel}
         actions={

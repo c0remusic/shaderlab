@@ -2042,10 +2042,18 @@ sont mesurés le jour même.
   `lin_out/lin_in` mesuré (3,59 au niveau 8, 1 au blanc) est la signature d'un lift.
   Hypothèse à éprouver : les luminances des quatre roues agissent en lumière
   LINÉAIRE, pas sur le L d'OKLab. Changement de modèle, pas un réglage.
-- **`encodeThumbnailEnvelope` n'a aucun appelant de production** : le vrai
-  producteur du format est Rust (`build_thumbnail_envelope`), et le test
-  d'aller-retour valide TS↔TS. Il ne peut donc pas voir la seule divergence
-  possible, TS↔Rust, sur un format d'octets qui traverse l'IPC.
+- ~~**`encodeThumbnailEnvelope` n'a aucun appelant de production**~~ ✅ **CORRIGÉ le
+  2026-09-15.** Le constat tenait : le producteur est Rust
+  (`build_thumbnail_envelope`) et l'aller-retour TS↔TS était aveugle à la seule
+  divergence possible. Le format a désormais un CONTRAT : un fichier d'octets
+  (`test/fixtures/thumbnail-envelope.bin`) qu'aucun des deux côtés ne produit, et
+  auquel les deux se confrontent — `thumbnail_envelope_matches_the_cross_language_fixture`
+  côté Rust, « décode l'enveloppe d'octets que Rust écrit » côté TS. Les deux
+  gardes ont été éprouvées en cassant chaque côté séparément (passage en
+  little-endian) : chacune rougit sans l'autre. `thumbnail_envelope_bytes` est
+  extraite comme fonction pure pour être testable sans toucher au disque, et
+  `encodeThumbnailEnvelope` reste — il fabrique les entrées de cache des tests,
+  ce que son en-tête dit maintenant au lieu de le laisser deviner.
 - **`readGpuErrorJournal` est exporté sans lecteur.** Le journal est le seul
   canal qui survive à un rechargement après un OOM WebGPU ; l'absence de lecteur
   signale qu'il manque une INTERFACE, pas que l'écriture soit morte.

@@ -347,11 +347,26 @@ fn build_thumbnail_envelope(path: &str) -> Result<Vec<u8>, String> {
     thumbnail
         .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
         .map_err(|e| format!("Encodage PNG échoué pour {path}: {e}"))?;
+    Ok(thumbnail_envelope_bytes(width, height, &png))
+}
+
+/// Assemble l'enveloppe : huit octets d'en-tête (largeur puis hauteur, u32
+/// big-endian) suivis du PNG. Séparée de `build_thumbnail_envelope` pour une
+/// seule raison, et elle vaut d'être dite : le FORMAT traverse l'IPC, il est
+/// relu par `src/textures/thumbnailEnvelope.ts`, et aucun test ne pouvait voir
+/// une divergence entre les deux côtés. Le décodeur TS était éprouvé contre un
+/// encodeur TS (`encodeThumbnailEnvelope`), qui n'a aucun appelant de
+/// production : un aller-retour TS↔TS ne peut pas voir le seul écart possible,
+/// Rust↔TS. Cette fonction se confronte donc au même fichier d'octets que le
+/// test TS (`test/fixtures/thumbnail-envelope.bin`, écrit par un TIERS et non
+/// par l'un des deux côtés). Passer en little-endian ici fait rougir ce test-ci
+/// sans toucher au TS, et l'inverse aussi.
+fn thumbnail_envelope_bytes(width: u32, height: u32, png: &[u8]) -> Vec<u8> {
     let mut envelope = Vec::with_capacity(8 + png.len());
     envelope.extend_from_slice(&width.to_be_bytes());
     envelope.extend_from_slice(&height.to_be_bytes());
-    envelope.extend_from_slice(&png);
-    Ok(envelope)
+    envelope.extend_from_slice(png);
+    envelope
 }
 
 /// Vignette d'une texture : celle du cache si elle y est, sinon fabriquée ICI
@@ -726,6 +741,25 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Le format d'enveloppe est un CONTRAT ENTRE DEUX LANGAGES. Le fichier
+    /// d'octets est le contrat lui-même : il n'est produit par aucun des deux
+    /// côtés (il est écrit à part), et les deux s'y confrontent — ce test ici,
+    /// `test/textures/thumbnailEnvelope.test.ts` de l'autre côté. Sans lui, le
+    /// seul écart possible (Rust écrit, TS lit) n'était éprouvé par rien.
+    #[test]
+    fn thumbnail_envelope_matches_the_cross_language_fixture() {
+        let attendu = std::fs::read(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../test/fixtures/thumbnail-envelope.bin"),
+        )
+        .expect("fixture d'enveloppe absente");
+        let png = &attendu[8..];
+        assert_eq!(thumbnail_envelope_bytes(8192, 6144, png), attendu);
+        // Et l'en-tête est bien BIG-endian : 8192 = 0x00002000, pas 0x00200000.
+        assert_eq!(&attendu[..4], &[0x00, 0x00, 0x20, 0x00]);
+        assert_eq!(&attendu[4..8], &[0x00, 0x00, 0x18, 0x00]);
+    }
 
     #[test]
     fn json_paths_are_accepted_case_insensitively() {

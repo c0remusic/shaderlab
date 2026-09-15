@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   THUMBNAIL_ENVELOPE_HEADER_BYTES,
   decodeThumbnailEnvelope,
@@ -8,6 +9,29 @@ import {
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 
 describe("enveloppe de vignette", () => {
+  /**
+   * ⚠️ CE TEST EXISTE PARCE QUE TOUS LES AUTRES DE CE FICHIER SONT AVEUGLES AU
+   * SEUL ÉCART POSSIBLE. Le producteur du format est RUST
+   * (`build_thumbnail_envelope`) ; `encodeThumbnailEnvelope` n'a aucun appelant
+   * de production, il ne sert qu'aux tests. Un aller-retour TS↔TS ne peut donc
+   * voir qu'une faute de frappe dans notre propre paire, jamais une divergence
+   * Rust↔TS sur un format d'octets qui traverse l'IPC.
+   *
+   * Le fichier de `test/fixtures/` est le CONTRAT : il n'est produit par aucun
+   * des deux côtés (il a été écrit à part) et les deux s'y confrontent — ici, et
+   * dans `thumbnail_envelope_matches_the_cross_language_fixture` côté Rust
+   * (`src-tauri/src/lib.rs`). Passer le décodeur en little-endian fait rougir
+   * celui-ci sans toucher au Rust, et l'inverse aussi.
+   */
+  it("décode l'enveloppe d'octets que Rust écrit (contrat entre les deux langages)", () => {
+    const octets = new Uint8Array(readFileSync("test/fixtures/thumbnail-envelope.bin"));
+    const decode = decodeThumbnailEnvelope(octets);
+    expect(decode?.size).toEqual({ width: 8192, height: 6144 });
+    // Le PNG suit l'en-tête intact : sa signature doit tomber à l'octet 8.
+    expect([...(decode?.png.subarray(0, 8) ?? [])]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    expect(decode?.png.length).toBe(octets.length - THUMBNAIL_ENVELOPE_HEADER_BYTES);
+  });
+
   it("fait l'aller-retour sur les dimensions de la SOURCE, pas de la vignette", () => {
     const round = decodeThumbnailEnvelope(encodeThumbnailEnvelope({ width: 8192, height: 8192 }, PNG));
     expect(round?.size).toEqual({ width: 8192, height: 8192 });

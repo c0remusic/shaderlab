@@ -39,6 +39,18 @@ export interface ThumbnailEnvelope {
   png: Uint8Array;
 }
 
+/**
+ * ⚠️ AUCUN APPELANT DE PRODUCTION, ET C'EST VOULU : le producteur du format est
+ * RUST (`build_thumbnail_envelope` / `thumbnail_envelope_bytes`). Cette fonction
+ * ne sert qu'à FABRIQUER des entrées de cache dans les tests
+ * (`thumbnailCache.test.ts`) — la garder évite d'y écrire des octets à la main.
+ *
+ * Ce qu'elle ne peut PAS faire, et ce qui a longtemps manqué : prouver que notre
+ * décodeur lit ce que Rust écrit. Un aller-retour `encode` → `decode` reste
+ * entre deux fonctions TypeScript, donc il est aveugle au seul écart possible.
+ * C'est le fichier `test/fixtures/thumbnail-envelope.bin` qui tient ce rôle, et
+ * les deux langages s'y confrontent séparément.
+ */
 export function encodeThumbnailEnvelope(size: ImagePixelSize, png: Uint8Array): Uint8Array {
   const out = new Uint8Array(THUMBNAIL_ENVELOPE_HEADER_BYTES + png.length);
   const view = new DataView(out.buffer);

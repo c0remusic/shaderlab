@@ -145,25 +145,43 @@ describe("netteté — les bornes", () => {
     }
   });
 
-  // GARDE, pas une boucle : cette propriété tient depuis la première ligne de
-  // l'opérateur, et ce test est là pour qu'elle ne parte pas sans qu'on le voie.
-  // C'est elle qui porte la promesse « correction sur la LUMINANCE seule » —
-  // accentuer les canaux séparément fait des franges colorées sur les bords, le
-  // JPEG portant déjà du bruit chromatique.
-  it("décale les trois canaux d'autant : la teinte ne bouge pas", () => {
+  // GARDE, pas une boucle : c'est elle qui porte la promesse « correction sur la
+  // LUMINANCE seule ». ⚠️ Elle a REMPLACÉ, le 2026-09-15, une garde qui assertait
+  // l'inverse — « décale les trois canaux d'autant ». Un décalage ÉGAL préserve
+  // les DIFFÉRENCES entre canaux, donc il désature en éclaircissant et vire la
+  // teinte près du noir ; un FACTEUR préserve leurs RAPPORTS. Mesuré sur un bord
+  // saturé d'une vraie photo : saturation du crop 0,415 en offset contre 0,453
+  // en facteur, et 39,4 % de pixels écrasés au noir contre 39,2 %.
+  it("multiplie les trois canaux par le même facteur : teinte et saturation tiennent", () => {
     const entree = [0.30, 0.45, 0.62] as const;
     const sortie = netteteSpec(entree, [0.2, 0.35, 0.5], reglages({ force: 1.5 }));
-    const ecarts = sortie.map((v, i) => v - entree[i]);
-    expect(ecarts[1]).toBeCloseTo(ecarts[0], 12);
-    expect(ecarts[2]).toBeCloseTo(ecarts[0], 12);
-    expect(ecarts[0]).not.toBeCloseTo(0, 3);
+    const facteurs = sortie.map((v, i) => v / entree[i]);
+    expect(facteurs[1]).toBeCloseTo(facteurs[0], 12);
+    expect(facteurs[2]).toBeCloseTo(facteurs[0], 12);
+    expect(facteurs[0]).not.toBeCloseTo(1, 3);
   });
 
-  // ET SA FRONTIÈRE, dite plutôt que découverte : le plancher est PAR CANAL,
-  // donc dès qu'un canal écrête, les trois décalages cessent d'être égaux et la
-  // teinte bouge. C'est le comportement voulu — l'alternative serait de laisser
-  // passer un canal négatif — mais il ne doit pas se lire comme un défaut.
-  it("sauf à l'écrêtage, où le plancher par canal l'emporte", () => {
+  // ET LA RÉFÉRENCE DU FACTEUR EST LE CANAL FORT, JAMAIS LA LUMINANCE — c'est ce
+  // qui sépare la forme retenue de celle qui a été écartée, et ce test est le cas
+  // qui les discrimine. `luma ≤ max(canal)`, et l'écart entre les deux EST la
+  // saturation du pixel : référencé sur la luminance, le facteur rendrait du NOIR
+  // PUR sur tout pixel saturé dont le gain dépasse sa luminance. Sur ce bleu
+  // (luma 0,072 contre canal fort 1,0), la forme écartée rendait 255 → 0.
+  it("un pixel saturé ne s'éteint pas sur le côté sombre d'un bord", () => {
+    const entree = [0, 0, 1.0] as const;
+    const sortie = netteteSpec(entree, [0.5, 0.5, 0.5], reglages({ force: 0.6 }));
+    expect(sortie[2]).toBeGreaterThan(0.85);
+    expect(sortie[0]).toBe(0);
+    expect(sortie[1]).toBe(0);
+  });
+
+  // ET SA FRONTIÈRE, dite plutôt que découverte : le plancher est GLOBAL depuis
+  // le passage au facteur — quand le gain négatif dépasse le canal fort, le
+  // facteur tombe à 0 et les trois canaux s'éteignent ENSEMBLE. Les décalages
+  // cessent alors d'être proportionnels (un canal déjà nul ne bouge pas). C'est
+  // le comportement voulu — l'alternative serait de laisser passer du négatif,
+  // qui ressortirait en NaN au ré-encodage — mais il ne se lit pas comme un défaut.
+  it("sauf à l'extinction, où le plancher du facteur l'emporte", () => {
     const entree = [0, 0.05, 0] as const;
     const sortie = netteteSpec(entree, [0, 0, 0], reglages({ force: -1, halos: 1 }));
     const ecarts = sortie.map((v, i) => v - entree[i]);

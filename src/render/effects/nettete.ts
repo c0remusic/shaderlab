@@ -64,13 +64,40 @@ import { DOWNSAMPLE_WGSL, upsampleWgsl } from "./blurChain";
  *    Accentuer les canaux séparément fait des franges colorées sur les bords, le
  *    JPEG portant déjà du bruit chromatique.
  *
- * ⚠️ La correction est ADDITIVE (`color.rgb + gain`) et non multiplicative
- * (`color.rgb · (1 + gain/luma)`), qui préserverait pourtant la chromaticité
- * exactement. La forme multiplicative EXPLOSE dans les ombres — un facteur
- * `sortie/entrée` a atteint 250 sur le canal maître de `curves` (2026-08-13) et
- * amplifiait le bruit chromatique du JPEG. Le même piège, sous un autre nom.
- * L'additif décale légèrement la saturation aux extrêmes ; il ne diverge nulle
- * part.
+ * ⚠️ LA CORRECTION EST UN FACTEUR, ET SA RÉFÉRENCE EST LE CANAL FORT — jamais la
+ * luminance. `color.rgb · (lref + gain) / lref` avec `lref = max(canal)`, et un
+ * piédestal au dénominateur. Trois formes ont été RENDUES sur un bord saturé
+ * d'une vraie photo (rose rouge contre lys) avant de trancher, planche et
+ * chiffres dans `.scratch/lightroom-develop/` :
+ *
+ *   A, offset par canal (la forme d'avant, `color.rgb + gain`) — saturation du
+ *     crop 0,415 en Clarté forte, 39,4 % de pixels écrasés au noir ;
+ *   B, facteur sur la LUMINANCE (`(lp + gain) / lp`) — 0,361 et 47,8 % : PIRE
+ *     que l'offset sur les deux axes, et c'est prévisible. `lp` est une
+ *     combinaison convexe des canaux, donc `lp ≤ max(canal)`, et l'écart entre
+ *     les deux EST la saturation du pixel : il existe une fenêtre
+ *     `lp < |gain| < max(canal)` où cette forme rend du NOIR PUR là où l'offset
+ *     rendait une couleur vive. Sur un bleu pur aux réglages par DÉFAUT, 255 → 0
+ *     au lieu de 255 → 244 ;
+ *   C, facteur sur le CANAL FORT (la forme retenue) — 0,453 et 39,2 % : mieux
+ *     que l'offset sur les deux axes.
+ *
+ * Pourquoi C ne peut pas exploser, là où la division par la luminance le
+ * pouvait (facteur `sortie/entrée` à 250 mesuré sur `curves` le 2026-08-13) :
+ * avec `lref = max(canal)`, le canal fort reçoit EXACTEMENT `+ gain`, donc il
+ * fait ce que faisait l'offset, au bit près. Seuls les canaux faibles changent,
+ * et ils ne peuvent que suivre le fort en proportion. La divergence venait du
+ * DÉNOMINATEUR, pas de la multiplication.
+ *
+ * ⚠️ Le VERDICT DE PARITÉ reste partiel, et c'est écrit ici pour qu'on ne le
+ * relise pas comme acquis : le binaire d'ACR (`cr_sharpen.cpp`, étage
+ * `cr_stage_sharpen_3`, pipelines `SharpenRGBtoY1` puis des plans `Y1Tex`/`Y2Tex`
+ * seuls) prouve qu'Adobe accentue la LUMINANCE SEULE et ne touche jamais la
+ * chroma. Il ne prouve PAS que l'opérateur soit un facteur pur en lumière
+ * linéaire : ses uniformes portent `kSlopeScale` / `kSlopeOffset`, signature
+ * d'une courbe log à PIED linéaire, donc un comportement additif sous le genou.
+ * Des mesures d'accentuation (`Sharpness` 60 et 150, rayons 1 à 3) sont en
+ * attente d'un export ; elles diront s'il faut un pied.
  *
  * ── CE QUE CET EFFET NE COUVRE PAS, ET C'EST DIT PLUTÔT QUE DÉCOUVERT ───────
  *
@@ -129,14 +156,15 @@ export function netteteSpec(
   const limite = 0.02 + (0.5 - 0.02) * maitrise;
   const detail = Math.sign(d) * ((limite * a) / (limite + a));
   const gain = detail * force * masque;
-  // Plancher PAR CANAL : une valeur négative en lumière linéaire n'a pas de sens,
-  // et le ré-encodage sRGB en ferait un NaN (`pow` d'une base négative), donc un
-  // pixel mort plutôt qu'un pixel sombre.
-  return [
-    Math.max(entree[0] + gain, 0),
-    Math.max(entree[1] + gain, 0),
-    Math.max(entree[2] + gain, 0),
-  ];
+  // FACTEUR sur le canal FORT — voir l'en-tête. Le canal le plus fort reçoit
+  // exactement `+ gain`, comme l'offset d'avant ; les deux autres suivent en
+  // proportion, donc les rapports R/G/B tiennent et la teinte ne dérive pas.
+  // Le piédestal borne le rapport quand le pixel est noir ; le plancher à 0
+  // remplace l'ancien plancher par canal (une valeur négative en lumière
+  // linéaire ressortirait en NaN au ré-encodage sRGB).
+  const lref = Math.max(Math.max(entree[0], entree[1], entree[2]), luma(entree));
+  const fNet = Math.max((lref + gain + 1e-4) / (lref + 1e-4), 0);
+  return [entree[0] * fNet, entree[1] * fNet, entree[2] * fNet];
 }
 
 export const nettete: EffectModule = {
@@ -246,11 +274,14 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let detail = sign(d) * (limite * a / (limite + a));
 
   let gain = detail * force * masque;
-  // Meme decalage sur les trois canaux : la teinte ne bouge pas. Plancher a 0 —
-  // une force negative sur un pixel deja noir passerait sous zero, et une valeur
-  // negative en lineaire n'a pas de sens (elle ressortirait en NaN au
-  // re-encodage sRGB).
-  return vec4<f32>(max(color.rgb + vec3<f32>(gain), vec3<f32>(0.0)), color.a);
+  // FACTEUR sur le canal FORT (voir l'en-tete). Le canal le plus fort recoit
+  // exactement + gain, comme l'offset d'avant ; les deux autres suivent en
+  // proportion, donc les rapports R/G/B tiennent. Le piedestal borne le rapport
+  // sur un pixel noir, le plancher a 0 evite le NaN au re-encodage sRGB.
+  let cmax = max(color.r, max(color.g, color.b));
+  let lref = max(cmax, dot(color.rgb, poids));
+  let fNet = max((lref + gain + 1e-4) / (lref + 1e-4), 0.0);
+  return vec4<f32>(color.rgb * fNet, color.a);
 }
 `,
 };

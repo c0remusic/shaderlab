@@ -2068,6 +2068,14 @@ sont mesurés le jour même.
 - **`readGpuErrorJournal` est exporté sans lecteur.** Le journal est le seul
   canal qui survive à un rechargement après un OOM WebGPU ; l'absence de lecteur
   signale qu'il manque une INTERFACE, pas que l'écriture soit morte.
+  ⚠️ **L'interface reste à décider (c'est du produit), mais le COMPORTEMENT est
+  verrouillé depuis le 2026-09-15** — il ne l'était par rien :
+  `test/gpuErrorJournal.test.ts`, huit gardes sur la borne de l'anneau (50, et
+  ce sont les plus RÉCENTES qui restent — perdre la dernière erreur avant un
+  crash viderait le journal de sa raison d'être), sur l'entrée corrompue, sur les
+  entrées mal formées, sur un stockage qui refuse la lecture ou l'écriture, et
+  sur l'absence totale de stockage. Deux d'entre elles ont été vues rougir en
+  retirant la borne puis le filtrage.
 
 ### Arbitrages qui attendent Antoine
 

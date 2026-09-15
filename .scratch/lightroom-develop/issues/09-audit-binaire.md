@@ -247,3 +247,41 @@ jumeaux). Détail chiffré et références bougées : ticket 02, section « Pari
   pixels.
 - **Contraste local de la Clarté vs rayon exact de LR** : rayons LR jamais chiffrés
   dans les strings ; calibré à l'œil/planche.
+
+## Accentuation — verdict des mesures du 2026-09-15 : la forme tient, la garde ne passe pas
+
+Quatre mesures d'accentuation (`Sharpness` 60 et 150, rayons 1 à 3, détail 25 et
+100) ont été exportées pour trancher la question laissée ouverte par le correctif
+`730a0a9` : le facteur référencé sur le canal fort est-il la bonne forme, et
+faut-il un pied linéaire dans les noirs ?
+
+**CONFIRMÉ, et la forme ne bouge pas.** Sur un bord saturé (jaune contre peau),
+Lightroom rend 224,159,127 → 168,118,95 : des rapports de canaux constants
+(0,750 / 0,742 / 0,748). Un offset achromatique aurait rendu 168,103,71. C'est
+un FACTEUR, la correction du matin est la bonne, et elle reste telle quelle.
+
+**RÉFUTÉ — la garde d'ombre proposée (plancher 0,30 + genou 0,10).** Trois
+raisons, toutes mesurées :
+- le « mur » à 0,30 est une QUEUE : l'histogramme du facteur décroît vers 0,30
+  (1 661 pixels dans [0,40-0,42), 256 dans [0,30-0,32)) au lieu d'y former le pic
+  qu'un écrêtage produirait, quatre pixels sont déjà sous le plancher, et le
+  minimum GLISSE avec la force (0,380 → 0,296). Dans le protocole même de la
+  proposition, le plancher mord sur 9 bords sur 745 et déplace l'écart de 0,0002 ;
+- le genou 0,10 RE-DÉRIVE LA COURBE DE TRANSFERT sRGB. La même table d'asymétrie
+  refaite en domaine ENCODÉ traverse 1,00 à Ylin ≈ 0,10 : au-dessus du genou
+  l'opérateur d'Adobe est DÉJÀ symétrique, et l'asymétrie « mesurée » en linéaire
+  n'y est que la non-linéarité de l'OETF. Un modèle concurrent À ZÉRO CONSTANTE —
+  calculer et réappliquer le détail dans le domaine perceptuel — expliquerait tout
+  sauf les deux bins sous Ylin 0,08, et c'est ce que la signature `kSlopeScale` /
+  `kSlopeOffset` du binaire annonçait ;
+- **la mire ne peut pas porter cette calibration.** Sur les 372 bords utilisables,
+  la marche de luminance médiane vaut ×2,11 mais la marche de CANAL FORT vaut
+  ×1,010 : ce sont des bords de TEINTE à valeur constante, pas des échelons
+  d'intensité. Le seul vrai échelon non écrêté a son côté sombre à Ylin 0,134,
+  au-dessus du genou. Toute la région que la garde modèle n'est donc peuplée que
+  du seul cas où `lref = max(cmax, Y)` ne descend pas avec la luminance.
+
+**Mesure à demander pour rouvrir le sujet** : une mire à échelons d'INTENSITÉ non
+écrêtés, côtés sombres sous Ylin 0,10 (des paires de gris 20|60, 30|90, 45|130),
+plus `Sharpness` 25 et 100 au même rayon pour voir si le genou continue de suivre
+la force. Tant que cette mire n'existe pas, la garde ne se calibre pas.

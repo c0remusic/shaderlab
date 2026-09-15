@@ -27,7 +27,7 @@ export function tonalCurvePath(values: TonalRangeValues, width: number, height: 
 
 /** Réponse d'une plage d'EFFET : montée, plateau, descente — distincte de
  * l'union de deux fenêtres utilisée par une source de masque. */
-export function effectTonalMembership(values: TonalRangeValues, luminance: number): number {
+function effectTonalMembership(values: TonalRangeValues, luminance: number): number {
   return smoothstep(values.shadowsMin, values.shadowsMax, luminance) *
     (1 - smoothstep(values.highlightsMin, values.highlightsMax, luminance));
 }

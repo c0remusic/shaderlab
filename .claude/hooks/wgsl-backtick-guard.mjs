@@ -40,88 +40,13 @@ try {
   process.exit(0)
 }
 
-// Machine a etats au niveau JavaScript. On ne s'interesse qu'a une chose : etre
-// dedans ou dehors d'un template literal. Les commentaires JS, les chaines
-// simples et doubles sont traverses pour que leurs backticks ne faussent rien.
-const NORMAL = 0
-const COMMENTAIRE_LIGNE = 1
-const COMMENTAIRE_BLOC = 2
-const CHAINE_SIMPLE = 3
-const CHAINE_DOUBLE = 4
-const LITERAL = 5
-
-function scanner(src) {
-  const trouves = []
-  let etat = NORMAL
-  let ligne = 1
-  let ouvertureLigne = 0
-  // Position du `//` WGSL sur la ligne courante, quand on est dans un literal.
-  let commentaireWgslOuvert = false
-
-  for (let i = 0; i < src.length; i++) {
-    const c = src[i]
-    const suivant = src[i + 1]
-
-    if (c === '\n') {
-      ligne++
-      if (etat === COMMENTAIRE_LIGNE) etat = NORMAL
-      commentaireWgslOuvert = false
-      continue
-    }
-
-    // Un caractere echappe ne compte jamais — c'est la forme correcte que la
-    // convention exige, elle ne doit pas etre punie.
-    if ((etat === LITERAL || etat === CHAINE_SIMPLE || etat === CHAINE_DOUBLE) && c === '\\') {
-      i++
-      continue
-    }
-
-    switch (etat) {
-      case NORMAL:
-        if (c === '/' && suivant === '/') { etat = COMMENTAIRE_LIGNE; i++ }
-        else if (c === '/' && suivant === '*') { etat = COMMENTAIRE_BLOC; i++ }
-        else if (c === "'") etat = CHAINE_SIMPLE
-        else if (c === '"') etat = CHAINE_DOUBLE
-        else if (c === '`') { etat = LITERAL; ouvertureLigne = ligne; commentaireWgslOuvert = false }
-        break
-
-      case COMMENTAIRE_LIGNE:
-        break // backticks de prose : inoffensifs, on les ignore
-
-      case COMMENTAIRE_BLOC:
-        if (c === '*' && suivant === '/') { etat = NORMAL; i++ }
-        break
-
-      case CHAINE_SIMPLE:
-        if (c === "'") etat = NORMAL
-        break
-
-      case CHAINE_DOUBLE:
-        if (c === '"') etat = NORMAL
-        break
-
-      case LITERAL:
-        // Le `//` d'une URL (http://, https://) n'ouvre pas un commentaire. Le
-        // caractere qui precede suffit a trancher, et c'est un cas reel : la
-        // connexion CDP de render-check.mjs interpole un `http://localhost:${port}`.
-        if (c === '/' && suivant === '/' && src[i - 1] !== ':') { commentaireWgslOuvert = true; i++ }
-        else if (c === '`') {
-          if (commentaireWgslOuvert) {
-            trouves.push({
-              ligne,
-              message: `backtick NON echappe dans un commentaire WGSL — ferme le literal ouvert ligne ${ouvertureLigne}`,
-            })
-          }
-          etat = NORMAL
-        } else if (commentaireWgslOuvert && c === '$' && suivant === '{') {
-          trouves.push({ ligne, message: '${ NON echappe dans un commentaire WGSL — ouvre une interpolation' })
-          i++
-        }
-        break
-    }
-  }
-  return { trouves, literalNonFerme: etat === LITERAL }
-}
+// La machine a etats vit dans `scripts/wgslBackticks.mjs`, partagee avec
+// `test/scripts/wgslBackticks.test.ts` — qui tourne, lui, dans `npm run test` et
+// donc EN CI. Ce hook n'etait appele qu'en `PostToolUse` d'un agent : une edition
+// humaine hors Claude Code ne le declenchait pas. Deux appelants, une seule
+// ecriture : recopier le scanner ici le ferait diverger, ce qui est exactement le
+// defaut de jumeau corrige ailleurs le meme jour.
+import { scannerBackticks as scanner } from '../../scripts/wgslBackticks.mjs'
 
 const { trouves, literalNonFerme } = scanner(source)
 const problemes = trouves.map((t) => `${fichier}:${t.ligne} ${t.message}`)

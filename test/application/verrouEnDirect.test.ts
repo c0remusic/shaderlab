@@ -56,6 +56,31 @@ describe("verrou — le chemin vivant", () => {
     });
   });
 
+  it("refuse un ÉTIREMENT de calque d'effet poussé en direct", () => {
+    // `effectTransform` (ticket 24) est gelé par le verrou de POSITION au même
+    // titre que le `transform` d'une photo, et `fusionnerSousVerrous` le dit.
+    // Ce cas manquait : la règle n'était éprouvée que sur `setEffectTransform`,
+    // un mutateur qu'AUCUN appelant de production n'atteint — le geste vivant
+    // construit son tableau à la main et passe par la porte. La garde vivait
+    // donc sur le seul chemin que personne n'emprunte.
+    // Verrou de POSITION SEUL, et c'est le point : « Tout » sort en amont de
+    // `fusionnerSousVerrous` (« rien ne passe »), donc un calque verrouillé
+    // « Tout » n'atteint jamais la ligne qui gèle `effectTransform`. Un cas
+    // écrit sur « Tout » serait vert sans elle — vérifié en la retirant.
+    const stack = new LayerStack();
+    const photo = stack.addPhotoLayer("src-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, "photo");
+    const effet = stack.addLayer("aplat", photo);
+    stack.setEffectTransform(effet, { x: 0.1, y: 0.1, scaleX: 1, scaleY: 1, rotation: 0 });
+    stack.setLayerLock(effet, "position", true);
+    const session = new DocumentSession(stack);
+
+    const avant = session.layers().find((l) => l.id === effet)!.effectTransform;
+    session.replaceLiveLayers(
+      session.layers().map((l) => (l.id === effet ? { ...l, effectTransform: { x: 0.9, y: 0.9, scaleX: 3, scaleY: 3, rotation: 1 } } : l)),
+    );
+    expect(session.layers().find((l) => l.id === effet)!.effectTransform).toEqual(avant);
+  });
+
   it("laisse passer les calques NON verrouillés du même envoi", () => {
     // Le tableau vivant porte TOUS les calques à chaque frame. Refuser l'envoi
     // entier parce qu'un calque est verrouillé figerait le document dès qu'un

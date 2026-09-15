@@ -354,24 +354,6 @@ export interface EffectModule {
    *  par `ParamPanel` comme `colorRampControls`, sans branche par id. */
   colorWheelControls?: ColorWheelControl[];
   /**
-   * Déclare qu'un DISQUE de cet effet se manipule directement sur la toile,
-   * en nommant les paramètres qui le portent. `RegionHandles` en dessine alors
-   * un cercle déplaçable, et le panneau garde ses curseurs.
-   *
-   * DÉCLARATIF ET NON DEVINÉ. La tentation était de repérer les paramètres au
-   * nom (`regionX`/`centerX`…) : ça marche jusqu'au jour où un effet nomme
-   * autrement, et ça échoue alors SANS RIEN DIRE — le manipulateur ne s'affiche
-   * simplement pas. Ici, `validateEffect` vérifie que les trois noms existent
-   * vraiment dans `params`, donc une faute de frappe lève au chargement du
-   * registre.
-   *
-   * ⚠️ LES DEUX UNITÉS DIFFÈRENT, et `ui/regionHandles.ts` est le seul endroit
-   * qui les convertit : le centre est en UV (0..1 du cadre), le rayon est en
-   * espace ISOTROPE (pixels / sqrt(W*H)). Un effet qui exposerait un rayon en
-   * UV ne peut pas se déclarer ici sans changer cette convention.
-   */
-
-  /**
    * Déclare que cet effet ÉCHANTILLONNE UNE TEXTURE DE LA BIBLIOTHÈQUE, en
    * nommant le paramètre qui porte son RANG dans le catalogue.
    *
@@ -381,7 +363,7 @@ export interface EffectModule {
    * le RANG (un nombre), et le binding 7 porte les pixels — voir
    * `ComposeOptions.hasLibraryTexture` et `render/textureLibraryStore.ts`.
    *
-   * DÉCLARATIF ET NON DEVINÉ, même raison que `regionControl` ci-dessus :
+   * DÉCLARATIF ET NON DEVINÉ, pour la raison qui vaut partout dans ce contrat :
    * repérer le paramètre à son nom marcherait jusqu'au jour où un effet nomme
    * autrement, et échouerait alors SANS RIEN DIRE. `validateEffect` vérifie que
    * `indexParam` existe vraiment dans `params`.

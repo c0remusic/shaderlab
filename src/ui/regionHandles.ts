@@ -139,8 +139,8 @@ export function radiusHandlePosition(
 
 /** Bornes du centre — celles de `regionX`/`regionY`, qui laissent volontairement
  *  sortir du cadre (une coulure peut partir d'un centre hors champ). */
-export const REGION_CENTER_MIN = -0.5;
-export const REGION_CENTER_MAX = 1.5;
+const REGION_CENTER_MIN = -0.5;
+const REGION_CENTER_MAX = 1.5;
 
 export function clampRegionCenter(center: RegionCenter): RegionCenter {
   const clamp = (v: number) => Math.min(REGION_CENTER_MAX, Math.max(REGION_CENTER_MIN, v));

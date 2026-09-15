@@ -2,9 +2,7 @@ import type { OverlayRect } from "./transform";
 import {
   centerFromOverlayPoint,
   clampRegionCenter,
-  clampRegionRadius,
   isotropicToScreen,
-  radiusFromOverlayPoint,
   regionToOverlay,
   type RegionCenter,
   type RegionOverlayCircle,
@@ -44,18 +42,6 @@ export function diskToOverlay(
   rect: OverlayRect,
 ): RegionOverlayCircle {
   return regionToOverlay(center, radius, imageSize, rect);
-}
-
-export function diskRadiusFromOverlay(
-  x: number,
-  y: number,
-  center: RegionCenter,
-  imageSize: { width: number; height: number },
-  rect: OverlayRect,
-  min: number,
-  max: number,
-): number {
-  return clampRegionRadius(radiusFromOverlayPoint(x, y, center, imageSize, rect), min, max);
 }
 
 function imagePixelToScreen(imageSize: { width: number; height: number }, rect: OverlayRect): number {

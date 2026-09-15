@@ -441,7 +441,18 @@ export class LayerStack {
 
   /** Returns `true` iff `id` existe, porte un `imageSource` (un calque sans
    *  photo n'a pas de transform à changer), et `transform` diffère
-   *  réellement du courant (même discipline no-op que le reste du fichier). */
+   *  réellement du courant (même discipline no-op que le reste du fichier).
+   *
+   *  ⚠️ AUCUN APPELANT DE PRODUCTION (mesuré le 2026-09-15 : 0 dans `src/`, 10
+   *  dans `test/`). Déplacer une photo est un geste VIVANT : `usePhotoLayer`
+   *  construit le tableau à la main et passe par `replaceLiveLayers`, dont
+   *  `fusionnerSousVerrous` porte la même règle de verrou. Sa garde n'est donc
+   *  visitée que par ses propres tests.
+   *
+   *  Gardé et non supprimé : c'est la seule expression de la règle pour un
+   *  chemin ENGAGÉ, si un jour il en existe un. Mais ne pas lire ses tests
+   *  comme une couverture du geste réel — celle-là vit dans
+   *  `test/application/verrouEnDirect.test.ts`. */
   updateLayerTransform(id: string, transform: LayerTransform): boolean {
     const layer = this.layers.find((l) => l.id === id);
     if (!layer || !layer.imageSource) return false;
@@ -471,7 +482,14 @@ export class LayerStack {
    *
    *  Returns `true` iff `id` existe, n'est pas verrouillé en position, et la
    *  valeur diffère réellement de l'actuelle (même discipline no-op que le reste
-   *  du fichier : pas d'entrée d'historique vide). */
+   *  du fichier : pas d'entrée d'historique vide).
+   *
+   *  ⚠️ AUCUN APPELANT DE PRODUCTION non plus (0 dans `src/`, 13 dans `test/`) —
+   *  même raison que `updateLayerTransform` ci-dessus, et même conséquence : sa
+   *  garde de verrou n'était éprouvée que sur un chemin que personne n'emprunte.
+   *  Le cas manquant a été ajouté à `verrouEnDirect.test.ts` le 2026-09-15, sur
+   *  un verrou de POSITION SEUL — écrit sur « Tout », il aurait été vert sans le
+   *  correctif, `isFullyLocked` sortant en amont de `fusionnerSousVerrous`. */
   setEffectTransform(id: string, transform: EffectTransform): boolean {
     const layer = this.layers.find((l) => l.id === id);
     if (!layer) return false;

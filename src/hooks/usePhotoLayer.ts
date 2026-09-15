@@ -10,6 +10,7 @@ import { pickImageFile, readImageFile } from "../launch";
 import { messageFromUnknown } from "../lib/errors";
 import { centerTransform, fitToCanvas, resetTransform } from "../ui/transform";
 import { isMaskLocked } from "../layers/layerLocks";
+import { gestePileVivante, type PortsGesteVivant } from "../ui/gesteVivant";
 import {
   IDLE_CANVAS_MODE,
   isMaskPaint,
@@ -54,7 +55,10 @@ interface Deps {
   /** Synchronisation React COALESCÉE sur rAF (voir `App.syncScheduler`) : le
    *  chemin vivant d'un drag l'appelle par échantillon de pointeur, elle ne
    *  coûte qu'un `setLayers` par frame. */
-  scheduleSync: () => void;
+  /** Les quatre prises d'un geste vivant (`ui/gesteVivant`). Elles remplacent
+   *  la récitation à la main de la séquence — et, au passage, `scheduleSync`,
+   *  qui n'était réclamé QUE pour ça. */
+  portsGesteVivant: PortsGesteVivant;
   /** Force l'exécution immédiate d'une synchronisation coalescée en attente.
    *  Appelée en FIN DE GESTE — sans elle, la dernière position d'un drag
    *  n'atteindrait l'état React qu'à la frame suivante, après le commit. */
@@ -85,7 +89,7 @@ export function usePhotoLayer({
   commit,
   currentStack,
   selectLayer,
-  scheduleSync,
+  portsGesteVivant,
   flushSync,
   setError,
   selectedId,
@@ -319,16 +323,14 @@ export function usePhotoLayer({
         paramDirtyRef.current = true;
       }
       const full = sessionRef.current.layers().map((l) => (l.id === id ? { ...l, transform } : l));
-      sessionRef.current.replaceLiveLayers(full);
-      // COALESCÉ (mesure CPU 2026-07-30 : 21,9 ms de CPU par `pointermove`
-      // brut, un rendu de l'arbre React entier par échantillon). La session et
-      // le rendu GPU restent, eux, sur le chemin brut : `requestRender` a son
-      // propre `FrameScheduler` depuis toujours — c'est l'asymétrie que ce
-      // coalescing supprime. Même motif que `Canvas.schedulePaint`.
-      scheduleSync();
-      rendererRef.current?.requestRender(full);
+      // La SYNCHRONISATION React portée par le geste est COALESCÉE (mesure CPU
+      // 2026-07-30 : 21,9 ms de CPU par `pointermove` brut, un rendu de l'arbre
+      // entier par échantillon), là où la session et le rendu GPU restent sur le
+      // chemin brut — `requestRender` a son propre `FrameScheduler` depuis
+      // toujours, et c'est l'asymétrie que ce coalescing supprime.
+      gestePileVivante(portsGesteVivant, full);
     },
-    [sessionRef, rendererRef, paramDirtyRef, scheduleSync],
+    [sessionRef, paramDirtyRef, portsGesteVivant],
   );
 
   const handleTransformCommit = useCallback(() => {

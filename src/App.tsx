@@ -84,6 +84,7 @@ import { PanelColumn } from "./components/dockedPanel/PanelColumn";
 import { isPanelShown, movePanelInDock, setActiveTab, setGroupCollapsed, singleGroup, toFullDockTarget, visibleDockLayout, type DockDropTarget, type DockLayout } from "./ui/dockLayout";
 import { clampDockWidth, DOCK_WIDTH_DEFAUT } from "./components/dockedPanel/dockWidth";
 import { ECRITURE_DISPOSITION_MS, loadWorkspaceLayout, serializeWorkspaceLayout, tauriWorkspaceLayoutStore } from "./ui/workspaceLayoutStore";
+import { gesteEtageVivant, gestePileVivante, type PortsGesteVivant } from "./ui/gesteVivant";
 import { EffectSelector, LayerControls, LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
 import { PhotoPanel } from "./components/PhotoPanel";
@@ -479,6 +480,32 @@ export default function App() {
   const scheduleSync = useCallback(() => syncSchedulerRef.current!.request(undefined), []);
   const flushSync = useCallback(() => syncSchedulerRef.current!.flush(), []);
   useEffect(() => () => syncSchedulerRef.current?.cancel(), []);
+
+  /** LES QUATRE PRISES D'UN GESTE VIVANT, câblées UNE fois.
+   *
+   *  La séquence elle-même vit dans `ui/gesteVivant` — voir son en-tête pour la
+   *  raison, qui est un défaut daté : quatorze sites la récitaient à la main,
+   *  trois en omettaient un membre, et l'aperçu de mode de fusion a été livré
+   *  sans son `requestRender`. Ici il ne reste que le branchement.
+   *
+   *  Les refs se lisent DANS les prises et non à la construction : elles
+   *  changent de cible (ouverture d'un fichier, remontage du renderer) alors que
+   *  cet objet, lui, est stable. */
+  const portsGesteVivant = useMemo<PortsGesteVivant>(
+    () => ({
+      poserPile: (layers, geometrie) => sessionRef.current.replaceLiveLayers(layers, geometrie),
+      poserEtage: (develop) => sessionRef.current.replaceLiveDevelop(develop),
+      pileComplete: () => sessionRef.current.layers(),
+      planifierSynchro: scheduleSync,
+      projeterEtage: setDevelopState,
+      renduEtage: (develop) => rendererRef.current?.setDevelop(develop),
+      redemanderRendu: (layers) => rendererRef.current?.requestRender(layers),
+      salir: () => {
+        paramDirtyRef.current = true;
+      },
+    }),
+    [scheduleSync],
+  );
 
   const selectLayer = useCallback((id: string | null) => {
     sessionRef.current.select(id);
@@ -900,7 +927,7 @@ export default function App() {
     commit,
     currentStack,
     selectLayer,
-    scheduleSync,
+    portsGesteVivant,
     flushSync,
     setError,
     selectedId,
@@ -1489,9 +1516,7 @@ export default function App() {
     }
     const full = marqueeLayers(ref, rect);
     if (!full) return;
-    sessionRef.current.replaceLiveLayers(full);
-    scheduleSync();
-    rendererRef.current?.requestRender(full);
+    gestePileVivante(portsGesteVivant, full);
   }
 
   // ANNULATION du geste (clic sans ampleur, `pointercancel`) : on défait
@@ -1501,9 +1526,7 @@ export default function App() {
     const ref = shapeMarqueeRef.current;
     if (!ref) return;
     shapeMarqueeRef.current = null;
-    sessionRef.current.replaceLiveLayers(ref.committed);
-    scheduleSync();
-    rendererRef.current?.requestRender(ref.committed);
+    gestePileVivante(portsGesteVivant, ref.committed);
   }
 
   /**
@@ -1536,6 +1559,11 @@ export default function App() {
       const full = marqueeLayers(active, rect);
       shapeMarqueeRef.current = null;
       if (!full) return;
+      // FIN de geste, pas une frame vivante : on pose l'état puis on COMMITE,
+      // et c'est `commit` qui porte la synchronisation et le rendu. Passer par
+      // `gestePileVivante` ici ferait une synchronisation et un rendu de plus,
+      // pour rien. C'est le seul appel direct qui subsiste, et la garde
+      // `gesteVivantConcentre` le nomme.
       sessionRef.current.replaceLiveLayers(full);
       clearActivePreset();
       commit(currentStack());
@@ -1668,12 +1696,10 @@ export default function App() {
     const geometrie = previous
       ? new Map([[id, effectSpatialParams(getEffect(previous.effectId))]])
       : undefined;
-    sessionRef.current.replaceLiveLayers(full, geometrie);
     // Coalescé sur rAF — voir `syncSchedulerRef`. Geste le plus cher mesuré
     // (34,2 ms de CPU par `pointermove`, 13 tâches longues pour un seul
     // glissement de curseur).
-    scheduleSync();
-    rendererRef.current?.requestRender(full);
+    gestePileVivante(portsGesteVivant, full, { geometrie });
   }
 
   /** Fin d'interaction pour TOUS les curseurs vivants de ce fichier (params
@@ -1705,10 +1731,7 @@ export default function App() {
       paramDirtyRef.current = true;
     }
     const merged: DevelopSettings = { ...current, [moduleId]: { ...before, ...patch } };
-    session.replaceLiveDevelop(merged);
-    setDevelopState(merged);
-    rendererRef.current?.setDevelop(merged);
-    rendererRef.current?.requestRender(session.layers());
+    gesteEtageVivant(portsGesteVivant, merged);
   }
 
   /** Bascule l'INTERRUPTEUR (œil) d'un module de l'étage (ticket 07) : actif ↔
@@ -1720,12 +1743,9 @@ export default function App() {
     const session = sessionRef.current;
     const current = session.developpement();
     const next = setDevelopModuleEnabled(current, moduleId, !isDevelopModuleEnabled(current, moduleId));
-    session.replaceLiveDevelop(next);
-    setDevelopState(next);
-    rendererRef.current?.setDevelop(next);
-    rendererRef.current?.requestRender(session.layers());
+    gesteEtageVivant(portsGesteVivant, next);
     commit(currentStack());
-  }, [commit, currentStack]);
+  }, [commit, currentStack, portsGesteVivant]);
 
   /** « Réinitialiser » TOUT l'étage aux défauts (le pied de la carte, ticket 07) :
    *  vide `develop` — tous les modules reviennent à leur défaut ET tous les œils
@@ -1734,12 +1754,9 @@ export default function App() {
   const handleDevelopResetAll = useCallback(() => {
     const session = sessionRef.current;
     if (Object.keys(session.developpement()).length === 0) return;
-    session.replaceLiveDevelop({});
-    setDevelopState({});
-    rendererRef.current?.setDevelop({});
-    rendererRef.current?.requestRender(session.layers());
+    gesteEtageVivant(portsGesteVivant, {});
     commit(currentStack());
-  }, [commit, currentStack]);
+  }, [commit, currentStack, portsGesteVivant]);
 
   // ÉTIREMENT VIVANT D'UN CALQUE D'EFFET PLACÉ (ticket 24, tranche 3). Écrit
   // `effectTransform` sur le calque, exactement le patron de `handleTransformChange`
@@ -1760,9 +1777,7 @@ export default function App() {
       paramDirtyRef.current = true;
     }
     const full = sessionRef.current.layers().map((l) => (l.id === id ? { ...l, effectTransform: { ...effectTransform } } : l));
-    sessionRef.current.replaceLiveLayers(full);
-    scheduleSync();
-    rendererRef.current?.requestRender(full);
+    gestePileVivante(portsGesteVivant, full);
   }
 
   // GESTE DE SÉLECTION AUTO (ticket 26) : ouvert par `AutoSelectMoveSurface` à
@@ -1822,13 +1837,16 @@ export default function App() {
       // — condition nécessaire pour que LayerRow (React.memo) ne re-render
       // QUE la ligne dont l'opacité bouge, pas la liste entière des calques.
       const previous = sessionRef.current.layers().find((l) => l.id === id);
-      if (previous && hasValueChanged(previous.opacity, opacity)) paramDirtyRef.current = true;
       const full = sessionRef.current.layers().map((l) => (l.id === id ? { ...l, opacity } : l));
-      sessionRef.current.replaceLiveLayers(full);
-      scheduleSync(); // curseur vivant -> coalescé, voir `syncSchedulerRef`
-      rendererRef.current?.requestRender(full);
+      // La COMPARAISON reste ici — chaque geste compare une chose différente, et
+      // le module ne décide pas si quelque chose a bougé. Il n'en porte que la
+      // conséquence, `salit`, qui décidera de l'entrée d'historique au
+      // relâchement.
+      gestePileVivante(portsGesteVivant, full, {
+        salit: previous !== undefined && hasValueChanged(previous.opacity, opacity),
+      });
     },
-    [scheduleSync]
+    [portsGesteVivant]
   );
 
   // APERÇU DE MODE DE FUSION AU SURVOL (ticket 01 retour-usage). Survoler un
@@ -1850,16 +1868,13 @@ export default function App() {
         blendPreviewRef.current = { layerId: id, committed: layer.blendMode };
       }
       layer.blendMode = blendMode;
-      sessionRef.current.replaceLiveLayers(stack.layers);
-      // ⚠️ `replaceLiveLayers` NE REDEMANDE AUCUN RENDU — il ne fait que poser
-      // l'état vivant. Tout chemin vivant doit l'appairer avec un
-      // `requestRender`, comme le fait `handleOpacityChange`. Sans cette ligne
-      // l'aperçu changeait le MODÈLE sans repeindre l'ÉCRAN : le survol ne
-      // faisait rien de visible (défaut livré le 2026-08-21, relevé par Antoine
-      // devant l'app, corrigé le même jour).
-      rendererRef.current?.requestRender(stack.layers);
+      // Le rendu est porté par le geste vivant — c'est son oubli ici qui avait
+      // livré l'aperçu muet du 2026-08-21, relevé par Antoine devant l'app.
+      // `synchroniseReact: false` est DÉLIBÉRÉ : survoler une option n'est pas
+      // la choisir, donc le sélecteur du panneau doit garder la valeur engagée.
+      gestePileVivante(portsGesteVivant, stack.layers, { synchroniseReact: false });
     },
-    [currentStack]
+    [currentStack, portsGesteVivant]
   );
 
   const handleBlendModePreviewEnd = useCallback(() => {
@@ -1870,12 +1885,11 @@ export default function App() {
     const layer = stack.layers.find((l) => l.id === active.layerId);
     if (layer && layer.blendMode !== active.committed) {
       layer.blendMode = active.committed;
-      sessionRef.current.replaceLiveLayers(stack.layers);
-      // Même appairage qu'à la pose : sans lui, quitter le survol laissait
-      // l'écran sur le dernier aperçu rendu.
-      rendererRef.current?.requestRender(stack.layers);
+      // Même geste qu'à la pose, et même exception : le panneau n'a jamais
+      // cessé d'afficher la valeur engagée, il n'a rien à re-synchroniser.
+      gestePileVivante(portsGesteVivant, stack.layers, { synchroniseReact: false });
     }
-  }, [currentStack]);
+  }, [currentStack, portsGesteVivant]);
 
   const handleBlendModeChange = useCallback(
     (id: string, blendMode: string) => {
@@ -1942,10 +1956,8 @@ export default function App() {
     }
     const stack = currentStack();
     stack.updateMaskSourceParams(layerId, sourceId, params);
-    sessionRef.current.replaceLiveLayers(stack.layers);
-    scheduleSync(); // curseur vivant -> coalescé, voir `syncSchedulerRef`
-    rendererRef.current?.requestRender(stack.layers);
-  }, [currentStack, scheduleSync]);
+    gestePileVivante(portsGesteVivant, stack.layers);
+  }, [currentStack, portsGesteVivant]);
 
   const handleMaskSourceCombineModeChange = useCallback((layerId: string, sourceId: string, mode: "add" | "subtract" | "intersect") => {
     const stack = currentStack();
@@ -2014,10 +2026,8 @@ export default function App() {
     }
     const stack = currentStack();
     stack.updateRefineEdge(layerId, refineEdge);
-    sessionRef.current.replaceLiveLayers(stack.layers);
-    scheduleSync(); // curseur vivant -> coalescé, voir `syncSchedulerRef`
-    rendererRef.current?.requestRender(stack.layers);
-  }, [currentStack, scheduleSync]);
+    gestePileVivante(portsGesteVivant, stack.layers);
+  }, [currentStack, portsGesteVivant]);
 
   // Limitation documentée Tranche 3 (brief Task 6 Step 10) : pas de picker
   // interactif au clic sur le canvas (hors scope, Tranche 4/panneau

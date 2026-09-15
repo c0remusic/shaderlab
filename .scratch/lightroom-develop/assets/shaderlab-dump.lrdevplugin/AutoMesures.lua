@@ -57,6 +57,29 @@ if mesures and LrFileUtils.exists(sentinelle) then
         end)
       end
       if not photo then error("mire introuvable : " .. chemin) end
+      -- Liste de mesures supplementaires (meme contrat que MesurerCourbes) :
+      local extra = LrPathUtils.child(docs, "shaderlab-mesures-extra.txt")
+      if LrFileUtils.exists(extra) then
+        local fx = io.open(extra, "r")
+        if fx then
+          local liste = {}
+          for ligne in fx:lines() do
+            local nom, reste = ligne:match("^([%w%-%_]+)	(.*)$")
+            if nom then
+              local delta = {}
+              for cle, val in reste:gmatch("([%w]+)=([^;]+)") do
+                if val == "true" then delta[cle] = true
+                elseif val == "false" then delta[cle] = false
+                else delta[cle] = tonumber(val) end
+              end
+              liste[#liste + 1] = { nom, delta }
+            end
+          end
+          fx:close()
+          if #liste > 0 then mesures.MESURES = liste; journal("liste extra : " .. #liste .. " mesures") end
+          LrFileUtils.delete(extra)
+        end
+      end
       local dir, n = mesures.executer(photo, journal)
       local f = io.open(LrPathUtils.child(dir, "DONE.txt"), "w")
       f:write(tostring(n) .. "\n"); f:close()

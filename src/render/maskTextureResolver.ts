@@ -893,7 +893,22 @@ export class MaskTextureResolver {
       views: GPUTextureView[],
       u?: GPUBuffer,
     ) => {
-      const key = `${entry}:${wgsl.length}`;
+      // LE FORMAT DE LA CIBLE FAIT PARTIE DE LA CLE, pour la raison detaillee
+      // dans `runLoadPass` ci-dessous : un pipeline est compile pour UN format
+      // (`targets: [{ format: target.format }]`), et deux appels au meme shader
+      // vers deux formats doivent obtenir deux pipelines.
+      //
+      // ⚠️ Le correctif du 2026-08 avait ete applique a `runLoadPass` et PAS
+      // ici, alors que les deux encodeurs partagent le meme cache et la meme
+      // forme de cle. Aucune collision active — chaque `entry` de cet encodeur
+      // ne vise qu'un format aujourd'hui — mais une copie corrigee sur deux est
+      // exactement ce qui fait revenir un defaut par la porte voisine.
+      //
+      // Le shader ENTIER et non sa LONGUEUR : `wgsl.length` est un hachage par
+      // taille, donc deux corps differents de meme longueur sous le meme `entry`
+      // se partageaient un pipeline. Meme prix qu'ailleurs dans ce fichier, ou
+      // `maskPipeline` prend deja le corps complet.
+      const key = `${entry}:${target.format}:${wgsl}`;
       let c = this.edgeAwarePipelineCache.get(key);
       if (!c) {
         const entries: GPUBindGroupLayoutEntry[] = [
@@ -1026,7 +1041,7 @@ export class MaskTextureResolver {
     // que ce soit en constatant que deux executions du meme code ne rendaient
     // pas la meme image (196118 canaux sur 196118). C'est le garde de
     // reproductibilite qui l'a trouve, pas une comparaison de reference.
-    const key = `${entry}:${wgsl.length}:${target.format}:load`;
+    const key = `${entry}:${target.format}:load:${wgsl}`;
     let c = this.edgeAwarePipelineCache.get(key);
     if (!c) {
       const entries: GPUBindGroupLayoutEntry[] = [];

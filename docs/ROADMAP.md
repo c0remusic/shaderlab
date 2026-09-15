@@ -1989,6 +1989,17 @@ sont mesurés le jour même.
   quatre genres sont arrivés en trois semaines. La promesse « aucun
   `if (effectId)` » est tenue, mais ajouter un genre touche quand même le
   panneau. Forme : une table de neuf entrées, le corps devient une boucle.
+  ⚠️ RE-MESURÉ le 2026-09-15 sur les DEUX registres (instrument jetable, pas un
+  grep : les déclarations sont des champs d'objet). `EffectModule` porte **cinq**
+  champs déclaratifs de contrôle, et **quatre n'ont qu'UN déclarant** :
+  `curveControls` et `tonalRangeControl` (`curves`), `colorRampControls`
+  (`gradientMap`), `colorWheelControls` — qui n'a **aucun déclarant dans
+  `effectRegistry`**, son seul client étant `colorGrading`, qui vit dans
+  `developRegistry`. Un genre de contrôle du panneau est donc déjà porté par
+  l'ÉTAGE et non par un effet : la table à écrire doit couvrir les deux
+  registres. Seul `canvasControls` est large (9). Côté paramètre, `maxFrom` est
+  solitaire lui aussi (`sliceShift`) là où `unit: "percent"` (26), `choices` (18),
+  `appliesWhen` et `colorGroup` (11) sont partout.
   ⚠️ `groupEffectParams` (150 lignes derrière quatre arguments, testé hors
   rendu) est l'autre moitié du fichier et **ne doit pas bouger** : elle est déjà
   profonde.

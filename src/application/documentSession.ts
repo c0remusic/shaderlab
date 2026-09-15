@@ -109,8 +109,10 @@ export class DocumentSession {
    * vivant (glissement de poignée, de curseur, coup de pinceau).
    *
    * ⚠️ C'EST LA SEULE PORTE QUE LES GARDES DE `LayerStack` NE COUVRENT PAS, et
-   * le verrou fuyait par là. `LayerStack` refuse quatorze opérations sur un
-   * calque verrouillé, chacune derrière `isLocked`, et un test les couvre une
+   * le verrou fuyait par là. `LayerStack` refuse DIX-SEPT opérations sur un
+   * calque verrouillé — le compte disait quatorze, mesuré le 2026-09-15 sur les
+   * sites de garde, et `layerLocks.ts` disait dix-sept au même sujet. Chacune
+   * derrière un des quatre prédicats de `layerLocks`, et un test les couvre une
    * par une — mais **aucun geste à la souris ne passe par ces mutateurs**.
    * Pendant un glissement, `App.tsx` construit le tableau à la main et appelle
    * cette méthode, délibérément et pour une raison mesurée : `clone()` fabrique

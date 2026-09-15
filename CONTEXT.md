@@ -140,11 +140,19 @@ Source : `src/render/effects/grain.ts`. _Avoid_ : « bruit » pour l'analogique,
 « grain » pour le numérique — l'inversion est précisément ce que le mode nomme.
 
 **Mode de fusion** (`BlendMode`, `blendMode`) — façon dont la sortie d'effet d'un
-calque se combine avec le calque du dessous. `"normal"` = remplacement. Onze modes
-réels : normal, multiply, screen, add, darken, lighten (séparables, en linéaire) +
-overlay, hard-light, soft-light, color-burn, color-dodge (définis-gamma). Module
-autonome comme les effets (`src/render/blend/`). Source : `src/render/blend/modes.ts`,
+calque se combine avec le calque du dessous. `"normal"` = remplacement.
+**DIX-SEPT modes réels** : normal, multiply, screen, add, darken, lighten
+(séparables, en linéaire), overlay, hard-light, soft-light, color-burn,
+color-dodge (définis-gamma), puis les six du ticket 12 (2026-08-18) — différence,
+soustraction, teinte, saturation, couleur, luminosité. Module autonome comme les
+effets (`src/render/blend/`). Source : `src/render/blend/modes.ts`,
 `src/render/blend/types.ts`. _Avoid_ : "blend mode" (anglais), "mélange".
+
+⚠️ Cette entrée a dit « Onze modes réels » du 2026-08-18 au 2026-09-15, soit tout
+le temps où le registre en portait dix-sept. Deux sondes d'architecture ont
+repris le chiffre de CE fichier plutôt que de compter le registre — c'est
+précisément ce que le glossaire est censé empêcher. **Le registre tranche, pas
+cette phrase** : `blendRegistry` se compte, il ne se recopie pas.
 
 **Opacité** (`opacity`) — force du calque, 0..1 (1 = effet à pleine force).
 Combinée au masque : `opacity * maskValue`. Source : `src/layers/types.ts:6-7`.

@@ -37,7 +37,11 @@ export class FrameDiagnostics {
     const elapsedMs = Math.round((this.now() - frameStartedAtMs) * 100) / 100;
     this.logger(
       `frame#${this.frameCount} jsEncodeMs=${elapsedMs} enabledLayers=${stats.enabledLayerCount} ` +
-        `churnedThisFrame=${stats.churnedResourceCount} residentMaskTextures=resolver-owned ` +
+        // `residentMaskTextures` a été RETIRÉ de cette ligne le 2026-09-15 : il
+        // imprimait `resolver-owned` EN DUR, donc un champ qui ne mesurait plus
+        // rien dans l'outil même qui sert à instruire la pression VRAM. Le
+        // compte réel se prend par `MaskTextureResolver.drainDiagnostics`.
+        `churnedThisFrame=${stats.churnedResourceCount} ` +
         `pipelineCacheSize=${facts.pipelineCacheSize} imageSize=${facts.imageWidth}x${facts.imageHeight}`,
     );
   }

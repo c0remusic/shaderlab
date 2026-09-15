@@ -14,7 +14,7 @@ describe("FrameDiagnostics", () => {
     diagnostics.record(40, stats, facts);
 
     expect(logger).toHaveBeenCalledExactlyOnceWith(
-      "frame#15 jsEncodeMs=3.46 enabledLayers=3 churnedThisFrame=7 residentMaskTextures=resolver-owned pipelineCacheSize=5 imageSize=6000x4000",
+      "frame#15 jsEncodeMs=3.46 enabledLayers=3 churnedThisFrame=7 pipelineCacheSize=5 imageSize=6000x4000",
     );
   });
 
@@ -27,8 +27,8 @@ describe("FrameDiagnostics", () => {
     for (let frame = 0; frame < 30; frame++) diagnostics.record(8, stats, facts);
 
     expect(logger.mock.calls.map(([message]) => message)).toEqual([
-      "frame#15 jsEncodeMs=2 enabledLayers=0 churnedThisFrame=0 residentMaskTextures=resolver-owned pipelineCacheSize=0 imageSize=1x1",
-      "frame#30 jsEncodeMs=2 enabledLayers=0 churnedThisFrame=0 residentMaskTextures=resolver-owned pipelineCacheSize=0 imageSize=1x1",
+      "frame#15 jsEncodeMs=2 enabledLayers=0 churnedThisFrame=0 pipelineCacheSize=0 imageSize=1x1",
+      "frame#30 jsEncodeMs=2 enabledLayers=0 churnedThisFrame=0 pipelineCacheSize=0 imageSize=1x1",
     ]);
   });
 });

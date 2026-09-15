@@ -3354,6 +3354,25 @@ const INSTALL = `(async () => {
         stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "balayage");
       },
     },
+    // hl-lum : Luminance des hautes lumieres +50. SEULE reference du depot qui passe
+    // par le chemin de LUMINANCE du module — les quatre ci-dessus ne reglent que
+    // teinte et saturation, donc leur dL vaut zero et la saturation contre la borne
+    // y est l identite au bit pres. C est pourquoi elles n ont PAS bouge le jour ou
+    // le chemin de luminance a change : elles ne le voyaient pas.
+    //
+    // Ce qu elle gele, et qui est un defaut mesure le 2026-09-15 : sous le modele
+    // ADDITIF, le poids des hautes lumieres valant presque 1 au ras du blanc, le
+    // haut de la rampe de gris sortait a 255 des le niveau 244 — onze niveaux de
+    // detail en un aplat, dix-neuf a +100. A l oeil : le haut de la rampe garde ses
+    // marches jusqu au bout, il ne se termine pas par une plage blanche.
+    "developpement-grading-hl-lum": {
+      develop: { colorGrading: { highlightLum: 50 } },
+      build: async (r, stack) => {
+        const src = await mireBalayage(W, H);
+        const sourceId = await r.photoSources.register(src);
+        stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "balayage");
+      },
+    },
 
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,

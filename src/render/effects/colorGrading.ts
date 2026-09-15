@@ -119,9 +119,13 @@ function dirFromHue(hueDeg: number): [number, number] {
  *  l'écrêtage par canal rendait jaune.
  *
  *  La bissection tient en seize pas — la chroma admissible est monotone en `s`,
- *  donc seize pas donnent mieux que le pas de quantification 8 bits. Si `L` lui
- *  même sort de [0,1] (une Luminance poussée à fond), réduire la chroma n'y peut
- *  rien : l'écrêtage final s'en charge, et c'est le seul cas où il agit encore. */
+ *  donc seize pas donnent mieux que le pas de quantification 8 bits.
+ *
+ *  ⚠️ `L` ne sort PLUS de [0,1] depuis qu'`appliqueLum` sature contre les bornes —
+ *  ce commentaire a dit le contraire, et citait « une Luminance poussée à fond »
+ *  comme le dernier cas où l'écrêtage final agissait encore. L'écrêtage final reste
+ *  là pour l'ARRONDI (la bissection s'arrête à `lo`, pas à la limite exacte), pas
+ *  pour une luminance hors bornes. */
 function clipGamut(lab: Vec3): Vec3 {
   const dedans = (c: Vec3): boolean =>
     c[0] >= -1e-6 && c[0] <= 1 + 1e-6 &&
@@ -137,6 +141,41 @@ function clipGamut(lab: Vec3): Vec3 {
   }
   const fin = oklabToLinearSrgb([lab[0], lab[1] * lo, lab[2] * lo]);
   return [clamp01(fin[0]), clamp01(fin[1]), clamp01(fin[2])];
+}
+
+/** APPLIQUE LE DÉCALAGE DE LUMINANCE SANS JAMAIS FRANCHIR LE BLANC NI LE NOIR.
+ *
+ *  Un décalage ADDITIF (`L + dL`, puis écrêtage) avait un défaut mesuré : le poids
+ *  des hautes lumières vaut presque 1 au ras du blanc, donc à `Luminance des hautes
+ *  lumières` +50 les niveaux 244 à 254 sortaient TOUS à 255 — onze niveaux de détail
+ *  écrasés, dix-neuf à +100. Lightroom ne fait jamais ça : sur `cg-hl-lum-p50`, le
+ *  niveau 248 sort à 251,3 et le 254 à 255,0, et l'écart RETOMBE à zéro au blanc
+ *  (mesuré : +13,0 niveaux au 205, +6,65 au 240, +3,33 au 248, +1,42 au 252). Les
+ *  QUATRE mesures de luminance (ombres ±50, moyens +50, hautes +50, globale +50)
+ *  rendent `lin_out == lin_in` EXACTEMENT à partir du niveau 248 : les deux bouts
+ *  sont cloués, comme les deux bouts de la carte d'Adobe le sont (`divMap`).
+ *
+ *  La forme retenue est la saturation exponentielle contre la borne : le décalage
+ *  consomme une FRACTION de ce qui reste (`h`), donc il se confond avec l'additif
+ *  tant que `dL << h` — les tons moyens ne bougent pas — et n'atteint la borne
+ *  qu'à l'infini. Coût mesuré sur les cinq mesures de luminance, à `lumK` inchangé :
+ *  1,57 → 1,63 niveau d'écart moyen. C'est six centièmes de niveau payés pour onze
+ *  niveaux de détail rendus ; et à `lumK` refitté (0,080) le modèle doux vaut 1,56
+ *  contre 1,55 à l'additif, donc la forme ne coûte rien, seul le réglage bougerait.
+ *
+ *  ⚠️ CE N'EST PAS LE PROFIL DE POIDS MESURÉ, et ça ne prétend pas l'être. Le poids
+ *  des hautes lumières mesuré CULMINE au niveau 205 puis retombe ; notre `wh` monte
+ *  encore. Trois formes qui clouent le blanc par un facteur (`(1−L)`, `(1−lin)`,
+ *  `1−L^n`) ont été ajustées sur les cinq mesures et RÉGRESSENT toutes (1,62 → 1,81
+ *  au mieux, 2,55 au pire) : le poids à corriger n'est pas un facteur de plus, c'est
+ *  la forme de `wh` elle-même, qui porte AUSSI le partage de la chroma (celui-là
+ *  mesuré juste). Le défaut de forme reste donc ouvert au ticket 06 ; ce qui est
+ *  fermé ici, c'est l'ÉCRASEMENT du blanc. */
+function appliqueLum(L: number, dL: number): number {
+  const h = dL >= 0 ? 1 - L : L;
+  if (h <= 1e-6) return dL >= 0 ? 1 : 0;
+  const d = 1 - Math.exp(-Math.abs(dL) / h);
+  return dL >= 0 ? L + h * d : L - h * d;
 }
 
 /**
@@ -191,7 +230,7 @@ export function colorGradingSpec(rgb: Vec3, p: readonly number[]): Vec3 {
     (hLum / 100) * CG.lumK * wh +
     (gLum / 100) * CG.lumK * wgL;
 
-  return clipGamut([L + dL, a + da, b + db]);
+  return clipGamut([appliqueLum(L, dL), a + da, b + db]);
 }
 
 // ── DÉCLARATION DU MODULE ────────────────────────────────────────────────────
@@ -277,6 +316,20 @@ fn cg_dir(hueDeg: f32) -> vec2<f32> {
   return lab.yz / c;
 }
 
+// Jumeau d'appliqueLum cote TS : le decalage de luminance consomme une FRACTION de
+// ce qui reste jusqu'a la borne, il ne la franchit jamais. Additif tant que dL est
+// petit devant h, donc les tons moyens ne bougent pas ; a Luminance des hautes
+// lumieres +50 les niveaux 244 a 254 ne sortent plus tous a 255. Justification
+// mesuree en tete du twin.
+fn cg_lum_apply(L: f32, dL: f32) -> f32 {
+  let h = select(L, 1.0 - L, dL >= 0.0);
+  if (h <= 1e-6) {
+    return select(0.0, 1.0, dL >= 0.0);
+  }
+  let d = 1.0 - exp(-abs(dL) / h);
+  return select(L - h * d, L + h * d, dL >= 0.0);
+}
+
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // Identite au bit pres : les quatre saturations ET les quatre luminances a 0.
   // La teinte, la fusion et la balance ne font rien sans saturation ni luminance ;
@@ -327,7 +380,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // se reduit a L constant jusqu'a ce que les trois canaux rentrent, au lieu
   // d'ecreter chaque canal separement — un ecretage par canal TOURNE la couleur
   // la ou le virage est le plus fort, il ne la desature pas.
-  let labOut = vec3<f32>(L + dL, a + vecAB.x, b + vecAB.y);
+  let labOut = vec3<f32>(cg_lum_apply(L, dL), a + vecAB.x, b + vecAB.y);
   var outc = oklab_to_linear_srgb(labOut);
   if (!cg_dedans(outc)) {
     var lo = 0.0;

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { colorGrading, colorGradingSpec } from "../../../src/render/effects/colorGrading";
-import { srgbToLinear } from "../../../src/render/effects/srgbTransfer";
+import { srgbToLinear, linearToSrgb } from "../../../src/render/effects/srgbTransfer";
 import { linearSrgbToOklab } from "../../../src/render/effects/oklab";
 
 /**
@@ -125,6 +125,47 @@ describe("colorGrading — jumeau du module de virage tonal", () => {
     const moins = lDe(colorGradingSpec(gris(0.5), avec({ midtoneLum: -100 })));
     expect(plus).toBeGreaterThan(l0);
     expect(moins).toBeLessThan(l0);
+  });
+
+  // ⚠️ GARDE NÉE D'UN DÉFAUT MESURÉ le 2026-09-15. Le décalage de luminance était
+  // ADDITIF puis écrêté : le poids des hautes lumières valant presque 1 au ras du
+  // blanc, `Luminance des hautes lumières` +50 rendait les niveaux 244 à 254 TOUS à
+  // 255 — onze niveaux de détail écrasés, dix-neuf à +100. Les quatre mesures de
+  // luminance de Lightroom rendent `lin_out == lin_in` EXACTEMENT à partir du niveau
+  // 248 : ses deux bouts sont cloués. `appliqueLum` sature contre la borne au lieu de
+  // la franchir, donc l'ORDRE des niveaux survit — c'est ce que ce test éprouve, et
+  // il rougit si quelqu'un revient à `L + dL`.
+  it("la luminance ne franchit ni le blanc ni le noir : l'ordre des niveaux survit", () => {
+    for (const lum of [50, 100]) {
+      const p = avec({ highlightLum: lum });
+      let precedent = -1;
+      for (let i = 236; i <= 254; i++) {
+        const L = lDe(colorGradingSpec(gris(i / 255), p));
+        expect(L).toBeLessThan(1);
+        expect(L).toBeGreaterThan(precedent);
+        precedent = L;
+      }
+    }
+    for (const lum of [-50, -100]) {
+      const p = avec({ shadowLum: lum });
+      let precedent = -1;
+      for (let i = 1; i <= 20; i++) {
+        const L = lDe(colorGradingSpec(gris(i / 255), p));
+        expect(L).toBeGreaterThan(0);
+        expect(L).toBeGreaterThan(precedent);
+        precedent = L;
+      }
+    }
+  });
+
+  // Le prix de la saturation contre la borne, chiffré contre Lightroom lui-même :
+  // elle se confond avec l'additif tant que le décalage est petit devant ce qui
+  // reste, donc les tons moyens ne bougent pas. Mesure `cg-moyens-lum-p50`
+  // (MidtoneLum +50) : Lightroom rend 139,35 au niveau 128.
+  it("tons moyens : le décalage reste celui de Lightroom à moins d'un niveau", () => {
+    const sortie = colorGradingSpec(gris(128 / 255), avec({ midtoneLum: 50 }));
+    const niveau = 255 * linearToSrgb(sortie[0]);
+    expect(Math.abs(niveau - 139.35)).toBeLessThan(1.5);
   });
 
   it("le module déclare 14 paramètres (4 roues × 3 + fusion + balance)", () => {

@@ -661,6 +661,11 @@ const ATTENDU = {
   "developpement-grading-hl-orange.png": { width: 256, height: 256, valeurs: null },
   "developpement-grading-balance.png": { width: 256, height: 256, valeurs: null },
   "developpement-grading-fusion-0.png": { width: 256, height: 256, valeurs: null },
+  // La CINQUIEME (2026-09-15) est la seule qui passe par le chemin de LUMINANCE du
+  // module : les quatre au-dessus ne reglent que teinte et saturation, donc leur
+  // decalage de luminance vaut zero. Elle gele la saturation contre le blanc, qui
+  // remplace un decalage additif ecretant onze niveaux de la rampe a +50.
+  "developpement-grading-hl-lum.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

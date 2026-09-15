@@ -276,3 +276,83 @@ mécanisme j'ai d'abord inversé le sens de Fusion dans un commentaire et dans u
 garde. Le mécanisme est bien « creuser une bande neutre » et non « élargir des
 plages », mais c'est Fusion BASSE qui creuse — mesuré au niveau 160 : 0,0119 de
 chroma à Fusion 0, 0,0161 à 50, 0,0292 à 100. Le test d'origine avait le bon sens.
+
+## 2026-09-15 — le blanc écrasé : ce qui est corrigé, ce qui reste ouvert
+
+**Le défaut portait un nom trop doux.** Il était consigné comme « le poids des
+hautes lumières est NON MONOTONE » — une question d'ajustement à 0,5 niveau près.
+Mesuré dans le twin, c'est une PERTE DE DÉTAIL : à `Luminance des hautes lumières`
++50, notre décalage additif rendait les niveaux 244 à 254 **tous à 255** — onze
+niveaux de rampe en un aplat, dix-neuf à +100. Lightroom ne le fait jamais : au
+même réglage il rend 251,3 au niveau 248 et 253,4 au 252.
+
+**Ce qui est livré : la saturation contre la borne.** `appliqueLum` (twin) /
+`cg_lum_apply` (WGSL) : le décalage consomme une FRACTION de ce qui reste jusqu'à
+la borne (`1 − exp(−|dL|/h)`), donc il se confond avec l'additif tant que `dL` est
+petit devant `h`, et n'atteint la borne qu'à l'infini. Prix mesuré sur les cinq
+mesures de luminance, `lumK` inchangé : **1,57 → 1,63 niveau** d'écart moyen. Sur
+les treize : **4,27 → 4,29**. Gain : 11 niveaux écrasés → 5 (et ces 5 ne sont plus
+qu'un arrondi 8 bits, pas un aplat), 19 → 8 à +100.
+
+Fondé sur une mesure et non sur une intuition : les QUATRE mesures de luminance
+(ombres ±50, moyens +50, hautes +50, globale +50) rendent `lin_out == lin_in`
+**exactement** à partir du niveau 248. Les deux bouts de Lightroom sont cloués,
+comme les deux bouts de sa carte `divMap` le sont.
+
+**Pièce minée le même jour** (`CameraRaw.dll` 14.5.1). `cr_stage_SplitTone` porte,
+dans le binaire, le titre du brevet Adobe qui le décrit : *« Color toning while
+maintaining constant luminance while using color curve slopes »*, Mark Hamburg. Et
+son uniforme `UniformsSplitTone` porte **`balanceMapAlpha`, `blending`,
+`globalNOPBalanceMapAlpha`, `shadowFactor`, `deltaFactor`, `midtoneMapAlpha`,
+`luminance`, `globalMapAlpha`** — confirme « une rampe et son complément »
+(shadowFactor + deltaFactor), et ne porte aucun poids de hautes lumières. Le
+kernel lui-même est dans l'un des 293 blobs DXBC, sans nom exploitable : la math
+exacte n'est pas atteignable par regex.
+
+### Ce qui reste ouvert, et qui est PLUS gros que ce qui vient d'être corrigé
+
+1. **La FORME du poids des hautes lumières.** Le profil mesuré (`cg-hl-lum-p50`,
+   converti en ΔL d'OKLab) CULMINE au niveau 201 à 0,0402 puis retombe à 0,0099 au
+   248 ; notre `wh` monte encore. **Trois familles de correctifs ont été ajustées
+   sur les cinq mesures de luminance et RÉGRESSENT toutes** : un facteur `(1−L)`
+   (2,55 niveaux contre 1,62), `(1−lin)` (2,52), `1−L^n` (1,64 au mieux, à n = 24,
+   c'est-à-dire en ne faisant presque rien). Un balayage à deux exposants
+   (`base^p · (1−borne)^q`, trois bases, 14 × 8 couples) place le meilleur ajustement
+   du seul profil des hautes lumières à `lin²·(1−L)`, à 4 % du pic — mais aucun
+   n'améliore l'ensemble. **Conclusion mesurée : ce n'est pas un facteur qui
+   manque, c'est la forme de `wh` elle-même**, et `wh` porte AUSSI le partage de la
+   CHROMA, lui mesuré juste (croisement à L = 0,6). Un poids de luminance distinct
+   du poids de chroma serait la piste, et il coûte une seconde forme là où le
+   binaire n'en nomme qu'une.
+2. **Le noir n'est pas levé, et c'est le plus gros résidu des treize.** À
+   `Luminance des ombres` +50, Lightroom porte le niveau 0 à **14,33** ; nous à
+   **0,16** — un facteur 100 en lumière linéaire, et les 14,2 niveaux de pire cas de
+   `cg-ombres-lum-p50`. Un décalage de L en OKLab ne peut pas lever un noir absolu
+   (L = 0 ⇒ lin = 0), un OFFSET en lumière linéaire le fait par construction. Les
+   diagnostics de transfert vont dans le même sens : sur cette mesure le RAPPORT
+   `lin_out/lin_in` vaut 3,59 au niveau 8 et retombe à 1 au blanc — la signature
+   d'un lift, pas d'un décalage perceptuel. **Hypothèse à éprouver : les luminances
+   des quatre roues agissent en lumière LINÉAIRE (lift / gain), pas sur le L
+   d'OKLab.** C'est un changement de modèle, pas un réglage.
+3. **`lumK` ne gagne rien à être refitté.** Balayé de 0,040 à 0,220 : l'optimum sur
+   les cinq mesures de luminance est 0,076 (additif) ou 0,080 (borné), contre 0,074
+   aujourd'hui, et sur les treize scènes la moyenne bouge de 4,27 à 4,25 — sous le
+   bruit. Ne pas regraver quatre références pour ça.
+
+### Outil versionné : `assets/verifier-grading.mjs`
+
+Relance l'écart aux treize mesures avec le VRAI twin (bundlé à la volée par
+esbuild, donc lu sur disque). Il existe parce que le chiffre « 4,41 / 40,7 » du
+2026-09-14 avait été produit par un script jamais versionné : un chiffre qu'on ne
+peut pas relancer se recopie au lieu de se mesurer. Les réglages de chaque scène
+sont RECONSTRUITS depuis son nom (les exports ne les portent pas) et la
+reconstruction se vérifie par son résultat : le pire cas retombe sur 40,7, même
+scène. Les `grading2-*` sont exclues — leur base est `temoin2`, pas l'identité.
+
+### Référence de pixels : la cinquième, et pourquoi les quatre premières n'ont rien vu
+
+`developpement-grading-hl-lum` (`highlightLum: 50`) est la SEULE qui passe par le
+chemin de LUMINANCE du module. Les quatre existantes ne règlent que teinte et
+saturation : leur `dL` vaut zéro, `appliqueLum` y est l'identité au bit près, et
+elles sont restées **inchangées au bit près** le jour où ce chemin a changé. Un
+verrou de pixels ne verrouille que ce que sa scène traverse.

@@ -60,9 +60,16 @@ describe("colorGrading — jumeau du module de virage tonal", () => {
     const sombre = colorGradingSpec(gris(0.12), avec(modif));
     const moyen = colorGradingSpec(gris(0.5), avec(modif));
     expect(chromaDe(sombre)).toBeGreaterThan(0.03);
-    // Lightroom mesuré : 0,0222. Nous : 0,0216.
-    expect(chromaDe(moyen)).toBeGreaterThan(0.015);
-    expect(chromaDe(moyen)).toBeLessThan(0.030);
+    // ⚠️ LE CHIFFRE CITÉ ICI ÉTAIT FAUX. Cette garde a dit « Lightroom mesuré :
+    // 0,0222 » et bornait à 0,015 dessus. Relancée sur `st-ombres-bleu` au niveau
+    // 128 (chroma OKLab de `rampe_rgb`), la mesure vaut **0,0151** — et le profil
+    // de Lightroom est une CLOCHE (pic 0,048 au niveau 64), pas une rampe qui
+    // décroît depuis le noir. Nous rendions 0,0216, soit 43 % au-dessus de la
+    // vraie valeur, et la borne fausse protégeait cet écart-là. Nous rendons
+    // 0,0143 depuis `rangeContrast`, à 5 % en dessous : la borne encadre donc la
+    // valeur de Lightroom, elle ne protège plus un écart de 43 %.
+    expect(chromaDe(moyen)).toBeGreaterThan(0.010);
+    expect(chromaDe(moyen)).toBeLessThan(0.020);
     expect(chromaDe(sombre)).toBeGreaterThan(chromaDe(moyen));
   });
 
@@ -136,12 +143,20 @@ describe("colorGrading — jumeau du module de virage tonal", () => {
   // la franchir, donc l'ORDRE des niveaux survit — c'est ce que ce test éprouve, et
   // il rougit si quelqu'un revient à `L + dL`.
   it("la luminance ne franchit ni le blanc ni le noir : l'ordre des niveaux survit", () => {
+    // ⚠️ La borne se compare au L DU BLANC PUR, pas à 1. Le round-trip OKLab du
+    // blanc rend 0,99999999347, donc `toBeLessThan(1)` — ce que cette garde a
+    // d'abord écrit — passait même sur un blanc franchement écrasé : l'assertion
+    // était inerte, et seule la monotonie stricte attrapait le défaut. Contre le L
+    // du blanc, la garde mord au PREMIER niveau écrasé.
+    const BLANC = lDe(gris(1));
     for (const lum of [50, 100]) {
       const p = avec({ highlightLum: lum });
       let precedent = -1;
+      // Jusqu'à 254 : le blanc PUR est exclu, son aller-retour OKLab perd 2e-11
+      // et casserait la monotonie stricte sans rien dire du modèle.
       for (let i = 236; i <= 254; i++) {
         const L = lDe(colorGradingSpec(gris(i / 255), p));
-        expect(L).toBeLessThan(1);
+        expect(L).toBeLessThan(BLANC);
         expect(L).toBeGreaterThan(precedent);
         precedent = L;
       }

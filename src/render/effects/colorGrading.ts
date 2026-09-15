@@ -147,30 +147,37 @@ function clipGamut(lab: Vec3): Vec3 {
  *
  *  Un décalage ADDITIF (`L + dL`, puis écrêtage) avait un défaut mesuré : le poids
  *  des hautes lumières vaut presque 1 au ras du blanc, donc à `Luminance des hautes
- *  lumières` +50 les niveaux 244 à 254 sortaient TOUS à 255 — onze niveaux de détail
- *  écrasés, dix-neuf à +100. Lightroom ne fait jamais ça : sur `cg-hl-lum-p50`, le
- *  niveau 248 sort à 251,3 et le 254 à 255,0, et l'écart RETOMBE à zéro au blanc
- *  (mesuré : +13,0 niveaux au 205, +6,65 au 240, +3,33 au 248, +1,42 au 252). Les
- *  QUATRE mesures de luminance (ombres ±50, moyens +50, hautes +50, globale +50)
- *  rendent `lin_out == lin_in` EXACTEMENT à partir du niveau 248 : les deux bouts
- *  sont cloués, comme les deux bouts de la carte d'Adobe le sont (`divMap`).
+ *  lumières` +50 les niveaux 244 à 254 sortaient TOUS à 255 — onze niveaux écrasés
+ *  en un aplat, dix-neuf à +100. ⚠️ La saturation ci-dessous en ramène **onze à
+ *  cinq**, elle n'en rend pas onze : 250 à 254 restent indiscernables du blanc, par
+ *  quantification 8 bits. Ce commentaire a dit « onze niveaux de détail rendus »,
+ *  et c'était une bonne nouvelle de trop.
+ *
+ *  Ce que Lightroom fait, mesuré : il n'atteint 255 QU'À L'ENTRÉE 255, sur les cinq
+ *  mesures de luminance — jamais avant, quel que soit le réglage. Sur
+ *  `cg-hl-lum-p50`, le 248 sort à 251,3 et le 254 à 254,5, et l'écart RETOMBE vers
+ *  zéro en approchant du blanc (+13,0 niveaux au 205, +6,65 au 240, +3,33 au 248,
+ *  +1,42 au 252). ⚠️ Ce paragraphe a affirmé que les mesures rendaient
+ *  `lin_out == lin_in` « exactement à partir du niveau 248 » : FAUX pour deux des
+ *  cinq, dont `cg-hl-lum-p50` — celle que ce correctif vise — et contredit par la
+ *  phrase d'à côté qui cite 251,3 au niveau 248. L'énoncé juste est ci-dessus, et
+ *  il est plus fort.
  *
  *  La forme retenue est la saturation exponentielle contre la borne : le décalage
  *  consomme une FRACTION de ce qui reste (`h`), donc il se confond avec l'additif
  *  tant que `dL << h` — les tons moyens ne bougent pas — et n'atteint la borne
- *  qu'à l'infini. Coût mesuré sur les cinq mesures de luminance, à `lumK` inchangé :
- *  1,57 → 1,63 niveau d'écart moyen. C'est six centièmes de niveau payés pour onze
- *  niveaux de détail rendus ; et à `lumK` refitté (0,080) le modèle doux vaut 1,56
- *  contre 1,55 à l'additif, donc la forme ne coûte rien, seul le réglage bougerait.
+ *  qu'à l'infini. Coût, à poids inchangés, sur les cinq mesures de luminance :
+ *  **1,764 → 1,826 niveau** d'écart moyen (relançable par
+ *  `.scratch/lightroom-develop/assets/verifier-grading.mjs`). ⚠️ Ce chiffre a été
+ *  écrit « 1,57 → 1,63 » : le DELTA était juste, le niveau non, et il n'était pas
+ *  reproductible par le script que le même commit versionnait pour ça.
  *
- *  ⚠️ CE N'EST PAS LE PROFIL DE POIDS MESURÉ, et ça ne prétend pas l'être. Le poids
- *  des hautes lumières mesuré CULMINE au niveau 205 puis retombe ; notre `wh` monte
- *  encore. Trois formes qui clouent le blanc par un facteur (`(1−L)`, `(1−lin)`,
- *  `1−L^n`) ont été ajustées sur les cinq mesures et RÉGRESSENT toutes (1,62 → 1,81
- *  au mieux, 2,55 au pire) : le poids à corriger n'est pas un facteur de plus, c'est
- *  la forme de `wh` elle-même, qui porte AUSSI le partage de la chroma (celui-là
- *  mesuré juste). Le défaut de forme reste donc ouvert au ticket 06 ; ce qui est
- *  fermé ici, c'est l'ÉCRASEMENT du blanc. */
+ *  Le poids a été raidi ENSUITE (`rangeContrast`, voir la table) : l'écrasement
+ *  tombe de cinq niveaux à QUATRE, sans rien coûter ailleurs. Le défaut de FORME
+ *  que ce commentaire laissait ouvert — un poids de hautes lumières qui monte
+ *  encore là où la mesure culmine puis retombe — est réduit, pas fermé, et c'est
+ *  lui qui plafonne tout le reste : gonfler l'amplitude pour gagner en parité
+ *  ramène l'écrasement à neuf niveaux (essai mesuré, refusé, motif dans la table). */
 function appliqueLum(L: number, dL: number): number {
   const h = dL >= 0 ? 1 - L : L;
   if (h <= 1e-6) return dL >= 0 ? 1 : 0;
@@ -208,8 +215,9 @@ export function colorGradingSpec(rgb: Vec3, p: readonly number[]): Vec3 {
   // transition, et son sens est l'inverse de ce que disait notre documentation.
   const cov = 1 - CG.blendDepth * (1 - divMap(beta, CG_BLEND_MAP_A)) * 4 * alpha * (1 - alpha);
 
-  const ws = (1 - alpha) * cov;
-  const wh = alpha * cov;
+  const g = CG.rangeContrast;
+  const ws = Math.pow(1 - alpha, g) * cov;
+  const wh = Math.pow(alpha, g) * cov;
   const wm = Math.exp(-((L - midC) * (L - midC)) / (2 * sigma * sigma));
   const wgL = 4 * L * (1 - L);
 
@@ -297,6 +305,7 @@ const CG_BALANCE_MID = ${f(CG.balanceMid)};
 const CG_BLEND_DEPTH = ${f(CG.blendDepth)};
 const CG_BLEND_MAP_A = ${f(CG_BLEND_MAP_A)};
 const CG_BALANCE_SHIFT = ${f(CG.balanceShift)};
+const CG_RANGE_CONTRAST = ${f(CG.rangeContrast)};
 
 // Direction unitaire (a,b) d'OKLab de la teinte pure hueDeg. Jumeau de dirFromHue
 // cote TS. AUCUN atan2 : on derive une direction d'un PARAMETRE, on ne mesure
@@ -356,8 +365,8 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let alpha = cg_div_map(x, (1.0 - B) / B);
   let cov = 1.0 - CG_BLEND_DEPTH * (1.0 - cg_div_map(beta, CG_BLEND_MAP_A)) * 4.0 * alpha * (1.0 - alpha);
 
-  let ws = (1.0 - alpha) * cov;
-  let wh = alpha * cov;
+  let ws = pow(1.0 - alpha, CG_RANGE_CONTRAST) * cov;
+  let wh = pow(alpha, CG_RANGE_CONTRAST) * cov;
   let dm = L - midC;
   let wm = exp(-(dm * dm) / (2.0 * sigma * sigma));
   let wgL = 4.0 * L * (1.0 - L);

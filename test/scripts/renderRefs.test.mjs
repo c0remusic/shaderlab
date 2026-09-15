@@ -666,6 +666,10 @@ const ATTENDU = {
   // decalage de luminance vaut zero. Elle gele la saturation contre le blanc, qui
   // remplace un decalage additif ecretant onze niveaux de la rampe a +50.
   "developpement-grading-hl-lum.png": { width: 256, height: 256, valeurs: null },
+  // La SIXIÈME (2026-09-15, sur revue adverse) prend la branche NÉGATIVE du même
+  // chemin : la cinquième ne mord que vers le blanc, donc l'autre moitié du
+  // `select` du shader n'était gelée par aucun pixel.
+  "developpement-grading-ombres-lum-m50.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

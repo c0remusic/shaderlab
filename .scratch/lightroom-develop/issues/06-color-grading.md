@@ -356,3 +356,81 @@ chemin de LUMINANCE du module. Les quatre existantes ne règlent que teinte et
 saturation : leur `dL` vaut zéro, `appliqueLum` y est l'identité au bit près, et
 elles sont restées **inchangées au bit près** le jour où ce chemin a changé. Un
 verrou de pixels ne verrouille que ce que sa scène traverse.
+
+## 2026-09-15 (2ᵉ passe) — ce qu'une revue adverse a corrigé du matin même
+
+Une contre-expertise a été lancée sur le correctif `60562b5` avec pour seule
+consigne de CHERCHER L'ERREUR. Elle en a rendu dix. Six touchaient des
+affirmations, deux la couverture, deux une décision. Les voici et ce qu'elles ont
+changé.
+
+**Trois chiffres faux, corrigés dans le code.** (a) « onze niveaux de détail
+rendus » : la saturation ramène l'écrasement de **11 à 5**, elle ne le supprime
+pas — 250 à 254 restaient indiscernables du blanc. (b) « les quatre mesures
+rendent `lin_out == lin_in` exactement à partir du niveau 248 » : FAUX pour deux
+des cinq, dont `cg-hl-lum-p50`, celle que le correctif vise — et contredit par la
+phrase d'à côté qui cite 251,3 au niveau 248. L'énoncé juste, plus fort, est que
+Lightroom n'atteint 255 QU'À L'ENTRÉE 255, sur les cinq. (c) « 1,57 → 1,63 » :
+le delta était juste, le niveau non — **1,764 → 1,826**, relançable par le script
+que ce même commit versionnait pour rendre les chiffres relançables.
+
+**Une garde de test qui citait une mesure fausse.** « Lightroom mesuré : 0,0222 »
+au gris moyen sous virage bleu des ombres : relancé sur `st-ombres-bleu` au niveau
+128, c'est **0,0151**, et le profil de Lightroom est une CLOCHE (pic 0,048 au
+niveau 64), pas une rampe qui décroît depuis le noir. Nous rendions 0,0216, soit
+43 % au-dessus, et la borne fausse protégeait exactement cet écart.
+
+**Une assertion inerte.** `expect(L).toBeLessThan(1)` ne peut pas échouer : le
+round-trip OKLab du blanc pur rend 0,99999999347. La garde tenait par sa seule
+monotonie ; elle compare désormais au L du blanc, et mord au premier niveau écrasé.
+
+**Un trou de couverture GPU.** Les cinq références de virage n'empruntaient que la
+branche POSITIVE de la saturation de luminance : une inversion du seul membre
+négatif du `select` WGSL serait passée par tous les gates (twin TS juste, test
+unitaire vert, aucune PNG déplacée). D'où `developpement-grading-ombres-lum-m50`,
+sixième référence, qui gèle aussi l'index 2 du uniform.
+
+### La décision que la revue a renversée : `rangeContrast`
+
+Le matin, deux constantes (un exposant de contraste des plages, une amplitude de
+luminance par plage) avaient été essayées, mesurées à 4,29 → 3,79 sur la rampe,
+puis **revertées** au motif d'un sur-ajustement — le hors-échantillon montait de
+10,25 à 10,49. La revue a attaqué ce verdict, et elle avait raison sur les deux
+points :
+
+- la **validation croisée PAR RÉGLAGE** n'avait pas été faite. Refaite : ajusté
+  sur les OMBRES seules, l'optimum améliore les HAUTES lumières (2,28 → 1,09) ;
+  ajusté sur les HAUTES seules, il améliore les OMBRES (2,50 → 0,85) — et les deux
+  jeux DISJOINTS désignent le même optimum ; ajusté sur les luminances, il améliore
+  les scènes de TEINTE (5,84 → 5,56), qui n'ont servi à aucun ajustement. Deux
+  constantes qui généralisent d'une roue à l'autre puis de la luminance vers la
+  chroma ne décrivent pas le bruit de l'échantillon ;
+- le **hors-échantillon ne jugeait pas ce qu'on croyait** : la hausse était entière
+  sur les deux balayages dont **100 % des entrées ont déjà un canal à 1,0** (mesuré),
+  où élever la luminance sort du gamut par construction. Sur les deux balayages non
+  saturés, le changement gagnait.
+
+**Livré : `rangeContrast = 1,6`, une seule constante.** Trois chiffres dans le même
+sens, aucune contrepartie : écart aux treize mesures **4,295 → 4,167** ; niveaux
+écrasés à `Luminance des hautes lumières` +50 **5 → 4** (8 → 7 à +100) ; chroma du
+gris moyen **0,0216 → 0,0143** contre 0,0151 mesurés (43 % d'écart → 5 %). Hors
+échantillon aussi : 10,25 → 10,19.
+
+**Refusé : l'amplitude de luminance par plage.** Les mesures la réclament (les deux
+roues de plage demandent ~1,8 fois l'amplitude nominale ; les deux roues sur
+lesquelles `lumK` est calibré tombent juste) et elle gagne 0,4 niveau de plus
+(4,17 → 3,76). Mais elle fait repasser l'écrasement de **4 à 9 niveaux** : elle
+échange un défaut VISIBLE contre un dixième de niveau sur une mire. Le plafond
+n'est pas l'amplitude, c'est la forme du poids au ras du blanc.
+
+### L'hypothèse « luminance en lumière LINÉAIRE » reste OUVERTE
+
+Un test avait été construit pour la trancher : extraire le poids implicite des deux
+signes (`W+ = ΔL/(1−L)`, `W− = −ΔL/L`), normaliser, comparer — l'espace où les deux
+signes se superposent serait le bon. Il donnait OKLab 0,123 contre linéaire 0,475.
+**La revue l'a réfuté par contrôle synthétique** : sur des rampes fabriquées en
+lumière LINÉAIRE, ce test répond « OKLab » ; sur des rampes fabriquées en OKLab, il
+répond « ni l'un ni l'autre » et désigne un exposant sans lecture colorimétrique
+(0,10). Il mesure la compression, pas l'espace. L'hypothèse du § précédent n'est
+donc ni confirmée ni réfutée, et le fait qui la motive tient toujours : à
+`Luminance des ombres` +50, Lightroom porte le niveau 0 à 14,33, nous à 0,16.

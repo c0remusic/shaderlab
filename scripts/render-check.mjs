@@ -3373,6 +3373,23 @@ const INSTALL = `(async () => {
         stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "balayage");
       },
     },
+    // ombres-lum-m50 : la SEULE reference qui emprunte la branche NEGATIVE de la
+    // saturation de luminance (le decalage mord alors vers le NOIR, h = L, et
+    // c est l autre moitie du select cote WGSL). Trou signale par une revue
+    // adverse le 2026-09-15 : hl-lum ci-dessus ne prend que la branche positive,
+    // et une inversion du seul membre negatif du select serait passee par tous
+    // les gates — le twin TS serait reste juste, donc le test unitaire vert, et
+    // aucune PNG n aurait bouge. Elle gele AUSSI l index 2 du uniform
+    // (shadowLum), qu aucune autre reference ne lisait.
+    // A l oeil : le bas de la rampe de gris s assombrit, le noir pur reste noir.
+    "developpement-grading-ombres-lum-m50": {
+      develop: { colorGrading: { shadowLum: -50 } },
+      build: async (r, stack) => {
+        const src = await mireBalayage(W, H);
+        const sourceId = await r.photoSources.register(src);
+        stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "balayage");
+      },
+    },
 
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,

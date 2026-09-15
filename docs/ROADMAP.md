@@ -43,12 +43,14 @@
   (ADR-0021, quatrième refus daté). ✅ Depuis le 2026-09-07 (`ede4b16`) le
   matcap du ticket 17 est une DOSE à défaut 0 — Antoine a pointé la colonne
   d'avant sur la planche chronologique — et `effet-verre-matcap` est la 14ᵉ.
-- **379 paramètres, 148 références de pixels** (143 jusqu'au 2026-09-14 ; quatre de
+- **379 paramètres, 149 références de pixels** (143 jusqu'au 2026-09-14 ; quatre de
   plus sont `developpement-grading-{balance,fusion-0,hl-orange,ombres-bleu}`, posées
   au ticket 06, et la 148ᵉ est `developpement-grading-hl-lum`, posée le 2026-09-15
   parce qu'aucune des quatre ne traversait le chemin de LUMINANCE du module — elles
   ne règlent que teinte et saturation, et sont restées inchangées au bit près le
-  jour où ce chemin a changé. Aucun orphelin : les 148 ont leur scénario dans
+  jour où ce chemin a changé ; la 149ᵉ est `developpement-grading-ombres-lum-m50`,
+  posée sur revue adverse parce que la 148ᵉ n'empruntait que la branche POSITIVE de
+  ce chemin. Aucun orphelin : les 149 ont leur scénario dans
   `render-check.mjs` ET leur entrée dans la table `ATTENDU`, vérifié le 2026-09-15)
   — le compte de params re-mesuré le
   **2026-09-11** (386 → 379 : `etalonnage` et ses 7 params PARTENT vers l'ÉTAGE de
@@ -2038,15 +2040,22 @@ sont mesurés le jour même.
   au niveau 205 puis retombe à 0,26 au niveau 248. Aucune homographie ne rend ça,
   et c'est la seule des treize mesures de virage qui régresse après la refonte
   des poids (`eb1ea2a`). Hérité du 2026-09-14. **Sa CONSÉQUENCE est corrigée le
-  2026-09-15, sa CAUSE non** : le décalage additif écrasait onze niveaux de rampe
-  à 255 dès `Luminance des hautes lumières` +50 (dix-neuf à +100) ; la saturation
-  contre la borne (`appliqueLum`) ramène ça à cinq niveaux d'arrondi 8 bits, pour
-  0,06 niveau d'écart moyen payé. La FORME du poids, elle, reste fausse — trois
-  familles de correctifs ajustées et réfutées sur les cinq mesures de luminance,
-  et `wh` porte aussi le partage de la chroma, lui mesuré juste. Détail et chiffres
-  au ticket 06 de `.scratch/lightroom-develop/`.
+  2026-09-15, sa CAUSE réduite mais non fermée** : le décalage additif écrasait onze
+  niveaux de rampe à 255 dès `Luminance des hautes lumières` +50 (dix-neuf à +100) ;
+  la saturation contre la borne (`appliqueLum`) ramène ça à cinq, et le raidissement
+  du partage (`rangeContrast`, posé le soir même après contre-expertise) à
+  **quatre** — en améliorant AUSSI la parité (4,295 → 4,167 niveaux) et la chroma du
+  gris moyen (43 % d'écart à la mesure ramenés à 5 %). La FORME du poids au ras du
+  blanc reste fausse, et c'est elle qui plafonne le reste : gonfler l'amplitude gagne
+  encore 0,4 niveau de parité et fait repasser l'écrasement à neuf (essai mesuré,
+  refusé). Détail, validation croisée et les dix points de la revue adverse au
+  ticket 06 de `.scratch/lightroom-develop/`.
 - ⚠️ **OUVERT le 2026-09-15, et plus gros que le précédent : le NOIR n'est pas
-  levé.** À `Luminance des ombres` +50, Lightroom porte le niveau 0 à **14,33** ;
+  levé.** ⚠️ Le test qui prétendait trancher l'espace (superposition des poids
+  implicites des deux signes) a été RÉFUTÉ le jour même par contrôle synthétique :
+  sur des rampes fabriquées en lumière linéaire il répond « OKLab », sur des rampes
+  fabriquées en OKLab il ne désigne ni l'un ni l'autre. Il mesure la compression, pas
+  l'espace — l'hypothèse ci-dessous reste entière, et non tranchée. À `Luminance des ombres` +50, Lightroom porte le niveau 0 à **14,33** ;
   nous à **0,16** — facteur 100 en lumière linéaire, et le pire résidu des treize
   mesures (14,2 niveaux). Un décalage de L en OKLab ne PEUT pas lever un noir
   absolu ; un offset en lumière linéaire le fait par construction, et le rapport
@@ -2082,9 +2091,8 @@ sont mesurés le jour même.
 - **Deux correctifs `CLAUDE.md`**, proposés et non appliqués (le fichier ne
   s'édite pas sans accord) : le compte d'opérations verrouillées (seize → **17**,
   mesuré sur les sites de garde) et le compte de références de pixels (143 →
-  **148**, les quatre de Color Grading du 2026-09-14 plus `developpement-grading-hl-lum`
-  du 2026-09-15 ; aucun orphelin, les 148 ont leur scénario ET leur entrée
-  `ATTENDU`).
+  **149**, les quatre de Color Grading du 2026-09-14 plus les deux du 2026-09-15 ;
+  aucun orphelin, les 149 ont leur scénario ET leur entrée `ATTENDU`).
 - **Le mode `crop` de calque** (`ui/canvasMode.ts`) n'a aucun constructeur de
   production, et `tools.ts:23-26` explique que c'est DÉLIBÉRÉ : `LayerTransform`
   n'a pas encore de champ `crop`, et « un bouton qui ferait entrer dans un mode
@@ -2098,7 +2106,7 @@ sont mesurés le jour même.
 ### Corrigé au passage — ce que le document disait de faux
 
 - Cette feuille annonçait **143 références de pixels** ; il y en avait **147** sur
-  disque, toutes câblées — **148** depuis le 2026-09-15. Corrigé ci-dessus au bloc
+  disque, toutes câblées — **149** depuis le 2026-09-15. Corrigé ci-dessus au bloc
   « Où en est le code ».
 - `CONTEXT.md` annonçait **onze** modes de fusion quand le registre en enregistre
   **dix-sept** — et DEUX sondes d'architecture ont repris le chiffre du glossaire

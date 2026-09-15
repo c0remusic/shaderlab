@@ -17,5 +17,14 @@ return {
     { title = "shaderlab : mesurer les courbes", file = "MesurerCourbes.lua" },
   },
   LrInitPlugin = "AutoMesures.lua",
+  -- ⚠️ SANS CE DRAPEAU, LrInitPlugin NE TOURNE PAS AU DÉMARRAGE. Le SDK DIFFÈRE
+  -- son exécution jusqu'au premier USAGE du module externe (un clic de menu, une
+  -- ouverture du Gestionnaire) : un simple redémarrage de Lightroom ne mesurait
+  -- donc jamais rien, sentinelle posée ou non. Constat du 2026-09-15 — le dossier
+  -- de preuve de chargement datait du 11/09 alors que Lightroom avait redémarré
+  -- depuis, et le journal n'existait même pas. C'est ce qui a fait conclure à tort
+  -- que « seul un redémarrage par Antoine charge le plugin » : ce n'était pas QUI
+  -- lançait Lightroom, c'était qu'il fallait toucher le module externe après coup.
+  LrForceInitPlugin = true,
   VERSION = { major = 0, minor = 2, revision = 0 },
 }

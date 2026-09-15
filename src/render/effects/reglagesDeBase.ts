@@ -3,7 +3,7 @@ import { DOWNSAMPLE_WGSL } from "./blurChain";
 import { SRGB_TO_LINEAR_WGSL, LINEAR_TO_SRGB_WGSL, srgbToLinear, linearToSrgb } from "./srgbTransfer";
 import { OKLAB_WGSL, linearSrgbToOklab, oklabToLinearSrgb } from "./oklab";
 import { TEMPERATURE_GRADIENT, NUANCE_GRADIENT, RAINBOW_GRADIENT } from "./trackGradients";
-import { RB_TABLE } from "./reglagesDeBaseTable";
+import { RB_TABLE, type WbStep } from "./reglagesDeBaseTable";
 
 /**
  * Réglages de base + courbe paramétrique — le module `reglagesDeBase` de l'ÉTAGE
@@ -182,6 +182,21 @@ function veilOp(s: number, d: number): number {
   return clamp01(1 - (1 - a) * Math.pow(1 - s, g));
 }
 
+/** Gain d'un axe de balance des blancs à la dose `t` (0..1), par interpolation
+ *  entre les points de rupture MESURÉS, ancrée à 1 en dose nulle. La loi du
+ *  curseur n'est pas proportionnelle à la dose — voir `reglagesDeBaseTable`.
+ *  Jumeau de `rb_wb_lerp` WGSL, qui la déroule faute de boucle sûre. */
+function wbLerp(steps: readonly WbStep[], i: number, t: number): number {
+  if (t <= 0) return 1;
+  const d = t * 100;
+  let d0 = 0, g0 = 1;
+  for (const s of steps) {
+    if (d <= s.dose) return g0 + (s.gain[i] - g0) * ((d - d0) / (s.dose - d0));
+    d0 = s.dose; g0 = s.gain[i];
+  }
+  return g0;
+}
+
 /** Vrai quand tous les curseurs sont à leur défaut (séparations à 25/50/75). */
 function auDefaut(p: readonly number[]): boolean {
   for (let i = 0; i < 17; i++) if (p[i] !== 0) return false;
@@ -231,8 +246,8 @@ export function reglagesDeBaseSpec(rgb: Vec3, blurLuma: number, p: readonly numb
   const tP = Math.max(temperature / 100, 0), tN = Math.max(-temperature / 100, 0);
   const nP = Math.max(nuance / 100, 0), nN = Math.max(-nuance / 100, 0);
   const wbGain = (i: number): number =>
-    (1 + (RB_TABLE.wbTempPos[i] - 1) * tP) * (1 + (RB_TABLE.wbTempNeg[i] - 1) * tN) *
-    (1 + (RB_TABLE.wbTintPos[i] - 1) * nP) * (1 + (RB_TABLE.wbTintNeg[i] - 1) * nN);
+    wbLerp(RB_TABLE.wbTempPos, i, tP) * wbLerp(RB_TABLE.wbTempNeg, i, tN) *
+    wbLerp(RB_TABLE.wbTintPos, i, nP) * wbLerp(RB_TABLE.wbTintNeg, i, nN);
   c = [clamp01(c[0] * wbGain(0)), clamp01(c[1] * wbGain(1)), clamp01(c[2] * wbGain(2))];
 
   // 2-5. TON PERCEPTUEL — exposition (gamma ancré), contraste (sigmoïde ancrée),
@@ -400,6 +415,30 @@ const wf = (n: number): string => (Number.isInteger(n) ? n.toFixed(1) : String(n
 /** Formate un triplet en littéral `vec3<f32>` WGSL (mêmes valeurs que le twin). */
 const wv3 = (a: readonly number[]): string => `vec3<f32>(${wf(a[0])}, ${wf(a[1])}, ${wf(a[2])})`;
 
+/** Jumeau WGSL de `wbLerp`, DÉROULÉ segment par segment. Pas de boucle ni de
+ *  tableau indexé dynamiquement : naga et Dawn sont stricts là-dessus, et une
+ *  liste de deux à quatre paliers ne vaut pas ce risque. Les `select` vont du
+ *  dernier segment au premier pour que la dose la plus basse l'emporte. */
+function wbFn(nom: string, steps: readonly WbStep[]): string {
+  const lignes: string[] = [];
+  let d0 = 0;
+  let g0 = "vec3<f32>(1.0)";
+  for (const s of steps) {
+    const g1 = wv3(s.gain);
+    lignes.push(`  g = select(g, ${g0} + (${g1} - ${g0}) * ((d - ${wf(d0)}) / ${wf(s.dose - d0)}), d <= ${wf(s.dose)});`);
+    d0 = s.dose;
+    g0 = g1;
+  }
+  return [
+    `fn ${nom}(t: f32) -> vec3<f32> {`,
+    `  let d = t * 100.0;`,
+    `  var g = ${g0};`,
+    ...lignes.reverse(),
+    `  return select(g, vec3<f32>(1.0), t <= 0.0);`,
+    `}`,
+  ].join("\n");
+}
+
 export const reglagesDeBase: EffectModule = {
   id: "reglagesDeBase",
   name: "Réglages de base",
@@ -433,10 +472,10 @@ ${LINEAR_TO_SRGB_WGSL}
 ${OKLAB_WGSL}
 
 const RB_LUMA = vec3<f32>(0.2126, 0.7152, 0.0722);
-const RB_WB_TEMP_POS = ${wv3(RB_TABLE.wbTempPos)};
-const RB_WB_TEMP_NEG = ${wv3(RB_TABLE.wbTempNeg)};
-const RB_WB_TINT_POS = ${wv3(RB_TABLE.wbTintPos)};
-const RB_WB_TINT_NEG = ${wv3(RB_TABLE.wbTintNeg)};
+${wbFn("rb_wb_temp_pos", RB_TABLE.wbTempPos)}
+${wbFn("rb_wb_temp_neg", RB_TABLE.wbTempNeg)}
+${wbFn("rb_wb_tint_pos", RB_TABLE.wbTintPos)}
+${wbFn("rb_wb_tint_neg", RB_TABLE.wbTintNeg)}
 const RB_EXPO_G = ${wf(RB_TABLE.expoG)};
 const RB_CONTRAST_G = ${wf(RB_TABLE.contrastG)};
 const RB_CONTRAST_PIVOT = ${wf(RB_TABLE.contrastPivot)};
@@ -553,10 +592,8 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let tN = max(-params[0] / 100.0, 0.0);
   let nP = max(params[1] / 100.0, 0.0);
   let nN = max(-params[1] / 100.0, 0.0);
-  let wbGain = (vec3<f32>(1.0) + (RB_WB_TEMP_POS - vec3<f32>(1.0)) * tP)
-             * (vec3<f32>(1.0) + (RB_WB_TEMP_NEG - vec3<f32>(1.0)) * tN)
-             * (vec3<f32>(1.0) + (RB_WB_TINT_POS - vec3<f32>(1.0)) * nP)
-             * (vec3<f32>(1.0) + (RB_WB_TINT_NEG - vec3<f32>(1.0)) * nN);
+  let wbGain = rb_wb_temp_pos(tP) * rb_wb_temp_neg(tN)
+             * rb_wb_tint_pos(nP) * rb_wb_tint_neg(nN);
   c = clamp(c * wbGain, vec3<f32>(0.0), vec3<f32>(1.0));
 
   // 2-5. TON PERCEPTUEL — exposition (gamma ancre), contraste (sigmoide ancree),

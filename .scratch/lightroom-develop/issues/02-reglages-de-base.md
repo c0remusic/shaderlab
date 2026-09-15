@@ -235,3 +235,46 @@ INCHANGÉES au bit près : `-temoin` (module au défaut, sauté), `-courbe`
 (paramétrique), `-saturation` (saturation seule), et les autres références du dépôt.
 Compte de références inchangé (aucune ajoutée). Planche œil d'Antoine :
 `planche-02b-{rendu,assemble}.mjs` → `planche-02b-reglages.html` (non versionné).
+
+## Exploitation des mesures du 2026-09-15 — ce qui est livré, ce qui est retenu
+
+Quatre analyses en parallèle, quatre contre-expertises adverses tenues de refaire
+un chiffre clé à la main. **Les quatre propositions ont été réfutées comme
+bloquantes**, et chacune a isolé un sous-ensemble validé. Seul ce sous-ensemble
+est livré.
+
+**Livré — balance des blancs, la loi du curseur par paliers mesurés.** Le gain
+n'est plus proportionnel à la dose : `WbStep[]` par axe et par signe, interpolé
+par `wbLerp` (twin) et son jumeau déroulé `wbFn` (WGSL, sans boucle ni tableau
+indexé). Écart moyen aux dix mesures, recalculé par la session principale sur
+`rampe_rgb` de `temoin3` : **10,07 → 8,62 niveaux**, le gain venant entièrement
+des doses intermédiaires (nuance +50 : 11,1 → 4,0 ; nuance −50 : 8,2 → 2,6 ;
+température +25 : 6,4 → 4,9). Une référence régénérée,
+`developpement-reglages-couleur`.
+
+**Retenu — la branche FROIDE de Température.** Les doses −25 et −75 sont mesurées
+mais écartées : `temperature-m50` manque au milieu du retournement, la validation
+croisée sort pire que le statu quo (18,1 contre 17,0), et le canal bleu de
+`temperature-m100` est écrêté sur plus des deux tiers de la rampe — son gain
+n'est pas identifiable (bassin plat de 25 à 40, là où la proposition écrivait
+32,424). La branche garde donc sa loi linéaire, exprimée par un palier unique.
+
+**Livré — voile, deux constantes.** `dehazeGamma` 2,9 → 2,65 (seule valeur dont
+le réglage actuel tombe HORS de l'intervalle de la sonde) et `dehazeDesatK`
+0,22 → 0,60 (direction confirmée par toutes les sondes, valeur refittée sur la
+sonde propre et non sur la rampe). Aucune référence ne bouge : le gamma ne mord
+qu'à voile négatif, la désaturation est inerte à voile positif — prédit, puis
+vérifié.
+
+**Retenu — voile, le changement de forme.** `dehazeAirlightExp` (airlight en
+puissance de la dose) est refusé : l'exposant 7,7 ne vaut qu'à l'entrée 0, et le
+rapport m50/m100 entrée par entrée le dément (7,5 à l'entrée 0, 0,7 à l'entrée
+64). C'est la FORME (a, g) qui est fausse, pas la loi de dose. `dehazeOmega`
+n'est pas touché non plus : 0,745 et 0,716 sont indiscernables par cette sonde.
+
+**Défaut d'instrument à corriger avant toute recalibration du voile.** Les patchs
+de la mire sont contigus (marge de 20 px) et la rampe monte par marches de 8 px :
+aucune sonde de ce jeu n'est propre pour un opérateur LOCAL. Le même ω refait
+colonne par colonne dans le patch gris 118 court de 0,675 à 0,745 — une dispersion
+2,4 fois plus large que la correction proposée. Prochaine mire : des plateaux
+d'au moins 200 px, chaque gris bordé de sa propre valeur.

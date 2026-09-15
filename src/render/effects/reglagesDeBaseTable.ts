@@ -50,18 +50,48 @@
  * `bump(v,c,k) = v^(k·c)·(1−v)^(k·(1−c)) / peak`, `peak = c^(k·c)·(1−c)^(k·(1−c))`.
  * Le mode de la cloche est EXACTEMENT `c` ; `k` la resserre (k grand = étroite).
  */
+/** Un point de rupture de la loi d'un curseur de balance des blancs : la DOSE
+ *  mesurée (0..100) et les gains linéaires [R,G,B] qu'elle produit. La loi
+ *  s'interpole entre ces points, ancrée à gain 1 en dose 0. */
+export interface WbStep {
+  dose: number;
+  gain: number[];
+}
+
 export interface ReglagesDeBaseTable {
-  /** Balance des blancs — gains linéaires par canal [R,G,B] à Température +100
-   *  (t>0), appliqués SANS renormalisation. Lightroom règle la WB en espace
-   *  CAMÉRA et ne préserve PAS la luminance ; les gains fittés sur `rampe_rgb`
-   *  de `temperature-p100` la font donc dériver (les deux extrêmes éclaircissent). */
-  wbTempPos: number[];
-  /** Balance des blancs — gains [R,G,B] à Température −100 (t<0), sur `temperature-m100`. */
-  wbTempNeg: number[];
-  /** Balance des blancs — gains [R,G,B] à Nuance +100 (n>0), sur `nuance-p100`. */
-  wbTintPos: number[];
-  /** Balance des blancs — gains [R,G,B] à Nuance −100 (n<0), sur `nuance-m100`. */
-  wbTintNeg: number[];
+  /** Balance des blancs — gains linéaires par canal [R,G,B] PAR DOSE, branche
+   *  Température POSITIVE. Appliqués SANS renormalisation : Lightroom règle la WB
+   *  en espace CAMÉRA et ne préserve pas la luminance (les deux extrêmes
+   *  éclaircissent).
+   *
+   *  ⚠️ LA LOI DU CURSEUR N'EST PAS PROPORTIONNELLE À LA DOSE, et le supposer
+   *  coûtait cher au milieu de la course : à mi-course Lightroom n'a fait qu'une
+   *  fraction du chemin, variable selon l'axe et le canal. D'où les points de
+   *  rupture mesurés plutôt qu'un gain unique mis à l'échelle. Écart moyen aux
+   *  dix mesures de balance des blancs, recalculé sur `rampe_rgb` de `temoin3` :
+   *  10,07 → 8,62 niveaux, tout le gain venant des doses intermédiaires
+   *  (nuance +50 : 11,1 → 4,0 ; nuance −50 : 8,2 → 2,6 ; température +25 :
+   *  6,4 → 4,9). Les extrêmes ne bougent pas, par construction.
+   *
+   *  ⚠️ CE QUE CETTE TABLE NE PEUT PAS CORRIGER : le gain CONSTANT par canal est
+   *  lui-même la mauvaise forme. Mesuré, le gain LOCAL de Lightroom dépend du
+   *  niveau (environ 6,7 à v=32, 3,9 à v=128, ~1 au blanc) — il s'efface vers les
+   *  hautes lumières, ce qu'un scalaire ne sait pas faire. Aucune valeur de cette
+   *  table ne descendra donc sous un plancher d'environ 7 niveaux. C'est un
+   *  chantier de forme, pas de constante. */
+  wbTempPos: WbStep[];
+  /** Balance des blancs — gains [R,G,B] par dose, branche Température NÉGATIVE.
+   *  ⚠️ UNE SEULE DOSE ICI, DÉLIBÉRÉMENT : la loi reste linéaire sur cette branche.
+   *  Les doses intermédiaires mesurées (−25, −75) ont été ÉCARTÉES par la
+   *  contre-expertise — `temperature-m50` manque au milieu du retournement, la
+   *  validation croisée sort pire que le statu quo (18,1 contre 17,0), et le canal
+   *  bleu de `temperature-m100` est écrêté sur plus des deux tiers de la rampe,
+   *  donc son gain n'est pas identifiable (le bassin est plat de 25 à 40). */
+  wbTempNeg: WbStep[];
+  /** Balance des blancs — gains [R,G,B] par dose, branche Nuance POSITIVE. */
+  wbTintPos: WbStep[];
+  /** Balance des blancs — gains [R,G,B] par dose, branche Nuance NÉGATIVE. */
+  wbTintNeg: WbStep[];
   /** Exposition — coefficient de γ : `γ = exp(expoG·EV)`. */
   expoG: number;
   /** Contraste — coefficient de γ : `γ = exp(contrastG·(contraste/100))`. */
@@ -122,10 +152,21 @@ export interface ReglagesDeBaseTable {
  *  forward-model). Écarts par rampe dans le ticket 02 et imprimés par le script.
  *  RELANCER le script plutôt que d'éditer à la main. */
 export const RB_TABLE: ReglagesDeBaseTable = {
-  wbTempPos: [5.65, 2.58, 0.93],
-  wbTempNeg: [1.35, 1.96, 7.99],
-  wbTintPos: [1.44, 0.99, 4.2],
-  wbTintNeg: [0.8, 2.89, 0.95],
+  wbTempPos: [
+    { dose: 25, gain: [1.788, 1.36, 0.956] },
+    { dose: 50, gain: [3.066, 1.78, 0.934] },
+    { dose: 75, gain: [4.466, 2.224, 0.932] },
+    { dose: 100, gain: [5.642, 2.576, 0.934] },
+  ],
+  wbTempNeg: [{ dose: 100, gain: [1.35, 1.96, 7.99] }],
+  wbTintPos: [
+    { dose: 50, gain: [1.242, 0.976, 1.498] },
+    { dose: 100, gain: [1.444, 0.988, 4.196] },
+  ],
+  wbTintNeg: [
+    { dose: 50, gain: [1.004, 1.42, 0.964] },
+    { dose: 100, gain: [0.804, 2.89, 0.95] },
+  ],
   expoG: 0.57,
   contrastG: 0.5325,
   contrastPivot: 0.62,
@@ -149,6 +190,6 @@ export const RB_TABLE: ReglagesDeBaseTable = {
   curveWin: 0.26,
   dehazeOmega: 0.745,
   dehazeAirlight: 0.275,
-  dehazeGamma: 2.9,
-  dehazeDesatK: 0.22,
+  dehazeGamma: 2.65,
+  dehazeDesatK: 0.6,
 };

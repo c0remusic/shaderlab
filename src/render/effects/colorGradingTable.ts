@@ -44,23 +44,26 @@ export interface ColorGradingCalibration {
   /** Demi-largeur gaussienne (L OKLab) de la cloche des tons moyens à Fusion 50.
    *  CALIBRÉ (médians). */
   midSigma: number;
-  /** Centre (L OKLab) de la coupure du poids des Ombres à Fusion 50, Balance 0.
-   *  MODÉLISÉ (non mesurable — voir en-tête). */
-  shadowCenter: number;
-  /** Centre (L OKLab) du poids des Hautes lumières à Fusion 50, Balance 0.
-   *  MODÉLISÉ. */
-  highCenter: number;
-  /** Demi-largeur des transitions Ombres/Hautes lumières à Fusion 50. MODÉLISÉ. */
-  softBase: number;
-  /** Ce que Fusion (0..1) ajoute/retire à `softBase` : Fusion 0 tranche (bords
-   *  nets), Fusion 100 fond. MODÉLISÉ. */
-  softSpread: number;
   /** Ce que Fusion ajoute/retire à `midSigma` (la cloche des moyens s'élargit avec
    *  la fusion). MODÉLISÉ. */
   midSoft: number;
   /** Déplacement des centres de plage par unité de Balance (−1..1) : +1 pousse la
    *  bascule vers les hautes lumières, −1 vers les ombres. MODÉLISÉ. */
   balanceShift: number;
+  /** Balance — DEMI-COURSE du déplacement de la bascule, sur l'axe sRGB :
+   *  `B = 0,5 − balanceMid · (balance/100)`. Mesuré par le croisement du duo, qui
+   *  passe du niveau 128 à 25 (+100) et à 229 (−100) : un déplacement de 0,404 et
+   *  0,396 en tonalité sRGB, symétrique à 2 % près. Sur l'axe L d'OKLab la même
+   *  mesure donne 0,387 et 0,322, asymétrique à 20 % — c'est l'un des trois
+   *  arguments indépendants qui désignent l'axe sRGB. */
+  balanceMid: number;
+  /** Fusion — PROFONDEUR du creux que le curseur ouvre autour de la bascule.
+   *  ⚠️ Fusion ne fond pas les plages et ne les élargit pas : elle CREUSE une bande
+   *  neutre autour du point de bascule, et c'est Fusion BASSE qui creuse le plus.
+   *  Mesuré au niveau 160 : 0,0119 de chroma à Fusion 0, 0,0161 à 50, 0,0292 à 100.
+   *  Sa course passe par la carte d'Adobe avec
+   *  un `a` codé en dur (3/7), donc le défaut 50 vaut 0,30 de profondeur. */
+  blendDepth: number;
 }
 
 /** Table calibrée / modélisée du Color Grading. RELANCER `assets/calibrer-grading.py`
@@ -70,10 +73,8 @@ export const COLOR_GRADING: ColorGradingCalibration = {
   lumK: 0.074,
   midCenter: 0.61,
   midSigma: 0.144,
-  shadowCenter: 0.28,
-  highCenter: 0.72,
-  softBase: 0.18,
-  softSpread: 0.3,
   midSoft: 0.16,
   balanceShift: 0.3,
+  balanceMid: 0.4,
+  blendDepth: 0.8,
 };

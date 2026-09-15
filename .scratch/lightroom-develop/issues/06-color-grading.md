@@ -211,3 +211,68 @@ le fondu il y a une enveloppe de teintabilité, et elle dépend de la TEINTE (le
 bleu et l'orange n'ont pas la même place dans le gamut à L donné). C'est ce que
 `tintExp` essayait d'attraper à l'aveugle. Le mesurer proprement demande les
 teintes supplémentaires de la campagne A.
+
+## Les poids refaits sur la forme d'Adobe (2026-09-15) — le fondu livré, les cloches retenues
+
+Antoine : « refais les poids avec la bonne forme ». Fait, et la forme s'est
+précisée en route.
+
+**La forme est une HOMOGRAPHIE, pas un smoothstep.** Le binaire porte la fonction
+elle-même : `cr_div_map` (RVA 0xc7d600), `f(x,a) = a·x / (a·x + 1 − x)`. Elle
+CLOUE les deux bouts — f(0)=0, f(1)=1, identité à a=1 — et tout champ `*MapAlpha`
+de `UniformsSplitTone` est le `a` d'une de ces cartes. Ce qui la distingue d'un
+smoothstep translaté se mesure au ras du noir : le rapport de chroma du duo à
+Balance +100 sur Balance 0 vaut 0,556 / 0,389 / 0,274 / 0,115 aux niveaux 8 à 20 ;
+l'homographie rend 0,585 / 0,425 / 0,284 / 0,157 (écart 0,031), un smoothstep
+translaté rend 0,206 / 0,160 / 0,114 / 0,067 (écart 0,196). Une homographie ne
+peut pas décoller le bout, une translation le déplace, et la mesure dit que le
+bout ne bouge pas.
+
+**L'axe est sRGB, pas L d'OKLab.** Trois arguments indépendants : les bornes du
+smoothstep libre se posent sur [0,014 ; 1,002], l'exposant libre sur 1,024, et la
+balance est symétrique à 2 % sur l'axe sRGB contre 20 % sur l'axe L. En métrique
+de pixels, 4,275 contre 4,999 — 17 %.
+
+**Ce qui est livré** : `divMap` et son jumeau WGSL, l'abscisse sRGB, `balanceMid`
+et `blendDepth`, `ws = (1−α)·cov` et `wh = α·cov`. Quatre champs partent
+(`shadowCenter`, `highCenter`, `softBase`, `softSpread`), deux arrivent : la forme
+juste coûte MOINS que les deux courbes libres. Écart aux treize mesures, recalculé
+par la session principale avec le vrai twin : **6,51 → 4,41 niveaux (−32 %), pire
+cas 60,7 → 40,7 (−33 %)**, douze mesures sur treize en gain. La contre-expertise
+qui a autorisé ce sous-ensemble l'avait mesuré hors échantillon sur SIX jeux —
+gris, sat50, l25, l75, patches — avec des gains de 17 à 32 %, cinq d'entre eux
+colorés et n'ayant servi à aucun ajustement.
+
+**Le défaut que l'ancien modèle cachait** : `ws` valait EXACTEMENT 0 dès L = 0,46,
+donc `ws + wh` s'annulait et l'alpha effectif basculait à 1,000 sur toute la moitié
+haute de la rampe. Ce n'était pas une traînée trop courte, c'était une rampe qui
+s'arrête au milieu avec un 0/0 derrière. RMS de l'ancien alpha contre le mesuré :
+0,3831, soit 42,6 fois le bruit.
+
+**Retenu — les deux cloches** (`wheelCenter`, `midSharp`, `globalSharp`, en
+remplacement de la gaussienne des tons moyens et du `4L(1−L)` de la roue globale).
+Elles gagnent nettement sur la rampe grise (roue globale ×10,3) mais RÉGRESSENT sur
+les quatre jeux colorés, et elles ont été ajustées sur gris seul. Débloqué par une
+ré-évaluation sur les `balayage_*` et `patches` déjà présents dans les JSON, et si
+elles passent, par deux références neuves `developpement-grading-moyens` et
+`-global` dans le même commit — sans elles, trois constantes seraient gelées par
+rien, et `globalSharp` est déterminée par une seule mesure.
+
+**Retenu — `cov` comme poids.** La même roue reçoit un verdict opposé selon qu'on
+la mesure en chroma (−2,05) ou en luminance (+0,12). Cause probable, nommée par la
+contre-expertise : une amplitude UNIQUE (`chromaK`, `lumK`) porte quatre roues dont
+les optima mesurés divergent d'un facteur 2 (0,133 / 0,120 / 0,163 en chroma), donc
+un terme multiplicatif libre absorbe l'erreur d'amplitude et la fait passer pour
+une couverture. L'arbitrage se refait APRÈS une amplitude par roue, jamais avant.
+
+**Défaut structurel ouvert, que ni l'ancien modèle ni le nouveau ne rendent** : le
+poids mesuré des hautes lumières est NON MONOTONE — il culmine au niveau 205 puis
+retombe à 0,51 au niveau 240 et 0,26 au niveau 248, dans les deux grandeurs, sans
+écrêtage possible jusqu'à 240. Aucune homographie ne rend ça. C'est la seule mesure
+des treize qui régresse (`cg-hl-lum-p50`, 1,75 → 2,36).
+
+**Erreur de lecture rattrapée par la mesure, à consigner** : en portant le
+mécanisme j'ai d'abord inversé le sens de Fusion dans un commentaire et dans une
+garde. Le mécanisme est bien « creuser une bande neutre » et non « élargir des
+plages », mais c'est Fusion BASSE qui creuse — mesuré au niveau 160 : 0,0119 de
+chroma à Fusion 0, 0,0161 à 50, 0,0292 à 100. Le test d'origine avait le bon sens.

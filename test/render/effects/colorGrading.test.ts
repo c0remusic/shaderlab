@@ -49,20 +49,31 @@ describe("colorGrading — jumeau du module de virage tonal", () => {
     }
   });
 
-  it("virage des ombres : un gris SOMBRE se teinte, un gris MOYEN ne bouge pas", () => {
+  // ⚠️ CETTE GARDE A CHANGÉ DE SENS le 2026-09-15, et c'est elle qui avait tort.
+  // Elle exigeait qu'un gris MOYEN « ne bouge pas » (chroma < 0,01). La mesure dit
+  // l'inverse : à mi-rampe Lightroom pose 0,0222 de chroma avec ce réglage, parce
+  // que ses poids d'ombres et de hautes lumières sont UNE rampe et son complément —
+  // au milieu, les deux plages se partagent le pixel. L'ancien modèle éteignait les
+  // ombres dès L = 0,46, et ce test figeait ce défaut.
+  it("virage des ombres : fort dans le sombre, et le gris moyen prend sa part", () => {
     const modif = { shadowHue: 220, shadowSat: 60 };
     const sombre = colorGradingSpec(gris(0.12), avec(modif));
     const moyen = colorGradingSpec(gris(0.5), avec(modif));
     expect(chromaDe(sombre)).toBeGreaterThan(0.03);
-    expect(chromaDe(moyen)).toBeLessThan(0.01);
+    // Lightroom mesuré : 0,0222. Nous : 0,0216.
+    expect(chromaDe(moyen)).toBeGreaterThan(0.015);
+    expect(chromaDe(moyen)).toBeLessThan(0.030);
+    expect(chromaDe(sombre)).toBeGreaterThan(chromaDe(moyen));
   });
 
-  it("virage des hautes lumières : un gris CLAIR se teinte, un gris MOYEN ne bouge pas", () => {
+  // Même correction de sens que ci-dessus, côté clair.
+  it("virage des hautes lumières : fort dans le clair, et le gris moyen prend sa part", () => {
     const modif = { highlightHue: 40, highlightSat: 60 };
     const clair = colorGradingSpec(gris(0.85), avec(modif));
     const moyen = colorGradingSpec(gris(0.5), avec(modif));
     expect(chromaDe(clair)).toBeGreaterThan(0.03);
-    expect(chromaDe(moyen)).toBeLessThan(0.01);
+    expect(chromaDe(moyen)).toBeGreaterThan(0.010);
+    expect(chromaDe(clair)).toBeGreaterThan(chromaDe(moyen));
   });
 
   it("virage des tons moyens : un gris MOYEN se teinte, les extrêmes beaucoup moins", () => {
@@ -81,9 +92,11 @@ describe("colorGrading — jumeau du module de virage tonal", () => {
     const moyenBasOmbre = colorGradingSpec(gris(0.5), avec({ ...modif, balance: -100 }));
     // +100 : « tout est haute lumière » -> le même gris moyen ne le prend plus.
     const moyenHautLum = colorGradingSpec(gris(0.5), avec({ ...modif, balance: 100 }));
+    // Le rapport est ce qui compte : la bascule se déplace, mais l'homographie
+    // d'Adobe CLOUE les deux bouts — à +100 le gris moyen garde une part résiduelle
+    // au lieu de tomber à zéro, et c'est mesuré (voir `divMap` dans le module).
     expect(chromaDe(moyenBasOmbre)).toBeGreaterThan(0.02);
-    expect(chromaDe(moyenHautLum)).toBeLessThan(0.005);
-    expect(chromaDe(moyenBasOmbre)).toBeGreaterThan(chromaDe(moyenHautLum));
+    expect(chromaDe(moyenBasOmbre)).toBeGreaterThan(chromaDe(moyenHautLum) * 3);
   });
 
   it("Fusion 0 tranche : un ton en marge des ombres reçoit le virage à 100, presque rien à 0", () => {
@@ -91,9 +104,11 @@ describe("colorGrading — jumeau du module de virage tonal", () => {
     const marge = gris(0.35); // en marge haute de la plage des ombres
     const fondu = colorGradingSpec(marge, avec({ ...modif, blending: 100 }));
     const tranche = colorGradingSpec(marge, avec({ ...modif, blending: 0 }));
+    // ⚠️ MÉCANISME RECTIFIÉ le 2026-09-15, mais le SENS de ce test tenait. Fusion
+    // n'élargit pas des plages : elle CREUSE une bande neutre autour de la bascule,
+    // et c'est Fusion BASSE qui creuse le plus. Mesuré au niveau 160 : Lightroom
+    // rend 0,0119 à Fusion 0, 0,0161 à 50 et 0,0292 à 100.
     expect(chromaDe(fondu)).toBeGreaterThan(chromaDe(tranche));
-    expect(chromaDe(tranche)).toBeLessThan(0.005);
-    expect(chromaDe(fondu)).toBeGreaterThan(0.008);
   });
 
   it("la roue globale teinte un gris de TOUTE luminance", () => {

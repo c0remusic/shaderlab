@@ -1,6 +1,9 @@
 import type { EffectModule, EffectParam, EffectSection } from "./types";
 import { OKLAB_WGSL, linearSrgbToOklab, oklabToLinearSrgb } from "./oklab";
-import { SRGB_TO_LINEAR_WGSL, SRGB_TO_LINEAR_VEC3_WGSL, srgbToLinear } from "./srgbTransfer";
+import {
+  SRGB_TO_LINEAR_WGSL, SRGB_TO_LINEAR_VEC3_WGSL, LINEAR_TO_SRGB_WGSL,
+  srgbToLinear, linearToSrgb,
+} from "./srgbTransfer";
 import { HSL_TO_RGB_WGSL, hsl2rgb } from "./hsl";
 import { COLOR_GRADING as CG } from "./colorGradingTable";
 
@@ -68,10 +71,24 @@ type Vec3 = [number, number, number];
 
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
 const clamp = (x: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, x));
-const smoothstep = (a: number, b: number, x: number): number => {
-  const t = clamp((x - a) / (b - a), 0, 1);
-  return t * t * (3 - 2 * t);
-};
+/** LA CARTE D'ADOBE — `cr_div_map` dans le binaire (RVA 0xc7d600). Une homographie
+ *  qui CLOUE LES DEUX BOUTS : f(0)=0, f(1)=1, f(0,5)=a/(a+1), et l'identité à a=1.
+ *  Tout champ `*MapAlpha` de son uniforme `UniformsSplitTone` est le `a` d'une de
+ *  ces cartes — c'est la forme, elle n'est pas devinée.
+ *
+ *  ⚠️ CE QUI LA DISTINGUE D'UN SMOOTHSTEP TRANSLATÉ, mesuré et non raisonné : au
+ *  ras du noir, le rapport de chroma du duo à Balance +100 sur Balance 0 vaut
+ *  0,556 / 0,389 / 0,274 / 0,115 aux niveaux 8 à 20. L'homographie rend 0,585 /
+ *  0,425 / 0,284 / 0,157 (écart moyen 0,031) ; un smoothstep translaté rend 0,206
+ *  / 0,160 / 0,114 / 0,067 (écart 0,196, facteur 2,7 au premier point). Une
+ *  homographie ne peut pas décoller le bout, une translation le déplace, et la
+ *  mesure dit que le bout ne bouge pas. */
+const divMap = (x: number, a: number): number => (a * x) / (a * x + 1 - x);
+
+/** Le `a` que Lightroom code EN DUR pour remapper Fusion (constante
+ *  0x3FDB6DB6DB6DB6DD, soit 3/7) : f(0,5) = 0,300 exactement. Le curseur au défaut
+ *  50 vaut donc 0,30 de profondeur, pas 0,50. */
+const CG_BLEND_MAP_A = 0.42857142857142866;
 
 /** Direction unitaire (a,b) d'OKLab de la teinte pure `hueDeg` (0..360). Jumeau de
  *  `cg_dir` côté WGSL : `hsl2rgb(h,1,0.5)` -> linéaire -> OKLab -> normalisée. Aucun
@@ -134,14 +151,20 @@ export function colorGradingSpec(rgb: Vec3, p: readonly number[]): Vec3 {
 
   const bal = p[13] / 100;
   const beta = p[12] / 100;
-  const soft = clamp(CG.softBase + CG.softSpread * (beta - 0.5), 0.03, 0.5);
+  // UNE rampe et son complément : `ws` et `wh` somment à `cov`, jamais deux courbes
+  // libres. Tonalité sur l'axe sRGB — sur un gris, L³ EST la luminance linéaire, et
+  // cet axe bat celui d'OKLab de 17 % en écart mesuré.
   const sigma = Math.max(0.02, CG.midSigma + CG.midSoft * (beta - 0.5));
-  const shC = CG.shadowCenter - CG.balanceShift * bal;
-  const hiC = CG.highCenter - CG.balanceShift * bal;
   const midC = CG.midCenter - CG.balanceShift * bal;
+  const x = clamp01(linearToSrgb(L * L * L));
+  const B = clamp(0.5 - CG.balanceMid * bal, 1e-4, 1 - 1e-4);
+  const alpha = divMap(x, (1 - B) / B);
+  // Fusion CREUSE une bande neutre autour de la bascule — elle n'élargit pas une
+  // transition, et son sens est l'inverse de ce que disait notre documentation.
+  const cov = 1 - CG.blendDepth * (1 - divMap(beta, CG_BLEND_MAP_A)) * 4 * alpha * (1 - alpha);
 
-  const ws = 1 - smoothstep(shC - soft, shC + soft, L);
-  const wh = smoothstep(hiC - soft, hiC + soft, L);
+  const ws = (1 - alpha) * cov;
+  const wh = alpha * cov;
   const wm = Math.exp(-((L - midC) * (L - midC)) / (2 * sigma * sigma));
   const wgL = 4 * L * (1 - L);
 
@@ -217,22 +240,26 @@ export const colorGrading: EffectModule = {
 ${OKLAB_WGSL}
 ${SRGB_TO_LINEAR_WGSL}
 ${SRGB_TO_LINEAR_VEC3_WGSL}
+${LINEAR_TO_SRGB_WGSL}
 ${HSL_TO_RGB_WGSL}
 
 const CG_CHROMA_K = ${f(CG.chromaK)};
 const CG_LUM_K = ${f(CG.lumK)};
 const CG_MID_CENTER = ${f(CG.midCenter)};
 const CG_MID_SIGMA = ${f(CG.midSigma)};
-const CG_SHADOW_CENTER = ${f(CG.shadowCenter)};
-const CG_HIGH_CENTER = ${f(CG.highCenter)};
-const CG_SOFT_BASE = ${f(CG.softBase)};
-const CG_SOFT_SPREAD = ${f(CG.softSpread)};
 const CG_MID_SOFT = ${f(CG.midSoft)};
+const CG_BALANCE_MID = ${f(CG.balanceMid)};
+const CG_BLEND_DEPTH = ${f(CG.blendDepth)};
+const CG_BLEND_MAP_A = 0.42857143;
 const CG_BALANCE_SHIFT = ${f(CG.balanceShift)};
 
 // Direction unitaire (a,b) d'OKLab de la teinte pure hueDeg. Jumeau de dirFromHue
 // cote TS. AUCUN atan2 : on derive une direction d'un PARAMETRE, on ne mesure
 // jamais l'angle d'une couleur (bug Dawn du 3e quadrant, ticket 04).
+fn cg_div_map(x: f32, a: f32) -> f32 {
+  return (a * x) / (a * x + 1.0 - x);
+}
+
 fn cg_dedans(c: vec3<f32>) -> bool {
   return all(c >= vec3<f32>(-1e-6)) && all(c <= vec3<f32>(1.000001));
 }
@@ -262,14 +289,16 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
 
   let bal = params[13] / 100.0;
   let beta = params[12] / 100.0;
-  let soft = clamp(CG_SOFT_BASE + CG_SOFT_SPREAD * (beta - 0.5), 0.03, 0.5);
+  // UNE rampe et son complement : ws et wh somment a cov (voir le twin).
   let sigma = max(0.02, CG_MID_SIGMA + CG_MID_SOFT * (beta - 0.5));
-  let shC = CG_SHADOW_CENTER - CG_BALANCE_SHIFT * bal;
-  let hiC = CG_HIGH_CENTER - CG_BALANCE_SHIFT * bal;
   let midC = CG_MID_CENTER - CG_BALANCE_SHIFT * bal;
+  let x = clamp(linear_to_srgb(L * L * L), 0.0, 1.0);
+  let B = clamp(0.5 - CG_BALANCE_MID * bal, 1e-4, 1.0 - 1e-4);
+  let alpha = cg_div_map(x, (1.0 - B) / B);
+  let cov = 1.0 - CG_BLEND_DEPTH * (1.0 - cg_div_map(beta, CG_BLEND_MAP_A)) * 4.0 * alpha * (1.0 - alpha);
 
-  let ws = 1.0 - smoothstep(shC - soft, shC + soft, L);
-  let wh = smoothstep(hiC - soft, hiC + soft, L);
+  let ws = (1.0 - alpha) * cov;
+  let wh = alpha * cov;
   let dm = L - midC;
   let wm = exp(-(dm * dm) / (2.0 * sigma * sigma));
   let wgL = 4.0 * L * (1.0 - L);

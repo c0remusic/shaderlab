@@ -378,10 +378,10 @@ export class Renderer {
    * découplée de celle des photos qu'il contient.
    */
   private allocateDocument(canvasSize: CanvasPixelSize): void {
+    this.libererRessourcesGpu();
     this.imageResources.allocateCanvas(canvasSize.width, canvasSize.height);
     const { device, srgbFormat } = this.ctx;
     const { width, height } = this.imageResources;
-    this.effectPassRunner?.clearPipelines();
     this.effectPassRunner = new EffectPassRunner(
       device,
       srgbFormat,
@@ -397,7 +397,6 @@ export class Renderer {
           guideEpoch,
         ),
     );
-    this.maskTextureResolver?.dispose();
     this.maskTextureResolver = new MaskTextureResolver(
       this.ctx,
       width,
@@ -407,9 +406,7 @@ export class Renderer {
       () => this.parametricMaskSourceTexture(),
     );
 
-    this.photoSourceStore?.dispose();
     this.photoSourceStore = new PhotoSourceStore(device, srgbFormat, device.limits.maxTextureDimension2D);
-    this.photoLayerInputResolver?.dispose();
     this.photoLayerInputResolver = new PhotoLayerInputResolver(device, srgbFormat, this.sampler);
     const photoInputsAdapter: PhotoLayerInputPort = {
       resolve: (encoder, layer, bgWidth, bgHeight, pendingDestroy) => {
@@ -427,7 +424,6 @@ export class Renderer {
       },
     };
 
-    this.textureLibraryStore?.dispose();
     this.textureLibraryStore = new TextureLibraryStore(
       device,
       srgbFormat,
@@ -836,19 +832,48 @@ export class Renderer {
     return this.gpuTiming.arm();
   }
 
+  /** Rend au GPU tout ce qui possède des ressources vivant plus d'une frame.
+   *
+   *  UNE liste, appelée par les DEUX chemins de démontage — `allocateDocument`
+   *  (le document change, tout est reconstruit) et `dispose()` (fin de vie du
+   *  renderer). Ils énuméraient auparavant des ensembles DIFFÉRENTS sous
+   *  quatre verbes différents, et les deux écarts entre ces listes étaient
+   *  exactement les deux fuites : `TextureLibraryStore` était démonté par le
+   *  premier et pas par le second (jusqu'à six scans résidents, 268 Mo pièce
+   *  en 8192²), et `FramePipelineExecutor` par aucun des deux, donc la
+   *  `MippedSourceCache` qu'il possède n'avait aucun appelant de démontage
+   *  dans tout le dépôt.
+   *
+   *  Ce que la forme achète : un module GPU neuf s'ajoute ICI, et il est alors
+   *  démonté par les deux chemins ou par aucun — jamais par un seul. Rien
+   *  d'autre ne pouvait l'attraper, une fuite VRAM ne changeant aucun pixel :
+   *  les 143 références de rendu restent vertes, le compilateur ne compte pas
+   *  les textures, et le `GPUDevice` ne meurt jamais (`initGpu` n'est appelé
+   *  qu'une fois) donc rien ne rattrape l'oubli en aval. `App` fabrique un
+   *  Renderer NEUF à chaque ouverture de fichier : c'est le geste qui paie.
+   *
+   *  ⚠️ Elle NE MET RIEN À `null` — `allocateDocument` réassigne juste après,
+   *  et c'est `dispose()` qui possède la remise à zéro. */
+  private libererRessourcesGpu(): void {
+    this.effectPassRunner?.clearPipelines();
+    this.maskTextureResolver?.dispose();
+    this.photoSourceStore?.dispose();
+    this.photoLayerInputResolver?.dispose();
+    this.textureLibraryStore?.dispose();
+    this.framePipelineExecutor?.dispose();
+  }
+
   dispose(): void {
     this.renderScheduler.cancel();
     this.imageResources.dispose();
     this.gpuTiming?.destroy();
     this.gpuTiming = null;
-    this.effectPassRunner?.clearPipelines();
+    this.libererRessourcesGpu();
     this.effectPassRunner = null;
-    this.maskTextureResolver?.dispose();
     this.maskTextureResolver = null;
-    this.photoSourceStore?.dispose();
     this.photoSourceStore = null;
-    this.photoLayerInputResolver?.dispose();
     this.photoLayerInputResolver = null;
+    this.textureLibraryStore = null;
     this.framePipelineExecutor = null;
     this.presentPass.clearPipelines();
     this.lastOverlayFrame = null;

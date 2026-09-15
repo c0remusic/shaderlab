@@ -263,6 +263,34 @@ export function visibleDockLayout(layout: DockLayout, isVisible: (id: string) =>
  * à rien (layout modifié entre le pointermove et le relâchement) retombe sur la
  * cible telle quelle plutôt que d'inventer une position.
  */
+/**
+ * Identité d'une colonne RENDUE — la clé de réconciliation React de
+ * `PanelColumn`.
+ *
+ * Elle vit ici et non dans le composant parce que c'est le même ancrage que
+ * `toFullDockTarget` juste en dessous : une position de dock se retrouve par
+ * l'IDENTITÉ d'un panneau, jamais par arithmétique d'index. Et parce qu'une
+ * clé fausse ne se voit dans aucun pixel — c'est un avertissement de console,
+ * donc ni une story ni une référence de rendu ne peut l'attraper, mais un test
+ * unitaire le peut.
+ *
+ * ⚠️ Ce qu'elle remplace : `column.join("-")`, qui rendait
+ * `"[object Object]-[object Object]"` depuis que `DockLayout` porte des
+ * `DockGroup` et non plus des `string`. Deux colonnes de même longueur
+ * produisaient donc la MÊME clé.
+ *
+ * N'accepte qu'une colonne rendue, donc non vide : `visibleDockLayout` filtre
+ * les colonnes et les groupes vides, et une colonne vide n'a aucune identité à
+ * porter — lève plutôt que d'inventer une clé.
+ */
+export function dockColumnKey(column: DockGroup[]): string {
+  const premier = column[0]?.tabs[0];
+  if (premier === undefined) {
+    throw new Error("dockColumnKey : colonne vide — `visibleDockLayout` ne doit en rendre aucune.");
+  }
+  return premier;
+}
+
 export function toFullDockTarget(full: DockLayout, visible: DockLayout, target: DockDropTarget): DockDropTarget {
   const visibleColumn = visible[target.columnIndex];
   if (!visibleColumn) return target;

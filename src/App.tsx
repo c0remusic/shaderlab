@@ -113,7 +113,6 @@ import { PresetPanel } from "./components/PresetPanel";
 import { useTextureLibrary } from "./hooks/useTextureLibrary";
 import { useEffectThumbnails } from "./hooks/useEffectThumbnails";
 import { TauriPresetStore } from "./presets/presetStore";
-import { withPhotoLayersPreserved } from "./presets/preservePhotoLayers";
 import { Button } from "./components/ui/button";
 import { PresetDialogs } from "./components/PresetDialogs";
 import { CanvasSizeDialog } from "./components/CanvasSizeDialog";
@@ -2318,19 +2317,14 @@ export default function App() {
         id,
         sessionRef.current.layers(),
         (newLayers, develop) => {
-          const stack = new LayerStack();
-          // §2.3 du design 2026-07-28 : appliquer un preset ne doit PAS faire
-          // disparaître les photos du document — depuis la tranche T1 le fond
-          // en est une, et un remplacement total de la pile laisserait l'écran
-          // sur le damier de la toile vide. Voir `withPhotoLayersPreserved`
-          // pour le choix de position.
-          const mergedLayers = withPhotoLayersPreserved(sessionRef.current.layers(), newLayers);
-          stack.layers = mergedLayers;
-          // L'ÉTAGE restauré du preset (ticket 03) part dans le MÊME commit que
-          // la pile — un seul pas d'undo restaure les deux. `commit` re-pose
-          // ensuite l'étage sur le renderer et re-synchronise le state React.
-          stack.develop = develop;
-          commit(stack);
+          // La session possède désormais la règle — photos préservées (§2.3 du
+          // design 2026-07-28 : le fond EST une photo depuis T1, un
+          // remplacement total laisserait l'écran sur le damier), cadre
+          // préservé, et l'ÉTAGE du preset dans le MÊME commit que la pile,
+          // donc un seul pas d'undo pour les deux. Fabriquer la pile ICI avait
+          // fait perdre le recadrage : `LayerStack` porte trois emplacements de
+          // niveau document et ce site n'en reposait que deux.
+          commit(sessionRef.current.pilePourPreset(newLayers, develop));
           // Important 6 (final-review fix): applyPreset replaces the WHOLE
           // stack with FRESH layer ids (LayerStack's freshId counter never
           // reuses an id) — every entry left in maskPaintersRef for the
@@ -2338,7 +2332,10 @@ export default function App() {
           // exists nowhere anymore. Purging by id (rather than relying on
           // ids never colliding) keeps this correct even if that invariant
           // ever changes.
-          const newIds = new Set(mergedLayers.map((l) => l.id));
+          // Relu DEPUIS LA SESSION plutôt que depuis la pile qu'on vient de
+          // construire : c'est elle qui fait foi après le commit, et la purge
+          // reste juste même si `pilePourPreset` se met à préserver autre chose.
+          const newIds = new Set(sessionRef.current.layers().map((l) => l.id));
           for (const layerId of maskPaintersRef.current.keys()) {
             if (!newIds.has(layerId)) maskPaintersRef.current.delete(layerId);
           }

@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { DockedPanelCard, dockedPanelControlsClass } from "./DockedPanelCard";
-import { getDockDropTarget, isNoOpDockDrop, resolveDockDragCommit, type DockDropTarget, type DockLayout } from "../../ui/dockLayout";
+import { dockColumnKey, getDockDropTarget, isNoOpDockDrop, resolveDockDragCommit, type DockDropTarget, type DockLayout } from "../../ui/dockLayout";
 import { clampDockWidth, DOCK_WIDTH_MIN, DOCK_WIDTH_MAX } from "./dockWidth";
 import { hasExceededDragThreshold } from "./dockDrag";
 import "../../ui/dragReorder.css";
@@ -367,7 +367,12 @@ export function PanelColumn({ panels, layout, onMove, width, onWidthChange, onSe
           existait depuis `5a77077` mais n'a jamais atteint le DOM. */}
       <div ref={gridRef} className="panel-column__grid scroll-thin">
         {layout.map((column, columnIndex) => (
-          <div className="panel-column__stack" key={column.join("-")}>
+          // Clé d'identité, pas de contenu — voir `dockColumnKey`, qui dit
+          // pourquoi et ce qu'elle remplace. Une colonne mal réconciliée garde
+          // les hauteurs mesurées d'une autre carte, posées en style inline, ce
+          // qui fait retomber la grille sur l'`overflow-y: auto` qu'ADR-0001
+          // existe pour ne jamais atteindre.
+          <div className="panel-column__stack" key={dockColumnKey(column)}>
             {columnIndex === 0 && (
               <div
                 className="panel-column__width-handle"

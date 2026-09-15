@@ -1,0 +1,87 @@
+import { describe, expect, it } from "vitest";
+import { DocumentSession } from "../../src/application/documentSession";
+import { LayerStack } from "../../src/layers/layerStack";
+
+/**
+ * Appliquer un preset remplace la pile ENTIÈRE, et `LayerStack` porte TROIS
+ * emplacements de niveau document — `layers`, `cadre`, `develop`.
+ *
+ * Le site qui fabriquait cette pile à la main (`App.tsx`) n'en reposait que
+ * DEUX : jamais `cadre`. Comme `commit` fait `this.current = stack.clone()`,
+ * appliquer un preset ramenait le recadrage à `null` dans le modèle pendant que
+ * l'état React gardait l'ancien et que l'export lisait `cadreToile()` — la
+ * toile repartait entière, sans erreur ni avertissement. Aucun test du dépôt ne
+ * croisait preset et cadre : c'est ce que ce fichier répare.
+ */
+
+/** Un document représentatif : une photo, un effet, un recadrage, un étage. */
+function documentRecadre(): DocumentSession {
+  const stack = new LayerStack();
+  const photo = stack.addPhotoLayer("src-1", { x: 128, y: 128, scaleX: 1, scaleY: 1, rotation: 0 }, "photo");
+  stack.addLayer("glow", photo);
+  const session = new DocumentSession(stack);
+  session.recadrerToile({ x: 10, y: 20, width: 100, height: 80 });
+  session.reglerDeveloppement("reglagesDeBase", { exposition: 0.5 });
+  // Ni le recadrage ni l'étage ne poussent d'entrée d'historique : ce sont des
+  // chemins ENGAGÉS dont l'appelant commite la pile ensuite (voir les docblocs
+  // de `recadrerToile` et `reglerDeveloppement`). Sans ce commit, l'annulation
+  // ci-dessous reviendrait au document NEUF, pas à l'état recadré.
+  session.commit(session.currentStack());
+  return session;
+}
+
+/** Ce qu'un preset restitue : des calques d'effet neufs et un étage à lui. */
+function effetsDuPreset(): LayerStack {
+  const pile = new LayerStack();
+  pile.addLayer("grain");
+  return pile;
+}
+
+describe("DocumentSession.pilePourPreset", () => {
+  it("préserve le recadrage de la toile", () => {
+    const session = documentRecadre();
+    const avant = session.cadreToile();
+    expect(avant).toEqual({ x: 10, y: 20, width: 100, height: 80 });
+
+    session.commit(session.pilePourPreset(effetsDuPreset().layers, {}));
+
+    expect(session.cadreToile()).toEqual({ x: 10, y: 20, width: 100, height: 80 });
+  });
+
+  it("rend un cadre FRAIS, pour qu'un recadrage ultérieur ne déplace pas l'entrée d'historique", () => {
+    const session = documentRecadre();
+    const pile = session.pilePourPreset(effetsDuPreset().layers, {});
+    expect(pile.cadre).not.toBe(session.cadreToile());
+    expect(pile.cadre).toEqual(session.cadreToile());
+  });
+
+  it("laisse `null` un document jamais recadré", () => {
+    const stack = new LayerStack();
+    stack.addPhotoLayer("src-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, "photo");
+    const session = new DocumentSession(stack);
+    session.commit(session.pilePourPreset(effetsDuPreset().layers, {}));
+    expect(session.cadreToile()).toBeNull();
+  });
+
+  it("préserve les calques photo et pose les calques du preset au-dessus", () => {
+    const session = documentRecadre();
+    session.commit(session.pilePourPreset(effetsDuPreset().layers, {}));
+    const pile = session.layers();
+    expect(pile.filter((l) => l.imageSource !== undefined)).toHaveLength(1);
+    expect(pile[0].imageSource).toBeDefined();
+    expect(pile[pile.length - 1].effectId).toBe("grain");
+  });
+
+  it("remplace l'ÉTAGE par celui du preset, dans le MÊME commit que la pile", () => {
+    const session = documentRecadre();
+    expect(session.developpement()).toHaveProperty("reglagesDeBase");
+
+    session.commit(session.pilePourPreset(effetsDuPreset().layers, { hsl: { teinteRouge: 0.3 } }));
+    expect(session.developpement()).toEqual({ hsl: { teinteRouge: 0.3 } });
+
+    // Un SEUL pas d'annulation rend la pile ET l'étage ET le cadre.
+    session.undo();
+    expect(session.developpement()).toHaveProperty("reglagesDeBase");
+    expect(session.cadreToile()).toEqual({ x: 10, y: 20, width: 100, height: 80 });
+  });
+});

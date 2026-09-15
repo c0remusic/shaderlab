@@ -1242,6 +1242,13 @@ export class MaskTextureResolver {
       b.destroy();
     }
     for (const w of this.edgeAwareWorkTextures.values()) this.destroyWork(w);
+    // Les SAT de feather POSSÈDENT leurs textures, comme le dit `sweep` —
+    // deux `r32float` pleine taille, ~208 Mo à 26 Mpx. Elles manquaient ici :
+    // `sweep` les libérait quand un calque disparaissait, `destroyRefineSat`
+    // quand le feather retombait à 0, et le démontage du résolveur lui-même
+    // les laissait sur le GPU. Le geste qui compte est l'ouverture d'un
+    // fichier, qui passe par `dispose()` et non par `sweep`.
+    for (const id of [...this.refineSatByLayer.keys()]) this.destroyRefineSat(id);
     this.sourceTextures.clear();
     this.parametricSourceTextures.clear();
     this.foldedMaskTextures.clear();
@@ -1250,6 +1257,12 @@ export class MaskTextureResolver {
     this.edgeAwareWorkTextures.clear();
     this.refineCache.clear();
     this.maskRevision.clear();
+    // Métadonnées pures, mais purgées pour la même raison que dans `sweep` :
+    // une révision ou une epoch survivante ferait servir un cache dont les
+    // textures viennent d'être détruites. `guideRevisionByLayer` était balayée
+    // sans être vidée ici, et `lastGuideEpochByLayer` ne l'était nulle part.
+    this.guideRevisionByLayer.clear();
+    this.lastGuideEpochByLayer.clear();
     this.lastInvertByLayer.clear();
     this.lastEdgeAwareActiveByLayer.clear();
     this.maskSourcePipelineCache.clear();

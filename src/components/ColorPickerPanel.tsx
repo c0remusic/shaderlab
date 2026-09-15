@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { IconButton } from "./ui/icon-button";
 import { hexToHsl, hslToHex, hslToRgb } from "../ui/hsl";
+import { draftKeyAction } from "../ui/draftField";
 import "./ColorPickerPanel.css";
 
 export interface ColorPickerPanelProps {
@@ -82,6 +83,7 @@ export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, 
   // when invalid, so a bad entry reverts to showing the live color again
   // rather than leaving a stuck bad string.
   const [draft, setDraft] = useState<string | null>(null);
+  const abandonHexRef = useRef(false);
   const lastDrawnHueRef = useRef<number | null>(null);
 
   // Redraw the SV square only when hue actually changed (not on every
@@ -186,6 +188,16 @@ export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, 
   );
 
   const commitHexInput = useCallback(() => {
+    // Abandon lu sur une REF, jamais sur l'état : le commit du `blur` court
+    // AVANT le re-render, donc un `setDraft(null)` posé à la frappe d'`Échap`
+    // ne serait pas encore visible ici et la saisie partirait quand même. Même
+    // piège, et même parade, que `NumberField` et `LabeledSlider` — voir
+    // `ui/draftField`.
+    if (abandonHexRef.current) {
+      abandonHexRef.current = false;
+      setDraft(null);
+      return;
+    }
     if (draft === null) return;
     const match = /^#?[0-9a-fA-F]{6}$/.test(draft);
     if (!match) {
@@ -316,7 +328,15 @@ export function ColorPickerPanel({ label, hue, saturation, lightness, onChange, 
             value={draft ?? currentHex}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commitHexInput}
-            onKeyDown={(e) => e.key === "Enter" && commitHexInput()}
+            onKeyDown={(e) => {
+              const action = draftKeyAction(e.key);
+              if (action === null) return;
+              e.preventDefault();
+              if (action === "abandon") abandonHexRef.current = true;
+              // Le commit passe par le seul `blur`, comme partout ailleurs :
+              // l'appeler ici EN PLUS doublerait l'entrée d'historique.
+              e.currentTarget.blur();
+            }}
             placeholder={currentHex}
           />
         </label>

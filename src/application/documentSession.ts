@@ -5,6 +5,10 @@ import type { LayerState } from "../layers/types";
 import { composerCadre, type CanvasFrame, type CanvasFrameState } from "../layers/canvasFrame";
 import type { DevelopSettings } from "../layers/developSettings";
 import { hasAnyLock, isFullyLocked, isMaskLocked, isPositionLocked } from "../layers/layerLocks";
+// `presets/preservePhotoLayers` ne dépend que de `layers/types` : aucun cycle,
+// et la règle « ce qu'un preset préserve » reste écrite UNE fois, avec sa
+// raison, au lieu d'être recopiée ici.
+import { withPhotoLayersPreserved } from "../presets/preservePhotoLayers";
 
 /** Framework-free application state for one non-destructive image document. */
 export class DocumentSession {
@@ -147,6 +151,44 @@ export class DocumentSession {
     this.history.push(stack);
     this.current = stack.clone();
     this.normalizeSelection();
+  }
+
+  /**
+   * Construit la pile qu'appliquer un preset doit produire : les calques PHOTO
+   * du document, puis les calques du preset, avec l'ÉTAGE du preset et le cadre
+   * du document.
+   *
+   * Elle CONSTRUIT sans commiter — l'appelant passe le résultat à son propre
+   * `commit`, qui porte aussi la remise à jour du renderer. Rendre la pile
+   * plutôt que la poser garde cette séquence-là intacte et concentre ici la
+   * seule chose qui manquait : ce qu'un preset préserve.
+   *
+   * POURQUOI CETTE MÉTHODE EXISTE plutôt qu'un `new LayerStack()` chez
+   * l'appelant. `LayerStack` porte TROIS emplacements de niveau document —
+   * `layers`, `cadre`, `develop` — et le seul site du dépôt qui fabriquait une
+   * pile à la main en reposait DEUX : `stack.layers`, `stack.develop`, et
+   * jamais `cadre`. Comme `commit` remplace la pile entière
+   * (`this.current = stack.clone()`), appliquer un preset RAMENAIT LE
+   * RECADRAGE À `null` dans le modèle, pendant que l'état React gardait
+   * l'ancien et que l'export lisait `cadreToile()` : la toile repartait
+   * entière, sans erreur, sans avertissement, et sans qu'aucun test ne croise
+   * preset et cadre.
+   *
+   * Ce que la forme achète : un QUATRIÈME emplacement de niveau document
+   * s'ajoutera ici, une fois, au lieu d'obliger à retrouver les sites de
+   * fabrication à la main — et `commit` cesse d'être le passage par lequel un
+   * document peut arriver amputé.
+   */
+  pilePourPreset(effets: LayerState[], develop: DevelopSettings): LayerStack {
+    const stack = new LayerStack();
+    stack.layers = withPhotoLayersPreserved(this.current.layers, effets);
+    // Le recadrage est une propriété de la TOILE, pas de la pile d'effets : un
+    // preset ne décrit rien à son sujet, donc il le laisse tel quel. Objet
+    // FRAIS pour la même raison que dans `LayerStack.clone` — recadrer après
+    // coup ne doit pas déplacer le cadre de l'entrée d'historique précédente.
+    stack.cadre = this.current.cadre === null ? null : { ...this.current.cadre };
+    stack.develop = develop;
+    return stack;
   }
 
   undo(): boolean {

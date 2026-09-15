@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  dockColumnKey,
   getDockDropTarget,
   isPanelShown,
   migrateDockLayout,
@@ -327,5 +328,30 @@ describe("migrateDockLayout", () => {
     expect(migrateDockLayout("nope")).toBeNull();
     expect(migrateDockLayout([["a"], 3])).toBeNull();
     expect(migrateDockLayout([[{ tabs: [1, 2] }]])).toBeNull();
+  });
+});
+
+describe("dockColumnKey", () => {
+  // Elle existe parce qu'une clé de réconciliation fausse ne se voit dans aucun
+  // pixel : c'est un avertissement de console, donc ni une story ni une
+  // référence de rendu ne peut l'attraper.
+  it("rend le premier onglet de la colonne, et pas le contenu", () => {
+    expect(dockColumnKey([singleGroup("presets"), singleGroup("layers")])).toBe("presets");
+  });
+
+  it("distingue DEUX colonnes de même longueur", () => {
+    const a = [singleGroup("presets"), singleGroup("layers")];
+    const b = [singleGroup("develop"), singleGroup("properties")];
+    expect(dockColumnKey(a)).not.toBe(dockColumnKey(b));
+  });
+
+  it("ne suit pas l'onglet ACTIF : replier ou changer d'onglet ne change pas l'identité", () => {
+    const groupe = { tabs: ["presets", "properties"], active: "presets", collapsed: false };
+    const apres = { ...groupe, active: "properties", collapsed: true };
+    expect(dockColumnKey([apres])).toBe(dockColumnKey([groupe]));
+  });
+
+  it("lève sur une colonne vide plutôt que d'inventer une clé", () => {
+    expect(() => dockColumnKey([])).toThrow(/colonne vide/);
   });
 });

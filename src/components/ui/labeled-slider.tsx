@@ -4,6 +4,7 @@ import { Slider as SliderPrimitive } from "./slider";
 import "./labeled-slider.css";
 import { cn } from "../../lib/utils";
 import { formatControlValue, parseControlValue } from "../../ui/formatValue";
+import { draftKeyAction, draftOutcome } from "../../ui/draftField";
 import {
   registerControl,
   unregisterControl,
@@ -118,6 +119,9 @@ export function LabeledSlider({
   const shownValue = displayValue ?? formatControlValue(value, step);
   const [draftValue, setDraftValue] = useState(shownValue);
   const [isEditing, setIsEditing] = useState(false);
+  // Voir `draftOutcome` : l'abandon doit être lisible SYNCHRONEMENT par le
+  // commit du blur, qui court avant le re-render.
+  const abandonRef = useRef(false);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronisation d'un BROUILLON local sur la valeur externe, uniquement hors edition : la retirer ferait ecraser la frappe en cours, et un `key` de reset perdrait le focus du champ.
@@ -176,29 +180,37 @@ export function LabeledSlider({
   }, [id, disabled, value, min, max, onChange, onCommit]);
 
   function commitTypedValue() {
+    setIsEditing(false);
     // Quand le champ montre une autre unité que le curseur (pixels d'un
     // paramètre spatial), sa lecture inverse rend déjà une valeur en unités du
     // curseur, bornée. Sinon, parse standard sur les bornes du curseur.
-    const nextValue = parse ? parse(draftValue) : parseControlValue(draftValue, min, max, step);
-    setIsEditing(false);
+    const issue = draftOutcome(draftValue, value, abandonRef.current, (d) =>
+      parse ? parse(d) : parseControlValue(d, min, max, step),
+    );
+    abandonRef.current = false;
 
-    if (nextValue === null) {
+    if (issue.kind === "abandon" || issue.kind === "invalid") {
       setDraftValue(shownValue);
       return;
     }
-
-    if (nextValue !== value) onChange(nextValue);
+    // `onCommit` part AUSSI quand la valeur n'a pas bougé — contrairement à
+    // `NumberField`. C'est délibéré et non un écart : le curseur s'en sert pour
+    // clore un geste, et `onChange` n'a pas eu lieu.
+    if (issue.kind === "commit") onChange(issue.value);
     onCommit?.();
   }
 
   function handleValueKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key !== "Enter") return;
+    const action = draftKeyAction(event.key);
+    if (action === null) return;
     event.preventDefault();
-    // Commit via the input's `onBlur` handler only. Calling
-    // commitTypedValue() here as well would double-fire onChange/onCommit:
-    // the controlled `value` prop is not updated synchronously between the
-    // explicit commit and the blur-triggered re-commit, so the
-    // `nextValue !== value` guard cannot dedupe them.
+    // Abandon posé sur une REF, pas sur l'état : le commit du `blur` juste
+    // dessous s'exécute AVANT le re-render et lirait encore le brouillon.
+    if (action === "abandon") abandonRef.current = true;
+    // Commit par le seul `onBlur` — appeler `commitTypedValue()` ici EN PLUS
+    // doublerait `onChange`/`onCommit` : la prop contrôlée n'est pas
+    // rafraîchie entre le commit explicite et celui du blur, donc la garde
+    // d'égalité ne peut pas dédupliquer.
     event.currentTarget.blur();
   }
 

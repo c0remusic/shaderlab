@@ -241,6 +241,23 @@ export class FramePipelineExecutor {
     private readonly maintenantMs: () => number = () => performance.now(),
   ) {}
 
+  /** Rend au GPU ce que l'exécuteur POSSÈDE en propre, c'est-à-dire la seule
+   *  `MippedSourceCache` — les cinq ports, eux, appartiennent à `Renderer` et
+   *  se démontent chez lui.
+   *
+   *  ⚠️ Elle n'existait pas, et `MippedSourceCache.dispose()` n'avait donc
+   *  AUCUN appelant dans le dépôt alors que l'exécuteur est reconstruit à
+   *  chaque `allocateDocument` : sa pyramide (+33 % de la taille d'une cible,
+   *  voir `effects/types.ts`) fuyait à chaque ouverture de fichier. Le
+   *  `GPUDevice`, lui, ne meurt jamais — `initGpu` n'est appelé qu'une fois —
+   *  donc rien ne rattrapait l'oubli en aval. Aucun gate ne pouvait le voir :
+   *  une fuite VRAM ne change aucun pixel, les 143 références de rendu
+   *  restaient vertes et le compilateur ne compte pas les textures. */
+  dispose(): void {
+    this.mippedSources?.dispose();
+    this.mippedSources = null;
+  }
+
   /** `livePreviewLayerId` : calque dont le masque est servi par l'APERÇU live
    *  du pinceau (`MaskTexturesPort` court-circuite alors sa résolution). Son
    *  contenu change d'une frame à l'autre SANS que son `LayerState` change —

@@ -41,6 +41,44 @@ function createFakeTexture() {
   } as unknown as GPUTexture;
 }
 
+/**
+ * Variante qui COMPTE les textures vivantes — créées moins détruites.
+ *
+ * Elle existe parce qu'une fuite de VRAM est le seul genre de défaut que rien
+ * d'autre dans ce dépôt ne peut voir : elle ne change aucun pixel, donc les
+ * références de rendu restent vertes ; le compilateur ne compte pas les
+ * textures ; et le `GPUDevice` ne meurt jamais (`initGpu` n'est appelé qu'une
+ * fois), donc rien ne rattrape l'oubli en aval. Le seul témoin honnête est le
+ * solde entre `createTexture` et `destroy`.
+ */
+function createCountingContext(compte: { vivantes: number }): GpuContext {
+  const device = {
+    createTexture: () => {
+      compte.vivantes += 1;
+      let detruite = false;
+      return {
+        format: "r8unorm",
+        destroy() {
+          // Idempotent, comme la vraie API : un double `destroy()` ne doit pas
+          // rendre le solde négatif et masquer une fuite ailleurs.
+          if (detruite) return;
+          detruite = true;
+          compte.vivantes -= 1;
+        },
+        createView: () => ({}),
+      } as unknown as GPUTexture;
+    },
+    createBuffer: () => ({}) as unknown as GPUBuffer,
+    createBindGroupLayout: () => ({}) as unknown as GPUBindGroupLayout,
+    createPipelineLayout: () => ({}) as unknown as GPUPipelineLayout,
+    createShaderModule: () => ({}) as unknown as GPUShaderModule,
+    createRenderPipeline: () => ({}) as unknown as GPURenderPipeline,
+    createBindGroup: () => ({}) as unknown as GPUBindGroup,
+    queue: { writeTexture: () => {}, writeBuffer: () => {} },
+  } as unknown as GPUDevice;
+  return { device, context: {} as GPUCanvasContext, canvasFormat: "bgra8unorm", srgbFormat: "bgra8unorm-srgb" };
+}
+
 function createFakeContext(
   encodeCounts: { copies: number; passes: number },
   writeBufferCalls?: Float32Array[],
@@ -452,5 +490,46 @@ describe("MaskTextureResolver — guideRevision (séparé de maskRevision)", () 
     resolver.resolve(invertChanged, createFakeEncoder(counts), {} as GPUTextureView, [], 0);
     // @ts-expect-error accès direct pour le test
     expect(resolver.guideRevision(id)).toBeGreaterThan(guideRevAfterFirst);
+  });
+});
+
+describe("MaskTextureResolver — dispose() ne laisse aucune texture vivante", () => {
+  /** Le geste qui compte est l'OUVERTURE D'UN FICHIER : `App` fabrique un
+   *  Renderer neuf, l'ancien passe par `dispose()`, et le `GPUDevice` survit.
+   *  Tout ce que `dispose()` oublie est donc perdu pour la session entière.
+   *
+   *  Ce que ce test aurait attrapé : les SAT de feather possèdent leurs
+   *  textures (deux `r32float` pleine taille, ~208 Mo à 26 Mpx) et étaient
+   *  libérées par `sweep` — quand un calque disparaît — et par le retour du
+   *  feather à zéro, mais par aucun des deux chemins de démontage du
+   *  résolveur lui-même. */
+  function calqueAvecFeather(): LayerState {
+    const stack = new LayerStack();
+    const id = stack.addLayer("glow");
+    stack.addMaskSource(id, "luminosity");
+    const layer = stack.layers.find((l) => l.id === id)!;
+    return { ...layer, mask: { ...layer.mask, refineEdge: { ...layer.mask.refineEdge, feather: 12 } } };
+  }
+
+  it("libère les SAT de feather, comme le reste", () => {
+    const compte = { vivantes: 0 };
+    const counts = { copies: 0, passes: 0 };
+    const ctx = createCountingContext(compte);
+    const colorTexture = ctx.device.createTexture({} as GPUTextureDescriptor);
+    const resolver = new MaskTextureResolver(
+      ctx, 4, 4,
+      {} as unknown as GPUSampler,
+      {} as unknown as GPUSampler,
+      () => colorTexture,
+    );
+    resolver.resolve(calqueAvecFeather(), createFakeEncoder(counts), {} as GPUTextureView, [], 0);
+    // Le chemin a bien alloué : sans cette garde, un resolve qui ne ferait rien
+    // rendrait le test vert pour la mauvaise raison.
+    expect(compte.vivantes).toBeGreaterThan(1);
+
+    resolver.dispose();
+    // `colorTexture` n'appartient pas au résolveur (elle est fournie par
+    // `Renderer` via la fermeture) : elle seule doit survivre.
+    expect(compte.vivantes).toBe(1);
   });
 });

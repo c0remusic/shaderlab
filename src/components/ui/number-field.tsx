@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import type { ControlLabelPlacement } from "./select";
 import { cn } from "../../lib/utils";
 import { parseControlValue } from "../../ui/formatValue";
+import { draftKeyAction, draftOutcome } from "../../ui/draftField";
 
 /** Classes des cinq boîtes du champ. Chacune ÉCRASE le style par défaut (elle
  *  ne s'y ajoute pas) : un appelant qui a déjà sa feuille de style — PhotoPanel
@@ -91,34 +92,32 @@ export function NumberField({
 
   function commitDraft() {
     setIsEditing(false);
-    if (abandonRef.current) {
-      abandonRef.current = false;
+    const issue = draftOutcome(draft, value, abandonRef.current, (d) =>
+      parse ? parse(d) : parseControlValue(d, min, max, step),
+    );
+    abandonRef.current = false;
+
+    if (issue.kind === "abandon" || issue.kind === "invalid") {
       setDraft(shown);
       return;
     }
-    const parsed = parse ? parse(draft) : parseControlValue(draft, min, max, step);
-    if (parsed === null) {
-      setDraft(shown);
-      return;
-    }
-    setDraft(String(parsed));
-    if (parsed !== value) onCommit(parsed);
+    // Le brouillon prend la forme NORMALISÉE même quand la valeur ne bouge pas
+    // (« 1.50 » devient « 1.5 ») : c'est le champ qui affiche, pas le modèle.
+    setDraft(String(issue.value));
+    // Pas d'`onCommit` sur `unchanged` — contrairement à `LabeledSlider`, qui
+    // s'en sert pour clore un geste. Un champ n'a pas de geste à clore.
+    if (issue.kind === "commit") onCommit(issue.value);
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      // Commit par le seul `onBlur` — appeler `commitDraft()` ici EN PLUS
-      // doublerait l'entrée d'historique (même piège que LabeledSlider).
-      event.currentTarget.blur();
-      return;
-    }
-    if (event.key === "Escape") {
-      event.preventDefault();
-      // Abandon de l'édition du champ, jamais un commit.
-      abandonRef.current = true;
-      event.currentTarget.blur();
-    }
+    const action = draftKeyAction(event.key);
+    if (action === null) return;
+    event.preventDefault();
+    // Abandon de l'édition du champ, jamais un commit.
+    if (action === "abandon") abandonRef.current = true;
+    // Commit par le seul `onBlur` — appeler `commitDraft()` ici EN PLUS
+    // doublerait l'entrée d'historique (même piège que LabeledSlider).
+    event.currentTarget.blur();
   }
 
   const inline = labelPlacement === "inline";

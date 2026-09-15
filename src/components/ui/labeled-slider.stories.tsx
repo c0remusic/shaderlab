@@ -91,6 +91,46 @@ export const ArrowKeyChangesValue: Story = {
   },
 };
 
+/** ÉCHAP ABANDONNE LA SAISIE DU CHAMP DE VALEUR.
+ *
+ *  C'est le champ de CHAQUE curseur de paramètre d'effet, donc le contrôle le
+ *  plus utilisé de l'application — et il commitait malgré Échap, avec une
+ *  entrée d'historique. Aucune des seize autres stories ne tape dedans, et un
+ *  commit de trop ne change aucun pixel : rien ne pouvait le voir.
+ *
+ *  Le protocole lui-même est éprouvé sans navigateur (`test/ui/draftField`) ;
+ *  ce cas-ci vérifie que le composant le BRANCHE, ce qu'aucun test pur ne dit. */
+export const EscapeAbandonsValueEdit: Story = {
+  args: { value: 1.2, min: 0, max: 3, step: 0.05, onChange: fn(), onCommit: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const readout = canvas.getByLabelText("Intensité (valeur)");
+    await userEvent.clear(readout);
+    await userEvent.type(readout, "2.9");
+    await userEvent.keyboard("{Escape}");
+
+    await expect(args.onChange).not.toHaveBeenCalled();
+    await expect(args.onCommit).not.toHaveBeenCalled();
+    await expect(readout).toHaveValue("1.20");
+  },
+};
+
+/** ENTRÉE COMMITE, et UNE SEULE FOIS — le commit vient du seul `onBlur`. */
+export const EnterCommitsOnce: Story = {
+  args: { value: 1.2, min: 0, max: 3, step: 0.05, onChange: fn(), onCommit: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const readout = canvas.getByLabelText("Intensité (valeur)");
+    await userEvent.clear(readout);
+    await userEvent.type(readout, "2.5");
+    await userEvent.keyboard("{Enter}");
+
+    await expect(args.onChange).toHaveBeenCalledTimes(1);
+    await expect(args.onChange).toHaveBeenCalledWith(2.5);
+    await expect(args.onCommit).toHaveBeenCalledTimes(1);
+  },
+};
+
 /** GARDE D'ACCESSIBILITÉ à la SOURCE — les deux contrôles du composant (la
  *  piste et son champ de valeur) portent un nom accessible distinct et
  *  CALCULÉ. La piste tient le sien d'un `aria-labelledby` vers l'étiquette

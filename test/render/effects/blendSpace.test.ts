@@ -1,4 +1,10 @@
 import { describe, it, expect } from "vitest";
+
+/** Corps WGSL minimal mais VALIDE : `validateEffect` exige désormais que tout
+ *  effet définisse `fs_main`, parce qu'un corps sans elle compile parfois puis
+ *  échoue à l'exécution, loin de sa cause. Un double de test qui prétend passer
+ *  la validation doit donc porter une vraie signature. */
+const FS_MAIN_MINIMAL = "fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> { return color; }";
 import {
   BLEND_SPACE_CHOICES,
   BLEND_SPACE_LINEAR,
@@ -155,7 +161,7 @@ describe("blendSpace — OKLCH fait TOURNER la teinte", () => {
 describe("blendSpace — le paramètre est chargeable par le registre", () => {
   it("passe validateEffect (bornes accordées à ses choix)", () => {
     expect(() =>
-      validateEffect({ id: "test", name: "Test", params: [blendSpaceParam()], wgsl: "" })
+      validateEffect({ id: "test", name: "Test", params: [blendSpaceParam()], wgsl: FS_MAIN_MINIMAL })
     ).not.toThrow();
   });
 

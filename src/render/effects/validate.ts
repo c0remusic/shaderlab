@@ -328,5 +328,72 @@ export function validateEffect(effect: EffectModule): void {
         `Effet "${effect.id}" : libraryTexture et passes internes ne sont pas encore combinables (le binding 7 n'est résolu que pour la passe finale).`,
       );
     }
+    // CONTRAT DU SHADER, jusqu'ici en prose seulement (`types.ts`) : tester
+    // `textureDimensions(libraryTexture)` et rendre l'entrée inchangée quand un
+    // côté vaut 1. Le chargement est asynchrone et le binding TOUJOURS fourni —
+    // `TextureLibraryStore` sert une texture 1×1 de repli tant que la vraie
+    // n'est pas décodée. Un shader qui ne teste pas échantillonne ce repli et
+    // rend une image fausse pendant quelques frames, sans erreur nulle part.
+    if (!effect.wgsl.includes("textureDimensions")) {
+      throw new Error(
+        `Effet "${effect.id}" : déclare libraryTexture mais son corps WGSL ne teste jamais ` +
+          `textureDimensions — il échantillonnerait la texture 1×1 de repli pendant le décodage.`,
+      );
+    }
+  }
+
+  validerContratWgsl(effect);
+  validerGroupesDeCouleur(effect);
+}
+
+/**
+ * Le contrat que `types.ts` énonce sur `EffectModule.wgsl`, vérifié au lieu
+ * d'être seulement écrit.
+ *
+ * Ce qui reste HORS de portée, et pourquoi c'est dit plutôt que découvert : le
+ * plafond de niveau qu'un effet à `sourceMipmaps` doit poser sur son mip dérivé.
+ * Il se MESURE par effet (2 sur `glass`, trouvé après un faux départ), donc
+ * aucune valeur n'est vérifiable ici ; et chercher un `min(`/`clamp(` autour du
+ * niveau attraperait des formes légitimes en les manquant d'autres. Une garde
+ * fragile vaut moins que pas de garde : elle fait croire que la règle est tenue.
+ */
+function validerContratWgsl(effect: EffectModule): void {
+  // La signature d'entrée. Un corps sans elle compile parfois (le compositeur
+  // l'enveloppe) puis échoue à l'exécution, loin de sa cause.
+  if (!/fn\s+fs_main\s*\(/.test(effect.wgsl)) {
+    throw new Error(
+      `Effet "${effect.id}" : son corps WGSL ne définit pas fs_main. ` +
+        `Signature attendue : fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32>.`,
+    );
+  }
+}
+
+/**
+ * Les TROIS rôles d'un même `colorGroup` doivent être présents.
+ *
+ * `ParamPanel` lève déjà si l'un manque — mais À L'EXÉCUTION, donc au moment où
+ * l'utilisateur ouvre le panneau de cet effet, et pas au chargement du registre.
+ * Une déclaration incomplète passait tous les gates et n'échouait que devant lui.
+ */
+function validerGroupesDeCouleur(effect: EffectModule): void {
+  const rolesParCle = new Map<string, Set<string>>();
+  for (const param of effect.params) {
+    if (!param.colorGroup) continue;
+    const roles = rolesParCle.get(param.colorGroup.key) ?? new Set<string>();
+    if (roles.has(param.colorGroup.role)) {
+      throw new Error(
+        `Effet "${effect.id}" : le groupe de couleur "${param.colorGroup.key}" déclare deux fois le rôle "${param.colorGroup.role}".`,
+      );
+    }
+    roles.add(param.colorGroup.role);
+    rolesParCle.set(param.colorGroup.key, roles);
+  }
+  for (const [cle, roles] of rolesParCle) {
+    const manquants = ["hue", "saturation", "lightness"].filter((r) => !roles.has(r));
+    if (manquants.length > 0) {
+      throw new Error(
+        `Effet "${effect.id}" : le groupe de couleur "${cle}" n'a pas ses trois rôles — manque ${manquants.join(", ")}.`,
+      );
+    }
   }
 }

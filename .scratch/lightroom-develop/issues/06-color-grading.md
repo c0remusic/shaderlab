@@ -162,3 +162,52 @@ Les poids de plage mesurés ont des traînées bien plus longues que nos smooths
 Fusion est un MULTIPLICATEUR centré sur la bascule (×2,25 à la bascule, ×1 aux
 bouts) et non un élargissement, et son sens est l'INVERSE de notre documentation :
 100 rend la transition plus franche.
+
+## La MÉTHODE d'Adobe, lue dans le binaire puis vérifiée sur les mesures (2026-09-15)
+
+Antoine, le même jour : « et à chaque fois regarde le code pour être sûr de la
+méthode ». Appliqué à ce module, ça change la FORME et pas seulement les
+constantes.
+
+**Ce que le binaire dit.** `cr_split_tone.cpp`, étage `cr_stage_SplitTone`,
+pipeline `splitTone`. Les champs de son uniforme `UniformsSplitTone`, dans
+l'ordre :
+
+```
+balanceMapAlpha · blending · globalNOPBalanceMapAlpha
+fPadding1 · fPadding2 · fPadding3
+shadowFactor · deltaFactor · midtoneMapAlpha · luminance · globalMapAlpha
+```
+
+Il n'y a **pas de `highlightMapAlpha`**. Les ombres et les hautes lumières ne
+sont donc pas deux poids indépendants : une seule rampe (`balanceMapAlpha`) fond
+la teinte des ombres vers celle des hautes lumières, `shadowFactor` portant la
+première et `deltaFactor` la différence vers la seconde. Les tons moyens et la
+roue globale ont, eux, leur propre alpha.
+
+**Ce que les mesures confirment.** Si c'est un fondu, alors la PART du virage qui
+revient aux ombres — `chroma(st-ombres-bleu) / (chroma(st-ombres-bleu) +
+chroma(st-hl-orange))` — doit descendre proprement de 1 à 0. Mesuré, en L OKLab :
+
+```
+L      0,14  0,21  0,28  0,34  0,46  0,52  0,57  0,63  0,68  0,73  0,83  0,93
+part   1,00  1,00  1,00  0,93  0,82  0,71  0,56  0,49  0,37  0,21  0,07  0,00
+```
+
+Monotone, et elle croise 0,5 à L ≈ 0,60 — exactement la bascule mesurée par une
+tout autre voie (le passage par zéro de la chroma signée du duo). Deux méthodes
+indépendantes, le même nombre.
+
+**Ce que ça condamne dans notre modèle.** Nos poids sont deux `smoothstep`
+indépendants plus une gaussienne. Le poids d'ombres tombe à ZÉRO dès L = 0,46, là
+où la mesure dit encore 0,82 : c'est la cause première des « traînées trop
+courtes » constatées sans être expliquées. La forme juste est UNE rampe `alpha(L)`
+et son complément, pas deux courbes libres — et elle coûte MOINS de constantes que
+ce qu'on a, pas plus.
+
+⚠️ La somme des deux chromas mesurées n'est pas plate (0,0248 au ras du noir,
+0,0535 au pic, creux à 0,0286 vers la bascule, 0,0110 près du blanc) : par-dessus
+le fondu il y a une enveloppe de teintabilité, et elle dépend de la TEINTE (le
+bleu et l'orange n'ont pas la même place dans le gamut à L donné). C'est ce que
+`tintExp` essayait d'attraper à l'aveugle. Le mesurer proprement demande les
+teintes supplémentaires de la campagne A.

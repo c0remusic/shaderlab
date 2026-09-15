@@ -33,9 +33,19 @@ import type { DevelopSettings } from "../layers/developSettings";
  * d'entre eux. Ils passent `salit`.
  */
 
-/** Les quatre prises d'un geste vivant. Chacune est un effet de bord que
+/** LES HUIT PRISES d'un geste vivant. Chacune est un effet de bord que
  *  l'appelant possède déjà ; les rassembler ici est ce qui rend la SÉQUENCE
- *  vérifiable, pas les effets eux-mêmes. */
+ *  vérifiable, pas les effets eux-mêmes.
+ *
+ *  Quatre servent le geste de PILE (`salir`, `poserPile`, `planifierSynchro`,
+ *  `redemanderRendu`) et cinq le geste d'ÉTAGE (`salir`, `poserEtage`,
+ *  `projeterEtage`, `renduEtage`, puis `redemanderRendu` sur `pileComplete`) —
+ *  deux se partagent.
+ *
+ *  ⚠️ Cette phrase a dit « les quatre prises » le jour où le module est né, et
+ *  c'était faux à l'écriture : j'avais nommé l'interface d'après UN de ses deux
+ *  consommateurs. Le compte se relit sur l'interface, jamais sur l'usage qu'on
+ *  a en tête. */
 export interface PortsGesteVivant {
   /** Pose la pile vivante sur la session. `geometrie` gèle les paramètres
    *  spatiaux d'un calque verrouillé en position — voir `fusionnerSousVerrous`. */

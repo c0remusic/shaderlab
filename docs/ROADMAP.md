@@ -43,7 +43,11 @@
   (ADR-0021, quatrième refus daté). ✅ Depuis le 2026-09-07 (`ede4b16`) le
   matcap du ticket 17 est une DOSE à défaut 0 — Antoine a pointé la colonne
   d'avant sur la planche chronologique — et `effet-verre-matcap` est la 14ᵉ.
-- **379 paramètres, 143 références de pixels** — le compte de params re-mesuré le
+- **379 paramètres, 147 références de pixels** (143 jusqu'au 2026-09-14 ; les
+  quatre de plus sont `developpement-grading-{balance,fusion-0,hl-orange,ombres-bleu}`,
+  posées au ticket 06. Aucun orphelin : les 147 ont leur scénario dans
+  `render-check.mjs` ET leur entrée dans la table `ATTENDU`, vérifié le 2026-09-15)
+  — le compte de params re-mesuré le
   **2026-09-11** (386 → 379 : `etalonnage` et ses 7 params PARTENT vers l'ÉTAGE de
   développement, ticket 03 ; ils étaient ARRIVÉS en calque au ticket 01, 379 →
   386). ⚠️ `mesure-controles.ts` ne compte QUE `effectRegistry` — les modules de
@@ -1956,6 +1960,102 @@ tenait, la raison écrite était fausse, et seule la vérification le montre.
   jamais fusionnées et citées nulle part**. Ce n'est pas un reliquat, c'est du
   travail orphelin : le supprimer perd le code. Décision à prendre.
 - `feature/design-system` — miroir de `master` (ADR-0005), gardée telle quelle.
+
+---
+
+## ⚠️ OUVERT le 2026-09-15 — la revue d'architecture, et ce qu'elle laisse
+
+Onze candidats d'approfondissement produits par une revue sur toute la codebase
+(cinq sondes en lecture seule, chaque constat revérifié à la main). **Sept clos**,
+trois partiels, **deux non entamés**. Ce qui suit est le reste, et les chiffres
+sont mesurés le jour même.
+
+### Non entamés
+
+- **Le verdict de verrou.** `LayerStack` produit dix-sept fois l'information
+  « refusé, et par quel verrou », et la jette dix-sept fois : les mutateurs
+  rendent un booléen indistinguable d'un no-op. Dix-neuf sites d'affordance la
+  REFABRIQUENT ensuite. Un verrou de plus se pose aujourd'hui dans huit modules
+  d'enforcement et sept composants. Forme proposée : un verdict à trois états
+  (`appliqué` / `refusé par tel verrou` / `sans effet`), lu par l'affordance au
+  lieu d'être recalculé.
+- **Le registre de genres de `ParamPanel`.** Neuf genres de contrôle, neuf
+  branches JSX en dur, et **quatre des neuf n'ont qu'UN déclarant**. Coût mesuré
+  d'un genre neuf : +37 lignes dans `ParamPanel`, +22 dans `types.ts` — et
+  quatre genres sont arrivés en trois semaines. La promesse « aucun
+  `if (effectId)` » est tenue, mais ajouter un genre touche quand même le
+  panneau. Forme : une table de neuf entrées, le corps devient une boucle.
+  ⚠️ `groupEffectParams` (150 lignes derrière quatre arguments, testé hors
+  rendu) est l'autre moitié du fichier et **ne doit pas bouger** : elle est déjà
+  profonde.
+
+### Partiels
+
+- **Les jumeaux TS/WGSL.** Onze modules portent un jumeau CPU de leur shader ;
+  **sept n'ont aucun lien** avec le WGSL, et le seul recours est `test:render`,
+  porte locale à GPU réel qui ne tourne pas en CI. La moitié CONSTANTES est
+  fermée (interpolation + garde `jumeauxWgsl`) ; la moitié FORMULES ne l'est
+  pas. La fermer demande de GÉNÉRER le corps WGSL depuis la source TS — ce qui
+  change la chaîne de chaque shader, donc la clé de cache de `shaderCompose`, et
+  se mène effet par effet. Précédent mesuré dans le dépôt : un genre de
+  raffinement passé PAR le plan pur a coûté **+7 lignes** de résolveur
+  (`3dff147`), un étage passé hors du plan **+297** (`578d67a`).
+- **Le résolveur de masque.** Ses deux défauts sont fermés (la fuite de SAT de
+  feather au démontage, la clé de pipeline sans format sur un encodeur des
+  deux). La SCISSION en trois étages ne l'est pas — **et trois conceptions
+  indépendantes la refusent** : chacun des trois devrait redéclarer le contexte,
+  les dimensions, la révision, les diagnostics, les encodeurs et le carnet de
+  brouillons, c'est-à-dire promouvoir le couplage au rang d'interface. Ce qu'elles
+  proposent à la place est une **frame ouverte une fois** (`beginFrame` → handle
+  → un appel par calque), qui fait mourir l'invariant d'epoch non en le typant
+  mais en supprimant le second terme de l'égalité. Décision à prendre par
+  Antoine ; les trois conceptions sont dans la conversation du 2026-09-15.
+- **Le budget de hauteur du dock.** La garde d'ADR-0001 couvre désormais les
+  QUATRE cartes dans une colonne (mesuré sur la vraie fenêtre : la carte
+  Développement porte 2972 px de contenu naturel, bornée à 751, colonne à
+  1205/1205 — l'invariant est TENU). Ce qui reste : le budget n'est toujours
+  pas une fonction qu'on peut appeler, il vit dans une chaîne de cinq règles CSS
+  plus deux hauteurs mesurées à l'exécution.
+
+### Défauts trouvés et NON corrigés
+
+- **Le poids des hautes lumières du Color Grading est NON MONOTONE** — il culmine
+  au niveau 205 puis retombe à 0,26 au niveau 248. Aucune homographie ne rend ça,
+  et c'est la seule des treize mesures de virage qui régresse après la refonte
+  des poids (`eb1ea2a`). Hérité du 2026-09-14, toujours ouvert.
+- **`encodeThumbnailEnvelope` n'a aucun appelant de production** : le vrai
+  producteur du format est Rust (`build_thumbnail_envelope`), et le test
+  d'aller-retour valide TS↔TS. Il ne peut donc pas voir la seule divergence
+  possible, TS↔Rust, sur un format d'octets qui traverse l'IPC.
+- **`readGpuErrorJournal` est exporté sans lecteur.** Le journal est le seul
+  canal qui survive à un rechargement après un OOM WebGPU ; l'absence de lecteur
+  signale qu'il manque une INTERFACE, pas que l'écriture soit morte.
+
+### Arbitrages qui attendent Antoine
+
+- **Deux correctifs `CLAUDE.md`**, proposés et non appliqués (le fichier ne
+  s'édite pas sans accord) : le compte d'opérations verrouillées (seize → **17**,
+  mesuré sur les sites de garde) et le compte de références de pixels (143 →
+  **147**, les quatre de Color Grading du 2026-09-14 ; aucun orphelin, les 147
+  ont leur scénario ET leur entrée `ATTENDU`).
+- **Le mode `crop` de calque** (`ui/canvasMode.ts`) n'a aucun constructeur de
+  production, et `tools.ts:23-26` explique que c'est DÉLIBÉRÉ : `LayerTransform`
+  n'a pas encore de champ `crop`, et « un bouton qui ferait entrer dans un mode
+  sans géométrie derrière serait un bouton qui ment ». Ce n'est pas du code mort,
+  c'est une place gardée — à confirmer ou à retirer, pas à nettoyer en passant.
+- **Les trois libellés du plafond photo** (`duplicateLayer`, `flatten`,
+  `usePhotoLayer`) portent la même arithmétique de pluriel écrite quatre fois,
+  et deux d'entre eux se déclarent source unique. Les fondre change un texte que
+  l'utilisateur lit : arbitrage de produit, pas ménage.
+
+### Corrigé au passage — ce que le document disait de faux
+
+- Cette feuille annonçait **143 références de pixels** ; il y en a **147** sur
+  disque, toutes câblées. Corrigé ci-dessus au bloc « Où en est le code ».
+- `CONTEXT.md` annonçait **onze** modes de fusion quand le registre en enregistre
+  **dix-sept** — et DEUX sondes d'architecture ont repris le chiffre du glossaire
+  au lieu de compter le registre. Corrigé le 2026-09-15 (`778cf8c`), avec la
+  mention que le registre tranche.
 
 ---
 

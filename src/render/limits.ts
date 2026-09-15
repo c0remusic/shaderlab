@@ -5,21 +5,29 @@
  * message clair, pas un canvas noir.
  */
 /**
- * `maxTextureDimension2D` par DÉFAUT de la spec WebGPU.
+ * ⚠️ `DEFAULT_MAX_TEXTURE_DIMENSION = 8192` A ÉTÉ RETIRÉE LE 2026-09-15, et son
+ * JSDoc avec — il était faux de bout en bout, ce qui vaut d'être noté plutôt
+ * que effacé.
  *
- * C'est la valeur réelle sur ce projet, pas un minorant prudent : shaderlab ne
- * passe aucun `requiredLimits` à `requestDevice`, donc le device reçoit les
- * limites par défaut quelle que soit la carte — une RTX qui sait faire 16384 en
- * expose 8192 ici. Conséquence pratique pour la bibliothèque de textures : un
- * scan « 8K » carré (8192 × 8192) passe EXACTEMENT à la limite, et 8193 est
- * refusé par `assertImageFitsGpu`.
+ * Il affirmait que « shaderlab ne passe aucun `requiredLimits` à
+ * `requestDevice`, donc le device reçoit les limites par défaut quelle que soit
+ * la carte — une RTX qui sait faire 16384 en expose 8192 ici ».
+ * `gpuContext.ts:124` en passe un : `{ maxTextureDimension2D:
+ * adapter.limits.maxTextureDimension2D }`, et le commentaire juste au-dessus
+ * dit explicitement « On demande le maximum que l'adapter supporte réellement ».
+ * La conclusion qui en découlait — « un scan 8K carré passe EXACTEMENT à la
+ * limite » — était donc fausse sur toute carte qui annonce mieux que 8192.
  *
- * N'est PAS la source de vérité — `Renderer.maxTextureDimension` lit le device.
- * Sert de valeur d'attente là où l'interface doit afficher quelque chose avant
- * que le renderer existe (premier rendu de React). Un repli sur une valeur PLUS
- * GRANDE laisserait proposer une texture que l'import refuserait ensuite.
+ * Il se justifiait par un appelant qui n'existait pas : « valeur d'attente là
+ * où l'interface doit afficher quelque chose avant que le renderer existe ».
+ * Mesuré : ZÉRO occurrence dans `src/`, `test/` et `scripts/` hors sa propre
+ * déclaration. La valeur vivante est `Renderer.maxTextureDimension`, lue du
+ * device, et les trois appelants d'`assertImageFitsGpu` reçoivent tous
+ * `device.limits.maxTextureDimension2D`.
+ *
+ * Une constante morte qui vaudrait FAUX si quelqu'un s'en servait est pire
+ * qu'une constante morte.
  */
-export const DEFAULT_MAX_TEXTURE_DIMENSION = 8192;
 
 export function assertImageFitsGpu(width: number, height: number, maxDimension: number): void {
   if (width > maxDimension || height > maxDimension) {

@@ -14,10 +14,20 @@ import { isStructureLocked } from "../layers/layerLocks";
  * photo du document — l'écran deviendrait le damier de la toile vide, en un
  * clic et sans avertissement.
  *
- * Un preset ne contient JAMAIS de calque photo (`presetDocument.ts` les exclut
- * à la capture, avec un `SkipNotice`) : la concaténation ne peut donc pas
- * produire de doublon de source, et le compte de calques photo du document ne
- * peut que rester constant ou diminuer — jamais franchir `MAX_PHOTO_LAYERS`.
+ * CE QUI EST PRÉSERVÉ ICI N'EST PAS CAPTURÉ LÀ-BAS, et c'est ce qui interdit le
+ * doublon. `presetDocument.capture` exclut exactement les deux mêmes genres —
+ * les photos et les calques verrouillés « Tout » — chacun avec son
+ * `SkipNotice`. La concaténation ne peut donc pas produire de doublon, et le
+ * compte de calques photo du document ne peut que rester constant ou diminuer,
+ * jamais franchir `MAX_PHOTO_LAYERS`.
+ *
+ * ⚠️ Cette phrase n'a parlé QUE des photos jusqu'au 2026-09-15, et elle est
+ * devenue fausse le jour même où les calques verrouillés ont rejoint la
+ * préservation : `capture` ne les excluait pas, donc réappliquer un preset pris
+ * sur SON PROPRE document dupliquait le calque — préservé une fois, reconstruit
+ * une fois. Un test le reproduit maintenant. La leçon vaut au-delà : **ces deux
+ * fonctions sont un couple**, et toute clause ajoutée à l'une se pose à
+ * l'autre.
  *
  * TOUS les calques photo sont préservés, pas seulement le plus bas : le design
  * dit « au minimum le plus bas », et distinguer le fond des autres photos

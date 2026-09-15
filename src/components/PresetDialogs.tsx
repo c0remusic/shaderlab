@@ -53,6 +53,33 @@ export interface PresetDialogsProps {
   onApplyConfirm: () => void;
 }
 
+/** La phrase du dialogue « Calque(s) exclu(s) du preset ».
+ *
+ *  Deux raisons, deux conséquences différentes, donc deux phrases : une PHOTO
+ *  n'a de sens que dans son document ; un calque VERROUILLÉ est préservé à
+ *  l'application, donc rien n'est perdu ici — mais le preset appliqué à une
+ *  AUTRE photo n'aura pas cet effet. Fonction plutôt que littéral, pour la même
+ *  raison que `applyPresetImpactMessage` : c'est le seul énoncé qu'un
+ *  utilisateur lit avant d'enregistrer, et il a déjà menti une fois. */
+function phraseExclusion(
+  exclus: readonly { layerIndex: number; reason: "photo-layer" | "locked-layer" }[],
+): string {
+  const photos = exclus.filter((e) => e.reason === "photo-layer").length;
+  const verrous = exclus.length - photos;
+  const bouts: string[] = [];
+  if (photos > 0) {
+    bouts.push(
+      `${photos} calque${photos > 1 ? "s" : ""} photo — une source de photo n'a de sens que dans ce document`,
+    );
+  }
+  if (verrous > 0) {
+    bouts.push(
+      `${verrous} calque${verrous > 1 ? "s" : ""} verrouillé${verrous > 1 ? "s" : ""} — il${verrous > 1 ? "s sont" : " est"} conservé${verrous > 1 ? "s" : ""} à l'application, mais absent${verrous > 1 ? "s" : ""} du preset sur une autre photo`,
+    );
+  }
+  return `Ne sera pas inclus dans le preset : ${bouts.join(" ; ")}.`;
+}
+
 export function PresetDialogs({
   pendingOverwrite,
   onOverwriteCancel,
@@ -97,7 +124,7 @@ export function PresetDialogs({
       />
       <Dialog
         open={pendingPhotoLayerSave !== null}
-        title="Calque(s) photo exclu(s) du preset"
+        title="Calque(s) exclu(s) du preset"
         description={
           pendingPhotoLayerSave
             ? // « photo », plus « photo (double exposure) » : depuis T1 la
@@ -105,7 +132,12 @@ export function PresetDialogs({
               // figurer dans cette liste — la nommer « double exposure »
               // serait faux. L'avis lui-même ne se déclenche plus que si le
               // document contient une photo IMPORTÉE (presetDocument.ts).
-              `${pendingPhotoLayerSave.excludedLayerIndexes.length} calque${pendingPhotoLayerSave.excludedLayerIndexes.length > 1 ? "s" : ""} photo ne ${pendingPhotoLayerSave.excludedLayerIndexes.length > 1 ? "seront" : "sera"} pas inclus dans le preset — une source de photo n'a de sens que dans ce document.`
+              //
+              // DEUX raisons depuis le 2026-09-15, et elles ne se disent pas
+              // pareil : une photo n'a de sens que dans SON document, un calque
+              // verrouillé est PRÉSERVÉ à l'application — donc rien n'est perdu
+              // ici, mais le preset appliqué AILLEURS n'aura pas cet effet.
+              phraseExclusion(pendingPhotoLayerSave.exclus)
             : undefined
         }
         onClose={onPhotoLayerSaveCancel}
@@ -127,8 +159,10 @@ export function PresetDialogs({
       >
         {pendingPhotoLayerSave && (
           <ul className="preset-panel__excluded-list">
-            {pendingPhotoLayerSave.excludedLayerIndexes.map((layerIndex) => (
-              <li key={layerIndex}>Calque {layerIndex + 1} — photo</li>
+            {pendingPhotoLayerSave.exclus.map(({ layerIndex, reason }) => (
+              <li key={layerIndex}>
+                Calque {layerIndex + 1} — {reason === "photo-layer" ? "photo" : "verrouillé"}
+              </li>
             ))}
           </ul>
         )}

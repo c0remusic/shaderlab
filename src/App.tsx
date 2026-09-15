@@ -481,7 +481,7 @@ export default function App() {
   const flushSync = useCallback(() => syncSchedulerRef.current!.flush(), []);
   useEffect(() => () => syncSchedulerRef.current?.cancel(), []);
 
-  /** LES QUATRE PRISES D'UN GESTE VIVANT, câblées UNE fois.
+  /** LES HUIT PRISES D'UN GESTE VIVANT, câblées UNE fois.
    *
    *  La séquence elle-même vit dans `ui/gesteVivant` — voir son en-tête pour la
    *  raison, qui est un défaut daté : quatorze sites la récitaient à la main,
@@ -764,21 +764,6 @@ export default function App() {
     }
   }, [syncSession, clearActivePreset, syncDisplayScale]);
 
-  // Le facteur de réduction CSS du canvas, mesuré et poussé dans le renderer.
-  //
-  // Ce fait n'existe QUE dans le DOM : le canvas a la résolution native de
-  // l'image (aucun downscale, décision projet) et c'est la mise en page qui le
-  // réduit pour le faire tenir dans l'espace laissé par la colonne de docks. Le
-  // moteur de rendu ne peut pas le connaître, et il change sans qu'aucun rendu
-  // soit demandé — redimensionnement de la fenêtre, ouverture ou fermeture d'un
-  // panneau. Seul consommateur à ce jour : la taille de case du damier de
-  // transparence, qui doit rester constante à l'écran (`render/presentPass.ts`).
-  //
-  // `ResizeObserver` plutôt qu'un `resize` de fenêtre : la largeur du canvas
-  // change aussi à mise en page constante (dock replié, largeur de colonne).
-  // Un rendu est redemandé à chaque changement — sans lui le navigateur se
-  // contente de redimensionner l'image déjà dans le canvas, et le damier
-  // garderait la taille de case du rendu précédent.
   // Le facteur de réduction CSS du canvas, mesuré et poussé dans le renderer.
   //
   // Ce fait n'existe QUE dans le DOM : le canvas a la résolution native de
@@ -2246,21 +2231,20 @@ export default function App() {
         break;
     }
   };
-  const shortcutsRef = useRef({
-    undo: handleUndo,
-    redo: handleRedo,
-    isolate: () => isolation.toggleIsolation(selectedId),
-    layerAction: runLayerAction,
-    inMaskPaint: maskPaintMode,
-  });
-  // eslint-disable-next-line react-hooks/refs -- pattern « latest ref » assume et documente juste au-dessus : la ref n'est JAMAIS lue pendant le rendu, seulement dans le handler `keydown`. La deplacer dans un `useEffect` marcherait aussi, mais ferait dependre la fraicheur des raccourcis de l'ordonnancement des effets.
-  shortcutsRef.current = {
+  // Ecrit UNE fois, posé aux deux endroits. La valeur initiale d'un `useRef`
+  // n'est retenue qu'au premier rendu, et la ligne d'en dessous l'écrase pendant
+  // ce même rendu : l'objet initial n'est donc jamais observable. Le recopier
+  // n'achetait rien et faisait vivre deux fois la fermeture `isolate`.
+  const raccourcis = {
     undo: handleUndo,
     redo: handleRedo,
     isolate: () => isolation.toggleIsolation(selectedId),
     layerAction: runLayerAction,
     inMaskPaint: maskPaintMode,
   };
+  const shortcutsRef = useRef(raccourcis);
+  // eslint-disable-next-line react-hooks/refs -- pattern « latest ref » assume et documente juste au-dessus : la ref n'est JAMAIS lue pendant le rendu, seulement dans le handler `keydown`. La deplacer dans un `useEffect` marcherait aussi, mais ferait dependre la fraicheur des raccourcis de l'ordonnancement des effets.
+  shortcutsRef.current = raccourcis;
 
   useEffect(() => {
     function handleWindowKeyDown(event: KeyboardEvent) {
@@ -2482,7 +2466,6 @@ export default function App() {
 
   const presetsPanel = useContextualPanel(true, "static");
   const layersPanel = useContextualPanel(true, "static");
-  const texturesPanel = useContextualPanel(true, "static");
   const propertiesPanel = useContextualPanel(selectedId !== null, selectedId);
   // ÉTAGE DE DÉVELOPPEMENT (ticket 03) : toujours accessible depuis le rail, comme
   // Presets/Pile. Contrairement à Propriétés, il ne dépend PAS d'un calque
@@ -2501,11 +2484,15 @@ export default function App() {
     () => ({
       presets: presetsPanel.visible,
       layers: layersPanel.visible,
-      textures: texturesPanel.visible,
       properties: propertiesPanel.visible,
       develop: developPanel.visible,
     }),
-    [presetsPanel.visible, layersPanel.visible, texturesPanel.visible, propertiesPanel.visible, developPanel.visible]
+    // `textures` a QUITTÉ cette table le 2026-09-15 : la carte Textures a été
+    // retirée du dock le 2026-08-19, et l'id `"textures"` n'apparaît depuis dans
+    // aucune disposition — ni le défaut, ni le rail, ni un fichier persisté (la
+    // persistance est plus récente que le retrait). Un panneau fantôme dans la
+    // table qui prétend énumérer les panneaux du dock.
+    [presetsPanel.visible, layersPanel.visible, propertiesPanel.visible, developPanel.visible]
   );
   const isPanelVisible = useCallback(
     (id: string) => {

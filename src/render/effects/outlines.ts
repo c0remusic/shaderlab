@@ -377,7 +377,10 @@ export const outlines: EffectModule = {
     inputSourceParam(),
 
     // ── CE QUI VIENT DE `coloredEdges` (fusion du 2026-08-03) ────────────────
-    // Ajouté À LA SUITE et jamais au milieu : les huit index ci-dessus sont
+    // Ajouté À LA SUITE et jamais au milieu : les NEUF index ci-dessus sont
+    // (le neuvième est `inputSource`, qui vient de la fabrique
+    // `inputSourceParam()` et qu'un grep sur `{ name:` ne voit pas — même
+    // piège que les 32 params de `curves`. Le compte disait huit.)
     // persistés dans les presets d'`outlines`, et ses références de pixels
     // doivent rester valables au bit.
     { name: "inkMode", label: "Encre", unit: "none", min: 0, max: INK_MODES.length - 1, default: INK_SINGLE, step: 1, choices: [...INK_MODES], appliesWhen: HORS_ECHO, hint: "Encre unique : tous les contours à la couleur choisie ci-dessus. Roue d'orientation : la teinte vient de l'ANGLE du bord, donc deux bords d'une même forme sortent de deux couleurs — c'est l'ancien effet `Colored edges`. Sans objet en Échos de la forme, dont l'encre suit un dégradé indexé par le numéro de l'écho" },

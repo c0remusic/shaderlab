@@ -1,6 +1,13 @@
 /**
- * Noyaux de la chaîne de flou pyramidale, partagés par les effets qui étalent
- * de la lumière : `glow` (bloom) et `halation`.
+ * Noyaux de la chaîne de flou pyramidale, partagés par SEPT modules.
+ *
+ * ⚠️ Cette ligne a dit « partagés par les effets qui étalent de la lumière :
+ * `glow` (bloom) et `halation` » jusqu'au 2026-09-15. Mesuré : `aquarelle`,
+ * `glow`, `halation`, `lensFlare`, `nettete`, `outlines`, `reglagesDeBase`. Et
+ * la caractérisation est fausse aussi — `nettete` et `reglagesDeBase` s'en
+ * servent pour un CONTRASTE LOCAL (une soustraction), `outlines` pour une CARTE
+ * DE DISTANCE, l'exact opposé d'un halo. Ce fichier est le noyau de pyramide
+ * générique du dossier, et la phrase interdisait de le deviner.
  *
  * Extraits de `glow.ts` le 2026-08-01, pour la raison qui a déjà sorti `hash.ts`
  * de `grain.ts` et `hsl.ts` de `duotone.ts` : deux copies d'un noyau auraient

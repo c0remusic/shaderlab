@@ -39,7 +39,7 @@ export interface PresetDocument {
  *  confirmation dialog can enumerate the excluded layers by name/position
  *  instead of only reporting a count. */
 export interface SkipNotice {
-  reason: "missing-effect" | "photo-layer";
+  reason: "missing-effect" | "photo-layer" | "locked-layer";
   effectId?: string;
   layerIndex: number;
 }

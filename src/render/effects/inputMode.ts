@@ -96,7 +96,7 @@ export function inputModeParam(overrides: Partial<EffectParam> = {}): EffectPara
   };
 }
 
-/** Fabrique du paramètre à 2 choix (voir `INPUT_SOURCE_CHOICES`). */
+/** Fabrique du paramètre à 3 choix (voir `INPUT_SOURCE_CHOICES` : il en porte trois depuis l'ajout de « Luminance inversée » le 2026-08-03, que le JSDoc juste au-dessus raconte en vingt-cinq lignes — cette ligne-ci ne l'avait pas suivi). */
 export function inputSourceParam(overrides: Partial<EffectParam> = {}): EffectParam {
   return {
     name: "inputSource",

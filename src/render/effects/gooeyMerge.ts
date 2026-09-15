@@ -91,11 +91,18 @@ import { SRGB_TO_LINEAR_VEC3_WGSL, SRGB_TO_LINEAR_WGSL } from "./srgbTransfer";
  * réduction de résolution doit rester échantillonnée serré, sinon elle crépite
  * (aliasing) au lieu de flouter. Toute la portée passe par la remontée.
  *
- * Note de duplication assumée : `glow.ts` porte le même noyau, en constante
- * PRIVÉE. Le factoriser imposerait de modifier `glow`, qui vient d'être repris
- * et n'est pas dans le périmètre de ce chantier — l'extraction dans un helper
- * partagé (`effects/blurKernels.ts`) est le geste à faire ensuite, en une seule
- * fois pour les deux effets.
+ * Note de duplication assumée, et elle est RÉELLE : la version d'ici transporte
+ * l'ALPHA sur les quatre canaux là où celle de `blurChain` travaille en `.rgb`
+ * et écrit `1.0` — sans quoi le mode d'entrée Alpha lirait un champ plat
+ * (correction datée du 2026-08-01). Ce n'est donc pas un doublon à fondre.
+ *
+ * ⚠️ Ce paragraphe disait tout autre chose jusqu'au 2026-09-15, et deux fois
+ * faux : que « `glow.ts` porte le même noyau, en constante PRIVÉE » — `glow.ts`
+ * n'en porte AUCUNE, il importe de `blurChain` depuis sa ligne 3 — et que
+ * « l'extraction dans un helper partagé (`effects/blurKernels.ts`) est le geste
+ * à faire ensuite ». Ce fichier n'a jamais existé : l'extraction a été livrée le
+ * 2026-08-01 sous le nom `blurChain.ts`. Le TODO envoyait vers un chantier
+ * terminé et un fichier fantôme.
  */
 const GOOEY_DOWNSAMPLE_WGSL = `
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {

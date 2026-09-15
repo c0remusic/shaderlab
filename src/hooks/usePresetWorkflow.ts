@@ -58,7 +58,7 @@ export function usePresetWorkflow({ sessionRef, presets, setError }: Deps) {
     null
   );
   const [pendingPhotoLayerSave, setPendingPhotoLayerSave] = useState<{
-    excludedLayerIndexes: number[];
+    exclus: { layerIndex: number; reason: "photo-layer" | "locked-layer" }[];
     onConfirm: () => void;
     onCancel: () => void;
   } | null>(null);
@@ -75,11 +75,19 @@ export function usePresetWorkflow({ sessionRef, presets, setError }: Deps) {
    *  résultat de `onConfirmed` (issue réelle de l'écriture). */
   const gateOnPhotoLayers = useCallback((name: string, onConfirmed: () => Promise<boolean>): Promise<boolean> => {
     const { skipped } = capture(sessionRef.current.layers(), name);
-    const excludedLayerIndexes = skipped.filter((s) => s.reason === "photo-layer").map((s) => s.layerIndex);
-    if (excludedLayerIndexes.length > 0) {
+    // DEUX raisons d'exclusion, pas une. Les calques VERROUILLÉS « Tout » ont
+    // rejoint les photos le 2026-09-15 : `pilePourPreset` les préserve, donc les
+    // capturer AUSSI dupliquerait le calque en réappliquant le preset sur son
+    // propre document. Ne filtrer que `photo-layer` les aurait fait disparaître
+    // du preset EN SILENCE — et la conséquence se voit ailleurs : appliqué à une
+    // autre photo, le preset n'aurait plus cet effet.
+    const exclus = skipped
+      .filter((s) => s.reason === "photo-layer" || s.reason === "locked-layer")
+      .map((s) => ({ layerIndex: s.layerIndex, reason: s.reason as "photo-layer" | "locked-layer" }));
+    if (exclus.length > 0) {
       return new Promise<boolean>((resolve) => {
         setPendingPhotoLayerSave({
-          excludedLayerIndexes,
+          exclus,
           onConfirm: () => {
             onConfirmed().then(resolve);
           },

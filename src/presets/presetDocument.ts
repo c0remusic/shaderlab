@@ -1,5 +1,6 @@
 import type { LayerState } from "../layers/types";
 import { hasImportedPhotoLayer } from "../layers/photoLayer";
+import { isStructureLocked } from "../layers/layerLocks";
 import { defaultLayerMask } from "../mask/types";
 import { cloneDevelopSettings, DEVELOP_ENABLED_KEY, type DevelopSettings } from "../layers/developSettings";
 import type { EffectParam } from "../render/effects/types";
@@ -49,6 +50,19 @@ export function capture(
   layers.forEach((layer, layerIndex) => {
     if (layer.imageSource) {
       if (worthReporting) skipped.push({ reason: "photo-layer", layerIndex });
+      return;
+    }
+    // CE QUI EST PRÉSERVÉ N'EST PAS CAPTURÉ, et la symétrie n'est pas
+    // esthétique : `withPhotoLayersPreserved` garde les calques verrouillés
+    // « Tout » à l'application depuis le 2026-09-15 (arbitrage d'Antoine), donc
+    // les capturer AUSSI dupliquerait le calque en réappliquant un preset pris
+    // sur son propre document — préservé une fois, reconstruit une fois.
+    //
+    // Et c'est le bon sens du geste : un preset rejoue une suite d'effets, un
+    // verrou dit « ne touche pas à celui-là ». Le retirer puis le re-poser,
+    // c'est précisément y toucher.
+    if (isStructureLocked(layer)) {
+      skipped.push({ reason: "locked-layer", layerIndex });
       return;
     }
     presetLayers.push({

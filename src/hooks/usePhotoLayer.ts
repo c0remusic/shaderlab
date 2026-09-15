@@ -52,10 +52,7 @@ interface Deps {
   commit: (stack: LayerStack) => void;
   currentStack: () => LayerStack;
   selectLayer: (id: string | null) => void;
-  /** Synchronisation React COALESCÉE sur rAF (voir `App.syncScheduler`) : le
-   *  chemin vivant d'un drag l'appelle par échantillon de pointeur, elle ne
-   *  coûte qu'un `setLayers` par frame. */
-  /** Les quatre prises d'un geste vivant (`ui/gesteVivant`). Elles remplacent
+  /** Les huit prises d'un geste vivant (`ui/gesteVivant`). Elles remplacent
    *  la récitation à la main de la séquence — et, au passage, `scheduleSync`,
    *  qui n'était réclamé QUE pour ça. */
   portsGesteVivant: PortsGesteVivant;
@@ -416,9 +413,13 @@ export function usePhotoLayer({
     toggleMaskPaintMode,
     stopMaskPaintMode,
     /** Pose un mode ARBITRAIRE. Exposé pour la palette d'outils
-     *  (`src/ui/tools.ts`), qui calcule l'état complet — mode, effacement,
-     *  main — en une fois : la bascule et l'arrêt ci-dessus ne savent
-     *  exprimer que deux des transitions dont elle a besoin. */
+     *  (`src/ui/tools.ts`), qui calcule l'état complet — mode ET effacement —
+     *  en une fois : la bascule et l'arrêt ci-dessus ne savent exprimer que
+     *  deux des transitions dont elle a besoin.
+     *
+     *  ⚠️ Cette phrase citait un troisième champ, « main ». `ToolState` en a
+     *  DEUX, et l'outil Main a été retiré le 2026-07-31 au soir — `tools.ts`
+     *  le dit en toutes lettres. */
     setCanvasMode,
     handleImportPhotoLayer,
     importPhotoFromPath,

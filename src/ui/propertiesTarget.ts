@@ -31,18 +31,6 @@ export function targetForLayerId(
   return layer ? layerTarget(layer) : null;
 }
 
-/** Clic sur la vignette de masque. Tous les LayerState portent un masque — y
- * compris les photos de double exposition — donc la cible n'est pas limitée
- * aux seuls calques d'effet. */
-export function targetMask(
-  layers: readonly LayerState[],
-  layerId: string,
-): PropertiesTarget | null {
-  return layers.some((candidate) => candidate.id === layerId)
-    ? { kind: "mask", layerId }
-    : null;
-}
-
 /** Réconcilie une cible après toute mutation structurelle.
  *
  * - calque supprimé -> aucune cible ;

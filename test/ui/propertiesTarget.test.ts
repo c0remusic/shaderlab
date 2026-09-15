@@ -6,7 +6,6 @@ import {
   reconcilePropertiesTarget,
   targetForLayerId,
   targetKeepsMaskSession,
-  targetMask,
 } from "../../src/ui/propertiesTarget";
 
 function effect(id: string): LayerState {
@@ -40,20 +39,6 @@ describe("propertiesTarget — cible principale d'une ligne", () => {
     const layers = [photo("P")];
     expect(targetForLayerId(layers, null)).toBeNull();
     expect(targetForLayerId(layers, "absent")).toBeNull();
-  });
-});
-
-describe("propertiesTarget — le masque est une facette du calque", () => {
-  it("cible le masque d'un effet", () => {
-    expect(targetMask([effect("E")], "E")).toEqual({ kind: "mask", layerId: "E" });
-  });
-
-  it("cible aussi le masque d'une photo de double exposition", () => {
-    expect(targetMask([photo("P")], "P")).toEqual({ kind: "mask", layerId: "P" });
-  });
-
-  it("refuse une vignette dont le calque n'existe plus", () => {
-    expect(targetMask([], "supprime")).toBeNull();
   });
 });
 

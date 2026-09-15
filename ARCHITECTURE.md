@@ -149,11 +149,34 @@ travail réel est réparti :
 | `shaderCompose` | composition de la chaîne WGSL — **la chaîne EST la clé de cache** | `shaderCompose.ts:47-96` |
 | `MaskTextureResolver` | résidence + résolution des textures de masque (fold, refine edge, edge-aware) | `renderer.ts:169-176` |
 
-Les trois interfaces `FrameResourcesPort` / `EffectPassesPort` / `MaskTexturesPort`
-(`framePipelineExecutor.ts:9-57`) sont des **ports explicites** : l'exécuteur de
-frame est testable en isolation avec des doubles
-(`test/render/framePipelineExecutor.test.ts` existe). C'est la frontière de test
-la plus utile de la couche rendu — toute extension du pipeline doit la préserver.
+Les **CINQ** interfaces `FrameResourcesPort` / `EffectPassesPort` /
+`MaskTexturesPort` / `PhotoLayerInputPort` / `LibraryTexturePort` sont des
+**ports explicites** : l'exécuteur de frame est testable en isolation avec des
+doubles (`test/render/framePipelineExecutor.test.ts`, 37 cas). C'est ce qui rend
+793 lignes d'ordonnancement GPU exécutables en Node sans carte graphique — toute
+extension du pipeline doit le préserver.
+
+⚠️ **Ce paragraphe a dit « les trois interfaces » et « la frontière de test la
+plus utile de la couche rendu » jusqu'au 2026-09-15.** Mesuré ce jour-là : il y
+en a CINQ, et **chacune n'a qu'UN adaptateur réel** — le second n'existe que pour
+le test, quand il existe (`LibraryTexturePort` n'en a aucun, le test passe
+`null`). Par la règle « un adaptateur = seam hypothétique, deux = seam réel », ce
+ne sont donc pas cinq frontières de substitution ; ce qu'elles achètent est la
+TESTABILITÉ de l'exécuteur, ce qui est réel et suffit à les justifier — mais ce
+n'est pas la même chose.
+
+Le seam qui porte vraiment N adaptateurs dans cette couche est le `GPUDevice` :
+**huit** doubles le traversent, répartis sur autant de fichiers de test, dont un
+qui COMPTE les textures vivantes (`test/render/maskTextureResolver.test.ts`,
+`createCountingContext`) parce qu'une fuite de VRAM ne change aucun pixel et
+n'est donc visible par aucun autre gate.
+
+⚠️ Et deux des cinq ne tiennent pas l'examen : `LibraryTexturePort` est UNE
+méthode d'UNE ligne dont l'adaptateur est `TextureLibraryStore` directement, et
+l'adaptateur de `PhotoLayerInputPort` est une lambda de 14 lignes dans
+`renderer.ts` qui EXÉCUTE les deux invariants que le port se contente de
+documenter en commentaire — l'indirection n'a pas déplacé la règle, elle l'a
+séparée de son énoncé.
 
 ⚠️ **`EffectPassesPort` porte `releaseFrameTargets()` depuis le 2026-08-02**, et
 la propriété qu'il faut connaître avant d'y toucher : les cibles de passe interne
@@ -630,7 +653,7 @@ de merge trivial, pas un couplage architectural.
 | R3 | **Alpha / couverture du calque photo.** La formule de compositing actuelle ignore l'alpha de l'effet — « hors bornes = transparent » rendrait du noir si on s'appuie sur l'alpha. | Identifié, non traité. | Le terme de couverture doit être **explicite dans le poids du mix**. À valider visuellement (CDP) sur une silhouette plus petite que le fond. |
 | R4 | **Effets multi-passes sur calque photo** (§4.3a). | ~~Identifié, non traité.~~ **CLOS le 2026-07-31 — sans objet.** | ~~Tranché par le choix (C1) + cas particulier vs (C2). À confirmer avec Antoine.~~ La confirmation est arrivée et retire le cas d'usage : **un effet ne se pose jamais sur un calque photo** (décision produit, voir l'encadré du §4.3). Un calque photo est `passthrough` de bout en bout, garde posée dans `LayerStack.setLayerEffect`. Il n'y a donc plus d'effet multi-passe à faire tenir sur une photo. La pré-passe (C2) reste en place pour l'entrée du calque photo — elle n'était pas là que pour ce risque. |
 | R5 | **Espace de coordonnées du masque d'un calque photo** (§4.5). | Non documenté au PRD ni au design. | Décision produit à poser avant implémentation (assumer, ou hors-scope explicite). |
-| R6 | **`App.tsx` = composition root de 1823 lignes** (mesuré `wc -l` le 2026-07-30 ; **727 au moment où cette ligne a été écrite le 2026-07-25** — la dette a été multipliée par 2,7 en cinq jours, ce que le chiffre périmé masquait), portant ~25 handlers, tous les états UI et tout le câblage. | **Dette réelle, aggravée, partiellement traitée.** L'audit pré-release du 2026-07-30 l'a mesurée à 1953 lignes ; l'extraction de `usePresetWorkflow` en a retiré 130. Le fichier n'a AUCUNE couverture unitaire (`test/App.test.ts` = placeholder, par convention projet), donc ces ~1800 lignes n'ont pour filet que le checkpoint visuel humain. | **Chaque feature apporte son propre hook module** (`usePhotoLayer`, `usePresets`, `usePresetWorkflow`) qui possède ses handlers et parle à `DocumentSession`, pour qu'`App.tsx` gagne quelques lignes de câblage et non ~150. **Le remède n'a pas suffi seul** : il ne s'applique qu'aux features neuves et ne rembourse pas l'existant. Prochains candidats à l'extraction, par volume : les cinq `<Dialog>`, l'échantillonnage colorimétrique, l'application de preset (`applyPreset`/`requestApplyPreset`). |
+| R6 | **`App.tsx` = composition root de 3377 lignes** (mesuré `wc -l` le **2026-09-15** ; il en annonçait 1823 depuis le 2026-07-30, soit un facteur 1,85 de dérive de plus — et le remède déclaré ci-contre a été appliqué trois fois depuis, sans que le fichier cesse de croître : huit hooks existent, et le fichier a pris +1100 lignes en un mois. Le CRITÈRE d'extraction, cherché sur pièce, n'existe pas : le repli des groupes est parti, les douze handlers de masque sont restés ; le recadrage est parti, l'étage de développement est resté. Les deux seuls motifs écrits sont « c'est une feature neuve » et « sinon le compilateur abandonne » — un critère de calendrier et un critère de poids, aucun d'interface. ⚠️ Le second a été ÉPROUVÉ le 2026-09-15 et ne se reproduit pas : `npx eslint src/App.tsx` rend zéro problème à 3377 lignes et les onze directives `eslint-disable` du fichier sont toutes UTILISÉES, donc les règles tournent ; injecter 250, 1000 puis 3000 lignes, puis 300 `useState`, n'a pas fait basculer le linter. Le déclencheur n'est donc pas le compte de lignes — ce qui est pire que la mémoire ne le disait : il est imprévisible. ;  **727 au moment où cette ligne a été écrite le 2026-07-25** — la dette a été multipliée par 2,7 en cinq jours, ce que le chiffre périmé masquait), portant ~25 handlers, tous les états UI et tout le câblage. | **Dette réelle, aggravée, partiellement traitée.** L'audit pré-release du 2026-07-30 l'a mesurée à 1953 lignes ; l'extraction de `usePresetWorkflow` en a retiré 130. Le fichier n'a AUCUNE couverture unitaire (`test/App.test.ts` = placeholder, par convention projet), donc ces ~1800 lignes n'ont pour filet que le checkpoint visuel humain. | **Chaque feature apporte son propre hook module** (`usePhotoLayer`, `usePresets`, `usePresetWorkflow`) qui possède ses handlers et parle à `DocumentSession`, pour qu'`App.tsx` gagne quelques lignes de câblage et non ~150. **Le remède n'a pas suffi seul** : il ne s'applique qu'aux features neuves et ne rembourse pas l'existant. Prochains candidats à l'extraction, par volume : les cinq `<Dialog>`, l'échantillonnage colorimétrique, l'application de preset (`applyPreset`/`requestApplyPreset`). |
 | R7 | **Nouvelle surface IPC pour les presets** (lecture/écriture de fichiers non-image). | Nécessaire (§3.3, vérifié : rien d'existant ne le permet). | Commandes maison confinées au dossier de config app (résolution + vérification de préfixe), dialogues natifs pour les chemins choisis par l'humain. Ne pas réintroduire `tauri-plugin-dialog`. |
 | R8 | **Fichier de preset = entrée non fiable** (partagé par email/USB, éditable à la main). | À traiter dans `presetDocument.apply`. | Validation de schéma + version + bornes de params, dégradation gracieuse avec avertissement visible. Jamais de parse permissif, jamais d'échec silencieux. |
 
@@ -696,11 +719,33 @@ $ wc -l src/render/renderer.ts src/render/framePipelineExecutor.ts \
  5609 total
 ```
 
-Deux comptes de lignes seulement sont écrits ailleurs dans ce document, et les
-deux sont justes : `DocumentSession` = **83 lignes** (§ 1.2) et `App.tsx` =
-**1823** (R6, § 7). Le schéma du § 1 ne porte plus de compte du tout — il renvoie
-à R6, pour qu'il n'existe qu'un seul endroit à mettre à jour. C'est la
-duplication, pas la mesure, qui avait laissé « 727 » vivre cinq jours de trop.
+Deux comptes de lignes seulement sont écrits ailleurs dans ce document :
+`DocumentSession` (§ 1.2) et `App.tsx` (R6, § 7). Le schéma du § 1 ne porte plus
+de compte du tout — il renvoie à R6, pour qu'il n'existe qu'un seul endroit à
+mettre à jour. C'est la duplication, pas la mesure, qui avait laissé « 727 »
+vivre cinq jours de trop.
+
+⚠️ **CE RELEVÉ DATE DU 2026-07-25 ET IL A DÉRIVÉ EN ENTIER.** Cette phrase disait
+« et les deux sont justes » ; elle ne l'est plus. Re-mesuré le 2026-09-15 :
+
+| Fichier | Relevé ci-dessus | Réel 2026-09-15 | Facteur |
+| --- | ---: | ---: | ---: |
+| `src/App.tsx` | 1823 | **3377** | ×1,85 |
+| `src-tauri/src/lib.rs` | 499 | **875** | ×1,75 |
+| `src/application/documentSession.ts` | 83 | **285** | ×3,43 |
+| `src/layers/layerStack.ts` | 581 | **806** | ×1,39 |
+| `src/mask/maskPainter.ts` | 119 | **263** | ×2,21 |
+| `src/render/effectPassRunner.ts` | 238 | **450** | ×1,89 |
+| `src/render/shaderCompose.ts` | 185 | **250** | ×1,35 |
+| `src/render/effects/glow.ts` | 99 | **226** | ×2,28 |
+| `src/render/imageFrameResources.ts` | 130 | **139** | ×1,07 |
+| `src/export/exportImage.ts` | 201 | **217** | ×1,08 |
+| `src/layers/displayProjection.ts` | 74 | **74** | — |
+
+Le seul compte STABLE est `displayProjection.ts`, et ce n'est pas un hasard :
+c'est le module que ce document nomme déjà comme profond et intouchable.
+Recompter avant de fonder quoi que ce soit sur ce tableau — l'avertissement en
+tête du fichier le demandait déjà, et il avait raison.
 
 ### 9.2 Affirmations et preuves recomptées
 

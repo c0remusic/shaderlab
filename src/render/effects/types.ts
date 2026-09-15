@@ -137,8 +137,12 @@ export interface EffectPass {
    *  srcTexture, same as any single-pass effect). Internal passes never see the mask or `prevPass`. */
   wgsl: string;
   /**
-   * Cette passe sert-elle, aux paramètres courants ? Absent = toujours (le
-   * comportement de tous les effets multi-passes écrits jusqu'ici).
+   * Cette passe sert-elle, aux paramètres courants ? Absent = toujours.
+   *
+   * ⚠️ Cette ligne ajoutait « (le comportement de tous les effets multi-passes
+   * écrits jusqu'ici) ». Vrai le jour de l'écriture, faux depuis : six modules
+   * déclarent aujourd'hui 41 passes conditionnelles. La sémantique du champ,
+   * elle, n'a pas bougé.
    *
    * D'OÙ ÇA VIENT. `runInternalPasses` itérait `passes` sans condition, ce qui
    * allait tant qu'un effet multi-passes n'avait qu'un seul régime. Un effet à
@@ -149,8 +153,15 @@ export interface EffectPass {
    * pèse 24 Mo, et la VRAM est un risque ouvert.
    *
    * Ce prédicat est arrivé AVANT le besoin qui l'a motivé, et l'absorption a
-   * suivi le jour même (ADR-0015) : `outlines` est aujourd'hui son unique
-   * utilisateur, et le seul effet du registre dont le coût dépende d'un choix.
+   * suivi le jour même (ADR-0015).
+   *
+   * ⚠️ Cette phrase a dit « `outlines` est aujourd'hui son unique utilisateur,
+   * et le seul effet du registre dont le coût dépende d'un choix » jusqu'au
+   * 2026-09-15. Elle était fausse deux fois. Mesuré : **41 déclarations dans
+   * SIX modules** — `aquarelle` (9), `outlines` (9), `nettete` (7),
+   * `reglagesDeBase` (7, module d'étage), `lensFlare` (5), `lensDistortion`
+   * (4). Et TROIS gouvernent leur coût par un `choices` — `outlines`,
+   * `nettete`, `lensFlare` — les autres par un curseur à zéro.
    *
    * ⚠️ CE N'EST PAS UNE OPTIMISATION, c'est une condition de correction du
    * modèle : une passe inutile n'est pas seulement lente, elle ALLOUE. Le

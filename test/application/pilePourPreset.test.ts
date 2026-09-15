@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DocumentSession } from "../../src/application/documentSession";
 import { LayerStack } from "../../src/layers/layerStack";
+import { capture as capturePreset, apply as applyPreset } from "../../src/presets/presetDocument";
 
 /**
  * Appliquer un preset remplace la pile ENTIÈRE, et `LayerStack` porte TROIS
@@ -131,5 +132,40 @@ describe("DocumentSession.pilePourPreset — calques verrouillés", () => {
     // Seul « Tout » refuse la suppression (`isStructureLocked`) : un verrou
     // partiel porte sur le CONTENU, pas sur la présence du calque.
     expect(session.layers().map((l) => l.id)).not.toContain(partiel);
+  });
+});
+
+describe("preset capture sur le document courant, puis reapplique", () => {
+  // DEFAUT INTRODUIT LE 2026-09-15 par le commit qui fait preserver les calques
+  // verrouilles : `pilePourPreset` les garde, mais `presetDocument.capture`
+  // n'excluait que `imageSource`, donc le meme calque partait AUSSI dans le
+  // preset. Reappliquer un preset capture sur SON PROPRE document le dupliquait.
+  it("ne duplique pas un calque verrouille", () => {
+    const stack = new LayerStack();
+    const photo = stack.addPhotoLayer("src-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, "photo");
+    const protege = stack.addLayer("glow", photo);
+    stack.addLayer("grain", photo);
+    stack.setLayerLock(protege, "all", true);
+    const session = new DocumentSession(stack);
+
+    // Capture sur CE document, puis reapplication a l'identique.
+    const { preset } = capturePreset(session.layers(), "Essai");
+    let n = 0;
+    const restaure = applyPreset(preset, () => true, () => [], () => `frais-${++n}`);
+    session.commit(session.pilePourPreset(restaure.layers, restaure.develop));
+
+    const glows = session.layers().filter((l) => l.effectId === "glow");
+    expect(glows).toHaveLength(1);
+    expect(glows[0].id).toBe(protege);
+  });
+
+  it("previent que le calque verrouille n'entre pas dans le preset", () => {
+    const stack = new LayerStack();
+    const photo = stack.addPhotoLayer("src-1", { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }, "photo");
+    const protege = stack.addLayer("glow", photo);
+    stack.setLayerLock(protege, "all", true);
+
+    const { skipped } = capturePreset(stack.layers, "Essai");
+    expect(skipped.some((s) => s.reason === "locked-layer")).toBe(true);
   });
 });

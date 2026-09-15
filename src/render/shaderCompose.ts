@@ -19,9 +19,13 @@
  *  et gagne un troisième mode de détection. Sept réglages n'ont aucun
  *  équivalent dans les deux premiers — lissage de la forme, espacement,
  *  nombre d'échos, atténuation, et les trois composantes du dernier écho — ce
- *  qui le porte à 26. Les sept AUTRES paramètres de l'effet absorbé, eux, se
- *  recouvrent (seuil, entrée, épaisseur, encre, effacement, fond,
- *  remplissage) : le plafond ne paie que ce qui est réellement neuf. 32 laisse
+ *  qui le porte à 26. Les ONZE AUTRES paramètres de l'effet absorbé, eux, se
+ *  recouvrent avec ceux d'`outlines` — l'énumération qui suivait ici n'en
+ *  citait que sept (seuil, entrée, épaisseur, encre, effacement, fond,
+ *  remplissage), d'où le compte faux : `echoOutlines` en déclarait dix-huit et
+ *  sept seulement étaient neufs, donc onze se recouvrent. `outlines.ts:410`
+ *  porte la bonne arithmétique depuis toujours. Le plafond ne paie que ce qui
+ *  est réellement neuf. 32 laisse
  *  6 slots au-dessus du plus gourmand, la même marge qu'aux deux
  *  élargissements précédents.
  *

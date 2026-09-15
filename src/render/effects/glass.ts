@@ -22,7 +22,7 @@ import { SRGB_TO_LINEAR_VEC3_WGSL, SRGB_TO_LINEAR_WGSL } from "./srgbTransfer";
  * DEUX CONSÉQUENCES QUI SE LISENT DANS LE CODE ET PAS AILLEURS :
  * - les cinq matières et leurs HUIT paramètres étaient les DERNIERS de leurs
  *   listes, donc le retrait ne déplace AUCUN index — ni de matière, ni de
- *   paramètre. Les treize références de pixels de la feuille rendent le même
+ *   paramètre. Les quatorze références de pixels de la feuille rendent le même
  *   bit qu'avant, et c'est le gate discriminant du retrait ;
  * - un preset qui cite `material` 9 à 13 ne casse pas et ne retombe pas non plus
  *   sur une matière voisine. ⚠️ IL N'Y A AUCUN CLAMP SUR LE CHEMIN : ni
@@ -61,8 +61,16 @@ import { SRGB_TO_LINEAR_VEC3_WGSL, SRGB_TO_LINEAR_WGSL } from "./srgbTransfer";
  * stries), l'Aluminium (profondeur du brossage) et le couple Martelé/Écorce
  * (largeur de la rainure, `verre_pentes` — la moitié des canaux de l'image).
  * Le troisième n'était documenté nulle part et son infobulle le disait « sans
- * objet ailleurs » : mesuré le 2026-08-05, il est le SEUL des trente-neuf
- * « Sans objet » du registre à être vivant. Voir sa déclaration plus bas.
+ * objet ailleurs » : mesuré le 2026-08-05, il est le SEUL « Sans objet » du
+ * registre que la mesure ait trouvé VIVANT. Voir sa déclaration plus bas.
+ *
+ * ⚠️ Cette phrase a dit « le SEUL des TRENTE-NEUF » jusqu'au 2026-09-15. Deux
+ * fois faux : il y a 36 infobulles « Sans objet » dans le registre, et `flat`
+ * n'en porte plus une — son infobulle finit sur « Sans effet sur les autres
+ * matières » depuis qu'il a gagné son `appliesWhen`. Le chiffre n'est pas
+ * réécrit : `scripts/applicabilite-table.mjs` interdit explicitement d'écrire N
+ * ailleurs que dans la sortie du gate, « ce titre a dit 39 pendant que le gate
+ * en éprouvait 41 ».
  *
  * ─── CE QUI EMPÊCHE QUE ÇA RENDE CHEAP ──────────────────────────────────────
  *
@@ -331,7 +339,7 @@ export const glass: EffectModule = {
    * différentes (une propriété mesurée du shader d'un côté, une décision
    * d'affichage de l'autre). C'est un précédent qui reste valable.
    *
-   * CE QUE ÇA CHANGE POUR QUI S'EN SERT : en Poli, sept des quinze curseurs
+   * CE QUE ÇA CHANGE POUR QUI S'EN SERT : en Poli, SIX des quinze curseurs
    * sont sans objet. La liste plate les montrait tous. (Le quinzième, `matcap`,
    * ajouté le 2026-09-07, n'a aucune condition : le Fresnel qu'il module vaut
    * partout.)
@@ -847,7 +855,7 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // variation de teinte tiree par bloc. Les deux valaient exactement 1 sur une
   // matiere de feuille — le premier parce que \`profilArete\` restait nul, le
   // second parce qu'il n'etait tire que sous la branche pave. Leur retrait est
-  // donc neutre au bit pres pour les treize references de la feuille, et c'est
+  // donc neutre au bit pres pour les quatorze references de la feuille, et c'est
   // ce que le gate de rendu verifie.
   let trajet = epaisseur * 1.2 * (1.0 + (1.0 - cosi) * 2.2);
   c = c * exp(-trajet * vec3<f32>(0.055, 0.018, 0.042));

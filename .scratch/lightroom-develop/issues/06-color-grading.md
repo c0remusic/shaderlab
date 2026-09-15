@@ -434,3 +434,14 @@ répond « ni l'un ni l'autre » et désigne un exposant sans lecture colorimét
 (0,10). Il mesure la compression, pas l'espace. L'hypothèse du § précédent n'est
 donc ni confirmée ni réfutée, et le fait qui la motive tient toujours : à
 `Luminance des ombres` +50, Lightroom porte le niveau 0 à 14,33, nous à 0,16.
+
+### Piste ouverte par la même revue : `blendDepth` creuse trop à Fusion 0
+
+En cherchant le réglage qui explique le mieux chaque mesure, `cg-fusion-0` est
+mieux rendu par **Fusion 50 que par Fusion 0** (4,49 contre 5,09). Deux lectures,
+et la seconde est la plus probable : soit la scène a été exportée à un autre
+réglage que son nom, soit notre `blendDepth` SUR-CREUSE la bande neutre à Fusion
+basse. Ce qui penche pour la seconde : les rampes mesurées de `st-duo` et
+`cg-fusion-0` ne diffèrent que de 0,92 niveau en moyenne (max 4,3), là où
+`cg-fusion-0` et `cg-fusion-100` diffèrent de 4,09 — donc Fusion 0 et le défaut
+50 rendent presque la même chose chez Lightroom, et pas chez nous.

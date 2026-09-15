@@ -176,6 +176,19 @@ const RANGE = { unit: "none" as const, min: -100, max: 100, default: 0, step: 1 
  * rendu à sa place (voir `mix` de `curves`). Rendue en premier, elle retombe
  * d'ailleurs en haut du panneau, où Lightroom la met.
  */
+/** Interpole une constante TS dans le corps WGSL, en huit décimales.
+ *
+ *  ⚠️ CE N'EST PAS UNE COQUETTERIE. Ces constantes étaient écrites DEUX fois —
+ *  une fois pour le twin TS, une fois en dur dans le WGSL, sous un autre nom —
+ *  donc rien n'empêchait qu'un réglage n'en corrige qu'une. C'est exactement la
+ *  divergence trouvée sur `CG_BLEND_MAP_A` le 2026-09-15 : `0.42857142857142866`
+ *  côté TS, `0.42857143` côté WGSL. Sans conséquence en f32, mais c'était la
+ *  SEULE constante du Color Grading que le mécanisme d'interpolation ne couvrait
+ *  pas, et la seule qui divergeait. Interpolée, la valeur ne peut plus qu'être
+ *  la même des deux côtés. Voir la garde `test/render/effects/jumeauxWgsl`.
+ */
+const fEtal = (x: number): string => x.toFixed(8);
+
 const sections: EffectSection[] = [
   { id: "primaire-rouge", label: "Rouge primaire", params: ["redHue", "redSaturation"], layout: "liste" },
   { id: "primaire-verte", label: "Vert primaire", params: ["greenHue", "greenSaturation"], layout: "liste" },
@@ -203,8 +216,8 @@ export const etalonnage: EffectModule = {
   wgsl: `
 ${OKLAB_WGSL}
 const ETAL_LUMA = vec3<f32>(0.2126, 0.7152, 0.0722);
-const ETAL_HUE_DEG_PER_UNIT = 0.3;
-const ETAL_SHADOW_AMOUNT = 0.05;
+const ETAL_HUE_DEG_PER_UNIT = ${fEtal(HUE_DEGREES_PER_UNIT)};
+const ETAL_SHADOW_AMOUNT = ${fEtal(SHADOW_TINT_AMOUNT)};
 
 // Une primaire tournee en teinte et dosee en chroma dans le plan (a,b) d'OKLab,
 // puis reconvertie en lineaire et bornee au gamut. Jumeau exact de ajusterPrimaire

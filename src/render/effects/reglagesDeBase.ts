@@ -439,6 +439,19 @@ function wbFn(nom: string, steps: readonly WbStep[]): string {
   ].join("\n");
 }
 
+/** Interpole une constante TS dans le corps WGSL, en huit décimales.
+ *
+ *  ⚠️ CE N'EST PAS UNE COQUETTERIE. Ces constantes étaient écrites DEUX fois —
+ *  une fois pour le twin TS, une fois en dur dans le WGSL, sous un autre nom —
+ *  donc rien n'empêchait qu'un réglage n'en corrige qu'une. C'est exactement la
+ *  divergence trouvée sur `CG_BLEND_MAP_A` le 2026-09-15 : `0.42857142857142866`
+ *  côté TS, `0.42857143` côté WGSL. Sans conséquence en f32, mais c'était la
+ *  SEULE constante du Color Grading que le mécanisme d'interpolation ne couvrait
+ *  pas, et la seule qui divergeait. Interpolée, la valeur ne peut plus qu'être
+ *  la même des deux côtés. Voir la garde `test/render/effects/jumeauxWgsl`.
+ */
+const fRb = (x: number): string => x.toFixed(8);
+
 export const reglagesDeBase: EffectModule = {
   id: "reglagesDeBase",
   name: "Réglages de base",
@@ -495,12 +508,12 @@ const RB_WHITE_AMT_POS = ${wf(RB_TABLE.whiteAmtPos)};
 const RB_WHITE_AMT_NEG = ${wf(RB_TABLE.whiteAmtNeg)};
 const RB_WHITE_CENTER = ${wf(RB_TABLE.whiteCenter)};
 const RB_WHITE_KAPPA = ${wf(RB_TABLE.whiteKappa)};
-const RB_TEXTURE_AMT = 1.2;
-const RB_CLARITY_AMT = 0.9;
-const RB_DEHAZE_AMT = 0.35;
+const RB_TEXTURE_AMT = ${fRb(TEXTURE_AMT)};
+const RB_CLARITY_AMT = ${fRb(CLARITY_AMT)};
+const RB_DEHAZE_AMT = ${fRb(DEHAZE_AMT)};
 const RB_CURVE_AMT = ${wf(RB_TABLE.curveAmt)};
 const RB_CURVE_WIN = ${wf(RB_TABLE.curveWin)};
-const RB_VIB_CHROMA_REF = 0.20;
+const RB_VIB_CHROMA_REF = ${fRb(VIB_CHROMA_REF)};
 const RB_SKIN_DIR = vec2<f32>(0.52, 0.854);
 const RB_DEHAZE_OMEGA = ${wf(RB_TABLE.dehazeOmega)};
 const RB_DEHAZE_AIRLIGHT = ${wf(RB_TABLE.dehazeAirlight)};

@@ -87,7 +87,13 @@ const divMap = (x: number, a: number): number => (a * x) / (a * x + 1 - x);
 
 /** Le `a` que Lightroom code EN DUR pour remapper Fusion (constante
  *  0x3FDB6DB6DB6DB6DD, soit 3/7) : f(0,5) = 0,300 exactement. Le curseur au défaut
- *  50 vaut donc 0,30 de profondeur, pas 0,50. */
+ *  50 vaut donc 0,30 de profondeur, pas 0,50.
+ *
+ *  ⚠️ Elle était écrite DEUX fois — ici et en dur dans le WGSL, à `0.42857143` —
+ *  alors que les huit autres constantes du module partent par `${f(...)}`. La
+ *  seule que le mécanisme ne couvrait pas était la seule qui divergeait ; sans
+ *  conséquence en f32, mais la coïncidence n'en est pas une. Elle est interpolée
+ *  depuis le 2026-09-15. */
 const CG_BLEND_MAP_A = 0.42857142857142866;
 
 /** Direction unitaire (a,b) d'OKLab de la teinte pure `hueDeg` (0..360). Jumeau de
@@ -250,7 +256,7 @@ const CG_MID_SIGMA = ${f(CG.midSigma)};
 const CG_MID_SOFT = ${f(CG.midSoft)};
 const CG_BALANCE_MID = ${f(CG.balanceMid)};
 const CG_BLEND_DEPTH = ${f(CG.blendDepth)};
-const CG_BLEND_MAP_A = 0.42857143;
+const CG_BLEND_MAP_A = ${f(CG_BLEND_MAP_A)};
 const CG_BALANCE_SHIFT = ${f(CG.balanceShift)};
 
 // Direction unitaire (a,b) d'OKLab de la teinte pure hueDeg. Jumeau de dirFromHue

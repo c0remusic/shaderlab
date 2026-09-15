@@ -1,12 +1,24 @@
 # shaderlab — AGENTS.md
 
+> ⚠️ **CE CORPS DATE DU 2026-07-30 et n'a pas été revérifié depuis.** Audit du
+> 2026-09-15 : il cite encore `FloatingPanel` (5 fois) et `Inspector.tsx`
+> (2 fois), supprimés en juillet, et son chemin `src/ui/Select.tsx` est mort —
+> le vrai est `src/components/ui/select.tsx`. Six semaines pendant lesquelles le
+> dépôt a retiré cinq effets, cinq matières de verre et l'écrêtage.
+>
+> **En cas de contradiction, l'ordre est : le CODE, puis `CLAUDE.md`, puis
+> `ARCHITECTURE.md`, puis ce fichier.** Seul l'en-tête ci-dessous a été revu.
+
 > Nom provisoire (placeholder, jamais tranché — même logique que track-finder).
 > Repo local `C:\dev\shaderlab`, remote origin `github.com/c0remusic/shaderlab`. (Déplacé depuis
 > `C:\Users\LEETJ\Desktop\shaderlab` — l'ancien chemin n'existe plus ; une
 > relocalisation d'un repo Tauri exige un `cargo clean` COMPLET : le cache
 > `target/` contient des chemins absolus périmés qui cassent le build-script.)
-> Branche de dev active : `feature/design-system` (plan design system Tasks
-> 1-10, MVP mergé sur master). `feature/archi-remediation` (11-task
+> ⚠️ **Branche canonique : `master`** (ADR-0005, 2026-08-16, qui renverse le
+> 0003). `feature/design-system` n'est plus une branche de dev : c'est un
+> miroir de `master`. Ce fichier l'a annoncée « de dev active » jusqu'au
+> 2026-09-15, six semaines après l'ADR — et `CLAUDE.md` avertit depuis
+> longtemps que l'y voir nommée « main » est un reste, pas une consigne. `feature/archi-remediation` (11-task
 > remédiation archi + fix OOM peinture au masque, voir `src/render/maskUpload.ts`)
 > a été MERGÉ dans `feature/design-system` le 2026-07-16 (divergence à `0a2e151`,
 > jamais reconvergée avant ce merge) — n'est plus un worktree de travail séparé ;

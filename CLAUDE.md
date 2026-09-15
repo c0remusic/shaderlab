@@ -723,7 +723,7 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   conforme (stride 4 pour un alignement requis de 16 en espace uniform), Dawn
   l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 26
   effets, index gelés par les presets ET par **137** références de pixels
-  (**143 PNG** dans `test/render-refs/` au 2026-09-11 ; SIX ne gèlent PAS un
+  (**147 PNG** dans `test/render-refs/` au 2026-09-15 ; SIX ne gèlent PAS un
   index : `photo-miroir-temoin` / `photo-miroir` gèlent le miroir du calque
   photo, `cadre-toile` / `cadre-toile-temoin` / `cadre-toile-degrade` gèlent
   un DÉCOUPAGE de toile, et `developpement-reglages-temoin` est la rampe nue
@@ -919,7 +919,7 @@ Points structurants qu'on ne devine pas en lisant un fichier isolé :
   deux vues : `layers()` (complet, pour le GPU) et `displayLayers()`
   (projection sans raster, pour React — c'est l'invariant anti-OOM).
   ⚠️ **`replaceLiveLayers` est la porte que les gardes de `LayerStack` NE
-  COUVRENT PAS.** `LayerStack` refuse **seize** opérations sur un calque
+  COUVRENT PAS.** `LayerStack` refuse **dix-sept** opérations sur un calque
   verrouillé — réparties entre **QUATRE verrous** depuis le 2026-08-19 :
   `isLocked` (structure : effet, ordre, suppression), `refuseGeometrie`,
   `refuseMasque`. (Dix-sept jusqu'au 2026-08-21 : `setLayerClip` est parti avec
@@ -988,7 +988,7 @@ Points structurants qu'on ne devine pas en lisant un fichier isolé :
 
 `.claude/decisions/INDEX.md` — une ligne par ADR avec son statut. Un ADR
 `superseded` (ADR-0003, renversé par ADR-0004) n'est PAS une contrainte active.
-Actifs (ADR-0020 est le dernier écrit, 2026-08-21) : densité UI (0001),
+Actifs (**ADR-0021** est le dernier écrit, 2026-08-27) : densité UI (0001),
 abandon round-trip (0002), sens causal
 de la pile (0004), rattachement par proximité (0005, ⚠️ son point 2 —
 « l'écrêtage garde la priorité » — est CADUC depuis ADR-0020 : la proximité est
@@ -1016,6 +1016,13 @@ géométrique. Ça se retrouvera par la sélection géométrique du ticket 11, p
 MASQUE, jamais par une case. Le binding 6 (`coverageTexture`) et le chemin
 `hasImageSource` de la double exposure sont INTACTS — ils partageaient le binding,
 ils ne partageaient rien d'autre.
+
+⚠️ **RÉCIDIVE EXACTE le 2026-09-15** : cette liste disait « ADR-0020 est le
+dernier écrit » alors qu'ADR-0021 était sur disque depuis le 2026-08-27 **et
+cité deux fois plus haut dans ce même fichier** — mot pour mot le défaut que le
+paragraphe ci-dessous décrit. Trouvé par un audit qui compare la liste au
+dossier, pas par une relecture : le seul contrôle qui tienne est
+`ls .claude/decisions/ADR-*.md | tail -1`, et il coûte une seconde.
 
 ⚠️ Cette liste a dit « ADR-0017 reste le dernier écrit » jusqu'au 2026-08-15
 alors qu'ADR-0018 était sur disque **et cité deux fois plus haut dans ce même

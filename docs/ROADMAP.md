@@ -696,7 +696,8 @@ mesuré. Le gain/coût est à refaire entièrement — le verdict valide le MÉC
 pas son prix dans ce contexte.
 
 ⚠️ **Rien n'est écrit côté code, et le prix est connu d'avance** : le rendu
-CHANGE, donc les **13 références de pixels du verre** (18 avant ADR-0021) sont à
+CHANGE, donc les **14 références de pixels du verre** (18 avant ADR-0021, et 13
+jusqu'à l'ajout d'`effet-verre-matcap` le 2026-09-07) sont à
 régénérer et à relire à l'œil, et le résultat est à juger devant une photo — une
 référence prouve qu'un effet porte sa propriété, jamais qu'il est beau. La
 question de CIBLE est elle aussi à REPOSER : le « 10 images/s inutilisable au

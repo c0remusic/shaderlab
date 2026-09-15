@@ -66,21 +66,33 @@ import { DOWNSAMPLE_WGSL, upsampleWgsl } from "./blurChain";
  *
  * ⚠️ LA CORRECTION EST UN FACTEUR, ET SA RÉFÉRENCE EST LE CANAL FORT — jamais la
  * luminance. `color.rgb · (lref + gain) / lref` avec `lref = max(canal)`, et un
- * piédestal au dénominateur. Trois formes ont été RENDUES sur un bord saturé
- * d'une vraie photo (rose rouge contre lys) avant de trancher, planche et
- * chiffres dans `.scratch/lightroom-develop/` :
+ * piédestal au dénominateur. Trois formes ont été RENDUES sur des bords saturés
+ * de vraies photos avant de trancher, planche et chiffres dans
+ * `.scratch/lightroom-develop/`. LA MESURE QUI TRANCHE est la DÉRIVE DE TEINTE
+ * par rapport au témoin, pondérée par la saturation — c'est la propriété que
+ * l'effet revendique, et le défaut qu'un utilisateur voit :
  *
- *   A, offset par canal (la forme d'avant, `color.rgb + gain`) — saturation du
- *     crop 0,415 en Clarté forte, 39,4 % de pixels écrasés au noir ;
- *   B, facteur sur la LUMINANCE (`(lp + gain) / lp`) — 0,361 et 47,8 % : PIRE
- *     que l'offset sur les deux axes, et c'est prévisible. `lp` est une
- *     combinaison convexe des canaux, donc `lp ≤ max(canal)`, et l'écart entre
- *     les deux EST la saturation du pixel : il existe une fenêtre
- *     `lp < |gain| < max(canal)` où cette forme rend du NOIR PUR là où l'offset
- *     rendait une couleur vive. Sur un bleu pur aux réglages par DÉFAUT, 255 → 0
- *     au lieu de 255 → 244 ;
- *   C, facteur sur le CANAL FORT (la forme retenue) — 0,453 et 39,2 % : mieux
- *     que l'offset sur les deux axes.
+ *                              accentuation forte      clarté forte
+ *   A, offset par canal        1,40° (max 38,8°)      1,93° (max 45,2°)
+ *   B, facteur sur la LUMINANCE  0,23° (max 2,0°)     0,24° (max 17,1°)
+ *   C, facteur sur le CANAL FORT 0,23° (max 1,6°)     0,23° (max 1,6°)
+ *
+ * L'offset tourne donc les couleurs jusqu'à QUARANTE-CINQ DEGRÉS sur les pixels
+ * saturés ; les deux formes en facteur tiennent sous le degré et demi. Entre
+ * B et C, la moyenne ne départage pas — c'est le PIRE CAS qui le fait (1,6°
+ * contre 17,1°), et un théorème le double : `lp` est une combinaison convexe des
+ * canaux, donc `lp ≤ max(canal)`, et l'écart entre les deux EST la saturation du
+ * pixel. Il existe une fenêtre `lp < |gain| < max(canal)` où la forme B rend du
+ * NOIR PUR là où l'offset rendait une couleur vive — sur un bleu pur aux
+ * réglages par DÉFAUT, 255 → 0 au lieu de 255 → 244.
+ *
+ * ⚠️ NE PAS JUSTIFIER CE CHOIX PAR LA SATURATION DU CROP, comme la première
+ * version de ce paragraphe le faisait (0,415 contre 0,453 en Clarté forte). Ce
+ * chiffre est un PROXY, et il ne se reproduit pas : sur un second crop, d'une
+ * seconde photo, c'est l'offset qui rend la saturation la plus haute. Une
+ * saturation plus forte n'est pas une teinte plus juste. La mesure Lightroom
+ * dit la même chose que le tableau ci-dessus — sur un bord saturé, Adobe garde
+ * les rapports de canaux constants au millième (0,750 / 0,742 / 0,748).
  *
  * Pourquoi C ne peut pas exploser, là où la division par la luminance le
  * pouvait (facteur `sortie/entrée` à 250 mesuré sur `curves` le 2026-08-13) :

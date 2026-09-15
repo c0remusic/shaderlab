@@ -18,7 +18,7 @@ const CROP = 256;
 
 const PHOTOS = {
   A: { file: "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5171.JPG", crop: { x: 2600, y: 2500, label: "petale / fleur rouge" } },
-  B: { file: "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5169-edited-2.JPG", crop: { x: 1500, y: 2300, label: "main (peau) / bande" } },
+  B: { file: "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5169.JPG", crop: { x: 1500, y: 2300, label: "main (peau) / bande" } },
 };
 
 // Un reglage par colonne. Les libelles francais sont ceux de Lightroom, pour que

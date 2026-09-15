@@ -7,6 +7,13 @@
 // HSL se juge) + crop 1:1 (256 natif) sur la peau (Saturation de l'orange).
 // Ecrit hsl-{A,B}-col<N>-{vign,crop}.png + hsl-stats.json.
 // Usage : node planche-05-hsl-rendu.mjs   (app sur CDP 9223 + Vite worktree 1421)
+// ⚠️ PHOTOS D'ORIGINE BOITIER UNIQUEMENT. DSCF5169-edited-2.JPG a servi ici
+// jusqu'au 2026-09-15 : c'est un export DEJA DEVELOPPE dans Lightroom (EXIF
+// vide, 10,6 Mo contre 16,6 pour un original, et son nom le dit). Juger nos
+// operateurs par-dessus un developpement etranger fausse le jugement : on
+// empile sur du contraste et de la saturation deja pousses. L'original propre
+// DSCF5169.JPG existe a cote — verifier `Software` dans l'EXIF avant d'ajouter
+// une photo a une planche.
 import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
@@ -19,7 +26,7 @@ const CROP = 256;
 
 const PHOTOS = {
   A: { file: "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5171.JPG", crop: { x: 2600, y: 2500, label: "petale / fleur rouge" } },
-  B: { file: "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5169-edited-2.JPG", crop: { x: 1500, y: 2300, label: "main (peau) / orange" } },
+  B: { file: "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5169.JPG", crop: { x: 1500, y: 2300, label: "main (peau) / orange" } },
 };
 
 // Une colonne par reglage. Libelles francais de Lightroom (TSL / Couleur / N&B),

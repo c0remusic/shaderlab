@@ -1,12 +1,12 @@
-// Planche RENDU du ticket 02 (reglagesDeBase) : le module rendu sur DEUX photos
-// d'Antoine par le pipeline REEL (iframe Vite 1421, module map vierge -> sert le
-// disque non commite compris). Le module vit dans l'ETAGE, donc on le pilote par
-// r.setDevelop({ reglagesDeBase: params }) + exportFrame(layers, null, develop) —
-// PAS un calque. Une colonne par reglage a comparer au meme panneau dans Lightroom.
-// Par ligne : vignette (~620, par masses) + crop 1:1 (256 natif) sur la peau, la
-// ou Texture/Clarte/Vibrance se jugent. Orientation EXIF from-image (dims verifiees).
-// Ecrit rb-{A,B}-col<N>-{vign,crop}.png + rb-stats.json.
-// Usage : node planche-02-reglages-rendu.mjs   (app sur CDP 9223 + Vite worktree 1421)
+// Planche RENDU 02b (parite Lightroom du module reglagesDeBase, ticket 02 /
+// audit 09) : trois divergences corrigees rendues sur DEUX photos d'Antoine par
+// le pipeline REEL (iframe Vite 1421, module map vierge). Pilote par
+// r.setDevelop({ reglagesDeBase: params }) + exportFrame(layers, null, develop).
+// Colonnes : temoin, VOILE -100/-50/+50/+100 (la brume doit VOILER, pas juste
+// decontraster), TEMPERATURE +/-100 (l'eclaircissement des deux extremes, sans
+// renormalisation), BLANCS +100 et NOIRS -100 (localite, portee par sBlur).
+// Ecrit reglages02b-{A,B}-col<N>-{vign,crop}.png + reglages02b-stats.json.
+// Usage : node planche-02b-rendu.mjs   (app CDP 9223 + Vite 1421)
 import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
@@ -19,31 +19,21 @@ const CROP = 256;
 
 const PHOTOS = {
   A: { file: "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5171.JPG", crop: { x: 2600, y: 2500, label: "petale / fleur rouge" } },
-  B: { file: "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5169.JPG", crop: { x: 1500, y: 2300, label: "main (peau) / bande" } },
+  B: { file: "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5169.JPG", crop: { x: 1500, y: 2300, label: "main (peau) / orange" } },
 };
 
-// Une colonne par reglage. Libelles francais de Lightroom, pour comparer a dose
-// identique. Le module est reglagesDeBase.
 const COLS = [
   { key: "temoin", label: "Temoin (tout a 0)", temoin: true },
-  { key: "expo-moins", label: "Exposition -1", params: { exposure: -1 } },
-  { key: "expo-plus", label: "Exposition +1", params: { exposure: 1 } },
-  { key: "hl-moins", label: "Hautes lumieres -80", params: { highlights: -80 } },
-  { key: "ombres-plus", label: "Ombres +80", params: { shadows: 80 } },
-  { key: "blancs-noirs", label: "Blancs +50 / Noirs -50", params: { whites: 50, blacks: -50 } },
-  { key: "contraste", label: "Contraste +60", params: { contrast: 60 } },
-  { key: "texture", label: "Texture +80", params: { texture: 80 } },
-  { key: "clarte", label: "Clarte +80", params: { clarity: 80 } },
-  { key: "voile-plus", label: "Correction du voile +60", params: { dehaze: 60 } },
-  { key: "voile-moins", label: "Correction du voile -60", params: { dehaze: -60 } },
-  { key: "vibrance", label: "Vibrance +80", params: { vibrance: 80 } },
-  { key: "saturation", label: "Saturation +80", params: { saturation: 80 } },
-  { key: "temp-moins", label: "Temperature -50", params: { temperature: -50 } },
-  { key: "temp-plus", label: "Temperature +50", params: { temperature: 50 } },
-  { key: "nuance-moins", label: "Nuance -50", params: { nuance: -50 } },
-  { key: "nuance-plus", label: "Nuance +50", params: { nuance: 50 } },
-  { key: "courbe", label: "Courbe param. (HL -60, Ombres +60)", params: { paramHighlights: -60, paramShadows: 60 } },
-  { key: "look", label: "Look combine", params: { exposure: 0.3, contrast: 25, highlights: -40, shadows: 30, clarity: 25, vibrance: 40, temperature: 15, paramShadows: 20, paramHighlights: -15 } },
+  { key: "voile-m100", label: "Voile -100 (ajoute la brume)", params: { dehaze: -100 } },
+  { key: "voile-m50", label: "Voile -50", params: { dehaze: -50 } },
+  { key: "voile-p50", label: "Voile +50", params: { dehaze: 50 } },
+  { key: "voile-p100", label: "Voile +100 (retire la brume)", params: { dehaze: 100 } },
+  { key: "temp-p100", label: "Temperature +100 (chaud, eclaircit)", params: { temperature: 100 } },
+  { key: "temp-m100", label: "Temperature -100 (froid, eclaircit aussi)", params: { temperature: -100 } },
+  { key: "nuance-p100", label: "Nuance +100 (magenta)", params: { nuance: 100 } },
+  { key: "nuance-m100", label: "Nuance -100 (vert)", params: { nuance: -100 } },
+  { key: "blancs-p100", label: "Blancs +100 (local, sBlur)", params: { whites: 100 } },
+  { key: "noirs-m100", label: "Noirs -100 (local, sBlur)", params: { blacks: -100 } },
 ];
 
 const targets = await (await fetch(`${CDP}/json`)).json();
@@ -74,7 +64,7 @@ const evalIn = async (expression, contextId) => {
   return r.result?.result?.value;
 };
 
-const FRAME_ID = "__planche02Reglages";
+const FRAME_ID = "__planche02b";
 const before = new Set(contexts.map((c) => c.uniqueId));
 const loaded = await evalIn(`new Promise((res) => {
   document.getElementById(${JSON.stringify(FRAME_ID)})?.remove();
@@ -160,13 +150,13 @@ for (const [tag, ph] of Object.entries(PHOTOS)) {
     }
     const vb = Buffer.from(res.vign.split(",")[1], "base64");
     const cb = Buffer.from(res.crop.split(",")[1], "base64");
-    writeFileSync(path.join(OUT, `rb-${tag}-col${i}-vign.png`), vb);
-    writeFileSync(path.join(OUT, `rb-${tag}-col${i}-crop.png`), cb);
+    writeFileSync(path.join(OUT, `reglages02b-${tag}-col${i}-vign.png`), vb);
+    writeFileSync(path.join(OUT, `reglages02b-${tag}-col${i}-crop.png`), cb);
     const md5v = createHash("md5").update(vb).digest("hex");
     const md5c = createHash("md5").update(cb).digest("hex");
     photoStats.frameW = res.fw; photoStats.frameH = res.fh;
     photoStats.cols.push({ i, key: col.key, label: col.label, mean: res.mean, std: res.std, md5vign: md5v, md5crop: md5c });
-    console.log(`${tag} col${i} ${col.key.padEnd(22)} mean=${res.mean.toFixed(2)} std=${res.std.toFixed(2)} md5v=${md5v.slice(0,8)}`);
+    console.log(`${tag} col${i} ${col.key.padEnd(14)} mean=${res.mean.toFixed(2)} std=${res.std.toFixed(2)} md5v=${md5v.slice(0,8)}`);
   }
   photoStats.exifOk = (photoStats.srcW === photoStats.frameW && photoStats.srcH === photoStats.frameH);
   stats.photos[tag] = photoStats;
@@ -174,7 +164,7 @@ for (const [tag, ph] of Object.entries(PHOTOS)) {
   await evalIn(`delete window.__rbSetup; "ok"`, frameCtx.id);
 }
 
-writeFileSync(path.join(OUT, "rb-stats.json"), JSON.stringify(stats, null, 2));
-console.log("\nstats -> rb-stats.json");
+writeFileSync(path.join(OUT, "reglages02b-stats.json"), JSON.stringify(stats, null, 2));
+console.log("\nstats -> reglages02b-stats.json");
 await evalIn(`document.getElementById(${JSON.stringify(FRAME_ID)})?.remove(); "ok"`);
 ws.close();

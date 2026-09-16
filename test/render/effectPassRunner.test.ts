@@ -345,6 +345,43 @@ describe("EffectPassRunner.runInternalPasses — passes conditionnelles", () => 
     expect(createTexture).toHaveBeenCalledTimes(3);
   });
 
+  // ⚠️ CETTE COMBINAISON ÉTAIT INTERDITE PAR `validateEffect` jusqu'au
+  // 2026-09-16, et l'interdit portait sur la plomberie : les passes internes ne
+  // recevaient pas la texture de bibliothèque, donc elles échantillonnaient le
+  // repli 1×1 — le binding 7 existe dès que l'effet déclare `libraryTexture`,
+  // donc le shader compilait et l'image était fausse en silence. Deux capacités
+  // du ROADMAP en dépendaient (le ZMap de `lensBlur`, la texture de `lensFlare`).
+  it("sert la texture de bibliothèque à CHAQUE passe interne, pas seulement à la finale", () => {
+    const { runner, encoder, sourceView } = createRunnerCountingPasses();
+    const effect = {
+      ...effetTroisPasses(),
+      libraryTexture: { indexParam: "mode" },
+      passes: [
+        { scale: 0.5, wgsl: PASS_WGSL },
+        { scale: 0.25, wgsl: PASS_WGSL },
+      ],
+    };
+    const vue = { marque: "bibliotheque" } as unknown as GPUTextureView;
+    const espion = vi.spyOn(runner, "runEffectPass").mockImplementation(() => {});
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    runner.runInternalPasses(encoder, effect as any, { params: {} } as any, sourceView, [], vue);
+    expect(espion).toHaveBeenCalledTimes(2);
+    for (const appel of espion.mock.calls) {
+      expect((appel[5] as { libraryTextureView?: unknown }).libraryTextureView).toBe(vue);
+    }
+    espion.mockRestore();
+  });
+
+  it("sans texture de bibliothèque, les passes internes n'en reçoivent aucune", () => {
+    const { runner, encoder, sourceView } = createRunnerCountingPasses();
+    const effect = { ...effetTroisPasses(), passes: [{ scale: 0.5, wgsl: PASS_WGSL }] };
+    const espion = vi.spyOn(runner, "runEffectPass").mockImplementation(() => {});
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    runner.runInternalPasses(encoder, effect as any, { params: {} } as any, sourceView, []);
+    expect((espion.mock.calls[0][5] as { libraryTextureView?: unknown }).libraryTextureView).toBeNull();
+    espion.mockRestore();
+  });
+
   it("rend une texture NULLE et la vue SOURCE quand toutes les passes sautent", () => {
     // C'est le cas limite qui décide de la signature : il n'y a alors aucune
     // cible empruntée au pool. La passe composite finale reçoit donc la source

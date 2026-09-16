@@ -318,16 +318,15 @@ export function validateEffect(effect: EffectModule): void {
         `Effet "${effect.id}" : libraryTexture désigne le paramètre absent "${effect.libraryTexture.indexParam}".`,
       );
     }
-    // Les passes internes d'un effet à texture ne reçoivent PAS le binding 7 —
-    // `FramePipelineExecutor` ne le résout que pour la passe finale. Lever
-    // plutôt que de laisser un effet dont les passes internes échantillonneraient
-    // une texture inexistante : le shader ne compilerait pas, et l'erreur
-    // arriverait au rendu au lieu du chargement du registre.
-    if (effect.passes?.length) {
-      throw new Error(
-        `Effet "${effect.id}" : libraryTexture et passes internes ne sont pas encore combinables (le binding 7 n'est résolu que pour la passe finale).`,
-      );
-    }
+    // ⚠️ CETTE COMBINAISON A ÉTÉ REFUSÉE ICI JUSQU'AU 2026-09-16, et le refus
+    // portait sur la PLOMBERIE, pas sur la capacité : les passes internes ne
+    // recevaient pas la texture de bibliothèque, donc elles échantillonnaient le
+    // repli 1×1 — le binding 7 existe dès que l'effet déclare `libraryTexture`,
+    // donc le shader compilait et l'image était fausse sans qu'aucune erreur ne
+    // parte. `runInternalPasses` la reçoit maintenant et la transmet à chaque
+    // passe, et le refus est levé. Deux capacités en dépendaient, toutes deux
+    // au ROADMAP : le ZMap de `lensBlur` (un flou dont le rayon se lit dans une
+    // carte) et la texture de bibliothèque sur `lensFlare`.
     // CONTRAT DU SHADER, jusqu'ici en prose seulement (`types.ts`) : tester
     // `textureDimensions(libraryTexture)` et rendre l'entrée inchangée quand un
     // côté vaut 1. Le chargement est asynchrone et le binding TOUJOURS fourni —

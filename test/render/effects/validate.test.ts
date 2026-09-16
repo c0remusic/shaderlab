@@ -35,6 +35,23 @@ describe("validateEffect", () => {
     );
   });
 
+  // ⚠️ GARDE INVERSÉE le 2026-09-16 : cette combinaison LEVAIT, et le refus
+  // décrivait la plomberie du moment, pas une impossibilité. Les passes internes
+  // reçoivent maintenant la texture de bibliothèque (`runInternalPasses`), donc
+  // l'interdit n'a plus d'objet — il bloquait deux capacités du ROADMAP.
+  it("accepte libraryTexture AVEC des passes internes, depuis que les passes la reçoivent", () => {
+    const base = effectWithParams(1);
+    const effet: EffectModule = {
+      ...base,
+      libraryTexture: { indexParam: "p0" },
+      passes: [{ scale: 0.5, wgsl: base.wgsl }],
+      // Le contrat de repli reste exigé : un effet à texture doit tester
+      // `textureDimensions` pour ne pas rendre le 1×1 pendant le décodage.
+      wgsl: "fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> { let d = textureDimensions(libraryTexture); return color; }",
+    };
+    expect(() => validateEffect(effet)).not.toThrow();
+  });
+
   it("every registered effect is valid", () => {
     for (const effect of effectRegistry) {
       expect(() => validateEffect(effect)).not.toThrow();

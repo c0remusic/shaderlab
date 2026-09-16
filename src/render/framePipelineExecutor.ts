@@ -72,6 +72,12 @@ export interface EffectPassesPort {
     layer: LayerState,
     sourceView: GPUTextureView,
     pendingDestroy: FrameResource[],
+    // Texture de BIBLIOTHÈQUE, la même que reçoit la passe finale. Sans elle,
+    // une passe interne d'un effet à `libraryTexture` échantillonnerait le repli
+    // 1×1 : le shader compile, le binding existe, et l'image est fausse sans
+    // qu'aucune erreur ne parte. `validateEffect` levait pour cette raison, et
+    // interdisait la combinaison entière ; elle est maintenant servie.
+    libraryTextureView?: GPUTextureView | null,
     // `texture` est NULL quand toutes les passes ont été sautées (voir
     // `EffectPass.enabled`) : il n'y a alors aucune cible empruntée au pool, et
     // `view` est la texture source elle-même. Ce port le déclare plutôt que de
@@ -619,6 +625,15 @@ export class FramePipelineExecutor {
       // `texture` nullable : quand toutes les passes internes d'un effet sont
       // sautées (voir `EffectPass.enabled`), aucune cible n'est empruntée au
       // pool et `view` est la source elle-même. Seul `view` est lu ici.
+      // Texture de bibliothèque : le paramètre déclaré porte un RANG dans le
+      // catalogue, le store rend les pixels. `Math.round` parce que `params` est
+      // un `Record<string, number>` — un index y transite en flottant, comme
+      // tous les choix à liste du dépôt. Résolue AVANT les passes internes, qui
+      // la reçoivent comme la passe finale.
+      const libraryTextureView =
+        effect.libraryTexture && this.libraryTextures
+          ? this.libraryTextures.viewFor(Math.round(layer.params[effect.libraryTexture.indexParam] ?? 0))
+          : null;
       let previousPass: { view: GPUTextureView; texture: GPUTexture | null } | null = null;
       if (effect.passes?.length) {
         previousPass = this.effects.runInternalPasses(
@@ -627,6 +642,7 @@ export class FramePipelineExecutor {
           layer,
           effectInputSourceView,
           pendingDestroy,
+          libraryTextureView,
         );
       }
       // SOURCE À PYRAMIDE pour les effets qui le déclarent (ticket 19). Une
@@ -664,16 +680,7 @@ export class FramePipelineExecutor {
           // dit plus rien à elle seule : depuis la tranche T1, l'index 0 est
           // le calque photo de fond.
           guideEpoch: guideEpochs[index],
-          // Texture de bibliothèque : le paramètre déclaré porte un RANG dans
-          // le catalogue, le store rend les pixels. `Math.round` parce que
-          // `params` est un `Record<string, number>` — un index y transite en
-          // flottant, comme tous les choix à liste du dépôt.
-          libraryTextureView:
-            effect.libraryTexture && this.libraryTextures
-              ? this.libraryTextures.viewFor(
-                  Math.round(layer.params[effect.libraryTexture.indexParam] ?? 0),
-                )
-              : null,
+          libraryTextureView,
         },
         pendingDestroy,
       );

@@ -221,7 +221,8 @@ export class EffectPassRunner {
     effect: EffectModule,
     layer: LayerState,
     sourceView: GPUTextureView,
-    pendingDestroy: PendingDestroy
+    pendingDestroy: PendingDestroy,
+    libraryTextureView: GPUTextureView | null = null
   ): { view: GPUTextureView; texture: GPUTexture | null } {
     let passInputView = sourceView;
     let lastTexture: GPUTexture | null = null;
@@ -257,7 +258,10 @@ export class EffectPassRunner {
         Math.max(1, Math.round(this.height * pass.scale)),
       );
       const passTargetView = passTarget.createView();
-      this.runEffectPass(encoder, { ...effect, wgsl: pass.wgsl }, layer, passInputView, passTargetView, { applyMask: false }, pendingDestroy);
+      // `libraryTextureView` transmis à CHAQUE passe interne : le binding 7
+      // existe dès que l'effet le déclare (voir `runEffectPass`), donc l'omettre
+      // ne cassait pas la compilation — il servait silencieusement le repli 1×1.
+      this.runEffectPass(encoder, { ...effect, wgsl: pass.wgsl }, layer, passInputView, passTargetView, { applyMask: false, libraryTextureView }, pendingDestroy);
       passInputView = passTargetView;
       lastTexture = passTarget;
     }

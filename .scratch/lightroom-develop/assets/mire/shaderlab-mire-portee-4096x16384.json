@@ -1,0 +1,29 @@
+{
+ "largeur": 4096,
+ "hauteur": 16384,
+ "demi": 4096,
+ "periode": 8,
+ "amplitude": 24,
+ "x0": 1024,
+ "x1": 3072,
+ "zones": [
+  {
+   "nom": "portee",
+   "y0": 0,
+   "y1": 8192,
+   "haut": 96,
+   "bas": 160,
+   "detail_haut": true,
+   "detail_bas": true
+  },
+  {
+   "nom": "portail",
+   "y0": 8192,
+   "y1": 16384,
+   "haut": 128,
+   "bas": 128,
+   "detail_haut": false,
+   "detail_bas": true
+  }
+ ]
+}

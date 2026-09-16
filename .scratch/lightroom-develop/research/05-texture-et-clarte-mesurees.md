@@ -1,5 +1,21 @@
 # Texture et Clarté de Lightroom, mesurées — et ce que les nôtres font à la place
 
+> ⚠️ **DEUX AFFIRMATIONS DE CE FICHIER SONT FAUSSES, et corrigées dans
+> [`07-portee-des-operateurs-locaux.md`](07-portee-des-operateurs-locaux.md)**
+> (campagne du 2026-09-16 au soir, sur des mires à marche horizontale) :
+>
+> 1. « Clarté porte un vrai terme global qui déplace un aplat de −19,59 » —
+>    **non.** Sur une image sans aucun détail, Clarté ne dépasse pas 8 px et son
+>    champ lointain vaut **0,00**. Ce déplacement était le grand rayon de Clarté,
+>    nourri par le détail du reste de la mire, pas une courbe de ton.
+> 2. « Portée qui suit la largeur, ≈125 / 219 / 295 px » — **non.** C'était
+>    l'estimateur qui suivait son plateau (toujours la moitié de la largeur). À
+>    plateau constant, les largeurs 1024, 2048 et 4096 rendent le **même profil à
+>    0,6 niveau près**.
+>
+> Tout le reste de ce fichier tient, y compris les conclusions sur Texture, que
+> la campagne du soir a confirmées sur une deuxième orientation de marche.
+
 Mesuré le 2026-09-16 sur Lightroom Classic 14.5.1, par la **mire de présence**
 (`assets/mire/faire-mire-presence.py`), face à notre pipeline réel
 (`assets/mesure-presence-shaderlab.mjs`, iframe du harnais, modules du disque).

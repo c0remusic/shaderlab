@@ -1465,9 +1465,11 @@
    "halo_gauche": -9.344,
    "portee_gauche": 24,
    "largeur_gauche": 10.3,
+   "largeur_der_gauche": 12.2,
    "halo_droite": 10.867,
    "portee_droite": 23,
-   "largeur_droite": 10.2
+   "largeur_droite": 10.2,
+   "largeur_der_droite": 12.1
   },
   {
    "zone": "echelon",
@@ -2508,9 +2510,11 @@
    "halo_gauche": -5.633,
    "portee_gauche": 24,
    "largeur_gauche": 10.7,
+   "largeur_der_gauche": 12.2,
    "halo_droite": 7.945,
    "portee_droite": 24,
-   "largeur_droite": 10.5
+   "largeur_droite": 10.5,
+   "largeur_der_droite": 12.4
   },
   {
    "zone": "echelon",
@@ -3551,9 +3555,11 @@
    "halo_gauche": -10.672,
    "portee_gauche": 23,
    "largeur_gauche": 10.2,
+   "largeur_der_gauche": 11.8,
    "halo_droite": 7.047,
    "portee_droite": 24,
-   "largeur_droite": 10.5
+   "largeur_droite": 10.5,
+   "largeur_der_droite": 12.0
   }
  ]
 }

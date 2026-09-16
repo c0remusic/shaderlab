@@ -152,8 +152,15 @@ def hauteur_motif(n):
     return H_ECHELON if n < 0 else (H_PLAT if n == 0 else H_BANDE)
 
 
-def fabrique(largeur):
-    liste = bandes()
+def fabrique(largeur, repetitions=1):
+    """`repetitions` empile la mire entiere sur elle-meme.
+
+    C'est la facon de doubler la HAUTEUR de l'image sans toucher a un seul motif :
+    chaque bande garde ses pixels, chaque marche garde ses plateaux, et
+    l'histogramme est le meme a un facteur pres. Remplir avec un aplat aurait
+    change la statistique de l'image, ce qu'un operateur a table 2D pourrait
+    regarder ; se repeter ne change que la dimension."""
+    liste = bandes() * repetitions
     hauteur = sum(hauteur_motif(b["cycles"]) + 2 * H_GARDE for b in liste)
     img = np.zeros((hauteur, largeur, 3), dtype=np.uint8)
     x = np.arange(largeur) + 0.5
@@ -192,8 +199,8 @@ def fabrique(largeur):
     return Image.fromarray(img), {"largeur": largeur, "hauteur": hauteur, "bandes": geo}
 
 
-def ecris(largeur, suffixe):
-    img, geo = fabrique(largeur)
+def ecris(largeur, suffixe, repetitions=1):
+    img, geo = fabrique(largeur, repetitions)
     # La TAILLE est dans le nom, et c'est delibere : Lightroom garde une photo
     # dans son catalogue PAR CHEMIN. Reecrire le meme nom avec une geometrie
     # differente lui ferait ressortir la precedente, et la campagne mesurerait
@@ -239,3 +246,10 @@ if __name__ == "__main__":
     # Ses bandes FINES aliasent (la periode 3 devient 1,5 px, sous Nyquist) et
     # c'est sans consequence : seule sa zone ECHELON est lue.
     ecris(1024, "-demi")
+    # Quatrieme taille : HAUTEUR doublee, largeur INCHANGEE. Les trois premieres
+    # partagent leur hauteur, donc aucune ne separe « rayon absolu » de « rayon
+    # proportionnel a la hauteur » (Texture), ni « proportionnel a la largeur »
+    # de « proportionnel a la racine de l'aire » (Clarte). Celle-ci fait bouger
+    # la seule dimension que les autres tenaient fixe, et elle tranche les deux
+    # questions d'un coup.
+    ecris(2048, "-haut", repetitions=2)

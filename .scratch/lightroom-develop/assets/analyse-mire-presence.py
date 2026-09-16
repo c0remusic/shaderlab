@@ -80,6 +80,17 @@ def halo(r, W):
         res["halo_" + cote] = round(sommet, 3)
         res["portee_" + cote] = portee
         res["largeur_" + cote] = round(float(np.abs(ecart).sum() / abs(sommet)), 1) if abs(sommet) > 0.05 else 0.0
+        # TROISIEME estimateur, et le seul qui ne depende pas du champ lointain.
+        # Les deux precedents soustraient une reference prise au quart extreme du
+        # plateau : sa distance au bord GRANDIT avec la largeur de la mire, donc
+        # ils fabriquent a eux seuls une croissance du halo avec la largeur.
+        # La DERIVEE est aveugle a toute erreur de reference — une constante
+        # additive y disparait — et pour une decroissance en exp(-x/L) le
+        # barycentre de |d/dx| vaut exactement L. On saute les 2 premiers pixels,
+        # qui portent la marche elle-meme et non son halo.
+        d = np.abs(np.diff(seg))[2:]
+        k = np.arange(len(d)) + 2.5
+        res["largeur_der_" + cote] = round(float((d * k).sum() / d.sum()), 1) if d.sum() > 1e-6 else 0.0
     return res
 
 

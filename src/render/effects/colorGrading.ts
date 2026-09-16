@@ -178,9 +178,15 @@ function clipGamut(lab: Vec3): Vec3 {
  *  encore là où la mesure culmine puis retombe — est réduit, pas fermé, et c'est
  *  lui qui plafonne tout le reste : gonfler l'amplitude pour gagner en parité
  *  ramène l'écrasement à neuf niveaux (essai mesuré, refusé, motif dans la table). */
+/** Ce qui reste jusqu'à la borne en dessous duquel on la POSE au lieu de diviser
+ *  par lui. Écrite UNE fois : le corps WGSL l'interpole, comme les huit autres
+ *  constantes du module — une garde du dépôt (`jumeauxWgsl.test.ts`) existe parce
+ *  qu'une constante écrite deux fois avait déjà divergé ici même. */
+const CG_BORNE_EPS = 1e-6;
+
 function appliqueLum(L: number, dL: number): number {
   const h = dL >= 0 ? 1 - L : L;
-  if (h <= 1e-6) return dL >= 0 ? 1 : 0;
+  if (h <= CG_BORNE_EPS) return dL >= 0 ? 1 : 0;
   const d = 1 - Math.exp(-Math.abs(dL) / h);
   return dL >= 0 ? L + h * d : L - h * d;
 }
@@ -306,6 +312,7 @@ const CG_BLEND_DEPTH = ${f(CG.blendDepth)};
 const CG_BLEND_MAP_A = ${f(CG_BLEND_MAP_A)};
 const CG_BALANCE_SHIFT = ${f(CG.balanceShift)};
 const CG_RANGE_CONTRAST = ${f(CG.rangeContrast)};
+const CG_BORNE_EPS = ${CG_BORNE_EPS};
 
 // Direction unitaire (a,b) d'OKLab de la teinte pure hueDeg. Jumeau de dirFromHue
 // cote TS. AUCUN atan2 : on derive une direction d'un PARAMETRE, on ne mesure
@@ -332,7 +339,7 @@ fn cg_dir(hueDeg: f32) -> vec2<f32> {
 // mesuree en tete du twin.
 fn cg_lum_apply(L: f32, dL: f32) -> f32 {
   let h = select(L, 1.0 - L, dL >= 0.0);
-  if (h <= 1e-6) {
+  if (h <= CG_BORNE_EPS) {
     return select(0.0, 1.0, dL >= 0.0);
   }
   let d = 1.0 - exp(-abs(dL) / h);

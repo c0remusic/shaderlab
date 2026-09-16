@@ -19,10 +19,18 @@ import type { DevelopSettings } from "../../src/layers/developSettings";
 /** Journal d'appels : c'est l'ORDRE autant que la présence qui compte. */
 function portsEspions(pile: LayerState[] = []) {
   const journal: string[] = [];
+  // ⚠️ La pose MÉMORISE, et `pileComplete` rend ce qui a été posé — comme la
+  // vraie session, où `replaceLiveLayers` écrit `current.layers` que
+  // `layers()` relit ensuite. Un double qui garderait une pile figée ferait
+  // croire que le rendu part sur autre chose que l'état posé.
+  let posee: LayerState[] = pile;
   const ports: PortsGesteVivant = {
-    poserPile: (layers, geometrie) => journal.push(`poserPile(${layers.length}${geometrie ? ",geom" : ""})`),
+    poserPile: (layers, geometrie) => {
+      posee = layers;
+      journal.push(`poserPile(${layers.length}${geometrie ? ",geom" : ""})`);
+    },
     poserEtage: () => journal.push("poserEtage"),
-    pileComplete: () => pile,
+    pileComplete: () => posee,
     planifierSynchro: () => journal.push("planifierSynchro"),
     projeterEtage: () => journal.push("projeterEtage"),
     renduEtage: () => journal.push("renduEtage"),
@@ -41,12 +49,37 @@ describe("gestePileVivante", () => {
     expect(journal).toEqual(["poserPile(2)", "planifierSynchro", "redemanderRendu(2)"]);
   });
 
-  it("rend sur la pile QU'ON LUI PASSE, pas sur celle de la session", () => {
-    // La session n'a pas encore vu le nouvel état au moment où le rendu part sur
-    // le chemin brut ; rendre `pileComplete()` retarderait l'écran d'une frame.
-    const { ports, journal } = portsEspions([] as LayerState[]);
-    gestePileVivante(ports, couches);
-    expect(journal).toContain("redemanderRendu(2)");
+  // ⚠️ CETTE GARDE A CHANGÉ DE SENS le 2026-09-16, et c'est elle qui avait tort.
+  // Elle exigeait « rend sur la pile QU'ON LUI PASSE, pas sur celle de la
+  // session », au motif que « la session n'a pas encore vu le nouvel état ». Le
+  // motif est faux pour ce chemin : `poserPile` est appelé AVANT, et il pose
+  // l'état de façon synchrone. Ce que la garde figeait, c'était l'écart réel
+  // trouvé par une revue adverse — la pose FILTRE l'entrant à travers les
+  // verrous, donc rendre l'entrant affiche ce que le document refuse de porter.
+  it("rend sur la pile POSÉE : un calque verrouillé ne s'affiche pas autrement qu'il n'est", () => {
+    // Le port de pose imite `replaceLiveLayers` : il retient un calque verrouillé
+    // et ne laisse passer que l'autre. C'est la mesure, pas le raisonnement — le
+    // rendu doit recevoir DEUX calques dont un gelé, jamais l'entrant tel quel.
+    const gele = { id: "a", blendMode: "normal" } as unknown as LayerState;
+    let posee: LayerState[] = [];
+    const journal: string[] = [];
+    const ports: PortsGesteVivant = {
+      poserPile: (layers) => {
+        posee = layers.map((l) => (l.id === "a" ? gele : l));
+        journal.push(`poserPile(${layers.length})`);
+      },
+      poserEtage: () => journal.push("poserEtage"),
+      pileComplete: () => posee,
+      planifierSynchro: () => journal.push("planifierSynchro"),
+      projeterEtage: () => journal.push("projeterEtage"),
+      renduEtage: () => journal.push("renduEtage"),
+      redemanderRendu: (layers) => journal.push(`redemanderRendu(${layers.map((l) => (l as { blendMode?: string }).blendMode ?? "?").join("/")})`),
+      salir: () => journal.push("salir"),
+    };
+    const entrant = [{ id: "a", blendMode: "multiply" }, { id: "b", blendMode: "screen" }] as unknown as LayerState[];
+    gestePileVivante(ports, entrant);
+    expect(journal).toContain("redemanderRendu(normal/screen)");
+    expect(journal).not.toContain("redemanderRendu(multiply/screen)");
   });
 
   it("ne salit RIEN par défaut : un geste qui ne change pas de valeur ne doit pas commiter", () => {

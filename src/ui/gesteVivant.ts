@@ -104,7 +104,14 @@ export function gestePileVivante(
   if (options.salit) ports.salir();
   ports.poserPile(layers, options.geometrie);
   if (options.synchroniseReact !== false) ports.planifierSynchro();
-  ports.redemanderRendu(layers);
+  // ⚠️ LE RENDU PART DE LA PILE POSÉE, PAS DE L'ENTRANT, et la différence n'est
+  // visible que sur un calque VERROUILLÉ : `poserPile` filtre l'entrant à travers
+  // les verrous (`fusionnerSousVerrous`), donc rendre l'entrant montrerait à
+  // l'écran ce que le document refuse de porter. Sans verrou les deux tableaux
+  // sont le MÊME objet, et l'ordre ci-dessus garantit que la pose a eu lieu :
+  // lire la session ici ne retarde rien d'une frame. C'est ce que la garde de ce
+  // module affirmait, et sa raison écrite était fausse pour ce chemin-là.
+  ports.redemanderRendu(ports.pileComplete());
 }
 
 /**

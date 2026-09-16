@@ -105,22 +105,48 @@ export interface ReglagesDeBaseTable {
   contrastG: number;
   /** Contraste — pivot (sRGB, 0..1). */
   contrastPivot: number;
-  /** Ombres — amplitude du lift de région à +100. */
-  shadowAmtPos: number;
-  /** Ombres — amplitude à −100. */
-  shadowAmtNeg: number;
-  /** Ombres — mode de la cloche (sRGB, 0..1). */
-  shadowCenter: number;
-  /** Ombres — concentration de la cloche (grand = étroite). */
-  shadowKappa: number;
-  /** Hautes lumières — amplitude à +100. */
-  highlightAmtPos: number;
-  /** Hautes lumières — amplitude à −100. */
-  highlightAmtNeg: number;
-  /** Hautes lumières — mode de la cloche. */
-  highlightCenter: number;
-  /** Hautes lumières — concentration de la cloche. */
-  highlightKappa: number;
+  /** ── OMBRES ET HAUTES LUMIÈRES : UNE LIGNE FOIS UN POIDS, EN LOG ───────────
+   *
+   *  ⚠️ C'ÉTAIT UNE CLOCHE `bump` EN sRGB jusqu'au 2026-09-16, et la forme venait
+   *  de nulle part. Celle-ci est LUE DANS LE BINAIRE : l'uniforme `UniformsToneMap`
+   *  de `CameraRaw.dll` porte `uLineShadowScale` / `uLineShadowOffset` (une LIGNE)
+   *  ET `uLumWeightShadowScale` / `uLumWeightShadowOffset` (un POIDS de luminance),
+   *  plus `uToneMapFlareLinear` / `uToneMapFlareLog`, et `cr_tone_map.cpp` contient
+   *  `MakeGrayLogImage` — leur image de travail est en LOG.
+   *
+   *  Le décalage mesuré confirme le produit des deux : à `Ombres` +100, il culmine
+   *  à +5,06 en log2 vers L = −9 et REDESCEND des deux côtés. Une droite
+   *  décroissante (la ligne) multipliée par un poids croissant clampé (qui éteint
+   *  tout en bas) donne exactement cette cloche-là — et c'est le poids qui tient le
+   *  noir, là où notre `bump` avait une pente infinie.
+   *
+   *  Le gain est MULTIPLICATIF en lumière linéaire (`lin · 2^delta`), donc le noir
+   *  pur reste noir par construction, sans clamp ni cas particulier.
+   *
+   *  Ce que ça change, mesuré sur les quatre doses de chaque famille : ombres
+   *  5,40 → 2,89 niveaux, hautes lumières 2,66 → 1,90. Et la POSTÉRISATION
+   *  rejoint la référence au lieu de la doubler — trou de 14 niveaux à
+   *  `Ombres` +100, exactement celui de Lightroom, contre 26 avec la cloche. */
+  /** Ombres — haut de la LIGNE (log2) : au-dessus, l'opérateur ne fait rien. */
+  shadowLref: number;
+  /** Ombres — pente du poids de luminance (croissant : éteint le bas). */
+  shadowWeightScale: number;
+  /** Ombres — décalage du poids de luminance. */
+  shadowWeightOffset: number;
+  /** Ombres — amplitude du décalage en log2, à |100|. */
+  shadowAmt: number;
+  /** Hautes lumières — bas de la LIGNE (log2) : en dessous, rien. */
+  highlightLref: number;
+  /** Hautes lumières — pente du poids (décroissant : éteint le haut). */
+  highlightWeightScale: number;
+  /** Hautes lumières — décalage du poids. */
+  highlightWeightOffset: number;
+  /** Hautes lumières — amplitude du décalage en log2, à |100|. */
+  highlightAmt: number;
+  /** Hautes lumières — voile linéaire ajouté avant le log (`uToneMapFlareLinear`),
+   *  qui borne `L` par le bas. Les ombres n'en ont pas besoin : leur poids les
+   *  éteint déjà (ajusté à 0). */
+  highlightFlare: number;
   /** Noirs — amplitude ponctuelle à +100. */
   blackAmtPos: number;
   /** Noirs — amplitude ponctuelle à −100. */
@@ -197,14 +223,15 @@ export const RB_TABLE: ReglagesDeBaseTable = {
   expoG: 0.57,
   contrastG: 0.5325,
   contrastPivot: 0.62,
-  shadowAmtPos: 0.25,
-  shadowAmtNeg: 0.2,
-  shadowCenter: 0.2,
-  shadowKappa: 1.5,
-  highlightAmtPos: 0.13,
-  highlightAmtNeg: 0.13,
-  highlightCenter: 0.79,
-  highlightKappa: 1.5,
+  shadowLref: -0.5,
+  shadowWeightScale: 0.15,
+  shadowWeightOffset: 2.2,
+  shadowAmt: 0.627,
+  highlightLref: -8.5,
+  highlightWeightScale: -0.1,
+  highlightWeightOffset: 0.3,
+  highlightAmt: 0.1915,
+  highlightFlare: 0.002,
   blackAmtPos: 0.09,
   blackAmtNeg: 0.19,
   blackCenter: 0.3,

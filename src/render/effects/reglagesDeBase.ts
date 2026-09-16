@@ -147,6 +147,25 @@ function bump(v: number, c: number, k: number): number {
   return (Math.pow(vv, ec) * Math.pow(1 - vv, e1)) / Math.max(peak, 1e-6);
 }
 
+/** LIGNE × POIDS en espace LOG2 — la forme que le binaire de Lightroom nomme
+ *  (`uLineShadowScale/Offset` × `uLumWeightShadowScale/Offset`, voir la table).
+ *
+ *  `ligne` décroît (ombres) ou croît (hautes lumières) jusqu'à s'annuler au-delà
+ *  de `lref` : c'est la PORTÉE de l'opérateur. `poids` est une droite clampée à
+ *  [0,1] qui l'ÉTEINT à l'autre bout — pour les ombres, c'est lui qui tient le
+ *  ras du noir, là où notre ancienne cloche avait une pente infinie.
+ *
+ *  Rend le décalage en LOG2, à appliquer comme un gain (`lin · 2^delta`). Jumeau
+ *  de `rb_ligne_poids` WGSL. */
+function ligneFoisPoids(
+  lin: number, flare: number, lref: number, wScale: number, wOffset: number, versLeBas: boolean,
+): number {
+  const L = Math.log2(Math.max(clamp01(lin) + flare, 1e-9));
+  const ligne = versLeBas ? Math.max(0, lref - L) : Math.max(0, L - lref);
+  if (ligne === 0) return 0;
+  return ligne * clamp01(wScale * L + wOffset);
+}
+
 /** Contraste : gamma double PIVOTÉ, ancré en 0 / pivot / 1. `kC = contraste/100`
  *  (γ = exp(contrastG·kC)) : γ>1 creuse, γ<1 aplatit — les deux sens. Jumeau de
  *  `rb_contrast` WGSL. */
@@ -301,22 +320,27 @@ export function reglagesDeBaseSpec(rgb: Vec3, blurLuma: number, p: readonly numb
   //      blancs / noirs (cloche ponctuelle). Aller-retour sRGB fermé, par canal.
   //      Toutes les formes tiennent 0 et 1 (voir en-tête et `reglagesDeBaseTable`).
   const sBlur = linearToSrgb(clamp01(blurLuma));
-  const wSh = bump(sBlur, RB_TABLE.shadowCenter, RB_TABLE.shadowKappa);
-  const wHl = bump(sBlur, RB_TABLE.highlightCenter, RB_TABLE.highlightKappa);
   const kC = contrast / 100, kHl = highlights / 100, kSh = shadows / 100;
   const kWh = whites / 100, kBk = blacks / 100;
+  // OMBRES / HAUTES LUMIÈRES : décalage en LOG2, ligne × poids, calculé sur la
+  // luminance FLOUTÉE (local) et appliqué au pixel comme un GAIN. Voir la table
+  // pour d'où vient la forme — c'est l'uniforme de Lightroom, pas une intuition.
+  const dLog = (kSh !== 0 ? kSh * RB_TABLE.shadowAmt * ligneFoisPoids(
+    blurLuma, 0, RB_TABLE.shadowLref, RB_TABLE.shadowWeightScale, RB_TABLE.shadowWeightOffset, true) : 0)
+    + (kHl !== 0 ? kHl * RB_TABLE.highlightAmt * ligneFoisPoids(
+      blurLuma, RB_TABLE.highlightFlare, RB_TABLE.highlightLref,
+      RB_TABLE.highlightWeightScale, RB_TABLE.highlightWeightOffset, false) : 0);
+  const gainTon = dLog === 0 ? 1 : Math.pow(2, dLog);
   // Amplitude par SIGNE (Lightroom est asymétrique — voir `reglagesDeBaseTable`).
-  const shAmt = kSh >= 0 ? RB_TABLE.shadowAmtPos : RB_TABLE.shadowAmtNeg;
-  const hlAmt = kHl >= 0 ? RB_TABLE.highlightAmtPos : RB_TABLE.highlightAmtNeg;
   const bkAmt = kBk >= 0 ? RB_TABLE.blackAmtPos : RB_TABLE.blackAmtNeg;
   const whAmt = kWh >= 0 ? RB_TABLE.whiteAmtPos : RB_TABLE.whiteAmtNeg;
   const ton = (lin: number): number => {
-    let s = linearToSrgb(clamp01(lin));
+    // Le gain d'ombres / hautes lumières s'applique en LUMIÈRE LINÉAIRE, avant
+    // le passage en perceptuel : le noir pur reste noir sans clamp ni cas
+    // particulier, parce que `0 × gain = 0`.
+    let s = linearToSrgb(clamp01(lin * gainTon));
     s = exposureOp(s, exposure);                                 // exposition (gamma perceptuel ancré)
     s = contrastOp(s, kC, RB_TABLE.contrastPivot);              // contraste (gamma double pivoté)
-    s = clamp01(s);
-    s = s + kSh * shAmt * wSh;                                   // ombres locales (cloche sur luminance floutée)
-    s = s + kHl * hlAmt * wHl;                                   // hautes lumières locales
     s = clamp01(s);
     s = s + kBk * bkAmt * bump(sBlur, RB_TABLE.blackCenter, RB_TABLE.blackKappa); // noirs (local, luminance floutée — comme LR local_whites_blacks)
     s = s + kWh * whAmt * bump(sBlur, RB_TABLE.whiteCenter, RB_TABLE.whiteKappa); // blancs (local, luminance floutée)
@@ -545,14 +569,15 @@ ${wbFn("rb_wb_tint_neg", RB_TABLE.wbTintNeg)}
 const RB_EXPO_G = ${wf(RB_TABLE.expoG)};
 const RB_CONTRAST_G = ${wf(RB_TABLE.contrastG)};
 const RB_CONTRAST_PIVOT = ${wf(RB_TABLE.contrastPivot)};
-const RB_SH_AMT_POS = ${wf(RB_TABLE.shadowAmtPos)};
-const RB_SH_AMT_NEG = ${wf(RB_TABLE.shadowAmtNeg)};
-const RB_SH_CENTER = ${wf(RB_TABLE.shadowCenter)};
-const RB_SH_KAPPA = ${wf(RB_TABLE.shadowKappa)};
-const RB_HL_AMT_POS = ${wf(RB_TABLE.highlightAmtPos)};
-const RB_HL_AMT_NEG = ${wf(RB_TABLE.highlightAmtNeg)};
-const RB_HL_CENTER = ${wf(RB_TABLE.highlightCenter)};
-const RB_HL_KAPPA = ${wf(RB_TABLE.highlightKappa)};
+const RB_SH_LREF = ${wf(RB_TABLE.shadowLref)};
+const RB_SH_W_SCALE = ${wf(RB_TABLE.shadowWeightScale)};
+const RB_SH_W_OFFSET = ${wf(RB_TABLE.shadowWeightOffset)};
+const RB_SH_AMT = ${wf(RB_TABLE.shadowAmt)};
+const RB_HL_LREF = ${wf(RB_TABLE.highlightLref)};
+const RB_HL_W_SCALE = ${wf(RB_TABLE.highlightWeightScale)};
+const RB_HL_W_OFFSET = ${wf(RB_TABLE.highlightWeightOffset)};
+const RB_HL_AMT = ${wf(RB_TABLE.highlightAmt)};
+const RB_HL_FLARE = ${wf(RB_TABLE.highlightFlare)};
 const RB_BLACK_AMT_POS = ${wf(RB_TABLE.blackAmtPos)};
 const RB_BLACK_AMT_NEG = ${wf(RB_TABLE.blackAmtNeg)};
 const RB_BLACK_CENTER = ${wf(RB_TABLE.blackCenter)};
@@ -575,6 +600,16 @@ const RB_DEHAZE_GAMMA = ${wf(RB_TABLE.dehazeGamma)};
 const RB_DEHAZE_DESAT_K = ${wf(RB_TABLE.dehazeDesatK)};
 
 // Cloche beta normalisee (pic 1 au mode c, nulle en 0 et 1). Jumeau de bump() TS.
+// LIGNE x POIDS en LOG2 — jumeau de ligneFoisPoids cote TS. La ligne porte la
+// PORTEE de l operateur (elle s annule au-dela de lref), le poids clampe l ETEINT
+// a l autre bout : pour les ombres, c est lui qui tient le ras du noir. Rend le
+// decalage en log2, a appliquer comme un gain.
+fn rb_ligne_poids(lin: f32, flare: f32, lref: f32, wScale: f32, wOffset: f32, versLeBas: bool) -> f32 {
+  let L = log2(max(clamp(lin, 0.0, 1.0) + flare, 1e-9));
+  let ligne = select(max(0.0, L - lref), max(0.0, lref - L), versLeBas);
+  return ligne * clamp(wScale * L + wOffset, 0.0, 1.0);
+}
+
 fn rb_bump(v: f32, c: f32, k: f32) -> f32 {
   let ec = k * c;
   let e1 = k * (1.0 - c);
@@ -682,26 +717,28 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   //      noirs (cloche ponctuelle). Toutes les formes tiennent 0 et 1.
   let blurLuma = clamp(dot(textureSample(prevPass, srcSampler, uv).rgb, RB_LUMA), 0.0, 1.0);
   let sBlur = linear_to_srgb(blurLuma);
-  let wSh = rb_bump(sBlur, RB_SH_CENTER, RB_SH_KAPPA);
-  let wHl = rb_bump(sBlur, RB_HL_CENTER, RB_HL_KAPPA);
   let ev = params[2];
   let kC = params[3] / 100.0;
   let kHl = params[4] / 100.0;
   let kSh = params[5] / 100.0;
   let kWh = params[6] / 100.0;
   let kBk = params[7] / 100.0;
+  // OMBRES / HAUTES LUMIERES : decalage en LOG2, ligne x poids, calcule sur la
+  // luminance FLOUTEE et applique au pixel comme un GAIN en lumiere lineaire.
+  // Le noir pur reste noir sans clamp : zero fois un gain vaut zero. Forme lue
+  // dans l uniforme de Lightroom, voir reglagesDeBaseTable.
+  let dLogSh = select(0.0, kSh * RB_SH_AMT * rb_ligne_poids(
+    blurLuma, 0.0, RB_SH_LREF, RB_SH_W_SCALE, RB_SH_W_OFFSET, true), kSh != 0.0);
+  let dLogHl = select(0.0, kHl * RB_HL_AMT * rb_ligne_poids(
+    blurLuma, RB_HL_FLARE, RB_HL_LREF, RB_HL_W_SCALE, RB_HL_W_OFFSET, false), kHl != 0.0);
+  let gainTon = exp2(dLogSh + dLogHl);
   // Amplitude par signe (Lightroom est asymetrique — voir reglagesDeBaseTable).
-  let shAmt = select(RB_SH_AMT_NEG, RB_SH_AMT_POS, kSh >= 0.0);
-  let hlAmt = select(RB_HL_AMT_NEG, RB_HL_AMT_POS, kHl >= 0.0);
   let bkAmt = select(RB_BLACK_AMT_NEG, RB_BLACK_AMT_POS, kBk >= 0.0);
   let whAmt = select(RB_WHITE_AMT_NEG, RB_WHITE_AMT_POS, kWh >= 0.0);
   for (var i = 0u; i < 3u; i = i + 1u) {
-    var s = linear_to_srgb(clamp(c[i], 0.0, 1.0));
+    var s = linear_to_srgb(clamp(c[i] * gainTon, 0.0, 1.0));
     s = rb_expo(s, ev);
     s = rb_contrast(s, kC, RB_CONTRAST_PIVOT);
-    s = clamp(s, 0.0, 1.0);
-    s = s + kSh * shAmt * wSh;
-    s = s + kHl * hlAmt * wHl;
     s = clamp(s, 0.0, 1.0);
     // Blancs / Noirs LOCAUX : cloche sur la luminance floutee (sBlur), comme LR
     // local_whites_blacks — et comme HL/Ombres ci-dessus. Sur une rampe sBlur = s.

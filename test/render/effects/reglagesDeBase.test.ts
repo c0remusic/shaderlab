@@ -133,31 +133,20 @@ describe("reglagesDeBase — jumeau du ton d'un bloc", () => {
 
     // LE GATE : d'un bloc, au moins 130 niveaux distincts.
     expect(nBloc).toBeGreaterThanOrEqual(130);
-    // ⚠️ CE SEUIL ÉTAIT À 3, ET IL PASSAIT POUR UNE MAUVAISE RAISON. Mesuré le
-    // 2026-09-16 en portant la courbe paramétrique en CLOCHES : le trou de ce
-    // réglage vaut 15 SANS aucune courbe paramétrique, 17 avec la seule paire
-    // `exposure +1` / `shadows +60`, et 2 avec la courbe paramétrique seule. Il ne
-    // vient donc PAS de la courbe — il vient de deux cloches dont l'exposant bas
-    // est inférieur à 1 (`shadowKappa · shadowCenter` = 0,30), ce qui leur donne
-    // une pente INFINIE au ras du noir. L'ancienne courbe à plateaux le MASQUAIT
-    // en ramenant le bas à zéro ; les cloches ne le masquent plus, elles le
-    // RÉDUISENT (15 → 10).
+    // ⚠️ CE SEUIL A VOYAGÉ, ET SON HISTOIRE EST LA MESURE ELLE-MÊME. Il valait 3
+    // et passait pour une MAUVAISE raison : l'ancienne courbe paramétrique à
+    // plateaux ramenait le bas de la rampe à zéro, ce qui masquait un trou de 15
+    // que le réglage produit sans elle (17 avec la seule paire `exposure +1` /
+    // `shadows +60`). Les cloches de région l'ont démasqué à 10, puis la forme
+    // LOG des ombres — une ligne fois un poids, lue dans l'uniforme de Lightroom —
+    // l'a ramené à 5.
     //
-    // Le seuil constate donc une DETTE, ce n'est pas une cible. Et « zéro trou »
-    // n'en est pas une non plus : LIGHTROOM POSTE AUSSI — sa propre rampe
-    // `ombres-p100` a un trou de 14 et commence par 0 → 11,5 → 24,5. Ce qui est
-    // vrai, c'est qu'à réglage égal nous postons DEUX FOIS PLUS (trou 26 contre 14
-    // à `shadows +100`, 14 contre 5 à +50).
-    //
-    // Aucune calibration ne rattrape ça : balayage complet de la famille `bump`
-    // (91 × 196 couples centre/κ, amplitudes par signe ajustées à chaque point),
-    // le meilleur écart moyen donne un début de rampe à 22,7 quand la mesure dit
-    // 11,5, et le meilleur début fidèle coûte le DOUBLE d'écart moyen. C'est la
-    // forme de la cloche qui est insuffisante pour l'opérateur d'ombres, pas ses
-    // constantes — détail au ticket 02.
-    //
-    // Le seuil garde sa valeur de garde-fou : au-delà de 10, quelque chose a empiré.
-    expect(gBloc).toBeLessThanOrEqual(10);
+    // « Zéro trou » n'est pas la cible : LIGHTROOM POSTE AUSSI, et la cible est
+    // SON chiffre. À `shadows +100` sa rampe a un trou de 14 ; nous en avions 26
+    // avec la cloche, nous en avons 14 depuis la forme log. À +50 : 5 chez eux,
+    // 14 avec la cloche, 5 depuis. La postérisation ne se juge donc pas dans
+    // l'absolu, elle se compare à la référence.
+    expect(gBloc).toBeLessThanOrEqual(5);
     // Et l'empilement en perd nettement — la démonstration de la raison d'être.
     expect(nEmpile).toBeLessThan(nBloc - 8);
   });

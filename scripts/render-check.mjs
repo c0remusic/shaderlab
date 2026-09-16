@@ -3390,6 +3390,23 @@ const INSTALL = `(async () => {
         stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "balayage");
       },
     },
+    // moyens-global-lum : les DEUX luminances qui restaient sans aucun pixel gele,
+    // dans une seule scene — index 5 (tons moyens) et 11 (globale) du uniform. Elles
+    // ne partagent NI le poids des deux autres (cloche gaussienne pour les moyens,
+    // 4L(1-L) pour la globale) NI leur amplitude : lumK les porte toutes seules,
+    // alors que rangeContrast ne les touche pas. Une inversion de signe ou un index
+    // decale sur l une des deux serait passe par les six autres references.
+    // Signes OPPOSES a dessein : les moyens montent, la globale descend, donc la
+    // scene distingue les deux poids au lieu de les additionner.
+    // A l oeil : le milieu de la rampe s eclaircit, les deux bouts s assombrissent.
+    "developpement-grading-moyens-global-lum": {
+      develop: { colorGrading: { midtoneLum: 60, globalLum: -40 } },
+      build: async (r, stack) => {
+        const src = await mireBalayage(W, H);
+        const sourceId = await r.photoSources.register(src);
+        stack.addPhotoLayer(sourceId, { x: W / 2, y: H / 2, scaleX: 1, scaleY: 1, rotation: 0 }, "balayage");
+      },
+    },
 
     // Masque : source pinceau (raster) + source parametrique (degrade)
     // combinees, plus le refine edge (adoucissement / contraction / lissage,

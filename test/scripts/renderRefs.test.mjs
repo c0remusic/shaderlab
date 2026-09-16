@@ -670,6 +670,10 @@ const ATTENDU = {
   // chemin : la cinquième ne mord que vers le blanc, donc l'autre moitié du
   // `select` du shader n'était gelée par aucun pixel.
   "developpement-grading-ombres-lum-m50.png": { width: 256, height: 256, valeurs: null },
+  // La SEPTIÈME ferme le dernier trou du module : les luminances des tons moyens et
+  // de la roue globale, seuls index du uniform qu'aucun pixel ne gelait. Signes
+  // opposés dans la même scène, pour que les deux poids se distinguent.
+  "developpement-grading-moyens-global-lum.png": { width: 256, height: 256, valeurs: null },
   // TRANCHE T2 : la SEULE reference dont la toile n'a pas la taille de la mire
   // (320 x 320 pour une mire de 256 x 256). Sa presence ici, avec des dimensions
   // differentes des neuf autres, est la trace qu'une reference n'est plus

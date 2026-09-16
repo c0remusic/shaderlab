@@ -59,12 +59,23 @@ PLAT = 128
 PERIODE = 8
 AMPLITUDE = 24
 DEMI = 4096                   # hauteur d'un plateau par defaut
-# La derniere entree a un plateau MOITIE, a largeur inchangee. C'est la question
-# de la hauteur, posee a un instrument qui ne sature plus : si la reponse de
-# Clarte est en pixels absolus, son profil est le meme aux memes distances ; si
-# elle suit la hauteur de l'image, il se comprime d'un facteur deux.
+# Les deux dernieres entrees ont la meme LARGEUR que la deuxieme et des plateaux
+# de moitie puis de quart : hauteurs 16384, 8192 et 4096, soit un RAPPORT DE 4
+# entre les extremes. C'est la question du rayon, posee a un instrument qui ne
+# sature plus. Si la reponse de Clarte est en pixels absolus, son profil est le
+# meme aux memes DISTANCES ; si elle suit la hauteur, il est le meme aux memes
+# FRACTIONS de plateau. Un rapport de 2 laissait les deux lois a 0,2 et 0,6
+# niveau l'une de l'autre — trop serre pour trancher ; a 4, elles s'ecartent
+# assez pour que le desaccord sorte du bruit.
 TAILLES = [(1024, 4 * DEMI, DEMI), (2048, 4 * DEMI, DEMI),
-           (4096, 4 * DEMI, DEMI), (2048, 2 * DEMI, DEMI // 2)]
+           (4096, 4 * DEMI, DEMI), (2048, 2 * DEMI, DEMI // 2),
+           (2048, DEMI, DEMI // 4),
+           # Meme PLATEAU que la precedente (1024 px) mais une image huit fois
+           # plus LARGE : la hauteur y est le petit cote, alors qu'elle etait le
+           # grand dans toutes les autres. Elle separe « proportionnel a la
+           # hauteur » de « proportionnel au GRAND COTE », que rien d'autre ici
+           # ne distingue.
+           (8 * 2048, DEMI, DEMI // 4)]
 
 
 def reseau(largeur, base):

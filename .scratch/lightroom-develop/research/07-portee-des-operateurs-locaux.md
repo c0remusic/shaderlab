@@ -114,21 +114,76 @@ rend −8,14 et 8192 rend −7,93 (écart 0,21) ; à distance absolue égale (51
 elles rendent −6,74 et −7,32 (écart 0,58). La loi proportionnelle colle trois à
 cinq fois mieux que la loi absolue.
 
-**Conclusion, et sa réserve.** Clarté se compose d'un contraste local **court et
-absolu** (≈ 8 px, le même que sur une image sans détail) et d'une composante
-**large qui suit la géométrie de l'image**. La seconde n'est pas prouvée à trois
-décimales — les écarts qui la départagent valent 0,2 à 0,6 niveau, et un rapport
-de hauteurs de 2 est court pour trancher une loi. Un rapport de 4 (hauteurs 4096
-et 16384, même largeur) la fixerait ; la mire sait déjà les produire.
+**Rapport de 4 : la loi est tranchée.** Hauteurs 4096, 8192 et 16384 à largeur
+constante — plateaux de 1024, 2048 et 4096 px. Dispersion moyenne entre les trois
+hauteurs, dans le champ loin (au-delà de 64 px, donc hors du contraste court) :
+
+| zone / côté | hypothèse ABSOLUE | hypothèse FRACTION | |
+|---|---|---|---|
+| portée / haut | 0,91 | **0,15** | fraction ×6,1 |
+| portée / bas | 2,22 | **0,20** | fraction ×10,9 |
+| portail / haut | 0,95 | **0,41** | fraction ×2,3 |
+| portail / bas | 0,33 | 0,17 | absolu ×1,9 |
+
+Trois lectures sur quatre donnent la FRACTION, et les deux de la zone PORTÉE la
+donnent largement — l'hypothèse absolue y produit jusqu'à **5,48 niveaux** de
+désaccord entre hauteurs, quand la fraction en produit 0,37. Le cas le plus net,
+portée / bas à mi-course : lues à 512 px pour toutes, les trois hauteurs rendent
+−0,33 · −2,65 · −3,93 ; lues à la moitié de leur plateau, elles rendent
+−0,33 · −0,06 · −0,08.
+
+La quatrième lecture (portail / bas) préfère l'absolu, et elle ne pèse rien : ses
+deux dispersions valent 0,33 et 0,17, c'est-à-dire que ce côté-là — la moitié
+DÉTAILLÉE du portail — ne bouge presque pas selon la hauteur. Il ne discrimine
+rien, dans aucun sens.
+
+Et le **contraste court reste absolu** sur ce même rapport de 4 : dispersion de
+**0,09 à 0,46 niveau** entre les trois hauteurs, aux distances 0 à 32 px.
+
+## À quelle dimension, alors ? Pas au grand côté
+
+« Proportionnel à l'image » ne dit pas à quoi. Dans toutes les mires ci-dessus la
+hauteur est le GRAND côté, donc « suit la hauteur » et « suit le grand côté » y
+rendent la même chose. Une mire de **16384 × 4096** les sépare : même plateau que
+la 2048 × 4096 (1024 px), mais un grand côté quatre fois plus long.
+
+| portée / haut, distance px | 0 | 8 | 128 | 512 | 1000 |
+|---|---|---|---|---|---|
+| 2048 × 4096 | −22,23 | −6,16 | −6,56 | −7,88 | −7,97 |
+| 16384 × 4096 | −21,86 | −5,94 | −6,37 | −7,71 | −7,80 |
+
+Le profil est le **même**, à 0,4 niveau près, aux mêmes distances absolues. Un
+rayon qui suivrait le grand côté aurait été quatre fois plus large et la courbe
+se serait aplatie ; elle ne bouge pas. **La portée selon y suit la HAUTEUR**, et
+la largeur ne la touche pas — ce que confirmait déjà le test à trois largeurs.
+
+Une portée qui vaut une fraction de CHAQUE dimension prise séparément n'est pas
+un rayon isotrope : c'est la signature d'une **pyramide à nombre de niveaux
+fixe**, qui réduit l'image dans les deux axes jusqu'à un gabarit constant.
+
+⚠️ **Un effet mesuré et non expliqué** : élargir l'image huit fois à hauteur
+constante ne change pas la FORME du profil mais en réduit l'AMPLITUDE d'environ
+40 %, uniformément — le portail passe de −10,4 à −6,0 sur toute la longueur du
+plateau, et la zone portée se décale de +2,1 sans changer d'allure. Un décalage
+constant, pas une déformation. Noté, pas modélisé.
+
+**Conclusion.** Clarté se compose d'un contraste **court et absolu** (≈ 8 px, le
+seul qui survive sur une image sans détail) et d'une composante **large dont la
+portée vaut une fraction de chaque dimension de l'image**, de l'ordre du quart de
+la hauteur — et encore, elle dérive encore au bout du plateau à toutes les
+hauteurs testées, donc ce quart est un plancher, pas une mesure de sa longueur.
 
 ## Ce que ça décide pour nous
 
 - **Texture s'écrit en pixels.** Un rayon d'une douzaine de pixels, constant,
   quelle que soit la taille de l'image. Notre tente à un texel est dix fois trop
   courte, et c'est un nombre, pas une architecture, qu'il faut changer.
-- **Clarté s'écrit en deux morceaux.** Notre pyramide, relative à l'image, a la
-  bonne FORME pour la composante large — mais elle rend 13,5 px là où il en faut
-  des milliers, et il manque entièrement le contraste court de 8 px.
+- **Clarté s'écrit en deux morceaux.** Notre pyramide, relative à l'image, a
+  exactement la bonne FORME pour la composante large — une pyramide à nombre de
+  niveaux fixe EST une portée proportionnelle à chaque dimension, et c'est ce que
+  la mesure décrit. Ce qui manque est le nombre de niveaux : elle rend 13,5 px là
+  où il en faut de l'ordre du quart de la hauteur. Et il manque entièrement le
+  second morceau, le contraste court de 8 px en pixels absolus.
 - **Et surtout : Clarté doit être éteinte par l'absence de détail.** C'est la
   propriété la plus visible de l'opérateur d'Adobe et celle qu'aucun de nos deux
   modules ne porte : chez nous, `clarity` agit sur tout écart au flou, y compris

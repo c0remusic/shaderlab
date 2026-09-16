@@ -3246,9 +3246,47 @@ const INSTALL = `(async () => {
     // lisent — une rampe lisse ne montrerait rien). Texture +60, Clarte +60,
     // Voile +40. Gele le flou SPATIAL (pyramide + tente fine) que le twin TS ne
     // mire pas. Se juge en crop 1:1.
+    //
+    // ⚠️ CELLE-CI GELE LA COMPOSITION, PAS LES OPERATEURS. Elle regle les TROIS
+    // a la fois, donc une regression sur un seul s y noie — et elle s y est
+    // noyee deux fois le 2026-09-16, d abord sur Texture puis sur le Voile, sans
+    // qu aucun autre scenario ne bouge. Les cinq qui suivent isolent chaque
+    // operateur et chaque SIGNE ; celle-ci reste, parce que les trois passent par
+    // la meme pyramide et que leur composition merite son propre pixel.
     "developpement-reglages-presence": {
       contre: "photo-de-fond-seule",
       develop: { reglagesDeBase: { texture: 60, clarity: 60, dehaze: 40 } },
+      build: async () => {},
+    },
+    // LES DEUX SIGNES DE CHAQUE OPERATEUR, et ce n est pas du zele : un
+    // operateur a SIGNE a un jumeau faux de meme amplitude. Le relief inverse du
+    // 2026-08 rendait 74,9 % d ecart avec une gate verte, precisement parce
+    // qu une seule branche etait gelee. Texture accentue / lisse, Clarte creuse /
+    // adoucit, et le Voile a deux FORMES distinctes (celle de He au retrait,
+    // l ecran vers un airlight a l ajout) dont l ajout est deja gele plus bas.
+    "developpement-reglages-texture": {
+      contre: "photo-de-fond-seule",
+      develop: { reglagesDeBase: { texture: 60 } },
+      build: async () => {},
+    },
+    "developpement-reglages-texture-lissage": {
+      contre: "photo-de-fond-seule",
+      develop: { reglagesDeBase: { texture: -60 } },
+      build: async () => {},
+    },
+    "developpement-reglages-clarte": {
+      contre: "photo-de-fond-seule",
+      develop: { reglagesDeBase: { clarity: 60 } },
+      build: async () => {},
+    },
+    "developpement-reglages-clarte-adoucie": {
+      contre: "photo-de-fond-seule",
+      develop: { reglagesDeBase: { clarity: -60 } },
+      build: async () => {},
+    },
+    "developpement-reglages-voile-retrait": {
+      contre: "photo-de-fond-seule",
+      develop: { reglagesDeBase: { dehaze: 40 } },
       build: async () => {},
     },
     // voile-ajout : la branche NEGATIVE du voile, que rien ne gelait — celle

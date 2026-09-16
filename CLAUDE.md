@@ -722,13 +722,23 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   Ce qu'elle laisse passer : notre uniform `params: array<f32, 48>` n'est pas
   conforme (stride 4 pour un alignement requis de 16 en espace uniform), Dawn
   l'accepte quand même, et corriger toucherait chaque accès `params[N]` des 26
-  effets, index gelés par les presets ET par **137** références de pixels
-  (**147 PNG** dans `test/render-refs/` au 2026-09-15 ; SIX ne gèlent PAS un
-  index : `photo-miroir-temoin` / `photo-miroir` gèlent le miroir du calque
-  photo, `cadre-toile` / `cadre-toile-temoin` / `cadre-toile-degrade` gèlent
-  un DÉCOUPAGE de toile, et `developpement-reglages-temoin` est la rampe nue
+  effets, index gelés par les presets ET par **150** références de pixels
+  (**156 PNG** dans `test/render-refs/` au 2026-09-16, RE-COMPTÉ sur disque ;
+  SIX ne gèlent PAS un index : `photo-miroir-temoin` / `photo-miroir` gèlent le
+  miroir du calque photo, `cadre-toile` / `cadre-toile-temoin` /
+  `cadre-toile-degrade` gèlent un DÉCOUPAGE de toile, et
+  `developpement-reglages-temoin` est la rampe nue
   (le module `reglagesDeBase` au défaut est SAUTÉ, aucun `params[N]` lu) — donc
-  le compte qui gèle les index est 143 − 2 − 3 − 1 = 137.
+  le compte qui gèle les index est 156 − 2 − 3 − 1 = 150.
+  ⚠️ **+5 le 2026-09-16** : `developpement-reglages-{texture,texture-lissage,
+  clarte,clarte-adoucie,voile-retrait}`. Elles ferment un trou que
+  `developpement-reglages-presence` cachait — elle règle Texture, Clarté ET Voile
+  À LA FOIS, donc une régression sur un seul s'y noyait, et elle s'y est noyée
+  DEUX fois le même jour sans qu'aucun autre scénario ne bouge. Chaque opérateur
+  a désormais son pixel, et chaque SIGNE le sien : un opérateur à signe a un
+  jumeau faux de MÊME amplitude, et une seule branche gelée ne l'attrape pas.
+  La paire la plus parlante : Clarté +60 déplace la moyenne de −4,41, Clarté −60
+  de +3,70.
   ⚠️ **+4 le 2026-09-11 (ticket 05 lightroom-develop)** : les quatre références
   `developpement-hsl-{teinte-rouge,sat-bleu,lum-vert,nb}` du module `hsl`
   (TSL / Couleur / Noir et blanc), sur `mireBalayage`. Les quatre gèlent ses index

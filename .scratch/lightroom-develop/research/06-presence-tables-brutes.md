@@ -229,6 +229,62 @@ Geometrie : `assets/mire/shaderlab-mire-presence.json`. Donnees : `research/mesu
 
 > Les deux voisinages divergent : le rayon depasse le pas des bandes (96 px). Ne rien conclure des zones ECHELLE / AMPLITUDE / TON — lire la zone ECHELON.
 
+## pres-temoin (2048x7584)
+
+| zone | periode | base | amp in | gain | h2/f1 | dMoy |
+|---|---|---|---|---|---|---|
+| echelle | 3.00 | 128 | 24 | 1.000 | 0.000 | +0.00 |
+| echelle | 4.00 | 128 | 24 | 1.000 | 0.000 | +0.00 |
+| echelle | 6.01 | 128 | 24 | 1.000 | 0.000 | +0.00 |
+| echelle | 8.00 | 128 | 24 | 1.000 | 0.000 | +0.00 |
+| echelle | 11.98 | 128 | 24 | 1.000 | 0.000 | +0.00 |
+| echelle | 16.00 | 128 | 24 | 1.000 | 0.000 | +0.00 |
+| echelle | 24.09 | 128 | 24 | 1.000 | 0.000 | +0.00 |
+| echelle | 32.00 | 128 | 24 | 1.000 | 0.000 | +0.00 |
+| echelle | 47.63 | 128 | 24 | 1.000 | 0.000 | +0.00 |
+| echelle | 64.00 | 128 | 24 | 1.000 | 0.000 | +0.00 |
+| echelle | 97.52 | 128 | 24 | 1.000 | 0.000 | +0.00 |
+| echelle | 128.00 | 128 | 24 | 1.000 | 0.000 | +0.00 |
+| echelle | 186.18 | 128 | 24 | 1.000 | 0.000 | +0.00 |
+| echelle | 256.00 | 128 | 24 | 1.000 | 0.000 | +0.00 |
+| amplitude | 16.00 | 128 | 2 | 1.000 | 0.000 | +0.00 |
+| amplitude | 16.00 | 128 | 4 | 1.000 | 0.000 | +0.00 |
+| amplitude | 16.00 | 128 | 8 | 1.000 | 0.000 | +0.00 |
+| amplitude | 16.00 | 128 | 16 | 1.000 | 0.000 | +0.00 |
+| amplitude | 16.00 | 128 | 32 | 1.000 | 0.000 | +0.00 |
+| amplitude | 16.00 | 128 | 64 | 1.000 | 0.000 | +0.00 |
+| amplitude | 64.00 | 128 | 2 | 1.000 | 0.000 | +0.00 |
+| amplitude | 64.00 | 128 | 4 | 1.000 | 0.000 | +0.00 |
+| amplitude | 64.00 | 128 | 8 | 1.000 | 0.000 | +0.00 |
+| amplitude | 64.00 | 128 | 16 | 1.000 | 0.000 | +0.00 |
+| amplitude | 64.00 | 128 | 32 | 1.000 | 0.000 | +0.00 |
+| amplitude | 64.00 | 128 | 64 | 1.000 | 0.000 | +0.00 |
+| ton | 16.00 | 24 | 16 | 1.000 | 0.000 | +0.00 |
+| ton | 64.00 | 24 | 16 | 1.000 | 0.000 | +0.00 |
+| ton | 16.00 | 72 | 16 | 1.000 | 0.000 | +0.00 |
+| ton | 64.00 | 72 | 16 | 1.000 | 0.000 | +0.00 |
+| ton | 16.00 | 128 | 16 | 1.000 | 0.000 | +0.00 |
+| ton | 64.00 | 128 | 16 | 1.000 | 0.000 | +0.00 |
+| ton | 16.00 | 184 | 16 | 1.000 | 0.000 | +0.00 |
+| ton | 64.00 | 184 | 16 | 1.000 | 0.000 | +0.00 |
+| ton | 16.00 | 232 | 16 | 1.000 | 0.000 | +0.00 |
+| ton | 64.00 | 232 | 16 | 1.000 | 0.000 | +0.00 |
+| plat | — | 32 | — | — | ecart-type 0.000 | +0.00 |
+| plat | — | 128 | — | — | ecart-type 0.000 | +0.00 |
+| plat | — | 224 | — | — | ecart-type 0.000 | +0.00 |
+| echelon 96\|160 | — | — | — | halo +0.00 / +0.00 | portee 0 / 0 px | global +0.00 / +0.00 |
+| echelon 32\|64 | — | — | — | halo +0.00 / +0.00 | portee 0 / 0 px | global +0.00 / +0.00 |
+| echelon 176\|224 | — | — | — | halo +0.00 / +0.00 | portee 0 / 0 px | global +0.00 / +0.00 |
+
+**Controle interne** — meme stimulus dans deux voisinages :
+
+| periode | gain (zone amplitude) | gain (zone ton) | dMoy (amplitude) | dMoy (ton) | verdict |
+|---|---|---|---|---|---|
+| 16 | 1.000 | 1.000 | +0.00 | +0.00 | lisible |
+| 64 | 1.000 | 1.000 | +0.00 | +0.00 | lisible |
+
+> Les deux voisinages s'accordent : le rayon est sous le pas des bandes, les zones ECHELLE / AMPLITUDE / TON valent pour cet operateur.
+
 ## pres-texture-m100 (2048x7584)
 
 | zone | periode | base | amp in | gain | h2/f1 | dMoy |
@@ -920,4 +976,172 @@ Geometrie : `assets/mire/shaderlab-mire-presence.json`. Donnees : `research/mesu
 | 64 | 1.452 | 1.452 | +0.16 | +0.16 | lisible |
 
 > Les deux voisinages s'accordent : le rayon est sous le pas des bandes, les zones ECHELLE / AMPLITUDE / TON valent pour cet operateur.
+
+## presv-voile-p25 (2048x7584)
+
+| zone | periode | base | amp in | gain | h2/f1 | dMoy |
+|---|---|---|---|---|---|---|
+| echelle | 3.00 | 128 | 24 | 1.189 | 0.003 | -13.54 |
+| echelle | 4.00 | 128 | 24 | 1.182 | 0.000 | -13.26 |
+| echelle | 6.01 | 128 | 24 | 1.182 | 0.003 | -13.09 |
+| echelle | 8.00 | 128 | 24 | 1.169 | 0.003 | -12.66 |
+| echelle | 11.98 | 128 | 24 | 1.166 | 0.005 | -12.50 |
+| echelle | 16.00 | 128 | 24 | 1.167 | 0.004 | -12.38 |
+| echelle | 24.09 | 128 | 24 | 1.153 | 0.005 | -12.10 |
+| echelle | 32.00 | 128 | 24 | 1.148 | 0.006 | -11.97 |
+| echelle | 47.63 | 128 | 24 | 1.148 | 0.006 | -11.91 |
+| echelle | 64.00 | 128 | 24 | 1.148 | 0.006 | -11.86 |
+| echelle | 97.52 | 128 | 24 | 1.146 | 0.007 | -11.84 |
+| echelle | 128.00 | 128 | 24 | 1.146 | 0.010 | -11.85 |
+| echelle | 186.18 | 128 | 24 | 1.142 | 0.014 | -11.89 |
+| echelle | 256.00 | 128 | 24 | 1.140 | 0.018 | -11.94 |
+| amplitude | 16.00 | 128 | 2 | 1.141 | 0.003 | -12.58 |
+| amplitude | 16.00 | 128 | 4 | 1.142 | 0.003 | -12.53 |
+| amplitude | 16.00 | 128 | 8 | 1.148 | 0.003 | -12.30 |
+| amplitude | 16.00 | 128 | 16 | 1.157 | 0.006 | -11.87 |
+| amplitude | 16.00 | 128 | 32 | 1.154 | 0.002 | -11.32 |
+| amplitude | 16.00 | 128 | 64 | 1.128 | 0.006 | -10.33 |
+| amplitude | 64.00 | 128 | 2 | 1.112 | 0.010 | -10.67 |
+| amplitude | 64.00 | 128 | 4 | 1.112 | 0.003 | -10.26 |
+| amplitude | 64.00 | 128 | 8 | 1.115 | 0.004 | -9.89 |
+| amplitude | 64.00 | 128 | 16 | 1.115 | 0.006 | -9.55 |
+| amplitude | 64.00 | 128 | 32 | 1.106 | 0.004 | -9.24 |
+| amplitude | 64.00 | 128 | 64 | 1.073 | 0.004 | -8.02 |
+| ton | 16.00 | 24 | 16 | 1.030 | 0.018 | -4.35 |
+| ton | 64.00 | 24 | 16 | 1.002 | 0.019 | -4.48 |
+| ton | 16.00 | 72 | 16 | 1.071 | 0.004 | -10.32 |
+| ton | 64.00 | 72 | 16 | 1.050 | 0.006 | -10.55 |
+| ton | 16.00 | 128 | 16 | 1.096 | 0.008 | -10.03 |
+| ton | 64.00 | 128 | 16 | 1.085 | 0.009 | -10.56 |
+| ton | 16.00 | 184 | 16 | 1.148 | 0.000 | -5.42 |
+| ton | 64.00 | 184 | 16 | 1.131 | 0.002 | -5.71 |
+| ton | 16.00 | 232 | 16 | 1.211 | 0.013 | +1.76 |
+| ton | 64.00 | 232 | 16 | 1.265 | 0.024 | +2.35 |
+| plat | — | 32 | — | — | ecart-type 0.065 | -5.21 |
+| plat | — | 128 | — | — | ecart-type 0.679 | -15.54 |
+| plat | — | 224 | — | — | ecart-type 0.000 | +0.00 |
+| echelon 96\|160 | — | — | — | halo -5.67 / +6.30 | portee 8 / 527 px | global -12.55 / -14.38 |
+| echelon 32\|64 | — | — | — | halo -3.70 / +2.79 | portee 45 / 48 px | global -5.21 / -9.54 |
+| echelon 176\|224 | — | — | — | halo -9.39 / +0.00 | portee 343 / 0 px | global -14.19 / +0.00 |
+
+**Controle interne** — meme stimulus dans deux voisinages :
+
+| periode | gain (zone amplitude) | gain (zone ton) | dMoy (amplitude) | dMoy (ton) | verdict |
+|---|---|---|---|---|---|
+| 16 | 1.157 | 1.096 | -11.87 | -10.03 | **RAYON HORS PORTEE** |
+| 64 | 1.115 | 1.085 | -9.55 | -10.56 | **RAYON HORS PORTEE** |
+
+> Les deux voisinages divergent : le rayon depasse le pas des bandes (96 px). Ne rien conclure des zones ECHELLE / AMPLITUDE / TON — lire la zone ECHELON.
+
+## presv-voile-p50 (2048x7584)
+
+| zone | periode | base | amp in | gain | h2/f1 | dMoy |
+|---|---|---|---|---|---|---|
+| echelle | 3.00 | 128 | 24 | 1.420 | 0.007 | -29.06 |
+| echelle | 4.00 | 128 | 24 | 1.397 | 0.001 | -28.58 |
+| echelle | 6.01 | 128 | 24 | 1.404 | 0.008 | -28.04 |
+| echelle | 8.00 | 128 | 24 | 1.372 | 0.005 | -27.01 |
+| echelle | 11.98 | 128 | 24 | 1.364 | 0.003 | -26.67 |
+| echelle | 16.00 | 128 | 24 | 1.366 | 0.005 | -26.40 |
+| echelle | 24.09 | 128 | 24 | 1.332 | 0.002 | -25.75 |
+| echelle | 32.00 | 128 | 24 | 1.323 | 0.001 | -25.46 |
+| echelle | 47.63 | 128 | 24 | 1.321 | 0.000 | -25.31 |
+| echelle | 64.00 | 128 | 24 | 1.319 | 0.000 | -25.19 |
+| echelle | 97.52 | 128 | 24 | 1.317 | 0.003 | -25.18 |
+| echelle | 128.00 | 128 | 24 | 1.314 | 0.008 | -25.19 |
+| echelle | 186.18 | 128 | 24 | 1.306 | 0.017 | -25.24 |
+| echelle | 256.00 | 128 | 24 | 1.302 | 0.024 | -25.36 |
+| amplitude | 16.00 | 128 | 2 | 1.327 | 0.003 | -26.38 |
+| amplitude | 16.00 | 128 | 4 | 1.326 | 0.003 | -26.26 |
+| amplitude | 16.00 | 128 | 8 | 1.328 | 0.002 | -25.81 |
+| amplitude | 16.00 | 128 | 16 | 1.334 | 0.001 | -25.09 |
+| amplitude | 16.00 | 128 | 32 | 1.340 | 0.008 | -24.15 |
+| amplitude | 16.00 | 128 | 64 | 1.290 | 0.021 | -22.44 |
+| amplitude | 64.00 | 128 | 2 | 1.245 | 0.012 | -22.16 |
+| amplitude | 64.00 | 128 | 4 | 1.253 | 0.001 | -21.30 |
+| amplitude | 64.00 | 128 | 8 | 1.244 | 0.001 | -20.57 |
+| amplitude | 64.00 | 128 | 16 | 1.237 | 0.004 | -19.95 |
+| amplitude | 64.00 | 128 | 32 | 1.228 | 0.003 | -19.41 |
+| amplitude | 64.00 | 128 | 64 | 1.159 | 0.004 | -16.97 |
+| ton | 16.00 | 24 | 16 | 1.029 | 0.004 | -8.66 |
+| ton | 64.00 | 24 | 16 | 0.989 | 0.009 | -9.06 |
+| ton | 16.00 | 72 | 16 | 1.164 | 0.004 | -21.96 |
+| ton | 64.00 | 72 | 16 | 1.118 | 0.005 | -22.43 |
+| ton | 16.00 | 128 | 16 | 1.197 | 0.007 | -21.00 |
+| ton | 64.00 | 128 | 16 | 1.172 | 0.008 | -22.16 |
+| ton | 16.00 | 184 | 16 | 1.319 | 0.003 | -11.47 |
+| ton | 64.00 | 184 | 16 | 1.285 | 0.002 | -12.09 |
+| ton | 16.00 | 232 | 16 | 1.365 | 0.044 | +2.91 |
+| ton | 64.00 | 232 | 16 | 1.382 | 0.030 | +3.28 |
+| plat | — | 32 | — | — | ecart-type 0.076 | -10.73 |
+| plat | — | 128 | — | — | ecart-type 1.558 | -33.01 |
+| plat | — | 224 | — | — | ecart-type 0.000 | +0.00 |
+| echelon 96\|160 | — | — | — | halo -13.73 / +15.10 | portee 11 / 542 px | global -26.68 / -32.32 |
+| echelon 32\|64 | — | — | — | halo -7.93 / +6.13 | portee 44 / 47 px | global -10.73 / -20.26 |
+| echelon 176\|224 | — | — | — | halo -26.56 / +0.00 | portee 329 / 0 px | global -32.36 / +0.00 |
+
+**Controle interne** — meme stimulus dans deux voisinages :
+
+| periode | gain (zone amplitude) | gain (zone ton) | dMoy (amplitude) | dMoy (ton) | verdict |
+|---|---|---|---|---|---|
+| 16 | 1.334 | 1.197 | -25.09 | -21.00 | **RAYON HORS PORTEE** |
+| 64 | 1.237 | 1.172 | -19.95 | -22.16 | **RAYON HORS PORTEE** |
+
+> Les deux voisinages divergent : le rayon depasse le pas des bandes (96 px). Ne rien conclure des zones ECHELLE / AMPLITUDE / TON — lire la zone ECHELON.
+
+## presv-voile-p75 (2048x7584)
+
+| zone | periode | base | amp in | gain | h2/f1 | dMoy |
+|---|---|---|---|---|---|---|
+| echelle | 3.00 | 128 | 24 | 1.760 | 0.038 | -47.59 |
+| echelle | 4.00 | 128 | 24 | 1.715 | 0.001 | -46.65 |
+| echelle | 6.01 | 128 | 24 | 1.723 | 0.039 | -45.74 |
+| echelle | 8.00 | 128 | 24 | 1.659 | 0.033 | -43.83 |
+| echelle | 11.98 | 128 | 24 | 1.641 | 0.028 | -43.20 |
+| echelle | 16.00 | 128 | 24 | 1.642 | 0.031 | -42.74 |
+| echelle | 24.09 | 128 | 24 | 1.577 | 0.024 | -41.54 |
+| echelle | 32.00 | 128 | 24 | 1.557 | 0.022 | -41.02 |
+| echelle | 47.63 | 128 | 24 | 1.555 | 0.021 | -40.77 |
+| echelle | 64.00 | 128 | 24 | 1.550 | 0.021 | -40.54 |
+| echelle | 97.52 | 128 | 24 | 1.546 | 0.017 | -40.51 |
+| echelle | 128.00 | 128 | 24 | 1.539 | 0.008 | -40.54 |
+| echelle | 186.18 | 128 | 24 | 1.526 | 0.005 | -40.59 |
+| echelle | 256.00 | 128 | 24 | 1.518 | 0.016 | -40.79 |
+| amplitude | 16.00 | 128 | 2 | 1.568 | 0.005 | -41.84 |
+| amplitude | 16.00 | 128 | 4 | 1.574 | 0.004 | -41.64 |
+| amplitude | 16.00 | 128 | 8 | 1.573 | 0.011 | -40.94 |
+| amplitude | 16.00 | 128 | 16 | 1.577 | 0.017 | -39.96 |
+| amplitude | 16.00 | 128 | 32 | 1.593 | 0.032 | -39.19 |
+| amplitude | 16.00 | 128 | 64 | 1.464 | 0.021 | -35.71 |
+| amplitude | 64.00 | 128 | 2 | 1.425 | 0.007 | -34.74 |
+| amplitude | 64.00 | 128 | 4 | 1.427 | 0.003 | -33.34 |
+| amplitude | 64.00 | 128 | 8 | 1.410 | 0.004 | -32.17 |
+| amplitude | 64.00 | 128 | 16 | 1.387 | 0.005 | -31.31 |
+| amplitude | 64.00 | 128 | 32 | 1.377 | 0.008 | -30.80 |
+| amplitude | 64.00 | 128 | 64 | 1.262 | 0.000 | -27.04 |
+| ton | 16.00 | 24 | 16 | 0.927 | 0.115 | -12.28 |
+| ton | 64.00 | 24 | 16 | 0.860 | 0.097 | -12.85 |
+| ton | 16.00 | 72 | 16 | 1.269 | 0.004 | -35.15 |
+| ton | 64.00 | 72 | 16 | 1.190 | 0.003 | -35.98 |
+| ton | 16.00 | 128 | 16 | 1.324 | 0.000 | -33.03 |
+| ton | 64.00 | 128 | 16 | 1.288 | 0.001 | -34.94 |
+| ton | 16.00 | 184 | 16 | 1.525 | 0.007 | -18.22 |
+| ton | 64.00 | 184 | 16 | 1.469 | 0.001 | -19.24 |
+| ton | 16.00 | 232 | 16 | 1.463 | 0.099 | +3.50 |
+| ton | 64.00 | 232 | 16 | 1.455 | 0.089 | +3.72 |
+| plat | — | 32 | — | — | ecart-type 0.064 | -16.42 |
+| plat | — | 128 | — | — | ecart-type 2.807 | -53.44 |
+| plat | — | 224 | — | — | ecart-type 0.000 | +0.00 |
+| echelon 96\|160 | — | — | — | halo -26.47 / +26.23 | portee 8 / 541 px | global -43.42 / -53.89 |
+| echelon 32\|64 | — | — | — | halo -14.96 / +10.21 | portee 42 / 48 px | global -16.42 / -32.24 |
+| echelon 176\|224 | — | — | — | halo -53.85 / +0.00 | portee 321 / 0 px | global -56.23 / +0.00 |
+
+**Controle interne** — meme stimulus dans deux voisinages :
+
+| periode | gain (zone amplitude) | gain (zone ton) | dMoy (amplitude) | dMoy (ton) | verdict |
+|---|---|---|---|---|---|
+| 16 | 1.577 | 1.324 | -39.96 | -33.03 | **RAYON HORS PORTEE** |
+| 64 | 1.387 | 1.288 | -31.31 | -34.94 | **RAYON HORS PORTEE** |
+
+> Les deux voisinages divergent : le rayon depasse le pas des bandes (96 px). Ne rien conclure des zones ECHELLE / AMPLITUDE / TON — lire la zone ECHELON.
 

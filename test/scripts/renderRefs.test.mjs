@@ -642,6 +642,11 @@ const ATTENDU = {
   "developpement-reglages-couleur.png": { width: 256, height: 256, valeurs: null },
   "developpement-reglages-saturation.png": { width: 256, height: 256, valeurs: null },
   "developpement-reglages-presence.png": { width: 256, height: 256, valeurs: null },
+  "developpement-reglages-texture.png": { width: 256, height: 256, valeurs: null },
+  "developpement-reglages-texture-lissage.png": { width: 256, height: 256, valeurs: null },
+  "developpement-reglages-clarte.png": { width: 256, height: 256, valeurs: null },
+  "developpement-reglages-clarte-adoucie.png": { width: 256, height: 256, valeurs: null },
+  "developpement-reglages-voile-retrait.png": { width: 256, height: 256, valeurs: null },
   // La branche NÉGATIVE du voile : celle au-dessus ne règle que +40, donc une
   // moitié de l'opérateur n'avait aucun pixel derrière elle.
   "developpement-reglages-voile-ajout.png": { width: 256, height: 256, valeurs: null },

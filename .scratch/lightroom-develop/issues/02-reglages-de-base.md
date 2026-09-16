@@ -351,3 +351,55 @@ rampes avant d'être posée — pas l'inverse.
 3. `voile` : mécanisme divergent, déjà écrit au 09, jamais repris.
 4. Une mire qui PORTE de la chroma et du détail pour `vibrance`, `saturation` et
    `texture` — la rampe grise ne peut rien en dire.
+
+## 2026-09-16 (2ᵉ passe) — la courbe paramétrique, et la dette qu'elle révèle
+
+**Leur forme est une CLOCHE par région, pas un plateau.** Mesuré : à `Ombres` +100,
+Lightroom lève le niveau 50 de +29,7 puis REDESCEND à zéro vers 128 — un plateau
+tient jusqu'à la séparation, une cloche retombe. Et les quatre amplitudes de pic
+sont toutes différentes (+29,7 / +55,8 / +71,4 / +36,2), ce qu'une amplitude unique
+ne peut pas rendre.
+
+**Les centres ne sont pas fittés.** Les quatre centres mesurés (0,17 / 0,39 / 0,65 /
+0,81) sont les milieux des régions, à condition de prendre les bornes du noir et du
+blanc à 0,10 et 0,90. Une seule constante (`curveEdge`) les produit tous les quatre,
+et les séparations continuent de les déplacer — ce qui est leur rôle.
+
+| mesure | plateaux | cloches |
+| --- | --- | --- |
+| `param-lights` +100 | 16,50 | **2,89** |
+| `param-darks` +100 | 13,33 | **1,61** |
+| `param-ombres` +100 | 8,39 | **1,14** |
+| `param-hl` −100 | 6,48 | **1,31** |
+| les 55 mesures de ton | 3,35 | **2,66** |
+
+**Validation hors échantillon** : `param-splits-10-50-90` (séparations déplacées à
+10/50/90) n'a servi à aucun ajustement — ni les amplitudes, ni les étroitesses, ni
+les centres. Elle passe de **7,67 à 4,09** niveaux, pire cas 51,3 → 10,6. C'est le
+lien centre ↔ séparation qui est validé là, et c'est la partie non fittée du modèle.
+
+### ⚠️ Ce que le changement RÉVÈLE, et qui ne vient pas de lui
+
+Le test de quantification (`reglagesDeBase.test.ts`, « 132 niveaux, pas 109 ») a
+rougi : trou de 10 niveaux là où il exige 3. Attribué avant de toucher quoi que ce
+soit :
+
+| réglage | trou max |
+| --- | --- |
+| `exposure +1` + `shadows +60` seuls | **17** |
+| le réglage du test SANS courbe paramétrique | **15** |
+| le même AVEC la courbe en cloches | **10** |
+| la courbe paramétrique SEULE | 2 |
+
+Le trou ne vient donc pas de la courbe — **elle le réduit**. Il vient de deux
+cloches dont l'exposant bas est inférieur à 1 (`shadowKappa · shadowCenter` = 0,30,
+`highlightKappa · (1 − highlightCenter)` = 0,32), ce qui leur donne une **pente
+infinie** au ras du bout. L'ancienne courbe à plateaux le MASQUAIT en ramenant le
+bas à zéro ; le gate passait donc pour une mauvaise raison.
+
+Correction mesurée et REFUSÉE pour l'instant : plancher les exposants de `bump` à 1
+ramène le trou à 3, au prix de **2,66 → 4,70** niveaux d'écart de parité sur les 55
+mesures. Hors périmètre de ce ticket, et trop cher tel quel — la vraie sortie est
+de refitter les quatre cloches sous la contrainte « exposant ≥ 1 », ce qui demande
+de rejouer `calibrer-ton.py` sur `ombres-*`, `hautes-lumieres-*`, `noirs-*`,
+`blancs-*`. À faire avant de croire le seuil de quantification.

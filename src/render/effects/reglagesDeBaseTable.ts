@@ -44,8 +44,11 @@
  *    écrase bien plus que +100 ne lève. Une amplitude unique ne peut pas fitter les
  *    deux ; `amtPos` sert quand le curseur est > 0, `amtNeg` quand il est < 0. La
  *    FORME de la cloche (center, kappa) est partagée.
- *  - COURBE PARAMÉTRIQUE — `curveAmt` = lift perceptuel maximal d'une région à
- *    |100| ; `curveWin` = demi-largeur des transitions cosinus entre régions.
+ *  - COURBE PARAMÉTRIQUE — une CLOCHE par région (`curveAmt`, `curveKappa`,
+ *    centres dérivés des séparations par `curveEdge`). ⚠️ C'étaient quatre
+ *    PLATEAUX télescopiques à amplitude unique jusqu'au 2026-09-16, et la mesure
+ *    dit des cloches : le lift des ombres culmine au niveau 50 puis REDESCEND à
+ *    zéro vers 128, là où un plateau le tiendrait jusqu'à la séparation.
  *
  * `bump(v,c,k) = v^(k·c)·(1−v)^(k·(1−c)) / peak`, `peak = c^(k·c)·(1−c)^(k·(1−c))`.
  * Le mode de la cloche est EXACTEMENT `c` ; `k` la resserre (k grand = étroite).
@@ -134,10 +137,19 @@ export interface ReglagesDeBaseTable {
   whiteCenter: number;
   /** Blancs — concentration de la cloche. */
   whiteKappa: number;
-  /** Courbe paramétrique — lift perceptuel maximal d'une région à |100|. */
-  curveAmt: number;
-  /** Courbe paramétrique — demi-largeur des transitions cosinus (perceptuel). */
-  curveWin: number;
+  /** Courbe paramétrique — AMPLITUDE de chaque région [ombres, sombres, claires,
+   *  hautes], en lift perceptuel à |100|. Une par région : Lightroom ne les dose
+   *  pas pareil (mesuré à +100 : +29,7 / +55,8 / +71,4 / +36,2 niveaux de pic). */
+  curveAmt: number[];
+  /** Courbe paramétrique — ÉTROITESSE de la cloche de chaque région. Les deux
+   *  régions extrêmes sont bien plus serrées que les deux du milieu. */
+  curveKappa: number[];
+  /** Courbe paramétrique — retrait des BOUTS pour placer les centres de cloche.
+   *  Le centre d'une région est le milieu de ses bornes, celles du noir et du
+   *  blanc étant prises à `curveEdge` et `1−curveEdge` — sans quoi les cloches
+   *  extrêmes tombent trop près des bouts. Les quatre centres mesurés (0,17 /
+   *  0,39 / 0,65 / 0,81) sortent de ce seul nombre. */
+  curveEdge: number;
   /** Voile (positif = retrait) — force de la récupération type canal sombre à +100 :
    *  `J = s(1−ω)/(1−ω·s)`, `ω = dehazeOmega·(dehaze/100)`. Ancré (0→0, 1→1). Fitté
    *  sur la rampe `voile-p100`. */
@@ -201,8 +213,9 @@ export const RB_TABLE: ReglagesDeBaseTable = {
   whiteAmtNeg: 0.09,
   whiteCenter: 0.83,
   whiteKappa: 2.5,
-  curveAmt: 0.26,
-  curveWin: 0.26,
+  curveAmt: [0.1216, 0.214, 0.2801, 0.1448],
+  curveKappa: [12.0, 3.5, 5.75, 11.5],
+  curveEdge: 0.1,
   dehazeOmega: 0.745,
   dehazeAirlight: 0.275,
   dehazeGamma: 2.65,

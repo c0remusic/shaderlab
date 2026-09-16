@@ -121,8 +121,9 @@ const LUMA = [0.2126, 0.7152, 0.0722] as const;
 const TEXTURE_AMT = 1.2;  // gain additif linéaire de la bande fine à |100| (flou spatial, hors calibration rampe)
 const CLARITY_AMT = 0.9;  // gain additif linéaire de la bande moyenne à |100| (flou spatial, hors calibration rampe)
 const DEHAZE_AMT = 0.35;  // amplitude du retrait/ajout de voile à |100| (flou spatial, hors calibration rampe)
-const CURVE_AMT = RB_TABLE.curveAmt;   // lift perceptuel maximal d'une région à |100|
-const CURVE_WIN = RB_TABLE.curveWin;   // demi-largeur des transitions cosinus entre régions (perceptuel)
+const CURVE_AMT = RB_TABLE.curveAmt;     // lift perceptuel maximal, PAR RÉGION
+const CURVE_KAPPA = RB_TABLE.curveKappa; // étroitesse de la cloche, PAR RÉGION
+const CURVE_EDGE = RB_TABLE.curveEdge;   // retrait des bouts pour placer les centres
 const VIB_CHROMA_REF = 0.20; // chroma OKLab au-delà de laquelle la vibrance ne pousse plus (couleur, non fitté)
 // Direction « peau/orange » dans le plan (a,b) d'OKLab, normalisée. La vibrance
 // s'éteint quand la chroma d'un pixel pointe par là (protection des carnations,
@@ -203,20 +204,36 @@ function auDefaut(p: readonly number[]): boolean {
   return p[17] === 25 && p[18] === 50 && p[19] === 75;
 }
 
-/** Courbe paramétrique sur une valeur perceptuelle `s` (0..1). Quatre régions
- *  séparées par les trois séparations, transitions cosinus. Les poids
- *  télescopent (somme = 1) : `1 − t_s`, `t_s − t_m`, `t_m − t_h`, `t_h`. */
+/** Courbe paramétrique sur une valeur perceptuelle `s` (0..1). Une CLOCHE par
+ *  région, centrée sur le milieu de ses bornes — les bornes du noir et du blanc
+ *  étant prises à `curveEdge` et `1−curveEdge`. Les séparations déplacent donc
+ *  les centres, ce qui est leur rôle.
+ *
+ *  ⚠️ C'ÉTAIENT QUATRE PLATEAUX TÉLESCOPIQUES à amplitude unique jusqu'au
+ *  2026-09-16, et c'est la mesure qui les a défaits : à `Ombres` +100, Lightroom
+ *  lève le niveau 50 de +29,7 puis REDESCEND à zéro vers 128 — un plateau tient
+ *  jusqu'à la séparation, une cloche retombe. Les quatre amplitudes de pic sont
+ *  d'ailleurs toutes différentes (+29,7 / +55,8 / +71,4 / +36,2), ce qu'une
+ *  amplitude unique ne peut pas rendre.
+ *
+ *  Résidu par région, cloche contre mesure : 1,14 / 1,61 / 2,89 / 1,30 niveaux,
+ *  là où les plateaux rendaient 8,4 / 13,3 / 16,5 / 6,5. Les centres ne sont PAS
+ *  fittés — ils sortent des séparations et de `curveEdge`, et tombent sur les
+ *  quatre centres mesurés (0,17 / 0,39 / 0,65 / 0,81) à deux centièmes près. */
 function courbeParametrique(
   s: number,
   kShadows: number, kDarks: number, kLights: number, kHigh: number,
   sSplit: number, mSplit: number, hSplit: number,
 ): number {
-  const ts = smoothstep(sSplit - CURVE_WIN, sSplit + CURVE_WIN, s);
-  const tm = smoothstep(mSplit - CURVE_WIN, mSplit + CURVE_WIN, s);
-  const th = smoothstep(hSplit - CURVE_WIN, hSplit + CURVE_WIN, s);
-  const delta =
-    kShadows * (1 - ts) + kDarks * (ts - tm) + kLights * (tm - th) + kHigh * th;
-  return clamp01(s + CURVE_AMT * delta);
+  const bornes = [CURVE_EDGE, sSplit, mSplit, hSplit, 1 - CURVE_EDGE];
+  const k = [kShadows, kDarks, kLights, kHigh];
+  let delta = 0;
+  for (let r = 0; r < 4; r++) {
+    if (k[r] === 0) continue;
+    const centre = clamp(( bornes[r] + bornes[r + 1]) / 2, 0.02, 0.98);
+    delta += k[r] * CURVE_AMT[r] * bump(s, centre, CURVE_KAPPA[r]);
+  }
+  return clamp01(s + delta);
 }
 
 /**
@@ -468,6 +485,13 @@ function wbFn(nom: string, steps: readonly WbStep[]): string {
   ].join("\n");
 }
 
+/** Quatre constantes TS en un `array<f32, 4>` WGSL — les tables PAR RÉGION de la
+ *  courbe paramétrique. Interpolé, jamais recopié : `jumeauxWgsl.test.ts` existe
+ *  parce qu'une constante écrite deux fois avait déjà divergé dans ce dépôt. */
+function wv4(v: readonly number[]): string {
+  return `array<f32, 4>(${v.map((x) => wf(x)).join(", ")})`;
+}
+
 /** Interpole une constante TS dans le corps WGSL, en huit décimales.
  *
  *  ⚠️ CE N'EST PAS UNE COQUETTERIE. Ces constantes étaient écrites DEUX fois —
@@ -540,8 +564,9 @@ const RB_WHITE_KAPPA = ${wf(RB_TABLE.whiteKappa)};
 const RB_TEXTURE_AMT = ${fRb(TEXTURE_AMT)};
 const RB_CLARITY_AMT = ${fRb(CLARITY_AMT)};
 const RB_DEHAZE_AMT = ${fRb(DEHAZE_AMT)};
-const RB_CURVE_AMT = ${wf(RB_TABLE.curveAmt)};
-const RB_CURVE_WIN = ${wf(RB_TABLE.curveWin)};
+const RB_CURVE_AMT = ${wv4(RB_TABLE.curveAmt)};
+const RB_CURVE_KAPPA = ${wv4(RB_TABLE.curveKappa)};
+const RB_CURVE_EDGE = ${wf(RB_TABLE.curveEdge)};
 const RB_VIB_CHROMA_REF = ${fRb(VIB_CHROMA_REF)};
 const RB_SKIN_DIR = vec2<f32>(0.52, 0.854);
 const RB_DEHAZE_OMEGA = ${wf(RB_TABLE.dehazeOmega)};
@@ -588,12 +613,18 @@ fn rb_veil(sIn: f32, d: f32) -> f32 {
   return s;
 }
 
+// Une CLOCHE par region, centree sur le milieu de ses bornes — celles du noir et
+// du blanc prises a RB_CURVE_EDGE. Jumeau de courbeParametrique : c etaient quatre
+// plateaux telescopiques jusqu au 2026-09-16, et la mesure dit des cloches.
 fn rb_curve(s: f32, kSh: f32, kDk: f32, kLt: f32, kHi: f32, sSplit: f32, mSplit: f32, hSplit: f32) -> f32 {
-  let ts = smoothstep(sSplit - RB_CURVE_WIN, sSplit + RB_CURVE_WIN, s);
-  let tm = smoothstep(mSplit - RB_CURVE_WIN, mSplit + RB_CURVE_WIN, s);
-  let th = smoothstep(hSplit - RB_CURVE_WIN, hSplit + RB_CURVE_WIN, s);
-  let delta = kSh * (1.0 - ts) + kDk * (ts - tm) + kLt * (tm - th) + kHi * th;
-  return clamp(s + RB_CURVE_AMT * delta, 0.0, 1.0);
+  let bornes = array<f32, 5>(RB_CURVE_EDGE, sSplit, mSplit, hSplit, 1.0 - RB_CURVE_EDGE);
+  let k = array<f32, 4>(kSh, kDk, kLt, kHi);
+  var delta = 0.0;
+  for (var r = 0; r < 4; r = r + 1) {
+    let centre = clamp((bornes[r] + bornes[r + 1]) * 0.5, 0.02, 0.98);
+    delta = delta + k[r] * RB_CURVE_AMT[r] * rb_bump(s, centre, RB_CURVE_KAPPA[r]);
+  }
+  return clamp(s + delta, 0.0, 1.0);
 }
 
 // Bande FINE de Texture : tente 3x3 a un texel sur srcTexture, luminance seule.

@@ -102,3 +102,51 @@ reste-t-il fixe, ce qui en ferait une vraie propriété de l'opérateur ?
 ⚠️ La mire locale n'a ni rampe ni balayage : `analyse-mesures.py` ne sait pas la
 lire. Ses exports s'analysent directement depuis les JPEG (PIL), avec la géométrie
 que `faire-mire-locale.py` imprime en fin de course.
+
+---
+
+## Campagne C — Texture et Clarté (mire de présence) — LANCÉE le 2026-09-16
+
+**Pourquoi.** Ces deux curseurs ne se mesurent sur aucune des deux autres mires :
+une rampe lisse les rend inertes, un échelon excite toutes les échelles à la fois.
+La mire de présence porte un axe par question — échelle, amplitude, ton — plus des
+aplats témoins et des marches. Résultats : `research/05-texture-et-clarte-mesurees.md`.
+
+⚠️ **Une taille de mire par démarrage** : le plugin lit une seule ligne de
+sentinelle. Cette campagne en a donc TROIS, et c'est délibéré — la troisième
+(1024) existe parce que les deux premières ne séparaient pas un rayon
+proportionnel à la racine de l'aire d'un rayon proportionnel à la largeur.
+
+⚠️ **La mire porte sa taille dans son nom** (`…-2048x7584.jpg`). Lightroom garde
+une photo dans son catalogue PAR CHEMIN : réécrire le même nom avec une géométrie
+différente lui fait ressortir la précédente, et la campagne mesure alors une mire
+qui n'existe plus. Une géométrie neuve = un nom neuf.
+
+`shaderlab-mesures-go.txt`, l'une des trois :
+
+```
+C:\Users\LEETJ\Pictures\shaderlab-mire\shaderlab-mire-presence-2048x7584.jpg
+C:\Users\LEETJ\Pictures\shaderlab-mire\shaderlab-mire-presence-2x-4096x7584.jpg
+C:\Users\LEETJ\Pictures\shaderlab-mire\shaderlab-mire-presence-demi-1024x7584.jpg
+```
+
+`shaderlab-mesures-extra.txt` pour la mire 2048 (les deux autres n'ont besoin que
+du témoin, de `texture-p100` et de `clarte-p100`, préfixés `pres2x-` / `presdemi-`) :
+
+```
+pres-temoin	
+pres-texture-p100	Texture=100
+pres-texture-p50	Texture=50
+pres-texture-m50	Texture=-50
+pres-texture-m100	Texture=-100
+pres-clarte-p100	Clarity2012=100
+pres-clarte-p50	Clarity2012=50
+pres-clarte-m50	Clarity2012=-50
+pres-clarte-m100	Clarity2012=-100
+pres-voile-p100	Dehaze=100
+```
+
+L'analyse (`analyse-mire-presence.py`) apparie l'export à sa géométrie par la
+TAILLE EXACTE, largeur et hauteur : le dossier d'exports est partagé avec les deux
+autres mires et l'une d'elles a la même largeur. Un export dont la taille ne
+correspond à aucune géométrie est ignoré, jamais deviné.

@@ -278,3 +278,76 @@ aucune sonde de ce jeu n'est propre pour un opérateur LOCAL. Le même ω refait
 colonne par colonne dans le patch gris 118 court de 0,675 à 0,745 — une dispersion
 2,4 fois plus large que la correction proposée. Prochaine mire : des plateaux
 d'au moins 200 px, chaque gris bordé de sa propre valeur.
+
+## 2026-09-16 — la carte des écarts, mesurée curseur par curseur
+
+**Retour d'Antoine** : « il y a un vrai problème avec les settings de
+développement, je ne saurais pas te dire exactement quoi, mais on ne se retrouve
+pas avec les résultats qu'on attend ». Symptôme sans cause — donc mesure avant
+hypothèse. Instrument versionné : `assets/verifier-ton.mjs`, même patron que
+`verifier-grading.mjs` (le VRAI twin bundlé à la volée, appliqué à la rampe
+idéale, comparé à la rampe que Lightroom a rendue pour le même réglage).
+
+Il manquait : `calibrer-ton.py` porte son PROPRE forward-model en Python, donc il
+peut dériver du twin sans que rien ne le dise, et il ajuste au lieu de constater.
+
+**55 mesures de ton, 4,50 niveaux d'écart moyen. Le classement, par écart moyen :**
+
+| Curseur | écart moyen | pire | ce que le dossier en disait déjà |
+| --- | --- | --- | --- |
+| `temperature` (7 doses) | **10,96** (jusqu'à 17,0 à −75) | 95,9 | audit 09 : **ARBITRAGE** (espace ABC caméra) |
+| `param-lights` +100 | 16,5 | 27,5 | ticket 02 : « résidu 16,5 niv. » — connu, jamais repris |
+| `clarte` +100 | 14,1 | 26,2 | audit 09 : CONFORME (canal), filtre simplifié |
+| `param-darks` +100 | 13,3 | 24,1 | — |
+| `voile` (4 doses) | 12,1 au pire | 34,7 | audit 09 : **DIVERGENT** (mécanisme) |
+| `nuance` (4 doses) | 10,0 au pire | 35,2 | audit 09 : **ARBITRAGE** |
+| `ombres` +100 | 8,1 | 33,5 | — |
+| `texture`, `vibrance`, `saturation` | **0,00** | 0,0 | inertes sur une rampe grise (voir ci-dessous) |
+
+⚠️ **Un zéro ne vaut que pour ce que la mire traverse.** `vibrance` et
+`saturation` rendent 0,00 parce qu'une rampe GRISE n'a pas de chroma à doser, et
+`texture` 0,02 parce qu'une rampe LISSE n'a pas de détail à accentuer. Ces
+trois-là ne sont pas prouvés justes, ils sont hors de portée de cette mire.
+
+### Ce que la Température fait, et ce que Lightroom fait
+
+L'écart n'est pas d'amplitude mais de FORME, et il mord dès les réglages modérés :
+
+```
+temperature −25   niveau 160 : nous [166, 176, 251]   Lightroom [147, 168, 199]
+temperature −75   niveau  32 : nous [ 37,  44,  85]   Lightroom [  1,  45, 118]
+temperature +50   niveau 160 : nous [255, 207, 155]   Lightroom [228, 197, 153]
+```
+
+**Nous saturons le canal poussé, Lightroom le compresse** — 52 niveaux d'écart sur
+le bleu à −25, un réglage doux. Et au ras du noir, Lightroom écrase le canal
+opposé bien plus fort que nous (1 contre 37). Notre modèle applique des gains
+linéaires par canal puis ÉCRÊTE ; le sien passe par l'espace caméra et une courbe
+de ton qui récupère les hautes lumières.
+
+⚠️ **La renormalisation au blanc n'est PAS la cause** : elle a été retirée le
+2026-09-12 et les gains sont fittés par signe. L'en-tête du module le dit ; c'est
+la première hypothèse que la mesure a écartée.
+
+**Contre-référence** : Affinity fait comme Lightroom sur ce point — gains
+multiplicatifs par canal, aucune préservation de luminance
+(`.scratch/affinity/research/02-ajustements-mesures.md` § WhiteBalance). Les deux
+références s'accordent, donc l'écart est bien chez nous.
+
+### Une forme essayée et RÉFUTÉE tout de suite
+
+Comprimer la sortie par canal contre le blanc (saturation exponentielle, la forme
+qui a marché le matin même sur la luminance du Color Grading) fait passer les sept
+mesures de Température de **10,96 à 18,76 niveaux** : elle comprime aussi le bas
+de la rampe, là où Lightroom ne comprime pas. La forme juste se mesure sur ses
+rampes avant d'être posée — pas l'inverse.
+
+### Reste à faire
+
+1. Mesurer la FORME de la balance des blancs de Lightroom (gain par canal en
+   fonction du niveau, sur les sept doses), au lieu d'ajuster une amplitude.
+2. Reprendre `param-lights` / `param-darks` : le résidu de la courbe paramétrique
+   est le deuxième poste, et il est connu depuis le 2026-09-11.
+3. `voile` : mécanisme divergent, déjà écrit au 09, jamais repris.
+4. Une mire qui PORTE de la chroma et du détail pour `vibrance`, `saturation` et
+   `texture` — la rampe grise ne peut rien en dire.

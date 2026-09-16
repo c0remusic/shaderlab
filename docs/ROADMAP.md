@@ -43,14 +43,19 @@
   (ADR-0021, quatrième refus daté). ✅ Depuis le 2026-09-07 (`ede4b16`) le
   matcap du ticket 17 est une DOSE à défaut 0 — Antoine a pointé la colonne
   d'avant sur la planche chronologique — et `effet-verre-matcap` est la 14ᵉ.
-- **379 paramètres, 149 références de pixels** (143 jusqu'au 2026-09-14 ; quatre de
+- **379 paramètres, 150 références de pixels** (143 jusqu'au 2026-09-14 ; quatre de
   plus sont `developpement-grading-{balance,fusion-0,hl-orange,ombres-bleu}`, posées
   au ticket 06, et la 148ᵉ est `developpement-grading-hl-lum`, posée le 2026-09-15
   parce qu'aucune des quatre ne traversait le chemin de LUMINANCE du module — elles
   ne règlent que teinte et saturation, et sont restées inchangées au bit près le
   jour où ce chemin a changé ; la 149ᵉ est `developpement-grading-ombres-lum-m50`,
   posée sur revue adverse parce que la 148ᵉ n'empruntait que la branche POSITIVE de
-  ce chemin. Aucun orphelin : les 149 ont leur scénario dans
+  ce chemin, et la 150ᵉ est `developpement-grading-moyens-global-lum` — les deux
+  dernières luminances du module, seuls index du uniform qu'aucun pixel ne gelait.
+  ⚠️ Ce compte est passé de 149 à 150 dans un commit qui ne l'a PAS mis à jour, et
+  la correction vient d'un contrôle sur disque le lendemain : la règle « le compte se
+  tient dans le commit qui ajoute » vaut aussi pour cette feuille, pas seulement pour
+  `CLAUDE.md`. Aucun orphelin : les 150 ont leur scénario dans
   `render-check.mjs` ET leur entrée dans la table `ATTENDU`, vérifié le 2026-09-15)
   — le compte de params re-mesuré le
   **2026-09-11** (386 → 379 : `etalonnage` et ses 7 params PARTENT vers l'ÉTAGE de
@@ -2148,8 +2153,8 @@ job n'a ni étape ni runner : un job sans `runner_name` n'a pas tourné.
 - **Deux correctifs `CLAUDE.md`**, proposés et non appliqués (le fichier ne
   s'édite pas sans accord) : le compte d'opérations verrouillées (seize → **17**,
   mesuré sur les sites de garde) et le compte de références de pixels (143 →
-  **149**, les quatre de Color Grading du 2026-09-14 plus les deux du 2026-09-15 ;
-  aucun orphelin, les 149 ont leur scénario ET leur entrée `ATTENDU`).
+  **150**, les quatre de Color Grading du 2026-09-14 plus les trois des 2026-09-15
+  et 09-16 ; aucun orphelin, les 150 ont leur scénario ET leur entrée `ATTENDU`).
 - **Le mode `crop` de calque** (`ui/canvasMode.ts`) n'a aucun constructeur de
   production, et `tools.ts:23-26` explique que c'est DÉLIBÉRÉ : `LayerTransform`
   n'a pas encore de champ `crop`, et « un bouton qui ferait entrer dans un mode

@@ -176,10 +176,46 @@ export interface ReglagesDeBaseTable {
    *  extrêmes tombent trop près des bouts. Les quatre centres mesurés (0,17 /
    *  0,39 / 0,65 / 0,81) sortent de ce seul nombre. */
   curveEdge: number;
-  /** Voile (positif = retrait) — force de la récupération type canal sombre à +100 :
-   *  `J = s(1−ω)/(1−ω·s)`, `ω = dehazeOmega·(dehaze/100)`. Ancré (0→0, 1→1). Fitté
-   *  sur la rampe `voile-p100`. */
-  dehazeOmega: number;
+  /** Voile (positif = retrait) — force maximale de la récupération, à dose 100.
+   *
+   *  ⚠️ La forme a CHANGÉ le 2026-09-16. Elle était `s(1−ω)/(1−ω·s)`, ancrée en 0
+   *  et en 1 : une COMPRESSION, sans point fixe intérieur et de gain inférieur à
+   *  un. Elle est désormais celle de He et al., que le binaire nomme — `J = (I−A)/t
+   *  + A`, `t = max(1 − ω·sombre/A, dehazeTMin)`. Elle corrige deux défauts d'un
+   *  coup : un aplat au niveau de l'airlight ne bouge plus (nous l'écrasions de 59
+   *  niveaux), et le contraste local est AJOUTÉ (gain 1/t = 1,80 à la base 128 à
+   *  dose 100, mesuré 1,95) au lieu d'être retiré (0,88). */
+  dehazeOmegaMax: number;
+  /** Voile (positif = retrait) — la dose passe par la carte d'Adobe avant
+   *  `dehazeOmegaMax` : `w = dehazeOmegaMax · divMap(dehaze/100, dehazeDoseMapPos)`.
+   *  Quatre doses mesurées (25, 50, 75, 100) donnent ω = 0,244 · 0,448 · 0,626 ·
+   *  0,7775 ; la carte les rend à 0,0012 près, une droite à 0,0132. TROISIÈME
+   *  emploi de `cr_div_map`, après le virage et la branche négative du voile. */
+  dehazeDoseMapPos: number;
+  /** Voile (positif = retrait) — l'AIRLIGHT, le point fixe de l'opérateur.
+   *
+   *  ⚠️ **Chez Lightroom ce n'est PAS une constante** : c'est le maximum du CANAL
+   *  SOMBRE de l'image, et la mesure le prouve deux fois. Sur la mire de présence
+   *  (plus haut aplat 224, pixel le plus clair 248) le niveau 224 ressort à 224,00
+   *  exactement, aux QUATRE doses ; sur la mire bi-tonale (plus haut niveau 160) ce
+   *  sont les 160 qui ressortent à 160,00, et les 96 tombent à 30. L'airlight suit
+   *  donc l'image — et pas son maximum brut, puisque 248 existe dans la première,
+   *  mais le max de son canal sombre. C'est ce que le binaire nomme
+   *  (`UniformsDehazeTrMDarkChannel`, `TrMSetConstantAirlight` et son `fPickedIndex`).
+   *
+   *  Nous le figeons, faute de pouvoir le calculer : un module de développement n'a
+   *  qu'UNE texture auxiliaire (la chaîne de passes est linéaire) et elle porte
+   *  déjà la pyramide. Une réduction globale demanderait la seconde — le MÊME
+   *  manque que celui qui bloque la portée de Clarté. Deux opérateurs, un seul
+   *  blocage : `research/07-portee-des-operateurs-locaux.md`.
+   *
+   *  La valeur gelée est celle de la mire. Sur une photo dont le voile est plus
+   *  sombre, notre point fixe est trop haut et l'opérateur creuse un peu plus que
+   *  Lightroom ; plus clair, un peu moins. */
+  dehazeAirlightPos: number;
+  /** Voile (positif) — plancher de la transmission, qui borne le gain à `1/t`.
+   *  Sans lui, `t` tend vers zéro près de l'airlight et le gain explose. */
+  dehazeTMin: number;
   /** Voile (négatif = ajout) — hauteur du point d'airlight (relèvement du noir) à
    *  −100 : `J = 1−(1−a)·(1−s)^g`, `a = dehazeAirlight·(−dehaze/100)`. Fitté sur `voile-m100`. */
   dehazeAirlight: number;
@@ -296,7 +332,10 @@ export const RB_TABLE: ReglagesDeBaseTable = {
   curveAmt: [0.1216, 0.214, 0.2801, 0.1448],
   curveKappa: [12.0, 3.5, 5.75, 11.5],
   curveEdge: 0.1,
-  dehazeOmega: 0.745,
+  dehazeOmegaMax: 0.7783,
+  dehazeDoseMapPos: 1.36,
+  dehazeAirlightPos: 0.878,
+  dehazeTMin: 0.05,
   dehazeAirlight: 0.27,
   dehazeGamma: 2.93,
   dehazeDoseMapNeg: 0.51,

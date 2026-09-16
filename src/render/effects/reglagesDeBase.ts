@@ -239,11 +239,19 @@ function exposureOp(s: number, ev: number): number {
  *   - d<0 (ajout) : écran vers un airlight `1−(1−a)·(1−s)^g`, `a = dehazeAirlight·|d|`,
  *     `g = 1+(dehazeGamma−1)·|d|` — relève le noir vers l'airlight, tient le blanc.
  *  Jumeau de `rb_veil` WGSL. Formes fittées sur `voile-p100`/`voile-m100`. */
-function veilOp(s: number, d: number): number {
+function veilOp(s: number, d: number, sombre = s): number {
   s = clamp01(s);
   if (d > 0) {
-    const w = RB_TABLE.dehazeOmega * d;
-    return clamp01((s * (1 - w)) / (1 - w * s));
+    // FORME DE HE ET AL., celle que le binaire nomme (fA, fAReciprocal dans
+    // UniformsDehazeTrMConstantAirlightData) : `J = (I − A)/t + A`, avec une
+    // transmission `t` tirée du CANAL SOMBRE. Deux propriétés en tombent, et ce
+    // sont exactement les deux défauts qu'elle corrige — un POINT FIXE en A, et
+    // un GAIN 1/t SUPÉRIEUR à un, donc du contraste local ajouté. L'ancienne
+    // forme `s(1−ω)/(1−ω·s)` n'avait ni l'un ni l'autre : elle comprimait.
+    const w = RB_TABLE.dehazeOmegaMax * carteAdobe(d, RB_TABLE.dehazeDoseMapPos);
+    const a = RB_TABLE.dehazeAirlightPos;
+    const t = Math.max(1 - (w * clamp01(sombre)) / a, RB_TABLE.dehazeTMin);
+    return clamp01((s - a) / t + a);
   }
   // DOSE passée par la carte d'Adobe : la course était linéaire et le défaut vivait
   // au MILIEU, pas aux bouts (voir `dehazeDoseMapNeg`).
@@ -418,7 +426,9 @@ export function reglagesDeBaseSpec(rgb: Vec3, blurLuma: number, p: readonly numb
     // Voile LOCAL : le flou moyen sert d'estimation du contraste de voile (ce que
     // faisait déjà le module). Inerte sur un ton plat — c'est la limite corrigée
     // par le terme GLOBAL ci-dessous.
-    const voileLocal = (dehaze / 100) * DEHAZE_AMT * (lp - clamp01(blurLuma));
+    // Le terme LOCAL du voile ne vaut plus que pour l'AJOUT : du côté du RETRAIT,
+    // la forme de He produit elle-même son contraste local par son gain 1/t.
+    const voileLocal = dehaze < 0 ? (dehaze / 100) * DEHAZE_AMT * (lp - clamp01(blurLuma)) : 0;
     const g = gainPresence + voileLocal;
     // MULTIPLICATIF sur la luminance, jamais un offset par canal : le binaire de
     // Lightroom fait Texture en log-YCC (etage texture_direct_gf_ycc, filtre
@@ -700,7 +710,10 @@ const RB_CURVE_KAPPA = ${wv4(RB_TABLE.curveKappa)};
 const RB_CURVE_EDGE = ${wf(RB_TABLE.curveEdge)};
 const RB_VIB_CHROMA_REF = ${fRb(VIB_CHROMA_REF)};
 const RB_SKIN_DIR = vec2<f32>(0.52, 0.854);
-const RB_DEHAZE_OMEGA = ${wf(RB_TABLE.dehazeOmega)};
+const RB_DEHAZE_OMEGA_MAX = ${wf(RB_TABLE.dehazeOmegaMax)};
+const RB_DEHAZE_DOSE_MAP_POS = ${wf(RB_TABLE.dehazeDoseMapPos)};
+const RB_DEHAZE_AIRLIGHT_POS = ${wf(RB_TABLE.dehazeAirlightPos)};
+const RB_DEHAZE_T_MIN = ${wf(RB_TABLE.dehazeTMin)};
 const RB_DEHAZE_AIRLIGHT = ${wf(RB_TABLE.dehazeAirlight)};
 const RB_DEHAZE_GAMMA = ${wf(RB_TABLE.dehazeGamma)};
 const RB_DEHAZE_DOSE_MAP_NEG = ${wf(RB_TABLE.dehazeDoseMapNeg)};
@@ -747,11 +760,16 @@ fn rb_carte_adobe(x: f32, a: f32) -> f32 {
   return (a * x) / (a * x + 1.0 - x);
 }
 
-fn rb_veil(sIn: f32, d: f32) -> f32 {
+fn rb_veil(sIn: f32, d: f32, sombre: f32) -> f32 {
   let s = clamp(sIn, 0.0, 1.0);
   if (d > 0.0) {
-    let w = RB_DEHAZE_OMEGA * d;
-    return clamp(s * (1.0 - w) / (1.0 - w * s), 0.0, 1.0);
+    // Forme de He et al., celle que le binaire nomme : J = (I - A)/t + A, la
+    // transmission t venant du CANAL SOMBRE. Point fixe en A, et gain 1/t
+    // superieur a un — les deux proprietes que l ancienne forme n avait pas.
+    let w = RB_DEHAZE_OMEGA_MAX * rb_carte_adobe(d, RB_DEHAZE_DOSE_MAP_POS);
+    let a = RB_DEHAZE_AIRLIGHT_POS;
+    let t = max(1.0 - w * clamp(sombre, 0.0, 1.0) / a, RB_DEHAZE_T_MIN);
+    return clamp((s - a) / t + a, 0.0, 1.0);
   }
   if (d < 0.0) {
     // DOSE passee par la carte d Adobe : la course etait lineaire et le defaut
@@ -922,7 +940,22 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     let detailMoyen = lp - blurLuma;
     let gainPresence = 2.0 * y * dY
       + params[9] / 100.0 * RB_CLARITY_AMT * detailMoyen;
-    let voileLocal = params[10] / 100.0 * RB_DEHAZE_AMT * (lp - blurLuma);
+    // Le terme LOCAL du voile ne vaut plus que pour l AJOUT de voile. Du cote du
+    // RETRAIT, la forme de He le produit elle-meme : son gain 1/t vaut 1,80 a la
+    // base 128 pour une dose de 100, ce que la mesure sur reseau fin rend a 1,95.
+    // Le garder des deux cotes le compterait deux fois.
+    let voileLocal = select(0.0,
+      params[10] / 100.0 * RB_DEHAZE_AMT * (lp - blurLuma), params[10] < 0.0);
+    // CANAL SOMBRE approche par la MOYENNE locale, et rien de plus. Un
+    // raffinement par la variance a ete essaye le meme jour et RETIRE : la
+    // variance d un aplat de la mire n est pas nulle — elle porte le repliement
+    // de la pyramide — et le retrancher decalait l aplat 128 de quatorze niveaux.
+    // La moyenne seule rend exactement la courbe ajustee sur les aplats (ou le
+    // minimum EST la moyenne) et le bon gain local sur un reseau (ou elle est
+    // constante). Le vrai canal sombre est un minimum spatial ; la moyenne le
+    // surestime, donc l operateur creuse un peu moins que Lightroom sur une
+    // texture — ecart assume et mesure.
+    let sombre = sBlur;
     // Facteur sur la luminance, rapports de canaux preserves — Lightroom fait
     // Texture et Clarte sur Y seul en log-YCC (voir le twin) ; un offset par
     // canal changeait la saturation et la teinte.
@@ -933,9 +966,9 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     if (params[10] != 0.0) {
       let d = params[10] / 100.0;
       c = vec3<f32>(
-        srgb_to_linear(rb_veil(linear_to_srgb(clamp(c.x, 0.0, 1.0)), d)),
-        srgb_to_linear(rb_veil(linear_to_srgb(clamp(c.y, 0.0, 1.0)), d)),
-        srgb_to_linear(rb_veil(linear_to_srgb(clamp(c.z, 0.0, 1.0)), d)));
+        srgb_to_linear(rb_veil(linear_to_srgb(clamp(c.x, 0.0, 1.0)), d, sombre)),
+        srgb_to_linear(rb_veil(linear_to_srgb(clamp(c.y, 0.0, 1.0)), d, sombre)),
+        srgb_to_linear(rb_veil(linear_to_srgb(clamp(c.z, 0.0, 1.0)), d, sombre)));
     }
   }
 

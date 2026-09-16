@@ -3251,6 +3251,16 @@ const INSTALL = `(async () => {
       develop: { reglagesDeBase: { texture: 60, clarity: 60, dehaze: 40 } },
       build: async () => {},
     },
+    // voile-ajout : la branche NEGATIVE du voile, que rien ne gelait — celle
+    // ci-dessus ne regle que +40, donc une moitie de l operateur n avait aucun
+    // pixel derriere elle. Trou du meme genre que celui trouve sur la luminance
+    // du virage le 2026-09-15 : un operateur a deux branches en demande deux.
+    // A l oeil : l image se voile, ses noirs remontent vers un gris clair.
+    "developpement-reglages-voile-ajout": {
+      contre: "photo-de-fond-seule",
+      develop: { reglagesDeBase: { dehaze: -60 } },
+      build: async () => {},
+    },
 
     // HSL / COULEUR / NOIR ET BLANC (2026-09-11, ticket 05 lightroom-develop). Le
     // troisieme module de l etage : huit bandes fois teinte/saturation/luminance,

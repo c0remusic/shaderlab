@@ -147,6 +147,15 @@ function bump(v: number, c: number, k: number): number {
   return (Math.pow(vv, ec) * Math.pow(1 - vv, e1)) / Math.max(peak, 1e-6);
 }
 
+/** LA CARTE D'ADOBE (`cr_div_map` dans le binaire) — une homographie qui CLOUE
+ *  les deux bouts : f(0)=0, f(1)=1, et l'identité à a=1. Même fonction que celle
+ *  du Color Grading, redite ici plutôt qu'importée : `colorGrading` ne l'exporte
+ *  pas, et l'y exporter lierait deux modules qui n'ont rien d'autre en commun.
+ *  Jumeau de `rb_carte_adobe` WGSL. */
+function carteAdobe(x: number, a: number): number {
+  return (a * x) / (a * x + 1 - x);
+}
+
 /** LIGNE × POIDS en espace LOG2 — la forme que le binaire de Lightroom nomme
  *  (`uLineShadowScale/Offset` × `uLumWeightShadowScale/Offset`, voir la table).
  *
@@ -197,8 +206,11 @@ function veilOp(s: number, d: number): number {
     const w = RB_TABLE.dehazeOmega * d;
     return clamp01((s * (1 - w)) / (1 - w * s));
   }
-  const a = RB_TABLE.dehazeAirlight * -d;
-  const g = 1 + (RB_TABLE.dehazeGamma - 1) * -d;
+  // DOSE passée par la carte d'Adobe : la course était linéaire et le défaut vivait
+  // au MILIEU, pas aux bouts (voir `dehazeDoseMapNeg`).
+  const dd = carteAdobe(-d, RB_TABLE.dehazeDoseMapNeg);
+  const a = RB_TABLE.dehazeAirlight * dd;
+  const g = 1 + (RB_TABLE.dehazeGamma - 1) * dd;
   return clamp01(1 - (1 - a) * Math.pow(1 - s, g));
 }
 
@@ -597,6 +609,7 @@ const RB_SKIN_DIR = vec2<f32>(0.52, 0.854);
 const RB_DEHAZE_OMEGA = ${wf(RB_TABLE.dehazeOmega)};
 const RB_DEHAZE_AIRLIGHT = ${wf(RB_TABLE.dehazeAirlight)};
 const RB_DEHAZE_GAMMA = ${wf(RB_TABLE.dehazeGamma)};
+const RB_DEHAZE_DOSE_MAP_NEG = ${wf(RB_TABLE.dehazeDoseMapNeg)};
 const RB_DEHAZE_DESAT_K = ${wf(RB_TABLE.dehazeDesatK)};
 
 // Cloche beta normalisee (pic 1 au mode c, nulle en 0 et 1). Jumeau de bump() TS.
@@ -634,6 +647,12 @@ fn rb_expo(s: f32, ev: f32) -> f32 {
 
 // Voile GLOBAL par canal, en sRGB. d>0 = recuperation ancree ; d<0 = ecran vers
 // airlight. Identite a d=0. Jumeau de veilOp() TS (voir son en-tete).
+// LA CARTE D ADOBE (cr_div_map) — homographie qui cloue les deux bouts, identite
+// a a=1. Jumeau de carteAdobe cote TS.
+fn rb_carte_adobe(x: f32, a: f32) -> f32 {
+  return (a * x) / (a * x + 1.0 - x);
+}
+
 fn rb_veil(sIn: f32, d: f32) -> f32 {
   let s = clamp(sIn, 0.0, 1.0);
   if (d > 0.0) {
@@ -641,8 +660,11 @@ fn rb_veil(sIn: f32, d: f32) -> f32 {
     return clamp(s * (1.0 - w) / (1.0 - w * s), 0.0, 1.0);
   }
   if (d < 0.0) {
-    let a = RB_DEHAZE_AIRLIGHT * (-d);
-    let g = 1.0 + (RB_DEHAZE_GAMMA - 1.0) * (-d);
+    // DOSE passee par la carte d Adobe : la course etait lineaire et le defaut
+    // vivait au MILIEU, pas aux bouts (voir dehazeDoseMapNeg dans la table).
+    let dd = rb_carte_adobe(-d, RB_DEHAZE_DOSE_MAP_NEG);
+    let a = RB_DEHAZE_AIRLIGHT * dd;
+    let g = 1.0 + (RB_DEHAZE_GAMMA - 1.0) * dd;
     return clamp(1.0 - (1.0 - a) * pow(1.0 - s, g), 0.0, 1.0);
   }
   return s;

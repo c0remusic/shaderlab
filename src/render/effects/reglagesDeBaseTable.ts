@@ -185,6 +185,21 @@ export interface ReglagesDeBaseTable {
   dehazeAirlight: number;
   /** Voile (négatif = ajout) — exposant de la remontée : `g = 1+(dehazeGamma−1)·(−dehaze/100)`. */
   dehazeGamma: number;
+  /** Voile (négatif = ajout) — le `a` de la CARTE D'ADOBE appliquée à la DOSE,
+   *  avant `dehazeAirlight` et `dehazeGamma` : `dd = divMap(|dehaze|/100, a)`.
+   *
+   *  ⚠️ LA DOSE ÉTAIT LINÉAIRE, et le défaut se voyait au MILIEU de la course, pas
+   *  aux bouts : à −100 nous rendions exactement Lightroom (3,97 niveaux d'écart,
+   *  99 contre 99 au niveau 16), à −50 nous ajoutions beaucoup trop de voile
+   *  (12,10 niveaux ; 60 contre 42). Un fit qui ne regarde que les extrêmes ne
+   *  pouvait pas le voir. `a` = 0,51 < 1 RALENTIT le début de course, et l'écart
+   *  tombe à 4,34 à −50 et 3,03 à −100.
+   *
+   *  La carte est celle du dépôt (`divMap` du Color Grading, l'homographie
+   *  `cr_div_map` du binaire) : elle cloue les deux bouts, donc −100 reste −100.
+   *  La branche POSITIVE n'en a pas : son meilleur `a` vaut 1,10, à dix pour cent
+   *  de l'identité — mesuré, et refusé pour ça. */
+  dehazeDoseMapNeg: number;
   /** Voile (négatif = ajout) — désaturation de la chroma OKLab à −100 (LR blanchit
    *  les couleurs saturées vers l'airlight). Fitté sur la colonne sat du `balayage` de `voile-m100`. */
   dehazeDesatK: number;
@@ -244,7 +259,8 @@ export const RB_TABLE: ReglagesDeBaseTable = {
   curveKappa: [12.0, 3.5, 5.75, 11.5],
   curveEdge: 0.1,
   dehazeOmega: 0.745,
-  dehazeAirlight: 0.275,
-  dehazeGamma: 2.65,
+  dehazeAirlight: 0.27,
+  dehazeGamma: 2.93,
+  dehazeDoseMapNeg: 0.51,
   dehazeDesatK: 0.6,
 };

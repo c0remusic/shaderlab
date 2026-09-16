@@ -642,6 +642,9 @@ const ATTENDU = {
   "developpement-reglages-couleur.png": { width: 256, height: 256, valeurs: null },
   "developpement-reglages-saturation.png": { width: 256, height: 256, valeurs: null },
   "developpement-reglages-presence.png": { width: 256, height: 256, valeurs: null },
+  // La branche NÉGATIVE du voile : celle au-dessus ne règle que +40, donc une
+  // moitié de l'opérateur n'avait aucun pixel derrière elle.
+  "developpement-reglages-voile-ajout.png": { width: 256, height: 256, valeurs: null },
   // HSL / COULEUR / NOIR ET BLANC (ticket 05 lightroom-develop) : le troisieme
   // module de l etage, sur mireBalayage. Quatre references qui gelent les pixels
   // et les index du uniform du module hsl (teinte d une bande, saturation d une

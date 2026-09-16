@@ -5,7 +5,7 @@ import type { LayerLocks, LayerState } from "./types";
  *
  * POURQUOI DES HELPERS ET PAS UNE LECTURE DIRECTE DE `layer.locks`. Chaque
  * verrou partiel doit répondre « oui » quand `all` est posé, et écrire
- * `locks?.position === true || locks?.all === true` sur chacun des dix-sept
+ * `locks?.position === true || locks?.all === true` sur chacun des dix-huit
  * sites de garde de `LayerStack` garantissait qu'un site finirait par oublier
  * la seconde moitié — silencieusement, puisqu'un verrou qui ne verrouille pas
  * ne fait rien échouer. C'est exactement le défaut corrigé le 2026-08-18 sur

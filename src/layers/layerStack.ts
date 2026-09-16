@@ -104,7 +104,16 @@ export class LayerStack {
    *
    *  **Opérations REFUSÉES par ce verrou-ci** (toutes rendent le même no-op
    *  `false` que le reste du fichier — donc aucune entrée d'historique vide
-   *  côté `App.tsx`) : `setLayerEffect`, `removeLayer`, `reorderLayer`.
+   *  côté `App.tsx`) : `setLayerEffect`, `setLayerBlendMode`, `removeLayer`,
+   *  `reorderLayer`, `updateParams`.
+   *
+   *  ⚠️ Cette liste a compté TROIS entrées jusqu'au 2026-09-16, et les deux qui
+   *  manquaient sont celles ajoutées ce jour-là — dont une par le commit qui
+   *  aurait dû tenir la liste. Un compte de prose se relance : les sites de garde
+   *  de ce fichier se comptent avec
+   *  `grep -c "this.isLocked(\|this.refuseGeometrie(\|this.refuseMasque("`,
+   *  qui rend dix-neuf INVOCATIONS pour dix-huit MÉTHODES — `updateParams` en
+   *  consulte deux (« Tout » d'abord, la géométrie ensuite).
    *
    *  **Opérations AUTORISÉES quel que soit le verrou, et pourquoi.**
    *  - `setLayerLock` : sinon le verrou serait irréversible.

@@ -2012,15 +2012,24 @@ sont mesurés le jour même.
   muet. Deux gardes ajoutées, vues rougir avant d'être fermées.
   ⚠️ **`CLAUDE.md` est PÉRIMÉ sur ce sujet** : il présente `replaceLiveLayers`
   comme « la porte que les gardes de `LayerStack` NE COUVRENT PAS ». Elle porte sa
-  propre enforcement depuis le 2026-08-18 — `fusionnerSousVerrous`
-  (`documentSession.ts:246-285`), qui gèle `all` / `position` / `mask` champ par
-  champ. Elle n'exécute toujours aucun mutateur de `LayerStack` (la lettre tient),
+  propre enforcement depuis le 2026-08-18 (`e4ddcf2`, alors un filtre booléen en
+  ligne) ; elle porte aujourd'hui `fusionnerSousVerrous` (`documentSession.ts`),
+  qui gèle `all` / `position` / `mask` champ par champ — cette fonction-là est
+  née le 2026-08-19 avec les quatre verrous (`0deb368`), et écrire « via
+  `fusionnerSousVerrous` depuis le 18 » confondait le début de l'enforcement avec
+  le nom de son mécanisme actuel. Elle n'exécute toujours aucun mutateur de `LayerStack` (la lettre tient),
   mais le verrou ne fuit plus par là. Correction PROPOSÉE, comme les trois autres.
-  ⚠️ Et le libellé « dix-sept opérations réparties entre QUATRE verrous » : les 17
-  sites de garde n'emploient que TROIS prédicats (`all`, `position`, `mask`) ; le
-  quatrième (`transparency`) n'a aucun site dans `LayerStack`, il écrête dans
-  `MaskPainter`. Les 17 ne sont pas homogènes non plus : 15 rendent `false`,
-  `addMaskSource` LÈVE, `updateParams` est un refus partiel conditionnel.
+  ⚠️ Et le libellé « dix-sept opérations réparties entre QUATRE verrous » est faux
+  deux fois. Les sites de garde n'emploient que TROIS prédicats (`all`, `position`,
+  `mask`) ; le quatrième (`transparency`) n'a aucun site dans `LayerStack`, il
+  écrête dans `MaskPainter`. Et le compte est **dix-huit** méthodes depuis le
+  2026-09-16 (dix-neuf INVOCATIONS : `updateParams` en consulte deux) — dont 16
+  rendent `false`, `addMaskSource` LÈVE, `updateParams` refuse en deux temps.
+  ⚠️ **La dix-huitième est `setLayerBlendMode`, et c'est le commit qui l'ajoute qui
+  a laissé le compte à dix-sept** : le défaut que ce dépôt traite comme important,
+  commis sur la ligne même qui le décrit, et trouvé par une revue adverse le
+  lendemain. Le compte se relance :
+  `grep -c "this.isLocked(\|this.refuseGeometrie(\|this.refuseMasque(" src/layers/layerStack.ts`.
 - **Le registre de genres de `ParamPanel`.** Neuf genres de contrôle, neuf
   branches JSX en dur, et **quatre des neuf n'ont qu'UN déclarant**. Coût mesuré
   d'un genre neuf : +37 lignes dans `ParamPanel`, +22 dans `types.ts` — et
@@ -2151,8 +2160,8 @@ job n'a ni étape ni runner : un job sans `runner_name` n'a pas tourné.
 ### Arbitrages qui attendent Antoine
 
 - **Deux correctifs `CLAUDE.md`**, proposés et non appliqués (le fichier ne
-  s'édite pas sans accord) : le compte d'opérations verrouillées (seize → **17**,
-  mesuré sur les sites de garde) et le compte de références de pixels (143 →
+  s'édite pas sans accord) : le compte d'opérations verrouillées (seize → **18**,
+  re-mesuré sur les sites de garde le 2026-09-16) et le compte de références de pixels (143 →
   **150**, les quatre de Color Grading du 2026-09-14 plus les trois des 2026-09-15
   et 09-16 ; aucun orphelin, les 150 ont leur scénario ET leur entrée `ATTENDU`).
 - **Le mode `crop` de calque** (`ui/canvasMode.ts`) n'a aucun constructeur de

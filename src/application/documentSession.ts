@@ -108,12 +108,17 @@ export class DocumentSession {
    * Remplace les calques SANS entrée d'historique — le chemin de tout geste
    * vivant (glissement de poignée, de curseur, coup de pinceau).
    *
-   * ⚠️ C'EST LA SEULE PORTE QUE LES GARDES DE `LayerStack` NE COUVRENT PAS, et
-   * le verrou fuyait par là. `LayerStack` refuse DIX-SEPT opérations sur un
-   * calque verrouillé — le compte disait quatorze, mesuré le 2026-09-15 sur les
-   * sites de garde, et `layerLocks.ts` disait dix-sept au même sujet. Chacune
-   * derrière un des quatre prédicats de `layerLocks`, et un test les couvre une
-   * par une — mais **aucun geste à la souris ne passe par ces mutateurs**.
+   * ⚠️ Cette porte N'EXÉCUTE AUCUN mutateur de `LayerStack` — aucun geste à la
+   * souris ne passe par eux — et le verrou fuyait par là jusqu'au 2026-08-18.
+   * Elle porte depuis sa PROPRE enforcement, `fusionnerSousVerrous` plus bas
+   * (nommée ainsi le 2026-08-19, quand les quatre verrous ont remplacé le
+   * booléen unique) : le verrou ne fuit plus ici, et dire que les gardes « ne
+   * couvrent pas » cette porte était vrai de la lettre et faux du fait.
+   * `LayerStack` refuse pour sa part DIX-HUIT opérations sur un calque
+   * verrouillé — le compte disait quatorze, puis dix-sept, et il est re-mesuré
+   * sur les sites de garde le 2026-09-16 (la dix-huitième est
+   * `setLayerBlendMode`, ajoutée le jour même). Chacune derrière un des quatre
+   * prédicats de `layerLocks`, et un test les couvre une par une.
    * Pendant un glissement, `App.tsx` construit le tableau à la main et appelle
    * cette méthode, délibérément et pour une raison mesurée : `clone()` fabrique
    * un objet frais pour chaque calque, ce qui re-rend la liste entière à chaque

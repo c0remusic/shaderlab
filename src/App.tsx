@@ -85,6 +85,7 @@ import { isPanelShown, movePanelInDock, setActiveTab, setGroupCollapsed, singleG
 import { clampDockWidth, DOCK_WIDTH_DEFAUT } from "./components/dockedPanel/dockWidth";
 import { ECRITURE_DISPOSITION_MS, loadWorkspaceLayout, serializeWorkspaceLayout, tauriWorkspaceLayoutStore } from "./ui/workspaceLayoutStore";
 import { gesteEtageVivant, gestePileVivante, type PortsGesteVivant } from "./ui/gesteVivant";
+import { restaurationAvantEngagement, apercuApresEngagement } from "./ui/blendPreview";
 import { EffectSelector, LayerControls, LayerPanel } from "./components/LayerPanel";
 import { ParamPanel } from "./components/ParamPanel";
 import { PhotoPanel } from "./components/PhotoPanel";
@@ -1878,24 +1879,27 @@ export default function App() {
 
   const handleBlendModeChange = useCallback(
     (id: string, blendMode: string) => {
-      const apercu = blendPreviewRef.current;
       const stack = currentStack();
       // L'aperçu au survol a posé sa valeur sur le calque VIVANT sans l'engager.
-      // On rétablit la valeur engagée avant de demander le changement, sinon le
-      // mutateur lirait l'aperçu et prendrait un vrai changement pour un no-op.
-      if (apercu && apercu.layerId === id) {
-        const layer = stack.layers.find((l) => l.id === id);
-        if (layer) layer.blendMode = apercu.committed;
+      // On le défait avant de demander le changement, sinon le mutateur lirait
+      // l'aperçu et prendrait un vrai changement pour un no-op. ⚠️ On défait
+      // l'aperçu QUEL QUE SOIT le calque qu'il vise, pas seulement celui qu'on
+      // engage : sans ça, engager sur B pendant un aperçu sur A gravait l'aperçu
+      // de A dans le document (voir `ui/blendPreview.ts`, où la décision est
+      // extraite et éprouvée).
+      const aDefaire = restaurationAvantEngagement(blendPreviewRef.current);
+      if (aDefaire) {
+        const layer = stack.layers.find((l) => l.id === aDefaire.layerId);
+        if (layer) layer.blendMode = aDefaire.committed;
       }
       // Le champ passe par un MUTATEUR gardé, il ne s'écrit plus à la main ici :
       // le sélecteur grisé était la seule barrière du mode de fusion, quand
       // l'opacité voisine avait, elle, le filtre de verrous du chemin vivant.
-      if (!stack.setLayerBlendMode(id, blendMode)) return;
-      // Refusé ou sans effet : on LAISSE l'aperçu actif, pour que sa fin (à la
-      // fermeture du popup) rétablisse la valeur engagée et repousse le rendu.
-      // Une sélection qui ENGAGE l'annule au contraire, sans quoi cette même fin
-      // reverterait la valeur qu'on vient d'engager.
-      blendPreviewRef.current = null;
+      const applique = stack.setLayerBlendMode(id, blendMode);
+      blendPreviewRef.current = apercuApresEngagement(blendPreviewRef.current, applique);
+      // Refusé ou sans effet : la pile modifiée est jetée et l'aperçu reste, pour
+      // que sa fin (à la fermeture du popup) rétablisse l'état et repeigne.
+      if (!applique) return;
       commit(stack); // changement discret → une entrée d'historique directe
     },
     [currentStack, commit]

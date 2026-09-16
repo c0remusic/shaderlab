@@ -1,0 +1,284 @@
+{
+  "photos": {
+    "A": {
+      "file": "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5171.JPG",
+      "srcW": 6240,
+      "srcH": 4160,
+      "frameW": 6240,
+      "frameH": 4160,
+      "crop": {
+        "x": 2600,
+        "y": 2500,
+        "label": "petale / fleur rouge"
+      },
+      "cols": [
+        {
+          "i": 0,
+          "key": "temoin",
+          "label": "Temoin (tout a 0)",
+          "mean": 63.60897737482176,
+          "std": 34.85411470762796,
+          "md5vign": "cb1237991abb9749488385c8cecc68ea",
+          "md5crop": "16de2ececfd862036a4a304c4cb31fe1"
+        },
+        {
+          "i": 1,
+          "key": "voile-m100",
+          "label": "Voile -100 (ajoute la brume)",
+          "mean": 163.5671831396316,
+          "std": 40.818177255971285,
+          "md5vign": "4318eac8aacecff411e53eda90d650c1",
+          "md5crop": "e5cb54d3502b00b435d9dbf7ae8d062f"
+        },
+        {
+          "i": 2,
+          "key": "voile-m50",
+          "label": "Voile -50",
+          "mean": 122.1698285954877,
+          "std": 42.17623754490648,
+          "md5vign": "2f4a4f0ed0ab3e1ad7a6b626c6ce7569",
+          "md5crop": "7f812691bc43fa4c66ebea250e91fa0c"
+        },
+        {
+          "i": 3,
+          "key": "voile-p50",
+          "label": "Voile +50",
+          "mean": 45.34997651720994,
+          "std": 27.32172106054214,
+          "md5vign": "b952d25aa1fe53fc9ef6d258d36ddd78",
+          "md5crop": "a486e8ca88c03638786cc108ca60f14b"
+        },
+        {
+          "i": 4,
+          "key": "voile-p100",
+          "label": "Voile +100 (retire la brume)",
+          "mean": 21.60955702336061,
+          "std": 14.727267562082387,
+          "md5vign": "99a3e3100f719fd4b1ae95cc73954307",
+          "md5crop": "f4a21b278d27dc3625684e001dcb9f09"
+        },
+        {
+          "i": 5,
+          "key": "temp-p100",
+          "label": "Temperature +100 (rechauffe, eclaircit)",
+          "mean": 107.51238583380903,
+          "std": 54.05894196677302,
+          "md5vign": "282ae0c9c945dfd9a8689b5f99654ef2",
+          "md5crop": "14d2cfc23f98e9b703d3ed276f8aed41"
+        },
+        {
+          "i": 6,
+          "key": "temp-m100",
+          "label": "Temperature -100 (refroidit, eclaircit)",
+          "mean": 90.09661085761444,
+          "std": 47.40430373105214,
+          "md5vign": "6e3cfe11fb1bbdd4ac892d04f560e88f",
+          "md5crop": "9c582ac7c4d1b1a91ec3e610501e3239"
+        },
+        {
+          "i": 7,
+          "key": "blancs-p100",
+          "label": "Blancs +100 (local)",
+          "mean": 73.62388957584922,
+          "std": 42.424644446045576,
+          "md5vign": "f822b5de33afc94b573bde8c30f7caa0",
+          "md5crop": "d4c505d337eee25fd1df1c34c14062ec"
+        },
+        {
+          "i": 8,
+          "key": "noirs-m100",
+          "label": "Noirs -100 (local)",
+          "mean": 25.78866335078353,
+          "std": 26.58351323952012,
+          "md5vign": "ad746594b1955adbb410528ef7db42ed",
+          "md5crop": "7c89e35ca15c6c2a8362cd21c3e4ba53"
+        },
+        {
+          "i": 9,
+          "key": "clarte-p100",
+          "label": "Clarte +100 (couleurs tenues)",
+          "mean": 61.01558646019269,
+          "std": 37.45292787742491,
+          "md5vign": "b4e90449d0ac52753cedebf48160dcb2",
+          "md5crop": "32870d08cb09e693aeead8439a7bd684"
+        }
+      ],
+      "exifOk": true
+    },
+    "B": {
+      "file": "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5169.JPG",
+      "srcW": 6240,
+      "srcH": 4160,
+      "frameW": 6240,
+      "frameH": 4160,
+      "crop": {
+        "x": 1500,
+        "y": 2300,
+        "label": "main (peau) / orange"
+      },
+      "cols": [
+        {
+          "i": 0,
+          "key": "temoin",
+          "label": "Temoin (tout a 0)",
+          "mean": 38.64936637664534,
+          "std": 42.40105472724788,
+          "md5vign": "a113cceb2b062b39518100972eb09b6a",
+          "md5crop": "b79f68bca3034f00060b38a4413e6b08"
+        },
+        {
+          "i": 1,
+          "key": "voile-m100",
+          "label": "Voile -100 (ajoute la brume)",
+          "mean": 126.56624263075311,
+          "std": 54.26769481966255,
+          "md5vign": "3bc76908f73723c157a923bace0dc727",
+          "md5crop": "efca58a7d33cb32e70cb5adf4692896a"
+        },
+        {
+          "i": 2,
+          "key": "voile-m50",
+          "label": "Voile -50",
+          "mean": 88.10223019064114,
+          "std": 54.082054577848375,
+          "md5vign": "47be3eec32ab209bdef4853f35059620",
+          "md5crop": "9479ce676aa31d245c7c3f041f93a8a7"
+        },
+        {
+          "i": 3,
+          "key": "voile-p50",
+          "label": "Voile +50",
+          "mean": 28.0437335952528,
+          "std": 32.42905069398161,
+          "md5vign": "62601f897102218945879371379b5105",
+          "md5crop": "25870c7b715fb75c4fe5a4b2de226f75"
+        },
+        {
+          "i": 4,
+          "key": "voile-p100",
+          "label": "Voile +100 (retire la brume)",
+          "mean": 13.791282699372951,
+          "std": 17.16221675918246,
+          "md5vign": "e4bd56cde3f133eeb2b8696017b9c269",
+          "md5crop": "48f55285a1669816cff13c80e9bb84c4"
+        },
+        {
+          "i": 5,
+          "key": "temp-p100",
+          "label": "Temperature +100 (rechauffe, eclaircit)",
+          "mean": 67.2401025720527,
+          "std": 67.3223669575531,
+          "md5vign": "10db1243d70f97b4d0c344d84d0223ba",
+          "md5crop": "23edd2157bd200ded95eb1344ba9446b"
+        },
+        {
+          "i": 6,
+          "key": "temp-m100",
+          "label": "Temperature -100 (refroidit, eclaircit)",
+          "mean": 53.189146242289,
+          "std": 56.365886625115344,
+          "md5vign": "db35345eea7a36166884da0bfedd18c4",
+          "md5crop": "356e69f517867f0afe9d421d9c52c056"
+        },
+        {
+          "i": 7,
+          "key": "blancs-p100",
+          "label": "Blancs +100 (local)",
+          "mean": 45.26668833712958,
+          "std": 51.35774488890475,
+          "md5vign": "619b788bdd69c406290a1fc2d27df654",
+          "md5crop": "ceb1b2ec85148724f6535053b80891a2"
+        },
+        {
+          "i": 8,
+          "key": "noirs-m100",
+          "label": "Noirs -100 (local)",
+          "mean": 17.89813060064586,
+          "std": 27.3879200193724,
+          "md5vign": "62890daed65e2717a90ca51aa83b2617",
+          "md5crop": "ce0854b707c6ea56d5f7a279d3752a05"
+        },
+        {
+          "i": 9,
+          "key": "clarte-p100",
+          "label": "Clarte +100 (couleurs tenues)",
+          "mean": 37.48740857534461,
+          "std": 42.87901999040957,
+          "md5vign": "2f6bb4691f07c5aafc7fada6da4a2424",
+          "md5crop": "a9cb8f36dfd1e8f82fea6df9449861b2"
+        }
+      ],
+      "exifOk": true
+    }
+  },
+  "cols": [
+    {
+      "key": "temoin",
+      "label": "Temoin (tout a 0)",
+      "params": null
+    },
+    {
+      "key": "voile-m100",
+      "label": "Voile -100 (ajoute la brume)",
+      "params": {
+        "dehaze": -100
+      }
+    },
+    {
+      "key": "voile-m50",
+      "label": "Voile -50",
+      "params": {
+        "dehaze": -50
+      }
+    },
+    {
+      "key": "voile-p50",
+      "label": "Voile +50",
+      "params": {
+        "dehaze": 50
+      }
+    },
+    {
+      "key": "voile-p100",
+      "label": "Voile +100 (retire la brume)",
+      "params": {
+        "dehaze": 100
+      }
+    },
+    {
+      "key": "temp-p100",
+      "label": "Temperature +100 (rechauffe, eclaircit)",
+      "params": {
+        "temperature": 100
+      }
+    },
+    {
+      "key": "temp-m100",
+      "label": "Temperature -100 (refroidit, eclaircit)",
+      "params": {
+        "temperature": -100
+      }
+    },
+    {
+      "key": "blancs-p100",
+      "label": "Blancs +100 (local)",
+      "params": {
+        "whites": 100
+      }
+    },
+    {
+      "key": "noirs-m100",
+      "label": "Noirs -100 (local)",
+      "params": {
+        "blacks": -100
+      }
+    },
+    {
+      "key": "clarte-p100",
+      "label": "Clarte +100 (couleurs tenues)",
+      "params": {
+        "clarity": 100
+      }
+    }
+  ]
+}

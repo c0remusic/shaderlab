@@ -1,0 +1,337 @@
+{
+  "photos": {
+    "A": {
+      "file": "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5171.JPG",
+      "srcW": 6240,
+      "srcH": 4160,
+      "frameW": 6240,
+      "frameH": 4160,
+      "crop": {
+        "x": 2600,
+        "y": 2500,
+        "label": "petale / fleur rouge"
+      },
+      "cols": [
+        {
+          "i": 0,
+          "key": "temoin",
+          "label": "Temoin (tout a 0)",
+          "mean": 63.60897737482176,
+          "std": 34.85411470762796,
+          "md5vign": "cb1237991abb9749488385c8cecc68ea",
+          "md5crop": "16de2ececfd862036a4a304c4cb31fe1"
+        },
+        {
+          "i": 1,
+          "key": "teinte-rouge-p",
+          "label": "Teinte rouge +100",
+          "mean": 63.75455865655294,
+          "std": 34.68702786290812,
+          "md5vign": "650f79abe1f8dd7b70a22dd7a78faa33",
+          "md5crop": "049b6b4040f263fc482ffd61d9bc9682"
+        },
+        {
+          "i": 2,
+          "key": "teinte-rouge-m",
+          "label": "Teinte rouge -100",
+          "mean": 63.62772474496579,
+          "std": 34.82107274101688,
+          "md5vign": "a36a348af16fb6fe2937d91af8eda567",
+          "md5crop": "5e78a9f9b393d52f984e0af664b89e27"
+        },
+        {
+          "i": 3,
+          "key": "teinte-bleu-p",
+          "label": "Teinte bleu +100",
+          "mean": 63.61014931655382,
+          "std": 34.85541538823832,
+          "md5vign": "416e890ada2a6327c2ea80211bd8e84e",
+          "md5crop": "0ad10f9c04afd07e31282c44a614f645"
+        },
+        {
+          "i": 4,
+          "key": "teinte-bleu-m",
+          "label": "Teinte bleu -100",
+          "mean": 63.60778297663438,
+          "std": 34.85276288621491,
+          "md5vign": "01ee64ec93a614b12f166d360380df19",
+          "md5crop": "4a7acbc9fc8e8b1aa04a366111b36030"
+        },
+        {
+          "i": 5,
+          "key": "sat-orange-p",
+          "label": "Saturation orange +100 (peau)",
+          "mean": 63.162293485111924,
+          "std": 35.17120615863681,
+          "md5vign": "262a525af13aaba177ec61d8de12e446",
+          "md5crop": "e84dc9e08af71c2647564c60d0238e98"
+        },
+        {
+          "i": 6,
+          "key": "sat-bleu-m",
+          "label": "Saturation bleu -100",
+          "mean": 63.61368249002722,
+          "std": 34.86002350902468,
+          "md5vign": "d8b387b2d19c8438204d711ae43844c4",
+          "md5crop": "062bc216d12274a26873f75d358b835b"
+        },
+        {
+          "i": 7,
+          "key": "lum-vert-p",
+          "label": "Luminance vert +100",
+          "mean": 65.8935757049001,
+          "std": 36.77422497427087,
+          "md5vign": "a6b6c7021abac337f8ef0c296e095c70",
+          "md5crop": "a0141993eaa3e3e8ad752342879d1859"
+        },
+        {
+          "i": 8,
+          "key": "lum-vert-m",
+          "label": "Luminance vert -100",
+          "mean": 61.56217573302416,
+          "std": 34.709852308219816,
+          "md5vign": "da54e4b619856ea9dc260cb387c1db39",
+          "md5crop": "442d8b1f180fe5fe85408dd6ed3b5ce4"
+        },
+        {
+          "i": 9,
+          "key": "nb-neutre",
+          "label": "Noir et blanc (neutre)",
+          "mean": 64.19281390221042,
+          "std": 34.15023825159361,
+          "md5vign": "1f1edf232ac2059b6b6ef044a4a64255",
+          "md5crop": "6c2aa45aa174d2d0a3e8711f6e9081da"
+        },
+        {
+          "i": 10,
+          "key": "nb-rouge-bleu",
+          "label": "N&B : rouge +100 / bleu -100",
+          "mean": 66.04398075138639,
+          "std": 32.44340623210854,
+          "md5vign": "76ebc96f51025345ddfb39b3850b38fa",
+          "md5crop": "7870a53d211875f7c5c27b70d2198391"
+        },
+        {
+          "i": 11,
+          "key": "nb-orange",
+          "label": "N&B : orange +80",
+          "mean": 66.67789190033587,
+          "std": 33.54156176857857,
+          "md5vign": "79f457e65fc4a3c28943fed671175a2a",
+          "md5crop": "713ee7fa8581a81d5b1f8316a7d376c9"
+        }
+      ],
+      "exifOk": true
+    },
+    "B": {
+      "file": "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5169-edited-2.JPG",
+      "srcW": 6240,
+      "srcH": 4160,
+      "frameW": 6240,
+      "frameH": 4160,
+      "crop": {
+        "x": 1500,
+        "y": 2300,
+        "label": "main (peau) / orange"
+      },
+      "cols": [
+        {
+          "i": 0,
+          "key": "temoin",
+          "label": "Temoin (tout a 0)",
+          "mean": 32.8999688104331,
+          "std": 36.72137098151882,
+          "md5vign": "f137224a3880a1af2294cae352745b23",
+          "md5crop": "0711acbb4c35a75f9fd0b98561705eaa"
+        },
+        {
+          "i": 1,
+          "key": "teinte-rouge-p",
+          "label": "Teinte rouge +100",
+          "mean": 32.89996852846794,
+          "std": 36.72137058464823,
+          "md5vign": "1b8d42f6974ee9b960e0fdeacd616f0f",
+          "md5crop": "0711acbb4c35a75f9fd0b98561705eaa"
+        },
+        {
+          "i": 2,
+          "key": "teinte-rouge-m",
+          "label": "Teinte rouge -100",
+          "mean": 32.89996852846794,
+          "std": 36.72137058464823,
+          "md5vign": "1b8d42f6974ee9b960e0fdeacd616f0f",
+          "md5crop": "0711acbb4c35a75f9fd0b98561705eaa"
+        },
+        {
+          "i": 3,
+          "key": "teinte-bleu-p",
+          "label": "Teinte bleu +100",
+          "mean": 33.295710560794134,
+          "std": 37.19053287979332,
+          "md5vign": "f33c018feb48c6d3cff1029f98e13801",
+          "md5crop": "0c879e084cb8f35bb03f99f3b26cf299"
+        },
+        {
+          "i": 4,
+          "key": "teinte-bleu-m",
+          "label": "Teinte bleu -100",
+          "mean": 33.414995961094526,
+          "std": 36.445488895623164,
+          "md5vign": "6eb39a5907e510775fd5faddda0d281a",
+          "md5crop": "7c83c1f7b1f3137e84f7dc027be36953"
+        },
+        {
+          "i": 5,
+          "key": "sat-orange-p",
+          "label": "Saturation orange +100 (peau)",
+          "mean": 32.89996852846794,
+          "std": 36.72137058464823,
+          "md5vign": "1b8d42f6974ee9b960e0fdeacd616f0f",
+          "md5crop": "0711acbb4c35a75f9fd0b98561705eaa"
+        },
+        {
+          "i": 6,
+          "key": "sat-bleu-m",
+          "label": "Saturation bleu -100",
+          "mean": 34.79590915567611,
+          "std": 37.92199065008336,
+          "md5vign": "e6ad6b611630aa38420e2efc1d5f0245",
+          "md5crop": "8f04d83a9ae246eed55fe3c07d6b1721"
+        },
+        {
+          "i": 7,
+          "key": "lum-vert-p",
+          "label": "Luminance vert +100",
+          "mean": 32.90009491212804,
+          "std": 36.721522170157506,
+          "md5vign": "2350a6cba6be0de1dd858609d96c458a",
+          "md5crop": "34e46fec216ce685cf73a70c0c6f9590"
+        },
+        {
+          "i": 8,
+          "key": "lum-vert-m",
+          "label": "Luminance vert -100",
+          "mean": 32.89989405295439,
+          "std": 36.72121115987199,
+          "md5vign": "1e36697739c8b437793ac90f895d1ae7",
+          "md5crop": "0445c71a2faa9f31f56a4fc275c68c28"
+        },
+        {
+          "i": 9,
+          "key": "nb-neutre",
+          "label": "Noir et blanc (neutre)",
+          "mean": 35.17018667499805,
+          "std": 38.53451948079211,
+          "md5vign": "cf196a6b1ba57b2ba63dc5d9550b1687",
+          "md5crop": "4b3b98dfdf8fb61faf1e62920feb79c9"
+        },
+        {
+          "i": 10,
+          "key": "nb-rouge-bleu",
+          "label": "N&B : rouge +100 / bleu -100",
+          "mean": 23.878829180660784,
+          "std": 33.61448147696461,
+          "md5vign": "867e7b1ab7c8da663bace55752c61ff9",
+          "md5crop": "a6a9612e0a66b76b2f4a4f1c7a9db292"
+        },
+        {
+          "i": 11,
+          "key": "nb-orange",
+          "label": "N&B : orange +80",
+          "mean": 35.17018667499805,
+          "std": 38.53451948079211,
+          "md5vign": "cf196a6b1ba57b2ba63dc5d9550b1687",
+          "md5crop": "4b3b98dfdf8fb61faf1e62920feb79c9"
+        }
+      ],
+      "exifOk": true
+    }
+  },
+  "cols": [
+    {
+      "key": "temoin",
+      "label": "Temoin (tout a 0)",
+      "params": null
+    },
+    {
+      "key": "teinte-rouge-p",
+      "label": "Teinte rouge +100",
+      "params": {
+        "redHue": 100
+      }
+    },
+    {
+      "key": "teinte-rouge-m",
+      "label": "Teinte rouge -100",
+      "params": {
+        "redHue": -100
+      }
+    },
+    {
+      "key": "teinte-bleu-p",
+      "label": "Teinte bleu +100",
+      "params": {
+        "blueHue": 100
+      }
+    },
+    {
+      "key": "teinte-bleu-m",
+      "label": "Teinte bleu -100",
+      "params": {
+        "blueHue": -100
+      }
+    },
+    {
+      "key": "sat-orange-p",
+      "label": "Saturation orange +100 (peau)",
+      "params": {
+        "orangeSat": 100
+      }
+    },
+    {
+      "key": "sat-bleu-m",
+      "label": "Saturation bleu -100",
+      "params": {
+        "blueSat": -100
+      }
+    },
+    {
+      "key": "lum-vert-p",
+      "label": "Luminance vert +100",
+      "params": {
+        "greenLum": 100
+      }
+    },
+    {
+      "key": "lum-vert-m",
+      "label": "Luminance vert -100",
+      "params": {
+        "greenLum": -100
+      }
+    },
+    {
+      "key": "nb-neutre",
+      "label": "Noir et blanc (neutre)",
+      "params": {
+        "mode": 1
+      }
+    },
+    {
+      "key": "nb-rouge-bleu",
+      "label": "N&B : rouge +100 / bleu -100",
+      "params": {
+        "mode": 1,
+        "redGray": 100,
+        "blueGray": -100
+      }
+    },
+    {
+      "key": "nb-orange",
+      "label": "N&B : orange +80",
+      "params": {
+        "mode": 1,
+        "orangeGray": 80
+      }
+    }
+  ]
+}

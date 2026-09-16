@@ -77,16 +77,45 @@ import { RB_TABLE, type WbStep } from "./reglagesDeBaseTable";
  * partagés de `blurChain`, structure identique à la bande Clarté de `nettete`,
  * descente 1/16 puis remontée) porte le flou MOYEN-LARGE dans `prevPass`, lu par
  * Hautes lumières / Ombres (poids), Clarté (contraste local) et Voile (estimation
- * du voile). La bande FINE de Texture se calcule DANS la passe finale, par une
- * tente 3×3 à un texel sur `srcTexture` (comme l'Accentuation de `nettete`) — pas
- * besoin de pyramide pour elle. Deux rayons donc : fin (Texture) et moyen-large
- * (les trois autres). Écart assumé à Lightroom, qui donne à Clarté un rayon plus
- * serré qu'aux Hautes lumières / Ombres ; en 8 bits et sur ses radis descriptifs
- * (jamais chiffrés), le partage est acceptable et se calibre sur la planche.
+ * du voile).
+ *
+ * ⚠️ **TEXTURE EST FAITE DE DEUX BANDES, et elle lit la pyramide elle aussi**
+ * (corrigé le 2026-09-16 ; ce paragraphe a dit « pas besoin de pyramide pour
+ * elle » et c'était faux). Sa bande FINE est un noyau de treize prélèvements à
+ * écartement ABSOLU dans la passe finale ; sa bande MOYENNE est la pyramide. Le
+ * calcul exact de la réponse d'un noyau unique le force : quel que soit son
+ * écartement, il meurt avant la période 32 px, quand Lightroom tient encore un
+ * gain de 1,37 à la période 64. Le binaire nomme d'ailleurs ses DEUX étages de
+ * rééchantillonnage (`fResample1a/1b`, `fResample2a/2b`, `conv1`, `conv2`).
+ * Mesure, ajustement et écart résiduel :
+ * `.scratch/lightroom-develop/research/07-portee-des-operateurs-locaux.md`.
+ *
+ * ⚠️ **LA PYRAMIDE NE TRANSPORTE PLUS UNE COULEUR** mais
+ * `vec3(luminance, sqrt(luminance), 0)` — voir `PREMIER_NIVEAU_WGSL`. Son canal
+ * `r` vaut exactement l'ancien `dot(rgb, RB_LUMA)` (flou et produit scalaire sont
+ * tous deux linéaires), donc aucune calibration de ton ne bouge ; et `r − g²` est
+ * la VARIANCE locale, gratuite, parce que y au carré EST la luminance. C'est elle
+ * qui porte l'epsilon du filtre guidé de Texture.
+ *
+ * Écart assumé à Lightroom, qui donne à Clarté un rayon plus serré qu'aux Hautes
+ * lumières / Ombres ; en 8 bits et sur ses radis descriptifs (jamais chiffrés),
+ * le partage est acceptable et se calibre sur la planche.
+ *
+ * ⚠️ **CE QUI RESTE FAUX DANS CLARTÉ, et pourquoi ce n'est pas un réglage.**
+ * Mesuré le 2026-09-16 : la portée de la Clarté d'Adobe vaut une FRACTION de
+ * chaque dimension de l'image (une pyramide à nombre de niveaux fixe, bien plus
+ * profonde que la nôtre), là où la nôtre vaut une quinzaine de pixels. Sur une
+ * marche, elle rend un dépassement de −20,7 étalé sur des centaines de pixels
+ * quand nous rendons −65 sur une trentaine : nous cernons le bord au lieu de
+ * porter la masse. Approfondir la pyramide ne se fait PAS sans casser Texture,
+ * dont la bande moyenne a justement besoin de la profondeur actuelle — et la
+ * chaîne de passes étant LINÉAIRE, elle ne peut pas transporter deux profondeurs
+ * à la fois. C'est une limite de structure, pas une constante à changer.
  *
  * Les passes de pyramide sont SAUTÉES (`EffectPass.enabled`) quand Hautes
- * lumières, Ombres, Clarté et Voile sont tous à 0 : `prevPass` vaut alors la
- * source, lue seulement par des termes eux-mêmes à 0 — inerte. Et le module
+ * lumières, Ombres, Blancs, Noirs, Clarté, Voile ET TEXTURE sont tous à 0 :
+ * `prevPass` vaut alors la source, lue seulement par des termes eux-mêmes à 0 —
+ * inerte. Et le module
  * ENTIER est sauté par l'étage (`isDevelopModuleAtDefault`) quand tous les
  * curseurs sont au défaut : aucune passe, aucune quantification, rendu de la
  * source au bit près (référence `-temoin` et gate `test:render` zéro écart).
@@ -118,7 +147,17 @@ const LUMA = [0.2126, 0.7152, 0.0722] as const;
 
 // AMPLITUDES DE FORME — lues depuis `RB_TABLE` (une seule source, réécrite par
 // `assets/calibrer-ton.py`). Le WGSL interpole les MÊMES valeurs (voir plus bas).
-const TEXTURE_AMT = 1.2;  // gain additif linéaire de la bande fine à |100| (flou spatial, hors calibration rampe)
+// TEXTURE — DEUX bandes, et le partage entre elles est ajusté, pas choisi :
+// `.scratch/lightroom-develop/assets/fit-texture-deux-bandes.py` les cale sur les
+// quatorze gains mesurés de Lightroom, périodes 3 à 256 px — écart moyen 0,006,
+// pire 0,013. La bande fine seule ne peut PAS y arriver : le calcul exact de la
+// réponse d'un noyau unique (`reponse-noyau.py`) la fait mourir avant la période
+// 32, quand Lightroom tient encore 1,37 à 64. Le binaire nomme d'ailleurs ses
+// deux étages de rééchantillonnage (`fResample1a/1b`, `fResample2a/2b`).
+const TEXTURE_FIN = RB_TABLE.textureFin;     // poids de la bande fine (noyau 13 taps)
+const TEXTURE_MOYEN = RB_TABLE.textureMoyen; // poids de la bande moyenne (pyramide)
+const TEXTURE_RAYON = RB_TABLE.textureRayon; // écartement du noyau fin, en PIXELS
+const TEXTURE_EPS = RB_TABLE.textureEps;     // epsilon du filtre guidé, variance de sqrt(luminance)
 const CLARITY_AMT = 0.9;  // gain additif linéaire de la bande moyenne à |100| (flou spatial, hors calibration rampe)
 const DEHAZE_AMT = 0.35;  // amplitude du retrait/ajout de voile à |100| (flou spatial, hors calibration rampe)
 const CURVE_AMT = RB_TABLE.curveAmt;     // lift perceptuel maximal, PAR RÉGION
@@ -368,7 +407,13 @@ export function reglagesDeBaseSpec(rgb: Vec3, blurLuma: number, p: readonly numb
     const lp = lumaOf(c);
     const detailMoyen = lp - clamp01(blurLuma);          // bande moyenne (Clarté)
     const gainPresence =
-      (texture / 100) * TEXTURE_AMT * 0                   // bande fine = 0 dans le twin
+      // TEXTURE = 0 dans le twin, et c'est désormais le terme ENTIER qui manque,
+      // ses deux bandes comprises : la fine demande treize prélèvements de
+      // voisinage, la moyenne demande la pyramide, et leur portail commun demande
+      // une variance locale — trois choses qu'un twin sans voisinage n'a pas. Les
+      // cinq constantes vivent dans `RB_TABLE` et sont interpolées dans le WGSL,
+      // donc aucune n'est écrite deux fois (garde `jumeauxWgsl`).
+      (texture / 100) * (TEXTURE_FIN + TEXTURE_MOYEN) * 0
       + (clarity / 100) * CLARITY_AMT * detailMoyen;
     // Voile LOCAL : le flou moyen sert d'estimation du contraste de voile (ce que
     // faisait déjà le module). Inerte sur un ton plat — c'est la limite corrigée
@@ -468,6 +513,44 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
 }
 `;
 
+/** Premier niveau de la pyramide : la MEME tente 3x3 que les niveaux suivants,
+ *  mais elle change ce que la pyramide transporte. Au lieu d'une couleur, elle
+ *  emet `vec3(luminance, sqrt(luminance), 0)` — et ces deux nombres suffisent a
+ *  tout ce qui lit la pyramide :
+ *
+ *    - `r` est la luminance floutee, IDENTIQUE a ce que `dot(rgb, RB_LUMA)`
+ *      rendait (un flou est lineaire, un produit scalaire aussi, donc les deux
+ *      ordres donnent le meme nombre) : Hautes lumieres / Ombres / Blancs /
+ *      Noirs / Voile gardent leur calibration au chiffre pres ;
+ *    - `g` est la moyenne de y = sqrt(luminance), l'espace ou Texture travaille ;
+ *    - et `r - g*g` est la VARIANCE locale de y, parce que y au carre EST la
+ *      luminance. La variance ne coute donc aucun canal de plus, aucune passe de
+ *      plus et aucune lecture de plus : elle tombe de l'identite `E[y²] = E[l]`.
+ *
+ *  Cette variance est ce qui manquait aux deux operateurs de presence. Texture
+ *  s'en sert comme epsilon de filtre guide (elle s'efface sur un bord franc) ;
+ *  Clarte s'en sert a l'envers, comme portail de detail (elle ne fait rien sur
+ *  un aplat). Les deux comportements sont mesures chez Lightroom, voir l'en-tete. */
+const PREMIER_NIVEAU_WGSL = `
+fn rb_pn(uv: vec2<f32>) -> vec2<f32> {
+  let l = max(dot(textureSample(srcTexture, srcSampler, uv).rgb, vec3<f32>(0.2126, 0.7152, 0.0722)), 0.0);
+  return vec2<f32>(l, sqrt(l));
+}
+fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
+  let o = 1.0 / vec2<f32>(textureDimensions(srcTexture));
+  var sum = rb_pn(uv) * 4.0;
+  sum = sum + rb_pn(uv + vec2<f32>(-o.x,  0.0)) * 2.0;
+  sum = sum + rb_pn(uv + vec2<f32>( o.x,  0.0)) * 2.0;
+  sum = sum + rb_pn(uv + vec2<f32>( 0.0, -o.y)) * 2.0;
+  sum = sum + rb_pn(uv + vec2<f32>( 0.0,  o.y)) * 2.0;
+  sum = sum + rb_pn(uv + vec2<f32>(-o.x, -o.y));
+  sum = sum + rb_pn(uv + vec2<f32>( o.x, -o.y));
+  sum = sum + rb_pn(uv + vec2<f32>(-o.x,  o.y));
+  sum = sum + rb_pn(uv + vec2<f32>( o.x,  o.y));
+  return vec4<f32>(sum / 16.0, 0.0, 1.0);
+}
+`;
+
 const passePyramide: EffectPass[] = (() => {
   // La pyramide sert le flou moyen-large lu par Hautes lumières / Ombres / Blancs
   // / Noirs (poids sur la luminance floutée `sBlur`) et par Clarté / Voile local
@@ -476,11 +559,19 @@ const passePyramide: EffectPass[] = (() => {
   // `prevPass` resterait la source et ils perdraient leur localité. Sautée quand
   // les SIX sont à 0 : `prevPass` vaut alors la source, lue seulement par des
   // termes à 0. Structure identique à la bande Clarté de `nettete`.
+  // ⚠️ TEXTURE réveille désormais la pyramide, et c'est une correction, pas un
+  // ajout : la mesure du 2026-09-16 montre que la Texture de Lightroom tient un
+  // gain de 1,37 à la période 64 px, qu'AUCUN noyau de passe finale ne peut
+  // produire sans replier (calcul exact dans `reponse-noyau.py`). Elle est faite
+  // de DEUX bandes — le binaire nomme ses deux étages de rééchantillonnage — et
+  // la seconde est la pyramide. Sans ce réveil, `prevPass` vaudrait la source et
+  // la bande moyenne de Texture lirait du bruit au lieu d'un flou.
   const utile = (params: Record<string, number>) =>
     params.highlights !== 0 || params.shadows !== 0 || params.whites !== 0 ||
-    params.blacks !== 0 || params.clarity !== 0 || params.dehaze !== 0;
+    params.blacks !== 0 || params.clarity !== 0 || params.dehaze !== 0 ||
+    params.texture !== 0;
   return [
-    { scale: 0.5, wgsl: DOWNSAMPLE_WGSL, enabled: utile },
+    { scale: 0.5, wgsl: PREMIER_NIVEAU_WGSL, enabled: utile },
     { scale: 0.25, wgsl: DOWNSAMPLE_WGSL, enabled: utile },
     { scale: 0.125, wgsl: DOWNSAMPLE_WGSL, enabled: utile },
     { scale: 0.0625, wgsl: DOWNSAMPLE_WGSL, enabled: utile },
@@ -598,7 +689,10 @@ const RB_WHITE_AMT_POS = ${wf(RB_TABLE.whiteAmtPos)};
 const RB_WHITE_AMT_NEG = ${wf(RB_TABLE.whiteAmtNeg)};
 const RB_WHITE_CENTER = ${wf(RB_TABLE.whiteCenter)};
 const RB_WHITE_KAPPA = ${wf(RB_TABLE.whiteKappa)};
-const RB_TEXTURE_AMT = ${fRb(TEXTURE_AMT)};
+const RB_TEXTURE_FIN = ${fRb(TEXTURE_FIN)};
+const RB_TEXTURE_MOYEN = ${fRb(TEXTURE_MOYEN)};
+const RB_TEXTURE_RAYON = ${fRb(TEXTURE_RAYON)};
+const RB_TEXTURE_EPS = ${fRb(TEXTURE_EPS)};
 const RB_CLARITY_AMT = ${fRb(CLARITY_AMT)};
 const RB_DEHAZE_AMT = ${fRb(DEHAZE_AMT)};
 const RB_CURVE_AMT = ${wv4(RB_TABLE.curveAmt)};
@@ -684,21 +778,50 @@ fn rb_curve(s: f32, kSh: f32, kDk: f32, kLt: f32, kHi: f32, sSplit: f32, mSplit:
   return clamp(s + delta, 0.0, 1.0);
 }
 
-// Bande FINE de Texture : tente 3x3 a un texel sur srcTexture, luminance seule.
-// C'est le seul flou calcule DANS la passe finale ; les autres viennent de la
-// pyramide (prevPass). Voir en-tete.
-fn rb_fine_luma(uv: vec2<f32>) -> f32 {
-  let texel = 1.0 / vec2<f32>(textureDimensions(srcTexture));
-  var sum = textureSample(srcTexture, srcSampler, uv).rgb * 4.0;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-texel.x, 0.0)).rgb * 2.0;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( texel.x, 0.0)).rgb * 2.0;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(0.0, -texel.y)).rgb * 2.0;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(0.0,  texel.y)).rgb * 2.0;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-texel.x, -texel.y)).rgb;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( texel.x, -texel.y)).rgb;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>(-texel.x,  texel.y)).rgb;
-  sum = sum + textureSample(srcTexture, srcSampler, uv + vec2<f32>( texel.x,  texel.y)).rgb;
-  return dot(sum / 16.0, RB_LUMA);
+// Bande FINE de Texture : treize prelevements a ecartement ABSOLU en pixels, sur
+// srcTexture, en espace y = sqrt(luminance). C'est le seul flou calcule DANS la
+// passe finale ; les autres viennent de la pyramide (prevPass). Voir en-tete.
+//
+// TREIZE ET PAS NEUF, et les quatre de plus ne coutent rien de ce qu'on croit :
+// une tente 3x3 etiree a six pixels laisse des trous entre ses points, donc elle
+// REPLIE — un reseau fin passerait entre les mailles. Les quatre taps interieurs
+// a mi-ecartement les bouchent. Et surtout les treize memes lectures rendent la
+// MOYENNE et la VARIANCE locales : l'epsilon du filtre guide ne coute aucune
+// lecture de plus, seulement une multiplication par tap.
+//
+// L'espace est y = sqrt(luminance) et non la lumiere lineaire. Lightroom fait
+// Texture en log-YCC (TextureEncodeLogYCC dans le binaire) : un epsilon pose en
+// lumiere lineaire donnerait une dependance au ton MONOTONE (plein gain dans les
+// ombres, rien dans les hautes lumieres), alors que la mesure rend une reponse
+// presque plate, legerement bombee au milieu — 1,43 · 1,58 · 1,64 · 1,63 · 1,47
+// pour des bases de 24 a 232. La racine carree est le compromis mesure : la
+// meme forme que le gamma sans son pow, treize fois par pixel.
+fn rb_y(uv: vec2<f32>) -> f32 {
+  return sqrt(max(dot(textureSample(srcTexture, srcSampler, uv).rgb, RB_LUMA), 0.0));
+}
+
+// Rend (moyenne, variance) de y sur le noyau fin.
+fn rb_fine_stats(uv: vec2<f32>) -> vec2<f32> {
+  let d = RB_TEXTURE_RAYON / vec2<f32>(textureDimensions(srcTexture));
+  let h = 0.5 * d;
+  var m = 0.0;
+  var q = 0.0;
+  // 2x2 interieur a mi-ecartement, poids 1/8 chacun (somme 1/2).
+  var v = rb_y(uv + vec2<f32>(-h.x, -h.y)); m = m + 0.125 * v; q = q + 0.125 * v * v;
+  v = rb_y(uv + vec2<f32>( h.x, -h.y)); m = m + 0.125 * v; q = q + 0.125 * v * v;
+  v = rb_y(uv + vec2<f32>(-h.x,  h.y)); m = m + 0.125 * v; q = q + 0.125 * v * v;
+  v = rb_y(uv + vec2<f32>( h.x,  h.y)); m = m + 0.125 * v; q = q + 0.125 * v * v;
+  // 3x3 exterieur a l ecartement plein, tente 1-2-1/2-4-2/1-2-1 a demi-poids.
+  v = rb_y(uv);                          m = m + 0.125 * v;   q = q + 0.125 * v * v;
+  v = rb_y(uv + vec2<f32>(-d.x,  0.0));  m = m + 0.0625 * v;  q = q + 0.0625 * v * v;
+  v = rb_y(uv + vec2<f32>( d.x,  0.0));  m = m + 0.0625 * v;  q = q + 0.0625 * v * v;
+  v = rb_y(uv + vec2<f32>( 0.0, -d.y));  m = m + 0.0625 * v;  q = q + 0.0625 * v * v;
+  v = rb_y(uv + vec2<f32>( 0.0,  d.y));  m = m + 0.0625 * v;  q = q + 0.0625 * v * v;
+  v = rb_y(uv + vec2<f32>(-d.x, -d.y));  m = m + 0.03125 * v; q = q + 0.03125 * v * v;
+  v = rb_y(uv + vec2<f32>( d.x, -d.y));  m = m + 0.03125 * v; q = q + 0.03125 * v * v;
+  v = rb_y(uv + vec2<f32>(-d.x,  d.y));  m = m + 0.03125 * v; q = q + 0.03125 * v * v;
+  v = rb_y(uv + vec2<f32>( d.x,  d.y));  m = m + 0.03125 * v; q = q + 0.03125 * v * v;
+  return vec2<f32>(m, max(q - m * m, 0.0));
 }
 
 fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
@@ -737,7 +860,13 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // 2-5. TON PERCEPTUEL — exposition (gamma ancre), contraste (sigmoide ancree),
   //      HL/ombres locaux (cloche sur la luminance floutee de prevPass), blancs/
   //      noirs (cloche ponctuelle). Toutes les formes tiennent 0 et 1.
-  let blurLuma = clamp(dot(textureSample(prevPass, srcSampler, uv).rgb, RB_LUMA), 0.0, 1.0);
+  // La pyramide transporte (luminance, y = sqrt(luminance)) — voir
+  // PREMIER_NIVEAU_WGSL. Le canal r est l'ancien dot(rgb, RB_LUMA) au chiffre
+  // pres, et r - g*g est la variance locale de y, gratuite.
+  let pyr = textureSample(prevPass, srcSampler, uv).rgb;
+  let blurLuma = clamp(pyr.r, 0.0, 1.0);
+  let yMoyen = pyr.g;
+  let varMoyenne = max(pyr.r - pyr.g * pyr.g, 0.0);
   let sBlur = linear_to_srgb(blurLuma);
   let ev = params[2];
   let kC = params[3] / 100.0;
@@ -773,9 +902,25 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   //    prevPass) + Voile. Additif en lumiere sur la luminance.
   if (params[8] != 0.0 || params[9] != 0.0 || params[10] != 0.0) {
     let lp = dot(c, RB_LUMA);
-    let detailFin = lp - rb_fine_luma(uv);
+    // TEXTURE — bande fine a ecartement ABSOLU, en espace y = sqrt(luminance),
+    // et PORTE par l epsilon du filtre guide : la fraction de detail extraite
+    // vaut eps/(variance+eps), donc la matiere passe et le bord franc reste.
+    // Le retour en lumiere lineaire se fait par la derivee, dy/dl = 1/(2y).
+    let y = sqrt(max(lp, 0.0));
+    let fin = rb_fine_stats(uv);
+    // PORTAIL DE TEXTURE — l epsilon du filtre guide, sur la variance de la
+    // PYRAMIDE et non sur celle du noyau fin : la mesure montre que Lightroom
+    // freine Texture a la periode 64 autant qu a la periode 16 quand l amplitude
+    // monte, ce qu une variance lue sur deux pixels ne pourrait pas voir.
+    let porte = RB_TEXTURE_EPS / (varMoyenne + RB_TEXTURE_EPS);
+    let dY = params[8] / 100.0 * porte
+      * (RB_TEXTURE_FIN * (y - fin.x) + RB_TEXTURE_MOYEN * (y - yMoyen));
+    // CLARTE reste LINEAIRE dans le detail, et c est mesure : son gain vaut 1,77
+    // pour des amplitudes de 2 a 32 niveaux, contre 1,79 a 1,40 pour Texture sur
+    // la meme echelle. Aucun portail ici — un contraste local vaut deja zero sur
+    // un aplat, et l ecart a Lightroom n est pas la (voir l en-tete).
     let detailMoyen = lp - blurLuma;
-    let gainPresence = params[8] / 100.0 * RB_TEXTURE_AMT * detailFin
+    let gainPresence = 2.0 * y * dY
       + params[9] / 100.0 * RB_CLARITY_AMT * detailMoyen;
     let voileLocal = params[10] / 100.0 * RB_DEHAZE_AMT * (lp - blurLuma);
     // Facteur sur la luminance, rapports de canaux preserves — Lightroom fait

@@ -1,0 +1,357 @@
+{
+  "photos": {
+    "A": {
+      "file": "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5171.JPG",
+      "srcW": 6240,
+      "srcH": 4160,
+      "frameW": 6240,
+      "frameH": 4160,
+      "crop": {
+        "x": 2600,
+        "y": 2500,
+        "label": "petale / fleur rouge"
+      },
+      "cols": [
+        {
+          "i": 0,
+          "key": "temoin",
+          "label": "Temoin (tout a 0)",
+          "mean": 63.60897737482176,
+          "std": 34.85411470762796,
+          "md5vign": "cb1237991abb9749488385c8cecc68ea",
+          "md5crop": "16de2ececfd862036a4a304c4cb31fe1"
+        },
+        {
+          "i": 1,
+          "key": "ombres-bleu",
+          "label": "Ombres bleu 220 / sat 60",
+          "mean": 63.42100360306897,
+          "std": 35.03600156417233,
+          "md5vign": "c2c53ef080270abf8f9b94fc49974cf4",
+          "md5crop": "25bd8c7e38bc561a7694adcfcf1a4f60"
+        },
+        {
+          "i": 2,
+          "key": "hl-orange",
+          "label": "Hautes lumieres orange 40 / sat 60",
+          "mean": 63.610672639989886,
+          "std": 34.85105046315225,
+          "md5vign": "2890a76d151e9469c54d3d34f01fffab",
+          "md5crop": "ca04496ff64926717d648bbdff816c10"
+        },
+        {
+          "i": 3,
+          "key": "duo",
+          "label": "Teal-and-orange (les deux)",
+          "mean": 63.422694685623675,
+          "std": 35.03295985306505,
+          "md5vign": "da253e0e78610878359ac18a4220d61d",
+          "md5crop": "b1af4954f22fbeb32a9a2b5c7ff3d362"
+        },
+        {
+          "i": 4,
+          "key": "moyens-vert",
+          "label": "Tons moyens vert 120 / sat 60",
+          "mean": 63.723843332811256,
+          "std": 34.68817860765134,
+          "md5vign": "9b69fa3223b645b43973ce5feb3e7b82",
+          "md5crop": "081f126ce5e27942fa1335acccb6db86"
+        },
+        {
+          "i": 5,
+          "key": "global-lum-p50",
+          "label": "Luminance globale +50",
+          "mean": 71.95661924155574,
+          "std": 37.151655316284916,
+          "md5vign": "1f8712799b78bf6aff8ee2f382633108",
+          "md5crop": "3d3e1fe83c02c283c7718e1a76ff4692"
+        },
+        {
+          "i": 6,
+          "key": "global-lum-m50",
+          "label": "Luminance globale -50",
+          "mean": 55.59905270794933,
+          "std": 32.48274093390854,
+          "md5vign": "3b51eeca82d07bf48961996f482253f0",
+          "md5crop": "82fa56bf9ba36356ee0ebc598056eba5"
+        },
+        {
+          "i": 7,
+          "key": "balance-p100",
+          "label": "Duo + Balance +100",
+          "mean": 62.19130343435331,
+          "std": 33.64792443945925,
+          "md5vign": "94c678aa5bc7b7d0dd9ebbc4ee501839",
+          "md5crop": "70086d69b4b0708550ad74ec2df80d03"
+        },
+        {
+          "i": 8,
+          "key": "balance-m100",
+          "label": "Duo + Balance -100",
+          "mean": 60.949607909860305,
+          "std": 34.76801131469366,
+          "md5vign": "8ef31972dab4cf3ec5f3398b4d4c7a41",
+          "md5crop": "cca2dd8cc7477ed21f1ad773ed1a64b0"
+        },
+        {
+          "i": 9,
+          "key": "fusion-0",
+          "label": "Duo + Fusion 0 (tranche)",
+          "mean": 63.220293014132366,
+          "std": 35.298001294829966,
+          "md5vign": "05394134bfef919b2c608645ebe2d89e",
+          "md5crop": "c9ae3ea21b39287d765534ee376623e0"
+        },
+        {
+          "i": 10,
+          "key": "fusion-100",
+          "label": "Duo + Fusion 100 (fondu)",
+          "mean": 63.46832276966451,
+          "std": 34.85183473748523,
+          "md5vign": "387acea4a1af7d3de4ab76f5eb9878fe",
+          "md5crop": "edca23d4882d7c1909bd2be9b9735cb5"
+        },
+        {
+          "i": 11,
+          "key": "global-orange",
+          "label": "Global orange 40 / sat 40",
+          "mean": 60.8589810364783,
+          "std": 34.923726113708355,
+          "md5vign": "9d4f65232bcea0c84703771178104653",
+          "md5crop": "c73084cb1430992cfb9dabe23301970d"
+        }
+      ],
+      "exifOk": true
+    },
+    "B": {
+      "file": "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5169-edited-2.JPG",
+      "srcW": 6240,
+      "srcH": 4160,
+      "frameW": 6240,
+      "frameH": 4160,
+      "crop": {
+        "x": 1500,
+        "y": 2300,
+        "label": "main (peau) / orange"
+      },
+      "cols": [
+        {
+          "i": 0,
+          "key": "temoin",
+          "label": "Temoin (tout a 0)",
+          "mean": 32.8999688104331,
+          "std": 36.72137098151882,
+          "md5vign": "f137224a3880a1af2294cae352745b23",
+          "md5crop": "0711acbb4c35a75f9fd0b98561705eaa"
+        },
+        {
+          "i": 1,
+          "key": "ombres-bleu",
+          "label": "Ombres bleu 220 / sat 60",
+          "mean": 31.217319208758983,
+          "std": 36.984714191292355,
+          "md5vign": "818c61dd98ea79944e18122cc36d6557",
+          "md5crop": "31cc16ded99ee9143dae02a29d7005a0"
+        },
+        {
+          "i": 2,
+          "key": "hl-orange",
+          "label": "Hautes lumieres orange 40 / sat 60",
+          "mean": 32.92041637584748,
+          "std": 36.77218898931331,
+          "md5vign": "d060a039a302c14f78be60c572abe898",
+          "md5crop": "8158288b4a4f45da4f83f61731d69256"
+        },
+        {
+          "i": 3,
+          "key": "duo",
+          "label": "Teal-and-orange (les deux)",
+          "mean": 31.23776899865206,
+          "std": 37.03610504513155,
+          "md5vign": "5733aa7793f8624f5932c407799ff1f5",
+          "md5crop": "ce63c8f3887c034edb5e329fc1b1e9e7"
+        },
+        {
+          "i": 4,
+          "key": "moyens-vert",
+          "label": "Tons moyens vert 120 / sat 60",
+          "mean": 32.4115542247865,
+          "std": 35.822801106851976,
+          "md5vign": "7b0ce5d51fd4633328226a03bf2872b2",
+          "md5crop": "5a003bff67424530342a3d0df6af90c6"
+        },
+        {
+          "i": 5,
+          "key": "global-lum-p50",
+          "label": "Luminance globale +50",
+          "mean": 38.27908335547013,
+          "std": 40.67954437698705,
+          "md5vign": "517a6418a5e81795a5dda84ef3a4653a",
+          "md5crop": "af356a967d257477f208bda29f7f1e76"
+        },
+        {
+          "i": 6,
+          "key": "global-lum-m50",
+          "label": "Luminance globale -50",
+          "mean": 27.830953969380378,
+          "std": 32.680478147777634,
+          "md5vign": "c904f6facb649008270459e382bd06c8",
+          "md5crop": "ff41836eaaa6d93acb5c5ecc9a1aa966"
+        },
+        {
+          "i": 7,
+          "key": "balance-p100",
+          "label": "Duo + Balance +100",
+          "mean": 34.29377628761144,
+          "std": 38.55208525256051,
+          "md5vign": "1fb46a337590e6c7a2505bad330ee077",
+          "md5crop": "4f6a40f0a754c8eac3b954907f7ed4dc"
+        },
+        {
+          "i": 8,
+          "key": "balance-m100",
+          "label": "Duo + Balance -100",
+          "mean": 27.36340621180678,
+          "std": 33.63738343551034,
+          "md5vign": "5c93964e04d91b2be7ab100ca89312e7",
+          "md5crop": "db213efc1ca3d800471c5ea43c63d561"
+        },
+        {
+          "i": 9,
+          "key": "fusion-0",
+          "label": "Duo + Fusion 0 (tranche)",
+          "mean": 31.022389234535904,
+          "std": 37.31120460475005,
+          "md5vign": "685418d683cb4acd880ea3c8f60ab929",
+          "md5crop": "3f9a988600ae8ab868802306b0784410"
+        },
+        {
+          "i": 10,
+          "key": "fusion-100",
+          "label": "Duo + Fusion 100 (fondu)",
+          "mean": 31.231298803384668,
+          "std": 36.9785549327464,
+          "md5vign": "deee49da405ecd7f465e550b6b65184f",
+          "md5crop": "9e0012c711ec776a31d9eb6c8a22f15f"
+        },
+        {
+          "i": 11,
+          "key": "global-orange",
+          "label": "Global orange 40 / sat 40",
+          "mean": 34.88535937359053,
+          "std": 38.683303249667425,
+          "md5vign": "c3003e490e662285be56c91274b0f0e7",
+          "md5crop": "4a195cd696e2b37d226e279e544ee74a"
+        }
+      ],
+      "exifOk": true
+    }
+  },
+  "cols": [
+    {
+      "key": "temoin",
+      "label": "Temoin (tout a 0)",
+      "params": null
+    },
+    {
+      "key": "ombres-bleu",
+      "label": "Ombres bleu 220 / sat 60",
+      "params": {
+        "shadowHue": 220,
+        "shadowSat": 60
+      }
+    },
+    {
+      "key": "hl-orange",
+      "label": "Hautes lumieres orange 40 / sat 60",
+      "params": {
+        "highlightHue": 40,
+        "highlightSat": 60
+      }
+    },
+    {
+      "key": "duo",
+      "label": "Teal-and-orange (les deux)",
+      "params": {
+        "shadowHue": 220,
+        "shadowSat": 60,
+        "highlightHue": 40,
+        "highlightSat": 60
+      }
+    },
+    {
+      "key": "moyens-vert",
+      "label": "Tons moyens vert 120 / sat 60",
+      "params": {
+        "midtoneHue": 120,
+        "midtoneSat": 60
+      }
+    },
+    {
+      "key": "global-lum-p50",
+      "label": "Luminance globale +50",
+      "params": {
+        "globalLum": 50
+      }
+    },
+    {
+      "key": "global-lum-m50",
+      "label": "Luminance globale -50",
+      "params": {
+        "globalLum": -50
+      }
+    },
+    {
+      "key": "balance-p100",
+      "label": "Duo + Balance +100",
+      "params": {
+        "shadowHue": 220,
+        "shadowSat": 60,
+        "highlightHue": 40,
+        "highlightSat": 60,
+        "balance": 100
+      }
+    },
+    {
+      "key": "balance-m100",
+      "label": "Duo + Balance -100",
+      "params": {
+        "shadowHue": 220,
+        "shadowSat": 60,
+        "highlightHue": 40,
+        "highlightSat": 60,
+        "balance": -100
+      }
+    },
+    {
+      "key": "fusion-0",
+      "label": "Duo + Fusion 0 (tranche)",
+      "params": {
+        "shadowHue": 220,
+        "shadowSat": 60,
+        "highlightHue": 40,
+        "highlightSat": 60,
+        "blending": 0
+      }
+    },
+    {
+      "key": "fusion-100",
+      "label": "Duo + Fusion 100 (fondu)",
+      "params": {
+        "shadowHue": 220,
+        "shadowSat": 60,
+        "highlightHue": 40,
+        "highlightSat": 60,
+        "blending": 100
+      }
+    },
+    {
+      "key": "global-orange",
+      "label": "Global orange 40 / sat 40",
+      "params": {
+        "globalHue": 40,
+        "globalSat": 40
+      }
+    }
+  ]
+}

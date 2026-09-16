@@ -203,6 +203,44 @@ export interface ReglagesDeBaseTable {
   /** Voile (négatif = ajout) — désaturation de la chroma OKLab à −100 (LR blanchit
    *  les couleurs saturées vers l'airlight). Fitté sur la colonne sat du `balayage` de `voile-m100`. */
   dehazeDesatK: number;
+  /** Texture — écartement du noyau fin, en PIXELS de l'image, jamais en texels.
+   *
+   *  Mesuré le 2026-09-16 (`../../../.scratch/lightroom-develop/research/07-portee-des-operateurs-locaux.md`) :
+   *  la portée de Texture chez Lightroom est ABSOLUE — largeur efficace de halo
+   *  de 10,4 px, identique sur quatre largeurs d'image (1024 à 4096) ET deux
+   *  hauteurs (7584, 16384), et identique en marche verticale comme horizontale.
+   *  Elle ne se déduit donc pas d'une fraction de l'image : c'est un nombre de
+   *  pixels, et il se pose ici. */
+  textureRayon: number;
+  /** Texture — poids de la bande FINE (le noyau treize taps de la passe finale). */
+  textureFin: number;
+  /** Texture — poids de la bande MOYENNE (la pyramide).
+   *
+   *  Texture est faite de DEUX bandes, et ce n'est pas un choix : le calcul exact
+   *  de la réponse d'un noyau unique le montre — quel que soit son écartement, il
+   *  meurt avant la période 32 px, quand Lightroom tient encore un gain de 1,37 à
+   *  la période 64. Le binaire nomme ses deux étages de rééchantillonnage
+   *  (`fResample1a/1b`, `fResample2a/2b`, `conv1`, `conv2`).
+   *
+   *  Les deux poids et l'écartement sont ajustés ensemble sur les quatorze gains
+   *  mesurés, périodes 3 à 256 px — écart moyen 0,006, pire 0,013. */
+  textureMoyen: number;
+  /** Texture — l'epsilon du FILTRE GUIDÉ, en variance de `sqrt(luminance)`.
+   *
+   *  Le binaire nomme l'opérateur `cr_stage_texture_direct_gf_ycc` — `gf` pour
+   *  guided filter — et un filtre guidé n'extrait le détail QUE là où la variance
+   *  locale reste sous son epsilon : la fraction extraite vaut `eps/(var+eps)`.
+   *  C'est ce qui distingue Texture de tout passe-haut : elle porte la matière et
+   *  laisse les bords francs tranquilles.
+   *
+   *  Mesuré sur la zone AMPLITUDE de la mire de présence, période 16 px, base 128,
+   *  Texture +100 — gain 1,789 · 1,782 · 1,743 · 1,642 · 1,403 · 1,146 pour des
+   *  amplitudes de 2 · 4 · 8 · 16 · 32 · 64 niveaux. Rapportés à leur plafond, ces
+   *  six points donnent 1,00 · 0,99 · 0,94 · 0,81 · 0,51 · 0,185, et la forme
+   *  `eps/(A²/2+eps)` les rend à 1,00 · 0,99 · 0,94 · 0,81 · 0,51 · 0,207 pour
+   *  eps = 533 niveaux² — soit 0,0082 en unités normalisées. Six points, une
+   *  constante, deux pour cent d'écart au pire. */
+  textureEps: number;
 }
 
 /** Table calibrée sur Lightroom 14.5 par `assets/calibrer-ton.py` (moindres carrés
@@ -263,4 +301,8 @@ export const RB_TABLE: ReglagesDeBaseTable = {
   dehazeGamma: 2.93,
   dehazeDoseMapNeg: 0.51,
   dehazeDesatK: 0.6,
+  textureRayon: 2.1,
+  textureFin: 0.259,
+  textureMoyen: 0.547,
+  textureEps: 0.0082,
 };

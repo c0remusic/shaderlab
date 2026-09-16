@@ -1,0 +1,311 @@
+{
+  "photos": {
+    "A": {
+      "file": "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5171.JPG",
+      "srcW": 6240,
+      "srcH": 4160,
+      "frameW": 6240,
+      "frameH": 4160,
+      "crop": {
+        "x": 2600,
+        "y": 2500,
+        "label": "petale / fleur rouge"
+      },
+      "cols": [
+        {
+          "i": 0,
+          "key": "temoin",
+          "label": "Temoin (tout a 0)",
+          "mean": 63.60897737482176,
+          "std": 34.85411470762796,
+          "md5vign": "cb1237991abb9749488385c8cecc68ea",
+          "md5crop": "16de2ececfd862036a4a304c4cb31fe1"
+        },
+        {
+          "i": 1,
+          "key": "rouge-teinte-moins",
+          "label": "Rouge teinte -60",
+          "mean": 63.6803864992496,
+          "std": 34.777938079388136,
+          "md5vign": "0091840a4806ecb8fb3738b7486210ee",
+          "md5crop": "a242b9bc8c4d9fff92b28883255751de"
+        },
+        {
+          "i": 2,
+          "key": "rouge-teinte-plus",
+          "label": "Rouge teinte +60",
+          "mean": 63.70455807230852,
+          "std": 34.716485886715695,
+          "md5vign": "5ffbf69394a4f2dbc01822bf21b220d6",
+          "md5crop": "bfa044fd9b3d32c57b7ca723adacd1bd"
+        },
+        {
+          "i": 3,
+          "key": "vert-teinte-moins",
+          "label": "Vert teinte -60",
+          "mean": 63.52261444189957,
+          "std": 35.234151307811,
+          "md5vign": "71cf95f0a018828533cecaf7145f4210",
+          "md5crop": "0f88e7c853185d99be22a10ce217ad12"
+        },
+        {
+          "i": 4,
+          "key": "vert-teinte-plus",
+          "label": "Vert teinte +60",
+          "mean": 63.677169528981935,
+          "std": 34.270628194410406,
+          "md5vign": "06084fc710112092f172e2e3ec6405bc",
+          "md5crop": "50c03503a27ed6c73585d389afbc85b1"
+        },
+        {
+          "i": 5,
+          "key": "bleu-teinte-moins",
+          "label": "Bleu teinte -60",
+          "mean": 63.57235180815765,
+          "std": 34.74003222176432,
+          "md5vign": "649055bfffc143b148c8caa9d47752d6",
+          "md5crop": "1014b6250b6f774f9469463e7d2a095f"
+        },
+        {
+          "i": 6,
+          "key": "bleu-teinte-plus",
+          "label": "Bleu teinte +60",
+          "mean": 63.603900197593816,
+          "std": 34.974571148104786,
+          "md5vign": "5593ea3732c793e80ba13ec482ec6e6a",
+          "md5crop": "7bf3117425b7f202771a58100ab4d9d8"
+        },
+        {
+          "i": 7,
+          "key": "bleu-sat-plus",
+          "label": "Bleu saturation +60",
+          "mean": 64.12891514098725,
+          "std": 34.79739224024694,
+          "md5vign": "e04c92034bc69ded227b9f0fead33107",
+          "md5crop": "10636b189ec9f50c3bf0a665c4504313"
+        },
+        {
+          "i": 8,
+          "key": "nuance-moins",
+          "label": "Nuance foncee -80 (vert)",
+          "mean": 73.62538135516236,
+          "std": 27.035993144112144,
+          "md5vign": "33289fd70ddefbc89a42e0f9b874469c",
+          "md5crop": "fea324aaa51cb99927b6cf3ca6be6645"
+        },
+        {
+          "i": 9,
+          "key": "nuance-plus",
+          "label": "Nuance foncee +80 (magenta)",
+          "mean": 53.950670863859415,
+          "std": 34.73976183247195,
+          "md5vign": "46ec034ed8d1f72ee3bf0ca6afef66ac",
+          "md5crop": "641bd9189c582a12703341d1d246c193"
+        },
+        {
+          "i": 10,
+          "key": "teal-orange",
+          "label": "Teal & orange (Bleu t-40 s+30, Rouge t+10)",
+          "mean": 63.73267732717929,
+          "std": 34.75515577212149,
+          "md5vign": "2d3ad94339a71ab8b761eb7f460b5240",
+          "md5crop": "cab782d7f8cd6ca0b3ce7755add5d62a"
+        }
+      ],
+      "exifOk": true
+    },
+    "B": {
+      "file": "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5169-edited-2.JPG",
+      "srcW": 6240,
+      "srcH": 4160,
+      "frameW": 6240,
+      "frameH": 4160,
+      "crop": {
+        "x": 1500,
+        "y": 2300,
+        "label": "main (peau) / bande"
+      },
+      "cols": [
+        {
+          "i": 0,
+          "key": "temoin",
+          "label": "Temoin (tout a 0)",
+          "mean": 32.8999688104331,
+          "std": 36.72137098151882,
+          "md5vign": "f137224a3880a1af2294cae352745b23",
+          "md5crop": "0711acbb4c35a75f9fd0b98561705eaa"
+        },
+        {
+          "i": 1,
+          "key": "rouge-teinte-moins",
+          "label": "Rouge teinte -60",
+          "mean": 32.73078050143252,
+          "std": 36.58132846616261,
+          "md5vign": "d37634ce0b19d06326cf04c526ba18f9",
+          "md5crop": "343743d5e2a968b6ad187c96ae343975"
+        },
+        {
+          "i": 2,
+          "key": "rouge-teinte-plus",
+          "label": "Rouge teinte +60",
+          "mean": 32.76006918611965,
+          "std": 36.51231319064194,
+          "md5vign": "05368d22b1b60a444c11a942be7e321d",
+          "md5crop": "7248ae2bf92b3ba2846cbde3c090a6c7"
+        },
+        {
+          "i": 3,
+          "key": "vert-teinte-moins",
+          "label": "Vert teinte -60",
+          "mean": 35.131930323353465,
+          "std": 39.31721501564847,
+          "md5vign": "a66a5dd3d480a76059d540968089fc44",
+          "md5crop": "8ebfca82a6ef0b589d99792196ecb0a9"
+        },
+        {
+          "i": 4,
+          "key": "vert-teinte-plus",
+          "label": "Vert teinte +60",
+          "mean": 30.383644070134665,
+          "std": 33.27905035378363,
+          "md5vign": "933f989db4d63c916cbb746a25d35d2d",
+          "md5crop": "74b5688131bc26d2281637179014d932"
+        },
+        {
+          "i": 5,
+          "key": "bleu-teinte-moins",
+          "label": "Bleu teinte -60",
+          "mean": 32.24136224946421,
+          "std": 35.21540520941989,
+          "md5vign": "7724ead5146da14eed6825c4cea1b4a8",
+          "md5crop": "b8301ed35f39f2454885ecbec7d748bc"
+        },
+        {
+          "i": 6,
+          "key": "bleu-teinte-plus",
+          "label": "Bleu teinte +60",
+          "mean": 33.99616573458122,
+          "std": 37.95241746811035,
+          "md5vign": "195bb84ce145369f56310f9f7950d441",
+          "md5crop": "2a873269c65c5b2d91df986a3c6b4155"
+        },
+        {
+          "i": 7,
+          "key": "bleu-sat-plus",
+          "label": "Bleu saturation +60",
+          "mean": 28.797166660921743,
+          "std": 35.25146369682413,
+          "md5vign": "9d6da0fedfc9de5a97c039a753892594",
+          "md5crop": "b962b03999996ca4492df6001e1fe634"
+        },
+        {
+          "i": 8,
+          "key": "nuance-moins",
+          "label": "Nuance foncee -80 (vert)",
+          "mean": 56.17885722645814,
+          "std": 22.15699756178732,
+          "md5vign": "f53ea21d61a65e1a16d00f22ffbe1614",
+          "md5crop": "07d54a382b0fbd8336e3dd5fb7c7815f"
+        },
+        {
+          "i": 9,
+          "key": "nuance-plus",
+          "label": "Nuance foncee +80 (magenta)",
+          "mean": 35.24830658752514,
+          "std": 31.402777183204584,
+          "md5vign": "7b8976cdfbc47d2e23ffbc33424f39c5",
+          "md5crop": "71cb80c1c106ec5fe0fa9a8db786afb2"
+        },
+        {
+          "i": 10,
+          "key": "teal-orange",
+          "label": "Teal & orange (Bleu t-40 s+30, Rouge t+10)",
+          "mean": 30.932160723262317,
+          "std": 34.950440111833366,
+          "md5vign": "c353d3ff06523929b8c9f773ceb25389",
+          "md5crop": "ae7bf78e86919ea927d460660d282422"
+        }
+      ],
+      "exifOk": true
+    }
+  },
+  "cols": [
+    {
+      "key": "temoin",
+      "label": "Temoin (tout a 0)",
+      "params": null
+    },
+    {
+      "key": "rouge-teinte-moins",
+      "label": "Rouge teinte -60",
+      "params": {
+        "redHue": -60
+      }
+    },
+    {
+      "key": "rouge-teinte-plus",
+      "label": "Rouge teinte +60",
+      "params": {
+        "redHue": 60
+      }
+    },
+    {
+      "key": "vert-teinte-moins",
+      "label": "Vert teinte -60",
+      "params": {
+        "greenHue": -60
+      }
+    },
+    {
+      "key": "vert-teinte-plus",
+      "label": "Vert teinte +60",
+      "params": {
+        "greenHue": 60
+      }
+    },
+    {
+      "key": "bleu-teinte-moins",
+      "label": "Bleu teinte -60",
+      "params": {
+        "blueHue": -60
+      }
+    },
+    {
+      "key": "bleu-teinte-plus",
+      "label": "Bleu teinte +60",
+      "params": {
+        "blueHue": 60
+      }
+    },
+    {
+      "key": "bleu-sat-plus",
+      "label": "Bleu saturation +60",
+      "params": {
+        "blueSaturation": 60
+      }
+    },
+    {
+      "key": "nuance-moins",
+      "label": "Nuance foncee -80 (vert)",
+      "params": {
+        "shadowTint": -80
+      }
+    },
+    {
+      "key": "nuance-plus",
+      "label": "Nuance foncee +80 (magenta)",
+      "params": {
+        "shadowTint": 80
+      }
+    },
+    {
+      "key": "teal-orange",
+      "label": "Teal & orange (Bleu t-40 s+30, Rouge t+10)",
+      "params": {
+        "blueHue": -40,
+        "blueSaturation": 30,
+        "redHue": 10
+      }
+    }
+  ]
+}

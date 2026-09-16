@@ -1,0 +1,165 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<title>Planche 06 — Color Grading (roues)</title>
+<style>
+  body { background: #1a1a1a; color: #ddd; font: 13px/1.4 system-ui, sans-serif; margin: 0; padding: 24px; }
+  .banner { background: #2b2b2b; border: 1px solid #444; border-radius: 6px; padding: 14px 18px; margin-bottom: 20px; font-size: 15px; }
+  .banner b { color: #fff; }
+  .prov { color: #d9a441; }
+  h2 { font-size: 16px; margin: 28px 0 4px; }
+  .dims { font-weight: normal; color: #888; font-size: 12px; }
+  .crop-note { color: #999; font-size: 12px; margin-bottom: 10px; }
+  .row { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 12px; }
+  .col { flex: 0 0 auto; width: 320px; background: #222; border: 1px solid #383838; border-radius: 5px; padding: 8px; }
+  .label { font-weight: 600; color: #fff; margin-bottom: 6px; min-height: 2.4em; }
+  img.vign { width: 100%; display: block; border-radius: 3px; }
+  img.crop { width: 256px; height: 256px; image-rendering: pixelated; display: block; margin: 6px auto 0; border: 1px solid #444; }
+  .stat { color: #bbb; font-size: 12px; margin-top: 6px; }
+  .md5 { color: #666; font-size: 11px; font-family: ui-monospace, monospace; }
+</style></head><body>
+<div class="banner"><b>Compare à ton Lightroom, mêmes valeurs.</b> Panneau Color Grading, roues aux valeurs indiquées (teinte°/saturation). Témoin = photo sans réglage. Duo = teal-and-orange (ombres bleu 220/60 + hautes lumières orange 40/60), à comparer aussi au même look par Étalonnage. <span class="prov">Calibré sur mesures Lightroom : tons moyens et luminance globale. PROVISOIRE (modélisé, non mesurable dans les exports) : profils ombres/hautes lumières, Fusion, Balance.</span></div>
+<h2>Photo A — DSCF5171.JPG <span class="dims">6240×4160 (EXIF OK)</span></h2><div class="crop-note">Crop 1:1 (256 px natif) : petale / fleur rouge @ (2600, 2500) — le teintage des ombres et des hautes lumieres se juge ici en 1:1</div><div class="row"><div class="col">
+      <div class="label">Temoin (tout a 0)</div>
+      <img class="vign" src="grading-A-col0-vign.png" alt="temoin">
+      <img class="crop" src="grading-A-col0-crop.png" alt="temoin crop">
+      <div class="stat">moy 63.6 · σ 34.9</div>
+      <div class="md5">cb123799 / 16de2ece</div>
+    </div><div class="col">
+      <div class="label">Ombres bleu 220 / sat 60</div>
+      <img class="vign" src="grading-A-col1-vign.png" alt="ombres-bleu">
+      <img class="crop" src="grading-A-col1-crop.png" alt="ombres-bleu crop">
+      <div class="stat">moy 63.4 · σ 35.0</div>
+      <div class="md5">c2c53ef0 / 25bd8c7e</div>
+    </div><div class="col">
+      <div class="label">Hautes lumieres orange 40 / sat 60</div>
+      <img class="vign" src="grading-A-col2-vign.png" alt="hl-orange">
+      <img class="crop" src="grading-A-col2-crop.png" alt="hl-orange crop">
+      <div class="stat">moy 63.6 · σ 34.9</div>
+      <div class="md5">2890a76d / ca04496f</div>
+    </div><div class="col">
+      <div class="label">Teal-and-orange (les deux)</div>
+      <img class="vign" src="grading-A-col3-vign.png" alt="duo">
+      <img class="crop" src="grading-A-col3-crop.png" alt="duo crop">
+      <div class="stat">moy 63.4 · σ 35.0</div>
+      <div class="md5">da253e0e / b1af4954</div>
+    </div><div class="col">
+      <div class="label">Tons moyens vert 120 / sat 60</div>
+      <img class="vign" src="grading-A-col4-vign.png" alt="moyens-vert">
+      <img class="crop" src="grading-A-col4-crop.png" alt="moyens-vert crop">
+      <div class="stat">moy 63.7 · σ 34.7</div>
+      <div class="md5">9b69fa32 / 081f126c</div>
+    </div><div class="col">
+      <div class="label">Luminance globale +50</div>
+      <img class="vign" src="grading-A-col5-vign.png" alt="global-lum-p50">
+      <img class="crop" src="grading-A-col5-crop.png" alt="global-lum-p50 crop">
+      <div class="stat">moy 72.0 · σ 37.2</div>
+      <div class="md5">1f871279 / 3d3e1fe8</div>
+    </div><div class="col">
+      <div class="label">Luminance globale -50</div>
+      <img class="vign" src="grading-A-col6-vign.png" alt="global-lum-m50">
+      <img class="crop" src="grading-A-col6-crop.png" alt="global-lum-m50 crop">
+      <div class="stat">moy 55.6 · σ 32.5</div>
+      <div class="md5">3b51eeca / 82fa56bf</div>
+    </div><div class="col">
+      <div class="label">Duo + Balance +100</div>
+      <img class="vign" src="grading-A-col7-vign.png" alt="balance-p100">
+      <img class="crop" src="grading-A-col7-crop.png" alt="balance-p100 crop">
+      <div class="stat">moy 62.2 · σ 33.6</div>
+      <div class="md5">94c678aa / 70086d69</div>
+    </div><div class="col">
+      <div class="label">Duo + Balance -100</div>
+      <img class="vign" src="grading-A-col8-vign.png" alt="balance-m100">
+      <img class="crop" src="grading-A-col8-crop.png" alt="balance-m100 crop">
+      <div class="stat">moy 60.9 · σ 34.8</div>
+      <div class="md5">8ef31972 / cca2dd8c</div>
+    </div><div class="col">
+      <div class="label">Duo + Fusion 0 (tranche)</div>
+      <img class="vign" src="grading-A-col9-vign.png" alt="fusion-0">
+      <img class="crop" src="grading-A-col9-crop.png" alt="fusion-0 crop">
+      <div class="stat">moy 63.2 · σ 35.3</div>
+      <div class="md5">05394134 / c9ae3ea2</div>
+    </div><div class="col">
+      <div class="label">Duo + Fusion 100 (fondu)</div>
+      <img class="vign" src="grading-A-col10-vign.png" alt="fusion-100">
+      <img class="crop" src="grading-A-col10-crop.png" alt="fusion-100 crop">
+      <div class="stat">moy 63.5 · σ 34.9</div>
+      <div class="md5">387acea4 / edca23d4</div>
+    </div><div class="col">
+      <div class="label">Global orange 40 / sat 40</div>
+      <img class="vign" src="grading-A-col11-vign.png" alt="global-orange">
+      <img class="crop" src="grading-A-col11-crop.png" alt="global-orange crop">
+      <div class="stat">moy 60.9 · σ 34.9</div>
+      <div class="md5">9d4f6523 / c73084cb</div>
+    </div></div><h2>Photo B — DSCF5169-edited-2.JPG <span class="dims">6240×4160 (EXIF OK)</span></h2><div class="crop-note">Crop 1:1 (256 px natif) : main (peau) / orange @ (1500, 2300) — le teintage des ombres et des hautes lumieres se juge ici en 1:1</div><div class="row"><div class="col">
+      <div class="label">Temoin (tout a 0)</div>
+      <img class="vign" src="grading-B-col0-vign.png" alt="temoin">
+      <img class="crop" src="grading-B-col0-crop.png" alt="temoin crop">
+      <div class="stat">moy 32.9 · σ 36.7</div>
+      <div class="md5">f137224a / 0711acbb</div>
+    </div><div class="col">
+      <div class="label">Ombres bleu 220 / sat 60</div>
+      <img class="vign" src="grading-B-col1-vign.png" alt="ombres-bleu">
+      <img class="crop" src="grading-B-col1-crop.png" alt="ombres-bleu crop">
+      <div class="stat">moy 31.2 · σ 37.0</div>
+      <div class="md5">818c61dd / 31cc16de</div>
+    </div><div class="col">
+      <div class="label">Hautes lumieres orange 40 / sat 60</div>
+      <img class="vign" src="grading-B-col2-vign.png" alt="hl-orange">
+      <img class="crop" src="grading-B-col2-crop.png" alt="hl-orange crop">
+      <div class="stat">moy 32.9 · σ 36.8</div>
+      <div class="md5">d060a039 / 8158288b</div>
+    </div><div class="col">
+      <div class="label">Teal-and-orange (les deux)</div>
+      <img class="vign" src="grading-B-col3-vign.png" alt="duo">
+      <img class="crop" src="grading-B-col3-crop.png" alt="duo crop">
+      <div class="stat">moy 31.2 · σ 37.0</div>
+      <div class="md5">5733aa77 / ce63c8f3</div>
+    </div><div class="col">
+      <div class="label">Tons moyens vert 120 / sat 60</div>
+      <img class="vign" src="grading-B-col4-vign.png" alt="moyens-vert">
+      <img class="crop" src="grading-B-col4-crop.png" alt="moyens-vert crop">
+      <div class="stat">moy 32.4 · σ 35.8</div>
+      <div class="md5">7b0ce5d5 / 5a003bff</div>
+    </div><div class="col">
+      <div class="label">Luminance globale +50</div>
+      <img class="vign" src="grading-B-col5-vign.png" alt="global-lum-p50">
+      <img class="crop" src="grading-B-col5-crop.png" alt="global-lum-p50 crop">
+      <div class="stat">moy 38.3 · σ 40.7</div>
+      <div class="md5">517a6418 / af356a96</div>
+    </div><div class="col">
+      <div class="label">Luminance globale -50</div>
+      <img class="vign" src="grading-B-col6-vign.png" alt="global-lum-m50">
+      <img class="crop" src="grading-B-col6-crop.png" alt="global-lum-m50 crop">
+      <div class="stat">moy 27.8 · σ 32.7</div>
+      <div class="md5">c904f6fa / ff41836e</div>
+    </div><div class="col">
+      <div class="label">Duo + Balance +100</div>
+      <img class="vign" src="grading-B-col7-vign.png" alt="balance-p100">
+      <img class="crop" src="grading-B-col7-crop.png" alt="balance-p100 crop">
+      <div class="stat">moy 34.3 · σ 38.6</div>
+      <div class="md5">1fb46a33 / 4f6a40f0</div>
+    </div><div class="col">
+      <div class="label">Duo + Balance -100</div>
+      <img class="vign" src="grading-B-col8-vign.png" alt="balance-m100">
+      <img class="crop" src="grading-B-col8-crop.png" alt="balance-m100 crop">
+      <div class="stat">moy 27.4 · σ 33.6</div>
+      <div class="md5">5c93964e / db213efc</div>
+    </div><div class="col">
+      <div class="label">Duo + Fusion 0 (tranche)</div>
+      <img class="vign" src="grading-B-col9-vign.png" alt="fusion-0">
+      <img class="crop" src="grading-B-col9-crop.png" alt="fusion-0 crop">
+      <div class="stat">moy 31.0 · σ 37.3</div>
+      <div class="md5">685418d6 / 3f9a9886</div>
+    </div><div class="col">
+      <div class="label">Duo + Fusion 100 (fondu)</div>
+      <img class="vign" src="grading-B-col10-vign.png" alt="fusion-100">
+      <img class="crop" src="grading-B-col10-crop.png" alt="fusion-100 crop">
+      <div class="stat">moy 31.2 · σ 37.0</div>
+      <div class="md5">deee49da / 9e0012c7</div>
+    </div><div class="col">
+      <div class="label">Global orange 40 / sat 40</div>
+      <img class="vign" src="grading-B-col11-vign.png" alt="global-orange">
+      <img class="crop" src="grading-B-col11-crop.png" alt="global-orange crop">
+      <div class="stat">moy 34.9 · σ 38.7</div>
+      <div class="md5">c3003e49 / 4a195cd6</div>
+    </div></div>
+</body></html>

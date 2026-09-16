@@ -1,0 +1,248 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<title>Planche 02 — Réglages de base</title>
+<style>
+  body { background: #1a1a1a; color: #ddd; font: 13px/1.4 system-ui, sans-serif; margin: 0; padding: 24px; }
+  .banner { background: #2b2b2b; border: 1px solid #444; border-radius: 6px; padding: 14px 18px; margin-bottom: 20px; font-size: 15px; }
+  .banner b { color: #fff; }
+  h2 { font-size: 16px; margin: 28px 0 4px; }
+  .dims { font-weight: normal; color: #888; font-size: 12px; }
+  .crop-note { color: #999; font-size: 12px; margin-bottom: 10px; }
+  .row { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 12px; }
+  .col { flex: 0 0 auto; width: 320px; background: #222; border: 1px solid #383838; border-radius: 5px; padding: 8px; }
+  .label { font-weight: 600; color: #fff; margin-bottom: 6px; min-height: 2.4em; }
+  img.vign { width: 100%; display: block; border-radius: 3px; }
+  img.crop { width: 256px; height: 256px; image-rendering: pixelated; display: block; margin: 6px auto 0; border: 1px solid #444; }
+  .stat { color: #bbb; font-size: 12px; margin-top: 6px; }
+  .md5 { color: #666; font-size: 11px; font-family: ui-monospace, monospace; }
+</style></head><body>
+<div class="banner"><b>Compare à ton Lightroom, mêmes valeurs.</b> Panneau Réglages de base + Courbe paramétrique, curseurs aux valeurs indiquées. Le témoin est la photo sans réglage (identité au bit près). Tout le ton passe par UN effet, quantifié une seule fois. Vibrance vs Saturation : la différence se lit sur la <b>peau</b> (crop 1:1) — la vibrance la protège.</div>
+<h2>Photo A — DSCF5171.JPG <span class="dims">6240×4160 (EXIF OK)</span></h2><div class="crop-note">Crop 1:1 (256 px natif) : petale / fleur rouge @ (2600, 2500) — juge Texture / Clarté / Vibrance ICI</div><div class="row"><div class="col">
+      <div class="label">Temoin (tout a 0)</div>
+      <img class="vign" src="rb-A-col0-vign.png" alt="temoin">
+      <img class="crop" src="rb-A-col0-crop.png" alt="temoin crop">
+      <div class="stat">moy 63.6 · σ 34.9</div>
+      <div class="md5">cb123799 / 16de2ece</div>
+    </div><div class="col">
+      <div class="label">Exposition -1</div>
+      <img class="vign" src="rb-A-col1-vign.png" alt="expo-moins">
+      <img class="crop" src="rb-A-col1-crop.png" alt="expo-moins crop">
+      <div class="stat">moy 44.5 · σ 25.6</div>
+      <div class="md5">8793dd95 / 74f0d717</div>
+    </div><div class="col">
+      <div class="label">Exposition +1</div>
+      <img class="vign" src="rb-A-col2-vign.png" alt="expo-plus">
+      <img class="crop" src="rb-A-col2-crop.png" alt="expo-plus crop">
+      <div class="stat">moy 89.3 · σ 47.0</div>
+      <div class="md5">033adcf0 / bf9e69a0</div>
+    </div><div class="col">
+      <div class="label">Hautes lumieres -80</div>
+      <img class="vign" src="rb-A-col3-vign.png" alt="hl-moins">
+      <img class="crop" src="rb-A-col3-crop.png" alt="hl-moins crop">
+      <div class="stat">moy 58.2 · σ 31.4</div>
+      <div class="md5">8709645a / b229695c</div>
+    </div><div class="col">
+      <div class="label">Ombres +80</div>
+      <img class="vign" src="rb-A-col4-vign.png" alt="ombres-plus">
+      <img class="crop" src="rb-A-col4-crop.png" alt="ombres-plus crop">
+      <div class="stat">moy 109.6 · σ 14.0</div>
+      <div class="md5">2647c91d / bfbe79df</div>
+    </div><div class="col">
+      <div class="label">Blancs +50 / Noirs -50</div>
+      <img class="vign" src="rb-A-col5-vign.png" alt="blancs-noirs">
+      <img class="crop" src="rb-A-col5-crop.png" alt="blancs-noirs crop">
+      <div class="stat">moy 50.9 · σ 39.0</div>
+      <div class="md5">40b71e01 / 1e70d79c</div>
+    </div><div class="col">
+      <div class="label">Contraste +60</div>
+      <img class="vign" src="rb-A-col6-vign.png" alt="contraste">
+      <img class="crop" src="rb-A-col6-crop.png" alt="contraste crop">
+      <div class="stat">moy 38.5 · σ 39.9</div>
+      <div class="md5">8b8cb80b / 3f26c039</div>
+    </div><div class="col">
+      <div class="label">Texture +80</div>
+      <img class="vign" src="rb-A-col7-vign.png" alt="texture">
+      <img class="crop" src="rb-A-col7-crop.png" alt="texture crop">
+      <div class="stat">moy 62.2 · σ 35.7</div>
+      <div class="md5">8fe6916e / 7035a231</div>
+    </div><div class="col">
+      <div class="label">Clarte +80</div>
+      <img class="vign" src="rb-A-col8-vign.png" alt="clarte">
+      <img class="crop" src="rb-A-col8-crop.png" alt="clarte crop">
+      <div class="stat">moy 61.7 · σ 36.7</div>
+      <div class="md5">e45e3d46 / 0ced1fcc</div>
+    </div><div class="col">
+      <div class="label">Correction du voile +60</div>
+      <img class="vign" src="rb-A-col9-vign.png" alt="voile-plus">
+      <img class="crop" src="rb-A-col9-crop.png" alt="voile-plus crop">
+      <div class="stat">moy 63.1 · σ 35.4</div>
+      <div class="md5">3bac346a / 64b5bca5</div>
+    </div><div class="col">
+      <div class="label">Correction du voile -60</div>
+      <img class="vign" src="rb-A-col10-vign.png" alt="voile-moins">
+      <img class="crop" src="rb-A-col10-crop.png" alt="voile-moins crop">
+      <div class="stat">moy 64.2 · σ 34.2</div>
+      <div class="md5">5bffbb03 / 36044429</div>
+    </div><div class="col">
+      <div class="label">Vibrance +80</div>
+      <img class="vign" src="rb-A-col11-vign.png" alt="vibrance">
+      <img class="crop" src="rb-A-col11-crop.png" alt="vibrance crop">
+      <div class="stat">moy 63.5 · σ 34.9</div>
+      <div class="md5">46b57691 / afa23f59</div>
+    </div><div class="col">
+      <div class="label">Saturation +80</div>
+      <img class="vign" src="rb-A-col12-vign.png" alt="saturation">
+      <img class="crop" src="rb-A-col12-crop.png" alt="saturation crop">
+      <div class="stat">moy 63.1 · σ 35.1</div>
+      <div class="md5">480aeea3 / ccdaea72</div>
+    </div><div class="col">
+      <div class="label">Temperature -50</div>
+      <img class="vign" src="rb-A-col13-vign.png" alt="temp-moins">
+      <img class="crop" src="rb-A-col13-crop.png" alt="temp-moins crop">
+      <div class="stat">moy 63.5 · σ 34.9</div>
+      <div class="md5">65a3fbc1 / 2664a203</div>
+    </div><div class="col">
+      <div class="label">Temperature +50</div>
+      <img class="vign" src="rb-A-col14-vign.png" alt="temp-plus">
+      <img class="crop" src="rb-A-col14-crop.png" alt="temp-plus crop">
+      <div class="stat">moy 63.6 · σ 34.7</div>
+      <div class="md5">ae368080 / 4772ffa8</div>
+    </div><div class="col">
+      <div class="label">Nuance -50</div>
+      <img class="vign" src="rb-A-col15-vign.png" alt="nuance-moins">
+      <img class="crop" src="rb-A-col15-crop.png" alt="nuance-moins crop">
+      <div class="stat">moy 63.5 · σ 34.9</div>
+      <div class="md5">8403e8a5 / f888cc54</div>
+    </div><div class="col">
+      <div class="label">Nuance +50</div>
+      <img class="vign" src="rb-A-col16-vign.png" alt="nuance-plus">
+      <img class="crop" src="rb-A-col16-crop.png" alt="nuance-plus crop">
+      <div class="stat">moy 63.6 · σ 34.8</div>
+      <div class="md5">bd56d53a / 22e240b8</div>
+    </div><div class="col">
+      <div class="label">Courbe param. (HL -60, Ombres +60)</div>
+      <img class="vign" src="rb-A-col17-vign.png" alt="courbe">
+      <img class="crop" src="rb-A-col17-crop.png" alt="courbe crop">
+      <div class="stat">moy 90.2 · σ 16.6</div>
+      <div class="md5">01489296 / 4d6aa7ce</div>
+    </div><div class="col">
+      <div class="label">Look combine</div>
+      <img class="vign" src="rb-A-col18-vign.png" alt="look">
+      <img class="crop" src="rb-A-col18-crop.png" alt="look crop">
+      <div class="stat">moy 83.9 · σ 27.7</div>
+      <div class="md5">31f259a5 / e311f132</div>
+    </div></div><h2>Photo B — DSCF5169-edited-2.JPG <span class="dims">6240×4160 (EXIF OK)</span></h2><div class="crop-note">Crop 1:1 (256 px natif) : main (peau) / bande @ (1500, 2300) — juge Texture / Clarté / Vibrance ICI</div><div class="row"><div class="col">
+      <div class="label">Temoin (tout a 0)</div>
+      <img class="vign" src="rb-B-col0-vign.png" alt="temoin">
+      <img class="crop" src="rb-B-col0-crop.png" alt="temoin crop">
+      <div class="stat">moy 32.9 · σ 36.7</div>
+      <div class="md5">f137224a / 0711acbb</div>
+    </div><div class="col">
+      <div class="label">Exposition -1</div>
+      <img class="vign" src="rb-B-col1-vign.png" alt="expo-moins">
+      <img class="crop" src="rb-B-col1-crop.png" alt="expo-moins crop">
+      <div class="stat">moy 22.6 · σ 26.4</div>
+      <div class="md5">fae8af0e / 83b8d21a</div>
+    </div><div class="col">
+      <div class="label">Exposition +1</div>
+      <img class="vign" src="rb-B-col2-vign.png" alt="expo-plus">
+      <img class="crop" src="rb-B-col2-crop.png" alt="expo-plus crop">
+      <div class="stat">moy 47.1 · σ 50.2</div>
+      <div class="md5">6f52fe86 / 29a133b8</div>
+    </div><div class="col">
+      <div class="label">Hautes lumieres -80</div>
+      <img class="vign" src="rb-B-col3-vign.png" alt="hl-moins">
+      <img class="crop" src="rb-B-col3-crop.png" alt="hl-moins crop">
+      <div class="stat">moy 30.1 · σ 32.9</div>
+      <div class="md5">a7f25785 / 41571b2b</div>
+    </div><div class="col">
+      <div class="label">Ombres +80</div>
+      <img class="vign" src="rb-B-col4-vign.png" alt="ombres-plus">
+      <img class="crop" src="rb-B-col4-crop.png" alt="ombres-plus crop">
+      <div class="stat">moy 103.5 · σ 9.8</div>
+      <div class="md5">02428cab / 1293421e</div>
+    </div><div class="col">
+      <div class="label">Blancs +50 / Noirs -50</div>
+      <img class="vign" src="rb-B-col5-vign.png" alt="blancs-noirs">
+      <img class="crop" src="rb-B-col5-crop.png" alt="blancs-noirs crop">
+      <div class="stat">moy 24.0 · σ 35.6</div>
+      <div class="md5">20cdabd9 / 9039c8e9</div>
+    </div><div class="col">
+      <div class="label">Contraste +60</div>
+      <img class="vign" src="rb-B-col6-vign.png" alt="contraste">
+      <img class="crop" src="rb-B-col6-crop.png" alt="contraste crop">
+      <div class="stat">moy 19.6 · σ 33.0</div>
+      <div class="md5">a0f015ad / 626c7288</div>
+    </div><div class="col">
+      <div class="label">Texture +80</div>
+      <img class="vign" src="rb-B-col7-vign.png" alt="texture">
+      <img class="crop" src="rb-B-col7-crop.png" alt="texture crop">
+      <div class="stat">moy 32.5 · σ 36.6</div>
+      <div class="md5">c101d355 / 4e19fd36</div>
+    </div><div class="col">
+      <div class="label">Clarte +80</div>
+      <img class="vign" src="rb-B-col8-vign.png" alt="clarte">
+      <img class="crop" src="rb-B-col8-crop.png" alt="clarte crop">
+      <div class="stat">moy 32.2 · σ 37.0</div>
+      <div class="md5">158cf251 / 58d6d0ef</div>
+    </div><div class="col">
+      <div class="label">Correction du voile +60</div>
+      <img class="vign" src="rb-B-col9-vign.png" alt="voile-plus">
+      <img class="crop" src="rb-B-col9-crop.png" alt="voile-plus crop">
+      <div class="stat">moy 32.6 · σ 36.8</div>
+      <div class="md5">22356191 / e47d0eba</div>
+    </div><div class="col">
+      <div class="label">Correction du voile -60</div>
+      <img class="vign" src="rb-B-col10-vign.png" alt="voile-moins">
+      <img class="crop" src="rb-B-col10-crop.png" alt="voile-moins crop">
+      <div class="stat">moy 33.5 · σ 36.5</div>
+      <div class="md5">e7665ac4 / 037e5c5f</div>
+    </div><div class="col">
+      <div class="label">Vibrance +80</div>
+      <img class="vign" src="rb-B-col11-vign.png" alt="vibrance">
+      <img class="crop" src="rb-B-col11-crop.png" alt="vibrance crop">
+      <div class="stat">moy 30.7 · σ 34.5</div>
+      <div class="md5">e59bd5d7 / 6f07ed43</div>
+    </div><div class="col">
+      <div class="label">Saturation +80</div>
+      <img class="vign" src="rb-B-col12-vign.png" alt="saturation">
+      <img class="crop" src="rb-B-col12-crop.png" alt="saturation crop">
+      <div class="stat">moy 30.1 · σ 34.9</div>
+      <div class="md5">25350a7a / 318da571</div>
+    </div><div class="col">
+      <div class="label">Temperature -50</div>
+      <img class="vign" src="rb-B-col13-vign.png" alt="temp-moins">
+      <img class="crop" src="rb-B-col13-crop.png" alt="temp-moins crop">
+      <div class="stat">moy 33.2 · σ 37.1</div>
+      <div class="md5">795448fd / 7512c7e9</div>
+    </div><div class="col">
+      <div class="label">Temperature +50</div>
+      <img class="vign" src="rb-B-col14-vign.png" alt="temp-plus">
+      <img class="crop" src="rb-B-col14-crop.png" alt="temp-plus crop">
+      <div class="stat">moy 32.5 · σ 36.3</div>
+      <div class="md5">2f217c4b / ada67de7</div>
+    </div><div class="col">
+      <div class="label">Nuance -50</div>
+      <img class="vign" src="rb-B-col15-vign.png" alt="nuance-moins">
+      <img class="crop" src="rb-B-col15-crop.png" alt="nuance-moins crop">
+      <div class="stat">moy 33.0 · σ 36.9</div>
+      <div class="md5">52024c4d / 0716a592</div>
+    </div><div class="col">
+      <div class="label">Nuance +50</div>
+      <img class="vign" src="rb-B-col16-vign.png" alt="nuance-plus">
+      <img class="crop" src="rb-B-col16-crop.png" alt="nuance-plus crop">
+      <div class="stat">moy 32.7 · σ 36.5</div>
+      <div class="md5">da90cb89 / 96f946d3</div>
+    </div><div class="col">
+      <div class="label">Courbe param. (HL -60, Ombres +60)</div>
+      <img class="vign" src="rb-B-col17-vign.png" alt="courbe">
+      <img class="crop" src="rb-B-col17-crop.png" alt="courbe crop">
+      <div class="stat">moy 74.7 · σ 19.9</div>
+      <div class="md5">fd5d30cd / 0653d5d7</div>
+    </div><div class="col">
+      <div class="label">Look combine</div>
+      <img class="vign" src="rb-B-col18-vign.png" alt="look">
+      <img class="crop" src="rb-B-col18-crop.png" alt="look crop">
+      <div class="stat">moy 68.1 · σ 21.5</div>
+      <div class="md5">ed722357 / c902f361</div>
+    </div></div>
+</body></html>

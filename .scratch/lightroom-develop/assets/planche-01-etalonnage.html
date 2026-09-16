@@ -1,0 +1,152 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<title>Planche 01 — Étalonnage</title>
+<style>
+  body { background: #1a1a1a; color: #ddd; font: 13px/1.4 system-ui, sans-serif; margin: 0; padding: 24px; }
+  .banner { background: #2b2b2b; border: 1px solid #444; border-radius: 6px; padding: 14px 18px; margin-bottom: 20px; font-size: 15px; }
+  .banner b { color: #fff; }
+  h2 { font-size: 16px; margin: 28px 0 4px; }
+  .dims { font-weight: normal; color: #888; font-size: 12px; }
+  .crop-note { color: #999; font-size: 12px; margin-bottom: 10px; }
+  .row { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 12px; }
+  .col { flex: 0 0 auto; width: 320px; background: #222; border: 1px solid #383838; border-radius: 5px; padding: 8px; }
+  .label { font-weight: 600; color: #fff; margin-bottom: 6px; min-height: 2.4em; }
+  img.vign { width: 100%; display: block; border-radius: 3px; }
+  img.crop { width: 256px; height: 256px; image-rendering: pixelated; display: block; margin: 6px auto 0; border: 1px solid #444; }
+  .stat { color: #bbb; font-size: 12px; margin-top: 6px; }
+  .md5 { color: #666; font-size: 11px; font-family: ui-monospace, monospace; }
+</style></head><body>
+<div class="banner"><b>Compare à ton Lightroom, mêmes réglages.</b> Panneau Étalonnage, curseurs aux valeurs indiquées. Le témoin est la photo sans effet (identité au bit près). Un étalonnage se juge d'abord sur la <b>peau</b> et sur la façon dont <b>toute l'image glisse ensemble</b> — pas par bande comme un HSL.</div>
+<h2>Photo A — DSCF5171.JPG <span class="dims">6240×4160 (EXIF OK)</span></h2><div class="crop-note">Crop 1:1 (256 px natif) : petale / fleur rouge @ (2600, 2500)</div><div class="row"><div class="col">
+      <div class="label">Temoin (tout a 0)</div>
+      <img class="vign" src="etal-A-col0-vign.png" alt="temoin">
+      <img class="crop" src="etal-A-col0-crop.png" alt="temoin crop">
+      <div class="stat">moy 63.6 · σ 34.9</div>
+      <div class="md5">cb123799 / 16de2ece</div>
+    </div><div class="col">
+      <div class="label">Rouge teinte -60</div>
+      <img class="vign" src="etal-A-col1-vign.png" alt="rouge-teinte-moins">
+      <img class="crop" src="etal-A-col1-crop.png" alt="rouge-teinte-moins crop">
+      <div class="stat">moy 63.7 · σ 34.8</div>
+      <div class="md5">0091840a / a242b9bc</div>
+    </div><div class="col">
+      <div class="label">Rouge teinte +60</div>
+      <img class="vign" src="etal-A-col2-vign.png" alt="rouge-teinte-plus">
+      <img class="crop" src="etal-A-col2-crop.png" alt="rouge-teinte-plus crop">
+      <div class="stat">moy 63.7 · σ 34.7</div>
+      <div class="md5">5ffbf693 / bfa044fd</div>
+    </div><div class="col">
+      <div class="label">Vert teinte -60</div>
+      <img class="vign" src="etal-A-col3-vign.png" alt="vert-teinte-moins">
+      <img class="crop" src="etal-A-col3-crop.png" alt="vert-teinte-moins crop">
+      <div class="stat">moy 63.5 · σ 35.2</div>
+      <div class="md5">71cf95f0 / 0f88e7c8</div>
+    </div><div class="col">
+      <div class="label">Vert teinte +60</div>
+      <img class="vign" src="etal-A-col4-vign.png" alt="vert-teinte-plus">
+      <img class="crop" src="etal-A-col4-crop.png" alt="vert-teinte-plus crop">
+      <div class="stat">moy 63.7 · σ 34.3</div>
+      <div class="md5">06084fc7 / 50c03503</div>
+    </div><div class="col">
+      <div class="label">Bleu teinte -60</div>
+      <img class="vign" src="etal-A-col5-vign.png" alt="bleu-teinte-moins">
+      <img class="crop" src="etal-A-col5-crop.png" alt="bleu-teinte-moins crop">
+      <div class="stat">moy 63.6 · σ 34.7</div>
+      <div class="md5">649055bf / 1014b625</div>
+    </div><div class="col">
+      <div class="label">Bleu teinte +60</div>
+      <img class="vign" src="etal-A-col6-vign.png" alt="bleu-teinte-plus">
+      <img class="crop" src="etal-A-col6-crop.png" alt="bleu-teinte-plus crop">
+      <div class="stat">moy 63.6 · σ 35.0</div>
+      <div class="md5">5593ea37 / 7bf31174</div>
+    </div><div class="col">
+      <div class="label">Bleu saturation +60</div>
+      <img class="vign" src="etal-A-col7-vign.png" alt="bleu-sat-plus">
+      <img class="crop" src="etal-A-col7-crop.png" alt="bleu-sat-plus crop">
+      <div class="stat">moy 64.1 · σ 34.8</div>
+      <div class="md5">e04c9203 / 10636b18</div>
+    </div><div class="col">
+      <div class="label">Nuance foncee -80 (vert)</div>
+      <img class="vign" src="etal-A-col8-vign.png" alt="nuance-moins">
+      <img class="crop" src="etal-A-col8-crop.png" alt="nuance-moins crop">
+      <div class="stat">moy 73.6 · σ 27.0</div>
+      <div class="md5">33289fd7 / fea324aa</div>
+    </div><div class="col">
+      <div class="label">Nuance foncee +80 (magenta)</div>
+      <img class="vign" src="etal-A-col9-vign.png" alt="nuance-plus">
+      <img class="crop" src="etal-A-col9-crop.png" alt="nuance-plus crop">
+      <div class="stat">moy 54.0 · σ 34.7</div>
+      <div class="md5">46ec034e / 641bd918</div>
+    </div><div class="col">
+      <div class="label">Teal &amp; orange (Bleu t-40 s+30, Rouge t+10)</div>
+      <img class="vign" src="etal-A-col10-vign.png" alt="teal-orange">
+      <img class="crop" src="etal-A-col10-crop.png" alt="teal-orange crop">
+      <div class="stat">moy 63.7 · σ 34.8</div>
+      <div class="md5">2d3ad943 / cab782d7</div>
+    </div></div><h2>Photo B — DSCF5169-edited-2.JPG <span class="dims">6240×4160 (EXIF OK)</span></h2><div class="crop-note">Crop 1:1 (256 px natif) : main (peau) / bande @ (1500, 2300)</div><div class="row"><div class="col">
+      <div class="label">Temoin (tout a 0)</div>
+      <img class="vign" src="etal-B-col0-vign.png" alt="temoin">
+      <img class="crop" src="etal-B-col0-crop.png" alt="temoin crop">
+      <div class="stat">moy 32.9 · σ 36.7</div>
+      <div class="md5">f137224a / 0711acbb</div>
+    </div><div class="col">
+      <div class="label">Rouge teinte -60</div>
+      <img class="vign" src="etal-B-col1-vign.png" alt="rouge-teinte-moins">
+      <img class="crop" src="etal-B-col1-crop.png" alt="rouge-teinte-moins crop">
+      <div class="stat">moy 32.7 · σ 36.6</div>
+      <div class="md5">d37634ce / 343743d5</div>
+    </div><div class="col">
+      <div class="label">Rouge teinte +60</div>
+      <img class="vign" src="etal-B-col2-vign.png" alt="rouge-teinte-plus">
+      <img class="crop" src="etal-B-col2-crop.png" alt="rouge-teinte-plus crop">
+      <div class="stat">moy 32.8 · σ 36.5</div>
+      <div class="md5">05368d22 / 7248ae2b</div>
+    </div><div class="col">
+      <div class="label">Vert teinte -60</div>
+      <img class="vign" src="etal-B-col3-vign.png" alt="vert-teinte-moins">
+      <img class="crop" src="etal-B-col3-crop.png" alt="vert-teinte-moins crop">
+      <div class="stat">moy 35.1 · σ 39.3</div>
+      <div class="md5">a66a5dd3 / 8ebfca82</div>
+    </div><div class="col">
+      <div class="label">Vert teinte +60</div>
+      <img class="vign" src="etal-B-col4-vign.png" alt="vert-teinte-plus">
+      <img class="crop" src="etal-B-col4-crop.png" alt="vert-teinte-plus crop">
+      <div class="stat">moy 30.4 · σ 33.3</div>
+      <div class="md5">933f989d / 74b56881</div>
+    </div><div class="col">
+      <div class="label">Bleu teinte -60</div>
+      <img class="vign" src="etal-B-col5-vign.png" alt="bleu-teinte-moins">
+      <img class="crop" src="etal-B-col5-crop.png" alt="bleu-teinte-moins crop">
+      <div class="stat">moy 32.2 · σ 35.2</div>
+      <div class="md5">7724ead5 / b8301ed3</div>
+    </div><div class="col">
+      <div class="label">Bleu teinte +60</div>
+      <img class="vign" src="etal-B-col6-vign.png" alt="bleu-teinte-plus">
+      <img class="crop" src="etal-B-col6-crop.png" alt="bleu-teinte-plus crop">
+      <div class="stat">moy 34.0 · σ 38.0</div>
+      <div class="md5">195bb84c / 2a873269</div>
+    </div><div class="col">
+      <div class="label">Bleu saturation +60</div>
+      <img class="vign" src="etal-B-col7-vign.png" alt="bleu-sat-plus">
+      <img class="crop" src="etal-B-col7-crop.png" alt="bleu-sat-plus crop">
+      <div class="stat">moy 28.8 · σ 35.3</div>
+      <div class="md5">9d6da0fe / b962b039</div>
+    </div><div class="col">
+      <div class="label">Nuance foncee -80 (vert)</div>
+      <img class="vign" src="etal-B-col8-vign.png" alt="nuance-moins">
+      <img class="crop" src="etal-B-col8-crop.png" alt="nuance-moins crop">
+      <div class="stat">moy 56.2 · σ 22.2</div>
+      <div class="md5">f53ea21d / 07d54a38</div>
+    </div><div class="col">
+      <div class="label">Nuance foncee +80 (magenta)</div>
+      <img class="vign" src="etal-B-col9-vign.png" alt="nuance-plus">
+      <img class="crop" src="etal-B-col9-crop.png" alt="nuance-plus crop">
+      <div class="stat">moy 35.2 · σ 31.4</div>
+      <div class="md5">7b8976cd / 71cb80c1</div>
+    </div><div class="col">
+      <div class="label">Teal &amp; orange (Bleu t-40 s+30, Rouge t+10)</div>
+      <img class="vign" src="etal-B-col10-vign.png" alt="teal-orange">
+      <img class="crop" src="etal-B-col10-crop.png" alt="teal-orange crop">
+      <div class="stat">moy 30.9 · σ 35.0</div>
+      <div class="md5">c353d3ff / ae7bf78e</div>
+    </div></div>
+</body></html>

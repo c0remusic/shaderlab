@@ -1,0 +1,165 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<title>Planche 05 — HSL / Couleur / Noir et blanc</title>
+<style>
+  body { background: #1a1a1a; color: #ddd; font: 13px/1.4 system-ui, sans-serif; margin: 0; padding: 24px; }
+  .banner { background: #2b2b2b; border: 1px solid #444; border-radius: 6px; padding: 14px 18px; margin-bottom: 20px; font-size: 15px; }
+  .banner b { color: #fff; }
+  .prov { color: #d9a441; }
+  h2 { font-size: 16px; margin: 28px 0 4px; }
+  .dims { font-weight: normal; color: #888; font-size: 12px; }
+  .crop-note { color: #999; font-size: 12px; margin-bottom: 10px; }
+  .row { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 12px; }
+  .col { flex: 0 0 auto; width: 320px; background: #222; border: 1px solid #383838; border-radius: 5px; padding: 8px; }
+  .label { font-weight: 600; color: #fff; margin-bottom: 6px; min-height: 2.4em; }
+  img.vign { width: 100%; display: block; border-radius: 3px; }
+  img.crop { width: 256px; height: 256px; image-rendering: pixelated; display: block; margin: 6px auto 0; border: 1px solid #444; }
+  .stat { color: #bbb; font-size: 12px; margin-top: 6px; }
+  .md5 { color: #666; font-size: 11px; font-family: ui-monospace, monospace; }
+</style></head><body>
+<div class="banner"><b>Compare à ton Lightroom, mêmes valeurs.</b> Panneau TSL / Couleur / Noir et blanc, curseurs aux valeurs indiquées. Le témoin est la photo sans réglage. Une bande sélectionne une teinte (produit scalaire OKLab, sans atan2) et un gris ne bouge pas. <span class="prov">Table de bandes PROVISOIRE (centres/largeurs/amplitudes usuels de Lightroom, pas encore mesurés) — c'est justement ce que cette planche sert à juger.</span></div>
+<h2>Photo A — DSCF5171.JPG <span class="dims">6240×4160 (EXIF OK)</span></h2><div class="crop-note">Crop 1:1 (256 px natif) : petale / fleur rouge @ (2600, 2500) — la Saturation de l'orange se juge sur la peau ICI</div><div class="row"><div class="col">
+      <div class="label">Temoin (tout a 0)</div>
+      <img class="vign" src="hsl-A-col0-vign.png" alt="temoin">
+      <img class="crop" src="hsl-A-col0-crop.png" alt="temoin crop">
+      <div class="stat">moy 63.6 · σ 34.9</div>
+      <div class="md5">cb123799 / 16de2ece</div>
+    </div><div class="col">
+      <div class="label">Teinte rouge +100</div>
+      <img class="vign" src="hsl-A-col1-vign.png" alt="teinte-rouge-p">
+      <img class="crop" src="hsl-A-col1-crop.png" alt="teinte-rouge-p crop">
+      <div class="stat">moy 63.8 · σ 34.7</div>
+      <div class="md5">650f79ab / 049b6b40</div>
+    </div><div class="col">
+      <div class="label">Teinte rouge -100</div>
+      <img class="vign" src="hsl-A-col2-vign.png" alt="teinte-rouge-m">
+      <img class="crop" src="hsl-A-col2-crop.png" alt="teinte-rouge-m crop">
+      <div class="stat">moy 63.6 · σ 34.8</div>
+      <div class="md5">a36a348a / 5e78a9f9</div>
+    </div><div class="col">
+      <div class="label">Teinte bleu +100</div>
+      <img class="vign" src="hsl-A-col3-vign.png" alt="teinte-bleu-p">
+      <img class="crop" src="hsl-A-col3-crop.png" alt="teinte-bleu-p crop">
+      <div class="stat">moy 63.6 · σ 34.9</div>
+      <div class="md5">416e890a / 0ad10f9c</div>
+    </div><div class="col">
+      <div class="label">Teinte bleu -100</div>
+      <img class="vign" src="hsl-A-col4-vign.png" alt="teinte-bleu-m">
+      <img class="crop" src="hsl-A-col4-crop.png" alt="teinte-bleu-m crop">
+      <div class="stat">moy 63.6 · σ 34.9</div>
+      <div class="md5">01ee64ec / 4a7acbc9</div>
+    </div><div class="col">
+      <div class="label">Saturation orange +100 (peau)</div>
+      <img class="vign" src="hsl-A-col5-vign.png" alt="sat-orange-p">
+      <img class="crop" src="hsl-A-col5-crop.png" alt="sat-orange-p crop">
+      <div class="stat">moy 63.2 · σ 35.2</div>
+      <div class="md5">262a525a / e84dc9e0</div>
+    </div><div class="col">
+      <div class="label">Saturation bleu -100</div>
+      <img class="vign" src="hsl-A-col6-vign.png" alt="sat-bleu-m">
+      <img class="crop" src="hsl-A-col6-crop.png" alt="sat-bleu-m crop">
+      <div class="stat">moy 63.6 · σ 34.9</div>
+      <div class="md5">d8b387b2 / 062bc216</div>
+    </div><div class="col">
+      <div class="label">Luminance vert +100</div>
+      <img class="vign" src="hsl-A-col7-vign.png" alt="lum-vert-p">
+      <img class="crop" src="hsl-A-col7-crop.png" alt="lum-vert-p crop">
+      <div class="stat">moy 65.9 · σ 36.8</div>
+      <div class="md5">a6b6c702 / a0141993</div>
+    </div><div class="col">
+      <div class="label">Luminance vert -100</div>
+      <img class="vign" src="hsl-A-col8-vign.png" alt="lum-vert-m">
+      <img class="crop" src="hsl-A-col8-crop.png" alt="lum-vert-m crop">
+      <div class="stat">moy 61.6 · σ 34.7</div>
+      <div class="md5">da54e4b6 / 442d8b1f</div>
+    </div><div class="col">
+      <div class="label">Noir et blanc (neutre)</div>
+      <img class="vign" src="hsl-A-col9-vign.png" alt="nb-neutre">
+      <img class="crop" src="hsl-A-col9-crop.png" alt="nb-neutre crop">
+      <div class="stat">moy 64.2 · σ 34.2</div>
+      <div class="md5">1f1edf23 / 6c2aa45a</div>
+    </div><div class="col">
+      <div class="label">N&amp;B : rouge +100 / bleu -100</div>
+      <img class="vign" src="hsl-A-col10-vign.png" alt="nb-rouge-bleu">
+      <img class="crop" src="hsl-A-col10-crop.png" alt="nb-rouge-bleu crop">
+      <div class="stat">moy 66.0 · σ 32.4</div>
+      <div class="md5">76ebc96f / 7870a53d</div>
+    </div><div class="col">
+      <div class="label">N&amp;B : orange +80</div>
+      <img class="vign" src="hsl-A-col11-vign.png" alt="nb-orange">
+      <img class="crop" src="hsl-A-col11-crop.png" alt="nb-orange crop">
+      <div class="stat">moy 66.7 · σ 33.5</div>
+      <div class="md5">79f457e6 / 713ee7fa</div>
+    </div></div><h2>Photo B — DSCF5169-edited-2.JPG <span class="dims">6240×4160 (EXIF OK)</span></h2><div class="crop-note">Crop 1:1 (256 px natif) : main (peau) / orange @ (1500, 2300) — la Saturation de l'orange se juge sur la peau ICI</div><div class="row"><div class="col">
+      <div class="label">Temoin (tout a 0)</div>
+      <img class="vign" src="hsl-B-col0-vign.png" alt="temoin">
+      <img class="crop" src="hsl-B-col0-crop.png" alt="temoin crop">
+      <div class="stat">moy 32.9 · σ 36.7</div>
+      <div class="md5">f137224a / 0711acbb</div>
+    </div><div class="col">
+      <div class="label">Teinte rouge +100</div>
+      <img class="vign" src="hsl-B-col1-vign.png" alt="teinte-rouge-p">
+      <img class="crop" src="hsl-B-col1-crop.png" alt="teinte-rouge-p crop">
+      <div class="stat">moy 32.9 · σ 36.7</div>
+      <div class="md5">1b8d42f6 / 0711acbb</div>
+    </div><div class="col">
+      <div class="label">Teinte rouge -100</div>
+      <img class="vign" src="hsl-B-col2-vign.png" alt="teinte-rouge-m">
+      <img class="crop" src="hsl-B-col2-crop.png" alt="teinte-rouge-m crop">
+      <div class="stat">moy 32.9 · σ 36.7</div>
+      <div class="md5">1b8d42f6 / 0711acbb</div>
+    </div><div class="col">
+      <div class="label">Teinte bleu +100</div>
+      <img class="vign" src="hsl-B-col3-vign.png" alt="teinte-bleu-p">
+      <img class="crop" src="hsl-B-col3-crop.png" alt="teinte-bleu-p crop">
+      <div class="stat">moy 33.3 · σ 37.2</div>
+      <div class="md5">f33c018f / 0c879e08</div>
+    </div><div class="col">
+      <div class="label">Teinte bleu -100</div>
+      <img class="vign" src="hsl-B-col4-vign.png" alt="teinte-bleu-m">
+      <img class="crop" src="hsl-B-col4-crop.png" alt="teinte-bleu-m crop">
+      <div class="stat">moy 33.4 · σ 36.4</div>
+      <div class="md5">6eb39a59 / 7c83c1f7</div>
+    </div><div class="col">
+      <div class="label">Saturation orange +100 (peau)</div>
+      <img class="vign" src="hsl-B-col5-vign.png" alt="sat-orange-p">
+      <img class="crop" src="hsl-B-col5-crop.png" alt="sat-orange-p crop">
+      <div class="stat">moy 32.9 · σ 36.7</div>
+      <div class="md5">1b8d42f6 / 0711acbb</div>
+    </div><div class="col">
+      <div class="label">Saturation bleu -100</div>
+      <img class="vign" src="hsl-B-col6-vign.png" alt="sat-bleu-m">
+      <img class="crop" src="hsl-B-col6-crop.png" alt="sat-bleu-m crop">
+      <div class="stat">moy 34.8 · σ 37.9</div>
+      <div class="md5">e6ad6b61 / 8f04d83a</div>
+    </div><div class="col">
+      <div class="label">Luminance vert +100</div>
+      <img class="vign" src="hsl-B-col7-vign.png" alt="lum-vert-p">
+      <img class="crop" src="hsl-B-col7-crop.png" alt="lum-vert-p crop">
+      <div class="stat">moy 32.9 · σ 36.7</div>
+      <div class="md5">2350a6cb / 34e46fec</div>
+    </div><div class="col">
+      <div class="label">Luminance vert -100</div>
+      <img class="vign" src="hsl-B-col8-vign.png" alt="lum-vert-m">
+      <img class="crop" src="hsl-B-col8-crop.png" alt="lum-vert-m crop">
+      <div class="stat">moy 32.9 · σ 36.7</div>
+      <div class="md5">1e366977 / 0445c71a</div>
+    </div><div class="col">
+      <div class="label">Noir et blanc (neutre)</div>
+      <img class="vign" src="hsl-B-col9-vign.png" alt="nb-neutre">
+      <img class="crop" src="hsl-B-col9-crop.png" alt="nb-neutre crop">
+      <div class="stat">moy 35.2 · σ 38.5</div>
+      <div class="md5">cf196a6b / 4b3b98df</div>
+    </div><div class="col">
+      <div class="label">N&amp;B : rouge +100 / bleu -100</div>
+      <img class="vign" src="hsl-B-col10-vign.png" alt="nb-rouge-bleu">
+      <img class="crop" src="hsl-B-col10-crop.png" alt="nb-rouge-bleu crop">
+      <div class="stat">moy 23.9 · σ 33.6</div>
+      <div class="md5">867e7b1a / a6a9612e</div>
+    </div><div class="col">
+      <div class="label">N&amp;B : orange +80</div>
+      <img class="vign" src="hsl-B-col11-vign.png" alt="nb-orange">
+      <img class="crop" src="hsl-B-col11-crop.png" alt="nb-orange crop">
+      <div class="stat">moy 35.2 · σ 38.5</div>
+      <div class="md5">cf196a6b / 4b3b98df</div>
+    </div></div>
+</body></html>

@@ -191,6 +191,61 @@ hauteurs testées, donc ce quart est un plancher, pas une mesure de sa longueur.
   qui fait qu'à forte dose notre Clarté cerne les bords au lieu de porter la
   matière.
 
+## Ce qui a été corrigé le 2026-09-16, et ce qui reste
+
+**Texture est corrigée**, et l'écart à Lightroom tombe d'un facteur six.
+
+| Texture +100, gain par période | 3 | 16 | 64 | 256 | écart moyen sur 14 périodes |
+|---|---|---|---|---|---|
+| Lightroom | 1,75 | 1,51 | 1,37 | 1,12 | — |
+| shaderlab avant | 1,99 | **1,04** | **1,07** | **1,00** | **0,326** |
+| shaderlab après | 1,82 | 1,59 | 1,38 | 1,11 | **0,057** |
+
+Et l'axe qui n'existait pas du tout chez nous, l'amplitude (période 16, de 2 à 64
+niveaux) : Lightroom 1,79 → 1,15 ; nous, avant, **plat à 1,04** ; après,
+1,69 → 1,15. Écart moyen 0,555 → 0,125.
+
+Trois pièces, chacune imposée par une mesure :
+
+1. **Deux bandes.** Le calcul exact de la réponse d'un noyau unique — tous
+   écartements confondus — le fait mourir avant la période 32, quand Lightroom
+   tient 1,37 à 64. La bande fine est un noyau de treize prélèvements à
+   écartement absolu (2,1 px), la bande moyenne est la pyramide. Les poids sont
+   ajustés sur les quatorze gains mesurés, pas choisis.
+2. **Treize prélèvements et pas neuf.** Une tente étirée laisse des trous entre
+   ses points et REPLIE : à l'écartement 6 px, le gain mesuré tombait à 1,00 à la
+   période 3 — le curseur était aveugle là où il compte le plus.
+3. **L'epsilon du filtre guidé, gratuit.** La pyramide transporte désormais
+   `(luminance, sqrt(luminance))` au lieu d'une couleur. Son premier canal vaut
+   exactement l'ancien `dot(rgb, luma)`, donc aucune calibration de ton ne bouge ;
+   et `r − g²` EST la variance locale, puisque y au carré est la luminance. Zéro
+   passe de plus, zéro lecture de plus.
+
+**Clarté n'est pas corrigée, et ce n'est pas une constante qui manque.** Sa
+portée vaut une fraction de chaque dimension de l'image — une pyramide bien plus
+profonde que la nôtre. Or la bande moyenne de Texture a besoin de la profondeur
+ACTUELLE, et la chaîne de passes est linéaire : elle ne peut pas transporter deux
+profondeurs à la fois. Approfondir la pyramide casserait Texture. C'est une
+limite de structure, et elle se lève d'une seule façon — donner au moteur de
+passes un second flou, soit une seconde texture liée, soit un second module.
+
+⚠️ **Un portail de détail a été écrit puis RETIRÉ le même jour.** L'idée venait
+d'une phrase de ce fichier — « Clarté doit être éteinte par l'absence de détail » —
+et deux mesures l'ont réfutée comme mécanisme. D'abord Lightroom garde un gain
+plat de 1,77 pour des amplitudes de 2 à 32 niveaux : son opérateur est LINÉAIRE
+dans le détail, il n'a pas de seuil. Ensuite notre Clarté ne touchait déjà pas un
+aplat — un contraste local y vaut zéro par construction. Le portail ne corrigeait
+donc rien et introduisait une dépendance à l'amplitude que Lightroom n'a pas ;
+posé, mesuré, retiré.
+
+**Coût.** Sur la mire (15,5 Mpx), rendu de bout en bout, build de dev : témoin
+136,7 ms · texture 145,8 · clarté 145,1 · les deux 150,0 · exposition seule
+147,2. La dernière ligne est la preuve que le reste est du bruit — l'exposition
+ne réveille aucune pyramide et sort pourtant plus haut que Texture qui en réveille
+une. Le surcoût est donc sous le plancher de cet instrument (±2 à 3 ms). ⚠️ Et
+cela ne prouve rien sur la cadence : elle se mesure en build de PRODUCTION, dont
+le plancher vaut 2,6 fois celui du dev.
+
 ## Pièges d'instrument payés dans cette campagne
 
 - **Un estimateur qui rend 0,9 × son plateau ne mesure rien.** Les deux

@@ -1,0 +1,141 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<title>Planche 02b — Voile, balance des blancs, blancs/noirs locaux</title>
+<style>
+  body { background: #1a1a1a; color: #ddd; font: 13px/1.4 system-ui, sans-serif; margin: 0; padding: 24px; }
+  .banner { background: #2b2b2b; border: 1px solid #444; border-radius: 6px; padding: 14px 18px; margin-bottom: 20px; font-size: 15px; }
+  .banner b { color: #fff; }
+  .prov { color: #d9a441; }
+  h2 { font-size: 16px; margin: 28px 0 4px; }
+  .dims { font-weight: normal; color: #888; font-size: 12px; }
+  .crop-note { color: #999; font-size: 12px; margin-bottom: 10px; }
+  .row { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 12px; }
+  .col { flex: 0 0 auto; width: 320px; background: #222; border: 1px solid #383838; border-radius: 5px; padding: 8px; }
+  .label { font-weight: 600; color: #fff; margin-bottom: 6px; min-height: 2.4em; }
+  img.vign { width: 100%; display: block; border-radius: 3px; }
+  img.crop { width: 256px; height: 256px; image-rendering: pixelated; display: block; margin: 6px auto 0; border: 1px solid #444; }
+  .stat { color: #bbb; font-size: 12px; margin-top: 6px; }
+  .md5 { color: #666; font-size: 11px; font-family: ui-monospace, monospace; }
+</style></head><body>
+<div class="banner"><b>Compare à ton Lightroom, mêmes valeurs.</b> Panneau Color Grading, roues aux valeurs indiquées (teinte°/saturation). Témoin = photo sans réglage. Duo = teal-and-orange (ombres bleu 220/60 + hautes lumières orange 40/60), à comparer aussi au même look par Étalonnage. <span class="prov">Calibré sur mesures Lightroom : tons moyens et luminance globale. PROVISOIRE (modélisé, non mesurable dans les exports) : profils ombres/hautes lumières, Fusion, Balance.</span></div>
+<h2>Photo A — DSCF5171.JPG <span class="dims">6240×4160 (EXIF OK)</span></h2><div class="crop-note">Crop 1:1 (256 px natif) : petale / fleur rouge @ (2600, 2500) — le teintage des ombres et des hautes lumieres se juge ici en 1:1</div><div class="row"><div class="col">
+      <div class="label">Temoin (tout a 0)</div>
+      <img class="vign" src="parite02b-A-col0-vign.png" alt="temoin">
+      <img class="crop" src="parite02b-A-col0-crop.png" alt="temoin crop">
+      <div class="stat">moy 63.6 · σ 34.9</div>
+      <div class="md5">cb123799 / 16de2ece</div>
+    </div><div class="col">
+      <div class="label">Voile -100 (ajoute la brume)</div>
+      <img class="vign" src="parite02b-A-col1-vign.png" alt="voile-m100">
+      <img class="crop" src="parite02b-A-col1-crop.png" alt="voile-m100 crop">
+      <div class="stat">moy 163.6 · σ 40.8</div>
+      <div class="md5">4318eac8 / e5cb54d3</div>
+    </div><div class="col">
+      <div class="label">Voile -50</div>
+      <img class="vign" src="parite02b-A-col2-vign.png" alt="voile-m50">
+      <img class="crop" src="parite02b-A-col2-crop.png" alt="voile-m50 crop">
+      <div class="stat">moy 122.2 · σ 42.2</div>
+      <div class="md5">2f4a4f0e / 7f812691</div>
+    </div><div class="col">
+      <div class="label">Voile +50</div>
+      <img class="vign" src="parite02b-A-col3-vign.png" alt="voile-p50">
+      <img class="crop" src="parite02b-A-col3-crop.png" alt="voile-p50 crop">
+      <div class="stat">moy 45.3 · σ 27.3</div>
+      <div class="md5">b952d25a / a486e8ca</div>
+    </div><div class="col">
+      <div class="label">Voile +100 (retire la brume)</div>
+      <img class="vign" src="parite02b-A-col4-vign.png" alt="voile-p100">
+      <img class="crop" src="parite02b-A-col4-crop.png" alt="voile-p100 crop">
+      <div class="stat">moy 21.6 · σ 14.7</div>
+      <div class="md5">99a3e310 / f4a21b27</div>
+    </div><div class="col">
+      <div class="label">Temperature +100 (rechauffe, eclaircit)</div>
+      <img class="vign" src="parite02b-A-col5-vign.png" alt="temp-p100">
+      <img class="crop" src="parite02b-A-col5-crop.png" alt="temp-p100 crop">
+      <div class="stat">moy 107.5 · σ 54.1</div>
+      <div class="md5">282ae0c9 / 14d2cfc2</div>
+    </div><div class="col">
+      <div class="label">Temperature -100 (refroidit, eclaircit)</div>
+      <img class="vign" src="parite02b-A-col6-vign.png" alt="temp-m100">
+      <img class="crop" src="parite02b-A-col6-crop.png" alt="temp-m100 crop">
+      <div class="stat">moy 90.1 · σ 47.4</div>
+      <div class="md5">6e3cfe11 / 9c582ac7</div>
+    </div><div class="col">
+      <div class="label">Blancs +100 (local)</div>
+      <img class="vign" src="parite02b-A-col7-vign.png" alt="blancs-p100">
+      <img class="crop" src="parite02b-A-col7-crop.png" alt="blancs-p100 crop">
+      <div class="stat">moy 73.6 · σ 42.4</div>
+      <div class="md5">f822b5de / d4c505d3</div>
+    </div><div class="col">
+      <div class="label">Noirs -100 (local)</div>
+      <img class="vign" src="parite02b-A-col8-vign.png" alt="noirs-m100">
+      <img class="crop" src="parite02b-A-col8-crop.png" alt="noirs-m100 crop">
+      <div class="stat">moy 25.8 · σ 26.6</div>
+      <div class="md5">ad746594 / 7c89e35c</div>
+    </div><div class="col">
+      <div class="label">Clarte +100 (couleurs tenues)</div>
+      <img class="vign" src="parite02b-A-col9-vign.png" alt="clarte-p100">
+      <img class="crop" src="parite02b-A-col9-crop.png" alt="clarte-p100 crop">
+      <div class="stat">moy 61.0 · σ 37.5</div>
+      <div class="md5">b4e90449 / 32870d08</div>
+    </div></div><h2>Photo B — DSCF5169.JPG <span class="dims">6240×4160 (EXIF OK)</span></h2><div class="crop-note">Crop 1:1 (256 px natif) : main (peau) / orange @ (1500, 2300) — le teintage des ombres et des hautes lumieres se juge ici en 1:1</div><div class="row"><div class="col">
+      <div class="label">Temoin (tout a 0)</div>
+      <img class="vign" src="parite02b-B-col0-vign.png" alt="temoin">
+      <img class="crop" src="parite02b-B-col0-crop.png" alt="temoin crop">
+      <div class="stat">moy 38.6 · σ 42.4</div>
+      <div class="md5">a113cceb / b79f68bc</div>
+    </div><div class="col">
+      <div class="label">Voile -100 (ajoute la brume)</div>
+      <img class="vign" src="parite02b-B-col1-vign.png" alt="voile-m100">
+      <img class="crop" src="parite02b-B-col1-crop.png" alt="voile-m100 crop">
+      <div class="stat">moy 126.6 · σ 54.3</div>
+      <div class="md5">3bc76908 / efca58a7</div>
+    </div><div class="col">
+      <div class="label">Voile -50</div>
+      <img class="vign" src="parite02b-B-col2-vign.png" alt="voile-m50">
+      <img class="crop" src="parite02b-B-col2-crop.png" alt="voile-m50 crop">
+      <div class="stat">moy 88.1 · σ 54.1</div>
+      <div class="md5">47be3eec / 9479ce67</div>
+    </div><div class="col">
+      <div class="label">Voile +50</div>
+      <img class="vign" src="parite02b-B-col3-vign.png" alt="voile-p50">
+      <img class="crop" src="parite02b-B-col3-crop.png" alt="voile-p50 crop">
+      <div class="stat">moy 28.0 · σ 32.4</div>
+      <div class="md5">62601f89 / 25870c7b</div>
+    </div><div class="col">
+      <div class="label">Voile +100 (retire la brume)</div>
+      <img class="vign" src="parite02b-B-col4-vign.png" alt="voile-p100">
+      <img class="crop" src="parite02b-B-col4-crop.png" alt="voile-p100 crop">
+      <div class="stat">moy 13.8 · σ 17.2</div>
+      <div class="md5">e4bd56cd / 48f55285</div>
+    </div><div class="col">
+      <div class="label">Temperature +100 (rechauffe, eclaircit)</div>
+      <img class="vign" src="parite02b-B-col5-vign.png" alt="temp-p100">
+      <img class="crop" src="parite02b-B-col5-crop.png" alt="temp-p100 crop">
+      <div class="stat">moy 67.2 · σ 67.3</div>
+      <div class="md5">10db1243 / 23edd215</div>
+    </div><div class="col">
+      <div class="label">Temperature -100 (refroidit, eclaircit)</div>
+      <img class="vign" src="parite02b-B-col6-vign.png" alt="temp-m100">
+      <img class="crop" src="parite02b-B-col6-crop.png" alt="temp-m100 crop">
+      <div class="stat">moy 53.2 · σ 56.4</div>
+      <div class="md5">db35345e / 356e69f5</div>
+    </div><div class="col">
+      <div class="label">Blancs +100 (local)</div>
+      <img class="vign" src="parite02b-B-col7-vign.png" alt="blancs-p100">
+      <img class="crop" src="parite02b-B-col7-crop.png" alt="blancs-p100 crop">
+      <div class="stat">moy 45.3 · σ 51.4</div>
+      <div class="md5">619b788b / ceb1b2ec</div>
+    </div><div class="col">
+      <div class="label">Noirs -100 (local)</div>
+      <img class="vign" src="parite02b-B-col8-vign.png" alt="noirs-m100">
+      <img class="crop" src="parite02b-B-col8-crop.png" alt="noirs-m100 crop">
+      <div class="stat">moy 17.9 · σ 27.4</div>
+      <div class="md5">62890dae / ce0854b7</div>
+    </div><div class="col">
+      <div class="label">Clarte +100 (couleurs tenues)</div>
+      <img class="vign" src="parite02b-B-col9-vign.png" alt="clarte-p100">
+      <img class="crop" src="parite02b-B-col9-crop.png" alt="clarte-p100 crop">
+      <div class="stat">moy 37.5 · σ 42.9</div>
+      <div class="md5">2f6bb469 / a9cb8f36</div>
+    </div></div>
+</body></html>

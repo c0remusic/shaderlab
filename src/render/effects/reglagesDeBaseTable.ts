@@ -55,7 +55,11 @@
  *  s'interpole entre ces points, ancrée à gain 1 en dose 0. */
 export interface WbStep {
   dose: number;
-  gain: number[];
+  /** EXPOSANT par canal [R,G,B] du gamma ancré `1−(1−s)^γ`, en espace sRGB.
+   *  ⚠️ C'était un GAIN multiplicatif en lumière linéaire jusqu'au 2026-09-16 :
+   *  un gain SATURE le canal poussé, et il saturait dès les réglages doux. Le
+   *  gamma tient 0 et 1 par construction, donc il comprime comme Lightroom. */
+  gamma: number[];
 }
 
 export interface ReglagesDeBaseTable {
@@ -153,19 +157,30 @@ export interface ReglagesDeBaseTable {
  *  RELANCER le script plutôt que d'éditer à la main. */
 export const RB_TABLE: ReglagesDeBaseTable = {
   wbTempPos: [
-    { dose: 25, gain: [1.788, 1.36, 0.956] },
-    { dose: 50, gain: [3.066, 1.78, 0.934] },
-    { dose: 75, gain: [4.466, 2.224, 0.932] },
-    { dose: 100, gain: [5.642, 2.576, 0.934] },
+    { dose: 25, gamma: [1.552, 1.282, 0.958] },
+    { dose: 50, gamma: [2.228, 1.58, 0.927] },
+    { dose: 75, gamma: [2.833, 1.837, 0.915] },
+    { dose: 100, gamma: [3.3, 2.035, 0.91] },
   ],
-  wbTempNeg: [{ dose: 100, gain: [1.35, 1.96, 7.99] }],
+  // ⚠️ TROIS DOSES ICI, contre une seule du temps des gains : la contre-expertise
+  // du 2026-09-12 avait ÉCARTÉ les doses intermédiaires parce que la validation
+  // croisée sortait pire que le statu quo. Ce verdict portait sur la forme GAIN,
+  // où le canal bleu de `temperature-m100` est écrêté sur les deux tiers de la
+  // rampe — un fit sur du plafond. Avec le gamma ancré, rien n'est écrêté et les
+  // trois doses mesurées sont exploitables. ⚠️ `temperature-m50` manque toujours,
+  // donc l'interpolation entre 25 et 75 n'est éprouvée par aucune mesure.
+  wbTempNeg: [
+    { dose: 25, gamma: [0.868, 1.09, 1.532] },
+    { dose: 75, gamma: [0.973, 1.39, 4.702] },
+    { dose: 100, gamma: [1.375, 1.655, 10.08] },
+  ],
   wbTintPos: [
-    { dose: 50, gain: [1.242, 0.976, 1.498] },
-    { dose: 100, gain: [1.444, 0.988, 4.196] },
+    { dose: 50, gamma: [1.195, 0.975, 1.373] },
+    { dose: 100, gamma: [1.403, 0.975, 2.695] },
   ],
   wbTintNeg: [
-    { dose: 50, gain: [1.004, 1.42, 0.964] },
-    { dose: 100, gain: [0.804, 2.89, 0.95] },
+    { dose: 50, gamma: [1.002, 1.323, 0.965] },
+    { dose: 100, gamma: [0.782, 2.127, 0.932] },
   ],
   expoG: 0.57,
   contrastG: 0.5325,

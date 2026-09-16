@@ -191,8 +191,8 @@ function wbLerp(steps: readonly WbStep[], i: number, t: number): number {
   const d = t * 100;
   let d0 = 0, g0 = 1;
   for (const s of steps) {
-    if (d <= s.dose) return g0 + (s.gain[i] - g0) * ((d - d0) / (s.dose - d0));
-    d0 = s.dose; g0 = s.gain[i];
+    if (d <= s.dose) return g0 + (s.gamma[i] - g0) * ((d - d0) / (s.dose - d0));
+    d0 = s.dose; g0 = s.gamma[i];
   }
   return g0;
 }
@@ -236,19 +236,48 @@ export function reglagesDeBaseSpec(rgb: Vec3, blurLuma: number, p: readonly numb
 
   let c: Vec3 = [rgb[0], rgb[1], rgb[2]];
 
-  // 1. BALANCE DES BLANCS — gains linéaires par canal, PAR SIGNE, SANS
-  //    renormalisation. Lightroom règle la WB en espace CAMÉRA et NE préserve PAS
-  //    la luminance : les deux extrêmes de Température éclaircissent (audit 09,
-  //    mesuré temperature-p100 Δlum +0,19 / m100 +0,23). On applique donc les
-  //    gains fittés sur `rampe_rgb` tels quels et on borne le résultat. Un axe à 0
-  //    a un gain de 1 (identité) ; les deux axes se combinent multiplicativement,
-  //    comme deux mises à l'échelle diagonales successives en espace caméra.
+  // 1. BALANCE DES BLANCS — un GAMMA ANCRÉ par canal, en espace sRGB. Lightroom
+  //    règle la WB en espace CAMÉRA et NE préserve PAS la luminance : les deux
+  //    extrêmes de Température éclaircissent (audit 09, mesuré temperature-p100
+  //    Δlum +0,19 / m100 +0,23). Un axe à 0 a un exposant de 1 (identité) ; les
+  //    deux axes se composent par produit d'exposants, comme deux gammas
+  //    successifs.
+  //
+  //    ⚠️ C'ÉTAIT UN GAIN MULTIPLICATIF EN LUMIÈRE LINÉAIRE, PUIS UN ÉCRÊTAGE,
+  //    jusqu'au 2026-09-16 — et c'est ce qu'Antoine voyait sans pouvoir le
+  //    nommer : « on ne se retrouve pas avec les résultats qu'on attend ». Un
+  //    gain SATURE le canal poussé, et il saturait dès les réglages doux : à
+  //    Température −25, notre bleu sortait à 251 au niveau 160 quand Lightroom
+  //    rend 199 — cinquante-deux niveaux. Le gamma ancré tient 0 et 1 par
+  //    construction, donc il COMPRIME au lieu d'écrêter, comme lui.
+  //
+  //    Mesuré sur les sept doses de Température : écart moyen **10,96 → 4,01
+  //    niveaux** (`assets/verifier-ton.mjs`). Validation croisée par dose —
+  //    ajuster sans une dose, la prédire depuis ses voisines : 1,36 / 2,20 /
+  //    3,60 niveaux là où la dose a des voisins des deux côtés. Les doses
+  //    extrêmes sortent pires (6,7 à 19,5) parce que les prédire est une
+  //    EXTRAPOLATION, et parce que `temperature-m50` manque à la branche
+  //    négative — trou déjà relevé par la contre-expertise du 2026-09-12.
+  //
+  //    ⚠️ Deux formes essayées AVANT celle-ci et réfutées par la mesure, toutes
+  //    deux consignées au ticket 02 : la renormalisation au blanc (retirée le
+  //    2026-09-12, donc pas la cause), et une compression douce contre le blanc
+  //    par canal — celle qui avait marché le matin même sur la luminance du
+  //    Color Grading — qui fait passer les sept doses de 10,96 à 18,76 parce
+  //    qu'elle comprime AUSSI le bas de la rampe, là où Lightroom ne comprime pas.
   const tP = Math.max(temperature / 100, 0), tN = Math.max(-temperature / 100, 0);
   const nP = Math.max(nuance / 100, 0), nN = Math.max(-nuance / 100, 0);
-  const wbGain = (i: number): number =>
+  const wbGamma = (i: number): number =>
     wbLerp(RB_TABLE.wbTempPos, i, tP) * wbLerp(RB_TABLE.wbTempNeg, i, tN) *
     wbLerp(RB_TABLE.wbTintPos, i, nP) * wbLerp(RB_TABLE.wbTintNeg, i, nN);
-  c = [clamp01(c[0] * wbGain(0)), clamp01(c[1] * wbGain(1)), clamp01(c[2] * wbGain(2))];
+  // L'aller-retour sRGB est FERMÉ, comme celui du ton plus bas : on encode,
+  // on opère, on redécode. La WB vivait en lumière linéaire ; elle rejoint le
+  // chemin perceptuel parce que c'est là que la mesure la place.
+  c = [0, 1, 2].map((i) => {
+    const g = wbGamma(i);
+    if (g === 1) return c[i];
+    return srgbToLinear(clamp01(1 - Math.pow(1 - linearToSrgb(clamp01(c[i])), g)));
+  }) as Vec3;
 
   // 2-5. TON PERCEPTUEL — exposition (gamma ancré), contraste (sigmoïde ancrée),
   //      hautes lumières / ombres LOCAUX (cloche sur la luminance floutée),
@@ -424,7 +453,7 @@ function wbFn(nom: string, steps: readonly WbStep[]): string {
   let d0 = 0;
   let g0 = "vec3<f32>(1.0)";
   for (const s of steps) {
-    const g1 = wv3(s.gain);
+    const g1 = wv3(s.gamma);
     lignes.push(`  g = select(g, ${g0} + (${g1} - ${g0}) * ((d - ${wf(d0)}) / ${wf(s.dose - d0)}), d <= ${wf(s.dose)});`);
     d0 = s.dose;
     g0 = g1;
@@ -598,16 +627,24 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
 
   var c = color.rgb; // DEJA lineaire (format -srgb) : aucune conversion sur l'image.
 
-  // 1. BALANCE DES BLANCS — gains lineaires par canal, PAR SIGNE, SANS
-  //    renormalisation (espace camera, luminance non preservee — audit 09). Un
-  //    axe a 0 rend un gain de 1 ; les deux axes se combinent multiplicativement.
+  // 1. BALANCE DES BLANCS — un GAMMA ANCRE par canal, en espace sRGB (jumeau du
+  //    twin). Un axe a 0 rend un exposant de 1 ; les deux axes se composent par
+  //    produit d exposants. C etait un gain multiplicatif en lumiere lineaire
+  //    puis un ecretage jusqu au 2026-09-16 : un gain SATURE le canal pousse des
+  //    les reglages doux, un gamma ancre tient 0 et 1 et comprime, comme LR.
   let tP = max(params[0] / 100.0, 0.0);
   let tN = max(-params[0] / 100.0, 0.0);
   let nP = max(params[1] / 100.0, 0.0);
   let nN = max(-params[1] / 100.0, 0.0);
-  let wbGain = rb_wb_temp_pos(tP) * rb_wb_temp_neg(tN)
-             * rb_wb_tint_pos(nP) * rb_wb_tint_neg(nN);
-  c = clamp(c * wbGain, vec3<f32>(0.0), vec3<f32>(1.0));
+  let wbG = rb_wb_temp_pos(tP) * rb_wb_temp_neg(tN)
+          * rb_wb_tint_pos(nP) * rb_wb_tint_neg(nN);
+  let wbS = vec3<f32>(linear_to_srgb(clamp(c.r, 0.0, 1.0)),
+                      linear_to_srgb(clamp(c.g, 0.0, 1.0)),
+                      linear_to_srgb(clamp(c.b, 0.0, 1.0)));
+  let wbOut = vec3<f32>(1.0) - pow(vec3<f32>(1.0) - wbS, wbG);
+  c = vec3<f32>(srgb_to_linear(clamp(wbOut.r, 0.0, 1.0)),
+                srgb_to_linear(clamp(wbOut.g, 0.0, 1.0)),
+                srgb_to_linear(clamp(wbOut.b, 0.0, 1.0)));
 
   // 2-5. TON PERCEPTUEL — exposition (gamma ancre), contraste (sigmoide ancree),
   //      HL/ombres locaux (cloche sur la luminance floutee de prevPass), blancs/

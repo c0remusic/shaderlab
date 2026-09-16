@@ -1985,6 +1985,37 @@ sont mesurés le jour même.
   d'enforcement et sept composants. Forme proposée : un verdict à trois états
   (`appliqué` / `refusé par tel verrou` / `sans effet`), lu par l'affordance au
   lieu d'être recalculé.
+  ⚠️ **INVENTORIÉ le 2026-09-16, et le classement change.** La carte complète
+  (19 méthodes booléennes avec leurs causes de refus, 35 consommateurs réels des
+  helpers sur 14 fichiers, divergences) dit que **~18 sites refabriquent** — mais
+  que **l'affordance et l'enforcement ne divergent NULLE PART** là où un contrôle
+  est atteignable, et qu'**aucune** lecture brute de `locks.*` n'existe hors des
+  helpers (le piège « raterait `all` » n'est nulle part). La douleur n'est donc pas
+  celle qui était écrite : refactorer un verdict à trois états gagnerait de la
+  forme, pas de la sûreté.
+  ⚠️ Et le retour `boolean` n'est PAS remplaçable par un objet sans danger :
+  les appelants écrivent `if (stack.xxx(...))`, et tout objet est truthy — le
+  refactor compilerait en cassant chaque site en silence.
+  ✅ **Ce que l'inventaire a VRAIMENT trouvé, corrigé le jour même** : deux trous
+  d'enforcement, tous deux latents (non atteignables par l'interface, dont le seul
+  garde était l'affordance). (a) Le **mode de fusion** n'avait aucun mutateur —
+  `App.tsx` écrivait le champ à la main sur la pile clonée puis commitait, donc sa
+  seule barrière était le sélecteur grisé, quand l'opacité voisine avait le filtre
+  de verrous du chemin vivant. (b) **`updateParams` ne consultait pas « Tout »** :
+  son refus tenait par effet de bord, et déclarer sa géométrie faisait passer les
+  paramètres non géométriques — un appelant poli était moins bloqué qu'un appelant
+  muet. Deux gardes ajoutées, vues rougir avant d'être fermées.
+  ⚠️ **`CLAUDE.md` est PÉRIMÉ sur ce sujet** : il présente `replaceLiveLayers`
+  comme « la porte que les gardes de `LayerStack` NE COUVRENT PAS ». Elle porte sa
+  propre enforcement depuis le 2026-08-18 — `fusionnerSousVerrous`
+  (`documentSession.ts:246-285`), qui gèle `all` / `position` / `mask` champ par
+  champ. Elle n'exécute toujours aucun mutateur de `LayerStack` (la lettre tient),
+  mais le verrou ne fuit plus par là. Correction PROPOSÉE, comme les trois autres.
+  ⚠️ Et le libellé « dix-sept opérations réparties entre QUATRE verrous » : les 17
+  sites de garde n'emploient que TROIS prédicats (`all`, `position`, `mask`) ; le
+  quatrième (`transparency`) n'a aucun site dans `LayerStack`, il écrête dans
+  `MaskPainter`. Les 17 ne sont pas homogènes non plus : 15 rendent `false`,
+  `addMaskSource` LÈVE, `updateParams` est un refus partiel conditionnel.
 - **Le registre de genres de `ParamPanel`.** Neuf genres de contrôle, neuf
   branches JSX en dur, et **quatre des neuf n'ont qu'UN déclarant**. Coût mesuré
   d'un genre neuf : +37 lignes dans `ParamPanel`, +22 dans `types.ts` — et

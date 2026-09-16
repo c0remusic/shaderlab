@@ -1878,13 +1878,24 @@ export default function App() {
 
   const handleBlendModeChange = useCallback(
     (id: string, blendMode: string) => {
-      // Une sélection ENGAGE : on annule l'aperçu en cours pour que la fin
-      // d'aperçu (déclenchée par la fermeture du popup, APRÈS ce commit) ne
-      // reverte pas la valeur qu'on vient d'engager.
-      blendPreviewRef.current = null;
+      const apercu = blendPreviewRef.current;
       const stack = currentStack();
-      const layer = stack.layers.find((l) => l.id === id);
-      if (layer) layer.blendMode = blendMode;
+      // L'aperçu au survol a posé sa valeur sur le calque VIVANT sans l'engager.
+      // On rétablit la valeur engagée avant de demander le changement, sinon le
+      // mutateur lirait l'aperçu et prendrait un vrai changement pour un no-op.
+      if (apercu && apercu.layerId === id) {
+        const layer = stack.layers.find((l) => l.id === id);
+        if (layer) layer.blendMode = apercu.committed;
+      }
+      // Le champ passe par un MUTATEUR gardé, il ne s'écrit plus à la main ici :
+      // le sélecteur grisé était la seule barrière du mode de fusion, quand
+      // l'opacité voisine avait, elle, le filtre de verrous du chemin vivant.
+      if (!stack.setLayerBlendMode(id, blendMode)) return;
+      // Refusé ou sans effet : on LAISSE l'aperçu actif, pour que sa fin (à la
+      // fermeture du popup) rétablisse la valeur engagée et repousse le rendu.
+      // Une sélection qui ENGAGE l'annule au contraire, sans quoi cette même fin
+      // reverterait la valeur qu'on vient d'engager.
+      blendPreviewRef.current = null;
       commit(stack); // changement discret → une entrée d'historique directe
     },
     [currentStack, commit]

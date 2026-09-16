@@ -370,6 +370,28 @@ export class LayerStack {
     return true;
   }
 
+  /** MODE DE FUSION du calque. Refusé sur « Tout », comme l'opacité — les deux
+   *  vivent dans la même zone de contrôles et doivent se garder pareil.
+   *
+   *  ⚠️ CETTE MÉTHODE N'A PAS TOUJOURS EXISTÉ, et c'est là qu'était le défaut :
+   *  le panneau écrivait `layer.blendMode` à la main sur la pile clonée puis
+   *  commitait, donc la seule barrière était le sélecteur grisé. L'opacité, elle,
+   *  passe par le chemin vivant et son filtre de verrous (`fusionnerSousVerrous`),
+   *  qui retient tout sur « Tout ». Deux contrôles voisins, deux niveaux de garde
+   *  — c'est exactement la forme du défaut de `replaceLiveLayers` du 2026-08-18 :
+   *  une règle posée au seul endroit poli ne protège que ce que personne ne fait.
+   *  L'APERÇU au survol, lui, était déjà couvert : il passe par le chemin vivant.
+   *
+   *  Returns `true` iff `id` existe, n'est pas verrouillé, et le mode change. */
+  setLayerBlendMode(id: string, blendMode: string): boolean {
+    const layer = this.layers.find((l) => l.id === id);
+    if (!layer) return false;
+    if (this.isLocked(id)) return false;
+    if (layer.blendMode === blendMode) return false;
+    layer.blendMode = blendMode;
+    return true;
+  }
+
   /** Duplique le calque `id` (équivalent Ctrl+J) et insère la copie JUSTE
    *  AU-DESSUS de l'original, c'est-à-dire à `index + 1` : dans ce projet la
    *  pile est appliquée dans l'ordre du tableau (`framePipelineExecutor.run`
@@ -564,6 +586,13 @@ export class LayerStack {
   updateParams(id: string, params: Record<string, number>, geometryParams?: readonly string[]): boolean {
     const layer = this.layers.find((l) => l.id === id);
     if (!layer) return false;
+    // « Tout » refuse d'abord, et SÉPARÉMENT de la géométrie. Sans cette ligne le
+    // refus tenait par effet de bord — `refuseGeometrie` est vrai sur « Tout »,
+    // donc l'appel était refusé quand l'appelant ne déclarait rien, et laissait
+    // passer les paramètres non géométriques dès qu'il déclarait sa liste. Un
+    // appelant poli était moins bloqué qu'un appelant muet, sur le verrou dont le
+    // contrat est de tout refuser.
+    if (this.isLocked(id)) return false;
     let ecrits = params;
     if (this.refuseGeometrie(id)) {
       if (geometryParams === undefined) return false;

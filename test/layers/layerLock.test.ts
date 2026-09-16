@@ -94,6 +94,30 @@ describe("opérations REFUSÉES sur un calque verrouillé", () => {
     expect(stack.layers[0].params).toEqual({});
   });
 
+  // ⚠️ LE MÊME APPEL, MAIS AVEC SA LISTE DE PARAMÈTRES SPATIAUX DÉCLARÉE. Le
+  // refus ci-dessus tient par un effet de bord : sur « Tout », `refuseGeometrie`
+  // est vrai (le verrou de position est impliqué) et la méthode refuse tout
+  // quand l'appelant NE déclare RIEN. Déclarer sa géométrie faisait alors passer
+  // les paramètres non géométriques — un appelant poli était moins bloqué qu'un
+  // appelant muet, sur le verrou qui doit tout refuser. Trouvé par inventaire le
+  // 2026-09-16, jamais atteignable par l'interface (seul appelant de production :
+  // un `aplat` fraîchement créé, donc jamais verrouillé).
+  it("updateParams — « Tout » refuse AUSSI quand l'appelant déclare sa géométrie", () => {
+    const { stack, id } = lockedStack();
+    expect(stack.updateParams(id, { intensity: 0.9, x: 5 }, ["x"])).toBe(false);
+    expect(stack.layers[0].params).toEqual({});
+  });
+
+  // Le mode de FUSION n'avait aucun mutateur : le panneau écrivait le champ à la
+  // main sur la pile clonée, donc son seul garde était le sélecteur grisé.
+  // L'opacité, elle, passait par le chemin vivant et son filtre de verrous — les
+  // deux contrôles de la même zone n'étaient pas gardés pareil.
+  it("setLayerBlendMode", () => {
+    const { stack, id } = lockedStack();
+    expect(stack.setLayerBlendMode(id, "multiply")).toBe(false);
+    expect(stack.layers[0].blendMode).toBe("normal");
+  });
+
   it("updateBrushMask", () => {
     const { stack, id } = lockedStack();
     expect(stack.updateBrushMask(id, new Uint8Array([255, 255]))).toBe(false);

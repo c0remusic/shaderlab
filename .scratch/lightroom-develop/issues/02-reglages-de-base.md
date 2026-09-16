@@ -397,9 +397,32 @@ cloches dont l'exposant bas est inférieur à 1 (`shadowKappa · shadowCenter` =
 infinie** au ras du bout. L'ancienne courbe à plateaux le MASQUAIT en ramenant le
 bas à zéro ; le gate passait donc pour une mauvaise raison.
 
-Correction mesurée et REFUSÉE pour l'instant : plancher les exposants de `bump` à 1
-ramène le trou à 3, au prix de **2,66 → 4,70** niveaux d'écart de parité sur les 55
-mesures. Hors périmètre de ce ticket, et trop cher tel quel — la vraie sortie est
-de refitter les quatre cloches sous la contrainte « exposant ≥ 1 », ce qui demande
-de rejouer `calibrer-ton.py` sur `ombres-*`, `hautes-lumieres-*`, `noirs-*`,
-`blancs-*`. À faire avant de croire le seuil de quantification.
+Correction mesurée et REFUSÉE : plancher les exposants de `bump` à 1 ramène le trou
+à 3, au prix de **2,66 → 4,70** niveaux d'écart de parité sur les 55 mesures.
+
+### ⚠️ Et la sortie que ce ticket proposait est RÉFUTÉE, le jour même
+
+Ce paragraphe disait : « la vraie sortie est de refitter les quatre cloches sous la
+contrainte exposant ≥ 1 ». Trois mesures l'ont défaite, dans cet ordre :
+
+1. **Lightroom POSTE AUSSI, et davantage que nous à certains réglages.** Sa propre
+   rampe `ombres-p100` a un trou de **14** et commence par 0 → 11,5 → 24,5. Une
+   contrainte de pente finie nous ÉLOIGNERAIT donc de la référence pour corriger un
+   comportement qui est le sien.
+2. **Mais à réglage égal, nous postons deux fois plus** : `shadows +100` rend chez
+   nous un trou de **26** (début 0 → 26 → 33) contre 14 chez eux ; à +50, 14 contre
+   5. Notre pente au ras du noir est bien trop raide — l'écart moyen ne le voyait
+   pas, parce qu'il est dominé par le milieu de la rampe où les trois premiers
+   niveaux ne pèsent rien.
+3. **Aucun couple (centre, κ) de la famille `bump` ne fait les deux.** Balayage
+   complet, 91 × 196 couples, amplitudes par signe ajustées à chaque point : le
+   meilleur écart moyen (5,40 niveaux) donne un début à 22,7 / 30,1 contre 11,5 /
+   24,5 mesurés ; le meilleur début fidèle (14,3 / 23,5) coûte **11,21** niveaux
+   d'écart moyen, soit le double. La cloche `bump` ne peut pas porter à la fois la
+   forme globale de l'opérateur d'ombres et sa montée au ras du noir.
+
+**Donc rien n'est à recalibrer ici : c'est la FORME de la cloche qui est
+insuffisante**, et le prochain pas est d'en essayer une autre pour les ombres (une
+qui monte plus vite qu'une puissance et retombe pareil), pas de rejouer
+`calibrer-ton.py` sur la même famille. Le seuil du test de quantification reste à
+10 en attendant, comme constat.

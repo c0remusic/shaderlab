@@ -143,11 +143,20 @@ describe("reglagesDeBase — jumeau du ton d'un bloc", () => {
     // en ramenant le bas à zéro ; les cloches ne le masquent plus, elles le
     // RÉDUISENT (15 → 10).
     //
-    // Le seuil constate donc une DETTE, ce n'est pas une cible : plancher les
-    // exposants de `bump` à 1 ramène le trou à 3, au prix de deux niveaux d'écart
-    // de parité sur les 55 mesures de ton (2,66 → 4,70) — mesuré, et refusé pour
-    // l'instant. Il garde sa valeur de garde-fou : au-delà de 10, quelque chose a
-    // empiré.
+    // Le seuil constate donc une DETTE, ce n'est pas une cible. Et « zéro trou »
+    // n'en est pas une non plus : LIGHTROOM POSTE AUSSI — sa propre rampe
+    // `ombres-p100` a un trou de 14 et commence par 0 → 11,5 → 24,5. Ce qui est
+    // vrai, c'est qu'à réglage égal nous postons DEUX FOIS PLUS (trou 26 contre 14
+    // à `shadows +100`, 14 contre 5 à +50).
+    //
+    // Aucune calibration ne rattrape ça : balayage complet de la famille `bump`
+    // (91 × 196 couples centre/κ, amplitudes par signe ajustées à chaque point),
+    // le meilleur écart moyen donne un début de rampe à 22,7 quand la mesure dit
+    // 11,5, et le meilleur début fidèle coûte le DOUBLE d'écart moyen. C'est la
+    // forme de la cloche qui est insuffisante pour l'opérateur d'ombres, pas ses
+    // constantes — détail au ticket 02.
+    //
+    // Le seuil garde sa valeur de garde-fou : au-delà de 10, quelque chose a empiré.
     expect(gBloc).toBeLessThanOrEqual(10);
     // Et l'empilement en perd nettement — la démonstration de la raison d'être.
     expect(nEmpile).toBeLessThan(nBloc - 8);

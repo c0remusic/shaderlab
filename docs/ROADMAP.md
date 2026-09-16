@@ -2131,7 +2131,7 @@ sont mesurés le jour même.
   sur l'absence totale de stockage. Deux d'entre elles ont été vues rougir en
   retirant la borne puis le filtrage.
 
-### ⛔ LA CI NE TOURNE PLUS DEPUIS LE 2026-09-12 — action d'Antoine, pas de code
+### ✅ LA CI EST RÉTABLIE LE 2026-09-16 — le dépôt est passé PUBLIC
 
 Aucun job n'a DÉMARRÉ depuis le commit `b2f2b1d8` (2026-09-12 18:57 UTC) : **dix-sept
 runs de suite** marqués `failure`, chacun en trois secondes, sans runner, sans étape
@@ -2141,11 +2141,23 @@ et sans log. L'annotation de l'API dit la cause mot pour mot :
 > spending limit needs to be increased. Please check the 'Billing & plans' section
 > in your settings
 
-Dernier run RÉELLEMENT exécuté : `32c2b352`, 2026-09-12 18:44. **Ce n'est donc pas
-un rouge de code, et aucun des commits depuis n'a été éprouvé par la CI.** Tant que
-la facturation n'est pas rétablie, les gates LOCALES sont les seules qui protègent
-quoi que ce soit — `npm run test`, `test-storybook`, `test:render`,
-`test:gpu-shaders`, `lint`, `lint:tokens`, `cargo test`.
+Dernier run RÉELLEMENT exécuté avant la panne : `32c2b352`, 2026-09-12 18:44. **Ce
+n'était donc pas un rouge de code, et aucun commit du 12 au 16 septembre n'a été
+éprouvé ailleurs qu'en local.**
+
+✅ **RÉTABLI le 2026-09-16 en passant le dépôt en PUBLIC** (décision d'Antoine) :
+GitHub Actions est gratuit et sans quota de minutes sur un dépôt public, la
+facturation ne portant que sur le privé. Premier run relancé aussitôt : runner
+assigné, douze étapes, le job DÉMARRE — c'est la preuve qui manquait, et elle tient
+en un champ (`runner_name` non vide).
+
+⚠️ **CE QUE LE PASSAGE EN PUBLIC EXPOSE**, audité avant la bascule et assumé : les
+chaînes minées de `CameraRaw.dll` (noms de stages, chemins sources internes d'Adobe,
+titre de brevet) dans trois tickets `.scratch/lightroom-develop/` et trois fichiers
+source, les captures d'interface de Lightroom 14.5 (`assets/reference-ui/`) et les
+170 mesures. Aucun secret (grep clé/token/mot de passe : zéro) et aucune photo
+personnelle — les mires versionnées sont synthétiques. Repasser privé ne dépublierait
+pas ce qui a été cloné ou indexé.
 
 ⚠️ Deux pièges de lecture que cet épisode montre. Un `failure` de CI ne dit PAS que
 le code est rouge : ici il dit qu'il n'a jamais été lancé, et la seule façon de le
@@ -2153,9 +2165,10 @@ savoir est l'annotation (`gh api .../check-runs/<jobId>/annotations`) — `gh ru
 --log-failed` répond « log not found », ce qui ressemble à une panne d'outil. Et le
 job n'a ni étape ni runner : un job sans `runner_name` n'a pas tourné.
 
-⚠️ CLAUDE.md affirme « ✅ **La CI est VERTE depuis le 2026-08-16** » : vrai jusqu'au
-2026-09-12, faux depuis. Correction PROPOSÉE (le fichier ne s'édite pas sans accord),
-à joindre aux deux autres en attente ci-dessous.
+⚠️ CLAUDE.md affirme « ✅ **La CI est VERTE depuis le 2026-08-16** » : la phrase est
+redevenue vraie pour l'infrastructure, mais elle a été fausse du 2026-09-12 au 09-16
+sans que rien ne le dise. La correction proposée est donc de dater ce trou, pas de
+changer le verdict.
 
 ### Arbitrages qui attendent Antoine
 

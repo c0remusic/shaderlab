@@ -84,16 +84,34 @@ Elle annonce explicitement ne traiter ni l'optimisation du fragment shader, ni l
 bande passante des textures. Nos frames sont l'exact inverse : une poignée de
 passes PLEIN ÉCRAN sur 26 Mpx, où tout le coût est du côté GPU.
 
-Ses six techniques et ce qu'elles valent ici :
+⚠️ **CE TABLEAU A ÉTÉ ÉCRIT DEUX FOIS.** La première version sortait de
+`WebFetch`, qui résume la page avec un petit modèle ; relue sur le HTML BRUT le
+même jour, elle portait trois erreurs — aucune n'était une invention, toutes
+étaient des ATTRIBUTIONS. Un résumeur rend les phrases ; il ne rend pas à quoi
+elles se rapportent. Les chiffres ci-dessous sont cités du texte source.
 
-| technique | son gain annoncé | chez nous |
+Ses six techniques, dans l'ordre de la page, et ce qu'elles valent ici :
+
+| technique | ce que la page dit EXACTEMENT | chez nous |
 |---|---|---|
-| `mappedAtCreation` | à l'initialisation seulement | sans objet |
-| entrelacer les sommets | jusqu'à ×6 sur `setVertexBuffer` | **aucun sommet** — nos passes sont des triangles pleine écran sans buffer de sommets |
-| scinder les uniformes | −16 % de la part « math » | à voir, mesuré |
-| séparer les uniformes de matériau | non chiffré | à voir |
-| **un gros buffer d'uniformes à décalages** | −40 % du temps JS | **la seule qui transfère** — voir ci-dessous |
-| buffers mappés | ×2 rendu désactivé | dépend de la précédente |
+| `mappedAtCreation` | « slightly faster », non chiffré, à l'initialisation | sans objet |
+| entrelacer les sommets | « That's like 600% faster! » — ⚠️ **hypothétique**, sur une scène IMAGINÉE de 100 modèles (« *Imagine instead of just a cube we had 100s of models* »), et ça compte des APPELS à `setVertexBuffer`, pas du temps | **aucun sommet** — nos passes sont des triangles plein écran sans buffer de sommets |
+| scinder les uniformes | « our math portion dropped ~16% » | à voir, mesuré |
+| séparer plus d'uniformes | non chiffré | à voir |
+| **un gros buffer d'uniformes à décalages** | « shaved off 40% of the JavaScript time » | **la seule qui transfère** — voir ci-dessous |
+| buffers mappés | « around 15000 objects at 75fps, about 87% more than we started with » — ⚠️ **cumulatif**, pas le gain de cette étape | dépend de la précédente |
+
+Deux chiffres de la page que le résumé avait perdus, et le second compte :
+
+- **La ligne de base** : « ~8000 cubes before the framerate dropped », écran
+  75 Hz, M1. Et le « **2x speed up** » final est le CUMUL des six, mesuré rendu
+  désactivé — « *9000 at 75fps with the original non-optimized example and 18000
+  at 75fps in this last version* ». Ce n'est pas le gain d'une technique.
+- Une septième piste, hors des six, en fin d'article : passer des DÉCALAGES aux
+  fonctions de math JS (`mat4.multiply(a, aOffset, b, bOffset, dst, dstOffset)`)
+  vaut « about 7% faster », et l'auteur la juge lui-même « burdensome to use ».
+  Rien à voir avec les décalages de buffer d'uniformes — la confusion des deux
+  était la troisième erreur de la première version.
 
 **Ce qui transfère, et sa taille réelle.** `runEffectPass` appelle `createBuffer`
 pour ses paramètres à CHAQUE passe et à CHAQUE frame (plus le compositing et la

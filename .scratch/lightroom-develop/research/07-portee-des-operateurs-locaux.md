@@ -292,6 +292,50 @@ intact. La retenue de leur opérateur dans les noirs vient donc d'ailleurs que
 d'une borne sur l'amplitude : probablement de l'espace de travail, comme Texture
 qui travaille en racine et n'a pas ce problème.
 
+**Et la mire de portée dit POURQUOI, ce que la mire de présence ne pouvait pas
+dire.** Notre version profonde, mesurée sur les mêmes plateaux de 4096 px que
+Lightroom, à Clarté +100 :
+
+| zone PORTÉE (marche de TON, détail des deux côtés), côté haut | 0 | 2 | 8 | 32 | 128 | 512 | 3900 |
+|---|---|---|---|---|---|---|---|
+| Lightroom | −22,10 | −12,41 | −6,22 | −5,77 | −5,92 | −6,74 | −8,21 |
+| shaderlab profond | **−50,75** | **−50,75** | **−49,75** | **−42,00** | **−25,75** | −4,50 | −4,50 |
+
+| zone PORTAIL (marche de DÉTAIL, MÊME ton des deux côtés) | 0 | 32 | 512 | 2048 | 3900 |
+|---|---|---|---|---|---|
+| Lightroom, moitié plate | −9,90 | −10,09 | −10,19 | −11,00 | −12,36 |
+| shaderlab profond, moitié plate | **0,00** | **0,00** | **0,00** | **0,00** | −2,00 |
+
+Deux constats, et ils se contredisent à un seul scalaire près — donc aucun
+réglage ne les concilie :
+
+1. **Sur une marche de TON, nous sommes 2,3 fois trop forts**, et pas seulement
+   au bord : notre réponse reste à −50 jusqu'à huit pixels et à −42 à trente-deux,
+   un PLATEAU large là où Lightroom rend un dépassement bref qui retombe à −6.
+   C'est ce plateau qui bouche les noirs.
+2. **Sur une marche de DÉTAIL à ton constant, nous ne faisons RIEN** (0,00 sur
+   toute la moitié plate) quand Lightroom la déplace de −10. Un flou profond de
+   deux moitiés de même moyenne rend la même moyenne partout, donc `lp − flou`
+   vaut zéro — par construction.
+
+**Notre Clarté est un opérateur de DIFFÉRENCE DE TON ; la leur est pilotée par la
+PRÉSENCE DE DÉTAIL.** C'est exactement ce que le binaire nomme
+(`cr_stage_localized_detail_clarity_mask`) et ce que la mire bi-tonale montrait
+déjà : sans détail nulle part, leur Clarté ne fait rien.
+
+**Ce que ça spécifie pour la suite.** La grandeur qui manque est la PRÉSENCE DE
+DÉTAIL moyennée sur un grand rayon — et le mécanisme livré peut la porter sans
+rien ajouter au moteur. La pyramide de 1/16 transporte déjà `(luminance, y)`,
+donc sa variance `r − g²` EST une mesure de détail local ; une passe posée juste
+après l'exposée émettrait `(luminance, y, sqrt(variance))`, et la section
+profonde la moyennerait comme les deux autres. `prevPass.b` serait alors le
+détail local moyenné au grand rayon, et Clarté s'écrirait à partir de lui.
+
+Reste à ajuster ce que ce détail pilote, et les quatre jeux de mesures pour le
+faire existent déjà : la mire bi-tonale (aucun détail → zéro), la zone PORTAIL
+(détail d'un seul côté), la zone PORTÉE (détail partout, marche de ton) et les
+aplats de la mire de présence.
+
 Le câblage est reverté, le mécanisme reste, et sa garde a ses quatre tests. La
 prochaine tentative part de ces chiffres, pas de zéro.
 

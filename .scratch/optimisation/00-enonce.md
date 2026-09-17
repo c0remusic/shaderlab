@@ -144,30 +144,51 @@ chronométrer aussi bien que compter.
 
 ## Ce qui reste genuinement à instruire
 
-0. **La part de `jsEncodeMs` prise par les douze allocations de buffer par
-   frame** — le seul chiffre qui dise si la technique du gros buffer à décalages
-   vaut son refactor ici. L'instrument existe (`compte-allocations.mjs`
-   chronomètre aussi bien qu'il compte) et `frameDiagnostics.jsEncodeMs` donne le
-   dénominateur. ⚠️ `jsEncodeMs` est un temps d'ENCODAGE JS : il peut afficher
-   2 ms pendant que le GPU en passe 60. Les deux ne mesurent pas la même chose,
-   et c'est précisément pourquoi il est le bon dénominateur pour un coût CPU.
+✅ **La campagne de mesure est faite : [`01-ou-part-le-temps.md`](01-ou-part-le-temps.md)
+(2026-09-17).** Elle répond au point 0 et déplace le reste. Résumé en trois
+chiffres : le coût GPU est **proportionnel aux pixels** (0,65 ms par Mpx,
+constant sur un rapport de 64) ; nous calculons **187 fois** les pixels que
+l'écran montre ; et `jsEncodeMs` vaut **0,6 à 1,3 ms** contre ~17 ms de GPU.
+
+0. ~~**La part de `jsEncodeMs` prise par les douze allocations de buffer par
+   frame.**~~ ✅ **RÉPONDU, et c'est NON.** Tout l'encodage JS tient dans ~1 ms
+   contre ~17 ms de GPU, et il est INDÉPENDANT de la taille de l'image (0,8 ms à
+   26 Mpx, 1,3 ms à 0,41 Mpx). Le gros buffer à décalages viserait une fraction
+   de cette milliseconde, soit moins de 2 % du temps de frame — en build de DEV,
+   où ce poste est pourtant gonflé. Le motif existe, l'ordre de grandeur n'y est
+   pas. Ne pas refactorer.
 1. **`shader-f16`.** C'est la seule idée de la proposition qui touche le matériel
    et pas le texte. Le mécanisme d'adhésion existe déjà et se recopie :
    `gpuContext.ts` demande `timestamp-query` SI ET SEULEMENT SI l'adapter
    l'annonce, jamais en dur — demander une feature absente ferait rejeter
-   `requestDevice` en bloc. Trois choses à vérifier avant d'écrire une ligne :
-   l'adapter de cette machine l'annonce-t-il sous WebView2 ; nos textures étant
-   en 8 bits unorm et l'invariant sRGB-par-le-format interdisant un chemin
-   flottant, f16 n'allège que l'ARITHMÉTIQUE, pas les lectures de texture ; et
-   la précision suffit-elle pour nos opérateurs de ton, dont plusieurs
-   travaillent près de zéro en lumière linéaire.
+   `requestDevice` en bloc. ✅ **Première question tranchée** : l'adapter
+   l'ANNONCE sur cette machine (RTX 2060 / Turing, WebView2 153) — `shader-f16`
+   est dans `adapter.features`. Restent les deux autres, et la mesure les rend
+   plus difficiles à passer : nos textures sont en 8 bits unorm et l'invariant
+   sRGB-par-le-format interdit un chemin flottant, donc f16 n'allège que
+   l'ARITHMÉTIQUE — or une passe pleine résolution TRIVIALE est déjà à 79 % du
+   pic de bande passante de la carte. Le seul endroit où f16 a une chance est le
+   calcul au-dessus de ce plancher de copie, et `grain` en porte 39 % à lui
+   seul : l'éprouver LÀ, sur un effet, avant tout portage. Et la précision
+   suffit-elle pour nos opérateurs de ton, dont plusieurs travaillent près de
+   zéro en lumière linéaire ?
 2. **Le temps de compilation des 104 shaders**, jamais mesuré. Si une variante
    neuve fait bégayer le premier geste après l'ajout d'un effet, c'est là que la
    minification aurait un sens — et elle porterait alors sur la chaîne COMPOSÉE,
-   à l'exécution, pas sur des fichiers au build.
+   à l'exécution, pas sur des fichiers au build. C'est un coût de DÉMARRAGE, pas
+   de frame : la campagne du 01 ne le touche pas.
 3. **Les postes déjà nommés** : `docs/ROADMAP.md` et
    `.scratch/prochain-palier/issues/19-le-cout-du-verre.md` portent les mesures
    de coût existantes.
+4. ⭐ **NOUVEAU, et c'est le seul levier d'un autre ordre de grandeur : ne pas
+   calculer les pixels qu'on ne regarde pas.** Le canvas porte la résolution
+   native et le zoom n'est qu'un `transform` CSS (`ui/viewport.ts`), donc à 100 %
+   on calcule 26 Mpx pour en montrer environ 5 %. Borner le rendu à la RÉGION
+   VISIBLE ne dégrade rien — mêmes pixels, pleine résolution, simplement pas
+   ceux qui sont hors écran — et ne touche donc pas à la décision « pas de
+   distinction preview/export ». Chantier lourd (il touche le cadrage du
+   pipeline), et le seul qui s'attaque au terme de l'équation qui compte. Détail
+   et arbitrage dans le 01.
 
 ## La règle qui gouverne tout le chantier
 

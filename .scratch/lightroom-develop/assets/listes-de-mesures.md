@@ -150,3 +150,42 @@ L'analyse (`analyse-mire-presence.py`) apparie l'export à sa géométrie par la
 TAILLE EXACTE, largeur et hauteur : le dossier d'exports est partagé avec les deux
 autres mires et l'une d'elles a la même largeur. Un export dont la taille ne
 correspond à aucune géométrie est ignoré, jamais deviné.
+
+---
+
+## Campagne D — Texture sur une VRAIE PHOTO — LANCÉE le 2026-09-16
+
+**Pourquoi.** La mire donnait un écart moyen de 0,057 à Lightroom sur quatorze
+échelles, et Antoine a dit « toujours pas satisfait par texture ». Une référence
+de pixels prouve qu'un opérateur porte sa propriété, jamais qu'il est beau — et
+un réseau à une seule fréquence ne distingue pas une étagère d'un ANNEAU.
+Résultats : `research/08-le-portail-de-texture.md`.
+
+⚠️ **PHOTO D'ORIGINE BOÎTIER UNIQUEMENT.** Un export déjà développé dans
+Lightroom ferait juger nos opérateurs par-dessus un développement étranger —
+vérifier `Software` dans l'EXIF avant d'ajouter une photo.
+
+`shaderlab-mesures-go.txt` :
+
+```
+C:\Users\LEETJ\Pictures\2018\2018-01-25\DSCF5171.JPG
+```
+
+`shaderlab-mesures-extra.txt` :
+
+```
+ph-temoin	
+ph-texture-p40	Texture=40
+ph-texture-p100	Texture=100
+ph-texture-m60	Texture=-60
+```
+
+Notre côté se rend par `assets/photo-texture-rendu.mjs` (détourages 1:1), se
+chiffre par `assets/mesure-photo-texture.py` et se regarde par
+`assets/planche-photo-texture.py`.
+
+⚠️ **Le profil de bord se SÉPARE PAR POLARITÉ.** La frontière traverse le
+détourage dans les deux sens ; moyenner les deux ensemble annule tout halo SIGNÉ
+et ne laisse que sa part symétrique. Un liseré d'accentuation est signé — la
+première lecture, faite sans cette séparation, montrait un soulèvement des DEUX
+côtés chez Lightroom, ce qui n'existe pas.

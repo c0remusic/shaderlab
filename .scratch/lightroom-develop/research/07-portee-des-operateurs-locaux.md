@@ -229,6 +229,15 @@ profondeurs à la fois. Approfondir la pyramide casserait Texture. C'est une
 limite de structure, et elle se lève d'une seule façon — donner au moteur de
 passes un second flou, soit une seconde texture liée, soit un second module.
 
+⚠️ **CE MÊME MANQUE A UN TROISIÈME CLIENT, et c'est le plus cher** : le portail
+de Texture. Mesuré sur photo le 2026-09-16, il ne détecte pas les bords mais le
+GRAIN — la variance locale vaut 0,015 partout, l'epsilon 0,0082, donc le portail
+reste bloqué à 0,33 avec 15 % de course au bord. Le séparer demande la variance
+du signal PASSE-BAS, pas la variance locale, c'est-à-dire un second créneau de
+lissage. Deux corrections ont été écrites et revertées avant que ça se mesure :
+[`08-le-portail-de-texture.md`](08-le-portail-de-texture.md), à lire AVANT d'y
+retoucher.
+
 ⚠️ **Un portail de détail a été écrit puis RETIRÉ le même jour.** L'idée venait
 d'une phrase de ce fichier — « Clarté doit être éteinte par l'absence de détail » —
 et deux mesures l'ont réfutée comme mécanisme. D'abord Lightroom garde un gain

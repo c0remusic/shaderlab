@@ -72,8 +72,67 @@ des caractères ne réduit pas le coût dominant. Un chantier d'optimisation qui
 commence par le texte du shader commence par l'axe déjà mesuré comme le moins
 payant.
 
+## Seconde source : webgpufundamentals, « Speed and Optimization »
+
+<https://webgpufundamentals.org/webgpu/lessons/webgpu-optimization.html>
+(proposée par Antoine le 2026-09-17, lue le jour même)
+
+⚠️ **Elle porte sur un problème que nous n'avons pas, et elle le dit
+elle-même.** Son banc rend jusqu'à **30 000 cubes**, et elle propose un mode de
+rendu en **1×1 pixel** pour éliminer la rastérisation et isoler le coût de l'API.
+Elle annonce explicitement ne traiter ni l'optimisation du fragment shader, ni la
+bande passante des textures. Nos frames sont l'exact inverse : une poignée de
+passes PLEIN ÉCRAN sur 26 Mpx, où tout le coût est du côté GPU.
+
+Ses six techniques et ce qu'elles valent ici :
+
+| technique | son gain annoncé | chez nous |
+|---|---|---|
+| `mappedAtCreation` | à l'initialisation seulement | sans objet |
+| entrelacer les sommets | jusqu'à ×6 sur `setVertexBuffer` | **aucun sommet** — nos passes sont des triangles pleine écran sans buffer de sommets |
+| scinder les uniformes | −16 % de la part « math » | à voir, mesuré |
+| séparer les uniformes de matériau | non chiffré | à voir |
+| **un gros buffer d'uniformes à décalages** | −40 % du temps JS | **la seule qui transfère** — voir ci-dessous |
+| buffers mappés | ×2 rendu désactivé | dépend de la précédente |
+
+**Ce qui transfère, et sa taille réelle.** `runEffectPass` appelle `createBuffer`
+pour ses paramètres à CHAQUE passe et à CHAQUE frame (plus le compositing et la
+transformation). Compté sur la mire 2048 × 7584, une frame, un calque
+(`compte-allocations.mjs`, qui enveloppe les méthodes du device et compte au lieu
+de supposer) :
+
+| cas | buffers | bindGroups | textures | pipelines | writeBuffer |
+|---|---|---|---|---|---|
+| témoin (étage sauté) | 4 | 3 | 0 | 0 | 3 |
+| exposition 1 | 5 | 4 | 0 | 0 | 4 |
+| clarté 100 (réveille la pyramide) | **12** | **11** | 0 | 0 | 11 |
+| tout le bloc présence | 12 | 11 | 0 | 0 | 11 |
+
+Deux lectures, opposées, et il faut les tenir ensemble :
+
+- **Les deux postes que la source optimise le plus sont DÉJÀ résolus ici** :
+  zéro texture et zéro pipeline créés par frame — le pool de cibles
+  (`passTargetPool`) et le cache de pipelines par chaîne WGSL font leur travail.
+- **Mais douze buffers et onze bind groups par frame** pour UN calque, et ça
+  monte avec la pile. À soixante images par seconde, sept cents allocations de
+  buffer par seconde pour transporter quelques dizaines de flottants. C'est
+  exactement le motif que la source remplace par un gros buffer à décalages.
+
+**Ce que ça ne prouve pas.** Douze allocations ne sont pas trente mille : l'ordre
+de grandeur qui rend la technique payante là-bas n'est pas le nôtre. Le chiffre à
+obtenir avant d'écrire une ligne est la PART de `jsEncodeMs` que ces allocations
+prennent — `frameDiagnostics` le rend déjà, et l'enveloppe ci-dessus peut
+chronométrer aussi bien que compter.
+
 ## Ce qui reste genuinement à instruire
 
+0. **La part de `jsEncodeMs` prise par les douze allocations de buffer par
+   frame** — le seul chiffre qui dise si la technique du gros buffer à décalages
+   vaut son refactor ici. L'instrument existe (`compte-allocations.mjs`
+   chronomètre aussi bien qu'il compte) et `frameDiagnostics.jsEncodeMs` donne le
+   dénominateur. ⚠️ `jsEncodeMs` est un temps d'ENCODAGE JS : il peut afficher
+   2 ms pendant que le GPU en passe 60. Les deux ne mesurent pas la même chose,
+   et c'est précisément pourquoi il est le bon dénominateur pour un coût CPU.
 1. **`shader-f16`.** C'est la seule idée de la proposition qui touche le matériel
    et pas le texte. Le mécanisme d'adhésion existe déjà et se recopie :
    `gpuContext.ts` demande `timestamp-query` SI ET SEULEMENT SI l'adapter

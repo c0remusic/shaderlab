@@ -255,6 +255,46 @@ une. Le surcoût est donc sous le plancher de cet instrument (±2 à 3 ms). ⚠�
 cela ne prouve rien sur la cadence : elle se mesure en build de PRODUCTION, dont
 le plancher vaut 2,6 fois celui du dev.
 
+## La pyramide profonde, essayée et NON livrée le 2026-09-17
+
+Le mécanisme qui manquait est livré (`EffectPass.expose` → `auxPass`), et Clarté
+a été câblée dessus pour l'éprouver : la pyramide garde sa profondeur de 1/16,
+exposée pour Texture et le ton, et une section descend jusqu'à 1/128 pour Clarté
+seule. Résultat mesuré, et il dit deux choses opposées.
+
+**Ce que ça gagne.** Le gain devient PLAT sur toute l'échelle, la propriété
+qualitative de Lightroom que nous n'avions pas :
+
+| gain par période | P=3 | P=16 | P=64 | P=256 | écart moyen |
+|---|---|---|---|---|---|
+| Lightroom | 1,786 | 1,786 | 1,779 | 1,784 | — |
+| avant | 1,987 | 1,988 | 1,792 | **1,266** | **0,240** |
+| après (amplitude recalée à 0,72) | 1,777 | 1,775 | 1,778 | 1,765 | **0,009** |
+
+Vingt-sept fois mieux, et la portée du halo passe de 25 à 220 px (la leur : 470).
+Le gate discriminant est vert : le ton, Texture et le voile ne bougent pas d'un
+bit, donc `auxPass` leur rend bien la pyramide intacte.
+
+**Ce que ça casse, et pourquoi ce n'est pas livré.** Les aplats s'effondrent. À
+Clarté +60 sur la référence, le coin sombre est ÉCRASÉ À ZÉRO, et la mesure le
+confirme : l'aplat 32 se déplace de **−32** là où Lightroom rend **−2,66**. Notre
+facteur est multiplicatif sur la luminance (`(lp + g)/lp`), donc quand le flou
+profond dépasse largement un pixel sombre, `g` devient assez négatif pour annuler
+le facteur. Un opérateur qui bouche les noirs n'est pas livrable, quel que soit
+son score sur les réseaux.
+
+**Ce que ça apprend.** Lightroom déplace ses aplats de −2,66 · −19,59 · +2,68 aux
+bases 32 · 128 · 224 : ni zéro comme notre version courte, ni l'effondrement de
+notre version profonde. Et un simple écrêtage du détail ne peut pas les produire —
+sur un aplat le détail au flou profond vaut 0,004 en lumière linéaire, sur un
+réseau de base 128 il vaut 0,088, vingt fois plus, et le second doit passer
+intact. La retenue de leur opérateur dans les noirs vient donc d'ailleurs que
+d'une borne sur l'amplitude : probablement de l'espace de travail, comme Texture
+qui travaille en racine et n'a pas ce problème.
+
+Le câblage est reverté, le mécanisme reste, et sa garde a ses quatre tests. La
+prochaine tentative part de ces chiffres, pas de zéro.
+
 ## Pièges d'instrument payés dans cette campagne
 
 - **Un estimateur qui rend 0,9 × son plateau ne mesure rien.** Les deux

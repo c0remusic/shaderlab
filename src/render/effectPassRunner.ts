@@ -223,9 +223,12 @@ export class EffectPassRunner {
     sourceView: GPUTextureView,
     pendingDestroy: PendingDestroy,
     libraryTextureView: GPUTextureView | null = null
-  ): { view: GPUTextureView; texture: GPUTexture | null } {
+  ): { view: GPUTextureView; texture: GPUTexture | null; aux: GPUTextureView | null } {
     let passInputView = sourceView;
     let lastTexture: GPUTexture | null = null;
+    // Sortie de la passe marquee `expose`, RETENUE pour la passe finale pendant
+    // que la chaine continue par-dessus. Voir `EffectPass.expose`.
+    let auxView: GPUTextureView | null = null;
 
     // PARAMÈTRES RÉSOLUS UNE FOIS pour tous les prédicats de la chaîne (défauts
     // appliqués), plutôt que par passe : `enabled` est appelé jusqu'à neuf fois
@@ -264,12 +267,20 @@ export class EffectPassRunner {
       this.runEffectPass(encoder, { ...effect, wgsl: pass.wgsl }, layer, passInputView, passTargetView, { applyMask: false, libraryTextureView }, pendingDestroy);
       passInputView = passTargetView;
       lastTexture = passTarget;
+      if (pass.expose) auxView = passTargetView;
     }
+    // REPLI D'`auxPass`, exactement celui de `prevPass` et pour la même raison :
+    // une passe exposée que `enabled` fait sauter n'expose rien, et le shader la
+    // lit quand même. Sans ce repli, le binding 9 ne serait pas fourni alors que
+    // le corps WGSL le cite — le shader ne compilerait plus du tout, au lieu de
+    // lire une texture inerte comme il le fait pour `prevPass`. La vue SOURCE
+    // tient ce rôle : les termes qui la liraient sont, eux aussi, à zéro.
+    if (auxView === null && effect.passes!.some((p) => p.expose)) auxView = sourceView;
     // `lastTexture` reste NULL si toutes les passes ont été sautées : aucune
     // cible n'a été empruntée, et `passInputView` est restée la vue source.
     // Déclaré nullable plutôt que forcé par un `!` — l'appelant ne lit que
     // `view`, et il ne détruit jamais `texture` (elle appartient au pool).
-    return { view: passInputView, texture: lastTexture };
+    return { view: passInputView, texture: lastTexture, aux: auxView };
   }
 
   runOverlayPass(encoder: GPUCommandEncoder, src: GPUTexture, mask: GPUTexture, targetView: GPUTextureView, time: number): void {
@@ -328,10 +339,10 @@ export class EffectPassRunner {
     layer: LayerState,
     sourceView: GPUTextureView,
     targetView: GPUTextureView,
-    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null; guideEpoch?: number; imageSourceView?: GPUTextureView | null; libraryTextureView?: GPUTextureView | null } = {},
+    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null; auxPassView?: GPUTextureView | null; guideEpoch?: number; imageSourceView?: GPUTextureView | null; libraryTextureView?: GPUTextureView | null } = {},
     pendingDestroy: PendingDestroy = []
   ): void {
-    const { applyMask = true, prevPassView = null, guideEpoch = 0, imageSourceView = null, libraryTextureView = null } = options;
+    const { applyMask = true, prevPassView = null, auxPassView = null, guideEpoch = 0, imageSourceView = null, libraryTextureView = null } = options;
     const paramValues = new Float32Array(MAX_EFFECT_PARAMS);
     effect.params.forEach((p, idx) => { paramValues[idx] = layer.params[p.name] ?? p.default; });
     const paramBuffer = this.device.createBuffer({ size: paramValues.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -366,7 +377,7 @@ export class EffectPassRunner {
     const et = layer.effectTransform;
     const hasEffectTransform =
       applyMask && et !== undefined && (et.scaleX !== 1 || et.scaleY !== 1);
-    const shaderCode = composeShader(effect.wgsl, { applyMask, hasPrevPass: prevPassView !== null, hasImageSource, hasLibraryTexture, hasEffectTransform, blendWgsl: applyMask ? blendMode.wgsl : undefined });
+    const shaderCode = composeShader(effect.wgsl, { applyMask, hasPrevPass: prevPassView !== null, hasAuxPass: auxPassView !== null, hasImageSource, hasLibraryTexture, hasEffectTransform, blendWgsl: applyMask ? blendMode.wgsl : undefined });
     let compositingBuffer: GPUBuffer | null = null;
     if (applyMask) {
       const compositing = new Float32Array([layer.opacity ?? 1, 0, 0, 0]);
@@ -398,6 +409,7 @@ export class EffectPassRunner {
       ];
       if (applyMask) layoutEntries.push({ binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
       if (prevPassView) layoutEntries.push({ binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
+      if (auxPassView) layoutEntries.push({ binding: 9, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
       if (applyMask) layoutEntries.push({ binding: 5, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } });
       if (applyMask && coverageView) layoutEntries.push({ binding: 6, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
       if (hasLibraryTexture) layoutEntries.push({ binding: 7, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float" } });
@@ -433,6 +445,7 @@ export class EffectPassRunner {
     const maskGuideView = imageSourceView ?? sourceView;
     if (applyMask) entries.push({ binding: 3, resource: this.resolveMask(layer, encoder, maskGuideView, pendingDestroy, guideEpoch).createView() });
     if (prevPassView) entries.push({ binding: 4, resource: prevPassView });
+    if (auxPassView) entries.push({ binding: 9, resource: auxPassView });
     if (applyMask && compositingBuffer) entries.push({ binding: 5, resource: { buffer: compositingBuffer } });
     if (applyMask && coverageView) entries.push({ binding: 6, resource: coverageView });
     if (libraryView) entries.push({ binding: 7, resource: libraryView });

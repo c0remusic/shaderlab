@@ -133,6 +133,29 @@ export interface EffectParam {
 export interface EffectPass {
   /** Resolution scale of this pass's output target relative to the image (1 = full, 0.5 = half...). */
   scale: number;
+  /**
+   * Cette passe est-elle EXPOSÉE à la passe finale, en plus de `prevPass` ?
+   *
+   * La chaîne est LINÉAIRE : chaque passe lit la précédente, et la finale ne voit
+   * que la dernière. Un effet ne pouvait donc transporter qu'UN flou. TROIS
+   * opérateurs mesurés les 2026-09-16/17 en demandent deux à des échelles
+   * différentes, et les trois butaient sur la même absence :
+   *   - Clarté veut une pyramide bien plus profonde que celle de Texture ;
+   *   - le portail de Texture veut la variance du signal PASSE-BAS, pas la
+   *     variance locale (sans quoi il détecte le grain et pas les bords) ;
+   *   - l'airlight du voile veut une réduction globale.
+   * Détail et chiffres : `.scratch/lightroom-develop/research/07` et `/08`.
+   *
+   * `expose` lève le blocage sans changer le modèle : la sortie de cette passe
+   * est RETENUE et liée en `auxPass`, la chaîne continue par-dessus, et la finale
+   * reçoit les deux — `auxPass` capturé au passage, `prevPass` en bout de chaîne.
+   * Une seule passe par effet peut l'être (`validateEffect` le vérifie) : deux
+   * captures demanderaient un binding de plus, et rien ne le réclame encore.
+   *
+   * ⚠️ Une passe exposée que `enabled` fait SAUTER n'expose rien, et `auxPass`
+   * vaut alors la texture SOURCE — même règle que `prevPass`, même raison.
+   */
+  expose?: boolean;
   /** WGSL body defining fs_main(uv, color) — `color` samples this pass's INPUT texture (bound as
    *  srcTexture, same as any single-pass effect). Internal passes never see the mask or `prevPass`. */
   wgsl: string;

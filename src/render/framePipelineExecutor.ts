@@ -63,7 +63,7 @@ export interface EffectPassesPort {
     layer: LayerState,
     sourceView: GPUTextureView,
     targetView: GPUTextureView,
-    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null; guideEpoch?: number; imageSourceView?: GPUTextureView | null; libraryTextureView?: GPUTextureView | null },
+    options: { applyMask?: boolean; prevPassView?: GPUTextureView | null; auxPassView?: GPUTextureView | null; guideEpoch?: number; imageSourceView?: GPUTextureView | null; libraryTextureView?: GPUTextureView | null },
     pendingDestroy: FrameResource[],
   ): void;
   runInternalPasses(
@@ -83,7 +83,7 @@ export interface EffectPassesPort {
     // `view` est la texture source elle-même. Ce port le déclare plutôt que de
     // mentir avec un `!` — l'appelant ne lit que `view`, et cette signature dit
     // pourquoi c'est suffisant.
-  ): { view: GPUTextureView; texture: GPUTexture | null };
+  ): { view: GPUTextureView; texture: GPUTexture | null; aux: GPUTextureView | null };
   runOverlayPass(
     encoder: GPUCommandEncoder,
     source: GPUTexture,
@@ -492,7 +492,7 @@ export class FramePipelineExecutor {
         layer,
         pingPong[ci].createView(),
         pingPong[wi].createView(),
-        { applyMask: false, prevPassView: previousPass?.view ?? null },
+        { applyMask: false, prevPassView: previousPass?.view ?? null, auxPassView: previousPass?.aux ?? null },
         pendingDestroy,
       );
       ci = wi;
@@ -634,7 +634,7 @@ export class FramePipelineExecutor {
         effect.libraryTexture && this.libraryTextures
           ? this.libraryTextures.viewFor(Math.round(layer.params[effect.libraryTexture.indexParam] ?? 0))
           : null;
-      let previousPass: { view: GPUTextureView; texture: GPUTexture | null } | null = null;
+      let previousPass: { view: GPUTextureView; texture: GPUTexture | null; aux: GPUTextureView | null } | null = null;
       if (effect.passes?.length) {
         previousPass = this.effects.runInternalPasses(
           encoder,
@@ -672,6 +672,7 @@ export class FramePipelineExecutor {
         {
           applyMask: true,
           prevPassView: previousPass?.view,
+          auxPassView: previousPass?.aux ?? null,
           imageSourceView,
           // Fraîcheur du guide edge-aware de CE calque : chaîne toile +
           // calques en dessous pour un calque ordinaire, sa propre photo pour

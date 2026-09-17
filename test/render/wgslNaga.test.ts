@@ -137,6 +137,7 @@ function variantes(): Variante[] {
     const base = {
       applyMask: true,
       hasPrevPass: passesInternes.length > 0,
+      hasAuxPass: passesInternes.some((p) => p.expose),
       hasLibraryTexture,
       blendWgsl,
     };
@@ -196,7 +197,8 @@ function variantes(): Variante[] {
     const passesInternes = module.passes ?? [];
     sortie.push({
       nom: `develop ${module.id}`,
-      source: composeShader(module.wgsl, { applyMask: false, hasPrevPass: passesInternes.length > 0 }),
+      source: composeShader(module.wgsl, { applyMask: false, hasPrevPass: passesInternes.length > 0,
+        hasAuxPass: passesInternes.some((p) => p.expose) }),
     });
     passesInternes.forEach((passe, index) => {
       sortie.push({

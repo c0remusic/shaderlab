@@ -46,6 +46,37 @@ function validerConditionDAffichage(
  * projet.
  */
 export function validateEffect(effect: EffectModule): void {
+    // ── UNE SEULE PASSE EXPOSEE, ET ELLE DOIT ETRE LUE ──────────────────────
+    //
+    // `expose` retient la sortie d'une passe interne et la lie en `auxPass`
+    // (binding 9). Deux captures demanderaient un binding de plus, et le runner
+    // n'en garde qu'une : sans cette garde, la SECONDE ecraserait la premiere en
+    // silence et le shader lirait le mauvais flou — une image plausible et
+    // fausse, la panne que ce depot paie le plus souvent.
+    //
+    // Et l'inverse se verifie aussi : exposer une passe dont le corps ne cite
+    // jamais `auxPass` est du travail GPU pur perdu, sans aucun symptome.
+    const exposees = (effect.passes ?? []).filter((p) => p.expose).length;
+    if (exposees > 1) {
+      throw new Error(
+        `Effet "${effect.id}" : ${exposees} passes marquees expose, une seule peut l'etre — ` +
+          `le runner ne retient qu'une capture et la seconde ecraserait la premiere.`,
+      );
+    }
+    if (exposees === 1 && !effect.wgsl.includes("auxPass")) {
+      throw new Error(
+        `Effet "${effect.id}" : une passe est marquee expose mais le corps WGSL ne lit jamais ` +
+          `auxPass — la capture serait calculee puis jetee.`,
+      );
+    }
+    if (exposees === 0 && effect.wgsl.includes("auxPass")) {
+      throw new Error(
+        `Effet "${effect.id}" : le corps WGSL lit auxPass mais aucune passe n'est marquee expose — ` +
+          `le binding ne serait pas fourni.`,
+      );
+    }
+
+
   if (effect.params.length > MAX_EFFECT_PARAMS) {
     throw new Error(
       `Effet "${effect.id}" : ${effect.params.length} paramètres déclarés, ` +

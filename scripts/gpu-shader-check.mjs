@@ -215,9 +215,9 @@ const script = `(async () => {
         // il echoue (ou passe) pour une raison sans rapport avec le rendu reel.
         const hasLibraryTexture = e.libraryTexture !== undefined;
         await compile(e.id + " composite",
-          composeShader(e.wgsl, { applyMask: true, hasPrevPass: (e.passes || []).length > 0, blendWgsl: normal, hasLibraryTexture }));
+          composeShader(e.wgsl, { applyMask: true, hasPrevPass: (e.passes || []).length > 0, hasAuxPass: (e.passes || []).some((p) => p.expose), blendWgsl: normal, hasLibraryTexture }));
         await compile(e.id + " composite+photo",
-          composeShader(e.wgsl, { applyMask: true, hasPrevPass: (e.passes || []).length > 0, blendWgsl: normal, hasImageSource: true, hasLibraryTexture }));
+          composeShader(e.wgsl, { applyMask: true, hasPrevPass: (e.passes || []).length > 0, hasAuxPass: (e.passes || []).some((p) => p.expose), blendWgsl: normal, hasImageSource: true, hasLibraryTexture }));
       }
     }
 
@@ -246,7 +246,7 @@ const script = `(async () => {
           composeShader(passesDev[i].wgsl, { applyMask: false, hasPrevPass: i > 0 }));
       }
       await compile("develop " + m.id,
-        composeShader(m.wgsl, { applyMask: false, hasPrevPass: passesDev.length > 0 }));
+        composeShader(m.wgsl, { applyMask: false, hasPrevPass: passesDev.length > 0, hasAuxPass: passesDev.some((p) => p.expose) }));
     }
 
     // 4) passe NEUTRE : celle qu'encode le court-circuit « 0 calque active ».

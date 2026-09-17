@@ -65,6 +65,10 @@ fn vs_main(@builtin(vertex_index) i: u32) -> VertexOut {
 export interface ComposeOptions {
   applyMask: boolean;
   hasPrevPass: boolean;
+  /** Une passe interne est-elle EXPOSEE en plus de la derniere ? Elle est alors
+   *  liee en `auxPass` (binding 9). Voir `EffectPass.expose` pour pourquoi un
+   *  effet a besoin de DEUX flous a des echelles differentes. */
+  hasAuxPass?: boolean;
   /** Double exposure (ARCHITECTURE.md §4.3, approche C2) : ce calque porte
    *  un `imageSource` déjà résolu par `PhotoLayerInputResolver` en une
    *  texture pleine taille (RGB=photo A transformée, alpha=couverture).
@@ -141,6 +145,12 @@ export function composeShader(effectWgsl: string, opts: ComposeOptions): string 
     : "";
   const prevPassBinding = opts.hasPrevPass
     ? "@group(0) @binding(4) var prevPass: texture_2d<f32>;"
+    : "";
+  // `auxPass` porte la sortie d'une passe INTERMEDIAIRE, retenue au passage
+  // pendant que la chaine continuait. Un effet transporte ainsi deux flous a des
+  // echelles differentes la ou la chaine, lineaire, n'en donnait qu'un.
+  const auxPassBinding = opts.hasAuxPass
+    ? "@group(0) @binding(9) var auxPass: texture_2d<f32>;"
     : "";
   // blend + opacité + helpers sRGB seulement sur le chemin de compositing.
   const compositingBinding = opts.applyMask
@@ -236,6 +246,7 @@ ${FULLSCREEN_VERTEX_WGSL}
 @group(0) @binding(2) var<uniform> params: array<f32, ${MAX_EFFECT_PARAMS}>;
 ${maskBinding}
 ${prevPassBinding}
+${auxPassBinding}
 ${compositingBinding}
 ${coverageBinding}
 ${libraryBinding}${transformBinding}

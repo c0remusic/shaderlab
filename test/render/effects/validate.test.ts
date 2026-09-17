@@ -20,6 +20,44 @@ function effectWithParams(count: number): EffectModule {
 }
 
 describe("validateEffect", () => {
+  // ── LA GARDE D'EXPOSE ──────────────────────────────────────────────────────
+  //
+  // `EffectPass.expose` retient la sortie d'une passe interne et la lie en
+  // `auxPass`. Le mecanisme n'a PAS ENCORE DE CLIENT dans le registre — il a ete
+  // pose pour trois operateurs mesures (la portee de Clarte, le portail de
+  // Texture, l'airlight du voile) dont aucun n'est encore cable. Ces trois tests
+  // sont donc le seul exercice de la garde, et c'est exactement pourquoi ils
+  // existent : un mecanisme sans client ni test est du code mort.
+  const avecPasses = (passes: EffectModule["passes"], wgsl?: string): EffectModule => ({
+    ...effectWithParams(1),
+    passes,
+    ...(wgsl === undefined ? {} : { wgsl }),
+  });
+  const LIT_AUX = "fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> "
+    + "{ return textureSample(auxPass, srcSampler, uv); }";
+  const PASSE = { scale: 0.5, wgsl: "fn fs_main() {}" };
+
+  it("refuse DEUX passes exposees : le runner n'en retient qu'une, la seconde ecraserait la premiere", () => {
+    expect(() => validateEffect(avecPasses(
+      [{ ...PASSE, expose: true }, { ...PASSE, expose: true }], LIT_AUX,
+    ))).toThrow(/test-effect.*2 passes marquees expose/);
+  });
+
+  it("refuse une passe exposee que le shader ne lit jamais : la capture serait calculee puis jetee", () => {
+    expect(() => validateEffect(avecPasses([{ ...PASSE, expose: true }])))
+      .toThrow(/test-effect.*ne lit jamais/);
+  });
+
+  it("refuse un shader qui lit auxPass sans passe exposee : le binding ne serait pas fourni", () => {
+    expect(() => validateEffect(avecPasses([PASSE], LIT_AUX)))
+      .toThrow(/test-effect.*aucune passe n'est marquee expose/);
+  });
+
+  it("accepte une passe exposee que le shader lit", () => {
+    expect(() => validateEffect(avecPasses([{ ...PASSE, expose: true }, PASSE], LIT_AUX)))
+      .not.toThrow();
+  });
+
   // Bornes dérivées de la constante et non recopiées : le plafond a déjà été
   // relevé deux fois (8 -> 11 pour le duotone, 11 -> 16 pour les paramètres
   // étendus), et chaque fois ces deux tests tombaient au rouge sans qu'aucune

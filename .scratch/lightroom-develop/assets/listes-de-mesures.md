@@ -189,3 +189,47 @@ détourage dans les deux sens ; moyenner les deux ensemble annule tout halo SIGN
 et ne laisse que sa part symétrique. Un liseré d'accentuation est signé — la
 première lecture, faite sans cette séparation, montrait un soulèvement des DEUX
 côtés chez Lightroom, ce qui n'existe pas.
+
+---
+
+## Campagne E — le panneau DÉTAIL (photo boîtier)
+
+**Pourquoi.** [`research/15`](../research/15-l-anneau-de-texture-est-un-debruitage-manquant.md)
+établit que l'anneau de Texture n'est pas un défaut de portail mais un
+débruitage absent : sur un signal dégrainé, la course du portail passe de 1,5 % à
+52 %. Le [ticket 10](../issues/10-module-detail.md) charte le module ; cette
+campagne lui donne ses AMPLITUDES. Les dix réglages ont été vérifiés dans le
+binaire avant d'être demandés, chacun cherché seul et borné.
+
+**S'arme par `assets/campagne-detail.py`**, qui écrit les deux sentinelles.
+⚠️ Ne pas les écrire à la main : `mesures.lua` remet à zéro une longue liste
+(`M.ZERO`) mais elle ne contient PAS les modulateurs du panneau —
+`LuminanceNoiseReductionDetail`, `…Contrast`, `ColorNoiseReduction*`,
+`SharpenRadius`, `SharpenDetail`, `SharpenEdgeMasking`. Sans les poser
+explicitement, ils gardent ce que le catalogue a pour cette photo, et la
+campagne mesurerait l'historique d'une image au lieu d'une loi. Le script les
+écrit sur chaque ligne.
+
+Seize mesures sur `DSCF5171.JPG`, dont le grain est déjà chiffré à **6,663**
+par `assets/trouver-photo-propre.py` — les deux côtés se comparent au même
+instrument.
+
+| bloc | mesures | ce qu'il donne |
+|---|---|---|
+| loi de réduction | `det-lum25/50/75/100` | combien de grain part, par dose |
+| modulateurs | `det-lum50-det0/det100/con100` | ce que Détail et Contraste retiennent |
+| coût en netteté | `det-lum100-det0` | le compromis que tout débruiteur arbitre |
+| **l'interaction** | `det-tex100-nr0/nr50/nr100` | Texture sur un grain déjà réduit — la raison du chantier |
+| netteté | `det-sh40-r1/r3/det100/mask100` | les quatre réglages, un axe à la fois |
+
+**Se lit par `assets/analyse-detail.py`** — grain (décile le plus plat), netteté
+(décile le plus structuré) et acuité (largeur de transition sur les bords
+francs). Tolérant aux manques : lancé pendant la course, il imprime ce qui existe
+et nomme ce qui manque.
+
+✅ **L'instrument est CONTRÔLÉ sur les exports déjà au disque**, avant toute
+conclusion : il rend un grain de **6,680** sur `ph-temoin` là où la mesure
+indépendante de `trouver-photo-propre.py` donne **6,663**, et il reproduit
+l'amplification de grain de Texture que [`research/08`](../research/08-le-portail-de-texture.md)
+avait mesurée — ×1,64 à +100 et ×0,55 à −60, contre ×1,76 et ×0,53 chez elle.
+Deux chemins de code indépendants, les mêmes nombres.

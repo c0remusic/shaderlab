@@ -169,28 +169,64 @@ endroit où il aurait une chance est le calcul au-dessus du plancher de copie �
 
 **Le seul levier d'un autre ordre de grandeur : ne pas calculer 187 fois trop de
 pixels.** Il se heurte à une décision explicite d'Antoine (« Pas de distinction
-preview/export — un seul pipeline, résolution native, toujours »), et cette
-décision a une base réelle : un effet PAR PIXEL — grain, trame, micro-relief —
-rendu à 456 px de large ne ressemble pas à sa version pleine résolution réduite
-pour l'affichage. Réduire APRÈS calcul est une moyenne correcte ; calculer
-réduit change la fréquence spatiale du motif. Ce n'est pas la même image.
+preview/export — un seul pipeline, résolution native, toujours »). Cette
+décision vient d'être **ÉPROUVÉE SUR IMAGE**, et elle tient — voir §7.
 
-Mais la décision porte sur un aperçu DÉGRADÉ, et il existe une forme du levier
-qui n'en est pas un :
+## 7. La planche du 187 × — et elle confirme la décision, en la reformulant
+
+![la planche](planche-187x.png)
+
+Une question d'apparence ne se tranche pas par un raisonnement (règle du dépôt,
+payée sur les constantes du verre). Trois scènes rendues des deux façons, sorties
+à la **même taille finale** — 456 × 304, la taille réelle à l'écran — donc la
+question posée est bien « les distingue-t-on ? » et non « laquelle est plus
+définie ? ». Photo d'origine boîtier, détourages 1:1 dans la vue.
+Instrument : `sondes/planche-resolution.mjs` (harnais offscreen, `exportFrame`),
+`sondes/ecart.py`.
+
+| scène | écart moyen | pixels au-delà de 2 niveaux | verdict à l'œil |
+|---|---|---|---|
+| **global** — exposition, contraste, vibrance, saturation | **1,22** | **3,0 %** | indiscernable |
+| **local** — les mêmes + Clarté 55, Texture 40 | 5,98 | 67,2 % | **autre image** : ombres écrasées, contours durs |
+| **par pixel** — effet Grain par défaut | 4,49 | 59,8 % | **autre grain** : fin et discret contre gros et bruyant |
+
+⚠️ **La ligne de partage n'est PAS « ton contre pixel » — c'est « GLOBAL contre
+LOCAL », et je l'avais prédite de travers.** J'attendais que la scène tonale
+passe et que seul le grain casse. C'est l'inverse qui arrive : la scène tonale
+est celle qui s'écarte le PLUS (5,98), parce que Clarté et Texture portent un
+rayon exprimé en **pixels**. À 456 px de large, le même réglage travaille à une
+échelle spatiale treize fois différente, et l'image sort visiblement plus
+contrastée avec des noirs bouchés. Un opérateur local est résolution-dépendant,
+qu'il touche le ton ou la matière.
+
+Ce qui reste invariant est court : gain, pente, courbe, chroma — tout ce qui se
+calcule sans regarder les voisins. Tout le reste — Texture, Clarté, le local du
+Voile, `nettete`, `glow`, `grain`, les trames, le micro-relief du verre — change
+de sens avec la résolution.
+
+**Conséquence, et elle ferme la question :** dès qu'une pile contient un seul
+opérateur local — et elles en contiennent toutes — un aperçu à résolution
+d'affichage n'est pas « la même image en moins net », c'est une autre image. La
+décision d'origine avait raison. Elle est désormais **mesurée** plutôt
+qu'affirmée, et elle n'est plus à rouvrir.
+
+**Ce qui reste, et qui ne demande aucun arbitrage :**
 
 > **À 100 % de zoom, seule une fraction de l'image est visible, et rien ne serait
 > perdu à ne calculer que la région visible — au pixel près, à pleine
 > résolution.** Aucun compromis de fidélité, aucune distinction preview/export :
-> les mêmes pixels, simplement pas ceux qu'on ne regarde pas.
+> les mêmes pixels, simplement pas ceux qu'on ne regarde pas. Les opérateurs
+> locaux y gardent exactement leur rayon, puisque l'échelle ne change pas.
 
 C'est le chantier que ces mesures désignent. Il est plus lourd que tout ce que
 la proposition d'entrée envisageait (il touche le cadrage du pipeline, pas un
-shader), et c'est le seul qui s'attaque au terme de l'équation qui compte.
+shader), et c'est le seul qui s'attaque au terme de l'équation qui compte —
+**mais il ne paie qu'en zoom**, pas à l'ajustement, où l'image entière est
+visible. À l'ajustement, les 187 × sont indissociables de ce que l'œil voit.
 
-**Arbitrage qui revient à Antoine**, et qui n'est pas dans ce fichier :
-faut-il rouvrir la question du rendu à la résolution d'affichage à
-l'AJUSTEMENT — où l'œil voit déjà une réduction, celle du compositeur, et où la
-question n'est donc pas « vrai ou faux » mais « quelle réduction » ?
+Reste donc, pour l'ajustement, la seule voie ouverte par la §3 : **réduire le
+calcul au-dessus du plancher de copie**, à commencer par l'ablation de `grain`
+(39 % du calcul de la frame).
 
 ---
 
@@ -207,6 +243,9 @@ Sondes écrites pour cette campagne (scratchpad de session, `opti/`) :
 | `adapter.mjs` | features et limites annoncées par l'adapter |
 | `vram.ps1` | `Total Committed` du process GPU WebView2 |
 | `faire-tailles.py` | les copies réduites de la photo |
+| `planche-resolution.mjs` | les six rendus de la planche du §7 (harnais offscreen) |
+| `ecart.py` | l'écart chiffré entre les deux colonnes |
+| `assembler.py` | l'assemblage de `planche-187x.png` |
 
 ⚠️ **Un trou d'instrument, à savoir avant de relire ces chiffres.** Seules les
 passes encodées par `runEffectPass` sont chronométrées (`effectPassRunner.ts:460`).

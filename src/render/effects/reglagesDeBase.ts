@@ -557,7 +557,22 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   sum = sum + rb_pn(uv + vec2<f32>( o.x, -o.y));
   sum = sum + rb_pn(uv + vec2<f32>(-o.x,  o.y));
   sum = sum + rb_pn(uv + vec2<f32>( o.x,  o.y));
-  return vec4<f32>(sum / 16.0, 0.0, 1.0);
+  let m = sum / 16.0;
+  // TROISIEME CANAL : l ECART-TYPE local de y, sur le support de cette tente.
+  // Il ne coute rien — m.x est deja E[l] et y au carre EST l, donc E[y²] = m.x
+  // et la variance vaut m.x - m.y². Aucun prelevement, aucune passe de plus.
+  //
+  // L ECART-TYPE et pas la variance, et ce n est pas cosmetique : les cibles de
+  // passe sont en HUIT BITS sRGB (srgbFormat du runner), donc ce canal est
+  // quantifie. Une variance de matiere vaut ~0,015 et tomberait sur deux ou trois
+  // niveaux ; son ecart-type vaut ~0,12, et l encodage sRGB serre justement ses
+  // pas pres de zero, la ou cette grandeur vit.
+  //
+  // Ce canal est MOYENNE par les niveaux suivants comme les deux autres (ils
+  // portent rgb), si bien que la descente le transforme en presence de detail au
+  // grand rayon — la grandeur que la mesure de portee designe comme manquante a
+  // Clarte (research/07). Personne ne le lit encore.
+  return vec4<f32>(m, sqrt(max(m.x - m.y * m.y, 0.0)), 1.0);
 }
 `;
 

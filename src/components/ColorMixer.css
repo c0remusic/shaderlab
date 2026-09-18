@@ -1,0 +1,71 @@
+/* MÉLANGEUR DE COULEURS — les deux sélecteurs que Lightroom pose au-dessus du
+   panneau (ticket 07, item 5). Les curseurs eux-mêmes sont ceux de
+   `ParamPanel` : rien ici ne les habille. */
+
+.color-mixer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Ligne « Réglages : Couleur | Mélange ». */
+.color-mixer__vues {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.color-mixer__legende {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+/* LES HUIT PASTILLES SUR UNE SEULE LIGNE, et ce n'est pas un choix esthétique :
+   la colonne du dock fait 320 px, huit boutons doivent y tenir sans envelopper.
+   D'où une grille à huit colonnes ÉGALES (`1fr`) plutôt qu'un `flex` qui
+   passerait à la ligne dès que la largeur se resserre — un sélecteur qui change
+   de hauteur selon la place déplace tout ce qui est en dessous. */
+.color-mixer__pastilles {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: var(--space-1);
+}
+
+/* La pastille est un bouton de sélection : elle n'a pas de libellé (son nom part
+   en `aria-label` et en infobulle), donc `min-width` des variantes de `Toggle`
+   ne s'applique pas — on la laisse prendre sa colonne. */
+.color-mixer__pastille {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+}
+
+/* La PUCE de couleur. Son liseré sombre est ce qui la sépare du fond quand la
+   bande est foncée (Bleu, Violet) : sans lui, une pastille sombre sur un panneau
+   sombre n'a plus de contour et ne se lit plus comme un bouton. */
+.color-mixer__puce {
+  display: block;
+  width: var(--space-5);
+  height: var(--space-5);
+  border: 1px solid var(--outline-contrast);
+  border-radius: var(--radius-control);
+}
+
+/* La pastille SÉLECTIONNÉE porte un anneau clair. L'état `pressed` de `Toggle`
+   colore déjà son fond, mais ce fond est à peine visible DERRIÈRE une puce qui
+   occupe presque tout le bouton — l'anneau, lui, se voit quelle que soit la
+   couleur de la bande. */
+.color-mixer__pastille[data-pressed] .color-mixer__puce,
+.color-mixer__pastille[aria-pressed="true"] .color-mixer__puce {
+  border-color: var(--border-selection);
+  box-shadow: 0 0 0 1px var(--border-selection);
+}
+
+/* Les quatre canaux (Teinte · Saturation · Luminance · Tout). Ils enveloppent
+   volontiers, eux : quatre mots ne tiennent pas toujours sur une ligne à 320 px,
+   et contrairement aux pastilles ils portent leur libellé. */
+.color-mixer__canaux {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

@@ -3,6 +3,7 @@ import { isDevelopModuleEnabled, type DevelopSettings } from "../layers/developS
 import { defaultLayerMask } from "../mask/types";
 import { developDisplayOrder } from "../render/developRegistry";
 import { ParamPanel } from "./ParamPanel";
+import { ColorMixer } from "./ColorMixer";
 import { Disclosure } from "./ui/collapsible";
 import { IconButton } from "./ui/icon-button";
 import { Toggle } from "./ui/toggle";
@@ -129,14 +130,27 @@ export function DevelopPanel({ develop, hasImage, onDevelopChange, onDevelopComm
                   </Toggle>
                 </div>
               )}
-              <ParamPanel
-                layer={developLayer(module.id, values)}
-                onParamChange={(_id, patch) => onDevelopChange(module.id, patch)}
-                onParamCommit={onDevelopCommit}
-                onOpenColorPicker={() => {}}
-                develop
-                flat
-              />
+              {module.id === "hsl" ? (
+                // MÉLANGEUR EN DEUX VUES (ticket 07, item 5). Seul module de
+                // l'étage à porter un sélecteur au-dessus de ses curseurs, parce
+                // qu'il est le seul dont les paramètres aient DEUX axes de
+                // lecture (huit bandes × trois canaux). `ColorMixer` ne fabrique
+                // que ce sélecteur : les curseurs restent ceux de `ParamPanel`.
+                <ColorMixer
+                  layer={developLayer(module.id, values)}
+                  onParamChange={(_id, patch) => onDevelopChange(module.id, patch)}
+                  onParamCommit={onDevelopCommit}
+                />
+              ) : (
+                <ParamPanel
+                  layer={developLayer(module.id, values)}
+                  onParamChange={(_id, patch) => onDevelopChange(module.id, patch)}
+                  onParamCommit={onDevelopCommit}
+                  onOpenColorPicker={() => {}}
+                  develop
+                  flat
+                />
+              )}
             </Disclosure>
           </section>
         );

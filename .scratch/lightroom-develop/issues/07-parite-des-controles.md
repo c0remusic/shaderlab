@@ -98,7 +98,7 @@ panneau, à la même échelle, dans `assets/reference-ui/`.
 - [x] Accordéon avec œil par module (`enabled` dans `DevelopSettings`, sauté si off), Solo proposé.
 - [x] Ligne de curseur : valeur signée éditable à droite, double-clic libellé = défaut, sous-titres de section.
 - [x] N&B en bandeau (bascule HSL) ; Auto/HDR/Profil/pipette : non, dit dans le ticket.
-- [ ] Mélangeur : vues Couleur / Mélange, pastilles. → DIFFÉRÉ (voir Livraison).
+- [x] Mélangeur : vues Couleur / Mélange, pastilles. → LIVRÉ le 2026-09-18 (voir Livraison 2).
 - [ ] Color Grading : roues (06) en rangée avec icônes, vue Tout. → HORS 07 (vient au 06).
 - [x] Précédent / Réinitialiser en bas. → « Réinitialiser » livré ; « Précédent » écarté (voir Livraison).
 - [ ] Capture côte à côte à l'échelle 1, validée par Antoine. → capture produite, validation d'Antoine en attente.
@@ -181,3 +181,77 @@ l'ordre red…magenta). À faire avec le 06.
 ## Gates rejoués après redémarrage (2026-09-11, session parent)
 
 Environnement recréé (app relancée CDP 9223, Vite 1421 neuf — l'ancien avait 63 h). Sur l'arbre FUSIONNÉ : `tsc` vert, `npm run test` 2319, `test:render` « Aucune regression de rendu » (143). Sous-gate CDP dans la vraie fenêtre : réglage → signature change ; œil du module éteint → moyenne 43.63674770518868 = source au bit près, rallumé → l'effet revient ; Réinitialiser → `develop` vide + source au bit près ; double-clic sur le libellé « Teinte » → retour au défaut. Poussé sur master.
+
+## Livraison 2 — le MÉLANGEUR EN DEUX VUES (2026-09-18)
+
+L'item 5, différé le 2026-09-11 en attendant la roue du ticket 06 (livrée
+depuis : `color-wheel-control.tsx` est sur disque).
+
+**Ce qui a débloqué le ticket est une lecture, pas du code.** « Une présentation
+bespoke » se lit comme « écris une interface à côté », et c'est ce qui rendait
+l'item cher : il aurait fallu recopier la ligne de curseur — bornes `maxFrom`,
+valeur signée, saisie en pourcents, verrous, défaut du module, piste colorée —
+qui vit en un seul endroit et doit y rester. Or **les deux vues de Lightroom ne
+sont pas deux interfaces : ce sont les mêmes vingt-quatre paramètres regroupés
+selon deux axes** (par bande, ou par canal). Vu comme ça, il ne reste qu'un
+sélecteur à écrire, et zéro curseur.
+
+**Fichiers.** `src/ui/colorMixer.ts` (pur : fabrique le regroupement, les
+libellés courts et le masquage) ; `src/components/ColorMixer.tsx` + `.css` (les
+trois sélecteurs, rien d'autre) ; `ParamPanel` gagne **une** prop
+`presentation?: ParamPresentation` ; `trackGradients.ts` expose
+`hslBandeSwatch` ; `DevelopPanel` branche le mélangeur sur le module `hsl`.
+Tests : `test/ui/colorMixer.test.ts` (16), `ColorMixer.stories.tsx` (4).
+
+**Trois choses trouvées en le faisant, chacune par un test et non à l'œil.**
+
+1. **Un regroupement sans masquage ne masque rien.** Citer trois paramètres dans
+   une section ne fait pas disparaître les vingt et un autres : ils retombent
+   dans le bloc LIBRE de `groupEffectParams` et s'affichent quand même. La vue
+   « Rouge » rendait donc les vingt-quatre curseurs, et le panneau avait l'air
+   parfaitement normal. D'où `hidden` dans la présentation — et d'où **un champ
+   unique plutôt que trois props** : les trois vont ensemble ou pas du tout.
+2. **Un bloc seul répétait son sélecteur.** Une pastille « Rouge » suivie d'un
+   en-tête « Rouge » est le motif qu'ADR-0001 a fait retirer aux trois sections
+   d'encre de `duotone` le 2026-08-05. Un bloc n'est donc titré que s'il partage
+   l'écran avec d'autres — règle DÉRIVÉE du nombre de blocs, jamais posée à la
+   main. Le doublon n'était d'ailleurs pas que visuel : deux boutons de même nom
+   accessible, refusés par le test de story avant l'œil.
+3. **« Traitement » coupait le sélecteur de ce qu'il sélectionne.** Premier
+   paramètre déclaré du module, il était rendu en tête — donc ENTRE les pastilles
+   et les trois curseurs qu'elles commandent. Vu sur la première capture, pas
+   déduit. Il est désormais rendu avec les deux autres sélecteurs, au-dessus.
+
+**Décisions là où le ticket laissait un choix.**
+- **Libellés du sélecteur de vue** : « Couleur » / « Mélange », transcrits du
+  ticket. ⚠️ `lr-fr-develop-strings.txt` ne porte PAS ces deux chaînes (cherché) :
+  elles ne sont pas mesurées, contrairement aux noms de canaux et de bandes
+  (`$$$/AgCameraRawUI/HSLAdjustment/*` — d'où « Turquoise » et « Violet »).
+- **Pas de pastille devant chaque curseur** dans la vue Mélange. Le ticket la
+  demande, Lightroom ne l'a pas là, et nos pistes sont DÉJÀ colorées par bande
+  depuis le ticket 08 — une pastille de plus sur 320 px répéterait la piste.
+- **La vue n'est pas persistée.** Choisir Couleur plutôt que Mélange ne change
+  pas l'image : ni `DevelopSettings`, ni historique, ni preset. État local.
+  Lightroom le retient d'une session à l'autre ; ce serait une préférence
+  d'interface, pas un réglage, et il n'y a pas d'endroit pour ça aujourd'hui.
+
+**Capture.** `assets/reference-ui/comparaison-07-melangeur-deux-vues.png` (script
+`_capture-07-melangeur.mjs`), nos deux vues côte à côte dans la vraie fenêtre.
+⚠️ **Pas de côte à côte avec Lightroom**, et ce n'est pas un oubli : le mélangeur
+DÉPLIÉ n'a jamais été capturé chez eux (raison en tête de ce ticket). Les
+curseurs y sont à zéro — le pont de debug n'expose aucun poseur de réglages
+d'étage. La planche montre la MISE EN PAGE ; que changer de pastille change bien
+les curseurs est prouvé par la story « Autre Bande », qui lit les valeurs
+affichées.
+
+**Gates.** `tsc`, `eslint`, `lint:tokens` (326 fichiers), `lint:css-comments`,
+`npm run test` 2476, `test-storybook` 405/405, et **`test:render` « Aucune
+regression de rendu »** — le gate discriminant d'un travail de panneau : un écart
+aurait prouvé qu'on a trié `params[]` au lieu des items.
+
+**Reste ouvert, pour Antoine.** Le bouton N&B du bandeau des Réglages de base et
+le « Traitement » du mélangeur écrivent le MÊME paramètre. Les deux restent
+d'accord (ils lisent la valeur, aucun ne tient d'état), et Lightroom n'a que le
+premier — mais le bandeau vit dans un module qui peut être replié, donc retirer
+« Traitement » rendrait le retour à la couleur inatteignable dans ce cas. À
+trancher en le voyant.

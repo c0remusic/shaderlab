@@ -319,6 +319,44 @@ interface Props {
    *  valeur diffèrent. Faux (défaut) = les curseurs d'effet, empilés, inchangés
    *  au pixel. */
   develop?: boolean;
+  /** REGROUPE et RENOMME les paramètres autrement que le module ne les déclare,
+   *  sans rien changer d'autre (ticket 07, item 5 — le mélangeur en deux vues).
+   *  Voir `ParamPresentation`. */
+  presentation?: ParamPresentation;
+}
+
+/**
+ * Une PRÉSENTATION de rechange des paramètres d'un module — regroupement,
+ * libellés courts, masquage — et rien de plus.
+ *
+ * ⚠️ C'EST DE L'AFFICHAGE, ET LA FRONTIÈRE EST ÉTROITE. Les items, leurs
+ * curseurs, leurs bornes, leurs défauts, leurs pistes colorées et leur voie de
+ * commit restent ceux de `ParamPanel`. `params[]` n'est pas réordonné, aucun
+ * index ne bouge, `test:render` ne bouge pas. Les deux vues du mélangeur de
+ * Lightroom sont les mêmes vingt-quatre paramètres vus par bande ou par canal :
+ * c'est exactement ce que ce type exprime, et c'est pourquoi il n'y a pas une
+ * ligne de curseur écrite ailleurs (`src/ui/colorMixer.ts` fabrique la valeur).
+ *
+ * ⚠️ UN CHAMP UNIQUE, ET PAS TROIS PROPS. Les trois vont ensemble ou pas du
+ * tout : citer une section sans masquer le reste laisse les paramètres non
+ * cités retomber dans le bloc LIBRE et s'afficher quand même — défaut trouvé
+ * par le test, pas par la relecture, et qui rendait un panneau parfaitement
+ * crédible avec vingt et un curseurs de trop.
+ */
+export interface ParamPresentation {
+  /** Sections de rechange. ⚠️ Elles ASSIGNENT, elles n'ORDONNENT pas : l'ordre
+   *  DANS un bloc reste celui de `params[]` (CLAUDE.md, corollaire (a)). Et
+   *  `EffectParam.appliesWhen` garde le dernier mot — une section qui cite un
+   *  paramètre sans objet rend un bloc vide, elle ne le ressuscite pas. */
+  sections?: readonly EffectSection[];
+  /** Libellé COURT par nom de paramètre. Dans une grille à un seul axe, le
+   *  libellé déclaré répète le titre de son bloc (« Variation de la teinte
+   *  rouge » sous un bloc « Teinte ») ; Lightroom y écrit « Rouge ». Le libellé
+   *  déclaré reste la source de vérité partout ailleurs. */
+  labels?: ReadonlyMap<string, string>;
+  /** Paramètres à NE PAS rendre du tout — ceux que la vue courante ne montre
+   *  pas. Sans eux, ils reviendraient par le bloc libre. */
+  hidden?: ReadonlySet<string>;
 }
 
 function formatEffectParamValue(
@@ -347,14 +385,22 @@ function formatEffectParamValue(
   }
 }
 
-export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onOpenColorPicker, textureLibrary, flat = false, develop = false }: Props) {
+export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onOpenColorPicker, textureLibrary, flat = false, develop = false, presentation }: Props) {
   const [activeCurveChannel, setActiveCurveChannel] = useState("master");
   if (!layer) {
     return <p className="param-panel__empty">Sélectionne un calque.</p>;
   }
   const effect = getEffect(layer.effectId);
+  // Libellé AFFICHÉ d'un paramètre : celui que l'appelant substitue, sinon celui
+  // que le module déclare. Un seul point de lecture — sinon un contrôle en
+  // aurait reçu la substitution et pas son voisin, ce qui ne se voit qu'à l'œil.
+  const libelle = (param: EffectParam): string => presentation?.labels?.get(param.name) ?? param.label;
 
-  const controlledParams = new Set<string>();
+  // Ce qui n'est PAS rendu en curseur : les paramètres pilotés par un contrôle
+  // composite (courbe, rampe, roue), et ceux que la présentation courante masque
+  // — une vue du mélangeur ne montre qu'une bande ou qu'un canal, et sans ce
+  // masquage les autres reviendraient par le bloc LIBRE.
+  const controlledParams = new Set<string>(presentation?.hidden ?? []);
   for (const control of effect.curveControls ?? []) for (const channel of control.channels) {
     controlledParams.add(channel.startY); controlledParams.add(channel.endY);
     for (const point of channel.points) { controlledParams.add(point.x); controlledParams.add(point.y); }
@@ -524,7 +570,10 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onO
               Le JSX ci-dessous ne connaît que des items et des gabarits — il
               n'interroge jamais l'identité de l'effet. */}
           {groupEffectParams(effect.params, effect.canvasControls, controlledParams, {
-            sections: effect.sections,
+            // Le REGROUPEMENT peut venir de l'appelant (mélangeur en deux vues,
+            // ticket 07) ; à défaut, celui que le module déclare. Rien d'autre ne
+            // change : mêmes items, mêmes curseurs, même ordre dans un bloc.
+            sections: presentation?.sections ?? effect.sections,
             values: resolvedParams,
           }).map((bloc) => (
           // Mode Développement : toutes les sections passent en `liste` (curseurs
@@ -532,7 +581,14 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onO
           // réglages. `paire`/`grille` cramperaient un curseur inline (libellé +
           // piste + valeur) dans une demi-colonne. C'est de l'AFFICHAGE — les
           // sections, leurs titres et l'ordre de `params[]` sont intacts.
-          <ParamSection key={`${layer.effectId}:${bloc.reactKey}`} label={bloc.label} layout={develop ? "liste" : bloc.layout}>
+          // ⚠️ UN TITRE VIDE VAUT PAS DE TITRE. Une `ParamPresentation` s'en sert
+          // quand le sélecteur qu'elle rend au-dessus NOMME DÉJÀ le bloc : dans
+          // la vue Couleur du mélangeur, une pastille « Rouge » suivie d'un
+          // en-tête « Rouge » répète le libellé de sa propre pastille — le motif
+          // exact qu'ADR-0001 a fait retirer aux trois sections d'encre de
+          // `duotone`. Et le doublon n'est pas que visuel : deux boutons de même
+          // nom accessible, que le test de story a refusés avant l'œil.
+          <ParamSection key={`${layer.effectId}:${bloc.reactKey}`} label={bloc.label || null} layout={develop ? "liste" : bloc.layout}>
           {bloc.items.map((item) =>
             item.kind === "spatial-header" ? (
               <div key={item.reactKey} className="param-panel__spatial-heading">
@@ -547,7 +603,7 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onO
               // voyant.
               <TexturePicker
                 key={item.reactKey}
-                label={item.param.label}
+                label={libelle(item.param)}
                 dir={textureLibrary.dir}
                 files={textureLibrary.files}
                 thumbnails={textureLibrary.thumbnails}
@@ -578,7 +634,7 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onO
               // (ADR-0001 — la carte Effets déborde déjà).
               <div key={item.reactKey} title={item.param.hint}>
                 <Select
-                  label={item.param.label}
+                  label={libelle(item.param)}
                   labelPlacement="inline"
                   value={String(Math.round(layer.params[item.param.name] ?? item.param.default))}
                   options={item.param.choices.map((label, index) => ({ value: String(index), label }))}
@@ -652,7 +708,7 @@ export function ParamPanel({ layer, imageSize, onParamChange, onParamCommit, onO
                 return (
                   <div key={item.reactKey} title={item.param.hint}>
                     <LabeledSlider
-                      label={item.param.label}
+                      label={libelle(item.param)}
                       value={valeur}
                       min={item.param.min}
                       max={plafond}

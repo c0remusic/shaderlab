@@ -79,6 +79,18 @@ export const RAINBOW_GRADIENT: TrackGradient = {
 
 const bandeIndex = (id: HslBande["id"]): number => HSL_BANDES.findIndex((b) => b.id === id);
 
+/** Couleur PLEINE d'une bande, en CSS — la pastille de sélection du mélangeur
+ *  (ticket 07, item 5).
+ *
+ *  ⚠️ Elle vit ICI et non dans le composant, pour que la pastille et la piste
+ *  colorée du même curseur sortent du MÊME `cssRgb(HSL_BANDES[i].rgb)`. Deux
+ *  dérivations séparées auraient dérivé l'une de l'autre au premier
+ *  recalibrage — et la table est REGÉNÉRÉE par `assets/calibrer-hsl.py`, donc
+ *  ce recalibrage arrivera. */
+export function hslBandeSwatch(id: HslBande["id"]): string {
+  return cssRgb(HSL_BANDES[bandeIndex(id)].rgb);
+}
+
 /** Teinte d'une bande : voisine précédente → bande → voisine suivante (ex. bande
  *  rouge : magenta → rouge → orange), sur l'anneau des huit bandes. */
 export function hslBandeHueGradient(id: HslBande["id"]): TrackGradient {

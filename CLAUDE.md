@@ -780,9 +780,14 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   écrites en clés. Le seul comptage fiable est indépendant de la syntaxe — partir
   des PNG et vérifier que chaque nom est cité dans le script.
   ✅ **La CI est VERTE depuis le 2026-08-16** (run `31986492689`), après 60+ runs
-  rouges d'affilée. Le rouge n'a JAMAIS été ce gate : c'était
+  rouges d'affilée, **et elle l'est RESTÉE** : re-vérifiée le 2026-09-18, les
+  huit derniers runs de `master` sont tous `success`, le plus récent étant
+  `35367362775`. Le rouge n'a JAMAIS été ce gate : c'était
   `LayerPanel.stories.tsx`, pour une raison sans rapport — voir le § CI ci-dessous
   et le ticket 22.
+  ⚠️ Une date de « vert » vieillit mal toute seule : elle dit qu'un run a réussi
+  un jour, jamais que la branche l'est aujourd'hui. Le contrôle est
+  `gh run list --limit 8 --json conclusion,databaseId`, et il coûte une seconde.
   ⚠️ **Sa borne était pourtant inerte, et personne ne l'avait vu** : `naga` colore
   sa sortie même derrière un tuyau, donc l'ancre `/^error:/gm` ne matchait aucune
   ligne et la tolérance rendait faux. **Le verdict du gate dépendait du SHELL** —
@@ -928,24 +933,47 @@ Points structurants qu'on ne devine pas en lisant un fichier isolé :
   toute opération document-level, y compris presets et calque photo. Il expose
   deux vues : `layers()` (complet, pour le GPU) et `displayLayers()`
   (projection sans raster, pour React — c'est l'invariant anti-OOM).
-  ⚠️ **`replaceLiveLayers` est la porte que les gardes de `LayerStack` NE
-  COUVRENT PAS.** `LayerStack` refuse **dix-sept** opérations sur un calque
-  verrouillé — réparties entre **QUATRE verrous** depuis le 2026-08-19 :
-  `isLocked` (structure : effet, ordre, suppression), `refuseGeometrie`,
-  `refuseMasque`. (Dix-sept jusqu'au 2026-08-21 : `setLayerClip` est parti avec
-  l'écrêtage, ADR-0020. Compte RE-MESURÉ sur les sites d'appel, pas décrémenté
-  de tête.) ⚠️ Le verrou de TRANSPARENCE ne vit même
+  ⚠️ **`replaceLiveLayers` est la porte qu'AUCUN mutateur de `LayerStack` ne
+  traverse — mais elle N'EST PLUS SANS GARDE depuis le 2026-08-19.** Elle porte
+  sa PROPRE enforcement, `fusionnerSousVerrous` (`documentSession.ts`), qui
+  retient le CONTENU d'un calque verrouillé au lieu de refuser l'envoi entier —
+  refuser l'envoi figerait le document dès qu'un seul calque est verrouillé,
+  puisque le tableau vivant les porte tous à chaque frame. Elle laisse passer
+  les trois mêmes choses que `LayerStack` : le DÉVERROUILLAGE (sinon le verrou
+  serait irréversible), la VISIBILITÉ, et l'arrivée/le départ d'un calque (le
+  verrou porte sur le contenu, pas sur la composition de la pile).
+  ⚠️ **Ce fichier a écrit « les gardes NE COUVRENT PAS cette porte » un mois de
+  plus que c'était vrai**, et `documentSession.ts` le disait déjà en toutes
+  lettres : « vrai de la lettre et faux du fait ». La leçon de méthode reste
+  entière — une règle métier posée sur `LayerStack` doit s'exprimer AUSSI sur
+  cette porte — mais le verrou, lui, ne fuit plus ici.
+  `LayerStack` refuse pour sa part **dix-huit** opérations sur un calque
+  verrouillé — **dix-neuf invocations**, `updateParams` consultant deux gardes
+  (« Tout » d'abord, la géométrie ensuite). Elles se répartissent entre **TROIS
+  gardes de ce fichier** : `isLocked` (structure : effet, ordre, suppression),
+  `refuseGeometrie`, `refuseMasque`. Les VERROUS POSABLES, eux, sont **quatre**
+  depuis le 2026-08-19 (`all`, `position`, `mask`, `transparency`) — trois
+  gardes pour quatre verrous, parce que le quatrième n'a aucune garde ici.
+  ⚠️ **Ce compte a dit « dix-sept » jusqu'au 2026-09-18, et sa parenthèse
+  d'alors portait la preuve qu'il était faux** : elle annonçait « dix-sept
+  jusqu'au 2026-08-21 » puis « dix-sept » après, alors qu'elle décrivait le
+  DÉPART de `setLayerClip` avec l'écrêtage (ADR-0020) — un retrait ne peut pas
+  laisser le même nombre des deux côtés. Le compte se relance :
+  `layerStack.ts` porte la commande en commentaire, et elle **exclut sa propre
+  ligne** depuis ce jour — sans l'exclusion elle rend vingt, et le prochain
+  lecteur « corrige » dix-neuf en vingt.
+  ⚠️ Le verrou de TRANSPARENCE ne vit même
   pas là : il **ÉCRÊTE au lieu de refuser**, donc il est dans `MaskPainter`, sur
   le chemin réel du pinceau vivant. **`grep isLocked` ne donne donc plus la
-  liste complète des refus** — lire les quatre gardes, et
+  liste complète des refus** — lire les trois gardes, et
   `layers/layerLocks.ts`, seul endroit où « `all` implique les autres » est
   écrit. Mais AUCUN geste vivant ne passe par
   ses mutateurs : pendant un glissement, `App.tsx` construit le tableau à la main
   et appelle `replaceLiveLayers`, délibérément (`clone()` re-rend la liste
-  entière, 34,2 ms de CPU par `pointermove`). Le verrou fuyait donc par là, et le
-  commit ne rattrapait rien puisqu'il commite l'état vivant déjà modifié.
-  **Toute règle métier posée sur `LayerStack` doit s'exprimer AUSSI sur cette
-  porte**, sinon elle ne protège que ce que personne ne fait.
+  entière, 34,2 ms de CPU par `pointermove`). Le verrou a fui par là jusqu'au
+  2026-08-18, et le commit ne rattrapait rien puisqu'il commite l'état vivant
+  déjà modifié. C'est pour ça que la porte a sa propre garde, et non parce que
+  `LayerStack` aurait été insuffisant.
   ⚠️ **`replaceLiveLayers` NE REDEMANDE AUCUN RENDU**, et c'est la seconde
   chausse-trappe de cette porte. Il pose l'état vivant, rien de plus : tout
   chemin vivant doit l'APPAIRER avec `rendererRef.current?.requestRender(...)`,

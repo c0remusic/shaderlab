@@ -111,9 +111,16 @@ export class LayerStack {
    *  manquaient sont celles ajoutées ce jour-là — dont une par le commit qui
    *  aurait dû tenir la liste. Un compte de prose se relance : les sites de garde
    *  de ce fichier se comptent avec
-   *  `grep -c "this.isLocked(\|this.refuseGeometrie(\|this.refuseMasque("`,
+   *  `grep -c "if (this\.\(isLocked\|refuseGeometrie\|refuseMasque\)("`,
    *  qui rend dix-neuf INVOCATIONS pour dix-huit MÉTHODES — `updateParams` en
    *  consulte deux (« Tout » d'abord, la géométrie ensuite).
+   *
+   *  ⚠️ **L'ancre `if (` n'est pas une coquetterie : sans elle, la commande SE
+   *  COMPTE ELLE-MÊME.** Écrite ici en `this.isLocked(\|…`, elle rend VINGT —
+   *  dix-neuf gardes plus cette ligne de commentaire — et le lecteur suivant
+   *  « corrige » dix-neuf en vingt sur la foi de l'instrument. C'est le défaut
+   *  que la mémoire `tests-asserter-du-code-pas-un-mot` décrit : un identifiant
+   *  nu attrape la prose qui le cite. Mesuré et corrigé le 2026-09-18.
    *
    *  **Opérations AUTORISÉES quel que soit le verrou, et pourquoi.**
    *  - `setLayerLock` : sinon le verrou serait irréversible.

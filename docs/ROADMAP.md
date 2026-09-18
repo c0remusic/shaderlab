@@ -2029,7 +2029,12 @@ sont mesurés le jour même.
   a laissé le compte à dix-sept** : le défaut que ce dépôt traite comme important,
   commis sur la ligne même qui le décrit, et trouvé par une revue adverse le
   lendemain. Le compte se relance :
-  `grep -c "this.isLocked(\|this.refuseGeometrie(\|this.refuseMasque(" src/layers/layerStack.ts`.
+  `grep -c "if (this\.\(isLocked\|refuseGeometrie\|refuseMasque\)(" src/layers/layerStack.ts`.
+  ⚠️ **L'ancre `if (` n'est pas une coquetterie** : sans elle la commande SE
+  COMPTE ELLE-MÊME — elle trouve ses dix-neuf gardes plus la ligne de commentaire
+  qui la cite, donc vingt, et le lecteur suivant « corrige » dix-neuf en vingt sur
+  la foi de l'instrument. Mesuré et corrigé le 2026-09-18, ici et dans
+  `layerStack.ts`.
 - **Le registre de genres de `ParamPanel`.** Neuf genres de contrôle, neuf
   branches JSX en dur, et **quatre des neuf n'ont qu'UN déclarant**. Coût mesuré
   d'un genre neuf : +37 lignes dans `ParamPanel`, +22 dans `types.ts` — et
@@ -2095,8 +2100,20 @@ sont mesurés le jour même.
   encore 0,4 niveau de parité et fait repasser l'écrasement à neuf (essai mesuré,
   refusé). Détail, validation croisée et les dix points de la revue adverse au
   ticket 06 de `.scratch/lightroom-develop/`.
-- ⚠️ **OUVERT le 2026-09-15, et plus gros que le précédent : le NOIR n'est pas
-  levé.** ⚠️ Le test qui prétendait trancher l'espace (superposition des poids
+- ✅ **CLOS le 2026-09-18 — le NOIR n'est pas levé, mais ce n'est ni l'espace ni
+  l'amplitude.** [`research/17`](../.scratch/lightroom-develop/research/17-la-luminance-des-roues-n-est-ni-lineaire-ni-une-amplitude.md).
+  La phrase qui portait l'hypothèse est FAUSSE : L d'OKLab est une racine
+  cubique, donc un décalage **dL = 0,1653 porte le niveau 0 à 14,33 exactement**.
+  L'hypothèse « lumière linéaire » est réfutée sur les DEUX signes (résidu
+  2,94/3,40 contre 0,97/1,00), et l'amplitude n'est pas le remède non plus :
+  l'optimum des ombres est 2,4× notre `lumK`, ses deux signes d'accord à 0,005,
+  mais le poser écrase onze niveaux au noir à −100 quand Lightroom n'en écrase
+  qu'un à −50. Ce qui reste est la FORME au bas de la rampe, et le binaire la
+  nomme — `cr_stage_SplitTone` cite en clair le brevet Adobe B220, « Color toning
+  while maintaining constant luminance while using color curve slopes » : le
+  virage préserve la luminance, et le mécanisme est une COURBE. Énoncé d'origine
+  conservé ci-dessous pour ses mesures.
+- ⚠️ Énoncé d'origine (2026-09-15), **dont la première phrase est réfutée** : ⚠️ Le test qui prétendait trancher l'espace (superposition des poids
   implicites des deux signes) a été RÉFUTÉ le jour même par contrôle synthétique :
   sur des rampes fabriquées en lumière linéaire il répond « OKLab », sur des rampes
   fabriquées en OKLab il ne désigne ni l'un ni l'autre. Il mesure la compression, pas

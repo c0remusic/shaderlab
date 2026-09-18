@@ -423,7 +423,44 @@ lesquelles `lumK` est calibré tombent juste) et elle gagne 0,4 niveau de plus
 échange un défaut VISIBLE contre un dixième de niveau sur une mire. Le plafond
 n'est pas l'amplitude, c'est la forme du poids au ras du blanc.
 
-### L'hypothèse « luminance en lumière LINÉAIRE » reste OUVERTE
+### ✅ CLOSE le 2026-09-18 — l'hypothèse « lumière LINÉAIRE » est RÉFUTÉE
+
+[`research/17`](../research/17-la-luminance-des-roues-n-est-ni-lineaire-ni-une-amplitude.md).
+Trois résultats, dans cet ordre :
+
+1. **La phrase qui portait l'hypothèse est fausse.** « Un décalage de L en OKLab
+   ne PEUT pas lever un noir absolu » : L est une racine cubique, donc `dL` au
+   noir rend `dL³`, et **dL = 0,1653 porte le niveau 0 à 14,33 exactement** — la
+   valeur de Lightroom. Nous en appliquons au plus 0,037.
+2. **Le linéaire est réfuté sur les DEUX signes** : résidu 2,939 / 3,402 contre
+   0,970 / 0,997 pour OKLab, chacun à son propre optimum d'amplitude. À dose
+   négative, un offset linéaire écrase à zéro tous les niveaux jusqu'à 16, là où
+   Lightroom mesure 1,00 · 2,00 · 4,08 · 8,83.
+3. **Et l'amplitude n'est pas le remède non plus.** L'optimum de la roue des
+   ombres est 0,1766 — 2,4× notre `lumK`, avec ses deux signes d'accord à 0,005.
+   Mais le poser écrase **onze niveaux au noir à −100 et cinq à −50**, quand la
+   rampe mesurée dit que Lightroom n'en écrase **qu'un** à −50. C'est le marché
+   que ce ticket a déjà refusé une fois ; le résidu moyen était le mauvais
+   objectif.
+
+Ce qui reste : la FORME au bas de la rampe. Et le binaire la nomme —
+`cr_stage_SplitTone` porte en clair le brevet Adobe **B220, « Color toning while
+maintaining constant luminance while using color curve slopes », Mark Hamburg**.
+Donc : le virage préserve la luminance (les curseurs de Luminance sont un terme
+SÉPARÉ), et le mécanisme est une COURBE. Une courbe à terme de point noir
+séparé peut lever le noir ET garder les niveaux distincts en dessous ; un
+décalage pondéré de L ne le peut pas, c'est le même opérateur des deux côtés.
+
+⚠️ Mesure manquante pour l'éprouver : `Luminance des ombres` à ±100 sur la MIRE.
+Elle ne s'ajoute pas à la campagne Détail armée (celle-ci porte une photo, et
+`go.txt` ne tient qu'une photo) — c'est une seconde course.
+
+⚠️ **Et la roue des HAUTES LUMIÈRES ne se réajuste pas** tant que son poids n'est
+pas repris : ses deux mesures donnent 0,1798 et 0,0148, une étendue de 0,165. Ce
+n'est pas une amplitude, et ça confirme par une autre voie le défaut déjà connu
+du poids non monotone. Tons moyens et Globale, eux, tombent juste (1,07×).
+
+### Énoncé d'origine de l'hypothèse, conservé pour ses mesures
 
 Un test avait été construit pour la trancher : extraire le poids implicite des deux
 signes (`W+ = ΔL/(1−L)`, `W− = −ΔL/L`), normaliser, comparer — l'espace où les deux

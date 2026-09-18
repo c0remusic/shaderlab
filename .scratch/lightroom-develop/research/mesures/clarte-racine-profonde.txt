@@ -1,0 +1,189 @@
+
+== pres-clarte-m100
+  ECHELLE (gain par periode)
+    periode         3.0     4.0     6.0     8.0    12.0    16.0    24.1    32.0    47.6    64.0    97.5   128.0   186.2   256.0
+    Lightroom     0.394   0.385   0.394   0.393   0.394   0.395   0.394   0.394   0.395   0.396   0.398   0.400   0.401   0.403
+    shaderlab     0.105   0.118   0.105   0.113   0.105   0.103   0.105   0.103   0.105   0.105   0.107   0.107   0.109   0.112
+  AMPLITUDE (gain, P=16 puis P=64)
+    amp in            2       4       8      16      32      64       2       4       8      16      32      64
+    Lightroom     0.371   0.360   0.368   0.382   0.411   0.512   0.371   0.368   0.373   0.382   0.394   0.432
+    shaderlab     0.003   0.063   0.103   0.117   0.105   0.099   0.000   0.075   0.100   0.080   0.001   0.315
+  APLATS (deplacement de la moyenne — terme GLOBAL)
+    base  32 : Lightroom   +2.71   shaderlab  +27.91
+    base 128 : Lightroom   +7.77   shaderlab   +2.30
+    base 224 : Lightroom   -5.12   shaderlab  -20.83
+  ECHELONS (halo, portee a 10 %, et champ lointain)
+     96|160  Lightroom halo +17.45/-18.28 portee  184/ 172 px  global  +0.04/ +0.02
+     96|160  shaderlab halo +25.97/-30.05 portee  228/ 198 px  global  +0.06/ -0.90
+     32| 64  Lightroom halo  +0.87/ -3.44 portee  169/ 168 px  global  +0.00/ +0.03
+     32| 64  shaderlab halo +12.98/-15.72 portee  222/ 219 px  global  +0.15/ +0.27
+    176|224  Lightroom halo +22.68/-11.95 portee  187/ 168 px  global  -0.01/ -0.00
+    176|224  shaderlab halo +20.95/-20.94 portee  219/ 222 px  global  -0.02/ -0.21
+
+== pres-clarte-m50
+  ECHELLE (gain par periode)
+    periode         3.0     4.0     6.0     8.0    12.0    16.0    24.1    32.0    47.6    64.0    97.5   128.0   186.2   256.0
+    Lightroom     0.645   0.637   0.645   0.645   0.645   0.646   0.645   0.645   0.646   0.646   0.647   0.649   0.649   0.651
+    shaderlab     0.546   0.559   0.546   0.547   0.546   0.543   0.546   0.547   0.546   0.545   0.547   0.547   0.548   0.550
+  AMPLITUDE (gain, P=16 puis P=64)
+    amp in            2       4       8      16      32      64       2       4       8      16      32      64
+    Lightroom     0.599   0.626   0.629   0.637   0.656   0.724   0.604   0.630   0.631   0.638   0.649   0.689
+    shaderlab     0.714   0.599   0.553   0.537   0.553   0.559   0.699   0.598   0.548   0.548   0.536   0.513
+  APLATS (deplacement de la moyenne — terme GLOBAL)
+    base  32 : Lightroom   +1.62   shaderlab  +16.16
+    base 128 : Lightroom   +4.65   shaderlab   +1.19
+    base 224 : Lightroom   -2.96   shaderlab  -10.07
+  ECHELONS (halo, portee a 10 %, et champ lointain)
+     96|160  Lightroom halo +10.36/-10.47 portee  183/ 169 px  global  +0.02/ +0.01
+     96|160  shaderlab halo +13.99/-14.93 portee  218/ 220 px  global  +0.04/ +0.02
+     32| 64  Lightroom halo  +0.58/ -2.02 portee  141/ 158 px  global  +0.00/ +0.02
+     32| 64  shaderlab halo  +7.01/ -7.06 portee  219/ 229 px  global  +0.07/ +0.16
+    176|224  Lightroom halo +14.13/ -6.78 portee  183/ 167 px  global  -0.00/ -0.00
+    176|224  shaderlab halo +10.95/ -9.98 portee  198/ 217 px  global  -0.01/ -0.10
+
+== pres-clarte-p100
+  ECHELLE (gain par periode)
+    periode         3.0     4.0     6.0     8.0    12.0    16.0    24.1    32.0    47.6    64.0    97.5   128.0   186.2   256.0
+    Lightroom     1.786   1.779   1.786   1.787   1.782   1.786   1.776   1.778   1.779   1.779   1.782   1.782   1.783   1.784
+    shaderlab     1.942   1.912   1.942   1.926   1.942   1.943   1.942   1.945   1.942   1.943   1.940   1.941   1.938   1.935
+  AMPLITUDE (gain, P=16 puis P=64)
+    amp in            2       4       8      16      32      64       2       4       8      16      32      64
+    Lightroom     1.766   1.769   1.781   1.783   1.763   1.500   1.770   1.777   1.782   1.774   1.734   1.421
+    shaderlab     1.998   2.000   1.944   1.913   1.987   1.983   2.000   2.000   1.934   1.885   1.836   1.809
+  APLATS (deplacement de la moyenne — terme GLOBAL)
+    base  32 : Lightroom   -2.66   shaderlab  -32.00
+    base 128 : Lightroom  -19.59   shaderlab   -2.59
+    base 224 : Lightroom   +2.68   shaderlab  +18.65
+  ECHELONS (halo, portee a 10 %, et champ lointain)
+     96|160  Lightroom halo -20.67/+19.05 portee  483/ 465 px  global -12.05/ -4.78
+     96|160  shaderlab halo -40.03/+24.05 portee  213/ 203 px  global  -0.05/ +0.91
+     32| 64  Lightroom halo  -6.51/+20.03 portee  464/ 480 px  global  -9.89/-16.07
+     32| 64  shaderlab halo -22.82/+12.09 portee  194/ 219 px  global  -0.21/ -0.27
+    176|224  Lightroom halo -18.47/ +9.30 portee  497/ 401 px  global -20.03/ -4.51
+    176|224  shaderlab halo -24.89/+18.91 portee  196/ 229 px  global  -0.96/ +0.22
+
+== pres-clarte-p50
+  ECHELLE (gain par periode)
+    periode         3.0     4.0     6.0     8.0    12.0    16.0    24.1    32.0    47.6    64.0    97.5   128.0   186.2   256.0
+    Lightroom     1.409   1.407   1.410   1.410   1.408   1.409   1.405   1.406   1.406   1.406   1.407   1.408   1.408   1.408
+    shaderlab     1.455   1.471   1.455   1.453   1.455   1.451   1.455   1.457   1.455   1.453   1.455   1.456   1.454   1.452
+  AMPLITUDE (gain, P=16 puis P=64)
+    amp in            2       4       8      16      32      64       2       4       8      16      32      64
+    Lightroom     1.396   1.397   1.405   1.406   1.401   1.274   1.393   1.401   1.408   1.404   1.389   1.232
+    shaderlab     1.498   1.437   1.453   1.450   1.469   1.559   1.500   1.425   1.454   1.442   1.428   1.408
+  APLATS (deplacement de la moyenne — terme GLOBAL)
+    base  32 : Lightroom   -1.34   shaderlab  -31.30
+    base 128 : Lightroom  -10.13   shaderlab   -1.25
+    base 224 : Lightroom   +1.39   shaderlab   +9.60
+  ECHELONS (halo, portee a 10 %, et champ lointain)
+     96|160  Lightroom halo -11.46/ +9.58 portee  476/ 463 px  global  -6.20/ -2.37
+     96|160  shaderlab halo -16.99/+12.91 portee  218/ 220 px  global  -0.03/ +0.03
+     32| 64  Lightroom halo  -4.31/+10.42 portee  453/ 487 px  global  -5.40/ -8.43
+     32| 64  shaderlab halo  -9.09/ +6.76 portee  225/ 229 px  global  -0.08/ -0.16
+    176|224  Lightroom halo  -9.01/ +4.62 portee  496/ 399 px  global  -9.89/ -2.22
+    176|224  shaderlab halo -11.96/ +9.94 portee  217/ 221 px  global  +0.00/ +0.11
+
+== pres-texture-m100
+  ECHELLE (gain par periode)
+    periode         3.0     4.0     6.0     8.0    12.0    16.0    24.1    32.0    47.6    64.0    97.5   128.0   186.2   256.0
+    Lightroom     0.319   0.371   0.424   0.471   0.520   0.540   0.561   0.555   0.596   0.668   0.770   0.823   0.870   0.895
+    shaderlab     0.210   0.467   0.347   0.545   0.447   0.423   0.487   0.666   0.591   0.617   0.756   0.805   0.844   0.882
+  AMPLITUDE (gain, P=16 puis P=64)
+    amp in            2       4       8      16      32      64       2       4       8      16      32      64
+    Lightroom     0.305   0.307   0.343   0.431   0.637   0.869   0.519   0.519   0.545   0.601   0.733   0.894
+    shaderlab     0.307   0.401   0.422   0.654   0.614   0.856   0.426   0.547   0.532   0.626   0.739   0.879
+  APLATS (deplacement de la moyenne — terme GLOBAL)
+    base  32 : Lightroom   +0.00   shaderlab   +0.00
+    base 128 : Lightroom   +0.00   shaderlab   +0.00
+    base 224 : Lightroom   +0.00   shaderlab   +0.00
+  ECHELONS (halo, portee a 10 %, et champ lointain)
+     96|160  Lightroom halo  +8.58/ -9.66 portee   24/  23 px  global  +0.00/ +0.00
+     96|160  shaderlab halo  +8.00/ -8.00 portee   36/  35 px  global  +0.00/ +0.00
+     32| 64  Lightroom halo  +5.30/ -6.54 portee   24/  24 px  global  +0.00/ +0.00
+     32| 64  shaderlab halo  +8.00/ -9.00 portee   27/  29 px  global  +0.00/ +0.00
+    176|224  Lightroom halo  +8.84/ -6.65 portee   24/  23 px  global  +0.00/ +0.00
+    176|224  shaderlab halo +10.00/-11.00 portee   20/  22 px  global  +0.00/ +0.00
+
+== pres-texture-m50
+  ECHELLE (gain par periode)
+    periode         3.0     4.0     6.0     8.0    12.0    16.0    24.1    32.0    47.6    64.0    97.5   128.0   186.2   256.0
+    Lightroom     0.589   0.619   0.652   0.680   0.710   0.722   0.734   0.730   0.755   0.798   0.861   0.893   0.921   0.936
+    shaderlab     0.599   0.704   0.674   0.773   0.726   0.713   0.743   0.832   0.796   0.804   0.877   0.904   0.919   0.937
+  AMPLITUDE (gain, P=16 puis P=64)
+    amp in            2       4       8      16      32      64       2       4       8      16      32      64
+    Lightroom     0.554   0.576   0.603   0.656   0.780   0.921   0.695   0.715   0.722   0.758   0.838   0.936
+    shaderlab     0.717   0.717   0.707   0.817   0.811   0.930   0.779   0.727   0.760   0.809   0.867   0.939
+  APLATS (deplacement de la moyenne — terme GLOBAL)
+    base  32 : Lightroom   +0.00   shaderlab   +0.00
+    base 128 : Lightroom   +0.00   shaderlab   +0.00
+    base 224 : Lightroom   +0.00   shaderlab   +0.00
+  ECHELONS (halo, portee a 10 %, et champ lointain)
+     96|160  Lightroom halo  +5.09/ -5.85 portee   24/  23 px  global  +0.00/ +0.00
+     96|160  shaderlab halo  +4.00/ -4.00 portee   33/  28 px  global  +0.00/ +0.00
+     32| 64  Lightroom halo  +3.17/ -4.01 portee   23/  23 px  global  +0.00/ +0.00
+     32| 64  shaderlab halo  +4.00/ -4.00 portee   24/  25 px  global  +0.00/ +0.00
+    176|224  Lightroom halo  +5.39/ -4.03 portee   24/  23 px  global  +0.00/ +0.00
+    176|224  shaderlab halo  +5.00/ -5.00 portee   24/  26 px  global  +0.00/ +0.00
+
+== pres-texture-p100
+  ECHELLE (gain par periode)
+    periode         3.0     4.0     6.0     8.0    12.0    16.0    24.1    32.0    47.6    64.0    97.5   128.0   186.2   256.0
+    Lightroom     1.746   1.696   1.637   1.586   1.535   1.513   1.491   1.497   1.454   1.374   1.261   1.203   1.149   1.120
+    shaderlab     1.822   1.534   1.668   1.455   1.564   1.590   1.522   1.332   1.413   1.383   1.238   1.192   1.153   1.110
+  AMPLITUDE (gain, P=16 puis P=64)
+    amp in            2       4       8      16      32      64       2       4       8      16      32      64
+    Lightroom     1.789   1.781   1.743   1.642   1.403   1.146   1.535   1.539   1.519   1.452   1.301   1.119
+    shaderlab     1.693   1.563   1.608   1.348   1.401   1.151   1.531   1.454   1.466   1.380   1.266   1.127
+  APLATS (deplacement de la moyenne — terme GLOBAL)
+    base  32 : Lightroom   +0.00   shaderlab   +0.00
+    base 128 : Lightroom   +0.00   shaderlab   +0.00
+    base 224 : Lightroom   +0.00   shaderlab   +0.00
+  ECHELONS (halo, portee a 10 %, et champ lointain)
+     96|160  Lightroom halo  -9.34/+10.91 portee   24/  24 px  global  +0.00/ +0.00
+     96|160  shaderlab halo  -9.00/ +8.00 portee   35/  40 px  global  +0.00/ +0.00
+     32| 64  Lightroom halo  -5.67/ +7.95 portee   24/  24 px  global  +0.00/ +0.00
+     32| 64  shaderlab halo -11.00/ +8.00 portee   23/  29 px  global  +0.00/ +0.00
+    176|224  Lightroom halo -10.65/ +7.10 portee   23/  24 px  global  +0.00/ +0.00
+    176|224  shaderlab halo -12.00/+10.00 portee   20/  23 px  global  +0.00/ +0.00
+
+== pres-texture-p50
+  ECHELLE (gain par periode)
+    periode         3.0     4.0     6.0     8.0    12.0    16.0    24.1    32.0    47.6    64.0    97.5   128.0   186.2   256.0
+    Lightroom     1.481   1.445   1.410   1.377   1.343   1.329   1.315   1.319   1.291   1.239   1.167   1.130   1.095   1.077
+    shaderlab     1.404   1.267   1.329   1.228   1.278   1.282   1.256   1.164   1.207   1.189   1.117   1.090   1.072   1.054
+  AMPLITUDE (gain, P=16 puis P=64)
+    amp in            2       4       8      16      32      64       2       4       8      16      32      64
+    Lightroom     1.491   1.499   1.476   1.409   1.260   1.093   1.355   1.348   1.333   1.290   1.192   1.076
+    shaderlab     1.283   1.293   1.310   1.182   1.203   1.073   1.192   1.228   1.243   1.190   1.133   1.062
+  APLATS (deplacement de la moyenne — terme GLOBAL)
+    base  32 : Lightroom   +0.00   shaderlab   +0.00
+    base 128 : Lightroom   +0.00   shaderlab   +0.00
+    base 224 : Lightroom   +0.00   shaderlab   +0.00
+  ECHELONS (halo, portee a 10 %, et champ lointain)
+     96|160  Lightroom halo  -6.05/ +7.02 portee   24/  24 px  global  +0.00/ +0.00
+     96|160  shaderlab halo  -4.00/ +4.00 portee   27/  32 px  global  +0.00/ +0.00
+     32| 64  Lightroom halo  -3.69/ +5.05 portee   23/  23 px  global  +0.00/ +0.00
+     32| 64  shaderlab halo  -5.00/ +4.00 portee   25/  25 px  global  +0.00/ +0.00
+    176|224  Lightroom halo  -6.73/ +4.66 portee   23/  24 px  global  +0.00/ +0.00
+    176|224  shaderlab halo  -6.00/ +5.00 portee   28/  26 px  global  +0.00/ +0.00
+
+== pres-voile-p100
+  ECHELLE (gain par periode)
+    periode         3.0     4.0     6.0     8.0    12.0    16.0    24.1    32.0    47.6    64.0    97.5   128.0   186.2   256.0
+    Lightroom     2.304   2.228   2.239   2.102   2.072   2.068   1.953   1.918   1.913   1.903   1.896   1.884   1.863   1.850
+    shaderlab     1.807   1.824   1.809   1.820   1.808   1.810   1.804   1.799   1.749   1.607   1.357   1.213   1.094   1.043
+  AMPLITUDE (gain, P=16 puis P=64)
+    amp in            2       4       8      16      32      64       2       4       8      16      32      64
+    Lightroom     1.959   1.960   1.952   1.948   1.963   1.513   1.695   1.664   1.628   1.589   1.574   1.385
+    shaderlab     1.781   1.728   1.764   1.789   1.763   1.350   1.486   1.487   1.565   1.607   1.626   1.312
+  APLATS (deplacement de la moyenne — terme GLOBAL)
+    base  32 : Lightroom  -22.98   shaderlab  -24.00
+    base 128 : Lightroom  -79.38   shaderlab  -77.00
+    base 224 : Lightroom   +0.00   shaderlab   +1.00
+  ECHELONS (halo, portee a 10 %, et champ lointain)
+     96|160  Lightroom halo -31.99/+40.38 portee   29/ 552 px  global -63.96/-79.83
+     96|160  shaderlab halo -32.00/+25.00 portee   30/  28 px  global -64.00/-80.00
+     32| 64  Lightroom halo  -9.02/+14.88 portee   57/  48 px  global -22.98/-45.65
+     32| 64  shaderlab halo  -8.00/+12.00 portee   36/  24 px  global -24.00/-46.00
+    176|224  Lightroom halo -89.13/ +0.00 portee  334/   0 px  global -86.10/ +0.00
+    176|224  shaderlab halo -37.00/ -1.00 portee   29/   1 px  global -76.00/ +1.00

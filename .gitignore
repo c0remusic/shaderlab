@@ -23,3 +23,6 @@ tools/shadplay/
 # possible : dedans, chaque écriture de cache déclenche un rechargement en
 # boucle (flashs blancs au moindre mouvement de souris, vécu 2026-07-26).
 .webview2-data/
+
+# Bytecode Python des scripts de mesure (.scratch) : derive, jamais une source.
+__pycache__/

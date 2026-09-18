@@ -397,11 +397,15 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   leur condition — c'était le cas qu'ADR-0017 rendait le plus criant (trois
   blocs dont les paramètres ne font rien quand leur bloc est éteint). Le
   registre porte 9 conditions de SECTION en tout. Les sections
-  existent partout mais ne sectionnent pas (`duotone` 11 params pour 1 section,
-  `outlines` 8,7 par section ; `liste` = **59 des 82** gabarits au 2026-08-27,
-  d'où le défilement — le total perd la `grille` de la section « Pavé » retirée
-  par ADR-0021, et ce chiffre-là aussi était faux avant d'être relancé, il
-  disait 63 des 83 quand l'arbre en portait 60 des 84), et
+  existent partout mais ne sectionnent pas (`outlines` 8,7 par section ;
+  `liste` = **59 des 83** gabarits, re-mesuré le 2026-09-18 —
+  `{liste 59, paire 7, grille 6, figure 6, pose 5}` — d'où le défilement. Le
+  total avait perdu la `grille` de la section « Pavé » retirée par ADR-0021, et
+  ce chiffre-là aussi était faux avant d'être relancé : il disait 63 des 83 quand
+  l'arbre en portait 60 des 84, puis **82** quand l'arbre en portait 83.
+  ⚠️ `duotone` était cité ici pour « 11 params, 1 section » : il en porte **2**
+  depuis le ticket 16 — voir les orphelins au point (c) ci-dessous, réparés le
+  même jour et par le même commit), et
   **9 effets sur 26** portent un outil sur la toile
   (`aplat`, `lensFlare`, `lightLeak`, `motionBlur`, `pixelStretch`, et depuis le
   2026-09-02 — ticket 21, `9f118c0` — `warp`, `halftone`, `hatching` en `point`
@@ -446,12 +450,16 @@ Décisions techniques verrouillées (voir design.md pour les preuves) :
   effets en laissent délibérément (`lensFlare` 9, `channelMixer` 4, `gradientMap`
   2, `curves` 1) en disant pourquoi à leur déclaration. La différence entre un
   orphelin voulu et un oubli se LIT dans le commentaire, aucune mesure ne la
-  donne. ⚠️ **Mais il y en a un CINQUIÈME, non documenté, et cette phrase a dit
-  « quatre » jusqu'au 2026-08-12** : `duotone` laisse **9** orphelins sur ses 11
-  paramètres. Cause probable — le retrait de ses trois sections d'encre le
-  2026-08-05 (elles répétaient le libellé de leur pastille, violation ADR-0001).
-  **La correction de densité a créé les orphelins**, et rien ne l'a signalé.
-  Mesure : 25 orphelins au total sur 345 paramètres ;
+  donne. **Ces quatre effets expliquent la TOTALITÉ des orphelins** : re-mesuré
+  le 2026-09-18, **16 orphelins sur 379 paramètres**, et 9+4+2+1 = 16.
+  ⚠️ **Ce paragraphe a annoncé un CINQUIÈME — `duotone`, 9 orphelins sur 11 —
+  jusqu'au 2026-09-18, et il était RÉPARÉ depuis le 2026-08-18** (ticket 16,
+  `1110227`, qui a recréé la section en changeant son GABARIT au lieu de son
+  libellé). Le diagnostic d'époque était juste : le retrait de ses trois sections
+  d'encre le 2026-08-05 — elles répétaient le libellé de leur pastille,
+  violation ADR-0001 — avait bien créé les orphelins, et rien ne l'avait
+  signalé. C'est la phrase qui n'a pas suivi la correction. Le « 25 orphelins
+  sur 345 paramètres » qu'elle citait datait du même moment ;
   **(d)** une applicabilité se MESURE avant de se déclarer —
   `node scripts/render-check.mjs --applicabilite`. Sur 41 déclarations éprouvées
   le 2026-08-05, une était FAUSSE (`glass.flat`, 47 % des canaux en Martelé) ;

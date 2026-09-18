@@ -158,7 +158,83 @@ const TEXTURE_FIN = RB_TABLE.textureFin;     // poids de la bande fine (noyau 13
 const TEXTURE_MOYEN = RB_TABLE.textureMoyen; // poids de la bande moyenne (pyramide)
 const TEXTURE_RAYON = RB_TABLE.textureRayon; // écartement du noyau fin, en PIXELS
 const TEXTURE_EPS = RB_TABLE.textureEps;     // epsilon du filtre guidé, variance de sqrt(luminance)
-const CLARITY_AMT = 0.9;  // gain additif linéaire de la bande moyenne à |100| (flou spatial, hors calibration rampe)
+/* ── CLARTÉ, RÉÉCRITE LE 2026-09-18 ────────────────────────────────────────
+ * Elle était un contraste local de bande moyenne. Le binaire dit qu'elle est
+ * autre chose, et les mesures disent quoi — `research/11` et `research/12` :
+ *
+ *  - `uGlobalAmtClarity` vit dans `UniformsToneMap`, entre `uGlobalAmtHighlights`
+ *    et `uGlobalAmtShadows`. Clarté est un GAIN de tone map, pas un terme
+ *    additif ; et, seule des trois, elle n'a NI ligne NI poids de luminance —
+ *    toute sa modulation vient de son masque de DÉTAIL.
+ *  - Mire bi-tonale (aucun détail nulle part) : Lightroom déplace les aplats de
+ *    −0,185 et 0,000. Sans détail, Clarté ne fait RIEN. C'est la gâchette.
+ *  - Mire de présence (aplats DANS de la matière), déplacement ajusté sur
+ *    quatre doses et deux bases : `log2(gain) = −2,0 · dose · s(1−s)` à dose
+ *    POSITIVE (rapports 1,878 et 2,056 à +100, puis 0,932 et 1,025 à +50 —
+ *    exactement la moitié), et une LEVÉE UNIFORME à dose négative (+0,1198 et
+ *    +0,1115 à −50 sur deux tons dont s(1−s) diffère d'un facteur 2,3).
+ */
+/** Cloche du ton à dose POSITIVE : `log2(gain) = −BELL · dose · s(1−s)`. */
+const CLARITY_BELL = 2.3;
+/** Levée UNIFORME à dose négative, en log2 à |dose| = 1. L'asymétrie par signe
+ *  est mesurée, pas supposée — Blancs et Noirs en portent déjà une. */
+const CLARITY_LIFT = 0.21;
+/** Gain du terme d'AMPLITUDE (contraste au grand rayon), en espace racine comme
+ *  Texture. Recalé à 0,72 par `research/07` pour un gain plat à 1,78. */
+const CLARITY_AMT_Y = 0.752;
+/** Gâchette GLOBALE — « y a-t-il du détail dans cette image ». Bornes lues sur
+ *  l'écart-type profond : bi-tonale 0,00030 (artefacts JPEG), aplats de la mire
+ *  de présence 0,00121, photo boîtier 0,01401. */
+const CLARITY_GATE0 = 0.0005;
+const CLARITY_GATE1 = 0.0015;
+/**
+ * ROLLOFF DE HAUTES LUMIÈRES du terme de ton, et c'est un AVEU chiffré.
+ *
+ * La loi `−BELL · dose · s(1−s)` est ajustée sur les bases 32 et 128, où elle
+ * tient à mieux d'un niveau sur quatre doses. La base 224 lui échappe dans les
+ * DEUX sens : Lightroom l'ÉCLAIRCIT de +2,68 à Clarté +100 quand la cloche la
+ * ferait descendre de −12,63, et son gain n'y est même pas linéaire en dose.
+ * `research/12` conclut que c'est un effet de rolloff près de l'écrêtage et
+ * demande de ne PAS l'ajuster.
+ *
+ * On ne l'ajuste donc pas — on ÉTEINT le terme là où la loi ne vaut plus. Une
+ * erreur de 2,7 niveaux dans le bon sens (ne rien faire) vaut mieux qu'une de
+ * 15,3 dans le mauvais. Les bases 32 et 128 sont sous 0,6, donc intactes.
+ */
+const CLARITY_HL0 = 0.6;
+const CLARITY_HL1 = 0.9;
+/**
+ * BORNE BASSE du terme d'amplitude, EXPRIMÉE DANS SON PROPRE ESPACE.
+ *
+ * La gâchette locale protège les APLATS, pas les contenus très contrastés : sur
+ * un damier, le détail local est partout, la gâchette vaut 1, et une case sombre
+ * loin du flou profond se fait pousser jusqu'au noir. Mesuré sur la référence
+ * `developpement-reglages-clarte` : **13,47 % des pixels écrasés à zéro** sans
+ * cette borne, contre 5,46 % avant ce chantier.
+ *
+ * Le retour en lumière vaut `2y·dY`, donc borner `dY ≥ −F·y` borne le gain à
+ * `−2F·l`. À F = 0,4 une case ne peut pas perdre plus de 80 % de sa luminance
+ * (−2,3 IL) : la propriété « Clarté ne bouche pas les noirs » devient
+ * STRUCTURELLE au lieu d'être un écrêtage de sortie. C'est la troisième
+ * rencontre avec ce défaut (`research/10`), et la première où il ne peut pas
+ * revenir.
+ */
+const CLARITY_FLOOR = 0.4;
+/** Gâchette LOCALE du terme d'amplitude — « ce pixel est-il DANS de la
+ *  matière ». Elle existe pour une raison précise : sans elle, le contraste au
+ *  grand rayon écrase les aplats sombres (aplat 32 déplacé de −32 contre −2,66
+ *  chez Lightroom, `research/10`, deux fois écrit et deux fois retiré). Bornes :
+ *  aplat de mire 0,00000, réseau 0,03190, photo 0,01389.
+ *
+ *  ⚠️ ET ELLES SONT BASSES, DÉLIBÉRÉMENT. Un premier essai à 0,001 / 0,005 a
+ *  protégé les aplats mais éteint l'opérateur là où il devait agir : le gain
+ *  tombait de 1,71 à 0,98 entre les périodes 48 et 256, et de 1,67 à 0,86 entre
+ *  les amplitudes 16 et 2. Une grande période ou une faible amplitude a peu de
+ *  détail FIN, et une gâchette calée sur la matière d'une photo les prend pour
+ *  des aplats. Ce qui sépare vraiment un aplat d'un réseau, c'est zéro contre
+ *  non-zéro : sur cette mire, le canal vaut 0,00000 exactement sur un aplat. */
+const CLARITY_LOCAL0 = 0.00002;
+const CLARITY_LOCAL1 = 0.0002;
 const DEHAZE_AMT = 0.35;  // amplitude du retrait/ajout de voile à |100| (flou spatial, hors calibration rampe)
 const CURVE_AMT = RB_TABLE.curveAmt;     // lift perceptuel maximal, PAR RÉGION
 const CURVE_KAPPA = RB_TABLE.curveKappa; // étroitesse de la cloche, PAR RÉGION
@@ -413,7 +489,6 @@ export function reglagesDeBaseSpec(rgb: Vec3, blurLuma: number, p: readonly numb
   //    nulle (pas de flou spatial ici) ; le shader la calcule par une tente.
   if (texture !== 0 || clarity !== 0 || dehaze !== 0) {
     const lp = lumaOf(c);
-    const detailMoyen = lp - clamp01(blurLuma);          // bande moyenne (Clarté)
     const gainPresence =
       // TEXTURE = 0 dans le twin, et c'est désormais le terme ENTIER qui manque,
       // ses deux bandes comprises : la fine demande treize prélèvements de
@@ -422,7 +497,14 @@ export function reglagesDeBaseSpec(rgb: Vec3, blurLuma: number, p: readonly numb
       // cinq constantes vivent dans `RB_TABLE` et sont interpolées dans le WGSL,
       // donc aucune n'est écrite deux fois (garde `jumeauxWgsl`).
       (texture / 100) * (TEXTURE_FIN + TEXTURE_MOYEN) * 0
-      + (clarity / 100) * CLARITY_AMT * detailMoyen;
+      // ⚠️ CLARTÉ = 0 dans le twin depuis le 2026-09-18, et pour la MÊME raison
+      // que Texture : ses deux termes sont désormais gardés par une mesure de
+      // DÉTAIL (locale pour l'amplitude, globale pour le ton), et un twin sans
+      // voisinage n'en a aucune. Ce n'est pas une perte de couverture — sur une
+      // rampe, l'ancien terme `lp − blurLuma` valait déjà zéro, et le twin n'a
+      // jamais servi qu'à la calibration du TON. Le terme de ton de Clarté, lui,
+      // est éteint par sa gâchette globale, qui vaut zéro sans détail.
+      + (clarity / 100) * (CLARITY_BELL + CLARITY_LIFT + CLARITY_AMT_Y) * 0;
     // Voile LOCAL : le flou moyen sert d'estimation du contraste de voile (ce que
     // faisait déjà le module). Inerte sur un ton plat — c'est la limite corrigée
     // par le terme GLOBAL ci-dessous.
@@ -595,6 +677,10 @@ const passePyramide: EffectPass[] = (() => {
     params.highlights !== 0 || params.shadows !== 0 || params.whites !== 0 ||
     params.blacks !== 0 || params.clarity !== 0 || params.dehaze !== 0 ||
     params.texture !== 0;
+  /** La section PROFONDE ne sert qu'à Clarté : neuf passes qu'un réglage de ton
+   *  ou de Texture n'a aucune raison de payer. Toutes sautées, `prevPass` vaut
+   *  la section moyenne — et les deux termes qui la lisent sont alors à zéro. */
+  const profonde = (params: Record<string, number>) => params.clarity !== 0;
   return [
     { scale: 0.5, wgsl: PREMIER_NIVEAU_WGSL, enabled: utile },
     { scale: 0.25, wgsl: DOWNSAMPLE_WGSL, enabled: utile },
@@ -617,6 +703,34 @@ const passePyramide: EffectPass[] = (() => {
     // cette passe, et elle deviendra `prevPass` sans que rien de ce qui lit
     // `auxPass` ait à changer une seconde fois.
     { scale: 0.5, wgsl: UPSAMPLE_FIXED_WGSL, enabled: utile, expose: true },
+    // ─── SECTION PROFONDE — CLARTÉ SEULE ────────────────────────────────────
+    // Elle repart du flou moyen exposé ci-dessus, descend jusqu'à 1/128 et
+    // remonte à 1/16 ; la finale l'échantillonne en bilinéaire, ce qui suffit à
+    // un signal dont toute la structure est bien plus large que 1/16. C'est
+    // `prevPass`, et elle porte les DEUX grandeurs que Clarté réclame : son
+    // canal `g` est la référence de contraste au grand rayon, son canal `b` la
+    // présence de détail qui sert de gâchette.
+    //
+    // ⚠️ SA PORTÉE EST PLUS COURTE QUE CELLE DE LIGHTROOM, et c'est MESURÉ :
+    // sur la zone PORTAIL (moitié plate, moitié détaillée), notre canal lit
+    // 0,15 octet au loin dans la moitié plate quand Lightroom y déplace encore
+    // de −11,71. Il faudrait descendre à 1/2048 pour que la moitié plate remonte
+    // à 29,95 (mesure de `profondeur.mjs`). Non fait : ce fond-là rend la
+    // référence de contraste `g` quasi globale, donc inutilisable par le terme
+    // d'amplitude, et la chaîne n'a qu'une seule sortie. Divergence assumée,
+    // chiffrée, et sans effet sur une photo — où le détail est partout (canal
+    // global à 31,4 octets, minimum 17).
+    //
+    // Conditionnée à Clarté seule : Texture et le ton lisent `auxPass`.
+    { scale: 0.25, wgsl: DOWNSAMPLE_WGSL, enabled: profonde },
+    { scale: 0.125, wgsl: DOWNSAMPLE_WGSL, enabled: profonde },
+    { scale: 0.0625, wgsl: DOWNSAMPLE_WGSL, enabled: profonde },
+    { scale: 0.03125, wgsl: DOWNSAMPLE_WGSL, enabled: profonde },
+    { scale: 0.015625, wgsl: DOWNSAMPLE_WGSL, enabled: profonde },
+    { scale: 0.0078125, wgsl: DOWNSAMPLE_WGSL, enabled: profonde },
+    { scale: 0.015625, wgsl: UPSAMPLE_FIXED_WGSL, enabled: profonde },
+    { scale: 0.03125, wgsl: UPSAMPLE_FIXED_WGSL, enabled: profonde },
+    { scale: 0.0625, wgsl: UPSAMPLE_FIXED_WGSL, enabled: profonde },
   ];
 })();
 
@@ -732,7 +846,16 @@ const RB_TEXTURE_FIN = ${fRb(TEXTURE_FIN)};
 const RB_TEXTURE_MOYEN = ${fRb(TEXTURE_MOYEN)};
 const RB_TEXTURE_RAYON = ${fRb(TEXTURE_RAYON)};
 const RB_TEXTURE_EPS = ${fRb(TEXTURE_EPS)};
-const RB_CLARITY_AMT = ${fRb(CLARITY_AMT)};
+const RB_CLARITY_BELL = ${fRb(CLARITY_BELL)};
+const RB_CLARITY_LIFT = ${fRb(CLARITY_LIFT)};
+const RB_CLARITY_AMT_Y = ${fRb(CLARITY_AMT_Y)};
+const RB_CLARITY_GATE0 = ${fRb(CLARITY_GATE0)};
+const RB_CLARITY_GATE1 = ${fRb(CLARITY_GATE1)};
+const RB_CLARITY_HL0 = ${fRb(CLARITY_HL0)};
+const RB_CLARITY_HL1 = ${fRb(CLARITY_HL1)};
+const RB_CLARITY_FLOOR = ${fRb(CLARITY_FLOOR)};
+const RB_CLARITY_LOCAL0 = ${fRb(CLARITY_LOCAL0)};
+const RB_CLARITY_LOCAL1 = ${fRb(CLARITY_LOCAL1)};
 const RB_DEHAZE_AMT = ${fRb(DEHAZE_AMT)};
 const RB_CURVE_AMT = ${wv4(RB_TABLE.curveAmt)};
 const RB_CURVE_KAPPA = ${wv4(RB_TABLE.curveKappa)};
@@ -919,6 +1042,19 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   let blurLuma = clamp(pyr.r, 0.0, 1.0);
   let yMoyen = pyr.g;
   let varMoyenne = max(pyr.r - pyr.g * pyr.g, 0.0);
+  // SECTION PROFONDE (jusqu a 1/128), reservee a Clarte : son canal g est sa
+  // reference de contraste au grand rayon, son canal b la presence de detail
+  // dans l image. Quand
+  // Clarte vaut 0, ses neuf passes sautent et prevPass vaut la section moyenne —
+  // les deux termes qui la lisent sont alors eux-memes a zero.
+  let prof = textureSample(prevPass, srcSampler, uv).rgb;
+  let yProfond = prof.g;
+  // GACHETTE GLOBALE — « y a-t-il du detail dans cette image ». Sans detail
+  // nulle part, Lightroom ne deplace rien (mire bi-tonale, -0,185 niveau).
+  let gachette = smoothstep(RB_CLARITY_GATE0, RB_CLARITY_GATE1, prof.b);
+  // GACHETTE LOCALE — « ce pixel est-il DANS de la matiere ». Elle protege les
+  // aplats du terme d amplitude, qui les ecrasait sinon (research/10).
+  let gachetteLocale = smoothstep(RB_CLARITY_LOCAL0, RB_CLARITY_LOCAL1, pyr.b);
   let sBlur = linear_to_srgb(blurLuma);
   let ev = params[2];
   let kC = params[3] / 100.0;
@@ -934,7 +1070,31 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     blurLuma, 0.0, RB_SH_LREF, RB_SH_W_SCALE, RB_SH_W_OFFSET, true), kSh != 0.0);
   let dLogHl = select(0.0, kHl * RB_HL_AMT * rb_ligne_poids(
     blurLuma, RB_HL_FLARE, RB_HL_LREF, RB_HL_W_SCALE, RB_HL_W_OFFSET, false), kHl != 0.0);
-  let gainTon = exp2(dLogSh + dLogHl);
+  // CLARTE, TERME DE TON — un GAIN, au meme endroit que Hautes lumieres et
+  // Ombres, parce que le binaire l y range (uGlobalAmtClarity vit dans
+  // UniformsToneMap entre uGlobalAmtHighlights et uGlobalAmtShadows).
+  // Aucune ponderation par la luminance : Clarte est la seule des trois a n avoir
+  // ni ligne ni poids de luminance, et sa forme en ton vient de la mesure —
+  // cloche s(1-s) a dose positive, levee uniforme a dose negative (research/12).
+  // La gachette globale l eteint entierement sur une image sans detail.
+  let kCl = params[9] / 100.0;
+  // Rolloff de hautes lumieres : la loi cesse de valoir au-dessus de 0,6 (la
+  // base 224 echappe a la cloche dans les deux sens), donc on y ETEINT le terme
+  // plutot que de l extrapoler. Voir RB_CLARITY_HL0 pour les chiffres.
+  // ⚠️ LE TON DU PIXEL, PAS LE TON FLOUTE, et c est la seule chose que la mire
+  // de presence ne pouvait pas trancher — sur un aplat les deux sont egaux. Sur
+  // un DAMIER ils ne le sont pas : une case noire y a un flou de mi-ton, donc
+  // avec sBlur elle recevait la cloche a pleine force et partait au noir (14,3 %
+  // des pixels de la reference presence ecrases contre 7,7 % avant). Avec le
+  // ton du pixel, la cloche s eteint sur la case noire comme elle s eteint sur
+  // un aplat noir : la propriete « s annule aux deux bouts » vaut PAR PIXEL.
+  let sPix = linear_to_srgb(clamp(dot(c, RB_LUMA), 0.0, 1.0));
+  let rolloffHl = 1.0 - smoothstep(RB_CLARITY_HL0, RB_CLARITY_HL1, sPix);
+  let dLogClarte = gachette * rolloffHl * select(
+    -kCl * RB_CLARITY_LIFT,
+    -kCl * RB_CLARITY_BELL * sPix * (1.0 - sPix),
+    kCl >= 0.0);
+  let gainTon = exp2(dLogSh + dLogHl + dLogClarte);
   // Amplitude par signe (Lightroom est asymetrique — voir reglagesDeBaseTable).
   let bkAmt = select(RB_BLACK_AMT_NEG, RB_BLACK_AMT_POS, kBk >= 0.0);
   let whAmt = select(RB_WHITE_AMT_NEG, RB_WHITE_AMT_POS, kWh >= 0.0);
@@ -967,13 +1127,27 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     let porte = RB_TEXTURE_EPS / (varMoyenne + RB_TEXTURE_EPS);
     let dY = params[8] / 100.0 * porte
       * (RB_TEXTURE_FIN * (y - fin.x) + RB_TEXTURE_MOYEN * (y - yMoyen));
+    // CLARTE, TERME D AMPLITUDE — contraste au GRAND rayon (section profonde),
+    // en espace RACINE comme Texture, et GATE par le detail LOCAL.
+    //
+    // ⚠️ LA GACHETTE LOCALE N EST PAS UN ORNEMENT. Sans elle, ce terme ecrase les
+    // aplats sombres : le flou profond depasse largement un pixel sombre, l ecart
+    // part tres negatif, et l aplat 32 se deplacait de -32 quand Lightroom rend
+    // -2,66. Ecrit et retire deux fois pour cette raison (research/10) ; ici il
+    // vaut exactement zero la ou il n y a pas de matiere, et c est mesure — le
+    // canal de detail local vaut 0,00 sur un aplat de mire et 0,0319 sur un
+    // reseau.
+    //
     // CLARTE reste LINEAIRE dans le detail, et c est mesure : son gain vaut 1,77
-    // pour des amplitudes de 2 a 32 niveaux, contre 1,79 a 1,40 pour Texture sur
-    // la meme echelle. Aucun portail ici — un contraste local vaut deja zero sur
-    // un aplat, et l ecart a Lightroom n est pas la (voir l en-tete).
-    let detailMoyen = lp - blurLuma;
-    let gainPresence = 2.0 * y * dY
-      + params[9] / 100.0 * RB_CLARITY_AMT * detailMoyen;
+    // pour des amplitudes de 2 a 32 niveaux. Aucun seuil d amplitude ici — un
+    // portail de ce genre a ete pose, mesure et retire.
+    // BORNE BASSE dans l espace de l operateur : le retour en lumiere vaut
+    // 2y*dY, donc dY >= -F*y borne le gain a -2F*l et une case sombre ne peut
+    // plus etre poussee jusqu au noir. Voir RB_CLARITY_FLOOR pour le chiffre.
+    let dYClarte = max(
+      params[9] / 100.0 * RB_CLARITY_AMT_Y * gachetteLocale * (y - yProfond),
+      -RB_CLARITY_FLOOR * y);
+    let gainPresence = 2.0 * y * (dY + dYClarte);
     // Le terme LOCAL du voile ne vaut plus que pour l AJOUT de voile. Du cote du
     // RETRAIT, la forme de He le produit elle-meme : son gain 1/t vaut 1,80 a la
     // base 128 pour une dose de 100, ce que la mesure sur reseau fin rend a 1,95.

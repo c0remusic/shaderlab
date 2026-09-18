@@ -602,7 +602,21 @@ const passePyramide: EffectPass[] = (() => {
     { scale: 0.0625, wgsl: DOWNSAMPLE_WGSL, enabled: utile },
     { scale: 0.125, wgsl: UPSAMPLE_FIXED_WGSL, enabled: utile },
     { scale: 0.25, wgsl: UPSAMPLE_FIXED_WGSL, enabled: utile },
-    { scale: 0.5, wgsl: UPSAMPLE_FIXED_WGSL, enabled: utile },
+    // ⚠️ DERNIER NIVEAU DE LA SECTION MOYENNE, ET IL EST **EXPOSÉ**.
+    // C'est le flou que lisent Hautes lumières / Ombres / Blancs / Noirs / Voile
+    // et la bande moyenne de Texture — celui dont la profondeur est CALIBRÉE et
+    // ne doit pas bouger. En le capturant en `auxPass`, la chaîne peut continuer
+    // plus profond au-dessus sans le perdre : c'est la limite de structure que
+    // research/07 décrit (« la chaîne de passes est LINÉAIRE, elle ne peut pas
+    // transporter deux profondeurs à la fois ») et le mécanisme `expose`
+    // (`adaf712`) la lève.
+    //
+    // Aujourd'hui la chaîne s'arrête ici, donc `auxPass` et `prevPass` désignent
+    // la MÊME texture et le rendu est inchangé au bit près — c'est le gate de ce
+    // commit. La section PROFONDE que Clarté réclame viendra se poser après
+    // cette passe, et elle deviendra `prevPass` sans que rien de ce qui lit
+    // `auxPass` ait à changer une seconde fois.
+    { scale: 0.5, wgsl: UPSAMPLE_FIXED_WGSL, enabled: utile, expose: true },
   ];
 })();
 
@@ -896,7 +910,12 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
   // La pyramide transporte (luminance, y = sqrt(luminance)) — voir
   // PREMIER_NIVEAU_WGSL. Le canal r est l'ancien dot(rgb, RB_LUMA) au chiffre
   // pres, et r - g*g est la variance locale de y, gratuite.
-  let pyr = textureSample(prevPass, srcSampler, uv).rgb;
+  // ⚠️ auxPass ET NON prevPass : la section MOYENNE de la pyramide est capturee
+  // au passage (EffectPass.expose sur son dernier niveau), pour que la chaine
+  // puisse continuer plus profond sans emporter avec elle la profondeur qui est
+  // calibree ici. Tant que rien ne se pose apres, les deux designent la meme
+  // texture ; le jour ou la section profonde arrive, cette ligne ne bouge pas.
+  let pyr = textureSample(auxPass, srcSampler, uv).rgb;
   let blurLuma = clamp(pyr.r, 0.0, 1.0);
   let yMoyen = pyr.g;
   let varMoyenne = max(pyr.r - pyr.g * pyr.g, 0.0);

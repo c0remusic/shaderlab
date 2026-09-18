@@ -17,7 +17,9 @@ import { readFileSync } from "node:fs";
 
 const ORIGIN = "http://localhost:1421";
 const CDP = "http://localhost:9222";
-const PHOTO = "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5171.JPG";
+// Usage : node sonde-portail.mjs [chemin-photo] [facteur-d-ecartement]
+const PHOTO = process.argv[2] ?? "C:/Users/LEETJ/Pictures/2018/2018-01-25/DSCF5171.JPG";
+const FACTEUR = Number(process.argv[3] ?? 1);
 const ANCRE = "  return vec4<f32>(clamp(c, vec3<f32>(0.0), vec3<f32>(1.0)), color.a);";
 
 const targets = await (await fetch(`${CDP}/json`)).json();
@@ -77,7 +79,7 @@ const CANDIDATS = [["actuel (variance locale)", "sqrt(max(varMoyenne, 0.0))"]];
 for (const n of ECARTS) {
   CANDIDATS.push([
     "structure, ecart " + n + " px",
-    "rb_sd_structure(uv, " + n + ".0)",
+    "rb_sd_structure(uv, " + (n * FACTEUR).toFixed(3) + ")",
   ]);
 }
 
@@ -133,6 +135,7 @@ const temoin = JSON.parse(await evalIn(`(async () => {
   for (let i = 0; i < f.pixels.length; i += 4 * 97) { s += f.pixels[i]; n++; }
   return JSON.stringify({ W: f.width, H: f.height, moy: s / n });
 })()`, ctxFrame.id));
+console.log("photo : " + PHOTO.split("/").pop() + "   facteur " + FACTEUR);
 console.log("temoin : " + temoin.W + "x" + temoin.H + ", moyenne du rouge " + temoin.moy.toFixed(1));
 if (temoin.moy < 5 || temoin.moy > 250) throw new Error("le temoin ne rend pas l'image");
 

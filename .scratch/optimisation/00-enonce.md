@@ -149,6 +149,17 @@ chronométrer aussi bien que compter.
 chiffres : le coût GPU est **proportionnel aux pixels** (0,65 ms par Mpx,
 constant sur un rapport de 64) ; nous calculons **187 fois** les pixels que
 l'écran montre ; et `jsEncodeMs` vaut **0,6 à 1,3 ms** contre ~17 ms de GPU.
+Son §7 éprouve la décision « pas de distinction preview/export » SUR IMAGE, et
+elle tient : la ligne de partage est **global contre local**, pas ton contre
+pixel.
+
+✅ **Et l'ablation du premier poste de calcul :
+[`02-ablation-du-grain.md`](02-ablation-du-grain.md) (2026-09-18).** Le coût de
+`grain` est le NOMBRE DE HACHAGES et rien d'autre (82 % du calcul) ; les cinq
+`pow()` pèsent 4 %, le `sqrt` zéro. Les deux corrections possibles valent 8 % de
+la frame, au prix d'un mécanisme neuf et d'un grain qui change de motif —
+**même forme et même ordre de gain que l'optimisation ALU du verre, écrite puis
+revertée.** Verdict : ne pas l'écrire.
 
 0. ~~**La part de `jsEncodeMs` prise par les douze allocations de buffer par
    frame.**~~ ✅ **RÉPONDU, et c'est NON.** Tout l'encodage JS tient dans ~1 ms
@@ -157,21 +168,19 @@ l'écran montre ; et `jsEncodeMs` vaut **0,6 à 1,3 ms** contre ~17 ms de GPU.
    de cette milliseconde, soit moins de 2 % du temps de frame — en build de DEV,
    où ce poste est pourtant gonflé. Le motif existe, l'ordre de grandeur n'y est
    pas. Ne pas refactorer.
-1. **`shader-f16`.** C'est la seule idée de la proposition qui touche le matériel
-   et pas le texte. Le mécanisme d'adhésion existe déjà et se recopie :
-   `gpuContext.ts` demande `timestamp-query` SI ET SEULEMENT SI l'adapter
-   l'annonce, jamais en dur — demander une feature absente ferait rejeter
-   `requestDevice` en bloc. ✅ **Première question tranchée** : l'adapter
-   l'ANNONCE sur cette machine (RTX 2060 / Turing, WebView2 153) — `shader-f16`
-   est dans `adapter.features`. Restent les deux autres, et la mesure les rend
-   plus difficiles à passer : nos textures sont en 8 bits unorm et l'invariant
-   sRGB-par-le-format interdit un chemin flottant, donc f16 n'allège que
-   l'ARITHMÉTIQUE — or une passe pleine résolution TRIVIALE est déjà à 79 % du
-   pic de bande passante de la carte. Le seul endroit où f16 a une chance est le
-   calcul au-dessus de ce plancher de copie, et `grain` en porte 39 % à lui
-   seul : l'éprouver LÀ, sur un effet, avant tout portage. Et la précision
-   suffit-elle pour nos opérateurs de ton, dont plusieurs travaillent près de
-   zéro en lumière linéaire ?
+1. ~~**`shader-f16`.**~~ ⚠️ **QUASI CLOS, et par le pire côté.** L'adapter
+   l'ANNONCE bien sur cette machine (RTX 2060 / Turing, WebView2 153 —
+   `shader-f16` est dans `adapter.features`), et le mécanisme d'adhésion
+   optionnel de `gpuContext.ts` se recopierait tel quel. Mais f16 n'allège que
+   l'ARITHMÉTIQUE — nos textures restent en 8 bits unorm, l'invariant
+   sRGB-par-le-format interdit un chemin flottant — et le 02 montre que **la
+   seule arithmétique lourde de la frame est le HACHAGE**. Or `hash` repose sur
+   `fract(p * 0.1031)` avec des coordonnées à plusieurs milliers : en
+   demi-précision, une mantisse de 10 bits ne porte pas la partie fractionnaire
+   de ce produit et **le hachage cesse de hacher**. f16 n'y est pas marginal, il
+   est faux. Ce qui resterait : les opérateurs de ton, dont le 01 dit qu'ils sont
+   déjà près du plancher de bande passante — donc un gain attendu proche de zéro,
+   pour une question de précision ouverte près du noir en lumière linéaire.
 2. **Le temps de compilation des 104 shaders**, jamais mesuré. Si une variante
    neuve fait bégayer le premier geste après l'ajout d'un effet, c'est là que la
    minification aurait un sens — et elle porterait alors sur la chaîne COMPOSÉE,

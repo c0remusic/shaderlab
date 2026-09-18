@@ -120,3 +120,23 @@ relever, sur `DSCF5171.JPG` (grain 6,663 mesuré) :
 ⚠️ `assets/trouver-photo-propre.py` mesure déjà le grain d'un fichier de la même
 façon ; s'en servir des deux côtés, sinon les deux chiffres ne sont pas
 comparables.
+
+✅ **La campagne est ARMÉE** (`assets/campagne-detail.py`, seize mesures,
+Campagne E de `assets/listes-de-mesures.md`) et inerte jusqu'au redémarrage de
+Lightroom. Elle se lit par `assets/analyse-detail.py`.
+
+✅ **Et son ZÉRO est contrôlé des deux côtés**
+([`research/16`](../research/16-le-zero-etait-bon-l-ecart-est-dans-le-signe-negatif.md),
+2026-09-18), avant qu'aucune amplitude n'arrive — un biais de zéro se serait
+propagé dans chaque amplitude sans que rien ne le dise. Trois résultats qui
+orientent la tranche 1 :
+
+1. **notre pipeline ne touche pas au grain** (×1,000 sur les trois champs, étage
+   au défaut) ; Lightroom dérive de ×1,004 par son ré-encodage d'export ;
+2. **Texture +100 : les deux côtés sont à 0,6 % l'un de l'autre.** L'écart
+   historique (×1,76 puis ×1,64 puis ×1,546 pour LA MÊME grandeur) était
+   l'INSTRUMENT, pas l'opérateur — d'où `assets/champs_detail.py`, partagé ;
+3. **Texture −60 : cinq fenêtres sur cinq dans le même sens**, notre opérateur
+   laissant +8,0 % de grain de plus. **L'écart restant est entièrement du côté
+   où Texture LISSE** — la tranche 1 est bien celle qui le porte, et la branche
+   positive n'a rien à corriger.

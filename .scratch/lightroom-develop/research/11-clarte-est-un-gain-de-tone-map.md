@@ -107,6 +107,54 @@ aplats de la campagne de présence sont au disque pour le trancher par le fit �
 c'est une AMPLITUDE (et un signe), donc c'est à la mesure de répondre, pas au
 binaire.
 
+## ⚠️ Le masque mesuré NE SUFFIT PAS — mesuré le jour même
+
+La forme ci-dessus se teste avant de s'écrire : si le gain est proportionnel au
+masque de détail, alors le masque doit varier aux trois aplats comme le gain de
+Lightroom. Mesuré par `assets/masque-aux-aplats.mjs` — section profonde ajoutée
+**dans la page** (`mod.passes`, aucun fichier touché), sortie détournée sur le
+retour final, mire de présence :
+
+| sortie | base 32 | base 128 | base 224 |
+|---|---|---|---|
+| détail MOYEN (`auxPass.b`) | **0,00** | **0,00** | **0,00** |
+| détail PROFOND (`prevPass.b`) | 6,75 | **4,00** | 4,60 |
+| luminance profonde (`prevPass.r`) | 105,42 | 139,38 | 205,56 |
+| témoin (`color`) | 32,00 | 128,00 | 224,00 |
+| **gain visé (Lightroom, Clarté +100)** | **0,855** | **0,700** | **1,030** |
+
+Deux lectures, et la seconde ferme la piste telle quelle :
+
+✅ **Le canal se comporte exactement comme conçu.** Le détail MOYEN vaut zéro aux
+trois aplats — un aplat n'a pas de détail local, et le canal le dit. Le détail
+PROFOND, lui, ramasse le voisinage et vaut 4 à 7. C'est la confirmation
+indépendante de [`09`](09-le-canal-de-detail.md).
+
+❌ **Mais le masque ne peut pas porter le profil.** Il faudrait qu'il soit
+MAXIMAL à la base 128, là où Lightroom agit le plus fort (gain 0,700) ; il y est
+**MINIMAL** (4,00 contre 6,75 et 4,60). Et il est positif partout, donc il ne
+peut produire aucun changement de signe. Un gain proportionnel à ce masque
+donnerait l'ordre inverse de celui qu'on vise.
+
+**Conclusion.** La FAMILLE est établie par le binaire — Clarté est un gain de
+tone map, pas un terme additif de contraste. La MODULATION, elle, n'est pas
+expliquée par le masque de détail au grand rayon : il existe une dépendance au
+TON que les noms d'uniformes n'exposent pas. Deux hypothèses restantes, et
+aucune n'est tranchée :
+
+1. la pondération tonale est **cuite dans le shader du masque**
+   (`cr_stage_localized_detail_clarity_mask`), donc sans uniforme à trouver — il
+   faudrait lire le DXBC du noyau, pas ses noms ;
+2. le déplacement des aplats ne vient pas du tone map mais de l'étage
+   `cr_stage_local_contrast`, dont le voisinage de chaque aplat diffère sur cette
+   mire — auquel cas la mire de présence n'est pas l'instrument, et il faut une
+   mire où un aplat est ISOLÉ.
+
+La seconde se teste à peu de frais : la mire BI-TONALE existe déjà (deux aplats,
+aucun détail nulle part) et Lightroom n'y fait presque rien. Si le déplacement
+d'aplat disparaît quand le voisinage n'a plus de détail, c'est l'hypothèse 2 ; la
+mesure est au disque, elle n'a pas encore été lue sous cet angle.
+
 ## Ce qui ne bouge pas
 
 Rien n'est livré par ce fichier ; `src/` est à `2d7fdb2`. La bande MOYENNE de

@@ -2100,6 +2100,30 @@ sont mesurés le jour même.
   encore 0,4 niveau de parité et fait repasser l'écrasement à neuf (essai mesuré,
   refusé). Détail, validation croisée et les dix points de la revue adverse au
   ticket 06 de `.scratch/lightroom-develop/`.
+- ✅ **LA FORME EST IDENTIFIÉE le 2026-09-21 — pente en lumière linéaire, plus un
+  point noir séparé.** [`research/18`](../.scratch/lightroom-develop/research/18-la-forme-est-une-pente-en-lumiere-lineaire-plus-un-point-noir.md).
+  La piste que research/17 laissait ouverte est mesurée, discriminée contre son
+  alternative et validée en croisé. Trois acquis : **(a)** un test qui ne suppose
+  AUCUN poids — le rapport des deux signes, où `w(n)` se simplifie — montre
+  qu'aucun espace ne le rend plat (61,9 % de dispersion en OKLab, 46,2 % au mieux
+  en log), donc l'opérateur n'est « un décalage pondéré » nulle part ; **(b)** à
+  dose négative `lin_sortie/lin_entrée` vaut **0,5000 exactement aux niveaux 2, 4
+  et 6** — une PENTE en lumière linéaire — et le niveau 0 qui monte à 14,33 à dose
+  positive nomme le second terme, un LIFT ; **(c)** notre opérateur est quasi
+  symétrique entre les deux signes (écart-type 0,034) là où Lightroom dérive d'un
+  facteur 7 (0,64) : la saturation exponentielle va dans le bon sens et vaut **19
+  fois trop peu**. Le poids de plage réel, extrait du signe négatif seul, est une
+  **sigmoïde** (plat jusqu'au niveau 16, chute entre 32 et 96) et non notre
+  puissance — écart +0,30 au niveau 48, et il porte aussi la chroma. Les trois
+  gardes passent : validation croisée **0,578 contre 3,735** niveaux sur le signe
+  qui n'a servi à rien, écrasement INFÉRIEUR au modèle en service à toutes les
+  doses (plus grand trou 2 contre 8 à +100), et le bas de rampe passe de 8,891 à
+  **0,357** — le niveau 0 sort à 14,87 pour 14,33 mesuré, contre 0,16 aujourd'hui.
+  ⚠️ **Rien n'est posé dans `src/`, et les quatre références `developpement-grading-*`
+  ne bougent pas** : le poids ne s'extrait que du signe NÉGATIF, et **trois roues
+  sur quatre n'ont que leur `+50`**. La campagne qui débloque est donc précise —
+  `Luminance −50` sur les roues moyens, hautes lumières et globale, sur la MIRE, à
+  armer quand la campagne Détail aura rendu ses exports.
 - ✅ **CLOS le 2026-09-18 — le NOIR n'est pas levé, mais ce n'est ni l'espace ni
   l'amplitude.** [`research/17`](../.scratch/lightroom-develop/research/17-la-luminance-des-roues-n-est-ni-lineaire-ni-une-amplitude.md).
   La phrase qui portait l'hypothèse est FAUSSE : L d'OKLab est une racine

@@ -423,6 +423,53 @@ lesquelles `lumK` est calibré tombent juste) et elle gagne 0,4 niveau de plus
 échange un défaut VISIBLE contre un dixième de niveau sur une mire. Le plafond
 n'est pas l'amplitude, c'est la forme du poids au ras du blanc.
 
+### ✅ LA FORME EST IDENTIFIÉE le 2026-09-21 — pente en lumière linéaire + point noir
+
+[`research/18`](../research/18-la-forme-est-une-pente-en-lumiere-lineaire-plus-un-point-noir.md).
+La piste que le § suivant laissait ouverte est mesurée. Quatre résultats :
+
+1. **Un test qui ne suppose AUCUN poids.** La roue des ombres ayant ses deux
+   signes, le rapport `[Q(+50)−Q]/[Q(−50)−Q]` fait se simplifier `w(n)` : il est
+   constant si et seulement si `Q` est la bonne quantité, et aucun modèle n'y
+   gagne à avoir plus de paramètres. **Aucun espace ne le rend plat** — 61,9 % de
+   dispersion en OKLab, 46,2 % au mieux (log). Ce n'est donc pas « un décalage
+   pondéré », nulle part.
+2. **La forme, lue au lieu d'être ajustée.** À dose négative,
+   `lin_sortie/lin_entrée` vaut **0,5000 exactement aux niveaux 2, 4 et 6** — une
+   PENTE en lumière linéaire. Et le niveau 0 qui monte à 14,33 à dose positive
+   nomme le second terme : un LIFT, qui ne sert qu'à la montée. ⚠️ Témoin
+   contrôlé avant : il s'écarte au plus de **0,032 niveau**, la forme lue n'est
+   pas une dérive d'export.
+3. **Notre opérateur ne produit pas cette asymétrie.** `appliqueLum` est saturant,
+   donc il va dans le bon sens — mais son rapport a un écart-type de **0,034**
+   quand celui de Lightroom vaut **0,64**. Dix-neuf fois trop peu. C'est ce qui
+   explique que tous les ajustements à un paramètre plafonnent vers un niveau.
+4. **Le poids de plage réel est une SIGMOÏDE.** Extrait du signe négatif seul
+   (une pente laisse le poids se lire), et discriminé contre l'hypothèse offset
+   par la monotonie du profil obtenu — 15 remontées contre 113, et l'extraction
+   sous offset rend un profil CROISSANT, donc pas un poids. Plat jusqu'au niveau
+   16, chute entre 32 et 96, queue maigre ; le nôtre est une puissance. Écart
+   **+0,30 au niveau 48**, et il porte aussi la chroma des deux roues de plage.
+
+**Les trois gardes qui ont tué les modèles précédents passent** : validation
+croisée **0,578 contre 3,735** niveaux sur le signe qui n'a servi à rien dans
+l'extraction ; écrasement INFÉRIEUR au modèle en service à toutes les doses (plus
+grand trou 2 contre 8 à +100, zéro niveau collé au noir à +50 contre un) ; et le
+bas de rampe, ajusté là où l'œil regarde, passe de **8,891 à 0,357** sans coûter
+au haut (2,276 contre 2,827). Le niveau 0 sort à **14,87** pour 14,33 mesuré.
+
+⚠️ **Et rien n'est posé dans `src/`.** Le poids ne s'extrait que du signe NÉGATIF,
+et **trois roues sur quatre n'ont que leur `+50`**. Poser ce modèle sur les quatre
+en n'ayant mesuré le poids que des ombres substituerait une forme mesurée sur une
+roue à une forme modélisée sur quatre — ce n'est pas un progrès mesuré. Deux
+imperfections restent aussi à expliquer : le haut de rampe demande `g` = 1,405 et
+le bas 1,690 (le brevet dit « slopes », au pluriel), et `g(+50)` n'est pas la
+réciproque de `g(−50)` — l'imposer coûte 3,594 niveaux.
+
+**La mesure qui débloque, et elle remplace celle du § suivant** : `Luminance −50`
+sur les roues **moyens, hautes lumières et globale**, sur la MIRE. Trois mesures,
+trois profils de poids que rien d'autre ne peut donner.
+
 ### ✅ CLOSE le 2026-09-18 — l'hypothèse « lumière LINÉAIRE » est RÉFUTÉE
 
 [`research/17`](../research/17-la-luminance-des-roues-n-est-ni-lineaire-ni-une-amplitude.md).
@@ -454,6 +501,11 @@ décalage pondéré de L ne le peut pas, c'est le même opérateur des deux côt
 ⚠️ Mesure manquante pour l'éprouver : `Luminance des ombres` à ±100 sur la MIRE.
 Elle ne s'ajoute pas à la campagne Détail armée (celle-ci porte une photo, et
 `go.txt` ne tient qu'une photo) — c'est une seconde course.
+
+⚠️ **SUPPLANTÉE le 2026-09-21** : research/18 a identifié la forme sans ce ±100,
+et la mesure qui débloque maintenant est `Luminance −50` sur les trois AUTRES
+roues — c'est le signe NÉGATIF qui livre un poids de plage, le lift y étant nul.
+Le ±100 des ombres reste utile pour borner l'extrapolation, il n'est plus premier.
 
 ⚠️ **Et la roue des HAUTES LUMIÈRES ne se réajuste pas** tant que son poids n'est
 pas repris : ses deux mesures donnent 0,1798 et 0,0148, une étendue de 0,165. Ce

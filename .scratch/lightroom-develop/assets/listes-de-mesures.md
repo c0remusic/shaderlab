@@ -233,3 +233,63 @@ indépendante de `trouver-photo-propre.py` donne **6,663**, et il reproduit
 l'amplification de grain de Texture que [`research/08`](../research/08-le-portail-de-texture.md)
 avait mesurée — ×1,64 à +100 et ×0,55 à −60, contre ×1,76 et ×0,53 chez elle.
 Deux chemins de code indépendants, les mêmes nombres.
+
+---
+
+## Campagne F — le signe NÉGATIF des trois autres roues (mire principale)
+
+**Pourquoi, et pourquoi CES trois mesures.** [`research/18`](../research/18-la-forme-est-une-pente-en-lumiere-lineaire-plus-un-point-noir.md)
+a identifié la forme du virage sur la roue des OMBRES : une pente en lumière
+linéaire, plus un point noir séparé qui ne sert qu'à la montée. Le poids de plage
+réel s'y est extrait — une sigmoïde, là où le nôtre est une puissance — et le
+modèle domine celui en service sur les deux domaines de la rampe.
+
+Ce qui bloque la livraison n'est pas une décision : **le poids ne s'extrait que du
+signe NÉGATIF**. C'est là que le lift est nul, donc que la pente se lit seule, et
+c'est ce qui rend l'extraction possible sans supposer d'amplitude. Or les roues
+médians, hautes lumières et globale n'ont que leur `+50`. Poser le modèle sur les
+quatre en n'ayant mesuré le poids que des ombres substituerait une forme mesurée
+sur une roue à une forme modélisée sur quatre.
+
+Les deux mesures d'appoint (`±100` des ombres) bornent l'extrapolation sur la
+dose, que research/18 a dû poser par raisonnement — un gain se compose, un lift
+s'additionne — sans pouvoir la vérifier.
+
+⚠️ **Ne PAS armer tant que la campagne E n'a pas rendu ses exports** :
+`shaderlab-mesures-go.txt` ne tient qu'UNE photo, et E porte `DSCF5171.JPG`.
+Celle-ci est sur la MIRE. C'est une seconde course, pas un ajout.
+
+`shaderlab-mesures-go.txt` :
+
+```
+C:\Users\LEETJ\Pictures\shaderlab-mire\shaderlab-mire-lightroom.jpg
+```
+
+`shaderlab-mesures-extra.txt` :
+
+```
+temoin5	
+cg-moyens-lum-m50	ColorGradeMidtoneLum=-50
+cg-hl-lum-m50	ColorGradeHighlightLum=-50
+cg-global-lum-m50	ColorGradeGlobalLum=-50
+cg-ombres-lum-p100	ColorGradeShadowLum=100
+cg-ombres-lum-m100	ColorGradeShadowLum=-100
+```
+
+| mesure | ce qu'elle donne |
+|---|---|
+| `cg-moyens-lum-m50` | le profil de poids des MÉDIANS, par la pente |
+| `cg-hl-lum-m50` | celui des HAUTES LUMIÈRES — la roue dont le poids est connu NON MONOTONE, et dont les deux mesures d'amplitude divergent (0,1798 contre 0,0148) |
+| `cg-global-lum-m50` | celui de la GLOBALE, qui n'est pas plat mais cloché sur les tons moyens |
+| `cg-ombres-lum-±100` | la borne de l'extrapolation sur la dose, aujourd'hui posée par raisonnement |
+
+**Se lit par** `assets/extraire-poids-lightroom.mjs` (le profil de poids, avec ses
+deux gardes : monotonie du profil, et discrimination contre l'hypothèse offset)
+puis `assets/courbe-bas-de-rampe.mjs` (l'ajustement sur le bas et son coût sur le
+haut). Les deux sont écrits pour la roue des ombres ; ils prendront la roue en
+paramètre à cette occasion.
+
+⚠️ **Le témoin se relit avant toute conclusion.** Sur la rampe des ombres il
+s'écarte au plus de 0,032 niveau, mais la campagne D a mesuré une dérive d'export
+de ×1,004 ailleurs : une forme lue au bas de rampe sans ce contrôle pourrait être
+la dérive.

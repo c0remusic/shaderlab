@@ -26,6 +26,45 @@ décalage constant. Sept hypothèses d'espace ont été testées et rejetées. A
 trois teintes mesurées seulement (40, 120, 220) on ne peut ni expliquer la loi ni
 l'interpoler honnêtement. Huit teintes de plus la rendent identifiable.
 
+✅ **RÉVISÉE le 2026-09-23 — même durée de course, DEUX FOIS plus de signal.**
+[`research/21`](../research/21-la-balance-n-est-pas-en-cause-c-est-la-teinte.md)
+a mesuré les trois teintes connues et a montré au passage que la forme de mesure
+décide de la moitié du résultat : `st-ombres-bleu` (roue des ombres seule) ne rend
+que **107 niveaux** où un angle se lit, quand `st-balance-m100` — même teinte,
+`SplitToningBalance=-100` — en rend **197**. La raison est mécanique : le poids des
+ombres s'éteint en haut de rampe, la chroma y passe sous le seuil de lecture et
+l'angle devient du bruit de quantification.
+
+Chiffré sur le twin (`assets/campagne-a-couverture.mjs`), qui tombe à 5 niveaux
+près des deux formes déjà mesurées chez Lightroom :
+
+| forme | niveaux lisibles (médiane sur 10 teintes) |
+|---|---|
+| roue des ombres seule — la campagne telle qu'écrite | **102** |
+| ombres + `SplitToningBalance=-100` | **218** |
+| roue GLOBALE (`ColorGradeGlobalHue`) | 245 |
+| médians seuls | 152 |
+
+Trois décisions en découlent :
+
+1. **Chaque ligne de teinte porte `SplitToningBalance=-100`.** Tout bascule du côté
+   des ombres, donc la teinte couvre la rampe entière. Coût : une clé de plus par
+   ligne, zéro mesure de plus. ⚠️ Et contrairement à `st-balance-m100`, la roue des
+   hautes lumières reste à saturation 0 : **aucune contamination** — c'est elle qui
+   faisait diverger de 4,5° les deux mesures du bleu.
+2. **Les trois teintes déjà connues sont re-mesurées sous cette forme.** 40 vit
+   aujourd'hui sur les HAUTES lumières et 140 sur les MÉDIANS : les comparer aux
+   huit neuves reviendrait à mêler trois roues. Onze teintes, une seule roue, une
+   seule forme — trois mesures de plus, et la série devient homogène.
+3. ⚠️ **Le postulat « un seul modèle de mélange, donc une seule loi de teinte pour
+   les quatre roues » n'a jamais été éprouvé**, et toute la série repose dessus.
+   Deux lignes sur la roue GLOBALE aux mêmes teintes le testent : même écart, le
+   postulat tient ; écart différent, la loi est par roue et la série ne vaut que
+   pour les ombres. ✅ La clé `ColorGradeGlobalHue` est **honorée** — vérifié sur
+   `grading2-global-bleu`, 207 niveaux de chroma ajoutée
+   (`assets/globale-cle-marche.mjs`) — contrairement à `ColorGradeShadowHue` et
+   `ColorGradeHighlightHue`, que Lightroom ignore.
+
 `shaderlab-mesures-go.txt` :
 
 ```
@@ -36,16 +75,21 @@ C:\Users\LEETJ\Pictures\shaderlab-mire\shaderlab-mire-lightroom.jpg
 
 ```
 temoin4	
-st-h000	SplitToningShadowHue=0;SplitToningShadowSaturation=60
-st-h060	SplitToningShadowHue=60;SplitToningShadowSaturation=60
-st-h090	SplitToningShadowHue=90;SplitToningShadowSaturation=60
-st-h150	SplitToningShadowHue=150;SplitToningShadowSaturation=60
-st-h180	SplitToningShadowHue=180;SplitToningShadowSaturation=60
-st-h270	SplitToningShadowHue=270;SplitToningShadowSaturation=60
-st-h300	SplitToningShadowHue=300;SplitToningShadowSaturation=60
-st-h330	SplitToningShadowHue=330;SplitToningShadowSaturation=60
-st-ombres-sat20	SplitToningShadowHue=220;SplitToningShadowSaturation=20
-st-ombres-sat100	SplitToningShadowHue=220;SplitToningShadowSaturation=100
+st-h000	SplitToningShadowHue=0;SplitToningShadowSaturation=60;SplitToningBalance=-100
+st-h040	SplitToningShadowHue=40;SplitToningShadowSaturation=60;SplitToningBalance=-100
+st-h060	SplitToningShadowHue=60;SplitToningShadowSaturation=60;SplitToningBalance=-100
+st-h090	SplitToningShadowHue=90;SplitToningShadowSaturation=60;SplitToningBalance=-100
+st-h140	SplitToningShadowHue=140;SplitToningShadowSaturation=60;SplitToningBalance=-100
+st-h150	SplitToningShadowHue=150;SplitToningShadowSaturation=60;SplitToningBalance=-100
+st-h180	SplitToningShadowHue=180;SplitToningShadowSaturation=60;SplitToningBalance=-100
+st-h220	SplitToningShadowHue=220;SplitToningShadowSaturation=60;SplitToningBalance=-100
+st-h270	SplitToningShadowHue=270;SplitToningShadowSaturation=60;SplitToningBalance=-100
+st-h300	SplitToningShadowHue=300;SplitToningShadowSaturation=60;SplitToningBalance=-100
+st-h330	SplitToningShadowHue=330;SplitToningShadowSaturation=60;SplitToningBalance=-100
+cg-glob-h040	ColorGradeGlobalHue=40;ColorGradeGlobalSat=60
+cg-glob-h220	ColorGradeGlobalHue=220;ColorGradeGlobalSat=60
+st-ombres-sat20	SplitToningShadowHue=220;SplitToningShadowSaturation=20;SplitToningBalance=-100
+st-ombres-sat100	SplitToningShadowHue=220;SplitToningShadowSaturation=100;SplitToningBalance=-100
 cg-fusion-25	SplitToningShadowHue=220;SplitToningShadowSaturation=60;SplitToningHighlightHue=40;SplitToningHighlightSaturation=60;ColorGradeBlending=25
 cg-fusion-75	SplitToningShadowHue=220;SplitToningShadowSaturation=60;SplitToningHighlightHue=40;SplitToningHighlightSaturation=60;ColorGradeBlending=75
 st-balance-m50	SplitToningShadowHue=220;SplitToningShadowSaturation=60;SplitToningHighlightHue=40;SplitToningHighlightSaturation=60;SplitToningBalance=-50
@@ -53,10 +97,29 @@ st-balance-p50	SplitToningShadowHue=220;SplitToningShadowSaturation=60;SplitToni
 temperature-m50	IncrementalTemperature=-50
 ```
 
-Les deux saturations donnent la loi d'amplitude, les doses intermédiaires de
-fusion et de balance comblent les trous qui rendaient leurs lois indéterminées, et
-`temperature-m50` est la dose qui manquait au milieu du retournement de la branche
-froide de la balance des blancs — sans elle, ses paliers restent bloqués.
+**Onze teintes** (`st-h*`), toutes sur la roue des ombres à Balance −100 : huit
+neuves plus les trois déjà connues, re-mesurées sous cette forme pour que la série
+soit homogène. **Deux contrôles de roue** (`cg-glob-h040`, `cg-glob-h220`)
+éprouvent le postulat « une seule loi pour les quatre roues », sur lequel toute la
+série repose. Les deux saturations donnent la loi d'amplitude, les doses
+intermédiaires de fusion et de balance comblent les trous qui rendaient leurs lois
+indéterminées, et `temperature-m50` est la dose qui manquait au milieu du
+retournement de la branche froide de la balance des blancs — sans elle, ses
+paliers restent bloqués.
+
+**Se lit par `assets/balance-isole-les-teintes.mjs`**, qui prend le nom de scène et
+la teinte posée, et rend l'angle mesuré, l'angle calculé, leur écart et
+l'écart-type sur les niveaux lus. ⚠️ **Lire l'écart-type avant l'écart** : sur les
+scènes déjà au disque il vaut 0,83° à 4,19°, et une teinte dont il monterait
+beaucoup signalerait que l'angle y dérive avec le niveau — ce qui ne se corrige
+pas par une rotation.
+
+⚠️ **Elle ne peut pas être armée tant que la campagne E occupe `go.txt`** (une
+seule photo par course, et E porte `DSCF5171.JPG`). A et F sont toutes deux sur la
+mire ; elles pourraient fusionner en une seule course si le besoin s'en fait
+sentir, mais **A est la plus rentable des deux** — elle vise le premier poste
+d'erreur du module, et research/21 en chiffre le gain à au moins −17,5 % de
+moyenne et −26,3 % de pire cas.
 
 ---
 

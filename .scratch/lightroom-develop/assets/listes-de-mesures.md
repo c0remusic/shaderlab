@@ -114,12 +114,34 @@ scènes déjà au disque il vaut 0,83° à 4,19°, et une teinte dont il montera
 beaucoup signalerait que l'angle y dérive avec le niveau — ce qui ne se corrige
 pas par une rotation.
 
-⚠️ **Elle ne peut pas être armée tant que la campagne E occupe `go.txt`** (une
-seule photo par course, et E porte `DSCF5171.JPG`). A et F sont toutes deux sur la
-mire ; elles pourraient fusionner en une seule course si le besoin s'en fait
-sentir, mais **A est la plus rentable des deux** — elle vise le premier poste
-d'erreur du module, et research/21 en chiffre le gain à au moins −17,5 % de
-moyenne et −26,3 % de pire cas.
+🔴 **ARMÉE le 2026-09-23, sur décision d'Antoine.** Les deux sentinelles sont
+posées dans `Documents/` — **21 lignes, 64 clés, 11 teintes, 2 contrôles de roue**
+— et n'attendent qu'un redémarrage de Lightroom. ⚠️ **Elle a DÉSARMÉ la campagne E**
+(Détail), qui occupait `go.txt` avec `DSCF5171.JPG` sans jamais avoir été lancée :
+une seule photo par course. E se réarme depuis son propre bloc plus bas, rien
+n'est perdu.
+
+Deux précautions prises à l'armement, et elles valent d'être refaites tel quel :
+
+- **le bloc n'est pas retapé**, il est extrait de ce fichier par ancres — donc ce
+  qui est armé est exactement ce qui est versionné, et les TABULATIONS survivent ;
+- **LF pur, jamais CRLF.** Le parseur lit les valeurs en `([%w]+)=([^;]+)`, donc la
+  dernière paire de chaque ligne capture jusqu'à la fin de ligne : un `\r` y
+  entrerait et `tonumber("-100\r")` rendrait `nil`. La campagne perdrait en
+  silence une clé par ligne — et ce serait `SplitToningBalance=-100`, celle que
+  toute cette révision ajoute. ⚠️ Le `go.txt` de la campagne E était en CRLF ; il
+  survit parce qu'un `gsub("%s+$", "")` le nettoie, ce qui n'existe pas côté
+  `extra.txt`.
+
+Le parseur Lua est **simulé avant de poser** (`assets/armer-campagne-a.py`, gardé
+au scratchpad de session) : une ligne qui ne matcherait pas
+`^([%w%-%_]+)\t(.*)$` est ignorée EN SILENCE par le plugin, et une course coûte un
+redémarrage plus une quinzaine de minutes.
+
+A et F sont toutes deux sur la mire et pourraient fusionner en une seule course ;
+**A est la plus rentable des deux** — elle vise le premier poste d'erreur du
+module, et research/21 en chiffre le gain à au moins −17,5 % de moyenne et
+−26,3 % de pire cas.
 
 ---
 
@@ -256,6 +278,12 @@ côtés chez Lightroom, ce qui n'existe pas.
 ---
 
 ## Campagne E — le panneau DÉTAIL (photo boîtier)
+
+⚠️ **DÉSARMÉE le 2026-09-23 au profit de la campagne A**, sur décision d'Antoine.
+Elle avait été armée plusieurs jours sans être lancée, et `go.txt` ne tient qu'une
+photo. **Rien n'est perdu** : les deux sentinelles se réécrivent depuis le bloc
+ci-dessous, à la même mécanique que celle décrite au bloc A — extraction par
+ancres, LF pur, parseur simulé avant de poser.
 
 **Pourquoi.** [`research/15`](../research/15-l-anneau-de-texture-est-un-debruitage-manquant.md)
 établit que l'anneau de Texture n'est pas un défaut de portail mais un

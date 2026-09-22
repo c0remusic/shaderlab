@@ -2116,7 +2116,32 @@ sont mesurés le jour même.
   sans rien fermer : raidir une rampe l'approche d'une cloche sans en faire une.
   ⚠️ **Rien n'est posé dans `src/`** — deux des quatre centres (ombres, globale) ne
   sont pas citables, leur poids étant maximal là où le lift domine ; ils attendent
-  la campagne F comme le reste. **Sa CONSÉQUENCE est corrigée le
+  la campagne F comme le reste.
+  ⚠️ **ET POSER LA CLOCHE SEULE A ÉTÉ ESSAYÉ LE MÊME JOUR, PUIS REFUSÉ.**
+  [`research/20`](../.scratch/lightroom-develop/research/20-la-cloche-ne-transfere-pas-et-ce-qu-elle-a-trouve-a-la-place.md).
+  Le poids étant un facteur séparé de l'opérateur, le remplacer ne demandait ni la
+  campagne F ni le modèle courbe — l'essai était donc disponible tout de suite.
+  **Posée au centre mesuré, la cloche rend 4,37 niveaux contre 4,17 en service :
+  elle est PLUS MAUVAISE que la rampe qu'elle devait corriger.** Raison, et c'est
+  le symétrique exact du piège de research/18 : le poids a été extrait en
+  inversant le modèle en COURBE, et l'injecter dans un opérateur saturant mesure
+  les deux à la fois. La cloche et la courbe vont ensemble ou pas du tout.
+  ⚠️ Une gaussienne librement ajustée descend bien à 4,02, mais **65 % du gain
+  vient d'UNE scène** et son centre (0,93) est loin du centre mesuré (0,810) — une
+  gaussienne de centre 0,93 sur [0,1] est une rampe adoucie, donc ce qui gagne
+  n'est pas ce qui a été mesuré. Sur-ajustement sur treize scènes, refusé.
+  ✅ **Ce que l'essai a trouvé à la place, et qui vaut mieux** : le pire cas des
+  treize mesures, **41,0 sur `st-balance-p100`** depuis le début et qu'aucune
+  correction de poids n'avait fait bouger, **tombe à 15,2** sous n'importe quelle
+  forme bornée en haut de rampe. Le défaut vit donc dans **ce que la Balance fait
+  à `alpha`** — à +100 le décalage rend `α^g` très raide — et pas dans la forme du
+  poids des hautes lumières. Piste neuve, ciblée, chiffrée d'avance, qui ne demande
+  ni la campagne F ni le modèle courbe.
+  ⚠️ Et un fait sur notre code, indépendant de tout ça : `wh` sert **à la fois** la
+  chroma (décalage additif de `a`/`b`) et la luminance (`appliqueLum`, saturant).
+  Ce partage n'a jamais été mesuré, il est postulé — et la cloche appliquée partout
+  AMÉLIORE la chroma (`st-hl-orange` 2,15 → 1,65, pire cas 26,3 → 16,2) pendant
+  qu'elle DÉGRADE la luminance (2,57 → 2,87). **Sa CONSÉQUENCE est corrigée le
   2026-09-15, sa CAUSE réduite mais non fermée** : le décalage additif écrasait onze
   niveaux de rampe à 255 dès `Luminance des hautes lumières` +50 (dix-neuf à +100) ;
   la saturation contre la borne (`appliqueLum`) ramène ça à cinq, et le raidissement

@@ -2089,7 +2089,34 @@ sont mesurés le jour même.
 - ⚠️ **Le poids des hautes lumières du Color Grading est NON MONOTONE** — il culmine
   au niveau 205 puis retombe à 0,26 au niveau 248. Aucune homographie ne rend ça,
   et c'est la seule des treize mesures de virage qui régresse après la refonte
-  des poids (`eb1ea2a`). Hérité du 2026-09-14. **Sa CONSÉQUENCE est corrigée le
+  des poids (`eb1ea2a`). Hérité du 2026-09-14.
+  ✅ **SA CAUSE EST TROUVÉE le 2026-09-22, et ce n'est pas une anomalie : c'est une
+  CLOCHE modélisée par une rampe.**
+  [`research/19`](../.scratch/lightroom-develop/research/19-les-poids-de-plage-sont-quatre-cloches.md),
+  sans aucune mesure Lightroom neuve — l'instrument de research/18 inverse
+  l'opérateur niveau par niveau, et les 256 niveaux des QUATRE roues tombent dans
+  [0, 1] (pire dépassement 0,011), donc l'hypothèse « mêmes constantes pour les
+  quatre » n'est pas falsifiée. **Le premier soupçon était faux et la mesure l'a
+  refusé** : la retombée n'est PAS un écrêtage — la sortie mesurée n'atteint jamais
+  254,5 avant le niveau 255, et l'écart à la diagonale redescend en douceur
+  (13,01 au niveau 205, puis 11,00 · 8,34 · 4,60 · 2,47 · 1,00 · 0,00) là où un
+  plafond le garderait maximal. Les quatre profils sont **quatre gaussiennes sur L**
+  (centres 0,130 · 0,570 · **0,810** · 0,450 ; résidus 0,004 à 0,019 pour des
+  hauteurs de 0,18 à 1,02), et **une homographie est monotone quand une cloche ne
+  l'est pas** — le mot qui manquait à ce constat. Le centre des hautes lumières
+  vaut **0,810 sous les trois jeux de constantes d'extraction, étendue 0,000**.
+  ⚠️ **Validation croisée non planifiée** : les médians rendent une demi-largeur de
+  **0,145** contre `midSigma = 0,144` en service — calibré, lui, sur une mesure de
+  CHROMA quand celle-ci vient de la LUMINANCE. Deux jeux disjoints, 0,001 d'écart.
+  **Ce que ça explique** : notre `wh = α^g · cov` culmine au niveau **253** (0,971)
+  quand Lightroom culmine au **200** (0,217) et est retombé à 0,044 où nous valons
+  encore 0,899. Nous poussons là où Lightroom a lâché — et une roue de hautes
+  lumières qui laisse le blanc pur intact DOIT retomber à zéro au blanc, sinon elle
+  déplacerait le blanc. C'est aussi pourquoi `rangeContrast` améliorait tout un peu
+  sans rien fermer : raidir une rampe l'approche d'une cloche sans en faire une.
+  ⚠️ **Rien n'est posé dans `src/`** — deux des quatre centres (ombres, globale) ne
+  sont pas citables, leur poids étant maximal là où le lift domine ; ils attendent
+  la campagne F comme le reste. **Sa CONSÉQUENCE est corrigée le
   2026-09-15, sa CAUSE réduite mais non fermée** : le décalage additif écrasait onze
   niveaux de rampe à 255 dès `Luminance des hautes lumières` +50 (dix-neuf à +100) ;
   la saturation contre la borne (`appliqueLum`) ramène ça à cinq, et le raidissement

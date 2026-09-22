@@ -157,6 +157,30 @@ reste vivante — sinon le curseur Fusion est mort sur 18 % de sa course.
 les directions de teinte sont fausses de +15,7° sur l'orange, −12,9° sur le vert
 et +26,8° sur le bleu, et la déformation n'est pas un décalage constant — sept
 hypothèses d'espace ont été testées et rejetées, la nôtre reste la moins mauvaise.
+
+✅ **RE-MESURÉ INDÉPENDAMMENT le 2026-09-23**, par un instrument qui n'inverse
+rien — l'angle de la chroma de sortie, là où une seule roue agit
+([`research/21`](../research/21-la-balance-n-est-pas-en-cause-c-est-la-teinte.md)).
+Sur les trois scènes à roue unique : orange **−15,77°**, vert **+9,21°**, bleu
+**−30,67°**. Signes opposés aux chiffres ci-dessus (convention inverse), et
+**l'orange coïncide à 0,07° près** — deux chemins de mesure indépendants, le même
+nombre. Trois faits neufs :
+- l'écart est une **rotation par teinte STABLE sur la rampe** (écart-type 0,83° à
+  4,19° sur 92 à 197 niveaux), donc pas une fonction du niveau : ça restreint la
+  forme de la loi à chercher ;
+- il **change de signe** entre 140° et {40°, 220°}, donc la loi s'annule au moins
+  deux fois sur le cercle ;
+- **le gain vaut au moins −17,5 % de moyenne et −26,3 % de pire cas.** Une
+  rotation constante de −14° — que la mesure dit pourtant fausse — fait passer les
+  treize scènes de 4,17 à **3,44** et le pire cas de 41,0 à **30,2**. Sept scènes
+  améliorées de 30 à 40 % ; la seule dégradée est `grading-moyens-vert` (3,85 →
+  8,43), dont la teinte va dans l'autre sens.
+
+⚠️ Et les deux scènes de **Balance extrême MESURENT une teinte au lieu d'être un
+défaut** : à ±100 tout bascule d'un côté, donc une seule roue agit sur presque
+toute la rampe. `st-balance-p100` portait le pire cas des treize (41,0) et il a
+été diagnostiqué deux fois comme un défaut de poids puis de Balance — **c'est la
+teinte**. Le noter évite un troisième diagnostic.
 Les poids de plage mesurés ont des traînées bien plus longues que nos smoothsteps
 (30 % du pic encore à L = 0,60 pour les ombres, là où le nôtre est déjà nul).
 Fusion est un MULTIPLICATEUR centré sur la bascule (×2,25 à la bascule, ×1 aux

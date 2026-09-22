@@ -2137,6 +2137,15 @@ sont mesurés le jour même.
   à `alpha`** — à +100 le décalage rend `α^g` très raide — et pas dans la forme du
   poids des hautes lumières. Piste neuve, ciblée, chiffrée d'avance, qui ne demande
   ni la campagne F ni le modèle courbe.
+  ⚠️ **CETTE CONCLUSION-LÀ EST FAUSSE, ET MESURÉE FAUSSE LE 2026-09-23.**
+  [`research/21`](../.scratch/lightroom-develop/research/21-la-balance-n-est-pas-en-cause-c-est-la-teinte.md).
+  La « part hautes » lue en ANGLE — donc insensible à l'amplitude et à l'écrêtage —
+  vaut **−0,21 ± 0,01 du niveau 8 au niveau 190** sur `st-balance-m100` : un
+  PLATEAU hors [0, 1], pas un partage qui dérive, donc un **biais d'angle fixe** et
+  non un défaut de partage. Et le croisement mesuré à Balance +100 tombe au niveau
+  **34** quand le nôtre est entre 24 et 48 — le point de bascule est juste,
+  `balanceMid` aussi. **Le pire cas de 41,0 est celui de la TEINTE**, premier poste
+  d'erreur déjà inventorié, et `st-balance-p100` n'est pas un défaut à instruire.
   ⚠️ Et un fait sur notre code, indépendant de tout ça : `wh` sert **à la fois** la
   chroma (décalage additif de `a`/`b`) et la luminance (`appliqueLum`, saturant).
   Ce partage n'a jamais été mesuré, il est postulé — et la cloche appliquée partout

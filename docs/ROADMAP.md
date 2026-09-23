@@ -2310,6 +2310,32 @@ changer le verdict.
 
 ---
 
+## ⚠️ OUVERT le 2026-09-23 — l'audit de spektrafilm, et une décision de licence
+
+[`.scratch/spektrafilm/research/01-audit-complet.md`](../.scratch/spektrafilm/research/01-audit-complet.md)
+(121 éléments, chacun passé devant un vérificateur adverse ; annexe à côté).
+spektrafilm simule en spectral la chaîne argentique ; son CODE est GPL-3.0 (amont
+et portage OFX), ses PROFILS d'émulsion CC BY-SA 4.0 avec un préambule qui
+revendique aussi les reproductions d'un stock nommé. **Rien n'est pris tant
+qu'Antoine n'a pas tranché la posture de licence** ; une voie entièrement
+permissive existe (spectral_film_lut MIT, colour-science BSD-3, fiches Kodak et
+Fuji à numériser nous-mêmes).
+
+- **Prendre, une session chacun** : un verrou par spectre radial pour le grain
+  (aucune métrique fréquentielle aujourd'hui, à poser AVANT de toucher au grain),
+  une mire zone plate + bord incliné, la taille de grain par canal, une
+  autoexposition.
+- **Mesurer d'abord** : Glimmerglass et la queue longue dans `glow`, les rebonds
+  de halation, les coupleurs DIR (le seul mécanisme vraiment neuf), le bleach
+  bypass, et **une courbe 1D par canal — la même machinerie que le Color Grading
+  de Lightroom** (research/23 du dossier lightroom-develop) : à construire une
+  fois pour les deux.
+- **Bloqué** : un étage film complet. Deux murs — le ping-pong 8 bits sRGB entre
+  les passes (prérequis 16 bits) et l'uniform de 48 flottants — et un coût par
+  pixel de 45 à 50 fois toute notre pile. Forme `/wayfinder`.
+- **Défaut trouvé en passant** : le commentaire de `src/render/gpuContext.ts:12-15`
+  dit les masques au format sRGB ; ils sont en `r8unorm`.
+
 ## Ce que cette feuille ne porte pas, et où c'est
 
 | Question | Fichier |

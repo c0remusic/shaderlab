@@ -140,6 +140,84 @@ ces derniers paient −12° sur les teintes 0 et 40. La teinte 0 est d'ailleurs 
 par les six meilleures familles (−7,5 à −12,6°) avec un écart-type de mesure de
 1,7 : un manque structurel, pas du bruit.
 
+## 5. Les sept mesures qui ne sont pas des teintes
+
+⚠️ La campagne en portait **vingt et une**, et les quatre sections ci-dessus n'en
+lisent que treize. Les sept autres répondent chacune à une question que le
+ticket 06 déclare ouverte (`assets/campagne-a-le-reste.mjs`).
+
+| scène | famille | écart du twin | pire |
+|---|---|---|---|
+| `st-ombres-sat20` | amplitude | **2,86** | 10,3 |
+| `st-h220` (sat 60) | amplitude | 11,86 | 39,9 |
+| **`st-ombres-sat100`** | amplitude | **21,48** | **128,4** |
+| `cg-fusion-25` | fusion | 4,89 | 24,7 |
+| `cg-fusion-75` | fusion | 5,21 | 28,1 |
+| `st-balance-m50` | balance | 7,17 | 30,0 |
+| `st-balance-p50` | balance | 4,99 | 32,2 |
+
+### La BALANCE est linéaire, et sur l'axe sRGB
+
+Le niveau où les deux teintes du duo se croisent, aux cinq doses désormais
+mesurées :
+
+| balance | −100 | −50 | 0 | +50 | +100 |
+|---|---|---|---|---|---|
+| croisement | 229 | 179 | 128 | 77 | 25 |
+
+Pas d'écart : **50, 51, 51, 52** niveaux par cinquante unités. La linéarité est
+exacte, **en niveau sRGB** — un quatrième argument indépendant pour l'axe que la
+table avait choisi sur trois.
+
+### L'AMPLITUDE est proportionnelle en bas, et sature en haut
+
+| rapport de chroma | mesuré | attendu si proportionnel |
+|---|---|---|
+| sat 20 / sat 60 | **0,347** | 0,333 |
+| sat 100 / sat 60 | **1,409** | 1,667 |
+
+À basse saturation le modèle est juste à 4 % ; à saturation 100 il **sur-applique
+de 18 %**. C'est le premier chiffre qu'on ait sur la loi d'amplitude, que
+research/22 §4 nommait comme le chantier suivant.
+
+### ⚠️ Et le pire écart de la campagne dit l'inverse de ce qu'on croit
+
+`st-ombres-sat100` porte 21,48 de moyenne et **128,4 de pire cas**. En l'ouvrant :
+
+| niveau | 96 | 128 | 150 | 158 | 190 |
+|---|---|---|---|---|---|
+| Lightroom, canal R | **0,0** | **0,1** | **0** | **0,1** | 138 |
+| twin, canal R | 55 | 92 | 119 | 129 | 169 |
+| chroma Lightroom | 0,1007 | 0,1135 | 0,1201 | **0,1219** | 0,0665 |
+| chroma twin | 0,1283 | 0,1103 | 0,0953 | **0,0891** | 0,0612 |
+
+**Lightroom écrête 129 niveaux, le twin 49.** Il laisse le rouge tomber à zéro sur
+toute la plage 64–160 pendant que nous le retenons — et sa chroma y est PLUS forte
+que la nôtre, pas plus faible. Le rapport global de 1,409 est donc une moyenne qui
+mélange deux régimes, et la sur-application du modèle n'est pas uniforme.
+
+⚠️ Ça touche `clipGamut`, introduit précisément parce qu'un écrêtage PAR CANAL
+« fait dériver la teinte » — il avait amélioré la parité de 7,50 à 6,51 niveaux. À
+saturation 100, Lightroom laisse pourtant un canal entier à zéro. **Fait mesuré, pas
+conclusion sur le mécanisme** : il faudra distinguer « Lightroom écrête par canal »
+de « Lightroom applique autre chose qui aboutit à R = 0 ».
+
+### La FUSION est convexe
+
+Chroma au niveau 160, le repère de `blendDepth`, aux cinq doses :
+
+| fusion | 0 | 25 | 50 | 75 | 100 |
+|---|---|---|---|---|---|
+| chroma | 0,0119 | 0,0146 | 0,0161 | 0,0206 | 0,0292 |
+
+La progression **accélère** (+27, +15, +45, +86 en dix-millièmes) : la courbe est
+convexe, ce que les trois points d'avant ne pouvaient pas montrer. ⚠️ Le creux
+entre 25 et 50 est le seul pas qui ralentit, et le point à 50 vient d'une AUTRE
+campagne — à re-mesurer avant d'ajuster une forme dessus.
+
+`temperature-m50` n'appartient pas à ce module : elle nourrit la balance des
+blancs, et reste à dépouiller avec sa famille.
+
 ## Ce qui n'est pas posé, et pourquoi
 
 **Rien dans `src/`.** La direction ProPhoto gagne d'un facteur 2,4 et ce serait le

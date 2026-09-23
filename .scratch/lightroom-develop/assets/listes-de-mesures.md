@@ -114,9 +114,18 @@ scènes déjà au disque il vaut 0,83° à 4,19°, et une teinte dont il montera
 beaucoup signalerait que l'angle y dérive avec le niveau — ce qui ne se corrige
 pas par une rotation.
 
-🔴 **ARMÉE le 2026-09-23, sur décision d'Antoine.** Les deux sentinelles sont
-posées dans `Documents/` — **21 lignes, 64 clés, 11 teintes, 2 contrôles de roue**
-— et n'attendent qu'un redémarrage de Lightroom. ⚠️ **Elle a DÉSARMÉ la campagne E**
+✅ **LANCÉE ET DÉPOUILLÉE le 2026-09-23.** Course de 05:43:41 à 05:43:59, 21
+exports. Les onze teintes rendent **202 à 219 niveaux lisibles** chacune — la
+révision ci-dessous a bien doublé le signal, le twin prédisait 218. Résultats :
+[`research/22`](../research/22-la-campagne-a-et-la-direction-de-teinte.md).
+En deux lignes : **la direction de teinte vient de ProPhoto** (5,00° contre 13,42°
+en service sur l'angle, 3,77 contre 8,87 niveaux sur les rampes), et **l'ancienne
+question était mal posée** — la direction n'est pas définie pour six teintes sur
+onze, l'anomalie du bleu à +21,3° était un artefact de lecture près d'un point de
+branchement d'OKLab, et elle tombe à +2,0° à mi-saturation.
+
+🔴 **ARMÉE le 2026-09-23, sur décision d'Antoine.** Les deux sentinelles ont été
+posées dans `Documents/` — **21 lignes, 64 clés, 11 teintes, 2 contrôles de roue**. ⚠️ **Elle a DÉSARMÉ la campagne E**
 (Détail), qui occupait `go.txt` avec `DSCF5171.JPG` sans jamais avoir été lancée :
 une seule photo par course. E se réarme depuis son propre bloc plus bas, rien
 n'est perdu.

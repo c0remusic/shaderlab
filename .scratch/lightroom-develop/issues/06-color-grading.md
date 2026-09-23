@@ -158,6 +158,27 @@ les directions de teinte sont fausses de +15,7° sur l'orange, −12,9° sur le 
 et +26,8° sur le bleu, et la déformation n'est pas un décalage constant — sept
 hypothèses d'espace ont été testées et rejetées, la nôtre reste la moins mauvaise.
 
+✅ **LA CAMPAGNE A EST LANCÉE ET DÉPOUILLÉE le 2026-09-23** —
+[`research/22`](../research/22-la-campagne-a-et-la-direction-de-teinte.md), onze
+teintes, 202 à 219 niveaux lisibles chacune. **La direction de teinte vient de
+ProPhoto** : sur 28 familles à zéro paramètre, ProPhoto D50/Bradford linéaire rend
+**5,00°** contre **13,42°** au modèle en service, et sur les rampes entières en
+niveaux sRGB **3,77 contre 8,87**. Deux métriques indépendantes, facteur ~2,5. Le
+LINÉAIRE bat l'ENCODÉ sur les cinq gamuts testés.
+⚠️ **Mais l'ancienne question était mal posée, et rien n'est posé dans `src/`** :
+la direction ProPhoto n'est PAS stable en saturation (étendue 0,8° à **33,1°** selon
+la teinte), donc elle n'est pas définie pour six teintes sur onze. L'anomalie du
+bleu à +21,3° était un artefact de lecture — le sRGB linéaire y est hors gamut et
+la composante `l` du LMS d'OKLab traverse zéro à 8,5° de là, où `cbrt` a une
+dérivée infinie ; à mi-saturation elle tombe à **+2,0°**.
+⚠️ Et **deux défauts plus profonds** que la campagne révèle sans qu'on les
+cherche : l'angle mesuré **dépend de L** (pentes −8,3 à +12,9 °/L), ce qu'un vecteur
+ajouté en OKLab ne peut pas produire ; et la chroma ajoutée **varie d'un facteur
+1,77 selon la teinte** alors qu'une direction unitaire impose l'égalité. L'hypothèse
+qui expliquait les deux — « l'addition a lieu en ProPhoto » — est RÉFUTÉE par la
+mesure (7,11 niveaux contre 3,77). Prochain geste : la loi d'AMPLITUDE, que les
+onze scènes portent déjà et que personne n'a lue.
+
 ✅ **RE-MESURÉ INDÉPENDAMMENT le 2026-09-23**, par un instrument qui n'inverse
 rien — l'angle de la chroma de sortie, là où une seule roue agit
 ([`research/21`](../research/21-la-balance-n-est-pas-en-cause-c-est-la-teinte.md)).

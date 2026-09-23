@@ -2318,9 +2318,8 @@ spektrafilm simule en spectral la chaîne argentique ; son CODE est GPL-3.0 (amo
 et portage OFX), ses PROFILS d'émulsion CC BY-SA 4.0 avec un préambule qui
 revendique aussi les reproductions d'un stock nommé. ✅ **Licence tranchée le
 jour même** : shaderlab est un outil perso, « je me fiche de la licence » —
-code et profils utilisables. Seule réserve : le dépôt GitHub est PUBLIC, donc du
-code dérivé de GPL n'y entre qu'avec un LICENSE GPL-3.0 ou un dépôt privé, à
-décider par Antoine. Et l'**étage film** l'intéresse : chantier de plusieurs
+code et profils utilisables, et le dépôt passe en **GPL-3.0-or-later** (`LICENSE`)
+pour que du code GPL puisse y entrer. Et l'**étage film** l'intéresse : chantier de plusieurs
 sessions, forme `/wayfinder`.
 
 - **Prendre, une session chacun** : un verrou par spectre radial pour le grain

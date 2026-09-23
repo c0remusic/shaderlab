@@ -74,6 +74,8 @@ Quelques points d'entrée :
 
 ## Licence
 
-Aucune licence n'est attachée à ce dépôt : tous droits réservés. Le code est
-lisible, pas réutilisable — si ça doit changer un jour, ce sera par un fichier
-`LICENSE` explicite.
+GNU General Public License, version 3 ou ultérieure (`GPL-3.0-or-later`) — texte
+intégral dans [`LICENSE`](LICENSE). Choisie le 2026-09-23 : shaderlab est un outil
+personnel, et la GPL permet d'y intégrer des travaux eux-mêmes sous GPL, comme la
+simulation argentique [spektrafilm](https://github.com/andreavolpato/spektrafilm).
+Toute donnée tierce intégrée garde sa propre licence, citée à côté d'elle.

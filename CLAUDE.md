@@ -54,9 +54,11 @@ shader GPU (pipeline RAW fermé). C'est cette origine qui explique la barre de
 qualité ci-dessous. ✅ **Positionnement TRANCHÉ le 2026-09-23 : outil perso.**
 Antoine : « je me fiche de la licence, le logiciel est juste pour moi » — donc du
 code GPL (spektrafilm) ou des données CC BY-SA peuvent entrer, et le brevet B220
-ne freine pas le Color Grading. ⚠️ Seule réserve mécanique : le dépôt GitHub est
-PUBLIC et sans licence, et y pousser du code dérivé de GPL n'est conforme qu'avec
-un LICENSE GPL-3.0 ou un dépôt privé — choix d'Antoine, pas un geste d'agent.
+ne freine pas le Color Grading. ✅ Le dépôt, PUBLIC, est passé en
+**GPL-3.0-or-later** le même jour (`LICENSE`, décision déléguée par Antoine ; le
+privé écarté pour les restrictions GitHub). Du code GPL peut donc y entrer ; une
+donnée tierce garde sa licence, citée à côté d'elle (profils spektrafilm : CC
+BY-SA 4.0, attribution obligatoire).
 
 **Exigence qualité explicite** : pas de rendu "filtre Photoshop 2005".
 Chaque effet a une version pipeline (naïve) puis un upgrade qualité

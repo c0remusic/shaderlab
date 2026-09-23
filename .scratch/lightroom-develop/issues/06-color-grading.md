@@ -179,6 +179,24 @@ qui expliquait les deux — « l'addition a lieu en ProPhoto » — est RÉFUTÉ
 mesure (7,11 niveaux contre 3,77). Prochain geste : la loi d'AMPLITUDE, que les
 onze scènes portent déjà et que personne n'a lue.
 
+✅ **LE BREVET B220 EST LU LE 2026-09-23, ET IL CHANGE L'OPÉRATEUR** —
+[`research/23`](../research/23-le-brevet-b220-decrit-l-operateur.md). Le titre
+trouvé dans le binaire le 2026-09-18 est
+[US 7 830 548 B2](https://patents.google.com/patent/US7830548B2/en) : trois courbes
+PAR CANAL, clouées au noir et au blanc, teinte portée par les pentes aux bouts,
+invariance de luminance, cubique d'Hermite. **Le fait établi** : les courbes lues
+sur la rampe grise, réappliquées canal par canal en primaires ProPhoto aux
+balayages colorés, rendent Lightroom à **0,44–0,55 niveau** sur huit scènes (roue
+des moyens comprise) ; **notre twin rate de 4,6 à 23,0**. L'erreur sur image
+colorée est structurelle, pas une affaire de constantes. Roue globale = le brevet
+à 1 degré de liberté (1,07 / 1,09 contre 20,4 / 14,0 au twin) ; Balance = `divMap`
+sur l'abscisse sRGB encodée, `a = (255 − c)/c` ; les « cloches » de research/19 et
+le poids « non monotone » des hautes lumières sont le clouage. Restent ouverts :
+les jaunes (+25 % de Y au niveau 128 de `st-h060`, aucune invariance unique ne les
+tient), la roue des ombres (~3 niveaux), la moitié du déplacement de Balance. ⚠️
+Brevet **actif jusqu'au 2027-04-11** selon Google Patents : rien n'est posé dans
+`src/`, et poser la CONSTRUCTION des pentes est une décision d'Antoine.
+
 ✅ **RE-MESURÉ INDÉPENDAMMENT le 2026-09-23**, par un instrument qui n'inverse
 rien — l'angle de la chroma de sortie, là où une seule roue agit
 ([`research/21`](../research/21-la-balance-n-est-pas-en-cause-c-est-la-teinte.md)).

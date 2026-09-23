@@ -2161,6 +2161,15 @@ sont mesurés le jour même.
   encore 0,4 niveau de parité et fait repasser l'écrasement à neuf (essai mesuré,
   refusé). Détail, validation croisée et les dix points de la revue adverse au
   ticket 06 de `.scratch/lightroom-develop/`.
+  ✅ **ET LE 2026-09-23 L'OPÉRATEUR ENTIER EST IDENTIFIÉ — le brevet que le binaire
+  citait.** [`research/23`](../.scratch/lightroom-develop/research/23-le-brevet-b220-decrit-l-operateur.md).
+  Lightroom applique **trois courbes 1D, une par canal, en primaires ProPhoto** :
+  lues sur la rampe grise et réappliquées aux entrées colorées, elles rendent
+  **0,44–0,55 niveau** sur huit scènes quand notre twin OKLab rate de **4,6 à
+  23,0**. La non-monotonie ci-dessus est le clouage noir → noir, blanc → blanc de
+  ces courbes. **Rien n'est posé** : construction des pentes partielle (jaunes
+  inexpliqués, ombres à ~3 niveaux), et le brevet US 7 830 548 est actif jusqu'au
+  2027-04-11 — décision d'Antoine.
 - ✅ **LA FORME EST IDENTIFIÉE le 2026-09-21 — pente en lumière linéaire, plus un
   point noir séparé.** [`research/18`](../.scratch/lightroom-develop/research/18-la-forme-est-une-pente-en-lumiere-lineaire-plus-un-point-noir.md).
   La piste que research/17 laissait ouverte est mesurée, discriminée contre son

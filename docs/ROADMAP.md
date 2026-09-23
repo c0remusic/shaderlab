@@ -2333,8 +2333,9 @@ Fuji à numériser nous-mêmes).
 - **Bloqué** : un étage film complet. Deux murs — le ping-pong 8 bits sRGB entre
   les passes (prérequis 16 bits) et l'uniform de 48 flottants — et un coût par
   pixel de 45 à 50 fois toute notre pile. Forme `/wayfinder`.
-- **Défaut trouvé en passant** : le commentaire de `src/render/gpuContext.ts:12-15`
-  dit les masques au format sRGB ; ils sont en `r8unorm`.
+- ✅ **Défaut trouvé en passant, corrigé le même jour** : le commentaire de
+  `src/render/gpuContext.ts` disait les masques au format sRGB ; ils sont en
+  `r8unorm`.
 
 ## Ce que cette feuille ne porte pas, et où c'est
 

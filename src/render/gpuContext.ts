@@ -9,10 +9,12 @@ export interface GpuContext {
   canvasFormat: GPUTextureFormat;
   /** sRGB view format to request when creating a view of the canvas's
    *  current texture, so the final composite pass still gets automatic
-   *  linear→sRGB encoding on write. All OFF-SCREEN intermediate render
-   *  targets (ping-pong buffers, mask textures) are created directly with
-   *  this format via createTexture() — that restriction only applies to
-   *  GPUCanvasContext.configure(), not to regular textures. */
+   *  linear→sRGB encoding on write. The OFF-SCREEN colour ping-pong buffers
+   *  are created directly with this format via createTexture() — that
+   *  restriction only applies to GPUCanvasContext.configure(), not to regular
+   *  textures. Mask textures do NOT use it: they are single-channel `r8unorm`
+   *  (maskTextureResolver.ts), with `r16float`/`rg16float` intermediates for
+   *  the edge-aware filter (src/mask/edgeAware*.ts). */
   srgbFormat: GPUTextureFormat;
 }
 

@@ -191,10 +191,60 @@ function appliqueLum(L: number, dL: number): number {
   return dL >= 0 ? L + h * d : L - h * d;
 }
 
+// ── LES PRIMAIRES PROPHOTO ───────────────────────────────────────────────────
+// sRGB linéaire (D65) ↔ ProPhoto linéaire (D50), adaptation de Bradford (matrices
+// de Lindbloom). Le blanc sRGB arrive au blanc ProPhoto, donc un gris reste un
+// gris de même valeur dans les deux espaces. Écrites UNE fois : le corps WGSL
+// interpole les deux matrices dérivées.
+type Mat3 = readonly [Vec3, Vec3, Vec3];
+const PROPHOTO_VERS_XYZ_D50: Mat3 = [[0.7976749, 0.1351917, 0.0313534], [0.2880402, 0.7118741, 0.0000857], [0, 0, 0.82521]];
+const XYZ_D50_VERS_SRGB: Mat3 = [[3.1338561, -1.6168667, -0.4906146], [-0.9787684, 1.9161415, 0.033454], [0.0719453, -0.2289914, 1.4052427]];
+const ap3 = (m: Mat3, v: Vec3): Vec3 => [
+  m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2],
+  m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2],
+  m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2],
+];
+const mul3 = (a: Mat3, b: Mat3): Mat3 =>
+  a.map((ligne) => [0, 1, 2].map((j) => ligne[0] * b[0][j] + ligne[1] * b[1][j] + ligne[2] * b[2][j]) as Vec3) as unknown as Mat3;
+function inverse3(m: Mat3): Mat3 {
+  const [a, b, c] = m[0], [d, e, g] = m[1], [h, i, k] = m[2];
+  const det = a * (e * k - g * i) - b * (d * k - g * h) + c * (d * i - e * h);
+  return [
+    [(e * k - g * i) / det, (c * i - b * k) / det, (b * g - c * e) / det],
+    [(g * h - d * k) / det, (a * k - c * h) / det, (c * d - a * g) / det],
+    [(d * i - e * h) / det, (b * h - a * i) / det, (a * e - b * d) / det],
+  ];
+}
+export const PROPHOTO_VERS_SRGB: Mat3 = mul3(XYZ_D50_VERS_SRGB, PROPHOTO_VERS_XYZ_D50);
+export const SRGB_VERS_PROPHOTO: Mat3 = inverse3(PROPHOTO_VERS_SRGB);
+
 /**
  * Twin CPU du shader. `rgb` LINÉAIRE, `p` les 14 paramètres dans l'ordre du uniform
  * (0..2 ombres teinte/sat/lum ; 3..5 tons moyens ; 6..8 hautes lumières ; 9..11
  * global ; 12 fusion ; 13 balance). Résultat linéaire.
+ *
+ * ── CANAL PAR CANAL, EN PRIMAIRES PROPHOTO (2026-09-29) ──────────────────────
+ *
+ * Lightroom n'applique PAS son virage au pixel : il applique TROIS COURBES 1D, une
+ * par canal, en primaires ProPhoto — c'est la FIG. 1B du brevet que son binaire
+ * cite (US 7 830 548, research/23 du dossier lightroom-develop). Mesuré sans
+ * modèle : les courbes lues sur sa rampe grise, réappliquées canal par canal aux
+ * entrées colorées, rendent sa sortie à 0,44–0,55 niveau ; la même structure en
+ * primaires sRGB rend 8,04.
+ *
+ * Notre opérateur (`gradeOklab`) reste donc tel quel, mais il ne sert plus qu'à
+ * DÉFINIR ces courbes : la sortie du canal c est le canal c, en ProPhoto, de
+ * l'opérateur appliqué au GRIS de même valeur. Sur une rampe grise les deux formes
+ * sont identiques (écart max 1,2 × 10⁻⁴ niveau), donc les treize scènes de
+ * `verifier-grading.mjs` ne bougent pas ; sur les entrées colorées des 32 scènes
+ * mesurées, l'écart moyen tombe de 14,68 à 9,08 niveaux, jusqu'à un facteur 4 là
+ * où la courbe grise est juste (`st-hl-orange` 10,84 → 2,27). Ce qui reste est
+ * l'erreur de la COURBE, que la structure ne peut pas rattraper
+ * (`canal-par-canal-twin.mjs`).
+ *
+ * La sortie est écrêtée canal par canal, comme l'export de Lightroom : une courbe
+ * restée dans [0, 1] en ProPhoto peut sortir du gamut sRGB, et c'est ainsi qu'il
+ * laisse le rouge à 0 sur `st-ombres-sat100`.
  */
 export function colorGradingSpec(rgb: Vec3, p: readonly number[]): Vec3 {
   const shSat = p[1], mSat = p[4], hSat = p[7], gSat = p[10];
@@ -203,6 +253,21 @@ export function colorGradingSpec(rgb: Vec3, p: readonly number[]): Vec3 {
       shLum === 0 && mLum === 0 && hLum === 0 && gLum === 0) {
     return [rgb[0], rgb[1], rgb[2]];
   }
+  const pp = ap3(SRGB_VERS_PROPHOTO, rgb);
+  const sortie: Vec3 = [0, 0, 0];
+  for (let c = 0; c < 3; c++) {
+    const x = pp[c];
+    sortie[c] = ap3(SRGB_VERS_PROPHOTO, gradeOklab([x, x, x], p))[c];
+  }
+  const s = ap3(PROPHOTO_VERS_SRGB, sortie);
+  return [clamp01(s[0]), clamp01(s[1]), clamp01(s[2])];
+}
+
+/** L'opérateur OKLab, qui ne sert plus qu'à définir les trois courbes — il n'est
+ *  évalué que sur des gris (voir `colorGradingSpec`). */
+function gradeOklab(rgb: Vec3, p: readonly number[]): Vec3 {
+  const shSat = p[1], mSat = p[4], hSat = p[7], gSat = p[10];
+  const shLum = p[2], mLum = p[5], hLum = p[8], gLum = p[11];
 
   const lab = linearSrgbToOklab(rgb);
   const L = lab[0], a = lab[1], b = lab[2];
@@ -346,42 +411,57 @@ fn cg_lum_apply(L: f32, dL: f32) -> f32 {
   return select(L - h * d, L + h * d, dL >= 0.0);
 }
 
-fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
-  // Identite au bit pres : les quatre saturations ET les quatre luminances a 0.
-  // La teinte, la fusion et la balance ne font rien sans saturation ni luminance ;
-  // le round-trip OKLab n'est pas exactement reversible, on renvoie l'entree telle
-  // quelle.
-  if (params[1] == 0.0 && params[4] == 0.0 && params[7] == 0.0 && params[10] == 0.0
-      && params[2] == 0.0 && params[5] == 0.0 && params[8] == 0.0 && params[11] == 0.0) {
-    return color;
-  }
+// sRGB lineaire (D65) vers ProPhoto lineaire (D50, Bradford), et retour. Lignes des
+// matrices interpolees depuis le twin, ecrites une seule fois cote TS.
+fn cg_s2p(v: vec3<f32>) -> vec3<f32> {
+  return vec3<f32>(
+    dot(vec3<f32>(${SRGB_VERS_PROPHOTO[0].map(f).join(", ")}), v),
+    dot(vec3<f32>(${SRGB_VERS_PROPHOTO[1].map(f).join(", ")}), v),
+    dot(vec3<f32>(${SRGB_VERS_PROPHOTO[2].map(f).join(", ")}), v));
+}
+fn cg_p2s(v: vec3<f32>) -> vec3<f32> {
+  return vec3<f32>(
+    dot(vec3<f32>(${PROPHOTO_VERS_SRGB[0].map(f).join(", ")}), v),
+    dot(vec3<f32>(${PROPHOTO_VERS_SRGB[1].map(f).join(", ")}), v),
+    dot(vec3<f32>(${PROPHOTO_VERS_SRGB[2].map(f).join(", ")}), v));
+}
 
-  // color.rgb est DEJA lineaire (format -srgb).
-  let lab = linear_srgb_to_oklab(color.rgb);
+// Ce qui ne depend que des reglages, calcule UNE fois par pixel et partage par les
+// trois evaluations de cg_grade_gris.
+struct CgCommun {
+  sigma: f32,
+  midC: f32,
+  aMap: f32,
+  blendF: f32,
+  dSh: vec2<f32>,
+  dM: vec2<f32>,
+  dH: vec2<f32>,
+  dG: vec2<f32>,
+};
+
+// L'operateur OKLab applique au GRIS de valeur lineaire g : il ne sert plus qu'a
+// DEFINIR les trois courbes par canal (voir fs_main et l'en-tete du twin).
+fn cg_grade_gris(g: f32, k: CgCommun) -> vec3<f32> {
+  let lab = linear_srgb_to_oklab(vec3<f32>(g));
   let L = lab.x;
   let a = lab.y;
   let b = lab.z;
 
-  let bal = params[13] / 100.0;
-  let beta = params[12] / 100.0;
   // UNE rampe et son complement : ws et wh somment a cov (voir le twin).
-  let sigma = max(0.02, CG_MID_SIGMA + CG_MID_SOFT * (beta - 0.5));
-  let midC = CG_MID_CENTER - CG_BALANCE_SHIFT * bal;
   let x = clamp(linear_to_srgb(L * L * L), 0.0, 1.0);
-  let B = clamp(0.5 - CG_BALANCE_MID * bal, 1e-4, 1.0 - 1e-4);
-  let alpha = cg_div_map(x, (1.0 - B) / B);
-  let cov = 1.0 - CG_BLEND_DEPTH * (1.0 - cg_div_map(beta, CG_BLEND_MAP_A)) * 4.0 * alpha * (1.0 - alpha);
+  let alpha = cg_div_map(x, k.aMap);
+  let cov = 1.0 - k.blendF * 4.0 * alpha * (1.0 - alpha);
 
   let ws = pow(1.0 - alpha, CG_RANGE_CONTRAST) * cov;
   let wh = pow(alpha, CG_RANGE_CONTRAST) * cov;
-  let dm = L - midC;
-  let wm = exp(-(dm * dm) / (2.0 * sigma * sigma));
+  let dm = L - k.midC;
+  let wm = exp(-(dm * dm) / (2.0 * k.sigma * k.sigma));
   let wgL = 4.0 * L * (1.0 - L);
 
-  let dSh = cg_dir(params[0]);
-  let dM = cg_dir(params[3]);
-  let dH = cg_dir(params[6]);
-  let dG = cg_dir(params[9]);
+  let dSh = k.dSh;
+  let dM = k.dM;
+  let dH = k.dH;
+  let dG = k.dG;
 
   let vecAB = dSh * (params[1] / 100.0) * CG_CHROMA_K * ws
             + dM * (params[4] / 100.0) * CG_CHROMA_K * wm
@@ -411,7 +491,42 @@ fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
     }
     outc = oklab_to_linear_srgb(vec3<f32>(labOut.x, labOut.y * lo, labOut.z * lo));
   }
-  return vec4<f32>(clamp(outc, vec3<f32>(0.0), vec3<f32>(1.0)), color.a);
+  return clamp(outc, vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
+fn fs_main(uv: vec2<f32>, color: vec4<f32>) -> vec4<f32> {
+  // Identite au bit pres : les quatre saturations ET les quatre luminances a 0.
+  // La teinte, la fusion et la balance ne font rien sans saturation ni luminance ;
+  // le round-trip OKLab n'est pas exactement reversible, on renvoie l'entree telle
+  // quelle.
+  if (params[1] == 0.0 && params[4] == 0.0 && params[7] == 0.0 && params[10] == 0.0
+      && params[2] == 0.0 && params[5] == 0.0 && params[8] == 0.0 && params[11] == 0.0) {
+    return color;
+  }
+
+  let bal = params[13] / 100.0;
+  let beta = params[12] / 100.0;
+  let B = clamp(0.5 - CG_BALANCE_MID * bal, 1e-4, 1.0 - 1e-4);
+  var k: CgCommun;
+  k.sigma = max(0.02, CG_MID_SIGMA + CG_MID_SOFT * (beta - 0.5));
+  k.midC = CG_MID_CENTER - CG_BALANCE_SHIFT * bal;
+  k.aMap = (1.0 - B) / B;
+  k.blendF = CG_BLEND_DEPTH * (1.0 - cg_div_map(beta, CG_BLEND_MAP_A));
+  k.dSh = cg_dir(params[0]);
+  k.dM = cg_dir(params[3]);
+  k.dH = cg_dir(params[6]);
+  k.dG = cg_dir(params[9]);
+
+  // CANAL PAR CANAL, EN PRIMAIRES PROPHOTO (voir l'en-tete du twin) : la sortie du
+  // canal c est le canal c, en ProPhoto, de l'operateur applique au gris de meme
+  // valeur. color.rgb est DEJA lineaire (format -srgb).
+  let pp = cg_s2p(color.rgb);
+  let sortie = vec3<f32>(
+    cg_s2p(cg_grade_gris(pp.x, k)).x,
+    cg_s2p(cg_grade_gris(pp.y, k)).y,
+    cg_s2p(cg_grade_gris(pp.z, k)).z);
+  // Ecretage canal par canal, comme l'export de Lightroom.
+  return vec4<f32>(clamp(cg_p2s(sortie), vec3<f32>(0.0), vec3<f32>(1.0)), color.a);
 }
 `,
 };

@@ -197,6 +197,30 @@ tient), la roue des ombres (~3 niveaux), la moitié du déplacement de Balance. 
 Brevet **actif jusqu'au 2027-04-11** selon Google Patents : rien n'est posé dans
 `src/`, et poser la CONSTRUCTION des pentes est une décision d'Antoine.
 
+✅ **2026-09-29 — LA STRUCTURE CANAL PAR CANAL EST POSÉE.** Antoine a tranché
+(« le logiciel est juste pour moi ») et la première tranche est livrée sans toucher
+à la rampe grise : notre opérateur OKLab ne sert plus qu'à DÉFINIR trois courbes,
+évaluées sur le gris de chaque canal ProPhoto du pixel. Mesures :
+
+- rampe grise identique (1,2 × 10⁻⁴ niveau) — `verifier-grading.mjs` rend toujours
+  **4,17 / 41,0** sur les treize scènes ;
+- entrées colorées de 32 scènes : **14,68 → 9,08** niveaux (tous échantillons),
+  14,35 → 11,53 sur les seuls lisibles ; jusqu'à ×4 où la courbe grise est juste
+  (`st-hl-orange` 10,84 → 2,27, `cg-fusion-100` 16,26 → 5,12,
+  `cg-moyens-lum-p50` 7,37 → 0,92). Plafond — les courbes grises de Lightroom
+  elles-mêmes — 1,33 ;
+- shader contre twin : 2,2 niveaux au pire, 0,2 en moyenne ;
+- coût GPU de la passe à 26 Mpx : **6,75 → 10,09 ms**, seulement quand le module
+  est réglé (les directions et les poids ne sont calculés qu'une fois par pixel) ;
+- sept références `developpement-grading-*` régénérées, relues avant/après : le
+  gris ne bouge pas, les primaires pures ne virent presque plus (une courbe clouée
+  laisse 0 et 255 en place), les teintes moyennes prennent le virage.
+
+**Ce qui reste est l'erreur de la COURBE, que la structure ne rattrape pas** — les
+teintes à Balance −100, la roue globale (22,1 et 19,1 niveaux) et la sat100. La
+tranche suivante est la courbe de la roue globale selon le brevet, qui mesurait
+1,07 / 1,09 contre 20,4 / 14,0 (research/23 §4).
+
 ✅ **RE-MESURÉ INDÉPENDAMMENT le 2026-09-23**, par un instrument qui n'inverse
 rien — l'angle de la chroma de sortie, là où une seule roue agit
 ([`research/21`](../research/21-la-balance-n-est-pas-en-cause-c-est-la-teinte.md)).

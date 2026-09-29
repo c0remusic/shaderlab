@@ -175,8 +175,20 @@ cloche de chroma — ce que fait notre twin : 2,62 niveaux en codage TRC sRGB co
 
 ## 7. Ce qui n'est pas posé, et pourquoi
 
-**Rien dans `src/`, et les quatre références `developpement-grading-*` sont
-intactes.** La structure est établie ; sa construction ne l'est qu'en partie :
+✅ **AMENDÉ le 2026-09-29 : la STRUCTURE est posée.** Antoine a levé le frein du
+brevet (outil perso) et `colorGradingSpec` applique désormais notre opérateur canal
+par canal en primaires ProPhoto : la sortie du canal c est le canal c de
+l'opérateur appliqué au gris de même valeur. La rampe grise ne bouge pas (écart
+max 1,2 × 10⁻⁴ niveau, treize scènes à 4,17 / 41,0 comme avant) ; sur les entrées
+colorées de 32 scènes l'écart tombe de 14,68 à 9,08 niveaux, jusqu'à ×4 là où la
+courbe grise est juste (`assets/canal-par-canal-twin.mjs`). Le shader rend le twin
+à 2,2 niveaux près au pire (`assets/jumeau-gpu-colorgrading.mjs`), et coûte
+6,75 → 10,09 ms de GPU à 26 Mpx (`assets/cout-gpu-colorgrading.mjs`). Les sept
+références `developpement-grading-*` sont régénérées. Ce qui suit reste vrai pour
+la CONSTRUCTION des courbes, qui n'a pas changé.
+
+**Ce paragraphe disait, jusqu'au 2026-09-29 : rien dans `src/`, et les quatre
+références `developpement-grading-*` sont intactes.** La structure est établie ; sa construction ne l'est qu'en partie :
 globale à 1 niveau, ombres à ~3, balance à moitié, jaunes inexpliqués. Et le
 brevet est actif.
 

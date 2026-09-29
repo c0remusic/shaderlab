@@ -2167,9 +2167,12 @@ sont mesurés le jour même.
   lues sur la rampe grise et réappliquées aux entrées colorées, elles rendent
   **0,44–0,55 niveau** sur huit scènes quand notre twin OKLab rate de **4,6 à
   23,0**. La non-monotonie ci-dessus est le clouage noir → noir, blanc → blanc de
-  ces courbes. **Rien n'est posé** : construction des pentes partielle (jaunes
-  inexpliqués, ombres à ~3 niveaux), et le brevet US 7 830 548 est actif jusqu'au
-  2027-04-11 — décision d'Antoine.
+  ces courbes. ✅ **La STRUCTURE est posée le 2026-09-29** (frein du brevet levé,
+  outil perso) : notre opérateur définit trois courbes, appliquées canal par canal
+  en ProPhoto. Rampe grise inchangée, entrées colorées 14,68 → 9,08 niveaux sur 32
+  scènes, +3,3 ms de GPU à 26 Mpx. **Reste la CONSTRUCTION des courbes** — roue
+  globale selon le brevet d'abord (1,07 contre 20,4 mesurés), puis ombres (~3
+  niveaux) et jaunes inexpliqués.
 - ✅ **LA FORME EST IDENTIFIÉE le 2026-09-21 — pente en lumière linéaire, plus un
   point noir séparé.** [`research/18`](../.scratch/lightroom-develop/research/18-la-forme-est-une-pente-en-lumiere-lineaire-plus-un-point-noir.md).
   La piste que research/17 laissait ouverte est mesurée, discriminée contre son
